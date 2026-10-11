@@ -659,7 +659,9 @@
 .csv-table-editor__table th:focus-within,
 .csv-table-editor__table td:focus-within {
   z-index: 1;
-  box-shadow: var(--po-editable-table-cell-focus-shadow);
+  outline: var(--po-editable-table-cell-focus-outline);
+  outline-offset: calc(-1 * var(--po-editable-table-selection-stroke));
+  box-shadow: none;
 }
 
 .csv-table-editor__table thead th:focus-within {

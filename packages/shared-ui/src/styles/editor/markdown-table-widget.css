@@ -284,13 +284,15 @@
  * Focus chrome belongs on the cell (td/th), not the text span. Row height is
  * driven by the tallest cell in the row, so a ring on the contenteditable
  * hugs the text and leaves empty padding — the block-editor convention is a
- * full-cell inset ring instead.
+ * full-cell border-box perimeter instead.
  */
 .markdown-codemirror-editor .cm-md-table-widget th:focus-within,
 .markdown-codemirror-editor .cm-md-table-widget td:focus-within {
   position: relative;
   z-index: 1;
-  box-shadow: var(--po-editable-table-cell-focus-shadow);
+  outline: var(--po-editable-table-cell-focus-outline);
+  outline-offset: calc(-1 * var(--po-editable-table-selection-stroke));
+  box-shadow: none;
 }
 
 /* Drag handles, drop indicators, and structure controls are owned by the

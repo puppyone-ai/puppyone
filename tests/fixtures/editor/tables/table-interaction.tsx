@@ -230,7 +230,8 @@ const api = {
       radius: style.borderRadius, border: style.borderTopWidth, borderColor: style.borderTopColor,
       backgrounds: [...element.querySelectorAll("th, td")].map(item => { const css = getComputedStyle(item); return [css.backgroundColor, css.backgroundImage]; }),
       textSelectionBackground: getComputedStyle(input(kind), "::selection").backgroundColor,
-      cell: boxes(c), cellBorder: focus.borderRightWidth, cellFocus: focus.boxShadow,
+      cell: boxes(c), cellBorder: focus.borderRightWidth, cellFocus: focus.outline,
+      cellFocusOffset: focus.outlineOffset, cellFocusShadow: focus.boxShadow,
       dots: { width: getComputedStyle(grip, "::before").width, height: getComputedStyle(grip, "::before").height },
       grip: boxes(grip), gripShadow: getComputedStyle(grip).boxShadow, gripColor: getComputedStyle(grip).backgroundColor,
       gripStyles: [...document.querySelectorAll(`#${kind} .po-editable-table-drag-handle-visual`)].map(handle => {

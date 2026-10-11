@@ -22,8 +22,11 @@
   /* Structural selection has its own opaque stroke. Text selection still
      uses the product's independent ::selection contract. */
   --po-editable-table-selection-border: var(--po-surface-editable-table-selection-border, #2e87de);
+  --po-editable-table-selection-stroke: 2px;
   --po-editable-table-cell-focus-ring: var(--po-editable-table-selection-border);
-  --po-editable-table-cell-focus-shadow: inset 0 0 0 2px var(--po-editable-table-cell-focus-ring);
+  /* Draw from the border box, just like the structural perimeter. An inset
+     shadow starts inside the grid border and leaves a one-pixel gap. */
+  --po-editable-table-cell-focus-outline: var(--po-editable-table-selection-stroke) solid var(--po-editable-table-cell-focus-ring);
   --po-editable-table-cell-min-width: 96px;
   --po-editable-table-cell-max-width: 280px;
   --po-editable-table-cell-padding-block: 6px;
@@ -233,7 +236,7 @@
   z-index: 4;
   box-sizing: border-box;
   position-anchor: --po-editable-table-selection;
-  border: 2px solid var(--po-editable-table-selection-border);
+  border: var(--po-editable-table-selection-stroke) solid var(--po-editable-table-selection-border);
   border-radius: 0;
   background: transparent;
   pointer-events: none;
@@ -257,7 +260,7 @@
 
 .po-editable-table-interaction-root:has(.po-editable-table-selection-outline:not([hidden])),
 .markdown-codemirror-editor .cm-md-table-widget-wrap.is-doc-selected {
-  --po-editable-table-cell-focus-shadow: none;
+  --po-editable-table-cell-focus-outline: none;
   /* Structural selection owns the perimeter. Keep the native range for
      clipboard semantics, but do not also paint its text runs inside a block. */
   --po-selection-background: transparent;

@@ -188,7 +188,7 @@
     --po-md-inline-code-radius: 0;
     --po-md-code-block-font-size: var(--po-md-table-font-size);
     --po-md-code-block-line-height: 20px;
-    --po-md-code-block-font-weight: 400;
+    --po-md-code-block-font-weight: 500;
     --po-md-code-block-padding: 12px 14px;
     --po-md-code-block-radius: 4px;
     --po-md-code-focus-background: color-mix(in srgb, var(--po-control) 18%, transparent);

@@ -25,6 +25,49 @@ const results = [], errors = [];
 let window, vite, failure;
 const wait = () => new Promise(resolve => setTimeout(resolve, 160));
 const near = (a, b, message) => assert(Math.abs(a - b) <= 1, `${message}: ${a} vs ${b}`);
+const samePaintEdge = (a, b, message) => assert(a !== null && b !== null && Math.abs(a - b) <= .55,
+  `${message}: ${a} vs ${b}`);
+function readFocusedCell(kind) {
+  const cell = document.activeElement?.closest("th, td");
+  if (!cell?.closest(kind === "markdown" ? ".cm-md-table-widget" : ".csv-table-editor__table")) {
+    throw new Error(`${kind}: pointer did not focus a table cell`);
+  }
+  const box = cell.getBoundingClientRect(), style = getComputedStyle(cell);
+  return { rect: { x: box.x, y: box.y, width: box.width, height: box.height },
+    color: style.outlineColor, width: style.outlineWidth, offset: style.outlineOffset, shadow: style.boxShadow };
+}
+// Inspect real Chromium paint, including antialiased edge pixels. A DOM box or
+// computed 2px stroke alone cannot detect the previous 1px inset-shadow gap.
+async function readStrokePixels(dataURL, crop, rect, color) {
+  const bitmap = new Image(); bitmap.src = dataURL; await bitmap.decode();
+  const canvas = document.createElement("canvas"); canvas.width = bitmap.width; canvas.height = bitmap.height;
+  const context = canvas.getContext("2d", { willReadFrequently: true }); context.drawImage(bitmap, 0, 0);
+  const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+  const palette = document.createElement("canvas"); palette.width = palette.height = 1;
+  const paletteContext = palette.getContext("2d", { willReadFrequently: true });
+  paletteContext.fillStyle = color; paletteContext.fillRect(0, 0, 1, 1);
+  const expected = [...paletteContext.getImageData(0, 0, 1, 1).data].slice(0, 3);
+  const background = [...pixels.slice(0, 3)], delta = expected.map((value, index) => value - background[index]);
+  const length = delta.reduce((sum, value) => sum + value * value, 0);
+  const isStroke = (x, y) => {
+    const offset = (y * canvas.width + x) * 4;
+    const difference = delta.map((_, index) => pixels[offset + index] - background[index]);
+    const coverage = difference.reduce((sum, value, index) => sum + value * delta[index], 0) / length;
+    const residual = Math.hypot(...difference.map((value, index) => value - coverage * delta[index]));
+    return pixels[offset + 3] > 240 && coverage >= .3 && coverage <= 1.2 && residual < 20;
+  };
+  const scaleX = canvas.width / crop.width, scaleY = canvas.height / crop.height;
+  // Grips deliberately overlap the middle of a perimeter. Probe just inside
+  // its top/left corner so those controls cannot hide or impersonate an edge.
+  const probeY = Math.floor((rect.y - crop.y + 2.5) * scaleY);
+  const probeX = Math.floor((rect.x - crop.x + 2.5) * scaleX);
+  const horizontal = Array.from({ length: canvas.width }, (_, x) => x).filter(x => isStroke(x, probeY));
+  const vertical = Array.from({ length: canvas.height }, (_, y) => y).filter(y => isStroke(probeX, y));
+  return { left: horizontal.length ? crop.x + horizontal[0] / scaleX : null,
+    right: horizontal.length ? crop.x + (horizontal.at(-1) + 1) / scaleX : null,
+    top: vertical.length ? crop.y + vertical[0] / scaleY : null,
+    bottom: vertical.length ? crop.y + (vertical.at(-1) + 1) / scaleY : null };
+}
 const assertActiveHandle = (metrics, axis, phase) => {
   const handle = metrics.handleStates.find(handle => handle.axis === axis);
   assert(metrics.outline, `${phase}: missing selection perimeter`);
@@ -50,6 +93,14 @@ app.whenReady().then(async () => {
     });
     const evaluate = code => window.webContents.executeJavaScript(code);
     const screenshot = async name => fs.writeFile(path.join(artifacts, `${name}.png`), (await window.webContents.capturePage()).toPNG());
+    const captureStroke = async (rect, color, name) => {
+      const crop = { x: Math.floor(rect.x) - 3, y: Math.floor(rect.y) - 3,
+        width: Math.ceil(rect.x + rect.width) - Math.floor(rect.x) + 6,
+        height: Math.ceil(rect.y + rect.height) - Math.floor(rect.y) + 6 };
+      const bitmap = await window.webContents.capturePage(crop);
+      await fs.writeFile(path.join(artifacts, `${name}-stroke.png`), bitmap.toPNG());
+      return evaluate(`(${readStrokePixels.toString()})(${JSON.stringify(bitmap.toDataURL())}, ${JSON.stringify(crop)}, ${JSON.stringify(rect)}, ${JSON.stringify(color)})`);
+    };
     const click = async point => {
       window.webContents.sendInputEvent({ type: "mouseMove", ...point });
       window.webContents.sendInputEvent({ type: "mouseDown", button: "left", clickCount: 1, ...point });
@@ -135,7 +186,36 @@ app.whenReady().then(async () => {
         assert.match(focused.cellFocus, /2px/, "focused cell needs a crisp outline");
         near(focused.table.width, baseline.table.width, "focus changed column geometry");
         await screenshot(`${mode}-${kind}-editing`);
+        let firstCellInk;
+        for (const target of ["body-first", "header-first", "header-last", "body-middle", "body-last"]) {
+          if (target !== "body-first") {
+            const targetPoint = await evaluate(`(() => {
+              const table = document.querySelector(${JSON.stringify(kind === "markdown" ? ".cm-md-table-widget" : ".csv-table-editor__table")});
+              const rows = ${JSON.stringify(target)}.startsWith('header') ? [...table.tHead.rows] : [...table.tBodies[0].rows];
+              const row = ${JSON.stringify(target)} === 'body-middle' ? rows[2] : ${JSON.stringify(target)} === 'body-last' ? rows.at(-1) : rows[0];
+              const cells = [...row.querySelectorAll(${JSON.stringify(kind === "markdown" ? "th, td" : ":is(th, td)[data-csv-column]")})];
+              const cell = ${JSON.stringify(target)}.endsWith('last') ? cells.at(-1) : ${JSON.stringify(target)} === 'body-middle' ? cells[1] : cells[0];
+              const input = cell.querySelector(${JSON.stringify(kind === "markdown" ? "[contenteditable]" : "input")});
+              const box = input.getBoundingClientRect(); return { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) };
+            })()`);
+            await click(targetPoint);
+          }
+          const cell = await evaluate(`(${readFocusedCell.toString()})('${kind}')`);
+          assert.equal(cell.width, "2px"); assert.equal(cell.offset, "-2px"); assert.equal(cell.shadow, "none");
+          const ink = await captureStroke(cell.rect, cell.color, `${mode}-${kind}-${target}`);
+          for (const [edge, expected] of Object.entries({ left: cell.rect.x, right: cell.rect.x + cell.rect.width,
+            top: cell.rect.y, bottom: cell.rect.y + cell.rect.height })) {
+            samePaintEdge(ink[edge], expected, `${mode} ${kind} ${target} ${edge} stroke must reach the border box`);
+          }
+          if (target === "body-first") firstCellInk = ink;
+          near((await metrics()).table.width, baseline.table.width, "cell focus changed column geometry");
+          results.push({ mode, kind, state: `cell-perimeter-${target}`, cell, ink });
+        }
+        await click(point); await evaluate(`window.tableFixture.selectText('${kind}')`); await wait();
         for (const axis of ["column", "row"]) {
+          // Retarget after menu focus recovery; the CSV header is also a row
+          // target, so the comparison must explicitly select the first record.
+          window.webContents.sendInputEvent({ type: "mouseMove", ...point }); await wait();
           const handle = await evaluate(`window.tableFixture.point('${kind}', '.po-editable-table-${axis}-handle')`);
           window.webContents.sendInputEvent({ type: "mouseMove", ...handle });
           window.webContents.sendInputEvent({ type: "mouseDown", button: "left", clickCount: 1, ...handle });
@@ -145,7 +225,13 @@ app.whenReady().then(async () => {
           assert.equal(pressed.handleStates.find(handle => handle.axis === axis).pressed, true);
           assert.equal(pressed.handleStates.find(handle => handle.axis === axis).dragging, false);
           assert.deepEqual(pressed.backgrounds, baseline.backgrounds, "press tinted cells");
-          results.push({ mode, kind, state: `${axis}-pressed`, ...pressed });
+          const ink = await captureStroke(pressed.cell, pressed.outlineColor, `${mode}-${kind}-${axis}-pressed`);
+          for (const edge of axis === "column" ? ["left", "right"] : ["top", "bottom"]) {
+            samePaintEdge(ink[edge], firstCellInk[edge], `${mode} ${kind} ${axis} and first cell ${edge} paint must align`);
+          }
+          assert.equal(pressed.cellFocusShadow, "none", "structural selection retained a competing cell shadow");
+          assert.doesNotMatch(pressed.cellFocus, /2px/, "structural selection retained a competing cell outline");
+          results.push({ mode, kind, state: `${axis}-pressed`, ...pressed, ink });
           await screenshot(`${mode}-${kind}-${axis}-pressed`);
           window.webContents.sendInputEvent({ type: "mouseUp", button: "left", clickCount: 1, ...handle });
           await wait();

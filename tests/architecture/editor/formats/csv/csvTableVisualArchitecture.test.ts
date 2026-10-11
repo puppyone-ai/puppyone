@@ -106,7 +106,7 @@ describe("CSV table visual architecture", () => {
       "--po-editable-table-border",
       "--po-editable-table-cell-border",
       "--po-editable-table-cell-padding",
-      "--po-editable-table-cell-focus-shadow",
+      "--po-editable-table-cell-focus-outline",
       "--po-editable-table-row-min-height",
       "--po-editable-table-header-font-weight",
     ]) {

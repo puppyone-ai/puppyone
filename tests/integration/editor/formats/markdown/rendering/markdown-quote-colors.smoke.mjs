@@ -132,7 +132,7 @@ function readColors() {
     ordinaryCodeColor: color(bodyCode), codeFont: getComputedStyle(bodyCode).fontFamily,
     quoteCodeBackground: getComputedStyle(quotes.map(quote => quote.querySelector(".cm-md-syntax-monospace")).find(Boolean)).backgroundColor,
     ordinaryCodeBackground: getComputedStyle(bodyCode).backgroundColor,
-    blockCodeColor: color(blockCode), blockColor: color(blockCode.parentElement),
+    blockCodeColor: color(blockCode), blockColor: color(blockCode.parentElement), blockWeight: getComputedStyle(blockCode).fontWeight,
     quoteEmphasis, htmlEmphasis, quoteCode, htmlCode, widgetCode, quotedMarkers, nativeMarkers, htmlMarkers, quotedLinks };
 }
 
@@ -143,6 +143,7 @@ function assertColors(metrics, override) {
   assert.equal(metrics.quoteCodeBackground, "rgba(0, 0, 0, 0)", "quoted inline code retained its background");
   assert.equal(metrics.ordinaryCodeBackground, "rgba(0, 0, 0, 0)", "body inline code retained its background");
   assert.deepEqual(metrics.blockCodeColor, metrics.blockColor, "inline code foreground leaked into a code block");
+  assert.equal(metrics.blockWeight, "500", "fenced/Safe HTML blocks lost their medium reading weight");
   if (override) {
     assert.deepEqual(metrics.quoteColor, [88, 115, 102, 255], "quote host token did not propagate");
     assert.deepEqual(metrics.ordinaryStrongColor, [217, 0, 113, 255], "ordinary strong user override was lost");
@@ -208,6 +209,7 @@ function readStructuredContent() {
       surface: rect(widget.querySelector(".cm-md-code-surface")), color: color(highlight),
       font: editorStyle.fontFamily, highlightFont: highlightStyle.fontFamily,
       size: editorStyle.fontSize, highlightSize: highlightStyle.fontSize,
+      weight: editorStyle.fontWeight, highlightWeight: highlightStyle.fontWeight,
       editorPadding: editorStyle.padding, highlightPadding: highlightStyle.padding,
       editorLineHeight: editorStyle.lineHeight, highlightLineHeight: highlightStyle.lineHeight,
       editor: rect(editor), highlight: rect(highlight), scrollWidth: editor.scrollWidth, clientWidth: editor.clientWidth,
@@ -227,6 +229,7 @@ function readStructuredContent() {
   return { blocks, cells, inline, emphasis, quoteColor: color(quote), tableSize: tableStyle.fontSize,
     bodySize: getComputedStyle(host.querySelector(".cm-line")).fontSize,
     htmlBlockColor: color(htmlBlock), htmlBlockSize: getComputedStyle(htmlBlock).fontSize,
+    htmlBlockWeight: getComputedStyle(htmlBlock).fontWeight,
     csvColor: color(csvCell), csvExpected,
     headerCount: host.querySelectorAll(".cm-md-code-header").length };
 }
@@ -240,6 +243,8 @@ function assertStructuredContent(metrics, scale, inlineBackground = "rgba(0, 0, 
     assert.deepEqual(block.color, metrics.quoteColor, "code foreground must follow the supporting quote role");
     assert.equal(block.size, metrics.tableSize, "code editor and table font sizes drifted");
     assert.equal(block.highlightSize, block.size, "highlight and editing text sizes drifted");
+    assert.equal(block.weight, "500", "standalone code editing text is too thin");
+    assert.equal(block.highlightWeight, block.weight, "highlight and editing text weights drifted");
     assert.equal(block.highlightFont, block.font, "highlight and editing fonts drifted");
     assert.equal(block.editorPadding, block.highlightPadding, "highlight padding drifted");
     assert.equal(block.editorLineHeight, block.highlightLineHeight, "highlight line height drifted");
@@ -260,6 +265,7 @@ function assertStructuredContent(metrics, scale, inlineBackground = "rgba(0, 0, 
   for (const code of metrics.inline) assert.equal(code.background, inlineBackground, `inline code background: ${code.text}`);
   assert.deepEqual(metrics.htmlBlockColor, metrics.quoteColor, "Safe HTML code foreground drifted");
   assert.equal(metrics.htmlBlockSize, metrics.tableSize, "Safe HTML code font size drifted");
+  assert.equal(metrics.htmlBlockWeight, "500", "Safe HTML code weight drifted");
   assert.deepEqual(metrics.csvColor, metrics.csvExpected, "Markdown supporting role leaked into CSV");
 }
 
@@ -453,6 +459,7 @@ function readFileAuthority() {
   const blocks = [...host.querySelectorAll(".cm-md-code-widget")].map(widget => {
     const textarea=css(widget.querySelector("textarea")), pre=css(widget.querySelector("pre"));
     return { size: textarea.fontSize, highlightSize: pre.fontSize, font: textarea.fontFamily, highlightFont: pre.fontFamily,
+      weight: textarea.fontWeight, highlightWeight: pre.fontWeight,
       padding: textarea.padding, highlightPadding: pre.padding, lineHeight: textarea.lineHeight, highlightLineHeight: pre.lineHeight,
       color: color(pre.color), background: color(css(widget.querySelector(".cm-md-code-panel")).backgroundColor) };
   });
@@ -473,7 +480,7 @@ function readFileAuthority() {
       header: element.tagName === "TH", color: color(css(element).color), size: css(element).fontSize, font: css(element).fontFamily })),
     inline: [...host.querySelectorAll(".cm-md-syntax-monospace:not(.cm-md-syntax-markup), .cm-md-inline-code, code.cm-md-inline-html, .cm-md-html-rendered-surface code:not(pre code)")].map(element => ({ text: element.textContent, background: color(css(element).backgroundColor), color: color(css(element).color),
       supportingContext: Boolean(element.closest(".cm-md-blockquote, blockquote, .cm-md-table-widget, table, .cm-md-syntax-link, a, [data-md-link-interaction=navigate]")) })),
-    htmlBlock: { color: color(htmlPre.color), size: htmlPre.fontSize, padding: htmlPre.padding, background: color(htmlPre.backgroundColor) },
+    htmlBlock: { color: color(htmlPre.color), size: htmlPre.fontSize, weight: htmlPre.fontWeight, padding: htmlPre.padding, background: color(htmlPre.backgroundColor) },
     mermaid: window.tableFixture.mermaidTheme(),
     session: window.tableFixture.markdownSessionRetained(),
   };
@@ -767,6 +774,7 @@ app.whenReady().then(async () => {
         "--po-md-table-font-size": revision ? "14px" : "12px",
         "--po-md-table-line-height": "1.6",
         "--po-md-code-block-line-height": revision ? "23px" : "21px",
+        "--po-md-code-block-font-weight": revision ? "600" : "450",
         "--po-md-code-block-padding": "17px 19px",
         "--po-md-code-block-radius": "9px",
         "--po-md-inline-code-padding": "1px 3px",
@@ -834,6 +842,7 @@ app.whenReady().then(async () => {
       const size = revision ? "14px" : "12px";
       for (const block of metrics.blocks) {
         assert.equal(block.size, size); assert.equal(block.highlightSize, size);
+        assert.equal(block.weight, revision ? "600" : "450"); assert.equal(block.highlightWeight, block.weight);
         assert(block.font.includes("Courier New")); assert.equal(block.font, block.highlightFont);
         assert.equal(block.lineHeight, revision ? "23px" : "21px");
         assert.equal(block.lineHeight, block.highlightLineHeight);
@@ -852,6 +861,7 @@ app.whenReady().then(async () => {
       assert(bodyInline.length >= 3, "file body inline adapters are missing");
       for (const inline of bodyInline) assert.equal(inline.color, revision ? "#786592" : "#596c87", `file inline foreground: ${inline.text}`);
       assert.equal(metrics.htmlBlock.size, size); assert.equal(metrics.htmlBlock.padding, "17px 19px");
+      assert.equal(metrics.htmlBlock.weight, revision ? "600" : "450");
       assert.equal(metrics.htmlBlock.color, revision ? "#84655c" : "#627b6d");
       assert.equal(metrics.htmlBlock.background, metrics.blocks[0].background);
       assert.equal(metrics.mermaid.themeVariables.primaryTextColor, metrics.bodyColor);
