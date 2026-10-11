@@ -31,6 +31,9 @@
       "name": "--po-md-content-line-height"
     },
     {
+      "name": "--po-md-source-line-gap"
+    },
+    {
       "name": "--po-md-block-gap"
     },
     {

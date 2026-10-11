@@ -157,13 +157,18 @@ describe("Markdown editor layout", () => {
 
   it("keeps ordinary editable-line geometry independent of empty-line DOM", () => {
     const livePreviewRule = readCssRule(
-      markdownEditorCss,
-      '.markdown-codemirror-editor[data-live-preview="true"]',
+      markdownContentCss,
+      '.markdown-codemirror-editor[data-live-preview="true"] .cm-line:not(:is(.cm-md-heading, .cm-md-table-line, .cm-md-code-fence, .cm-md-code-block-line))',
     );
 
-    expect(livePreviewRule).toContain("--po-markdown-editor-line-spacing: 3px;");
-    expect(markdownCodeMirrorExtensionsSource).toContain(
-      'padding: "var(--po-markdown-editor-line-spacing, 0px) 0"',
+    expect(livePreviewRule).toContain("calc(var(--po-md-source-line-gap) + var(--md-line-padding-after, 0px))");
+    expect(neutralThemeCss).toContain("--po-md-content-line-height: 1.75;");
+    expect(neutralThemeCss).toContain("--po-md-source-line-gap: .25em;");
+    expect(neutralThemeCss).toContain("--po-md-list-item-gap: 0px;");
+    expect(markdownEditorCss).not.toContain("--po-markdown-editor-line-spacing");
+    expect(markdownCodeMirrorExtensionsSource).toContain('padding: "0"');
+    expect(readCssRule(markdownContentCss, ".markdown-codemirror-editor .cm-md-html-rendered-surface p")).toContain(
+      "calc(var(--po-md-source-line-gap) + var(--po-md-paragraph-gap-after))",
     );
     expect(markdownEditorCss).not.toMatch(
       /\.cm-line:has\(\s*>\s*br:only-child\s*\)/,
@@ -249,7 +254,7 @@ describe("Markdown HTML media layout", () => {
 
     expect(editorEntryCss).toContain('@import "./editor/markdown-content.css";');
     expect(editorEntryCss).toContain('@import "./editor/markdown-theme-tokens.generated.css";');
-    expect(profileRule).toContain("--po-md-presentation-version: 4;");
+    expect(profileRule).toContain("--po-md-presentation-version: 5;");
     expect(profileRule).not.toMatch(/--po-md-(?:content|h[1-6]|strong|rule)[a-z-]*:/);
     expect(markdownProjectionCss).toContain("--po-md-content-size: var(--po-host-md-content-size);");
     expect(markdownProjectionCss).toContain("--po-md-content-line-height: var(--po-host-md-content-line-height);");

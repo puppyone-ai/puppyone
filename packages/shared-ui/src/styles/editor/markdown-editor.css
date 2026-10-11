@@ -6,7 +6,6 @@
      a separate layout tier and may use the full editor client width. */
   --po-markdown-wide-block-edge-inset: 0px;
   --po-markdown-scroll-viewport-inline-size: 100cqw;
-  --po-markdown-editor-line-spacing: 0px;
   --cm-md-block-hover-ring: color-mix(in srgb, var(--po-text-muted) 18%, transparent);
   --cm-md-block-selected-ring: color-mix(in srgb, var(--po-accent) 30%, transparent);
   position: relative;
@@ -155,21 +154,8 @@
   overflow-wrap: anywhere;
 }
 
-/*
- * Vertical rhythm: the shared presentation line-height spaces wrapped lines;
- * per-line padding spaces blocks apart (the block-editor convention). The
- * token is 0 in source mode and only opens up in live preview; the editor
- * theme applies it uniformly to every ordinary .cm-line. Editable line
- * geometry must not depend on CodeMirror rendering an empty line as a lone
- * <br>, otherwise inserting or deleting the first character shifts the
- * caret and every following line.
- */
-.markdown-codemirror-editor[data-live-preview="true"] {
-  --po-markdown-editor-line-spacing: 3px;
-}
-
-/* Table source lines form one contiguous mono block; keep them compact. */
-.markdown-codemirror-editor .cm-line.cm-md-table-line {
+/* Structured source lines keep their own contiguous geometry. */
+.markdown-codemirror-editor .cm-line:is(.cm-md-table-line, .cm-md-code-fence, .cm-md-code-block-line) {
   padding-top: 0;
   padding-bottom: 0;
 }
@@ -380,7 +366,7 @@
 .markdown-codemirror-editor .cm-md-list-line:not(.cm-md-task-line):not(.cm-md-list-continuation)::before {
   position: absolute;
   inset-inline-start: calc(var(--md-list-prefix-width) - var(--md-list-marker-slot-width) - var(--po-md-list-marker-gap));
-  inset-block-start: var(--md-line-padding-before, var(--po-markdown-editor-line-spacing));
+  inset-block-start: var(--md-line-padding-before, 0px);
   display: inline-flex;
   width: var(--md-list-marker-slot-width);
   height: 1lh;
@@ -457,7 +443,7 @@
   position: absolute;
   /* The hit target stays compact, centered in the file-owned marker slot
      and on the first text line, even when item spacing or fonts change. */
-  inset-block-start: calc(var(--md-line-padding-before, var(--po-markdown-editor-line-spacing)) + .5lh);
+  inset-block-start: calc(var(--md-line-padding-before, 0px) + .5lh);
   inset-inline-start: calc(var(--md-list-prefix-width) - var(--md-list-marker-slot-width) - var(--po-md-list-marker-gap) + (var(--md-list-marker-slot-width) - var(--md-task-checkbox-hit-size)) / 2);
   display: inline-grid;
   width: var(--md-task-checkbox-hit-size);

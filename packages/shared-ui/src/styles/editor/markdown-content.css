@@ -4,7 +4,7 @@
 .markdown-codemirror-editor {
   --po-selection-background: var(--po-md-selection-bg);
   --po-selection-inactive-background: var(--po-md-selection-inactive-bg);
-  --po-md-presentation-version: 4;
+  --po-md-presentation-version: 5;
   --po-editor-content-font: var(--po-md-content-font);
   background: var(--po-md-surface-background);
   color: var(--po-md-content-color);
@@ -27,10 +27,13 @@
   line-height: inherit;
 }
 
-/* Native paragraphs are source ranges, not individual visual lines. The
-   document projection marks their edges before CodeMirror measures height. */
-.markdown-codemirror-editor[data-live-preview="true"] .cm-line:is(.cm-md-paragraph-start, .cm-md-paragraph-end, .cm-md-list-item-start, .cm-md-list-item-end, .cm-md-list-start, .cm-md-list-end) {
-  padding-block: var(--md-line-padding-before, var(--po-markdown-editor-line-spacing)) var(--md-line-padding-after, var(--po-markdown-editor-line-spacing));
+/* Wrapped visual lines use the body line-height. Each ordinary source line
+   adds the file-owned break gap once, including empty source lines. Native
+   CodeMirror measures border boxes, so project outer spacing as padding;
+   HTML paragraphs below consume the same role as margin. Paragraph/list
+   overrides are additional semantic gaps, never replacement line heights. */
+.markdown-codemirror-editor[data-live-preview="true"] .cm-line:not(:is(.cm-md-heading, .cm-md-table-line, .cm-md-code-fence, .cm-md-code-block-line)) {
+  padding-block: var(--md-line-padding-before, 0px) calc(var(--po-md-source-line-gap) + var(--md-line-padding-after, 0px));
 }
 
 .markdown-codemirror-editor[data-live-preview="true"] .cm-md-paragraph-start {
@@ -196,7 +199,7 @@
 
 /* HTML re-enters normal block layout and consumes the same paragraph roles. */
 .markdown-codemirror-editor .cm-md-html-rendered-surface p {
-  margin-block: var(--po-md-paragraph-gap-before) var(--po-md-paragraph-gap-after);
+  margin-block: var(--po-md-paragraph-gap-before) calc(var(--po-md-source-line-gap) + var(--po-md-paragraph-gap-after));
 }
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface li > p:first-child {
@@ -293,7 +296,7 @@
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface li {
   position: relative;
-  margin-block: calc(var(--po-md-list-item-gap) / 2);
+  margin-block: calc(var(--po-md-list-item-gap) / 2) calc(var(--po-md-source-line-gap) + var(--po-md-list-item-gap) / 2);
 }
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface li::before {

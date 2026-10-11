@@ -139,7 +139,8 @@ function readColors() {
 
 function assertColors(metrics, override) {
   assert.equal(metrics.paragraphBefore, "0px", "built-in theme added paragraph leading space");
-  assert.equal(metrics.paragraphAfter, "0px", "built-in theme added paragraph trailing space");
+  assert(Math.abs(parseFloat(metrics.paragraphAfter) - parseFloat(metrics.bodySize) * .25) < .1,
+    "built-in source break gap must scale with the body size");
   assert.notDeepEqual(metrics.quoteColor, metrics.bodyColor, "quote lost its supporting color");
   assert.notDeepEqual(metrics.ordinaryStrongColor, metrics.quoteColor, "quote changed ordinary strong styling");
   assert.equal(metrics.quoteStrongWeight, metrics.ordinaryStrongWeight, "quote lost its emphasis weight");
@@ -358,8 +359,8 @@ function assertBlockRhythm(metrics) {
   const paragraph=metrics.paragraphs.find(line=>line.text.startsWith('P1'));
   const continuation=metrics.paragraphs.find(line=>line.text.startsWith('Continued paragraph'));
   assert(paragraph && continuation,'missing multiline paragraph');
-  near(paragraph.before,0,'paragraph before');near(paragraph.after,3,'soft source line padding');
-  near(continuation.before,3,'continuation padding');near(continuation.after,0,'paragraph after');
+  near(paragraph.before,0,'paragraph before');near(paragraph.after,paragraph.size*.25,'source break gap');
+  near(continuation.before,0,'continuation padding');near(continuation.after,continuation.size*.25,'paragraph source break');
   const next=metrics.paragraphs.find(line=>line.text.startsWith('P2'));
   const spaced=metrics.paragraphs.find(line=>line.text.startsWith('P3'));
   for(const [before,after,count] of [[continuation,next,1],[next,spaced,3]]) {
@@ -367,7 +368,7 @@ function assertBlockRhythm(metrics) {
     const blankLines=metrics.sourceLines.filter(line=>line.number>before.sourceLine.number && line.number<after.sourceLine.number);
     assert.equal(blankLines.length,count);assert(blankLines.every(line=>line.text===''),'source blank lines were collapsed');
     near(after.y-before.y-before.height,blankLines.reduce((sum,line)=>sum+line.height,0),'paragraph gap must equal its source blank lines');
-    near(after.before,0,'single-line paragraph before');near(after.after,0,'single-line paragraph after');
+    near(after.before,0,'single-line paragraph before');near(after.after,after.size*.25,'single-line source break');
   }
   for(const line of [...metrics.paragraphs,...metrics.lists]) near(line.height,line.sourceLine.height,'CodeMirror block height');
   const bullet=metrics.lists.find(line=>line.text.includes('Bullet first'));
@@ -405,7 +406,7 @@ function assertBlockRhythm(metrics) {
   near(task.checkbox.x+task.checkbox.width/2,bullet.marker.left+bullet.marker.width/2,'centered checkbox');
   near(task.checkbox.y+task.checkbox.height/2,task.before+bullet.marker.height/2,'checkbox first line center');
   assert.equal(metrics.htmlParagraphs.length,2);
-  for(const line of metrics.htmlParagraphs){near(line.marginBefore,0,'HTML paragraph before');near(line.marginAfter,0,'HTML paragraph after');}
+  for(const line of metrics.htmlParagraphs){near(line.marginBefore,0,'HTML paragraph before');near(line.marginAfter,line.size*.25,'HTML paragraph break margin');}
   for(const line of metrics.htmlLists){assert.equal(line.marker.align,line.ordered?'end':'center');assert(line.marker.width>0,'HTML marker lost its slot');assert.equal(line.marker.weight,'400');}
   const htmlRoots=metrics.htmlLists.filter(line=>line.orderedGroup===0),htmlChildren=metrics.htmlLists.filter(line=>line.orderedGroup===1);
   assert.equal(htmlRoots.length,12);assert.equal(htmlChildren.length,12);
@@ -769,6 +770,7 @@ app.whenReady().then(async () => {
         "--po-md-content-font": '"Georgia", serif',
         "--po-md-content-size-medium": revision ? "22px" : "18px",
         "--po-md-content-line-height": revision ? "33px" : "29px",
+        "--po-md-source-line-gap": revision ? "5px" : "3px",
         "--po-md-h1-size-medium": revision ? "42px" : "38px",
         "--po-md-heading-gap-before": revision ? "44px" : "36px",
         "--po-md-h1-gap-before": revision ? "49px" : "37px",
@@ -842,7 +844,7 @@ app.whenReady().then(async () => {
       assert.equal(metrics.headingBefore, revision ? "49px" : "37px");
       assert.equal(metrics.headingAfter, revision ? "25px" : "17px");
       assert.equal(metrics.paragraphBefore,revision ? "11px" : "7px");
-      assert.equal(metrics.paragraphAfter,revision ? "27px" : "19px");
+      assert.equal(metrics.paragraphAfter,revision ? "32px" : "22px");
       assert.equal(metrics.listIndent,revision ? "55px" : "45px");
       assert.equal(metrics.listMarkerInset,revision ? "15px" : "9px");
       assert.deepEqual(metrics.orderedMarker,{weight:revision?'450':'350',numeric:revision?'tabular-nums':'proportional-nums',align:revision?'end':'start'},'registered marker styles were not applied');
