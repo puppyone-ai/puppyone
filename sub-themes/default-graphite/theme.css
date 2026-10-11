@@ -201,6 +201,7 @@
     --po-md-paragraph-gap-after: 0px;
     --po-md-list-inset: .25em;
     --po-md-list-marker-width: 1.25em;
+    --po-md-ordered-marker-suffix-width: .375em;
     --po-md-list-marker-gap: .375em;
     --po-md-list-indent-step: 1.5em;
     --po-md-list-item-gap: 0px;

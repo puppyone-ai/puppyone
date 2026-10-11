@@ -269,7 +269,9 @@ function getMarkdownLineAttributes(
 ): Record<string, string> | undefined {
   if (rhythm?.list) {
     const { depth, marker, columns, parentColumns } = rhythm.list;
-    const width = (count: number) => `max(var(--po-md-list-marker-width), calc(${count} * 1ch))`;
+    const width = (count: number) => count === 0
+      ? "var(--po-md-list-marker-width)"
+      : `max(var(--po-md-list-marker-width), calc(${count - 1} * 1ch + var(--po-md-ordered-marker-suffix-width)))`;
     // Source-derived ancestor widths; every spacing value remains file-owned.
     const parentPrefix = parentColumns.length ? `--md-list-parent-prefix-width:calc(var(--po-md-list-inset) + ${width(parentColumns[0])} + var(--po-md-list-marker-gap)${parentColumns.slice(1).map(count => ` + max(var(--po-md-list-indent-step), calc(${width(count)} + var(--po-md-list-marker-gap)))`).join("")});` : "";
     return { style: `--md-list-depth:${depth};--md-list-marker:${cssString(marker)};--md-list-marker-columns:${columns};${parentPrefix}` };

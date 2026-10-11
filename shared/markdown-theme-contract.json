@@ -49,6 +49,9 @@
       "name": "--po-md-list-marker-width"
     },
     {
+      "name": "--po-md-ordered-marker-suffix-width"
+    },
+    {
       "name": "--po-md-list-marker-gap"
     },
     {

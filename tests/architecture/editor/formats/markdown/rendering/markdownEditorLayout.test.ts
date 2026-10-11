@@ -254,7 +254,7 @@ describe("Markdown HTML media layout", () => {
 
     expect(editorEntryCss).toContain('@import "./editor/markdown-content.css";');
     expect(editorEntryCss).toContain('@import "./editor/markdown-theme-tokens.generated.css";');
-    expect(profileRule).toContain("--po-md-presentation-version: 5;");
+    expect(profileRule).toContain("--po-md-presentation-version: 6;");
     expect(profileRule).not.toMatch(/--po-md-(?:content|h[1-6]|strong|rule)[a-z-]*:/);
     expect(markdownProjectionCss).toContain("--po-md-content-size: var(--po-host-md-content-size);");
     expect(markdownProjectionCss).toContain("--po-md-content-line-height: var(--po-host-md-content-line-height);");

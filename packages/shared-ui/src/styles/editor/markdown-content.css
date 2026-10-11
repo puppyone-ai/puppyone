@@ -4,7 +4,7 @@
 .markdown-codemirror-editor {
   --po-selection-background: var(--po-md-selection-bg);
   --po-selection-inactive-background: var(--po-md-selection-inactive-bg);
-  --po-md-presentation-version: 5;
+  --po-md-presentation-version: 6;
   --po-editor-content-font: var(--po-md-content-font);
   background: var(--po-md-surface-background);
   color: var(--po-md-content-color);
@@ -279,7 +279,7 @@
 }
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface :where(ul, ol) {
-  --md-list-marker-slot-width: max(var(--po-md-list-marker-width), calc(var(--md-list-marker-columns, 0) * 1ch));
+  --md-list-marker-slot-width: var(--po-md-list-marker-width);
   margin-block: var(--po-md-paragraph-gap-before) var(--po-md-paragraph-gap-after);
   padding-inline-start: calc(var(--po-md-list-inset) + var(--md-list-marker-slot-width) + var(--po-md-list-marker-gap));
   list-style: none;
@@ -287,6 +287,13 @@
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface ul {
   --md-list-marker-columns: 0;
+}
+
+/* Both adapters share the same marker rail. Source/counter columns include
+   one trailing delimiter, whose width belongs to the theme instead of being
+   charged as a whole digit. Only sufficiently wide numbers enlarge the rail. */
+.markdown-codemirror-editor :is(.cm-md-ordered-list-line, .cm-md-html-rendered-surface ol) {
+  --md-list-marker-slot-width: max(var(--po-md-list-marker-width), calc((var(--md-list-marker-columns, 1) - 1) * 1ch + var(--po-md-ordered-marker-suffix-width)));
 }
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface li :where(ul, ol) {

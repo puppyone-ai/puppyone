@@ -45,12 +45,12 @@ describe("Markdown semantic block rhythm", () => {
   it("projects ancestor columns for mixed nested lists and keeps ordered continuations classified", () => {
     const state=create("100. parent\n     9. child\n        continued\n     1000. wide\n           - grandchild");
     expect(lineAttributes(state,2)[0].class).toContain("cm-md-nested-list-line");
-    expect(lineAttributes(state,2)[0].style).toContain("calc(4 * 1ch)");
+    expect(lineAttributes(state,2)[0].style).toContain("calc(3 * 1ch + var(--po-md-ordered-marker-suffix-width))");
     expect(lineAttributes(state,3)[0].class).toContain("cm-md-ordered-list-line");
     expect(lineAttributes(state,3)[0].class).toContain("cm-md-list-continuation");
     expect(lineAttributes(state,5)[0].class).not.toContain("cm-md-ordered-list-line");
     expect(lineAttributes(state,5)[0].style).toContain("--md-list-depth:2;");
-    expect(lineAttributes(state,5)[0].style).toContain("calc(5 * 1ch)");
+    expect(lineAttributes(state,5)[0].style).toContain("calc(4 * 1ch + var(--po-md-ordered-marker-suffix-width))");
   });
 
   it("reuses ordered column geometry through ordinary body edits instead of scanning siblings", () => {
@@ -69,7 +69,7 @@ describe("Markdown semantic block rhythm", () => {
     state=state.update({changes:{from:doc.indexOf("nested second")+"nested second".length,insert:" revised"}}).state;
     expect(getMarkdownMarkerDiagnostics().itemsScanned).toBe(0);
     const line=state.doc.lineAt(state.doc.toString().indexOf("nested second"));
-    expect(lineAttributes(state,line.number)[0].style).toContain("calc(4 * 1ch)");
+    expect(lineAttributes(state,line.number)[0].style).toContain("calc(3 * 1ch + var(--po-md-ordered-marker-suffix-width))");
   });
 
   it.each([

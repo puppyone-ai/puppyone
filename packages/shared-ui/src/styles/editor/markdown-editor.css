@@ -353,7 +353,7 @@
 
 .markdown-codemirror-editor .cm-md-list-line {
   position: relative;
-  --md-list-marker-slot-width: max(var(--po-md-list-marker-width), calc(var(--md-list-marker-columns, 0) * 1ch));
+  --md-list-marker-slot-width: var(--po-md-list-marker-width);
   --md-list-prefix-width: calc(var(--po-md-list-inset) + var(--md-list-marker-slot-width) + var(--po-md-list-marker-gap) + var(--md-list-depth, 0) * var(--po-md-list-indent-step));
   padding-inline-start: var(--md-list-prefix-width);
   color: var(--po-md-list-color);

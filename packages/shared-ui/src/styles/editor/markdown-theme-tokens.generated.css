@@ -45,6 +45,7 @@
     --po-host-md-paragraph-gap-after: 0px;
     --po-host-md-list-inset: .25em;
     --po-host-md-list-marker-width: 1.25em;
+    --po-host-md-ordered-marker-suffix-width: .375em;
     --po-host-md-list-marker-gap: .375em;
     --po-host-md-list-indent-step: 1.5em;
     --po-host-md-list-item-gap: 0px;
@@ -219,6 +220,7 @@
   --po-md-paragraph-gap-after: var(--po-host-md-paragraph-gap-after);
   --po-md-list-inset: var(--po-host-md-list-inset);
   --po-md-list-marker-width: var(--po-host-md-list-marker-width);
+  --po-md-ordered-marker-suffix-width: var(--po-host-md-ordered-marker-suffix-width);
   --po-md-list-marker-gap: var(--po-host-md-list-marker-gap);
   --po-md-list-indent-step: var(--po-host-md-list-indent-step);
   --po-md-list-item-gap: var(--po-host-md-list-item-gap);
