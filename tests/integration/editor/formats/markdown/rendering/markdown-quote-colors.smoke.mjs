@@ -127,6 +127,7 @@ function readColors() {
   return { editing: Boolean(host.querySelector(".cm-editor.cm-focused")), selectedThemeId: document.querySelector("#surface").dataset.subThemeId,
     quoteColor, surfaceColor, bodyCodes, bodyColor: color(bodyLine), bodySize: getComputedStyle(bodyLine).fontSize,
     bodyWeight: getComputedStyle(bodyLine).fontWeight, ordinaryStrongColor: color(bodyLine.querySelector(".cm-md-syntax-strong")),
+    paragraphBefore: getComputedStyle(bodyLine).paddingTop, paragraphAfter: getComputedStyle(bodyLine).paddingBottom,
     ordinaryStrongWeight: getComputedStyle(bodyLine.querySelector(".cm-md-syntax-strong")).fontWeight,
     quoteStrongWeight: getComputedStyle(quotes[0].querySelector(".cm-md-syntax-strong")).fontWeight,
     ordinaryCodeColor: color(bodyCode), codeFont: getComputedStyle(bodyCode).fontFamily,
@@ -137,6 +138,8 @@ function readColors() {
 }
 
 function assertColors(metrics, override) {
+  assert.equal(metrics.paragraphBefore, "0px", "built-in theme added paragraph leading space");
+  assert.equal(metrics.paragraphAfter, "0px", "built-in theme added paragraph trailing space");
   assert.notDeepEqual(metrics.quoteColor, metrics.bodyColor, "quote lost its supporting color");
   assert.notDeepEqual(metrics.ordinaryStrongColor, metrics.quoteColor, "quote changed ordinary strong styling");
   assert.equal(metrics.quoteStrongWeight, metrics.ordinaryStrongWeight, "quote lost its emphasis weight");
@@ -329,7 +332,7 @@ function readBlockRhythm() {
     const css=getComputedStyle(element), pseudo=getComputedStyle(element,'::before'), rect=element.getBoundingClientRect();
     const text=textRects(element);
     const sourceLine=geometry.lines.find(line=>line.text.trim()===element.textContent.trim() || line.text.includes(element.textContent.trim()));
-    return {text:element.textContent, classes:element.className, x:rect.x,height:rect.height, size:parseFloat(css.fontSize),
+    return {text:element.textContent, classes:element.className, x:rect.x,y:rect.y,height:rect.height, size:parseFloat(css.fontSize),
       ordered:element.classList.contains('cm-md-ordered-list-line')||element.matches('ol > li'),
       orderedGroup:element.matches('ol > li') ? [...host.querySelectorAll('.cm-md-html-rendered-surface ol')].indexOf(element.parentElement) : null,
       before:parseFloat(css.paddingTop),after:parseFloat(css.paddingBottom),indent:parseFloat(css.paddingInlineStart),
@@ -347,7 +350,7 @@ function readBlockRhythm() {
     htmlLists:[...host.querySelectorAll('.cm-md-html-rendered-surface li')].map(read),
     htmlOrderedColumns:host.querySelector('.cm-md-html-rendered-surface ol').style.getPropertyValue('--md-list-marker-columns'),
     htmlOrderedStart:host.querySelector('.cm-md-html-rendered-surface ol').start,
-    selectedLine:geometry.selectedLine };
+    selectedLine:geometry.selectedLine, sourceLines:geometry.lines };
 }
 
 function assertBlockRhythm(metrics) {
@@ -355,8 +358,17 @@ function assertBlockRhythm(metrics) {
   const paragraph=metrics.paragraphs.find(line=>line.text.startsWith('P1'));
   const continuation=metrics.paragraphs.find(line=>line.text.startsWith('Continued paragraph'));
   assert(paragraph && continuation,'missing multiline paragraph');
-  near(paragraph.before,paragraph.size*.375,'paragraph before');near(paragraph.after,3,'soft source line padding');
-  near(continuation.before,3,'continuation padding');near(continuation.after,continuation.size*1.25,'paragraph after');
+  near(paragraph.before,0,'paragraph before');near(paragraph.after,3,'soft source line padding');
+  near(continuation.before,3,'continuation padding');near(continuation.after,0,'paragraph after');
+  const next=metrics.paragraphs.find(line=>line.text.startsWith('P2'));
+  const spaced=metrics.paragraphs.find(line=>line.text.startsWith('P3'));
+  for(const [before,after,count] of [[continuation,next,1],[next,spaced,3]]) {
+    assert(before && after,'missing source-spaced paragraphs');
+    const blankLines=metrics.sourceLines.filter(line=>line.number>before.sourceLine.number && line.number<after.sourceLine.number);
+    assert.equal(blankLines.length,count);assert(blankLines.every(line=>line.text===''),'source blank lines were collapsed');
+    near(after.y-before.y-before.height,blankLines.reduce((sum,line)=>sum+line.height,0),'paragraph gap must equal its source blank lines');
+    near(after.before,0,'single-line paragraph before');near(after.after,0,'single-line paragraph after');
+  }
   for(const line of [...metrics.paragraphs,...metrics.lists]) near(line.height,line.sourceLine.height,'CodeMirror block height');
   const bullet=metrics.lists.find(line=>line.text.includes('Bullet first'));
   assert(bullet.textRects.length>=2,'long bullet did not wrap');
@@ -393,7 +405,7 @@ function assertBlockRhythm(metrics) {
   near(task.checkbox.x+task.checkbox.width/2,bullet.marker.left+bullet.marker.width/2,'centered checkbox');
   near(task.checkbox.y+task.checkbox.height/2,task.before+bullet.marker.height/2,'checkbox first line center');
   assert.equal(metrics.htmlParagraphs.length,2);
-  for(const line of metrics.htmlParagraphs){near(line.marginBefore,line.size*.375,'HTML paragraph before');near(line.marginAfter,line.size*1.25,'HTML paragraph after');}
+  for(const line of metrics.htmlParagraphs){near(line.marginBefore,0,'HTML paragraph before');near(line.marginAfter,0,'HTML paragraph after');}
   for(const line of metrics.htmlLists){assert.equal(line.marker.align,line.ordered?'end':'center');assert(line.marker.width>0,'HTML marker lost its slot');assert.equal(line.marker.weight,'400');}
   const htmlRoots=metrics.htmlLists.filter(line=>line.orderedGroup===0),htmlChildren=metrics.htmlLists.filter(line=>line.orderedGroup===1);
   assert.equal(htmlRoots.length,12);assert.equal(htmlChildren.length,12);
@@ -682,7 +694,7 @@ app.whenReady().then(async () => {
     await evaluate("document.querySelector('#markdown').style.height='1300px'");
     const blockSource=[
       'P1 paragraph ' + 'readable 正文 '.repeat(10),
-      'Continued paragraph in the same semantic block.', '', 'P2 next paragraph.', '',
+      'Continued paragraph in the same semantic block.', '', 'P2 next paragraph.', '', '', '', 'P3 after three source blank lines.', '',
       '- Bullet first ' + 'wrapped 列表正文 '.repeat(12),
       '  Continued list item on a second source line.',
       '    - Nested bullet', '- Bullet next', '',

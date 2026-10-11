@@ -119,8 +119,8 @@
     --po-md-content-letter-spacing: 0;
     --po-md-content-line-height: 24px;
     --po-md-block-gap: 16px;
-    --po-md-paragraph-gap-before: .375em;
-    --po-md-paragraph-gap-after: 1.25em;
+    --po-md-paragraph-gap-before: 0px;
+    --po-md-paragraph-gap-after: 0px;
     --po-md-list-inset: .25em;
     --po-md-list-marker-width: 1.25em;
     --po-md-list-marker-gap: .375em;

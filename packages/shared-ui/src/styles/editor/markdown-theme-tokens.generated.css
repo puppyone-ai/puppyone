@@ -34,8 +34,8 @@
     --po-host-md-content-letter-spacing: 0;
     --po-host-md-content-line-height: 24px;
     --po-host-md-block-gap: 16px;
-    --po-host-md-paragraph-gap-before: .375em;
-    --po-host-md-paragraph-gap-after: 1.25em;
+    --po-host-md-paragraph-gap-before: 0px;
+    --po-host-md-paragraph-gap-after: 0px;
     --po-host-md-list-inset: .25em;
     --po-host-md-list-marker-width: 1.25em;
     --po-host-md-list-marker-gap: .375em;
