@@ -576,8 +576,8 @@ app.whenReady().then(async () => {
       await evaluate(`(async () => {
         await window.tableFixture.mode('${mode}'); await window.tableFixture.theme(${JSON.stringify(theme)});
         const host = document.querySelector('#markdown .markdown-codemirror-editor');
-        for (const token of ['--po-user-md-strong-color', '--po-host-md-inline-code-color', '--po-host-md-blockquote-color', '--po-host-md-table-font-size', '--po-type-editor-data', '--po-type-editor-code', '--po-host-md-inline-code-background']) host.style.removeProperty(token);
-        if (${scale}) { host.style.setProperty('--po-host-md-table-font-size', '11px'); host.style.setProperty('--po-type-editor-data', '27px'); host.style.setProperty('--po-type-editor-code', '19px'); }
+        for (const token of ['--po-user-md-strong-color', '--po-host-md-inline-code-color', '--po-host-md-blockquote-color', '--po-host-md-table-font-size-medium', '--po-type-editor-data', '--po-type-editor-code', '--po-host-md-inline-code-background']) host.style.removeProperty(token);
+        if (${scale}) { host.style.setProperty('--po-host-md-table-font-size-medium', '11px'); host.style.setProperty('--po-type-editor-data', '27px'); host.style.setProperty('--po-type-editor-code', '19px'); }
         if (${override}) { host.style.setProperty('--po-host-md-blockquote-color', '#587366'); host.style.setProperty('--po-host-md-inline-code-background', '#ff0000'); }
         document.activeElement?.blur();
         await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
@@ -601,7 +601,7 @@ app.whenReady().then(async () => {
       await evaluate(`(async () => {
         await window.tableFixture.mode('${mode}'); await window.tableFixture.theme(null);
         const host = document.querySelector('#markdown .markdown-codemirror-editor');
-        for (const token of ['--po-host-md-table-font-size', '--po-type-editor-data', '--po-type-editor-code', '--po-host-md-blockquote-color', '--po-host-md-inline-code-background']) host.style.removeProperty(token);
+        for (const token of ['--po-host-md-table-font-size-medium', '--po-type-editor-data', '--po-type-editor-code', '--po-host-md-blockquote-color', '--po-host-md-inline-code-background']) host.style.removeProperty(token);
         await window.tableFixture.setMarkdownSource(${JSON.stringify(structuredSource)});
       })()`);
       const click = async selector => {
@@ -767,9 +767,9 @@ app.whenReady().then(async () => {
     const fileProfile = (css, revision, isPeer = false) => {
       const roles = {
         "--po-md-content-font": '"Georgia", serif',
-        "--po-md-content-size": revision ? "22px" : "18px",
+        "--po-md-content-size-medium": revision ? "22px" : "18px",
         "--po-md-content-line-height": revision ? "33px" : "29px",
-        "--po-md-h1-size": revision ? "42px" : "38px",
+        "--po-md-h1-size-medium": revision ? "42px" : "38px",
         "--po-md-heading-gap-before": revision ? "44px" : "36px",
         "--po-md-h1-gap-before": revision ? "49px" : "37px",
         "--po-md-h1-gap-after": revision ? "25px" : "17px",
@@ -783,7 +783,7 @@ app.whenReady().then(async () => {
         "--po-md-list-marker-numeric-variant": revision ? "tabular-nums" : "proportional-nums",
         "--po-md-ordered-marker-align": revision ? "end" : "start",
         "--po-md-code-font": '"Courier New", monospace',
-        "--po-md-table-font-size": revision ? "14px" : "12px",
+        "--po-md-table-font-size-medium": revision ? "14px" : "12px",
         "--po-md-table-line-height": "1.6",
         "--po-md-code-block-line-height": revision ? "23px" : "21px",
         "--po-md-code-block-font-weight": revision ? "600" : "450",
