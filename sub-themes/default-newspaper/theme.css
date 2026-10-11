@@ -145,7 +145,7 @@
     --po-md-strong-color: var(--po-text);
     --po-md-rule-color: #b9ae9d;
     --po-md-link-color: #795f39;
-    --po-md-blockquote-color: #655e55;
+    --po-md-blockquote-color: color-mix(in srgb, #655e55 85%, var(--po-md-content-color));
     --po-md-blockquote-border-color: #9f917e;
     --po-md-inline-code-background: transparent;
     --po-md-inline-code-color: color-mix(in srgb, var(--po-md-content-color) 45%, var(--po-md-blockquote-color));
@@ -212,7 +212,7 @@
     --po-md-heading-border-color: #8d8273;
     --po-md-rule-color: #665f54;
     --po-md-link-color: #cdb58e;
-    --po-md-blockquote-color: #bdb4a6;
+    --po-md-blockquote-color: color-mix(in srgb, #bdb4a6 85%, var(--po-md-content-color));
     --po-md-blockquote-border-color: #887d6e;
     --po-md-inline-code-color: color-mix(in srgb, var(--po-md-content-color) 45%, var(--po-md-blockquote-color));
     --po-md-syntax-keyword: #e0a28f;

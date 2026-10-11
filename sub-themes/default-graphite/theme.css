@@ -228,7 +228,7 @@
     --po-md-strong-color: var(--po-text);
     --po-md-rule-color: color-mix(in srgb, var(--po-divider) 96%, var(--po-text-muted) 4%);
     --po-md-link-color: var(--po-accent);
-    --po-md-blockquote-color: color-mix(in srgb, var(--po-text-muted) 76%, var(--po-md-surface-background));
+    --po-md-blockquote-color: color-mix(in srgb, color-mix(in srgb, var(--po-text-muted) 76%, var(--po-md-surface-background)) 85%, var(--po-md-content-color));
     --po-md-blockquote-border-color: color-mix(in srgb, var(--po-divider) 76%, var(--po-md-surface-background));
     --po-md-inline-code-background: transparent;
     --po-md-inline-code-color: color-mix(in srgb, var(--po-md-content-color) 45%, var(--po-md-blockquote-color));

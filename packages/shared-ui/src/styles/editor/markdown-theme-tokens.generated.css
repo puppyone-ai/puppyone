@@ -72,7 +72,7 @@
     --po-host-md-strong-color: var(--po-text);
     --po-host-md-rule-color: color-mix(in srgb, var(--po-divider) 96%, var(--po-text-muted) 4%);
     --po-host-md-link-color: var(--po-accent);
-    --po-host-md-blockquote-color: color-mix(in srgb, var(--po-text-muted) 76%, var(--po-host-md-surface-background));
+    --po-host-md-blockquote-color: color-mix(in srgb, color-mix(in srgb, var(--po-text-muted) 76%, var(--po-host-md-surface-background)) 85%, var(--po-host-md-content-color));
     --po-host-md-blockquote-border-color: color-mix(in srgb, var(--po-divider) 76%, var(--po-host-md-surface-background));
     --po-host-md-inline-code-background: transparent;
     --po-host-md-inline-code-color: color-mix(in srgb, var(--po-host-md-content-color) 45%, var(--po-host-md-blockquote-color));
