@@ -1,6 +1,6 @@
 import { useDesktopPreference, selectFileIconTheme } from "../../preferencesStore";
 import type { CSSProperties, Dispatch, ReactNode, SetStateAction } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronRight,
   ClipboardPaste,
@@ -41,6 +41,7 @@ import {
   DesktopSidebarActionMenu,
   resolveDesktopSidebarActionMenuPosition,
 } from "../../components/DesktopSidebarActionMenu";
+import { useDesktopSidebarMenuInteraction } from "../../components/useDesktopSidebarMenuInteraction";
 import {
   CREATE_NEW_SUBMENU_ID,
   type CreateNewItemId,
@@ -137,6 +138,7 @@ export function DesktopExplorerRowActions({
           aria-label={t("workspace.node.createNew")}
           aria-haspopup="menu"
           aria-expanded={createMenuOpen}
+          data-desktop-sidebar-menu-trigger="true"
           onClick={(event) => onCreate(parentPath, event.currentTarget.getBoundingClientRect())}
         >
           <Plus aria-hidden="true" />
@@ -149,6 +151,7 @@ export function DesktopExplorerRowActions({
           aria-label={t("workspace.node.moreActionsFor", { name: bidiIsolate(node.name) })}
           aria-haspopup="menu"
           aria-expanded={nodeMenuOpen}
+          data-desktop-sidebar-menu-trigger="true"
           onClick={(event) => onOpenNodeMenu(node, event.currentTarget.getBoundingClientRect())}
         >
           <OverflowDots orientation="vertical" />
@@ -265,26 +268,22 @@ export function DesktopCreateEntryMenu({
     trigger.focus();
   };
 
-  useEffect(() => {
-    if (sidebarLauncher) return;
-    const frame = window.requestAnimationFrame(() => {
-      menuRef.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [sidebarLauncher]);
+  useLayoutEffect(() => {
+    clearSubmenuCloseTimer();
+    suppressSubmenuFocusOpenRef.current = false;
+    setSubmenuOpen(false);
+  }, [draft.anchor]);
 
   useEffect(() => {
     return () => clearSubmenuCloseTimer();
   }, []);
 
-  useEffect(() => {
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (target instanceof Node && menuRef.current?.contains(target)) return;
-      onCancel();
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+  useDesktopSidebarMenuInteraction({
+    menuRef,
+    anchor: draft.anchor,
+    onDismiss: onCancel,
+    autoFocus: !sidebarLauncher,
+    onEscape: (event) => {
       if (submenuOpen) {
         event.preventDefault();
         if (submenuCloseTimerRef.current !== null) {
@@ -296,27 +295,15 @@ export function DesktopCreateEntryMenu({
           ?.querySelector<HTMLButtonElement>(".desktop-create-entry-submenu-trigger");
         if (trigger && document.activeElement !== trigger) {
           suppressSubmenuFocusOpenRef.current = true;
-          trigger.focus();
+          trigger.focus({ preventScroll: true });
         } else {
           suppressSubmenuFocusOpenRef.current = false;
         }
         return;
       }
       onCancel();
-    };
-    const handleViewportChange = () => onCancel();
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("resize", handleViewportChange);
-    window.addEventListener("scroll", handleViewportChange, true);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("resize", handleViewportChange);
-      window.removeEventListener("scroll", handleViewportChange, true);
-    };
-  }, [submenuOpen, onCancel]);
+    },
+  });
 
   return (
     <DesktopMenuSurface
@@ -715,35 +702,7 @@ function DesktopNodeActionPopover({
     width: `${NODE_ACTION_MENU_WIDTH}px`,
   } as CSSProperties;
 
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      menuRef.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, []);
-
-  useEffect(() => {
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (target instanceof Node && menuRef.current?.contains(target)) return;
-      onCancel();
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onCancel();
-    };
-    const handleViewportChange = () => onCancel();
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("resize", handleViewportChange);
-    window.addEventListener("scroll", handleViewportChange, true);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("resize", handleViewportChange);
-      window.removeEventListener("scroll", handleViewportChange, true);
-    };
-  }, [onCancel]);
+  useDesktopSidebarMenuInteraction({ menuRef, anchor: draft.anchor, onDismiss: onCancel });
 
   return (
     <DesktopSidebarActionMenu

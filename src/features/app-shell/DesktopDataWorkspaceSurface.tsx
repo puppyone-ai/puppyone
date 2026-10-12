@@ -306,6 +306,8 @@ export function DesktopDataWorkspaceSurface({
               className="tree-row desktop-explorer-list-end-create-row"
               type="button"
               aria-expanded={sidebarCreateMenuOpen}
+              aria-haspopup="menu"
+              data-desktop-sidebar-menu-trigger="true"
               disabled={!canCreate}
               aria-controls="desktop-sidebar-create-menu"
               onClick={(event) => {

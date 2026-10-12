@@ -647,7 +647,6 @@ body.data-sidebar-resizing .data-preview-accessory {
   opacity: 0;
   pointer-events: none;
   transform: translateY(-50%);
-  transition: opacity 0.12s ease;
 }
 
 .tree-row.root .tree-row-actions.root-actions,
