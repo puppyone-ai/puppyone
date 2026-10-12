@@ -325,6 +325,18 @@ export type GitEffectiveHosting = {
   identity: GitEffectiveHostingIdentity | null;
 };
 
+/**
+ * What a folder would make reachable. Ignore rules are already applied, so the
+ * numbers describe the files that actually leave this Mac. `truncated` means
+ * the folder is larger than a summary can honestly count, and the count is a
+ * floor rather than a total.
+ */
+export type WorkspacePublishScope = {
+  files: number;
+  bytes: number;
+  truncated: boolean;
+};
+
 export type GitStatusSnapshot = {
   isRepo: boolean;
   branch: string | null;
@@ -1361,6 +1373,10 @@ declare global {
       onAiEditReviewUpdated: (
         callback: (event: AiEditReviewUpdatedEvent) => void,
       ) => () => void;
+      getPublishScope?: (request: {
+        rootPath: string;
+        path?: string;
+      }) => Promise<WorkspacePublishScope>;
       getGitStatus: (request: {
         rootPath: string;
         requestId?: string;

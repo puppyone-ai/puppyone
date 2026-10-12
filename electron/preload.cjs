@@ -440,6 +440,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
     ipcRenderer.on("ai-edit-review:updated", listener);
     return () => ipcRenderer.removeListener("ai-edit-review:updated", listener);
   },
+  getPublishScope: (request) => ipcRenderer.invoke("workspace:publish-scope", request),
   getGitStatus: (request) => ipcRenderer.invoke("workspace:git-status", request),
   cancelGitStatus: (request) => ipcRenderer.invoke("workspace:git-status-cancel", request),
   getGitBranchGraph: (request) => ipcRenderer.invoke("workspace:git-branch-graph", request),
