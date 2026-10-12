@@ -65,11 +65,19 @@ export type ProjectReachDialogProps = ShareWizardDialogProps & {
    * exists; both answers come from the folder itself.
    */
   workspacePath: string | null;
+  /**
+   * Which verb the caller asked for, when it asked by name. The Header's reach
+   * control offers both, so it can open the connect side without preselecting
+   * a destination; without it the target decides, as before.
+   */
+  initialIntent?: ReachIntent;
 };
 
 export function ProjectReachDialog(props: ProjectReachDialogProps) {
   const { t } = useLocalization();
-  const [intent, setIntent] = useState<ReachIntent>(() => reachIntentForTarget(props.initialTargetId));
+  const [intent, setIntent] = useState<ReachIntent>(
+    () => props.initialIntent ?? reachIntentForTarget(props.initialTargetId),
+  );
   const [selectedId, setSelectedId] = useState<ShareTargetId | null>(props.initialTargetId);
   const [scope, setScope] = useState<ReachScope>(() => defaultReachScope(props.initialPath));
   const target = resolveReachTarget(intent, selectedId);

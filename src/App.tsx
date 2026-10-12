@@ -147,13 +147,23 @@ import { useCloudInitialization } from "./features/cloud/initialization/useCloud
 import {
   CloudShareProvider,
   ProjectReachDialog,
+  ReadersList,
+  SHARE_TARGETS,
   ShareWizardDialog,
+  resolveCloudShareStatus,
+  shareTargetLabelKey,
   useProjectShareActivity,
+  useProjectShareRevoke,
   type CloudShareActions,
   type ShareTargetId,
   type ShareWizardFolderEntry,
 } from "./features/cloud/share";
 import { useProjectReachExperience } from "./features/project-reach";
+import {
+  reachHeaderChangesStatus,
+  resolveProjectReachState,
+  type ProjectReachControlProps,
+} from "./features/app-shell/project-reach";
 import {
   TYPOGRAPHY_SCALE_METRICS,
   useTypographyCatalog,
@@ -855,7 +865,12 @@ function AppContent() {
   }, [activeView, cloudEnabled, openCloudWorkspace]);
 
 
-  const [shareWizard, setShareWizard] = useState<{ targetId: ShareTargetId | null; path: string } | null>(null);
+  const [shareWizard, setShareWizard] = useState<{
+    targetId: ShareTargetId | null;
+    path: string;
+    /** Set when the Header asked for one of the two verbs by name. */
+    intent?: "invite" | "connect";
+  } | null>(null);
   const {
     shares: projectShares,
     pending: pendingShare,
@@ -889,9 +904,13 @@ function AppContent() {
       localAvailable: true, cloudState: projectCloudLocationState }
     : undefined;
   // The wizard stacks above the Cloud dialog so the Homepage is still there when it closes.
-  const openShareWizard = useCallback((targetId: ShareTargetId | null, path = "") => {
+  const openShareWizard = useCallback((
+    targetId: ShareTargetId | null,
+    path = "",
+    intent?: "invite" | "connect",
+  ) => {
     if (!shareOnboardingEnabled) return;
-    setShareWizard({ targetId, path });
+    setShareWizard({ targetId, path, intent });
     setSettingsDialogOpen(false);
     setPluginsDialogOpen(false);
     setSwitcherOpen(false);
@@ -913,6 +932,46 @@ function AppContent() {
       ? { shares: projectShares, signedIn: cloudSignedIn, pending: pendingShare, openShare: openShareWizard }
       : null
   ), [cloudSignedIn, openShareWizard, pendingShare, projectShares, shareOnboardingEnabled]);
+  // Who can reach this project, for the Header. The share domain owns the
+  // status, the rows and stopping a reach; the Header only states them.
+  const reachDestinations = useMemo(() => SHARE_TARGETS.map((target) => ({
+    id: target.id,
+    brand: target.brand,
+    label: t(shareTargetLabelKey(target.id)),
+  })), [t]);
+  const projectReachShareStatus = resolveCloudShareStatus({
+    context: projectCloudContext,
+    shares: projectShares.shares,
+    sharesLoaded: projectShares.loaded,
+    signedIn: cloudSignedIn,
+    pending: pendingShare,
+  });
+  const projectShareRevoke = useProjectShareRevoke({
+    session: activeCloudSession,
+    apiBaseUrl: desktopCloudApiBaseUrl,
+    shares: projectShares,
+    onSessionChange: updateCloudSession,
+  });
+  const projectReachState = resolveProjectReachState({
+    share: projectReachShareStatus.kind,
+    shares: projectReachShareStatus.readers,
+    destinations: reachDestinations,
+    deviceCopyAvailable: projectLocation?.localAvailable !== false,
+    waitingFor: pendingShare ? t(shareTargetLabelKey(pendingShare.targetId)) : null,
+  });
+  const projectReach = useMemo<ProjectReachControlProps | null>(() => (
+    projectReachEnabled && shareOnboardingEnabled
+      ? {
+        state: projectReachState,
+        readers: <ReadersList readers={projectReachState.members.length > 0 ? projectReachShareStatus.readers : []}
+          revoke={projectShareRevoke} />,
+        onInvitePerson: () => openShareWizard("person", "", "invite"),
+        onConnectAgent: () => openShareWizard(null, "", "connect"),
+        onGetCopy: cloudEnabled ? openCloudWorkspace : undefined,
+      }
+      : null
+  ), [cloudEnabled, openCloudWorkspace, openShareWizard, projectReachEnabled, projectReachShareStatus,
+    projectReachState, projectShareRevoke, shareOnboardingEnabled]);
   const listShareFolders = useCallback(async (): Promise<ShareWizardFolderEntry[]> => {
     if (!dataPort) return [];
     const children = await dataPort.listChildren(focusedWorkspaceFolder?.uri ?? null);
@@ -1690,7 +1749,9 @@ function AppContent() {
     terminalToolEnabled: !cloudHeaderActive,
     gitChangesAvailable: Boolean(focusedWorkspace) && !cloudHeaderActive,
     gitChangesOpen: gitPresentation.open,
-    gitChangesStatus: gitTitlebarStatus,
+    // The Header states this device's own work; the receipt for changes made
+    // elsewhere belongs to the sidebar on the project reach path.
+    gitChangesStatus: projectReachEnabled ? reachHeaderChangesStatus(gitTitlebarStatus) : gitTitlebarStatus,
     activeCoachmark: headerCoachmarks.active,
     onAcknowledgeCoachmark: headerCoachmarks.acknowledge,
     onUpdateNow: () => void desktopUpdates.updateNow(),
@@ -1706,6 +1767,7 @@ function AppContent() {
       projectMenuEnabled={!enableProjectSwitcherRail}
       menuAlignment={centerProjectInHeader ? "center" : "start"}
       projectLocation={projectLocation}
+      projectReach={projectReach}
       cloudProject={focusedWorkspace?.path === workspace.path && projectCloudContext.status === "resolved"
         ? { id: projectCloudContext.projectId, name: projectCloudContext.projectName } : undefined}
       workspace={workspace}
@@ -1744,7 +1806,10 @@ function AppContent() {
         session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl} onSessionChange={updateCloudSession}
         historyOpen={cloudSidebar.historyOpen} onToggleHistory={cloudSidebar.toggleHistory}
         agentOpen={cloudAgent.open} onToggleAgent={cloudWorkspaceActive ? cloudSidebar.toggleAgent : undefined} />}
-      <DesktopTitlebarActions {...chromeActionProps} shareEnabled={!cloudHeaderActive && shareOnboardingEnabled} />
+      {/* On the project reach path the Header's project control is the only
+          Cloud entry, so the right side adds no second share action. */}
+      <DesktopTitlebarActions {...chromeActionProps}
+        shareEnabled={!cloudHeaderActive && shareOnboardingEnabled && !projectReachEnabled} />
     </>
   );
   const renderCloudSidebar = (active: boolean) => <CloudWorkspaceSidebar sidebar={cloudSidebar}
@@ -1888,7 +1953,7 @@ function AppContent() {
               onCreateCloudVersion: (organizationId) => handleStartPuppyoneBackup(organizationId, { navigateToCloud: false }),
             }}
             cloudOpen={cloudDialogOpen}
-            cloudLocationControls={focusedWorkspace?.path === workspace.path ? (
+            cloudLocationControls={focusedWorkspace?.path === workspace.path && !projectReachEnabled ? (
               <DesktopProjectLocationControls
                 projectLocation={projectLocation}
                 onViewLocal={openLocalWorkspace}
@@ -2059,6 +2124,7 @@ function AppContent() {
               workspaceName={(focusedWorkspace ?? workspace).name}
               workspacePath={(focusedWorkspace ?? workspace).path}
               initialTargetId={shareWizard.targetId}
+              initialIntent={shareWizard.intent}
               initialPath={shareWizard.path}
               session={activeCloudSession}
               apiBaseUrl={desktopCloudApiBaseUrl}

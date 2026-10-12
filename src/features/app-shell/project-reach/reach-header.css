@@ -1,0 +1,148 @@
+@layer features {
+  /* The Header states reach: identity marks, a count, and nothing at all when
+     the answer is "only you". Quiet is the default; emphasis is reserved for
+     something the user has to deal with. */
+  .desktop-titlebar-reach-wrap {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+  }
+
+  .desktop-titlebar-reach-button {
+    display: flex;
+    min-height: 22px;
+    min-width: 22px;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 6px;
+    border: 1px solid transparent;
+    border-radius: var(--po-radius-sm, 6px);
+    background: transparent;
+    color: var(--po-text-secondary);
+    cursor: default;
+  }
+
+  .desktop-titlebar-reach-button:hover,
+  .desktop-titlebar-reach-button[aria-expanded="true"] {
+    background: var(--po-surface-hover);
+    color: var(--po-text-primary);
+  }
+
+  .desktop-titlebar-reach-button[data-reach-emphasis="true"] {
+    color: var(--po-status-warning, var(--po-text-primary));
+  }
+
+  .desktop-project-reach-marks {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+  }
+
+  /* People are round, machines are square. The shape carries the distinction,
+     so the Header needs no text groups and no legend. */
+  .desktop-project-reach-mark {
+    display: flex;
+    width: 16px;
+    height: 16px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--po-border-subtle);
+    background: var(--po-surface-raised);
+    color: var(--po-text-secondary);
+    font-size: 9px;
+    line-height: 1;
+    font-weight: 600;
+  }
+
+  .desktop-project-reach-mark[data-reach-audience="person"] {
+    border-radius: 50%;
+  }
+
+  .desktop-project-reach-mark[data-reach-audience="machine"] {
+    border-radius: 4px;
+  }
+
+  /* Activity is the only live state the marks carry, and it comes from the
+     reading / writing facts rather than from a residency claim. */
+  .desktop-project-reach-mark[data-reach-activity] {
+    border-color: var(--po-accent);
+    color: var(--po-accent);
+  }
+
+  .desktop-project-reach-marks[data-reach-audience="none"] {
+    width: 16px;
+    height: 16px;
+    border: 1px dashed var(--po-border-subtle);
+    border-radius: 4px;
+  }
+
+  .desktop-project-reach-count {
+    color: var(--po-text-secondary);
+    font-size: 11px;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .desktop-project-reach-panel {
+    display: grid;
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .desktop-project-reach-statement {
+    margin: 0;
+    color: var(--po-text-primary);
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .desktop-project-reach-statement[data-reach-state="attention"] {
+    color: var(--po-status-warning, var(--po-text-primary));
+  }
+
+  .desktop-project-reach-actions {
+    display: grid;
+    gap: 4px;
+  }
+
+  /* Inviting a person and connecting an agent are the two things this panel
+     does; stopping a reach sits in the rows with the same visual weight. */
+  .desktop-project-reach-action {
+    display: flex;
+    min-height: 26px;
+    align-items: center;
+    gap: 8px;
+    padding: 0 8px;
+    border: 1px solid transparent;
+    border-radius: var(--po-radius-sm, 6px);
+    background: transparent;
+    color: var(--po-text-primary);
+    font-size: 12px;
+    text-align: start;
+  }
+
+  .desktop-project-reach-action:hover:not(:disabled) {
+    background: var(--po-surface-hover);
+  }
+
+  .desktop-project-reach-action:disabled {
+    color: var(--po-text-disabled);
+  }
+
+  .desktop-project-reach-action.primary {
+    border-color: var(--po-border-subtle);
+    background: var(--po-surface-raised);
+  }
+
+  .desktop-project-reach-device-copy {
+    display: grid;
+    gap: 8px;
+  }
+
+  .desktop-project-reach-device-copy p {
+    margin: 0;
+    color: var(--po-text-secondary);
+    font-size: 12px;
+    line-height: 1.4;
+  }
+}
