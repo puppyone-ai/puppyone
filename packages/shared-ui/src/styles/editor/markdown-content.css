@@ -232,6 +232,7 @@
 
 /* One file-owned table profile across the editable adapter and Safe HTML. */
 .markdown-codemirror-editor .cm-md-table-widget-wrap {
+  --po-editable-table-format-radius: var(--po-md-block-radius);
   --po-editable-table-color: var(--po-md-table-color);
   --po-editable-table-header-color: var(--po-md-table-header-color);
   --po-editable-table-body-color: var(--po-md-table-body-color);
@@ -264,14 +265,27 @@
 }
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface table {
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: var(--po-md-block-radius);
+  overflow: hidden;
   background: var(--po-md-table-background);
   border: 1px solid var(--po-md-table-border);
 }
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface table :is(th, td) {
   padding: var(--po-md-table-cell-padding);
-  border: 1px solid var(--po-md-table-cell-border);
+  border: 0;
+  border-inline-end: 1px solid var(--po-md-table-cell-border);
+  border-block-end: 1px solid var(--po-md-table-cell-border);
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface table tr > :last-child {
+  border-inline-end: 0;
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface table > :last-child > tr:last-child > * {
+  border-block-end: 0;
 }
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface th {
@@ -421,13 +435,13 @@
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface img {
   max-width: 100%;
+  border-radius: var(--po-md-block-radius);
 }
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface img[aria-busy="true"],
 .markdown-codemirror-editor .cm-md-html-rendered-surface img[data-md-asset-state="loading"] {
   min-width: 1em;
   min-height: 1em;
-  border-radius: 3px;
   background: var(--po-md-placeholder-background);
 }
 
@@ -437,7 +451,7 @@
   align-items: center;
   padding-inline: 0.4em;
   border: 1px solid var(--po-md-fallback-border);
-  border-radius: 3px;
+  border-radius: var(--po-md-block-radius);
   color: var(--po-md-fallback-color);
   font-size: var(--po-md-table-font-size);
   line-height: 1.35;
@@ -448,7 +462,7 @@
   width: auto;
   max-width: 100%;
   max-height: min(70vh, 720px);
-  border-radius: 6px;
+  border-radius: var(--po-md-block-radius);
   background: var(--po-md-media-background);
 }
 

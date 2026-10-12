@@ -536,9 +536,12 @@
 }
 
 .markdown-codemirror-editor :is(.cm-md-code-panel, .cm-md-mermaid-body, .cm-md-html-widget-content, .cm-md-mdx-tabs-panels, .cm-md-image-widget, .cm-md-video-widget) {
-  border-radius: 6px;
   box-shadow: 0 0 0 2px var(--cm-md-block-current-ring);
   transition: box-shadow 140ms ease;
+}
+
+.markdown-codemirror-editor :is(.cm-md-mermaid-body, .cm-md-html-widget-content, .cm-md-mdx-tabs-panels, .cm-md-image-widget, .cm-md-video-widget) {
+  border-radius: var(--po-md-block-radius);
 }
 
 /*

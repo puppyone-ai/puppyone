@@ -69,7 +69,7 @@ describe("Markdown editor layout", () => {
     expect(readCssRule(markdownInlineCss, ".markdown-codemirror-editor .cm-md-inline-code")).not.toMatch(/\bcolor:/);
     expect(markdownContentCss).not.toMatch(/:is\(\.cm-md-blockquote,[^{}]*\)\s+:is\(/s);
     expect(readCssRule(markdownEditorCss,
-      ".markdown-codemirror-editor .cm-md-list-line:not(.cm-md-task-line):not(.cm-md-list-continuation)::before",
+      ".markdown-codemirror-editor .cm-md-list-line:not(.cm-md-task-line):not(.cm-md-list-continuation):not(.cm-md-list-source-line)::before",
     )).toContain("color: var(--po-md-list-marker-color);");
     expect(readCssRule(markdownContentCss,
       ".markdown-codemirror-editor .cm-md-html-rendered-surface li::marker",

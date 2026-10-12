@@ -315,7 +315,7 @@
   padding: var(--po-md-code-block-padding);
   overflow: auto;
   border: 1px solid color-mix(in srgb, var(--po-divider) 82%, transparent);
-  border-radius: 6px;
+  border-radius: var(--po-md-block-radius);
   outline: 0;
   resize: vertical;
   background: var(--po-md-code-block-background);
@@ -342,7 +342,7 @@
   overscroll-behavior-x: contain;
   padding: 16px;
   border: 1px solid color-mix(in srgb, var(--po-divider) 70%, transparent);
-  border-radius: 6px;
+  border-radius: var(--po-md-block-radius);
   background: var(--po-md-mermaid-panel);
 }
 

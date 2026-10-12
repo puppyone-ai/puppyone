@@ -6,7 +6,7 @@
 :where(.markdown-codemirror-editor .cm-md-table-widget-wrap, .csv-table-editor) {
   --po-editable-table-border: var(--po-editable-table-format-border, var(--po-surface-editable-table-border, var(--po-divider)));
   --po-editable-table-cell-border: var(--po-editable-table-format-cell-border, var(--po-surface-editable-table-cell-border, var(--po-editable-table-border)));
-  --po-editable-table-radius: 0px;
+  --po-editable-table-radius: var(--po-editable-table-format-radius, var(--po-editor-content-block-radius));
   --po-editable-table-background: var(--po-editable-table-format-background, var(--po-surface-editable-table-background, transparent));
   --po-editable-table-color: var(--po-text);
   --po-editable-table-header-background: var(

@@ -159,6 +159,7 @@ const markdownIntegerSizeTokens = new Set([
 ]);
 const markdownSizeRoles = new Set(MARKDOWN_SIZE_ROLES);
 const csvTokenMap = new Map([
+  ["--po-editable-table-radius", "--po-host-csv-table-radius"],
   ["--po-csv-selection-bg", "--po-host-csv-selection-bg"],
   ["--po-csv-selection-inactive-bg", "--po-host-csv-selection-inactive-bg"],
   ["--po-csv-surface-background", "--po-host-csv-surface-background"],
@@ -214,7 +215,7 @@ export async function compileThemeCss({
     publicColors: new Set([
       ...applicationColorTokens,
       ...(target === "markdown" ? [...markdownTokenMap.keys()].filter((name) => /(?:color|background|selection-(?:bg|inactive-bg)|syntax-[a-z]+)$/.test(name)) : []),
-      ...(target === "csv" ? csvTokenMap.keys() : []),
+      ...(target === "csv" ? [...csvTokenMap.keys()].filter(name => !name.endsWith("-radius")) : []),
     ]),
   });
   completeSelectionPairs(root, target);

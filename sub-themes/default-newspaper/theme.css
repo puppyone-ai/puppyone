@@ -212,7 +212,8 @@
     --po-md-code-block-line-height: 20px;
     --po-md-code-block-font-weight: 500;
     --po-md-code-block-padding: 12px 14px;
-    --po-md-code-block-radius: 4px;
+    --po-md-block-radius: var(--po-editor-content-block-radius);
+    --po-md-code-block-radius: var(--po-md-block-radius);
     --po-md-code-focus-background: color-mix(in srgb, var(--po-control) 18%, transparent);
     --po-md-code-caret-color: var(--po-md-link-color);
     --po-md-table-font: var(--po-md-content-font);

@@ -60,6 +60,11 @@
 /* Conflict markers, crash/empty states, misc editor status UI */
 @import "./editor/editor-status.css";
 
+/* Shared content geometry, available to theme bindings at their host boundary. */
+:root {
+  --po-editor-content-block-radius: 10px;
+}
+
 /* Markdown uses a document-sized inset; wide tabular editors own their spacing. */
 .markdown-codemirror-editor {
   --po-editor-content-edge-inset: 48px;

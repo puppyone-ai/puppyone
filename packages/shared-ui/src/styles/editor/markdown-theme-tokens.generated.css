@@ -139,7 +139,8 @@
     --po-host-md-code-block-line-height: 20px;
     --po-host-md-code-block-font-weight: 500;
     --po-host-md-code-block-padding: 12px 14px;
-    --po-host-md-code-block-radius: 4px;
+    --po-host-md-block-radius: var(--po-editor-content-block-radius);
+    --po-host-md-code-block-radius: var(--po-host-md-block-radius);
     --po-host-md-code-focus-background: color-mix(in srgb, var(--po-control) 18%, transparent);
     --po-host-md-code-caret-color: var(--po-host-md-link-color);
     --po-host-md-table-font: var(--po-host-md-content-font);
@@ -216,6 +217,7 @@
   --po-md-content-line-height: var(--po-host-md-content-line-height);
   --po-md-source-line-gap: var(--po-host-md-source-line-gap);
   --po-md-block-gap: var(--po-host-md-block-gap);
+  --po-md-block-radius: var(--po-host-md-block-radius);
   --po-md-paragraph-gap-before: var(--po-host-md-paragraph-gap-before);
   --po-md-paragraph-gap-after: var(--po-host-md-paragraph-gap-after);
   --po-md-list-inset: var(--po-host-md-list-inset);

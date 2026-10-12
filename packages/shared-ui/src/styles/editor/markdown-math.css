@@ -26,7 +26,7 @@
   align-items: center;
   padding: 24px 12px;
   overflow-x: auto;
-  border-radius: 6px;
+  border-radius: var(--po-md-block-radius);
   box-shadow: 0 0 0 2px var(--cm-md-block-current-ring);
   text-align: center;
   transition: box-shadow 140ms ease;

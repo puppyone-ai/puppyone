@@ -37,6 +37,9 @@
       "name": "--po-md-block-gap"
     },
     {
+      "name": "--po-md-block-radius"
+    },
+    {
       "name": "--po-md-paragraph-gap-before"
     },
     {
