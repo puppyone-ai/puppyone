@@ -10,8 +10,9 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const settingKey = "enableProjectReach";
-const decisionPoint = "src/features/project-reach/useProjectReachExperience.ts";
-const conventionDocument = "src/features/project-reach/README.md";
+const decisionRoot = "src/features/project-reach/";
+const decisionPoint = `${decisionRoot}useProjectReachExperience.ts`;
+const conventionDocument = `${decisionRoot}README.md`;
 
 // Only these may declare or render the switch. Everything else reads the
 // decision point, or nothing at all.
@@ -22,7 +23,10 @@ const settingKeyOwners = [
 ];
 
 // One line per entry point, added by the delivery that owns that surface.
-const entryPoints = [];
+const entryPoints = [
+  // ISSUE-117: changes made elsewhere become a receipt waiting for review.
+  "src/features/source-control/SourceControlSidebar.tsx",
+];
 
 const errors = [];
 
@@ -51,7 +55,8 @@ for (const relativePath of rendererSources()) {
       + "consume useProjectReachExperience() instead",
     );
   }
-  if (relativePath === decisionPoint) continue;
+  // The folder that owns the decision point also owns its public entry.
+  if (relativePath.startsWith(decisionRoot)) continue;
   if (!/\buseProjectReachExperience\b/.test(source)) continue;
   if (!allowedEntryPoints.has(relativePath)) {
     errors.push(
