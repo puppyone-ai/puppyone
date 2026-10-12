@@ -1,0 +1,135 @@
+/* Changes made elsewhere arrive as a receipt inside the Source Control sidebar,
+   so the card borrows that surface's control geometry instead of inventing a
+   second visual language. */
+
+.desktop-incoming-changes {
+  display: grid;
+  box-sizing: border-box;
+  gap: 4px;
+  width: var(--git-sidebar-control-width);
+  margin: 8px var(--git-sidebar-control-right-gap) 0 var(--git-sidebar-control-left-gap);
+  padding: 10px 10px 9px;
+  border: 0;
+  border-radius: var(--git-control-radius);
+  background: color-mix(in srgb, var(--po-text) 11%, var(--po-surface-auxiliary));
+  font-size: var(--git-font-main);
+  line-height: var(--git-line-height);
+}
+
+.desktop-incoming-changes[data-blocked="true"] {
+  background: color-mix(in srgb, var(--po-text) 13%, var(--po-surface-auxiliary));
+}
+
+.desktop-incoming-changes p {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.desktop-incoming-changes-summary {
+  color: var(--po-text);
+  font-weight: var(--git-weight-strong);
+}
+
+.desktop-incoming-changes-promise,
+.desktop-incoming-changes-local,
+.desktop-incoming-changes-time,
+.desktop-incoming-changes-more {
+  color: var(--po-text-muted);
+}
+
+.desktop-incoming-changes-decision,
+.desktop-incoming-changes-failure {
+  color: var(--po-text);
+}
+
+.desktop-incoming-changes-files {
+  display: grid;
+  gap: 1px;
+  margin: 3px 0 1px;
+  padding: 0;
+  list-style: none;
+}
+
+.desktop-incoming-changes-file {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px;
+  align-items: center;
+  width: 100%;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--po-text-muted);
+  font: inherit;
+  text-align: start;
+  cursor: default;
+}
+
+.desktop-incoming-changes-file:hover {
+  background: color-mix(in srgb, var(--po-text) 8%, transparent);
+  color: var(--po-text);
+}
+
+.desktop-incoming-changes-file-letter {
+  width: 1ch;
+  color: var(--po-text-subtle, var(--po-text-muted));
+  font-variant-numeric: tabular-nums;
+}
+
+.desktop-incoming-changes-file-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: ltr;
+}
+
+.desktop-incoming-changes-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.desktop-incoming-changes-apply,
+.desktop-incoming-changes-set-aside,
+.desktop-incoming-changes-restore {
+  padding: 4px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--git-control-radius);
+  font: inherit;
+  font-weight: var(--git-weight-regular);
+  cursor: default;
+}
+
+.desktop-incoming-changes-apply {
+  background: var(--desktop-git-primary-bg);
+  color: var(--desktop-git-primary-fg);
+}
+
+.desktop-incoming-changes-apply:hover:not(:disabled) {
+  background: var(--desktop-git-primary-bg-hover);
+}
+
+.desktop-incoming-changes-apply:disabled {
+  background: var(--desktop-git-primary-bg-disabled);
+  color: var(--desktop-git-primary-fg-disabled);
+}
+
+.desktop-incoming-changes-set-aside,
+.desktop-incoming-changes-restore {
+  background: transparent;
+  color: var(--po-text-muted);
+}
+
+.desktop-incoming-changes-set-aside:hover:not(:disabled),
+.desktop-incoming-changes-restore:hover {
+  background: color-mix(in srgb, var(--po-text) 8%, transparent);
+  color: var(--po-text);
+}
+
+.desktop-incoming-changes-set-aside:disabled {
+  color: var(--po-text-disabled);
+}

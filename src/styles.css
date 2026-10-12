@@ -33,6 +33,7 @@
 @import "./features/cloud/cloud-service.css" layer(features);
 @import "./styles/settings-controls.css" layer(features);
 @import "./features/source-control/source-control.css" layer(features);
+@import "./features/changes/incoming-changes.css" layer(features);
 @import "./styles/settings-view.css" layer(features);
 @import "./styles/settings-new-menu.css" layer(features);
 @import "./styles/file-actions.css" layer(features);
