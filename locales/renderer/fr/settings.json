@@ -267,6 +267,8 @@
   "experimental.projectLocationIconsInHeader.detail": "Choisissez entre le menu d’emplacement et le changement direct dans l’en-tête. Nécessite Puppyone Cloud.",
   "experimental.projectLocationIconsInHeader.menu": "Menu",
   "experimental.projectLocationIconsInHeader.header": "En-tête",
+  "experimental.projectReach.title": "Qui peut accéder à ce projet",
+  "experimental.projectReach.detail": "Affiche dans l’en-tête qui et quels Agents peuvent accéder au projet actuel, réunit l’invitation d’une personne et la connexion d’un Agent sur un seul écran, et laisse les modifications faites ailleurs attendre votre relecture.",
   "experimental.otherAppImports.title": "Importer depuis d’autres applications",
   "experimental.otherAppImports.detail": "Afficher Notion, Google Drive, Airtable et Obsidian dans Importer et ajouter leur page de réglages.",
   "experimental.detail": "Optez pour les premières expériences de bureau. Chaque expérience est désactivée par défaut.",

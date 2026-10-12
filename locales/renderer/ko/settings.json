@@ -267,6 +267,8 @@
   "experimental.projectLocationIconsInHeader.detail": "위치 메뉴에서 전환할지 헤더에서 직접 전환할지 선택합니다. Puppyone Cloud를 켜야 합니다.",
   "experimental.projectLocationIconsInHeader.menu": "메뉴",
   "experimental.projectLocationIconsInHeader.header": "헤더",
+  "experimental.projectReach.title": "이 프로젝트에 닿을 수 있는 대상",
+  "experimental.projectReach.detail": "현재 프로젝트에 닿을 수 있는 사람과 Agent를 헤더에 표시하고, 사람 초대와 Agent 연결을 한 화면에서 처리하며, 다른 곳에서 생긴 변경은 검토를 기다리게 합니다.",
   "experimental.otherAppImports.title": "다른 앱에서 가져오기",
   "experimental.otherAppImports.detail": "가져오기에 Notion, Google Drive, Airtable, Obsidian을 표시하고 설정 페이지를 추가합니다.",
   "experimental.detail": "초기 데스크톱 기능을 사용합니다. 모든 실험은 기본적으로 꺼져 있습니다.",

@@ -267,6 +267,8 @@
   "experimental.projectLocationIconsInHeader.detail": "Zwischen dem Standortmenü und der direkten Umschaltung in der Kopfzeile wählen. Erfordert Puppyone Cloud.",
   "experimental.projectLocationIconsInHeader.menu": "Menü",
   "experimental.projectLocationIconsInHeader.header": "Kopfzeile",
+  "experimental.projectReach.title": "Wer dieses Projekt erreichen kann",
+  "experimental.projectReach.detail": "Zeigt in der Kopfzeile, wer und welche Agents das aktuelle Projekt erreichen können, führt das Einladen einer Person und das Verbinden eines Agents auf einem Bildschirm zusammen und lässt Änderungen von anderswo auf deine Durchsicht warten.",
   "experimental.otherAppImports.title": "Aus anderen Apps importieren",
   "experimental.otherAppImports.detail": "Notion, Google Drive, Airtable und Obsidian im Import anzeigen und ihre Einstellungsseite hinzufügen.",
   "experimental.detail": "Aktiviere frühe Desktop-Funktionen. Alle Experimente sind standardmäßig deaktiviert.",

@@ -304,6 +304,8 @@
   "experimental.projectLocationIconsInHeader.detail": "选择在位置菜单内切换本地 / 云端，或在顶部直接切换。需要启用 Puppyone Cloud。",
   "experimental.projectLocationIconsInHeader.menu": "菜单内",
   "experimental.projectLocationIconsInHeader.header": "顶部",
+  "experimental.projectReach.title": "谁能够到这个项目",
+  "experimental.projectReach.detail": "在顶部显示谁和哪些 Agent 能够到当前项目；邀请人与连接 Agent 收敛为一屏；别处产生的改动等待你审阅。",
   "experimental.otherAppImports.title": "从其他应用导入",
   "experimental.otherAppImports.detail": "在导入中显示 Notion、Google Drive、Airtable 和 Obsidian，并添加对应的设置页。",
   "experimental.detail": "选择体验早期桌面功能。所有实验默认关闭。",

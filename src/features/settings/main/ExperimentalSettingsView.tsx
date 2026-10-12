@@ -20,6 +20,7 @@ export function ExperimentalSettingsView() {
     {
       id: "header",
       rows: [
+        { messageKey: "projectReach", settingKey: "enableProjectReach" },
         { messageKey: "projectHeaderAlignment", settingKey: "enableCenteredProjectInHeader",
           choices: [{ messageKey: "left", value: false }, { messageKey: "center", value: true }] },
         { messageKey: "projectLocationIconsInHeader", settingKey: "enableProjectLocationIconsInHeader",
