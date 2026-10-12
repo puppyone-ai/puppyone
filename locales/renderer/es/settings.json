@@ -267,6 +267,8 @@
   "experimental.projectLocationIconsInHeader.detail": "Elige si cambiar entre local y Cloud desde el menú de ubicación o directamente en la cabecera. Requiere Puppyone Cloud.",
   "experimental.projectLocationIconsInHeader.menu": "Menú",
   "experimental.projectLocationIconsInHeader.header": "Cabecera",
+  "experimental.projectReach.title": "Quién puede acceder a este proyecto",
+  "experimental.projectReach.detail": "Muestra en la cabecera quién y qué Agents pueden acceder al proyecto actual, reúne la invitación de una persona y la conexión de un Agent en una sola pantalla y mantiene los cambios hechos en otro lugar a la espera de tu revisión.",
   "experimental.otherAppImports.title": "Importar desde otras aplicaciones",
   "experimental.otherAppImports.detail": "Mostrar Notion, Google Drive, Airtable y Obsidian en Importar y añadir su página de ajustes.",
   "experimental.detail": "Prueba anticipadamente experiencias del escritorio. Todos los experimentos están desactivados de forma predeterminada.",

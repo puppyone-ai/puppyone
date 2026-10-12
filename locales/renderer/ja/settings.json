@@ -267,6 +267,8 @@
   "experimental.projectLocationIconsInHeader.detail": "場所メニュー内で切り替えるか、ヘッダーで直接切り替えるかを選択します。Puppyone Cloud の有効化が必要です。",
   "experimental.projectLocationIconsInHeader.menu": "メニュー",
   "experimental.projectLocationIconsInHeader.header": "ヘッダー",
+  "experimental.projectReach.title": "このプロジェクトに届く相手",
+  "experimental.projectReach.detail": "現在のプロジェクトに届く人と Agent をヘッダーに表示し、人の招待と Agent の接続を 1 画面にまとめ、別の場所で加えられた変更はあなたの確認を待ちます。",
   "experimental.otherAppImports.title": "他のアプリからインポート",
   "experimental.otherAppImports.detail": "Notion、Google Drive、Airtable、Obsidian をインポートに表示し、設定ページを追加します。",
   "experimental.detail": "開発初期のデスクトップ機能を有効にします。すべてデフォルトではオフです。",

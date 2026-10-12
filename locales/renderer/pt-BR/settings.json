@@ -267,6 +267,8 @@
   "experimental.projectLocationIconsInHeader.detail": "Escolha entre alternar pelo menu de localização ou diretamente no cabeçalho. Requer Puppyone Cloud.",
   "experimental.projectLocationIconsInHeader.menu": "Menu",
   "experimental.projectLocationIconsInHeader.header": "Cabeçalho",
+  "experimental.projectReach.title": "Quem pode acessar este projeto",
+  "experimental.projectReach.detail": "Mostra no cabeçalho quem e quais Agents podem acessar o projeto atual, reúne o convite de uma pessoa e a conexão de um Agent em uma única tela e mantém as alterações feitas em outro lugar aguardando sua revisão.",
   "experimental.otherAppImports.title": "Importar de outros aplicativos",
   "experimental.otherAppImports.detail": "Mostrar Notion, Google Drive, Airtable e Obsidian em Importar e adicionar a página de configurações.",
   "experimental.detail": "Ative antecipadamente experiências do desktop. Todos os experimentos ficam desativados por padrão.",

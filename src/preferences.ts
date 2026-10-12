@@ -84,6 +84,7 @@ export type ExperimentalSettings = {
   enableEditorTabsInHeader: boolean;
   enableCenteredProjectInHeader: boolean;
   enableProjectLocationIconsInHeader: boolean;
+  enableProjectReach: boolean;
   enableShareOnboarding: boolean;
   enableWorkbenchTabsInHeader: boolean;
   enableGitAutoCommit: boolean;
@@ -173,6 +174,14 @@ export const DEFAULT_EXPERIMENTAL_SETTINGS: ExperimentalSettings = {
   enableEditorTabsInHeader: false,
   enableCenteredProjectInHeader: false,
   enableProjectLocationIconsInHeader: false,
+  /**
+   * Second path for "who can reach this project": the Header reach entry, the
+   * single-screen invite/connect form and review-first incoming changes. Off by
+   * default while the existing path stays byte-identical for comparison. Read it
+   * only through `useProjectReachExperience()`; the retirement plan lives in
+   * puppy-issues `document/puppyone-desktop/platform/experimental-path-forks.md`.
+   */
+  enableProjectReach: false,
   /** Share-first Cloud Homepage and Header entry. On by default; switch off for the classic layout. */
   enableShareOnboarding: true,
   enableWorkbenchTabsInHeader: false,
@@ -427,6 +436,7 @@ export function parseExperimentalSettings(value: string | null | undefined): Exp
       enableEditorTabsInHeader: parsed.enableEditorTabsInHeader === true,
       enableCenteredProjectInHeader: parsed.enableCenteredProjectInHeader === true,
       enableProjectLocationIconsInHeader: parsed.enableProjectLocationIconsInHeader === true,
+      enableProjectReach: parsed.enableProjectReach === true,
       enableShareOnboarding: parsed.enableShareOnboarding !== false,
       enableWorkbenchTabsInHeader: parsed.enableWorkbenchTabsInHeader === true,
       // Main-owned Git Auto Commit consent is intentionally never restored

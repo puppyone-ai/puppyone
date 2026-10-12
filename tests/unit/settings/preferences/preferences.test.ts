@@ -231,6 +231,19 @@ describe("experimental preferences", () => {
     expect(parseExperimentalSettings(stored).enableProjectLocationIconsInHeader).toBe(false);
   });
 
+  it.each([null, "not-json", "{}", '{"enableProjectReach":"true"}', '{"enableProjectReach":1}'])(
+    "keeps the project reach experience off for existing installations (%s)",
+    (stored) => {
+      expect(parseExperimentalSettings(stored).enableProjectReach).toBe(false);
+    },
+  );
+
+  it("restores explicit project reach consent without moving another experiment", () => {
+    expect(DEFAULT_EXPERIMENTAL_SETTINGS.enableProjectReach).toBe(false);
+    expect(parseExperimentalSettings(JSON.stringify({ enableProjectReach: true })))
+      .toEqual({ ...DEFAULT_EXPERIMENTAL_SETTINGS, enableProjectReach: true });
+  });
+
   it("restores explicit Header location icon consent", () => {
     expect(parseExperimentalSettings(JSON.stringify({ enableProjectLocationIconsInHeader: true })).enableProjectLocationIconsInHeader).toBe(true);
   });
