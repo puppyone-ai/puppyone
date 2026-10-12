@@ -13,6 +13,7 @@ import {
   getWorkspaceGitCommitDetail,
   getWorkspaceGitFileDiff,
   getWorkspaceGitStatus,
+  getWorkspacePublishScope,
   initializeWorkspaceGitRepository,
   pullWorkspaceGit,
   publishWorkspaceGitBranch,
@@ -100,6 +101,12 @@ export function registerWorkspaceGitIpcHandlers({
     await gitOperationCoordinator.whenIdleAll([worktreeKey, repoKey]);
     return handler(rootPath, request, event);
   });
+
+  // Read-only and idle-gated: the Share surface asks what a folder would make
+  // reachable while a commit or publish may still be running on the worktree.
+  ipcMain.handle("workspace:publish-scope", withAuthorizedIdleRead(async (rootPath, request) => (
+    getWorkspacePublishScope(rootPath, request?.path ?? "")
+  )));
 
   ipcMain.handle("workspace:git-status", withAuthorizedRoot(async (rootPath, request, event) => {
     const requestId = normalizeGitStatusRequestId(request?.requestId);

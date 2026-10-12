@@ -36,6 +36,7 @@ import {
   readGitComparisonPreview,
   resolveGitRemoteDiffComparisons,
 } from "./git/diff-comparison.mjs";
+import { readGitPublishScope } from "./git/publish-scope.mjs";
 import { resolveGitRevisionPair } from "./git/revision-pair.mjs";
 import { deriveGitRevisionSpecs } from "./git/revision-specs.mjs";
 import { parseGitPorcelainV2Status } from "./git/porcelain-v2.mjs";
@@ -1003,6 +1004,19 @@ function throwIfGitStatusAborted(signal) {
 function normalizeGitHeadCommitId(value) {
   const candidate = typeof value === "string" ? value.trim() : "";
   return /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(candidate) ? candidate : "";
+}
+
+/**
+ * What a folder would make reachable: how many files and how many bytes, with
+ * ignore rules already applied. The Share surface states this before the user
+ * commits to anything, so the count has to come from the same engine that will
+ * do the work rather than from a second walk of the tree.
+ */
+export async function getWorkspacePublishScope(rootPath, relativePath = "", options = {}) {
+  const root = resolveWorkspacePath(rootPath, null);
+  const normalizedPath = normalizeRelativePath(relativePath);
+  if (normalizedPath) await resolveExistingWorkspacePath(root, normalizedPath);
+  return readGitPublishScope(root, normalizedPath, { signal: options.signal });
 }
 
 export async function getWorkspaceGitStatus(rootPath, options = {}) {

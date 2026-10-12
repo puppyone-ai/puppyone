@@ -146,12 +146,14 @@ import { shouldBlockWorkspaceCloudResolution } from "./features/cloud/workspace/
 import { useCloudInitialization } from "./features/cloud/initialization/useCloudInitialization";
 import {
   CloudShareProvider,
+  ProjectReachDialog,
   ShareWizardDialog,
   useProjectShareActivity,
   type CloudShareActions,
   type ShareTargetId,
   type ShareWizardFolderEntry,
 } from "./features/cloud/share";
+import { useProjectReachExperience } from "./features/project-reach";
 import {
   TYPOGRAPHY_SCALE_METRICS,
   useTypographyCatalog,
@@ -269,6 +271,9 @@ function AppContent() {
   // Share onboarding rides on top of Cloud: the Header cloud icon becomes the
   // project's Local/Cloud indicator and the only entry into sharing.
   const shareOnboardingEnabled = cloudEnabled && enableShareOnboarding;
+  // The share entry's fork: one screen for inviting a person or connecting an
+  // agent, or the existing step wizard. Declared in the project-reach contract.
+  const projectReachEnabled = useProjectReachExperience();
   const assetLibraryHomeAvailable = useFeatureFlag("assetLibraryHome");
   const {
     cloudSession,
@@ -2049,7 +2054,32 @@ function AppContent() {
                 : undefined}
             />
           )}
-          {shareWizard && shareOnboardingEnabled && (
+          {shareWizard && shareOnboardingEnabled && (projectReachEnabled ? (
+            <ProjectReachDialog
+              workspaceName={(focusedWorkspace ?? workspace).name}
+              workspacePath={(focusedWorkspace ?? workspace).path}
+              initialTargetId={shareWizard.targetId}
+              initialPath={shareWizard.path}
+              session={activeCloudSession}
+              apiBaseUrl={desktopCloudApiBaseUrl}
+              projectContext={projectCloudContext}
+              publish={{
+                loading: cloudBackupLoading,
+                progress: cloudPublishProgress,
+                error: cloudPublishError,
+                start: handleStartPuppyoneBackup,
+              }}
+              shares={projectShares}
+              listTopLevelFolders={listShareFolders}
+              onSessionChange={updateCloudSession}
+              onIssued={setPendingShare}
+              onOpenCloud={() => {
+                closeShareWizard();
+                openCloudDialog();
+              }}
+              onClose={closeShareWizard}
+            />
+          ) : (
             <ShareWizardDialog
               workspaceName={(focusedWorkspace ?? workspace).name}
               initialTargetId={shareWizard.targetId}
@@ -2073,7 +2103,7 @@ function AppContent() {
               }}
               onClose={closeShareWizard}
             />
-          )}
+          ))}
           </>
         </DesktopOverlayPortal>
       </div>

@@ -38,6 +38,7 @@ import type {
   WorkspaceImportEntriesResult,
   WorkspaceAttachResult,
   WorkspaceDetachResult,
+  WorkspacePublishScope,
   WorkspaceOpenResult,
   CloudProjectWindowTarget,
   WorkspaceProjectLocationGrant,
@@ -481,6 +482,20 @@ export async function getWorkspaceGitStatus(
   } finally {
     signal?.removeEventListener("abort", cancel);
   }
+}
+
+/**
+ * How many files and bytes a folder would make reachable, with ignore rules
+ * already applied. Hosts that predate the query return null so the surface can
+ * state nothing instead of stating a guess.
+ */
+export async function getWorkspacePublishScope(
+  rootPath: string,
+  path = "",
+): Promise<WorkspacePublishScope | null> {
+  const bridge = getDesktopBridge();
+  if (typeof bridge.getPublishScope !== "function") return null;
+  return bridge.getPublishScope({ rootPath, path });
 }
 
 export async function getWorkspaceCloudInitializationState(

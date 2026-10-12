@@ -219,6 +219,36 @@ try {
       await show('progress'); assert.match(await text(), /Keep PuppyOne open/); assert.doesNotMatch(await text(), /resumable|duplicate/);
       sample.checks.push('Share: experiment-off navigation omits Share, experiment-on includes it; Cloud access status without sync promise; upload retains keep-open constraint');
 
+      await show('reach');
+      await until("document.body.innerText.includes('12 files')");
+      assert.doesNotMatch(await text(), /Who should be able to read this\?|Share steps/);
+      assert.match(await text(), /They see the version you last saved/);
+      assert.match(await text(), /anything your \.gitignore excludes stays out/);
+      assert.equal(await evaluate("document.querySelectorAll('.desktop-reach-dialog .desktop-dialog-button.primary').length"), 1);
+      assert.equal(await present('.desktop-reach-readers'), false);
+      await capture(`reach-invite-${suffix}`);
+      await clickText('Connect an agent instead');
+      assert.match(await text(), /Awake all the time/);
+      assert.ok(await evaluate("[...document.querySelectorAll('button')].find(e => e.textContent.trim() === 'Connect').disabled"));
+      await click("[data-share-target='claude']");
+      assert.match(await text(), /What can it do\?/);
+      assert.match(await text(), /comes back as changes waiting for your review/);
+      // One capture of each secondary reach state keeps the evidence without
+      // doubling the window's slowest operation across every theme and width.
+      if (suffix === 'light-1100') await capture('reach-connect');
+      await clickText('Connect Claude');
+      await until("!!document.querySelector('[aria-current=\"step\"]')");
+      assert.match(await evaluate("document.querySelector('[aria-current=\"step\"]').innerText"), /Account/);
+      assert.match(await text(), /Nothing is created in Cloud until you sign in/);
+      await capture(`reach-account-${suffix}`);
+      await show('reach', 'readers');
+      await until("document.body.innerText.includes('Who can reach this project')");
+      assert.match(await text(), /Can read/);
+      await clickText('Stop');
+      assert.match(await text(), /stops reading immediately/);
+      if (suffix === 'light-1100') await capture('reach-readers');
+      sample.checks.push('Project reach: one screen with a single primary action, measured scope with ignore rules, awake-or-not candidates, review promise, account as a progress step, and the reach list with its stop confirmation');
+
       for (const state of ['detecting', 'project', '', 'error']) {
         await show('preview', state);
         if (state === 'detecting') assert.equal(await evaluate("document.querySelectorAll('.app-setup-hero [role=status]').length"), 1);
