@@ -1,5 +1,5 @@
 import { EditorView, type Rect, WidgetType } from "@codemirror/view";
-import type { MarkdownTaskLine } from "../rendering/taskModel";
+import type { MarkdownTaskLine } from "../syntax/markdownListStructure";
 import { getInlineWidgetEdgeX, getInlineWidgetTextCoords } from "../../shared/widgets/markdownWidgetMeasure";
 import { getMappedWidgetPosition } from "../../shared/widgets/widgetDom";
 import { toggleMarkdownTaskCheckboxAt } from "../commands/markdownTaskCommands";

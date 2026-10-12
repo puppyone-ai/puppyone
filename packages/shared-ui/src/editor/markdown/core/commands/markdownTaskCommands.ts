@@ -1,6 +1,6 @@
 import { Transaction } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
-import { getMarkdownTaskLine } from "../rendering/taskModel";
+import { getMarkdownTaskLine } from "../syntax/markdownListStructure";
 
 export type MarkdownTaskCheckboxTarget = Readonly<{
   from: number;
@@ -21,7 +21,7 @@ export function toggleMarkdownTaskCheckboxAt(
   position: number,
 ): boolean {
   const safePosition = Math.max(0, Math.min(position, view.state.doc.length));
-  const task = getMarkdownTaskLine(view.state.doc.lineAt(safePosition));
+  const task = getMarkdownTaskLine(view.state, safePosition);
   if (!task) return false;
   return toggleMarkdownTaskCheckbox(view, {
     from: task.checkboxFrom,

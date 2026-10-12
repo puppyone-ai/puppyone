@@ -6,7 +6,7 @@ import {
   type MarkdownFeatureComposition,
   type MarkdownFeatureSourceLine,
 } from "../features/markdownFeatureContract";
-import { getMarkdownTaskLine } from "../rendering/taskModel";
+import { readMarkdownListItem } from "./markdownListStructure";
 import { findMarkdownLinkTokens } from "../links/markdownLinkModel";
 import { findWikiLinkTokens } from "../links/wikiLinkModel";
 import { isEscapedInlineToken } from "../../shared/inlineTokenScan";
@@ -104,7 +104,7 @@ function collectMarkdownElements(state: EditorState, from: number, to: number): 
           elements.push(createHeadingElement(node, line));
           return true;
         case "ListItem": {
-          const listElement = createListElement(node, line);
+          const listElement = createListElement(state, node);
           if (listElement) elements.push(listElement);
           return true;
         }
@@ -340,16 +340,29 @@ function createHeadingElement(node: SyntaxNode, line: LineSource): MarkdownEleme
   };
 }
 
-function createListElement(node: SyntaxNode, line: LineSource): MarkdownElement | null {
-  const markerRange = directChildRanges(node, "ListMark")[0];
-  if (!markerRange) return null;
-  const markerTo = line.text[markerRange.to - line.from] === " " ? markerRange.to + 1 : markerRange.to;
+function createListElement(state: EditorState, node: SyntaxNode): MarkdownElement | null {
+  const item = readMarkdownListItem(state, node);
+  if (!item || item.quoted) return null;
+  const line = state.doc.lineAt(item.markerFrom);
+  if (item.task) {
+    const task = item.task;
+    return {
+      kind: "task", from: node.from, to: node.to,
+      markerRanges: [
+        { from: line.from, to: task.checkboxFrom },
+        { from: task.checkboxFrom, to: task.prefixTo },
+      ],
+      contentRange: { from: task.contentFrom, to: node.to },
+      lineFrom: line.from, lineTo: line.to,
+      blockData: { kind: "task", checked: task.checked, task },
+    };
+  }
   return {
     kind: "list",
     from: node.from,
     to: node.to,
-    markerRanges: [{ from: markerRange.from, to: markerTo }],
-    contentRange: { from: markerTo, to: node.to },
+    markerRanges: [{ from: line.from, to: item.markerTo }],
+    contentRange: { from: item.markerTo, to: node.to },
     lineFrom: line.from,
     lineTo: line.to,
   };
@@ -454,23 +467,6 @@ function addExtendedLineElements(
       elements.push(blockMatch.element);
       lineNumber = blockMatch.nextLineNumber - 1;
       continue;
-    }
-
-    const taskLine = getMarkdownTaskLine(line);
-    if (taskLine) {
-      elements.push({
-        kind: "task",
-        from: taskLine.from,
-        to: taskLine.to,
-        markerRanges: [
-          { from: taskLine.prefixFrom, to: taskLine.checkboxFrom },
-          { from: taskLine.checkboxFrom, to: taskLine.prefixTo },
-        ],
-        contentRange: { from: taskLine.contentFrom, to: taskLine.contentTo },
-        lineFrom: line.from,
-        lineTo: line.to,
-        blockData: { kind: "task", checked: taskLine.checked },
-      });
     }
 
     for (const token of findWikiLinkTokens(line.text)) {

@@ -1,6 +1,7 @@
 import { syntaxTree } from "@codemirror/language";
 import type { EditorState, Transaction } from "@codemirror/state";
 import type { SyntaxNode } from "@lezer/common";
+import { getMarkdownListItemAt, markdownAncestor as ancestor, readMarkdownListItem, type MarkdownListItem } from "../syntax/markdownListStructure";
 
 const orderedMarkerColumns = new WeakMap<object, Map<string, number>>();
 const markerDiagnostics = { itemsScanned: 0 };
@@ -16,14 +17,14 @@ const listKey = (list: SyntaxNode) => `${list.from}:${list.to}`;
 
 export type MarkdownLineRhythm = {
   classes: Set<string>;
-  list?: { depth: number; marker: string; columns: number; parentColumns: number[]; prefixTo: number };
+  list?: { depth: number; marker: string; columns: number; parentColumns: number[]; prefixTo: number; sourceIndentTo: number };
 };
 
 /** Semantic boundaries only. Theme files own every visual spacing value.
  * The caller owns a document StateField, so these height-affecting classes are
  * available before CodeMirror computes its viewport, including local patches.
  */
-export function getMarkdownBlockRhythm(state: EditorState, from: number, to: number) {
+export function getMarkdownBlockRhythm(state: EditorState, from: number, to: number, sourceLineFrom?: number) {
   const lines = new Map<number, MarkdownLineRhythm>();
   const orderedColumns = markerColumnsFor(state);
   const add = (position: number, ...classes: string[]) => {
@@ -34,7 +35,7 @@ export function getMarkdownBlockRhythm(state: EditorState, from: number, to: num
     for (const name of classes) rhythm.classes.add(name);
     return rhythm;
   };
-  const context = { state, from, to, add, orderedColumns };
+  const context = { state, from, to, add, orderedColumns, sourceLineFrom };
   syntaxTree(state).iterate({ from, to, enter(ref) {
     const node = ref.node;
     if (node.name === "Paragraph") {
@@ -42,6 +43,8 @@ export function getMarkdownBlockRhythm(state: EditorState, from: number, to: num
     } else if (node.name === "ListItem" && !ancestor(node, "Blockquote")) {
       add(node.from, "cm-md-list-item-start");
       add(node.to, "cm-md-list-item-end");
+      const item = readMarkdownListItem(state, node);
+      if (item) addListItemRhythm(item, context);
     } else if ((node.name === "BulletList" || node.name === "OrderedList") && !ancestor(node, "ListItem") && !ancestor(node, "Blockquote")) {
       add(node.from, "cm-md-list-start");
       add(node.to, "cm-md-list-end");
@@ -51,7 +54,7 @@ export function getMarkdownBlockRhythm(state: EditorState, from: number, to: num
 }
 
 type AddRhythm = (position: number, ...classes: string[]) => MarkdownLineRhythm | undefined;
-type RhythmContext = { state: EditorState; from: number; to: number; add: AddRhythm; orderedColumns: Map<string, number> };
+type RhythmContext = { state: EditorState; from: number; to: number; add: AddRhythm; orderedColumns: Map<string, number>; sourceLineFrom?: number };
 
 function addParagraphRhythm(node: SyntaxNode, context: RhythmContext) {
   const { add } = context;
@@ -66,38 +69,39 @@ function addParagraphRhythm(node: SyntaxNode, context: RhythmContext) {
   const paragraphs = item.getChildren("Paragraph");
   if (paragraphs[0]?.from !== node.from) add(node.from, "cm-md-paragraph-start");
   if (paragraphs.at(-1)?.from !== node.from) add(node.to, "cm-md-paragraph-end");
-  addListParagraphRhythm(node, item, context);
 }
 
-function addListParagraphRhythm(node: SyntaxNode, item: SyntaxNode, context: RhythmContext) {
+function addListItemRhythm(item: MarkdownListItem, context: RhythmContext) {
   const { state, from, to, add, orderedColumns } = context;
-  const mark = item.getChild("ListMark");
-  if (!mark) return;
-  const marker = state.sliceDoc(mark.from, mark.to);
-  const list = item.parent!;
+  const { list, marker } = item;
   const columns = listMarkerColumns(list, orderedColumns);
-  const parentColumns: number[] = [];
-  for (let parent = item.parent; parent; parent = parent.parent) {
-    if (parent.name === "ListItem" && parent.parent) parentColumns.unshift(listMarkerColumns(parent.parent, orderedColumns));
-  }
+  const parentColumns = item.parents.map(parent => listMarkerColumns(parent.parent!, orderedColumns));
   const depth = parentColumns.length;
-  const first = state.doc.lineAt(node.from), last = state.doc.lineAt(node.to);
-  for (let number = Math.max(first.number, state.doc.lineAt(from).number); number <= Math.min(last.number, state.doc.lineAt(to).number); number++) {
-    const line = state.doc.line(number);
-    const start = line.from === state.doc.lineAt(item.from).from;
-    const rhythm = add(line.from, "cm-md-list-line", ...(list.name === "OrderedList" ? ["cm-md-ordered-list-line"] : []),
-      ...(depth ? ["cm-md-nested-list-line"] : []), ...(start ? [] : ["cm-md-list-continuation"]));
-    if (!rhythm) continue;
-    const pattern = start ? /^(\s*)(?:[-*+]|\d+[.)])\s+/ : /^\s*/;
-    const prefix = pattern.exec(line.text)?.[0] ?? "";
-    const visibleMarker = /^\d/.test(marker) ? marker : "•";
-    rhythm.list = { depth, columns, parentColumns, marker: start ? visibleMarker : "", prefixTo: line.from + prefix.length };
+  // The item owns its marker line and every direct text block. Nested items
+  // project themselves; code/widgets retain their existing block adapters.
+  const spans = [{ from: item.node.from, to: state.doc.lineAt(item.node.from).to }];
+  for (let block = item.node.firstChild; block; block = block.nextSibling) {
+    if (block.name === "Paragraph" || block.name === "Task" || /^(ATXHeading|SetextHeading)/.test(block.name)) spans.push(block);
   }
-}
-
-function ancestor(node: SyntaxNode, name: string): SyntaxNode | null {
-  for (let parent = node.parent; parent; parent = parent.parent) if (parent.name === name) return parent;
-  return null;
+  for (const span of spans) {
+    const first = state.doc.lineAt(span.from), last = state.doc.lineAt(span.to);
+    for (let number = Math.max(first.number, state.doc.lineAt(from).number); number <= Math.min(last.number, state.doc.lineAt(to).number); number++) {
+      const line = state.doc.line(number);
+      const existing = add(line.from);
+      // `- - text` has two ListItems on one source line. Editing exposes both
+      // literal markers from the outer rail, never hides a typed parent marker.
+      if (line.from === context.sourceLineFrom && existing?.list) continue;
+      const start = line.from === state.doc.lineAt(item.node.from).from;
+      const rhythm = add(line.from, "cm-md-list-line", ...(list.name === "OrderedList" ? ["cm-md-ordered-list-line"] : []),
+        ...(depth ? ["cm-md-nested-list-line"] : []), ...(start ? [] : ["cm-md-list-continuation"]),
+        ...(item.task ? ["cm-md-task-line", ...(item.task.checked ? ["cm-md-task-checked"] : [])] : []));
+      if (!rhythm) continue;
+      const sourceIndentTo = start ? item.markerFrom : line.from + /^[\t ]*/.exec(line.text)![0].length;
+      const visibleMarker = /^\d/.test(marker) ? marker : "•";
+      rhythm.list = { depth, columns, parentColumns, marker: start ? visibleMarker : "",
+        prefixTo: start ? item.contentFrom : sourceIndentTo, sourceIndentTo };
+    }
+  }
 }
 
 function widestOrderedMarker(list: SyntaxNode): number {
@@ -122,24 +126,31 @@ function listMarkerColumns(list: SyntaxNode, cache: Map<string, number>) {
 export function getChangedMarkdownRhythmRanges(transaction: Transaction) {
   const ranges: { from: number; to: number }[] = [];
   transaction.changes.iterChangedRanges((fromA, toA, fromB, toB) => {
-    const before = transaction.startState.doc.lineAt(fromA), after = transaction.state.doc.lineAt(fromB);
-    const prefix = (text: string) => /^(?:[\t ]*(?:[-*+]|\d+[.)])(?:[\t ]+|$)|[\t ]*)/.exec(text)?.[0];
+    const beforeItem = getMarkdownListItemAt(transaction.startState, fromA);
+    const afterItem = getMarkdownListItemAt(transaction.state, fromB);
     const changedLineBreaks = /[\r\n]/.test(transaction.startState.sliceDoc(fromA, toA)) || /[\r\n]/.test(transaction.state.sliceDoc(fromB, toB));
-    if (prefix(before.text) === prefix(after.text) && !changedLineBreaks) {
+    if (listStructureKey(transaction.startState, beforeItem) === listStructureKey(transaction.state, afterItem) && !changedLineBreaks) {
       inheritOrderedColumns(transaction, { fromA, toA, fromB, toB });
       return;
     }
-    for (const [state, position, old] of [[transaction.startState, fromA, true], [transaction.state, fromB, false]] as const) {
-      const insideLine = Math.min(state.doc.lineAt(position).to, position + 1);
-      let node: SyntaxNode | null = syntaxTree(state).resolveInner(insideLine, -1);
-      while (node && node.name !== "ListItem" && node.name !== "OrderedList") node = node.parent;
-      if (!node) continue;
-      const owner = node.parent?.name === "OrderedList" ? node.parent : node;
+    for (const [item, old] of [[beforeItem, true], [afterItem, false]] as const) {
+      if (!item) continue;
+      // Marker edits may reparent descendants or resize an ancestor's shared
+      // number column. Invalidate that semantic owner, not arbitrary nearby lines.
+      const owner = item.parents[0]?.parent ?? item.list;
       ranges.push({ from: old ? transaction.changes.mapPos(owner.from, -1) : owner.from,
         to: old ? transaction.changes.mapPos(owner.to, 1) : owner.to });
     }
   });
   return ranges;
+}
+
+function listStructureKey(state: EditorState, item: MarkdownListItem | null): string {
+  if (!item) return "";
+  const line = state.doc.lineAt(item.node.from);
+  const blocks: string[] = [];
+  for (let block = item.node.firstChild; block; block = block.nextSibling) blocks.push(block.name);
+  return `${item.parents.length}:${item.list.name}:${state.sliceDoc(line.from, item.contentFrom)}:${blocks.join(",")}`;
 }
 
 /** A body edit does not change numbering. Reuse its containing list's width

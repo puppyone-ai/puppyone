@@ -363,7 +363,7 @@
   --md-list-prefix-width: calc(var(--md-list-parent-prefix-width) + max(var(--po-md-list-indent-step), calc(var(--md-list-marker-slot-width) + var(--po-md-list-marker-gap))));
 }
 
-.markdown-codemirror-editor .cm-md-list-line:not(.cm-md-task-line):not(.cm-md-list-continuation)::before {
+.markdown-codemirror-editor .cm-md-list-line:not(.cm-md-task-line):not(.cm-md-list-continuation):not(.cm-md-list-source-line)::before {
   position: absolute;
   inset-inline-start: calc(var(--md-list-prefix-width) - var(--md-list-marker-slot-width) - var(--po-md-list-marker-gap));
   inset-block-start: var(--md-line-padding-before, 0px);
@@ -377,6 +377,12 @@
   font-variant-numeric: var(--po-md-list-marker-numeric-variant);
   user-select: none;
   content: var(--md-list-marker, "");
+}
+
+/* While editing a prefix, the literal marker occupies its own rail. Parent
+   indentation still comes from the same theme geometry as preview mode. */
+.markdown-codemirror-editor .cm-md-list-source-line:not(.cm-md-list-continuation) {
+  padding-inline-start: calc(var(--md-list-prefix-width) - var(--md-list-marker-slot-width) - var(--po-md-list-marker-gap));
 }
 
 .markdown-codemirror-editor .cm-md-ordered-list-line {

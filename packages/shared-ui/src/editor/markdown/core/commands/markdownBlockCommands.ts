@@ -1,5 +1,7 @@
-import { EditorSelection, EditorState, type ChangeSpec } from "@codemirror/state";
+import { countColumn, EditorSelection, EditorState, type ChangeSpec } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
+import { syntaxTree } from "@codemirror/language";
+import { getMarkdownListItemAt, readMarkdownListItem, type MarkdownListItem } from "../syntax/markdownListStructure";
 
 export function setMarkdownHeadingLevel(level: 0 | 1 | 2 | 3 | 4 | 5 | 6) {
   return (view: EditorView): boolean => {
@@ -36,33 +38,25 @@ export function toggleMarkdownList(kind: "bullet" | "ordered" | "task") {
     if (state.readOnly) return false;
 
     const lines = getSelectedLineNumbers(state);
-    const allMatching = lines.every((lineNumber) => {
-      const text = state.doc.line(lineNumber).text;
-      if (kind === "task") return /^\s*(?:[-*+]|\d+[.)])\s+\[[ xX]\]\s+/.test(text);
-      if (kind === "ordered") return /^\s*\d+[.)]\s+/.test(text);
-      return /^\s*[-*+]\s+/.test(text) && !/^\s*[-*+]\s+\[[ xX]\]\s+/.test(text);
+    const items = lines.map(number => {
+      const line = state.doc.line(number);
+      const item = getMarkdownListItemAt(state, line.from);
+      return item && !item.quoted && state.doc.lineAt(item.markerFrom).from === line.from ? item : null;
     });
-
+    const allMatching = items.every(item => item && (kind === "task" ? item.task
+      : !item.task && item.list.name === (kind === "ordered" ? "OrderedList" : "BulletList")));
     const changes: ChangeSpec[] = [];
     lines.forEach((lineNumber, index) => {
       const line = state.doc.line(lineNumber);
-      const leadingWhitespace = /^\s*/.exec(line.text)?.[0] ?? "";
-      const markerMatch = /^(\s*)(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s*)?/.exec(line.text);
-      const markerTo = markerMatch ? line.from + markerMatch[0].length : line.from + leadingWhitespace.length;
-      const markerFrom = line.from + leadingWhitespace.length;
-
-      if (allMatching) {
-        if (markerMatch) changes.push({ from: markerFrom, to: markerTo, insert: "" });
-        return;
-      }
-
-      const marker = kind === "ordered" ? `${index + 1}. ` : kind === "task" ? "- [ ] " : "- ";
+      const item = items[index];
+      const markerFrom = item?.markerFrom ?? line.from + /^[\t ]*/.exec(line.text)![0].length;
+      const markerTo = item?.contentFrom ?? markerFrom;
+      const marker = allMatching ? "" : kind === "ordered" ? `${index + 1}. ` : kind === "task" ? "- [ ] " : "- ";
       changes.push({ from: markerFrom, to: markerTo, insert: marker });
     });
 
     if (changes.length === 0) return false;
     view.dispatch({ changes });
-    if (kind === "ordered") renumberOrderedLists(view);
     return true;
   };
 }
@@ -91,6 +85,41 @@ export function toggleMarkdownQuote(view: EditorView): boolean {
   return true;
 }
 
+/** Continue the same parsed item, changing source and numbering atomically. */
+export function continueMarkdownListItem(view: EditorView, item: MarkdownListItem): boolean {
+  const { state } = view;
+  const selection = state.selection.main;
+  const line = state.doc.lineAt(selection.from);
+  const isFirstLine = state.doc.lineAt(item.markerFrom).from === line.from;
+  if (isFirstLine && selection.from < item.contentFrom) return false;
+  if (isFirstLine && selection.from === line.to && !state.sliceDoc(item.contentFrom, line.to).trim()) {
+    if (item.parents.length) return outdentMarkdownListItem(view);
+    view.dispatch({ changes: { from: line.from, to: item.contentFrom, insert: "" },
+      selection: EditorSelection.cursor(line.from), userEvent: "input" });
+    return true;
+  }
+
+  const ordered = item.list.name === "OrderedList";
+  const nextNumber = ordered ? Number.parseInt(item.marker, 10) + 1 : 0;
+  const marker = ordered ? `${nextNumber}${item.marker.slice(-1)}` : item.marker;
+  const prefix = isFirstLine
+    ? `${state.sliceDoc(line.from, item.markerFrom)}${marker} ${item.task ? "[ ] " : ""}`
+    : " ".repeat(item.contentColumn);
+  const changes: ChangeSpec[] = [{ from: selection.from, insert: `\n${prefix}` }];
+  // Continue a sequential ordered list locally, preserving its starting number.
+  // Deliberately repeated/custom numbers and unrelated lists are untouched.
+  if (isFirstLine && ordered) {
+    let expected = nextNumber;
+    for (let node = item.node.nextSibling; node; node = node.nextSibling) {
+      const sibling = readMarkdownListItem(state, node);
+      if (!sibling || Number.parseInt(sibling.marker, 10) !== expected) break;
+      changes.push({ from: sibling.markerFrom, to: sibling.markerFrom + sibling.marker.length - 1, insert: String(++expected) });
+    }
+  }
+  view.dispatch({ changes, selection: EditorSelection.cursor(selection.from + 1 + prefix.length), userEvent: "input" });
+  return true;
+}
+
 export function indentMarkdownListItem(view: EditorView): boolean {
   return adjustMarkdownListIndent(view, 1);
 }
@@ -102,24 +131,45 @@ export function outdentMarkdownListItem(view: EditorView): boolean {
 function adjustMarkdownListIndent(view: EditorView, direction: 1 | -1): boolean {
   const { state } = view;
   if (state.readOnly) return false;
-
-  const changes: ChangeSpec[] = [];
-  const touchedLines = getSelectedLineNumbers(state);
-  for (const lineNumber of touchedLines) {
-    const line = state.doc.line(lineNumber);
-    if (!/^\s*(?:[-*+]|\d+[.)])\s+/.test(line.text)) continue;
-    if (direction > 0) {
-      changes.push({ from: line.from, to: line.from, insert: "  " });
-      continue;
-    }
-
-    const outdentWidth = line.text.startsWith("  ") ? 2 : line.text.startsWith("\t") ? 1 : 0;
-    if (outdentWidth > 0) changes.push({ from: line.from, to: line.from + outdentWidth, insert: "" });
+  const selected = new Map<number, MarkdownListItem>();
+  for (const number of getSelectedLineNumbers(state)) {
+    const item = getMarkdownListItemAt(state, state.doc.line(number).from);
+    if (item && !item.quoted) selected.set(item.node.from, item);
   }
-
-  if (changes.length === 0) return false;
-  view.dispatch({ changes });
-  renumberOrderedLists(view);
+  const items = [...selected.values()].filter(item => !item.parents.some(parent => selected.has(parent.from)));
+  const changes: ChangeSpec[] = [];
+  for (const item of items) {
+    let targetColumn: number;
+    if (direction < 0) {
+      const parent = item.parents.at(-1);
+      if (!parent) continue;
+      targetColumn = readMarkdownListItem(state, parent)!.indentColumns;
+    } else {
+      let previous = item.node.prevSibling;
+      // A selected sibling group moves together under its preceding item.
+      while (previous && selected.has(previous.from)) previous = previous.prevSibling;
+      if (!previous && /^(BulletList|OrderedList)$/.test(item.list.prevSibling?.name ?? "")) {
+        previous = item.list.prevSibling!.lastChild;
+      }
+      const parent = previous ? readMarkdownListItem(state, previous) : null;
+      if (!parent) continue;
+      targetColumn = parent.contentColumn;
+    }
+    const delta = targetColumn - item.indentColumns;
+    if (!delta) continue;
+    // Move the whole item, including wrapped source lines and descendants.
+    for (let n = state.doc.lineAt(item.node.from).number; n <= state.doc.lineAt(item.node.to).number; n++) {
+      const line = state.doc.line(n);
+      if (!line.text.trim()) continue;
+      const whitespace = /^[\t ]*/.exec(line.text)![0];
+      changes.push({ from: line.from, to: line.from + whitespace.length,
+        insert: " ".repeat(Math.max(0, countColumn(whitespace, 4) + delta)) });
+    }
+  }
+  // A list with no valid parent/sibling still owns Tab. Returning false would
+  // fall through to indentWithTab and turn a first child into code/continuation.
+  if (!changes.length) return selected.size > 0;
+  view.dispatch({ changes, userEvent: "input.indent" });
   return true;
 }
 
@@ -135,37 +185,6 @@ export function getSelectedLineNumbers(state: EditorState): number[] {
   return [...lines].sort((left, right) => left - right);
 }
 
-export function getContinuationPrefix(text: string): string | null {
-  const taskMatch = /^(\s*)([-*+]|\d+[.)])\s+\[[ xX]\]\s+/.exec(text);
-  if (taskMatch) return `${taskMatch[1]}${getNextListMarker(taskMatch[2])} [ ] `;
-
-  const listMatch = /^(\s*)([-*+]|\d+[.)])\s+/.exec(text);
-  if (listMatch) return `${listMatch[1]}${getNextListMarker(listMatch[2])} `;
-
-  const quoteMatch = /^(\s*>+\s?)/.exec(text);
-  if (quoteMatch) return quoteMatch[1].endsWith(" ") ? quoteMatch[1] : `${quoteMatch[1]} `;
-
-  return null;
-}
-
-export function getListOrQuoteContent(text: string): string {
-  return text
-    .replace(/^\s*(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s*)?/, "")
-    .replace(/^\s*>+\s?/, "");
-}
-
-export function getLineMarkerPrefixRange(lineFrom: number, text: string): { from: number; to: number } | null {
-  const match = /^(\s*(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s*)?|\s*>+\s?)/.exec(text);
-  if (!match) return null;
-  return { from: lineFrom, to: lineFrom + match[0].length };
-}
-
-function getNextListMarker(marker: string): string {
-  const orderedMatch = /^(\d+)([.)])$/.exec(marker);
-  if (!orderedMatch) return marker;
-  return `${Number.parseInt(orderedMatch[1], 10) + 1}${orderedMatch[2]}`;
-}
-
 export type OrderedListRenumberScope = Readonly<{
   from: number;
   to: number;
@@ -177,32 +196,19 @@ export function getOrderedListRenumberChanges(
   scope?: OrderedListRenumberScope,
 ): ChangeSpec[] {
   const changes: ChangeSpec[] = [];
-  const countersByIndent = new Map<string, number>();
-  const firstLine = scope ? state.doc.lineAt(scope.from).number : 1;
-  const lastLine = scope ? state.doc.lineAt(scope.to).number : state.doc.lines;
-
-  for (let lineNumber = firstLine; lineNumber <= lastLine; lineNumber += 1) {
-    const line = state.doc.line(lineNumber);
-    const match = /^(\s*)(\d+)([.)])\s+/.exec(line.text);
-    if (!match) {
-      if (!scope && !/^\s*(?:[-*+]|\d+[.)])\s+/.test(line.text)) countersByIndent.clear();
-      continue;
+  syntaxTree(state).iterate({ from: scope?.from, to: scope?.to, enter(ref) {
+    const list = ref.node;
+    if (list.name !== "OrderedList") return;
+    const firstLine = state.doc.lineAt(list.from);
+    if (scope?.indent !== undefined && /^[\t ]*/.exec(firstLine.text)![0] !== scope.indent) return;
+    let number = 0;
+    for (let node = list.firstChild; node; node = node.nextSibling) {
+      const item = readMarkdownListItem(state, node);
+      if (!item) continue;
+      number++;
+      const marker = item.marker.slice(0, -1);
+      if (marker !== String(number)) changes.push({ from: item.markerFrom, to: item.markerFrom + marker.length, insert: String(number) });
     }
-    if (scope?.indent !== undefined && match[1] !== scope.indent) continue;
-
-    const indentKey = match[1].replace(/\t/g, "  ");
-    const nextNumber = (countersByIndent.get(indentKey) ?? 0) + 1;
-    countersByIndent.set(indentKey, nextNumber);
-    if (match[2] === String(nextNumber)) continue;
-
-    const markerFrom = line.from + match[1].length;
-    changes.push({ from: markerFrom, to: markerFrom + match[2].length, insert: String(nextNumber) });
-  }
-
+  } });
   return changes;
-}
-
-export function renumberOrderedLists(view: EditorView) {
-  const changes = getOrderedListRenumberChanges(view.state);
-  if (changes.length > 0) view.dispatch({ changes });
 }
