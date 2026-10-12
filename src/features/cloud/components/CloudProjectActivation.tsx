@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
-import { Bot, History, Laptop, ShieldCheck } from "lucide-react";
+import { Bot, History, Laptop, Link2, Users } from "lucide-react";
 import { useLocalization } from "@puppyone/localization/react";
 import { AgentBrandImage, getAgentBrand } from "@puppyone/shared-ui";
 import { CloudIcon } from "../../../components/icons/CloudIcon";
@@ -52,8 +52,8 @@ export function CloudProjectActivation({ action, supplemental, busy = false, pro
       <ul className="desktop-cloud-project-values" role="list">
         <CloudProjectValue icon={<Bot {...VALUE_ICON_PROPS} />}
           title={t("cloud.activation.project.agents")} detail={t("cloud.activation.project.agentsDetail")} />
-        <CloudProjectValue icon={<ShieldCheck {...VALUE_ICON_PROPS} />}
-          title={t("cloud.activation.project.access")} detail={t("cloud.activation.project.accessDetail")} />
+        <CloudProjectValue icon={<Users {...VALUE_ICON_PROPS} />}
+          title={t("cloud.activation.project.teammates")} detail={t("cloud.activation.project.teammatesDetail")} />
         <CloudProjectValue icon={<History {...VALUE_ICON_PROPS} />}
           title={t("cloud.activation.project.history")} detail={t("cloud.activation.project.historyDetail")} />
       </ul>
@@ -83,7 +83,10 @@ function CloudProjectValue({ icon, title, detail }: { icon: ReactNode; title: st
   </li>;
 }
 
-/** A static local folder → Cloud → Agents diagram, named after the current project. */
+/** Decorative teammates; initials are illustrative, not live members. */
+const TEAMMATE_INITIALS = ["A", "M", "J"] as const;
+
+/** A static local folder → Cloud → Agents and teammates diagram, named after the current project. */
 function CloudProjectJourney({ projectName }: { projectName: string | null }) {
   const { t } = useLocalization();
   return <div className="desktop-cloud-project-journey">
@@ -98,21 +101,34 @@ function CloudProjectJourney({ projectName }: { projectName: string | null }) {
     <span className="desktop-cloud-project-journey-wire is-active" aria-hidden="true" />
     <div className="desktop-cloud-project-journey-cloud" aria-hidden="true">
       <span className="desktop-cloud-project-journey-card desktop-cloud-project-journey-cloud-mark"><CloudIcon size={28} /></span>
-      <span className="desktop-cloud-project-journey-cloud-url">puppyone.ai/…</span>
     </div>
     <span className="desktop-cloud-project-journey-wire" aria-hidden="true" />
-    <ul className="desktop-cloud-project-journey-card desktop-cloud-project-journey-agents" role="list"
-      aria-label={t("cloud.activation.project.agentsLabel")}>
-      {CLOUD_AGENT_BRANDS.map((brandId) => <li key={brandId}>
-        <span className="desktop-cloud-project-journey-agent-mark" aria-hidden="true"><AgentBrandImage brandId={brandId} /></span>
-        <span className="desktop-cloud-project-journey-agent-name">{getAgentBrand(brandId)?.displayName}</span>
-        <span className="desktop-cloud-project-journey-agent-status" aria-hidden="true" />
-      </li>)}
-      <li className="is-protocol">
-        <span className="desktop-cloud-project-journey-agent-mark" aria-hidden="true"><McpLogoIcon size={15} /></span>
-        <span className="desktop-cloud-project-journey-agent-name">{t("cloud.activation.project.anyMcp")}</span>
-        <span className="desktop-cloud-project-journey-agent-status" aria-hidden="true" />
-      </li>
-    </ul>
+    <div className="desktop-cloud-project-journey-audiences">
+      <ul className="desktop-cloud-project-journey-card desktop-cloud-project-journey-agents" role="list"
+        aria-label={t("cloud.activation.project.agentsLabel")}>
+        {CLOUD_AGENT_BRANDS.map((brandId) => <li key={brandId}>
+          <span className="desktop-cloud-project-journey-agent-mark" aria-hidden="true"><AgentBrandImage brandId={brandId} /></span>
+          <span className="desktop-cloud-project-journey-agent-name">{getAgentBrand(brandId)?.displayName}</span>
+          <span className="desktop-cloud-project-journey-agent-status" aria-hidden="true" />
+        </li>)}
+        <li className="is-protocol">
+          <span className="desktop-cloud-project-journey-agent-mark" aria-hidden="true"><McpLogoIcon size={15} /></span>
+          <span className="desktop-cloud-project-journey-agent-name">{t("cloud.activation.project.anyMcp")}</span>
+          <span className="desktop-cloud-project-journey-agent-status" aria-hidden="true" />
+        </li>
+      </ul>
+      <div className="desktop-cloud-project-journey-card desktop-cloud-project-journey-people" aria-hidden="true">
+        <span className="desktop-cloud-project-journey-avatars">
+          {TEAMMATE_INITIALS.map((initial) => <span key={initial}>{initial}</span>)}
+        </span>
+        <span className="desktop-cloud-project-journey-people-copy">
+          <span className="desktop-cloud-project-journey-people-label">{t("cloud.activation.project.teammatesLabel")}</span>
+          <span className="desktop-cloud-project-journey-people-link">
+            <Link2 size={11} strokeWidth={1.8} />
+            <span>puppyone.ai/…</span>
+          </span>
+        </span>
+      </div>
+    </div>
   </div>;
 }

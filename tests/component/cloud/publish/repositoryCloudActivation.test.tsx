@@ -45,8 +45,8 @@ describe("repository Cloud activation", () => {
     expect(host.querySelector(".desktop-cloud-project-activation")!.getAttribute("aria-label")).toBe(before);
     expect(host.querySelector("[data-cloud-sign-in-action]")).toBeNull();
     expect(host.querySelector(".desktop-cloud-project-activation h2")?.textContent).toBe("Put Project in the cloud");
-    expect(host.textContent).toContain("You decide who can read it");
-    expect(host.textContent).not.toContain("Share with your team");
+    expect(host.textContent).toContain("Share with teammates");
+    expect(host.querySelector(".desktop-cloud-project-journey-people")?.textContent).toBe("AMJTeammatespuppyone.ai/…");
     const agents = host.querySelector('[role="list"][aria-label="Cloud agents"]')!;
     expect([...agents.querySelectorAll("li")].map(item => item.textContent)).toEqual(["Manus", "Viktor", "Grok Bot", "Any MCP client"]);
     const button = host.querySelector<HTMLButtonElement>("[data-cloud-publish-action]")!;

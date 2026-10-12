@@ -63,7 +63,7 @@ describe("missing Cloud project recovery", () => {
   it("retains the value cards and returns to the existing publish confirmation after a reviewed replacement", async () => {
     api.getCloudRepositoryContext.mockRejectedValue(Object.assign(new Error("Project not found"), { status: 404 }));
     await render();
-    expect(host.textContent).toContain("You decide who can read it");
+    expect(host.textContent).toContain("Share with teammates");
     expect(host.textContent).not.toContain("current Cloud service");
     expect(host.textContent).not.toContain("Retry");
     expect(host.querySelector("[data-cloud-replace-action]")?.textContent).toBe("Upload to Cloud");
