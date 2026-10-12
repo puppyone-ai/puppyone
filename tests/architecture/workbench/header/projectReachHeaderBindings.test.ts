@@ -32,6 +32,19 @@ function attribute(element: string, name: string): string {
   return found[0]!.replace(/\s+/gu, " ");
 }
 
+function declaration(name: string): string {
+  const found: string[] = [];
+  const visit = (node: ts.Node) => {
+    if (ts.isVariableDeclaration(node) && node.name.getText(app) === name) {
+      found.push(node.initializer?.getText(app).replace(/\s+/gu, " ") ?? "");
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(app);
+  if (found.length !== 1) throw new Error(`Expected one ${name} declaration, found ${found.length}`);
+  return found[0]!;
+}
+
 function property(name: string): string {
   const found: string[] = [];
   const visit = (node: ts.Node) => {
@@ -49,6 +62,11 @@ describe("Header project reach bindings", () => {
   it("decides once in the composition root and hands the Header a prepared context", () => {
     expect(source.split("useProjectReachExperience()").length - 1).toBe(1);
     expect(attribute("DesktopTitlebarContext", "projectReach")).toBe("projectReach");
+  });
+
+  it("states nothing at all while Puppyone Cloud is off, like the established control", () => {
+    expect(declaration("projectReach"))
+      .toContain("projectReachEnabled && shareOnboardingEnabled && cloudEnabled");
   });
 
   it("makes the reach control the only Cloud entry on the Header", () => {

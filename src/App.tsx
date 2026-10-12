@@ -959,8 +959,11 @@ function AppContent() {
     deviceCopyAvailable: projectLocation?.localAvailable !== false,
     waitingFor: pendingShare ? t(shareTargetLabelKey(pendingShare.targetId)) : null,
   });
+  // Without Puppyone Cloud there is nobody to reach, so the Header states
+  // nothing — exactly like the established control, which only exists while
+  // Cloud does. Capability differences inside the entry never become a prompt.
   const projectReach = useMemo<ProjectReachControlProps | null>(() => (
-    projectReachEnabled && shareOnboardingEnabled
+    projectReachEnabled && shareOnboardingEnabled && cloudEnabled
       ? {
         state: projectReachState,
         readers: <ReadersList readers={projectReachState.members.length > 0 ? projectReachShareStatus.readers : []}
