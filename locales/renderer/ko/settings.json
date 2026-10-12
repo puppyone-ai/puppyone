@@ -296,6 +296,8 @@
   "experimental.cloudWorkspace.detail": "이 프로젝트의 Puppyone Cloud 게시 상태를 확인하고 관리합니다.",
   "experimental.shareOnboarding.title": "프로젝트 공유",
   "experimental.shareOnboarding.detail": "프로젝트 공유와 헤더의 공유 항목을 활성화합니다. Puppyone Cloud가 필요합니다.",
+  "experimental.projectReach.title": "프로젝트 도달 범위",
+  "experimental.projectReach.detail": "이 프로젝트에 누가 도달할 수 있는지 보여주고, 사람과 에이전트를 한 화면에서 초대하며, 다른 곳에서 만들어진 변경을 검토 대기 상태로 둡니다.",
   "experimental.editorTabsInHeader.title": "파일 탐색 방식",
   "experimental.editorTabsInHeader.detail": "패널 기반 편집기를 사용하거나 헤더에 파일 탭을 추가합니다. 헤더에서는 파일 탭이 채팅 탭보다 우선합니다.",
   "experimental.editorTabsInHeader.panes": "패널",

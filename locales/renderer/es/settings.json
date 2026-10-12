@@ -296,6 +296,8 @@
   "experimental.cloudWorkspace.detail": "Ver y gestionar el estado de publicación de este proyecto en Puppyone Cloud.",
   "experimental.shareOnboarding.title": "Compartir proyectos",
   "experimental.shareOnboarding.detail": "Activa el uso compartido de proyectos y su entrada en la cabecera. Requiere Puppyone Cloud.",
+  "experimental.projectReach.title": "Alcance del proyecto",
+  "experimental.projectReach.detail": "Muestra quién puede llegar a este proyecto, invita a personas y agentes desde una sola pantalla y deja que los cambios hechos en otro lugar esperen tu revisión.",
   "experimental.editorTabsInHeader.title": "Navegación de archivos",
   "experimental.editorTabsInHeader.detail": "Usa el editor por paneles o añade pestañas de archivos en la cabecera. Estas tienen prioridad sobre las pestañas de chat.",
   "experimental.editorTabsInHeader.panes": "Paneles",

@@ -333,6 +333,8 @@
   "experimental.cloudWorkspace.detail": "查看并管理当前项目在 Puppyone Cloud 中的发布状态。",
   "experimental.shareOnboarding.title": "项目分享",
   "experimental.shareOnboarding.detail": "启用项目分享及其顶部入口。需要开启 Puppyone Cloud。",
+  "experimental.projectReach.title": "谁能够到这个项目",
+  "experimental.projectReach.detail": "显示谁能够到这个项目，在一屏里邀请人和 Agent，并让别处产生的改动等待你的审阅。",
   "experimental.editorTabsInHeader.title": "文件导航方式",
   "experimental.editorTabsInHeader.detail": "使用分屏编辑器导航，或在窗口顶部增加文件标签。顶部文件标签优先于会话标签。",
   "experimental.editorTabsInHeader.panes": "分屏",

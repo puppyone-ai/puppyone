@@ -296,6 +296,8 @@
   "experimental.cloudWorkspace.detail": "Afficher et gérer l’état de publication de ce projet dans Puppyone Cloud.",
   "experimental.shareOnboarding.title": "Partage de projets",
   "experimental.shareOnboarding.detail": "Activez le partage de projets et son entrée dans l’en-tête. Nécessite Puppyone Cloud.",
+  "experimental.projectReach.title": "Portée du projet",
+  "experimental.projectReach.detail": "Affichez qui peut accéder à ce projet, invitez des personnes et des agents depuis un seul écran, et laissez les modifications faites ailleurs attendre votre relecture.",
   "experimental.editorTabsInHeader.title": "Navigation des fichiers",
   "experimental.editorTabsInHeader.detail": "Utilisez l’éditeur par volets ou ajoutez des onglets de fichiers dans l’en-tête. Ils sont prioritaires sur les onglets de chat.",
   "experimental.editorTabsInHeader.panes": "Volets",

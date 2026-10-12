@@ -296,6 +296,8 @@
   "experimental.cloudWorkspace.detail": "Veröffentlichungsstatus dieses Projekts in Puppyone Cloud anzeigen und verwalten.",
   "experimental.shareOnboarding.title": "Projektfreigabe",
   "experimental.shareOnboarding.detail": "Projektfreigabe und ihren Eintrag in der Kopfzeile aktivieren. Erfordert Puppyone Cloud.",
+  "experimental.projectReach.title": "Projektreichweite",
+  "experimental.projectReach.detail": "Zeigt, wer dieses Projekt erreichen kann, lädt Personen und Agenten auf einem Bildschirm ein und lässt Änderungen von anderswo auf deine Prüfung warten.",
   "experimental.editorTabsInHeader.title": "Dateinavigation",
   "experimental.editorTabsInHeader.detail": "Den Editor mit Teilfenstern verwenden oder Datei-Tabs in der Kopfzeile ergänzen. Dort haben Datei-Tabs Vorrang vor Chat-Tabs.",
   "experimental.editorTabsInHeader.panes": "Teilfenster",

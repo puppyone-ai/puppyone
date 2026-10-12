@@ -296,6 +296,8 @@
   "experimental.cloudWorkspace.detail": "このプロジェクトの Puppyone Cloud での公開状態を確認・管理します。",
   "experimental.shareOnboarding.title": "プロジェクト共有",
   "experimental.shareOnboarding.detail": "プロジェクト共有とヘッダーの共有入口を有効にします。Puppyone Cloud が必要です。",
+  "experimental.projectReach.title": "プロジェクトの到達範囲",
+  "experimental.projectReach.detail": "このプロジェクトに誰が到達できるかを表示し、人とエージェントを 1 画面から招待し、別の場所で加えられた変更をあなたの確認待ちにします。",
   "experimental.editorTabsInHeader.title": "ファイルナビゲーション",
   "experimental.editorTabsInHeader.detail": "ペインベースのエディターを使うか、ヘッダーにファイルタブを追加します。ヘッダーではファイルタブがチャットタブより優先されます。",
   "experimental.editorTabsInHeader.panes": "ペイン",

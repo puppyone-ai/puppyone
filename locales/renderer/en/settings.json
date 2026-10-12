@@ -333,6 +333,8 @@
   "experimental.cloudWorkspace.detail": "View and manage this project's publishing status in Puppyone Cloud.",
   "experimental.shareOnboarding.title": "Project sharing",
   "experimental.shareOnboarding.detail": "Enable project sharing and its Header entry. Requires Puppyone Cloud.",
+  "experimental.projectReach.title": "Project reach",
+  "experimental.projectReach.detail": "Show who can reach this project, invite people and agents from one screen, and keep changes made elsewhere waiting for your review.",
   "experimental.editorTabsInHeader.title": "File navigation",
   "experimental.editorTabsInHeader.detail": "Use the pane-based editor or add file tabs in the window Header. Header file tabs take priority over chat tabs.",
   "experimental.editorTabsInHeader.panes": "Panes",
