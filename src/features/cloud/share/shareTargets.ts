@@ -20,6 +20,16 @@ export type ShareTargetId =
 
 export type ShareChannel = "mcp" | "link";
 
+/**
+ * Whether the destination is there without being asked.
+ *
+ * This is a fact about the destination, stated so the user can predict when
+ * their folder gets read — not a ranking and not a reason to choose one. A
+ * client the user configures themselves decides for itself, and the product
+ * does not know.
+ */
+export type ShareResidency = "always-on" | "on-demand" | "client-decides";
+
 export type ShareTarget = Readonly<{
   id: ShareTargetId;
   channel: ShareChannel;
@@ -29,6 +39,7 @@ export type ShareTarget = Readonly<{
   handoffSteps: number;
   /** Where the destination documents its custom MCP / link setup, if public. */
   docsUrl: string | null;
+  residency: ShareResidency;
 }>;
 
 export const SHARE_TARGETS: readonly ShareTarget[] = [
@@ -38,6 +49,7 @@ export const SHARE_TARGETS: readonly ShareTarget[] = [
     brand: "Viktor",
     handoffSteps: 3,
     docsUrl: "https://viktor.com/blog/how-to-connect-tools-your-ai-employee-doesnt-support-yet",
+    residency: "always-on",
   },
   {
     id: "claude",
@@ -45,6 +57,7 @@ export const SHARE_TARGETS: readonly ShareTarget[] = [
     brand: "Claude",
     handoffSteps: 3,
     docsUrl: "https://support.claude.com/en/articles/11175166-getting-started-with-custom-connectors-using-remote-mcp",
+    residency: "on-demand",
   },
   {
     id: "chatgpt",
@@ -52,6 +65,7 @@ export const SHARE_TARGETS: readonly ShareTarget[] = [
     brand: "ChatGPT",
     handoffSteps: 3,
     docsUrl: "https://platform.openai.com/docs/mcp",
+    residency: "on-demand",
   },
   {
     id: "slack-bot",
@@ -59,6 +73,7 @@ export const SHARE_TARGETS: readonly ShareTarget[] = [
     brand: null,
     handoffSteps: 2,
     docsUrl: null,
+    residency: "always-on",
   },
   {
     id: "grok",
@@ -66,6 +81,7 @@ export const SHARE_TARGETS: readonly ShareTarget[] = [
     brand: "Grok",
     handoffSteps: 2,
     docsUrl: null,
+    residency: "on-demand",
   },
   {
     id: "person",
@@ -73,6 +89,7 @@ export const SHARE_TARGETS: readonly ShareTarget[] = [
     brand: null,
     handoffSteps: 1,
     docsUrl: null,
+    residency: "on-demand",
   },
   {
     id: "mcp",
@@ -80,6 +97,7 @@ export const SHARE_TARGETS: readonly ShareTarget[] = [
     brand: null,
     handoffSteps: 2,
     docsUrl: "https://modelcontextprotocol.io/docs/concepts/transports",
+    residency: "client-decides",
   },
 ];
 
@@ -105,4 +123,9 @@ export function shareTargetPreviewKey(id: ShareTargetId): string {
 
 export function shareTargetHandoffStepKey(id: ShareTargetId, step: number): string {
   return `cloud.share.handoff.${id}.step${step}`;
+}
+
+/** Message ID for the destination's residency, stated as a fact. */
+export function shareResidencyKey(residency: ShareResidency): string {
+  return `cloud.share.reach.residency.${residency}`;
 }
