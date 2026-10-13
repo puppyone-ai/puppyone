@@ -271,11 +271,9 @@ type ReachFormShared = {
  * blurred sentence: blur reads as a rendering fault, dots read as "not yet".
  */
 function ReachInviteForm({
-  scope, dialog, readers, onIntentChange, onScopeChange, onConfirm,
+  scope, dialog, readers, onIntentChange, onConfirm,
 }: ReachFormShared) {
   const { t } = useLocalization();
-  const [narrowing, setNarrowing] = useState(() => scope.path !== "");
-
   return (
     <>
       <div className="desktop-dialog-body desktop-share-dialog-body desktop-reach-form">
@@ -283,21 +281,13 @@ function ReachInviteForm({
         <p className="desktop-reach-fact">
           {t("cloud.share.reach.invite.linkPurpose")} {t("cloud.share.reach.mechanism")}
         </p>
+        {/* What the link covers is what the user was looking at when they
+            asked for it, and the preview shows exactly that. Offering to
+            narrow it here turns a link into a configuration, which is the
+            one thing this screen is not. */}
         <ReachPreview scope={scope} dialog={dialog} />
-        {narrowing && (
-          <ReachScopeChoice
-            scope={scope}
-            initialPath={dialog.initialPath}
-            listTopLevelFolders={dialog.listTopLevelFolders}
-            onScopeChange={onScopeChange}
-          />
-        )}
         {readers}
-        <ReachSecondaryLinks
-          intent="invite"
-          onIntentChange={onIntentChange}
-          narrow={narrowing ? undefined : () => setNarrowing(true)}
-        />
+        <ReachSecondaryLinks intent="invite" onIntentChange={onIntentChange} />
       </div>
     </>
   );
