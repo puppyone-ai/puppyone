@@ -530,6 +530,14 @@ function ReachFormFooter({ action, onConfirm }: {
 /**
  * The first and only question on the connect screen: which agent. Everything
  * else on that path is about the agent the user names here.
+ *
+ * A list of names, in the shape every other choice on this screen already
+ * uses: the mark that identifies the destination, its name, and the one fact
+ * that tells the candidates apart. A grid of cards made a storefront out of
+ * six names — it left a hole where the last row ran out of candidates, and it
+ * sized every card by the longest sentence in any of them. The row the user
+ * picks is also the row that stays behind afterwards, so naming an agent
+ * reads as the list narrowing to one rather than as another screen arriving.
  */
 function ReachAgentChoice({
   selected,
@@ -543,20 +551,23 @@ function ReachAgentChoice({
   return (
     <div className="desktop-reach-section">
       <p className="desktop-share-question">{question}</p>
-      <div className="desktop-share-target-grid" role="radiogroup" aria-label={question}>
+      <div className="desktop-reach-agents" role="radiogroup" aria-label={question}>
         {reachIntentTargets("connect").map((candidate) => (
           <button
             key={candidate.id}
             type="button"
             role="radio"
             aria-checked={selected === candidate.id}
-            className={`desktop-share-target${selected === candidate.id ? " is-selected" : ""}`}
+            className={`desktop-reach-agent${selected === candidate.id ? " is-selected" : ""}`}
             data-share-target={candidate.id}
             onClick={() => onSelect(candidate.id)}
           >
             <ShareTargetMark target={candidate} />
-            <span className="desktop-share-target-label">{t(shareTargetLabelKey(candidate.id))}</span>
+            <span className="desktop-reach-agent-name">{t(shareTargetLabelKey(candidate.id))}</span>
             <span className="desktop-reach-residency">{t(shareResidencyKey(candidate.residency))}</span>
+            <span className="desktop-reach-agent-state" aria-hidden="true">
+              {selected === candidate.id && <Check size={13} strokeWidth={2.2} />}
+            </span>
           </button>
         ))}
       </div>

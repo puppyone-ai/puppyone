@@ -210,6 +210,13 @@ describe("the same skeleton for connecting an agent", () => {
 
     expect(stripBidiIsolation(dialog()?.querySelector("h2")?.textContent)).toBe("Connect an agent to Notes");
     expect(text()).toContain("Which agent?");
+    // One row per candidate, in the same shape the scope choice uses on the
+    // other path: a grid of cards left a hole where the last row ran out of
+    // candidates and sized every card by the longest sentence in any of them.
+    const agents = [...dialog()?.querySelectorAll<HTMLElement>(".desktop-reach-agent") ?? []];
+    expect(agents.map((agent) => agent.dataset.shareTarget)).toContain("claude");
+    expect(agents).toHaveLength(dialog()?.querySelectorAll("[data-share-target]").length);
+    expect(dialog()?.querySelector(".desktop-share-target-grid")).toBeNull();
     expect(text()).toContain("Awake all the time");
     expect(text()).toContain("Awake while in use");
     expect(text()).toContain("Decided by your client");
