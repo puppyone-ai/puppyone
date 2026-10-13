@@ -171,6 +171,7 @@
   "projectReach.panelLabel": "このプロジェクトに届く相手",
   "projectReach.buttonLabel": "{place}。{reach}",
   "projectReach.count": "{count}",
+  "projectReach.more": "+{count}",
   "projectReach.summary.only-you": "このプロジェクトに届くのはあなただけです",
   "projectReach.summary.reachable": "{count, plural, other {ほかに # 件がこのプロジェクトに届きます}}",
   "projectReach.summary.waiting": "{name} が最初に開くのを待っています",

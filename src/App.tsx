@@ -161,6 +161,7 @@ import {
 } from "./features/cloud/share";
 import { useProjectReachExperience } from "./features/project-reach";
 import {
+  ProjectReachPeople,
   reachHeaderChangesStatus,
   resolveProjectReachState,
   type ProjectReachControlProps,
@@ -1838,6 +1839,11 @@ function AppContent() {
         session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl} onSessionChange={updateCloudSession}
         historyOpen={cloudSidebar.historyOpen} onToggleHistory={cloudSidebar.toggleHistory}
         agentOpen={cloudAgent.open} onToggleAgent={cloudWorkspaceActive ? cloudSidebar.toggleAgent : undefined} />}
+      {/* Who can reach the project sits where every application puts the
+          people in a document: the right of the Header, ahead of the tools.
+          It opens the same panel as the place control, so it is one entry
+          seen from both halves of the subject rather than a second one. */}
+      {projectReach && !cloudHeaderActive && <ProjectReachPeople {...projectReach} />}
       {/* On the project reach path the Header's project control is the only
           Cloud entry, so the right side adds no second share action. */}
       <DesktopTitlebarActions {...chromeActionProps}

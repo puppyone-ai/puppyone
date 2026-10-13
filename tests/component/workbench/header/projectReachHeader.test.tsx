@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DesktopTitlebarContext } from "../../../../src/features/app-shell/DesktopTitlebarContext";
 import {
   ProjectReachControl,
+  ProjectReachPeople,
   resolveProjectReachState,
   type ProjectReachControlProps,
   type ReachDestination,
@@ -119,7 +120,7 @@ describe("Header project reach", () => {
     expect(action("Connect an agent")).not.toBeNull();
   });
 
-  it("states who can reach it with round people and square machines", async () => {
+  it("keeps the place control about the place once somebody can reach it", async () => {
     const button = await renderControl({
       state: state({
         share: "shared",
@@ -129,11 +130,56 @@ describe("Header project reach", () => {
         ],
       }),
     });
+    expect(button.textContent).toBe("This Mac");
     expect(button.getAttribute("aria-label")).toBe("This Mac. 2 others can reach this project");
-    const marks = [...container.querySelectorAll(".desktop-project-reach-mark")];
-    expect(marks.map((mark) => mark.getAttribute("data-reach-audience"))).toEqual(["person", "machine"]);
-    expect(container.querySelector(".desktop-project-reach-count")?.textContent).toBe("2");
+    // Who can reach it is stated on the right of the Header, with the people.
+    expect(container.querySelector(".desktop-project-reach-mark")).toBeNull();
     expect(button.dataset.reachEmphasis).toBeUndefined();
+  });
+
+  it("states who can reach it on the right, with round people and square machines", async () => {
+    await render(<ProjectReachPeople state={state({
+      share: "shared",
+      shares: [
+        { id: "1", name: "A person", lastSeenAt: new Date(Date.now() - 14 * 60_000).toISOString() },
+        { id: "2", name: "Viktor" },
+      ],
+    })} />);
+    const people = container.querySelector<HTMLButtonElement>(".desktop-titlebar-reach-people")!;
+    expect(people.getAttribute("aria-label")).toBe("2 others can reach this project");
+    const marks = [...people.querySelectorAll(".desktop-project-reach-mark")];
+    expect(marks.map((mark) => mark.getAttribute("data-reach-audience"))).toEqual(["person", "machine"]);
+    // An agent is its brand; a person is the initial of the name we were given.
+    expect(marks[1]?.getAttribute("data-reach-brand")).toBe("viktor");
+    expect(marks[0]?.textContent).toBe("A");
+  });
+
+  it("shows nobody, and no pitch, when nobody can reach the project", async () => {
+    await render(<ProjectReachPeople state={state({ share: "published" })} onInvitePerson={noOp} />);
+    expect(container.querySelector(".desktop-titlebar-reach-people")).toBeNull();
+    expect(container.textContent).toBe("");
+  });
+
+  it("counts the people it could not show, and opens the same panel", async () => {
+    await render(<ProjectReachPeople
+      state={state({
+        share: "shared",
+        shares: [
+          { id: "1", name: "A person" }, { id: "2", name: "Viktor" },
+          { id: "3", name: "Claude" }, { id: "4", name: "ChatGPT" },
+        ],
+      })}
+      onInvitePerson={noOp}
+      onConnectAgent={noOp}
+    />);
+    const people = container.querySelector<HTMLButtonElement>(".desktop-titlebar-reach-people")!;
+    expect(people.querySelectorAll(".desktop-project-reach-mark")).toHaveLength(3);
+    expect(people.querySelector(".desktop-project-reach-count")?.textContent).toBe("+1");
+    act(() => people.click());
+    const panel = document.querySelector(".desktop-project-reach-panel");
+    expect(panel?.querySelector(".desktop-project-reach-head-reach")?.textContent)
+      .toBe("4 others can reach this project");
+    expect(action("Invite a person")).not.toBeNull();
   });
 
   it("keeps waiting for a first read as a statement about the destination", async () => {
@@ -145,16 +191,20 @@ describe("Header project reach", () => {
     expect(button.dataset.reachEmphasis).toBeUndefined();
   });
 
-  it("states activity while an agent is working, and marks the working destination", async () => {
-    const button = await renderControl({
-      state: state({
-        share: "shared",
-        shares: [{ id: "1", name: "Viktor" }],
-        activity: { "1": { kind: "writing", label: "Viktor" } },
-      }),
+  it("states activity while an agent is working, and lights the working destination", async () => {
+    const working = state({
+      share: "shared",
+      shares: [{ id: "1", name: "A person" }, { id: "2", name: "Viktor" }],
+      activity: { "2": { kind: "writing", label: "Viktor" } },
     });
+    const button = await renderControl({ state: working });
     expect(button.getAttribute("aria-label")).toContain("is working in this project right now");
-    expect(container.querySelector('.desktop-project-reach-mark[data-reach-activity="writing"]')).not.toBeNull();
+
+    await render(<ProjectReachPeople state={working} />);
+    const marks = [...container.querySelectorAll(".desktop-project-reach-mark")];
+    // Whoever is working comes first: it is the only live fact in the row.
+    expect(marks[0]?.getAttribute("data-reach-activity")).toBe("writing");
+    expect(marks[1]?.getAttribute("data-reach-activity")).toBeNull();
   });
 
   it("emphasizes reach that needs attention, and nothing else", async () => {

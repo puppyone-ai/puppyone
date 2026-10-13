@@ -171,6 +171,7 @@
   "projectReach.panelLabel": "이 프로젝트에 닿을 수 있는 대상",
   "projectReach.buttonLabel": "{place}. {reach}",
   "projectReach.count": "{count}",
+  "projectReach.more": "+{count}",
   "projectReach.summary.only-you": "이 프로젝트에 닿을 수 있는 건 당신뿐입니다",
   "projectReach.summary.reachable": "{count, plural, other {다른 # 곳이 이 프로젝트에 닿을 수 있습니다}}",
   "projectReach.summary.waiting": "{name}이(가) 처음 열기를 기다리고 있습니다",

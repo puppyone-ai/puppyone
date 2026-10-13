@@ -171,6 +171,7 @@
   "projectReach.panelLabel": "Wer dieses Projekt erreichen kann",
   "projectReach.buttonLabel": "{place}. {reach}",
   "projectReach.count": "{count}",
+  "projectReach.more": "+{count}",
   "projectReach.summary.only-you": "Nur du kannst dieses Projekt erreichen",
   "projectReach.summary.reachable": "{count, plural, one {1 weitere Stelle kann dieses Projekt erreichen} other {# weitere Stellen können dieses Projekt erreichen}}",
   "projectReach.summary.waiting": "Warten darauf, dass {name} es zum ersten Mal öffnet",

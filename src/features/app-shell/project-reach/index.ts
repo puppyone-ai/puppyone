@@ -1,5 +1,8 @@
 export { ProjectReachControl } from "./ProjectReachControl";
 export type { ProjectReachControlProps } from "./ProjectReachControl";
+export { ProjectReachPeople } from "./ProjectReachPeople";
+export type { ProjectReachPeopleProps } from "./ProjectReachPeople";
+export type { ReachPanelContext } from "./ReachPanel";
 export {
   reachHeaderChangesStatus,
   resolveProjectReachState,
@@ -10,6 +13,7 @@ export type {
   ReachActivityKind,
   ReachAudience,
   ReachDestination,
+  ReachPlace,
   ReachMember,
   ReachShareFact,
   ReachShareKind,

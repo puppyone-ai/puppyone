@@ -171,6 +171,7 @@
   "projectReach.panelLabel": "谁能够到这个项目",
   "projectReach.buttonLabel": "{place}。{reach}",
   "projectReach.count": "{count}",
+  "projectReach.more": "+{count}",
   "projectReach.summary.only-you": "只有你能够到这个项目",
   "projectReach.summary.reachable": "{count, plural, other {另有 # 个能够到这个项目}}",
   "projectReach.summary.waiting": "等待 {name} 第一次打开",

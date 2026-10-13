@@ -83,53 +83,90 @@
   }
 
   .desktop-project-reach-marks {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    color: inherit;
-    font-size: inherit;
-    line-height: inherit;
-  }
-
-  .desktop-project-reach-marks[data-reach-audience="attention"] {
     display: grid;
     width: var(--desktop-titlebar-workspace-icon-slot-size);
     height: var(--desktop-titlebar-workspace-icon-slot-size);
     place-items: center;
+    color: inherit;
   }
 
-  /* People are round, machines are square. The shape carries the distinction,
-     so the Header needs no text groups and no legend. */
+  /* Who can reach the project, on the right of the Header. It keeps the
+     Header's own control geometry so it sits in the same row as the tools
+     beside it, and stacks its marks the way a room of people reads: the one
+     who is working first. */
+  .desktop-titlebar-reach-people-wrap {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    height: 100%;
+  }
+
+  .desktop-titlebar-reach-people {
+    display: inline-flex;
+    box-sizing: border-box;
+    align-items: center;
+    gap: 4px;
+    height: var(--desktop-titlebar-control-height);
+    padding: 0 6px;
+    border: 0;
+    border-radius: var(--desktop-toolbar-action-radius);
+    background: transparent;
+    color: var(--desktop-titlebar-text-muted);
+    font-family: var(--desktop-titlebar-context-font-family);
+    font-size: var(--desktop-titlebar-context-font-size);
+    line-height: var(--desktop-titlebar-context-line-height);
+  }
+
+  .desktop-titlebar-reach-people:hover,
+  .desktop-titlebar-reach-people[aria-expanded="true"] {
+    background: var(--desktop-titlebar-hover);
+    color: var(--desktop-titlebar-text);
+  }
+
+  .desktop-titlebar-reach-people:focus-visible {
+    outline: 1px solid var(--desktop-titlebar-focus);
+    outline-offset: -1px;
+  }
+
+  /* People are round, machines are square. An agent carries its own brand, so
+     the shape is what still separates a person from a program; colour never
+     has to. */
   .desktop-project-reach-mark {
     display: grid;
     box-sizing: border-box;
-    width: var(--desktop-titlebar-workspace-icon-slot-size);
-    height: var(--desktop-titlebar-workspace-icon-slot-size);
-    flex: 0 0 var(--desktop-titlebar-workspace-icon-slot-size);
+    flex: 0 0 auto;
     place-items: center;
-    border: 1px solid currentColor;
-    background: transparent;
+    overflow: hidden;
+    border: 1px solid transparent;
+    background: var(--po-control, color-mix(in srgb, currentColor 12%, transparent));
     color: inherit;
-    font-size: calc(var(--desktop-titlebar-context-font-size, 13px) - 3px);
+    font-size: 10px;
     line-height: 1;
     font-weight: var(--po-text-weight-medium, 500);
-    opacity: 0.86;
+    /* Quiet by default: present, not here. */
+    opacity: 0.55;
+  }
+
+  .desktop-project-reach-mark > img,
+  .desktop-project-reach-mark > svg {
+    width: 100%;
+    height: 100%;
   }
 
   .desktop-project-reach-mark[data-reach-audience="person"] {
+    border-color: currentColor;
     border-radius: 50%;
+    background: transparent;
   }
 
   .desktop-project-reach-mark[data-reach-audience="machine"] {
-    border-radius: 4px;
+    border-radius: 5px;
   }
 
-  /* Activity is the only live state the marks carry, and it comes from the
-     reading / writing facts rather than from a residency claim. */
+  /* Lit means working in the project right now, and nothing else does. */
   .desktop-project-reach-mark[data-reach-activity] {
-    border-color: var(--po-accent);
-    color: var(--po-accent);
     opacity: 1;
+    box-shadow: 0 0 0 1.5px var(--po-accent);
   }
 
   .desktop-project-reach-count {
