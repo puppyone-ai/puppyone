@@ -10,6 +10,7 @@ import {
 } from "../../../../components/DesktopDialog";
 import { DesktopOverlayLayer } from "../../../app-shell/DesktopOverlayPortal";
 import { getDesktopCloudWebUrl, type DesktopCloudSession } from "../../../../lib/cloudApi";
+import { desktopPreferencesStore, selectReachLastAgentId, useDesktopPreference } from "../../../../preferencesStore";
 import { CloudAuthCard } from "../../auth/CloudAuthCard";
 import { formatCloudMessage, formatCloudPublishFailure } from "../../cloudPresentation";
 import { useCloudAuthController } from "../../hooks/useCloudAuthController";
@@ -31,13 +32,13 @@ import {
   type ReachIntent,
   type ReachScope,
 } from "./projectReach";
+import { ReachAgentChoice } from "./ReachAgentChoice";
 import { ReachHandoff } from "./ReachHandoff";
 import { ReadersList } from "../ReadersList";
 import { buildShareHandoff } from "../shareHandoff";
 import { isActiveShare } from "../shareStatus";
 import {
   getShareTarget,
-  shareResidencyKey,
   shareTargetLabelKey,
   type ShareTarget,
   type ShareTargetId,
@@ -104,8 +105,13 @@ export function ProjectReachDialog(props: ProjectReachDialogProps) {
   const project = bidiIsolate(props.workspaceName);
 
   const { onIssued } = props;
+  // Which agent the user named is the one question this screen asks every
+  // time. Remembering the answer is what lets the next one lead with it.
   const handleIssued = useCallback((issue: ReachIssue, issuedTarget: ShareTarget) => {
     if (!issue.endpoint) return;
+    if (reachIntentForTarget(issuedTarget.id) === "connect") {
+      desktopPreferencesStore.getState().setReachLastAgentId(issuedTarget.id);
+    }
     onIssued({ targetId: issuedTarget.id, endpointId: issue.endpoint.id, issuedAt: issue.issuedAt });
   }, [onIssued]);
 
@@ -524,54 +530,6 @@ function ReachFormFooter({ action, onConfirm }: {
         {action}
       </button>
     </footer>
-  );
-}
-
-/**
- * The first and only question on the connect screen: which agent. Everything
- * else on that path is about the agent the user names here.
- *
- * A list of names, in the shape every other choice on this screen already
- * uses: the mark that identifies the destination, its name, and the one fact
- * that tells the candidates apart. A grid of cards made a storefront out of
- * six names — it left a hole where the last row ran out of candidates, and it
- * sized every card by the longest sentence in any of them. The row the user
- * picks is also the row that stays behind afterwards, so naming an agent
- * reads as the list narrowing to one rather than as another screen arriving.
- */
-function ReachAgentChoice({
-  selected,
-  onSelect,
-}: {
-  selected: ShareTargetId | null;
-  onSelect: (id: ShareTargetId) => void;
-}) {
-  const { t } = useLocalization();
-  const question = t("cloud.share.reach.connect.question");
-  return (
-    <div className="desktop-reach-section">
-      <p className="desktop-share-question">{question}</p>
-      <div className="desktop-reach-agents" role="radiogroup" aria-label={question}>
-        {reachIntentTargets("connect").map((candidate) => (
-          <button
-            key={candidate.id}
-            type="button"
-            role="radio"
-            aria-checked={selected === candidate.id}
-            className={`desktop-reach-agent${selected === candidate.id ? " is-selected" : ""}`}
-            data-share-target={candidate.id}
-            onClick={() => onSelect(candidate.id)}
-          >
-            <ShareTargetMark target={candidate} />
-            <span className="desktop-reach-agent-name">{t(shareTargetLabelKey(candidate.id))}</span>
-            <span className="desktop-reach-residency">{t(shareResidencyKey(candidate.residency))}</span>
-            <span className="desktop-reach-agent-state" aria-hidden="true">
-              {selected === candidate.id && <Check size={13} strokeWidth={2.2} />}
-            </span>
-          </button>
-        ))}
-      </div>
-    </div>
   );
 }
 

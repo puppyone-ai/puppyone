@@ -85,4 +85,10 @@ export type ExperimentsSlice = {
   setExperimentalSettings: PreferenceAction<ExperimentalSettings>;
 };
 
-export type DesktopPreferenceState = AppearanceSlice & LayoutSlice & GitDisplaySlice & AgentSlice & EditorSlice & ExperimentsSlice;
+export type ShareSlice = {
+  /** Id of the destination a project was last connected to, if any. */
+  reachLastAgentId: string | null;
+  setReachLastAgentId: (id: string | null) => void;
+};
+
+export type DesktopPreferenceState = AppearanceSlice & LayoutSlice & GitDisplaySlice & AgentSlice & EditorSlice & ExperimentsSlice & ShareSlice;

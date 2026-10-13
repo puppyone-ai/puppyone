@@ -26,11 +26,10 @@ export {
   getShareTarget,
   isShareTargetId,
   shareTargetHandoffStepKey,
-  shareResidencyKey,
   shareTargetLabelKey,
   shareTargetPreviewKey,
 } from "./shareTargets";
-export type { ShareChannel, ShareResidency, ShareTarget, ShareTargetId } from "./shareTargets";
+export type { ShareChannel, ShareTarget, ShareTargetId } from "./shareTargets";
 export { buildProjectShares, shareHasReceipt, useProjectShares } from "./useProjectShares";
 export type { ProjectShare, ProjectSharesState } from "./useProjectShares";
 export { useProjectShareActivity } from "./useProjectShareActivity";

@@ -210,16 +210,15 @@ describe("the same skeleton for connecting an agent", () => {
 
     expect(stripBidiIsolation(dialog()?.querySelector("h2")?.textContent)).toBe("Connect an agent to Notes");
     expect(text()).toContain("Which agent?");
-    // One row per candidate, in the same shape the scope choice uses on the
-    // other path: a grid of cards left a hole where the last row ran out of
-    // candidates and sized every card by the longest sentence in any of them.
+    // A mark and a name each, packed in reading order: no grid with a hole in
+    // its last row, and nothing under the names about when they are awake.
     const agents = [...dialog()?.querySelectorAll<HTMLElement>(".desktop-reach-agent") ?? []];
-    expect(agents.map((agent) => agent.dataset.shareTarget)).toContain("claude");
-    expect(agents).toHaveLength(dialog()?.querySelectorAll("[data-share-target]").length);
+    expect(agents.map((agent) => agent.dataset.shareTarget))
+      .toEqual(["viktor", "claude", "chatgpt", "slack-bot", "grok", "mcp"]);
+    expect(agents.map((agent) => stripBidiIsolation(agent.textContent)))
+      .toEqual(["Viktor", "Claude", "ChatGPT", "A bot in Slack", "Grok", "Other MCP client"]);
     expect(dialog()?.querySelector(".desktop-share-target-grid")).toBeNull();
-    expect(text()).toContain("Awake all the time");
-    expect(text()).toContain("Awake while in use");
-    expect(text()).toContain("Decided by your client");
+    expect(text()).not.toContain("Awake");
     // How much an agent sees is a question about a named agent, so it is not
     // asked yet — and there is no action to disable either.
     expect(text()).not.toContain("How much of it?");
@@ -248,6 +247,47 @@ describe("the same skeleton for connecting an agent", () => {
     await flush();
     expect(text()).toContain("Which agent?");
     expect(text()).not.toContain("What can Claude see?");
+  });
+
+  it("leads with the agent this Mac connected last time, and says why it leads", async () => {
+    api.createCloudMcpEndpoint.mockResolvedValue(issuedEndpoint);
+    api.listCloudScopes.mockResolvedValue([{ path: "docs" }]);
+    const first = { ...baseProps(), session };
+
+    await act(async () => root?.render(withTestLocalization(<ProjectReachDialog {...first} />)));
+    await flush();
+    await act(async () => button("Connect an agent instead")?.click());
+    await act(async () => dialog()?.querySelector<HTMLButtonElement>("[data-share-target='claude']")?.click());
+    await act(async () => button("Connect Claude")?.click());
+    await flush();
+    await flush();
+    expect(api.createCloudMcpEndpoint).toHaveBeenCalledTimes(1);
+
+    // A second project, asked the same question: the answer already given is
+    // the first thing offered, and it is the only one that explains itself.
+    await act(async () => root?.render(<div />));
+    await act(async () => root?.render(withTestLocalization(<ProjectReachDialog {...baseProps()} />)));
+    await flush();
+    await act(async () => button("Connect an agent instead")?.click());
+    await flush();
+
+    const agents = [...dialog()?.querySelectorAll<HTMLElement>(".desktop-reach-agent") ?? []];
+    expect(agents.map((agent) => agent.dataset.shareTarget))
+      .toEqual(["claude", "viktor", "chatgpt", "slack-bot", "grok", "mcp"]);
+    expect(stripBidiIsolation(agents[0]?.textContent)).toBe("ClaudeLast used");
+    expect(agents.filter((agent) => agent.className.includes("is-remembered"))).toHaveLength(1);
+  });
+
+  it("forgets a remembered agent the product no longer offers", async () => {
+    act(() => desktopPreferencesStore.getState().setReachLastAgentId("retired-agent"));
+
+    await act(async () => root?.render(withTestLocalization(<ProjectReachDialog {...baseProps()} />)));
+    await flush();
+    await act(async () => button("Connect an agent instead")?.click());
+    await flush();
+
+    expect(dialog()?.querySelector(".desktop-reach-agent.is-remembered")).toBeNull();
+    expect(text()).not.toContain("Last used");
   });
 });
 

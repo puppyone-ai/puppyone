@@ -7,12 +7,14 @@ import { createEditorSlice } from "./features/settings/editorSlice";
 import { createExperimentsSlice } from "./features/settings/experimentsSlice";
 import { createGitDisplaySlice } from "./features/settings/gitDisplaySlice";
 import { createLayoutSlice } from "./features/settings/layoutSlice";
+import { createShareSlice } from "./features/settings/shareSlice";
 import { browserPreferenceStorage, createPreferencePersistence, emptyPreferenceStorage, type PreferenceStorage, type PersistedDesktopPreferences } from "./features/settings/preferencesPersistence";
 import type { DesktopPreferenceState } from "./features/settings/preferenceTypes";
 export type { DesktopPreferenceState } from "./features/settings/preferenceTypes";
 const createPreferences: StateCreator<DesktopPreferenceState> = (...args) => ({
   ...createAppearanceSlice(...args), ...createLayoutSlice(...args), ...createGitDisplaySlice(...args),
   ...createAgentSlice(...args), ...createEditorSlice(...args), ...createExperimentsSlice(...args),
+  ...createShareSlice(...args),
 });
 export const desktopPreferencesStore = createStore<DesktopPreferenceState>()(persist<DesktopPreferenceState, [], [], PersistedDesktopPreferences>(createPreferences, {
   // Virtual adapter name: no aggregate key or duplicate preference document is written.
@@ -36,3 +38,4 @@ export function useDesktopPreference<T>(selector: (state: DesktopPreferenceState
 }
 export { selectAgentPreferredRoute } from "./features/settings/agentSlice";
 export { selectFileIconTheme } from "./features/settings/appearanceSlice";
+export { selectReachLastAgentId } from "./features/settings/shareSlice";

@@ -50,6 +50,7 @@ function readPreferences(storage: PreferenceStorage, onReadFailure: () => void) 
     projectSwitcherWidth: legacy.readInitialProjectSwitcherWidth(safe),
     rightSidebarWidth: legacy.readInitialRightSidebarWidth(safe),
     rightSidebarSurface: legacy.readInitialRightSidebarSurface(safe),
+    reachLastAgentId: legacy.readInitialReachLastAgent(safe),
     agentRoutingPreferences: parseAgentRoutingPreferences(safe.getItem(legacy.AGENT_ROUTING_PREFERENCES_STORAGE_KEY), {
       legacyRuntimeId: legacy.readInitialAgentPreferredRuntime(safe), legacyModelId: legacy.readInitialAgentPreferredModel(safe),
     }),
@@ -88,6 +89,9 @@ function serializePreferences(s: PersistedDesktopPreferences): Record<string, st
     [legacy.PROJECT_SWITCHER_WIDTH_STORAGE_KEY]: String(s.projectSwitcherWidth),
     [legacy.RIGHT_SIDEBAR_WIDTH_STORAGE_KEY]: String(s.rightSidebarWidth),
     [legacy.RIGHT_SIDEBAR_SURFACE_STORAGE_KEY]: s.rightSidebarSurface,
+    // A memory, not a setting: nothing is written until there is something to
+    // remember, so a user who never connected an agent has no key for one.
+    ...(s.reachLastAgentId ? { [legacy.REACH_LAST_AGENT_STORAGE_KEY]: s.reachLastAgentId } : {}),
     [legacy.AGENT_ROUTING_PREFERENCES_STORAGE_KEY]: serializeAgentRoutingPreferences(s.agentRoutingPreferences),
   };
 }
@@ -112,7 +116,10 @@ export function createPreferencePersistence(storage: PreferenceStorage): Persist
           saved.set(key, value);
         } catch { /* Keep in-memory edits and migration inputs when storage fails. */ }
       }
-      try { storage.removeItem("puppyone.desktop.externalApps"); } catch { /* Storage can be unavailable. */ }
+      try {
+        storage.removeItem("puppyone.desktop.externalApps");
+        if (!state.reachLastAgentId) storage.removeItem(legacy.REACH_LAST_AGENT_STORAGE_KEY);
+      } catch { /* Storage can be unavailable. */ }
     },
     removeItem: () => {},
   };

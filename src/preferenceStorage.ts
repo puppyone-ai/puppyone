@@ -49,6 +49,7 @@ export const PROJECT_SWITCHER_WIDTH_STORAGE_KEY = "puppyone.desktop.projectSwitc
 export const RIGHT_SIDEBAR_WIDTH_STORAGE_KEY = "puppyone.desktop.rightSidebarWidth";
 export const RIGHT_SIDEBAR_SURFACE_STORAGE_KEY = "puppyone.desktop.rightSidebarSurface";
 export const AGENT_ROUTING_PREFERENCES_STORAGE_KEY = "puppyone.desktop.agentRoutingPreferences.v1";
+export const REACH_LAST_AGENT_STORAGE_KEY = "puppyone.desktop.reachLastAgent";
 /** @deprecated Migrated into AGENT_ROUTING_PREFERENCES_STORAGE_KEY. */
 export const AGENT_PREFERRED_RUNTIME_STORAGE_KEY = "puppyone.desktop.agentPreferredRuntime";
 /** @deprecated Migrated into AGENT_ROUTING_PREFERENCES_STORAGE_KEY. */
@@ -162,6 +163,17 @@ export function readInitialAgentPreferredModel(storage: Pick<Storage, "getItem">
 export function readInitialAgentPreferredRuntime(storage: Pick<Storage, "getItem"> = defaultPreferenceStorage()): string | null {
   if (typeof window === "undefined") return null;
   const stored = storage.getItem(AGENT_PREFERRED_RUNTIME_STORAGE_KEY)?.trim() ?? "";
+  return /^[a-z][a-z0-9-]{1,39}$/.test(stored) ? stored : null;
+}
+
+/**
+ * The destination a project was last connected to. Stored as its id alone:
+ * what that id names is decided by the share model at read time, so a
+ * destination the product no longer offers is simply forgotten.
+ */
+export function readInitialReachLastAgent(storage: Pick<Storage, "getItem"> = defaultPreferenceStorage()): string | null {
+  if (typeof window === "undefined") return null;
+  const stored = storage.getItem(REACH_LAST_AGENT_STORAGE_KEY)?.trim() ?? "";
   return /^[a-z][a-z0-9-]{1,39}$/.test(stored) ? stored : null;
 }
 

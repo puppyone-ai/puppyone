@@ -79,6 +79,17 @@ describe("desktop preference wire compatibility (locked before the store migrati
     expect(latest.agentPreferredModel).toBe("gpt-5");
     expect(document.documentElement.dataset.agentFileActivity).toBe("visible");
   });
+  it("remembers the agent a project was last connected to, and writes nothing before there is one", () => {
+    mount();
+    expect(localStorage.getItem("puppyone.desktop.reachLastAgent")).toBeNull();
+
+    act(() => latest.setReachLastAgentId("claude"));
+    expect(localStorage.getItem("puppyone.desktop.reachLastAgent")).toBe("claude");
+
+    act(() => root.unmount()); root = createRoot(host); mount();
+    expect(latest.reachLastAgentId).toBe("claude");
+  });
+
   it("keeps defaults usable if storage reads are unavailable", () => {
     vi.spyOn(localStorage, "getItem").mockImplementation(() => { throw new DOMException("Denied", "SecurityError"); });
     expect(mount).not.toThrow();

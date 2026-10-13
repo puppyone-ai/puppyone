@@ -13,7 +13,7 @@ import {
 import {
   SHARE_TARGETS,
   getShareTarget,
-  shareResidencyKey,
+  shareTargetLabelKey,
 } from "../../../../src/features/cloud/share/shareTargets";
 import type { PublishPreparationStage } from "../../../../src/features/cloud/initialization/publishPreparation";
 import type { CloudPublishProgressStage } from "../../../../src/types/electron";
@@ -31,14 +31,17 @@ describe("the two things a folder can be made to reach", () => {
       .toEqual(["viktor", "claude", "chatgpt", "slack-bot", "grok", "mcp"]);
   });
 
-  it("states whether each candidate is there without being asked", () => {
+  // A destination is named and handed something; when it happens to be awake
+  // is not a property the product states any more, so the model does not
+  // carry it either.
+  it("names every candidate and knows what each one is handed", () => {
     for (const target of SHARE_TARGETS) {
-      const messageId = shareResidencyKey(target.residency);
+      const messageId = shareTargetLabelKey(target.id);
       expect(englishCatalog[messageId], messageId).toBeTruthy();
     }
-    expect(getShareTarget("viktor").residency).toBe("always-on");
-    expect(getShareTarget("claude").residency).toBe("on-demand");
-    expect(getShareTarget("mcp").residency).toBe("client-decides");
+    expect(getShareTarget("viktor").channel).toBe("mcp");
+    expect(getShareTarget("slack-bot").channel).toBe("link");
+    expect(getShareTarget("mcp").docsUrl).toBeTruthy();
   });
 });
 
