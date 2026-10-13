@@ -133,7 +133,8 @@
 }
 
 .markdown-codemirror-editor .cm-content {
-  /* All four edges share the gutter that centers the 724px reading rail. */
+  /* All four edges share a minimum inset. Only the inline gutter grows to
+     center the 724px reading rail; block padding stays at that minimum. */
   --po-markdown-editor-content-gutter-inline: max(
     var(--po-markdown-editor-gutter-min),
     calc((100% - var(--po-markdown-editor-text-width)) / 2)
@@ -143,7 +144,8 @@
   max-width: none;
   min-height: 100%;
   margin: 0;
-  padding: var(--po-markdown-editor-content-gutter-inline);
+  padding-block: var(--po-markdown-editor-gutter-min);
+  padding-inline: var(--po-markdown-editor-content-gutter-inline);
   caret-color: var(--po-text);
   color: var(--po-md-content-color);
   overflow-wrap: anywhere;

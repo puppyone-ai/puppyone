@@ -127,7 +127,7 @@ describe("Markdown editor layout", () => {
     );
   });
 
-  it("uses the same responsive document padding on all four edges", () => {
+  it("shares the minimum document inset while only inline padding responds to width", () => {
     const editorRule = readCssRule(markdownEditorCss, ".markdown-codemirror-editor");
     const scrollerRule = readCssRule(markdownEditorCss, ".markdown-codemirror-editor .cm-scroller");
     const contentRule = readCssRule(markdownEditorCss, ".markdown-codemirror-editor .cm-content");
@@ -135,7 +135,8 @@ describe("Markdown editor layout", () => {
     expect(editorEntryCss).toContain("--po-editor-content-edge-inset: 48px;");
     expect(editorRule).toContain("--po-markdown-editor-gutter-min: var(--po-editor-content-edge-inset, 48px);");
     expect(contentRule).toContain("--po-markdown-editor-content-gutter-inline: max(");
-    expect(contentRule).toContain("padding: var(--po-markdown-editor-content-gutter-inline);");
+    expect(contentRule).toContain("padding-block: var(--po-markdown-editor-gutter-min);");
+    expect(contentRule).toContain("padding-inline: var(--po-markdown-editor-content-gutter-inline);");
     expect(editorRule).toContain("container-type: inline-size;");
     expect(editorRule).toContain("--po-markdown-scroll-viewport-inline-size: 100cqw;");
     expect(editorRule).toContain("-webkit-font-smoothing: antialiased;");
