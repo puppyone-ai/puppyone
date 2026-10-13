@@ -20,15 +20,18 @@ import type { CloudPublishProgressStage } from "../../../../src/types/electron";
 import englishCatalog from "../../../../src/localization/catalog-loaders/en";
 
 describe("the two things a folder can be made to reach", () => {
-  it("treats a person as an invite and everything else as an agent to connect", () => {
-    expect(reachIntentForTarget("person")).toBe("invite");
+  it("connects an agent and links everything else, including the bots", () => {
     expect(reachIntentForTarget("claude")).toBe("connect");
-    expect(reachIntentForTarget("slack-bot")).toBe("connect");
+    expect(reachIntentForTarget("manus")).toBe("connect");
+    expect(reachIntentForTarget("person")).toBe("invite");
+    // A bot in a chat receives the same link a person does, read under
+    // whoever opens it, so it belongs to the link and not to the agents.
+    expect(reachIntentForTarget("slack-bot")).toBe("invite");
+    expect(reachIntentForTarget("grok")).toBe("invite");
     expect(reachIntentForTarget(null)).toBe("invite");
     expect(inviteReachTarget().id).toBe("person");
-    expect(reachIntentTargets("invite").map((target) => target.id)).toEqual(["person"]);
     expect(reachIntentTargets("connect").map((target) => target.id))
-      .toEqual(["viktor", "claude", "chatgpt", "slack-bot", "grok", "mcp"]);
+      .toEqual(["viktor", "manus", "claude", "chatgpt", "mcp"]);
   });
 
   // A destination is named and handed something; when it happens to be awake

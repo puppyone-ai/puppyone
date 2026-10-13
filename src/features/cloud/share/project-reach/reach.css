@@ -112,15 +112,56 @@
     line-height: 1.5;
   }
 
-  /* Which agent: names packed in reading order, each one a mark and a word.
-     A four-column grid of cards left a hole where the last row ran out of
-     candidates and sized every card by the longest sentence in any of them.
-     Names are short and of unequal length, so they wrap like words instead of
-     being poured into columns that do not fit them. */
+  /* Which agent: names packed in reading order, each one a mark and a word,
+     under the one heading that tells the kinds apart. A four-column grid of
+     cards left a hole where the last row ran out of candidates and sized
+     every card by the longest sentence in any of them. Names are short and of
+     unequal length, so they wrap like words instead of being poured into
+     columns that do not fit them. */
+  .desktop-reach-agent-groups {
+    display: grid;
+    gap: 10px;
+  }
+
+  .desktop-reach-agent-group {
+    display: grid;
+    gap: 5px;
+  }
+
+  /* The fact that decides between the groups, stated once above each of them
+     instead of under every name in them. */
+  .desktop-reach-agent-kind {
+    margin: 0;
+    color: var(--po-text-muted);
+    font-size: var(--po-type-ui-meta, 12px);
+    line-height: 1.4;
+  }
+
   .desktop-reach-agents {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
+  }
+
+  /* "None of these", and the question the list's own rule raises, on one
+     quiet line under the groups. */
+  .desktop-reach-agent-exit {
+    display: flex;
+    margin: 0;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 10px;
+    padding-top: 2px;
+  }
+
+  .desktop-reach-agent-exit .desktop-share-inline-link,
+  .desktop-reach-agent-exit .desktop-reach-fact {
+    font-size: var(--po-type-ui-meta, 12px);
+    line-height: 1.5;
+  }
+
+  .desktop-reach-agent-exit .desktop-share-inline-link:hover {
+    text-decoration: underline;
   }
 
   .desktop-reach-agent {
@@ -146,13 +187,10 @@
     border-color: var(--po-text);
   }
 
-  /* The answer the user already gave, on its own line and at the size of an
-     answer: it is the row that stays behind once they give it again. */
+  /* The answer the user already gave leads its own group and carries the
+     reason it leads; it is not promoted out of the kind it belongs to. */
   .desktop-reach-agent.is-remembered {
-    flex: 1 0 100%;
-    height: var(--po-control-size-roomy);
-    padding-inline: 10px 12px;
-    border-radius: 10px;
+    border-color: var(--po-border-strong, var(--po-border));
   }
 
   .desktop-reach-agent-name {

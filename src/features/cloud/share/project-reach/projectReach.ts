@@ -1,7 +1,7 @@
 import type { CloudPublishAccountStep } from "../../initialization/CloudPublishProgressIndicator";
 import type { PublishPreparationStage } from "../../initialization/publishPreparation";
 import type { CloudPublishProgressStage } from "../../../../types/electron";
-import { SHARE_TARGETS, type ShareTarget, type ShareTargetId } from "../shareTargets";
+import { SHARE_TARGETS, getShareTarget, type ShareTarget, type ShareTargetId } from "../shareTargets";
 
 /**
  * The two things a person actually wants: let someone read this, or put an
@@ -31,23 +31,29 @@ export type ReachPhase =
   | "failed";
 
 /**
- * A person is invited; everything else is an agent that gets connected. With
- * no destination named yet — a folder's own context menu, say — the screen
- * opens on the invite, because it is the one that needs no choice at all.
+ * An agent gets connected; everything else gets a link. A destination that
+ * can only open a link — a person, a bot in a chat — is the link path even
+ * when it is a piece of software: what it receives, and what it may do with
+ * it, are the link's, not its own. With no destination named yet — a folder's
+ * own context menu, say — the screen opens on the link, because it is the one
+ * that needs no choice at all.
  */
 export function reachIntentForTarget(id: ShareTargetId | null): ReachIntent {
-  return id === null || id === "person" ? "invite" : "connect";
+  if (id === null) return "invite";
+  return getShareTarget(id).kind === null ? "invite" : "connect";
 }
 
 export function reachIntentTargets(intent: ReachIntent): readonly ShareTarget[] {
   return SHARE_TARGETS.filter((target) => reachIntentForTarget(target.id) === intent);
 }
 
-/** The one destination an invite has: the project itself, read by a person. */
+/**
+ * The one destination a link has: the project itself, read by whoever opens
+ * it. A bot in a chat is on this path too, but it is not a second kind of
+ * destination — it receives the same link under the same terms.
+ */
 export function inviteReachTarget(): ShareTarget {
-  const target = reachIntentTargets("invite")[0];
-  if (!target) throw new Error("No invite destination is configured.");
-  return target;
+  return getShareTarget("person");
 }
 
 /**

@@ -25,11 +25,13 @@ export {
   SHARE_TARGETS,
   getShareTarget,
   isShareTargetId,
+  shareAgentKindKey,
+  shareAgentsOfKind,
   shareTargetHandoffStepKey,
   shareTargetLabelKey,
   shareTargetPreviewKey,
 } from "./shareTargets";
-export type { ShareChannel, ShareTarget, ShareTargetId } from "./shareTargets";
+export type { ShareAgentKind, ShareChannel, ShareTarget, ShareTargetId } from "./shareTargets";
 export { buildProjectShares, shareHasReceipt, useProjectShares } from "./useProjectShares";
 export type { ProjectShare, ProjectSharesState } from "./useProjectShares";
 export { useProjectShareActivity } from "./useProjectShareActivity";

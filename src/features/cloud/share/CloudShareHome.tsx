@@ -18,6 +18,7 @@ import "./share.css";
 
 const SHARE_TARGET_BRANDS: Partial<Record<ShareTargetId, AgentBrandId>> = {
   viktor: "viktor",
+  manus: "manus",
   claude: "claude",
   chatgpt: "chatgpt",
 };
