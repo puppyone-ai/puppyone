@@ -69,20 +69,20 @@ describe("share targets", () => {
     // either a client the user configures or not an agent at all.
     expect(shareAgentsOfKind("cloud-native").map((target) => target.id)).toEqual(["viktor", "manus"]);
     expect(shareAgentsOfKind("assistant").map((target) => target.id)).toEqual(["claude", "chatgpt"]);
-    expect(shareAgentsOfKind("other").map((target) => target.id)).toEqual(["mcp"]);
+    expect(shareAgentsOfKind("remote-client").map((target) => target.id)).toEqual(["mcp"]);
     for (const id of ["slack-bot", "grok", "person"] as const) {
       expect(getShareTarget(id).kind, id).toBeNull();
     }
     // Every agent holds its own credential; a destination that only opens a
     // link cannot be one.
-    for (const kind of ["cloud-native", "assistant", "other"] as const) {
+    for (const kind of ["cloud-native", "assistant", "remote-client"] as const) {
       for (const target of shareAgentsOfKind(kind)) expect(target.channel, target.id).toBe("mcp");
     }
   });
 
   it("names the heading each kind is grouped under", () => {
     const keys = new Set(Object.keys(englishCloud).map((key) => `cloud.${key}`));
-    for (const kind of ["cloud-native", "assistant"] as const) {
+    for (const kind of ["cloud-native", "assistant", "remote-client"] as const) {
       expect(keys.has(shareAgentKindKey(kind)), kind).toBe(true);
     }
   });

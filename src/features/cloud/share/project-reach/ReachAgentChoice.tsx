@@ -12,25 +12,24 @@ import {
 } from "../shareTargets";
 
 /**
- * The kinds, in the order a user meets them: the agents that have their own
- * machine first, because they are the ones that can work while this Mac is
- * closed, then the products the user talks to.
+ * Where the agent is, in the order a user meets them: on its own machine in
+ * the cloud, inside a product they talk to, or on a machine somewhere else
+ * that they will configure themselves.
  */
-const REACH_AGENT_KINDS: readonly ShareAgentKind[] = ["cloud-native", "assistant"];
+const REACH_AGENT_KINDS: readonly ShareAgentKind[] = ["cloud-native", "assistant", "remote-client"];
 
 /**
- * The first and only question on the connect screen: which agent. Everything
- * else on that path is about the agent the user names here.
+ * The only question on the connect screen: which agent.
  *
- * A mark and a name, grouped by the one difference that changes the decision:
- * an agent with its own machine reads and changes the project while the user
- * is away, and an assistant reads it while they are talking to it. Stated
- * once per group, that fact is useful; it used to be printed under all six
- * names, where it was only loud.
+ * It is not asked in words. The dialog's own title already says what is being
+ * connected to what, so the screen is the answer sheet: three places an agent
+ * can be, and the names found in each. Where it is decides how it is
+ * connected, which is why the places are the headings and not a sentence
+ * under every name.
  *
- * Agents that run on this Mac are deliberately absent. They already read the
- * folder; handing them an address would give them an older copy of what they
- * can see directly, so the only honest thing to do is to say so and stop.
+ * Agents that run on this Mac have no place here. They read the folder
+ * already; an address would only hand them an older copy of what they can
+ * see, so the list stays about everything that is somewhere else.
  */
 export function ReachAgentChoice({
   selected,
@@ -40,47 +39,30 @@ export function ReachAgentChoice({
   onSelect: (id: ShareTargetId) => void;
 }) {
   const { t } = useLocalization();
-  const question = t("cloud.share.reach.connect.question");
   const groups = useReachAgentGroups();
-  const other = shareAgentsOfKind("other");
 
   return (
-    <div className="desktop-reach-section">
-      <p className="desktop-share-question">{question}</p>
-      <div className="desktop-reach-agent-groups" role="radiogroup" aria-label={question}>
-        {groups.map((group) => (
-          <div className="desktop-reach-agent-group" key={group.kind}>
-            <p className="desktop-reach-agent-kind">{t(shareAgentKindKey(group.kind))}</p>
-            <div className="desktop-reach-agents">
-              {group.candidates.map(({ target, remembered }) => (
-                <ReachAgentChip
-                  key={target.id}
-                  target={target}
-                  remembered={remembered}
-                  selected={selected === target.id}
-                  onSelect={onSelect}
-                />
-              ))}
-            </div>
+    <div
+      className="desktop-reach-agent-groups"
+      role="radiogroup"
+      aria-label={t("cloud.share.reach.connect.question")}
+    >
+      {groups.map((group) => (
+        <div className="desktop-reach-agent-group" key={group.kind}>
+          <p className="desktop-reach-agent-kind">{t(shareAgentKindKey(group.kind))}</p>
+          <div className="desktop-reach-agents">
+            {group.candidates.map(({ target, remembered }) => (
+              <ReachAgentChip
+                key={target.id}
+                target={target}
+                remembered={remembered}
+                selected={selected === target.id}
+                onSelect={onSelect}
+              />
+            ))}
           </div>
-        ))}
-      </div>
-      {/* Where "none of these" leads, and the one question the list's own rule
-          raises: a quiet line, not a seventh candidate. */}
-      <p className="desktop-reach-agent-exit">
-        {other.map((target) => (
-          <button
-            key={target.id}
-            type="button"
-            className="desktop-share-inline-link"
-            data-share-target={target.id}
-            onClick={() => onSelect(target.id)}
-          >
-            {t(shareTargetLabelKey(target.id))}
-          </button>
-        ))}
-        <span className="desktop-reach-fact">{t("cloud.share.reach.connect.localAgents")}</span>
-      </p>
+        </div>
+      ))}
     </div>
   );
 }
@@ -116,11 +98,11 @@ function ReachAgentChip({
 }
 
 /**
- * The kinds that have candidates, each with the agent this Mac last connected
- * first within its own group.
+ * The places that have candidates, each with the agent this Mac last
+ * connected first within its own place.
  *
  * The memory holds an id, not a destination: an id the product no longer
- * offers simply does not match, and the groups are the plain ones again.
+ * offers simply does not match, and the places are the plain ones again.
  */
 function useReachAgentGroups(): readonly {
   kind: ShareAgentKind;

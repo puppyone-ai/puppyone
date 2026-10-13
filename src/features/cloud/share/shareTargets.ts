@@ -25,19 +25,23 @@ export type ShareChannel = "mcp" | "link";
  * What kind of agent a destination is — the only difference that changes how
  * a user decides between them:
  *
+ * Where the agent is, which is what decides how it is connected:
+ *
  * - `cloud-native`: it has its own machine. It can read and change the
  *   project while this Mac is closed, which is why write access is a real
  *   question for it.
- * - `assistant`: a product the user talks to, which reads the project while
- *   that conversation is happening.
- * - `other`: any client the user configures themselves. Not a candidate among
- *   the named ones; it is where "none of these" leads.
+ * - `assistant`: a product the user talks to, which reads the project from
+ *   its own side while that conversation is happening.
+ * - `remote-client`: a client on some other machine — a colleague's computer,
+ *   a server, a box the user keeps elsewhere. The address has to be carried
+ *   there, so its handoff is about that machine, not about a settings page we
+ *   can name.
  *
  * Destinations with no kind are not agents. An agent that runs on this Mac is
  * not one either: it already reads the folder, so connecting it through Cloud
  * would hand it an older copy of what it can already see.
  */
-export type ShareAgentKind = "cloud-native" | "assistant" | "other";
+export type ShareAgentKind = "cloud-native" | "assistant" | "remote-client";
 
 export type ShareTarget = Readonly<{
   id: ShareTargetId;
@@ -114,7 +118,7 @@ export const SHARE_TARGETS: readonly ShareTarget[] = [
   {
     id: "mcp",
     channel: "mcp",
-    kind: "other",
+    kind: "remote-client",
     brand: null,
     handoffSteps: 2,
     docsUrl: "https://modelcontextprotocol.io/docs/concepts/transports",

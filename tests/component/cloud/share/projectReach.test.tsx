@@ -209,31 +209,31 @@ describe("the same skeleton for connecting an agent", () => {
     await flush();
 
     expect(stripBidiIsolation(dialog()?.querySelector("h2")?.textContent)).toBe("Connect an agent to Notes");
-    expect(text()).toContain("Which agent?");
-    // A mark and a name each, under the one heading that tells the kinds
-    // apart: no grid with a hole in its last row, and nothing under every
-    // single name about when it happens to be awake.
-    const agents = [...dialog()?.querySelectorAll<HTMLElement>(".desktop-reach-agent") ?? []];
-    expect(agents.map((agent) => agent.dataset.shareTarget))
-      .toEqual(["viktor", "manus", "claude", "chatgpt"]);
+    // Three places an agent can be, and the names found in each. The question
+    // is not asked in words — the title already said what is being connected
+    // to what — and nothing is said twice under a name.
     expect([...dialog()?.querySelectorAll(".desktop-reach-agent-kind") ?? []]
       .map((heading) => heading.textContent))
-      .toEqual([
-        "Cloud-native agents — they work while this Mac is closed",
-        "Assistants you use — they read while you are talking to them",
-      ]);
+      .toEqual(["Cloud-native agents", "Assistants you use", "On another machine"]);
+    expect(text()).not.toContain("Which agent?");
+    expect(dialog()?.querySelector("[role='radiogroup']")?.getAttribute("aria-label"))
+      .toBe("Which agent?");
+    const agents = [...dialog()?.querySelectorAll<HTMLElement>(".desktop-reach-agent") ?? []];
+    expect(agents.map((agent) => agent.dataset.shareTarget))
+      .toEqual(["viktor", "manus", "claude", "chatgpt", "mcp"]);
+    // Every place renders one shape; a client on another machine is a
+    // candidate like the rest, not an exit under them.
+    expect(agents.map((agent) => stripBidiIsolation(agent.textContent)))
+      .toEqual(["Viktor", "Manus", "Claude", "ChatGPT", "MCP client"]);
     expect(dialog()?.querySelector(".desktop-share-target-grid")).toBeNull();
     expect(text()).not.toContain("Awake");
     // Chat bots are not agents: they receive the same link a person does, so
     // they are on the link path and not among the candidates here.
     expect(dialog()?.querySelector("[data-share-target='slack-bot']")).toBeNull();
     expect(dialog()?.querySelector("[data-share-target='grok']")).toBeNull();
-    // "None of these" is an exit, not a seventh candidate — and the rule that
-    // keeps this Mac's own agents off the list is stated where it is missed.
-    const exit = dialog()?.querySelector<HTMLElement>(".desktop-reach-agent-exit");
-    expect(exit?.querySelector("[data-share-target='mcp']")?.className)
-      .toContain("desktop-share-inline-link");
-    expect(exit?.textContent).toContain("read this folder directly");
+    // A link is a different way to hand the project out; offering it beside
+    // the names would blur what the user is choosing between.
+    expect(text()).not.toContain("Get a link instead");
     // How much an agent sees is a question about a named agent, so it is not
     // asked yet — and there is no action to disable either.
     expect(text()).not.toContain("How much of it?");
@@ -267,7 +267,7 @@ describe("the same skeleton for connecting an agent", () => {
     // The named agent stays visible, and naming another one is a link back.
     await act(async () => button("Change")?.click());
     await flush();
-    expect(text()).toContain("Which agent?");
+    expect(text()).toContain("Cloud-native agents");
     expect(text()).not.toContain("wants to access");
   });
 
@@ -311,11 +311,11 @@ describe("the same skeleton for connecting an agent", () => {
     await act(async () => button("Connect an agent instead")?.click());
     await flush();
 
-    // It leads its own kind rather than being promoted out of it: a remembered
-    // assistant does not become a cloud-native agent.
+    // It leads its own place rather than being promoted out of it: a
+    // remembered assistant does not become a cloud-native agent.
     const agents = [...dialog()?.querySelectorAll<HTMLElement>(".desktop-reach-agent") ?? []];
     expect(agents.map((agent) => agent.dataset.shareTarget))
-      .toEqual(["viktor", "manus", "claude", "chatgpt"]);
+      .toEqual(["viktor", "manus", "claude", "chatgpt", "mcp"]);
     const remembered = agents.filter((agent) => agent.className.includes("is-remembered"));
     expect(remembered.map((agent) => stripBidiIsolation(agent.textContent))).toEqual(["ClaudeLast used"]);
   });

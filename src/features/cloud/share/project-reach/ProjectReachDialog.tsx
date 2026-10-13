@@ -315,18 +315,18 @@ function ReachConnectForm({
   const [chosen, setChosen] = useState(() => target !== null);
   const [narrowing, setNarrowing] = useState(() => scope.path !== "");
 
+  // Naming an agent is the whole screen. A link is a different way to hand
+  // the project out, with different terms; offering it beside the names only
+  // blurs what the user is choosing between.
   if (!chosen || !target) {
     return (
-      <>
-        <div className="desktop-dialog-body desktop-share-dialog-body desktop-reach-form">
-          <ReachAgentChoice
-            selected={target?.id ?? null}
-            onSelect={(id) => { onSelect(id); setChosen(true); }}
-          />
-          {readers}
-          <ReachSecondaryLinks intent="connect" onIntentChange={onIntentChange} />
-        </div>
-      </>
+      <div className="desktop-dialog-body desktop-share-dialog-body desktop-reach-form">
+        <ReachAgentChoice
+          selected={target?.id ?? null}
+          onSelect={(id) => { onSelect(id); setChosen(true); }}
+        />
+        {readers}
+      </div>
     );
   }
 
