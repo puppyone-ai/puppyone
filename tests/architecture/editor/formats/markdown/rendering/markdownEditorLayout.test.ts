@@ -127,18 +127,15 @@ describe("Markdown editor layout", () => {
     );
   });
 
-  it("keeps vertical document padding fixed while the inline gutter responds to width", () => {
+  it("uses the same responsive document padding on all four edges", () => {
     const editorRule = readCssRule(markdownEditorCss, ".markdown-codemirror-editor");
     const scrollerRule = readCssRule(markdownEditorCss, ".markdown-codemirror-editor .cm-scroller");
     const contentRule = readCssRule(markdownEditorCss, ".markdown-codemirror-editor .cm-content");
 
     expect(editorEntryCss).toContain("--po-editor-content-edge-inset: 48px;");
     expect(editorRule).toContain("--po-markdown-editor-gutter-min: var(--po-editor-content-edge-inset, 48px);");
-    expect(editorRule).toContain("--po-markdown-editor-content-padding-block: var(--po-editor-content-edge-inset, 48px);");
     expect(contentRule).toContain("--po-markdown-editor-content-gutter-inline: max(");
-    expect(contentRule).toContain("padding-block: var(--po-markdown-editor-content-padding-block);");
-    expect(contentRule).toContain("padding-inline: var(--po-markdown-editor-content-gutter-inline);");
-    expect(contentRule).not.toMatch(/padding-(?:block|top):[^;]*content-gutter-inline/);
+    expect(contentRule).toContain("padding: var(--po-markdown-editor-content-gutter-inline);");
     expect(editorRule).toContain("container-type: inline-size;");
     expect(editorRule).toContain("--po-markdown-scroll-viewport-inline-size: 100cqw;");
     expect(editorRule).toContain("-webkit-font-smoothing: antialiased;");

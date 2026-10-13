@@ -1,7 +1,6 @@
 .markdown-codemirror-editor {
   --po-markdown-editor-text-width: var(--po-reading-content-width, 724px);
   --po-markdown-editor-gutter-min: var(--po-editor-content-edge-inset, 48px);
-  --po-markdown-editor-content-padding-block: var(--po-editor-content-edge-inset, 48px);
   /* Reading content stays on the centered text rail. Wide block viewports are
      a separate layout tier and may use the full editor client width. */
   --po-markdown-wide-block-edge-inset: 0px;
@@ -40,7 +39,6 @@
 
 .markdown-presentation-preview .markdown-codemirror-editor {
   --po-markdown-editor-gutter-min: 32px;
-  --po-markdown-editor-content-padding-block: 28px;
 }
 
 .markdown-codemirror-editor .cm-editor {
@@ -135,9 +133,7 @@
 }
 
 .markdown-codemirror-editor .cm-content {
-  /* The inline gutter grows to center the 724px reading rail. The block
-     padding is intentionally independent so horizontal resize never moves
-     the document's first line vertically. */
+  /* All four edges share the gutter that centers the 724px reading rail. */
   --po-markdown-editor-content-gutter-inline: max(
     var(--po-markdown-editor-gutter-min),
     calc((100% - var(--po-markdown-editor-text-width)) / 2)
@@ -147,8 +143,7 @@
   max-width: none;
   min-height: 100%;
   margin: 0;
-  padding-block: var(--po-markdown-editor-content-padding-block);
-  padding-inline: var(--po-markdown-editor-content-gutter-inline);
+  padding: var(--po-markdown-editor-content-gutter-inline);
   caret-color: var(--po-text);
   color: var(--po-md-content-color);
   overflow-wrap: anywhere;
