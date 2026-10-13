@@ -1,40 +1,103 @@
 @layer features {
   /* The one screen for inviting a person or connecting an agent. Both share
-     this skeleton; only the verb, the object and one sentence differ. */
+     this skeleton; only the verb, the object and one sentence differ.
+
+     Two type sizes only: the dialog's body size for anything the user reads
+     to decide, and the meta size for consequences. Earlier revisions grew a
+     third and a fourth, which is what made the screen look assembled rather
+     than designed. */
   .desktop-reach-dialog .desktop-dialog-body {
-    gap: 16px;
+    gap: 14px;
   }
 
   .desktop-reach-section {
     display: grid;
-    gap: 8px;
+    gap: 6px;
   }
 
-  .desktop-reach-switch {
+  .desktop-reach-switch,
+  .desktop-reach-narrow {
     justify-self: start;
     font-size: var(--po-type-ui-meta, 12px);
   }
 
-  .desktop-reach-switch:hover {
+  .desktop-reach-switch:hover,
+  .desktop-reach-narrow:hover {
     text-decoration: underline;
+  }
+
+  /* What the other side will get, stated once, at the top, as a fact about
+     the project rather than the first thing to configure. */
+  .desktop-reach-object {
+    display: grid;
+    align-items: start;
+    gap: 2px 10px;
+    grid-template-columns: auto minmax(0, 1fr);
+    padding: 10px 12px;
+    border: 1px solid var(--po-divider);
+    border-radius: 10px;
+    background: var(--po-surface);
+  }
+
+  .desktop-reach-object-mark {
+    display: grid;
+    width: 20px;
+    height: 20px;
+    place-items: center;
+    color: var(--po-text-muted);
+  }
+
+  .desktop-reach-object-body {
+    display: grid;
+    min-width: 0;
+    gap: 1px;
+  }
+
+  .desktop-reach-object-name {
+    overflow: hidden;
+    color: var(--po-text);
+    font-size: var(--po-type-ui-body, 13px);
+    font-weight: var(--po-text-weight-medium, 500);
+    line-height: 20px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .desktop-reach-object-meta,
+  .desktop-reach-object-consequence {
+    color: var(--po-text-muted);
+    font-size: var(--po-type-ui-meta, 12px);
+    line-height: 1.5;
+  }
+
+  .desktop-reach-object-consequence {
+    grid-column: 2;
+    margin-top: 4px;
+  }
+
+  /* The agent the user named, kept visible while they answer the question
+     that is about it. Changing it is a link, not a second grid. */
+  .desktop-reach-chosen {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--po-text);
+    font-size: var(--po-type-ui-body, 13px);
+  }
+
+  .desktop-reach-chosen-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    font-weight: var(--po-text-weight-medium, 500);
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   /* Facts: stated once, never competing with the action. */
   .desktop-reach-fact {
     margin: 0;
     color: var(--po-text-muted);
-    font-size: var(--po-type-ui-meta, 12px);
-    line-height: 1.5;
-  }
-
-  /* The consequence of the action, which is the one thing the user must know
-     before taking it. One line, by contract. */
-  .desktop-reach-mechanism {
-    margin: 0;
-    padding: 10px 12px;
-    border-radius: 8px;
-    background: color-mix(in srgb, var(--po-text) 5%, transparent);
-    color: var(--po-text);
     font-size: var(--po-type-ui-meta, 12px);
     line-height: 1.5;
   }
@@ -48,13 +111,6 @@
   .desktop-reach-scope {
     display: grid;
     gap: 2px;
-  }
-
-  .desktop-reach-measured {
-    margin: 0;
-    color: var(--po-text);
-    font-size: var(--po-type-ui-meta, 12px);
-    line-height: 1.5;
   }
 
   .desktop-reach-readers {

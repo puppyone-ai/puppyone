@@ -3,6 +3,7 @@ import { Tooltip } from "@puppyone/shared-ui";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import { CloudOff, UserPlus, Plug, HardDriveDownload, Laptop } from "lucide-react";
 import { CloudIcon } from "../../../components/icons/CloudIcon";
+import { DesktopMenuItem, DesktopMenuSeparator } from "../../../components/DesktopMenu";
 import { useDesktopPlatformCapabilities } from "../../../platform/useDesktopPlatformCapabilities";
 import { DesktopTitlebarMenuLayer } from "../DesktopTitlebarMenuLayer";
 import type { ReachMember, ReachPlace, ReachState } from "./projectReachHeader";
@@ -11,12 +12,15 @@ import "./reach-header.css";
 /**
  * The Header's answer to "where is this project, and who can reach it".
  *
- * There is one control, and it is a statement in two halves. The place mark
- * comes first, because a user has to recognize the project's home before any
- * statement about reach means anything: a device for a project worked on here,
- * a cloud for a project worked on in a Cloud workspace. Then comes reach —
- * identity marks for whoever can reach it, and the words "only you" when the
- * honest answer is nobody else. People are round and machines are square, so
+ * There is one control, and what it says out loud is the place: "This Mac",
+ * or the Cloud workspace the project is worked on in. That is the fact a user
+ * needs at a glance, and it is the fact the Header is uniquely able to give.
+ * "Only you" is not a headline — knowing that nobody else is here tells a
+ * user nothing they can act on, so it belongs one layer in, next to the two
+ * verbs that change it.
+ *
+ * Reach joins the place only when there is reach to state: identity marks for
+ * whoever can reach it, counted. People are round and machines are square, so
  * the composition of the answer is readable without a legend and without text
  * groups.
  *
@@ -24,6 +28,11 @@ import "./reach-header.css";
  * person, connecting an agent and getting a copy onto this device are all
  * actions inside it, which is why the right side of the Header no longer needs
  * a separate share button.
+ *
+ * Both halves are built from the Header's own geometry and the project menu's
+ * own rows — the titlebar control tokens for the button, `DesktopMenuItem`
+ * and friends for the panel. A control that states a fact about the project
+ * has no reason to invent a second type scale or a second row style.
  *
  * The rows themselves and stopping a reach come from the share domain through
  * `readers`, so the Header and the share screen can never state reach
@@ -75,7 +84,8 @@ export function ProjectReachControl({
           aria-label={t("shell.projectReach.buttonLabel", { place, reach: summary })}
           onClick={() => { if (!open) onOpen?.(); setOpen((value) => !value); }}
         >
-          <ReachPlaceMark place={state.place} />
+          <ReachPlaceMark place={state.place} className="desktop-titlebar-workspace-mark" size={16} />
+          <span className="desktop-project-reach-place-label">{place}</span>
           <ReachMarks state={state} />
         </button>
       </Tooltip>
@@ -86,7 +96,7 @@ export function ProjectReachControl({
         dismissOnFocusExit={false}
         className="desktop-project-reach-menu"
         gap={2}
-        preferredWidth={320}
+        preferredWidth={272}
         preferredMaxHeight={420}
         widthMode="fixed"
         alignment="start"
@@ -94,19 +104,21 @@ export function ProjectReachControl({
         ariaLabel={t("shell.projectReach.panelLabel")}
       >
         <div className="desktop-project-reach-panel">
-          <p className="desktop-project-reach-place-row" data-reach-place={state.place}>
-            <ReachPlaceMark place={state.place} />
-            <span>{place}</span>
-          </p>
-          <p className="desktop-project-reach-statement" data-reach-state={state.kind}>{summary}</p>
-          {state.kind === "not-on-this-device" ? (
-            <ReachDeviceCopy onGetCopy={onGetCopy} />
-          ) : (
-            <>
-              {readers}
-              <ReachActions onInvitePerson={onInvitePerson} onConnectAgent={onConnectAgent} />
-            </>
-          )}
+          {/* The place is the panel's title, at the same size as the rows
+              under it; reach is the line below it. One type scale, two
+              facts, in the order a user asks for them. */}
+          <div className="desktop-project-reach-head" data-reach-place={state.place}>
+            <ReachPlaceMark place={state.place} className="desktop-project-reach-head-mark" size={16} />
+            <div className="desktop-project-reach-head-body">
+              <p className="desktop-project-reach-head-title">{place}</p>
+              <p className="desktop-project-reach-head-reach" data-reach-state={state.kind}>{summary}</p>
+            </div>
+          </div>
+          {state.kind === "not-on-this-device" ? <ReachDeviceDetail /> : readers}
+          <DesktopMenuSeparator />
+          {state.kind === "not-on-this-device"
+            ? <ReachDeviceCopy onGetCopy={onGetCopy} />
+            : <ReachActions onInvitePerson={onInvitePerson} onConnectAgent={onConnectAgent} />}
         </div>
       </DesktopTitlebarMenuLayer>
     </div>
@@ -118,47 +130,54 @@ export function ProjectReachControl({
  * fact, not a switch: there is nothing to press and nothing to choose, which
  * is exactly why it can be shown all the time.
  */
-function ReachPlaceMark({ place }: { place: ReachPlace }) {
+function ReachPlaceMark({ place, className, size }: {
+  place: ReachPlace;
+  /** The host's own mark slot, so the Header and the menu size it alike. */
+  className: string;
+  size: number;
+}) {
   return (
-    <span className="desktop-project-reach-place" data-reach-place={place} aria-hidden="true">
+    <span
+      className={`desktop-project-reach-place ${className}`}
+      data-reach-place={place}
+      aria-hidden="true"
+    >
       {place === "cloud"
-        ? <CloudIcon size={15} />
-        : <Laptop size={15} strokeWidth={1.75} />}
+        ? <CloudIcon size={size} />
+        : <Laptop size={size} strokeWidth={1.65} />}
     </span>
   );
 }
 
-/** The place in words, in the device vocabulary the user's platform uses. */
+/**
+ * The place in words, in the vocabulary the Header already uses for it. These
+ * are the established location strings on purpose: the reach path renames
+ * nothing the user has already learned to read.
+ */
 function useReachPlaceLabel(place: ReachPlace): string {
   const { t } = useLocalization();
   const capabilities = useDesktopPlatformCapabilities();
-  if (place === "cloud") return t("shell.projectReach.place.cloud");
+  if (place === "cloud") return t("shell.workspaceSwitcher.location.cloud");
   return t(capabilities?.platform === "macos"
-    ? "shell.projectReach.place.thisMac"
-    : "shell.projectReach.place.thisComputer");
+    ? "shell.workspaceSwitcher.location.thisMac"
+    : "shell.workspaceSwitcher.location.thisComputer");
 }
 
 /**
- * The second half of the statement. A project nobody else reaches says so in
- * words next to its place mark — quiet, but never blank, because a control
- * that shows nothing cannot be read as an answer.
+ * Reach, after the place. Nobody else there means nothing to add: the place
+ * is already a complete answer, and "only you" as a headline would spend the
+ * Header's most valuable row on a non-event.
  */
 function ReachMarks({ state }: { state: ReachState }) {
   const { t } = useLocalization();
   if (state.kind === "attention") {
     return (
       <span className="desktop-project-reach-marks" data-reach-audience="attention">
-        <CloudOff size={15} strokeWidth={1.75} aria-hidden="true" />
+        <CloudOff size={16} strokeWidth={1.65} aria-hidden="true" />
       </span>
     );
   }
-  if (state.kind === "only-you" || state.members.length === 0) {
-    return (
-      <span className="desktop-project-reach-marks" data-reach-audience="none">
-        {t("shell.projectReach.onlyYou")}
-      </span>
-    );
-  }
+  if (state.kind === "only-you" || state.members.length === 0) return null;
   return (
     <span className="desktop-project-reach-marks">
       {state.members.slice(0, 3).map((member) => (
@@ -220,6 +239,10 @@ function useReachFreshness(state: ReachState): string {
   return t("shell.projectReach.freshness.onlyYou");
 }
 
+/**
+ * The two verbs, as menu rows. They are the same row the project menu uses,
+ * because they are the same kind of thing: one tap, one consequence.
+ */
 function ReachActions({ onInvitePerson, onConnectAgent }: {
   onInvitePerson?: () => void;
   onConnectAgent?: () => void;
@@ -227,16 +250,22 @@ function ReachActions({ onInvitePerson, onConnectAgent }: {
   const { t } = useLocalization();
   return (
     <div className="desktop-project-reach-actions">
-      <button type="button" className="desktop-project-reach-action" onClick={onInvitePerson}
-        disabled={!onInvitePerson}>
-        <UserPlus size={15} strokeWidth={1.75} aria-hidden="true" />
-        <span>{t("shell.projectReach.invitePerson")}</span>
-      </button>
-      <button type="button" className="desktop-project-reach-action" onClick={onConnectAgent}
-        disabled={!onConnectAgent}>
-        <Plug size={15} strokeWidth={1.75} aria-hidden="true" />
-        <span>{t("shell.projectReach.connectAgent")}</span>
-      </button>
+      <DesktopMenuItem
+        className="desktop-project-reach-action"
+        role="button"
+        icon={<UserPlus size={15} strokeWidth={1.8} />}
+        label={t("shell.projectReach.invitePerson")}
+        disabled={!onInvitePerson}
+        onClick={onInvitePerson}
+      />
+      <DesktopMenuItem
+        className="desktop-project-reach-action"
+        role="button"
+        icon={<Plug size={15} strokeWidth={1.8} />}
+        label={t("shell.projectReach.connectAgent")}
+        disabled={!onConnectAgent}
+        onClick={onConnectAgent}
+      />
     </div>
   );
 }
@@ -246,16 +275,23 @@ function ReachActions({ onInvitePerson, onConnectAgent }: {
  * device yet. Reading needs nothing; changing it needs a copy, and where that
  * copy lands is decided by the obstacle, not offered as a choice.
  */
+function ReachDeviceDetail() {
+  const { t } = useLocalization();
+  return <p className="desktop-project-reach-detail">{t("shell.projectReach.deviceCopy.detail")}</p>;
+}
+
 function ReachDeviceCopy({ onGetCopy }: { onGetCopy?: () => void }) {
   const { t } = useLocalization();
   return (
-    <div className="desktop-project-reach-device-copy">
-      <p>{t("shell.projectReach.deviceCopy.detail")}</p>
-      <button type="button" className="desktop-project-reach-action primary" onClick={onGetCopy}
-        disabled={!onGetCopy}>
-        <HardDriveDownload size={15} strokeWidth={1.75} aria-hidden="true" />
-        <span>{t("shell.projectReach.deviceCopy.action")}</span>
-      </button>
+    <div className="desktop-project-reach-actions">
+      <DesktopMenuItem
+        className="desktop-project-reach-action"
+        role="button"
+        icon={<HardDriveDownload size={15} strokeWidth={1.8} />}
+        label={t("shell.projectReach.deviceCopy.action")}
+        disabled={!onGetCopy}
+        onClick={onGetCopy}
+      />
     </div>
   );
 }

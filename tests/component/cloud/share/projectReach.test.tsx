@@ -181,7 +181,7 @@ describe("one screen for inviting a person", () => {
 });
 
 describe("the same skeleton for connecting an agent", () => {
-  it("states which candidates are awake, promises review, and waits for a choice", async () => {
+  it("asks which agent first, and nothing else until one is named", async () => {
     await act(async () => root?.render(withTestLocalization(<ProjectReachDialog {...baseProps()} />)));
     await flush();
 
@@ -193,16 +193,34 @@ describe("the same skeleton for connecting an agent", () => {
     expect(text()).toContain("Awake all the time");
     expect(text()).toContain("Awake while in use");
     expect(text()).toContain("Decided by your client");
-    expect(text()).toContain("comes back as changes waiting for your review");
-    expect(button("Connect")?.disabled).toBe(true);
+    // How much an agent sees is a question about a named agent, so it is not
+    // asked yet — and there is no action to disable either.
+    expect(text()).not.toContain("How much of it?");
+    expect(text()).not.toContain("What can it do?");
+    expect(dialog()?.querySelector(".desktop-dialog-button.primary")).toBeNull();
+  });
+
+  it("asks how much the named agent sees, and only then offers the verb", async () => {
+    await act(async () => root?.render(withTestLocalization(<ProjectReachDialog {...baseProps()} />)));
+    await flush();
+    await act(async () => button("Connect an agent instead")?.click());
+    await flush();
 
     await act(async () => dialog()?.querySelector<HTMLButtonElement>("[data-share-target='claude']")?.click());
     await flush();
 
+    expect(text()).toContain("What can Claude see?");
     expect(text()).toContain("What can it do?");
+    expect(text()).toContain("comes back as changes waiting for your review");
     expect(radio("Read only")?.getAttribute("aria-checked")).toBe("true");
     expect(radio("Read and write")?.getAttribute("aria-checked")).toBe("false");
     expect(button("Connect Claude")?.disabled).toBe(false);
+
+    // The named agent stays visible, and naming another one is a link back.
+    await act(async () => button("Change")?.click());
+    await flush();
+    expect(text()).toContain("Which agent?");
+    expect(text()).not.toContain("What can Claude see?");
   });
 });
 

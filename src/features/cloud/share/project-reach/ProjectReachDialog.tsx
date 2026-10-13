@@ -182,8 +182,18 @@ function resolveReachTarget(intent: ReachIntent, selectedId: ShareTargetId | nul
 }
 
 /**
- * The form itself: object, how much, what it may do, the consequence, one
- * action. Nothing here persuades and nothing here is a step.
+ * The form, in the order the user actually decides things.
+ *
+ * Inviting a person has no decision in it: the user already knows who they
+ * are sending it to, and the project is the project. So the invite screen
+ * states what the other side will get and offers the verb — narrowing it to
+ * one folder is a rarity, and rarities belong behind a disclosure, not in
+ * front of the action.
+ *
+ * Connecting an agent has exactly one decision first — which agent — and the
+ * second only makes sense once it is answered, because "how much can it see"
+ * is a question about a named agent. Asking both at once is what made the
+ * screen read like a settings panel.
  */
 function ReachForm({
   intent,
@@ -208,36 +218,112 @@ function ReachForm({
   onScopeChange: (scope: ReachScope) => void;
   onConfirm: () => void;
 }) {
-  const { t } = useLocalization();
   const measured = usePublishScope({ rootPath: dialog.workspacePath, path: scope.path });
+  const shared = { scope, measured, dialog, readers, onIntentChange, onScopeChange, onConfirm };
+  return intent === "invite"
+    ? <ReachInviteForm {...shared} />
+    : <ReachConnectForm {...shared} target={target} targetLabel={targetLabel} onSelect={onSelect} />;
+}
+
+type ReachFormShared = {
+  scope: ReachScope;
+  measured: PublishScopeState;
+  dialog: ProjectReachDialogProps;
+  readers: ReactNode;
+  onIntentChange: (intent: ReachIntent) => void;
+  onScopeChange: (scope: ReachScope) => void;
+  onConfirm: () => void;
+};
+
+/** Inviting a person: what they get, and the verb. No setup in between. */
+function ReachInviteForm({
+  scope, measured, dialog, readers, onIntentChange, onScopeChange, onConfirm,
+}: ReachFormShared) {
+  const { t } = useLocalization();
+  const [narrowing, setNarrowing] = useState(() => scope.path !== "");
 
   return (
     <>
       <div className="desktop-dialog-body desktop-share-dialog-body desktop-reach-form">
-        <button
-          type="button"
-          className="desktop-share-inline-link desktop-reach-switch"
-          onClick={() => onIntentChange(intent === "invite" ? "connect" : "invite")}
-        >
-          {t(intent === "invite"
-            ? "cloud.share.reach.switchToConnect"
-            : "cloud.share.reach.switchToInvite")}
-        </button>
-
-        {intent === "invite" ? (
-          <p className="desktop-reach-fact">{t("cloud.share.reach.invite.recipient")}</p>
+        <ReachObject scope={scope} measured={measured} consequence={t("cloud.share.reach.mechanism")} />
+        <p className="desktop-reach-fact">{t("cloud.share.reach.invite.recipient")}</p>
+        {narrowing ? (
+          <ReachScopeChoice
+            scope={scope}
+            initialPath={dialog.initialPath}
+            listTopLevelFolders={dialog.listTopLevelFolders}
+            onScopeChange={onScopeChange}
+          />
         ) : (
-          <ReachAgentChoice selected={target?.id ?? null} onSelect={onSelect} />
+          <button
+            type="button"
+            className="desktop-share-inline-link desktop-reach-narrow"
+            onClick={() => setNarrowing(true)}
+          >
+            {t("cloud.share.reach.scope.narrow")}
+          </button>
         )}
+        {readers}
+      </div>
+      <ReachFormFooter
+        dialog={dialog}
+        intent="invite"
+        onIntentChange={onIntentChange}
+        action={t("cloud.share.reach.action.invite")}
+        onConfirm={onConfirm}
+      />
+    </>
+  );
+}
 
+/** Connecting an agent: which one, then how much of the project it sees. */
+function ReachConnectForm({
+  target, targetLabel, scope, measured, dialog, readers, onIntentChange, onSelect, onScopeChange, onConfirm,
+}: ReachFormShared & {
+  target: ShareTarget | null;
+  targetLabel: string;
+  onSelect: (id: ShareTargetId) => void;
+}) {
+  const { t } = useLocalization();
+  const [chosen, setChosen] = useState(() => target !== null);
+
+  if (!chosen || !target) {
+    return (
+      <>
+        <div className="desktop-dialog-body desktop-share-dialog-body desktop-reach-form">
+          <ReachAgentChoice
+            selected={target?.id ?? null}
+            onSelect={(id) => { onSelect(id); setChosen(true); }}
+          />
+          {readers}
+        </div>
+        <ReachFormFooter dialog={dialog} intent="connect" onIntentChange={onIntentChange} />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <div className="desktop-dialog-body desktop-share-dialog-body desktop-reach-form">
+        <div className="desktop-reach-chosen">
+          <ShareTargetMark target={target} />
+          <span className="desktop-reach-chosen-label">{targetLabel}</span>
+          <button
+            type="button"
+            className="desktop-share-inline-link"
+            onClick={() => setChosen(false)}
+          >
+            {t("cloud.share.reach.connect.change")}
+          </button>
+        </div>
+        <ReachObject scope={scope} measured={measured} />
         <ReachScopeChoice
           scope={scope}
-          measured={measured}
+          question={t("cloud.share.reach.connect.scopeQuestion", { target: targetLabel })}
           initialPath={dialog.initialPath}
           listTopLevelFolders={dialog.listTopLevelFolders}
           onScopeChange={onScopeChange}
         />
-
         {reachModeSelectable(target) && (
           <div className="desktop-reach-section">
             <p className="desktop-share-question">{t("cloud.share.reach.mode.question")}</p>
@@ -257,30 +343,96 @@ function ReachForm({
             </div>
           </div>
         )}
-
-        <p className="desktop-reach-mechanism">{t("cloud.share.reach.mechanism")}</p>
+        <p className="desktop-reach-fact">{t("cloud.share.reach.connect.changesReturn")}</p>
         {readers}
       </div>
-      <footer className="desktop-dialog-footer two-action">
-        <button type="button" className="desktop-dialog-button" onClick={dialog.onClose}>
-          {t("cloud.common.cancel")}
-        </button>
-        <button
-          type="button"
-          className="desktop-dialog-button primary"
-          data-desktop-dialog-initial-focus="true"
-          disabled={!target}
-          onClick={onConfirm}
-        >
-          {t(intent === "invite" ? "cloud.share.reach.action.invite" : "cloud.share.reach.action.connect",
-            { target: targetLabel })}
-        </button>
-      </footer>
+      <ReachFormFooter
+        dialog={dialog}
+        intent="connect"
+        onIntentChange={onIntentChange}
+        action={t("cloud.share.reach.action.connect", { target: targetLabel })}
+        onConfirm={onConfirm}
+      />
     </>
   );
 }
 
-/** The candidates, with whether each one is there without being asked. */
+/**
+ * What the other side will be able to reach: the part of the project, and
+ * what it amounts to. The title already names the project, so this states
+ * the thing the title cannot — how much of it, and how big that is.
+ *
+ * The consequence sentence is passed in, because each verb has exactly one:
+ * a person reads a saved version, an agent returns changes for review.
+ * Printing both would be two sentences saying almost the same thing.
+ */
+function ReachObject({ scope, measured, consequence }: {
+  scope: ReachScope;
+  measured: PublishScopeState;
+  consequence?: string;
+}) {
+  const localization = useLocalization();
+  const { t } = localization;
+  const folder = scope.path.split("/").filter(Boolean).pop();
+  return (
+    <div className="desktop-reach-object">
+      <span className="desktop-reach-object-mark" aria-hidden="true">
+        {scope.path ? <Folder size={15} strokeWidth={1.8} /> : <FolderTree size={15} strokeWidth={1.8} />}
+      </span>
+      <span className="desktop-reach-object-body">
+        <bdi className="desktop-reach-object-name">{folder ?? t("cloud.share.scope.whole")}</bdi>
+        <span className="desktop-reach-object-meta" aria-live="polite">
+          {formatReachScopeMeasurement(measured, localization)}
+        </span>
+      </span>
+      {consequence && <span className="desktop-reach-object-consequence">{consequence}</span>}
+    </div>
+  );
+}
+
+/** The same footer for both verbs: the other verb, cancel, and the action. */
+function ReachFormFooter({ dialog, intent, onIntentChange, action, onConfirm }: {
+  dialog: ProjectReachDialogProps;
+  intent: ReachIntent;
+  onIntentChange: (intent: ReachIntent) => void;
+  action?: string;
+  onConfirm?: () => void;
+}) {
+  const { t } = useLocalization();
+  return (
+    <footer className="desktop-dialog-footer two-action">
+      <span className="desktop-share-footer-side">
+        <button
+          type="button"
+          className="desktop-share-inline-link desktop-reach-switch"
+          onClick={() => onIntentChange(intent === "invite" ? "connect" : "invite")}
+        >
+          {t(intent === "invite"
+            ? "cloud.share.reach.switchToConnect"
+            : "cloud.share.reach.switchToInvite")}
+        </button>
+      </span>
+      <button type="button" className="desktop-dialog-button" onClick={dialog.onClose}>
+        {t("cloud.common.cancel")}
+      </button>
+      {action && (
+        <button
+          type="button"
+          className="desktop-dialog-button primary"
+          data-desktop-dialog-initial-focus="true"
+          onClick={onConfirm}
+        >
+          {action}
+        </button>
+      )}
+    </footer>
+  );
+}
+
+/**
+ * The first and only question on the connect screen: which agent. Everything
+ * else on that path is about the agent the user names here.
+ */
 function ReachAgentChoice({
   selected,
   onSelect,
@@ -310,23 +462,25 @@ function ReachAgentChoice({
           </button>
         ))}
       </div>
-      {/* What connecting an agent means for the files, stated where the agent
-          is chosen rather than as fine print next to the action. */}
-      <p className="desktop-reach-fact">{t("cloud.share.reach.connect.changesReturn")}</p>
     </div>
   );
 }
 
-/** How much of the project, and what that choice actually amounts to. */
+/**
+ * How much of the project. The measurement is not here: it belongs to the
+ * object being shared, which is stated once at the top and updates with the
+ * choice instead of repeating under it.
+ */
 function ReachScopeChoice({
   scope,
-  measured,
+  question,
   initialPath,
   listTopLevelFolders,
   onScopeChange,
 }: {
   scope: ReachScope;
-  measured: PublishScopeState;
+  /** Named-agent screens ask about that agent; the invite screen does not. */
+  question?: string;
   initialPath: string;
   listTopLevelFolders: () => Promise<ShareWizardFolderEntry[]>;
   onScopeChange: (scope: ReachScope) => void;
@@ -334,12 +488,12 @@ function ReachScopeChoice({
   const localization = useLocalization();
   const { t } = localization;
   const folders = useReachFolders(listTopLevelFolders, initialPath);
-  const question = t("cloud.share.reach.scope.question");
+  const resolvedQuestion = question ?? t("cloud.share.reach.scope.question");
 
   return (
     <div className="desktop-reach-section">
-      <p className="desktop-share-question">{question}</p>
-      <div className="desktop-reach-scope" role="radiogroup" aria-label={question}>
+      <p className="desktop-share-question">{resolvedQuestion}</p>
+      <div className="desktop-reach-scope" role="radiogroup" aria-label={resolvedQuestion}>
         {folders.entries.map((entry) => (
           <ReachChoice
             key={entry.path}
@@ -359,9 +513,6 @@ function ReachScopeChoice({
           </span>
         )}
       </div>
-      <p className="desktop-reach-measured" aria-live="polite">
-        {formatReachScopeMeasurement(measured, localization)}
-      </p>
       {folders.failed && (
         <p className="desktop-reach-fact">{t("cloud.share.error.folderLoadFailed")}</p>
       )}

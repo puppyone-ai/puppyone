@@ -1,73 +1,119 @@
 @layer features {
   /* The Header states a place and then reach: a device or cloud mark, identity
-     marks, a count, and the words "only you" when nobody else is there. Quiet
-     is the default; emphasis is reserved for something the user has to deal
-     with. */
+     marks, a count, and the words "only you" when nobody else is there.
+
+     Every value here comes from the Header's own control tokens, the same ones
+     `.desktop-titlebar-location-button` and `.desktop-titlebar-workspace-button`
+     use. This control sits between those two, so it has to share their height,
+     type scale, icon slot and hover color exactly; anything it invents reads as
+     a foreign widget dropped into the Header. */
   .desktop-titlebar-reach-wrap {
     display: flex;
+    flex: 0 0 auto;
     min-width: 0;
     align-items: center;
+    height: 100%;
   }
 
   .desktop-titlebar-reach-button {
-    display: flex;
-    min-height: 22px;
-    min-width: 22px;
+    display: inline-flex;
+    box-sizing: border-box;
     align-items: center;
-    gap: 6px;
-    padding: 2px 6px;
-    border: 1px solid transparent;
-    border-radius: var(--po-radius-sm, 6px);
+    justify-content: center;
+    gap: var(--desktop-titlebar-workspace-icon-label-gap);
+    height: var(--desktop-titlebar-control-height);
+    padding: 0 var(--desktop-titlebar-workspace-inline-padding);
+    border: 0;
+    border-radius: var(--desktop-toolbar-action-radius);
     background: transparent;
-    color: var(--po-text-secondary);
-    cursor: default;
+    color: var(--desktop-titlebar-text-muted);
+    font-family: var(--desktop-titlebar-context-font-family);
+    font-size: var(--desktop-titlebar-context-font-size);
+    font-weight: var(--desktop-titlebar-context-font-weight);
+    line-height: var(--desktop-titlebar-context-line-height);
+    white-space: nowrap;
   }
 
   .desktop-titlebar-reach-button:hover,
   .desktop-titlebar-reach-button[aria-expanded="true"] {
-    background: var(--po-surface-hover);
-    color: var(--po-text-primary);
+    background: var(--desktop-titlebar-hover);
+    color: var(--desktop-titlebar-text);
+  }
+
+  .desktop-titlebar-reach-button:focus-visible {
+    outline: 1px solid var(--desktop-titlebar-focus);
+    outline-offset: -1px;
   }
 
   .desktop-titlebar-reach-button[data-reach-emphasis="true"] {
-    color: var(--po-status-warning, var(--po-text-primary));
+    color: var(--po-status-warning, var(--desktop-titlebar-text));
   }
 
-  /* The place mark reads as part of the Header's own chrome, so it states
-     where the project is without competing with the project's name. */
-  .desktop-project-reach-place {
-    display: flex;
-    flex: none;
-    align-items: center;
-    justify-content: center;
-    color: var(--po-text-secondary);
-  }
-
-  .desktop-titlebar-reach-button:hover .desktop-project-reach-place,
-  .desktop-titlebar-reach-button[aria-expanded="true"] .desktop-project-reach-place {
+  /* The place mark occupies the Header's shared icon slot, so the laptop here
+     is the same size and weight as the house on the project button. */
+  .desktop-titlebar-reach-button .desktop-titlebar-workspace-mark {
+    display: grid;
+    width: var(--desktop-titlebar-workspace-icon-slot-size);
+    height: var(--desktop-titlebar-workspace-icon-slot-size);
+    flex: 0 0 var(--desktop-titlebar-workspace-icon-slot-size);
+    place-items: center;
     color: inherit;
+  }
+
+  .desktop-titlebar-reach-button .desktop-titlebar-workspace-mark > svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .desktop-project-reach-place {
+    color: inherit;
+  }
+
+  /* The place is the Header's visible answer, so it is set exactly like the
+     project name beside it — same family, size, weight and color. */
+  .desktop-project-reach-place-label {
+    min-width: 0;
+    overflow: hidden;
+    color: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .desktop-project-reach-marks {
     display: flex;
     align-items: center;
-    gap: 3px;
+    gap: 4px;
+    color: inherit;
+    font-size: inherit;
+    line-height: inherit;
+  }
+
+  .desktop-project-reach-marks[data-reach-audience="attention"] {
+    display: grid;
+    width: var(--desktop-titlebar-workspace-icon-slot-size);
+    height: var(--desktop-titlebar-workspace-icon-slot-size);
+    place-items: center;
   }
 
   /* People are round, machines are square. The shape carries the distinction,
      so the Header needs no text groups and no legend. */
   .desktop-project-reach-mark {
-    display: flex;
-    width: 16px;
-    height: 16px;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid var(--po-border-subtle);
-    background: var(--po-surface-raised);
-    color: var(--po-text-secondary);
-    font-size: 9px;
+    display: grid;
+    box-sizing: border-box;
+    width: var(--desktop-titlebar-workspace-icon-slot-size);
+    height: var(--desktop-titlebar-workspace-icon-slot-size);
+    flex: 0 0 var(--desktop-titlebar-workspace-icon-slot-size);
+    place-items: center;
+    border: 1px solid currentColor;
+    background: transparent;
+    color: inherit;
+    font-size: calc(var(--desktop-titlebar-context-font-size, 13px) - 3px);
     line-height: 1;
-    font-weight: 600;
+    font-weight: var(--po-text-weight-medium, 500);
+    opacity: 0.86;
   }
 
   .desktop-project-reach-mark[data-reach-audience="person"] {
@@ -83,107 +129,107 @@
   .desktop-project-reach-mark[data-reach-activity] {
     border-color: var(--po-accent);
     color: var(--po-accent);
-  }
-
-  /* "Only you" is a sentence, not a placeholder box: the earlier empty square
-     left the Header with nothing to read at the most common state of all. */
-  .desktop-project-reach-marks[data-reach-audience="none"] {
-    color: var(--po-text-secondary);
-    font-size: 11px;
-    line-height: 1;
-    white-space: nowrap;
-  }
-
-  .desktop-titlebar-reach-button:hover .desktop-project-reach-marks[data-reach-audience="none"],
-  .desktop-titlebar-reach-button[aria-expanded="true"] .desktop-project-reach-marks[data-reach-audience="none"] {
-    color: inherit;
+    opacity: 1;
   }
 
   .desktop-project-reach-count {
-    color: var(--po-text-secondary);
-    font-size: 11px;
-    line-height: 1;
+    color: inherit;
+    font-size: inherit;
+    line-height: inherit;
     font-variant-numeric: tabular-nums;
   }
 
-  .desktop-project-reach-panel {
-    display: grid;
-    gap: 10px;
-    padding: 10px;
-  }
-
-  /* The panel repeats the place in words, because the mark alone cannot say
-     which device, and a screen reader never sees the mark at all. */
-  .desktop-project-reach-place-row {
+  /* The panel is the project menu, not a dialog of its own: same surface
+     tokens, same caption, same rows. */
+  .desktop-project-reach-menu {
+    --desktop-project-menu-spacing: 3px;
+    --po-menu-padding: var(--desktop-project-menu-spacing);
+    --po-menu-bg: var(--po-header);
+    --po-menu-border: var(--po-shell-divider);
+    --interface-menu-background: var(--po-header);
+    --po-menu-shadow-compact:
+      0 2px 4px color-mix(in srgb, var(--po-shadow) 45%, transparent),
+      0 6px 16px -4px color-mix(in srgb, var(--po-shadow) 65%, transparent);
     display: flex;
+    max-height: min(420px, calc(100vh - 58px));
+    flex-direction: column;
+    /* This container receives initial dialog focus; rows own the focus ring. */
+    outline: none;
+  }
+
+  .desktop-project-reach-panel {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    padding: var(--desktop-project-menu-spacing, 3px);
+  }
+
+  /* The panel's title row shares the rows' icon slot and inline padding, so
+     mark, title and every action below it sit on one left edge. */
+  .desktop-project-reach-head {
+    display: flex;
+    min-width: 0;
+    align-items: start;
+    gap: var(--po-menu-item-gap, 8px);
+    padding: 4px var(--po-menu-item-padding-inline) 6px;
+    color: var(--po-text);
+  }
+
+  .desktop-project-reach-head-mark {
+    display: grid;
+    width: var(--po-menu-icon-slot-size);
+    height: var(--po-menu-item-line-height, 18px);
+    flex: 0 0 var(--po-menu-icon-slot-size);
+    place-items: center;
+    color: inherit;
+  }
+
+  .desktop-project-reach-head-body {
+    display: grid;
+    min-width: 0;
+    gap: 1px;
+  }
+
+  /* The title is a title: the menu's own content size, not its meta size. */
+  .desktop-project-reach-head-title {
     margin: 0;
-    align-items: center;
-    gap: 6px;
-    color: var(--po-text-secondary);
-    font-size: 11px;
-    line-height: 1.4;
+    overflow: hidden;
+    color: var(--po-text);
+    font-size: var(--po-menu-item-font-size, 13px);
+    font-weight: var(--po-text-weight-medium, 500);
+    line-height: var(--po-menu-item-line-height, 18px);
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  .desktop-project-reach-statement {
+  .desktop-project-reach-head-reach,
+  .desktop-project-reach-detail {
     margin: 0;
-    color: var(--po-text-primary);
-    font-size: 12px;
-    line-height: 1.4;
+    color: var(--po-text-subtle);
+    font-size: var(--po-menu-meta-font-size, 12px);
+    line-height: var(--po-menu-meta-line-height, 15px);
+    text-wrap: pretty;
+    white-space: normal;
   }
 
-  /* Place and reach are one statement, so they sit closer than the panel's
-     sections do. */
-  .desktop-project-reach-place-row + .desktop-project-reach-statement {
-    margin-top: -4px;
+  .desktop-project-reach-detail {
+    padding: 0 var(--po-menu-item-padding-inline) 6px;
+    padding-inline-start: calc(
+      var(--po-menu-item-padding-inline) + var(--po-menu-icon-slot-size) + var(--po-menu-item-gap, 8px)
+    );
   }
 
-  .desktop-project-reach-statement[data-reach-state="attention"] {
-    color: var(--po-status-warning, var(--po-text-primary));
+  .desktop-project-reach-head-reach[data-reach-state="attention"] {
+    color: var(--po-status-warning, var(--po-text));
   }
 
   .desktop-project-reach-actions {
     display: grid;
-    gap: 4px;
+    min-width: 0;
+    gap: 2px;
   }
 
-  /* Inviting a person and connecting an agent are the two things this panel
-     does; stopping a reach sits in the rows with the same visual weight. */
-  .desktop-project-reach-action {
-    display: flex;
-    min-height: 26px;
-    align-items: center;
-    gap: 8px;
-    padding: 0 8px;
-    border: 1px solid transparent;
-    border-radius: var(--po-radius-sm, 6px);
-    background: transparent;
-    color: var(--po-text-primary);
-    font-size: 12px;
-    text-align: start;
-  }
-
-  .desktop-project-reach-action:hover:not(:disabled) {
-    background: var(--po-surface-hover);
-  }
-
-  .desktop-project-reach-action:disabled {
-    color: var(--po-text-disabled);
-  }
-
-  .desktop-project-reach-action.primary {
-    border-color: var(--po-border-subtle);
-    background: var(--po-surface-raised);
-  }
-
-  .desktop-project-reach-device-copy {
-    display: grid;
-    gap: 8px;
-  }
-
-  .desktop-project-reach-device-copy p {
-    margin: 0;
-    color: var(--po-text-secondary);
-    font-size: 12px;
-    line-height: 1.4;
+  .desktop-project-reach-menu .desktop-menu-item-icon {
+    opacity: 1;
   }
 }
