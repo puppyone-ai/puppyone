@@ -144,22 +144,29 @@ afterEach(() => {
 });
 
 describe("one screen for inviting a person", () => {
-  it("shows what is inside, what it amounts to, and one action", async () => {
+  it("is about the link: shown before it exists, created by the one action", async () => {
     const props = baseProps();
     await act(async () => root?.render(withTestLocalization(<ProjectReachDialog {...props} />)));
     await flush();
 
-    expect(stripBidiIsolation(dialog()?.querySelector("h2")?.textContent)).toBe("Invite a person to Notes");
+    // "Invite a person" is a verb with no object; the link is the object.
+    expect(stripBidiIsolation(dialog()?.querySelector("h2")?.textContent)).toBe("A link to Notes");
     expect(dialog()?.querySelector(".desktop-share-stepper")).toBeNull();
+    const pending = dialog()?.querySelector(".desktop-reach-pending-link");
+    expect(pending?.getAttribute("aria-label")).toBe("The link does not exist yet");
+    expect(pending?.querySelector(".desktop-reach-pending-link-value")?.getAttribute("aria-hidden")).toBe("true");
+    expect(text()).toContain("Creating it is the invite");
+
     // A count is not a preview: the folder is shown in the product's own
     // Explorer and Viewer, the same illustration the Cloud share screen uses.
     const preview = dialog()?.querySelector(".desktop-reach-preview");
     expect(preview?.querySelector(".desktop-cloud-share-preview-window")).not.toBeNull();
     expect(stripBidiIsolation(preview?.textContent)).toContain("docs");
-    // The counts annotate that illustration from inside its own fade.
-    expect(stripBidiIsolation(preview?.querySelector(".desktop-reach-preview-caption")?.textContent))
-      .toBe("docs12 files · 2 KB · anything your .gitignore excludes stays out");
-    expect(bridge.getPublishScope).toHaveBeenCalledWith({ rootPath: "/fixture/Notes", path: "docs" });
+    // Files and megabytes are facts about a folder, not about the link.
+    expect(bridge.getPublishScope).not.toHaveBeenCalled();
+    expect(text()).not.toContain("12 files");
+    expect(text()).not.toContain("2 KB");
+    expect(text()).not.toContain(".gitignore");
     expect(text()).toContain("They see the version you last saved.");
     // A link is read under the reader's own account, so there is nothing to choose.
     expect(text()).not.toContain("What can it do?");
@@ -169,23 +176,27 @@ describe("one screen for inviting a person", () => {
     const footer = dialog()?.querySelector(".desktop-dialog-footer");
     expect(footer?.className).not.toContain("two-action");
     expect([...footer?.children ?? []].map((child) => child.textContent))
-      .toEqual(["Cancel", "Invite a person"]);
-    expect(button("Invite a person")?.className).toContain("primary");
-    expect(button("Invite a person")?.disabled).toBe(false);
+      .toEqual(["Cancel", "Create the link"]);
+    expect(button("Create the link")?.className).toContain("primary");
+    expect(button("Create the link")?.disabled).toBe(false);
     expect(dialog()?.querySelectorAll(".desktop-dialog-button.primary")).toHaveLength(1);
     expect(button("Connect an agent instead", dialog()?.querySelector(".desktop-reach-links"))).toBeTruthy();
   });
 
-  it("re-measures when the choice widens to the whole project", async () => {
-    await act(async () => root?.render(withTestLocalization(<ProjectReachDialog {...baseProps()} />)));
+  it("previews the part of the project the link would cover", async () => {
+    const listPreview = vi.fn(async (path: string) => ({
+      entries: path === "" ? [{ name: "docs", type: "folder" }] : [{ name: "guide.md", type: "markdown" }],
+    }));
+    await act(async () => root?.render(withTestLocalization(
+      <ProjectReachDialog {...baseProps()} listPreview={listPreview} />,
+    )));
     await flush();
-    bridge.getPublishScope.mockResolvedValue({ files: 240, bytes: 1024 * 1024 * 3, truncated: true });
+    expect(listPreview).toHaveBeenLastCalledWith("docs");
 
     await act(async () => radio("Whole project")?.click());
     await flush();
 
-    expect(bridge.getPublishScope).toHaveBeenLastCalledWith({ rootPath: "/fixture/Notes", path: "" });
-    expect(text()).toContain("At least 240 files · 3 MB");
+    expect(listPreview).toHaveBeenLastCalledWith("");
   });
 });
 
@@ -244,7 +255,7 @@ describe("the account as a step rather than a door", () => {
 
     await act(async () => root?.render(withTestLocalization(<ProjectReachDialog {...props} />)));
     await flush();
-    await act(async () => button("Invite a person")?.click());
+    await act(async () => button("Create the link")?.click());
     await flush();
 
     expect(bridge.initGitRepository).toHaveBeenCalledWith({ rootPath: "/fixture/Notes" });

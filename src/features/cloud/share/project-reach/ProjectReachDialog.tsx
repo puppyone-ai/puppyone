@@ -16,7 +16,7 @@ import { useCloudAuthController } from "../../hooks/useCloudAuthController";
 import { CloudPublishProgressIndicator } from "../../initialization/CloudPublishProgressIndicator";
 import { useCloudOrganizationData } from "../../organization/CloudOrganizationTeamPage";
 import { workspaceResourceUrl } from "../../files/workspaceResourceUrl";
-import { formatBytes, formatRelativeTime } from "../../utils";
+import { formatRelativeTime } from "../../utils";
 import { ShareTargetMark } from "../CloudShareHome";
 import { CloudWorkspaceSharePreview, type SharePreviewEntry } from "../CloudWorkspaceSharePreview";
 import type { CloudWorkspaceShareResource } from "../cloudWorkspaceShareResource";
@@ -46,7 +46,7 @@ import type { ShareWizardDialogProps, ShareWizardFolderEntry } from "../ShareWiz
 import { shareHasReceipt } from "../useProjectShares";
 import { useProjectReachFlow, type ProjectReachFlow, type ReachIssue } from "./useProjectReachFlow";
 import { useProjectShareRevoke } from "../useProjectShareRevoke";
-import { usePublishScope, type PublishScopeState } from "./usePublishScope";
+
 import "../share.css";
 import "./reach.css";
 
@@ -236,8 +236,7 @@ function ReachForm({
   onScopeChange: (scope: ReachScope) => void;
   onConfirm: () => void;
 }) {
-  const measured = usePublishScope({ rootPath: dialog.workspacePath, path: scope.path });
-  const shared = { scope, measured, dialog, readers, onIntentChange, onScopeChange, onConfirm };
+  const shared = { scope, dialog, readers, onIntentChange, onScopeChange, onConfirm };
   return intent === "invite"
     ? <ReachInviteForm {...shared} />
     : <ReachConnectForm {...shared} target={target} targetLabel={targetLabel} onSelect={onSelect} />;
@@ -245,7 +244,6 @@ function ReachForm({
 
 type ReachFormShared = {
   scope: ReachScope;
-  measured: PublishScopeState;
   dialog: ProjectReachDialogProps;
   readers: ReactNode;
   onIntentChange: (intent: ReachIntent) => void;
@@ -254,15 +252,19 @@ type ReachFormShared = {
 };
 
 /**
- * Inviting a person: what they get, and the verb.
+ * Inviting a person is making a link.
  *
- * The folder is shown, not described. A line of counts answers "how big",
- * never "what is this" — and "what is this" is the only question a person
- * actually has before sending a link. The preview fades out at its bottom
- * because it is a look inside, not a file manager.
+ * "Invite a person" is a verb without an object: nobody can picture what
+ * arrives at the other end. A link they can see — blurred, because it does
+ * not exist yet — is the whole mental model, and pressing the button is what
+ * brings it into existence. That is also the honest story of the mechanism:
+ * the link is the only thing the other side ever gets.
+ *
+ * Under it, the folder is shown rather than described. Counts of files and
+ * megabytes answer a question nobody asked before sending a link.
  */
 function ReachInviteForm({
-  scope, measured, dialog, readers, onIntentChange, onScopeChange, onConfirm,
+  scope, dialog, readers, onIntentChange, onScopeChange, onConfirm,
 }: ReachFormShared) {
   const { t } = useLocalization();
   const [narrowing, setNarrowing] = useState(() => scope.path !== "");
@@ -270,8 +272,11 @@ function ReachInviteForm({
   return (
     <>
       <div className="desktop-dialog-body desktop-share-dialog-body desktop-reach-form">
-        <ReachPreview scope={scope} measured={measured} dialog={dialog} />
-        <p className="desktop-reach-fact">{t("cloud.share.reach.mechanism")}</p>
+        <ReachPendingLink />
+        <p className="desktop-reach-fact">
+          {t("cloud.share.reach.invite.linkIsTheInvite")} {t("cloud.share.reach.mechanism")}
+        </p>
+        <ReachPreview scope={scope} dialog={dialog} />
         {narrowing && (
           <ReachScopeChoice
             scope={scope}
@@ -298,7 +303,7 @@ function ReachInviteForm({
 
 /** Connecting an agent: which one, then how much of the project it sees. */
 function ReachConnectForm({
-  target, targetLabel, scope, measured, dialog, readers, onIntentChange, onSelect, onScopeChange, onConfirm,
+  target, targetLabel, scope, dialog, readers, onIntentChange, onSelect, onScopeChange, onConfirm,
 }: ReachFormShared & {
   target: ShareTarget | null;
   targetLabel: string;
@@ -337,7 +342,7 @@ function ReachConnectForm({
             {t("cloud.share.reach.connect.change")}
           </button>
         </div>
-        <ReachPreview scope={scope} measured={measured} dialog={dialog} />
+        <ReachPreview scope={scope} dialog={dialog} />
         <ReachScopeChoice
           scope={scope}
           question={t("cloud.share.reach.connect.scopeQuestion", { target: targetLabel })}
@@ -383,32 +388,53 @@ function ReachConnectForm({
  * share screen already uses. Sharing is about a thing the user recognizes on
  * sight; a count never was.
  *
- * The counts and the scope live on one small line inside the fade at the
- * bottom of that illustration, where they annotate what is above them instead
- * of becoming a second block of their own.
+ * Nothing annotates it. A file count and a size are facts about a folder, not
+ * about the thing being handed over, and the illustration already answers the
+ * only question the user has here.
  */
-function ReachPreview({ scope, measured, dialog }: {
+function ReachPreview({ scope, dialog }: {
   scope: ReachScope;
-  measured: PublishScopeState;
   dialog: ProjectReachDialogProps;
 }) {
-  const localization = useLocalization();
-  const { t } = localization;
+  const { t } = useLocalization();
   const preview = useReachPreview(dialog, scope.path);
-  const folder = scope.path.split("/").filter(Boolean).pop();
 
   return (
     <section className="desktop-reach-preview" aria-label={t("cloud.share.reach.preview.label")}>
       <CloudWorkspaceSharePreview entries={preview.entries} file={preview.file} />
-      <p className="desktop-reach-preview-caption">
-        <bdi className="desktop-reach-preview-scope">{folder ?? t("cloud.share.scope.whole")}</bdi>
-        <span className="desktop-reach-preview-meta" aria-live="polite">
-          {formatReachScopeMeasurement(measured, localization)}
-        </span>
-      </p>
     </section>
   );
 }
+
+/**
+ * The link, before it exists.
+ *
+ * It is blurred because it is not real yet, and it is shown because it is the
+ * only thing the other side will ever receive. The row is the same row the
+ * finished link appears in, so pressing the button fills in a field the user
+ * has already seen rather than revealing a screen they have not.
+ */
+function ReachPendingLink() {
+  const { t } = useLocalization();
+  return (
+    <div
+      className="desktop-share-copy-field desktop-reach-pending-link"
+      role="group"
+      aria-label={t("cloud.share.reach.invite.linkPending")}
+    >
+      <span className="desktop-share-copy-label">{t("cloud.share.handoff.link")}</span>
+      <code className="desktop-share-copy-value desktop-reach-pending-link-value" aria-hidden="true" dir="ltr">
+        {PENDING_LINK_SHAPE}
+      </code>
+    </div>
+  );
+}
+
+/**
+ * A link's shape, not a link: it never resolves, is never selectable and is
+ * never read aloud. Only its silhouette is doing any work.
+ */
+const PENDING_LINK_SHAPE = "https://app.puppyone.ai/r/a7f3c91b4e2d/project";
 
 /**
  * What to show inside the preview. The caller's own listing is preferred
@@ -581,21 +607,6 @@ function ReachScopeChoice({
       )}
     </div>
   );
-}
-
-function formatReachScopeMeasurement(
-  measured: PublishScopeState,
-  localization: ReturnType<typeof useLocalization>,
-): string {
-  const { t } = localization;
-  if (measured.failed) return t("cloud.share.reach.scope.measureFailed");
-  if (!measured.scope) return t("cloud.share.reach.scope.measuring");
-  const values = {
-    count: measured.scope.files,
-    size: formatBytes(measured.scope.bytes, localization),
-  };
-  if (measured.scope.truncated) return t("cloud.share.reach.scope.measuredAtLeast", values);
-  return t("cloud.share.reach.scope.measured", values);
 }
 
 /**

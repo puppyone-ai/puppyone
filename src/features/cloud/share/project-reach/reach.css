@@ -25,7 +25,6 @@
      it from inside its own fade, so the screen keeps one block where there
      used to be a frame, a caption and a sentence. */
   .desktop-reach-preview {
-    position: relative;
     display: grid;
   }
 
@@ -33,37 +32,26 @@
     height: 190px;
   }
 
-  .desktop-reach-preview-caption {
-    position: absolute;
-    inset-inline: 1px;
-    bottom: 1px;
-    display: flex;
-    margin: 0;
-    align-items: baseline;
-    gap: 6px;
-    min-width: 0;
-    padding: 0 12px 10px;
+  /* The link before it exists: the finished field, out of focus. Blur is the
+     whole message — this is the thing the other side gets, and pressing the
+     button is what makes it real. */
+  .desktop-reach-pending-link {
+    user-select: none;
+  }
+
+  .desktop-reach-pending-link-value {
+    overflow: hidden;
     color: var(--po-text-muted);
-    font-size: var(--po-type-ui-meta, 12px);
-    line-height: 1.5;
-    pointer-events: none;
-  }
-
-  .desktop-reach-preview-scope {
-    flex: 0 0 auto;
-    max-width: 40%;
-    overflow: hidden;
-    color: var(--po-text);
-    text-overflow: ellipsis;
+    filter: blur(3.5px);
+    text-overflow: clip;
     white-space: nowrap;
   }
 
-  .desktop-reach-preview-meta {
-    min-width: 0;
-    flex: 1 1 auto;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  @media (prefers-reduced-transparency: reduce) {
+    .desktop-reach-pending-link-value {
+      filter: none;
+      opacity: 0.35;
+    }
   }
 
   /* Ways out of the default, together, under everything they are an
