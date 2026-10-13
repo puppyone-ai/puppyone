@@ -235,18 +235,43 @@ describe("the same skeleton for connecting an agent", () => {
     await act(async () => dialog()?.querySelector<HTMLButtonElement>("[data-share-target='claude']")?.click());
     await flush();
 
-    expect(text()).toContain("What can Claude see?");
-    expect(text()).toContain("What can it do?");
-    expect(text()).toContain("comes back as changes waiting for your review");
+    // The screen states the request, and names exactly what it is for.
+    expect(text()).toContain("Claude wants to access docs");
+    // The one thing the user has to decide before granting it.
     expect(radio("Read only")?.getAttribute("aria-checked")).toBe("true");
     expect(radio("Read and write")?.getAttribute("aria-checked")).toBe("false");
-    expect(button("Connect Claude")?.disabled).toBe(false);
+    expect(text()).not.toContain("What can it do?");
+    // Then the address the agent will be given, masked until it exists, with
+    // the verb that creates it standing where the copy button will stand.
+    const row = dialog()?.querySelector<HTMLElement>(".desktop-reach-link-row");
+    expect(row?.textContent).toContain("/api/v1/mcp/server/");
+    expect(button("Connect Claude", row)?.disabled).toBe(false);
+    expect(dialog()?.querySelector(".desktop-dialog-footer")).toBeNull();
+    expect(text()).toContain("comes back as changes waiting for your review");
 
     // The named agent stays visible, and naming another one is a link back.
     await act(async () => button("Change")?.click());
     await flush();
     expect(text()).toContain("Which agent?");
+    expect(text()).not.toContain("wants to access");
+  });
+
+  it("asks for the whole project, and keeps narrowing it behind a link", async () => {
+    const props = { ...baseProps(), initialPath: "" };
+    await act(async () => root?.render(withTestLocalization(<ProjectReachDialog {...props} />)));
+    await flush();
+    await act(async () => button("Connect an agent instead")?.click());
+    await act(async () => dialog()?.querySelector<HTMLButtonElement>("[data-share-target='claude']")?.click());
+    await flush();
+
+    expect(text()).toContain("Claude wants to access this project");
     expect(text()).not.toContain("What can Claude see?");
+
+    await act(async () => button("Only part of it?")?.click());
+    await flush();
+
+    expect(text()).toContain("What can Claude see?");
+    expect(radio("Whole project")?.getAttribute("aria-checked")).toBe("true");
   });
 
   it("leads with the agent this Mac connected last time, and says why it leads", async () => {

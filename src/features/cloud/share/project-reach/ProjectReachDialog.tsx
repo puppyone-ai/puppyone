@@ -1,7 +1,7 @@
 import { bidiIsolate } from "@puppyone/localization";
 import { useLocalization } from "@puppyone/localization/react";
 import { Tooltip } from "@puppyone/shared-ui";
-import { Check, Folder, FolderTree, Link2, LoaderCircle, Share2 } from "lucide-react";
+import { Check, Folder, FolderTree, Link2, LoaderCircle, Plug, Share2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   DesktopDialogCloseButton,
@@ -35,7 +35,7 @@ import {
 import { ReachAgentChoice } from "./ReachAgentChoice";
 import { ReachHandoff } from "./ReachHandoff";
 import { ReadersList } from "../ReadersList";
-import { buildShareHandoff } from "../shareHandoff";
+import { buildShareHandoff, normalizeApiOrigin } from "../shareHandoff";
 import { isActiveShare } from "../shareStatus";
 import {
   getShareTarget,
@@ -303,7 +303,17 @@ function ReachInviteForm({
   );
 }
 
-/** Connecting an agent: which one, then how much of the project it sees. */
+/**
+ * Connecting an agent: which one, what it may do, and the address that does
+ * it.
+ *
+ * The screen reads as the request it is — this agent wants into this project
+ * — and then asks the one thing the user has to decide before granting it:
+ * whether it may change anything. How much of the project it sees has an
+ * honest default, the whole of it, and narrowing is a rarity; a list of
+ * folders in front of the verb made every connection look like a
+ * configuration task.
+ */
 function ReachConnectForm({
   target, targetLabel, scope, dialog, readers, onIntentChange, onSelect, onScopeChange, onConfirm,
 }: ReachFormShared & {
@@ -313,6 +323,7 @@ function ReachConnectForm({
 }) {
   const { t } = useLocalization();
   const [chosen, setChosen] = useState(() => target !== null);
+  const [narrowing, setNarrowing] = useState(() => scope.path !== "");
 
   if (!chosen || !target) {
     return (
@@ -329,21 +340,49 @@ function ReachConnectForm({
     );
   }
 
+  const folder = scope.path.split("/").filter(Boolean).pop() ?? "";
   return (
-    <>
-      <div className="desktop-dialog-body desktop-share-dialog-body desktop-reach-form">
-        <div className="desktop-reach-chosen">
-          <ShareTargetMark target={target} />
-          <span className="desktop-reach-chosen-label">{targetLabel}</span>
-          <button
-            type="button"
-            className="desktop-share-inline-link"
-            onClick={() => setChosen(false)}
-          >
-            {t("cloud.share.reach.connect.change")}
-          </button>
+    <div className="desktop-dialog-body desktop-share-dialog-body desktop-reach-form">
+      <div className="desktop-reach-chosen">
+        <ShareTargetMark target={target} />
+        <span className="desktop-reach-chosen-label" dir="auto">
+          {folder
+            ? t("cloud.share.reach.connect.consentFolder", { target: targetLabel, folder: bidiIsolate(folder) })
+            : t("cloud.share.reach.connect.consent", { target: targetLabel })}
+        </span>
+        <button
+          type="button"
+          className="desktop-share-inline-link"
+          onClick={() => setChosen(false)}
+        >
+          {t("cloud.share.reach.connect.change")}
+        </button>
+      </div>
+      {reachModeSelectable(target) && (
+        <div className="desktop-share-mode" role="radiogroup" aria-label={t("cloud.share.reach.mode.question")}>
+          <ReachChoice
+            checked={scope.mode === "r"}
+            appearance="segment"
+            label={t("cloud.share.scope.readOnly")}
+            onSelect={() => onScopeChange({ path: scope.path, mode: "r" })}
+          />
+          <ReachChoice
+            checked={scope.mode === "rw"}
+            appearance="segment"
+            label={t("cloud.share.scope.readWrite")}
+            onSelect={() => onScopeChange({ path: scope.path, mode: "rw" })}
+          />
         </div>
-        <ReachPreview scope={scope} dialog={dialog} />
+      )}
+      <ReachLinkRow
+        action={t("cloud.share.reach.action.connect", { target: targetLabel })}
+        kind={reachModeSelectable(target) ? "address" : "link"}
+        apiBaseUrl={dialog.apiBaseUrl}
+        onCreate={onConfirm}
+      />
+      <p className="desktop-reach-fact">{t("cloud.share.reach.connect.changesReturn")}</p>
+      <ReachPreview scope={scope} dialog={dialog} />
+      {narrowing && (
         <ReachScopeChoice
           scope={scope}
           question={t("cloud.share.reach.connect.scopeQuestion", { target: targetLabel })}
@@ -351,34 +390,14 @@ function ReachConnectForm({
           listTopLevelFolders={dialog.listTopLevelFolders}
           onScopeChange={onScopeChange}
         />
-        {reachModeSelectable(target) && (
-          <div className="desktop-reach-section">
-            <p className="desktop-share-question">{t("cloud.share.reach.mode.question")}</p>
-            <div className="desktop-share-mode" role="radiogroup" aria-label={t("cloud.share.reach.mode.question")}>
-              <ReachChoice
-                checked={scope.mode === "r"}
-                appearance="segment"
-                label={t("cloud.share.scope.readOnly")}
-                onSelect={() => onScopeChange({ path: scope.path, mode: "r" })}
-              />
-              <ReachChoice
-                checked={scope.mode === "rw"}
-                appearance="segment"
-                label={t("cloud.share.scope.readWrite")}
-                onSelect={() => onScopeChange({ path: scope.path, mode: "rw" })}
-              />
-            </div>
-          </div>
-        )}
-        <p className="desktop-reach-fact">{t("cloud.share.reach.connect.changesReturn")}</p>
-        {readers}
-        <ReachSecondaryLinks intent="connect" onIntentChange={onIntentChange} />
-      </div>
-      <ReachFormFooter
-        action={t("cloud.share.reach.action.connect", { target: targetLabel })}
-        onConfirm={onConfirm}
+      )}
+      {readers}
+      <ReachSecondaryLinks
+        intent="connect"
+        onIntentChange={onIntentChange}
+        narrow={narrowing ? undefined : () => setNarrowing(true)}
       />
-    </>
+    </div>
   );
 }
 
@@ -413,18 +432,29 @@ function ReachPreview({ scope, dialog }: {
  * The address is real and only the part that does not exist yet is masked, so
  * the row is a promise the product can keep rather than a decoration.
  */
-function ReachLinkRow({ action, onCreate }: { action: string; onCreate?: () => void }) {
+function ReachLinkRow({ action, kind = "link", apiBaseUrl = null, onCreate }: {
+  action: string;
+  /** A person follows a link; an MCP agent is given an address of its own. */
+  kind?: "link" | "address";
+  apiBaseUrl?: string | null;
+  onCreate?: () => void;
+}) {
   const { t } = useLocalization();
+  const address = kind === "address";
   return (
     <div
       className="desktop-reach-link-row"
       role="group"
-      aria-label={t("cloud.share.reach.invite.linkPending")}
+      aria-label={t(address
+        ? "cloud.share.reach.connect.addressPending"
+        : "cloud.share.reach.invite.linkPending")}
     >
       <span className="desktop-reach-link-mark" aria-hidden="true">
-        <Link2 size={15} strokeWidth={1.8} />
+        {address ? <Plug size={15} strokeWidth={1.8} /> : <Link2 size={15} strokeWidth={1.8} />}
       </span>
-      <code className="desktop-reach-link-value" aria-hidden="true" dir="ltr">{pendingLinkShape()}</code>
+      <code className="desktop-reach-link-value" aria-hidden="true" dir="ltr">
+        {address ? pendingAddressShape(apiBaseUrl) : pendingLinkShape()}
+      </code>
       <button
         type="button"
         className="desktop-reach-link-action"
@@ -448,6 +478,20 @@ function pendingLinkShape(): string {
     return `${new URL(getDesktopCloudWebUrl("/")).host}/r/${masked}`;
   } catch {
     return `puppyone.ai/r/${masked}`;
+  }
+}
+
+/**
+ * The same promise for an agent: the address it will be given, with the key
+ * that does not exist yet masked. The path is the real one, so what appears
+ * when the key arrives is the row the user is already looking at.
+ */
+function pendingAddressShape(apiBaseUrl: string | null): string {
+  const masked = "•".repeat(10);
+  try {
+    return `${new URL(normalizeApiOrigin(apiBaseUrl)).host}/api/v1/mcp/server/${masked}`;
+  } catch {
+    return `puppyone.ai/api/v1/mcp/server/${masked}`;
   }
 }
 
@@ -504,32 +548,6 @@ function ReachSecondaryLinks({ intent, onIntentChange, narrow }: {
           : "cloud.share.reach.switchToInvite")}
       </button>
     </div>
-  );
-}
-
-/**
- * The action, or no footer at all.
- *
- * There is no Cancel: the dialog already closes from its own corner and from
- * Escape, so a third way out only competes with the one thing the screen is
- * for. A screen whose action lives in its first row has no footer to show.
- */
-function ReachFormFooter({ action, onConfirm }: {
-  action?: string;
-  onConfirm?: () => void;
-}) {
-  if (!action) return null;
-  return (
-    <footer className="desktop-dialog-footer">
-      <button
-        type="button"
-        className="desktop-dialog-button primary"
-        data-desktop-dialog-initial-focus="true"
-        onClick={onConfirm}
-      >
-        {action}
-      </button>
-    </footer>
   );
 }
 
