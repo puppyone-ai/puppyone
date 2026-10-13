@@ -176,11 +176,10 @@ describe("one screen for inviting a person", () => {
     // A link is read under the reader's own account, so there is nothing to choose.
     expect(text()).not.toContain("What can it do?");
 
-    // The footer keeps only the way out: the action is where the link is.
-    const footer = dialog()?.querySelector(".desktop-dialog-footer");
-    expect(footer?.className).not.toContain("two-action");
-    expect([...footer?.children ?? []].map((child) => child.textContent)).toEqual(["Cancel"]);
-    expect(dialog()?.querySelectorAll(".desktop-dialog-button.primary")).toHaveLength(0);
+    // No footer: the action is where the link is, and the dialog already
+    // closes from its own corner.
+    expect(dialog()?.querySelector(".desktop-dialog-footer")).toBeNull();
+    expect(dialog()?.querySelectorAll(".desktop-dialog-button")).toHaveLength(0);
     expect(button("Connect an agent instead", dialog()?.querySelector(".desktop-reach-links"))).toBeTruthy();
   });
 

@@ -293,7 +293,6 @@ function ReachInviteForm({
           narrow={narrowing ? undefined : () => setNarrowing(true)}
         />
       </div>
-      <ReachFormFooter dialog={dialog} />
     </>
   );
 }
@@ -320,7 +319,6 @@ function ReachConnectForm({
           {readers}
           <ReachSecondaryLinks intent="connect" onIntentChange={onIntentChange} />
         </div>
-        <ReachFormFooter dialog={dialog} />
       </>
     );
   }
@@ -371,7 +369,6 @@ function ReachConnectForm({
         <ReachSecondaryLinks intent="connect" onIntentChange={onIntentChange} />
       </div>
       <ReachFormFooter
-        dialog={dialog}
         action={t("cloud.share.reach.action.connect", { target: targetLabel })}
         onConfirm={onConfirm}
       />
@@ -504,28 +501,28 @@ function ReachSecondaryLinks({ intent, onIntentChange, narrow }: {
   );
 }
 
-/** Cancel and the action, as one pair at the end of the row. Nothing else. */
-function ReachFormFooter({ dialog, action, onConfirm }: {
-  dialog: ProjectReachDialogProps;
+/**
+ * The action, or no footer at all.
+ *
+ * There is no Cancel: the dialog already closes from its own corner and from
+ * Escape, so a third way out only competes with the one thing the screen is
+ * for. A screen whose action lives in its first row has no footer to show.
+ */
+function ReachFormFooter({ action, onConfirm }: {
   action?: string;
   onConfirm?: () => void;
 }) {
-  const { t } = useLocalization();
+  if (!action) return null;
   return (
     <footer className="desktop-dialog-footer">
-      <button type="button" className="desktop-dialog-button" onClick={dialog.onClose}>
-        {t("cloud.common.cancel")}
+      <button
+        type="button"
+        className="desktop-dialog-button primary"
+        data-desktop-dialog-initial-focus="true"
+        onClick={onConfirm}
+      >
+        {action}
       </button>
-      {action && (
-        <button
-          type="button"
-          className="desktop-dialog-button primary"
-          data-desktop-dialog-initial-focus="true"
-          onClick={onConfirm}
-        >
-          {action}
-        </button>
-      )}
     </footer>
   );
 }
