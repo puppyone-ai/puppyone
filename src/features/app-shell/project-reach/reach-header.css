@@ -164,63 +164,58 @@
     padding: var(--desktop-project-menu-spacing, 3px);
   }
 
-  /* The panel's title row shares the rows' icon slot and inline padding, so
-     mark, title and every action below it sit on one left edge. */
+  /* The statement sits on a quiet card: it shares the rows' icon slot and
+     inline padding so it lines up with everything under it, and it has its
+     own surface so it is never mistaken for a row that does something.
+     Nothing here is bold — it is a fact, not an announcement, and the button
+     that opened this panel already said the place in words. */
   .desktop-project-reach-head {
     display: flex;
     min-width: 0;
-    align-items: start;
+    align-items: center;
     gap: var(--po-menu-item-gap, 8px);
-    padding: 4px var(--po-menu-item-padding-inline) 6px;
+    margin-bottom: 4px;
+    padding: 7px var(--po-menu-item-padding-inline);
+    border-radius: var(--po-menu-item-radius);
+    background: color-mix(in srgb, var(--po-text) 5%, transparent);
     color: var(--po-text);
   }
 
+  /* The same mark the rows below use, at the size they use it. */
   .desktop-project-reach-head-mark {
     display: grid;
     width: var(--po-menu-icon-slot-size);
-    height: var(--po-menu-item-line-height, 18px);
+    height: var(--po-menu-icon-slot-size);
     flex: 0 0 var(--po-menu-icon-slot-size);
     place-items: center;
-    color: inherit;
+    color: var(--po-text-muted);
   }
 
-  .desktop-project-reach-head-body {
-    display: grid;
+  .desktop-project-reach-head-reach {
+    margin: 0;
     min-width: 0;
-    gap: 1px;
-  }
-
-  /* The title is a title: the menu's own content size, not its meta size. */
-  .desktop-project-reach-head-title {
-    margin: 0;
-    overflow: hidden;
-    color: var(--po-text);
+    color: inherit;
     font-size: var(--po-menu-item-font-size, 13px);
-    font-weight: var(--po-text-weight-medium, 500);
+    font-weight: var(--po-text-weight-regular, 400);
     line-height: var(--po-menu-item-line-height, 18px);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .desktop-project-reach-head-reach,
-  .desktop-project-reach-detail {
-    margin: 0;
-    color: var(--po-text-subtle);
-    font-size: var(--po-menu-meta-font-size, 12px);
-    line-height: var(--po-menu-meta-line-height, 15px);
     text-wrap: pretty;
     white-space: normal;
   }
 
+  .desktop-project-reach-head-reach[data-reach-state="attention"] {
+    color: var(--po-status-warning, var(--po-text));
+  }
+
   .desktop-project-reach-detail {
-    padding: 0 var(--po-menu-item-padding-inline) 6px;
+    margin: 0;
+    padding: 2px var(--po-menu-item-padding-inline) 6px;
     padding-inline-start: calc(
       var(--po-menu-item-padding-inline) + var(--po-menu-icon-slot-size) + var(--po-menu-item-gap, 8px)
     );
-  }
-
-  .desktop-project-reach-head-reach[data-reach-state="attention"] {
-    color: var(--po-status-warning, var(--po-text));
+    color: var(--po-text-subtle);
+    font-size: var(--po-menu-meta-font-size, 12px);
+    line-height: var(--po-menu-meta-line-height, 15px);
+    text-wrap: pretty;
   }
 
   .desktop-project-reach-actions {

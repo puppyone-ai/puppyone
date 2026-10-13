@@ -3,7 +3,7 @@ import { Tooltip } from "@puppyone/shared-ui";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import { CloudOff, UserPlus, Plug, HardDriveDownload, Laptop } from "lucide-react";
 import { CloudIcon } from "../../../components/icons/CloudIcon";
-import { DesktopMenuItem, DesktopMenuSeparator } from "../../../components/DesktopMenu";
+import { DesktopMenuItem } from "../../../components/DesktopMenu";
 import { useDesktopPlatformCapabilities } from "../../../platform/useDesktopPlatformCapabilities";
 import { DesktopTitlebarMenuLayer } from "../DesktopTitlebarMenuLayer";
 import type { ReachMember, ReachPlace, ReachState } from "./projectReachHeader";
@@ -104,18 +104,17 @@ export function ProjectReachControl({
         ariaLabel={t("shell.projectReach.panelLabel")}
       >
         <div className="desktop-project-reach-panel">
-          {/* The place is the panel's title, at the same size as the rows
-              under it; reach is the line below it. One type scale, two
-              facts, in the order a user asks for them. */}
+          {/* The statement, not a heading. The button that opened this panel
+              already says the place in words two centimetres above, so
+              repeating it in bold was the panel shouting its own trigger
+              back at the user. What is left is the one thing the panel adds
+              — who can reach it — on a quiet card that cannot be mistaken
+              for a row you press. */}
           <div className="desktop-project-reach-head" data-reach-place={state.place}>
-            <ReachPlaceMark place={state.place} className="desktop-project-reach-head-mark" size={16} />
-            <div className="desktop-project-reach-head-body">
-              <p className="desktop-project-reach-head-title">{place}</p>
-              <p className="desktop-project-reach-head-reach" data-reach-state={state.kind}>{summary}</p>
-            </div>
+            <ReachPlaceMark place={state.place} className="desktop-project-reach-head-mark" size={15} />
+            <p className="desktop-project-reach-head-reach" data-reach-state={state.kind}>{summary}</p>
           </div>
           {state.kind === "not-on-this-device" ? <ReachDeviceDetail /> : readers}
-          <DesktopMenuSeparator />
           {state.kind === "not-on-this-device"
             ? <ReachDeviceCopy onGetCopy={onGetCopy} />
             : <ReachActions onInvitePerson={onInvitePerson} onConnectAgent={onConnectAgent} />}

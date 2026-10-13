@@ -104,17 +104,17 @@ describe("Header project reach", () => {
     expect(button.getAttribute("aria-label")).toBe("Cloud workspace. Only you can reach this project");
     expect(button.querySelector('[data-reach-place="cloud"]')).not.toBeNull();
     const panel = openPanel();
-    expect(panel.querySelector(".desktop-project-reach-head-title")?.textContent).toBe("Cloud workspace");
+    expect(panel.querySelector('.desktop-project-reach-head[data-reach-place="cloud"]')).not.toBeNull();
   });
 
-  it("titles the panel with the place and states reach under it, above the two verbs", async () => {
+  it("states reach on a card, without repeating the place the button just said", async () => {
     await renderControl({
       state: state({ share: "published" }), onInvitePerson: noOp, onConnectAgent: noOp,
     });
     const panel = openPanel();
-    expect(panel.querySelector(".desktop-project-reach-head-title")?.textContent).toBe("This Mac");
-    expect(panel.querySelector(".desktop-project-reach-head-reach")?.textContent)
-      .toBe("Only you can reach this project");
+    const head = panel.querySelector(".desktop-project-reach-head");
+    expect(head?.textContent).toBe("Only you can reach this project");
+    expect(head?.querySelector('[data-reach-place="this-device"]')).not.toBeNull();
     expect(action("Invite a person")).not.toBeNull();
     expect(action("Connect an agent")).not.toBeNull();
   });
