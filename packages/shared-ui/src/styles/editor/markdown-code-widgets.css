@@ -1,7 +1,7 @@
 .markdown-codemirror-editor .cm-md-code-widget {
   position: relative;
   margin: 0;
-  padding: max(var(--po-md-code-block-gap-before), var(--po-md-metadata-line-height)) 0 var(--po-md-code-block-gap-after);
+  padding: var(--po-md-code-block-gap-before) 0 var(--po-md-code-block-gap-after);
   color: var(--po-md-code-block-color);
   cursor: text;
 }
@@ -17,14 +17,22 @@
   --po-code-token-property: var(--po-md-syntax-property);
   --po-code-token-operator: var(--po-md-syntax-operator);
   --po-code-token-meta: var(--po-md-syntax-meta);
+  position: relative;
   overflow: hidden;
   border-radius: var(--po-md-code-block-radius);
   background: var(--po-md-code-block-background);
 }
 
+/* Keep metadata inside the rounded panel, clear of both editing and highlight
+   surfaces. Unlabelled blocks need no extra inset until the language is focused. */
+.markdown-codemirror-editor .cm-md-code-panel:is([data-has-metadata], :has(.cm-md-code-language:focus)) {
+  padding-block-start: calc(var(--po-md-metadata-line-height) + 6px);
+}
+
 .markdown-codemirror-editor .cm-md-code-metadata {
   position: absolute;
-  inset-block-start: 0;
+  z-index: 1;
+  inset-block-start: 6px;
   inset-inline: 12px;
   display: flex;
   min-width: 0;
@@ -32,6 +40,7 @@
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
+  pointer-events: none;
 }
 
 .markdown-codemirror-editor .cm-md-code-language {
@@ -51,6 +60,7 @@
   font-weight: var(--po-md-metadata-font-weight);
   line-height: var(--po-md-metadata-line-height);
   text-align: right;
+  pointer-events: auto;
 }
 
 .markdown-codemirror-editor .cm-md-code-source-reference {
@@ -64,6 +74,7 @@
   line-height: var(--po-md-metadata-line-height);
   text-overflow: ellipsis;
   white-space: nowrap;
+  pointer-events: auto;
 }
 
 .markdown-codemirror-editor .cm-md-code-language:focus {

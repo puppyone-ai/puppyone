@@ -100,10 +100,11 @@ export class CodeBlockWidget extends WidgetType {
     const languageInput = document.createElement("input");
     languageInput.className = "cm-md-code-language";
     languageInput.value = recoveredDraft.language;
-    const syncLanguageSize = () => {
+    const syncLanguagePresentation = () => {
       languageInput.size = Math.max(3, Math.min(24, languageInput.value.trim().length));
+      panel.toggleAttribute("data-has-metadata", Boolean(languageInput.value.trim() || this.sourceReference));
     };
-    syncLanguageSize();
+    syncLanguagePresentation();
     languageInput.setAttribute("aria-label", t("editor.markdown.code.language"));
     languageInput.readOnly = readOnly;
     languageInput.spellcheck = false;
@@ -303,7 +304,7 @@ export class CodeBlockWidget extends WidgetType {
       if (elementId) host.editSessions.cancel(elementId);
       elementId = null;
       languageInput.value = this.language;
-      syncLanguageSize();
+      syncLanguagePresentation();
       codeEditor.value = this.code;
       codeEditor.rows = Math.max(1, this.code.split("\n").length);
       scheduleHighlightRefresh(true);
@@ -380,7 +381,7 @@ export class CodeBlockWidget extends WidgetType {
     };
 
     const onLanguageInput = () => {
-      syncLanguageSize();
+      syncLanguagePresentation();
       committed = false;
       syncDraft();
       scheduleHighlightRefresh();
@@ -417,8 +418,8 @@ export class CodeBlockWidget extends WidgetType {
     codeEditor.addEventListener("blur", onBlur);
 
     codeSurface.append(codeHighlight, codeEditor);
-    panel.appendChild(codeSurface);
-    wrapper.append(metadata, panel);
+    panel.append(metadata, codeSurface);
+    wrapper.appendChild(panel);
 
     host.sessions.mount(wrapper, () => ({
       dispose() {

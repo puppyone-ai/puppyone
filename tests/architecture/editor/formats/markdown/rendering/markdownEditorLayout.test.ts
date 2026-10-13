@@ -489,7 +489,15 @@ describe("Markdown rich-block boundary affordance", () => {
     }
   });
 
-  it("keeps code metadata outside the code body flow", () => {
+  it("keeps code metadata inside the panel and clear of the code body", () => {
+    const panelRule = readCssRule(
+      markdownCodeCss,
+      ".markdown-codemirror-editor .cm-md-code-panel",
+    );
+    const insetRule = readCssRule(
+      markdownCodeCss,
+      ".markdown-codemirror-editor .cm-md-code-panel:is([data-has-metadata], :has(.cm-md-code-language:focus))",
+    );
     const metadataRule = readCssRule(
       markdownCodeCss,
       ".markdown-codemirror-editor .cm-md-code-metadata",
@@ -503,7 +511,10 @@ describe("Markdown rich-block boundary affordance", () => {
       ".markdown-codemirror-editor .cm-md-code-language",
     );
 
+    expect(panelRule).toContain("position: relative;");
+    expect(insetRule).toContain("padding-block-start: calc(var(--po-md-metadata-line-height) + 6px);");
     expect(metadataRule).toContain("position: absolute;");
+    expect(metadataRule).toContain("inset-block-start: 6px;");
     expect(metadataRule).toContain("display: flex;");
     expect(referenceRule).toContain("text-overflow: ellipsis;");
     expect(referenceRule).toContain("white-space: nowrap;");

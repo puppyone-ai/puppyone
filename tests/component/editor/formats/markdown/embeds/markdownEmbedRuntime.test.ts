@@ -511,7 +511,7 @@ describe("Markdown embedded runtime", () => {
     const editor = dom.querySelector<HTMLTextAreaElement>(".cm-md-code-textarea")!;
     expect(dom.querySelector(".cm-md-code-header")).toBeNull();
     expect(language.placeholder).toBe("");
-    expect(language.closest(".cm-md-code-panel")).toBeNull();
+    expect(language.closest(".cm-md-code-panel")).toBe(dom.querySelector(".cm-md-code-panel"));
 
     language.value = "ts";
     language.dispatchEvent(new InputEvent("input", { bubbles: true }));

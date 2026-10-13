@@ -256,8 +256,13 @@ function assertStructuredContent(metrics, scale, inlineBackground = "rgba(0, 0, 
     assert.equal(block.placeholder, "", "empty language must never show a Code prompt");
     assert.equal(block.metadataPosition, "absolute", "language metadata participates in block flow");
     assert.equal(block.languageOpacity, "1", "known language is gated on hover");
-    assert.equal(block.panel.y, block.surface.y, "language metadata reserves a header row");
-    assert(block.metadata.y + block.metadata.height <= block.surface.y, "language badge overlaps code text");
+    assert(block.metadata.y >= block.panel.y, "language badge sits outside the code panel");
+    assert(block.metadata.x >= block.panel.x && block.metadata.x + block.metadata.width <= block.panel.x + block.panel.width, "language badge exceeds the code panel width");
+    if (block.language || block.sourceReference) {
+      assert(block.metadata.y + block.metadata.height <= block.surface.y, "language badge overlaps code text");
+    } else {
+      assert.equal(block.panel.y, block.surface.y, "unlabelled code block reserves an empty metadata row");
+    }
   }
   assert.equal(metrics.blocks[0].sourceReference, "src/example.ts · L1–2");
   assert(metrics.blocks[1].scrollWidth > metrics.blocks[1].clientWidth, "long code lines lost horizontal scrolling");
