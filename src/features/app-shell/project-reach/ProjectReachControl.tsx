@@ -1,18 +1,24 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Tooltip } from "@puppyone/shared-ui";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
-import { CloudOff, UserPlus, Plug, HardDriveDownload } from "lucide-react";
+import { CloudOff, UserPlus, Plug, HardDriveDownload, Laptop } from "lucide-react";
+import { CloudIcon } from "../../../components/icons/CloudIcon";
+import { useDesktopPlatformCapabilities } from "../../../platform/useDesktopPlatformCapabilities";
 import { DesktopTitlebarMenuLayer } from "../DesktopTitlebarMenuLayer";
-import type { ReachMember, ReachState } from "./projectReachHeader";
+import type { ReachMember, ReachPlace, ReachState } from "./projectReachHeader";
 import "./reach-header.css";
 
 /**
- * The Header's answer to "who can reach this project".
+ * The Header's answer to "where is this project, and who can reach it".
  *
- * There is one control, and it is a statement: identity marks for whoever can
- * reach the project, nothing at all when the answer is "only you". People are
- * round and machines are square, so the composition of the answer is readable
- * without a legend and without text groups.
+ * There is one control, and it is a statement in two halves. The place mark
+ * comes first, because a user has to recognize the project's home before any
+ * statement about reach means anything: a device for a project worked on here,
+ * a cloud for a project worked on in a Cloud workspace. Then comes reach —
+ * identity marks for whoever can reach it, and the words "only you" when the
+ * honest answer is nobody else. People are round and machines are square, so
+ * the composition of the answer is readable without a legend and without text
+ * groups.
  *
  * It is also the only Cloud entry on the Header in this path. Inviting a
  * person, connecting an agent and getting a copy onto this device are all
@@ -53,6 +59,7 @@ export function ProjectReachControl({
     count: state.members.length,
     name: bidiIsolate(summaryName(state)),
   });
+  const place = useReachPlaceLabel(state.place);
   const freshness = useReachFreshness(state);
   return (
     <div className="desktop-titlebar-reach-wrap" data-reach-state={state.kind}>
@@ -65,9 +72,10 @@ export function ProjectReachControl({
           data-reach-emphasis={state.emphasis || undefined}
           aria-haspopup="dialog"
           aria-expanded={open}
-          aria-label={summary}
+          aria-label={t("shell.projectReach.buttonLabel", { place, reach: summary })}
           onClick={() => { if (!open) onOpen?.(); setOpen((value) => !value); }}
         >
+          <ReachPlaceMark place={state.place} />
           <ReachMarks state={state} />
         </button>
       </Tooltip>
@@ -86,6 +94,10 @@ export function ProjectReachControl({
         ariaLabel={t("shell.projectReach.panelLabel")}
       >
         <div className="desktop-project-reach-panel">
+          <p className="desktop-project-reach-place-row" data-reach-place={state.place}>
+            <ReachPlaceMark place={state.place} />
+            <span>{place}</span>
+          </p>
           <p className="desktop-project-reach-statement" data-reach-state={state.kind}>{summary}</p>
           {state.kind === "not-on-this-device" ? (
             <ReachDeviceCopy onGetCopy={onGetCopy} />
@@ -102,8 +114,34 @@ export function ProjectReachControl({
 }
 
 /**
- * The marks are the statement. A project only this device reaches shows a
- * single quiet device mark; everything else shows who is there, counted.
+ * Where the project is, as the first half of the statement. The mark is a
+ * fact, not a switch: there is nothing to press and nothing to choose, which
+ * is exactly why it can be shown all the time.
+ */
+function ReachPlaceMark({ place }: { place: ReachPlace }) {
+  return (
+    <span className="desktop-project-reach-place" data-reach-place={place} aria-hidden="true">
+      {place === "cloud"
+        ? <CloudIcon size={15} />
+        : <Laptop size={15} strokeWidth={1.75} />}
+    </span>
+  );
+}
+
+/** The place in words, in the device vocabulary the user's platform uses. */
+function useReachPlaceLabel(place: ReachPlace): string {
+  const { t } = useLocalization();
+  const capabilities = useDesktopPlatformCapabilities();
+  if (place === "cloud") return t("shell.projectReach.place.cloud");
+  return t(capabilities?.platform === "macos"
+    ? "shell.projectReach.place.thisMac"
+    : "shell.projectReach.place.thisComputer");
+}
+
+/**
+ * The second half of the statement. A project nobody else reaches says so in
+ * words next to its place mark — quiet, but never blank, because a control
+ * that shows nothing cannot be read as an answer.
  */
 function ReachMarks({ state }: { state: ReachState }) {
   const { t } = useLocalization();
@@ -115,7 +153,11 @@ function ReachMarks({ state }: { state: ReachState }) {
     );
   }
   if (state.kind === "only-you" || state.members.length === 0) {
-    return <span className="desktop-project-reach-marks" data-reach-audience="none" aria-hidden="true" />;
+    return (
+      <span className="desktop-project-reach-marks" data-reach-audience="none">
+        {t("shell.projectReach.onlyYou")}
+      </span>
+    );
   }
   return (
     <span className="desktop-project-reach-marks">

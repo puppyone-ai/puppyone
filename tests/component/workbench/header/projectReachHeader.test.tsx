@@ -56,6 +56,7 @@ function state({ share, shares = [], ...rest }: {
   shares?: ReadonlyArray<{ id: string; name: string; lastSeenAt?: string | null }>;
   activity?: Record<string, { kind: "reading" | "writing"; label: string } | undefined>;
   deviceCopyAvailable?: boolean;
+  place?: "this-device" | "cloud";
   waitingFor?: string | null;
 }) {
   return resolveProjectReachState({
@@ -86,12 +87,33 @@ function action(label: string) {
 }
 
 describe("Header project reach", () => {
-  it("says only you without a badge, a count or emphasis", async () => {
+  it("says where the project is and that only you can reach it, without a badge or emphasis", async () => {
     const button = await renderControl({ state: state({ share: "published" }) });
-    expect(button.getAttribute("aria-label")).toBe("Only you can reach this project");
+    expect(button.getAttribute("aria-label")).toBe("On this Mac. Only you can reach this project");
     expect(button.dataset.reachEmphasis).toBeUndefined();
     expect(container.querySelector(".desktop-project-reach-count")).toBeNull();
-    expect(container.querySelector('.desktop-project-reach-marks[data-reach-audience="none"]')).not.toBeNull();
+    // The most common state of all is readable, not an empty control.
+    expect(button.querySelector('[data-reach-place="this-device"]')).not.toBeNull();
+    expect(button.querySelector('.desktop-project-reach-marks[data-reach-audience="none"]')?.textContent)
+      .toBe("Only you");
+  });
+
+  it("states a Cloud workspace as the place, with the same reach wording", async () => {
+    const button = await renderControl({ state: state({ share: "published", place: "cloud" }) });
+    expect(button.getAttribute("aria-label")).toBe("On a Cloud workspace. Only you can reach this project");
+    expect(button.querySelector('[data-reach-place="cloud"]')).not.toBeNull();
+    const panel = openPanel();
+    expect(panel.querySelector(".desktop-project-reach-place-row")?.textContent).toBe("On a Cloud workspace");
+  });
+
+  it("repeats the place in the panel, where the two verbs are", async () => {
+    await renderControl({
+      state: state({ share: "published" }), onInvitePerson: noOp, onConnectAgent: noOp,
+    });
+    const panel = openPanel();
+    expect(panel.querySelector(".desktop-project-reach-place-row")?.textContent).toBe("On this Mac");
+    expect(action("Invite a person")).not.toBeNull();
+    expect(action("Connect an agent")).not.toBeNull();
   });
 
   it("states who can reach it with round people and square machines", async () => {
@@ -104,7 +126,7 @@ describe("Header project reach", () => {
         ],
       }),
     });
-    expect(button.getAttribute("aria-label")).toBe("2 others can reach this project");
+    expect(button.getAttribute("aria-label")).toBe("On this Mac. 2 others can reach this project");
     const marks = [...container.querySelectorAll(".desktop-project-reach-mark")];
     expect(marks.map((mark) => mark.getAttribute("data-reach-audience"))).toEqual(["person", "machine"]);
     expect(container.querySelector(".desktop-project-reach-count")?.textContent).toBe("2");
@@ -135,7 +157,7 @@ describe("Header project reach", () => {
   it("emphasizes reach that needs attention, and nothing else", async () => {
     const attention = await renderControl({ state: state({ share: "attention" }) });
     expect(attention.dataset.reachEmphasis).toBe("true");
-    expect(attention.getAttribute("aria-label")).toBe("This project cannot be reached right now");
+    expect(attention.getAttribute("aria-label")).toBe("On this Mac. This project cannot be reached right now");
   });
 
   it("offers a copy, and no share actions, while the project is not on this device", async () => {
@@ -147,7 +169,10 @@ describe("Header project reach", () => {
       onInvitePerson: noOp,
       onConnectAgent: noOp,
     });
-    expect(button.getAttribute("aria-label")).toBe("This project is not on this Mac yet");
+    // No working copy here means the project is somewhere else, and the place
+    // mark says so without the user picking a location.
+    expect(button.getAttribute("aria-label")).toBe("On a Cloud workspace. This project is not on this Mac yet");
+    expect(button.querySelector('[data-reach-place="cloud"]')).not.toBeNull();
     const panel = openPanel();
     expect(panel.querySelector('[data-testid="readers"]')).toBeNull();
     expect(panel.textContent).toContain("Changing it needs a copy of it here.");

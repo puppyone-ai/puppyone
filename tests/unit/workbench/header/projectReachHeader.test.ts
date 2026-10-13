@@ -41,7 +41,15 @@ describe("project reach state", () => {
       expect(state.kind).toBe("only-you");
       expect(state.emphasis).toBe(false);
       expect(state.members).toEqual([]);
+      expect(state.place).toBe("this-device");
     }
+  });
+
+  it("states the place it is given, so reach is never the only thing on screen", () => {
+    expect(resolveProjectReachState({ ...base, share: "published", place: "cloud" }).place).toBe("cloud");
+    expect(resolveProjectReachState({
+      ...base, share: "shared", shares: [share("1", "Viktor")], place: "this-device",
+    }).place).toBe("this-device");
   });
 
   it("counts people and machines separately once somebody can reach it", () => {
@@ -97,6 +105,10 @@ describe("project reach state", () => {
     });
     expect(state.kind).toBe("not-on-this-device");
     expect(state.emphasis).toBe(false);
+    // A project with no working copy here is somewhere else, whatever it was told.
+    expect(state.place).toBe("cloud");
+    expect(resolveProjectReachState({ ...base, share: "shared", deviceCopyAvailable: false, place: "this-device" }).place)
+      .toBe("cloud");
   });
 
   it("keeps the freshest read as the fact worth stating, ignoring unusable timestamps", () => {

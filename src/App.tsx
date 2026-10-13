@@ -957,6 +957,9 @@ function AppContent() {
     shares: projectReachShareStatus.readers,
     destinations: reachDestinations,
     deviceCopyAvailable: projectLocation?.localAvailable !== false,
+    // Where the project is, taken from the surface the user is working on —
+    // stated by the Header, never offered as a choice.
+    place: (projectLocation?.headerLocation ?? projectLocation?.current) === "cloud" ? "cloud" : "this-device",
     waitingFor: pendingShare ? t(shareTargetLabelKey(pendingShare.targetId)) : null,
   });
   // Without Puppyone Cloud there is nobody to reach, so the Header states
@@ -966,8 +969,11 @@ function AppContent() {
     projectReachEnabled && shareOnboardingEnabled && cloudEnabled
       ? {
         state: projectReachState,
-        readers: <ReadersList readers={projectReachState.members.length > 0 ? projectReachShareStatus.readers : []}
-          revoke={projectShareRevoke} />,
+        // No rows when nobody is there: the Header already states "only you",
+        // and an empty list would say the same thing a second time.
+        readers: projectReachState.members.length > 0
+          ? <ReadersList readers={projectReachShareStatus.readers} revoke={projectShareRevoke} />
+          : undefined,
         onInvitePerson: () => openShareWizard("person", "", "invite"),
         onConnectAgent: () => openShareWizard(null, "", "connect"),
         onGetCopy: cloudEnabled ? openCloudWorkspace : undefined,

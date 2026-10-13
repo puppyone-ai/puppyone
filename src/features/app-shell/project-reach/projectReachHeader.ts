@@ -1,6 +1,12 @@
 /**
  * What the Header says about the current project when the project reach
- * experience is on: not where the project is, but who can reach it.
+ * experience is on: where the project is, and who can reach it.
+ *
+ * Position is a fact, so the place is stated and never selected: a project
+ * sitting on this computer says so, and a project whose working copy lives on
+ * a Cloud workspace says that instead. Reach is the second half of the same
+ * statement, so "only you, on this Mac" is a complete answer rather than an
+ * empty control.
  *
  * Position is a fact, so nothing here is selectable and nothing here persuades.
  * The established path keeps the local / Cloud tabs; this module exists so the
@@ -14,6 +20,14 @@
 
 /** A person is invited and reads; everything else is a machine put to work. */
 export type ReachAudience = "person" | "machine";
+
+/**
+ * Where the project the Header is talking about actually sits. The product
+ * knows this already; stating it is what keeps "only you" from reading as
+ * "nothing here". It is never a choice: a user who works out of a Cloud
+ * workspace sees the Cloud place for the same reason a laptop user sees theirs.
+ */
+export type ReachPlace = "this-device" | "cloud";
 
 /**
  * Mirrors the Agent file-presence contract (`reading` / `writing`) so an active
@@ -71,6 +85,8 @@ export type ReachStateKind =
 
 export type ReachState = Readonly<{
   kind: ReachStateKind;
+  /** Where this project is, stated beside who can reach it. */
+  place: ReachPlace;
   members: readonly ReachMember[];
   people: number;
   machines: number;
@@ -119,6 +135,7 @@ export function resolveProjectReachState({
   destinations,
   activity = {},
   deviceCopyAvailable = true,
+  place = "this-device",
   waitingFor = null,
 }: {
   share: ReachShareKind;
@@ -128,6 +145,8 @@ export function resolveProjectReachState({
   activity?: Readonly<Record<string, ReachActivity | undefined>>;
   /** False only when the project exists but has no working copy on this device. */
   deviceCopyAvailable?: boolean;
+  /** Where the project is being worked on; a missing working copy settles it. */
+  place?: ReachPlace;
   /** Destination whose first read has not arrived yet. */
   waitingFor?: string | null;
 }): ReachState {
@@ -145,6 +164,8 @@ export function resolveProjectReachState({
   const base = {
     members,
     ...counts,
+    // A project with no working copy here is, by definition, somewhere else.
+    place: deviceCopyAvailable ? place : "cloud" as const,
     waitingFor: null,
     freshest: resolveFreshestMember(members),
     emphasis: false,

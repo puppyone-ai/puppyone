@@ -1,7 +1,8 @@
 @layer features {
-  /* The Header states reach: identity marks, a count, and nothing at all when
-     the answer is "only you". Quiet is the default; emphasis is reserved for
-     something the user has to deal with. */
+  /* The Header states a place and then reach: a device or cloud mark, identity
+     marks, a count, and the words "only you" when nobody else is there. Quiet
+     is the default; emphasis is reserved for something the user has to deal
+     with. */
   .desktop-titlebar-reach-wrap {
     display: flex;
     min-width: 0;
@@ -30,6 +31,21 @@
 
   .desktop-titlebar-reach-button[data-reach-emphasis="true"] {
     color: var(--po-status-warning, var(--po-text-primary));
+  }
+
+  /* The place mark reads as part of the Header's own chrome, so it states
+     where the project is without competing with the project's name. */
+  .desktop-project-reach-place {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    color: var(--po-text-secondary);
+  }
+
+  .desktop-titlebar-reach-button:hover .desktop-project-reach-place,
+  .desktop-titlebar-reach-button[aria-expanded="true"] .desktop-project-reach-place {
+    color: inherit;
   }
 
   .desktop-project-reach-marks {
@@ -69,11 +85,18 @@
     color: var(--po-accent);
   }
 
+  /* "Only you" is a sentence, not a placeholder box: the earlier empty square
+     left the Header with nothing to read at the most common state of all. */
   .desktop-project-reach-marks[data-reach-audience="none"] {
-    width: 16px;
-    height: 16px;
-    border: 1px dashed var(--po-border-subtle);
-    border-radius: 4px;
+    color: var(--po-text-secondary);
+    font-size: 11px;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .desktop-titlebar-reach-button:hover .desktop-project-reach-marks[data-reach-audience="none"],
+  .desktop-titlebar-reach-button[aria-expanded="true"] .desktop-project-reach-marks[data-reach-audience="none"] {
+    color: inherit;
   }
 
   .desktop-project-reach-count {
@@ -89,11 +112,29 @@
     padding: 10px;
   }
 
+  /* The panel repeats the place in words, because the mark alone cannot say
+     which device, and a screen reader never sees the mark at all. */
+  .desktop-project-reach-place-row {
+    display: flex;
+    margin: 0;
+    align-items: center;
+    gap: 6px;
+    color: var(--po-text-secondary);
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
   .desktop-project-reach-statement {
     margin: 0;
     color: var(--po-text-primary);
     font-size: 12px;
     line-height: 1.4;
+  }
+
+  /* Place and reach are one statement, so they sit closer than the panel's
+     sections do. */
+  .desktop-project-reach-place-row + .desktop-project-reach-statement {
+    margin-top: -4px;
   }
 
   .desktop-project-reach-statement[data-reach-state="attention"] {
