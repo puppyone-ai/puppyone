@@ -968,7 +968,7 @@
   "share.reach.preview.label": "里面有什么",
   "share.reach.scope.narrow": "只给其中一部分？",
   "share.reach.mode.question": "它能做什么？",
-  "share.reach.mechanism": "对方看到的是你最后保存过的版本。这台 Mac 上的文件不会动。",
+  "share.reach.mechanism": "链接由 Puppyone Cloud 提供：对方读到的是存在那儿的、你最后保存的那一版。这台 Mac 上的文件不动。",
   "share.reach.action.invite": "生成链接",
   "share.reach.action.connect": "连接 {target}",
   "share.reach.account.why": "这台 Mac 上的准备已经做完。账号是让对方经由 Puppyone Cloud 读到它的那一步。",

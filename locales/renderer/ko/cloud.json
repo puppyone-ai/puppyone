@@ -968,7 +968,7 @@
   "share.reach.preview.label": "안에 있는 것",
   "share.reach.scope.narrow": "일부만 공유할까요?",
   "share.reach.mode.question": "무엇을 할 수 있나요?",
-  "share.reach.mechanism": "상대는 마지막으로 저장한 버전을 봅니다. 이 Mac의 파일은 지금 자리에 그대로 있습니다.",
+  "share.reach.mechanism": "링크는 Puppyone Cloud가 제공합니다. 상대방은 그곳에 보관된, 당신이 마지막으로 저장한 버전을 읽습니다. 이 Mac의 파일은 그대로 있습니다.",
   "share.reach.action.invite": "링크 만들기",
   "share.reach.action.connect": "{target} 연결",
   "share.reach.account.why": "이 Mac에서 할 일은 끝났습니다. 계정은 상대가 Puppyone Cloud를 통해 닿을 수 있게 하는 부분입니다.",

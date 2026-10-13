@@ -172,7 +172,7 @@ describe("one screen for inviting a person", () => {
     expect(text()).not.toContain("12 files");
     expect(text()).not.toContain("2 KB");
     expect(text()).not.toContain(".gitignore");
-    expect(text()).toContain("They see the version you last saved.");
+    expect(text()).toContain("The link is served by Puppyone Cloud");
     // A link is read under the reader's own account, so there is nothing to choose.
     expect(text()).not.toContain("What can it do?");
 
@@ -389,7 +389,7 @@ describe("the switch at the share entry", () => {
 
     expect(dialog()?.querySelector(".desktop-share-stepper")).not.toBeNull();
     expect(text()).toContain("Who should be able to read this?");
-    expect(text()).not.toContain("They see the version you last saved.");
+    expect(text()).not.toContain("The link is served by Puppyone Cloud");
 
     act(() => desktopPreferencesStore.getState().setExperimentalSettings(
       (current) => ({ ...current, enableProjectReach: true }),
@@ -397,6 +397,6 @@ describe("the switch at the share entry", () => {
     await flush();
 
     expect(dialog()?.querySelector(".desktop-share-stepper")).toBeNull();
-    expect(text()).toContain("They see the version you last saved.");
+    expect(text()).toContain("The link is served by Puppyone Cloud");
   });
 });

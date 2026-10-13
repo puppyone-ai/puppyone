@@ -968,7 +968,7 @@
   "share.reach.preview.label": "中身",
   "share.reach.scope.narrow": "一部だけにしますか？",
   "share.reach.mode.question": "何ができるようにしますか？",
-  "share.reach.mechanism": "相手が見るのは、あなたが最後に保存した版です。この Mac のファイルは今の場所から動きません。",
+  "share.reach.mechanism": "リンクは Puppyone Cloud が提供します。相手が読むのは、そこに置かれたあなたが最後に保存した版です。この Mac のファイルはそのままです。",
   "share.reach.action.invite": "リンクを作成",
   "share.reach.action.connect": "{target} を接続",
   "share.reach.account.why": "この Mac でできることは終わりました。アカウントは、相手が Puppyone Cloud 経由で届くようにするためのものです。",

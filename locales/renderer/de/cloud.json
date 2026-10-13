@@ -968,7 +968,7 @@
   "share.reach.preview.label": "Was darin ist",
   "share.reach.scope.narrow": "Nur einen Teil davon?",
   "share.reach.mode.question": "Was darf er tun?",
-  "share.reach.mechanism": "Er sieht die Version, die du zuletzt gespeichert hast. Die Dateien bleiben, wo sie auf diesem Mac sind.",
+  "share.reach.mechanism": "Der Link wird von Puppyone Cloud bereitgestellt: Die andere Seite liest die zuletzt von dir gespeicherte Version, die dort für sie vorgehalten wird. Die Dateien auf diesem Mac bleiben, wo sie sind.",
   "share.reach.action.invite": "Link erstellen",
   "share.reach.action.connect": "{target} verbinden",
   "share.reach.account.why": "Alles auf diesem Mac ist fertig. Das Konto ist das, womit die andere Seite es über Puppyone Cloud erreicht.",
