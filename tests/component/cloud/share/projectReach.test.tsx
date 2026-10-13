@@ -151,11 +151,12 @@ describe("one screen for inviting a person", () => {
 
     expect(stripBidiIsolation(dialog()?.querySelector("h2")?.textContent)).toBe("Invite a person to Notes");
     expect(dialog()?.querySelector(".desktop-share-stepper")).toBeNull();
-    // A count is not a preview, so the folder's own contents are on screen.
+    // A count is not a preview: the folder is shown in the product's own
+    // Explorer and Viewer, the same illustration the Cloud share screen uses.
     const preview = dialog()?.querySelector(".desktop-reach-preview");
-    expect([...preview?.querySelectorAll(".desktop-reach-preview-entry-name") ?? []]
-      .map((entry) => entry.textContent)).toEqual(["docs", "media"]);
-    expect(preview?.querySelector(".desktop-reach-preview-fade")).not.toBeNull();
+    expect(preview?.querySelector(".desktop-cloud-share-preview-window")).not.toBeNull();
+    expect(stripBidiIsolation(preview?.textContent)).toContain("docs");
+    // The counts annotate that illustration from inside its own fade.
     expect(stripBidiIsolation(preview?.querySelector(".desktop-reach-preview-caption")?.textContent))
       .toBe("docs12 files · 2 KB · anything your .gitignore excludes stays out");
     expect(bridge.getPublishScope).toHaveBeenCalledWith({ rootPath: "/fixture/Notes", path: "docs" });

@@ -155,7 +155,7 @@ import {
   useProjectShareActivity,
   useProjectShareRevoke,
   type CloudShareActions,
-  type ReachPreviewEntry,
+  type ReachPreviewData,
   type ShareTargetId,
   type ShareWizardFolderEntry,
 } from "./features/cloud/share";
@@ -994,20 +994,26 @@ function AppContent() {
       .filter((entry) => entry.path.length > 0);
   }, [dataPort, focusedWorkspaceFolder?.uri, resolveWorkspaceResource]);
   // What is inside the folder a share would cover, for the share screen's
-  // preview. Files included: a preview that showed only folders would still
-  // not answer "what am I handing over".
-  const listSharePreviewEntries = useCallback(async (path: string): Promise<readonly ReachPreviewEntry[]> => {
-    if (!dataPort) return [];
+  // preview: the entries, and one file shown open beside them. The Cloud
+  // workspace share screen illustrates a share exactly this way, so the two
+  // screens show one thing rather than two ideas of a preview.
+  const listSharePreview = useCallback(async (path: string): Promise<ReachPreviewData> => {
+    if (!dataPort) return { entries: [] };
     const root = await dataPort.listChildren(focusedWorkspaceFolder?.uri ?? null);
-    const describe = (nodes: typeof root) => nodes.map((node) => ({
-      name: node.name,
-      kind: node.type === "folder" ? "folder" as const : "file" as const,
-    }));
-    if (!path) return describe(root);
-    const chosen = root.find((node) => (
-      (resolveWorkspaceResource(node.path)?.providerPath ?? node.name) === path
-    ));
-    return chosen ? describe(await dataPort.listChildren(chosen.path)) : [];
+    const chosen = path
+      ? root.find((node) => (resolveWorkspaceResource(node.path)?.providerPath ?? node.name) === path)
+      : null;
+    if (path && !chosen) return { entries: [] };
+    const nodes = chosen ? await dataPort.listChildren(chosen.path) : root;
+    const entries = nodes.map((node) => ({ name: node.name, type: node.type }));
+    const opened = pickSharePreviewFile(nodes);
+    if (!opened) return { entries };
+    try {
+      const content = await dataPort.readFile?.(opened.path);
+      return { entries, file: { name: opened.name, type: opened.type, content: content ?? undefined } };
+    } catch {
+      return { entries, file: { name: opened.name, type: opened.type } };
+    }
   }, [dataPort, focusedWorkspaceFolder?.uri, resolveWorkspaceResource]);
 
   const workspacePath = focusedWorkspace?.path ?? null;
@@ -2163,7 +2169,7 @@ function AppContent() {
               }}
               shares={projectShares}
               listTopLevelFolders={listShareFolders}
-              listPreviewEntries={listSharePreviewEntries}
+              listPreview={listSharePreview}
               onSessionChange={updateCloudSession}
               onIssued={setPendingShare}
               onOpenCloud={() => {
@@ -2210,6 +2216,17 @@ function AppContent() {
 
 function isPreviewableAgentImagePath(path: string) {
   return /\.(?:png|jpe?g|gif|webp|avif)$/i.test(path);
+}
+
+/**
+ * Which file to show open in a share preview: the one a person opens first
+ * when they want to know what a folder is. A readme is that file when there
+ * is one; otherwise the first document in the folder stands for it.
+ */
+function pickSharePreviewFile(nodes: readonly DataNode[]): DataNode | null {
+  const documents = nodes.filter((node) => node.type !== "folder" && !node.name.startsWith("."));
+  const readme = documents.find((node) => /^readme\b/i.test(node.name));
+  return readme ?? documents[0] ?? null;
 }
 
 function hasSameActiveDataNodeIdentity(left: DataNode | null, right: DataNode | null): boolean {

@@ -18,6 +18,8 @@ import { useCloudOrganizationData } from "../../organization/CloudOrganizationTe
 import { workspaceResourceUrl } from "../../files/workspaceResourceUrl";
 import { formatBytes, formatRelativeTime } from "../../utils";
 import { ShareTargetMark } from "../CloudShareHome";
+import { CloudWorkspaceSharePreview, type SharePreviewEntry } from "../CloudWorkspaceSharePreview";
+import type { CloudWorkspaceShareResource } from "../cloudWorkspaceShareResource";
 import {
   defaultReachScope,
   inviteReachTarget,
@@ -76,11 +78,18 @@ export type ProjectReachDialogProps = ShareWizardDialogProps & {
    * it the preview falls back to the folders the scope chooser already loads,
    * so the screen degrades to a thinner preview instead of an empty frame.
    */
-  listPreviewEntries?: (path: string) => Promise<readonly ReachPreviewEntry[]>;
+  listPreview?: (path: string) => Promise<ReachPreviewData>;
 };
 
-/** One line of the preview: enough to recognize the folder, nothing more. */
-export type ReachPreviewEntry = Readonly<{ name: string; kind: "folder" | "file" }>;
+/**
+ * What the preview renders: the entries of the folder, and one file to show
+ * open beside them. Same shape the Cloud workspace share screen uses, because
+ * it is the same illustration.
+ */
+export type ReachPreviewData = Readonly<{
+  entries: readonly SharePreviewEntry[];
+  file?: CloudWorkspaceShareResource["file"];
+}>;
 
 export function ProjectReachDialog(props: ProjectReachDialogProps) {
   const { t } = useLocalization();
@@ -369,13 +378,14 @@ function ReachConnectForm({
 }
 
 /**
- * A look inside the folder being shared.
+ * A look inside the folder being shared — the product's own Explorer and
+ * Viewer, reduced and inert, which is the illustration the Cloud workspace
+ * share screen already uses. Sharing is about a thing the user recognizes on
+ * sight; a count never was.
  *
- * A count is not a preview: "852 files" tells the user nothing about what
- * they are about to hand over. So the screen shows the folder's own contents
- * and lets them run past the bottom edge under a fade — the fade is the
- * honest way to say "and more", instead of a scrollbar that invites browsing
- * on a screen whose job is one decision.
+ * The counts and the scope live on one small line inside the fade at the
+ * bottom of that illustration, where they annotate what is above them instead
+ * of becoming a second block of their own.
  */
 function ReachPreview({ scope, measured, dialog }: {
   scope: ReachScope;
@@ -384,30 +394,14 @@ function ReachPreview({ scope, measured, dialog }: {
 }) {
   const localization = useLocalization();
   const { t } = localization;
-  const entries = useReachPreviewEntries(dialog, scope.path);
+  const preview = useReachPreview(dialog, scope.path);
   const folder = scope.path.split("/").filter(Boolean).pop();
 
   return (
     <section className="desktop-reach-preview" aria-label={t("cloud.share.reach.preview.label")}>
-      <div className="desktop-reach-preview-sheet" aria-hidden={entries.length === 0 ? "true" : undefined}>
-        <ul className="desktop-reach-preview-list">
-          {entries.map((entry) => (
-            <li key={`${entry.kind}:${entry.name}`} className="desktop-reach-preview-entry" data-kind={entry.kind}>
-              <span className="desktop-reach-preview-entry-mark" aria-hidden="true">
-                {entry.kind === "folder"
-                  ? <Folder size={14} strokeWidth={1.8} />
-                  : <FileText size={14} strokeWidth={1.8} />}
-              </span>
-              <bdi className="desktop-reach-preview-entry-name">{entry.name}</bdi>
-            </li>
-          ))}
-        </ul>
-        <span className="desktop-reach-preview-fade" aria-hidden="true" />
-      </div>
+      <CloudWorkspaceSharePreview entries={preview.entries} file={preview.file} />
       <p className="desktop-reach-preview-caption">
-        <span className="desktop-reach-preview-scope">
-          <bdi>{folder ?? t("cloud.share.scope.whole")}</bdi>
-        </span>
+        <bdi className="desktop-reach-preview-scope">{folder ?? t("cloud.share.scope.whole")}</bdi>
         <span className="desktop-reach-preview-meta" aria-live="polite">
           {formatReachScopeMeasurement(measured, localization)}
         </span>
@@ -418,31 +412,28 @@ function ReachPreview({ scope, measured, dialog }: {
 
 /**
  * What to show inside the preview. The caller's own listing is preferred
- * because it knows about files; without it the scope chooser's folders are
+ * because it can open a file; without it the scope chooser's folders are
  * still a truthful, if thinner, look inside.
  */
-function useReachPreviewEntries(dialog: ProjectReachDialogProps, path: string): readonly ReachPreviewEntry[] {
-  const [entries, setEntries] = useState<readonly ReachPreviewEntry[]>([]);
-  const { listPreviewEntries, listTopLevelFolders } = dialog;
+function useReachPreview(dialog: ProjectReachDialogProps, path: string): ReachPreviewData {
+  const [preview, setPreview] = useState<ReachPreviewData>({ entries: [] });
+  const { listPreview, listTopLevelFolders } = dialog;
 
   useEffect(() => {
     let cancelled = false;
-    const load = listPreviewEntries
-      ? listPreviewEntries(path)
-      : listTopLevelFolders().then((folders) => folders.map((folder) => (
-        { name: folder.name, kind: "folder" as const }
-      )));
+    const load: Promise<ReachPreviewData> = listPreview
+      ? listPreview(path)
+      : listTopLevelFolders().then((folders) => (
+        { entries: folders.map((folder) => ({ name: folder.name, type: "folder" })) }
+      ));
     load
-      .then((loaded) => { if (!cancelled) setEntries(loaded.slice(0, PREVIEW_ENTRY_LIMIT)); })
-      .catch(() => { if (!cancelled) setEntries([]); });
+      .then((loaded) => { if (!cancelled) setPreview(loaded); })
+      .catch(() => { if (!cancelled) setPreview({ entries: [] }); });
     return () => { cancelled = true; };
-  }, [listPreviewEntries, listTopLevelFolders, path]);
+  }, [listPreview, listTopLevelFolders, path]);
 
-  return entries;
+  return preview;
 }
-
-/** Enough rows to recognize a folder, and one more to justify the fade. */
-const PREVIEW_ENTRY_LIMIT = 9;
 
 /**
  * The other verb, and narrowing. Both are ways out of the screen's default,

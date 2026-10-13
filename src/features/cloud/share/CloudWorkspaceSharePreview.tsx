@@ -4,6 +4,9 @@ import { ExplorerTree, ExplorerTreeSkeleton, FilePreview, createResourceUri, get
 import { selectFileIconTheme, useDesktopPreference } from "../../../preferencesStore";
 import { DEFAULT_EXPLORER_WIDTH } from "../../app-shell/layout/desktopPaneLayout";
 import type { CloudWorkspaceShareResource } from "./cloudWorkspaceShareResource";
+// The illustration carries its own styles: both share screens render it, and
+// neither of them should have to know which stylesheet it needs.
+import "./workspace-share.css";
 
 export type SharePreviewEntry = { name: string; type: string };
 const NO_EXPANDED_FOLDERS: ReadonlySet<string> = new Set();

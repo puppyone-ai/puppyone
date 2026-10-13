@@ -15,97 +15,45 @@
     gap: 6px;
   }
 
-  .desktop-reach-switch,
-  .desktop-reach-narrow {
-    justify-self: start;
-    font-size: var(--po-type-ui-meta, 12px);
-  }
-
   .desktop-reach-switch:hover,
-  .desktop-reach-narrow:hover {
+  .desktop-reach-links .desktop-share-inline-link:hover {
     text-decoration: underline;
   }
 
-  /* A look inside the folder, cut off by a fade rather than a scrollbar: the
-     screen is one decision, not a place to browse. */
+  /* The product's own Explorer and Viewer, reduced and inert — the same
+     illustration the Cloud workspace share screen uses. The counts annotate
+     it from inside its own fade, so the screen keeps one block where there
+     used to be a frame, a caption and a sentence. */
   .desktop-reach-preview {
-    display: grid;
-    gap: 8px;
-  }
-
-  .desktop-reach-preview-sheet {
     position: relative;
-    overflow: hidden;
-    height: 148px;
-    padding: 10px 12px 0;
-    border: 1px solid var(--po-divider);
-    border-radius: 10px;
-    background: var(--po-surface);
-  }
-
-  .desktop-reach-preview-list {
     display: grid;
-    gap: 2px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
   }
 
-  .desktop-reach-preview-entry {
-    display: flex;
-    min-width: 0;
-    align-items: center;
-    gap: 8px;
-    height: 22px;
-    color: var(--po-text);
-    font-size: var(--po-type-ui-body, 13px);
-    line-height: 22px;
-  }
-
-  .desktop-reach-preview-entry-mark {
-    display: grid;
-    width: 16px;
-    flex: 0 0 16px;
-    place-items: center;
-    color: var(--po-text-muted);
-  }
-
-  .desktop-reach-preview-entry[data-kind="folder"] .desktop-reach-preview-entry-mark {
-    color: var(--po-accent-text, var(--po-text-muted));
-  }
-
-  .desktop-reach-preview-entry-name {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  /* The fade is what says "and more", so it is part of the sheet, not a
-     decoration on top of it. */
-  .desktop-reach-preview-fade {
-    position: absolute;
-    inset-inline: 0;
-    bottom: 0;
-    height: 56px;
-    background: linear-gradient(to bottom, transparent, var(--po-surface) 86%);
-    pointer-events: none;
+  .desktop-reach-preview .desktop-cloud-share-preview-window {
+    height: 190px;
   }
 
   .desktop-reach-preview-caption {
+    position: absolute;
+    inset-inline: 1px;
+    bottom: 1px;
     display: flex;
     margin: 0;
     align-items: baseline;
-    gap: 8px;
+    gap: 6px;
     min-width: 0;
+    padding: 0 12px 10px;
+    color: var(--po-text-muted);
+    font-size: var(--po-type-ui-meta, 12px);
+    line-height: 1.5;
+    pointer-events: none;
   }
 
   .desktop-reach-preview-scope {
-    min-width: 0;
+    flex: 0 0 auto;
+    max-width: 40%;
     overflow: hidden;
     color: var(--po-text);
-    font-size: var(--po-type-ui-body, 13px);
-    font-weight: var(--po-text-weight-medium, 500);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -113,18 +61,24 @@
   .desktop-reach-preview-meta {
     min-width: 0;
     flex: 1 1 auto;
-    color: var(--po-text-muted);
-    font-size: var(--po-type-ui-meta, 12px);
-    line-height: 1.5;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   /* Ways out of the default, together, under everything they are an
-     alternative to. */
+     alternative to — and at the same size as every other secondary line on
+     this screen. */
   .desktop-reach-links {
     display: flex;
     align-items: center;
     gap: 14px;
     padding-top: 2px;
+  }
+
+  .desktop-reach-links .desktop-share-inline-link {
+    font-size: var(--po-type-ui-meta, 12px);
+    line-height: 1.5;
   }
 
   /* The agent the user named, kept visible while they answer the question
@@ -156,7 +110,7 @@
 
   .desktop-reach-residency {
     color: var(--po-text-muted);
-    font-size: var(--po-type-ui-caption, 12px);
+    font-size: var(--po-type-ui-meta, 12px);
     line-height: 1.3;
   }
 
