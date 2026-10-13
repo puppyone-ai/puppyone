@@ -963,6 +963,7 @@
   "share.reach.residency.on-demand": "使われている間だけ起きている",
   "share.reach.residency.client-decides": "あなたのクライアント次第",
   "share.reach.scope.question": "どこまで見せますか？",
+  "share.reach.preview.label": "中身",
   "share.reach.scope.narrow": "一部だけにしますか？",
   "share.reach.scope.measuring": "届く範囲を数えています…",
   "share.reach.scope.measured": "{count, plural, other {# 件のファイル}} · {size} · .gitignore で除外したものは含まれません",

@@ -963,6 +963,7 @@
   "share.reach.residency.on-demand": "Awake while in use",
   "share.reach.residency.client-decides": "Decided by your client",
   "share.reach.scope.question": "How much of it?",
+  "share.reach.preview.label": "What is inside",
   "share.reach.scope.narrow": "Only part of it?",
   "share.reach.scope.measuring": "Counting what this would make reachable…",
   "share.reach.scope.measured": "{count, plural, one {# file} other {# files}} · {size} · anything your .gitignore excludes stays out",

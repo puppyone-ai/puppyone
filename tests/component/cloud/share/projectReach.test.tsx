@@ -144,27 +144,35 @@ afterEach(() => {
 });
 
 describe("one screen for inviting a person", () => {
-  it("states the destination, the narrow default, what it amounts to, and one action", async () => {
+  it("shows what is inside, what it amounts to, and one action", async () => {
     const props = baseProps();
     await act(async () => root?.render(withTestLocalization(<ProjectReachDialog {...props} />)));
     await flush();
 
     expect(stripBidiIsolation(dialog()?.querySelector("h2")?.textContent)).toBe("Invite a person to Notes");
     expect(dialog()?.querySelector(".desktop-share-stepper")).toBeNull();
-    expect(text()).toContain("Anyone you send the link to");
-    expect(radio("Only docs")?.getAttribute("aria-checked")).toBe("true");
-    expect(radio("Whole project")?.getAttribute("aria-checked")).toBe("false");
+    // A count is not a preview, so the folder's own contents are on screen.
+    const preview = dialog()?.querySelector(".desktop-reach-preview");
+    expect([...preview?.querySelectorAll(".desktop-reach-preview-entry-name") ?? []]
+      .map((entry) => entry.textContent)).toEqual(["docs", "media"]);
+    expect(preview?.querySelector(".desktop-reach-preview-fade")).not.toBeNull();
+    expect(stripBidiIsolation(preview?.querySelector(".desktop-reach-preview-caption")?.textContent))
+      .toBe("docs12 files · 2 KB · anything your .gitignore excludes stays out");
     expect(bridge.getPublishScope).toHaveBeenCalledWith({ rootPath: "/fixture/Notes", path: "docs" });
-    expect(text()).toContain("12 files · 2 KB · anything your .gitignore excludes stays out");
     expect(text()).toContain("They see the version you last saved.");
     // A link is read under the reader's own account, so there is nothing to choose.
     expect(text()).not.toContain("What can it do?");
 
-    const primary = button("Invite a person");
-    expect(primary?.className).toContain("primary");
-    expect(primary?.disabled).toBe(false);
-    expect(button("Cancel")?.className).not.toContain("primary");
+    // Cancel and the action are one pair at the end of the footer; the ways
+    // out of the default are links in the body, not a third footer slot.
+    const footer = dialog()?.querySelector(".desktop-dialog-footer");
+    expect(footer?.className).not.toContain("two-action");
+    expect([...footer?.children ?? []].map((child) => child.textContent))
+      .toEqual(["Cancel", "Invite a person"]);
+    expect(button("Invite a person")?.className).toContain("primary");
+    expect(button("Invite a person")?.disabled).toBe(false);
     expect(dialog()?.querySelectorAll(".desktop-dialog-button.primary")).toHaveLength(1);
+    expect(button("Connect an agent instead", dialog()?.querySelector(".desktop-reach-links"))).toBeTruthy();
   });
 
   it("re-measures when the choice widens to the whole project", async () => {

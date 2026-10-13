@@ -963,6 +963,7 @@
   "share.reach.residency.on-demand": "Wach, während er genutzt wird",
   "share.reach.residency.client-decides": "Entscheidet dein Client",
   "share.reach.scope.question": "Wie viel davon?",
+  "share.reach.preview.label": "Was darin ist",
   "share.reach.scope.narrow": "Nur einen Teil davon?",
   "share.reach.scope.measuring": "Es wird gezählt, was damit erreichbar wäre…",
   "share.reach.scope.measured": "{count, plural, one {# Datei} other {# Dateien}} · {size} · was deine .gitignore ausschließt, bleibt draußen",

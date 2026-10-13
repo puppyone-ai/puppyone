@@ -13,7 +13,7 @@ export { useProjectShareRevoke } from "./useProjectShareRevoke";
 export type { ProjectShareRevoke } from "./useProjectShareRevoke";
 /** The project-reach path's share screen; chosen at the App render entry. */
 export { ProjectReachDialog } from "./project-reach/ProjectReachDialog";
-export type { ProjectReachDialogProps } from "./project-reach/ProjectReachDialog";
+export type { ProjectReachDialogProps, ReachPreviewEntry } from "./project-reach/ProjectReachDialog";
 export type {
   ShareWizardDialogProps,
   ShareWizardFolderEntry,

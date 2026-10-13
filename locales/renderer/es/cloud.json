@@ -963,6 +963,7 @@
   "share.reach.residency.on-demand": "Despierto mientras se usa",
   "share.reach.residency.client-decides": "Lo decide tu cliente",
   "share.reach.scope.question": "¿Cuánto de él?",
+  "share.reach.preview.label": "Qué contiene",
   "share.reach.scope.narrow": "¿Solo una parte?",
   "share.reach.scope.measuring": "Contando lo que quedaría al alcance…",
   "share.reach.scope.measured": "{count, plural, one {# archivo} other {# archivos}} · {size} · lo que excluye tu .gitignore se queda fuera",

@@ -155,6 +155,7 @@ import {
   useProjectShareActivity,
   useProjectShareRevoke,
   type CloudShareActions,
+  type ReachPreviewEntry,
   type ShareTargetId,
   type ShareWizardFolderEntry,
 } from "./features/cloud/share";
@@ -991,6 +992,22 @@ function AppContent() {
         path: resolveWorkspaceResource(node.path)?.providerPath ?? node.name,
       }))
       .filter((entry) => entry.path.length > 0);
+  }, [dataPort, focusedWorkspaceFolder?.uri, resolveWorkspaceResource]);
+  // What is inside the folder a share would cover, for the share screen's
+  // preview. Files included: a preview that showed only folders would still
+  // not answer "what am I handing over".
+  const listSharePreviewEntries = useCallback(async (path: string): Promise<readonly ReachPreviewEntry[]> => {
+    if (!dataPort) return [];
+    const root = await dataPort.listChildren(focusedWorkspaceFolder?.uri ?? null);
+    const describe = (nodes: typeof root) => nodes.map((node) => ({
+      name: node.name,
+      kind: node.type === "folder" ? "folder" as const : "file" as const,
+    }));
+    if (!path) return describe(root);
+    const chosen = root.find((node) => (
+      (resolveWorkspaceResource(node.path)?.providerPath ?? node.name) === path
+    ));
+    return chosen ? describe(await dataPort.listChildren(chosen.path)) : [];
   }, [dataPort, focusedWorkspaceFolder?.uri, resolveWorkspaceResource]);
 
   const workspacePath = focusedWorkspace?.path ?? null;
@@ -2146,6 +2163,7 @@ function AppContent() {
               }}
               shares={projectShares}
               listTopLevelFolders={listShareFolders}
+              listPreviewEntries={listSharePreviewEntries}
               onSessionChange={updateCloudSession}
               onIssued={setPendingShare}
               onOpenCloud={() => {

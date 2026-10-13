@@ -1,7 +1,7 @@
 import { bidiIsolate } from "@puppyone/localization";
 import { useLocalization } from "@puppyone/localization/react";
 import { Tooltip } from "@puppyone/shared-ui";
-import { Check, Folder, FolderTree, LoaderCircle, Share2 } from "lucide-react";
+import { Check, FileText, Folder, FolderTree, LoaderCircle, Share2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   DesktopDialogCloseButton,
@@ -71,7 +71,16 @@ export type ProjectReachDialogProps = ShareWizardDialogProps & {
    * a destination; without it the target decides, as before.
    */
   initialIntent?: ReachIntent;
+  /**
+   * What is inside the folder being shared, for the preview. Optional: without
+   * it the preview falls back to the folders the scope chooser already loads,
+   * so the screen degrades to a thinner preview instead of an empty frame.
+   */
+  listPreviewEntries?: (path: string) => Promise<readonly ReachPreviewEntry[]>;
 };
+
+/** One line of the preview: enough to recognize the folder, nothing more. */
+export type ReachPreviewEntry = Readonly<{ name: string; kind: "folder" | "file" }>;
 
 export function ProjectReachDialog(props: ProjectReachDialogProps) {
   const { t } = useLocalization();
@@ -235,7 +244,14 @@ type ReachFormShared = {
   onConfirm: () => void;
 };
 
-/** Inviting a person: what they get, and the verb. No setup in between. */
+/**
+ * Inviting a person: what they get, and the verb.
+ *
+ * The folder is shown, not described. A line of counts answers "how big",
+ * never "what is this" — and "what is this" is the only question a person
+ * actually has before sending a link. The preview fades out at its bottom
+ * because it is a look inside, not a file manager.
+ */
 function ReachInviteForm({
   scope, measured, dialog, readers, onIntentChange, onScopeChange, onConfirm,
 }: ReachFormShared) {
@@ -245,30 +261,25 @@ function ReachInviteForm({
   return (
     <>
       <div className="desktop-dialog-body desktop-share-dialog-body desktop-reach-form">
-        <ReachObject scope={scope} measured={measured} consequence={t("cloud.share.reach.mechanism")} />
-        <p className="desktop-reach-fact">{t("cloud.share.reach.invite.recipient")}</p>
-        {narrowing ? (
+        <ReachPreview scope={scope} measured={measured} dialog={dialog} />
+        <p className="desktop-reach-fact">{t("cloud.share.reach.mechanism")}</p>
+        {narrowing && (
           <ReachScopeChoice
             scope={scope}
             initialPath={dialog.initialPath}
             listTopLevelFolders={dialog.listTopLevelFolders}
             onScopeChange={onScopeChange}
           />
-        ) : (
-          <button
-            type="button"
-            className="desktop-share-inline-link desktop-reach-narrow"
-            onClick={() => setNarrowing(true)}
-          >
-            {t("cloud.share.reach.scope.narrow")}
-          </button>
         )}
         {readers}
+        <ReachSecondaryLinks
+          intent="invite"
+          onIntentChange={onIntentChange}
+          narrow={narrowing ? undefined : () => setNarrowing(true)}
+        />
       </div>
       <ReachFormFooter
         dialog={dialog}
-        intent="invite"
-        onIntentChange={onIntentChange}
         action={t("cloud.share.reach.action.invite")}
         onConfirm={onConfirm}
       />
@@ -296,8 +307,9 @@ function ReachConnectForm({
             onSelect={(id) => { onSelect(id); setChosen(true); }}
           />
           {readers}
+          <ReachSecondaryLinks intent="connect" onIntentChange={onIntentChange} />
         </div>
-        <ReachFormFooter dialog={dialog} intent="connect" onIntentChange={onIntentChange} />
+        <ReachFormFooter dialog={dialog} />
       </>
     );
   }
@@ -316,7 +328,7 @@ function ReachConnectForm({
             {t("cloud.share.reach.connect.change")}
           </button>
         </div>
-        <ReachObject scope={scope} measured={measured} />
+        <ReachPreview scope={scope} measured={measured} dialog={dialog} />
         <ReachScopeChoice
           scope={scope}
           question={t("cloud.share.reach.connect.scopeQuestion", { target: targetLabel })}
@@ -345,11 +357,10 @@ function ReachConnectForm({
         )}
         <p className="desktop-reach-fact">{t("cloud.share.reach.connect.changesReturn")}</p>
         {readers}
+        <ReachSecondaryLinks intent="connect" onIntentChange={onIntentChange} />
       </div>
       <ReachFormFooter
         dialog={dialog}
-        intent="connect"
-        onIntentChange={onIntentChange}
         action={t("cloud.share.reach.action.connect", { target: targetLabel })}
         onConfirm={onConfirm}
       />
@@ -358,60 +369,121 @@ function ReachConnectForm({
 }
 
 /**
- * What the other side will be able to reach: the part of the project, and
- * what it amounts to. The title already names the project, so this states
- * the thing the title cannot — how much of it, and how big that is.
+ * A look inside the folder being shared.
  *
- * The consequence sentence is passed in, because each verb has exactly one:
- * a person reads a saved version, an agent returns changes for review.
- * Printing both would be two sentences saying almost the same thing.
+ * A count is not a preview: "852 files" tells the user nothing about what
+ * they are about to hand over. So the screen shows the folder's own contents
+ * and lets them run past the bottom edge under a fade — the fade is the
+ * honest way to say "and more", instead of a scrollbar that invites browsing
+ * on a screen whose job is one decision.
  */
-function ReachObject({ scope, measured, consequence }: {
+function ReachPreview({ scope, measured, dialog }: {
   scope: ReachScope;
   measured: PublishScopeState;
-  consequence?: string;
+  dialog: ProjectReachDialogProps;
 }) {
   const localization = useLocalization();
   const { t } = localization;
+  const entries = useReachPreviewEntries(dialog, scope.path);
   const folder = scope.path.split("/").filter(Boolean).pop();
+
   return (
-    <div className="desktop-reach-object">
-      <span className="desktop-reach-object-mark" aria-hidden="true">
-        {scope.path ? <Folder size={15} strokeWidth={1.8} /> : <FolderTree size={15} strokeWidth={1.8} />}
-      </span>
-      <span className="desktop-reach-object-body">
-        <bdi className="desktop-reach-object-name">{folder ?? t("cloud.share.scope.whole")}</bdi>
-        <span className="desktop-reach-object-meta" aria-live="polite">
+    <section className="desktop-reach-preview" aria-label={t("cloud.share.reach.preview.label")}>
+      <div className="desktop-reach-preview-sheet" aria-hidden={entries.length === 0 ? "true" : undefined}>
+        <ul className="desktop-reach-preview-list">
+          {entries.map((entry) => (
+            <li key={`${entry.kind}:${entry.name}`} className="desktop-reach-preview-entry" data-kind={entry.kind}>
+              <span className="desktop-reach-preview-entry-mark" aria-hidden="true">
+                {entry.kind === "folder"
+                  ? <Folder size={14} strokeWidth={1.8} />
+                  : <FileText size={14} strokeWidth={1.8} />}
+              </span>
+              <bdi className="desktop-reach-preview-entry-name">{entry.name}</bdi>
+            </li>
+          ))}
+        </ul>
+        <span className="desktop-reach-preview-fade" aria-hidden="true" />
+      </div>
+      <p className="desktop-reach-preview-caption">
+        <span className="desktop-reach-preview-scope">
+          <bdi>{folder ?? t("cloud.share.scope.whole")}</bdi>
+        </span>
+        <span className="desktop-reach-preview-meta" aria-live="polite">
           {formatReachScopeMeasurement(measured, localization)}
         </span>
-      </span>
-      {consequence && <span className="desktop-reach-object-consequence">{consequence}</span>}
+      </p>
+    </section>
+  );
+}
+
+/**
+ * What to show inside the preview. The caller's own listing is preferred
+ * because it knows about files; without it the scope chooser's folders are
+ * still a truthful, if thinner, look inside.
+ */
+function useReachPreviewEntries(dialog: ProjectReachDialogProps, path: string): readonly ReachPreviewEntry[] {
+  const [entries, setEntries] = useState<readonly ReachPreviewEntry[]>([]);
+  const { listPreviewEntries, listTopLevelFolders } = dialog;
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = listPreviewEntries
+      ? listPreviewEntries(path)
+      : listTopLevelFolders().then((folders) => folders.map((folder) => (
+        { name: folder.name, kind: "folder" as const }
+      )));
+    load
+      .then((loaded) => { if (!cancelled) setEntries(loaded.slice(0, PREVIEW_ENTRY_LIMIT)); })
+      .catch(() => { if (!cancelled) setEntries([]); });
+    return () => { cancelled = true; };
+  }, [listPreviewEntries, listTopLevelFolders, path]);
+
+  return entries;
+}
+
+/** Enough rows to recognize a folder, and one more to justify the fade. */
+const PREVIEW_ENTRY_LIMIT = 9;
+
+/**
+ * The other verb, and narrowing. Both are ways out of the screen's default,
+ * so they sit together at the bottom as quiet links instead of competing
+ * with the action or splitting the footer.
+ */
+function ReachSecondaryLinks({ intent, onIntentChange, narrow }: {
+  intent: ReachIntent;
+  onIntentChange: (intent: ReachIntent) => void;
+  narrow?: () => void;
+}) {
+  const { t } = useLocalization();
+  return (
+    <div className="desktop-reach-links">
+      {narrow && (
+        <button type="button" className="desktop-share-inline-link" onClick={narrow}>
+          {t("cloud.share.reach.scope.narrow")}
+        </button>
+      )}
+      <button
+        type="button"
+        className="desktop-share-inline-link desktop-reach-switch"
+        onClick={() => onIntentChange(intent === "invite" ? "connect" : "invite")}
+      >
+        {t(intent === "invite"
+          ? "cloud.share.reach.switchToConnect"
+          : "cloud.share.reach.switchToInvite")}
+      </button>
     </div>
   );
 }
 
-/** The same footer for both verbs: the other verb, cancel, and the action. */
-function ReachFormFooter({ dialog, intent, onIntentChange, action, onConfirm }: {
+/** Cancel and the action, as one pair at the end of the row. Nothing else. */
+function ReachFormFooter({ dialog, action, onConfirm }: {
   dialog: ProjectReachDialogProps;
-  intent: ReachIntent;
-  onIntentChange: (intent: ReachIntent) => void;
   action?: string;
   onConfirm?: () => void;
 }) {
   const { t } = useLocalization();
   return (
-    <footer className="desktop-dialog-footer two-action">
-      <span className="desktop-share-footer-side">
-        <button
-          type="button"
-          className="desktop-share-inline-link desktop-reach-switch"
-          onClick={() => onIntentChange(intent === "invite" ? "connect" : "invite")}
-        >
-          {t(intent === "invite"
-            ? "cloud.share.reach.switchToConnect"
-            : "cloud.share.reach.switchToInvite")}
-        </button>
-      </span>
+    <footer className="desktop-dialog-footer">
       <button type="button" className="desktop-dialog-button" onClick={dialog.onClose}>
         {t("cloud.common.cancel")}
       </button>

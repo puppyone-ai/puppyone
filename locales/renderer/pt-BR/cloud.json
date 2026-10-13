@@ -963,6 +963,7 @@
   "share.reach.residency.on-demand": "Acordado enquanto está em uso",
   "share.reach.residency.client-decides": "Quem decide é o seu cliente",
   "share.reach.scope.question": "Quanto dele?",
+  "share.reach.preview.label": "O que há dentro",
   "share.reach.scope.narrow": "Apenas uma parte?",
   "share.reach.scope.measuring": "Contando o que ficaria ao alcance…",
   "share.reach.scope.measured": "{count, plural, one {# arquivo} other {# arquivos}} · {size} · o que o seu .gitignore exclui fica de fora",

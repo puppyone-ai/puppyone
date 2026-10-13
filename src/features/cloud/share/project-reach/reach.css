@@ -26,53 +26,105 @@
     text-decoration: underline;
   }
 
-  /* What the other side will get, stated once, at the top, as a fact about
-     the project rather than the first thing to configure. */
-  .desktop-reach-object {
+  /* A look inside the folder, cut off by a fade rather than a scrollbar: the
+     screen is one decision, not a place to browse. */
+  .desktop-reach-preview {
     display: grid;
-    align-items: start;
-    gap: 2px 10px;
-    grid-template-columns: auto minmax(0, 1fr);
-    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .desktop-reach-preview-sheet {
+    position: relative;
+    overflow: hidden;
+    height: 148px;
+    padding: 10px 12px 0;
     border: 1px solid var(--po-divider);
     border-radius: 10px;
     background: var(--po-surface);
   }
 
-  .desktop-reach-object-mark {
+  .desktop-reach-preview-list {
     display: grid;
-    width: 20px;
-    height: 20px;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .desktop-reach-preview-entry {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 8px;
+    height: 22px;
+    color: var(--po-text);
+    font-size: var(--po-type-ui-body, 13px);
+    line-height: 22px;
+  }
+
+  .desktop-reach-preview-entry-mark {
+    display: grid;
+    width: 16px;
+    flex: 0 0 16px;
     place-items: center;
     color: var(--po-text-muted);
   }
 
-  .desktop-reach-object-body {
-    display: grid;
-    min-width: 0;
-    gap: 1px;
+  .desktop-reach-preview-entry[data-kind="folder"] .desktop-reach-preview-entry-mark {
+    color: var(--po-accent-text, var(--po-text-muted));
   }
 
-  .desktop-reach-object-name {
+  .desktop-reach-preview-entry-name {
+    min-width: 0;
     overflow: hidden;
-    color: var(--po-text);
-    font-size: var(--po-type-ui-body, 13px);
-    font-weight: var(--po-text-weight-medium, 500);
-    line-height: 20px;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .desktop-reach-object-meta,
-  .desktop-reach-object-consequence {
+  /* The fade is what says "and more", so it is part of the sheet, not a
+     decoration on top of it. */
+  .desktop-reach-preview-fade {
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    height: 56px;
+    background: linear-gradient(to bottom, transparent, var(--po-surface) 86%);
+    pointer-events: none;
+  }
+
+  .desktop-reach-preview-caption {
+    display: flex;
+    margin: 0;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .desktop-reach-preview-scope {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--po-text);
+    font-size: var(--po-type-ui-body, 13px);
+    font-weight: var(--po-text-weight-medium, 500);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .desktop-reach-preview-meta {
+    min-width: 0;
+    flex: 1 1 auto;
     color: var(--po-text-muted);
     font-size: var(--po-type-ui-meta, 12px);
     line-height: 1.5;
   }
 
-  .desktop-reach-object-consequence {
-    grid-column: 2;
-    margin-top: 4px;
+  /* Ways out of the default, together, under everything they are an
+     alternative to. */
+  .desktop-reach-links {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding-top: 2px;
   }
 
   /* The agent the user named, kept visible while they answer the question

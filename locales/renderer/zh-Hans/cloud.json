@@ -963,6 +963,7 @@
   "share.reach.residency.on-demand": "被用到时才醒着",
   "share.reach.residency.client-decides": "由你用的客户端决定",
   "share.reach.scope.question": "给它看多少？",
+  "share.reach.preview.label": "里面有什么",
   "share.reach.scope.narrow": "只给其中一部分？",
   "share.reach.scope.measuring": "正在统计会被读到的范围…",
   "share.reach.scope.measured": "{count, plural, other {# 个文件}} · {size} · 你的 .gitignore 排除的内容不在其中",

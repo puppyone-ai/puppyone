@@ -963,6 +963,7 @@
   "share.reach.residency.on-demand": "사용하는 동안만 깨어 있음",
   "share.reach.residency.client-decides": "사용하는 클라이언트가 결정",
   "share.reach.scope.question": "어디까지 보여줄까요?",
+  "share.reach.preview.label": "안에 있는 것",
   "share.reach.scope.narrow": "일부만 공유할까요?",
   "share.reach.scope.measuring": "닿게 될 범위를 세는 중…",
   "share.reach.scope.measured": "{count, plural, other {파일 #개}} · {size} · .gitignore가 제외한 것은 포함되지 않습니다",
