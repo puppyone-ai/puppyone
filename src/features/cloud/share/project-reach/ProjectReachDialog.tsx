@@ -1,7 +1,7 @@
 import { bidiIsolate } from "@puppyone/localization";
 import { useLocalization } from "@puppyone/localization/react";
 import { Tooltip } from "@puppyone/shared-ui";
-import { Check, FileText, Folder, FolderTree, LoaderCircle, Share2 } from "lucide-react";
+import { Check, Folder, FolderTree, Link2, LoaderCircle, Share2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   DesktopDialogCloseButton,
@@ -255,13 +255,14 @@ type ReachFormShared = {
  * Inviting a person is making a link.
  *
  * "Invite a person" is a verb without an object: nobody can picture what
- * arrives at the other end. A link they can see — blurred, because it does
- * not exist yet — is the whole mental model, and pressing the button is what
- * brings it into existence. That is also the honest story of the mechanism:
- * the link is the only thing the other side ever gets.
+ * arrives at the other end. The link is that object, so it is the first thing
+ * on the screen and it carries its own verb — the button that makes it sits
+ * in the field it will fill, where the copy button will stand afterwards. A
+ * button at the far corner of a dialog is not visibly connected to the empty
+ * field at the top, and a user cannot act on a connection they cannot see.
  *
- * Under it, the folder is shown rather than described. Counts of files and
- * megabytes answer a question nobody asked before sending a link.
+ * The empty field shows the real address with the unknown part masked, not a
+ * blurred sentence: blur reads as a rendering fault, dots read as "not yet".
  */
 function ReachInviteForm({
   scope, dialog, readers, onIntentChange, onScopeChange, onConfirm,
@@ -272,9 +273,9 @@ function ReachInviteForm({
   return (
     <>
       <div className="desktop-dialog-body desktop-share-dialog-body desktop-reach-form">
-        <ReachPendingLink />
+        <ReachLinkRow action={t("cloud.share.reach.action.invite")} onCreate={onConfirm} />
         <p className="desktop-reach-fact">
-          {t("cloud.share.reach.invite.linkIsTheInvite")} {t("cloud.share.reach.mechanism")}
+          {t("cloud.share.reach.invite.linkPurpose")} {t("cloud.share.reach.mechanism")}
         </p>
         <ReachPreview scope={scope} dialog={dialog} />
         {narrowing && (
@@ -292,11 +293,7 @@ function ReachInviteForm({
           narrow={narrowing ? undefined : () => setNarrowing(true)}
         />
       </div>
-      <ReachFormFooter
-        dialog={dialog}
-        action={t("cloud.share.reach.action.invite")}
-        onConfirm={onConfirm}
-      />
+      <ReachFormFooter dialog={dialog} />
     </>
   );
 }
@@ -407,34 +404,49 @@ function ReachPreview({ scope, dialog }: {
 }
 
 /**
- * The link, before it exists.
+ * The link, before it exists, with the verb that brings it into being.
  *
- * It is blurred because it is not real yet, and it is shown because it is the
- * only thing the other side will ever receive. The row is the same row the
- * finished link appears in, so pressing the button fills in a field the user
- * has already seen rather than revealing a screen they have not.
+ * One row, one job: this is where the link lives, and this is how you get it.
+ * The address is real and only the part that does not exist yet is masked, so
+ * the row is a promise the product can keep rather than a decoration.
  */
-function ReachPendingLink() {
+function ReachLinkRow({ action, onCreate }: { action: string; onCreate?: () => void }) {
   const { t } = useLocalization();
   return (
     <div
-      className="desktop-share-copy-field desktop-reach-pending-link"
+      className="desktop-reach-link-row"
       role="group"
       aria-label={t("cloud.share.reach.invite.linkPending")}
     >
-      <span className="desktop-share-copy-label">{t("cloud.share.handoff.link")}</span>
-      <code className="desktop-share-copy-value desktop-reach-pending-link-value" aria-hidden="true" dir="ltr">
-        {PENDING_LINK_SHAPE}
-      </code>
+      <span className="desktop-reach-link-mark" aria-hidden="true">
+        <Link2 size={15} strokeWidth={1.8} />
+      </span>
+      <code className="desktop-reach-link-value" aria-hidden="true" dir="ltr">{pendingLinkShape()}</code>
+      <button
+        type="button"
+        className="desktop-reach-link-action"
+        data-desktop-dialog-initial-focus="true"
+        onClick={onCreate}
+      >
+        {action}
+      </button>
     </div>
   );
 }
 
 /**
- * A link's shape, not a link: it never resolves, is never selectable and is
- * never read aloud. Only its silhouette is doing any work.
+ * The address the link will have, with the part that is not decided yet shown
+ * as what it is: undecided. Nothing here is copyable, because there is
+ * nothing to copy.
  */
-const PENDING_LINK_SHAPE = "https://app.puppyone.ai/r/a7f3c91b4e2d/project";
+function pendingLinkShape(): string {
+  const masked = "•".repeat(10);
+  try {
+    return `${new URL(getDesktopCloudWebUrl("/")).host}/r/${masked}`;
+  } catch {
+    return `puppyone.ai/r/${masked}`;
+  }
+}
 
 /**
  * What to show inside the preview. The caller's own listing is preferred

@@ -951,7 +951,7 @@
   "billing.subscriptionStatus.disputed": "Paiement contesté",
   "share.thisProject": "Partager ce projet",
   "share.reach.invite.title": "Un lien vers {project}",
-  "share.reach.invite.linkIsTheInvite": "Le créer, c’est l’invitation : qui le reçoit peut lire.",
+  "share.reach.invite.linkPurpose": "Envoyez-le à qui doit lire ceci.",
   "share.reach.invite.linkPending": "Le lien n’existe pas encore",
   "share.reach.connect.title": "Connecter un Agent à {project}",
   "share.reach.switchToConnect": "Connecter un Agent à la place",

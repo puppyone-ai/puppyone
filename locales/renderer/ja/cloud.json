@@ -951,7 +951,7 @@
   "billing.subscriptionStatus.disputed": "支払い異議申し立て中",
   "share.thisProject": "このプロジェクトを共有",
   "share.reach.invite.title": "{project} へのリンク",
-  "share.reach.invite.linkIsTheInvite": "作ることが招待です。送った相手が読めます。",
+  "share.reach.invite.linkPurpose": "これを読むべき人に送ってください。",
   "share.reach.invite.linkPending": "リンクはまだありません",
   "share.reach.connect.title": "{project} に Agent を接続",
   "share.reach.switchToConnect": "代わりに Agent を接続",

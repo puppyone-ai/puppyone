@@ -152,10 +152,15 @@ describe("one screen for inviting a person", () => {
     // "Invite a person" is a verb with no object; the link is the object.
     expect(stripBidiIsolation(dialog()?.querySelector("h2")?.textContent)).toBe("A link to Notes");
     expect(dialog()?.querySelector(".desktop-share-stepper")).toBeNull();
-    const pending = dialog()?.querySelector(".desktop-reach-pending-link");
-    expect(pending?.getAttribute("aria-label")).toBe("The link does not exist yet");
-    expect(pending?.querySelector(".desktop-reach-pending-link-value")?.getAttribute("aria-hidden")).toBe("true");
-    expect(text()).toContain("Creating it is the invite");
+    // The verb that makes the link stands in the field the link will fill,
+    // not in the far corner of the dialog.
+    const row = dialog()?.querySelector(".desktop-reach-link-row");
+    expect(row?.getAttribute("aria-label")).toBe("The link does not exist yet");
+    expect(row?.querySelector(".desktop-reach-link-value")?.getAttribute("aria-hidden")).toBe("true");
+    expect(row?.querySelector(".desktop-reach-link-value")?.textContent).toContain("•");
+    expect(button("Create the link", row)).toBeTruthy();
+    expect(button("Create the link", row)?.dataset.desktopDialogInitialFocus).toBe("true");
+    expect(text()).toContain("Send it to whoever should read this.");
 
     // A count is not a preview: the folder is shown in the product's own
     // Explorer and Viewer, the same illustration the Cloud share screen uses.
@@ -171,15 +176,11 @@ describe("one screen for inviting a person", () => {
     // A link is read under the reader's own account, so there is nothing to choose.
     expect(text()).not.toContain("What can it do?");
 
-    // Cancel and the action are one pair at the end of the footer; the ways
-    // out of the default are links in the body, not a third footer slot.
+    // The footer keeps only the way out: the action is where the link is.
     const footer = dialog()?.querySelector(".desktop-dialog-footer");
     expect(footer?.className).not.toContain("two-action");
-    expect([...footer?.children ?? []].map((child) => child.textContent))
-      .toEqual(["Cancel", "Create the link"]);
-    expect(button("Create the link")?.className).toContain("primary");
-    expect(button("Create the link")?.disabled).toBe(false);
-    expect(dialog()?.querySelectorAll(".desktop-dialog-button.primary")).toHaveLength(1);
+    expect([...footer?.children ?? []].map((child) => child.textContent)).toEqual(["Cancel"]);
+    expect(dialog()?.querySelectorAll(".desktop-dialog-button.primary")).toHaveLength(0);
     expect(button("Connect an agent instead", dialog()?.querySelector(".desktop-reach-links"))).toBeTruthy();
   });
 

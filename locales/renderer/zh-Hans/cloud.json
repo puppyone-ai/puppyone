@@ -951,7 +951,7 @@
   "billing.subscriptionStatus.disputed": "支付争议",
   "share.thisProject": "分享此项目",
   "share.reach.invite.title": "一条到 {project} 的链接",
-  "share.reach.invite.linkIsTheInvite": "生成它就是邀请：你发给谁，谁就能读。",
+  "share.reach.invite.linkPurpose": "把它发给该读这个项目的人。",
   "share.reach.invite.linkPending": "链接还不存在",
   "share.reach.connect.title": "把 Agent 连到 {project}",
   "share.reach.switchToConnect": "改为连接 Agent",
