@@ -293,6 +293,64 @@ body.desktop-project-switcher-resizing * {
   --desktop-dialog-width: 420px;
 }
 
+.desktop-project-menu-header {
+  position: relative;
+  display: grid;
+  gap: 5px;
+  padding: 9px 9px 8px;
+}
+
+.desktop-project-menu-header-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--po-text);
+  font-size: var(--po-menu-item-font-size);
+  font-weight: 500;
+  line-height: var(--po-menu-item-line-height);
+}
+
+.desktop-project-menu-header-location {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.desktop-project-menu-header-path {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  color: var(--po-text-muted);
+  font-size: var(--po-menu-meta-font-size);
+  line-height: var(--po-menu-meta-line-height);
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.desktop-project-menu-header-copy {
+  color: var(--po-text-muted);
+}
+
+.desktop-project-menu-header-copy:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--po-focus-ring);
+}
+
+.desktop-project-menu-header-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.desktop-project-menu-header-error {
+  color: var(--po-danger);
+  font-size: var(--po-menu-meta-font-size);
+  line-height: var(--po-menu-meta-line-height);
+}
+
 .desktop-project-switcher-rail[data-expanded="true"]
   .desktop-project-switcher-rail-project:not([aria-current="page"]) {
   color: var(--po-text-muted);

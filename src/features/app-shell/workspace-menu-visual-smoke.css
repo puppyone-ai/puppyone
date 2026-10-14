@@ -55,3 +55,23 @@
 .workspace-menu-visual-body span:nth-child(3) {
   width: min(560px, 62%);
 }
+
+.workspace-menu-visual-body[data-project-actions="true"] {
+  opacity: 1;
+}
+
+.workspace-menu-visual-body[data-project-actions="true"] aside {
+  position: relative;
+  padding-top: 12px;
+}
+
+.workspace-menu-visual-body[data-project-actions="true"] aside span {
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: transparent;
+}
+
+.workspace-menu-visual-body[data-project-actions="true"] > div {
+  opacity: 0.35;
+}

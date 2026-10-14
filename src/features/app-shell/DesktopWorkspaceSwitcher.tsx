@@ -16,6 +16,7 @@ import {
   resolveProjectContextAssetKind,
 } from "./ProjectContextAssetMark";
 import { getProjectName, getWorkspaceParentPathForDisplay, type ProjectHomeItem } from "./workspaceHomeModel";
+import { ProjectMenuHeader } from "./ProjectMenuHeader";
 
 export type DesktopWorkspaceSwitcherProps = {
   open: boolean;
@@ -114,14 +115,15 @@ export function DesktopWorkspaceSwitcher({
         dismissOnFocusExit={false}
         open={open}
         preferredMaxHeight={520}
-        preferredWidth={view === "add" ? 240 : 248}
-        widthMode={view === "add" ? "fixed" : "content"}
+        preferredWidth={view === "add" ? 240 : 288}
+        widthMode="fixed"
         alignment={menuAlignment}
         role="menu"
         ariaLabel={t("shell.workspaceSwitcher.projects")}
       >
         {view !== "add" ? (
           <>
+            <ProjectMenuHeader key={workspace.path} name={workspace.name} path={workspace.path} />
             {onHome && <>
               <DesktopMenuItem icon={<ArrowLeft className="po-directional-icon" size={15} />} label={t("shell.workspaceSwitcher.home")}
                 onClick={() => { onClose(); onHome(); }} />

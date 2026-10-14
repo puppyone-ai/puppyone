@@ -7,6 +7,7 @@ import type { DesktopProjectLocation } from "./DesktopProjectLocationSwitcher";
 import { resetDesktopPlatformCapabilitiesForTests } from "../../platform/desktopPlatformClient";
 import "./workspace-menu-visual-smoke.css";
 import { desktopPreferencesStore, initializeDesktopPreferences } from "../../preferencesStore";
+import { ProjectSwitcherRail } from "./ProjectSwitcherRail";
 
 const inlineLocations = new URLSearchParams(window.location.search).get("location-presentation") === "header-icons";
 initializeDesktopPreferences();
@@ -45,6 +46,11 @@ export function WorkspaceMenuVisualSmokeHarness() {
   if (state === "signed-out") cloudState = "signed-out";
   if (state === "resolving") cloudState = "resolving";
   const theme = new URLSearchParams(window.location.search).get("theme") === "light" ? "light" : "dark";
+  const projectActions = new URLSearchParams(window.location.search).get("menu") === "project-actions";
+  const previewWorkspace = workspace("desktop", "puppyone-qubits",
+    new URLSearchParams(window.location.search).get("path") === "long"
+      ? "/Users/demo/Projects/Research and development/Interface experiments/puppyone-qubits"
+      : "/Users/demo/Projects/puppyone-qubits");
 
   return (
     <main className={`app-shell ${theme} workspace-menu-visual-smoke`}
@@ -79,8 +85,20 @@ export function WorkspaceMenuVisualSmokeHarness() {
           />
         </div>
       </header>
-      <section className="workspace-menu-visual-body" aria-hidden="true">
-        <aside />
+      <section className="workspace-menu-visual-body" aria-hidden={projectActions ? undefined : true}
+        data-project-actions={projectActions || undefined}>
+        <aside>
+          {projectActions && <ProjectSwitcherRail
+            activeWorkspace={previewWorkspace}
+            expanded
+            recentWorkspaces={[]}
+            projectItems={[{ id: previewWorkspace.id, label: previewWorkspace.name, localPath: previewWorkspace.path }]}
+            onCreateNew={() => undefined}
+            onSelectProject={() => undefined}
+            onRenameProject={async () => undefined}
+            onUnlinkProject={async () => undefined}
+          />}
+        </aside>
         <div>
           <span />
           <span />
