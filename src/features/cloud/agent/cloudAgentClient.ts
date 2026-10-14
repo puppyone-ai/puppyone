@@ -6,7 +6,8 @@ export type CloudRunState = "queued" | "running" | "waiting_approval" | "publish
 export type CloudAgentTool = {
   call_id: string; name: string; input: Record<string, unknown>;
   state: "waiting" | "approved" | "rejected" | "executing" | "completed";
-  result?: { content?: Array<{ type: string; text?: string }> } | null;
+  result?: { content?: Array<{ type: string; text?: string }>; isError?: boolean;
+    details?: { code?: string; recoverable?: boolean } } | null;
 };
 export type CloudAgentRun = {
   id: string; project_id: string; agent_id: string; session_id: string; request_id: string;

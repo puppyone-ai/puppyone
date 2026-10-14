@@ -14,7 +14,7 @@ export function projectCloudAgentRuns(runs: CloudAgentRun[]): AgentProjection {
     messages.push({ ...base, id: `${run.id}:user`, role: "user", submissionId: run.request_id,
       text: run.prompt, streaming: false, terminalState: null, sequence: sequence + 1 });
     for (const [toolIndex, tool] of (run.tools ?? []).entries()) {
-      const output = (tool.result?.content ?? []).filter(part => part.type === "text").map(part => part.text ?? "").join("\n");
+      const output = toolOutput(tool);
       const status = toolStatus(tool);
       const kind = toolKind(tool);
       activities.push({ ...base, id: `${run.id}:${tool.call_id}`, kind, label: tool.name, status,
@@ -61,8 +61,15 @@ function toolKind(tool: CloudAgentTool): AgentActivity["kind"] {
   if (["write", "edit"].includes(tool.name)) return "file-change";
   return "tool";
 }
+function toolOutput(tool: CloudAgentTool): string {
+  return (tool.result?.content ?? []).filter(part => part.type === "text").map(part => part.text ?? "").join("\n")
+    || (tool.state === "rejected" ? "You declined this tool call. The Agent can continue with another approach." : "");
+}
 function toolStatus(tool: CloudAgentTool): AgentActivity["status"] {
-  if (tool.state === "completed") return "completed";
+  if (tool.state === "completed") {
+    if (!tool.result?.isError) return "completed";
+    return ["tool_permission_denied", "tool_approval_denied", "tool_unavailable"].includes(tool.result.details?.code ?? "") ? "blocked" : "failed";
+  }
   if (tool.state === "rejected") return "cancelled";
   if (tool.state === "waiting") return "waiting-for-user";
   return "running";
