@@ -618,8 +618,8 @@ async function createWindow(options = {}) {
     .map((folderPath) => path.resolve(folderPath));
   const appIconPath = desktopPlatformHost.windowChrome.supportsDockIcon ? null : resolveAppIconPath();
   const window = new BrowserWindow({
-    width: 1280,
-    height: 840,
+    width: 1180,
+    height: 760,
     minWidth: DESKTOP_WINDOW_MIN_WIDTH,
     minHeight: DESKTOP_WINDOW_MIN_HEIGHT,
     center: true,
