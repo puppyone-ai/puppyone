@@ -796,14 +796,14 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   opacity: 0;
 }
 
-/* Copy shares the trailing slot with the current-project marker. Only the
- * action's own hover/focus reveals it, keeping the project list quiet. */
-.desktop-project-switcher-copy:hover,
+/* Hovering anywhere on a project row reveals its trailing copy action. */
+.desktop-project-switcher-row:hover .desktop-project-switcher-copy,
 .desktop-project-switcher-copy:focus-visible {
   opacity: 1;
 }
 
-.desktop-project-switcher-row:has(.desktop-project-switcher-copy:hover, .desktop-project-switcher-copy:focus-visible)
+.desktop-project-switcher-row[data-has-local-path]:hover .desktop-menu-item-trailing,
+.desktop-project-switcher-row:has(.desktop-project-switcher-copy:focus-visible)
   .desktop-menu-item-trailing {
   opacity: 0;
 }
