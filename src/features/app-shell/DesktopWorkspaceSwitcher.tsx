@@ -5,7 +5,6 @@ import {
   Plus,
   FolderPlus,
   House,
-  Check,
 } from "lucide-react";
 import { DesktopMenuItem, DesktopMenuSeparator } from "../../components/DesktopMenu";
 import { HomeProjectIcon } from "../../components/onboarding/HomeProjectIcon";
@@ -15,8 +14,8 @@ import {
   ProjectContextAssetMark,
   resolveProjectContextAssetKind,
 } from "./ProjectContextAssetMark";
-import { getProjectName, getWorkspaceParentPathForDisplay, type ProjectHomeItem } from "./workspaceHomeModel";
-import { ProjectMenuHeader } from "./ProjectMenuHeader";
+import { getWorkspaceParentPathForDisplay, type ProjectHomeItem } from "./workspaceHomeModel";
+import { DesktopProjectMenuItem } from "./DesktopProjectMenuItem";
 
 export type DesktopWorkspaceSwitcherProps = {
   open: boolean;
@@ -115,7 +114,7 @@ export function DesktopWorkspaceSwitcher({
         dismissOnFocusExit={false}
         open={open}
         preferredMaxHeight={520}
-        preferredWidth={view === "add" ? 240 : 288}
+        preferredWidth={240}
         widthMode="fixed"
         alignment={menuAlignment}
         role="menu"
@@ -123,7 +122,6 @@ export function DesktopWorkspaceSwitcher({
       >
         {view !== "add" ? (
           <>
-            <ProjectMenuHeader key={workspace.path} name={workspace.name} path={workspace.path} />
             {onHome && <>
               <DesktopMenuItem icon={<ArrowLeft className="po-directional-icon" size={15} />} label={t("shell.workspaceSwitcher.home")}
                 onClick={() => { onClose(); onHome(); }} />
@@ -133,12 +131,9 @@ export function DesktopWorkspaceSwitcher({
               {projects.map(project => {
                 const selected = project.localPath === workspace.path
                   || Boolean(currentCloudProjectId && project.cloudProjectId === currentCloudProjectId);
-                return <DesktopMenuItem key={project.id}
-                  icon={<HomeProjectIcon item={project} />}
-                  label={<bdi>{getProjectName(project, t("onboarding.projects.untitled"))}</bdi>} selected={selected}
-                  aria-current={selected ? "page" : undefined}
-                  trailing={selected ? <Check size={14} /> : undefined}
-                  onClick={() => {
+                return <DesktopProjectMenuItem key={`${project.id}:${project.localPath}`}
+                  project={project} selected={selected}
+                  onSelect={() => {
                     onClose();
                     if (selected) return;
                     if (project.localPath) onSelectProject?.(project.localPath);

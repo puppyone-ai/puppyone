@@ -8,12 +8,14 @@ import { DesktopWorkspaceSwitcher } from "../../../../src/features/app-shell/Des
 import { DesktopProjectLocationSwitcher } from "../../../../src/features/app-shell/DesktopProjectLocationSwitcher";
 import { initializeDesktopPreferences } from "../../../../src/preferencesStore";
 import { withTestLocalization } from "../../../support/react/localization";
+import { writeClipboardText } from "../../../../src/lib/clipboard";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const device = vi.hoisted(() => ({ platform: "macos" as string | null }));
 vi.mock("../../../../src/platform/useDesktopPlatformCapabilities", () => ({
   useDesktopPlatformCapabilities: () => device.platform ? { platform: device.platform } : null,
 }));
+vi.mock("../../../../src/lib/clipboard", () => ({ writeClipboardText: vi.fn() }));
 let root: Root;
 let container: HTMLDivElement;
 const workspace = { id: "one", name: "Workspace one", path: "/tmp/one", status: "recording" as const };
@@ -74,12 +76,58 @@ describe("combined Home and project menu", () => {
     expect(container.contains(menu())).toBe(false);
     expect(menu().dataset.windowNoDrag).toBe("true");
     expect(menu().querySelectorAll('[aria-current="page"]')).toHaveLength(1);
-    expect(menu().querySelectorAll("button")).toHaveLength(4);
+    expect(menu().querySelectorAll(".desktop-menu-item")).toHaveLength(4);
     clickText(workspace.name); expect(select).not.toHaveBeenCalled();
     clickText(second.name); expect(select).toHaveBeenCalledExactlyOnceWith(second.path);
     clickText("Home"); expect(home).toHaveBeenCalledOnce();
     clickText("Create new"); expect(create).toHaveBeenCalledOnce();
     expect(close).toHaveBeenCalledTimes(4);
+  });
+
+  it("copies each local project's path without navigating or closing the menu", async () => {
+    const close = vi.fn(), select = vi.fn(), selectCloud = vi.fn();
+    vi.mocked(writeClipboardText).mockResolvedValue(undefined);
+    await render(<DesktopWorkspaceSwitcher {...projectProps} onHome={noOp}
+      projectItems={[
+        { id: workspace.id, label: workspace.name, localPath: workspace.path },
+        { id: second.id, label: second.name, localPath: second.path, cloudProjectId: "linked" },
+        { id: "cloud", label: "Cloud only", localPath: "", cloudProjectId: "cloud" },
+      ]}
+      onClose={close} onSelectProject={select} onSelectCloudProject={selectCloud} />);
+    const popup = menu();
+    expect(popup.querySelector(".desktop-project-menu-header")).toBeNull();
+    expect(popup.querySelector(".desktop-menu-item")?.textContent).toBe("Home");
+    const copyButtons = [...popup.querySelectorAll<HTMLButtonElement>(".desktop-project-switcher-copy")];
+    expect(copyButtons).toHaveLength(2);
+    for (const [index, project] of [workspace, second].entries()) {
+      expect(copyButtons[index].dataset.tooltip).toContain(project.path);
+      await act(async () => copyButtons[index].click());
+      expect(writeClipboardText).toHaveBeenLastCalledWith(project.path);
+      expect(copyButtons[index].getAttribute("aria-label")).toContain("Copied");
+    }
+    expect(popup.querySelectorAll('[aria-current="page"]')).toHaveLength(1);
+    expect(popup.querySelector('[aria-current="page"]')?.textContent).toBe(workspace.name);
+    expect(close).not.toHaveBeenCalled();
+    expect(select).not.toHaveBeenCalled();
+    expect(selectCloud).not.toHaveBeenCalled();
+    expect(menu()).toBe(popup);
+  });
+
+  it("keeps a failed copy retryable without switching the selected project", async () => {
+    const close = vi.fn(), select = vi.fn();
+    vi.mocked(writeClipboardText).mockRejectedValueOnce(new Error("Clipboard unavailable"))
+      .mockResolvedValue(undefined);
+    await render(<DesktopWorkspaceSwitcher {...projectProps} availableProjects={[workspace, second]}
+      onClose={close} onSelectProject={select} />);
+    const copy = menu().querySelectorAll<HTMLButtonElement>(".desktop-project-switcher-copy")[1];
+    await act(async () => copy.click());
+    expect(menu().querySelector('[role="alert"]')?.textContent).toBeTruthy();
+    expect(copy.disabled).toBe(false);
+    await act(async () => copy.click());
+    expect(writeClipboardText).toHaveBeenLastCalledWith(second.path);
+    expect(menu().querySelector('[role="alert"]')).toBeNull();
+    expect(close).not.toHaveBeenCalled();
+    expect(select).not.toHaveBeenCalled();
   });
 
   it("restores focus on Escape and dismisses outside the menu, including Header blank space", async () => {

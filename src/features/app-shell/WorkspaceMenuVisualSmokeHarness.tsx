@@ -17,6 +17,16 @@ desktopPreferencesStore.getState().setExperimentalSettings(s => ({
 }));
 
 const currentWorkspace = workspace("todo", "To-Do-List", "/Users/demo/Desktop/To-Do-List");
+const menuProjects = [
+  workspace("vault", "puppyone Vault", "/Users/demo/Projects/puppyone Vault"),
+  workspace("issues", "puppy-issues", "/Users/demo/Projects/puppy-issues"),
+  workspace("pitch", "VC pitch", "/Users/demo/Projects/VC pitch"),
+  workspace("demo", "独立站demo", "/Users/demo/Projects/独立站demo"),
+  currentWorkspace,
+  workspace("marketing", "marketing-pitch", "/Users/demo/Projects/marketing-pitch"),
+  workspace("contracts", "合同合集", "/Users/demo/Projects/合同合集"),
+  workspace("ontology", "ontology demo", "/Users/demo/Projects/ontology demo"),
+];
 
 const requestedPlatform = new URLSearchParams(window.location.search).get("platform");
 const platform: DesktopPlatform = requestedPlatform === "windows" || requestedPlatform === "linux"
@@ -47,6 +57,7 @@ export function WorkspaceMenuVisualSmokeHarness() {
   if (state === "resolving") cloudState = "resolving";
   const theme = new URLSearchParams(window.location.search).get("theme") === "light" ? "light" : "dark";
   const projectActions = new URLSearchParams(window.location.search).get("menu") === "project-actions";
+  const projectList = new URLSearchParams(window.location.search).get("menu") === "project-list";
   const previewWorkspace = workspace("desktop", "puppyone-qubits",
     new URLSearchParams(window.location.search).get("path") === "long"
       ? "/Users/demo/Projects/Research and development/Interface experiments/puppyone-qubits"
@@ -66,7 +77,7 @@ export function WorkspaceMenuVisualSmokeHarness() {
             titlebarLabel={currentWorkspace.name}
             menuAlignment="center"
             workspace={currentWorkspace}
-            availableProjects={[currentWorkspace]}
+            availableProjects={projectList ? menuProjects : [currentWorkspace]}
             workspaceFolders={[]}
             multiRootWorkspacesEnabled={false}
             projectLocation={{
@@ -82,6 +93,10 @@ export function WorkspaceMenuVisualSmokeHarness() {
             onViewLocal={() => setRequested("local")}
             onViewCloud={() => setRequested("cloud")}
             onToggle={() => setOpen(current => !current)}
+            {...(projectList ? {
+              onHome: () => setOpen(false),
+              onCreateProject: () => setOpen(false),
+            } : {})}
           />
         </div>
       </header>

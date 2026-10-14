@@ -766,6 +766,68 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   border-top: 0;
 }
 
+.desktop-project-switcher-row {
+  position: relative;
+  min-width: 0;
+}
+
+.desktop-project-switcher-row[data-has-local-path] > .desktop-menu-item {
+  padding-inline-end: calc(var(--po-menu-item-padding-inline) + 22px + var(--po-menu-item-gap));
+}
+
+.desktop-project-switcher-row:hover > .desktop-menu-item {
+  background: var(--po-hover);
+  color: var(--po-text);
+}
+
+.desktop-project-switcher-row[data-has-local-path] .desktop-menu-item-trailing {
+  position: absolute;
+  inset-inline-end: calc(var(--po-menu-item-padding-inline) + 4px);
+  display: flex;
+  pointer-events: none;
+}
+
+.desktop-project-switcher-copy {
+  position: absolute;
+  inset-inline-end: var(--po-menu-item-padding-inline);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--po-text-subtle);
+  opacity: 0;
+}
+
+/* Copy shares the trailing slot with the current-project marker. Only the
+ * action's own hover/focus reveals it, keeping the project list quiet. */
+.desktop-project-switcher-copy:hover,
+.desktop-project-switcher-copy:focus-visible {
+  opacity: 1;
+}
+
+.desktop-project-switcher-row:has(.desktop-project-switcher-copy:hover, .desktop-project-switcher-copy:focus-visible)
+  .desktop-menu-item-trailing {
+  opacity: 0;
+}
+
+.desktop-project-switcher-copy:focus-visible {
+  box-shadow: var(--po-focus-ring-shadow);
+}
+
+.desktop-project-switcher-copy-status {
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.desktop-project-switcher-copy-error {
+  padding: 2px var(--po-menu-item-padding-inline) 4px;
+  color: var(--po-danger);
+  font-size: var(--po-menu-meta-font-size, var(--po-type-ui-meta, 13px));
+}
+
 .desktop-project-mark {
   position: relative;
   display: grid;
