@@ -115,7 +115,7 @@ export function DesktopWorkspaceSwitcher({
         dismissOnFocusExit={false}
         open={open}
         preferredMaxHeight={520}
-        preferredWidth={view === "add" ? 240 : 288}
+        preferredWidth={view === "add" ? 240 : 272}
         widthMode="fixed"
         alignment={menuAlignment}
         role="menu"

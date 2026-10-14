@@ -296,8 +296,16 @@ body.desktop-project-switcher-resizing * {
 .desktop-project-menu-header {
   position: relative;
   display: grid;
-  gap: 5px;
-  padding: 9px 9px 8px;
+  gap: 4px;
+  padding: 7px 8px 6px;
+}
+
+.desktop-project-row-actions-menu {
+  --po-menu-item-height: 28px;
+}
+
+.desktop-project-row-actions-menu .desktop-menu-separator {
+  margin-block: 3px;
 }
 
 .desktop-project-menu-header-name {

@@ -26,7 +26,7 @@ import { ProjectMenuHeader } from "./ProjectMenuHeader";
 
 export type ProjectActionSurface = "menu" | "rename" | "unlink" | null;
 
-const PROJECT_ACTION_MENU_WIDTH = 288;
+const PROJECT_ACTION_MENU_WIDTH = 272;
 const PROJECT_ACTION_MENU_ESTIMATED_HEIGHT = 180;
 
 export type ProjectRowActionsProps = Readonly<{
