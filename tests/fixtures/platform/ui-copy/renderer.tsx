@@ -20,6 +20,8 @@ import { BuiltInAgentCompute } from '../../../../src/features/desktop-agent/ui/b
 import { AgentPanelStatus } from '../../../../src/features/desktop-agent/ui/AgentPanelStatus';
 import { AgentSurfaceHeader } from '../../../../src/features/desktop-agent/ui/AgentSurfaceHeader';
 import { modelConnectionsApi } from '../../../../src/features/model-connections/modelConnectionsApi';
+import { AccountAICredits } from '../../../../src/features/settings/main/AccountAICredits';
+import { ExperimentalSettingsView } from '../../../../src/features/settings/main/ExperimentalSettingsView';
 import { LocalAgentActivationDialog } from '../../../../src/features/local-agents/activation/LocalAgentActivationDialog';
 import { LocalAgentActivationStore } from '../../../../src/features/local-agents/activation/LocalAgentActivationStore';
 import { ModelConnectionSetup } from '../../../../src/features/model-connections/ModelConnectionSetup';
@@ -140,6 +142,21 @@ function Destination() {
   return <CloudAutomationDestinationEditor projectId={project.id} cloudSession={session} apiBaseUrl={session.api_base_url} targetPath={path} onChange={setPath} onCloudSessionChange={noop} />;
 }
 function Progress() { const { t } = useLocalization(); return <CloudPublishProgressIndicator stage="uploading" t={t} />; }
+/** The paid route's refusals, in the order a first-time account meets them. */
+function agentManaged(value: string): ModelConnectionSnapshot['managed'] {
+  if (value === 'error') return { signedIn: true, available: false, reason: 'gateway-unavailable' };
+  if (value === 'trial') return { signedIn: false, available: false, reason: 'sign-in-required', trialCreditMicroUsd: 1_000_000 };
+  if (value === 'insufficient') {
+    return { signedIn: true, available: false, reason: 'insufficient-credit', availableMicroUsd: 0, sandbox: true,
+      packs: [{ id: 'agent-sandbox-5', name: 'Sandbox AI credit', price_cents: 500, credit_micro_usd: 5_000_000 }] };
+  }
+  return { signedIn: true, available: false, reason: 'loading' };
+}
+function walletManaged(): ModelConnectionSnapshot['managed'] {
+  return { signedIn: true, available: true, reason: 'ready', sandbox: true, availableMicroUsd: 1_000_000,
+    reservedMicroUsd: 0, trialGrantedMicroUsd: 1_000_000,
+    packs: [{ id: 'agent-sandbox-5', name: 'Sandbox AI credit', price_cents: 500, credit_micro_usd: 5_000_000 }] };
+}
 function surface() {
   switch (scene) {
     case 'authentication': return <AuthenticationSwitch />;
@@ -152,8 +169,10 @@ function surface() {
       onCloudSessionChange={noop} onRefresh={refresh} onCreated={noop} onClose={noop} />;
     case 'fields': return <><CloudAutomationSourceEditor provider={fieldProvider} cloudSession={session} apiBaseUrl={session.api_base_url} configValues={{}} source={null}
       onConfigValueChange={noop} onSourceChange={noop} onCloudSessionChange={noop} /><Destination /></>;
-    case 'agent': return <div className="desktop-agent-boundary"><BuiltInAgentCompute models={[]} payments selectedModel={null} disabled={false} accessPrompt
+    case 'agent': return <div className="desktop-agent-boundary"><BuiltInAgentCompute models={[]} payments={variant !== 'unpaid'} selectedModel={null} disabled={false} accessPrompt
       onSelectModel={noop} onCatalogChange={noop} onOpenAccount={noop} onOpenModelConnections={noop} onReadyChange={noop} /></div>;
+    case 'wallet': return <div className="desktop-settings-view"><AccountAICredits payments={variant !== 'unpaid'} signedIn onSignIn={noop} /></div>;
+    case 'experiments': return <ExperimentalSettingsView />;
     case 'diagnostics': return <div className="desktop-agent-boundary"><AgentSurfaceHeader title="Chat" statusCode="ready" statusLabel="Ready" loading={false}
       newSessionDisabled={false} onNewSession={noop} onCloseSession={noop} diagnostic={variant === 'diagnostic' ? 'Fixture transport detail' : null} />
       {variant === 'readiness' && <AgentPanelStatus unavailable failed={false} error={null} runtimeLabel="Agent"
@@ -204,7 +223,8 @@ function render() {
 declare global { interface Window { __uiCopy: { show: (next: string, value?: string) => void; finish: (key: string, fail?: boolean) => void; hasPending: (key: string) => boolean; calls: string[] } } }
 window.__uiCopy = {
   show(next, value = '') { scene = next; variant = value; revision++;
-    if (scene === 'agent') snapshot = { ...snapshot, revision: snapshot.revision + 1, managed: { signedIn: true, available: false, reason: variant === 'error' ? 'gateway-unavailable' : 'loading' } };
+    if (scene === 'agent') snapshot = { ...snapshot, revision: snapshot.revision + 1, managed: agentManaged(variant) };
+    if (scene === 'wallet') snapshot = { ...snapshot, revision: snapshot.revision + 1, managed: walletManaged() };
     document.body.dataset.scene = scene; render(); },
   finish(key, fail = false) {
     const work = pending.get(key); if (!work) throw new Error(`No pending ${key}`);
