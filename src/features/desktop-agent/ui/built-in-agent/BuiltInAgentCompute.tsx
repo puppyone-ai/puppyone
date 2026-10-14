@@ -1,16 +1,38 @@
 import { useEffect, useRef } from "react";
 import { KeyRound, Server, Sparkles } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
+import type { ModelConnectionSnapshot, ModelConnectionSourceKind } from "../../../../../shared/model-connections/types";
 import type { AgentModel } from "../../domain/agent-contract";
 import { useModelConnections } from "../../../model-connections";
 import { AgentSessionControlPicker } from "../AgentSessionControlPicker";
 import "./built-in-agent-compute.css";
 
-export type ComputeAccessRequired = "loading" | "sign-in-required" | "insufficient-credit" | "gateway-unavailable" | null;
+export type ComputeAccessRequired = "loading" | "sign-in-required" | "insufficient-credit" | "gateway-unavailable"
+  | "compute-setup-required" | null;
 
-/** Chat selects a ready route; Settings exclusively owns connection configuration. */
+const SOURCE_ICONS: Record<ModelConnectionSourceKind, typeof Server> = { managed: Sparkles, api: KeyRound, local: Server };
+const SOURCE_LABELS: Record<ModelConnectionSourceKind, string> = {
+  managed: "agent.compute.managed", api: "agent.compute.source.api", local: "agent.compute.source.local",
+};
+
+/** Why the paid route cannot serve a turn yet, in the words Chat has to show. */
+function paidAccessRequired(managed: ModelConnectionSnapshot["managed"] | undefined, connecting: boolean): ComputeAccessRequired {
+  if (connecting) return "loading";
+  if (!managed || managed.reason === "ready") return null;
+  return managed.reason;
+}
+
+/**
+ * Chat selects a ready route; Settings exclusively owns connection configuration.
+ *
+ * `payments` arrives from the panel render entry, never from the stored
+ * experiment: see `src/features/payments/README.md`. Without it PuppyOne's own
+ * token is not a route at all, so no balance, trial credit or price is named
+ * and the only remaining step is the user's own connection.
+ */
 export function BuiltInAgentCompute({
   models,
+  payments,
   selectedModel,
   disabled,
   onSelectModel,
@@ -22,6 +44,7 @@ export function BuiltInAgentCompute({
   accessPrompt = false,
 }: {
   models: AgentModel[];
+  payments: boolean;
   selectedModel: string | null;
   disabled: boolean;
   onSelectModel: (model: string) => void;
@@ -54,22 +77,28 @@ export function BuiltInAgentCompute({
   const current = readyModels.find((model) => model.model === selectedModel);
   const selected = models.find((model) => model.model === selectedModel);
   const currentConnection = snapshot?.connections.find((connection) => connection.id === selected?.connectionId);
-  const source = currentConnection?.sourceKind ?? "managed";
-  const managed = snapshot?.managed;
+  const source = currentConnection?.sourceKind ?? (payments ? "managed" : "api");
+  // Paid compute is the one route an install may not be allowed to offer. An
+  // unpaid window therefore reads no wallet and keeps only the user's own
+  // connections, including when a paid model is still the remembered route.
+  const managed = payments ? snapshot?.managed : undefined;
+  const ownModels = readyModels.filter((model) => !isManagedModel(model));
+  const offeredModels = payments ? readyModels : ownModels;
+  const ownComputeOnly = !payments && (source === "managed" || !currentConnection);
   const ready = Boolean(current && currentConnection && (source !== "managed" || managed?.available));
-  const needsManagedAccess = source === "managed" && (!selectedModel || currentConnection?.sourceKind === "managed");
+  const needsManagedAccess = payments && source === "managed"
+    && (!selectedModel || currentConnection?.sourceKind === "managed");
   const connecting = state.pending.managed || !managed || managed.reason === "loading"
     || Boolean(managed.signedIn && !ready && (state.pending.managed || managed.reason === "ready"));
-  const accessRequired = needsManagedAccess && !ready
-    ? connecting ? "loading" : managed?.reason === "ready" ? null : managed?.reason ?? "loading" : null;
-  const showPrompt = accessPrompt && needsManagedAccess && !ready;
+  const paidAccess = needsManagedAccess && !ready ? paidAccessRequired(managed, connecting) : null;
+  const setupRequired = !payments && !ready && offeredModels.length === 0;
+  const accessRequired: ComputeAccessRequired = paidAccess ?? (setupRequired ? "compute-setup-required" : null);
+  const paidPrompt = accessPrompt && needsManagedAccess && !ready;
+  const setupPrompt = accessPrompt && accessRequired === "compute-setup-required";
+  const showPrompt = paidPrompt || setupPrompt;
   const money = (micro: number) => new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 4 }).format(micro / 1_000_000);
-  const Icon = source === "managed" ? Sparkles : source === "api" ? KeyRound : Server;
-  const sourceLabel = source === "managed"
-    ? t("agent.compute.managed")
-    : source === "api"
-      ? t("agent.compute.source.api")
-      : t("agent.compute.source.local");
+  const Icon = ownComputeOnly ? Server : SOURCE_ICONS[source];
+  const sourceLabel = ownComputeOnly ? t("agent.compute.customize") : t(SOURCE_LABELS[source]);
   const operationError = state.error === "AUTHENTICATION_FAILED"
     ? t("agent.compute.signInUnavailable")
     : t("agent.compute.connectionUnavailable");
@@ -97,10 +126,10 @@ export function BuiltInAgentCompute({
     {!showPrompt && <div className="desktop-agent-compute-summary">
       <Icon size={14} aria-hidden="true" />
       <span>{sourceLabel}</span>
-      {readyModels.length > 0 && (source !== "managed" || !readyModels.some(isManagedModel)) && <AgentSessionControlPicker disabled={disabled} control={{
+      {offeredModels.length > 0 && (source !== "managed" || !offeredModels.some(isManagedModel)) && <AgentSessionControlPicker disabled={disabled} control={{
         id: "model",
         value: ready ? selectedModel : null,
-        options: readyModels.map((model) => ({
+        options: offeredModels.map((model) => ({
           value: model.model,
           label: isManagedModel(model) ? t("agent.compute.managed") : model.displayName,
           description: isManagedModel(model) ? undefined : model.description,
@@ -108,7 +137,17 @@ export function BuiltInAgentCompute({
         })),
       }} onSelect={(_id, model) => onSelectModel(model)} />}
     </div>}
-    {showPrompt && <div className="desktop-agent-access-prompt" role="region" aria-label={t("agent.compute.accessTitle")} aria-busy={connecting}>
+    {setupPrompt && <div className="desktop-agent-access-prompt" role="region" aria-label={t("agent.compute.title")}>
+      <div className="desktop-agent-access-copy">
+        <strong>{t("agent.compute.title")}</strong>
+        <p>{t("agent.compute.setupDetail")}</p>
+      </div>
+      <div className="desktop-agent-access-actions">
+        <button type="button" className="desktop-agent-access-primary" disabled={disabled}
+          onClick={onOpenModelConnections}>{t("agent.compute.customize")}</button>
+      </div>
+    </div>}
+    {paidPrompt && <div className="desktop-agent-access-prompt" role="region" aria-label={t("agent.compute.accessTitle")} aria-busy={connecting}>
       <div className="desktop-agent-access-copy">
         <strong>{t(connecting || !managed?.signedIn ? "agent.compute.accessTitle" : managed.reason === "insufficient-credit"
           ? "agent.compute.insufficientCredit" : "agent.compute.connectionUnavailable")}</strong>

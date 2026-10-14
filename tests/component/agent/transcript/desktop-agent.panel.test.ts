@@ -60,7 +60,8 @@ describe("Project-owned Agent Chat Workbench lifecycle", () => {
     await flushEffects(); await flushEffects();
     expect(Boolean(container.querySelector(".desktop-agent-readiness"))).toBe(showRecovery);
     expect(Boolean(container.querySelector(".desktop-agent-empty-state"))).toBe(!showRecovery);
-    expect(container.querySelector(".desktop-agent-compute-summary")?.textContent).toContain("Puppyone's token");
+    // Paid compute is an experiment, so a default install onboards onto its own compute.
+    expect(container.querySelector(".desktop-agent-compute-summary")?.textContent).toContain("Your API or local model");
     expect((container.querySelector('button[aria-label="Send message"]') as HTMLButtonElement).disabled).toBe(true);
     expect(harness.bridge.createAgentSession).not.toHaveBeenCalled();
   });
@@ -93,6 +94,7 @@ describe("Project-owned Agent Chat Workbench lifecycle", () => {
         session: { ...opened.session, selectedModel: model.model } } };
     });
     const container = renderPanel(harness.bridge, null, modelConnections);
+    act(() => enablePayments());
     await flushEffects(); await flushEffects();
     const tabId = activeTabPanel(container).dataset.terminalSessionPaneId!;
     const controller = projectAgentControllers(project).get(tabId);
@@ -507,6 +509,11 @@ function renderPanel(
   root = createRoot(container);
   renderPanelContent(preferredRuntimeId);
   return container;
+}
+
+/** Only the tests that exercise the paid route turn its experiment on. */
+function enablePayments() {
+  desktopPreferencesStore.getState().setExperimentalSettings((settings) => ({ ...settings, enablePayments: true }));
 }
 
 function renderPanelContent(preferredRuntimeId: string | null = null) {

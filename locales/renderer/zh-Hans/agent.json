@@ -15,6 +15,7 @@
   "compute.managedBalance": "使用账户余额",
   "compute.customize": "自带 API 或本地模型",
   "compute.title": "算力来源",
+  "compute.setupDetail": "连接你自带的 API，或你已经在跑的模型。",
   "compute.source.api": "自带 API",
   "compute.source.local": "本地模型",
   "history.notFound": "当前项目暂未发现可恢复对话",

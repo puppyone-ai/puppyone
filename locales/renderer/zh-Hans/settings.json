@@ -345,6 +345,8 @@
   "experimental.workbenchTabsInHeader.header": "顶部",
   "experimental.cloudAutomation.title": "Automation",
   "experimental.cloudAutomation.detail": "显示实验性的 Automation 工作区，用于定时运行任务和连接外部数据源。",
+  "experimental.payments.title": "为 PuppyOne 算力付费",
+  "experimental.payments.detail": "使用 Puppyone's token，按实际用量付费，无需订阅。关闭时 Agent 只走你自带的 API 或模型，也不会出现余额和价格。",
   "experimental.flowFiles.title": "PuppyFlow 文件",
   "experimental.flowFiles.detail": "在“新建 > 自定义文件”中显示 PuppyFlow。",
   "files.title": "Git 忽略",

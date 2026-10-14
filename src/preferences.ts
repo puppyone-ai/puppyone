@@ -92,6 +92,7 @@ export type ExperimentalSettings = {
   enableMarkdownHeadingOutline: boolean;
   enableMultiRootWorkspaces: boolean;
   enableOtherAppImports: boolean;
+  enablePayments: boolean;
   enablePuppyFlowFiles: boolean;
   enableProjectSwitcherRail: boolean;
   enableViewerPlugins: boolean;
@@ -190,6 +191,13 @@ export const DEFAULT_EXPERIMENTAL_SETTINGS: ExperimentalSettings = {
   enableMarkdownHeadingOutline: false,
   enableMultiRootWorkspaces: false,
   enableOtherAppImports: false,
+  /**
+   * Paid compute: PuppyOne's own token, the account balance it spends and the
+   * top-up that refills it. Off by default, so an untouched install never asks
+   * anyone for money and the Agent routes only to the user's own API keys and
+   * local models. Read it only through `usePaymentsExperience()`.
+   */
+  enablePayments: false,
   enablePuppyFlowFiles: false,
   enableProjectSwitcherRail: false,
   enableViewerPlugins: false,
@@ -450,6 +458,7 @@ export function parseExperimentalSettings(value: string | null | undefined): Exp
         || parsed.enableGoogleDriveImport === true
         || parsed.enableAirtableImport === true
         || parsed.enableObsidianImport === true,
+      enablePayments: parsed.enablePayments === true,
       enablePuppyFlowFiles: parsed.enablePuppyFlowFiles === true,
       enableProjectSwitcherRail: parsed.enableProjectSwitcherRail === true,
       enableViewerPlugins: parsed.enableViewerPlugins === true,

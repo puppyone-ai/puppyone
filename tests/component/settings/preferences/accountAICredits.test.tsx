@@ -49,7 +49,7 @@ it("shows only the available balance, top-up and refresh actions", async () => {
   };
   Object.assign(modelConnectionsApi, client);
   const host = document.createElement("div"); document.body.append(host); root = createRoot(host);
-  await act(async () => root?.render(withTestLocalization(<AccountAICredits signedIn />)));
+  await act(async () => root?.render(withTestLocalization(<AccountAICredits payments signedIn />)));
   expect(host.textContent).toContain(money(0.75));
   for (const amount of [1, 0.25, 0.000047]) expect(host.textContent).not.toContain(money(amount));
   expect(host.textContent).not.toMatch(/Sandbox|Trial|Pending|Latest usage|Input:|Model prices|Example Model|example-model/);
@@ -90,9 +90,9 @@ it.each([false, true])("hides billing after logout even if the managed snapshot 
   const store = sharedStore;
   Object.assign(modelConnectionsApi, client);
   const host = document.createElement("div"); document.body.append(host); root = createRoot(host);
-  await act(async () => root?.render(withTestLocalization(<AccountAICredits signedIn={managedSignedIn} onSignIn={onSignIn} />)));
+  await act(async () => root?.render(withTestLocalization(<AccountAICredits payments signedIn={managedSignedIn} onSignIn={onSignIn} />)));
   if (managedSignedIn) expect(host.textContent).toContain(money(0.75));
-  await act(async () => root?.render(withTestLocalization(<AccountAICredits signedIn={false} onSignIn={onSignIn} />)));
+  await act(async () => root?.render(withTestLocalization(<AccountAICredits payments signedIn={false} onSignIn={onSignIn} />)));
   expect(host.textContent).not.toContain("Trial credit");
   expect(host.textContent).not.toContain(money(0.75));
   expect(host.textContent).not.toContain(money(1));
@@ -123,7 +123,7 @@ it("does not ask a signed-in account to log in again while its wallet is loading
     discover: async () => [], subscribe: () => () => {}, managed: async () => snapshot };
   Object.assign(modelConnectionsApi, client);
   const host = document.createElement("div"); document.body.append(host); root = createRoot(host);
-  await act(async () => root?.render(withTestLocalization(<AccountAICredits signedIn />)));
+  await act(async () => root?.render(withTestLocalization(<AccountAICredits payments signedIn />)));
   expect(host.querySelector("button")).toBeNull();
   expect(host.textContent).not.toMatch(/\$|Sign in|Model prices/);
 });

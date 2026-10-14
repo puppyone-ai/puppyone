@@ -15,6 +15,7 @@
   "compute.managedBalance": "Usa o saldo da sua conta",
   "compute.customize": "Sua API ou modelo local",
   "compute.title": "Fonte de processamento",
+  "compute.setupDetail": "Conecte sua própria API ou um modelo que você já executa.",
   "compute.source.api": "Sua API",
   "compute.source.local": "Modelos locais",
   "history.notFound": "Nenhuma conversa restaurável encontrada neste projeto ainda",

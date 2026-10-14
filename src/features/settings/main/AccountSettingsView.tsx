@@ -12,6 +12,7 @@ import {
   startDesktopCloudOAuth,
   supportsDesktopCloudOAuth,
 } from "../../../lib/cloudSession";
+import { usePaymentsExperience } from "../../payments";
 import { SettingsSectionHeader, SettingsSubsection, SettingsValueRow } from "../components";
 import { AccountAICredits } from "./AccountAICredits";
 
@@ -29,6 +30,8 @@ export function AccountSettingsView({
   onCloudSessionChange: (session: DesktopCloudSession | null) => void;
 }) {
   const { t } = useLocalization();
+  /** Settings is a render entry for the payment fork; the wallet row obeys it. */
+  const payments = usePaymentsExperience();
   const resolvedApiBaseUrl = cloudApiBaseUrl || getDesktopCloudApiBaseUrl();
   const [operation, setOperation] = useState<AccountAuthOperation | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -146,6 +149,7 @@ export function AccountSettingsView({
             )}
           </SettingsSubsection>
           {sessionMatchesService && <AccountAICredits key={cloudSession?.user_id ?? "signed-out"}
+            payments={payments}
             signedIn={signedIn && !cloudSessionRestoring && cloudSession?.status !== "signing-out" && operation !== "signout"}
             onSignIn={() => void startWebSignIn()} signInDisabled={busy || !desktopOAuthAvailable} />}
         </div>

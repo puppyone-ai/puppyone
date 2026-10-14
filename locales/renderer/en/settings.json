@@ -345,6 +345,8 @@
   "experimental.workbenchTabsInHeader.header": "Header",
   "experimental.cloudAutomation.title": "Automation",
   "experimental.cloudAutomation.detail": "Show the experimental Automation workspace for scheduled runs and connected data sources.",
+  "experimental.payments.title": "Pay for PuppyOne compute",
+  "experimental.payments.detail": "Use Puppyone's token and pay for what you use, with no subscription. Off keeps the Agent on your own API or model and never shows a balance or a price.",
   "experimental.flowFiles.title": "PuppyFlow files",
   "experimental.flowFiles.detail": "Show PuppyFlow in New > Custom files.",
   "files.title": "Git Ignore",

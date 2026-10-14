@@ -15,6 +15,7 @@
   "compute.managedBalance": "Verwendet dein Kontoguthaben",
   "compute.customize": "Eigene API oder lokales Modell",
   "compute.title": "Rechenquelle",
+  "compute.setupDetail": "Verbinde deine eigene API oder ein Modell, das du schon betreibst.",
   "compute.source.api": "Eigene API",
   "compute.source.local": "Lokale Modelle",
   "history.notFound": "In diesem Projekt wurden noch keine wiederherstellbaren Chats gefunden",

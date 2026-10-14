@@ -15,6 +15,7 @@
   "compute.managedBalance": "アカウント残高を使用",
   "compute.customize": "独自の API・ローカルモデル",
   "compute.title": "推論リソース",
+  "compute.setupDetail": "自分の API か、すでに動かしているモデルを接続してください。",
   "compute.source.api": "自分の API",
   "compute.source.local": "ローカルモデル",
   "history.notFound": "このプロジェクトには復元できるチャットがまだ見つかりません",

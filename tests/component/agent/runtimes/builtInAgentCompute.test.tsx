@@ -84,7 +84,7 @@ function button(label: string) {
   return match as HTMLButtonElement;
 }
 
-async function render({ selectedModel = null as string | null, disabled = false, empty = false, accessPrompt = false, managed = undefined as ModelConnectionSnapshot["managed"] | undefined } = {}) {
+async function render({ payments = true, selectedModel = null as string | null, disabled = false, empty = false, accessPrompt = false, managed = undefined as ModelConnectionSnapshot["managed"] | undefined } = {}) {
   const { client, store } = fixture(empty, managed);
   const onSelectModel = vi.fn();
   const onReadyChange = vi.fn();
@@ -97,6 +97,7 @@ async function render({ selectedModel = null as string | null, disabled = false,
   root = createRoot(container);
   await act(async () => root?.render(withTestLocalization(<BuiltInAgentCompute
     models={empty ? [] : models}
+    payments={payments}
     selectedModel={selectedModel}
     disabled={disabled}
     accessPrompt={accessPrompt}

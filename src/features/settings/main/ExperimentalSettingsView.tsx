@@ -56,6 +56,8 @@ export function ExperimentalSettingsView() {
       rows: [
         { messageKey: "cloudWorkspace", settingKey: "enableCloudWorkspace" },
         { messageKey: "cloudAutomation", settingKey: "enableCloudAutomation" },
+        // The only switch that lets the Desktop ask for money: src/features/payments/README.md.
+        { messageKey: "payments", settingKey: "enablePayments" },
         { messageKey: "flowFiles", settingKey: "enablePuppyFlowFiles" },
         ...(window.puppyoneDesktop?.getGitAutoCommitSettings
           ? [{ messageKey: "gitAutoCommit", settingKey: "enableGitAutoCommit" as const }]

@@ -308,6 +308,8 @@
   "experimental.workbenchTabsInHeader.header": "Kopfzeile",
   "experimental.cloudAutomation.title": "Automation",
   "experimental.cloudAutomation.detail": "Zeigt den experimentellen Automation-Arbeitsbereich für geplante Abläufe und verbundene Datenquellen.",
+  "experimental.payments.title": "PuppyOne-Rechenleistung bezahlen",
+  "experimental.payments.detail": "Puppyone's token nutzen und nur die eigene Nutzung bezahlen, ohne Abonnement. Ausgeschaltet bleibt der Agent bei deiner eigenen API oder deinem eigenen Modell und zeigt weder Guthaben noch Preis.",
   "experimental.flowFiles.title": "PuppyFlow-Dateien",
   "experimental.flowFiles.detail": "Zeigt PuppyFlow unter Neu > Benutzerdefinierte Dateien.",
   "files.title": "Git Ignore",

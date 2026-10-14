@@ -12,6 +12,7 @@ import { AgentEmptyState } from "./AgentEmptyState";
 import { AgentPanelLayout } from "./AgentPanelLayout";
 import { AgentPanelStatus } from "./AgentPanelStatus";
 import { BuiltInAgentCompute, type ComputeAccessRequired } from "./built-in-agent/BuiltInAgentCompute";
+import { usePaymentsExperience } from "../../payments";
 import type { AgentSessionControlId } from "../domain/agent-session-controls";
 import { AgentQuestionDock } from "./AgentQuestionDock";
 import { AgentRecoverySurface } from "./AgentRecoverySurface";
@@ -65,6 +66,8 @@ export function AgentChatTabPanel({
   resolveWorkspaceReference,
 }: AgentChatTabPanelProps) {
   const { t } = useLocalization();
+  /** The panel is a render entry for the payment fork; the compute dock obeys it. */
+  const payments = usePaymentsExperience();
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
   const [pendingConnectionModel, setPendingConnectionModel] = useState<string | null>(null);
   const [computeReady, setComputeReady] = useState(false);
@@ -154,7 +157,7 @@ export function AgentChatTabPanel({
     />}
     dock={view.startupLoading ? null : <>
       {view.modelConnections && <BuiltInAgentCompute key={`${state.selectedRuntimeId}:${state.selectedModel}:${computeReset}`}
-        models={view.runtimeModels} selectedModel={state.selectedModel} disabled={view.computeDisabled}
+        models={view.runtimeModels} payments={payments} selectedModel={state.selectedModel} disabled={view.computeDisabled}
         onSelectModel={(model) => selectSessionControl("model", model)} onCatalogChange={() => void controller.refreshModelConnections()}
         onOpenAccount={onOpenAccount} onOpenModelConnections={onOpenModelConnections} onReadyChange={setComputeReady}
         onAccessRequiredChange={setComputeAccessRequired} accessPrompt={computeAccessPrompt} />}

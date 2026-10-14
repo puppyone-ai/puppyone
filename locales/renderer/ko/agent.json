@@ -15,6 +15,7 @@
   "compute.managedBalance": "계정 잔액을 사용합니다",
   "compute.customize": "내 API 또는 로컬 모델",
   "compute.title": "추론 리소스",
+  "compute.setupDetail": "직접 연결한 API나 이미 실행 중인 모델을 연결하세요.",
   "compute.source.api": "내 API",
   "compute.source.local": "로컬 모델",
   "history.notFound": "이 프로젝트에서 복원 가능한 채팅을 아직 찾지 못했습니다",

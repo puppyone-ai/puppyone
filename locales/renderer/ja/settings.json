@@ -308,6 +308,8 @@
   "experimental.workbenchTabsInHeader.header": "ヘッダー",
   "experimental.cloudAutomation.title": "Automation",
   "experimental.cloudAutomation.detail": "スケジュール実行と接続済みデータソースのための実験的な Automation ワークスペースを表示します。",
+  "experimental.payments.title": "PuppyOne の計算リソースに支払う",
+  "experimental.payments.detail": "Puppyone's token を使い、使った分だけサブスクリプションなしで支払います。オフのときは Agent は自分の API か自分のモデルだけを使い、残高や価格は表示されません。",
   "experimental.flowFiles.title": "PuppyFlow ファイル",
   "experimental.flowFiles.detail": "新規 > カスタムファイルに PuppyFlow を表示します。",
   "files.title": "Git Ignore",

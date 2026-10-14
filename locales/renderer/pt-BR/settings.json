@@ -308,6 +308,8 @@
   "experimental.workbenchTabsInHeader.header": "Cabeçalho",
   "experimental.cloudAutomation.title": "Automation",
   "experimental.cloudAutomation.detail": "Mostra o espaço de trabalho experimental de Automation para execuções agendadas e fontes de dados conectadas.",
+  "experimental.payments.title": "Pagar a capacidade de computação do PuppyOne",
+  "experimental.payments.detail": "Use o Puppyone's token e pague apenas pelo que consumir, sem assinatura. Desativado, o Agent fica na sua própria API ou no seu próprio modelo e nunca mostra saldo nem preço.",
   "experimental.flowFiles.title": "Arquivos do PuppyFlow",
   "experimental.flowFiles.detail": "Mostra PuppyFlow em Novo > Arquivos personalizados.",
   "files.title": "Git Ignore",

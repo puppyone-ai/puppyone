@@ -152,7 +152,7 @@ function surface() {
       onCloudSessionChange={noop} onRefresh={refresh} onCreated={noop} onClose={noop} />;
     case 'fields': return <><CloudAutomationSourceEditor provider={fieldProvider} cloudSession={session} apiBaseUrl={session.api_base_url} configValues={{}} source={null}
       onConfigValueChange={noop} onSourceChange={noop} onCloudSessionChange={noop} /><Destination /></>;
-    case 'agent': return <div className="desktop-agent-boundary"><BuiltInAgentCompute models={[]} selectedModel={null} disabled={false} accessPrompt
+    case 'agent': return <div className="desktop-agent-boundary"><BuiltInAgentCompute models={[]} payments selectedModel={null} disabled={false} accessPrompt
       onSelectModel={noop} onCatalogChange={noop} onOpenAccount={noop} onOpenModelConnections={noop} onReadyChange={noop} /></div>;
     case 'diagnostics': return <div className="desktop-agent-boundary"><AgentSurfaceHeader title="Chat" statusCode="ready" statusLabel="Ready" loading={false}
       newSessionDisabled={false} onNewSession={noop} onCloseSession={noop} diagnostic={variant === 'diagnostic' ? 'Fixture transport detail' : null} />

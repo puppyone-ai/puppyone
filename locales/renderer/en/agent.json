@@ -15,6 +15,7 @@
   "compute.managedBalance": "Uses your account balance",
   "compute.customize": "Your API or local model",
   "compute.title": "Compute source",
+  "compute.setupDetail": "Connect your own API or a model you already run.",
   "compute.source.api": "Bring your API",
   "compute.source.local": "Local models",
   "history.notFound": "No restorable chats found in this project yet",
