@@ -3,9 +3,7 @@
 
   <h1>puppyone</h1>
 
-  <p><b>The folder your agents live in.</b></p>
-
-  <p>A folder built for agents. Local or cloud.</p>
+  <p><b>The folder your agents live in.</b> Local or cloud.</p>
 
   <p>
     <a href="https://www.puppyone.ai"><img src="https://img.shields.io/badge/Website-puppyone.ai-39BC66?style=flat-square" alt="Website" /></a>
@@ -18,11 +16,9 @@
     <a href="https://www.puppyone.ai/download"><b>Download for macOS</b></a> ·
     <a href="https://www.puppyone.ai/download"><b>Download for Windows</b></a>
   </p>
-
-  <p><sub>Free and open source. Apache 2.0.</sub></p>
 </div>
 
-![puppyone editor overview](public/assets/media/screenshots/puppyone-editor-overview.png)
+![A folder open in puppyone](public/assets/media/screenshots/puppyone-editor-overview.png)
 
 puppyone opens any folder on your computer. Your documents, spreadsheets, slides,
 PDFs and web pages stay as ordinary files you can just open — nothing to upload,
