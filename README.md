@@ -3,7 +3,13 @@
 
   <h1>puppyone</h1>
 
-  <p><b>The folder your agents live in.</b> Local or cloud.</p>
+  <p>The (local/cloud) folder built for your agents.</p>
+
+  
+  <p>
+    <a href="https://www.puppyone.ai/download"><b>Download for macOS</b></a> ·
+    <a href="https://www.puppyone.ai/download"><b>Download for Windows</b></a>
+  </p>
 
   <p>
     <a href="https://www.puppyone.ai"><img src="https://img.shields.io/badge/Website-puppyone.ai-39BC66?style=flat-square" alt="Website" /></a>
@@ -11,12 +17,9 @@
     <a href="https://discord.gg/zwJ9Y3Uvpd"><img src="https://img.shields.io/badge/Discord-Join-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Discord" /></a>
     <a href="https://x.com/puppyone_ai"><img src="https://img.shields.io/badge/X-(Twitter)-000000?style=flat-square&logo=x&logoColor=white" alt="X" /></a>
   </p>
-
-  <p>
-    <a href="https://www.puppyone.ai/download"><b>Download for macOS</b></a> ·
-    <a href="https://www.puppyone.ai/download"><b>Download for Windows</b></a>
-  </p>
 </div>
+
+<br />
 
 ![A folder open in puppyone](public/assets/media/screenshots/puppyone-editor-overview.png)
 
