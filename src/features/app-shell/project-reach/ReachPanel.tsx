@@ -3,8 +3,8 @@ import { useLocalization } from "@puppyone/localization";
 import { UserPlus, Plug, HardDriveDownload } from "lucide-react";
 import { DesktopMenuItem } from "../../../components/DesktopMenu";
 import { DesktopTitlebarMenuLayer } from "../DesktopTitlebarMenuLayer";
-import type { ReachPlace, ReachState } from "./projectReachHeader";
-import { ReachPlaceMark, useReachSummary } from "./reachPresentation";
+import type { ReachState } from "./projectReachHeader";
+import { useReachSummary } from "./reachPresentation";
 
 /**
  * What the Header offers about reach, wherever it is opened from.
@@ -40,7 +40,7 @@ export function ReachPanel({ anchor, open, onDismiss, context }: {
       dismissOnFocusExit={false}
       className="desktop-project-reach-menu"
       gap={2}
-      preferredWidth={272}
+      preferredWidth={236}
       preferredMaxHeight={420}
       widthMode="fixed"
       alignment="start"
@@ -48,7 +48,7 @@ export function ReachPanel({ anchor, open, onDismiss, context }: {
       ariaLabel={t("shell.projectReach.panelLabel")}
     >
       <div className="desktop-project-reach-panel">
-        <ReachPlaceCard state={state} summary={summary} />
+        <ReachCaption state={state} summary={summary} />
         {state.kind === "not-on-this-device" ? null : readers}
         {state.kind === "not-on-this-device" && <ReachDeviceDetail />}
         {state.kind === "not-on-this-device"
@@ -60,67 +60,48 @@ export function ReachPanel({ anchor, open, onDismiss, context }: {
 }
 
 /**
- * Where this project is, drawn at the size of the thing it is on, with what
- * that means for reach underneath it.
+ * What the panel is here to say, as the caption of the rows it explains.
  *
- * This was built out of a menu row's own parts: the place mark in the rows'
- * icon slot, the sentence beside it, a filled rounded rectangle under both.
- * That is the exact shape of a row with the cursor on it, so the one element
- * in the panel that does nothing wore the costume of the one element that had
- * just been pressed — and it was the only thing here in full `--po-text`
- * while the two real offers below it stayed muted. The hierarchy was upside
- * down and the affordance was a lie.
+ * Two wrong answers came before this one, and both were the same mistake.
+ * First the statement was built out of a row's parts — icon slot, inline
+ * padding, row radius, and a fill that happened to be the exact value of
+ * `--po-hover`. The one thing in the panel that could not be pressed was
+ * drawn as the one thing that had just been pressed. Then it became a framed
+ * card with the machine drawn at the size of a machine, which fixed the
+ * affordance and bought a new problem: weight. A 34px drawing beside 14px
+ * text is the loudest thing in a menu whose entire content is one sentence
+ * and two verbs.
  *
- * A quieter fill would not have fixed it, because the fill was never the
- * problem: a row's geometry reads as a row at any opacity. So this is a
- * different kind of object — a machine drawn at the size of a machine, in a
- * recess rather than on a raised plate. Nobody clicks a picture of their own
- * laptop.
+ * The deciding fact is that this menu's type size is a user preference —
+ * `--po-type-left-sidebar-content`, 14px only by default. A drawing takes a
+ * fixed 45px of width; the sentence takes as much as the user's own setting
+ * says it takes. Those two cannot both fit on one line at every size, so the
+ * card wrapped a 31-character sentence into two ragged lines with a laptop
+ * floating beside them. No amount of tuning survives a setting.
  *
- * The sentence sits beside the drawing, not under it. Stacking them was the
- * safer-looking fix and it was the wrong one: a 272px card with one 34px
- * drawing and one line of text has to be ninety pixels tall to stack, and the
- * whole top-right of it is then dead space. It read as a poster with its
- * contents swept into a corner. Side by side, the pair fills the width it was
- * given and the card is a third shorter. What keeps it from becoming the menu
- * row again is proportion, not axis: at twice a row's height, with a drawing
- * at twice a row's icon, inside the only frame in the menu, nothing about it
- * is row-sized any more.
+ * So: no drawing, no frame, no fill, and the full width of the panel for the
+ * words. It is `.desktop-menu-section-label`, the caption this product
+ * already uses for the line in a menu that is not a row — smaller than a row,
+ * quieter than a row, with no icon in the rows' column. Three differences,
+ * none of which a fill can undo, and it wraps gracefully at any type size
+ * because wrapping is all it has to do.
  *
- * It is the Share screen's journey stop at menu scale, deliberately: the same
- * drawing for the same fact, so a user who has watched a project leave this
- * Mac recognizes the place here without being taught it twice. The drawing is
- * also what lets the card stay silent about the place in words. Opened from
- * the place control, the trigger said "This Mac" two centimetres away and
- * repeating it would be the panel shouting its own trigger back; opened from
- * the people on the right, the place was never said at all. A picture of the
- * machine is the one statement that is neither a repetition nor a gap.
+ * The place is not restated here. The control that opens this panel says
+ * "This Mac" with the laptop mark on it, two centimetres above; drawing the
+ * same machine again, larger, was the panel repeating its own trigger back at
+ * the user in a louder voice.
  */
-function ReachPlaceCard({ state, summary }: { state: ReachState; summary: string }) {
+function ReachCaption({ state, summary }: { state: ReachState; summary: string }) {
   return (
-    <div
-      className="desktop-project-reach-card"
+    <p
+      className="desktop-project-reach-caption"
       data-reach-place={state.place}
       data-reach-state={state.kind}
     >
-      <ReachPlaceMark
-        place={state.place}
-        className="desktop-project-reach-card-mark"
-        size={PLACE_DRAWING_SIZE[state.place]}
-        strokeWidth={1.25}
-      />
-      <p className="desktop-project-reach-card-reach" data-reach-state={state.kind}>{summary}</p>
-    </div>
+      {summary}
+    </p>
   );
 }
-
-/**
- * Drawn, not iconified — and the two drawings need different numbers to weigh
- * the same. The laptop is an outline whose presence is its footprint; the
- * Cloud is a solid shape, so it is given less room rather than letting it
- * blot. The Share screen's journey sizes the same pair by the same reasoning.
- */
-const PLACE_DRAWING_SIZE: Record<ReachPlace, number> = { "this-device": 34, cloud: 32 };
 
 /**
  * The two verbs, as menu rows. They are the same row the project menu uses,

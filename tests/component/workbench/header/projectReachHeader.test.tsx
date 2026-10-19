@@ -105,21 +105,22 @@ describe("Header project reach", () => {
     expect(button.getAttribute("aria-label")).toBe("Cloud workspace. Only you can reach this project");
     expect(button.querySelector('[data-reach-place="cloud"]')).not.toBeNull();
     const panel = openPanel();
-    expect(panel.querySelector('.desktop-project-reach-card[data-reach-place="cloud"]')).not.toBeNull();
+    expect(panel.querySelector('.desktop-project-reach-caption[data-reach-place="cloud"]')).not.toBeNull();
   });
 
-  it("draws the place on a card instead of repeating the words the button just said", async () => {
+  it("states reach as a caption, with none of a row's parts", async () => {
     await renderControl({
       state: state({ share: "published" }), onInvitePerson: noOp, onConnectAgent: noOp,
     });
     const panel = openPanel();
-    const card = panel.querySelector(".desktop-project-reach-card");
-    expect(card?.textContent).toBe("Only you can reach this project");
-    expect(card?.querySelector('[data-reach-place="this-device"]')).not.toBeNull();
-    // The card states, the rows act. A statement built out of a row's parts
-    // reads as the row the user has just pressed, so it may not have any.
-    expect(card?.querySelector(".desktop-menu-item")).toBeNull();
-    expect(card?.closest("button")).toBeNull();
+    const caption = panel.querySelector(".desktop-project-reach-caption");
+    expect(caption?.textContent).toBe("Only you can reach this project");
+    // The caption states, the rows act. Anything that borrows a row's parts
+    // reads as the row the user has just pressed: no icon in the rows' column,
+    // nothing pressable, and never the place mark the trigger already shows.
+    expect(caption?.querySelector("svg, img")).toBeNull();
+    expect(caption?.closest("button")).toBeNull();
+    expect(panel.querySelector(".desktop-project-reach-place")).toBeNull();
     expect(action("Invite a person")).not.toBeNull();
     expect(action("Connect an agent")).not.toBeNull();
   });
@@ -181,7 +182,7 @@ describe("Header project reach", () => {
     expect(people.querySelector(".desktop-project-reach-count")?.textContent).toBe("+1");
     act(() => people.click());
     const panel = document.querySelector(".desktop-project-reach-panel");
-    expect(panel?.querySelector(".desktop-project-reach-card-reach")?.textContent)
+    expect(panel?.querySelector(".desktop-project-reach-caption")?.textContent)
       .toBe("4 others can reach this project");
     expect(action("Invite a person")).not.toBeNull();
   });
@@ -234,7 +235,7 @@ describe("Header project reach", () => {
     expect(panel.querySelector('[data-testid="readers"]')).toBeNull();
     // The card is one statement in every state; a consequence that exists
     // only because of an obstacle sits beside the way out of it instead.
-    expect(panel.querySelector(".desktop-project-reach-card")?.textContent)
+    expect(panel.querySelector(".desktop-project-reach-caption")?.textContent)
       .toBe("This project is not on this Mac yet");
     expect(panel.querySelector(".desktop-project-reach-detail")?.textContent)
       .toBe("You can read this project as it is. Changing it needs a copy of it here.");
