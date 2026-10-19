@@ -210,58 +210,93 @@
     padding: var(--desktop-project-menu-spacing, 3px);
   }
 
-  /* What the panel came to say, as the caption of the rows it explains.
+  /* The machine this project is sitting on, as a band rather than a poster.
 
-     It has been two other things first, and both failed the same way. As a
-     filled rounded rectangle with the place mark in the rows' icon slot it
-     was, pixel for pixel, a menu row under the cursor: `--po-hover` is a 5%
-     tint of the text colour, and so was the fill. As a framed card with the
-     machine drawn at 34px it stopped being a control and started being an
-     announcement — the loudest object in a menu whose whole content is one
-     sentence and two verbs.
+     The drawing is why this card exists: it says the project is spending
+     THIS computer — your disk, your copy — which is a thing a sentence can
+     only say by sounding like a warning. It has been wrong three times. As a
+     filled rounded rectangle with the mark in the rows' icon slot it was,
+     pixel for pixel, a row under the cursor: `--po-hover` is a 5% tint of
+     the text colour and so was the fill. As a 34px machine on a 90px card it
+     stopped being a control and became an announcement. As nothing at all it
+     stopped being said.
 
-     What settles it is that `--po-menu-item-font-size` here resolves to
-     `--po-type-left-sidebar-content`, which is a user preference and 14px
-     only by default. A drawing costs a fixed ~45px of line; the sentence
-     costs whatever the user's own setting says. They cannot both fit on one
-     line at every size, which is how a 31-character statement ended up
-     wrapped into two ragged lines beside a floating laptop.
+     The size is not taste, it is arithmetic. `--po-menu-item-font-size` here
+     resolves to `--po-type-left-sidebar-content`, a user preference that is
+     14px only by default. A drawing costs a fixed width; the sentence costs
+     whatever the user's setting says. At 34px and body type, a 31-character
+     statement has nowhere to go but a second ragged line.
 
-     So the words get the whole width and nothing else is in the way. This is
-     `.desktop-menu-section-label` — the product's existing answer to a line
-     in a menu that is not a row: the meta type size, a quieter colour, and no
-     icon in the rows' column. Three differences at once, none of which a fill
-     can undo, and it wraps without looking broken because wrapping is the
-     only thing it has to do. */
-  .desktop-project-reach-caption,
+     So: a 20px machine, which is comfortably larger than the rows' 15px
+     icons and therefore never reads as one more verb in their column, next
+     to the statement at the META size. That last part is load-bearing —
+     meta is a separate preference from content, so turning the menu's text
+     up does not reflow this card. */
+  .desktop-project-reach-card {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+    /* The shared column, less this card's own frame — nothing else in the
+       menu is framed, so nothing else has to pay that pixel back. */
+    padding: 8px calc(var(--desktop-project-reach-column) - 1px);
+    border: 1px solid var(--po-border);
+    border-radius: calc(var(--po-menu-radius, 8px) - var(--desktop-project-menu-spacing, 3px));
+    background: var(--po-inset, color-mix(in srgb, var(--po-text) 4%, transparent));
+    color: var(--po-text);
+  }
+
+  /* Drawn, not slotted. Giving it the rows' 18px icon slot is exactly what
+     made it read as an action glyph the first time; it keeps its own box and
+     hangs back by its own left bearing so its ink still lands on the column
+     the rows' icons sit on. */
+  .desktop-project-reach-card-mark {
+    display: grid;
+    width: 20px;
+    height: 20px;
+    flex: 0 0 auto;
+    margin-inline-start: -2px;
+    place-items: center;
+    color: var(--po-text-muted);
+  }
+
+  /* The Cloud is solid where the laptop is an outline, so it carries almost
+     none of the laptop's bearing; one number for both would hang it off the
+     column the laptop sits on. */
+  .desktop-project-reach-card-mark[data-reach-place="cloud"] {
+    margin-inline-start: 0;
+  }
+
+  /* The statement, at the meta size and the body colour: small enough to
+     share a line with the drawing at any content setting, bright enough to
+     still be the thing the user opened the panel to read. */
+  .desktop-project-reach-card-reach,
   .desktop-project-reach-detail {
     margin: 0;
     min-width: 0;
-    color: var(--po-text-subtle);
     font-size: var(--po-menu-meta-font-size, var(--po-type-ui-meta, 12px));
     font-weight: var(--po-text-weight-regular, 400);
     line-height: var(--po-menu-meta-line-height, 16px);
     text-wrap: pretty;
   }
 
-  /* The established caption uses `--po-text-disabled`, which is right for a
-     group heading and wrong here: this line is the answer the user opened the
-     panel for, not a label on a set of rows. One step up from disabled keeps
-     it clearly a caption while leaving it the most readable quiet thing on
-     the surface. */
-  .desktop-project-reach-caption {
-    padding: 3px var(--desktop-project-reach-column) 7px;
+  .desktop-project-reach-card-reach {
+    color: inherit;
   }
 
-  .desktop-project-reach-caption[data-reach-state="attention"] {
+  .desktop-project-reach-card[data-reach-state="attention"] {
     color: var(--po-warning, var(--po-text));
   }
 
-  /* Why the row under it exists. Same column, same size, same voice as the
-     caption — it is the second half of the same quiet register, and keeping
-     it there is what stops the panel from growing a third type size. */
+  /* Why the row under it exists. It is outside the card because the card is
+     one statement in every state, and a consequence that exists only because
+     of an obstacle belongs beside the way out of it. Same column, same size,
+     same voice — a third type size here is what made the panel look
+     assembled rather than designed. */
   .desktop-project-reach-detail {
-    padding: 0 var(--desktop-project-reach-column) 7px;
+    padding: 4px var(--desktop-project-reach-column) 7px;
+    color: var(--po-text-subtle);
   }
 
   .desktop-project-reach-actions {

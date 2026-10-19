@@ -17,15 +17,21 @@ import type { ReachMember, ReachPlace, ReachState } from "./projectReachHeader";
  * nothing to press and nothing to choose, which is why it can be shown all
  * the time.
  *
- * It belongs to the Header's control and to nothing else. The panel that
- * control opens does not draw it again: the mark is already on screen, two
- * centimetres up, next to the place in words.
+ * The Header's control wears it, and so does the panel that control opens.
+ * That is a repetition on purpose: in the panel it is not a label for the
+ * place, it is the machine whose resources this project is sitting on, which
+ * is a different thing to say and the only thing that says it without words.
+ *
+ * One drawing, two sizes, so the host says how heavy it wants the stroke: a
+ * weight that holds up in a 16px control turns into a thick outline the
+ * moment the same machine is drawn any larger.
  */
-export function ReachPlaceMark({ place, className, size }: {
+export function ReachPlaceMark({ place, className, size, strokeWidth = 1.65 }: {
   place: ReachPlace;
   /** The host's own mark slot, so the Header and the menu size it alike. */
   className: string;
   size: number;
+  strokeWidth?: number;
 }) {
   return (
     <span
@@ -35,7 +41,7 @@ export function ReachPlaceMark({ place, className, size }: {
     >
       {place === "cloud"
         ? <CloudIcon size={size} />
-        : <Laptop size={size} strokeWidth={1.65} />}
+        : <Laptop size={size} strokeWidth={strokeWidth} />}
     </span>
   );
 }
