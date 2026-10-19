@@ -50,6 +50,7 @@ export function ReachPanel({ anchor, open, onDismiss, context }: {
       <div className="desktop-project-reach-panel">
         <ReachPlaceCard state={state} summary={summary} />
         {state.kind === "not-on-this-device" ? null : readers}
+        {state.kind === "not-on-this-device" && <ReachDeviceDetail />}
         {state.kind === "not-on-this-device"
           ? <ReachDeviceCopy onGetCopy={onGetCopy} />
           : <ReachActions onInvitePerson={onInvitePerson} onConnectAgent={onConnectAgent} />}
@@ -72,9 +73,19 @@ export function ReachPanel({ anchor, open, onDismiss, context }: {
  *
  * A quieter fill would not have fixed it, because the fill was never the
  * problem: a row's geometry reads as a row at any opacity. So this is a
- * different kind of object. The machine is drawn at the size of a machine,
- * centred over the sentence it explains, in a recess rather than on a raised
- * plate. Nobody clicks a picture of their own laptop.
+ * different kind of object — a machine drawn at the size of a machine, in a
+ * recess rather than on a raised plate. Nobody clicks a picture of their own
+ * laptop.
+ *
+ * The sentence sits beside the drawing, not under it. Stacking them was the
+ * safer-looking fix and it was the wrong one: a 272px card with one 34px
+ * drawing and one line of text has to be ninety pixels tall to stack, and the
+ * whole top-right of it is then dead space. It read as a poster with its
+ * contents swept into a corner. Side by side, the pair fills the width it was
+ * given and the card is a third shorter. What keeps it from becoming the menu
+ * row again is proportion, not axis: at twice a row's height, with a drawing
+ * at twice a row's icon, inside the only frame in the menu, nothing about it
+ * is row-sized any more.
  *
  * It is the Share screen's journey stop at menu scale, deliberately: the same
  * drawing for the same fact, so a user who has watched a project leave this
@@ -86,7 +97,6 @@ export function ReachPanel({ anchor, open, onDismiss, context }: {
  * machine is the one statement that is neither a repetition nor a gap.
  */
 function ReachPlaceCard({ state, summary }: { state: ReachState; summary: string }) {
-  const { t } = useLocalization();
   return (
     <div
       className="desktop-project-reach-card"
@@ -100,12 +110,6 @@ function ReachPlaceCard({ state, summary }: { state: ReachState; summary: string
         strokeWidth={1.25}
       />
       <p className="desktop-project-reach-card-reach" data-reach-state={state.kind}>{summary}</p>
-      {/* The consequence of the place, kept on the card with the fact it
-          follows from. Everything true about reach is stated here; everything
-          the user can do about it is in the rows below. */}
-      {state.kind === "not-on-this-device" && (
-        <p className="desktop-project-reach-card-detail">{t("shell.projectReach.deviceCopy.detail")}</p>
-      )}
     </div>
   );
 }
@@ -152,9 +156,21 @@ function ReachActions({ onInvitePerson, onConnectAgent }: {
 /**
  * The third reach state: the project is reachable, it is simply not on this
  * device yet. Reading needs nothing; changing it needs a copy, and where that
- * copy lands is decided by the obstacle, not offered as a choice. The fact
- * itself is stated on the card above; this is only the thing to do about it.
+ * copy lands is decided by the obstacle, not offered as a choice.
+ *
+ * The sentence belongs to the action under it, not to the place above it. It
+ * was briefly folded onto the card, on the theory that everything true about
+ * reach should be stated in one place — and it made that one state's card a
+ * five-line block with the drawing adrift in the middle of it, while every
+ * other state's card was a single line. The card is the statement and it is
+ * one shape; a consequence that only exists because of an obstacle belongs
+ * beside the way out of it.
  */
+function ReachDeviceDetail() {
+  const { t } = useLocalization();
+  return <p className="desktop-project-reach-detail">{t("shell.projectReach.deviceCopy.detail")}</p>;
+}
+
 function ReachDeviceCopy({ onGetCopy }: { onGetCopy?: () => void }) {
   const { t } = useLocalization();
   return (

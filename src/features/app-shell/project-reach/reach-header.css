@@ -198,6 +198,17 @@
   }
 
   .desktop-project-reach-panel {
+    /* The one column everything in this panel starts on.
+
+       It is not the rows' padding, because that is where their icon SLOT
+       begins, and a 15px glyph centred in an 18px slot carries its own
+       bearing on top of that. What the eye actually follows is where the ink
+       starts, about three pixels further in. Naming it once is what stops the
+       card, its drawing and the note under it from each being nudged into
+       place with a different magic number and drifting apart the next time
+       one of them is touched. */
+    --desktop-project-reach-column: calc(var(--po-menu-item-padding-inline) + 3px);
+
     display: flex;
     min-width: 0;
     flex-direction: column;
@@ -215,37 +226,38 @@
      a row at any opacity. What separates a statement from a control is the
      kind of object it is, so this is a different one.
 
-     Stacked, not paired: icon-left / label-right on one baseline is the
-     universal shape of something you press, and dropping the sentence below
-     the drawing instead of beside it is what buys the card its new reading in
-     a single glance. Recessed, not raised: a well is where things are shown,
-     a plate is where things are pressed. Framed at all, which nothing else in
-     a menu is, so the change of register is visible before a word has been
-     read.
+     Recessed, not raised: a well is where things are shown, a plate is where
+     things are pressed. Framed at all, which nothing else in a menu is, so
+     the change of register is visible before a word has been read. And sized
+     like nothing else here: a 34px drawing beside a sentence makes a block
+     roughly twice a row's height, which is the measurement that actually
+     stops it from being read as a row. Axis never did that work — stacking
+     the pair only bought a ninety-pixel card with a dead top-right corner,
+     an announcement rather than a statement.
 
-     Everything on it starts on one edge, and that edge is the rows' own icon
-     column. Centring the stack made the card a poster — a little announcement
-     the panel was making — and it put three different left edges in a 272px
-     menu. Reading down one margin is what makes the card and the rows look
-     like one panel instead of a graphic with a menu stuck underneath. */
+     The drawing starts on the rows' own icon column, so the card and the menu
+     under it share one outer margin. The sentence does not land on the rows'
+     label column and is not meant to: a 34px drawing cannot sit in a 26px
+     icon gutter, and shrinking it to fit would walk the whole thing back to
+     the icon-and-label row this card exists to stop being. A frame is a
+     licence for its own interior grid; that is most of what it is for. */
   .desktop-project-reach-card {
-    display: grid;
+    display: flex;
     min-width: 0;
-    justify-items: start;
-    gap: 3px;
+    align-items: center;
+    gap: 11px;
     margin-bottom: 5px;
-    /* The column the eye follows is the rows' icon INK, not their icon slot:
-       a 15px glyph centred in an 18px slot already sits a pixel and a half
-       inside it. Add the card's own frame, which nothing else in the menu has
-       to pay for, and the inset that lands the sentence on that column is the
-       rows' padding plus one. */
-    padding: 13px calc(var(--po-menu-item-padding-inline) + 1px) 12px;
+    /* The shared column, less this card's own frame — nothing else in the
+       menu is framed, so nothing else has to pay that pixel back. */
+    padding: 11px calc(var(--desktop-project-reach-column) - 1px);
     border: 1px solid var(--po-border);
     border-radius: calc(var(--po-menu-radius, 8px) - var(--desktop-project-menu-spacing, 3px));
     background: var(--po-inset, color-mix(in srgb, var(--po-text) 4%, transparent));
     color: var(--po-text);
     text-align: start;
   }
+
+
 
   /* The machine at the size of a machine. It is deliberately free of the
      rows' icon slot: sharing that slot is what made it read as an action
@@ -257,8 +269,9 @@
      bounding box does. */
   .desktop-project-reach-card-mark {
     display: grid;
+    width: 34px;
     height: 34px;
-    margin-bottom: 4px;
+    flex: 0 0 auto;
     margin-inline-start: -3px;
     place-items: center;
     color: var(--po-text-muted);
@@ -271,13 +284,18 @@
     margin-inline-start: -1px;
   }
 
-  /* One type size on this card, and in the rows under it: the menu's body
-     size, everywhere. The consequence line used to drop to the meta size,
-     which made three sizes visible at once in a 272px menu and made the panel
-     look assembled rather than designed. What separates the two lines is what
-     separates them in the Share screen's journey — colour, not scale. */
+  /* One type size on this card, in the note under it, and in the rows under
+     that: the menu's body size, everywhere. The consequence line used to drop
+     to the meta size, which put three sizes in a 272px menu and made the
+     panel look assembled rather than designed. What separates these lines is
+     what separates them in the Share screen's journey — colour, not scale.
+
+     The fact the panel exists to state keeps the body colour because it is
+     the content here, not a caption. Now that it has stopped wearing a row's
+     shape, being the brightest thing no longer claims to be the pressable
+     one. */
   .desktop-project-reach-card-reach,
-  .desktop-project-reach-card-detail {
+  .desktop-project-reach-detail {
     margin: 0;
     min-width: 0;
     font-size: var(--po-menu-item-font-size, 13px);
@@ -287,10 +305,6 @@
     white-space: normal;
   }
 
-  /* The fact the panel exists to state, in the body colour because it is the
-     content here, not a caption. Now that it has stopped wearing a row's
-     shape, being the brightest thing no longer claims to be the pressable
-     one. */
   .desktop-project-reach-card-reach {
     color: inherit;
   }
@@ -299,9 +313,12 @@
     color: var(--po-warning, var(--po-text));
   }
 
-  /* What follows from the place, under the place: a consequence is read after
-     the fact it comes from, never instead of it. */
-  .desktop-project-reach-card-detail {
+  /* Why the row under it exists. It starts on the shared column, the same
+     edge the card's drawing starts on, so the panel reads down one margin; it
+     is not indented under a label column, because it explains the whole
+     situation rather than annotating one row. */
+  .desktop-project-reach-detail {
+    padding: 5px var(--desktop-project-reach-column) 7px;
     color: var(--po-text-subtle);
   }
 

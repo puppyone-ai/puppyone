@@ -232,9 +232,12 @@ describe("Header project reach", () => {
     expect(button.querySelector('[data-reach-place="cloud"]')).not.toBeNull();
     const panel = openPanel();
     expect(panel.querySelector('[data-testid="readers"]')).toBeNull();
-    // Everything true about reach is on the card; the rows hold only the doing.
+    // The card is one statement in every state; a consequence that exists
+    // only because of an obstacle sits beside the way out of it instead.
     expect(panel.querySelector(".desktop-project-reach-card")?.textContent)
-      .toContain("Changing it needs a copy of it here.");
+      .toBe("This project is not on this Mac yet");
+    expect(panel.querySelector(".desktop-project-reach-detail")?.textContent)
+      .toBe("You can read this project as it is. Changing it needs a copy of it here.");
     act(() => action("Get a copy").click());
     expect(getCopy).toHaveBeenCalledTimes(1);
   });
