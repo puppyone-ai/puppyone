@@ -45,8 +45,11 @@
     outline-offset: -1px;
   }
 
+  /* The product's warning colour is `--po-warning`; `--po-status-warning` was
+     never a token, so the one state meant to stand out has been falling back
+     to the ordinary text colour and standing out not at all. */
   .desktop-titlebar-reach-button[data-reach-emphasis="true"] {
-    color: var(--po-status-warning, var(--desktop-titlebar-text));
+    color: var(--po-warning, var(--desktop-titlebar-text));
   }
 
   /* The place mark occupies the Header's shared icon slot, so the laptop here
@@ -227,7 +230,7 @@
     /* The rows' own inline padding, so the card sits on their left edge and
        keeps an even margin inside the menu's rounded corners. */
     padding: 16px var(--po-menu-item-padding-inline) 14px;
-    border: 1px solid var(--po-border-subtle);
+    border: 1px solid var(--po-border);
     border-radius: calc(var(--po-menu-radius, 8px) - var(--desktop-project-menu-spacing, 3px));
     background: var(--po-inset, color-mix(in srgb, var(--po-text) 4%, transparent));
     color: var(--po-text);
@@ -251,7 +254,6 @@
   .desktop-project-reach-card-reach {
     margin: 0;
     min-width: 0;
-    max-width: 23ch;
     color: inherit;
     font-size: var(--po-menu-item-font-size, 13px);
     font-weight: var(--po-text-weight-regular, 400);
@@ -261,14 +263,13 @@
   }
 
   .desktop-project-reach-card-reach[data-reach-state="attention"] {
-    color: var(--po-status-warning, var(--po-text));
+    color: var(--po-warning, var(--po-text));
   }
 
   /* What follows from the place, under the place, at the meta size: a
      consequence is read after the fact it comes from, never instead of it. */
   .desktop-project-reach-card-detail {
     margin: -2px 0 0;
-    max-width: 30ch;
     color: var(--po-text-subtle);
     font-size: var(--po-menu-meta-font-size, 12px);
     line-height: var(--po-menu-meta-line-height, 15px);
