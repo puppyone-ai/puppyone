@@ -16,12 +16,18 @@ import type { ReachMember, ReachPlace, ReachState } from "./projectReachHeader";
  * Where the project is, as a mark. It is a fact, not a switch: there is
  * nothing to press and nothing to choose, which is why it can be shown all
  * the time.
+ *
+ * One drawing serves the Header's icon slot and the panel's place card,
+ * because they are the same statement at two sizes. Only the weight differs:
+ * a stroke that holds up at 16px turns into a thick outline once the machine
+ * is drawn at the size of a machine, so the host says how heavy it wants it.
  */
-export function ReachPlaceMark({ place, className, size }: {
+export function ReachPlaceMark({ place, className, size, strokeWidth = 1.65 }: {
   place: ReachPlace;
   /** The host's own mark slot, so the Header and the menu size it alike. */
   className: string;
   size: number;
+  strokeWidth?: number;
 }) {
   return (
     <span
@@ -31,7 +37,7 @@ export function ReachPlaceMark({ place, className, size }: {
     >
       {place === "cloud"
         ? <CloudIcon size={size} />
-        : <Laptop size={size} strokeWidth={1.65} />}
+        : <Laptop size={size} strokeWidth={strokeWidth} />}
     </span>
   );
 }

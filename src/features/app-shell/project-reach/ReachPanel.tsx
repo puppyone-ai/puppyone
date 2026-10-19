@@ -3,7 +3,7 @@ import { useLocalization } from "@puppyone/localization";
 import { UserPlus, Plug, HardDriveDownload } from "lucide-react";
 import { DesktopMenuItem } from "../../../components/DesktopMenu";
 import { DesktopTitlebarMenuLayer } from "../DesktopTitlebarMenuLayer";
-import type { ReachState } from "./projectReachHeader";
+import type { ReachPlace, ReachState } from "./projectReachHeader";
 import { ReachPlaceMark, useReachSummary } from "./reachPresentation";
 
 /**
@@ -48,16 +48,8 @@ export function ReachPanel({ anchor, open, onDismiss, context }: {
       ariaLabel={t("shell.projectReach.panelLabel")}
     >
       <div className="desktop-project-reach-panel">
-        {/* The statement, not a heading. Whatever opened this panel already
-            said its own label two centimetres away, so repeating it in bold
-            would be the panel shouting its trigger back at the user. What is
-            left is the one thing the panel adds — who can reach it — on a
-            quiet card that cannot be mistaken for a row you press. */}
-        <div className="desktop-project-reach-head" data-reach-place={state.place}>
-          <ReachPlaceMark place={state.place} className="desktop-project-reach-head-mark" size={15} />
-          <p className="desktop-project-reach-head-reach" data-reach-state={state.kind}>{summary}</p>
-        </div>
-        {state.kind === "not-on-this-device" ? <ReachDeviceDetail /> : readers}
+        <ReachPlaceCard state={state} summary={summary} />
+        {state.kind === "not-on-this-device" ? null : readers}
         {state.kind === "not-on-this-device"
           ? <ReachDeviceCopy onGetCopy={onGetCopy} />
           : <ReachActions onInvitePerson={onInvitePerson} onConnectAgent={onConnectAgent} />}
@@ -65,6 +57,66 @@ export function ReachPanel({ anchor, open, onDismiss, context }: {
     </DesktopTitlebarMenuLayer>
   );
 }
+
+/**
+ * Where this project is, drawn at the size of the thing it is on, with what
+ * that means for reach underneath it.
+ *
+ * This was built out of a menu row's own parts: the place mark in the rows'
+ * icon slot, the sentence beside it, a filled rounded rectangle under both.
+ * That is the exact shape of a row with the cursor on it, so the one element
+ * in the panel that does nothing wore the costume of the one element that had
+ * just been pressed — and it was the only thing here in full `--po-text`
+ * while the two real offers below it stayed muted. The hierarchy was upside
+ * down and the affordance was a lie.
+ *
+ * A quieter fill would not have fixed it, because the fill was never the
+ * problem: a row's geometry reads as a row at any opacity. So this is a
+ * different kind of object. The machine is drawn at the size of a machine,
+ * centred over the sentence it explains, in a recess rather than on a raised
+ * plate. Nobody clicks a picture of their own laptop.
+ *
+ * It is the Share screen's journey stop at menu scale, deliberately: the same
+ * drawing for the same fact, so a user who has watched a project leave this
+ * Mac recognizes the place here without being taught it twice. The drawing is
+ * also what lets the card stay silent about the place in words. Opened from
+ * the place control, the trigger said "This Mac" two centimetres away and
+ * repeating it would be the panel shouting its own trigger back; opened from
+ * the people on the right, the place was never said at all. A picture of the
+ * machine is the one statement that is neither a repetition nor a gap.
+ */
+function ReachPlaceCard({ state, summary }: { state: ReachState; summary: string }) {
+  const { t } = useLocalization();
+  return (
+    <div
+      className="desktop-project-reach-card"
+      data-reach-place={state.place}
+      data-reach-state={state.kind}
+    >
+      <ReachPlaceMark
+        place={state.place}
+        className="desktop-project-reach-card-mark"
+        size={PLACE_DRAWING_SIZE[state.place]}
+        strokeWidth={1.25}
+      />
+      <p className="desktop-project-reach-card-reach" data-reach-state={state.kind}>{summary}</p>
+      {/* The consequence of the place, kept on the card with the fact it
+          follows from. Everything true about reach is stated here; everything
+          the user can do about it is in the rows below. */}
+      {state.kind === "not-on-this-device" && (
+        <p className="desktop-project-reach-card-detail">{t("shell.projectReach.deviceCopy.detail")}</p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Drawn, not iconified — and the two drawings need different numbers to weigh
+ * the same. The laptop is an outline whose presence is its footprint; the
+ * Cloud is a solid shape, so it is given less room rather than letting it
+ * blot. The Share screen's journey sizes the same pair by the same reasoning.
+ */
+const PLACE_DRAWING_SIZE: Record<ReachPlace, number> = { "this-device": 34, cloud: 32 };
 
 /**
  * The two verbs, as menu rows. They are the same row the project menu uses,
@@ -100,13 +152,9 @@ function ReachActions({ onInvitePerson, onConnectAgent }: {
 /**
  * The third reach state: the project is reachable, it is simply not on this
  * device yet. Reading needs nothing; changing it needs a copy, and where that
- * copy lands is decided by the obstacle, not offered as a choice.
+ * copy lands is decided by the obstacle, not offered as a choice. The fact
+ * itself is stated on the card above; this is only the thing to do about it.
  */
-function ReachDeviceDetail() {
-  const { t } = useLocalization();
-  return <p className="desktop-project-reach-detail">{t("shell.projectReach.deviceCopy.detail")}</p>;
-}
-
 function ReachDeviceCopy({ onGetCopy }: { onGetCopy?: () => void }) {
   const { t } = useLocalization();
   return (

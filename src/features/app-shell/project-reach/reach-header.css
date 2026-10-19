@@ -201,54 +201,74 @@
     padding: var(--desktop-project-menu-spacing, 3px);
   }
 
-  /* The statement sits on a quiet card: it shares the rows' icon slot and
-     inline padding so it lines up with everything under it, and it has its
-     own surface so it is never mistaken for a row that does something.
-     Nothing here is bold — it is a fact, not an announcement, and the button
-     that opened this panel already said the place in words. */
-  .desktop-project-reach-head {
-    display: flex;
+  /* Where the project is, as a picture of the thing it is on.
+
+     This card used to be assembled out of the rows' own parts — their icon
+     slot, their inline padding, their radius, their gap — with a 5% fill on
+     top. A 5% fill is what `--po-hover` is, so the one element here that
+     cannot be pressed was drawn as a row with the cursor on it, and it was
+     the only thing in full `--po-text` while the two real offers underneath
+     stayed muted. Dimming it would not have helped: a row's geometry reads as
+     a row at any opacity. What separates a statement from a control is the
+     kind of object it is, so this is a different one.
+
+     Centred, not leading: icon-left / label-right is the universal shape of
+     something you press, and breaking that axis is what buys the card its new
+     reading in a single glance. Recessed, not raised: a well is where things
+     are shown, a plate is where things are pressed. Framed at all, which
+     nothing else in a menu is, so the change of register is visible before a
+     word has been read. */
+  .desktop-project-reach-card {
+    display: grid;
     min-width: 0;
-    align-items: center;
-    gap: var(--po-menu-item-gap, 8px);
-    margin-bottom: 4px;
-    padding: 7px var(--po-menu-item-padding-inline);
-    border-radius: var(--po-menu-item-radius);
-    background: color-mix(in srgb, var(--po-text) 5%, transparent);
+    justify-items: center;
+    gap: 7px;
+    margin-bottom: 5px;
+    /* The rows' own inline padding, so the card sits on their left edge and
+       keeps an even margin inside the menu's rounded corners. */
+    padding: 16px var(--po-menu-item-padding-inline) 14px;
+    border: 1px solid var(--po-border-subtle);
+    border-radius: calc(var(--po-menu-radius, 8px) - var(--desktop-project-menu-spacing, 3px));
+    background: var(--po-inset, color-mix(in srgb, var(--po-text) 4%, transparent));
     color: var(--po-text);
+    text-align: center;
   }
 
-  /* The same mark the rows below use, at the size they use it. */
-  .desktop-project-reach-head-mark {
+  /* The machine at the size of a machine. It is deliberately free of the
+     rows' icon slot: sharing that slot is what made it read as an action
+     glyph, one more verb in the column with the plug and the person. */
+  .desktop-project-reach-card-mark {
     display: grid;
-    width: var(--po-menu-icon-slot-size);
-    height: var(--po-menu-icon-slot-size);
-    flex: 0 0 var(--po-menu-icon-slot-size);
+    height: 36px;
     place-items: center;
     color: var(--po-text-muted);
   }
 
-  .desktop-project-reach-head-reach {
+  /* The fact the panel exists to state. It keeps the body size and the body
+     colour because it is the content here, not a caption; now that it has
+     stopped wearing a row's shape, being the brightest thing no longer claims
+     to be the pressable one. */
+  .desktop-project-reach-card-reach {
     margin: 0;
     min-width: 0;
+    max-width: 23ch;
     color: inherit;
     font-size: var(--po-menu-item-font-size, 13px);
     font-weight: var(--po-text-weight-regular, 400);
     line-height: var(--po-menu-item-line-height, 18px);
-    text-wrap: pretty;
+    text-wrap: balance;
     white-space: normal;
   }
 
-  .desktop-project-reach-head-reach[data-reach-state="attention"] {
+  .desktop-project-reach-card-reach[data-reach-state="attention"] {
     color: var(--po-status-warning, var(--po-text));
   }
 
-  .desktop-project-reach-detail {
-    margin: 0;
-    padding: 2px var(--po-menu-item-padding-inline) 6px;
-    padding-inline-start: calc(
-      var(--po-menu-item-padding-inline) + var(--po-menu-icon-slot-size) + var(--po-menu-item-gap, 8px)
-    );
+  /* What follows from the place, under the place, at the meta size: a
+     consequence is read after the fact it comes from, never instead of it. */
+  .desktop-project-reach-card-detail {
+    margin: -2px 0 0;
+    max-width: 30ch;
     color: var(--po-text-subtle);
     font-size: var(--po-menu-meta-font-size, 12px);
     line-height: var(--po-menu-meta-line-height, 15px);
