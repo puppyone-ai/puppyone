@@ -227,11 +227,18 @@
      whatever the user's setting says. At 34px and body type, a 31-character
      statement has nowhere to go but a second ragged line.
 
-     So: a 20px machine, which is comfortably larger than the rows' 15px
+     So: an 18px machine, which is comfortably larger than the rows' 15px
      icons and therefore never reads as one more verb in their column, next
      to the statement at the META size. That last part is load-bearing —
      meta is a separate preference from content, so turning the menu's text
-     up does not reflow this card. */
+     up does not reflow this card.
+
+     And it is the SOLID machine. The outline is the Header control's, two
+     inches up, where an outline is what this product's labels are made of;
+     repeating it here made this card a faded second printing of that label.
+     Filled, the same drawing stops naming the place and starts being the
+     hardware — which is the only claim the card was ever making, and the
+     weight the Cloud has always been drawn in. */
   .desktop-project-reach-card {
     display: flex;
     min-width: 0;
@@ -247,25 +254,18 @@
     color: var(--po-text);
   }
 
-  /* Drawn, not slotted. Giving it the rows' 18px icon slot is exactly what
-     made it read as an action glyph the first time; it keeps its own box and
-     hangs back by its own left bearing so its ink still lands on the column
-     the rows' icons sit on. */
+  /* Drawn, not slotted. Giving it the rows' icon slot is exactly what made it
+     read as an action glyph the first time; it keeps its own box, and because
+     both places are now solid shapes that reach their own edges, that box
+     lands on the rows' column with no bearing correction and no per-place
+     exception — the outline laptop needed both. */
   .desktop-project-reach-card-mark {
     display: grid;
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
     flex: 0 0 auto;
-    margin-inline-start: -2px;
     place-items: center;
     color: var(--po-text-muted);
-  }
-
-  /* The Cloud is solid where the laptop is an outline, so it carries almost
-     none of the laptop's bearing; one number for both would hang it off the
-     column the laptop sits on. */
-  .desktop-project-reach-card-mark[data-reach-place="cloud"] {
-    margin-inline-start: 0;
   }
 
   /* The statement, at the meta size and the body colour: small enough to

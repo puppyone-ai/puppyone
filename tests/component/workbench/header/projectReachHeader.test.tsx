@@ -117,6 +117,12 @@ describe("Header project reach", () => {
     expect(card?.textContent).toBe("Only you can reach this project");
     // The drawing is the point: it says the project is spending this machine.
     expect(card?.querySelector('[data-reach-place="this-device"]')).not.toBeNull();
+    // And it is the filled weight. The control that opened this panel is
+    // already showing the same machine as an outline, because that is what
+    // the titlebar's labels are made of; drawing an outline here too makes
+    // the card a dimmer reprint of a label instead of the hardware itself.
+    expect(card?.querySelector('[data-reach-tone="solid"]')).not.toBeNull();
+    expect(container.querySelector('.desktop-titlebar-workspace-mark')?.dataset.reachTone).toBe("outline");
     // The card states, the rows act. Anything built out of a row's parts
     // reads as the row the user has just pressed, so it may not have any.
     expect(card?.querySelector(".desktop-menu-item")).toBeNull();

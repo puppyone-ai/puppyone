@@ -22,27 +22,82 @@ import type { ReachMember, ReachPlace, ReachState } from "./projectReachHeader";
  * place, it is the machine whose resources this project is sitting on, which
  * is a different thing to say and the only thing that says it without words.
  *
- * One drawing, two sizes, so the host says how heavy it wants the stroke: a
- * weight that holds up in a 16px control turns into a thick outline the
- * moment the same machine is drawn any larger.
+ * Which is why it is drawn in two weights, not one. An outline is how this
+ * product writes a label: the Header's control wears the machine in the
+ * titlebar's shared icon slot, beside the project button's own outline mark,
+ * and a filled shape there would simply be a foreign glyph in that row. The
+ * card is not labelling anything, so it gets the machine with its mass —
+ * ink where the hardware is, the way the Cloud beside it has always been
+ * drawn. Same drawing, same vocabulary; one names a place and one is the
+ * thing being spent, and the weight is what tells them apart without a word.
  */
-export function ReachPlaceMark({ place, className, size, strokeWidth = 1.65 }: {
+export function ReachPlaceMark({ place, className, size, tone = "outline", strokeWidth = 1.65 }: {
   place: ReachPlace;
   /** The host's own mark slot, so the Header and the menu size it alike. */
   className: string;
   size: number;
+  /** `solid` for the machine as matter; `outline` for the machine as a label. */
+  tone?: "outline" | "solid";
   strokeWidth?: number;
 }) {
   return (
     <span
       className={`desktop-project-reach-place ${className}`}
       data-reach-place={place}
+      data-reach-tone={tone}
       aria-hidden="true"
     >
-      {place === "cloud"
-        ? <CloudIcon size={size} />
-        : <Laptop size={size} strokeWidth={strokeWidth} />}
+      <PlaceDrawing place={place} tone={tone} size={size} strokeWidth={strokeWidth} />
     </span>
+  );
+}
+
+/**
+ * The Cloud has only ever existed as a solid, so it answers to the place and
+ * ignores the weight: asking it for an outline would mean drawing a second
+ * Cloud, and the product would then own two Clouds that disagree.
+ */
+function PlaceDrawing({ place, tone, size, strokeWidth }: {
+  place: ReachPlace;
+  tone: "outline" | "solid";
+  size: number;
+  strokeWidth: number;
+}) {
+  if (place === "cloud") return <CloudIcon size={size} />;
+  if (tone === "solid") return <MachineMass size={size} />;
+  return <Laptop size={size} strokeWidth={strokeWidth} />;
+}
+
+/**
+ * The machine as matter: a filled deck on a filled foot, in the proportions
+ * of the outline it is the heavy weight of, so the two read as one object
+ * seen twice rather than as two different machines.
+ *
+ * The numbers are on a grid that survives the only size it is drawn at. At
+ * 18px the viewBox scales by 0.75, so every edge here is an even unit and
+ * lands on a whole pixel; the earlier odd-unit version rendered this shape
+ * with soft grey edges on the deck and a smeared foot, which at this size
+ * reads as a blurry icon rather than as a quiet one.
+ *
+ * There is deliberately no fill level in it. A part-filled shape is how the
+ * platform draws capacity, and this card knows that the project is on this
+ * machine — not how much of the machine it is using. Drawing a quantity the
+ * product cannot measure is a lie that looks like a feature.
+ */
+function MachineMass({ size }: { size: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      stroke="none"
+      focusable="false"
+      aria-hidden="true"
+    >
+      <rect x="4" y="4" width="16" height="12" rx="2" />
+      <rect x="2" y="18" width="20" height="2" rx="1" />
+    </svg>
   );
 }
 

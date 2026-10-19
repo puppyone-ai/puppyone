@@ -84,13 +84,21 @@ export function ReachPanel({ anchor, open, onDismiss, context }: {
  * text and a 31-character statement has nowhere to go but a second ragged
  * line.
  *
- * So the card is a band, not a poster: a 20px machine — bigger than the rows'
+ * So the card is a band, not a poster: an 18px machine — bigger than the rows'
  * 15px icons, so it is never mistaken for one more verb in their column, and
  * small enough to leave the sentence a whole line — beside the statement at
  * the meta size. The meta size is the load-bearing choice: it is a separate
  * preference from the content size, so scaling the menu's text up does not
  * reflow this card. The recess and the hairline do the rest; nothing else in
  * a menu is framed.
+ *
+ * And it is the filled weight of the machine, not the outline. Two inches
+ * above this card the same machine is already on screen as an outline, in
+ * the control that opened the panel — so an outline here was a dimmer second
+ * copy of a label the user had just read. Filled, it stops being a label: it
+ * is the hardware, with the ink of a thing that takes up room. That is the
+ * whole claim of this card, and the Cloud has been making it in the same
+ * weight, in this same slot, from the beginning.
  */
 function ReachPlaceCard({ state, summary }: { state: ReachState; summary: string }) {
   return (
@@ -102,8 +110,8 @@ function ReachPlaceCard({ state, summary }: { state: ReachState; summary: string
       <ReachPlaceMark
         place={state.place}
         className="desktop-project-reach-card-mark"
-        size={PLACE_DRAWING_SIZE[state.place]}
-        strokeWidth={1.5}
+        size={PLACE_DRAWING_SIZE}
+        tone="solid"
       />
       <p className="desktop-project-reach-card-reach">{summary}</p>
     </div>
@@ -111,12 +119,14 @@ function ReachPlaceCard({ state, summary }: { state: ReachState; summary: string
 }
 
 /**
- * The laptop is an outline whose presence is its footprint; the Cloud is a
- * solid shape that fills its own box, so it is given less room rather than
- * letting it blot. The Share screen's journey sizes the same pair the same
- * way, for the same reason.
+ * One size for both places, which only became possible when the machine
+ * stopped being an outline. A solid shape fills its own box, so it needs
+ * less room than a hollow one to carry the same weight and it starts its ink
+ * at the same edge: the pair used to need a size each and a bearing
+ * correction in CSS to land on the panel's one column, and now it needs
+ * neither. The Share screen's journey sizes the same pair the same way.
  */
-const PLACE_DRAWING_SIZE: Record<ReachPlace, number> = { "this-device": 20, cloud: 18 };
+const PLACE_DRAWING_SIZE = 18;
 
 /**
  * The two verbs, as menu rows. They are the same row the project menu uses,
