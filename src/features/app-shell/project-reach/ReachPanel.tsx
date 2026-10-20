@@ -1,7 +1,7 @@
 import { type ComponentProps, type ReactNode, type RefObject } from "react";
 import { useLocalization } from "@puppyone/localization";
 import { UserPlus, Plug, HardDriveDownload } from "lucide-react";
-import { DesktopMenuItem, DesktopMenuSeparator } from "../../../components/DesktopMenu";
+import { DesktopMenuItem } from "../../../components/DesktopMenu";
 import { DesktopProjectLocationControls } from "../DesktopProjectLocationSwitcher";
 import { DesktopTitlebarMenuLayer } from "../DesktopTitlebarMenuLayer";
 import type { ReachPlace, ReachState } from "./projectReachHeader";
@@ -52,11 +52,8 @@ export function ReachPanel({ anchor, open, onDismiss, context }: {
       ariaLabel={t(opening ? "shell.projectRuntime.panelLabel" : "shell.projectReach.panelLabel")}
     >
       <div className="desktop-project-reach-panel">
-        {opening && <>
-          <ProjectRuntimeSummary place={state.place} opening={opening} onDismiss={onDismiss} />
-          <DesktopMenuSeparator />
-        </>}
-        {opening ? <p className="desktop-project-reach-access-summary">{summary}</p>
+        {opening
+          ? <ProjectRuntimeSummary place={state.place} opening={opening} onDismiss={onDismiss} />
           : <ReachPlaceCard state={state} summary={summary} />}
         {state.kind === "not-on-this-device" ? null : readers}
         {state.kind === "not-on-this-device" && <ReachDeviceDetail />}
@@ -82,9 +79,6 @@ function ProjectRuntimeSummary({ place, opening, onDismiss }: {
     <ReachPlaceMark place={place} className="desktop-project-runtime-mark" size={20} />
     <div className="desktop-project-runtime-body">
       <p className="desktop-project-runtime-title">{t(`shell.projectRuntime.title.${title}`)}</p>
-      <p className="desktop-project-runtime-detail">
-        {t(place === "cloud" ? "shell.projectRuntime.detail.hosted" : "shell.projectRuntime.detail.local")}
-      </p>
       <DesktopProjectLocationControls {...opening} presentation="destination"
         onViewLocal={opening.onViewLocal && (() => { onDismiss(); opening.onViewLocal?.(); })}
         onViewCloud={opening.onViewCloud && (() => { onDismiss(); opening.onViewCloud?.(); })} />

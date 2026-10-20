@@ -215,7 +215,10 @@
     grid-template-columns: 20px minmax(0, 1fr);
     align-items: start;
     gap: 10px;
-    padding: 12px var(--desktop-project-reach-column);
+    margin-bottom: 4px;
+    padding: 10px var(--desktop-project-reach-column);
+    border: 1px solid var(--po-border);
+    border-radius: calc(var(--po-menu-radius, 8px) - var(--desktop-project-menu-spacing, 3px));
   }
 
   .desktop-project-runtime-mark {
@@ -237,22 +240,13 @@
     text-wrap: pretty;
   }
 
-  .desktop-project-runtime-detail,
-  .desktop-project-reach-access-summary {
-    margin: 5px 0 0;
-    color: var(--po-text-muted);
-    font-size: var(--po-menu-meta-font-size, var(--po-type-ui-meta, 12px));
-    line-height: 1.5;
-    text-wrap: pretty;
-  }
-
   .desktop-project-runtime .desktop-project-location-controls {
-    margin-top: 12px;
+    margin-top: 4px;
   }
 
   .desktop-project-runtime .desktop-project-location-controls .desktop-menu-item {
-    border: 1px solid var(--po-border);
-    color: var(--po-text);
+    padding-inline: 0;
+    color: var(--po-text-muted);
     background: transparent;
   }
 
@@ -267,16 +261,6 @@
 
   .desktop-project-runtime .desktop-menu-item-label {
     white-space: normal;
-    text-align: center;
-  }
-
-  .desktop-project-runtime .desktop-menu-item-body {
-    align-items: center;
-  }
-
-  .desktop-project-reach-access-summary {
-    margin: 0;
-    padding: 5px var(--desktop-project-reach-column) 7px;
   }
 
   /* The sharing-only panel keeps its compact access summary. */
