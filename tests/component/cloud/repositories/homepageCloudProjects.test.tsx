@@ -88,7 +88,7 @@ describe("inline Homepage Cloud projects", () => {
     await act(async () => account.useLocal());
     const rows = document.querySelectorAll('[data-cloud-project-id="a"]');
     expect(rows).toHaveLength(1);
-    expect(rows[0]?.textContent).toContain("Last opened in Cloud");
+    expect(rows[0]?.textContent).toContain("Last opened in a hosted workspace");
     await click('[data-cloud-project-id="a"] .onboarding-project-row');
     expect(account.active).toBe(true);
     expect(openLocal).not.toHaveBeenCalled();

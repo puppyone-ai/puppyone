@@ -45,5 +45,5 @@ export function useProjectOpenCaption(item: ProjectHomeItem): string {
     if (location === "cloud") return t("shell.projectOpen.lastCloud");
     return t(isMac ? "shell.projectOpen.lastMac" : "shell.projectOpen.lastComputer");
   }
-  return location === "cloud" ? t("shell.navigation.cloud") : device;
+  return location === "cloud" ? t("shell.projectRuntime.label") : device;
 }

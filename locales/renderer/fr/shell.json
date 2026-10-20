@@ -192,10 +192,17 @@
   "projectOpen.title": "Ouvrir dans",
   "projectOpen.action": "Ouvrir",
   "projectOpen.forProject": "Options d’ouverture de {project}",
-  "projectOpen.inCloud": "Ouvrir dans le cloud",
-  "projectOpen.lastCloud": "Dernière ouverture dans le cloud",
+  "projectOpen.inCloud": "Ouvrir dans un espace de travail hébergé",
+  "projectOpen.lastCloud": "Dernière ouverture dans un espace de travail hébergé",
   "projectOpen.onMac": "Ouvrir sur ce Mac",
   "projectOpen.onComputer": "Ouvrir sur cet ordinateur",
   "projectOpen.lastMac": "Dernière ouverture sur ce Mac",
-  "projectOpen.lastComputer": "Dernière ouverture sur cet ordinateur"
+  "projectOpen.lastComputer": "Dernière ouverture sur cet ordinateur",
+  "projectRuntime.label": "Espace de travail hébergé",
+  "projectRuntime.title.mac": "Ce projet s’exécute sur ce Mac",
+  "projectRuntime.title.computer": "Ce projet s’exécute sur cet ordinateur",
+  "projectRuntime.title.hosted": "Ce projet s’exécute dans un espace de travail hébergé",
+  "projectRuntime.detail.local": "Les fichiers restent ici. Les outils de l’agent s’exécutent sur cet ordinateur.",
+  "projectRuntime.detail.hosted": "Les fichiers et les outils de l’agent utilisent cet espace de travail hébergé.",
+  "projectRuntime.panelLabel": "Environnement d’exécution du projet"
 }

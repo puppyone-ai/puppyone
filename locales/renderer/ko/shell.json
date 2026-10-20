@@ -192,10 +192,17 @@
   "projectOpen.title": "열 위치",
   "projectOpen.action": "열기",
   "projectOpen.forProject": "{project} 열기 옵션",
-  "projectOpen.inCloud": "클라우드에서 열기",
-  "projectOpen.lastCloud": "마지막으로 클라우드에서 열었음",
+  "projectOpen.inCloud": "호스팅 작업 공간에서 열기",
+  "projectOpen.lastCloud": "마지막으로 호스팅 작업 공간에서 열었음",
   "projectOpen.onMac": "이 Mac에서 열기",
   "projectOpen.onComputer": "이 컴퓨터에서 열기",
   "projectOpen.lastMac": "마지막으로 이 Mac에서 열었음",
-  "projectOpen.lastComputer": "마지막으로 이 컴퓨터에서 열었음"
+  "projectOpen.lastComputer": "마지막으로 이 컴퓨터에서 열었음",
+  "projectRuntime.label": "호스팅 작업 공간",
+  "projectRuntime.title.mac": "이 프로젝트는 이 Mac에서 실행 중입니다",
+  "projectRuntime.title.computer": "이 프로젝트는 이 컴퓨터에서 실행 중입니다",
+  "projectRuntime.title.hosted": "이 프로젝트는 호스팅 작업 공간에서 실행 중입니다",
+  "projectRuntime.detail.local": "파일은 여기에 저장되고 에이전트 도구도 이 컴퓨터에서 실행됩니다.",
+  "projectRuntime.detail.hosted": "파일과 에이전트 도구는 같은 호스팅 작업 공간을 사용합니다.",
+  "projectRuntime.panelLabel": "프로젝트 실행 환경"
 }

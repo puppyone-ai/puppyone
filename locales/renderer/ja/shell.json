@@ -192,10 +192,17 @@
   "projectOpen.title": "開く場所",
   "projectOpen.action": "開く",
   "projectOpen.forProject": "{project}を開く場所",
-  "projectOpen.inCloud": "クラウドで開く",
-  "projectOpen.lastCloud": "前回はクラウドで開きました",
+  "projectOpen.inCloud": "ホスト型ワークスペースで開く",
+  "projectOpen.lastCloud": "前回はホスト型ワークスペースで開きました",
   "projectOpen.onMac": "このMacで開く",
   "projectOpen.onComputer": "このコンピュータで開く",
   "projectOpen.lastMac": "前回はこのMacで開きました",
-  "projectOpen.lastComputer": "前回はこのコンピュータで開きました"
+  "projectOpen.lastComputer": "前回はこのコンピュータで開きました",
+  "projectRuntime.label": "ホスト型ワークスペース",
+  "projectRuntime.title.mac": "このプロジェクトはこの Mac で実行されています",
+  "projectRuntime.title.computer": "このプロジェクトはこのコンピュータで実行されています",
+  "projectRuntime.title.hosted": "このプロジェクトはホスト型ワークスペースで実行されています",
+  "projectRuntime.detail.local": "ファイルはここに保存され、エージェントのツールもこのコンピュータで実行されます。",
+  "projectRuntime.detail.hosted": "ファイルとエージェントのツールは同じホスト型ワークスペースを使用します。",
+  "projectRuntime.panelLabel": "プロジェクトの実行環境"
 }

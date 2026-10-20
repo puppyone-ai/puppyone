@@ -192,10 +192,17 @@
   "projectOpen.title": "打开方式",
   "projectOpen.action": "打开",
   "projectOpen.forProject": "{project}的打开方式",
-  "projectOpen.inCloud": "在云端打开",
-  "projectOpen.lastCloud": "上次在云端打开",
+  "projectOpen.inCloud": "在托管工作区打开",
+  "projectOpen.lastCloud": "上次在托管工作区打开",
   "projectOpen.onMac": "在这台 Mac 上打开",
   "projectOpen.onComputer": "在这台电脑上打开",
   "projectOpen.lastMac": "上次在这台 Mac 上打开",
-  "projectOpen.lastComputer": "上次在这台电脑上打开"
+  "projectOpen.lastComputer": "上次在这台电脑上打开",
+  "projectRuntime.label": "托管工作区",
+  "projectRuntime.title.mac": "此项目正在这台 Mac 上运行",
+  "projectRuntime.title.computer": "此项目正在这台电脑上运行",
+  "projectRuntime.title.hosted": "此项目正在托管工作区中运行",
+  "projectRuntime.detail.local": "文件保存在本机，Agent 工具也在这里运行。",
+  "projectRuntime.detail.hosted": "文件与 Agent 工具使用同一个托管工作区。",
+  "projectRuntime.panelLabel": "项目运行环境"
 }

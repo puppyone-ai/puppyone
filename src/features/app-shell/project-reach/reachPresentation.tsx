@@ -1,7 +1,6 @@
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import { AgentBrandImage, AgentMonochromeBrandImage, isMonochromeAgentBrandId, resolveAgentBrand } from "@puppyone/shared-ui";
-import { Laptop } from "lucide-react";
-import { CloudIcon } from "../../../components/icons/CloudIcon";
+import { Laptop, Server } from "lucide-react";
 import { useDesktopPlatformCapabilities } from "../../../platform/useDesktopPlatformCapabilities";
 import type { ReachMember, ReachPlace, ReachState } from "./projectReachHeader";
 
@@ -12,24 +11,7 @@ import type { ReachMember, ReachPlace, ReachState } from "./projectReachHeader";
  * answers start disagreeing.
  */
 
-/**
- * Where the project is, as a mark. The mark represents the committed
- * location; opening actions belong to the surrounding control.
- *
- * The Header's control wears it, and so does the panel that control opens.
- * That is a repetition on purpose: in the panel it is not a label for the
- * place, it is the machine whose resources this project is sitting on, which
- * is a different thing to say and the only thing that says it without words.
- *
- * Which is why it is drawn in two weights, not one. An outline is how this
- * product writes a label: the Header's control wears the machine in the
- * titlebar's shared icon slot, beside the project button's own outline mark,
- * and a filled shape there would simply be a foreign glyph in that row. The
- * card is not labelling anything, so it gets the machine with its mass —
- * ink where the hardware is, the way the Cloud beside it has always been
- * drawn. Same drawing, same vocabulary; one names a place and one is the
- * thing being spent, and the weight is what tells them apart without a word.
- */
+/** The committed runtime location, using a device or hosted-server mark. */
 export function ReachPlaceMark({ place, className, size, tone = "outline", strokeWidth = 1.65 }: {
   place: ReachPlace;
   /** The host's own mark slot, so the Header and the menu size it alike. */
@@ -51,18 +33,14 @@ export function ReachPlaceMark({ place, className, size, tone = "outline", strok
   );
 }
 
-/**
- * The Cloud has only ever existed as a solid, so it answers to the place and
- * ignores the weight: asking it for an outline would mean drawing a second
- * Cloud, and the product would then own two Clouds that disagree.
- */
+/** A server represents the hosted runtime; Cloud is the collaboration service. */
 function PlaceDrawing({ place, tone, size, strokeWidth }: {
   place: ReachPlace;
   tone: "outline" | "solid";
   size: number;
   strokeWidth: number;
 }) {
-  if (place === "cloud") return <CloudIcon size={size} />;
+  if (place === "cloud") return <Server size={size} strokeWidth={strokeWidth} />;
   if (tone === "solid") return <MachineMass size={size} />;
   return <Laptop size={size} strokeWidth={strokeWidth} />;
 }
@@ -136,7 +114,7 @@ export function ReachMemberMark({ member, size = 18 }: { member: ReachMember; si
 export function useReachPlaceLabel(place: ReachPlace): string {
   const { t } = useLocalization();
   const capabilities = useDesktopPlatformCapabilities();
-  if (place === "cloud") return t("shell.navigation.cloud");
+  if (place === "cloud") return t("shell.projectRuntime.label");
   return t(capabilities?.platform === "macos"
     ? "shell.workspaceSwitcher.location.thisMac"
     : "shell.workspaceSwitcher.location.thisComputer");

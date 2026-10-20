@@ -126,7 +126,7 @@ describe("production App location wiring", () => {
     expect(localButton().getAttribute("aria-pressed")).toBe("false");
     expect(localButton().disabled).toBe(false);
     expect(title?.querySelector('[data-project-location="cloud"]')).not.toBeNull();
-    expect(title?.getAttribute("aria-label")).toContain("Cloud");
+    expect(title?.getAttribute("aria-label")).toContain("Hosted workspace");
     expect(document.querySelector(".desktop-titlebar")).toBe(header);
     expect(document.querySelector(".desktop-titlebar-location-button")).toBe(title);
     expect(document.querySelector(".desktop-titlebar-centered-context .desktop-titlebar-workspace-name")?.textContent).toBe("To-Do-List");

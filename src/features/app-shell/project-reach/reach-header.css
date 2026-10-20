@@ -210,35 +210,76 @@
     padding: var(--desktop-project-menu-spacing, 3px);
   }
 
-  /* The machine this project is sitting on, as a band rather than a poster.
+  .desktop-project-runtime {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr);
+    align-items: start;
+    gap: 10px;
+    padding: 12px var(--desktop-project-reach-column);
+  }
 
-     The drawing is why this card exists: it says the project is spending
-     THIS computer — your disk, your copy — which is a thing a sentence can
-     only say by sounding like a warning. It has been wrong three times. As a
-     filled rounded rectangle with the mark in the rows' icon slot it was,
-     pixel for pixel, a row under the cursor: `--po-hover` is a 5% tint of
-     the text colour and so was the fill. As a 34px machine on a 90px card it
-     stopped being a control and became an announcement. As nothing at all it
-     stopped being said.
+  .desktop-project-runtime-mark {
+    display: grid;
+    margin-top: 1px;
+    color: var(--po-text-muted);
+  }
 
-     The size is not taste, it is arithmetic. `--po-menu-item-font-size` here
-     resolves to `--po-type-left-sidebar-content`, a user preference that is
-     14px only by default. A drawing costs a fixed width; the sentence costs
-     whatever the user's setting says. At 34px and body type, a 31-character
-     statement has nowhere to go but a second ragged line.
+  .desktop-project-runtime-body {
+    min-width: 0;
+  }
 
-     So: an 18px machine, which is comfortably larger than the rows' 15px
-     icons and therefore never reads as one more verb in their column, next
-     to the statement at the META size. That last part is load-bearing —
-     meta is a separate preference from content, so turning the menu's text
-     up does not reflow this card.
+  .desktop-project-runtime-title {
+    margin: 0;
+    color: var(--po-text);
+    font-size: var(--po-menu-item-font-size);
+    font-weight: var(--po-text-weight-medium, 500);
+    line-height: 1.45;
+    text-wrap: pretty;
+  }
 
-     And it is the SOLID machine. The outline is the Header control's, two
-     inches up, where an outline is what this product's labels are made of;
-     repeating it here made this card a faded second printing of that label.
-     Filled, the same drawing stops naming the place and starts being the
-     hardware — which is the only claim the card was ever making, and the
-     weight the Cloud has always been drawn in. */
+  .desktop-project-runtime-detail,
+  .desktop-project-reach-access-summary {
+    margin: 5px 0 0;
+    color: var(--po-text-muted);
+    font-size: var(--po-menu-meta-font-size, var(--po-type-ui-meta, 12px));
+    line-height: 1.5;
+    text-wrap: pretty;
+  }
+
+  .desktop-project-runtime .desktop-project-location-controls {
+    margin-top: 12px;
+  }
+
+  .desktop-project-runtime .desktop-project-location-controls .desktop-menu-item {
+    border: 1px solid var(--po-border);
+    color: var(--po-text);
+    background: transparent;
+  }
+
+  .desktop-project-runtime .desktop-project-location-controls .desktop-menu-item:is(:hover, :focus-visible):not(:disabled) {
+    color: var(--po-text);
+    background: var(--po-hover);
+  }
+
+  .desktop-project-runtime .desktop-menu-item-icon {
+    display: none;
+  }
+
+  .desktop-project-runtime .desktop-menu-item-label {
+    white-space: normal;
+    text-align: center;
+  }
+
+  .desktop-project-runtime .desktop-menu-item-body {
+    align-items: center;
+  }
+
+  .desktop-project-reach-access-summary {
+    margin: 0;
+    padding: 5px var(--desktop-project-reach-column) 7px;
+  }
+
+  /* The sharing-only panel keeps its compact access summary. */
   .desktop-project-reach-card {
     display: flex;
     min-width: 0;

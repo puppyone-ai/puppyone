@@ -179,7 +179,7 @@ describe("independent Local / Cloud menu", () => {
       await render(<DesktopProjectLocationSwitcher projectLocation={{ current: "local", localAvailable: true, cloudState: "available" }} onViewCloud={noOp} />);
       expect(container.querySelector(".desktop-titlebar-location-button")?.textContent).toBe("Local");
       openLocation();
-      expect(menu(".desktop-project-location-menu").textContent).toBe(`${label}Cloud`);
+      expect(menu(".desktop-project-location-menu").textContent).toBe(`Open on ${label}Open in a hosted workspace`);
       expect(menu(".desktop-project-location-menu").getAttribute("role")).toBe("dialog");
       expect(locationButton("local").getAttribute("aria-current")).toBe("true");
     });
@@ -189,7 +189,7 @@ describe("independent Local / Cloud menu", () => {
       const cloud = vi.fn();
       await render(<DesktopProjectLocationSwitcher projectLocation={{ current: "local", localAvailable: true, cloudState }} onViewCloud={cloud} />);
       openLocation(); const popup = menu(".desktop-project-location-menu");
-      expect(locationButton("cloud").textContent).toBe(cloudState === "unavailable" ? "Share to Cloud" : "Cloud");
+      expect(locationButton("cloud").textContent).toBe("Open in a hosted workspace");
       expect(Boolean(locationButton("cloud").querySelector('[data-puppy-loader]'))).toBe(cloudState === "resolving");
       act(() => locationButton("cloud").click());
       expect(cloud).toHaveBeenCalledOnce();
@@ -210,8 +210,8 @@ describe("independent Local / Cloud menu", () => {
     const input = container.querySelector("input"), project = container.querySelector<HTMLButtonElement>(".desktop-titlebar-workspace-button")!;
     openLocation(); const popup = menu(".desktop-project-location-menu");
     act(() => locationButton("cloud").click());
-    expect(container.querySelector(".desktop-titlebar-location-button")?.textContent).toBe("Cloud");
-    expect(container.querySelector(".desktop-titlebar-location-button .desktop-cloud-icon")).not.toBeNull();
+    expect(container.querySelector(".desktop-titlebar-location-button")?.textContent).toBe("Hosted workspace");
+    expect(container.querySelector(".desktop-titlebar-location-button .lucide-server")).not.toBeNull();
     expect(container.querySelector(".desktop-titlebar-workspace-button")).toBe(project);
     act(() => locationButton("local").click());
     expect(menu(".desktop-project-location-menu")).toBe(popup);

@@ -62,14 +62,14 @@ describe("project location presentation experiment", () => {
     const controls = document.querySelector(".desktop-project-location-controls");
     const cloudButton = button("cloud");
     expect(Boolean(controls?.closest(".desktop-project-location-menu"))).toBe(!inline);
-    expect(cloudButton.getAttribute("aria-label")).toBe(inline ? "Cloud" : "Open in Cloud");
-    expect(cloudButton.textContent).toBe(inline ? "" : "Open in Cloud");
+    expect(cloudButton.getAttribute("aria-label")).toBe(inline ? "Hosted workspace" : "Open in a hosted workspace");
+    expect(cloudButton.textContent).toBe(inline ? "" : "Open in a hosted workspace");
     expect(button("local").textContent).toBe(inline ? "Local" : "Open on This Mac");
     act(() => cloudButton.click());
     expect(button("cloud")).toBe(cloudButton);
     expect(button("cloud").getAttribute("aria-pressed")).toBe("true");
     expect(button("local").getAttribute("aria-current")).toBe("true");
-    expect(cloudButton.textContent).toBe(inline ? "Cloud" : "Open in Cloud");
+    expect(cloudButton.textContent).toBe(inline ? "Hosted workspace" : "Open in a hosted workspace");
     expect(button("local").textContent).toBe(inline ? "" : "Open on This Mac");
     expect(controls?.getAttribute("data-presentation")).toBe(inline ? "header-icons" : "popover");
     if (!inline) {
@@ -87,11 +87,11 @@ describe("project location presentation experiment", () => {
     expect(button("cloud")).toBe(cloudButton);
     expect(button("cloud").getAttribute("aria-current")).toBe("true");
     expect(button("cloud").querySelector('[data-puppy-loader]')).toBeNull();
-    expect(cloudButton.textContent).toBe(inline ? "Cloud" : "Open in Cloud");
+    expect(cloudButton.textContent).toBe(inline ? "Hosted workspace" : "Open in a hosted workspace");
     act(() => button("local").click());
     expect(button("local").getAttribute("aria-pressed")).toBe("true");
     expect(button("local").textContent).toBe(inline ? "Local" : "Open on This Mac");
-    expect(cloudButton.textContent).toBe(inline ? "" : "Open in Cloud");
+    expect(cloudButton.textContent).toBe(inline ? "" : "Open in a hosted workspace");
     expect(navigate.mock.calls).toEqual([["cloud"], ["local"]]);
   });
 
@@ -112,7 +112,7 @@ describe("project location presentation experiment", () => {
     icons(true);
     const create = vi.fn();
     await render({ projectLocation: { current: "local", localAvailable: true, cloudState: "unavailable" }, onViewCloud: create });
-    expect(button("cloud").getAttribute("aria-label")).toBe("Open in Cloud");
+    expect(button("cloud").getAttribute("aria-label")).toBe("Open in a hosted workspace");
     expect(button("cloud").querySelector(".lucide-plus")).toBeNull();
     expect(button("cloud").querySelector("svg")).not.toBeNull();
     act(() => button("cloud").click());

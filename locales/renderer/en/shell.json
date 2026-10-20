@@ -192,10 +192,17 @@
   "projectOpen.title": "Open in",
   "projectOpen.action": "Open",
   "projectOpen.forProject": "Opening options for {project}",
-  "projectOpen.inCloud": "Open in Cloud",
-  "projectOpen.lastCloud": "Last opened in Cloud",
+  "projectOpen.inCloud": "Open in a hosted workspace",
+  "projectOpen.lastCloud": "Last opened in a hosted workspace",
   "projectOpen.onMac": "Open on This Mac",
   "projectOpen.onComputer": "Open on This computer",
   "projectOpen.lastMac": "Last opened on This Mac",
-  "projectOpen.lastComputer": "Last opened on This computer"
+  "projectOpen.lastComputer": "Last opened on This computer",
+  "projectRuntime.label": "Hosted workspace",
+  "projectRuntime.title.mac": "This project is running on this Mac",
+  "projectRuntime.title.computer": "This project is running on this computer",
+  "projectRuntime.title.hosted": "This project is running in a hosted workspace",
+  "projectRuntime.detail.local": "Files stay here. Agent tools run on this computer.",
+  "projectRuntime.detail.hosted": "Files and agent tools use this hosted workspace.",
+  "projectRuntime.panelLabel": "Project runtime"
 }

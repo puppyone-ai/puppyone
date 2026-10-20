@@ -87,7 +87,7 @@ function installBridge() {
 
 describe("native Cloud workbench switching", () => {
   it("shares the active tab after a folder selection and the root after closing the last tab", async () => {
-    installBridge(); await render(<Harness />); await click("Open in Cloud");
+    installBridge(); await render(<Harness />); await click("Open in a hosted workspace");
     const [node] = await cloud.dataPort!.listChildren(null);
     await act(async () => cloud.onActivePathChange(node!.path, node));
     await act(async () => cloud.setActiveNode({ id: "folder", name: "notes", path: "notes", type: "folder" }));
@@ -104,7 +104,7 @@ describe("native Cloud workbench switching", () => {
     expect(captureCloudWorkspaceShareResource(cloud)).toMatchObject({ path: "", directory: true });
   });
   it("notifies opened Cloud documents after publication using an owned root", async () => {
-    installBridge(); await render(<Harness />); await click("Open in Cloud");
+    installBridge(); await render(<Harness />); await click("Open in a hosted workspace");
     const [node] = await cloud.dataPort!.listChildren(null);
     const before = cloud.refreshToken.sequence;
     await act(async () => cloud.refresh());
@@ -117,7 +117,7 @@ describe("native Cloud workbench switching", () => {
     let subscription!: {id: string; generation: string};
     window.puppyoneDesktop!.onCloudWorkspaceEvent = callback => { listener = callback; return () => {}; };
     window.puppyoneDesktop!.watchCloudWorkspace = async input => { subscription = input; return { id: input.id }; };
-    await render(<Harness />); await click("Open in Cloud");
+    await render(<Harness />); await click("Open in a hosted workspace");
     const initial = cloud.refreshToken.sequence;
     await act(async () => listener({ ...subscription, type: "change" }));
     expect(cloud.refreshToken.sequence).toBe(initial + 1);
@@ -127,7 +127,7 @@ describe("native Cloud workbench switching", () => {
   });
 
   it("does not let a slow path lookup replace the user's newer file selection", async () => {
-    installBridge(); await render(<Harness />); await click("Open in Cloud");
+    installBridge(); await render(<Harness />); await click("Open in a hosted workspace");
     const [node] = await cloud.dataPort!.listChildren(null);
     cloud.service!.invalidateReads();
     let finish!: (value: unknown) => void;
@@ -175,7 +175,7 @@ describe("native Cloud workbench switching", () => {
     // Native text inputs retain their DOM working state while the provider is hidden.
     act(() => { local.value = "Local unsaved draft"; local.dispatchEvent(new Event("input", { bubbles: true })); });
     expect(bridge).not.toHaveBeenCalled();
-    await click("Open in Cloud");
+    await click("Open in a hosted workspace");
     expect(surface("local").hidden).toBe(true); expect(surface("cloud").hidden).toBe(false);
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     expect(document.querySelector('button[data-project-location="cloud"]')?.getAttribute("aria-pressed")).toBe("true");
@@ -188,7 +188,7 @@ describe("native Cloud workbench switching", () => {
     expect(surface("local").hidden).toBe(false); expect(surface("cloud").hidden).toBe(true);
     expect(document.querySelector('input[aria-label="local readme.md"]')).toBe(local);
     expect(local.value).toBe("Local unsaved draft"); expect(mounted).toBe(1);
-    await click("Open in Cloud");
+    await click("Open in a hosted workspace");
     expect(document.querySelector('[data-cloud-storage]')).toBe(cloudHost);
     expect(cloud.editorWorkbench.activePath).toBe(node!.path);
   });
@@ -203,7 +203,7 @@ describe("native Cloud workbench switching", () => {
       return { entries: [], ...nativeSnapshot("cloud-head") };
     });
     await render(<Harness />);
-    await click("Open in Cloud");
+    await click("Open in a hosted workspace");
     expect(surface("local").hidden).toBe(false);
     expect(document.querySelector('button[data-project-location="cloud"]')?.getAttribute("aria-pressed")).toBe("true");
     expect(document.querySelector('button[data-project-location="local"]')?.getAttribute("aria-current")).toBe("true");
@@ -225,7 +225,7 @@ describe("native Cloud workbench switching", () => {
     bridge.mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
     await render(<Harness />);
     const local = document.querySelector('input[aria-label="local readme.md"]');
-    await click("Open in Cloud");
+    await click("Open in a hosted workspace");
     expect(document.querySelector('button[data-project-location="cloud"]')?.getAttribute("aria-pressed")).toBe("true");
     await click("Open on This Mac");
     expect(document.querySelector('button[data-project-location="local"]')?.getAttribute("aria-pressed")).toBe("true");
@@ -236,7 +236,7 @@ describe("native Cloud workbench switching", () => {
   });
 
   it("keeps the local workbench while an unhosted project awaits explicit creation", async () => {
-    installBridge(); await render(<Harness linked={false} />); await click("Open in Cloud");
+    installBridge(); await render(<Harness linked={false} />); await click("Open in a hosted workspace");
     expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Share to Cloud");
     expect(surface("local").hidden).toBe(false);
     expect(surface("cloud").hidden).toBe(true);
@@ -255,7 +255,7 @@ describe("native Cloud workbench switching", () => {
   });
 
   it("does not switch on a later publication completion after cancellation", async () => {
-    installBridge(); await render(<Harness linked={false} />); await click("Open in Cloud");
+    installBridge(); await render(<Harness linked={false} />); await click("Open in a hosted workspace");
     await act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
     await render(<Harness />);
     expect(surface("local").hidden).toBe(false);
@@ -264,7 +264,7 @@ describe("native Cloud workbench switching", () => {
   });
 
   it("waits for sign-in and actual file access before selecting Cloud", async () => {
-    installBridge(); await render(<Harness currentSession={null} />); await click("Open in Cloud");
+    installBridge(); await render(<Harness currentSession={null} />); await click("Open in a hosted workspace");
     expect(surface("local").hidden).toBe(false);
     expect(surface("cloud").hidden).toBe(true);
     expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Sign in");
@@ -276,7 +276,7 @@ describe("native Cloud workbench switching", () => {
   });
 
   it("does not select Cloud when authentication returns after the dialog was dismissed", async () => {
-    installBridge(); await render(<Harness currentSession={null} />); await click("Open in Cloud");
+    installBridge(); await render(<Harness currentSession={null} />); await click("Open in a hosted workspace");
     await act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
     await render(<Harness />);
     expect(surface("local").hidden).toBe(false);
@@ -286,7 +286,7 @@ describe("native Cloud workbench switching", () => {
 
   it("keeps local drafts on a failed file preflight and retries only on request", async () => {
     installBridge(); bridge.mockRejectedValueOnce(Object.assign(new Error("Denied"), { status: 403 }));
-    await render(<Harness />); await click("Open in Cloud");
+    await render(<Harness />); await click("Open in a hosted workspace");
     expect(surface("local").hidden).toBe(false);
     expect(document.querySelector('[role="alert"]')).not.toBeNull();
     expect(bridge).toHaveBeenCalledOnce();
@@ -298,7 +298,7 @@ describe("native Cloud workbench switching", () => {
   it.each([404, 409, 503])("reports a file-service failure without claiming the project is missing (%s)", async (status) => {
     installBridge();
     bridge.mockRejectedValueOnce(Object.assign(new Error("File service unavailable"), { status }));
-    await render(<Harness />); await click("Open in Cloud");
+    await render(<Harness />); await click("Open in a hosted workspace");
     const alert = document.querySelector('[role="alert"]');
     expect(alert?.textContent).toContain("Unable to open this project's Cloud files");
     expect(alert?.textContent).not.toContain("wasn’t found");
@@ -322,7 +322,7 @@ describe("native Cloud workbench switching", () => {
       return original(request);
     });
     desktop.requestCloudSessionApi = requests;
-    await render(<Harness />); await click("Open in Cloud");
+    await render(<Harness />); await click("Open in a hosted workspace");
     expect(document.querySelector('[role="alert"]')?.textContent).toContain("Unable to open this project's Cloud files");
     expect(surface("local").hidden).toBe(false);
     expect(requests).toHaveBeenCalledOnce();
@@ -334,10 +334,10 @@ describe("native Cloud workbench switching", () => {
   });
 
   it("resumes a retained paused provider when the user retries Cloud entry", async () => {
-    installBridge(); await render(<Harness />); await click("Open in Cloud"); await click("Open on This Mac");
+    installBridge(); await render(<Harness />); await click("Open in a hosted workspace"); await click("Open on This Mac");
     const resume = vi.spyOn(cloud.service!, "resume");
     bridge.mockRejectedValueOnce(Object.assign(new Error("Workspace paused"), { status: 409 }));
-    await click("Open in Cloud"); expect(surface("local").hidden).toBe(false);
+    await click("Open in a hosted workspace"); expect(surface("local").hidden).toBe(false);
     expect(resume).not.toHaveBeenCalled();
     await click("Retry"); expect(resume).toHaveBeenCalledOnce();
     expect(surface("cloud").hidden).toBe(false);
@@ -347,7 +347,7 @@ describe("native Cloud workbench switching", () => {
     installBridge();
     let finish!: (value: unknown) => void;
     bridge.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
-    await render(<Harness />); await click("Open in Cloud");
+    await render(<Harness />); await click("Open in a hosted workspace");
     expect(surface("local").hidden).toBe(false);
     if (change === "cancel") await act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
     if (change === "repository") await render(<Harness localIdentity="another-project" />);
@@ -363,7 +363,7 @@ describe("native Cloud workbench switching", () => {
   });
 
   it("changes the storage namespace on account change and revokes the previous provider", async () => {
-    installBridge(); await render(<Harness />); await click("Open in Cloud");
+    installBridge(); await render(<Harness />); await click("Open in a hosted workspace");
     const previousPort = cloud.dataPort!; const previousId = cloud.service!.workspace.id;
     await render(<Harness currentSession={{ ...session, user_id: "another-account", session_generation: "second" }} />);
     expect(cloud.service!.workspace.id).not.toBe(previousId);
@@ -372,7 +372,7 @@ describe("native Cloud workbench switching", () => {
   });
 
   it("separates editor tabs across repository changes", async () => {
-    installBridge(); await render(<Harness />); await click("Open in Cloud");
+    installBridge(); await render(<Harness />); await click("Open in a hosted workspace");
     const [node] = await cloud.dataPort!.listChildren(null);
     await act(async () => { await cloud.onActivePathChange(node!.path, node); });
     expect(cloud.editorWorkbench.state.editors).toHaveLength(1);

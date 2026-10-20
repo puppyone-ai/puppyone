@@ -192,10 +192,17 @@
   "projectOpen.title": "Abrir en",
   "projectOpen.action": "Abrir",
   "projectOpen.forProject": "Opciones para abrir {project}",
-  "projectOpen.inCloud": "Abrir en la nube",
-  "projectOpen.lastCloud": "Abierto por última vez en la nube",
+  "projectOpen.inCloud": "Abrir en un espacio de trabajo alojado",
+  "projectOpen.lastCloud": "Abierto por última vez en un espacio de trabajo alojado",
   "projectOpen.onMac": "Abrir en este Mac",
   "projectOpen.onComputer": "Abrir en este equipo",
   "projectOpen.lastMac": "Abierto por última vez en este Mac",
-  "projectOpen.lastComputer": "Abierto por última vez en este equipo"
+  "projectOpen.lastComputer": "Abierto por última vez en este equipo",
+  "projectRuntime.label": "Espacio de trabajo alojado",
+  "projectRuntime.title.mac": "Este proyecto se ejecuta en este Mac",
+  "projectRuntime.title.computer": "Este proyecto se ejecuta en este equipo",
+  "projectRuntime.title.hosted": "Este proyecto se ejecuta en un espacio de trabajo alojado",
+  "projectRuntime.detail.local": "Los archivos se guardan aquí. Las herramientas del agente se ejecutan en este equipo.",
+  "projectRuntime.detail.hosted": "Los archivos y las herramientas del agente usan este espacio de trabajo alojado.",
+  "projectRuntime.panelLabel": "Entorno de ejecución del proyecto"
 }

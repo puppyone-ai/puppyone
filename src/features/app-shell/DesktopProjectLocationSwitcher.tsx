@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState, type ButtonHTMLAttributes } from "react";
 import { Tooltip } from "@puppyone/shared-ui";
-import { Check, Laptop } from "lucide-react";
+import { Check, Laptop, Server } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import { PulseGrid } from "../../components/loading";
 import { DesktopMenuItem } from "../../components/DesktopMenu";
-import { CloudIcon as Cloud } from "../../components/icons/CloudIcon";
 import { useDesktopPreference } from "../../preferencesStore";
 import { useDesktopPlatformCapabilities } from "../../platform/useDesktopPlatformCapabilities";
 import { DesktopTitlebarMenuLayer } from "./DesktopTitlebarMenuLayer";
@@ -40,7 +39,7 @@ export function DesktopProjectLocationSwitcher({ projectLocation, cloudProject, 
   useEffect(() => { if (inline || !available || projectMenuOpen) setOpen(false); }, [inline, available, projectMenuOpen]);
   if (!projectLocation) return null;
   const location = projectLocation.current;
-  const locationLabel = t(location === "local" ? "shell.workspaceSwitcher.location.local" : "shell.navigation.cloud");
+  const locationLabel = t(location === "local" ? "shell.workspaceSwitcher.location.local" : "shell.projectRuntime.label");
   const controls = <DesktopProjectLocationControls presentation={inline ? "header-icons" : "popover"}
     projectLocation={projectLocation} cloudProject={cloudProject} onViewLocal={onViewLocal} onViewCloud={onViewCloud} />;
   return <div className="desktop-titlebar-location-wrap" data-location-presentation={inline ? "header-icons" : "popover"}>
@@ -91,7 +90,7 @@ export function DesktopProjectLocationControls({
         {presentation === "header-icons" && <span className="desktop-project-location-indicator" aria-hidden="true" />}
         {presentation === "header-icons" && <span className="desktop-project-location-label-size" aria-hidden="true">
           <span>{t("shell.workspaceSwitcher.location.local")}</span>
-          <span>{t("shell.navigation.cloud")}</span>
+          <span>{t("shell.projectRuntime.label")}</span>
         </span>}
         {(["local", "cloud"] as const)
           .filter(location => presentation !== "destination" || location !== selection)
@@ -175,7 +174,7 @@ function useProjectLocationTabLabels({ location, presentation, localDeviceLabel 
   const { t } = useLocalization();
   const label = useProjectLocationLabel(location, localDeviceLabel);
   if (presentation !== "header-icons") return { label, visibleLabel: label, iconOnly: false };
-  const visibleLabel = t(location === "local" ? "shell.workspaceSwitcher.location.local" : "shell.navigation.cloud");
+  const visibleLabel = t(location === "local" ? "shell.workspaceSwitcher.location.local" : "shell.projectRuntime.label");
   return { label: creating ? label : visibleLabel, visibleLabel, iconOnly: !selected };
 }
 
@@ -190,9 +189,9 @@ function getLocationTabTooltip({ location, selection, projectLocation, createClo
     return "shell.workspaceSwitcher.current";
   }
   if (location === "local") return "shell.surface.switchToLocal";
-  if (createCloud) return "shell.workspaceSwitcher.shareToCloud";
+  if (createCloud) return "shell.projectOpen.inCloud";
   if (projectLocation?.cloudState === "signed-out") return "shell.workspaceSwitcher.location.signInToAccess";
-  return "shell.surface.switchToCloud";
+  return "shell.projectOpen.inCloud";
 }
 
 function useProjectDeviceLabel() {
@@ -214,7 +213,7 @@ function ProjectLocationMark({
   size?: number;
   strokeWidth?: number;
 }) {
-  const Icon = kind === "cloud" ? Cloud : Laptop;
+  const Icon = kind === "cloud" ? Server : Laptop;
   return (
     <span
       className={`desktop-project-location-mark ${className}`}

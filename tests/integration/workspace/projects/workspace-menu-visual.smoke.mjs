@@ -322,7 +322,7 @@ async function checkInlinePresentation(window, url, scene, catalog) {
     const creating = scene.state === "local-only" || scene.state === "local-github";
     assert(!snapshot.hasPopup && snapshot.name === "To-Do-List", `Inline experiment must keep the name and move location controls into Header: ${evidence}`);
     assert(snapshot.buttons.length === 2 && snapshot.buttons.every(button =>
-      (button.selected ? button.text === catalog[scene.state === "cloud-only" ? "navigation.cloud" : "workspaceSwitcher.location.local"]
+      (button.selected ? button.text === catalog[scene.state === "cloud-only" ? "projectRuntime.label" : "workspaceSwitcher.location.local"]
         : button.text === "" && button.bounds.width === snapshot.peer.width - snapshot.track.padding)
       && button.font === snapshot.nameFont
       && (!button.selected || button.color === snapshot.peer.color)
@@ -335,7 +335,7 @@ async function checkInlinePresentation(window, url, scene, catalog) {
       && button.color === button.markColor), `Header current label and icons must fit, match project typography and inherit foreground: ${evidence}`);
     assert(snapshot.nameBounds.right <= snapshot.buttons[0].bounds.x + 1, `Project name and icons must not overlap: ${evidence}`);
     assert(snapshot.buttons[0].label === catalog["workspaceSwitcher.location.local"]
-      && snapshot.buttons[1].label === catalog[creating ? "projectOpen.inCloud" : "navigation.cloud"], `Header actions must retain localized accessible names: ${evidence}`);
+      && snapshot.buttons[1].label === catalog[creating ? "projectOpen.inCloud" : "projectRuntime.label"], `Header actions must retain localized accessible names: ${evidence}`);
     assert(snapshot.currentCount === 1 && snapshot.pressedCount === 1 && snapshot.selected === (scene.state === "cloud-only" ? "cloud" : "local"), `Inline selection must match committed state: ${evidence}`);
     assert(snapshot.selectedBackground === snapshot.peer.background && snapshot.selectedImage === snapshot.peer.image
       && snapshot.selectedShadow === snapshot.peer.shadow && snapshot.selectedBorder === snapshot.peer.border,

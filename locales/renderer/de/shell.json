@@ -192,10 +192,17 @@
   "projectOpen.title": "Öffnen in",
   "projectOpen.action": "Öffnen",
   "projectOpen.forProject": "Öffnungsoptionen für {project}",
-  "projectOpen.inCloud": "In der Cloud öffnen",
-  "projectOpen.lastCloud": "Zuletzt in der Cloud geöffnet",
+  "projectOpen.inCloud": "In einem gehosteten Arbeitsbereich öffnen",
+  "projectOpen.lastCloud": "Zuletzt in einem gehosteten Arbeitsbereich geöffnet",
   "projectOpen.onMac": "Auf diesem Mac öffnen",
   "projectOpen.onComputer": "Auf diesem Computer öffnen",
   "projectOpen.lastMac": "Zuletzt auf diesem Mac geöffnet",
-  "projectOpen.lastComputer": "Zuletzt auf diesem Computer geöffnet"
+  "projectOpen.lastComputer": "Zuletzt auf diesem Computer geöffnet",
+  "projectRuntime.label": "Gehosteter Arbeitsbereich",
+  "projectRuntime.title.mac": "Dieses Projekt läuft auf diesem Mac",
+  "projectRuntime.title.computer": "Dieses Projekt läuft auf diesem Computer",
+  "projectRuntime.title.hosted": "Dieses Projekt läuft in einem gehosteten Arbeitsbereich",
+  "projectRuntime.detail.local": "Dateien bleiben hier. Agent-Werkzeuge laufen auf diesem Computer.",
+  "projectRuntime.detail.hosted": "Dateien und Agent-Werkzeuge nutzen diesen gehosteten Arbeitsbereich.",
+  "projectRuntime.panelLabel": "Projektlaufzeit"
 }

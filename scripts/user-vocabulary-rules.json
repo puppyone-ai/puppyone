@@ -1,8 +1,8 @@
 {
   "generated": "node scripts/check-user-vocabulary.mjs --sync",
   "source": {
-    "provenance": "puppy-issues@d66a02a:document/product-philosophy.md#vocabulary",
-    "tableDigest": "ba8fdf3a9dd6d000a76356fefaa29b39f6be57dcab7dbae76720f8ea12735e3e"
+    "provenance": "puppy-issues@d1618f5:document/product-philosophy.md#vocabulary",
+    "tableDigest": "e088b337223286c7a83cd42679897f37e9bb58d5ee656bd041421a0f151755d0"
   },
   "rules": [
     {
@@ -42,23 +42,23 @@
     },
     {
       "term": "VM",
-      "concept": "云上那台机器",
-      "userFacing": "Cloud workspace"
+      "concept": "远程运行环境",
+      "userFacing": "Hosted workspace / 托管工作区"
     },
     {
       "term": "虚拟机",
-      "concept": "云上那台机器",
-      "userFacing": "Cloud workspace"
+      "concept": "远程运行环境",
+      "userFacing": "Hosted workspace / 托管工作区"
     },
     {
       "term": "容器",
-      "concept": "云上那台机器",
-      "userFacing": "Cloud workspace"
+      "concept": "远程运行环境",
+      "userFacing": "Hosted workspace / 托管工作区"
     },
     {
       "term": "实例",
-      "concept": "云上那台机器",
-      "userFacing": "Cloud workspace"
+      "concept": "远程运行环境",
+      "userFacing": "Hosted workspace / 托管工作区"
     },
     {
       "term": "Download",

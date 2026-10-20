@@ -6,6 +6,7 @@ import { DesktopProjectLocationControls } from "../DesktopProjectLocationSwitche
 import { DesktopTitlebarMenuLayer } from "../DesktopTitlebarMenuLayer";
 import type { ReachPlace, ReachState } from "./projectReachHeader";
 import { ReachPlaceMark, useReachSummary } from "./reachPresentation";
+import { useDesktopPlatformCapabilities } from "../../../platform/useDesktopPlatformCapabilities";
 
 /**
  * What the Header offers about reach, wherever it is opened from.
@@ -43,21 +44,20 @@ export function ReachPanel({ anchor, open, onDismiss, context }: {
       dismissOnFocusExit={false}
       className="desktop-project-reach-menu"
       gap={2}
-      preferredWidth={252}
+      preferredWidth={opening ? 320 : 252}
       preferredMaxHeight={420}
       widthMode="fixed"
       alignment="start"
       role="dialog"
-      ariaLabel={t(opening ? "shell.projectOpen.title" : "shell.projectReach.panelLabel")}
+      ariaLabel={t(opening ? "shell.projectRuntime.panelLabel" : "shell.projectReach.panelLabel")}
     >
       <div className="desktop-project-reach-panel">
         {opening && <>
-          <DesktopProjectLocationControls {...opening} presentation="destination"
-            onViewLocal={opening.onViewLocal && (() => { onDismiss(); opening.onViewLocal?.(); })}
-            onViewCloud={opening.onViewCloud && (() => { onDismiss(); opening.onViewCloud?.(); })} />
+          <ProjectRuntimeSummary place={state.place} opening={opening} onDismiss={onDismiss} />
           <DesktopMenuSeparator />
         </>}
-        <ReachPlaceCard state={state} summary={summary} />
+        {opening ? <p className="desktop-project-reach-access-summary">{summary}</p>
+          : <ReachPlaceCard state={state} summary={summary} />}
         {state.kind === "not-on-this-device" ? null : readers}
         {state.kind === "not-on-this-device" && <ReachDeviceDetail />}
         {state.kind === "not-on-this-device"
@@ -68,47 +68,31 @@ export function ReachPanel({ anchor, open, onDismiss, context }: {
   );
 }
 
-/**
- * The machine this project is sitting on, and what that means for reach.
- *
- * The drawing is the point of this card. It is not a label for the place —
- * the Header control already says "This Mac" in words — it is the thing the
- * project is currently spending: your own computer, your own disk, your own
- * copy. A sentence cannot say "this is running on your hardware" without
- * sounding like a warning; a small picture of the hardware says it and then
- * gets out of the way.
- *
- * Three wrong versions got here. It was a menu row with a fill that happened
- * to equal `--po-hover`, which made the one thing that cannot be pressed look
- * like the one thing that had been. Then it was a 34px machine on a 90px
- * card, which fixed the affordance and became an announcement. Then it was
- * no card at all, which is not a correction, it is a deletion: the resource
- * went unstated.
- *
- * What was actually wrong with the big version is measurable, and it is the
- * reason this one is sized the way it is. `--po-menu-item-font-size` here
- * resolves to `--po-type-left-sidebar-content`, a user preference that is
- * 14px only by default. A drawing costs a fixed width; a sentence costs
- * whatever the user's setting says. Put a 34px drawing next to 14px body
- * text and a 31-character statement has nowhere to go but a second ragged
- * line.
- *
- * So the card is a band, not a poster: an 18px machine — bigger than the rows'
- * 15px icons, so it is never mistaken for one more verb in their column, and
- * small enough to leave the sentence a whole line — beside the statement at
- * the meta size. The meta size is the load-bearing choice: it is a separate
- * preference from the content size, so scaling the menu's text up does not
- * reflow this card. The recess and the hairline do the rest; nothing else in
- * a menu is framed.
- *
- * And it is the filled weight of the machine, not the outline. Two inches
- * above this card the same machine is already on screen as an outline, in
- * the control that opened the panel — so an outline here was a dimmer second
- * copy of a label the user had just read. Filled, it stops being a label: it
- * is the hardware, with the ink of a thing that takes up room. That is the
- * whole claim of this card, and the Cloud has been making it in the same
- * weight, in this same slot, from the beginning.
- */
+/** Committed execution location comes first; access remains a separate fact. */
+function ProjectRuntimeSummary({ place, opening, onDismiss }: {
+  place: ReachPlace;
+  opening: NonNullable<ReachPanelContext["opening"]>;
+  onDismiss: () => void;
+}) {
+  const { t } = useLocalization();
+  const capabilities = useDesktopPlatformCapabilities();
+  const device = capabilities?.platform === "macos" ? "mac" : "computer";
+  const title = place === "cloud" ? "hosted" : device;
+  return <section className="desktop-project-runtime" aria-label={t("shell.projectRuntime.panelLabel")}>
+    <ReachPlaceMark place={place} className="desktop-project-runtime-mark" size={20} />
+    <div className="desktop-project-runtime-body">
+      <p className="desktop-project-runtime-title">{t(`shell.projectRuntime.title.${title}`)}</p>
+      <p className="desktop-project-runtime-detail">
+        {t(place === "cloud" ? "shell.projectRuntime.detail.hosted" : "shell.projectRuntime.detail.local")}
+      </p>
+      <DesktopProjectLocationControls {...opening} presentation="destination"
+        onViewLocal={opening.onViewLocal && (() => { onDismiss(); opening.onViewLocal?.(); })}
+        onViewCloud={opening.onViewCloud && (() => { onDismiss(); opening.onViewCloud?.(); })} />
+    </div>
+  </section>;
+}
+
+/** Sharing-only entries retain the existing compact access summary. */
 function ReachPlaceCard({ state, summary }: { state: ReachState; summary: string }) {
   return (
     <div
@@ -127,14 +111,6 @@ function ReachPlaceCard({ state, summary }: { state: ReachState; summary: string
   );
 }
 
-/**
- * One size for both places, which only became possible when the machine
- * stopped being an outline. A solid shape fills its own box, so it needs
- * less room than a hollow one to carry the same weight and it starts its ink
- * at the same edge: the pair used to need a size each and a bearing
- * correction in CSS to land on the panel's one column, and now it needs
- * neither. The Share screen's journey sizes the same pair the same way.
- */
 const PLACE_DRAWING_SIZE = 18;
 
 /**
