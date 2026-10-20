@@ -295,6 +295,44 @@ describe("native Cloud workbench switching", () => {
     expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
 
+  it.each([404, 409, 503])("reports a file-service failure without claiming the project is missing (%s)", async (status) => {
+    installBridge();
+    bridge.mockRejectedValueOnce(Object.assign(new Error("File service unavailable"), { status }));
+    await render(<Harness />); await click("Open in Cloud");
+    const alert = document.querySelector('[role="alert"]');
+    expect(alert?.textContent).toContain("Unable to open this project's Cloud files");
+    expect(alert?.textContent).not.toContain("wasn’t found");
+    expect(surface("local").hidden).toBe(false);
+    expect(surface("cloud").hidden).toBe(true);
+    expect(bridge).toHaveBeenCalledOnce();
+    await click("Retry");
+    expect(surface("cloud").hidden).toBe(false);
+  });
+
+  it("handles an older server without the workbench route and can retry after an upgrade", async () => {
+    installBridge();
+    const desktop = window.puppyoneDesktop!;
+    const original = desktop.requestCloudSessionApi;
+    let available = false;
+    const requests = vi.fn<typeof original>(async (request) => {
+      if (!available && request.path.endsWith("/workbench")) {
+        return { transport: "puppyone-cloud-ipc-v1", ok: false,
+          error: { status: 404, message: "Request failed (404): Not Found" } };
+      }
+      return original(request);
+    });
+    desktop.requestCloudSessionApi = requests;
+    await render(<Harness />); await click("Open in Cloud");
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain("Unable to open this project's Cloud files");
+    expect(surface("local").hidden).toBe(false);
+    expect(requests).toHaveBeenCalledOnce();
+    expect(requests.mock.calls[0]![0].method).toBe("GET");
+    expect(bridge).not.toHaveBeenCalled();
+    available = true;
+    await click("Retry");
+    expect(surface("cloud").hidden).toBe(false);
+  });
+
   it("resumes a retained paused provider when the user retries Cloud entry", async () => {
     installBridge(); await render(<Harness />); await click("Open in Cloud"); await click("Open on This Mac");
     const resume = vi.spyOn(cloud.service!, "resume");

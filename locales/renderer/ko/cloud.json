@@ -117,6 +117,7 @@
   "message.clone-command-copied": "복제 명령을 복사했습니다.",
   "message.cloud-remote-removed": "이 작업 공간에서 PuppyOne Git 원격을 제거했습니다.",
   "message.workspace-unavailable": "이 기기에서는 프로젝트 작업 공간을 사용할 수 없습니다.",
+  "message.workspace-open-failed": "이 프로젝트의 클라우드 파일을 열 수 없습니다. 클라우드 서비스를 확인하고 다시 시도하세요. 이 컴퓨터의 파일은 변경되지 않았습니다.",
   "message.connect-failed": "이 Cloud 프로젝트에 연결할 수 없습니다.",
   "message.copy-clone-failed": "복제 명령을 복사할 수 없습니다.",
   "message.remove-remote-failed": "PuppyOne Git 원격을 제거할 수 없습니다.",

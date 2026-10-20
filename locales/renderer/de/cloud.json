@@ -117,6 +117,7 @@
   "message.clone-command-copied": "Klonbefehl kopiert.",
   "message.cloud-remote-removed": "PuppyOne-Git-Remote aus diesem Arbeitsbereich entfernt.",
   "message.workspace-unavailable": "Der Projektarbeitsbereich ist auf diesem Gerät nicht verfügbar.",
+  "message.workspace-open-failed": "Die Cloud-Dateien dieses Projekts konnten nicht geöffnet werden. Prüfe den Cloud-Dienst und versuche es erneut. Deine Dateien auf diesem Computer bleiben unverändert.",
   "message.connect-failed": "Dieses Cloud-Projekt konnte nicht verbunden werden.",
   "message.copy-clone-failed": "Der Klonbefehl konnte nicht kopiert werden.",
   "message.remove-remote-failed": "Das PuppyOne-Git-Remote konnte nicht entfernt werden.",

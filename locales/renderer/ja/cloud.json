@@ -117,6 +117,7 @@
   "message.clone-command-copied": "クローンコマンドをコピーしました。",
   "message.cloud-remote-removed": "このワークスペースから PuppyOne Git リモートを削除しました。",
   "message.workspace-unavailable": "このデバイスではプロジェクトのワークスペースを利用できません。",
+  "message.workspace-open-failed": "このプロジェクトのクラウドファイルを開けません。クラウドサービスを確認して、もう一度お試しください。このコンピューターのファイルは変更されていません。",
   "message.connect-failed": "この Cloud プロジェクトに接続できません。",
   "message.copy-clone-failed": "クローンコマンドをコピーできません。",
   "message.remove-remote-failed": "PuppyOne Git リモートを削除できません。",

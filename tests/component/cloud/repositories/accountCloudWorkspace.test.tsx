@@ -136,7 +136,7 @@ describe("account-owned Cloud workspaces on the existing API", () => {
     await render({ association: associated("missing") });
     await act(async () => header.request());
     expect(account.active).toBe(false);
-    expect(header.pending).toBe(true); expect(header.error?.code).toBe("remote-not-found");
+    expect(header.pending).toBe(true); expect(header.error?.code).toBe("workspace-open-failed");
     expect(homepage.items).toHaveLength(0);
     expect(bridge.mock.calls.some(([request]) => request.path.startsWith("/projects/?"))).toBe(false);
     await act(async () => header.cancel());

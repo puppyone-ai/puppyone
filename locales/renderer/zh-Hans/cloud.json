@@ -117,6 +117,7 @@
   "message.clone-command-copied": "克隆命令已复制。",
   "message.cloud-remote-removed": "已从此工作区移除 PuppyOne Git 远端。",
   "message.workspace-unavailable": "此设备上没有该项目的工作区。",
+  "message.workspace-open-failed": "无法打开此项目的云端文件。请检查云端服务后重试。这台电脑上的文件未受影响。",
   "message.connect-failed": "无法连接此 Cloud 项目。",
   "message.copy-clone-failed": "无法复制克隆命令。",
   "message.remove-remote-failed": "无法移除 PuppyOne Git 远端。",

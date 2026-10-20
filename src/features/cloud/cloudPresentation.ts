@@ -11,6 +11,7 @@ export type CloudMessageCode =
   | "clone-command-copied"
   | "cloud-remote-removed"
   | "workspace-unavailable"
+  | "workspace-open-failed"
   | "connect-failed"
   | "copy-clone-failed"
   | "remove-remote-failed"

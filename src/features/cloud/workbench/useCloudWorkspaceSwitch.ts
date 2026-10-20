@@ -65,8 +65,10 @@ export function useCloudWorkspaceSwitch({
       if (!isCurrent()) return;
       const status = cause && typeof cause === "object" && "status" in cause
         ? Number(cause.status) : null;
+      // Project authorization has already succeeded. A missing file route or
+      // unavailable workspace must not be presented as a missing Git project.
       setPreparation({ intent, service, error: cloudMessage(status === 401 ? "remote-sign-in"
-        : status === 403 ? "remote-not-authorized" : status === 404 ? "remote-not-found" : "remote-network-failed") });
+        : status === 403 ? "remote-not-authorized" : "workspace-open-failed") });
     });
     return () => { cancelled = true; };
   }, [cancel, enabled, initializationPending, intent, onCommit, providerError, scope, service, session]);
