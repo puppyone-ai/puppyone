@@ -1,4 +1,3 @@
-import { nativeSnapshot, nativeReceipt } from "./cloudRepositorySmokeFixture";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { EditorView } from "@codemirror/view";
 import { createWorkspaceRootUri, createWorkspaceResourceUri, getWorkspaceResourcePath, canonicalizeResourceUri, isDocumentDataNode, withEditorDocumentOperations, type DataPort, type Workspace, type WorkspaceFolder } from "@puppyone/shared-ui";
@@ -68,20 +67,29 @@ const cloudFiles = new Map([
   ["assets/diagram.svg", "fixture-image"], ["report.xlsx", "fixture-binary"],
   ["settings.json", '{"cloud":true}'], ["page.html", "<!doctype html><html><head><title>Cloud page</title></head><body><h1>Cloud HTML</h1></body></html>"],
 ]);
-let head = 1;
-const agentFixture = createCloudAgentSmokeFixture(() => { cloudFiles.set("readme.txt", "AGENT_PUBLISHED_CLOUD_BODY"); head++; });
-let resourceGeneration = 0;
-const cloudMimeTypes = new Map<string, string>();
+const cloudBytes = new Map<string, Uint8Array>();
+const workspaceListeners = new Set<(event: { id: string; type: "change"; generation: string }) => void>();
+const workspaceWatches = new Map<string, string>();
+function notifyWorkspace() {
+  for (const [id, generation] of workspaceWatches) for (const listener of workspaceListeners) listener({ id, type: "change", generation });
+}
+const agentFixture = createCloudAgentSmokeFixture(() => { cloudFiles.set("readme.txt", "AGENT_PUBLISHED_CLOUD_BODY"); notifyWorkspace(); });
+function fixtureBytes(path: string) { return cloudBytes.get(path) ?? new TextEncoder().encode(cloudFiles.get(path) ?? ""); }
 function listFixtureDirectory(path: string) {
   const names = new Set([...cloudFiles.keys()].filter((file) => !path || file.startsWith(`${path}/`))
     .map((file) => file.slice(path.length + (path ? 1 : 0)).split("/")[0]!));
-  return { entries: [...names].map((name) => ({ path: [path, name].filter(Boolean).join("/"), name,
-    type: cloudFiles.has([path, name].filter(Boolean).join("/")) ? "file" : "folder", children_count: 1 })), ...nativeSnapshot(`cloud-${head}`) };
+  return { entries: [...names].map((name) => {
+    const file = [path, name].filter(Boolean).join("/");
+    return { name, kind: cloudFiles.has(file) ? "file" : "directory", size: fixtureBytes(file).length, modified_ns: "1" };
+  }) };
 }
-function statFixture(path: string) {
-  const exists = !path || cloudFiles.has(path) || [...cloudFiles.keys()].some((file) => file.startsWith(`${path}/`));
-  if (!exists) return { transport: "puppyone-cloud-ipc-v1", ok: false, error: { status: 404, message: "Missing fixture" } };
-  return { path, name: path.split("/").at(-1), type: cloudFiles.has(path) ? "file" : "folder", mime_type: cloudMimeTypes.get(path), exists: true, ...nativeSnapshot(`cloud-${head}`) };
+async function fixtureFile(path: string) {
+  const bytes = fixtureBytes(path);
+  const digest = await crypto.subtle.digest("SHA-256", new Uint8Array(bytes));
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return { name: path.split("/").at(-1), kind: "file", size: bytes.length, modified_ns: "1", content_base64: btoa(binary),
+    revision: [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, "0")).join("") };
 }
 const cloudWrites: Array<{ path: string; content: string }> = [];
 const localWrites: Array<{ path: string; content: string }> = [];
@@ -99,6 +107,9 @@ window.puppyoneDesktop = {
   ...window.puppyoneDesktop,
   ...window.__nativeCloudChromeBridge,
   ...window.__nativeCloudPreviewBridge,
+  watchCloudWorkspace: async ({ id, generation }) => { workspaceWatches.set(id, generation); return { id }; },
+  stopCloudWorkspaceWatch: async ({ id }) => { workspaceWatches.delete(id); },
+  onCloudWorkspaceEvent: (listener) => { workspaceListeners.add(listener); return () => { workspaceListeners.delete(listener); }; },
   startCloudOAuth: async () => {
     for (const listener of authStateListeners) listener({ status: "signing-in", session: null });
     return { ok: true };
@@ -118,19 +129,23 @@ window.puppyoneDesktop = {
       name: context.projectName, capabilities: context.capabilities };
     const metadata = cloudMetadataFixture(operation);
     if (metadata !== undefined) return metadata;
-    if (operation === "ls") {
+    if (operation === "files") {
       if (cloudReadBarrier) await cloudReadBarrier;
       return listFixtureDirectory(path);
     }
-    if (operation === "stat") {
-      return statFixture(path);
+    if (operation === "file" && request.method === "PUT") {
+      const previous = cloudFiles.has(body.path) ? (await fixtureFile(body.path)).revision : null;
+      if (body.expected_revision !== previous) return { transport: "puppyone-cloud-ipc-v1", ok: false, error: { status: 409, message: "Fixture conflict" } };
+      const bytes = Uint8Array.from(atob(body.content_base64), character => character.charCodeAt(0));
+      const content = new TextDecoder().decode(bytes);
+      cloudBytes.delete(body.path); cloudFiles.set(body.path, content); cloudWrites.push({ path: body.path, content });
+      const file = await fixtureFile(body.path);
+      notifyWorkspace(); return { revision: file.revision, size: file.size };
     }
-    if (operation === "cat") return { path, type: "file", content_text: cloudFiles.get(path), ...nativeSnapshot(`cloud-${head}`) };
-    if (operation === "sign") return { url: `/api/v1/content/11111111-1111-4111-8111-111111111111/inline?path=${encodeURIComponent(body.path)}&token=fixture-token${resourceGeneration ? `-${resourceGeneration}` : ""}` };
-    if (operation === "write") {
-      if (body.base_commit_id !== `cloud-${head}`) return { transport: "puppyone-cloud-ipc-v1", ok: false, error: { status: 409, message: "Fixture conflict" } };
-      cloudFiles.set(body.path, body.content); cloudWrites.push({ path: body.path, content: body.content }); head++;
-      return { path: body.path, ...nativeReceipt(`cloud-${head}`, "11111111-1111-4111-8111-111111111111"), conflicts: [] };
+    if (operation === "file") {
+      if (cloudReadBarrier) await cloudReadBarrier;
+      if (!cloudFiles.has(path)) return { transport: "puppyone-cloud-ipc-v1", ok: false, error: { status: 404, message: "Missing fixture" } };
+      return fixtureFile(path);
     }
     throw new Error(`Unexpected fixture request: ${request.path}`);
   }),
@@ -148,10 +163,11 @@ declare global {
     __nativeCloudWorkbenchSmoke?: {
     state: () => { location: string; cloudWrites: typeof cloudWrites; localWrites: typeof localWrites; requests: string[]; publishRequests: typeof publishRequests; detachRequests: typeof detachRequests; agent: ReturnType<typeof agentFixture.state> };
     editAgent: typeof editCloudAgentPrompt;
+    selectLocation: (location: "local" | "cloud") => void;
     edit: (location: "local" | "cloud", text: string) => void;
     openCloudFile: (path: string) => Promise<void>;
-    addCloudFixtures: (entries: Array<{ path: string; mimeType: string; content?: string }>) => void;
-    rotateCloudResourceToken: () => string;
+    addCloudFixtures: (entries: Array<{ path: string; mimeType: string; content?: string; content_base64?: string }>) => void;
+    agentWrite: (path: string, content: string) => void;
     finishLocalSaves: () => void;
     holdCloudRead: () => void;
     finishCloudRead: () => void;
@@ -243,16 +259,20 @@ export function NativeCloudWorkbenchSmokeHarness() {
     window.__nativeCloudWorkbenchSmoke = {
       state: () => ({ location, cloudWrites, localWrites, requests, publishRequests, detachRequests, agent: agentFixture.state() }),
       editAgent: editCloudAgentPrompt,
+      selectLocation: (next) => { if (next === "cloud") controller.request(); else { controller.cancel(); setCloudSelected(false); } },
       openCloudFile: async (path) => {
         if (!workbench.service) throw new Error("Cloud fixture is unavailable.");
         const resource = createWorkspaceResourceUri(workbench.service.folder.uri, path);
         await workbench.onActivePathChange(resource);
       },
       addCloudFixtures: (entries) => {
-        for (const entry of entries) { cloudFiles.set(entry.path, entry.content ?? "fixture-binary"); cloudMimeTypes.set(entry.path, entry.mimeType); }
+        for (const entry of entries) {
+          cloudFiles.set(entry.path, entry.content ?? "fixture-binary");
+          if (entry.content_base64) cloudBytes.set(entry.path, Uint8Array.from(atob(entry.content_base64), character => character.charCodeAt(0)));
+        }
         workbench.refresh();
       },
-      rotateCloudResourceToken: () => `fixture-token-${++resourceGeneration}`,
+      agentWrite: (path, content) => { cloudBytes.delete(path); cloudFiles.set(path, content); notifyWorkspace(); },
       edit: (target, text) => {
         const element = document.querySelector(`[data-workspace-location="${target}"] .document-surface-slot.is-committed:not(.is-obscured) .cm-editor`);
         const view = element ? EditorView.findFromDOM(element as HTMLElement) : null;
@@ -271,7 +291,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
       finishCloudRead: () => { cloudReadBarrier = null; finishCloudRead?.(); finishCloudRead = null; },
     };
     return () => { delete window.__nativeCloudWorkbenchSmoke; };
-  }, [location, setLanguagePreference, setSidebarCollapsed, workbench]);
+  }, [location, setLanguagePreference, setSidebarCollapsed, workbench, controller]);
   const projectSwitcher = <DesktopTitlebarContext open={menuOpen} refObject={menuRef} titlebarLabel={localWorkspace.name}
         workspace={localWorkspace} workspaceFolders={[]} multiRootWorkspacesEnabled={false}
         projectLocation={{ current: location, requested: controller.requestedLocation, headerLocation, loading: controller.pending && !controller.error,

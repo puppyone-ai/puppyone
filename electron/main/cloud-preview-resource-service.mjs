@@ -1,3 +1,4 @@
+import { readWorkspaceFile } from "./cloud-workspace-file.mjs";
 import { normalizeCloudApiBaseUrl } from "../../shared/cloudEndpoint.js";
 import { normalizeRelativePath } from "../../local-api/files/path-policy.mjs";
 import { databaseError } from "../../shared/database-preview/contract.mjs";
@@ -22,30 +23,40 @@ function matches(session,input) {
 }
 function requestUrl(value) {try {const url=new URL(value);url.hash='';return url.href;} catch{return null;}}
 
-/** Exact bearer resources already signed by the authenticated provider. PDF
- * network policy admits only retained URLs, never an origin-wide HTTPS rule. */
+/** Exact resources authorized through the authenticated provider. PDF
+ * network policy admits only retained URLs, never an origin-wide rule. */
 export function createCloudPreviewResourceService({auth,now=Date.now}) {
   const entries=new Map();
   const retiredOwners=new Set();
   const key=(owner,url)=>JSON.stringify([owner,url]);
+  const remember = (owner, url, input) => {
+    const identity = key(owner, url), existing = entries.get(identity);
+    if (existing) { existing.refs++; existing.deadline = now() + 60*60*1000; return { url }; }
+    for (const [id, entry] of entries) if (entry.deadline < now()) entries.delete(id);
+    if (entries.size >= 4096 || [...entries.values()].filter(entry => entry.owner === owner).length >= 1024) throw databaseError('budget-exceeded');
+    entries.set(identity, { owner, url, input, refs: 1, deadline: now() + 60*60*1000 });
+    return { url };
+  };
   const service={
     async retain(owner,input) {
       if (!Number.isSafeInteger(owner) || owner<=0 || retiredOwners.has(owner) || !matches(await auth.readSession(),input)) throw databaseError('permission-denied');
       const apiBaseUrl=normalizeCloudApiBaseUrl(input.apiBaseUrl), relative=normalizeRelativePath(input.path);
       validateCloudPreviewUrl(input,`${apiBaseUrl}/content/${encodeURIComponent(input.projectId)}/inline?path=${encodeURIComponent(relative)}&token=validation`);
-      // Sign through native auth; never accept a renderer's remembered URL
-      // from a previous account or session.
+      // Check native auth before admitting either a live Blob or a signed resource.
+      if (input.workbench) {
+        const blob = new URL(input.blobUrl);
+        if (blob.protocol !== 'blob:' || !/\.pdf$/i.test(relative)) throw databaseError('permission-denied');
+        const file = await readWorkspaceFile(auth, { ...input, apiBaseUrl, path: relative }, AbortSignal.timeout(35000));
+        if (!file.bytes.subarray(0, 1024).includes(Buffer.from('%PDF-')) || !matches(await auth.readSession(), input)
+          || retiredOwners.has(owner)) throw databaseError('permission-denied');
+        return remember(owner, blob.href, input);
+      }
       const signed=await auth.requestSessionApi(apiBaseUrl,`/content/${encodeURIComponent(input.projectId)}/inline/sign`,{
         method:'POST',headers:{'Content-Type':'application/json',[REPOSITORY_TARGET_CONTRACT_HEADER]:REPOSITORY_TARGET_CONTRACT_VERSION},
         body:JSON.stringify({path:relative}),
       },input.expectedSession);
       if(retiredOwners.has(owner)||!matches(await auth.readSession(),input)) throw databaseError('permission-denied');
-      const url=validateCloudPreviewUrl(input,signed.url), identity=key(owner,url);
-      const existing=entries.get(identity);
-      if(existing){existing.refs++;existing.deadline=now()+60*60*1000;return {url};}
-      for(const [id,entry] of entries) if(entry.deadline<now()) entries.delete(id);
-      if(entries.size>=4096 || [...entries.values()].filter(entry=>entry.owner===owner).length>=1024) throw databaseError('budget-exceeded');
-      entries.set(identity,{owner,url,input,refs:1,deadline:now()+60*60*1000});return {url};
+      return remember(owner, validateCloudPreviewUrl(input,signed.url), input);
     },
     revoke(owner,url) {const identity=key(owner,url),entry=entries.get(identity);if(!entry)return;
       if(--entry.refs===0)entries.delete(identity);},

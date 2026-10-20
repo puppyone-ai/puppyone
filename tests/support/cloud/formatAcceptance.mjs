@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFile, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -109,7 +110,7 @@ export async function acceptCloudFormats({ window, evaluate, waitFor, fixtures, 
   assert(webp.startsWith('data:image/webp;base64,'),'Fixture WebP encoder must produce real WebP bytes');
   fixtures.resources.set('acceptance/picture.webp',{mimeType:'image/webp',bytes:Buffer.from(webp.split(',')[1],'base64')});
   fixtures.views.push({name:'acceptance/picture.webp',selector:'img.native-image-preview',condition:'node.complete && node.naturalWidth>0'});
-  const descriptors = [...fixtures.resources].map(([name, resource]) => ({ path: name, mimeType: resource.mimeType, content:resource.content }));
+  const descriptors = [...fixtures.resources].map(([name, resource]) => ({ path: name, mimeType: resource.mimeType, content:resource.content, content_base64:resource.bytes.toString("base64") }));
   await evaluate(`window.__nativeCloudWorkbenchSmoke.addCloudFixtures(${JSON.stringify(descriptors)})`);
   for (const { name, kind, mimeType } of fixtures.media) {
     // Same Chromium decoder with identical bytes, independent of Cloud fetch.
@@ -121,13 +122,21 @@ export async function acceptCloudFormats({ window, evaluate, waitFor, fixtures, 
       try {
         await Promise.race([new Promise((resolve, reject) => { element.onloadedmetadata=resolve; element.onerror=()=>reject(Error('decoder:'+element.error?.code)); }),
           new Promise((_, reject) => setTimeout(()=>reject(Error('decoder-timeout')),4000))]);
-        return { supported:true, duration:element.duration };
+        await element.play();
+        await new Promise(resolve=>setTimeout(resolve,300));
+        return { supported:true, duration:element.duration, playbackClock:element.currentTime>0 };
       } catch(error) { return { supported:false, reason:error.message }; }
       finally { element.pause(); element.removeAttribute('src'); element.load(); URL.revokeObjectURL(url); }
     })()`);
     if (!baseline.supported) { receipt.media.push({ name, baseline, status: "decoder-unavailable" }); continue; }
     await evaluate(`window.__nativeCloudWorkbenchSmoke.openCloudFile(${JSON.stringify(name)})`);
-    await waitFor(`(() => { const node=document.querySelector(${JSON.stringify(`${active} ${kind}`)}); return node && node.readyState>=2 && node.currentSrc.includes(${JSON.stringify(encodeURIComponent(name))}); })()`);
+    const expectedHash = createHash('sha256').update(fixtures.resources.get(name).bytes).digest('hex');
+    await waitFor(`(async () => { const node=document.querySelector(${JSON.stringify(`${active} ${kind}`)});
+      if (!node || node.readyState<2 || !node.currentSrc.startsWith('blob:')) return false;
+      const bytes=await(await fetch(node.currentSrc)).arrayBuffer();
+      const digest=await crypto.subtle.digest('SHA-256',bytes);
+      return [...new Uint8Array(digest)].map(byte=>byte.toString(16).padStart(2,'0')).join('')===${JSON.stringify(expectedHash)};
+    })()`);
     const result = await evaluate(`(async () => {
       const media = document.querySelector(${JSON.stringify(`${active} ${kind}`)});
       media.muted=true; await media.play();
@@ -140,14 +149,14 @@ export async function acceptCloudFormats({ window, evaluate, waitFor, fixtures, 
       return { advanced, paused:media.paused, duration:media.duration, seek:media.currentTime,
         width:media.videoWidth ?? null, height:media.videoHeight ?? null };
     })()`);
-    assert(result.advanced && result.paused && result.seek > 0, `Playback/seek failed for ${name}: ${JSON.stringify(result)}`);
+    assert((result.advanced || !baseline.playbackClock) && result.paused && result.seek > 0, `Playback/seek failed for ${name}: ${JSON.stringify(result)}`);
     if (kind === "video") assert(result.width > 0 && result.height > 0, `Missing decoded video frame for ${name}`);
-    receipt.media.push({ name, baseline, status: "passed", ...result });
+    receipt.media.push({ name, baseline, status: "passed", playbackClockVerified: result.advanced, ...result });
   }
   for (const { name, selector, condition } of fixtures.views) {
     if (name.endsWith(".rtf") && process.platform !== "darwin") { receipt.views.push({ name, status: "local-converter-unavailable" }); continue; }
     await evaluate(`window.__nativeCloudWorkbenchSmoke.openCloudFile(${JSON.stringify(name)})`);
-    await waitFor(`(() => { const node=document.querySelector(${JSON.stringify(`${active} ${selector}`)}); return node && (${condition}); })()`);
+    await waitFor(`(() => { const node=document.querySelector(${JSON.stringify(`${active} ${selector}`)}); return node && decodeURIComponent(node.closest('.document-surface-slot').dataset.surfaceKey).includes(${JSON.stringify(name)}) && (${condition}); })()`);
     assert(await evaluate(`!document.querySelector(${JSON.stringify(`${active} [role=alert]`)})`), `Failed preview for ${name}`);
     if (name.endsWith('.pdf')) {
       await waitForCloudPdf(window,assert);
@@ -183,18 +192,16 @@ async function waitForCloudPdf(window,assert) {
   assert(false,`Cloud PDF viewer did not parse a page: ${JSON.stringify(diagnostics)}`);
 }
 
-export async function acceptExpiredCloudMedia({evaluate,waitFor,expire,assert}) {
+export async function acceptRevokedCloudMedia({evaluate,waitFor,assert}) {
   await evaluate("window.__nativeCloudWorkbenchSmoke.openCloudFile('acceptance/navy.mp4')");
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(`${active} video`)}))`);
-  const token=await evaluate('window.__nativeCloudWorkbenchSmoke.rotateCloudResourceToken()');
-  expire(token);
-  // Force a new request instead of accepting Chromium's already decoded cache.
-  await evaluate(`(() => {const media=document.querySelector(${JSON.stringify(`${active} video`)});media.src=media.currentSrc+'&fixtureReload=1';media.load();})()`);
+  const previous=await evaluate(`(() => {const media=document.querySelector(${JSON.stringify(`${active} video`)});const url=media.currentSrc;URL.revokeObjectURL(url);media.src=url;media.load();return url;})()`);
+  assert(previous.startsWith('blob:'), 'Live media must use sandbox bytes');
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(`${active} [role=alert] button`)}))`);
   await evaluate(`document.querySelector(${JSON.stringify(`${active} [role=alert] button`)}).click()`);
-  await waitFor(`(() => {const node=document.querySelector(${JSON.stringify(`${active} video`)});return node && node.readyState>=2 && node.currentSrc.includes(${JSON.stringify(token)});})()`);
-  assert(await evaluate(`!document.querySelector(${JSON.stringify(`${active} [role=alert]`)})`), 'Expired resource Retry must recover with a new provider URL');
-  return {name:'acceptance/navy.mp4',checks:['expired-403','shared-Retry','provider-sign-refresh','decoded-frame'],status:'passed'};
+  await waitFor(`(() => {const node=document.querySelector(${JSON.stringify(`${active} video`)});return node && node.readyState>=2 && node.currentSrc!==${JSON.stringify(previous)};})()`);
+  assert(await evaluate(`!document.querySelector(${JSON.stringify(`${active} [role=alert]`)})`), 'Retry must recover with freshly read workspace bytes');
+  return {name:'acceptance/navy.mp4',checks:['revoked-blob','shared-Retry','workspace-read','decoded-frame'],status:'passed'};
 }
 
 async function acceptCloudVisualHtml({ window, evaluate, waitFor, assert }) {

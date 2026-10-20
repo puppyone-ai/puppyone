@@ -1,4 +1,4 @@
-import { nativeSnapshot, nativeReceipt, cloudHistorySmokeFixture } from "./cloudRepositorySmokeFixture";
+import { cloudHistorySmokeFixture } from "./cloudRepositorySmokeFixture";
 import { useEffect, useState } from "react";
 import { EditorView } from "@codemirror/view";
 import { useLocalization } from "@puppyone/localization";
@@ -33,6 +33,13 @@ const writes: Array<{ project: string; content: string }> = [];
 let sessionNumber = 1;
 const makeSession = (): DesktopCloudSession => ({ api_base_url: API, user_id: "fixture-user", user_email: "fixture@example.com",
   session_generation: String(sessionNumber++), expires_in: 3600, expires_at: Date.now() + 3600000, status: "authenticated" });
+async function workspaceFile(project: string) {
+  const bytes = new TextEncoder().encode(files.get(project)!);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return { name: "readme.txt", kind: "file", size: bytes.length, modified_ns: "1",
+    content_base64: btoa(String.fromCharCode(...bytes)),
+    revision: [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, "0")).join("") };
+}
 async function fixtureRequest(request: Parameters<NonNullable<typeof window.puppyoneDesktop>["requestCloudSessionApi"]>[0]) {
     const agentResult = await agentFixture.request(request);
     if (agentResult !== undefined) return agentResult;
@@ -45,24 +52,25 @@ async function fixtureRequest(request: Parameters<NonNullable<typeof window.pupp
     const url = new URL(request.path, API);
     const id = url.pathname.split("/")[2]!;
     const operation = url.pathname.split("/").at(-1);
-    const path = url.searchParams.get("path") ?? "";
     if (url.pathname === `/projects/${id}`) return project(id);
     if (["scopes", "surfaces", "mcp-endpoints", "bindings", "providers"].includes(operation ?? "")) return [];
     if (operation === "access-point") return { project_id: id, url: `https://cloud-fixture.puppyone.ai/git/${id}.git`, scopes: [] };
     if (operation === "commits") return cloudHistorySmokeFixture(id);
-    if (operation === "ls") return { entries: [{ name: "readme.txt", path: "readme.txt", type: "file" }], ...nativeSnapshot(`head-${heads.get(id)}`) };
-    if (operation === "stat") return { exists: true, name: "readme.txt", type: "file", path, ...nativeSnapshot(`head-${heads.get(id)}`) };
-    if (operation === "cat") return { path, type: "file", content_text: files.get(id), ...nativeSnapshot(`head-${heads.get(id)}`) };
-    if (operation === "write") {
+    if (operation === "files") return { entries: [await workspaceFile(id)] };
+    if (operation === "file" && request.method === "PUT") {
       await writeBarrier;
       const body = JSON.parse(request.body!);
-      if (body.base_commit_id !== `head-${heads.get(id)}`) throw Object.assign(new Error("Fixture CAS mismatch"), { status: 409 });
-      files.set(id, body.content); heads.set(id, heads.get(id)! + 1); writes.push({ project: id, content: body.content });
-      return { path: body.path, ...nativeReceipt(`head-${heads.get(id)}`, id) };
+      if (body.expected_revision !== (await workspaceFile(id)).revision) throw Object.assign(new Error("Fixture CAS mismatch"), { status: 409 });
+      const content = new TextDecoder().decode(Uint8Array.from(atob(body.content_base64), character => character.charCodeAt(0)));
+      files.set(id, content); heads.set(id, heads.get(id)! + 1); writes.push({ project: id, content });
+      return workspaceFile(id);
     }
+    if (operation === "file") return workspaceFile(id);
     throw new Error(`Unexpected account workspace fixture request: ${request.path}`);
 }
 window.puppyoneDesktop = { ...window.puppyoneDesktop,
+  watchCloudWorkspace: async ({ id }) => ({ id }), stopCloudWorkspaceWatch: async () => {},
+  onCloudWorkspaceEvent: () => () => {},
   requestCloudSessionApi: async (request) => ({ transport: "puppyone-cloud-ipc-v1", ok: true, data: await fixtureRequest(request) }),
 } as NonNullable<typeof window.puppyoneDesktop>;
 

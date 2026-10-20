@@ -1,3 +1,4 @@
+import { registerCloudWorkspaceEvents } from "../cloud-workspace-events.mjs";
 import {
   buildCloudApiBaseCandidates,
   fetchCloudAccessPointDirectory,
@@ -12,6 +13,7 @@ import {
 } from "../security.mjs";
 
 export function registerCloudIpcHandlers({ ipcMain, cloudAuthService }) {
+  registerCloudWorkspaceEvents(ipcMain, cloudAuthService);
   ipcMain.handle("cloud-session:read", async () => {
     return cloudAuthService.readSession();
   });

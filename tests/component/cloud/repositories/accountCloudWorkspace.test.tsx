@@ -1,3 +1,4 @@
+import { workspaceFixtureBridge, fixtureWorkspaceWatch, fileVersion, liveEntry } from "../../../fixtures/cloud/repositories/liveWorkspace";
 import { nativeSnapshot, nativeVersion, nativeReceipt } from "../../../fixtures/cloud/repositories/nativeRepository";
 /** @vitest-environment happy-dom */
 import { act } from "react";
@@ -78,15 +79,15 @@ beforeEach(() => {
     }
     const url = new URL(request.path, API);
     const path = url.searchParams.get("path") ?? "";
-    if (url.pathname.endsWith("/ls")) return { entries: [{ name: "readme.txt", path: "readme.txt", type: "file" }], ...nativeSnapshot(generation) };
+    if (url.pathname.endsWith("/files")) return { entries: [{ name: "readme.txt", path: "readme.txt", type: "file" }], ...nativeSnapshot(generation) };
     if (url.pathname.endsWith("/stat")) return { name: path, path, type: "file", exists: true, ...nativeSnapshot(generation) };
-    if (url.pathname.endsWith("/cat")) return { path: "readme.txt", type: "file", content_text: "Cloud content", ...nativeSnapshot(generation) };
-    if (url.pathname.endsWith("/write")) return { path: JSON.parse(request.body!).path, ...nativeReceipt("head-2", url.pathname.split("/")[2]) };
+    if (url.pathname.endsWith("/file")) return { path: "readme.txt", type: "file", content_text: "Cloud content", ...nativeSnapshot(generation) };
+    if (request.method === "PUT") return { path: JSON.parse(request.body!).path, ...nativeReceipt("head-2", url.pathname.split("/")[2]) };
     if (request.path === "/projects/" && request.method === "POST") return project("created");
     throw new Error(`Unexpected fixture request: ${request.path}`);
   });
   localWrite = vi.fn();
-  window.puppyoneDesktop = { requestCloudSessionApi: bridge, writeFile: localWrite } as unknown as NonNullable<typeof window.puppyoneDesktop>;
+  window.puppyoneDesktop = { requestCloudSessionApi: workspaceFixtureBridge(bridge), ...fixtureWorkspaceWatch(), writeFile: localWrite } as unknown as NonNullable<typeof window.puppyoneDesktop>;
   const container = document.createElement("div"); document.body.appendChild(container); root = createRoot(container);
 });
 afterEach(async () => {
@@ -155,7 +156,7 @@ describe("account-owned Cloud workspaces on the existing API", () => {
     await render(); await open("a");
     const actual = bridge.getMockImplementation()!;
     bridge.mockImplementation(async (request) => {
-      if (request.path.startsWith("/content/b/")) throw new Error("Offline");
+      if (request.path.startsWith("/projects/b/workbench/")) throw new Error("Offline");
       return actual(request);
     });
     await open("b");
@@ -168,7 +169,7 @@ describe("account-owned Cloud workspaces on the existing API", () => {
 
   it("does not commit a cancelled or superseded project selection", async () => {
     const pending = deferred<unknown>(); const actual = bridge.getMockImplementation()!;
-    bridge.mockImplementation((request) => request.path.startsWith("/content/a/") ? pending.promise : actual(request));
+    bridge.mockImplementation((request) => request.path.startsWith("/projects/a/workbench/") ? pending.promise : actual(request));
     await render();
     let opening!: Promise<void>;
     await act(async () => { opening = account.openTarget({ kind: "project_root", project_id: "a" }); });
@@ -217,7 +218,7 @@ describe("account-owned Cloud workspaces on the existing API", () => {
     const runtime = getDocumentInputRuntime(port, node as Parameters<typeof getDocumentInputRuntime>[1]);
     const stop = runtime.subscribe(() => {});
     await vi.waitFor(() => expect(runtime.getSnapshot().content?.content).toBe("Cloud content")); stop();
-    const copy = getOrCreateDocumentWorkingCopy({ documentId: node.path, initialContent: "Cloud content", initialVersion: nativeVersion("head-1"), saveMode: "manual", persistence: port.documentPersistence! });
+    const copy = getOrCreateDocumentWorkingCopy({ documentId: node.path, initialContent: "Cloud content", initialVersion: fileVersion("Cloud content", "a"), saveMode: "manual", persistence: port.documentPersistence! });
     await render({ currentSession: null });
     await render({ currentSession: { ...session, session_generation: "two" } }); await open("a");
     const nextPort = workbench.dataPort!;
@@ -225,13 +226,13 @@ describe("account-owned Cloud workspaces on the existing API", () => {
     const stopAgain = reopened.subscribe(() => {});
     await vi.waitFor(() => expect(reopened.getSnapshot().generation).toBeGreaterThan(1)); stopAgain();
     expect(reopened.getSnapshot().error).toBeNull();
-    const nextCopy = getOrCreateDocumentWorkingCopy({ documentId: node.path, initialContent: "Cloud content", initialVersion: nativeVersion("head-1"), saveMode: "manual", persistence: nextPort.documentPersistence! });
+    const nextCopy = getOrCreateDocumentWorkingCopy({ documentId: node.path, initialContent: "Cloud content", initialVersion: fileVersion("Cloud content", "a"), saveMode: "manual", persistence: nextPort.documentPersistence! });
     expect(nextCopy).toBe(copy);
     let text = "Cloud content";
     const detach = copy.session.attachSource({ readSnapshot: () => ({ revision: "edit-1", content: text }), replaceContent: (value) => { text = value; return { revision: "edit-2", content: text }; } });
     text = "New edit";
     await copy.session.requestSave(); detach();
-    expect(bridge.mock.calls.findLast(([request]) => request.path.endsWith("/write"))![0].expectedSession.generation).toBe("two");
+    expect(bridge.mock.calls.findLast(([request]) => request.method === "PUT")![0].expectedSession.generation).toBe("two");
   });
 
   it("Header opens the associated ID, never a previously selected unrelated project", async () => {
@@ -241,7 +242,7 @@ describe("account-owned Cloud workspaces on the existing API", () => {
     expect(account.active).toBe(true); expect(account.context.projectId).toBe("a");
     expect(header.pending).toBe(false);
     expect(document.querySelector(".desktop-cloud-account-picker")).toBeNull();
-    expect(bridge.mock.calls.every(([request]) => request.path.startsWith("/content/a/"))).toBe(true);
+    expect(bridge.mock.calls.every(([request]) => request.path.startsWith("/projects/a/workbench/"))).toBe(true);
   });
 
   it("Header retains its exact repository intent across login and asynchronous association resolution", async () => {
@@ -254,7 +255,7 @@ describe("account-owned Cloud workspaces on the existing API", () => {
     await render({ association: associated("a") });
     expect(account.context.projectId).toBe("a"); expect(account.active).toBe(true);
     expect(header.pending).toBe(false);
-    expect(bridge.mock.calls.every(([request]) => request.path.startsWith("/content/a/"))).toBe(true);
+    expect(bridge.mock.calls.every(([request]) => request.path.startsWith("/projects/a/workbench/"))).toBe(true);
   });
 
   it("waits for the first upload before opening a newly associated Cloud project", async () => {
@@ -268,7 +269,7 @@ describe("account-owned Cloud workspaces on the existing API", () => {
     expect(account.active).toBe(true);
     expect(account.context.projectId).toBe("a");
     expect(header.pending).toBe(false);
-    expect(bridge.mock.calls.every(([request]) => request.path.startsWith("/content/a/"))).toBe(true);
+    expect(bridge.mock.calls.every(([request]) => request.path.startsWith("/projects/a/workbench/"))).toBe(true);
   });
 
   it("resolves the canonical remote after login through the real context loader before Header commit", async () => {
@@ -306,24 +307,22 @@ describe("account-owned Cloud workspaces on the existing API", () => {
 
   it("changing the local repository cancels a pending Header file preflight", async () => {
     const pending = deferred<unknown>(); const actual = bridge.getMockImplementation()!;
-    bridge.mockImplementation((request) => request.path.startsWith("/content/a/") ? pending.promise : actual(request));
+    bridge.mockImplementation((request) => request.path.startsWith("/projects/a/workbench/") ? pending.promise : actual(request));
     await render({ association: associated("a"), scope: "local-a" });
     await act(async () => header.request());
     await render({ association: associated("b"), scope: "local-b" });
     await act(async () => pending.resolve({ entries: [], ...nativeSnapshot("late") }));
     expect(account.active).toBe(false); expect(header.pending).toBe(false);
-    expect(bridge.mock.calls.some(([request]) => request.path.startsWith("/content/b/"))).toBe(false);
+    expect(bridge.mock.calls.some(([request]) => request.path.startsWith("/projects/b/workbench/"))).toBe(false);
   });
 
-  it("Header preserves an exact Scope instead of broadening to the Project root", async () => {
+  it("rejects a scoped target instead of broadening it to a complete live workspace", async () => {
     const association: ProjectCloudContext = { status: "resolved", projectId: "a", target: { kind: "scope", project_id: "a", scope_id: "scope-a" },
       scopePath: "docs", capabilities: ["content.read"] };
-    // Return only entries inside the authorized view.
-    bridge.mockResolvedValue({ entries: [], ...nativeSnapshot("head-1") });
     await render({ association }); await act(async () => header.request());
-    expect(account.context).toMatchObject({ target: association.target, scopePath: "docs" });
-    expect(workbench.service?.writable).toBe(false);
-    expect(new URL(bridge.mock.calls[0][0].path, API).searchParams.get("path")).toBe("docs");
+    expect(account.active).toBe(false);
+    expect(header.error).toBeTruthy();
+    expect(bridge).not.toHaveBeenCalled();
   });
 
   it("does not fetch organizations or create or publish projects from the Homepage", async () => {

@@ -72,7 +72,7 @@ app.whenReady().then(async () => {
       && header.getBoundingClientRect().width === innerWidth;
   })()`), "Hosted-only projects use the theme-blue Header, matching icon/text and no outer frame");
   assert(await evaluate("document.querySelectorAll('.desktop-account-cloud-workspace [data-cloud-workspace-tool]').length === 3 && [...document.querySelectorAll('[data-cloud-workspace-tool]')].every(button => !button.disabled)"),
-    'Hosted-only Cloud must expose Automations, Connect and Agent');
+    'Hosted-only Cloud must expose Share, History and Agent');
   assert(await evaluate("Boolean(document.querySelector('.desktop-account-cloud-workspace .desktop-sidebar-footer-bar .desktop-feedback'))"), 'Hosted Cloud must retain the Feedback footer');
   await evaluate("document.querySelector('.desktop-account-cloud-workspace .desktop-sidebar-footer-button[aria-label=Settings]').click()");
   await waitFor("window.__accountCloudSmoke.state().settingsOpened === 1");
@@ -80,12 +80,8 @@ app.whenReady().then(async () => {
   await waitFor("Boolean(document.querySelector('.desktop-feedback-dialog'))");
   await evaluate("document.querySelector('.desktop-feedback-close').click()");
   await waitFor("!document.querySelector('.desktop-feedback-dialog')");
-  await evaluate("document.querySelector('[data-cloud-workspace-tool=connect]').click()");
-  await waitFor("Boolean(document.querySelector('[data-cloud-workspace-tool-page=connect][data-cloud-project-id=alpha] .desktop-cloud-access-catalog-page'))");
-  assert(await evaluate("!document.querySelector('.desktop-cloud-access-new-button')"),
-    'A project without access-management permission may view MCP but cannot create a connection');
-  await evaluate("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
-  await waitFor("!document.querySelector('.desktop-cloud-workspace-tool-dialog')");
+  assert(await evaluate("['share','history','agent'].every(tool => document.querySelector('[data-cloud-workspace-tool='+tool+']')) && !document.querySelector('[data-cloud-workspace-tool=connect]')"),
+    'Cloud entry retains the current Share, History and Agent actions');
   await evaluate("document.querySelector('.desktop-account-cloud-workspace .desktop-titlebar-location-button').click()");
   await waitFor("Boolean(document.querySelector('button[data-project-location=cloud]'))");
   assert(await evaluate("document.querySelector('button[data-project-location=cloud]').getAttribute('aria-pressed') === 'true' && !document.querySelector('.desktop-account-cloud-workspace .desktop-titlebar-actions [data-project-location]')"),
@@ -136,6 +132,14 @@ app.whenReady().then(async () => {
   await evaluate("document.querySelector('button[data-project-location=local]').click()");
   await waitFor("!window.__accountCloudSmoke.state().active && Boolean(document.querySelector('.onboarding-project-list'))");
   await evaluate("window.__accountCloudSmoke.showLocalFixtures()");
+  if (process.argv.includes('--files-only')) {
+    assert(errors.length === 0, `Unexpected renderer errors: ${errors.join('; ')}`);
+    await writeFile(path.join(artifacts, 'file-operations-report.json'), JSON.stringify({passed:true,
+      scope:'Homepage Cloud opening, live file save, project isolation and relogin',
+      ...(await evaluate('window.__accountCloudSmoke.state()')), errors}, null, 2));
+    console.log('Account Cloud file operations Electron acceptance passed.');
+    window.destroy(); app.exit(0); return;
+  }
   await waitFor("document.querySelectorAll('.onboarding-project-row-wrap').length === 7");
   assert(await evaluate("!document.querySelector('.onboarding-project-group') && document.querySelectorAll('[data-cloud-project-id=alpha]').length === 1 && Boolean(document.querySelector('[data-project-location=linked] .onboarding-project-cloud-badge'))"), "One flat list must express linked projects through their folder/cloud icon, not section headings");
   assert(await evaluate("[...document.querySelectorAll('.onboarding-project-row-wrap')].slice(0,3).map(row => row.querySelector('.desktop-menu-item-label').textContent).join('|') === 'Hosted beta|Local notes|Hosted alpha'"), "All locations must share one last-modified order");

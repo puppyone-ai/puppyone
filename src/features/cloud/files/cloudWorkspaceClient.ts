@@ -1,0 +1,181 @@
+import { cloudApiRequest, type DesktopCloudSession } from "../../../lib/cloudApi";
+import type { ProjectCloudContext } from "../project/context/projectCloudContext";
+import { getFileSemanticKind } from "@puppyone/shared-ui";
+import type { CloudEntry } from "./contracts";
+
+export type CloudWorkbench = { id: string; project_id: string; generation: string; state: string; target_ref: string };
+export type WorkspaceEntry = { name: string; kind: string; size: number; modified_ns: string };
+type FileReply = WorkspaceEntry & { content_base64: string; revision: string };
+export type WorkspaceVersion = { workspace: string; generation: string; revision: string };
+const openings = new Map<string, Promise<CloudWorkbench>>();
+const limit = 8 * 1024 * 1024;
+const failure = (message: string, status = 409) => Object.assign(new Error(message), { status });
+
+export function parseWorkspaceVersion(value: string): WorkspaceVersion {
+  if (!value.startsWith("cloud-workspace:")) throw failure("Reload this file before saving: its workspace revision is unavailable.");
+  const result = JSON.parse(value.slice(16)) as WorkspaceVersion;
+  if (typeof result.workspace !== "string" || !result.workspace || typeof result.generation !== "string"
+    || !result.generation || !/^[a-f0-9]{64}$/.test(result.revision)) throw failure("Invalid workspace revision.");
+  return result;
+}
+export function decodeWorkspaceBytes(value: string) {
+  if (typeof value !== "string" || value.length > Math.ceil(limit / 3) * 4) throw failure("File exceeds the 8 MiB workspace preview limit.", 413);
+  const bytes = Uint8Array.from(atob(value), character => character.charCodeAt(0));
+  if (bytes.length > limit) throw failure("File exceeds the 8 MiB workspace preview limit.", 413);
+  return bytes;
+}
+export function encodeWorkspaceBytes(bytes: Uint8Array) {
+  if (bytes.length > limit) throw failure("File exceeds the 8 MiB workspace editor limit.", 413);
+  let value = "";
+  for (let offset = 0; offset < bytes.length; offset += 8192) value += String.fromCharCode(...bytes.subarray(offset, offset + 8192));
+  return btoa(value);
+}
+
+/** Live files only. No provider SDK, Git publication or published-content fallback. */
+export function createCloudWorkspaceClient(session: DesktopCloudSession,
+  context: Extract<ProjectCloudContext, { status: "resolved" }>, apiBaseUrl: string,
+  assertCurrent: () => void = () => {}) {
+  if (context.target.kind !== "project_root" || context.scopePath) throw failure("Live Cloud workspaces require access to the complete project.", 403);
+  const endpoint = `/projects/${encodeURIComponent(context.projectId)}/workbench`;
+  const identity = JSON.stringify([apiBaseUrl, session.user_id, session.session_generation, context.projectId]);
+  let workspace: CloudWorkbench | null = null;
+  let preparing: Promise<CloudWorkbench> | null = null;
+  const directories = new Map<string, { entries: CloudEntry[] }>();
+  const reads = new Map<string, Promise<FileReply>>();
+  const listings = new Map<string, Promise<{ entries: CloudEntry[] }>>();
+  let cacheEpoch = 0;
+  let activeSubscriptions = 0;
+  const request = async <T>(suffix: string, init: RequestInit = {}) => {
+    assertCurrent();
+    const value = await cloudApiRequest<T>(endpoint + suffix, session, undefined, init, apiBaseUrl);
+    assertCurrent(); return value;
+  };
+  const accept = (row: CloudWorkbench) => {
+    if (!row || row.project_id !== context.projectId || !row.id || !row.generation || typeof row.state !== "string") throw failure("Cloud returned a different workspace.");
+    if (workspace && (workspace.id !== row.id || workspace.generation !== row.generation)) {
+      throw failure("This Cloud workspace was replaced. Close and reopen this project; your unsaved draft is preserved.");
+    }
+    if (row.state !== "running") throw failure("This Cloud workspace is unavailable. Retry to resume it.");
+    workspace = { ...row }; return workspace;
+  };
+  async function prepare() {
+    let pending = openings.get(identity);
+    if (!pending) {
+      pending = (async () => {
+        const status = await cloudApiRequest<{workspace: CloudWorkbench | null}>(endpoint, session, undefined, {}, apiBaseUrl);
+        if (status.workspace?.state === "running") return status.workspace;
+        if (status.workspace && !["paused", "retired"].includes(status.workspace.state)) {
+          throw failure("This Cloud workspace is preparing or needs recovery. Retry shortly.");
+        }
+        return cloudApiRequest<CloudWorkbench>(endpoint, session, undefined, { method: "POST" }, apiBaseUrl);
+      })();
+      openings.set(identity, pending);
+      void pending.finally(() => { if (openings.get(identity) === pending) openings.delete(identity); }).catch(() => {});
+    }
+    const row = await pending; assertCurrent(); return accept(row);
+  }
+  async function ensure() {
+    assertCurrent();
+    if (workspace) return workspace;
+    if (!preparing) preparing = prepare().finally(() => { preparing = null; });
+    return preparing;
+  }
+  async function query(path: string) {
+    const row = await ensure();
+    return new URLSearchParams({ generation: row.generation, path });
+  }
+  const version = (revision: string) => {
+    const row = workspace!;
+    const value = `cloud-workspace:${JSON.stringify({ workspace: row.id, generation: row.generation, revision })}`;
+    parseWorkspaceVersion(value); return value;
+  };
+  const map = (entry: WorkspaceEntry, parent: string): CloudEntry => {
+    if (!entry || !entry.name || /[/\\\0]/.test(entry.name) || [".", "..", ".git"].includes(entry.name)) throw failure("Invalid workspace directory entry.");
+    const path = parent ? `${parent}/${entry.name}` : entry.name;
+    return { path, name: entry.name, type: entry.kind === "directory" ? "folder" : getFileSemanticKind(path), size_bytes: entry.size };
+  };
+  const invalidate = () => { cacheEpoch++; directories.clear(); reads.clear(); listings.clear(); };
+  async function list(path: string) {
+    assertCurrent();
+    const cached = directories.get(path);
+    if (activeSubscriptions > 0 && cached) return cached;
+    let pending = listings.get(path);
+    if (!pending) {
+      const epoch = cacheEpoch;
+      pending = (async () => {
+        const result = await request<{entries: WorkspaceEntry[]}>(`/files?${await query(path)}`);
+        const value = { entries: result.entries.map(entry => map(entry, path)) };
+        if (epoch === cacheEpoch) {
+          directories.set(path, value);
+          if (directories.size > 128) directories.delete(directories.keys().next().value!);
+        }
+        return value;
+      })();
+      listings.set(path, pending);
+      void pending.finally(() => { if (listings.get(path) === pending) listings.delete(path); }).catch(() => {});
+    }
+    const value = await pending; assertCurrent(); return value;
+  }
+  async function stat(path: string): Promise<CloudEntry> {
+    if (!path) { await ensure(); return { path, name: context.projectName ?? context.projectId, type: "folder", exists: true }; }
+    const parent = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
+    const value = (await list(parent)).entries.find(entry => entry.path === path);
+    if (!value) throw failure("Cloud file not found.", 404);
+    return value;
+  }
+  async function read(path: string) {
+    let pending = reads.get(path);
+    if (!pending) {
+      pending = (async () => request<FileReply>(`/file?${await query(path)}`))();
+      reads.set(path, pending);
+      void pending.finally(() => { if (reads.get(path) === pending) reads.delete(path); }).catch(() => {});
+    }
+    const result = await pending; assertCurrent();
+    const bytes = decodeWorkspaceBytes(result.content_base64);
+    if (result.name !== path.split("/").at(-1) || result.size !== bytes.length) throw failure("Cloud returned a different file.");
+    return { bytes, version: version(result.revision), entry: { ...map(result, path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : ""), path } };
+  }
+  async function write(path: string, content: string, baseline: string | null) {
+    const row = await ensure();
+    const base = baseline === null ? null : parseWorkspaceVersion(baseline);
+    if (base && (base.workspace !== row.id || base.generation !== row.generation)) throw failure("The file belongs to a different workspace generation. Reload before saving.");
+    const result = await request<{revision: string}>(`/file?${await query(path)}`, { method: "PUT",
+      body: JSON.stringify({ path, content_base64: encodeWorkspaceBytes(new TextEncoder().encode(content)), expected_revision: base?.revision ?? null }) });
+    invalidate(); return { path, version: version(result.revision) };
+  }
+  async function change(action: "mkdir" | "move" | "remove", path: string, destination?: string) {
+    await request(`/files?${await query(path)}`, { method: "POST", body: JSON.stringify({ action, path, ...(destination ? { destination } : {}) }) });
+    invalidate();
+  }
+  function watch(onChange: () => void, onError: (error: Error) => void) {
+    const bridge = window.puppyoneDesktop;
+    let stopped = false;
+    const id = crypto.randomUUID();
+    let off: (() => void) | undefined;
+    let subscribed = false;
+    const release = () => { if (subscribed) { subscribed = false; activeSubscriptions--; invalidate(); } };
+    const failed = (error: unknown) => { release(); if (!stopped) onError(error instanceof Error ? error : new Error(String(error))); };
+    void ensure().then(async row => {
+      if (stopped) return;
+      if (!bridge?.watchCloudWorkspace || !bridge.onCloudWorkspaceEvent) throw new Error("Cloud file notifications are unavailable. Restart the desktop app.");
+      off = bridge.onCloudWorkspaceEvent(event => {
+        if (stopped || event.id !== id) return;
+        try {
+          assertCurrent();
+          if (event.type === "change" && event.generation === row.generation) { invalidate(); onChange(); }
+          else if (event.type === "unavailable") failed(new Error(event.message || "Cloud workspace connection interrupted. Retry to reconnect."));
+        } catch (error) { failed(error); }
+      });
+      subscribed = true; activeSubscriptions++;
+      await bridge.watchCloudWorkspace({ id, apiBaseUrl, projectId: context.projectId, generation: row.generation,
+        expectedSession: { userId: session.user_id, generation: session.session_generation } });
+      if (stopped) await bridge.stopCloudWorkspaceWatch({ id });
+    }).catch(failed);
+    return () => { stopped = true; release(); off?.(); void bridge?.stopCloudWorkspaceWatch?.({ id }).catch(() => {}); };
+  }
+  return { ensure, list, stat, read, write, change, invalidate, watch,
+    peekDirectory: (path: string) => directories.get(path),
+    resume: async () => { const row = await prepare(); invalidate(); return row; },
+    readText: async (path: string) => { const result = await read(path); return { ...result, content: new TextDecoder("utf-8", { fatal: true }).decode(result.bytes) }; },
+  };
+}

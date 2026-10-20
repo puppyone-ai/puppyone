@@ -393,7 +393,7 @@ for (const className of cloudClassNames) {
 
 const cloudFiles = "src/features/cloud/files/";
 const dataPort = read(`${cloudFiles}cloudDataPort.ts`);
-if (!dataPort.includes('from "./cloudFileClient"') || /cloudApiRequest|requestCloudSessionApi|reads\.fetch/.test(dataPort)) {
+if (!dataPort.includes('from "./cloudWorkspaceClient"') || /cloudApiRequest|requestCloudSessionApi|reads\.fetch/.test(dataPort)) {
   errors.push("Cloud DataPort must adapt the file client, not assemble HTTP operations.");
 }
 for (const { filePath, source } of productionCode) {

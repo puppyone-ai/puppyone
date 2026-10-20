@@ -7,6 +7,11 @@ export function createCloudAgentSmokeFixture(publish: (project: string) => void)
   const runs: CloudAgentRun[] = [];
   const requests: string[] = [];
   async function request(input: FixtureRequest) {
+    if (/^\/projects\/[^/]+\/workbench$/.test(input.path)) {
+      const project = input.path.split("/")[2];
+      return { workspace: { id: `workbench-${project}`, project_id: project,
+        generation: "11111111-1111-4111-8111-111111111111", state: "running", target_ref: "refs/heads/workspace" } };
+    }
     if (!input.path.startsWith("/agents/")) return undefined;
     requests.push(`${input.method ?? "GET"} ${input.path}`);
     const body = JSON.parse(input.body || "{}");
@@ -54,12 +59,12 @@ export function createCloudAgentSmokeFixture(publish: (project: string) => void)
     runs: runs.map(({ id, session_id, request_id, prompt }) => ({ id, session_id, request_id, prompt })) }) };
 }
 
-function createRun(body: CloudAgentSubmission & { project_id: string }): CloudAgentRun {
+function createRun(body: CloudAgentSubmission & { project_id: string; workbench_id: string }): CloudAgentRun {
   const chatOnly = body.prompt.startsWith("Connection test:");
   const approval = !body.prompt.includes("stop");
   let state: CloudAgentRun["state"] = approval ? "waiting_approval" : "running";
   if (chatOnly) state = "queued";
-  return { id: crypto.randomUUID(), project_id: body.project_id,
+  return { id: crypto.randomUUID(), project_id: body.project_id, workbench_id: body.workbench_id,
     agent_id: `configured-${body.project_id}`, session_id: body.session_id || crypto.randomUUID(),
     request_id: body.request_id, prompt: body.prompt, state,
     sequence: 2, stop_requested: false, snapshot: { text: chatOnly ? "" : "I will update the cloud file." }, publication: null,

@@ -62,6 +62,7 @@ function CloudFileBinding({ workbench, surfaceProps, providerStateContent }: {
     return { main: items.main.filter((item) => item !== "slides"), submenu: items.submenu.filter((item) => item !== "slides") };
   }, [createNewMenuSettings, enablePuppyFlowFiles]);
   return <>
+    {workbench.error && <div role="alert">{workbench.error} <button type="button" onClick={() => { void workbench.resumeWorkspace(); }}>{t("cloud.common.retry")}</button></div>}
     <DesktopDataWorkspaceSurface {...surfaceProps}
       dataPort={dataPort ?? surfaceService.dataPort} documentSourceKind="cloud"
       providerStateContent={dataPort ? undefined : workbench.error

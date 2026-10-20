@@ -56,7 +56,8 @@ export function useCloudWorkspaceSwitch({
       && current.current.service === service && current.current.session === session
       && !current.current.initializationPending;
     // A resolved project alone is insufficient: verify actual file access.
-    void service.dataPort.listChildren(null).then(() => {
+    const resume = intent.attempt > 0 ? service.resume?.() : undefined;
+    void Promise.resolve(resume).then(() => service.dataPort.listChildren(null)).then(() => {
       if (!isCurrent()) return;
       current.current.onCommit();
       cancel();

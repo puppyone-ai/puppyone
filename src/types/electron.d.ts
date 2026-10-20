@@ -1297,6 +1297,10 @@ declare global {
       readCloudDatabasePreviewPage: import("../platform/cloudNativePreviewClient").CloudNativePreviewBridge["readCloudDatabasePreviewPage"];
       closeCloudNativePreview: import("../platform/cloudNativePreviewClient").CloudNativePreviewBridge["closeCloudNativePreview"];
       convertCloudOfficeDocument: import("../platform/cloudNativePreviewClient").CloudNativePreviewBridge["convertCloudOfficeDocument"];
+      watchCloudWorkspace: (request: { id: string; apiBaseUrl: string; projectId: string; generation: string;
+        expectedSession: { userId: string; generation: string } }) => Promise<{ id: string }>;
+      stopCloudWorkspaceWatch: (request: { id: string }) => Promise<void>;
+      onCloudWorkspaceEvent: (callback: (event: { id: string; type: "change" | "unavailable"; generation?: string; message?: string }) => void) => () => void;
       retainCloudPreviewResource: (request: import("../platform/cloudNativePreviewClient").CloudPreviewSource) => Promise<{ url: string }>;
       revokeCloudPreviewResource: (request: { url: string }) => Promise<void>;
       convertOfficeDocumentToDocx: (

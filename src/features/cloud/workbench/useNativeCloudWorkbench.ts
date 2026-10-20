@@ -126,24 +126,15 @@ export function useNativeCloudWorkbench({ context, session, apiBaseUrl, active, 
     resetActions();
     setNavigationError(null);
   }, [serviceKey, resetActions]);
-  const lastRevalidation = useRef<{ key: string | null; at: number }>({ key: null, at: 0 });
+  const [connectionAttempt, setConnectionAttempt] = useState(0);
+  const resumeWorkspace = useCallback(async () => {
+    try { await service?.resume?.(); setNavigationError(null); refresh(); setConnectionAttempt(value => value + 1); }
+    catch (cause) { setNavigationError(cause instanceof Error ? cause.message : String(cause)); }
+  }, [service, refresh]);
   useEffect(() => {
-    if (!active || !service) return;
-    if (lastRevalidation.current.key !== serviceKey) lastRevalidation.current = { key: serviceKey, at: Date.now() };
-    const onFocus = () => {
-      if (document.visibilityState === "hidden" || Date.now() - lastRevalidation.current.at < 30_000) return;
-      lastRevalidation.current.at = Date.now();
-      revalidate();
-    };
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onFocus);
-    const timer = window.setInterval(onFocus, 30_000);
-    onFocus();
-    return () => {
-      window.clearInterval(timer); window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onFocus);
-    };
-  }, [active, service, serviceKey, revalidate]);
+    if (!active || !service?.watch) return;
+    return service.watch(() => { setNavigationError(null); revalidate(); }, failure => setNavigationError(failure.message));
+  }, [active, service, revalidate, connectionAttempt]);
   useEffect(() => {
     if (!active) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -162,7 +153,7 @@ export function useNativeCloudWorkbench({ context, session, apiBaseUrl, active, 
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [active, closeEditor, editorWorkbench]);
   return { service, surfaceService, surfaceVisited, dataPort, visited, editorWorkbench: selectionAwareEditorWorkbench, activeNode, actions, refreshToken, refresh,
-    onActivePathChange, setActiveNode, closeEditor, error: navigationError ?? error };
+    onActivePathChange, setActiveNode, closeEditor, resumeWorkspace, error: navigationError ?? error };
 }
 
 export type NativeCloudWorkbench = ReturnType<typeof useNativeCloudWorkbench>;

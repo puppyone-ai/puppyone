@@ -4,6 +4,8 @@ import type { DatabaseReply } from "./databasePreviewClient";
 export type CloudPreviewSource = {
   apiBaseUrl: string; projectId: string; path: string;
   expectedSession: { userId: string; generation: string };
+  workbench?: { id: string; generation: string };
+  blobUrl?: string;
 };
 export type CloudNativePreviewBridge = {
   openCloudDatabasePreview: (request: CloudPreviewSource & { id: string }) => Promise<DatabaseReply<DatabaseInfo>>;
@@ -28,13 +30,13 @@ function operation(api: CloudNativePreviewBridge, signal: AbortSignal) {
 /** Cloud carries authenticated resource identity; the renderer never supplies
  * a native root or decoder filename. Sessions use the common close barrier. */
 export function createCloudNativePreviewPorts(api: CloudNativePreviewBridge,
-  source: (path: string) => CloudPreviewSource, assertCurrent: () => void): {
+  source: (path: string) => CloudPreviewSource | Promise<CloudPreviewSource>, assertCurrent: () => void): {
     database: DatabasePreviewPort; convertOfficeDocumentToDocx: OfficeDocumentConverter;
   } {
   return {
     database: { async open(path, signal) {
       assertCurrent();
-      const remote = source(path);
+      const remote = await source(path);
       const op = operation(api, signal);
       const ready = api.openCloudDatabasePreview({ ...remote, id: op.id }).then(unwrap).then((info) => {
         assertCurrent(); signal.throwIfAborted(); return info;
@@ -52,7 +54,7 @@ export function createCloudNativePreviewPorts(api: CloudNativePreviewBridge,
     } },
     async convertOfficeDocumentToDocx(path, options) {
       assertCurrent();
-      const remote = source(path);
+      const remote = await source(path);
       const signal = options?.signal ?? new AbortController().signal;
       const op = operation(api, signal);
       try {

@@ -1,3 +1,4 @@
+import { readWorkspaceFile, workspaceFileEndpoint } from "./cloud-workspace-file.mjs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -40,6 +41,29 @@ export function createCloudNativePreviewService({ auth, database, convertOffice,
       }, entry.input.expectedSession);
     await assertSession(entry); return value;
   }
+  async function workspaceSidecars(entry) {
+    await assertSession(entry);
+    const parent = entry.input.path.includes('/') ? entry.input.path.slice(0, entry.input.path.lastIndexOf('/')) : '';
+    const result = await auth.requestSessionApi(entry.input.apiBaseUrl, workspaceFileEndpoint(entry.input, 'files', parent),
+      { method: 'GET', signal: entry.abort.signal }, entry.input.expectedSession);
+    const name = entry.input.path.split('/').at(-1);
+    if (['-wal', '-shm', '-journal', '.wal'].some(suffix => result.entries.some(item => item.name === name + suffix))) throw databaseError('recovery-required');
+  }
+  async function downloadWorkspace(entry, maximum) {
+    await assertSession(entry);
+    if (entry.database) await workspaceSidecars(entry);
+    const source = await readWorkspaceFile(auth, entry.input, entry.abort.signal);
+    if (!source.bytes.length || source.bytes.length > maximum) throw databaseError('budget-exceeded');
+    entry.root = await fs.mkdtemp(path.join(temporaryRoot, 'puppyone-cloud-preview-'));
+    entry.filename = `source${path.extname(entry.input.path).toLowerCase()}`;
+    await fs.writeFile(path.join(entry.root, entry.filename), source.bytes, { flag: 'wx', mode: 0o400 });
+    if (entry.database) {
+      await workspaceSidecars(entry);
+      const after = await readWorkspaceFile(auth, entry.input, entry.abort.signal);
+      if (after.revision !== source.revision) throw databaseError('stale-input');
+    }
+    await assertSession(entry);
+  }
   async function head(entry) {
     // Root metadata carries the pinned revision without enumerating children.
     const snapshot = await request(entry, "stat?path=");
@@ -54,6 +78,7 @@ export function createCloudNativePreviewService({ auth, database, convertOffice,
     return url;
   }
   async function download(entry, maximum) {
+    if (entry.input.workbench) return downloadWorkspace(entry, maximum);
     const baseline = await head(entry);
     const signed = await request(entry, "inline/sign", { path: entry.input.path });
     const url = validateSignedUrl(entry, signed);
@@ -119,13 +144,13 @@ export function createCloudNativePreviewService({ auth, database, convertOffice,
         await download(entry, DATABASE_BUDGET.maxSourceBytes);
         // A remote main file with recovery sidecars cannot be presented as a
         // complete snapshot merely because its private decoder directory is empty.
-        for (const suffix of ["-wal", "-shm", "-journal", ".wal"]) {
+        for (const suffix of entry.input.workbench ? [] : ["-wal", "-shm", "-journal", ".wal"]) {
           try {
             const stat = await request(entry, `stat?path=${encodeURIComponent(entry.input.path + suffix)}`);
             if (stat.exists !== false) throw databaseError("recovery-required");
           } catch (error) { if (error.status !== 404) throw error; }
         }
-        if (entry.head !== await head(entry)) throw databaseError("stale-input");
+        if (!entry.input.workbench && entry.head !== await head(entry)) throw databaseError("stale-input");
         return await database.open(owner, { version: 1, id: entry.input.id, rootPath: entry.root, path: entry.filename }, async () => {
           await assertSession(entry); return entry.root;
         });

@@ -1,3 +1,4 @@
+import { workspaceFixtureBridge, fixtureWorkspaceWatch, fileVersion, liveEntry } from "../../../fixtures/cloud/repositories/liveWorkspace";
 import { nativeSnapshot } from "../../../fixtures/cloud/repositories/nativeRepository";
 /** @vitest-environment happy-dom */
 import { act } from "react";
@@ -67,12 +68,12 @@ beforeEach(() => {
       const { target } = JSON.parse(request.body!); return { project: project(target.project_id), target };
     }
     if (request.path.includes("/commits?")) return historyFor(request.path.split("/")[2]!);
-    if (request.path.startsWith("/content/")) return { entries: [], ...nativeSnapshot("head") };
+    if (request.path.includes("/workbench/")) return { entries: [], ...nativeSnapshot("head") };
     throw new Error(`Unexpected ${request.path}`);
   });
   openLocal = vi.fn(async () => {});
   openAccount = vi.fn();
-  window.puppyoneDesktop = { requestCloudSessionApi: bridge } as unknown as NonNullable<typeof window.puppyoneDesktop>;
+  window.puppyoneDesktop = { requestCloudSessionApi: workspaceFixtureBridge(bridge), ...fixtureWorkspaceWatch() } as unknown as NonNullable<typeof window.puppyoneDesktop>;
   const container = document.createElement("div"); document.body.appendChild(container); root = createRoot(container);
 });
 afterEach(async () => { await act(async () => root.unmount()); document.body.innerHTML = ""; localStorage.clear(); vi.unstubAllEnvs(); });
@@ -249,7 +250,7 @@ describe("inline Homepage Cloud projects", () => {
     await render();
     expect(home.items[0]).toMatchObject({ cloudProjectId: "b", lastModifiedAt: "2026-06-01T00:00:00.000Z" });
     expect(account.active).toBe(false);
-    expect(bridge.mock.calls.every(([request]) => !request.path.endsWith("/ls"))).toBe(true);
+    expect(bridge.mock.calls.every(([request]) => !request.path.endsWith("/files"))).toBe(true);
   });
 
   it("bounds activity reads and stops queued work when Homepage is hidden", async () => {

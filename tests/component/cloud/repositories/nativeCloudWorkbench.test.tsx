@@ -1,3 +1,4 @@
+import { workspaceFixtureBridge, fixtureWorkspaceWatch, fileVersion, liveEntry } from "../../../fixtures/cloud/repositories/liveWorkspace";
 import { nativeSnapshot } from "../../../fixtures/cloud/repositories/nativeRepository";
 /** @vitest-environment happy-dom */
 import { act, useCallback, useEffect, useState, type ReactNode } from "react";
@@ -26,7 +27,7 @@ const context = { status: "resolved" as const, projectId: "project", projectName
 let root: Root | null = null;
 let mounted = 0;
 let cloud: NativeCloudWorkbench;
-let bridge: ReturnType<typeof vi.fn>;
+let bridge: ReturnType<typeof vi.fn<(request: any) => unknown>>;
 
 function LocalEditor() {
   const [text, setText] = useState("Local original");
@@ -78,10 +79,10 @@ function installBridge() {
   bridge = vi.fn(async (request) => {
     const path = new URL(request.path, API).searchParams.get("path");
     if (request.path.includes("/stat")) return { exists: true, type: "markdown", path, name: "readme.md", ...nativeSnapshot("cloud-head") };
-    if (request.path.includes("/cat")) return { path, type: "markdown", content_text: "Cloud original", ...nativeSnapshot("cloud-head") };
+    if (request.path.includes("/file?")) return { path, type: "markdown", content_text: "Cloud original", ...nativeSnapshot("cloud-head") };
     return { entries: [{ type: "markdown", name: "readme.md", path: "readme.md" }], ...nativeSnapshot("cloud-head") };
   });
-  window.puppyoneDesktop = { requestCloudSessionApi: bridge } as unknown as NonNullable<typeof window.puppyoneDesktop>;
+  window.puppyoneDesktop = { requestCloudSessionApi: workspaceFixtureBridge(bridge), ...fixtureWorkspaceWatch() } as unknown as NonNullable<typeof window.puppyoneDesktop>;
 }
 
 describe("native Cloud workbench switching", () => {
@@ -110,29 +111,31 @@ describe("native Cloud workbench switching", () => {
     expect(workspaceContentChangeMatchesResource(cloud.refreshToken, node!.path, before)).toBe(true);
     expect(workspaceContentChangeMatchesResource(cloud.refreshToken, "puppyone-workspace://different-root/readme.md", before)).toBe(false);
   });
-  it("coalesces focus refreshes and never refreshes the hidden Local-to-Cloud surface", async () => {
-    let now = Date.now(); vi.spyOn(Date, "now").mockImplementation(() => now);
-    installBridge(); await render(<Harness />); await click("Cloud");
+  it("refreshes from native file events without focus polling or Git publication", async () => {
+    installBridge();
+    let listener!: (event: {id: string; type: "change"; generation: string}) => void;
+    let subscription!: {id: string; generation: string};
+    window.puppyoneDesktop!.onCloudWorkspaceEvent = callback => { listener = callback; return () => {}; };
+    window.puppyoneDesktop!.watchCloudWorkspace = async input => { subscription = input; return { id: input.id }; };
+    await render(<Harness />); await click("Cloud");
     const initial = cloud.refreshToken.sequence;
-    await act(async () => { window.dispatchEvent(new Event("focus")); window.dispatchEvent(new Event("focus")); });
-    expect(cloud.refreshToken.sequence).toBe(initial);
-    now += 30_001;
-    await act(async () => { window.dispatchEvent(new Event("focus")); window.dispatchEvent(new Event("focus")); });
+    await act(async () => listener({ ...subscription, type: "change" }));
     expect(cloud.refreshToken.sequence).toBe(initial + 1);
-    await click("This Mac"); now += 30_001;
-    await act(async () => window.dispatchEvent(new Event("focus")));
+    await click("This Mac");
+    await act(async () => listener({ ...subscription, type: "change" }));
     expect(cloud.refreshToken.sequence).toBe(initial + 1);
   });
 
   it("does not let a slow path lookup replace the user's newer file selection", async () => {
     installBridge(); await render(<Harness />); await click("Cloud");
+    const [node] = await cloud.dataPort!.listChildren(null);
+    cloud.service!.invalidateReads();
     let finish!: (value: unknown) => void;
     bridge.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
     let pending!: Promise<void>;
     await act(async () => { pending = cloud.onActivePathChange("slow.md"); });
-    const [node] = await cloud.dataPort!.listChildren(null);
     await act(async () => cloud.onActivePathChange(node!.path, node));
-    await act(async () => { finish({ exists: true, type: "markdown", path: "slow.md", name: "slow.md" }); await pending; });
+    await act(async () => { finish({ entries: [liveEntry("slow.md", "slow")] }); await pending; });
     expect(cloud.editorWorkbench.activePath).toBe(node!.path);
   });
 
@@ -196,7 +199,7 @@ describe("native Cloud workbench switching", () => {
     const pending = new Promise((resolve) => { release = resolve; });
     let holdRoot = true;
     bridge.mockImplementation((request) => {
-      if (holdRoot && request.path.includes("/ls")) { holdRoot = false; return pending; }
+      if (holdRoot && request.path.includes("/files")) { holdRoot = false; return pending; }
       return { entries: [], ...nativeSnapshot("cloud-head") };
     });
     await render(<Harness />);
@@ -290,6 +293,16 @@ describe("native Cloud workbench switching", () => {
     await click("Retry");
     expect(surface("cloud").hidden).toBe(false);
     expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it("resumes a retained paused provider when the user retries Cloud entry", async () => {
+    installBridge(); await render(<Harness />); await click("Cloud"); await click("This Mac");
+    const resume = vi.spyOn(cloud.service!, "resume");
+    bridge.mockRejectedValueOnce(Object.assign(new Error("Workspace paused"), { status: 409 }));
+    await click("Cloud"); expect(surface("local").hidden).toBe(false);
+    expect(resume).not.toHaveBeenCalled();
+    await click("Retry"); expect(resume).toHaveBeenCalledOnce();
+    expect(surface("cloud").hidden).toBe(false);
   });
 
   it.each(["cancel", "repository", "disabled", "account"])('revokes a pending file response on %s change', async (change) => {

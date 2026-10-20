@@ -1,6 +1,6 @@
 #!/usr/bin/env electron
 import { app, BrowserWindow, ipcMain, nativeImage, protocol, utilityProcess } from "electron";
-import { cloudFormatFixtures, acceptCloudFormats, acceptExpiredCloudMedia } from "../../../support/cloud/formatAcceptance.mjs";
+import { cloudFormatFixtures, acceptCloudFormats, acceptRevokedCloudMedia } from "../../../support/cloud/formatAcceptance.mjs";
 import { createDatabasePreviewService } from "../../../../electron/main/database-preview/service.mjs";
 import { createCloudNativePreviewService, registerCloudNativePreviewIpc } from "../../../../electron/main/cloud-native-preview-service.mjs";
 import { createCloudPreviewResourceService, registerCloudPreviewResourceIpc } from "../../../../electron/main/cloud-preview-resource-service.mjs";
@@ -37,8 +37,6 @@ const errors = [];
 const pdfRuntimeDiagnostics = [];
 const handledResourceErrors = [];
 let expectedResourceFailure = false;
-let resourceToken = 'fixture-token';
-let deniedResourceRequests = 0;
 let window;
 const assert = (value, message) => { if (!value) throw new Error(message); };
 const evaluate = async (code) => { try { return await window.webContents.executeJavaScript(code, true); } catch (error) { throw new Error(`Renderer step failed: ${code}: ${error.message}; ${errors.join("; ")}`); } };
@@ -259,6 +257,11 @@ async function openProjectMenu() {
   }
 }
 async function selectLocation(location) {
+  if (filesOnly) {
+    await evaluate(`window.__nativeCloudWorkbenchSmoke.selectLocation('${location}')`);
+    await waitFor(`window.__nativeCloudWorkbenchSmoke.state().location === '${location}'`);
+    return;
+  }
   await openProjectMenu();
   await waitFor(`Boolean(document.querySelector('button[data-project-location="${location}"]'))`);
   await evaluate(`document.querySelector('button[data-project-location="${location}"]').click()`);
@@ -315,40 +318,10 @@ app.whenReady().then(async () => {
   installEmbeddedContentSessionSecurity(window.webContents.session,{applicationUrl:pathToFileURL(rendererPath).href,isAuthorizedCloudResource:cloudResources.allowed});
   installWindowNavigationSecurity({webContents:window.webContents,applicationUrl:pathToFileURL(rendererPath).href,
     isAuthorizedCloudResource:cloudResources.allowed,externalNavigation:{openDetached:(url)=>{errors.push(`Unexpected external navigation: ${url}`);}}});
-  // Isolated test transport: production viewers consume real HTTPS resources,
-  // without reaching a network, account or user repository.
+  // All preview bytes pass through the live workspace file API fixture.
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([["Cloud report", "Value"], ["Verified", 42]]), "Cloud");
   const spreadsheet = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
-  await window.webContents.session.protocol.handle("https", (request) => {
-    const url = new URL(request.url);
-    if (url.host !== "cloud-fixture.puppyone.ai" || url.pathname !== "/api/v1/content/11111111-1111-4111-8111-111111111111/inline"
-      ) return new Response(null, { status: 404 });
-    if (url.searchParams.get('token') !== resourceToken) {
-      if (expectedResourceFailure && url.searchParams.get('path') === 'acceptance/navy.mp4') deniedResourceRequests++;
-      return new Response(null,{status:403});
-    }
-    const path = url.searchParams.get("path");
-    const resource = formats.resources.get(path);
-    if (resource) {
-      const headers = { 'Content-Type':resource.mimeType, 'Access-Control-Allow-Origin':'*', 'Accept-Ranges':'bytes', 'Cache-Control':'no-store' };
-      if (path.endsWith('.pdf') && request.method==='HEAD') return new Response(null,{status:405,headers});
-      const range = /^bytes=(\d+)-(\d*)$/.exec(request.headers.get('Range') ?? '');
-      if (range) {
-        const start=Number(range[1]), end=Math.min(Number(range[2] || resource.bytes.length-1),resource.bytes.length-1);
-        if (start > end) return new Response(null,{status:416});
-        const body=resource.bytes.subarray(start,end+1);
-        return new Response(body,{status:206,headers:{...headers,'Content-Length':String(body.length),'Content-Range':`bytes ${start}-${end}/${resource.bytes.length}`}});
-      }
-      return new Response(request.method==='HEAD'?null:resource.bytes,{headers:{...headers,'Content-Length':String(resource.bytes.length)}});
-    }
-    const body = path === "assets/diagram.svg"
-      ? '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="120"><rect width="300" height="120" rx="12" fill="#102a43"/><text x="24" y="68" fill="#e3f0fb" font-family="sans-serif" font-size="24">Cloud asset</text></svg>'
-      : path === "report.xlsx" ? spreadsheet : null;
-    return body ? new Response(body, { headers: { "Access-Control-Allow-Origin": "*",
-      "Content-Type": path.endsWith(".svg") ? "image/svg+xml" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" } })
-      : new Response(null, { status: 404 });
-  });
   window.webContents.on("console-message", (event) => {
     if (event.level !== 'error' && event.level !== 3) return;
     // Reproduced by the existing Local PDF smoke on Electron 41.10.6.
@@ -362,7 +335,7 @@ app.whenReady().then(async () => {
       pdfRuntimeDiagnostics.push({message:event.message,frame:event.frame.url,source:event.sourceId,line:event.lineNumber});
       return;
     }
-    if (expectedResourceFailure && /Failed to load resource:.*403/.test(event.message)) handledResourceErrors.push(event.message);
+    if (expectedResourceFailure && /Failed to load resource:.*ERR_FILE_NOT_FOUND/.test(event.message)) handledResourceErrors.push(event.message);
     else errors.push(event.message);
   });
   await window.loadURL(`${pathToFileURL(rendererPath).href}#native-cloud-workbench-smoke`);
@@ -370,6 +343,10 @@ app.whenReady().then(async () => {
   // Visible compositing is required for captures of the paused Header reveal;
   // hidden-window capturePage can return the previous provider's frame.
   window.showInactive();
+  await evaluate(`window.__nativeCloudWorkbenchSmoke.addCloudFixtures(${JSON.stringify([
+    {path:'report.xlsx',mimeType:'application/octet-stream',content_base64:spreadsheet.toString('base64')},
+    {path:'assets/diagram.svg',mimeType:'image/svg+xml',content:'<svg xmlns="http://www.w3.org/2000/svg" width="300" height="120"><rect width="300" height="120" fill="#102a43"/></svg>'},
+  ])})`);
   await evaluate("window.__nativeCloudWorkbenchSmoke.edit('local', 'LOCAL_UNSAVED_DRAFT')");
   await waitFor("window.__nativeCloudWorkbenchSmoke.state().localWrites.some(item => item.content === 'LOCAL_UNSAVED_DRAFT')");
   const localPresentation = await presentation("local");
@@ -386,6 +363,7 @@ app.whenReady().then(async () => {
   })()`);
   assert(await evaluate("Boolean(document.querySelector('.desktop-titlebar-terminal')) && Boolean(document.querySelector('.desktop-titlebar-changes'))"),
     'Local must expose its Chat and Git Header actions before switching');
+  if (filesOnly) { await selectLocation('cloud'); } else {
   await evaluate("window.__nativeCloudWorkbenchSmoke.holdCloudRead()");
   await openProjectMenu();
   await checkProjectBarRelayout("menu.style.setProperty('--po-type-ui-control', '19px');");
@@ -469,11 +447,12 @@ app.whenReady().then(async () => {
   })()`);
   assert(readyMenu.identity === 'retained-switch-bar' && ['x','y','width','height'].every(key => Math.abs(readyMenu[key]-pendingMenu[key])<1),
     'The same switch bar must keep its position and dimensions after Cloud loads');
+  }
   await waitFor("Boolean(document.querySelector('[data-cloud-native=true]')?.textContent.includes('cloud-only'))");
   const initialCloudRequests = (await state()).requests;
-  assert(initialCloudRequests.filter(path => path === '/content/11111111-1111-4111-8111-111111111111/ls?path=').length === 1,
-    'Preflight and the mounted explorer must share one root directory read');
-  assert(!initialCloudRequests.some(path => path.includes('/cat?')),
+  assert(initialCloudRequests.filter(path => path.includes('/workbench/files?') && new URL(path, 'https://fixture').searchParams.get('path') === '').length <= 2,
+    'Cloud entry must reuse directory state once the live watch is active');
+  assert(!initialCloudRequests.some(path => path.includes('/workbench/file?')),
     'Opening a Cloud project must not download unopened file bodies for a Markdown index');
   assert(await evaluate("document.querySelector('[data-workspace-location=local]').hidden && !document.querySelector('[data-workspace-location=cloud]').hidden && !document.querySelector('.desktop-cloud-workspace-switch-dialog')"), "Cloud switch must replace the main surface without a dialog");
   const cloudHeader = await evaluate(`(() => {
@@ -494,9 +473,9 @@ app.whenReady().then(async () => {
   await evaluate("[...document.querySelectorAll('[data-cloud-native=true] .tree-row')].find(row => row.textContent.includes('readme')).click()");
   await waitFor("Boolean(document.querySelector('[data-workspace-location=cloud] .cm-content')?.textContent.includes('CLOUD_FILE_BODY'))");
   const openedFileRequests = (await state()).requests.slice(initialCloudRequests.length)
-    .filter(path => path.startsWith('/content/'));
-  assert(JSON.stringify(openedFileRequests) === JSON.stringify(['/content/11111111-1111-4111-8111-111111111111/cat?path=readme.txt']),
-    `Opening known text from the explorer must make one cat request: ${JSON.stringify(openedFileRequests)}`);
+    .filter(path => path.includes('/workbench/file?'));
+  assert(openedFileRequests.length === 1 && new URL(openedFileRequests[0], 'https://fixture').searchParams.get('path') === 'readme.txt',
+    `Opening known text must make one live file read: ${JSON.stringify(openedFileRequests)}`);
   const cloudPresentation = await presentation("cloud");
   for (const region of ["explorer", "editor", "footer", "row", "code"]) {
     const before = localPresentation[region], after = cloudPresentation[region];
@@ -524,11 +503,11 @@ app.whenReady().then(async () => {
     'Cloud file selection must update immediately and replace the previous content with normal loading before the read finishes');
   await writeFile(path.join(artifacts, 'cloud-file-loading.png'), (await window.webContents.capturePage()).toPNG());
   await evaluate("[...document.querySelectorAll('[data-cloud-native=true] .tree-row')].find(row => row.textContent.includes('readme')).click(); window.__nativeCloudWorkbenchSmoke.finishCloudRead()");
-  await waitFor("window.__nativeCloudWorkbenchSmoke.state().requests.some(path => path.includes('/cat?path=cloud-only.md'))");
+  await waitFor("window.__nativeCloudWorkbenchSmoke.state().requests.some(path => path.includes('/workbench/file?') && path.endsWith('path=cloud-only.md'))");
   await waitFor("!document.querySelector('[data-cloud-native=true] .document-surface-preparation-pending') && document.querySelector('[data-cloud-native=true] .cm-content').textContent.includes('CLOUD_EDIT_ONLY')");
   assert(await evaluate("document.querySelector('[data-cloud-native=true] .tree-row[aria-selected=true]').textContent.includes('readme')"),
     'A late Cloud file read must not replace a newer file selection or its retained draft');
-  const folderReads = () => evaluate("window.__nativeCloudWorkbenchSmoke.state().requests.filter(path => path.includes('/ls?path=records')).length");
+  const folderReads = () => evaluate("window.__nativeCloudWorkbenchSmoke.state().requests.filter(path => path.includes('/workbench/files?') && path.endsWith('path=records')).length");
   const readsBeforeExpansion = await folderReads();
   const clickRecords = () => evaluate("[...document.querySelectorAll('[data-cloud-native=true] .tree-row')].find(row => row.textContent.includes('records')).click()");
   await evaluate("window.__nativeCloudWorkbenchSmoke.holdCloudRead()");
@@ -586,12 +565,17 @@ app.whenReady().then(async () => {
   await waitFor("Boolean(document.querySelector('[data-cloud-native=true] .document-surface-slot.is-committed[data-surface-ready=true] .office-spreadsheet-preview'))");
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await writeFile(path.join(artifacts, "cloud-office.png"), (await window.webContents.capturePage()).toPNG());
+  await evaluate("window.__nativeCloudWorkbenchSmoke.openCloudFile('readme.txt')");
+  await waitFor("document.querySelector('[data-cloud-native=true] .cm-content')?.textContent.includes('CLOUD_EDIT_ONLY')");
+  await evaluate("window.__nativeCloudWorkbenchSmoke.agentWrite('readme.txt', 'AGENT_UNCOMMITTED_BODY')");
+  await waitFor("document.querySelector('[data-cloud-native=true] .cm-content')?.textContent.includes('AGENT_UNCOMMITTED_BODY')");
+  await evaluate("window.__nativeCloudWorkbenchSmoke.agentWrite('readme.txt', 'CLOUD_EDIT_ONLY')");
+  await waitFor("document.querySelector('[data-cloud-native=true] .cm-content')?.textContent.includes('CLOUD_EDIT_ONLY')");
   const formatAcceptance = await acceptCloudFormats({window, evaluate, waitFor, fixtures:formats, artifacts, assert});
   expectedResourceFailure=true;
-  formatAcceptance.expiry = await acceptExpiredCloudMedia({evaluate,waitFor,assert,expire:(token)=>{resourceToken=token;}});
+  formatAcceptance.retry = await acceptRevokedCloudMedia({evaluate,waitFor,assert});
   expectedResourceFailure=false;
-  assert(deniedResourceRequests > 0, 'Expiry test must perform a real rejected old-token request');
-  await writeFile(path.join(artifacts,'cloud-format-acceptance.json'),JSON.stringify({...formatAcceptance,deniedResourceRequests,handledResourceErrors},null,2));
+  await writeFile(path.join(artifacts,'cloud-format-acceptance.json'),JSON.stringify({...formatAcceptance,handledResourceErrors},null,2));
   await nativePreviews.closeAll();
   await evaluate("window.__nativeCloudWorkbenchSmoke.openCloudFile('readme.txt')");
   await waitFor("document.querySelector('[data-cloud-native=true] .cm-content')?.textContent.includes('CLOUD_EDIT_ONLY')");
@@ -600,7 +584,7 @@ app.whenReady().then(async () => {
     await evaluate("window.__nativeCloudWorkbenchSmoke.finishLocalSaves()");
     await writeFile(path.join(artifacts, 'file-operations-report.json'), JSON.stringify({
       passed: true, scope: 'Cloud file operations and format previews',
-      rootReadsAtEntry: initialCloudRequests.filter(path => path === '/content/11111111-1111-4111-8111-111111111111/ls?path=').length,
+      rootReadsAtEntry: initialCloudRequests.filter(path => path.includes('/workbench/files?') && new URL(path, 'https://fixture').searchParams.get('path') === '').length,
       openedFileRequests, snapshot: await state(), errors,
     }, null, 2));
     console.log('Cloud file operations Electron acceptance passed: shared directory reads, one-request text open, edits, drafts, and format previews.');

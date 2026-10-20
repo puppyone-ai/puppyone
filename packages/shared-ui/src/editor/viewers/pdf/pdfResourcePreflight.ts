@@ -6,7 +6,8 @@ export async function preflightPdfResource(url: string, maxBytes: number, signal
     && ["localhost", "127.0.0.1", "[::1]"].includes(resource.hostname);
   if (!loopback && !["puppyone-local:", "https:", "blob:"].includes(resource.protocol)) throw new Error("resource");
   const options = { signal, cache: "no-store", credentials: "omit", redirect: "error" } as const;
-  let response = await fetch(url, { ...options, method: "HEAD" });
+  // Blob resources support GET only; HEAD fails before returning an HTTP status.
+  let response = await fetch(url, { ...options, method: resource.protocol === "blob:" ? "GET" : "HEAD" });
   if (response.status === 405) {
     await response.body?.cancel();
     // Cloud's inline endpoint supports GET only. Inspect its full-response

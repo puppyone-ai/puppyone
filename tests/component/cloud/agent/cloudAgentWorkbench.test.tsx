@@ -154,7 +154,8 @@ describe("Desktop Cloud native workbench", () => {
     const second = await newChat();
     const request = window.puppyoneDesktop!.requestCloudSessionApi;
     window.puppyoneDesktop!.requestCloudSessionApi = async input => {
-      await request(input);
+      const result = await request(input);
+      if (input.path.endsWith("/workbench")) return result;
       throw new Error("Lost accepted receipt");
     };
     await act(async () => { await workbench.controller(second)!.submit("Keep running until I stop"); });

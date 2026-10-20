@@ -1,3 +1,4 @@
+import { createCloudWorkspaceClient } from "../files/cloudWorkspaceClient";
 import { cloudApiRequest, type DesktopCloudSession } from "../../../lib/cloudApi";
 import type { RepositoryTarget } from "../repositoryTarget";
 
@@ -10,7 +11,7 @@ export type CloudAgentTool = {
     details?: { code?: string; recoverable?: boolean } } | null;
 };
 export type CloudAgentRun = {
-  id: string; project_id: string; agent_id: string; session_id: string; request_id: string;
+  id: string; project_id: string; workbench_id?: string; agent_id: string; session_id: string; request_id: string;
   prompt: string; state: CloudRunState; sequence: number; stop_requested: boolean;
   snapshot: { text?: string; code?: string; resource_retained?: boolean };
   publication: { status?: string; [key: string]: unknown } | null;
@@ -34,9 +35,12 @@ export class CloudAgentClient {
     return run;
   }
   async submit(input: CloudAgentSubmission) {
+    const workspace = await createCloudWorkspaceClient(this.session, { status: "resolved", projectId: this.target.project_id,
+      projectName: "", target: this.target }, this.apiBaseUrl).ensure();
     const run = this.owned(await this.request<CloudAgentRun>("/agents/runs", { method: "POST",
-      body: JSON.stringify({ ...input, project_id: this.target.project_id,
+      body: JSON.stringify({ ...input, workbench_id: workspace.id, project_id: this.target.project_id,
         ...(this.target.kind === "scope" ? { scope_id: this.target.scope_id } : {}) }) }));
+    if (run.workbench_id !== workspace.id) throw new Error("Cloud Agent returned a different workspace.");
     if (run.request_id !== input.request_id || (input.session_id && run.session_id !== input.session_id)) {
       throw new Error("Cloud Agent returned a different submission receipt.");
     }

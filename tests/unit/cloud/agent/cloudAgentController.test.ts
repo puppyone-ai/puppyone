@@ -1,3 +1,4 @@
+import { liveWorkbench } from "../../../fixtures/cloud/repositories/liveWorkspace";
 /** @vitest-environment happy-dom */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CloudAgentClient, type CloudAgentRun } from "../../../../src/features/cloud/agent/cloudAgentClient";
@@ -14,7 +15,7 @@ const calls: Request[] = [];
 let handle: (request: Request) => Promise<unknown>;
 let cleanup: (() => void) | undefined;
 function run(values: Partial<CloudAgentRun> = {}): CloudAgentRun {
-  return { id: "11111111-1111-4111-8111-111111111111", project_id: "project", agent_id: "configured-agent",
+  return { id: "11111111-1111-4111-8111-111111111111", project_id: "project", workbench_id: "workbench-project", agent_id: "configured-agent",
     session_id: "22222222-2222-4222-8222-222222222222", request_id: "request", prompt: "Edit notes",
     state: "running", sequence: 1, stop_requested: false, snapshot: {}, publication: null, tools: [],
     created_at: "2026-10-07T00:00:00Z", updated_at: "2026-10-07T00:00:00Z", ...values };
@@ -27,6 +28,7 @@ beforeEach(() => {
   localStorage.clear(); calls.length = 0;
   handle = async () => { throw new Error("Unexpected request"); };
   window.puppyoneDesktop = { ...originalBridge, requestCloudSessionApi: async (request: Request) => {
+    if (request.path.endsWith("/workbench")) return { workspace: liveWorkbench() };
     calls.push(request);
     return { transport: "puppyone-cloud-ipc-v1", ok: true, data: await handle(request) };
   } } as NonNullable<typeof window.puppyoneDesktop>;
@@ -43,14 +45,18 @@ describe("Cloud Agent durable client", () => {
     expect(calls).toEqual([]);
   });
 
-  it("sends the authorized Scope and public account lease through Main", async () => {
+  it("binds a submission to the current workspace without exposing credentials", async () => {
     handle = async request => run({ request_id: JSON.parse(request.body!).request_id });
-    const chat = controller("scope", true); await chat.load();
-    chat.setDraft("Edit notes"); expect(await chat.submit("Edit notes")).toBe(true);
-    expect(JSON.parse(calls[0]!.body!)).toMatchObject({ scope_id: "restricted-scope", project_id: "project", prompt: "Edit notes" });
+    const chat = controller(); await chat.load();
+    expect(await chat.submit("Edit notes")).toBe(true);
+    expect(JSON.parse(calls[0]!.body!)).toMatchObject({ workbench_id: "workbench-project", project_id: "project", prompt: "Edit notes" });
     expect(calls[0]).toMatchObject({ expectedSession: { userId: "actor", generation: "generation" } });
     expect(JSON.stringify(calls)).not.toMatch(/Bearer|access_token|refresh_token/);
-    expect(chat.getSnapshot()).toMatchObject({ agentId: "configured-agent", draft: "", pending: null });
+  });
+  it("rejects a restricted Scope before requesting a whole workspace", async () => {
+    const chat = controller("scope", true); await chat.load();
+    expect(await chat.submit("Edit notes")).toBe(false);
+    expect(calls).toHaveLength(0);
   });
 
   it("recovers a lost accepted receipt with the same UUID and no second admission", async () => {
@@ -78,9 +84,11 @@ describe("Cloud Agent durable client", () => {
     await chat.submit("Edit notes");
     expect(chat.getSnapshot()).toMatchObject({ draft: "Edit notes", pending: null });
     let finish: (value: CloudAgentRun) => void = () => {};
-    handle = () => new Promise(resolve => { finish = resolve; });
+    let awaitingReceipt = false;
+    handle = () => new Promise(resolve => { finish = resolve; awaitingReceipt = true; });
     const sending = chat.submit("Edit notes");
     chat.setDraft("Next instruction");
+    await vi.waitFor(() => expect(awaitingReceipt).toBe(true));
     finish(run({ request_id: chat.getSnapshot().pending!.request_id })); await sending;
     expect(chat.getSnapshot().draft).toBe("Next instruction");
   });

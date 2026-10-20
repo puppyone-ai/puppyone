@@ -1,3 +1,4 @@
+import { liveWorkbench } from "../../../fixtures/cloud/repositories/liveWorkspace";
 /** @vitest-environment happy-dom */
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -62,7 +63,7 @@ describe("Cloud Agent view identity", () => {
 
   it("keeps a delayed admission with its original project while the user changes projects", async () => {
     let finish: (value: CloudAgentRun) => void = () => {};
-    window.puppyoneDesktop = { ...originalBridge, requestCloudSessionApi: request => new Promise(resolve => {
+    window.puppyoneDesktop = { ...originalBridge, requestCloudSessionApi: request => request.path.endsWith("/workbench") ? Promise.resolve({ workspace: liveWorkbench() }) : new Promise(resolve => {
       finish = run => resolve({ transport: "puppyone-cloud-ipc-v1", ok: true, data: { ...run, request_id: JSON.parse(request.body!).request_id } });
     }) } as NonNullable<typeof window.puppyoneDesktop>;
     await render(); await act(async () => agent.controller!.setOpen(true));
@@ -71,7 +72,7 @@ describe("Cloud Agent view identity", () => {
     await act(async () => { first.setDraft("Private instruction"); sending = first.submit("Private instruction"); });
     await render({ context: { ...context, projectId: "other", target: { kind: "project_root", project_id: "other" } } });
     await act(async () => {
-      finish({ id: "run", project_id: "project", agent_id: "agent", session_id: "session", request_id: "",
+      finish({ id: "run", project_id: "project", workbench_id: "workbench-project", agent_id: "agent", session_id: "session", request_id: "",
         prompt: "Private instruction", state: "succeeded", sequence: 2, stop_requested: false, snapshot: { text: "Private result" },
         publication: null, created_at: "2026-10-07", updated_at: "2026-10-07" }); await sending;
     });

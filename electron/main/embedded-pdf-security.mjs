@@ -15,7 +15,7 @@ export function isAllowedPdfResource(urlValue, isAuthorizedCloudResource = () =>
   try {
     const url = new URL(urlValue);
     if (url.href.startsWith(PDF_EXTENSION_ORIGIN) || url.protocol === "chrome:" || url.protocol === "chrome-untrusted:") return true;
-    if (["http:", "https:"].includes(url.protocol)) return isAuthorizedCloudResource(url.href);
+    if (["http:", "https:", "blob:"].includes(url.protocol)) return isAuthorizedCloudResource(url.href);
     // Capability authorization, signature and size checks remain in the local
     // protocol. PDF content never gets the AppPreview network allowlist.
     return url.protocol === "puppyone-local:" && url.hostname === "file"

@@ -340,6 +340,13 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   readCloudDatabasePreviewPage: (request) => ipcRenderer.invoke("cloud-preview:database-page", request),
   closeCloudNativePreview: (request) => ipcRenderer.invoke("cloud-preview:close", request),
   convertCloudOfficeDocument: (request) => ipcRenderer.invoke("cloud-preview:office-convert", request),
+  watchCloudWorkspace: (request) => ipcRenderer.invoke("cloud-workspace:watch", request),
+  stopCloudWorkspaceWatch: (request) => ipcRenderer.invoke("cloud-workspace:stop", request),
+  onCloudWorkspaceEvent: (callback) => {
+    const listener = (_event, value) => callback(value);
+    ipcRenderer.on("cloud-workspace:event", listener);
+    return () => ipcRenderer.removeListener("cloud-workspace:event", listener);
+  },
   retainCloudPreviewResource: (request) => ipcRenderer.invoke("cloud-preview:retain-resource", request),
   revokeCloudPreviewResource: (request) => ipcRenderer.invoke("cloud-preview:revoke-resource", request),
   getFileUrl: (request) => ipcRenderer.invoke("workspace:get-file-url", request),

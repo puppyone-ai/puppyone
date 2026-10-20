@@ -13,6 +13,16 @@ describe("PDF resource transport admission", () => {
     expect(fetcher).toHaveBeenCalledExactlyOnceWith(url, expect.objectContaining({ method: "HEAD", redirect: "error", credentials: "omit", signal }));
   });
 
+  it("preflights real Blob bytes without HEAD while preserving MIME and size checks", async () => {
+    const pdf = URL.createObjectURL(new Blob(["%PDF-1.7"], { type: "application/pdf" }));
+    const text = URL.createObjectURL(new Blob(["not a pdf"], { type: "text/plain" }));
+    try {
+      await preflightPdfResource(pdf, 1024, signal);
+      await expect(preflightPdfResource(pdf, 4, signal)).rejects.toThrow("limit");
+      await expect(preflightPdfResource(text, 1024, signal)).rejects.toThrow("resource");
+    } finally { URL.revokeObjectURL(pdf); URL.revokeObjectURL(text); }
+  });
+
   it.each([
     { type: "application/pdf", size: "100", error: null },
     { type: "text/html", size: "100", error: "resource" },

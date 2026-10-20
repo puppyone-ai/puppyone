@@ -2,6 +2,7 @@ import {
   cloudApiBaseUrlFromRemote,
   normalizeCloudApiBaseUrl,
 } from "../../shared/cloudEndpoint.js";
+import { readCloudWorkspaceEvents } from "./cloud-workspace-events.mjs";
 import { readCloudAgentEventBatch } from "./cloud-agent-event-reader.mjs";
 
 export function buildCloudApiBaseCandidates(remoteUrl, apiBaseUrl) {
@@ -78,6 +79,7 @@ export async function requestCloudApi(apiBase, apiPath, init) {
   const responseType = init?.responseType;
   const fetchInit = { ...init };
   delete fetchInit.responseType;
+  delete fetchInit.onWorkspaceEvent;
   let response;
   try {
     response = await fetch(`${apiBase}${apiPath}`, fetchInit);
@@ -89,6 +91,7 @@ export async function requestCloudApi(apiBase, apiPath, init) {
   if (response.ok && responseType === "bytes") {
     return new Uint8Array(await response.arrayBuffer());
   }
+  if (response.ok && responseType === "workspace-events") return readCloudWorkspaceEvents(response, init.onWorkspaceEvent);
   if (response.ok && responseType === "agent-events") {
     return readCloudAgentEventBatch(response);
   }
