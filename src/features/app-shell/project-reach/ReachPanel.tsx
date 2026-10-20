@@ -1,7 +1,7 @@
 import { type ComponentProps, type ReactNode, type RefObject } from "react";
 import { useLocalization } from "@puppyone/localization";
 import { UserPlus, Plug, HardDriveDownload } from "lucide-react";
-import { DesktopMenuItem, DesktopMenuSection, DesktopMenuSeparator } from "../../../components/DesktopMenu";
+import { DesktopMenuItem, DesktopMenuSeparator } from "../../../components/DesktopMenu";
 import { DesktopProjectLocationControls } from "../DesktopProjectLocationSwitcher";
 import { DesktopTitlebarMenuLayer } from "../DesktopTitlebarMenuLayer";
 import type { ReachPlace, ReachState } from "./projectReachHeader";
@@ -44,7 +44,7 @@ export function ReachPanel({ anchor, open, onDismiss, context }: {
       className="desktop-project-reach-menu"
       gap={2}
       preferredWidth={252}
-      preferredMaxHeight={520}
+      preferredMaxHeight={420}
       widthMode="fixed"
       alignment="start"
       role="dialog"
@@ -52,11 +52,9 @@ export function ReachPanel({ anchor, open, onDismiss, context }: {
     >
       <div className="desktop-project-reach-panel">
         {opening && <>
-          <DesktopMenuSection label={t("shell.projectOpen.title")}>
-            <DesktopProjectLocationControls {...opening} presentation="popover"
-              onViewLocal={opening.onViewLocal && (() => { onDismiss(); opening.onViewLocal?.(); })}
-              onViewCloud={opening.onViewCloud && (() => { onDismiss(); opening.onViewCloud?.(); })} />
-          </DesktopMenuSection>
+          <DesktopProjectLocationControls {...opening} presentation="destination"
+            onViewLocal={opening.onViewLocal && (() => { onDismiss(); opening.onViewLocal?.(); })}
+            onViewCloud={opening.onViewCloud && (() => { onDismiss(); opening.onViewCloud?.(); })} />
           <DesktopMenuSeparator />
         </>}
         <ReachPlaceCard state={state} summary={summary} />

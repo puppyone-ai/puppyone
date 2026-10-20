@@ -191,7 +191,7 @@
       0 2px 4px color-mix(in srgb, var(--po-shadow) 45%, transparent),
       0 6px 16px -4px color-mix(in srgb, var(--po-shadow) 65%, transparent);
     display: flex;
-    max-height: min(520px, calc(100vh - 58px));
+    max-height: min(420px, calc(100vh - 58px));
     flex-direction: column;
     /* This container receives initial dialog focus; rows own the focus ring. */
     outline: none;

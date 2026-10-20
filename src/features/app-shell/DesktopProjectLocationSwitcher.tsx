@@ -69,7 +69,7 @@ export function DesktopProjectLocationControls({
   onViewLocal,
   onViewCloud,
 }: {
-  presentation?: "popover" | "header-icons";
+  presentation?: "popover" | "header-icons" | "destination";
   projectLocation?: DesktopProjectLocation;
   cloudProject?: DesktopProjectCloudCopy;
   onViewLocal?: () => void;
@@ -82,7 +82,7 @@ export function DesktopProjectLocationControls({
   const createCloud = shouldCreateCloud(projectLocation, cloudProject, Boolean(onViewCloud));
   return (
     <div className="desktop-project-location-controls"
-      data-presentation={presentation}
+      data-presentation={presentation === "destination" ? "popover" : presentation}
       data-cloud-entry={createCloud ? "create" : "switch"}>
       <div className="desktop-project-location-tabs" role="group"
         data-location={selection}
@@ -93,7 +93,9 @@ export function DesktopProjectLocationControls({
           <span>{t("shell.workspaceSwitcher.location.local")}</span>
           <span>{t("shell.navigation.cloud")}</span>
         </span>}
-        {(["local", "cloud"] as const).map(location =>
+        {(["local", "cloud"] as const)
+          .filter(location => presentation !== "destination" || location !== selection)
+          .map(location =>
           <ProjectLocationTab
             key={location}
             location={location} current={current} selection={selection} createCloud={createCloud}
@@ -118,13 +120,14 @@ type LocationTabProps = Pick<Parameters<typeof DesktopProjectLocationControls>[0
   selection: "local" | "cloud" | undefined;
   createCloud: boolean;
   localDeviceLabel: string;
-  presentation: "popover" | "header-icons";
+  presentation: "popover" | "header-icons" | "destination";
 };
 
 function ProjectLocationTab(props: LocationTabProps) {
   const { t } = useLocalization();
   const { location, current, selection, createCloud, projectLocation, onViewLocal, onViewCloud, presentation } = props;
   const inHeader = presentation === "header-icons";
+  const destinationOnly = presentation === "destination";
   const creating = location === "cloud" && createCloud;
   const loading = location === "cloud" && Boolean(projectLocation?.loading || projectLocation?.cloudState === "resolving");
   const selected = location === selection;
@@ -133,15 +136,14 @@ function ProjectLocationTab(props: LocationTabProps) {
   const { label, visibleLabel, iconOnly } = useProjectLocationTabLabels(props, creating, selected);
   const mark = <ProjectLocationTabMark location={location} loading={loading} inHeader={inHeader} />;
   const buttonProps: ButtonHTMLAttributes<HTMLButtonElement> = {
-    "aria-label": label, "aria-pressed": creating ? undefined : selected,
-    "aria-current": location === current ? "true" : undefined,
-    disabled, onClick: () => { if (!selected || (location === current && selection !== current)) navigate?.(); },
+    "aria-label": label, ...getLocationSelectionAttributes(props, creating),
+    disabled, onClick: selected ? undefined : navigate,
   };
   const locationAttributes = {
     "data-project-location": location, "data-cloud-action": creating ? "create" : undefined,
     "data-cloud-pending": loading || undefined,
   };
-  const selectedRow = location === current && !creating;
+  const selectedRow = !destinationOnly && location === current && !creating;
   if (!inHeader) return <DesktopMenuItem className="desktop-project-location-option" role="button"
     icon={mark} label={visibleLabel} selected={selectedRow}
     trailing={selectedRow ? <Check size={14} aria-hidden="true" /> : undefined}
@@ -151,6 +153,14 @@ function ProjectLocationTab(props: LocationTabProps) {
     {mark}
     {!iconOnly && <span>{visibleLabel}</span>}
   </button></Tooltip>;
+}
+
+function getLocationSelectionAttributes({ presentation, location, current, selection }: LocationTabProps, creating: boolean): ButtonHTMLAttributes<HTMLButtonElement> {
+  if (presentation === "destination") return {};
+  return {
+    "aria-pressed": creating ? undefined : location === selection,
+    "aria-current": location === current ? "true" : undefined,
+  };
 }
 
 function ProjectLocationTabMark({ location, loading, inHeader }: {

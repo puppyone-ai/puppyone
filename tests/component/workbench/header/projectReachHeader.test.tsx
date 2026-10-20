@@ -278,10 +278,10 @@ describe("Header reach fork", () => {
       projectLocation={{ current: "local", localAvailable: true, cloudState: "unavailable" }}
       onViewLocal={noOp} onViewCloud={onCloud} />);
     const panel = openPanel();
-    const local = panel.querySelector<HTMLButtonElement>('[data-project-location="local"]')!;
     const cloud = panel.querySelector<HTMLButtonElement>('[data-project-location="cloud"]')!;
-    expect(local.textContent).toContain("Open on This Mac");
-    expect(local.getAttribute("aria-current")).toBe("true");
+    expect(panel.querySelector('[data-project-location="local"]')).toBeNull();
+    expect(panel.querySelector(".desktop-menu-section")).toBeNull();
+    expect(panel.querySelector("[aria-current], [aria-pressed]")).toBeNull();
     expect(cloud.textContent).toBe("Open in Cloud");
     expect(cloud.disabled).toBe(false);
     act(() => cloud.click());
@@ -296,8 +296,8 @@ describe("Header reach fork", () => {
       onViewLocal={onLocal} onViewCloud={noOp} />);
     expect(container.querySelector(".desktop-titlebar-reach-button")?.textContent).toBe("This Mac");
     const panel = openPanel();
-    expect(panel.querySelector('[data-project-location="local"]')?.classList.contains("selected")).toBe(true);
-    expect(panel.querySelector('[data-project-location="cloud"]')?.classList.contains("selected")).toBe(false);
+    expect(panel.querySelector('[data-project-location="local"]')?.classList.contains("selected")).toBe(false);
+    expect(panel.querySelector('[data-project-location="cloud"]')).toBeNull();
     act(() => panel.querySelector<HTMLButtonElement>('[data-project-location="local"]')!.click());
     expect(onLocal).toHaveBeenCalledOnce();
   });
@@ -308,7 +308,7 @@ describe("Header reach fork", () => {
     expect(container.querySelector(".desktop-titlebar-reach-button")?.textContent).toBe("Cloud");
     const panel = openPanel();
     expect(panel.querySelector<HTMLButtonElement>('[data-project-location="local"]')!.disabled).toBe(true);
-    expect(panel.querySelector('[data-project-location="cloud"]')?.getAttribute("aria-current")).toBe("true");
+    expect(panel.querySelector('[data-project-location="cloud"]')).toBeNull();
   });
 
   it("keeps the established location control until the experience is handed to the Header", async () => {
