@@ -1,9 +1,9 @@
-import { Fragment, useEffect, useRef, useState, type ButtonHTMLAttributes } from "react";
+import { useEffect, useRef, useState, type ButtonHTMLAttributes } from "react";
 import { Tooltip } from "@puppyone/shared-ui";
 import { Check, Laptop } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import { PulseGrid } from "../../components/loading";
-import { DesktopMenuItem, DesktopMenuSeparator } from "../../components/DesktopMenu";
+import { DesktopMenuItem } from "../../components/DesktopMenu";
 import { CloudIcon as Cloud } from "../../components/icons/CloudIcon";
 import { useDesktopPreference } from "../../preferencesStore";
 import { useDesktopPlatformCapabilities } from "../../platform/useDesktopPlatformCapabilities";
@@ -39,7 +39,7 @@ export function DesktopProjectLocationSwitcher({ projectLocation, cloudProject, 
   const available = Boolean(projectLocation);
   useEffect(() => { if (inline || !available || projectMenuOpen) setOpen(false); }, [inline, available, projectMenuOpen]);
   if (!projectLocation) return null;
-  const location = projectLocation.headerLocation ?? projectLocation.current;
+  const location = projectLocation.current;
   const locationLabel = t(location === "local" ? "shell.workspaceSwitcher.location.local" : "shell.navigation.cloud");
   const controls = <DesktopProjectLocationControls presentation={inline ? "header-icons" : "popover"}
     projectLocation={projectLocation} cloudProject={cloudProject} onViewLocal={onViewLocal} onViewCloud={onViewCloud} />;
@@ -77,7 +77,7 @@ export function DesktopProjectLocationControls({
 }) {
   const { t } = useLocalization();
   const localDeviceLabel = useProjectDeviceLabel();
-  const current = projectLocation?.current ?? "local";
+  const current = projectLocation?.current;
   const selection = projectLocation?.requested ?? current;
   const createCloud = shouldCreateCloud(projectLocation, cloudProject, Boolean(onViewCloud));
   return (
@@ -93,15 +93,14 @@ export function DesktopProjectLocationControls({
           <span>{t("shell.workspaceSwitcher.location.local")}</span>
           <span>{t("shell.navigation.cloud")}</span>
         </span>}
-        {(["local", "cloud"] as const).map(location => <Fragment key={location}>
-          {location === "cloud" && presentation === "popover"
-            && <DesktopMenuSeparator className="desktop-project-location-separator" />}
+        {(["local", "cloud"] as const).map(location =>
           <ProjectLocationTab
+            key={location}
             location={location} current={current} selection={selection} createCloud={createCloud}
             localDeviceLabel={localDeviceLabel} projectLocation={projectLocation}
             presentation={presentation}
             onViewLocal={onViewLocal} onViewCloud={onViewCloud} />
-        </Fragment>)}
+        )}
       </div>
     </div>
   );
@@ -115,8 +114,8 @@ function shouldCreateCloud(location: DesktopProjectLocation | undefined, cloudPr
 
 type LocationTabProps = Pick<Parameters<typeof DesktopProjectLocationControls>[0], "projectLocation" | "onViewLocal" | "onViewCloud"> & {
   location: "local" | "cloud";
-  current: "local" | "cloud";
-  selection: "local" | "cloud";
+  current: "local" | "cloud" | undefined;
+  selection: "local" | "cloud" | undefined;
   createCloud: boolean;
   localDeviceLabel: string;
   presentation: "popover" | "header-icons";
@@ -136,13 +135,13 @@ function ProjectLocationTab(props: LocationTabProps) {
   const buttonProps: ButtonHTMLAttributes<HTMLButtonElement> = {
     "aria-label": label, "aria-pressed": creating ? undefined : selected,
     "aria-current": location === current ? "true" : undefined,
-    disabled, onClick: () => { if (!selected) navigate?.(); },
+    disabled, onClick: () => { if (!selected || (location === current && selection !== current)) navigate?.(); },
   };
   const locationAttributes = {
     "data-project-location": location, "data-cloud-action": creating ? "create" : undefined,
     "data-cloud-pending": loading || undefined,
   };
-  const selectedRow = selected && !creating;
+  const selectedRow = location === current && !creating;
   if (!inHeader) return <DesktopMenuItem className="desktop-project-location-option" role="button"
     icon={mark} label={visibleLabel} selected={selectedRow}
     trailing={selectedRow ? <Check size={14} aria-hidden="true" /> : undefined}
@@ -164,16 +163,15 @@ function ProjectLocationTabMark({ location, loading, inHeader }: {
 
 function useProjectLocationTabLabels({ location, presentation, localDeviceLabel }: LocationTabProps, creating: boolean, selected: boolean) {
   const { t } = useLocalization();
-  const label = useProjectLocationLabel(location, creating, localDeviceLabel);
+  const label = useProjectLocationLabel(location, localDeviceLabel);
   if (presentation !== "header-icons") return { label, visibleLabel: label, iconOnly: false };
   const visibleLabel = t(location === "local" ? "shell.workspaceSwitcher.location.local" : "shell.navigation.cloud");
   return { label: creating ? label : visibleLabel, visibleLabel, iconOnly: !selected };
 }
 
-function useProjectLocationLabel(location: "local" | "cloud", creating: boolean, deviceLabel: string) {
+function useProjectLocationLabel(location: "local" | "cloud", deviceLabel: string) {
   const { t } = useLocalization();
-  if (location === "local") return deviceLabel;
-  return t(creating ? "shell.workspaceSwitcher.shareToCloud" : "shell.navigation.cloud");
+  return location === "local" ? deviceLabel : t("shell.projectOpen.inCloud");
 }
 
 function getLocationTabTooltip({ location, selection, projectLocation, createCloud }: LocationTabProps) {
@@ -191,8 +189,8 @@ function useProjectDeviceLabel() {
   const { t } = useLocalization();
   const capabilities = useDesktopPlatformCapabilities();
   return t(capabilities?.platform === "macos"
-    ? "shell.workspaceSwitcher.location.thisMac"
-    : "shell.workspaceSwitcher.location.thisComputer");
+    ? "shell.projectOpen.onMac"
+    : "shell.projectOpen.onComputer");
 }
 
 function ProjectLocationMark({

@@ -356,6 +356,9 @@ function AppContent() {
     visible: !restoringWorkspace,
     enabled: cloudEnabled, session: activeCloudSession, apiBaseUrl: desktopCloudApiBaseUrl,
     local: recentWorkspaceItems,
+    activeLocalPath: !cloudWorkspaceActive ? workspace?.path : undefined,
+    activeCloudProjectId: cloudWorkspaceActive && accountCloud.context.status === "resolved"
+      ? accountCloud.context.projectId : undefined,
   });
   const initialCloudProjectOpened = useRef(false);
   useEffect(() => {

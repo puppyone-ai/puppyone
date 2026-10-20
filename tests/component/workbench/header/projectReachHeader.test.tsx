@@ -101,8 +101,8 @@ describe("Header project reach", () => {
 
   it("states a Cloud workspace as the place, in the Header's established words", async () => {
     const button = await renderControl({ state: state({ share: "published", place: "cloud" }) });
-    expect(button.textContent).toBe("Cloud workspace");
-    expect(button.getAttribute("aria-label")).toBe("Cloud workspace. Only you can reach this project");
+    expect(button.textContent).toBe("Cloud");
+    expect(button.getAttribute("aria-label")).toBe("Cloud. Only you can reach this project");
     expect(button.querySelector('[data-reach-place="cloud"]')).not.toBeNull();
     const panel = openPanel();
     expect(panel.querySelector('.desktop-project-reach-card[data-reach-place="cloud"]')).not.toBeNull();
@@ -122,7 +122,7 @@ describe("Header project reach", () => {
     // the titlebar's labels are made of; drawing an outline here too makes
     // the card a dimmer reprint of a label instead of the hardware itself.
     expect(card?.querySelector('[data-reach-tone="solid"]')).not.toBeNull();
-    expect(container.querySelector('.desktop-titlebar-workspace-mark')?.dataset.reachTone).toBe("outline");
+    expect(container.querySelector<HTMLElement>('.desktop-titlebar-workspace-mark')?.dataset.reachTone).toBe("outline");
     // The card states, the rows act. Anything built out of a row's parts
     // reads as the row the user has just pressed, so it may not have any.
     expect(card?.querySelector(".desktop-menu-item")).toBeNull();
@@ -235,7 +235,7 @@ describe("Header project reach", () => {
     });
     // No working copy here means the project is somewhere else, and the place
     // mark says so without the user picking a location.
-    expect(button.getAttribute("aria-label")).toBe("Cloud workspace. This project is not on this Mac yet");
+    expect(button.getAttribute("aria-label")).toBe("Cloud. This project is not on this Mac yet");
     expect(button.querySelector('[data-reach-place="cloud"]')).not.toBeNull();
     const panel = openPanel();
     expect(panel.querySelector('[data-testid="readers"]')).toBeNull();
@@ -271,6 +271,45 @@ describe("Header project reach", () => {
 
 describe("Header reach fork", () => {
   const reach: ProjectReachControlProps = { state: resolveProjectReachState({ share: "published", shares: [], destinations }) };
+
+  it("opens the same project's Cloud destination from the reach menu and closes the menu", async () => {
+    const onCloud = vi.fn();
+    await render(<DesktopTitlebarContext {...projectProps} projectReach={reach}
+      projectLocation={{ current: "local", localAvailable: true, cloudState: "unavailable" }}
+      onViewLocal={noOp} onViewCloud={onCloud} />);
+    const panel = openPanel();
+    const local = panel.querySelector<HTMLButtonElement>('[data-project-location="local"]')!;
+    const cloud = panel.querySelector<HTMLButtonElement>('[data-project-location="cloud"]')!;
+    expect(local.textContent).toContain("Open on This Mac");
+    expect(local.getAttribute("aria-current")).toBe("true");
+    expect(cloud.textContent).toBe("Open in Cloud");
+    expect(cloud.disabled).toBe(false);
+    act(() => cloud.click());
+    expect(onCloud).toHaveBeenCalledOnce();
+    expect(document.querySelector(".desktop-project-reach-menu")).toBeNull();
+  });
+
+  it("keeps the current location until the Cloud provider is ready and lets the user cancel a pending open", async () => {
+    const onLocal = vi.fn();
+    await render(<DesktopTitlebarContext {...projectProps} projectReach={{ ...reach, state: { ...reach.state, place: "cloud" } }}
+      projectLocation={{ current: "local", requested: "cloud", headerLocation: "cloud", loading: true, localAvailable: true, cloudState: "available" }}
+      onViewLocal={onLocal} onViewCloud={noOp} />);
+    expect(container.querySelector(".desktop-titlebar-reach-button")?.textContent).toBe("This Mac");
+    const panel = openPanel();
+    expect(panel.querySelector('[data-project-location="local"]')?.classList.contains("selected")).toBe(true);
+    expect(panel.querySelector('[data-project-location="cloud"]')?.classList.contains("selected")).toBe(false);
+    act(() => panel.querySelector<HTMLButtonElement>('[data-project-location="local"]')!.click());
+    expect(onLocal).toHaveBeenCalledOnce();
+  });
+
+  it("marks a ready Cloud location and disables local opening when this project has no local directory", async () => {
+    await render(<DesktopTitlebarContext {...projectProps} projectReach={reach}
+      projectLocation={{ current: "cloud", localAvailable: false, cloudState: "available" }} />);
+    expect(container.querySelector(".desktop-titlebar-reach-button")?.textContent).toBe("Cloud");
+    const panel = openPanel();
+    expect(panel.querySelector<HTMLButtonElement>('[data-project-location="local"]')!.disabled).toBe(true);
+    expect(panel.querySelector('[data-project-location="cloud"]')?.getAttribute("aria-current")).toBe("true");
+  });
 
   it("keeps the established location control until the experience is handed to the Header", async () => {
     await render(<DesktopTitlebarContext {...projectProps}

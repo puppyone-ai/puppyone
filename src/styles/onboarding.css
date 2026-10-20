@@ -490,8 +490,7 @@
 }
 
 .onboarding-project-icon.is-cloud,
-.onboarding-project-cloud-badge,
-.desktop-menu-icon-button.onboarding-project-cloud {
+.onboarding-project-cloud-badge {
   color: var(--po-brand-blue);
 }
 
@@ -501,7 +500,7 @@
   inset-block-end: -3px;
 }
 
-.onboarding-project-cloud {
+.onboarding-project-open {
   position: absolute;
   inset-inline-end: 34px;
   top: 50%;
@@ -510,15 +509,17 @@
   transform: translateY(-50%);
 }
 
-.onboarding-project-row-wrap:hover .onboarding-project-cloud,
-.onboarding-project-row-wrap:focus-within .onboarding-project-cloud {
+.onboarding-project-row-wrap:hover .onboarding-project-open,
+.onboarding-project-row-wrap:focus-within .onboarding-project-open,
+.onboarding-project-open[aria-expanded="true"] {
   opacity: 1;
   pointer-events: auto;
 }
 
-.onboarding-project-row-wrap.has-cloud:hover .onboarding-project-row,
-.onboarding-project-row-wrap.has-cloud:focus-within .onboarding-project-row {
-  padding-inline-end: 66px;
+.onboarding-project-row-wrap:has(.onboarding-project-open):hover .onboarding-project-row,
+.onboarding-project-row-wrap:has(.onboarding-project-open):focus-within .onboarding-project-row,
+.onboarding-project-row-wrap:has(.onboarding-project-open[aria-expanded="true"]) .onboarding-project-row {
+  padding-inline-end: 112px;
 }
 
 .homepage-cloud-account {
@@ -649,6 +650,7 @@ span.homepage-cloud-feedback {
 
 .onboarding-project-row-wrap:hover .desktop-menu-item-trailing,
 .onboarding-project-row-wrap:focus-within .desktop-menu-item-trailing,
+.onboarding-project-row-wrap:has(.onboarding-project-open[aria-expanded="true"]) .desktop-menu-item-trailing,
 .onboarding-project-row-wrap.is-removing .desktop-menu-item-trailing {
   opacity: 0;
 }
@@ -723,7 +725,7 @@ span.homepage-cloud-feedback {
 }
 
 @media (hover: none) {
-  .onboarding-project-cloud,
+  .onboarding-project-open,
   .onboarding-project-remove {
     opacity: 1;
     pointer-events: auto;
@@ -732,4 +734,34 @@ span.homepage-cloud-feedback {
   .onboarding-project-row .desktop-menu-item-trailing {
     opacity: 0;
   }
+}
+
+/* Opening choices use the same quiet control geometry as the project list. */
+.project-open-menu-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: var(--po-menu-item-radius);
+  background: transparent;
+  color: var(--po-text-muted);
+  font: inherit;
+  font-size: var(--po-text-size-hint, 12px);
+  white-space: nowrap;
+}
+.project-open-menu-button:hover,
+.project-open-menu-button[aria-expanded="true"] {
+  color: var(--po-text);
+  background: var(--po-hover);
+}
+.project-open-menu-button:focus-visible {
+  outline: 1px solid var(--po-accent);
+  outline-offset: -1px;
+}
+.asset-library-project-open {
+  position: absolute;
+  inset-inline-end: 8px;
+  top: 8px;
+  background: var(--po-header);
 }

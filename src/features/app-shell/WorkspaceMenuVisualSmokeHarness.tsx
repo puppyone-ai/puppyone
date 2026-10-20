@@ -8,6 +8,7 @@ import { resetDesktopPlatformCapabilitiesForTests } from "../../platform/desktop
 import "./workspace-menu-visual-smoke.css";
 import { desktopPreferencesStore, initializeDesktopPreferences } from "../../preferencesStore";
 import { ProjectSwitcherRail } from "./ProjectSwitcherRail";
+import { resolveProjectReachState } from "./project-reach";
 
 const inlineLocations = new URLSearchParams(window.location.search).get("location-presentation") === "header-icons";
 initializeDesktopPreferences();
@@ -58,6 +59,7 @@ export function WorkspaceMenuVisualSmokeHarness() {
   const theme = new URLSearchParams(window.location.search).get("theme") === "light" ? "light" : "dark";
   const projectActions = new URLSearchParams(window.location.search).get("menu") === "project-actions";
   const projectList = new URLSearchParams(window.location.search).get("menu") === "project-list";
+  const reach = new URLSearchParams(window.location.search).get("menu") === "reach";
   const previewWorkspace = workspace("desktop", "puppyone-qubits",
     new URLSearchParams(window.location.search).get("path") === "long"
       ? "/Users/demo/Projects/Research and development/Interface experiments/puppyone-qubits"
@@ -87,6 +89,11 @@ export function WorkspaceMenuVisualSmokeHarness() {
               localAvailable: current === "local",
               cloudState,
             }}
+            projectReach={reach ? {
+              state: resolveProjectReachState({ share: "local", shares: [], destinations: [],
+                place: current === "cloud" ? "cloud" : "this-device" }),
+              onInvitePerson: () => undefined, onConnectAgent: () => undefined,
+            } : undefined}
             cloudProject={linked ? { id: "project-1" } : undefined}
             onOpenFolder={() => undefined}
             onClose={() => setOpen(false)}

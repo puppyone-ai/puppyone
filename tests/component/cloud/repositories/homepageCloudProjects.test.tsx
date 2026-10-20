@@ -35,11 +35,12 @@ let openAccount: ReturnType<typeof vi.fn<() => void>>;
 type Request = Parameters<NonNullable<typeof window.puppyoneDesktop>["requestCloudSessionApi"]>[0];
 let bridge: ReturnType<typeof vi.fn<(request: Request) => unknown>>;
 const appearance = createTestSurfaceAppearance();
-function Harness({ currentSession = session, visible = true, enabled = true, library = false, localItems = [local] }: {
-  currentSession?: DesktopCloudSession | null; visible?: boolean; enabled?: boolean; library?: boolean; localItems?: RecentWorkspaceHomeItem[];
+function Harness({ currentSession = session, visible = true, enabled = true, library = false, localItems = [local], activeLocalPath }: {
+  currentSession?: DesktopCloudSession | null; visible?: boolean; enabled?: boolean; library?: boolean; localItems?: RecentWorkspaceHomeItem[]; activeLocalPath?: string;
 }) {
   account = useAccountCloudWorkspace({ enabled, session: currentSession, apiBaseUrl: API });
-  home = useHomepageCloudProjects({ enabled, visible: visible && !account.active, session: currentSession, apiBaseUrl: API, local: localItems });
+  home = useHomepageCloudProjects({ enabled, visible: visible && !account.active, session: currentSession, apiBaseUrl: API, local: localItems,
+    activeLocalPath, activeCloudProjectId: account.active && account.context.status === "resolved" ? account.context.projectId : undefined });
   const Home = library ? AssetLibraryHome : MinimalOnboarding;
   return visible && !account.active ? <Home appearance={appearance} projectItems={home.items}
     onChooseWorkspace={async () => {}}
@@ -79,6 +80,44 @@ beforeEach(() => {
 afterEach(async () => { await act(async () => root.unmount()); document.body.innerHTML = ""; localStorage.clear(); vi.unstubAllEnvs(); });
 
 describe("inline Homepage Cloud projects", () => {
+  it("remembers only a successful Cloud opening and reopens the single merged project there", async () => {
+    await render();
+    await click('[data-cloud-project-id="a"] .onboarding-project-open');
+    await click('[role="dialog"] [data-project-location="cloud"]');
+    expect(account.active).toBe(true);
+    await act(async () => account.useLocal());
+    const rows = document.querySelectorAll('[data-cloud-project-id="a"]');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.textContent).toContain("Last opened in Cloud");
+    await click('[data-cloud-project-id="a"] .onboarding-project-row');
+    expect(account.active).toBe(true);
+    expect(openLocal).not.toHaveBeenCalled();
+  });
+
+  it("keeps failed openings out of the preference and scopes successful choices to the account", async () => {
+    await render();
+    bridge.mockRejectedValueOnce(new Error("Offline"));
+    await click('[data-cloud-project-id="a"] .onboarding-project-open');
+    await click('[role="dialog"] [data-project-location="cloud"]');
+    expect(home.items.find(item => item.cloudProjectId === "a")?.lastOpenedLocation).toBeUndefined();
+    await act(async () => account.retry());
+    expect(account.active).toBe(true);
+    await render({ currentSession: { ...session, user_id: "bob", session_generation: "two" } });
+    expect(home.items.find(item => item.cloudProjectId === "a")?.lastOpenedLocation).toBeUndefined();
+    await click('[data-cloud-project-id="a"] .onboarding-project-row');
+    expect(openLocal).toHaveBeenCalledWith("/fixture/local");
+  });
+
+  it("remembers a successful return to the same local project", async () => {
+    await render();
+    await click('[data-cloud-project-id="a"] .onboarding-project-open');
+    await click('[role="dialog"] [data-project-location="cloud"]');
+    await act(async () => account.useLocal());
+    await render({ activeLocalPath: "/fixture/local" });
+    expect(home.items.find(item => item.cloudProjectId === "a")?.lastOpenedLocation).toBe("local");
+    await click('[data-cloud-project-id="a"] .onboarding-project-row');
+    expect(openLocal).toHaveBeenCalledWith("/fixture/local");
+  });
   it("automatically loads after login, merges by trusted ID, and has no browse button, picker or create form", async () => {
     await render({ currentSession: null });
     expect(bridge).not.toHaveBeenCalled();
@@ -120,7 +159,8 @@ describe("inline Homepage Cloud projects", () => {
     await render(); bridge.mockClear();
     await click('[data-cloud-project-id="a"] .onboarding-project-row');
     expect(openLocal).toHaveBeenCalledWith("/fixture/local"); expect(bridge).not.toHaveBeenCalled();
-    await click('[data-cloud-project-id="a"] .onboarding-project-cloud');
+    await click('[data-cloud-project-id="a"] .onboarding-project-open');
+    await click('[role="dialog"] [data-project-location="cloud"]');
     expect(account.active).toBe(true); expect(account.context.projectId).toBe("a");
     expect(JSON.parse(bridge.mock.calls[0][0].body!).target).toEqual({ kind: "project_root", project_id: "a" });
     expect(bridge.mock.calls.every(([request]) => request.method === "GET" || request.path.endsWith("/repository-context"))).toBe(true);
@@ -286,8 +326,8 @@ describe("inline Homepage Cloud projects", () => {
     await render({ library: true });
     expect(document.querySelectorAll(".asset-library-card")).toHaveLength(2);
     expect(document.querySelector(".asset-library-project-group")).toBeNull();
-    const cloud = buttons().find((button) => button.getAttribute("aria-label")?.includes("in Cloud"));
-    expect(cloud).toBeTruthy(); await act(async () => cloud!.click());
+    await click('.asset-library-project-open[aria-label="Opening options for Project a"]');
+    await click('[role="dialog"] [data-project-location="cloud"]');
     expect(account.context.projectId).toBe("a");
   });
 });

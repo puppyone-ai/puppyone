@@ -12,9 +12,14 @@ export type ProjectHomeItem = {
   /** Empty for a hosted-only entry; never a synthetic local path. */
   localPath: string;
   cloudProjectId?: string;
+  lastOpenedLocation?: "local" | "cloud";
   lastModifiedAt?: string | null;
   lastOpenedAt?: string | null;
 };
+
+export function projectOpeningLocation(item: ProjectHomeItem): "local" | "cloud" {
+  return item.cloudProjectId && (item.lastOpenedLocation === "cloud" || !item.localPath) ? "cloud" : "local";
+}
 
 export function mergeWorkspaceLists(current: Workspace[], incoming: Workspace[]) {
   const byLocation = new Map<string, Workspace>();

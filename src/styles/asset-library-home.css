@@ -422,6 +422,12 @@
   color: var(--po-text-subtle);
 }
 
+.asset-library-card-location > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .asset-library-new-project-wrap {
   position: relative;
   min-width: 0;

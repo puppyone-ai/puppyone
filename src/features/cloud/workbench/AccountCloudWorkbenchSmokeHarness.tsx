@@ -5,6 +5,7 @@ import { useLocalization } from "@puppyone/localization";
 import { TypographyCatalogProvider, useTypographyCatalog, useTypographyRuntime } from "../../typography";
 import { resolveSurfaceAppearance, SurfaceAppearanceProvider } from "../../appearance/AppearanceRuntime";
 import { useDesktopPreference, useDesktopAppearance, useDesktopPreferenceEffects, initializeDesktopPreferences, desktopPreferencesStore } from "../../settings";
+import { AssetLibraryHome } from "../../../components/AssetLibraryHome";
 import { MinimalOnboarding } from "../../../components/MinimalOnboarding";
 import { useHomepageCloudProjects } from "./useHomepageCloudProjects";
 import { HomepageCloudStatus } from "./HomepageCloudStatus";
@@ -75,7 +76,7 @@ window.puppyoneDesktop = { ...window.puppyoneDesktop,
 } as NonNullable<typeof window.puppyoneDesktop>;
 
 declare global { interface Window { __accountCloudSmoke?: {
-  state: () => { active: boolean; project: string | null; writes: typeof writes; settingsOpened: number; agent: ReturnType<typeof agentFixture.state> };
+  state: () => { active: boolean; project: string | null; writes: typeof writes; settingsOpened: number; selectedLocalPath: string | null; agent: ReturnType<typeof agentFixture.state> };
   editAgent: typeof editCloudAgentPrompt;
   holdWrites: () => void;
   releaseWrites: () => void;
@@ -123,11 +124,12 @@ function AccountCloudFixture() {
   const workbench = useNativeCloudWorkbench({ context: account.context, session, apiBaseUrl: API,
     active: account.active, filesVisibilitySettings: filesVisibilitySettings });
   const [settingsOpened, setSettingsOpened] = useState(0);
+  const [selectedLocalPath, setSelectedLocalPath] = useState<string | null>(null);
   const presentation = useAccountCloudWorkspacePresentation({ workbench,
     onOpenSettings: () => setSettingsOpened(count => count + 1),
     sidebarUtility: <DesktopHelpLauncher appearance={appearance} /> });
   useEffect(() => {
-    window.__accountCloudSmoke = { state: () => ({ active: account.active, project: account.context.projectId, writes, settingsOpened, agent: agentFixture.state() }),
+    window.__accountCloudSmoke = { state: () => ({ active: account.active, project: account.context.projectId, writes, settingsOpened, selectedLocalPath, agent: agentFixture.state() }),
       editAgent: editCloudAgentPrompt,
       holdWrites: () => { writeBarrier = new Promise(resolve => { releaseWriteBarrier = resolve; }); },
       releaseWrites: () => { writeBarrier = null; releaseWriteBarrier(); },
@@ -141,9 +143,10 @@ function AccountCloudFixture() {
       },
     };
     return () => { delete window.__accountCloudSmoke; };
-  }, [account, setTheme, settingsOpened]);
+  }, [account, setTheme, settingsOpened, selectedLocalPath]);
+  const Home = new URLSearchParams(location.search).get("home") === "cards" ? AssetLibraryHome : MinimalOnboarding;
   return <SurfaceAppearanceProvider value={appearance}>
-    {!account.active && <MinimalOnboarding appearance={appearance} projectItems={homepage.items}
+    {!account.active && <Home appearance={appearance} projectItems={homepage.items}
       cloudOpening={account.opening}
       onCancelCloudOpening={account.cancel}
       onChooseWorkspace={async () => {}} onOpenWorkspacePath={async () => {}} onOpenDroppedWorkspace={async () => {}}
@@ -151,7 +154,7 @@ function AccountCloudFixture() {
       cloudAccountStatus={<HomepageCloudStatus status={homepage.status} restoring={false} empty={homepage.items.length === 0} apiBaseUrl={API}
         session={session} onOpenAccount={() => setSettingsOpened(count => count + 1)}
         controller={account} onRetry={homepage.refresh} />} />}
-    <AccountCloudWorkspaceSurface projectItems={homepage.items} onSelectProject={() => {}}
+    <AccountCloudWorkspaceSurface projectItems={homepage.items} onSelectProject={path => { setSelectedLocalPath(path); account.useLocal(); }}
       onSelectCloudProject={(id) => void account.openTarget({ kind: "project_root", project_id: id })}
       onCreateProject={() => {}} workbench={workbench} presentation={presentation} active={account.active}
       context={account.context} session={session} apiBaseUrl={API} onSessionChange={setSession}

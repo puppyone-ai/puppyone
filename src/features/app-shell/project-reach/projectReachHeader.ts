@@ -1,32 +1,10 @@
-/**
- * What the Header says about the current project when the project reach
- * experience is on: where the project is, and who can reach it.
- *
- * Position is a fact, so the place is stated and never selected: a project
- * sitting on this computer says so, and a project whose working copy lives on
- * a Cloud workspace says that instead. Reach is the second half of the same
- * statement, so "only you, on this Mac" is a complete answer rather than an
- * empty control.
- *
- * Position is a fact, so nothing here is selectable and nothing here persuades.
- * The established path keeps the local / Cloud tabs; this module exists so the
- * new path can state reach from facts the product already has — the shares
- * list, whether the first read arrived, whether the project context needs
- * attention — without inventing a second data layer.
- *
- * Contract: puppy-issues
- * `document/puppyone-desktop/platform/experimental-path-forks.md`.
- */
+/** Access and collaboration facts for the Header. Opening-location actions are
+ * supplied separately by the existing project navigation controller. */
 
 /** A person is invited and reads; everything else is a machine put to work. */
 export type ReachAudience = "person" | "machine";
 
-/**
- * Where the project the Header is talking about actually sits. The product
- * knows this already; stating it is what keeps "only you" from reading as
- * "nothing here". It is never a choice: a user who works out of a Cloud
- * workspace sees the Cloud place for the same reason a laptop user sees theirs.
- */
+/** The committed working location, independent of who can access the project. */
 export type ReachPlace = "this-device" | "cloud";
 
 /**

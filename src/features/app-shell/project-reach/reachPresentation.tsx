@@ -13,9 +13,8 @@ import type { ReachMember, ReachPlace, ReachState } from "./projectReachHeader";
  */
 
 /**
- * Where the project is, as a mark. It is a fact, not a switch: there is
- * nothing to press and nothing to choose, which is why it can be shown all
- * the time.
+ * Where the project is, as a mark. The mark represents the committed
+ * location; opening actions belong to the surrounding control.
  *
  * The Header's control wears it, and so does the panel that control opens.
  * That is a repetition on purpose: in the panel it is not a label for the
@@ -137,7 +136,7 @@ export function ReachMemberMark({ member, size = 18 }: { member: ReachMember; si
 export function useReachPlaceLabel(place: ReachPlace): string {
   const { t } = useLocalization();
   const capabilities = useDesktopPlatformCapabilities();
-  if (place === "cloud") return t("shell.workspaceSwitcher.location.cloud");
+  if (place === "cloud") return t("shell.navigation.cloud");
   return t(capabilities?.platform === "macos"
     ? "shell.workspaceSwitcher.location.thisMac"
     : "shell.workspaceSwitcher.location.thisComputer");

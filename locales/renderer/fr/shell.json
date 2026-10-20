@@ -188,5 +188,14 @@
   "projectReach.invitePerson": "Inviter une personne",
   "projectReach.connectAgent": "Connecter un Agent",
   "projectReach.deviceCopy.detail": "Vous pouvez lire ce projet tel quel. Le modifier demande une copie ici.",
-  "projectReach.deviceCopy.action": "Obtenir une copie"
+  "projectReach.deviceCopy.action": "Obtenir une copie",
+  "projectOpen.title": "Ouvrir dans",
+  "projectOpen.action": "Ouvrir",
+  "projectOpen.forProject": "Options d’ouverture de {project}",
+  "projectOpen.inCloud": "Ouvrir dans le cloud",
+  "projectOpen.lastCloud": "Dernière ouverture dans le cloud",
+  "projectOpen.onMac": "Ouvrir sur ce Mac",
+  "projectOpen.onComputer": "Ouvrir sur cet ordinateur",
+  "projectOpen.lastMac": "Dernière ouverture sur ce Mac",
+  "projectOpen.lastComputer": "Dernière ouverture sur cet ordinateur"
 }

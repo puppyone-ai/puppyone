@@ -59,7 +59,7 @@ export function useAccountCloudWorkspacePresentation({ workbench, onOpenSettings
 
 /** Hosted-only surface used when no local repository is open. Repository-linked
  * switching embeds the presentation above in the retained local shell instead. */
-export function AccountCloudWorkspaceSurface({ workbench, presentation, active, appearance, onLocal, onHome, context, session, apiBaseUrl, onSessionChange, projectItems, onSelectProject, onSelectCloudProject, onCreateProject, projectRail, agent: suppliedAgent, sidebar: suppliedSidebar }: {
+export function AccountCloudWorkspaceSurface({ workbench, presentation, active, appearance, onHome, context, session, apiBaseUrl, onSessionChange, projectItems, onSelectProject, onSelectCloudProject, onCreateProject, projectRail, agent: suppliedAgent, sidebar: suppliedSidebar }: {
   workbench: NativeCloudWorkbench;
   presentation: AccountCloudWorkspacePresentation;
   active: boolean;
@@ -97,13 +97,14 @@ export function AccountCloudWorkspaceSurface({ workbench, presentation, active, 
   const sidebar = suppliedSidebar ?? ownSidebar;
   const { service } = workbench;
   if (!service || !workbench.visited) return null;
-  const projectContext = <DesktopTitlebarContext open={menuOpen} refObject={menuRef}
+  const localProject = projectItems.find(item => item.cloudProjectId === service.workspace.projectId && item.localPath);
+  const projectContext = !active ? null : <DesktopTitlebarContext open={menuOpen} refObject={menuRef}
         projectMenuEnabled={!projectRail}
         titlebarLabel={service.workspace.name} workspace={service.workspace} workspaceFolders={[service.folder]}
-        multiRootWorkspacesEnabled={false} projectLocation={{ current: "cloud", localAvailable: true, cloudState: "available" }}
+        multiRootWorkspacesEnabled={false} projectLocation={{ current: "cloud", localAvailable: Boolean(localProject), cloudState: "available" }}
         cloudProject={{ id: service.workspace.projectId!, name: service.workspace.name }}
         onClose={() => setMenuOpen(false)} onToggle={() => setMenuOpen((current) => !current)}
-        onViewLocal={() => { setMenuOpen(false); onLocal(); }}
+        onViewLocal={localProject ? () => { setMenuOpen(false); onSelectProject(localProject.localPath); } : undefined}
         projectItems={projectItems} onSelectProject={onSelectProject} onSelectCloudProject={onSelectCloudProject}
         onCreateProject={onCreateProject} onHome={onHome}
         menuAlignment={centered ? "center" : "start"} />;

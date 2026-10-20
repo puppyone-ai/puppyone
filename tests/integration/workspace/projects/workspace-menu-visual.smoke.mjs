@@ -181,8 +181,8 @@ async function runSmoke() {
   const creating = state === "local-only" || state === "local-github";
   assert(snapshot.locale === locale && snapshot.devicePlatform === platform, `Wrong locale or device platform: ${evidence}`);
   assert(snapshot.cloudEntry === (creating ? "create" : "switch"), `Use creation only for a confirmed unhosted project: ${evidence}`);
-  assert(snapshot.labelsFit && snapshot.labels.join("|") === [catalog[platform === "macos" ? "workspaceSwitcher.location.thisMac" : "workspaceSwitcher.location.thisComputer"], catalog[creating ? "workspaceSwitcher.shareToCloud" : "navigation.cloud"]].join("|"), `Only the two unclipped localized actions belong in this menu: ${evidence}`);
-  assert(snapshot.separatorSpacing === 7, `Device and Cloud rows must always have a compact divider: ${evidence}`);
+  assert(snapshot.labelsFit && snapshot.labels.join("|") === [catalog[platform === "macos" ? "projectOpen.onMac" : "projectOpen.onComputer"], catalog["projectOpen.inCloud"]].join("|"), `Only the two unclipped localized actions belong in this menu: ${evidence}`);
+  assert(snapshot.separatorSpacing === 0, `Opening actions form one group without an internal divider: ${evidence}`);
   assert(creating ? snapshot.createIcon
     && snapshot.createContrast >= 4.5 && snapshot.createColor === snapshot.accentColor
     : !snapshot.createIcon && snapshot.createContrast === null,
@@ -335,7 +335,7 @@ async function checkInlinePresentation(window, url, scene, catalog) {
       && button.color === button.markColor), `Header current label and icons must fit, match project typography and inherit foreground: ${evidence}`);
     assert(snapshot.nameBounds.right <= snapshot.buttons[0].bounds.x + 1, `Project name and icons must not overlap: ${evidence}`);
     assert(snapshot.buttons[0].label === catalog["workspaceSwitcher.location.local"]
-      && snapshot.buttons[1].label === catalog[creating ? "workspaceSwitcher.shareToCloud" : "navigation.cloud"], `Header actions must retain localized accessible names: ${evidence}`);
+      && snapshot.buttons[1].label === catalog[creating ? "projectOpen.inCloud" : "navigation.cloud"], `Header actions must retain localized accessible names: ${evidence}`);
     assert(snapshot.currentCount === 1 && snapshot.pressedCount === 1 && snapshot.selected === (scene.state === "cloud-only" ? "cloud" : "local"), `Inline selection must match committed state: ${evidence}`);
     assert(snapshot.selectedBackground === snapshot.peer.background && snapshot.selectedImage === snapshot.peer.image
       && snapshot.selectedShadow === snapshot.peer.shadow && snapshot.selectedBorder === snapshot.peer.border,

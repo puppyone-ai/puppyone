@@ -1,7 +1,8 @@
-import { type ReactNode, type RefObject } from "react";
+import { type ComponentProps, type ReactNode, type RefObject } from "react";
 import { useLocalization } from "@puppyone/localization";
 import { UserPlus, Plug, HardDriveDownload } from "lucide-react";
-import { DesktopMenuItem } from "../../../components/DesktopMenu";
+import { DesktopMenuItem, DesktopMenuSection, DesktopMenuSeparator } from "../../../components/DesktopMenu";
+import { DesktopProjectLocationControls } from "../DesktopProjectLocationSwitcher";
 import { DesktopTitlebarMenuLayer } from "../DesktopTitlebarMenuLayer";
 import type { ReachPlace, ReachState } from "./projectReachHeader";
 import { ReachPlaceMark, useReachSummary } from "./reachPresentation";
@@ -15,6 +16,8 @@ import { ReachPlaceMark, useReachSummary } from "./reachPresentation";
  */
 export type ReachPanelContext = Readonly<{
   state: ReachState;
+  /** The location menu uses the existing navigation controller; people remain a sharing-only entry. */
+  opening?: ComponentProps<typeof DesktopProjectLocationControls>;
   /** The share domain's readers list, including its own stop action. */
   readers?: ReactNode;
   onInvitePerson?: () => void;
@@ -30,7 +33,7 @@ export function ReachPanel({ anchor, open, onDismiss, context }: {
   context: ReachPanelContext;
 }) {
   const { t } = useLocalization();
-  const { state, readers, onInvitePerson, onConnectAgent, onGetCopy } = context;
+  const { state, readers, opening, onInvitePerson, onConnectAgent, onGetCopy } = context;
   const summary = useReachSummary(state);
   return (
     <DesktopTitlebarMenuLayer
@@ -41,13 +44,21 @@ export function ReachPanel({ anchor, open, onDismiss, context }: {
       className="desktop-project-reach-menu"
       gap={2}
       preferredWidth={252}
-      preferredMaxHeight={420}
+      preferredMaxHeight={520}
       widthMode="fixed"
       alignment="start"
       role="dialog"
-      ariaLabel={t("shell.projectReach.panelLabel")}
+      ariaLabel={t(opening ? "shell.projectOpen.title" : "shell.projectReach.panelLabel")}
     >
       <div className="desktop-project-reach-panel">
+        {opening && <>
+          <DesktopMenuSection label={t("shell.projectOpen.title")}>
+            <DesktopProjectLocationControls {...opening} presentation="popover"
+              onViewLocal={opening.onViewLocal && (() => { onDismiss(); opening.onViewLocal?.(); })}
+              onViewCloud={opening.onViewCloud && (() => { onDismiss(); opening.onViewCloud?.(); })} />
+          </DesktopMenuSection>
+          <DesktopMenuSeparator />
+        </>}
         <ReachPlaceCard state={state} summary={summary} />
         {state.kind === "not-on-this-device" ? null : readers}
         {state.kind === "not-on-this-device" && <ReachDeviceDetail />}

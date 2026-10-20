@@ -9,9 +9,8 @@ export function DesktopTitlebarContext({ projectLocation, cloudProject, onViewLo
   return <div className="desktop-titlebar-context">
     <DesktopWorkspaceSwitcher {...project} />
     {projectReach
-      // The project reach experience states who can reach this project, and is
-      // the only Cloud entry on the Header while it is on.
-      ? <ProjectReachControl {...projectReach} projectMenuOpen={projectMenuOpen} onOpen={project.onClose} />
+      ? <ProjectReachControl {...projectReach} projectMenuOpen={projectMenuOpen} onOpen={project.onClose}
+        opening={{ projectLocation, cloudProject, onViewLocal, onViewCloud }} />
       : <DesktopProjectLocationSwitcher projectLocation={projectLocation} cloudProject={cloudProject}
         onViewLocal={onViewLocal} onViewCloud={onViewCloud}
         projectMenuOpen={projectMenuOpen} onOpen={project.onClose} />}

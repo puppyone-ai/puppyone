@@ -188,5 +188,14 @@
   "projectReach.invitePerson": "邀请一个人",
   "projectReach.connectAgent": "连接一个 Agent",
   "projectReach.deviceCopy.detail": "这个项目可以照原样阅读。要改动，需要在这里有一份副本。",
-  "projectReach.deviceCopy.action": "取一份副本"
+  "projectReach.deviceCopy.action": "取一份副本",
+  "projectOpen.title": "打开方式",
+  "projectOpen.action": "打开",
+  "projectOpen.forProject": "{project}的打开方式",
+  "projectOpen.inCloud": "在云端打开",
+  "projectOpen.lastCloud": "上次在云端打开",
+  "projectOpen.onMac": "在这台 Mac 上打开",
+  "projectOpen.onComputer": "在这台电脑上打开",
+  "projectOpen.lastMac": "上次在这台 Mac 上打开",
+  "projectOpen.lastComputer": "上次在这台电脑上打开"
 }

@@ -1,16 +1,17 @@
 import { Tooltip } from "@puppyone/shared-ui";
 import { bidiIsolate, useLocalization, type MessageFormatter } from "@puppyone/localization";
 import { Unlink } from "lucide-react";
-import { CloudIcon as Cloud } from "../icons/CloudIcon";
 import type { DragEvent as ReactDragEvent } from "react";
 import {
   getProjectName,
   getWorkspaceParentPathForDisplay,
+  projectOpeningLocation,
   type ProjectHomeItem,
 } from "../../features/app-shell/workspaceHomeModel";
 import { DesktopMenuIconButton, DesktopMenuItem } from "../DesktopMenu";
 import { InlineLoading } from "../loading";
 import { HomeProjectIcon } from "./HomeProjectIcon";
+import { ProjectOpenMenu, ProjectOpenCaption } from "./ProjectOpenMenu";
 
 type OnboardingProjectListProps = {
   items: ProjectHomeItem[];
@@ -50,7 +51,7 @@ export function OnboardingProjectList({
     >
       {items.map((item) => {
         const name = getProjectName(item, t("onboarding.projects.untitled"));
-        const parentPath = getWorkspaceParentPathForDisplay(item.localPath);
+        const location = projectOpeningLocation(item);
         const removing = removingPath === item.localPath;
         const dragging = draggingPath === item.localPath;
         return (
@@ -61,21 +62,22 @@ export function OnboardingProjectList({
               role="button"
               icon={<HomeProjectIcon item={item} />}
               label={<bdi>{name}</bdi>}
-              detail={parentPath ? <bdi dir="ltr">{parentPath}</bdi>
-                : item.cloudProjectId ? <bdi>{item.cloudProjectId.slice(0, 8)}</bdi> : undefined}
+              detail={item.cloudProjectId ? <ProjectOpenCaption item={item} />
+                : <bdi dir="ltr">{getWorkspaceParentPathForDisplay(item.localPath)}</bdi>}
               trailing={formatModificationTime(item.lastModifiedAt, t, formatRelativeTime)}
               disabled={busy}
               aria-busy={openingPath === item.localPath || undefined}
-              aria-label={t(item.cloudProjectId ? item.localPath ? "cloud.home.openLocal" : "cloud.home.openCloud" : "onboarding.projects.open", { project: bidiIsolate(name) })}
+              aria-label={t(location === "cloud" ? "cloud.home.openCloud" : "cloud.home.openLocal", { project: bidiIsolate(name) })}
               draggable={!busy && Boolean(item.localPath)}
-              onClick={() => item.localPath ? onOpen(item.localPath) : item.cloudProjectId && onOpenCloudProject?.(item.cloudProjectId)}
+              onClick={() => location === "cloud" && item.cloudProjectId ? onOpenCloudProject?.(item.cloudProjectId) : onOpen(item.localPath)}
               onDragStart={(event) => onDragStart(event, item)}
               onDragEnd={onDragEnd}
             />
-            {item.localPath && item.cloudProjectId && onOpenCloudProject && <Tooltip content={t("cloud.home.openCloud", { project: bidiIsolate(name) })}><DesktopMenuIconButton
-              className="onboarding-project-cloud" disabled={busy}
-              label={t("cloud.home.openCloud", { project: bidiIsolate(name) })}
-              onClick={() => onOpenCloudProject(item.cloudProjectId!)} icon={<Cloud size={14} />} /></Tooltip>}
+            {item.cloudProjectId && onOpenCloudProject && <ProjectOpenMenu name={name} busy={busy}
+              projectId={item.cloudProjectId}
+              className="onboarding-project-open"
+              onLocal={item.localPath ? () => onOpen(item.localPath) : undefined}
+              onCloud={() => onOpenCloudProject(item.cloudProjectId!)} />}
             {onRemove && item.localPath && (
               <Tooltip content={t("onboarding.projects.removeFor", { project: bidiIsolate(name) })}><DesktopMenuIconButton
                 className="onboarding-project-remove"
