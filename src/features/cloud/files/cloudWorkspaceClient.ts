@@ -163,6 +163,7 @@ export function createCloudWorkspaceClient(session: DesktopCloudSession,
         try {
           assertCurrent();
           if (event.type === "change" && event.generation === row.generation) { invalidate(); onChange(); }
+          else if (event.type === "reconnecting") { invalidate(); }
           else if (event.type === "unavailable") failed(new Error(event.message || "Cloud workspace connection interrupted. Retry to reconnect."));
         } catch (error) { failed(error); }
       });

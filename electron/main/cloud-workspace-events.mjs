@@ -1,3 +1,4 @@
+import { setTimeout as delay } from 'node:timers/promises';
 import { normalizeCloudApiBaseUrl as normalizeCloudApiBase } from '../../shared/cloudEndpoint.js';
 import { requireNonEmptyString } from './security.mjs';
 
@@ -30,14 +31,17 @@ function parseWorkspaceEvent(frame) {
     if (line.startsWith('event:')) type = line.slice(6).trim();
     if (line.startsWith('data:')) data.push(line.slice(5).trimStart());
   }
-  if (type === 'unavailable') return { type };
+  if (type === 'unavailable') {
+    if (data.length && JSON.parse(data.join('\n')).retryable === true) throw new Error('Cloud file connection interrupted.');
+    return { type };
+  }
   if (type !== 'change') return null;
   const value = JSON.parse(data.join('\n'));
   if (typeof value.generation !== 'string' || value.reset !== true) throw new Error('Invalid Cloud file notification.');
   return { type, generation: value.generation };
 }
 
-export function registerCloudWorkspaceEvents(ipcMain, auth) {
+export function registerCloudWorkspaceEvents(ipcMain, auth, { retryDelays = [250, 1000, 3000], wait = delay } = {}) {
   const subscriptions = new Map();
   ipcMain.handle('cloud-workspace:watch', async (event, input) => {
     const owner = event.sender;
@@ -64,10 +68,23 @@ export function registerCloudWorkspaceEvents(ipcMain, auth) {
     };
     void (async () => {
       try {
-        await auth.requestSessionApi(apiBase, `/projects/${encodeURIComponent(project)}/workbench/events?generation=${encodeURIComponent(generation)}`,
-          { method: 'GET', responseType: 'workspace-events', onWorkspaceEvent: send, signal: controller.signal }, expectedSession);
+        for (let attempt = 0; !controller.signal.aborted; attempt++) {
+          try {
+            await auth.requestSessionApi(apiBase, `/projects/${encodeURIComponent(project)}/workbench/events?generation=${encodeURIComponent(generation)}`,
+              { method: 'GET', responseType: 'workspace-events', onWorkspaceEvent: send, signal: controller.signal }, expectedSession);
+            // An explicit unavailable event is terminal (pause/revocation/generation).
+            return;
+          } catch (error) {
+            if (controller.signal.aborted) return;
+            const status = Number(error?.status);
+            if ((status >= 400 && status < 500 && status !== 429) || attempt >= retryDelays.length) throw error;
+            await send({ type: 'reconnecting' });
+            // GET only: reconnect never allocates, resumes compute or repeats a save.
+            await wait(retryDelays[attempt], undefined, { signal: controller.signal });
+          }
+        }
       } catch (error) {
-        await send({ type: 'unavailable', message: error instanceof Error ? error.message : String(error) });
+        if (!controller.signal.aborted) await send({ type: 'unavailable', message: error instanceof Error ? error.message : String(error) });
       } finally { close(); }
     })().catch(() => close());
     return { id };
