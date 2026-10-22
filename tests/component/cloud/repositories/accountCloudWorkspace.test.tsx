@@ -53,6 +53,7 @@ function Harness({ currentSession = session, enabled = true, homeVisible = false
   header = useRepositoryCloudWorkspaceSwitch({ enabled, scope, context: headerContext, session: currentSession,
     apiBaseUrl: API, onPrepared: account.activatePrepared, initializationPending });
   workbench = useNativeCloudWorkbench({ context: account.context, session: currentSession, apiBaseUrl: API,
+    prepared: account.prepared,
     active: account.active, filesVisibilitySettings: { showHiddenFiles: true, excludePatterns: [] } });
   return <><div data-active={account.active} data-project={account.context.projectId ?? ""} />
     {homeVisible && !account.active && homepage.items.map((item) => <span key={item.id}>{item.label}</span>)}
@@ -270,6 +271,19 @@ describe("account-owned Cloud workspaces on the existing API", () => {
     expect(account.context.projectId).toBe("a");
     expect(header.pending).toBe(false);
     expect(bridge.mock.calls.every(([request]) => request.path.startsWith("/projects/a/workbench/"))).toBe(true);
+  });
+
+  it("hands the prepared Header root to the workbench without repeating readiness", async () => {
+    const requests = vi.fn(window.puppyoneDesktop!.requestCloudSessionApi);
+    window.puppyoneDesktop!.requestCloudSessionApi = requests;
+    await render({ association: associated("a") });
+    await act(async () => header.request());
+    expect(account.active).toBe(true);
+    await act(async () => { await workbench.dataPort!.listChildren(null); });
+    const calls = requests.mock.calls.map(([request]) => request);
+    expect(calls.filter(request => request.path.endsWith("/workbench"))).toHaveLength(1);
+    expect(calls.filter(request => request.path.includes("/workbench/files?"))).toHaveLength(1);
+    expect(calls.some(request => request.method === "POST")).toBe(false);
   });
 
   it("resolves the canonical remote after login through the real context loader before Header commit", async () => {

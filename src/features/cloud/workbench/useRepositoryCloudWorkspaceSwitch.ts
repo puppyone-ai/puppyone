@@ -2,6 +2,7 @@ import { useCallback, useMemo } from "react";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import type { ProjectCloudContext } from "../project/context/projectCloudContext";
 import { createCloudDataService } from "../files/cloudDataPort";
+import type { CloudWorkspaceHandoff } from "../files/cloudWorkspaceHandoff";
 import { useCloudWorkspaceSwitch } from "./useCloudWorkspaceSwitch";
 
 type ResolvedContext = Extract<ProjectCloudContext, { status: "resolved" }>;
@@ -14,7 +15,7 @@ export function useRepositoryCloudWorkspaceSwitch({ enabled, scope, context, ses
   context: ProjectCloudContext;
   session: DesktopCloudSession | null;
   apiBaseUrl: string;
-  onPrepared: (context: ResolvedContext, session: DesktopCloudSession) => void;
+  onPrepared: (context: ResolvedContext, session: DesktopCloudSession, prepared?: CloudWorkspaceHandoff) => void;
   onRevalidate?: () => void;
   initializationPending?: boolean;
 }) {
@@ -27,8 +28,8 @@ export function useRepositoryCloudWorkspaceSwitch({ enabled, scope, context, ses
     }
   }, [apiBaseUrl, context, session]);
   const onCommit = useCallback(() => {
-    if (context.status === "resolved" && session) onPrepared(context, session);
-  }, [context, onPrepared, session]);
+    if (context.status === "resolved" && session) onPrepared(context, session, service?.handoff?.());
+  }, [context, onPrepared, service, session]);
   const controller = useCloudWorkspaceSwitch({ enabled, scope: JSON.stringify([scope, apiBaseUrl]), session,
     service, providerError: error, initializationPending, onCommit });
   const requestWorkspace = controller.request;

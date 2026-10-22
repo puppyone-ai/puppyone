@@ -798,6 +798,7 @@ function AppContent() {
   const resolvedCloudProjectId = getResolvedCloudProjectId(projectCloudContext);
   const nativeCloudWorkbench = useNativeCloudWorkbench({
     context: accountCloud.context,
+    prepared: accountCloud.prepared,
     session: activeCloudSession,
     apiBaseUrl: desktopCloudApiBaseUrl,
     active: cloudWorkspaceActive,

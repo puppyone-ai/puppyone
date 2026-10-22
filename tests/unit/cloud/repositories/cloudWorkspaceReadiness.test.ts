@@ -36,7 +36,7 @@ describe('workspace readiness', () => {
   });
   it('reports the persisted failure instead of polling forever', async () => {
     const row = liveWorkbench();
-    api.mockResolvedValueOnce({ workspace: row }).mockResolvedValueOnce({ ...row, state: 'allocating',
+    api.mockResolvedValueOnce({ workspace: { ...row, state: 'paused' } }).mockResolvedValueOnce({ ...row, state: 'allocating',
       operation: { pending: false, phase: 'failed', error: 'workbench_provider_authentication', retryable: false } });
     await expect(client().ensure()).rejects.toMatchObject({ code: 'workbench_provider_authentication', retryable: false });
     expect(describeCloudOpeningFailure({ code: 'workbench_provider_authentication' }, 'workspace').action).toBe('none');

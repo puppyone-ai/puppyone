@@ -2,6 +2,7 @@ import { cloudApiRequest, type DesktopCloudSession } from "../../../lib/cloudApi
 import type { ProjectCloudContext } from "../project/context/projectCloudContext";
 import { getFileSemanticKind } from "@puppyone/shared-ui";
 import type { CloudEntry } from "./contracts";
+import { cloudWorkspaceIdentity, inspectCloudWorkspaceHandoff, takeCloudWorkspaceHandoff, type CloudWorkspaceHandoff } from "./cloudWorkspaceHandoff";
 
 export type CloudWorkbench = { id: string; project_id: string; generation: string; state: string; target_ref: string;
   operation?: { pending: boolean; phase: string | null; deadline: string | null; error: string | null; retryable: boolean } };
@@ -35,10 +36,10 @@ export function encodeWorkspaceBytes(bytes: Uint8Array) {
 /** Live files only. No provider SDK, Git publication or published-content fallback. */
 export function createCloudWorkspaceClient(session: DesktopCloudSession,
   context: Extract<ProjectCloudContext, { status: "resolved" }>, apiBaseUrl: string,
-  assertCurrent: () => void = () => {}) {
+  assertCurrent: () => void = () => {}, prepared?: CloudWorkspaceHandoff) {
   if (context.target.kind !== "project_root" || context.scopePath) throw failure("Live Cloud workspaces require access to the complete project.", 403);
   const endpoint = `/projects/${encodeURIComponent(context.projectId)}/workbench`;
-  const identity = JSON.stringify([apiBaseUrl, session.user_id, session.session_generation, context.projectId]);
+  const identity = cloudWorkspaceIdentity(session, context, apiBaseUrl);
   let workspace: CloudWorkbench | null = null;
   let preparing: Promise<CloudWorkbench> | null = null;
   const directories = new Map<string, { entries: CloudEntry[] }>();
@@ -48,8 +49,13 @@ export function createCloudWorkspaceClient(session: DesktopCloudSession,
   let activeSubscriptions = 0;
   const request = async <T>(suffix: string, init: RequestInit = {}) => {
     assertCurrent();
-    const value = await cloudApiRequest<T>(endpoint + suffix, session, undefined, init, apiBaseUrl);
-    assertCurrent(); return value;
+    try {
+      const value = await cloudApiRequest<T>(endpoint + suffix, session, undefined, init, apiBaseUrl);
+      assertCurrent(); return value;
+    } catch (error) {
+      invalidate();
+      throw error;
+    }
   };
   const accept = (row: CloudWorkbench) => {
     if (!row || row.project_id !== context.projectId || !row.id || !row.generation || typeof row.state !== "string") throw failure("Cloud returned a different workspace.");
@@ -59,7 +65,34 @@ export function createCloudWorkspaceClient(session: DesktopCloudSession,
     if (row.state !== "running") throw failure("This Cloud workspace is unavailable. Retry to resume it.");
     workspace = { ...row }; return workspace;
   };
-  async function prepare() {
+  async function waitForReady(initial: CloudWorkbench) {
+    let row = initial;
+    const deadline = Math.min(Date.now() + 620_000,
+      row.operation?.pending && row.operation.deadline ? Date.parse(row.operation.deadline) : Infinity);
+    while (true) {
+      assertCurrent();
+      if (!row || row.project_id !== context.projectId || !row.id || !row.generation) {
+        throw failure("Cloud returned a different workspace.");
+      }
+      if (row.operation?.error) {
+        throw failure("This workspace could not be opened.", 503, row.operation.error, row.operation.retryable);
+      }
+      if (row.state === "running" && !row.operation?.pending) return row;
+      if (["retained", "cleanup_pending"].includes(row.state)) {
+        throw failure("This workspace needs recovery.", 409, "workbench_requires_recovery", false);
+      }
+      if (!Number.isFinite(deadline) || Date.now() >= deadline) {
+        throw failure("This workspace did not become ready in time.", 504, "workbench_start_timeout");
+      }
+      await new Promise(resolve => setTimeout(resolve, 1_000));
+      assertCurrent();
+      const next = await request<{workspace: CloudWorkbench | null}>("");
+      if (!next.workspace) throw failure("This workspace is unavailable.", 404);
+      if (next.workspace.id !== row.id) throw failure("This workspace was replaced. Close and reopen the project.");
+      row = next.workspace;
+    }
+  }
+  async function prepare(force = false) {
     let pending = openings.get(identity);
     if (!pending) {
       pending = (async () => {
@@ -70,31 +103,10 @@ export function createCloudWorkspaceClient(session: DesktopCloudSession,
         }
         // A user opening is the only wake request. Polling never creates or
         // resumes compute, including when a pending pause needs to finish first.
-        let row = await request<CloudWorkbench>("", { method: "POST" });
-        const deadline = Math.min(Date.now() + 620_000,
-          row.operation?.pending && row.operation.deadline ? Date.parse(row.operation.deadline) : Infinity);
-        while (true) {
-          assertCurrent();
-          if (!row || row.project_id !== context.projectId || !row.id || !row.generation) {
-            throw failure("Cloud returned a different workspace.");
-          }
-          if (row.operation?.error) {
-            throw failure("This workspace could not be opened.", 503, row.operation.error, row.operation.retryable);
-          }
-          if (row.state === "running" && !row.operation?.pending) return row;
-          if (["retained", "cleanup_pending"].includes(row.state)) {
-            throw failure("This workspace needs recovery.", 409, "workbench_requires_recovery", false);
-          }
-          if (!Number.isFinite(deadline) || Date.now() >= deadline) {
-            throw failure("This workspace did not become ready in time.", 504, "workbench_start_timeout");
-          }
-          await new Promise(resolve => setTimeout(resolve, 1_000));
-          assertCurrent();
-          const next = await request<{workspace: CloudWorkbench | null}>("");
-          if (!next.workspace) throw failure("This workspace is unavailable.", 404);
-          if (next.workspace.id !== row.id) throw failure("This workspace was replaced. Close and reopen the project.");
-          row = next.workspace;
-        }
+        // A subsequent file request proves actual readiness for running hosts.
+        if (!force && status.workspace?.state === "running"
+          && !status.workspace.operation?.pending && !status.workspace.operation?.error) return status.workspace;
+        return waitForReady(await request<CloudWorkbench>("", { method: "POST" }));
       })();
       openings.set(identity, pending);
       void pending.finally(() => { if (openings.get(identity) === pending) openings.delete(identity); }).catch(() => {});
@@ -104,6 +116,8 @@ export function createCloudWorkspaceClient(session: DesktopCloudSession,
   async function ensure() {
     assertCurrent();
     if (workspace) return workspace;
+    const handoff = inspectCloudWorkspaceHandoff(prepared, identity);
+    if (handoff) return accept(handoff.workspace);
     if (!preparing) preparing = prepare().finally(() => { preparing = null; });
     return preparing;
   }
@@ -121,9 +135,18 @@ export function createCloudWorkspaceClient(session: DesktopCloudSession,
     const path = parent ? `${parent}/${entry.name}` : entry.name;
     return { path, name: entry.name, type: entry.kind === "directory" ? "folder" : getFileSemanticKind(path), size_bytes: entry.size };
   };
-  const invalidate = () => { cacheEpoch++; directories.clear(); reads.clear(); listings.clear(); };
+  const invalidate = () => { cacheEpoch++; prepared = undefined; directories.clear(); reads.clear(); listings.clear(); };
   async function list(path: string) {
     assertCurrent();
+    if (!path && prepared) {
+      const handoff = takeCloudWorkspaceHandoff(prepared, identity);
+      prepared = undefined;
+      if (handoff) {
+        accept(handoff.workspace);
+        directories.set(path, handoff.root);
+        return handoff.root;
+      }
+    }
     const cached = directories.get(path);
     if (activeSubscriptions > 0 && cached) return cached;
     let pending = listings.get(path);
@@ -202,8 +225,16 @@ export function createCloudWorkspaceClient(session: DesktopCloudSession,
     return () => { stopped = true; release(); off?.(); void bridge?.stopCloudWorkspaceWatch?.({ id }).catch(() => {}); };
   }
   return { ensure, list, stat, read, write, change, invalidate, watch,
+    handoff: (): CloudWorkspaceHandoff | undefined => {
+      assertCurrent();
+      const root = directories.get("");
+      if (!workspace || !root) return undefined;
+      const epoch = cacheEpoch;
+      return { identity, workspace, root, expiresAt: Date.now() + 5_000,
+        isValid: () => epoch === cacheEpoch };
+    },
     peekDirectory: (path: string) => directories.get(path),
-    resume: async () => { const row = await prepare(); invalidate(); return row; },
+    resume: async () => { const row = await prepare(true); invalidate(); return row; },
     readText: async (path: string) => { const result = await read(path); return { ...result, content: new TextDecoder("utf-8", { fatal: true }).decode(result.bytes) }; },
   };
 }

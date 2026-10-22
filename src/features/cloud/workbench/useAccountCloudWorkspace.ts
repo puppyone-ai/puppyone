@@ -5,10 +5,11 @@ import {
 import type { ProjectCloudContext } from "../project/context/projectCloudContext";
 import type { RepositoryTarget } from "../repositoryTarget";
 import { createCloudDataService } from "../files/cloudDataPort";
+import type { CloudWorkspaceHandoff } from "../files/cloudWorkspaceHandoff";
 import { CloudOpeningError, describeCloudOpeningFailure, type CloudOpeningFailure } from "../cloudOpeningFailure";
 
 type ResolvedContext = Extract<ProjectCloudContext, { status: "resolved" }>;
-type Selection = { authority: string; context: ResolvedContext };
+type Selection = { authority: string; context: ResolvedContext; prepared?: CloudWorkspaceHandoff };
 const LOCAL: ProjectCloudContext = { status: "local-only", projectId: null };
 
 /** Hosted selection only. Homepage listing and Header association own separate navigation surfaces. */
@@ -72,7 +73,7 @@ export function useAccountCloudWorkspace({ enabled, session, apiBaseUrl }: {
       const provider = createCloudDataService({ context: resolved, session: captured.session, apiBaseUrl, isCurrent });
       await provider.dataPort.listChildren(null);
       if (!isCurrent()) return;
-      setSelection({ authority: captured.authority, context: resolved });
+      setSelection({ authority: captured.authority, context: resolved, prepared: provider.handoff?.() });
       setLocation("cloud");
     } catch (cause) {
       if (isCurrent()) {
@@ -84,19 +85,20 @@ export function useAccountCloudWorkspace({ enabled, session, apiBaseUrl }: {
   }, [apiBaseUrl]);
   // The repository switch controller has already authorized this exact target
   // and read its root. Commit it without opening or fetching the account catalog.
-  const activatePrepared = useCallback((resolved: ResolvedContext, expectedSession: DesktopCloudSession) => {
+  const activatePrepared = useCallback((resolved: ResolvedContext, expectedSession: DesktopCloudSession, prepared?: CloudWorkspaceHandoff) => {
     const captured = current.current;
     if (!captured.authority || !captured.session
       || captured.session.user_id !== expectedSession.user_id
       || captured.session.session_generation !== expectedSession.session_generation
       || captured.session.api_base_url !== expectedSession.api_base_url) return;
     cancel();
-    setSelection({ authority: captured.authority, context: resolved });
+    setSelection({ authority: captured.authority, context: resolved, prepared });
     setLocation("cloud");
   }, [cancel]);
   const useLocal = useCallback(() => { cancel(); setLocation("local"); }, [cancel]);
   return {
-    active, context, openingTarget, opening: Boolean(openingTarget), error, failure,
+    active, context, prepared: selection?.authority === authority ? selection?.prepared : undefined,
+    openingTarget, opening: Boolean(openingTarget), error, failure,
     cancel, useLocal, openTarget, activatePrepared,
     retry: () => { if (lastAttempt.current) return openTarget(lastAttempt.current); },
   };

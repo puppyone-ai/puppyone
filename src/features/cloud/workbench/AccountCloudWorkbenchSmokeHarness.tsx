@@ -121,7 +121,7 @@ function AccountCloudFixture() {
       { workspace: { id: "local-notes", name: "Local notes", path: "/fixture/notes", status: "recording", lastModifiedAt: "2026-05-01T00:00:00Z" } },
       ...Array.from({ length: 4 }, (_, i) => ({ workspace: { id: `local-${i}`, name: `Local sample ${i}`, path: `/fixture/sample-${i}`, status: "recording" as const } })),
     ] : [] });
-  const workbench = useNativeCloudWorkbench({ context: account.context, session, apiBaseUrl: API,
+  const workbench = useNativeCloudWorkbench({ context: account.context, prepared: account.prepared, session, apiBaseUrl: API,
     active: account.active, filesVisibilitySettings: filesVisibilitySettings });
   const [settingsOpened, setSettingsOpened] = useState(0);
   const [selectedLocalPath, setSelectedLocalPath] = useState<string | null>(null);

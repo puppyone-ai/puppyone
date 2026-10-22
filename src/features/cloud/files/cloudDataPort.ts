@@ -23,6 +23,7 @@ import { createCloudNativePreviewPorts } from "../../../platform";
 import { waitForCloudRead } from "./cloudFileReads";
 import { createCloudWorkspaceClient, encodeWorkspaceBytes } from "./cloudWorkspaceClient";
 import { statusOf, type CloudEntry } from "./contracts";
+import type { CloudWorkspaceHandoff } from "./cloudWorkspaceHandoff";
 
 export type NativeCloudDataService = Readonly<{
   workspace: Workspace;
@@ -32,6 +33,7 @@ export type NativeCloudDataService = Readonly<{
   invalidateReads: () => void;
   watch?: (changed: () => void, failed: (error: Error) => void) => () => void;
   resume?: () => Promise<unknown>;
+  handoff?: () => CloudWorkspaceHandoff | undefined;
   resolveResource: (path: string | null) => ResolvedWorkbenchDataResource | null;
   getPathForCopy: (path: string) => string;
   /** Last accepted text snapshot; this never loads a resource or exposes draft edits. */
@@ -44,12 +46,14 @@ export function createCloudDataService({
   context,
   apiBaseUrl,
   isCurrent = () => true,
+  prepared,
 }: {
   session: DesktopCloudSession;
   context: Extract<ProjectCloudContext, { status: "resolved" }>;
   apiBaseUrl: string;
   /** Revoked on project, host or authenticated session changes, including queued saves. */
   isCurrent?: () => boolean;
+  prepared?: CloudWorkspaceHandoff;
 }): NativeCloudDataService {
   apiBaseUrl = resolveCloudApiBaseUrl(apiBaseUrl);
   const base = new URL(apiBaseUrl);
@@ -90,7 +94,7 @@ export function createCloudDataService({
   const assertCurrent = () => {
     if (!isCurrent()) throw new Error("Cloud workspace session changed. Reopen the Cloud workspace.");
   };
-  const files = createCloudWorkspaceClient(session, context, apiBaseUrl, assertCurrent);
+  const files = createCloudWorkspaceClient(session, context, apiBaseUrl, assertCurrent, prepared);
   const relativePath = (resource: string | null): string => {
     assertValidDataResourceReference(resource);
     if (!resource) return "";
@@ -287,7 +291,7 @@ export function createCloudDataService({
       }),
     } : {}),
   };
-  return { workspace, folder, dataPort, writable, watch: files.watch, resume: files.resume,
+  return { workspace, folder, dataPort, writable, watch: files.watch, resume: files.resume, handoff: files.handoff,
     getCachedFileContent: (path) => {
       assertCurrent();
       const versions = snapshots.get(remotePath(path));

@@ -15,23 +15,25 @@ import { useProjectExplorerSelection } from "../../data-workspace/useProjectExpl
 import { useDesktopEditorWorkbench } from "../../editor-workbench/controller/useDesktopEditorWorkbench";
 import { useDataNodeActions } from "../../data-workspace/useDataNodeActions";
 import { createCloudDataService } from "../files/cloudDataPort";
+import type { CloudWorkspaceHandoff } from "../files/cloudWorkspaceHandoff";
 import { createPendingCloudDataService } from "./pendingCloudDataService";
 
 const noop = () => undefined;
 
-export function useNativeCloudWorkbench({ context, session, apiBaseUrl, active, filesVisibilitySettings }: {
+export function useNativeCloudWorkbench({ context, session, apiBaseUrl, active, filesVisibilitySettings, prepared }: {
   context: ProjectCloudContext;
   session: DesktopCloudSession | null;
   apiBaseUrl: string | null;
   active: boolean;
   filesVisibilitySettings: FilesVisibilitySettings;
+  prepared?: CloudWorkspaceHandoff;
 }) {
   const resolved = context.status === "resolved" ? context : null;
   const serviceKey = resolved && session && apiBaseUrl
     ? JSON.stringify([apiBaseUrl, session.user_id, session.session_generation,
       resolved.projectId, resolved.target, resolved.scopePath, resolved.projectName, resolved.capabilities])
     : null;
-  const lease = useMemo(() => ({ key: serviceKey }), [serviceKey]);
+  const lease = useMemo(() => ({ key: serviceKey, prepared }), [serviceKey, prepared]);
   const currentLeaseRef = useRef<typeof lease | null>(lease);
   currentLeaseRef.current = lease;
   useEffect(() => {
@@ -41,7 +43,7 @@ export function useNativeCloudWorkbench({ context, session, apiBaseUrl, active, 
   const { service, error } = useMemo(() => {
     if (!resolved || !session || !apiBaseUrl) return { service: null, error: null };
     try {
-      return { service: createCloudDataService({ context: resolved, session, apiBaseUrl,
+      return { service: createCloudDataService({ context: resolved, session, apiBaseUrl, prepared,
         isCurrent: () => currentLeaseRef.current === lease }), error: null };
     } catch (cause) {
       return { service: null, error: cause instanceof Error ? cause.message : String(cause) };
@@ -49,7 +51,7 @@ export function useNativeCloudWorkbench({ context, session, apiBaseUrl, active, 
     // The key is the complete authority/scope/session contract. Object identity
     // from an auth snapshot or a context render must not rebuild the provider.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serviceKey]);
+  }, [serviceKey, prepared]);
   const dataPort = useMemo(() => service
     ? withEditorDocumentOperations(createExplorerDataPort(service.dataPort, filesVisibilitySettings))
     : null, [service, filesVisibilitySettings]);
