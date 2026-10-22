@@ -1588,6 +1588,7 @@ function AppContent() {
     preparingInPlace={prepareCloudInPlace}
     authenticationRequired={!activeCloudSession}
     gate={<RepositoryCloudSwitchGate context={projectCloudContext} apiBaseUrl={desktopCloudApiBaseUrl}
+      onOpenAccount={() => { repositoryCloudSwitch.cancel(); openSettingsDialog("account"); }}
       authState={resolveCloudAuthState({ cloudSession: activeCloudSession, sessionRestoring: cloudSessionRestoring,
         environment: { apiBaseUrl: desktopCloudApiBaseUrl, source: "default", cloudRemote: null } })}
       onRetry={() => { setCloudResolutionRefreshKey((value) => value + 1); repositoryCloudSwitch.retry(); }}

@@ -1,7 +1,6 @@
 import { useLocalization } from "@puppyone/localization";
 import { ExplorerTreeSkeleton } from "@puppyone/shared-ui";
 import { PageLoading } from "../../../components/loading";
-import { formatCloudMessage } from "../cloudPresentation";
 import type { CloudWorkspaceSwitch } from "./useCloudWorkspaceSwitch";
 import { CloudWorkspaceRecovery } from "./CloudWorkspaceRecovery";
 
@@ -21,7 +20,7 @@ export function CloudWorkspacePreparation({ controller, onOpenAccount }: { contr
       </div>
     </aside>
     <main className="browser-column desktop-editor-panel">
-      {controller.error ? <CloudWorkspaceRecovery message={formatCloudMessage(controller.error, t)}
+      {controller.error ? <CloudWorkspaceRecovery message={controller.error}
         title={t("cloud.opening.failedTitle")}
         onRetry={controller.recoveryAction === "retry" ? controller.retry : undefined}
         actions={<>

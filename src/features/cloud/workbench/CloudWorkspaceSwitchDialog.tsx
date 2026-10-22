@@ -5,7 +5,6 @@ import { DesktopDialogCloseButton, DesktopDialogRoot, DesktopDialogSurface } fro
 import { DesktopOverlayLayer } from "../../app-shell/DesktopOverlayPortal";
 import { CloudWorkspaceLoadingState } from "../components/shared";
 import { CloudProjectActivationScope } from "../components/CloudProjectActivation";
-import { formatCloudMessage } from "../cloudPresentation";
 import type { CloudWorkspaceSwitch } from "./useCloudWorkspaceSwitch";
 import "./cloud-workspace-switch.css";
 import { CloudWorkspaceRecovery } from "./CloudWorkspaceRecovery";
@@ -49,7 +48,7 @@ export function CloudWorkspaceSwitchDialog({ controller, gate, projectName, auth
         </header>
         <div className="desktop-cloud-workspace-switch-content" data-po-scrollbar="content">
           <CloudProjectActivationScope projectName={projectName} onDismiss={controller.cancel}>
-            {controller.error ? <CloudWorkspaceRecovery message={formatCloudMessage(controller.error, t)}
+            {controller.error ? <CloudWorkspaceRecovery message={controller.error}
               title={t("cloud.opening.failedTitle")}
               onRetry={controller.recoveryAction === "retry" ? controller.retry : undefined}
               actions={controller.recoveryAction === "account" && onOpenAccount ? <button type="button" className="desktop-dialog-button" onClick={onOpenAccount}>{t("settings.sidebar.account")}</button> : undefined}

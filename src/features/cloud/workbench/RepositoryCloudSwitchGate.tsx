@@ -10,11 +10,12 @@ import { CloudProjectActivation } from "../components/CloudProjectActivation";
 import { ChevronRight } from "lucide-react";
 
 /** Header recovery stays with the current repository, never a project picker. */
-export function RepositoryCloudSwitchGate({ context, authState, apiBaseUrl, onRetry, onPublishLocal, publishEntry, missingProjectRecovery, initializationPending = false }: {
+export function RepositoryCloudSwitchGate({ context, authState, apiBaseUrl, onRetry, onOpenAccount, onPublishLocal, publishEntry, missingProjectRecovery, initializationPending = false }: {
   context: ProjectCloudContext;
   authState: CloudAuthState;
   apiBaseUrl: string;
   onRetry: () => void;
+  onOpenAccount?: () => void;
   onPublishLocal?: () => void;
   publishEntry?: ReactNode;
   missingProjectRecovery?: ReactNode;
@@ -43,5 +44,9 @@ export function RepositoryCloudSwitchGate({ context, authState, apiBaseUrl, onRe
       onClick={onRetry}>{t("cloud.activation.project.reconnect")}</button>} />;
   return <CloudWorkspaceRecovery title={context.status === "local-only" ? t("cloud.state.localOnly") : undefined}
     message={context.status === "local-only" ? t("cloud.state.localOnlyDescription")
-    : formatCloudMessage(context.message, t)} onRetry={onRetry} showLocalState />;
+    : context.message}
+    onRetry={context.status === "temporarily-unavailable" || context.status === "error" ? onRetry : undefined}
+    actions={context.status === "wrong-account" && onOpenAccount
+      ? <button type="button" className="desktop-dialog-button" onClick={onOpenAccount}>{t("settings.sidebar.account")}</button> : undefined}
+    showLocalState />;
 }

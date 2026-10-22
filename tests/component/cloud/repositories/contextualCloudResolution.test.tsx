@@ -333,6 +333,20 @@ describe("current-repository Cloud context", () => {
     expect(context.status).toBe(expectedStatus);
   });
 
+  it("preserves the server reason while keeping SDK details out of the recovery model", async () => {
+    cloudApi.getCloudRepositoryContext.mockRejectedValue(Object.assign(new Error("secret private endpoint"), {
+      status: 503, code: "project_authorization_unreachable",
+    }));
+    const context = await renderUntil(
+      <ContextHarness status={gitStatus({ fetch: "https://cloud.example/git/project-1.git" })} />,
+      ["temporarily-unavailable"],
+    );
+    expect(context).toMatchObject({ status: "temporarily-unavailable", message: {
+      code: "access-check-unreachable", diagnostic: { status: 503, code: "project_authorization_unreachable" },
+    } });
+    expect(JSON.stringify(context)).not.toMatch(/secret|private endpoint/);
+  });
+
   it("keeps SESSION_CHANGED in resolving until a new session key arrives", async () => {
     cloudApi.getCloudRepositoryContext.mockRejectedValue(
       Object.assign(new Error("Cloud session changed"), { code: "SESSION_CHANGED" }),

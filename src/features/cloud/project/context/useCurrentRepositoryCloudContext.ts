@@ -17,6 +17,7 @@ import { createWorkspaceCloudResolutionKey } from "../../workspace/workspaceClou
 import { isTrustedCloudProjectLocator } from "../../workspace/workspaceGitRemote";
 import type { ProjectCloudContext } from "./projectCloudContext";
 import { startRepositoryContextRecovery } from "./repositoryContextRecovery";
+import { describeCloudConnectionFailure } from "../../cloudOpeningFailure";
 
 type UniqueRemote = Extract<PuppyoneRemoteResolution, { status: "unique" }>;
 
@@ -184,7 +185,7 @@ export function useCurrentRepositoryCloudContext({
       }
 
       const statusCode = errorStatus(error);
-      const detail = error instanceof Error ? error.message : String(error);
+      const connectionFailure = describeCloudConnectionFailure(error);
       if (statusCode === 401) {
         apply({
           status: "wrong-account",
@@ -207,13 +208,13 @@ export function useCurrentRepositoryCloudContext({
         apply({
           status: "temporarily-unavailable",
           projectId: candidateProjectId,
-          message: cloudMessage("remote-network-failed", undefined, detail),
+          message: connectionFailure ?? cloudMessage("remote-network-failed"),
         });
       } else {
         apply({
           status: "unresolvable",
           projectId: null,
-          message: cloudMessage("remote-unresolvable", undefined, detail),
+          message: connectionFailure ?? cloudMessage("remote-unresolvable"),
         });
       }
     };

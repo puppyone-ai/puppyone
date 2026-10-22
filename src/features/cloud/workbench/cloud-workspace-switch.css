@@ -93,6 +93,39 @@
     font-size: var(--po-type-ui-caption, 12px);
   }
 
+  .desktop-cloud-recovery-details {
+    color: var(--po-text-subtle);
+    font-size: var(--po-type-ui-caption, 12px);
+  }
+
+  .desktop-cloud-recovery-details summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding-block: 4px;
+    list-style: none;
+    cursor: pointer;
+  }
+
+  .desktop-cloud-recovery-details summary::-webkit-details-marker { display: none; }
+  .desktop-cloud-recovery-details summary:hover { color: var(--po-text); }
+  .desktop-cloud-recovery-details summary:focus-visible {
+    outline: 2px solid var(--po-focus-ring);
+    outline-offset: 2px;
+    border-radius: var(--desktop-control-radius);
+  }
+
+  .desktop-cloud-recovery-details[open] summary svg { transform: rotate(90deg); }
+  .desktop-cloud-recovery-details dl {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 4px 12px;
+    margin: 8px 0;
+    text-align: start;
+  }
+
+  .desktop-cloud-recovery-details dd { margin: 0; overflow-wrap: anywhere; }
+
   .desktop-cloud-workspace-recovery-actions {
     display: flex;
     flex-wrap: wrap;
