@@ -11,6 +11,11 @@ import {
 } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import type { DocumentPersistencePort } from "../../core/types";
+import {
+  FloatingNotice,
+  FloatingNoticeStack,
+  useDismissibleNotice,
+} from "../../primitives/FloatingNotice";
 import { EditorSaveButton } from "../EditorSaveButton";
 import type { EditorSaveMode } from "../registry/viewerTypes";
 import { getOrCreateDocumentWorkingCopy } from "./documentWorkingCopies";
@@ -70,7 +75,16 @@ export function DocumentSessionBoundary({
     setInputEnabled: (enabled) => element.current?.toggleAttribute("inert", !enabled),
   }), [session]);
   const sessionState = useDocumentSessionState(session);
-  const sessionError = formatDocumentSessionError(sessionState.error, t);
+  // A conflict needs an explicit decision, so only plain save failures can be
+  // hidden. The save control keeps reporting the failed state either way.
+  const externalConflict = sessionState.error?.code === "external-conflict";
+  const [dismissibleError, dismissSessionError] = useDismissibleNotice(
+    externalConflict ? null : sessionState.error,
+  );
+  const sessionError = formatDocumentSessionError(
+    externalConflict ? sessionState.error : dismissibleError,
+    t,
+  );
 
   useLayoutEffect(() => {
     // Every read result is an explicit storage event. This is deliberately
@@ -116,12 +130,18 @@ export function DocumentSessionBoundary({
           </div>
         )}
         {sessionError && (
-          <div className="editor-inline-error" role="alert" dir="auto">
-            <span>{sessionError}</span>
-            {sessionState.error?.code === "external-conflict" && <button type="button"
-              className="editor-save-chip action" onClick={session.reloadExternalBaseline}>
-              {t("editor.session.discardAndReload")}</button>}
-          </div>
+          <FloatingNoticeStack className="editor-notice-stack">
+            <FloatingNotice
+              className="editor-inline-error"
+              tone="danger"
+              actions={externalConflict && <button type="button"
+                className="editor-save-chip action" onClick={session.reloadExternalBaseline}>
+                {t("editor.session.discardAndReload")}</button>}
+              onDismiss={externalConflict ? undefined : dismissSessionError}
+            >
+              {sessionError}
+            </FloatingNotice>
+          </FloatingNoticeStack>
         )}
         {children}
       </div>

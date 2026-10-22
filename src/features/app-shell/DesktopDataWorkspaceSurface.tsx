@@ -11,9 +11,14 @@ import { Plus } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import {
   DataWorkspace,
+  FloatingNotice,
+  FloatingNoticeStack,
+  PulseGridLoader,
+  useDismissibleNotice,
   type AiEditRequest,
   type DataNode,
   type DocumentSourceKind,
+  type FloatingNoticeProps,
   type Workspace,
   type WorkspaceContentChange,
   type WorkspaceFolder,
@@ -28,7 +33,7 @@ import {
   rectToCreateEntryAnchor,
   type DesktopCreateEntryAnchorInput,
 } from "../data-workspace/nodeActions";
-import type { FileClipboardController } from "../data-workspace/useFileClipboard";
+import type { FileClipboardController, FileOperationNotice } from "../data-workspace/useFileClipboard";
 import type { GitStatusSnapshot } from "../../types/electron";
 import { useDesktopPaneLayout } from "./layout/DesktopPaneLayoutContext";
 import {
@@ -154,6 +159,9 @@ export function DesktopDataWorkspaceSurface({
   const canCreate = Boolean(dataPort.createFile || dataPort.createFolder);
   const canChangeNodes = Boolean(dataPort.renameNode || dataPort.moveNode || dataPort.deleteNode);
   const [dragExportFailed, setDragExportFailed] = useState(false);
+  const dismissDragExportFailure = useCallback(() => setDragExportFailed(false), []);
+  const [visibleWorkspaceSurfaceError, dismissWorkspaceSurfaceError] = useDismissibleNotice(workspaceSurfaceError);
+  const [workspaceNoticeStack, setWorkspaceNoticeStack] = useState<HTMLDivElement | null>(null);
   const exportNodes = useResourceDragExport(resolveWorkspaceResource, setDragExportFailed);
   const resourceDragPreview = useResourceDragPreview();
   const resolveFileDrop = useCallback<NonNullable<DataWorkspaceProps["onResolveFileDrop"]>>(async (files, target) => {
@@ -230,23 +238,29 @@ export function DesktopDataWorkspaceSurface({
         ? "bottom"
         : undefined}
     >
-      {workspaceSurfaceError && (
-        <div className="desktop-workspace-surface-alert" role="status">{workspaceSurfaceError}</div>
-      )}
-      {dragExportFailed && (
-        <div className="desktop-workspace-surface-alert" role="alert">{t("workspace.drag.exportFailed")}</div>
-      )}
-      {fileClipboardController.notice && fileOperationNotice && (
-        <div
-          className="desktop-file-operation-notice"
-          data-tone={fileClipboardController.notice.tone}
-          role="status"
-          aria-live="polite"
-          dir="auto"
-        >
-          {fileOperationNotice}
-        </div>
-      )}
+      <FloatingNoticeStack ref={setWorkspaceNoticeStack} className="desktop-workspace-notice-stack">
+        {visibleWorkspaceSurfaceError && (
+          <FloatingNotice tone="warning" role="status" onDismiss={dismissWorkspaceSurfaceError}>
+            {visibleWorkspaceSurfaceError}
+          </FloatingNotice>
+        )}
+        {dragExportFailed && (
+          <FloatingNotice tone="danger" onDismiss={dismissDragExportFailure}>
+            {t("workspace.drag.exportFailed")}
+          </FloatingNotice>
+        )}
+      </FloatingNoticeStack>
+      <FloatingNoticeStack placement="bottom-end" className="desktop-file-operation-notice-stack">
+        {fileClipboardController.notice && fileOperationNotice && (
+          <FloatingNotice
+            {...fileOperationNoticePresentation(fileClipboardController.notice)}
+            role="status"
+            onDismiss={fileClipboardController.dismissNotice}
+          >
+            {fileOperationNotice}
+          </FloatingNotice>
+        )}
+      </FloatingNoticeStack>
       <DataWorkspace
         onExportNodes={localResources ? exportNodes : undefined}
         resourceDragEntries={localResources ? resourceDragPreview?.entries : undefined}
@@ -402,6 +416,7 @@ export function DesktopDataWorkspaceSurface({
           ? (state) => providerStateContent ?? (
               <>
                 <DesktopEditorSplitView
+                  noticeStack={workspaceNoticeStack}
                   aiEditRequest={activeAiEditRequest}
                   dataPort={dataPort}
                   documentSourceKind={documentSourceKind}
@@ -453,6 +468,17 @@ export function DesktopDataWorkspaceSurface({
       )}
     </div>
   );
+}
+
+function fileOperationNoticePresentation(
+  notice: FileOperationNotice,
+): Pick<FloatingNoticeProps, "icon" | "tone"> {
+  if (notice.tone === "error") return { tone: "danger" };
+  if (notice.code === "in-progress") {
+    return { tone: "neutral", icon: <PulseGridLoader size="xs" ariaHidden /> };
+  }
+  if (notice.code === "completed") return { tone: "success" };
+  return { tone: "neutral" };
 }
 
 function getContextMenuAnchorRect(event: ReactMouseEvent<HTMLElement>): DOMRect {

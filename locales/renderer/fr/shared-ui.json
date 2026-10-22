@@ -21,5 +21,6 @@
   "scrollbar.up": "Faire défiler vers le haut",
   "scrollbar.down": "Faire défiler vers le bas",
   "scrollbar.left": "Faire défiler vers la gauche",
-  "scrollbar.right": "Faire défiler vers la droite"
+  "scrollbar.right": "Faire défiler vers la droite",
+  "notice.dismiss": "Ignorer"
 }

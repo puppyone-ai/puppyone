@@ -21,5 +21,6 @@
   "scrollbar.up": "上にスクロール",
   "scrollbar.down": "下にスクロール",
   "scrollbar.left": "左にスクロール",
-  "scrollbar.right": "右にスクロール"
+  "scrollbar.right": "右にスクロール",
+  "notice.dismiss": "閉じる"
 }

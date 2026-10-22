@@ -21,5 +21,6 @@
   "scrollbar.up": "向上滚动",
   "scrollbar.down": "向下滚动",
   "scrollbar.left": "向左滚动",
-  "scrollbar.right": "向右滚动"
+  "scrollbar.right": "向右滚动",
+  "notice.dismiss": "关闭"
 }

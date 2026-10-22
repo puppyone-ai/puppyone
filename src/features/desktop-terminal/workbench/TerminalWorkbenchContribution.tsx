@@ -78,11 +78,8 @@ function TerminalContent({ entry, workspacePath, presentation, onPresentationCha
       running: session.status === "running", resourceId: session.id });
   }, [onPresentationChange, session, t, workspacePath]);
   useEffect(() => { if (focusRequest && presentation.presented) entry.runtime.focus(); }, [entry, focusRequest, presentation.presented]);
-  return <>
-    <TerminalSessionView runtime={entry.runtime} workspacePath={workspacePath}
-      presented={presentation.presented} focused={presentation.commandTarget} />
-    {session.launchError && <div className="desktop-terminal-drop-error" role="alert">{session.launchError}</div>}
-  </>;
+  return <TerminalSessionView runtime={entry.runtime} workspacePath={workspacePath} launchError={session.launchError}
+    presented={presentation.presented} focused={presentation.commandTarget} />;
 }
 
 function TerminalStatus({ entry }: { entry: TerminalRuntimeEntry }) {

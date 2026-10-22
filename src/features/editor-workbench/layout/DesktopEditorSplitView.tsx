@@ -10,6 +10,8 @@ import {
 import { createPortal } from "react-dom";
 import { useLocalization } from "@puppyone/localization";
 import {
+  FloatingNotice,
+  FloatingNoticePortal,
   getAiEditFileForPath,
   getEditorPanes,
   type AiEditRequest,
@@ -73,6 +75,8 @@ export type DesktopEditorSplitViewProps = Readonly<{
   externalOpen?: Readonly<{
     open: (path: string) => void | Promise<void>;
   }>;
+  /** The host surface's notice column; drop failures join it instead of overlapping. */
+  noticeStack?: HTMLElement | null;
   onClosePane: (paneId: string) => void;
   onFocusPane: (paneId: string) => void;
   onResizeSplit: (splitId: string, ratio: number) => void;
@@ -110,6 +114,7 @@ export function DesktopEditorSplitView({
   workspace,
   resolveWorkspaceResource,
   externalOpen,
+  noticeStack,
   onClosePane,
   onFocusPane,
   onMovePane,
@@ -160,9 +165,13 @@ export function DesktopEditorSplitView({
 
   return (
     <div className="desktop-editor-split-view" data-pane-count={paneCount}>
-      {fileDrop.dropFailed && (
-        <div className="desktop-workspace-surface-alert" role="alert">{t("workspace.drag.exportFailed")}</div>
-      )}
+      <FloatingNoticePortal stack={noticeStack}>
+        {fileDrop.dropFailed && (
+          <FloatingNotice tone="danger" onDismiss={fileDrop.dismissDropFailure}>
+            {t("workspace.drag.exportFailed")}
+          </FloatingNotice>
+        )}
+      </FloatingNoticePortal>
       <EditorLayoutNode
         node={layout.root}
         touchesBlockEnd

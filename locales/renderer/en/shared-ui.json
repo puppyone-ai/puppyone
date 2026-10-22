@@ -21,5 +21,6 @@
   "scrollbar.up": "Scroll up",
   "scrollbar.down": "Scroll down",
   "scrollbar.left": "Scroll left",
-  "scrollbar.right": "Scroll right"
+  "scrollbar.right": "Scroll right",
+  "notice.dismiss": "Dismiss"
 }

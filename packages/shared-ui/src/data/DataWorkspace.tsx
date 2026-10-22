@@ -1,4 +1,5 @@
 import { Tooltip } from "../primitives/Tooltip";
+import { FloatingNotice, FloatingNoticeStack } from "../primitives/FloatingNotice";
 import { Link2, MoreVertical, Plus } from "lucide-react";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
@@ -339,6 +340,7 @@ export function DataWorkspace({
   ]));
   const [loadError, setLoadError] = useState<string | null>(null);
   const [documentNavigationError, setDocumentNavigationError] = useState<string | null>(null);
+  const dismissDocumentNavigationError = useCallback(() => setDocumentNavigationError(null), []);
   const [unavailableActivePath, setUnavailableActivePath] = useState<string | null>(null);
   const [markdownLinkIndex, setMarkdownLinkIndex] = useState<MarkdownLinkGraphIndexSnapshot>(
     EMPTY_MARKDOWN_LINK_GRAPH_INDEX,
@@ -1474,11 +1476,17 @@ export function DataWorkspace({
 
         <main className="browser-column desktop-editor-panel">
           {documentNavigationError && (
-            <div className="editor-inline-error" role="alert" dir="auto">
-              {t("editor.session.saveFailedDetail", {
-                detail: bidiIsolate(documentNavigationError),
-              })}
-            </div>
+            <FloatingNoticeStack className="editor-notice-stack">
+              <FloatingNotice
+                className="editor-inline-error"
+                tone="danger"
+                onDismiss={dismissDocumentNavigationError}
+              >
+                {t("editor.session.saveFailedDetail", {
+                  detail: bidiIsolate(documentNavigationError),
+                })}
+              </FloatingNotice>
+            </FloatingNoticeStack>
           )}
           <div className="data-main-view-frame" data-view-mode={mainSlot ? "custom" : "files"}>
             {mainSlot ? (

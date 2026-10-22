@@ -10,8 +10,11 @@ import {
 } from "react";
 import {
   classifyReferenceDataTransfer,
+  FloatingNotice,
+  FloatingNoticeStack,
   hasFileReferenceDataTransferSource,
   Tooltip,
+  useDismissibleNotice,
 } from "@puppyone/shared-ui";
 import type { TerminalRuntimeHandle } from "../runtime/terminalRuntime";
 import { useLocalization } from "@puppyone/localization";
@@ -20,6 +23,7 @@ import { quoteTerminalPaths, resolveTerminalDropPaths } from "../interactions/te
 type TerminalSessionViewProps = {
   focused: boolean;
   labelledBy?: string;
+  launchError?: string | null;
   onFocus?: () => void;
   panelId?: string;
   presented: boolean;
@@ -33,6 +37,7 @@ const SCROLLBAR_REPEAT_INTERVAL_MS = 54;
 export function TerminalSessionView({
   focused,
   labelledBy,
+  launchError = null,
   onFocus,
   panelId,
   presented,
@@ -41,6 +46,8 @@ export function TerminalSessionView({
 }: TerminalSessionViewProps) {
   const { t } = useLocalization();
   const [dropFailed, setDropFailed] = useState(false);
+  const dismissDropFailure = useCallback(() => setDropFailed(false), []);
+  const [visibleLaunchError, dismissLaunchError] = useDismissibleNotice(launchError);
   const dropEpoch = useRef(0);
   useEffect(() => () => { dropEpoch.current += 1; }, [runtime, workspacePath]);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -175,7 +182,14 @@ export function TerminalSessionView({
       onFocusCapture={onFocus}
       onPointerDownCapture={onFocus}
     >
-      {dropFailed && <div className="desktop-terminal-drop-error" role="alert">{t("terminal.dropFailed")}</div>}
+      <FloatingNoticeStack placement="top" className="desktop-terminal-notice-stack">
+        {visibleLaunchError && (
+          <FloatingNotice tone="danger" onDismiss={dismissLaunchError}>{visibleLaunchError}</FloatingNotice>
+        )}
+        {dropFailed && (
+          <FloatingNotice tone="danger" onDismiss={dismissDropFailure}>{t("terminal.dropFailed")}</FloatingNotice>
+        )}
+      </FloatingNoticeStack>
       <div
         className="desktop-terminal-xterm"
         dir="ltr"

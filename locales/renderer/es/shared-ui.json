@@ -21,5 +21,6 @@
   "scrollbar.up": "Desplazar hacia arriba",
   "scrollbar.down": "Desplazar hacia abajo",
   "scrollbar.left": "Desplazar hacia la izquierda",
-  "scrollbar.right": "Desplazar hacia la derecha"
+  "scrollbar.right": "Desplazar hacia la derecha",
+  "notice.dismiss": "Cerrar"
 }

@@ -262,11 +262,11 @@ async function exercise(mode) {
     await evaluate(`${api}.holdWrites(); ${api}.edit('UNSAVED_HUMAN_CLOUD_CONTENT')`);
     await waitFor("document.querySelector('.browser-column .cm-content')?.textContent.includes('UNSAVED_HUMAN_CLOUD_CONTENT')");
     await evaluate("document.querySelector('.desktop-agent-approval-actions .is-primary').click()");
-    await waitFor("Boolean(document.querySelector('.browser-column .editor-inline-error button'))");
+    await waitFor("Boolean(document.querySelector('.browser-column .editor-inline-error button.action'))");
     assert(await evaluate("document.querySelector('.browser-column .cm-content').textContent.includes('UNSAVED_HUMAN_CLOUD_CONTENT')"), "Agent publication must preserve dirty Cloud content");
     await writeFile(path.join(artifacts, "hosted-dirty-conflict.png"), (await window.webContents.capturePage()).toPNG());
     await evaluate(`${api}.releaseWrites()`);
-    await evaluate("document.querySelector('.browser-column .editor-inline-error button').click()");
+    await evaluate("document.querySelector('.browser-column .editor-inline-error button.action').click()");
     await waitFor("document.querySelector('.browser-column .cm-content')?.textContent.includes('AGENT_PUBLISHED_CLOUD_BODY_3')");
     await evaluate(`${api}.home()`);
     await waitFor("Boolean(document.querySelector('[data-cloud-project-id=beta] .onboarding-project-row'))");

@@ -21,5 +21,6 @@
   "scrollbar.up": "위로 스크롤",
   "scrollbar.down": "아래로 스크롤",
   "scrollbar.left": "왼쪽으로 스크롤",
-  "scrollbar.right": "오른쪽으로 스크롤"
+  "scrollbar.right": "오른쪽으로 스크롤",
+  "notice.dismiss": "닫기"
 }

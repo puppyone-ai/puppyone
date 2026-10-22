@@ -290,46 +290,21 @@
   pointer-events: none;
 }
 
-.desktop-workspace-surface-alert {
-  position: absolute;
-  z-index: 85;
-  top: 12px;
-  inset-inline-end: 16px;
-  max-width: min(420px, calc(100% - var(--data-explorer-width, 320px) - 40px));
-  padding: 8px 10px;
-  border: 1px solid color-mix(in srgb, var(--po-warning) 45%, var(--po-border));
-  border-radius: var(--desktop-control-radius);
-  background: color-mix(in srgb, var(--po-warning) 14%, var(--po-panel-raised));
-  color: color-mix(in srgb, var(--po-warning) 78%, var(--po-text));
-  font-size: var(--po-type-ui-meta, 13px);
-  font-weight: 620;
-  line-height: 1.35;
-  box-shadow: var(--po-elevation-low);
-  pointer-events: none;
+/* Workspace notices are positioned here; FloatingNotice owns their material. */
+.desktop-workspace-notice-stack,
+.desktop-file-operation-notice-stack {
+  --po-floating-notice-z: 85;
+  max-width: min(400px, calc(100% - var(--data-explorer-width, 320px) - 40px));
 }
 
-.desktop-file-operation-notice {
-  position: absolute;
-  z-index: 86;
+.desktop-workspace-notice-stack {
   inset-inline-end: 16px;
-  bottom: 16px;
-  max-width: min(420px, calc(100% - var(--data-explorer-width, 320px) - 40px));
-  padding: 8px 10px;
-  border: 1px solid color-mix(in srgb, var(--po-border) 82%, transparent);
-  border-radius: var(--desktop-control-radius);
-  background: color-mix(in srgb, var(--po-panel-raised) 94%, transparent);
-  color: var(--po-text);
-  font-size: var(--po-type-ui-meta, 13px);
-  font-weight: 620;
-  line-height: 1.35;
-  box-shadow: var(--po-elevation-low);
-  pointer-events: none;
 }
 
-.desktop-file-operation-notice[data-tone="error"] {
-  border-color: color-mix(in srgb, var(--po-danger) 45%, var(--po-border));
-  background: color-mix(in srgb, var(--po-danger) 12%, var(--po-panel-raised));
-  color: color-mix(in srgb, var(--po-danger) 82%, var(--po-text));
+.desktop-file-operation-notice-stack {
+  --po-floating-notice-z: 86;
+  inset-block-end: 16px;
+  inset-inline-end: 16px;
 }
 
 .desktop-sidebar-top-navigation {

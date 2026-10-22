@@ -62,7 +62,7 @@ function DataSurface({ collapsed }: { collapsed: boolean }) {
     workspace={workspace} workspaceFolders={[]} resolveWorkspaceResource={() => null} editorWorkbench={editorWorkbench}
     activeAiEditRequest={null} activeDocumentPath={null} activeExplorerPath={null}
     dataPort={{ listChildren: async () => [] }} externalOpen={{ open: noop }} showSaveStatus={false}
-    fileClipboardController={{ clipboard: null, cutPaths: new Set(), operation: null, notice: null, canCopy: false, canCut: false,
+    fileClipboardController={{ clipboard: null, cutPaths: new Set(), operation: null, notice: null, dismissNotice: noop, canCopy: false, canCut: false,
       canDuplicate: false, copyNodes: noop, cutNodes: noop, pasteNodes: async () => {}, duplicateNodes: async () => {}, canPasteInto: () => false }}
     fileOperationNotice={null} viewerExtensionAdapter={null} resolvedSurface={resolvedSurface}
     navigation={{ activeView: "data", availableSurfaceIds: ["data"], gitEnabled: false, gitIncomingCount: 0,

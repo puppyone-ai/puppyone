@@ -1,5 +1,6 @@
 "use client";
 import { Tooltip } from "../../../primitives/Tooltip";
+import { FloatingNotice } from "../../../primitives/FloatingNotice";
 
 import { useEditorTaskController } from "../../runtime/EditorTaskContext";
 import { acquireEditorHostLease } from "../../runtime/EditorHostLeases";
@@ -351,9 +352,13 @@ function OfficePreviewControls({
   return (
     <div className="office-preview__floating-region">
       {editorActionError && (
-        <span className="office-preview__floating-error" role="alert" dir="auto">
+        <FloatingNotice
+          className="office-preview__floating-error"
+          tone="danger"
+          onDismiss={() => setEditorActionError(null)}
+        >
           {editorActionError}
-        </span>
+        </FloatingNotice>
       )}
       <div className="office-preview__floating-controls">
         {wordZoomControls && (

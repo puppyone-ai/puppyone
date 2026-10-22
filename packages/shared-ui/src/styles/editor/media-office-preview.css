@@ -162,18 +162,7 @@
 }
 
 .office-preview__floating-error {
-  box-sizing: border-box;
   max-width: min(360px, 100%);
-  padding: 6px 9px;
-  overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--po-danger) 32%, transparent);
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--po-panel-raised) 96%, transparent);
-  color: var(--po-danger);
-  font-size: var(--po-type-ui-caption, 12px);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  pointer-events: auto;
 }
 
 .office-document-preview,

@@ -627,6 +627,18 @@ export type { IconButtonProps } from "./primitives/IconButton";
 export { EmptyState } from "./primitives/EmptyState";
 export type { EmptyStateProps } from "./primitives/EmptyState";
 export { StatusBadge } from "./primitives/StatusBadge";
+export {
+  FloatingNotice,
+  FloatingNoticePortal,
+  FloatingNoticeStack,
+  useDismissibleNotice,
+} from "./primitives/FloatingNotice";
+export type {
+  FloatingNoticePlacement,
+  FloatingNoticeProps,
+  FloatingNoticeStackProps,
+  FloatingNoticeTone,
+} from "./primitives/FloatingNotice";
 export type { StatusBadgeProps } from "./primitives/StatusBadge";
 export { DotsLoader, InlineLoading, PulseGridLoader } from "./primitives/LoadingIndicator";
 export type { LoaderSize, LoaderTone } from "./primitives/LoadingIndicator";
