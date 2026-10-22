@@ -11,13 +11,14 @@ import "./cloud-workspace-switch.css";
 import { CloudWorkspaceRecovery } from "./CloudWorkspaceRecovery";
 
 /** Authentication and preparation overlay the retained current-device workbench. */
-export function CloudWorkspaceSwitchDialog({ controller, gate, projectName, authenticationRequired = false, preparingInPlace = false }: {
+export function CloudWorkspaceSwitchDialog({ controller, gate, projectName, authenticationRequired = false, preparingInPlace = false, onOpenAccount }: {
   controller: CloudWorkspaceSwitch;
   gate: ReactNode;
   /** Names the retained local project in the activation surface. */
   projectName?: string | null;
   authenticationRequired?: boolean;
   preparingInPlace?: boolean;
+  onOpenAccount?: () => void;
 }) {
   const { t } = useLocalization();
   const inlinePreparation = controller.pending && (controller.checking || preparingInPlace) && !authenticationRequired;
@@ -49,7 +50,10 @@ export function CloudWorkspaceSwitchDialog({ controller, gate, projectName, auth
         <div className="desktop-cloud-workspace-switch-content" data-po-scrollbar="content">
           <CloudProjectActivationScope projectName={projectName} onDismiss={controller.cancel}>
             {controller.error ? <CloudWorkspaceRecovery message={formatCloudMessage(controller.error, t)}
-              onRetry={controller.retry} showLocalState /> : controller.checking ? <CloudWorkspaceLoadingState label={t("cloud.loading.project")} /> : gate}
+              title={t("cloud.opening.failedTitle")}
+              onRetry={controller.recoveryAction === "retry" ? controller.retry : undefined}
+              actions={controller.recoveryAction === "account" && onOpenAccount ? <button type="button" className="desktop-dialog-button" onClick={onOpenAccount}>{t("settings.sidebar.account")}</button> : undefined}
+              /> : controller.checking ? <CloudWorkspaceLoadingState label={t("cloud.loading.project")} /> : gate}
           </CloudProjectActivationScope>
         </div>
       </DesktopDialogSurface>

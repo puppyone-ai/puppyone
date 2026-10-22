@@ -13,7 +13,7 @@ export function workspaceFixtureBridge(handler: (input: any) => unknown) {
   return async (input: any) => {
     const url = new URL(input.path, 'https://fixture.test');
     const project = url.pathname.split('/')[2];
-    if (url.pathname.endsWith('/workbench')) return { workspace: liveWorkbench(project) };
+    if (url.pathname.endsWith('/workbench')) return input.method === 'POST' ? liveWorkbench(project) : { workspace: liveWorkbench(project) };
     const value: any = await handler(input);
     if (url.pathname.endsWith('/files') && input.method === 'GET') return { entries: (value.entries ?? []).map((entry: any) =>
       entry.kind ? entry : { name: entry.name, kind: entry.type === 'folder' ? 'directory' : 'file', size: 0, modified_ns: '1' }) };

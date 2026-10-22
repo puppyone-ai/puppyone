@@ -995,5 +995,16 @@
   "share.reach.readers.stopConsequence": "{name} liest ab sofort nichts mehr.",
   "share.reach.readers.stopFailed": "Nichts hat sich geändert. Versuche es erneut zu beenden.",
   "agent.pendingTitle": "Vorherige Nachricht bestätigen",
-  "agent.pendingDetail": "Versuche die ausstehende Nachricht erneut, bevor du diesen Tab schließt, damit ihr Ergebnis wiederhergestellt werden kann."
+  "agent.pendingDetail": "Versuche die ausstehende Nachricht erneut, bevor du diesen Tab schließt, damit ihr Ergebnis wiederhergestellt werden kann.",
+  "message.workspace-service-unavailable": "Gehostete Arbeitsbereiche sind bei diesem Dienst nicht verfügbar.",
+  "message.workspace-not-configured": "Gehostete Arbeitsbereiche wurden für diesen Dienst noch nicht eingerichtet.",
+  "message.workspace-access-denied": "Du kannst für dieses Projekt keinen gehosteten Arbeitsbereich öffnen.",
+  "message.workspace-plan-required": "Prüfe deinen Kontotarif, um diesen gehosteten Arbeitsbereich zu öffnen.",
+  "message.workspace-recovery-required": "Dieser Arbeitsbereich muss wiederhergestellt werden, bevor er geöffnet werden kann.",
+  "message.workspace-preparing": "Dieser Arbeitsbereich wird noch gestartet. Versuche es gleich noch einmal.",
+  "message.project-sign-in-required": "Melde dich an, um dieses Projekt zu öffnen.",
+  "message.project-access-denied": "Du hast keinen Zugriff auf dieses Projekt.",
+  "message.project-response-mismatch": "Der Dienst hat ein anderes Projekt zurückgegeben.",
+  "message.project-unavailable": "Dieses Projekt ist beim aktuellen Dienst nicht verfügbar.",
+  "opening.failedTitle": "Gehosteter Arbeitsbereich konnte nicht geöffnet werden"
 }

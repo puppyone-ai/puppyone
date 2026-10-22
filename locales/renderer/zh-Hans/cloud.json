@@ -995,5 +995,16 @@
   "share.reach.readers.stopConsequence": "{name} 会立刻读不到。",
   "share.reach.readers.stopFailed": "什么都没变，请再试一次。",
   "agent.pendingTitle": "确认上一条消息",
-  "agent.pendingDetail": "请先重试待确认的消息，再关闭标签，以便恢复发送结果。"
+  "agent.pendingDetail": "请先重试待确认的消息，再关闭标签，以便恢复发送结果。",
+  "message.workspace-service-unavailable": "当前服务的托管工作区暂不可用。",
+  "message.workspace-not-configured": "当前服务尚未配置托管工作区。",
+  "message.workspace-access-denied": "你无法打开此项目的托管工作区。",
+  "message.workspace-plan-required": "请检查账户套餐后再打开此托管工作区。",
+  "message.workspace-recovery-required": "此工作区需要恢复后才能打开。",
+  "message.workspace-preparing": "此工作区仍在启动，请稍后重试。",
+  "message.project-sign-in-required": "请登录后打开此项目。",
+  "message.project-access-denied": "你无法访问此项目。",
+  "message.project-response-mismatch": "服务返回的项目与所选项目不一致。",
+  "message.project-unavailable": "当前服务上无法访问此项目。",
+  "opening.failedTitle": "无法打开托管工作区"
 }

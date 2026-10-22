@@ -995,5 +995,16 @@
   "share.reach.readers.stopConsequence": "{name} deja de leer de inmediato.",
   "share.reach.readers.stopFailed": "No cambió nada. Inténtalo de nuevo.",
   "agent.pendingTitle": "Confirma el mensaje anterior",
-  "agent.pendingDetail": "Reintenta el mensaje pendiente antes de cerrar esta pestaña para poder recuperar su resultado."
+  "agent.pendingDetail": "Reintenta el mensaje pendiente antes de cerrar esta pestaña para poder recuperar su resultado.",
+  "message.workspace-service-unavailable": "Los espacios de trabajo alojados no están disponibles en este servicio.",
+  "message.workspace-not-configured": "Los espacios de trabajo alojados aún no se han configurado en este servicio.",
+  "message.workspace-access-denied": "No puedes abrir un espacio de trabajo alojado para este proyecto.",
+  "message.workspace-plan-required": "Revisa el plan de tu cuenta para abrir este espacio de trabajo alojado.",
+  "message.workspace-recovery-required": "Es necesario recuperar este espacio de trabajo antes de abrirlo.",
+  "message.workspace-preparing": "Este espacio de trabajo aún se está iniciando. Vuelve a intentarlo en unos momentos.",
+  "message.project-sign-in-required": "Inicia sesión para abrir este proyecto.",
+  "message.project-access-denied": "No tienes acceso a este proyecto.",
+  "message.project-response-mismatch": "El servicio devolvió un proyecto diferente.",
+  "message.project-unavailable": "Este proyecto no está disponible en el servicio actual.",
+  "opening.failedTitle": "No se pudo abrir el espacio de trabajo alojado"
 }

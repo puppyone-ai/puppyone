@@ -9,8 +9,9 @@ export function createCloudAgentSmokeFixture(publish: (project: string) => void)
   async function request(input: FixtureRequest) {
     if (/^\/projects\/[^/]+\/workbench$/.test(input.path)) {
       const project = input.path.split("/")[2];
-      return { workspace: { id: `workbench-${project}`, project_id: project,
-        generation: "11111111-1111-4111-8111-111111111111", state: "running", target_ref: "refs/heads/workspace" } };
+      const workspace = { id: `workbench-${project}`, project_id: project,
+        generation: "11111111-1111-4111-8111-111111111111", state: "running", target_ref: "refs/heads/workspace" };
+      return input.method === "POST" ? workspace : { workspace };
     }
     if (!input.path.startsWith("/agents/")) return undefined;
     requests.push(`${input.method ?? "GET"} ${input.path}`);

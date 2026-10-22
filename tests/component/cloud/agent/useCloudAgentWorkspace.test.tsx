@@ -63,7 +63,7 @@ describe("Cloud Agent view identity", () => {
 
   it("keeps a delayed admission with its original project while the user changes projects", async () => {
     let finish: (value: CloudAgentRun) => void = () => {};
-    window.puppyoneDesktop = { ...originalBridge, requestCloudSessionApi: request => request.path.endsWith("/workbench") ? Promise.resolve({ workspace: liveWorkbench() }) : new Promise(resolve => {
+    window.puppyoneDesktop = { ...originalBridge, requestCloudSessionApi: request => request.path.endsWith("/workbench") ? Promise.resolve(request.method === "POST" ? liveWorkbench() : { workspace: liveWorkbench() }) : new Promise(resolve => {
       finish = run => resolve({ transport: "puppyone-cloud-ipc-v1", ok: true, data: { ...run, request_id: JSON.parse(request.body!).request_id } });
     }) } as NonNullable<typeof window.puppyoneDesktop>;
     await render(); await act(async () => agent.controller!.setOpen(true));

@@ -285,7 +285,7 @@ describe("native Cloud workbench switching", () => {
   });
 
   it("keeps local drafts on a failed file preflight and retries only on request", async () => {
-    installBridge(); bridge.mockRejectedValueOnce(Object.assign(new Error("Denied"), { status: 403 }));
+    installBridge(); bridge.mockRejectedValueOnce(Object.assign(new Error("Connection lost"), { status: 503 }));
     await render(<Harness />); await click("Open in a hosted workspace");
     expect(surface("local").hidden).toBe(false);
     expect(document.querySelector('[role="alert"]')).not.toBeNull();
@@ -300,12 +300,13 @@ describe("native Cloud workbench switching", () => {
     bridge.mockRejectedValueOnce(Object.assign(new Error("File service unavailable"), { status }));
     await render(<Harness />); await click("Open in a hosted workspace");
     const alert = document.querySelector('[role="alert"]');
-    expect(alert?.textContent).toContain("Unable to open this project's Cloud files");
+    expect(alert?.textContent).toContain("Couldn’t open hosted workspace");
     expect(alert?.textContent).not.toContain("wasn’t found");
     expect(surface("local").hidden).toBe(false);
     expect(surface("cloud").hidden).toBe(true);
     expect(bridge).toHaveBeenCalledOnce();
-    await click("Retry");
+    if (status === 404) { await click("Close"); await click("Open in a hosted workspace"); }
+    else await click("Retry");
     expect(surface("cloud").hidden).toBe(false);
   });
 
@@ -323,13 +324,15 @@ describe("native Cloud workbench switching", () => {
     });
     desktop.requestCloudSessionApi = requests;
     await render(<Harness />); await click("Open in a hosted workspace");
-    expect(document.querySelector('[role="alert"]')?.textContent).toContain("Unable to open this project's Cloud files");
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain("Couldn’t open hosted workspace");
     expect(surface("local").hidden).toBe(false);
     expect(requests).toHaveBeenCalledOnce();
     expect(requests.mock.calls[0]![0].method).toBe("GET");
     expect(bridge).not.toHaveBeenCalled();
     available = true;
-    await click("Retry");
+    expect([...document.querySelectorAll("button")].some(button => button.textContent === "Retry")).toBe(false);
+    await click("Close");
+    await click("Open in a hosted workspace");
     expect(surface("cloud").hidden).toBe(false);
   });
 

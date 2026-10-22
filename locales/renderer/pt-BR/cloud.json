@@ -995,5 +995,16 @@
   "share.reach.readers.stopConsequence": "{name} para de ler imediatamente.",
   "share.reach.readers.stopFailed": "Nada mudou. Tente parar novamente.",
   "agent.pendingTitle": "Confirme a mensagem anterior",
-  "agent.pendingDetail": "Tente enviar a mensagem pendente novamente antes de fechar esta aba para recuperar o resultado."
+  "agent.pendingDetail": "Tente enviar a mensagem pendente novamente antes de fechar esta aba para recuperar o resultado.",
+  "message.workspace-service-unavailable": "Os espaços de trabalho hospedados estão indisponíveis neste serviço.",
+  "message.workspace-not-configured": "Os espaços de trabalho hospedados ainda não foram configurados neste serviço.",
+  "message.workspace-access-denied": "Você não pode abrir um espaço de trabalho hospedado para este projeto.",
+  "message.workspace-plan-required": "Verifique o plano da sua conta para abrir este espaço de trabalho hospedado.",
+  "message.workspace-recovery-required": "Este espaço de trabalho precisa ser recuperado antes de ser aberto.",
+  "message.workspace-preparing": "Este espaço de trabalho ainda está iniciando. Tente novamente em instantes.",
+  "message.project-sign-in-required": "Entre para abrir este projeto.",
+  "message.project-access-denied": "Você não tem acesso a este projeto.",
+  "message.project-response-mismatch": "O serviço retornou um projeto diferente.",
+  "message.project-unavailable": "Este projeto não está disponível no serviço atual.",
+  "opening.failedTitle": "Não foi possível abrir o espaço de trabalho hospedado"
 }

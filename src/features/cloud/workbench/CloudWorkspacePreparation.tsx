@@ -6,7 +6,7 @@ import type { CloudWorkspaceSwitch } from "./useCloudWorkspaceSwitch";
 import { CloudWorkspaceRecovery } from "./CloudWorkspaceRecovery";
 
 /** Presentation for the requested destination; no provider or editor ownership. */
-export function CloudWorkspacePreparation({ controller }: { controller: CloudWorkspaceSwitch }) {
+export function CloudWorkspacePreparation({ controller, onOpenAccount }: { controller: CloudWorkspaceSwitch; onOpenAccount?: () => void }) {
   const { t } = useLocalization();
   return <section className="desktop-cloud-preparation" aria-label={t("cloud.productName")}
     aria-busy={!controller.error}>
@@ -22,7 +22,12 @@ export function CloudWorkspacePreparation({ controller }: { controller: CloudWor
     </aside>
     <main className="browser-column desktop-editor-panel">
       {controller.error ? <CloudWorkspaceRecovery message={formatCloudMessage(controller.error, t)}
-        onRetry={controller.retry} /> : <PageLoading variant="fill" label={null} ariaLabel={t("cloud.loading.project")} />}
+        title={t("cloud.opening.failedTitle")}
+        onRetry={controller.recoveryAction === "retry" ? controller.retry : undefined}
+        actions={<>
+          <button type="button" className="desktop-dialog-button" onClick={controller.cancel}>{t("common.action.close")}</button>
+          {controller.recoveryAction === "account" && onOpenAccount && <button type="button" className="desktop-dialog-button" onClick={onOpenAccount}>{t("settings.sidebar.account")}</button>}
+        </>} /> : <PageLoading variant="fill" label={null} ariaLabel={t("cloud.loading.project")} />}
     </main>
   </section>;
 }

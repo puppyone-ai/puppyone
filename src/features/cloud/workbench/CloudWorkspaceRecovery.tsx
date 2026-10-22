@@ -7,7 +7,7 @@ import "./cloud-workspace-switch.css";
 export function CloudWorkspaceRecovery({ title, message, onRetry, actions, showLocalState = false }: {
   title?: string;
   message: string;
-  onRetry: () => void;
+  onRetry?: () => void;
   actions?: ReactNode;
   showLocalState?: boolean;
 }) {
@@ -18,11 +18,11 @@ export function CloudWorkspaceRecovery({ title, message, onRetry, actions, showL
       <p>{message}</p>
       {showLocalState && <details><summary>{t("cloud.common.details")}</summary><small>{t("cloud.recovery.localStatePreserved")}</small></details>}
     </div>
-    <div className="desktop-cloud-workspace-recovery-actions">
-      <button type="button" className="desktop-dialog-button" onClick={onRetry}>
+    {(onRetry || actions) && <div className="desktop-cloud-workspace-recovery-actions">
+      {onRetry && <button type="button" className="desktop-dialog-button" onClick={onRetry}>
         <RefreshCw size={13} aria-hidden="true" /><span>{t("cloud.common.retry")}</span>
-      </button>
+      </button>}
       {actions}
-    </div>
+    </div>}
   </section>;
 }

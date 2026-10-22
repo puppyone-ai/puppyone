@@ -126,7 +126,7 @@ describe('live Cloud files', () => {
     expect(stop).toHaveBeenCalledWith({ id: subscription.id });
   });
   it('reports paused workspaces and only resumes on explicit retry', async () => {
-    const cloud = service(); await cloud.dataPort.readFile!('readme.md'); row!.state = 'paused';
+    const cloud = service(); await cloud.dataPort.readFile!('readme.md'); request.mockClear(); row!.state = 'paused';
     await expect(cloud.dataPort.readFile!('readme.md')).rejects.toMatchObject({ status: 409 });
     expect(request.mock.calls.some(([input]) => input.method === 'POST')).toBe(false);
     await cloud.resume!(); expect((await cloud.dataPort.readFile!('readme.md')).content).toBe('initial');

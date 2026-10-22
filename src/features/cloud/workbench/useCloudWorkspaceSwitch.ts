@@ -2,9 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import { cloudMessage, type CloudMessageDescriptor } from "../cloudPresentation";
 import type { NativeCloudDataService } from "../files/cloudDataPort";
+import { describeCloudOpeningFailure, type CloudOpeningFailure } from "../cloudOpeningFailure";
 
 type SwitchIntent = { scope: string; attempt: number };
-type Preparation = { intent: SwitchIntent; service: NativeCloudDataService | null; error: CloudMessageDescriptor | null };
+type Preparation = { intent: SwitchIntent; service: NativeCloudDataService | null; error: CloudMessageDescriptor | null; recoveryAction?: CloudOpeningFailure["action"] };
 
 /** Prepare an authenticated provider before changing the visible workbench. */
 export function useCloudWorkspaceSwitch({
@@ -46,7 +47,7 @@ export function useCloudWorkspaceSwitch({
     if (!enabled || intent.scope !== scope) { cancel(); return; }
     if (!session || initializationPending) { setPreparation(null); return; }
     if (!service) {
-      setPreparation(providerError ? { intent, service, error: cloudMessage("remote-unresolvable") } : null);
+      setPreparation(providerError ? { intent, service, error: cloudMessage("workspace-unavailable"), recoveryAction: "none" } : null);
       return;
     }
     let cancelled = false;
@@ -63,12 +64,8 @@ export function useCloudWorkspaceSwitch({
       cancel();
     }, (cause: unknown) => {
       if (!isCurrent()) return;
-      const status = cause && typeof cause === "object" && "status" in cause
-        ? Number(cause.status) : null;
-      // Project authorization has already succeeded. A missing file route or
-      // unavailable workspace must not be presented as a missing Git project.
-      setPreparation({ intent, service, error: cloudMessage(status === 401 ? "remote-sign-in"
-        : status === 403 ? "remote-not-authorized" : "workspace-open-failed") });
+      const failure = describeCloudOpeningFailure(cause, "workspace");
+      setPreparation({ intent, service, error: failure.message, recoveryAction: failure.action });
     });
     return () => { cancelled = true; };
   }, [cancel, enabled, initializationPending, intent, onCommit, providerError, scope, service, session]);
@@ -77,7 +74,7 @@ export function useCloudWorkspaceSwitch({
   const prepared = preparation?.intent === intent && preparation.service === service ? preparation : null;
   return { pending, requestedLocation: pending ? "cloud" as const : undefined,
     checking: Boolean(pending && session && service && !initializationPending && !prepared?.error),
-    error: prepared?.error ?? null, request, cancel, retry };
+    error: prepared?.error ?? null, recoveryAction: prepared?.recoveryAction ?? "retry", request, cancel, retry };
 }
 
 export type CloudWorkspaceSwitch = ReturnType<typeof useCloudWorkspaceSwitch>;

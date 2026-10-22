@@ -995,5 +995,16 @@
   "share.reach.readers.stopConsequence": "{name} stops reading immediately.",
   "share.reach.readers.stopFailed": "Nothing changed. Try stopping it again.",
   "agent.pendingTitle": "Confirm the previous message",
-  "agent.pendingDetail": "Retry the pending message before closing this tab so its result can be recovered."
+  "agent.pendingDetail": "Retry the pending message before closing this tab so its result can be recovered.",
+  "message.workspace-service-unavailable": "Hosted workspaces are unavailable on this service.",
+  "message.workspace-not-configured": "Hosted workspaces have not been set up for this service.",
+  "message.workspace-access-denied": "You can’t open a hosted workspace for this project.",
+  "message.workspace-plan-required": "Check your account plan to open this hosted workspace.",
+  "message.workspace-recovery-required": "This workspace needs recovery before it can be opened.",
+  "message.workspace-preparing": "This workspace is still starting. Try again shortly.",
+  "message.project-sign-in-required": "Sign in to open this project.",
+  "message.project-access-denied": "You don’t have access to this project.",
+  "message.project-response-mismatch": "The service returned a different project.",
+  "message.project-unavailable": "This project is unavailable on the current service.",
+  "opening.failedTitle": "Couldn’t open hosted workspace"
 }

@@ -995,5 +995,16 @@
   "share.reach.readers.stopConsequence": "{name} はすぐに読めなくなります。",
   "share.reach.readers.stopFailed": "何も変わっていません。もう一度お試しください。",
   "agent.pendingTitle": "前のメッセージを確認",
-  "agent.pendingDetail": "結果を復元できるよう、保留中のメッセージを再試行してからタブを閉じてください。"
+  "agent.pendingDetail": "結果を復元できるよう、保留中のメッセージを再試行してからタブを閉じてください。",
+  "message.workspace-service-unavailable": "このサービスではホストされたワークスペースを利用できません。",
+  "message.workspace-not-configured": "このサービスではホストされたワークスペースがまだ設定されていません。",
+  "message.workspace-access-denied": "このプロジェクトのホストされたワークスペースを開くことはできません。",
+  "message.workspace-plan-required": "このワークスペースを開くにはアカウントのプランを確認してください。",
+  "message.workspace-recovery-required": "このワークスペースは開く前に復旧が必要です。",
+  "message.workspace-preparing": "このワークスペースは起動中です。しばらくしてから再試行してください。",
+  "message.project-sign-in-required": "このプロジェクトを開くにはサインインしてください。",
+  "message.project-access-denied": "このプロジェクトにはアクセスできません。",
+  "message.project-response-mismatch": "サービスが別のプロジェクトを返しました。",
+  "message.project-unavailable": "現在のサービスではこのプロジェクトを利用できません。",
+  "opening.failedTitle": "ホストされたワークスペースを開けませんでした"
 }

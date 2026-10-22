@@ -3,13 +3,14 @@ import type { ProjectCloudContext } from "../project/context/projectCloudContext
 import { getFileSemanticKind } from "@puppyone/shared-ui";
 import type { CloudEntry } from "./contracts";
 
-export type CloudWorkbench = { id: string; project_id: string; generation: string; state: string; target_ref: string };
+export type CloudWorkbench = { id: string; project_id: string; generation: string; state: string; target_ref: string;
+  operation?: { pending: boolean; phase: string | null; deadline: string | null; error: string | null; retryable: boolean } };
 export type WorkspaceEntry = { name: string; kind: string; size: number; modified_ns: string };
 type FileReply = WorkspaceEntry & { content_base64: string; revision: string };
 export type WorkspaceVersion = { workspace: string; generation: string; revision: string };
 const openings = new Map<string, Promise<CloudWorkbench>>();
 const limit = 8 * 1024 * 1024;
-const failure = (message: string, status = 409) => Object.assign(new Error(message), { status });
+const failure = (message: string, status = 409, code?: string, retryable = true) => Object.assign(new Error(message), { status, code, retryable });
 
 export function parseWorkspaceVersion(value: string): WorkspaceVersion {
   if (!value.startsWith("cloud-workspace:")) throw failure("Reload this file before saving: its workspace revision is unavailable.");
@@ -62,12 +63,38 @@ export function createCloudWorkspaceClient(session: DesktopCloudSession,
     let pending = openings.get(identity);
     if (!pending) {
       pending = (async () => {
-        const status = await cloudApiRequest<{workspace: CloudWorkbench | null}>(endpoint, session, undefined, {}, apiBaseUrl);
-        if (status.workspace?.state === "running") return status.workspace;
-        if (status.workspace && !["paused", "retired"].includes(status.workspace.state)) {
-          throw failure("This Cloud workspace is preparing or needs recovery. Retry shortly.");
+        const status = await request<{workspace: CloudWorkbench | null}>("");
+        assertCurrent();
+        if (status.workspace && ["retained", "cleanup_pending"].includes(status.workspace.state)) {
+          throw failure("This workspace needs recovery.", 409, "workbench_requires_recovery", false);
         }
-        return cloudApiRequest<CloudWorkbench>(endpoint, session, undefined, { method: "POST" }, apiBaseUrl);
+        // A user opening is the only wake request. Polling never creates or
+        // resumes compute, including when a pending pause needs to finish first.
+        let row = await request<CloudWorkbench>("", { method: "POST" });
+        const deadline = Math.min(Date.now() + 620_000,
+          row.operation?.pending && row.operation.deadline ? Date.parse(row.operation.deadline) : Infinity);
+        while (true) {
+          assertCurrent();
+          if (!row || row.project_id !== context.projectId || !row.id || !row.generation) {
+            throw failure("Cloud returned a different workspace.");
+          }
+          if (row.operation?.error) {
+            throw failure("This workspace could not be opened.", 503, row.operation.error, row.operation.retryable);
+          }
+          if (row.state === "running" && !row.operation?.pending) return row;
+          if (["retained", "cleanup_pending"].includes(row.state)) {
+            throw failure("This workspace needs recovery.", 409, "workbench_requires_recovery", false);
+          }
+          if (!Number.isFinite(deadline) || Date.now() >= deadline) {
+            throw failure("This workspace did not become ready in time.", 504, "workbench_start_timeout");
+          }
+          await new Promise(resolve => setTimeout(resolve, 1_000));
+          assertCurrent();
+          const next = await request<{workspace: CloudWorkbench | null}>("");
+          if (!next.workspace) throw failure("This workspace is unavailable.", 404);
+          if (next.workspace.id !== row.id) throw failure("This workspace was replaced. Close and reopen the project.");
+          row = next.workspace;
+        }
       })();
       openings.set(identity, pending);
       void pending.finally(() => { if (openings.get(identity) === pending) openings.delete(identity); }).catch(() => {});

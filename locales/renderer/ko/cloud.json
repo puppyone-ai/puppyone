@@ -995,5 +995,16 @@
   "share.reach.readers.stopConsequence": "{name}은 즉시 읽을 수 없게 됩니다.",
   "share.reach.readers.stopFailed": "아무것도 바뀌지 않았습니다. 다시 시도하세요.",
   "agent.pendingTitle": "이전 메시지 확인",
-  "agent.pendingDetail": "결과를 복구할 수 있도록 대기 중인 메시지를 다시 시도한 후 탭을 닫으세요."
+  "agent.pendingDetail": "결과를 복구할 수 있도록 대기 중인 메시지를 다시 시도한 후 탭을 닫으세요.",
+  "message.workspace-service-unavailable": "이 서비스에서는 호스팅 작업 공간을 이용할 수 없습니다.",
+  "message.workspace-not-configured": "이 서비스에는 호스팅 작업 공간이 아직 설정되지 않았습니다.",
+  "message.workspace-access-denied": "이 프로젝트의 호스팅 작업 공간을 열 수 없습니다.",
+  "message.workspace-plan-required": "이 호스팅 작업 공간을 열려면 계정 요금제를 확인하세요.",
+  "message.workspace-recovery-required": "이 작업 공간은 복구 후에 열 수 있습니다.",
+  "message.workspace-preparing": "이 작업 공간이 시작 중입니다. 잠시 후 다시 시도하세요.",
+  "message.project-sign-in-required": "이 프로젝트를 열려면 로그인하세요.",
+  "message.project-access-denied": "이 프로젝트에 접근할 수 없습니다.",
+  "message.project-response-mismatch": "서비스가 다른 프로젝트를 반환했습니다.",
+  "message.project-unavailable": "현재 서비스에서 이 프로젝트를 이용할 수 없습니다.",
+  "opening.failedTitle": "호스팅 작업 공간을 열 수 없습니다"
 }

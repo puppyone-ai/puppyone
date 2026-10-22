@@ -5,6 +5,7 @@ import {
 import type { ProjectCloudContext } from "../project/context/projectCloudContext";
 import type { RepositoryTarget } from "../repositoryTarget";
 import { createCloudDataService } from "../files/cloudDataPort";
+import { CloudOpeningError, describeCloudOpeningFailure, type CloudOpeningFailure } from "../cloudOpeningFailure";
 
 type ResolvedContext = Extract<ProjectCloudContext, { status: "resolved" }>;
 type Selection = { authority: string; context: ResolvedContext };
@@ -24,7 +25,8 @@ export function useAccountCloudWorkspace({ enabled, session, apiBaseUrl }: {
   const [selection, setSelection] = useState<Selection | null>(null);
   const [location, setLocation] = useState<"local" | "cloud">("local");
   const [openingTarget, setOpeningTarget] = useState<RepositoryTarget | null>(null);
-  const [error, setError] = useState<"open" | null>(null);
+  const [failure, setFailure] = useState<CloudOpeningFailure | null>(null);
+  const error = failure ? "open" as const : null;
   const lastAttempt = useRef<RepositoryTarget | null>(null);
   const context = authority && selection?.authority === authority ? selection.context : LOCAL;
   const active = enabled && location === "cloud" && context.status === "resolved";
@@ -34,7 +36,7 @@ export function useAccountCloudWorkspace({ enabled, session, apiBaseUrl }: {
     // Revoke pending UI work on sign-out, account changes and environment changes.
     requestId.current++;
     setOpeningTarget(null);
-    setError(null);
+    setFailure(null);
     setSelection(null);
     lastAttempt.current = null;
     setLocation("local");
@@ -44,35 +46,41 @@ export function useAccountCloudWorkspace({ enabled, session, apiBaseUrl }: {
     requestId.current++;
     lastAttempt.current = null;
     setOpeningTarget(null);
-    setError(null);
+    setFailure(null);
   }, []);
-  const openTarget = useCallback(async (target: RepositoryTarget) => {
+  const openTarget = useCallback(async (target: RepositoryTarget, canCommit: () => boolean = () => true, reportFailure = false) => {
     const captured = current.current;
     if (!captured.authority || !captured.session) return;
     lastAttempt.current = target;
     const id = ++requestId.current;
-    const isCurrent = () => requestId.current === id && current.current.authority === captured.authority;
+    const isCurrent = () => requestId.current === id && current.current.authority === captured.authority && canCommit();
     setOpeningTarget(target);
-    setError(null);
+    setFailure(null);
+    let stage: "project" | "workspace" = "project";
     try {
       const result = await getCloudRepositoryContext(captured.session, target.project_id, target, undefined, apiBaseUrl);
       if (!isCurrent()) return;
       if (result.project.id !== target.project_id || result.target.project_id !== target.project_id
         || result.target.kind !== target.kind
         || (target.kind === "scope" && (result.target.kind !== "scope" || result.target.scope_id !== target.scope_id))) {
-        throw new Error("Cloud returned a different repository target.");
+        throw Object.assign(new Error("Cloud returned a different repository target."), { code: "repository_target_mismatch" });
       }
       const resolved: ResolvedContext = { status: "resolved", projectId: result.project.id,
         projectName: result.project.name, target: result.target, scopePath: result.scope_path,
         capabilities: result.project.capabilities ?? [] };
+      stage = "workspace";
       const provider = createCloudDataService({ context: resolved, session: captured.session, apiBaseUrl, isCurrent });
       await provider.dataPort.listChildren(null);
       if (!isCurrent()) return;
       setSelection({ authority: captured.authority, context: resolved });
       setLocation("cloud");
-    } catch {
-      if (isCurrent()) setError("open");
-    } finally { if (isCurrent()) setOpeningTarget(null); }
+    } catch (cause) {
+      if (isCurrent()) {
+        const openingFailure = describeCloudOpeningFailure(cause, stage);
+        setFailure(openingFailure);
+        if (reportFailure) throw new CloudOpeningError(openingFailure);
+      }
+    } finally { if (requestId.current === id) setOpeningTarget(null); }
   }, [apiBaseUrl]);
   // The repository switch controller has already authorized this exact target
   // and read its root. Commit it without opening or fetching the account catalog.
@@ -88,7 +96,7 @@ export function useAccountCloudWorkspace({ enabled, session, apiBaseUrl }: {
   }, [cancel]);
   const useLocal = useCallback(() => { cancel(); setLocation("local"); }, [cancel]);
   return {
-    active, context, openingTarget, opening: Boolean(openingTarget), error,
+    active, context, openingTarget, opening: Boolean(openingTarget), error, failure,
     cancel, useLocal, openTarget, activatePrepared,
     retry: () => { if (lastAttempt.current) return openTarget(lastAttempt.current); },
   };

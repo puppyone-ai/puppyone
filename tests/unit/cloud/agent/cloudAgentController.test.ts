@@ -28,7 +28,7 @@ beforeEach(() => {
   localStorage.clear(); calls.length = 0;
   handle = async () => { throw new Error("Unexpected request"); };
   window.puppyoneDesktop = { ...originalBridge, requestCloudSessionApi: async (request: Request) => {
-    if (request.path.endsWith("/workbench")) return { workspace: liveWorkbench() };
+    if (request.path.endsWith("/workbench")) return request.method === "POST" ? liveWorkbench() : { workspace: liveWorkbench() };
     calls.push(request);
     return { transport: "puppyone-cloud-ipc-v1", ok: true, data: await handle(request) };
   } } as NonNullable<typeof window.puppyoneDesktop>;
