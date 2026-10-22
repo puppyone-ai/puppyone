@@ -39,4 +39,9 @@ describe("Cloud opening reasons", () => {
       .toMatchObject({ message: { code: "workspace-not-configured" }, action: "none" });
     expect(describeCloudOpeningFailure({ status: 426 })).toMatchObject({ action: "none" });
   });
+
+  it("retains the failed workspace operation when the server gives no specific cause", () => {
+    expect(describeCloudOpeningFailure({ status: 503 }, "workspace"))
+      .toMatchObject({ message: { code: "workspace-open-failed" }, action: "retry" });
+  });
 });

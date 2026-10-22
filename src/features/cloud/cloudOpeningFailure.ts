@@ -85,6 +85,8 @@ export function describeCloudOpeningFailure(cause: unknown, stage: "project" | "
   if (stage === "workspace" && [404, 405, 501].includes(Number(error.status))) return failure(["workspace-service-unavailable", "none"]);
   if (error.status === 404) return failure(["project-unavailable", "none"]);
   const connection = describeCloudConnectionFailure(error);
-  if (connection) return { message: connection, action: error.status === 426 || error.retryable === false ? "none" : "retry" };
+  if (connection && (stage === "project" || connection.code !== "service-unavailable")) {
+    return { message: connection, action: error.status === 426 || error.retryable === false ? "none" : "retry" };
+  }
   return failure([stage === "workspace" ? "workspace-open-failed" : "project-open-failed", error.retryable === false ? "none" : "retry"]);
 }
