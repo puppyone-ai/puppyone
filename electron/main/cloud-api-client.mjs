@@ -84,8 +84,7 @@ export async function requestCloudApi(apiBase, apiPath, init) {
   try {
     response = await fetch(`${apiBase}${apiPath}`, fetchInit);
   } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-    throw new Error(`Unable to reach Cloud API at ${apiBase}. ${reason}`);
+    throw cloudTransportError(error, apiBase, fetchInit.signal);
   }
 
   if (response.ok && responseType === "bytes") {
@@ -97,7 +96,12 @@ export async function requestCloudApi(apiBase, apiPath, init) {
   }
 
   let payload = null;
-  const raw = await response.text();
+  let raw;
+  try {
+    raw = await response.text();
+  } catch (error) {
+    throw cloudTransportError(error, apiBase, fetchInit.signal);
+  }
   if (raw) {
     try {
       payload = JSON.parse(raw);
@@ -119,6 +123,15 @@ export async function requestCloudApi(apiBase, apiPath, init) {
   }
 
   return payload && Object.prototype.hasOwnProperty.call(payload, "data") ? payload.data : payload;
+}
+
+function cloudTransportError(cause, apiBase, signal) {
+  const reason = cause instanceof Error ? cause.message : String(cause);
+  const error = new Error(`Unable to reach Cloud API at ${apiBase}. ${reason}`);
+  error.code = "CLOUD_TRANSPORT_UNAVAILABLE";
+  if (cause?.name === "AbortError") error.code = "CLOUD_REQUEST_CANCELLED";
+  if (cause?.name === "TimeoutError" || signal?.reason?.name === "TimeoutError") error.code = "CLOUD_REQUEST_TIMEOUT";
+  return error;
 }
 
 export function getCloudApiBusinessErrorCode(payload) {

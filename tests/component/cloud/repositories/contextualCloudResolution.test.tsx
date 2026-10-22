@@ -59,11 +59,13 @@ function ContextHarness({
   activeWorkspace = workspace,
   status,
   apiBaseUrl = session.api_base_url,
+  refreshKey = 0,
 }: {
   activeCloudSession?: DesktopCloudSession | null;
   activeWorkspace?: Workspace | null;
   status: GitStatusSnapshot;
   apiBaseUrl?: string;
+  refreshKey?: number;
 }) {
   const updateCloudSession = React.useCallback(() => undefined, []);
   const context = useCurrentRepositoryCloudContext({
@@ -74,6 +76,7 @@ function ContextHarness({
     resolutionInputsLoading: false,
     updateCloudSession,
     workspace: activeWorkspace,
+    refreshKey,
   });
   return <output data-context={JSON.stringify(context)} />;
 }
@@ -117,6 +120,44 @@ async function renderUntil(
 }
 
 describe("current-repository Cloud context", () => {
+  it("clears a transient dependency error after a fresh successful authorization read", async () => {
+    vi.useFakeTimers();
+    try {
+      cloudApi.getCloudRepositoryContext.mockRejectedValueOnce(Object.assign(new Error("Unavailable"), { status: 503 }))
+        .mockResolvedValue({ project: { id: "project-1" }, target: { kind: "project_root", project_id: "project-1" } });
+      await act(async () => root.render(<ContextHarness status={gitStatus({ fetch: "https://cloud.example/git/project-1.git" })} />));
+      expect(readContext().status).toBe("temporarily-unavailable");
+      await act(async () => { await vi.advanceTimersByTimeAsync(1_500); });
+      expect(readContext()).toMatchObject({ status: "resolved", projectId: "project-1" });
+      expect(cloudApi.getCloudRepositoryContext).toHaveBeenCalledTimes(2);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("cancels the old retry when a different repository becomes current", async () => {
+    vi.useFakeTimers();
+    try {
+      cloudApi.getCloudRepositoryContext.mockRejectedValueOnce(Object.assign(new Error("Unavailable"), { status: 503 }))
+        .mockResolvedValue({ project: { id: "project-2" }, target: { kind: "project_root", project_id: "project-2" } });
+      await act(async () => root.render(<ContextHarness status={gitStatus({ fetch: "https://cloud.example/git/project-1.git" })} />));
+      await act(async () => root.render(<ContextHarness status={gitStatus({ fetch: "https://cloud.example/git/project-2.git" })} />));
+      await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+      expect(readContext()).toMatchObject({ status: "resolved", projectId: "project-2" });
+      expect(cloudApi.getCloudRepositoryContext.mock.calls.map((call) => call[1])).toEqual(["project-1", "project-2"]);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("ignores a late authorization success after the account changes", async () => {
+    let finish!: (value: unknown) => void;
+    cloudApi.getCloudRepositoryContext.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }))
+      .mockRejectedValue(Object.assign(new Error("Denied"), { status: 403 }));
+    const status = gitStatus({ fetch: "https://cloud.example/git/project-1.git" });
+    await act(async () => root.render(<ContextHarness status={status} />));
+    await act(async () => root.render(<ContextHarness status={status} activeCloudSession={{ ...session, user_id: "user-2", session_generation: "generation-2" }} />));
+    await act(async () => finish({ project: { id: "project-1" }, target: { kind: "project_root", project_id: "project-1" } }));
+    expect(readContext().status).toBe("not-authorized");
+    expect(cloudApi.getCloudRepositoryContext).toHaveBeenCalledTimes(2);
+  });
+
   it("keeps a repository without a canonical PuppyOne remote local-only", async () => {
     const context = await renderUntil(
       <ContextHarness status={gitStatus()} />,

@@ -15,6 +15,25 @@ function register(cloudAuthService) {
 const expectedSession = { userId: "user-1", generation: "generation-1" };
 
 describe("Cloud IPC structured error transport", () => {
+  it.each([
+    ["/projects/project-1/repository-context", true],
+    ["/projects/project-1/initialization/abandon", false],
+    ["/projects/project-1/workbench", false],
+    ["/content/project-1/write", false],
+  ])("applies a deadline only to the read-only context query: %s", async (path, bounded) => {
+    const timeout = vi.spyOn(AbortSignal, "timeout");
+    const requestSessionApi = vi.fn().mockResolvedValue({});
+    try {
+      const handlers = register({ requestSessionApi });
+      await handlers.get("cloud:session-api-request")(null, {
+        expectedSession, apiBaseUrl: "https://api.puppyone.ai/api/v1", path, method: "POST",
+      });
+      expect(requestSessionApi).toHaveBeenCalledTimes(1);
+      expect(Boolean(requestSessionApi.mock.calls[0][2].signal)).toBe(bounded);
+      if (bounded) expect(timeout).toHaveBeenCalledWith(15_000);
+      else expect(timeout).not.toHaveBeenCalled();
+    } finally { timeout.mockRestore(); }
+  });
   it("bounds the authenticated run SSE subscription without exposing credentials", async () => {
     const requestSessionApi = vi.fn().mockResolvedValue([]);
     const handlers = register({ requestSessionApi });

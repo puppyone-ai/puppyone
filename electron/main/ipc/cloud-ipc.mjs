@@ -75,6 +75,10 @@ export function registerCloudIpcHandlers({ ipcMain, cloudAuthService }) {
         headers,
         ...(method === "GET" && /^\/agents\/runs\/[0-9a-f-]{36}\/events\?after=\d{1,15}$/i.test(apiPath)
           ? { responseType: "agent-events", signal: AbortSignal.timeout(15_000) } : {}),
+        // POST here resolves read-only context. Bound the whole response, and
+        // leave the retry budget to its renderer owner. Never replay writes.
+        ...(method === "POST" && /^\/projects\/[^/?]+\/repository-context$/.test(apiPath)
+          ? { signal: AbortSignal.timeout(15_000) } : {}),
         ...(body === undefined ? {} : { body }),
       }, expectedSession);
     });

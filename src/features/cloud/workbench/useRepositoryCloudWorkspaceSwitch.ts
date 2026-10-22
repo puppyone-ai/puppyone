@@ -8,13 +8,14 @@ type ResolvedContext = Extract<ProjectCloudContext, { status: "resolved" }>;
 
 /** Header intent follows the current repository through sign-in and resolution;
  * it never enumerates projects or reuses an unrelated hosted selection. */
-export function useRepositoryCloudWorkspaceSwitch({ enabled, scope, context, session, apiBaseUrl, onPrepared, initializationPending = false }: {
+export function useRepositoryCloudWorkspaceSwitch({ enabled, scope, context, session, apiBaseUrl, onPrepared, onRevalidate, initializationPending = false }: {
   enabled: boolean;
   scope: string;
   context: ProjectCloudContext;
   session: DesktopCloudSession | null;
   apiBaseUrl: string;
   onPrepared: (context: ResolvedContext, session: DesktopCloudSession) => void;
+  onRevalidate?: () => void;
   initializationPending?: boolean;
 }) {
   const { service, error } = useMemo(() => {
@@ -28,6 +29,13 @@ export function useRepositoryCloudWorkspaceSwitch({ enabled, scope, context, ses
   const onCommit = useCallback(() => {
     if (context.status === "resolved" && session) onPrepared(context, session);
   }, [context, onPrepared, session]);
-  return useCloudWorkspaceSwitch({ enabled, scope: JSON.stringify([scope, apiBaseUrl]), session,
+  const controller = useCloudWorkspaceSwitch({ enabled, scope: JSON.stringify([scope, apiBaseUrl]), session,
     service, providerError: error, initializationPending, onCommit });
+  const requestWorkspace = controller.request;
+  const request = useCallback(() => {
+    if (!enabled) return;
+    if (context.status === "temporarily-unavailable") onRevalidate?.();
+    requestWorkspace();
+  }, [context.status, requestWorkspace, enabled, onRevalidate]);
+  return { ...controller, request };
 }

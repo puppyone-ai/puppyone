@@ -784,6 +784,7 @@ function AppContent() {
 
 
   const [cloudResolutionRefreshKey, setCloudResolutionRefreshKey] = useState(0);
+  const revalidateRepositoryContext = useCallback(() => setCloudResolutionRefreshKey((value) => value + 1), []);
   const projectCloudContext = useCurrentRepositoryCloudContext({
     workspace: focusedWorkspace,
     activeGitStatus,
@@ -824,6 +825,7 @@ function AppContent() {
     scope: JSON.stringify([focusedWorkspace?.id, focusedWorkspace?.path]),
     context: projectCloudContext, session: activeCloudSession, apiBaseUrl: desktopCloudApiBaseUrl,
     onPrepared: accountCloud.activatePrepared,
+    onRevalidate: revalidateRepositoryContext,
     initializationPending: repositoryCloudInitializationPending,
   });
   const requestCloudWorkspace = repositoryCloudSwitch.request;

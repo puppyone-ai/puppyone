@@ -16,6 +16,7 @@ import { isRetryableCloudFailure } from "../../workspace/cloudProjectResolution"
 import { createWorkspaceCloudResolutionKey } from "../../workspace/workspaceCloudResolutionKey";
 import { isTrustedCloudProjectLocator } from "../../workspace/workspaceGitRemote";
 import type { ProjectCloudContext } from "./projectCloudContext";
+import { startRepositoryContextRecovery } from "./repositoryContextRecovery";
 
 type UniqueRemote = Extract<PuppyoneRemoteResolution, { status: "unique" }>;
 
@@ -255,8 +256,8 @@ export function useCurrentRepositoryCloudContext({
       });
     };
 
-    void resolveCanonical().catch(onFailure);
-    return () => { cancelled = true; };
+    const stopRecovery = startRepositoryContextRecovery(resolveCanonical, onFailure);
+    return () => { cancelled = true; stopRecovery(); };
   }, [cloudEnabled, refreshKey, resolutionInputsLoading, snapshot, updateCloudSession]);
 
   if (!workspace || !cloudEnabled) {
