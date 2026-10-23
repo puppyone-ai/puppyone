@@ -100,11 +100,11 @@ describe("native Cloud workbench switching", () => {
     await render(<Harness />);
     await act(async () => { document.querySelector<HTMLButtonElement>('button[data-project-location="cloud"]')!.click(); });
     const label = () => document.querySelector('.desktop-cloud-preparation [data-puppy-loader]')?.nextElementSibling?.textContent;
-    expect(label()).toBe("Connecting to Cloud…");
+    expect(label()).toBe("Saying hello…");
     await act(async () => { finishStatus({ workspace: { ...row, state: "paused" } }); });
-    expect(label()).toBe("Starting and connecting workspace…");
+    expect(label()).toBe("Waking up…");
     expect(document.querySelector('.desktop-cloud-preparation [data-puppy-loader][role="status"]')?.getAttribute("aria-label"))
-      .toBe("Starting and connecting workspace…");
+      .toBe("Waking up…");
     expect(request).toHaveBeenCalledTimes(3);
     await act(async () => { document.querySelector<HTMLButtonElement>('button[data-project-location="local"]')!.click(); });
     await act(async () => { finishReady({ workspace: row, entries: [] }); });
@@ -238,7 +238,7 @@ describe("native Cloud workbench switching", () => {
     expect(document.querySelector('.desktop-cloud-preparation')).not.toBeNull();
     expect(document.querySelector('.desktop-cloud-preparation [data-testid="explorer-tree-skeleton"]')).not.toBeNull();
     expect(document.querySelector('.desktop-cloud-preparation [data-puppy-loader="pulse-grid"]')).not.toBeNull();
-    expect(document.querySelector('.desktop-cloud-preparation')?.textContent).toBe("Loading files…");
+    expect(document.querySelector('.desktop-cloud-preparation')?.textContent).toBe("Getting your files ready…");
     expect(surface("local").hasAttribute("inert")).toBe(true);
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     await act(async () => { release({ entries: [], ...nativeSnapshot("cloud-head") }); await pending; });
