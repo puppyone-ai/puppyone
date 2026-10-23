@@ -207,6 +207,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
     return () => ipcRenderer.removeListener("cloud-auth:error", listener);
   },
   requestCloudApi: (request) => ipcRenderer.invoke("cloud:api-request", request),
+  cancelCloudSessionApi: (requestId) => ipcRenderer.invoke("cloud:session-api-cancel", requestId),
   requestCloudSessionApi: (request) => ipcRenderer.invoke("cloud:session-api-request", request),
   cloudInitializationGetState: (request) => ipcRenderer.invoke("cloud-initialization:get-state", request),
   cloudInitializationStart: (request) => ipcRenderer.invoke("cloud-initialization:start", request),

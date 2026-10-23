@@ -1,8 +1,10 @@
+import type { HistoryContext } from "./historyRepository";
 import type { DesktopCloudHistory } from "../../../lib/cloudHistoryApi";
 import type { CloudBranchGraphRow } from "../graph/model";
 
 export type CloudProjectHistoryProps = {
   projectId: string | null;
+  context?: HistoryContext;
   projectName: string;
   history: DesktopCloudHistory | null;
   rows: CloudBranchGraphRow[];

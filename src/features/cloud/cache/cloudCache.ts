@@ -75,11 +75,11 @@ export function createCloudCache({
   function load<T>(
     context: CloudCacheContext,
     loader: () => Promise<T>,
-    { ttlMs }: { ttlMs: number },
+    { ttlMs, refresh = false }: { ttlMs: number; refresh?: boolean },
   ): Promise<T> {
     activateSession(context.session);
     const cached = read<T>(context);
-    if (cached !== undefined) return Promise.resolve(cached);
+    if (!refresh && cached !== undefined) return Promise.resolve(cached);
     const key = cacheKey(context);
     const existing = requests.get(key);
     if (existing) return existing.promise as Promise<T>;
@@ -140,6 +140,15 @@ export function createCloudCache({
     }
   }
 
+  function discard(context: CloudCacheContext) {
+    const key = cacheKey(context);
+    const pending = requests.get(key);
+    if (pending) pending.valid = false;
+    requests.delete(key);
+    const entry = entries.get(key);
+    if (entry) deleteEntry(key, entry);
+  }
+
   function clear() {
     cacheEpoch += 1;
     entries.clear();
@@ -166,6 +175,8 @@ export function createCloudCache({
     read,
     load,
     invalidate,
+    discard,
+    isPending: (context: CloudCacheContext, promise: Promise<unknown>) => requests.get(cacheKey(context))?.promise === promise,
     clear,
     snapshot: () => ({
       activeNamespace,
@@ -191,7 +202,7 @@ export function readCloudCache<T>(context: CloudCacheContext): T | undefined {
 export function loadCloudCache<T>(
   context: CloudCacheContext,
   loader: () => Promise<T>,
-  options: { ttlMs: number },
+  options: { ttlMs: number; refresh?: boolean },
 ): Promise<T> {
   return cloudCache.load(context, loader, options);
 }

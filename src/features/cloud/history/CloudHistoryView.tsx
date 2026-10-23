@@ -10,6 +10,7 @@ import type { CloudProjectHistoryProps } from "./types";
 
 export function CloudProjectHistoryView({
   projectId,
+  context,
   projectName,
   history,
   rows,
@@ -47,6 +48,7 @@ export function CloudProjectHistoryView({
         ) : selectedCommit && selectedRow ? (
           <CloudCommitDetail
             projectId={projectId}
+            context={context}
             commit={selectedCommit}
             row={selectedRow}
             isHead={isHead}

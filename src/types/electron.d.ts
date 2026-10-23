@@ -1094,7 +1094,9 @@ declare global {
         headers?: Record<string, string>;
         body?: string;
       }) => Promise<DesktopCloudIpcEnvelope<unknown>>;
+      cancelCloudSessionApi?: (requestId: string) => Promise<void>;
       requestCloudSessionApi: (request: {
+        requestId?: string;
         apiBaseUrl: string;
         expectedSession: { userId: string; generation: string };
         path: string;

@@ -573,8 +573,16 @@ export async function cloudApiRequest<T>(
 
   if (window.puppyoneDesktop?.requestCloudSessionApi) {
     const body = typeof init.body === "string" ? init.body : undefined;
+    const signal = init.signal;
+    signal?.throwIfAborted();
+    const requestId = signal ? crypto.randomUUID() : undefined;
+    const cancel = () => {
+      if (requestId) void window.puppyoneDesktop?.cancelCloudSessionApi?.(requestId).catch(() => {});
+    };
+    signal?.addEventListener("abort", cancel, { once: true });
     try {
       const transported = await window.puppyoneDesktop.requestCloudSessionApi({
+        ...(requestId ? { requestId } : {}),
         apiBaseUrl: requestedApiBase,
         expectedSession: { userId: session.user_id, generation: session.session_generation },
         path: path.startsWith("/") ? path : `/${path}`,
@@ -585,6 +593,7 @@ export async function cloudApiRequest<T>(
         },
         ...(body === undefined ? {} : { body }),
       });
+      signal?.throwIfAborted();
       const result = unwrapCloudIpcEnvelope<T>(transported);
       if (invalidatesCloudData(path, init.method)) {
         invalidateCloudCacheForMutation({ session, apiPath: path });
@@ -592,6 +601,8 @@ export async function cloudApiRequest<T>(
       return result;
     } catch (error) {
       throw normalizeCloudBridgeInvocationError(error);
+    } finally {
+      signal?.removeEventListener("abort", cancel);
     }
   }
 

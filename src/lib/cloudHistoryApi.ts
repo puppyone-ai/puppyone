@@ -16,6 +16,7 @@ export type DesktopCloudHistoryCommit = {
   who: string;
   message: string;
   changes: DesktopCloudHistoryChange[];
+  changes_loaded?: boolean;
   conflicts: Array<Record<string, unknown>>;
   root_hash: string;
   scope_hash: string;
@@ -52,17 +53,19 @@ export async function getCloudHistory(
   onSessionChange?: MutableSessionHandler,
   apiBaseUrl?: string | null,
   cursor?: string | null,
+  options: { summary?: boolean; signal?: AbortSignal } = {},
 ): Promise<DesktopCloudHistory> {
   const params = new URLSearchParams({
     limit: String(limit),
     order: "topo",
   });
   if (cursor) params.set("cursor", cursor);
+  if (options.summary) params.set("summary", "true");
   const raw = await cloudApiRequest<unknown>(
     `/content/${encodeURIComponent(projectId)}/commits?${params.toString()}`,
     session,
     onSessionChange,
-    {},
+    { signal: options.signal },
     apiBaseUrl,
   );
   validateCurrentHistoryEnvelope(raw);
@@ -89,6 +92,21 @@ export async function getCloudHistory(
     throw new Error("Cloud history pagination state is inconsistent.");
   }
   return history;
+}
+
+export async function getCloudHistoryDetail(
+  session: DesktopCloudSession, projectId: string, commitId: string,
+  apiBaseUrl?: string | null, signal?: AbortSignal,
+): Promise<DesktopCloudHistoryCommit> {
+  const raw = await cloudApiRequest<unknown>(
+    `/content/${encodeURIComponent(projectId)}/commit-detail?commit_id=${encodeURIComponent(commitId)}`,
+    session, undefined, { signal }, apiBaseUrl,
+  );
+  const commit = normalizeCommit(raw);
+  if (commit.commit_id !== commitId || !commit.changes_loaded) {
+    throw new Error("Cloud history detail does not match the requested commit.");
+  }
+  return commit;
 }
 
 function validateCurrentHistoryEnvelope(raw: unknown): void {
@@ -166,6 +184,7 @@ function normalizeCommit(raw: unknown): DesktopCloudHistoryCommit {
       .map((parentId) => requireCommitId(parentId, "Cloud history parent id")))],
     who: typeof value.who === "string" ? value.who : "",
     message: typeof value.message === "string" ? value.message : "",
+    changes_loaded: value.changes_loaded !== false,
     changes: optionalArray(value.changes).map((change) => normalizeChange(change)),
     conflicts: optionalArray(value.conflicts)
       .map((conflict) => requireRecord(conflict, "Cloud history conflict")),
@@ -216,7 +235,7 @@ function optionalCommitId(value: unknown, label: string): string | null {
 }
 
 function requireCommitId(value: unknown, label: string): string {
-  if (typeof value !== "string" || !/^[0-9a-f]{40}$/i.test(value)) {
+  if (typeof value !== "string" || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(value)) {
     throw new Error(`${label} is invalid.`);
   }
   return value.toLowerCase();

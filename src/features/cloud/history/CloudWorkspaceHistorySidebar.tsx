@@ -26,6 +26,7 @@ export function CloudWorkspaceHistorySidebar({ session, projectId, apiBaseUrl, a
   const { t } = useLocalization();
   const data = useCloudHistoryController({ session, projectId, apiBaseUrl, enabled: active, revisionKey, onSessionChange });
   const [detailId, setDetailId] = useState<string | null>(null);
+  const detailContext = makeHistoryContext(session, projectId, apiBaseUrl, revisionKey);
   const selected = data.history?.commits.find(commit => commit.commit_id === detailId);
   const row = data.rows.find(item => item.kind === "commit" && item.id === detailId);
   const detailVisible = Boolean(selected && row);
@@ -58,6 +59,7 @@ export function CloudWorkspaceHistorySidebar({ session, projectId, apiBaseUrl, a
       <HistoryNotices data={data} />
       {selected && row && <div className="desktop-history-detail-scroll" data-po-scrollbar="content">
         <CloudCommitDetail projectId={projectId} commit={selected} row={row}
+          context={detailContext}
           isHead={selected.commit_id === data.history?.head_commit_id} loading={data.loading} onRefresh={data.reload} />
       </div>}
       {!detailVisible && !data.loading && !data.error && commits.length === 0 && <div className="desktop-git-history-sidebar-state">
@@ -90,4 +92,8 @@ function HistoryNotices({ data }: { data: CloudHistoryDataState }) {
       </div>}
       {data.warning && <p className="desktop-cloud-history-notice" role="status">{formatCloudMessage(data.warning, t)}</p>}
   </>;
+}
+
+function makeHistoryContext(session: DesktopCloudSession | null, projectId: string | null, apiBaseUrl: string | null, revisionKey?: string | null) {
+  return session && projectId ? { session, projectId, apiBaseUrl, revisionKey } : undefined;
 }

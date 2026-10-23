@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  getCloudHistory,
   type DesktopCloudHistory,
 } from "../../../lib/cloudHistoryApi";
+import { acquireHistoryPage } from "./historyRepository";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import {
   isHistorySnapshotRestartError,
@@ -25,7 +25,6 @@ type CloudHistoryDataInternalState = Omit<CloudHistoryDataState, "reload" | "loa
   contextKey: string | null;
 };
 
-const CLOUD_HISTORY_PAGE_SIZE = 80;
 
 export function useCloudHistoryData({
   session,
@@ -55,6 +54,7 @@ export function useCloudHistoryData({
     : `disabled:${projectId ?? "none"}`;
   const [state, setState] = useState<CloudHistoryDataInternalState>(() => createCloudHistoryDataState());
   const activeRequestRef = useRef(0);
+  const subscriptionRef = useRef<(() => void) | null>(null);
   const loadMoreCursorRef = useRef<string | null>(null);
   const sessionRef = useRef(session);
   const onSessionChangeRef = useRef(onSessionChange);
@@ -87,14 +87,13 @@ export function useCloudHistoryData({
           })
     ));
 
+    subscriptionRef.current?.();
+    const subscription = acquireHistoryPage({ session: activeSession, projectId, apiBaseUrl, revisionKey }, null, onSessionChangeRef.current);
+    subscriptionRef.current = subscription.release;
+    if (subscription.cached) setState({ history: subscription.cached, loading: false, loadingMore: false,
+      error: null, warning: getHistoryHealthWarning(subscription.cached), contextKey });
     try {
-      const history = await getCloudHistory(
-        activeSession,
-        projectId,
-        CLOUD_HISTORY_PAGE_SIZE,
-        onSessionChangeRef.current,
-        apiBaseUrl,
-      );
+      const history = await subscription.promise;
       if (activeRequestRef.current !== requestId) return;
       setState({
         history,
@@ -106,16 +105,16 @@ export function useCloudHistoryData({
       });
     } catch (error) {
       if (activeRequestRef.current !== requestId) return;
-      setState((current) => ({
-        history: current.contextKey === contextKey ? current.history : null,
+      setState({
+        history: null,
         loading: false,
         loadingMore: false,
         error: cloudMessage("history-load-failed", undefined, error instanceof Error ? error.message : undefined),
         warning: null,
         contextKey,
-      }));
+      });
     }
-  }, [apiBaseUrl, canLoad, contextKey, projectId]);
+  }, [apiBaseUrl, canLoad, contextKey, projectId, revisionKey]);
 
   const loadMore = useCallback(async () => {
     const currentHistory = state.contextKey === contextKey ? state.history : null;
@@ -142,14 +141,10 @@ export function useCloudHistoryData({
     ));
 
     try {
-      const nextPage = await getCloudHistory(
-        activeSession,
-        projectId,
-        CLOUD_HISTORY_PAGE_SIZE,
-        onSessionChangeRef.current,
-        apiBaseUrl,
-        cursor,
-      );
+      subscriptionRef.current?.();
+      const subscription = acquireHistoryPage({ session: activeSession, projectId, apiBaseUrl, revisionKey }, cursor, onSessionChangeRef.current);
+      subscriptionRef.current = subscription.release;
+      const nextPage = await subscription.promise;
       if (activeRequestRef.current !== requestId) return;
       const mergedHistory = mergeCloudHistoryPages(currentHistory, nextPage);
       setState((current) => {
@@ -190,12 +185,14 @@ export function useCloudHistoryData({
     state.history,
     state.loading,
     state.loadingMore,
+    revisionKey,
     load,
   ]);
 
   useEffect(() => {
     void load();
     return () => {
+      subscriptionRef.current?.();
       activeRequestRef.current += 1;
       loadMoreCursorRef.current = null;
     };

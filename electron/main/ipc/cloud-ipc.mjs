@@ -1,3 +1,4 @@
+import { createCloudReadRequests } from "../cloud-read-requests.mjs";
 import { registerCloudWorkspaceEvents } from "../cloud-workspace-events.mjs";
 import {
   buildCloudApiBaseCandidates,
@@ -14,6 +15,10 @@ import {
 
 export function registerCloudIpcHandlers({ ipcMain, cloudAuthService }) {
   registerCloudWorkspaceEvents(ipcMain, cloudAuthService);
+  const reads = createCloudReadRequests();
+  ipcMain.handle("cloud:session-api-cancel", (event, requestId) => {
+    reads.cancel(event.sender, requestId);
+  });
   ipcMain.handle("cloud-session:read", async () => {
     return cloudAuthService.readSession();
   });
@@ -56,8 +61,10 @@ export function registerCloudIpcHandlers({ ipcMain, cloudAuthService }) {
     });
   });
 
-  ipcMain.handle("cloud:session-api-request", async (_event, request) => {
+  ipcMain.handle("cloud:session-api-request", async (event, request) => {
     return cloudIpcEnvelope(async () => {
+      const owned = reads.begin(event?.sender, request);
+      try {
       const apiBase = normalizeCloudApiBase(request?.apiBaseUrl);
       if (!apiBase) throw new Error("Cloud API base URL is required.");
       const apiPath = requireCloudApiPath(request?.path);
@@ -70,17 +77,13 @@ export function registerCloudIpcHandlers({ ipcMain, cloudAuthService }) {
         userId: requireNonEmptyString(request?.expectedSession?.userId, "Cloud request account is required."),
         generation: requireNonEmptyString(request?.expectedSession?.generation, "Cloud request session generation is required."),
       };
-      return cloudAuthService.requestSessionApi(apiBase, apiPath, {
+      return await cloudAuthService.requestSessionApi(apiBase, apiPath, {
         method,
         headers,
-        ...(method === "GET" && /^\/agents\/runs\/[0-9a-f-]{36}\/events\?after=\d{1,15}$/i.test(apiPath)
-          ? { responseType: "agent-events", signal: AbortSignal.timeout(15_000) } : {}),
-        // POST here resolves read-only context. Bound the whole response, and
-        // leave the retry budget to its renderer owner. Never replay writes.
-        ...(method === "POST" && /^\/projects\/[^/?]+\/repository-context$/.test(apiPath)
-          ? { signal: AbortSignal.timeout(15_000) } : {}),
+        ...sessionReadOptions(method, apiPath, owned?.signal),
         ...(body === undefined ? {} : { body }),
       }, expectedSession);
+      } finally { owned?.close(); }
     });
   });
 
@@ -131,4 +134,15 @@ async function cloudIpcEnvelope(operation) {
       },
     };
   }
+}
+
+function sessionReadOptions(method, path, signal) {
+  const events = method === "GET" && /^\/agents\/runs\/[0-9a-f-]{36}\/events\?after=\d{1,15}$/i.test(path);
+  const context = method === "POST" && /^\/projects\/[^/?]+\/repository-context$/.test(path);
+  if (events || context) {
+    const timeout = AbortSignal.timeout(15_000);
+    return { ...(events ? { responseType: "agent-events" } : {}),
+      signal: signal ? AbortSignal.any([timeout, signal]) : timeout };
+  }
+  return signal ? { signal } : {};
 }
