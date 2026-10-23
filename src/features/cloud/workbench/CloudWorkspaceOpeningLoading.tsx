@@ -3,7 +3,7 @@ import { PageLoading } from "../../../components/loading";
 import type { CloudWorkspaceOpeningPhase } from "../files/cloudWorkspaceOpening";
 
 const labels = {
-  checking: "cloud.loading.connectingCloud",
+  checking: "cloud.loading.startingWorkspace",
   connecting: "cloud.loading.startingWorkspace",
   files: "cloud.loading.files",
 } as const;
