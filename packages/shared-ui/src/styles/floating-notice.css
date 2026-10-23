@@ -1,9 +1,9 @@
 /*
- * Floating notices sit on the theme's overlay surface, a step brighter than
- * the content they float over (the menu surface is chrome-coloured and reads
- * darker than the page). Border and elevation match popovers so transient
- * feedback reads as product chrome rather than a tinted banner. Tone is
- * carried by a compact glyph; copy stays in the regular UI voice.
+ * Floating notices sit on the theme's overlay surface. A toned notice tints
+ * that surface and its border with the tone colour so it stands out from the
+ * content it floats over; neutral notices keep the plain overlay. Copy stays
+ * in the regular text colour and UI voice; the glyph carries the tone at full
+ * strength. Tone colours come from the theme, so light and dark both follow.
  */
 .po-floating-notice-stack {
   position: absolute;
@@ -37,6 +37,8 @@
 
 .po-floating-notice {
   --po-floating-notice-tone: var(--po-text-muted);
+  --po-floating-notice-surface-tint: 0%;
+  --po-floating-notice-border-tint: 0%;
   display: flex;
   box-sizing: border-box;
   max-width: 100%;
@@ -44,9 +46,17 @@
   align-items: flex-start;
   gap: 8px;
   padding: 8px 12px;
-  border: 1px solid var(--po-menu-border, var(--po-border));
+  border: 1px solid color-mix(
+    in srgb,
+    var(--po-floating-notice-tone) var(--po-floating-notice-border-tint),
+    var(--po-menu-border, var(--po-border))
+  );
   border-radius: var(--po-menu-radius, 8px);
-  background: var(--po-overlay, var(--po-panel-raised));
+  background: color-mix(
+    in srgb,
+    var(--po-floating-notice-tone) var(--po-floating-notice-surface-tint),
+    var(--po-overlay, var(--po-panel-raised))
+  );
   background-clip: padding-box;
   box-shadow: var(--po-elevation-popover, var(--po-elevation-low));
   color: var(--po-text);
@@ -61,6 +71,14 @@
 
 .po-floating-notice[data-dismissible="true"] {
   padding-inline-end: 6px;
+}
+
+.po-floating-notice[data-tone="info"],
+.po-floating-notice[data-tone="success"],
+.po-floating-notice[data-tone="warning"],
+.po-floating-notice[data-tone="danger"] {
+  --po-floating-notice-surface-tint: 13%;
+  --po-floating-notice-border-tint: 36%;
 }
 
 .po-floating-notice[data-tone="info"] {
