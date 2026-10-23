@@ -1040,33 +1040,6 @@ body.data-sidebar-resizing .data-preview-accessory {
   padding: 0;
 }
 
-.file-preview-input-error {
-  position: absolute;
-  z-index: 3;
-  inset: 8px 8px auto;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border: 1px solid var(--po-divider);
-  border-radius: var(--tree-row-radius);
-  background: var(--po-bg);
-  color: var(--po-danger);
-  font-size: var(--po-type-ui-meta, 13px);
-}
-
-.file-preview-input-error span {
-  flex: 1;
-  min-width: 0;
-}
-
-.file-preview-input-error button {
-  flex-shrink: 0;
-  color: var(--po-text);
-  font: inherit;
-  cursor: pointer;
-}
-
 .empty-preview {
   display: grid;
   align-items: center;

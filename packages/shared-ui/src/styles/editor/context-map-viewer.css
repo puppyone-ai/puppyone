@@ -7,42 +7,10 @@
   flex: 1;
 }
 
-.context-map-parse-error {
-  position: absolute;
-  z-index: 10;
-  top: 12px;
-  left: 50%;
-  display: flex;
-  max-width: min(680px, calc(100% - 32px));
-  box-sizing: border-box;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border: 1px solid color-mix(in srgb, var(--po-danger) 32%, var(--po-border-subtle));
-  border-radius: 8px;
-  color: var(--po-text-muted);
-  background: var(--po-surface-elevated);
-  box-shadow: var(--po-shadow-sm);
-  font-size: var(--po-text-size-caption);
-  transform: translateX(-50%);
-}
-
-.context-map-parse-error span {
-  overflow: hidden;
-  flex: 1;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.context-map-parse-error button {
-  flex: none;
-  padding: 3px 7px;
-  border: 1px solid var(--po-border-subtle);
-  border-radius: 5px;
-  color: inherit;
-  background: transparent;
-  font: inherit;
-  cursor: var(--po-clickable-cursor, default);
+/* The parse notice floats over the map; FloatingNotice owns its material. */
+.po-floating-notice-stack.context-map-notice-stack {
+  --po-floating-notice-z: 10;
+  max-width: min(480px, calc(100% - 24px));
 }
 
 .folder-relationship-view {

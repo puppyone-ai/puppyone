@@ -26,33 +26,13 @@
   background: var(--po-surface-auxiliary);
 }
 
-.desktop-terminal-workbench-create-failure {
-  position: absolute;
-  z-index: 31;
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 8px 7px 10px;
-  border: 1px solid color-mix(in srgb, var(--po-danger) 38%, var(--po-divider));
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--po-surface-auxiliary) 94%, var(--po-danger));
-  box-shadow: 0 6px 18px color-mix(in srgb, #000 20%, transparent);
-  color: var(--po-text);
-  font-size: var(--po-type-right-sidebar-meta, 13px);
-  line-height: var(--po-type-right-sidebar-meta-line-height, 19px);
+/* Workbench notices share one column under the tab strip; FloatingNotice owns their material. */
+.po-floating-notice-stack.desktop-auxiliary-workbench-notice-stack {
+  --po-floating-notice-z: 31;
+  --po-floating-notice-font-size: var(--po-type-right-sidebar-meta, 13px);
+  --po-floating-notice-line-height: var(--po-type-right-sidebar-meta-line-height, 19px);
   inset-block-start: 46px;
   inset-inline: 8px;
-}
-
-.desktop-terminal-workbench-create-failure > svg {
-  flex: 0 0 auto;
-  color: var(--po-danger);
-}
-
-.desktop-terminal-workbench-create-failure > span {
-  min-width: 0;
-  flex: 1 1 auto;
 }
 
 .desktop-terminal-workbench-create-retry {

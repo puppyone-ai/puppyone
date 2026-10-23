@@ -12,6 +12,7 @@ import { useLocalization } from "@puppyone/localization";
 import {
   DataWorkspace,
   FloatingNotice,
+  FloatingNoticeAction,
   FloatingNoticeStack,
   PulseGridLoader,
   useDismissibleNotice,
@@ -114,6 +115,8 @@ export type DesktopDataWorkspaceSurfaceProps = {
   workspaceRefreshToken: WorkspaceContentChange;
   workspaceAtomicRefreshToken: number;
   workspaceSurfaceError: string | null;
+  /** Offers Retry on the workspace notice when its source can reconnect. */
+  onRetryWorkspaceSurface?: () => void;
   sidebarCreateMenuOpen: boolean;
 };
 
@@ -149,6 +152,7 @@ export function DesktopDataWorkspaceSurface({
   workspaceRefreshToken,
   workspaceAtomicRefreshToken,
   workspaceSurfaceError,
+  onRetryWorkspaceSurface,
   sidebarCreateMenuOpen,
 }: DesktopDataWorkspaceSurfaceProps) {
   const markdownBlockDragEnabled = useDesktopPreference(s => s.experimentalSettings.enableMarkdownBlockDrag);
@@ -240,7 +244,14 @@ export function DesktopDataWorkspaceSurface({
     >
       <FloatingNoticeStack ref={setWorkspaceNoticeStack} className="desktop-workspace-notice-stack">
         {visibleWorkspaceSurfaceError && (
-          <FloatingNotice tone="warning" role="status" onDismiss={dismissWorkspaceSurfaceError}>
+          <FloatingNotice
+            tone="warning"
+            role="status"
+            actions={onRetryWorkspaceSurface && (
+              <FloatingNoticeAction onClick={onRetryWorkspaceSurface}>{t("common.action.retry")}</FloatingNoticeAction>
+            )}
+            onDismiss={dismissWorkspaceSurfaceError}
+          >
             {visibleWorkspaceSurfaceError}
           </FloatingNotice>
         )}

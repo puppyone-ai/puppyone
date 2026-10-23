@@ -1,6 +1,10 @@
 "use client";
 import { Tooltip } from "../../../primitives/Tooltip";
-import { FloatingNotice } from "../../../primitives/FloatingNotice";
+import {
+  FloatingNotice,
+  FloatingNoticeStack,
+  useDismissibleNotice,
+} from "../../../primitives/FloatingNotice";
 
 import { useEditorTaskController } from "../../runtime/EditorTaskContext";
 import { acquireEditorHostLease } from "../../runtime/EditorHostLeases";
@@ -636,6 +640,11 @@ function PptxPresentationPreview({
     slideCount: number;
   } | null>(null);
   const [slideErrors, setSlideErrors] = useState<Record<number, string>>({});
+  const activeSlideError = slideErrors[activeSlide];
+  // Keyed by slide so a dismissed failure does not hide the next failing slide.
+  const [visibleSlideError, dismissSlideError] = useDismissibleNotice(
+    activeSlideError ? `${activeSlide}\u0000${activeSlideError}` : null,
+  );
 
   useEffect(() => {
     const host = hostRef.current;
@@ -871,13 +880,20 @@ function PptxPresentationPreview({
           {viewerState?.slideCount === 0 && (
             <div className="office-pptx-render-state">{t("editor.office.emptyPresentation")}</div>
           )}
-          {slideErrors[activeSlide] && (
-            <div className="office-pptx-slide-error" role="status">
-              {t("editor.office.slideRenderFailed", {
-                number: activeSlide + 1,
-                detail: bidiIsolate(slideErrors[activeSlide]),
-              })}
-            </div>
+          {visibleSlideError && activeSlideError && (
+            <FloatingNoticeStack className="office-pptx-notice-stack">
+              <FloatingNotice
+                className="office-pptx-slide-error"
+                tone="danger"
+                role="status"
+                onDismiss={dismissSlideError}
+              >
+                {t("editor.office.slideRenderFailed", {
+                  number: activeSlide + 1,
+                  detail: bidiIsolate(activeSlideError),
+                })}
+              </FloatingNotice>
+            </FloatingNoticeStack>
           )}
           {viewerState && viewerState.slideCount > 0 && (
             <PresentationNavigation

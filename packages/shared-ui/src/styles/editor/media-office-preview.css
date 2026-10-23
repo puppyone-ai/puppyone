@@ -830,25 +830,12 @@
   pointer-events: none;
 }
 
-.office-pptx-slide-error {
-  position: absolute;
-  z-index: 2;
-  top: 14px;
-  right: 14px;
-  box-sizing: border-box;
+/* Slide failures float over the stage; FloatingNotice owns their material. */
+.po-floating-notice-stack.office-pptx-notice-stack {
+  --po-floating-notice-z: 2;
+  inset-block-start: 14px;
+  inset-inline-end: 14px;
   max-width: min(360px, calc(100% - 28px));
-  padding: 7px 10px;
-  overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--po-danger) 30%, var(--po-border));
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--po-panel-raised) 96%, transparent);
-  box-shadow: var(--po-shadow-sm);
-  color: var(--po-danger);
-  font-size: var(--po-type-ui-caption, 12px);
-  line-height: 1.4;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  pointer-events: none;
 }
 
 @keyframes office-pptx-thumbnail-pending {

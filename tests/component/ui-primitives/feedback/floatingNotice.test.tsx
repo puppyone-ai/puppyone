@@ -6,6 +6,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   FloatingNotice,
+  FloatingNoticeAction,
   FloatingNoticePortal,
   FloatingNoticeStack,
   useDismissibleNotice,
@@ -79,6 +80,29 @@ describe("FloatingNotice", () => {
     );
     const buttons = Array.from(container.querySelectorAll("button"));
     expect(buttons.map((button) => button.className)).toEqual(["retry", "po-floating-notice__dismiss"]);
+  });
+
+  it("gives inline commands the shared notice action control", () => {
+    const onRetry = vi.fn();
+    const container = mount(
+      <FloatingNotice actions={<FloatingNoticeAction onClick={onRetry}>Retry</FloatingNoticeAction>}>
+        Connection interrupted
+      </FloatingNotice>,
+    );
+    const action = container.querySelector<HTMLButtonElement>(".po-floating-notice__actions .po-floating-notice__action");
+    expect(action?.type).toBe("button");
+    act(() => action!.click());
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("occludes native surfaces only when asked", () => {
+    const container = mount(<>
+      <FloatingNotice occludesNativeSurfaces>Over a terminal</FloatingNotice>
+      <FloatingNotice>Over the document</FloatingNotice>
+    </>);
+    const [over, plain] = Array.from(container.querySelectorAll<HTMLElement>(".po-floating-notice"));
+    expect(over!.dataset.nativeSurfaceOccluder).toBe("true");
+    expect(plain!.dataset.nativeSurfaceOccluder).toBeUndefined();
   });
 });
 

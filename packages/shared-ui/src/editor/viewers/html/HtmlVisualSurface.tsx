@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { useLocalization } from "@puppyone/localization/react";
+import {
+  FloatingNotice,
+  FloatingNoticeStack,
+  useDismissibleNotice,
+} from "../../../primitives/FloatingNotice";
+import { PulseGridLoader } from "../../../primitives/LoadingIndicator";
 import type { CodeMirrorDocumentModel } from "../../document-session/CodeMirrorDocumentModel";
 import { useDocumentAssetImport } from "../../resource/DocumentAssetImport";
 import { useEditorPreviewServices } from "../../preview-services/EditorPreviewServices";
@@ -270,6 +276,10 @@ export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, regist
     textTransform: selection?.styles.textTransform as CSSProperties["textTransform"],
     textDecoration: String(selection?.styles.textDecoration ?? "none"),
   };
+  let status: string | null = error;
+  if (!status && importing) status = t("editor.html.importing");
+  else if (!status && !ready) status = t("editor.html.preparing");
+  const [visibleStatus, dismissStatus] = useDismissibleNotice(status);
   return <div className="html-visual-editor" onKeyDown={(event) => {
     if (event.nativeEvent.isComposing) return;
     const key = event.key.toLowerCase();
@@ -279,8 +289,13 @@ export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, regist
       setTextInput(null); model.moveHistory(key === "y" || event.shiftKey ? "redo" : "undo");
     } else if (event.key === "Escape") { event.preventDefault(); dismiss(); frame.current?.focus(); }
   }}>
-    {(error || importing || !ready) && <div className="html-visual-editor__status" role={error ? "alert" : "status"}>
-      {error ?? (importing ? t("editor.html.importing") : t("editor.html.preparing"))}</div>}
+    {visibleStatus && <FloatingNoticeStack className="html-editor-notice-stack html-visual-notice-stack">
+      <FloatingNotice className="html-visual-editor__status" tone={error ? "danger" : "neutral"}
+        icon={error ? undefined : <PulseGridLoader size="xs" ariaHidden />}
+        role={error ? "alert" : "status"} onDismiss={dismissStatus}>
+        {visibleStatus}
+      </FloatingNotice>
+    </FloatingNoticeStack>}
     <div className="html-visual-editor__body">
       <div className="html-visual-editor__viewport" ref={viewport} onPointerMove={presence.pointerMove} onPointerLeave={presence.away}>
         {projection && <iframe key={projection.session.id} ref={frame} className="native-preview-frame"

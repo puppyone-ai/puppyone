@@ -3,6 +3,7 @@ import {
   forwardRef,
   useCallback,
   useState,
+  type ButtonHTMLAttributes,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from "react";
@@ -36,6 +37,8 @@ export type FloatingNoticeProps = Readonly<{
   role?: "alert" | "status";
   className?: string;
   dir?: "auto" | "ltr" | "rtl";
+  /** Hides native surfaces (for example terminal or browser views) while shown. */
+  occludesNativeSurfaces?: boolean;
 }>;
 
 /**
@@ -52,6 +55,7 @@ export function FloatingNotice({
   role,
   className,
   dir = "auto",
+  occludesNativeSurfaces = false,
 }: FloatingNoticeProps) {
   const { t } = useLocalization();
   const glyph = icon === undefined ? TONE_GLYPHS[tone] : icon;
@@ -71,6 +75,7 @@ export function FloatingNotice({
       className={["po-floating-notice", className].filter(Boolean).join(" ")}
       data-tone={tone}
       data-dismissible={onDismiss ? "true" : undefined}
+      data-native-surface-occluder={occludesNativeSurfaces ? "true" : undefined}
       onKeyDown={handleKeyDown}
     >
       {glyph != null && (
@@ -93,6 +98,21 @@ export function FloatingNotice({
         </Tooltip>
       )}
     </div>
+  );
+}
+
+/** The compact command inside a FloatingNotice, such as Retry. */
+export function FloatingNoticeAction({
+  className,
+  type = "button",
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      type={type}
+      className={["po-floating-notice__action", className].filter(Boolean).join(" ")}
+      {...props}
+    />
   );
 }
 

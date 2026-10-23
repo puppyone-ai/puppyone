@@ -5,6 +5,12 @@ import type { EditorPreviewServices } from "../preview-services/types";
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
+import {
+  FloatingNotice,
+  FloatingNoticeAction,
+  FloatingNoticeStack,
+  useDismissibleNotice,
+} from "../../primitives/FloatingNotice";
 import type {
   AppPreviewController,
   DocumentDataNode,
@@ -110,6 +116,11 @@ export function FilePreview({
   documentSourceKind = "local",
 }: FilePreviewProps) {
   const { t } = useLocalization();
+  // Stale content stays readable behind a refresh failure, so the notice is only
+  // shown over existing content and can be put away.
+  const [visibleInputError, dismissInputError] = useDismissibleNotice(
+    (fileContent || fileUrl) ? error || fileUrlError || null : null,
+  );
   const surfaceKey = node?.path ?? "file-preview:empty";
   const actions = node
     ? typeof actionSlot === "function" ? actionSlot(node) : actionSlot
@@ -162,11 +173,19 @@ export function FilePreview({
           )}
 
           <div className="file-preview-body">
-            {(error || fileUrlError) && (fileContent || fileUrl) && (
-              <div className="file-preview-input-error" role="alert">
-                <span dir="auto">{error || fileUrlError}</span>
-                {onRetry && <button type="button" onClick={onRetry}>{t("common.action.retry")}</button>}
-              </div>
+            {visibleInputError && (
+              <FloatingNoticeStack className="editor-notice-stack">
+                <FloatingNotice
+                  className="file-preview-input-error"
+                  tone="danger"
+                  actions={onRetry && (
+                    <FloatingNoticeAction onClick={onRetry}>{t("common.action.retry")}</FloatingNoticeAction>
+                  )}
+                  onDismiss={dismissInputError}
+                >
+                  {visibleInputError}
+                </FloatingNotice>
+              </FloatingNoticeStack>
             )}
             <EditorPreviewBoundary
               key={node.path}

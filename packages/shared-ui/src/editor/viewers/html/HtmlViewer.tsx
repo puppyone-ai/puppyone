@@ -2,6 +2,7 @@
 
 import { lazy, Suspense, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { MoreHorizontal } from "lucide-react";
+import { FloatingNotice, FloatingNoticeStack } from "../../../primitives/FloatingNotice";
 import { useEditorPaneMenuContributionPublisher } from "../../editorPaneMenuContribution";
 import { useLocalization } from "@puppyone/localization/react";
 import { CodeMirrorCodeEditor } from "../code/CodeMirrorCodeEditor";
@@ -113,7 +114,10 @@ function HtmlDocumentEditor({ document, content, fileUrl, htmlTrustMode, canEdit
         void switchMode(mode === "source" ? showPage : "source");
       }}>{toggleLabel}</button>
     </details>}
-    {error && <div className="html-visual-editor__status" role="alert">{error}</div>}
+    {error && <FloatingNoticeStack
+      className={!publishMenu && !hideSourceView ? "html-editor-notice-stack is-below-options" : "html-editor-notice-stack"}>
+      <FloatingNotice className="html-visual-editor__status" tone="danger" onDismiss={() => setError(null)}>{error}</FloatingNotice>
+    </FloatingNoticeStack>}
     {mode === "source" ? <CodeMirrorCodeEditor model={model} content={content} nodeName={document.name} language="html" readOnly={!canEdit} />
       : mode === "edit" ? <Suspense fallback={<DocumentSurfacePending label={t("editor.html.preparing")} />}><HtmlVisualSurface model={model} path={document.path} title={document.name} fileUrl={fileUrl} canEdit={canEdit} registerPrepare={registerPrepare} onUnavailable={unavailable} /></Suspense>
         : <div className="native-preview native-preview-framed"><Suspense fallback={<DocumentSurfacePending label={t("editor.html.loading")} />}><HtmlPreviewFrame path={document.path} title={document.name} content={preview} fileUrl={fileUrl} htmlTrustMode={htmlTrustMode} /></Suspense></div>}

@@ -1,7 +1,5 @@
-import { Tooltip } from "@puppyone/shared-ui";
-import { AlertCircle, RefreshCw, X } from "lucide-react";
+import { FloatingNotice, FloatingNoticeAction } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
-import { DesktopMenuIconButton } from "../../../../components/DesktopMenu";
 import type { AuxiliaryWorkbenchCreationFailure } from "../types";
 
 export function AuxiliaryWorkbenchCreationFailure({
@@ -19,24 +17,17 @@ export function AuxiliaryWorkbenchCreationFailure({
     ? t(messageKey)
     : t("terminal.workbench.itemLoadFailed", { item: failure.label });
   return (
-    <div
-      className="desktop-terminal-workbench-create-failure"
-      role="alert"
-      data-native-surface-occluder="true"
-    >
-      <AlertCircle size={14} strokeWidth={1.8} aria-hidden="true" />
-      <span>{message}</span>
-      {failure.retryable && onRetry && (
-        <button type="button" className="desktop-terminal-workbench-create-retry" aria-label={t("common.action.retry")} onClick={onRetry}>
-          <RefreshCw size={12} strokeWidth={1.8} aria-hidden="true" /> {t("common.action.retry")}
-        </button>
+    <FloatingNotice
+      tone="danger"
+      occludesNativeSurfaces
+      actions={failure.retryable && onRetry && (
+        <FloatingNoticeAction onClick={onRetry}>{t("common.action.retry")}</FloatingNoticeAction>
       )}
-      <Tooltip content={t("terminal.workbench.dismissError")}><DesktopMenuIconButton
-        label={t("terminal.workbench.dismissError")}
-        icon={<X size={12} strokeWidth={1.8} aria-hidden="true" />}
-        onClick={onDismiss}
-      /></Tooltip>
-    </div>
+      onDismiss={onDismiss}
+      dismissLabel={t("terminal.workbench.dismissError")}
+    >
+      {message}
+    </FloatingNotice>
   );
 }
 

@@ -1,7 +1,15 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useLocalization } from "@puppyone/localization/react";
-import type { WorkbenchSplitDropEdge, WorkbenchSplitMinimumSize } from "@puppyone/shared-ui";
+import {
+  FloatingNotice,
+  FloatingNoticeAction,
+  FloatingNoticeStack,
+  PulseGridLoader,
+  useDismissibleNotice,
+  type WorkbenchSplitDropEdge,
+  type WorkbenchSplitMinimumSize,
+} from "@puppyone/shared-ui";
 import type { AuxiliaryWorkbenchCloseContext, AuxiliaryWorkbenchContribution, AuxiliaryWorkbenchItemRenderContext, AuxiliaryWorkbenchItemSnapshot } from "./types";
 import { LAUNCHER_ITEM_KIND, type ProjectWorkbenchStore } from "./ProjectWorkbenchStore";
 import { useAuxiliaryWorkbench } from "./useAuxiliaryWorkbench";
@@ -90,18 +98,28 @@ export function AuxiliaryWorkbenchPanel({ store, contributions, active, renderLa
   const itemMove = useWorkbenchTabMoveDrag({ canDrop, canInsert: workbench.itemCanInsert, canMergeGroup: workbench.groupCanMerge, canMoveGroup: workbench.groupCanMove,
     onInsertSession: workbench.mergeItem, onMergeGroup: workbench.mergeGroup, onMoveGroup: workbench.moveGroup, onMoveSession: workbench.splitItem });
   const presented = active && !workbench.closing;
+  let projectCloseNotice: "closing" | "failed" | null = null;
+  if (workbench.closing) projectCloseNotice = workbench.closeFailures.length > 0 ? "failed" : "closing";
+  const [visibleProjectClose, dismissProjectClose] = useDismissibleNotice(projectCloseNotice);
   return <section ref={panel} className="desktop-terminal-panel" data-project-generation={store.context.generation} aria-label={t("terminal.title")}>
     <div className={`desktop-terminal-body ${workbench.items.length === 0 ? "is-empty" : ""}`}>
-      {workbench.closing && <div className="desktop-terminal-workbench-create-failure" role="status" data-native-surface-occluder="true">
-        <span>{t(workbench.closeFailures.length ? "workspace.projectSessions.closeFailed" : "workspace.projectSessions.closing")}</span>
-        {workbench.closeFailures.length > 0 && onRetryProjectClose && <button type="button" className="desktop-terminal-workbench-create-retry" onClick={onRetryProjectClose}>{t("workspace.projectSessions.retryClose")}</button>}
-      </div>}
-      {workbench.creationFailure && <AuxiliaryWorkbenchCreationFailure failure={workbench.creationFailure} onDismiss={store.dismissCreationFailure} onRetry={() => { void store.retryCreation(); }} />}
-      {closeCoordinator.failure && <div className="desktop-terminal-workbench-create-failure" role="alert" data-native-surface-occluder="true">
-        <span>{t("workspace.projectSessions.sessionCloseFailed")}</span>
-        <button type="button" className="desktop-terminal-workbench-create-retry" onClick={() => { void closeCoordinator.requestClose(closeCoordinator.failure!.itemId); }}>{t("common.action.retry")}</button>
-        <button type="button" className="desktop-terminal-workbench-create-retry" onClick={closeCoordinator.dismissFailure}>{t("common.action.close")}</button>
-      </div>}
+      <FloatingNoticeStack placement="top" className="desktop-auxiliary-workbench-notice-stack">
+        {visibleProjectClose === "closing" && <FloatingNotice occludesNativeSurfaces
+          icon={<PulseGridLoader size="xs" ariaHidden />} onDismiss={dismissProjectClose}>
+          {t("workspace.projectSessions.closing")}
+        </FloatingNotice>}
+        {/* A failed project close leaves the workbench inert; Retry is the only way forward, so it stays. */}
+        {projectCloseNotice === "failed" && <FloatingNotice occludesNativeSurfaces tone="danger"
+          actions={onRetryProjectClose && <FloatingNoticeAction onClick={onRetryProjectClose}>{t("workspace.projectSessions.retryClose")}</FloatingNoticeAction>}>
+          {t("workspace.projectSessions.closeFailed")}
+        </FloatingNotice>}
+        {workbench.creationFailure && <AuxiliaryWorkbenchCreationFailure failure={workbench.creationFailure} onDismiss={store.dismissCreationFailure} onRetry={() => { void store.retryCreation(); }} />}
+        {closeCoordinator.failure && <FloatingNotice occludesNativeSurfaces tone="danger"
+          actions={<FloatingNoticeAction onClick={() => { void closeCoordinator.requestClose(closeCoordinator.failure!.itemId); }}>{t("common.action.retry")}</FloatingNoticeAction>}
+          onDismiss={closeCoordinator.dismissFailure}>
+          {t("workspace.projectSessions.sessionCloseFailed")}
+        </FloatingNotice>}
+      </FloatingNoticeStack>
       {workbench.items.length === 0 ? <AuxiliaryWorkbenchRenderBoundary key={store.context.generation} itemId="empty-launcher">
         <WorkbenchLauncherContent renderLauncher={renderLauncher} context={{ groupId: null, itemId: null, presented }} />
       </AuxiliaryWorkbenchRenderBoundary> : workbench.root && <AuxiliaryWorkbenchViewport

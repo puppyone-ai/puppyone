@@ -629,6 +629,7 @@ export type { EmptyStateProps } from "./primitives/EmptyState";
 export { StatusBadge } from "./primitives/StatusBadge";
 export {
   FloatingNotice,
+  FloatingNoticeAction,
   FloatingNoticePortal,
   FloatingNoticeStack,
   useDismissibleNotice,

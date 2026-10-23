@@ -23,7 +23,7 @@ function assertRemoved(h: Harness, item = h.itemId) {
   expect(h.project.getSnapshot().topology.items.some(entry => entry.id === item)).toBe(false);
   expect(h.container.querySelector(`[data-terminal-session-pane-id="${item}"]`)).toBeNull();
   expect(document.querySelector(".desktop-workbench-close-dialog")).toBeNull();
-  expect(h.container.querySelector('.desktop-terminal-workbench-create-failure[role="alert"]')).toBeNull();
+  expect(h.container.querySelector('.desktop-auxiliary-workbench-notice-stack [role="alert"]')).toBeNull();
   expect(document.body.textContent).not.toContain("This session could not be closed");
 }
 async function firstOutput(h: Harness) {

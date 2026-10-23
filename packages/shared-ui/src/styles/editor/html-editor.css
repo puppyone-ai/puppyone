@@ -5,7 +5,10 @@
 .html-editor-options summary::-webkit-details-marker { display: none; }
 .html-editor-options > button { position: absolute; right: 0; top: 28px; white-space: nowrap; padding: 8px 14px; border: 1px solid var(--po-divider, #e1e3e6); border-radius: 8px; background: var(--po-menu-bg, var(--po-header, #ebebeb)); color: inherit; font: inherit; cursor: var(--po-clickable-cursor, default); }
 .html-visual-editor { position: relative; display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; }
-.html-visual-editor__status { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 5; max-width: calc(100% - 32px); padding: 8px 12px; border: 1px solid var(--po-divider, #e1e3e6); border-radius: 8px; background: var(--po-panel, #ffffff); font-size: var(--po-type-ui-caption, 12px); color: var(--po-text-muted, #6b7280); overflow-wrap: anywhere; }
+/* HTML editor notices float top-end, below the options control when it is shown. */
+.po-floating-notice-stack.html-editor-notice-stack { --po-floating-notice-z: 4; }
+.po-floating-notice-stack.html-editor-notice-stack.is-below-options { inset-block-start: 40px; }
+.html-document-editor:has(> .html-editor-options) .po-floating-notice-stack.html-visual-notice-stack { inset-block-start: 40px; }
 .html-visual-editor__body { display: flex; flex: 1; min-height: 0; min-width: 0; }
 .html-visual-editor__viewport { position: relative; flex: 1; min-width: 0; min-height: 0; overflow: clip; background: white; }
 .html-visual-editor__viewport > iframe { width: 100%; height: 100%; display: block; border: 0; }
