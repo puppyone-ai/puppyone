@@ -14,6 +14,15 @@ const openings = new Map<string, Promise<OpeningResult>>();
 const limit = 8 * 1024 * 1024;
 const failure = (message: string, status = 409, code?: string, retryable = true) => Object.assign(new Error(message), { status, code, retryable });
 
+async function paceStatusObservation(row: CloudWorkbench, started: number) {
+  // Older servers may ignore wait_seconds. Rate-limit only fast, pending
+  // replies; a long wait or a ready/error response needs no extra delay.
+  if ((row.state === "running" && !row.operation?.pending) || row.operation?.error
+    || ["retained", "cleanup_pending"].includes(row.state)) return;
+  const pause = Math.max(0, 1_000 - (Date.now() - started));
+  if (pause) await new Promise(resolve => setTimeout(resolve, pause));
+}
+
 export function parseWorkspaceVersion(value: string): WorkspaceVersion {
   if (!value.startsWith("cloud-workspace:")) throw failure("Reload this file before saving: its workspace revision is unavailable.");
   const result = JSON.parse(value.slice(16)) as WorkspaceVersion;
@@ -87,13 +96,13 @@ export function createCloudWorkspaceClient(session: DesktopCloudSession,
       if (!Number.isFinite(deadline) || Date.now() >= deadline) {
         throw failure("This workspace did not become ready in time.", 504, "workbench_start_timeout");
       }
-      await new Promise(resolve => setTimeout(resolve, 1_000));
-      assertCurrent();
-      const next = await request<{workspace: CloudWorkbench | null; entries?: WorkspaceEntry[]}>("");
+      const started = Date.now();
+      const next = await request<{workspace: CloudWorkbench | null; entries?: WorkspaceEntry[]}>("?wait_seconds=20");
       if (!next.workspace) throw failure("This workspace is unavailable.", 404);
       if (next.workspace.id !== row.id || next.workspace.generation !== row.generation) throw failure("This workspace was replaced. Close and reopen the project.");
       row = next.workspace;
       result = { ...next, workspace: row };
+      await paceStatusObservation(row, started);
     }
   }
   async function prepare(force = false) {

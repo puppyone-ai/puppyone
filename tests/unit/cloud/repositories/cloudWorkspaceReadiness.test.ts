@@ -15,6 +15,40 @@ function client(assertCurrent?: () => void) {
 afterEach(() => { vi.useRealTimers(); api.mockReset(); });
 
 describe('workspace readiness', () => {
+  it('starts bounded waiting immediately and adds no delay after a long reply', async () => {
+    vi.useFakeTimers();
+    const row = liveWorkbench();
+    const operation = { pending: true, phase: 'connecting', deadline: new Date(Date.now() + 60_000).toISOString(), error: null, retryable: false };
+    api.mockResolvedValueOnce({ workspace: { ...row, state: 'paused' } })
+      .mockResolvedValueOnce({ ...row, state: 'resuming', operation })
+      .mockImplementationOnce(async () => {
+        await new Promise(resolve => setTimeout(resolve, 2_000));
+        return { workspace: { ...row, state: 'resuming', operation } };
+      })
+      .mockResolvedValueOnce({ workspace: row, entries: [] });
+    const opening = client().ensure();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(api.mock.calls[2][0]).toContain('?wait_seconds=20');
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(await opening).toMatchObject({ state: 'running' });
+    expect(api).toHaveBeenCalledTimes(4);
+  });
+
+  it('paces a fast legacy response without delaying ready results', async () => {
+    vi.useFakeTimers();
+    const row = liveWorkbench();
+    const operation = { pending: true, phase: 'connecting', deadline: new Date(Date.now() + 60_000).toISOString(), error: null, retryable: false };
+    api.mockResolvedValueOnce({ workspace: { ...row, state: 'paused' } })
+      .mockResolvedValueOnce({ ...row, state: 'resuming', operation })
+      .mockResolvedValueOnce({ workspace: { ...row, state: 'resuming', operation } })
+      .mockResolvedValueOnce({ workspace: row, entries: [] });
+    const opening = client().ensure();
+    await vi.advanceTimersByTimeAsync(999);
+    expect(api).toHaveBeenCalledTimes(3);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await opening).toMatchObject({ state: 'running' });
+    expect(api).toHaveBeenCalledTimes(4);
+  });
   it('uses the root verified by the consuming connection for concurrent initial lists', async () => {
     vi.useFakeTimers();
     const row = liveWorkbench();
