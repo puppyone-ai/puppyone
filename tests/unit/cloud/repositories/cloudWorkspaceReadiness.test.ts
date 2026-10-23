@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createCloudWorkspaceClient } from '../../../../src/features/cloud/files/cloudWorkspaceClient';
 import { describeCloudOpeningFailure } from '../../../../src/features/cloud/cloudOpeningFailure';
 import { cloudApiRequest, type DesktopCloudSession } from '../../../../src/lib/cloudApi';
-import { liveWorkbench } from '../../../fixtures/cloud/repositories/liveWorkspace';
+import { liveEntry, liveWorkbench } from '../../../fixtures/cloud/repositories/liveWorkspace';
 vi.mock('../../../../src/lib/cloudApi', () => ({ cloudApiRequest: vi.fn() }));
 const api = vi.mocked(cloudApiRequest);
 const context = { status: 'resolved' as const, projectId: 'project', projectName: 'Project',
@@ -15,6 +15,44 @@ function client(assertCurrent?: () => void) {
 afterEach(() => { vi.useRealTimers(); api.mockReset(); });
 
 describe('workspace readiness', () => {
+  it('uses the root verified by the consuming connection for concurrent initial lists', async () => {
+    vi.useFakeTimers();
+    const row = liveWorkbench();
+    const operation = { pending: true, phase: 'connecting', deadline: new Date(Date.now() + 60_000).toISOString(), error: null, retryable: false };
+    api.mockResolvedValueOnce({ workspace: { ...row, state: 'paused' } })
+      .mockResolvedValueOnce({ ...row, state: 'resuming', operation })
+      .mockResolvedValueOnce({ workspace: { ...row, operation: { ...operation, pending: false, phase: 'ready' } }, entries: [liveEntry('hello.md')] });
+    const source = client();
+    const lists = Promise.all([source.list(''), source.list('')]);
+    await vi.advanceTimersByTimeAsync(1_100);
+    const [first, second] = await lists;
+    expect(first).toBe(second);
+    expect(first.entries[0].path).toBe('hello.md');
+    expect(api).toHaveBeenCalledTimes(3);
+    expect(api.mock.calls.some(call => call[0].includes('/files'))).toBe(false);
+  });
+
+  it('accepts an already completed status/root and consumes that root only once', async () => {
+    api.mockResolvedValueOnce({ workspace: liveWorkbench(), entries: [liveEntry('hello.md')] })
+      .mockResolvedValueOnce({ entries: [] });
+    const source = client();
+    expect((await source.list('')).entries).toHaveLength(1);
+    expect(api).toHaveBeenCalledTimes(1);
+    expect(await source.list('')).toEqual({ entries: [] });
+    expect(api).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects a new generation returned while waiting for the old opening', async () => {
+    vi.useFakeTimers();
+    const row = liveWorkbench();
+    const operation = { pending: true, phase: 'connecting', deadline: new Date(Date.now() + 60_000).toISOString(), error: null, retryable: false };
+    api.mockResolvedValueOnce({ workspace: { ...row, state: 'paused' } })
+      .mockResolvedValueOnce({ ...row, state: 'resuming', operation })
+      .mockResolvedValueOnce({ workspace: { ...row, generation: 'replacement' }, entries: [liveEntry('private.md')] });
+    const rejected = expect(client().list('')).rejects.toThrow('replaced');
+    await vi.advanceTimersByTimeAsync(1_100);
+    await rejected;
+  });
   it('waits through pause and initialization without repeating the wake request', async () => {
     vi.useFakeTimers();
     const row = liveWorkbench();

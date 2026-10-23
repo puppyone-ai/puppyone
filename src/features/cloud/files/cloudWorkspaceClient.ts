@@ -9,7 +9,8 @@ export type CloudWorkbench = { id: string; project_id: string; generation: strin
 export type WorkspaceEntry = { name: string; kind: string; size: number; modified_ns: string };
 type FileReply = WorkspaceEntry & { content_base64: string; revision: string };
 export type WorkspaceVersion = { workspace: string; generation: string; revision: string };
-const openings = new Map<string, Promise<CloudWorkbench>>();
+type OpeningResult = { workspace: CloudWorkbench; entries?: WorkspaceEntry[] };
+const openings = new Map<string, Promise<OpeningResult>>();
 const limit = 8 * 1024 * 1024;
 const failure = (message: string, status = 409, code?: string, retryable = true) => Object.assign(new Error(message), { status, code, retryable });
 
@@ -47,6 +48,7 @@ export function createCloudWorkspaceClient(session: DesktopCloudSession,
   const listings = new Map<string, Promise<{ entries: CloudEntry[] }>>();
   let cacheEpoch = 0;
   let activeSubscriptions = 0;
+  let openingRoot: { entries: CloudEntry[]; expiresAt: number } | undefined;
   const request = async <T>(suffix: string, init: RequestInit = {}) => {
     assertCurrent();
     try {
@@ -65,8 +67,9 @@ export function createCloudWorkspaceClient(session: DesktopCloudSession,
     if (row.state !== "running") throw failure("This Cloud workspace is unavailable. Retry to resume it.");
     workspace = { ...row }; return workspace;
   };
-  async function waitForReady(initial: CloudWorkbench) {
-    let row = initial;
+  async function waitForReady(initial: OpeningResult) {
+    let result = initial;
+    let row = result.workspace;
     const deadline = Math.min(Date.now() + 620_000,
       row.operation?.pending && row.operation.deadline ? Date.parse(row.operation.deadline) : Infinity);
     while (true) {
@@ -77,7 +80,7 @@ export function createCloudWorkspaceClient(session: DesktopCloudSession,
       if (row.operation?.error) {
         throw failure("This workspace could not be opened.", 503, row.operation.error, row.operation.retryable);
       }
-      if (row.state === "running" && !row.operation?.pending) return row;
+      if (row.state === "running" && !row.operation?.pending) return result;
       if (["retained", "cleanup_pending"].includes(row.state)) {
         throw failure("This workspace needs recovery.", 409, "workbench_requires_recovery", false);
       }
@@ -86,17 +89,18 @@ export function createCloudWorkspaceClient(session: DesktopCloudSession,
       }
       await new Promise(resolve => setTimeout(resolve, 1_000));
       assertCurrent();
-      const next = await request<{workspace: CloudWorkbench | null}>("");
+      const next = await request<{workspace: CloudWorkbench | null; entries?: WorkspaceEntry[]}>("");
       if (!next.workspace) throw failure("This workspace is unavailable.", 404);
-      if (next.workspace.id !== row.id) throw failure("This workspace was replaced. Close and reopen the project.");
+      if (next.workspace.id !== row.id || next.workspace.generation !== row.generation) throw failure("This workspace was replaced. Close and reopen the project.");
       row = next.workspace;
+      result = { ...next, workspace: row };
     }
   }
   async function prepare(force = false) {
     let pending = openings.get(identity);
     if (!pending) {
       pending = (async () => {
-        const status = await request<{workspace: CloudWorkbench | null}>("");
+        const status = await request<{workspace: CloudWorkbench | null; entries?: WorkspaceEntry[]}>("");
         assertCurrent();
         if (status.workspace && ["retained", "cleanup_pending"].includes(status.workspace.state)) {
           throw failure("This workspace needs recovery.", 409, "workbench_requires_recovery", false);
@@ -105,13 +109,16 @@ export function createCloudWorkspaceClient(session: DesktopCloudSession,
         // resumes compute, including when a pending pause needs to finish first.
         // A subsequent file request proves actual readiness for running hosts.
         if (!force && status.workspace?.state === "running"
-          && !status.workspace.operation?.pending && !status.workspace.operation?.error) return status.workspace;
-        return waitForReady(await request<CloudWorkbench>("", { method: "POST" }));
+          && !status.workspace.operation?.pending && !status.workspace.operation?.error) return { ...status, workspace: status.workspace };
+        return waitForReady({ workspace: await request<CloudWorkbench>("", { method: "POST" }) });
       })();
       openings.set(identity, pending);
       void pending.finally(() => { if (openings.get(identity) === pending) openings.delete(identity); }).catch(() => {});
     }
-    const row = await pending; assertCurrent(); return accept(row);
+    const result = await pending; assertCurrent();
+    const row = accept(result.workspace);
+    if (result.entries) openingRoot = { entries: result.entries.map(entry => map(entry, "")), expiresAt: Date.now() + 5_000 };
+    return row;
   }
   async function ensure() {
     assertCurrent();
@@ -135,7 +142,7 @@ export function createCloudWorkspaceClient(session: DesktopCloudSession,
     const path = parent ? `${parent}/${entry.name}` : entry.name;
     return { path, name: entry.name, type: entry.kind === "directory" ? "folder" : getFileSemanticKind(path), size_bytes: entry.size };
   };
-  const invalidate = () => { cacheEpoch++; prepared = undefined; directories.clear(); reads.clear(); listings.clear(); };
+  const invalidate = () => { cacheEpoch++; prepared = undefined; openingRoot = undefined; directories.clear(); reads.clear(); listings.clear(); };
   async function list(path: string) {
     assertCurrent();
     if (!path && prepared) {
@@ -153,6 +160,17 @@ export function createCloudWorkspaceClient(session: DesktopCloudSession,
     if (!pending) {
       const epoch = cacheEpoch;
       pending = (async () => {
+        if (!path) {
+          await ensure();
+          assertCurrent();
+          const root = openingRoot;
+          openingRoot = undefined;
+          if (root && Date.now() < root.expiresAt) {
+            const value = { entries: root.entries };
+            if (epoch === cacheEpoch) directories.set(path, value);
+            return value;
+          }
+        }
         const result = await request<{entries: WorkspaceEntry[]}>(`/files?${await query(path)}`);
         const value = { entries: result.entries.map(entry => map(entry, path)) };
         if (epoch === cacheEpoch) {
