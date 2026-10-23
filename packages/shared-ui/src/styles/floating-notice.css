@@ -1,5 +1,7 @@
 /*
- * Floating notices share the popover material used by menus so transient
+ * Floating notices sit on the theme's overlay surface, a step brighter than
+ * the content they float over (the menu surface is chrome-coloured and reads
+ * darker than the page). Border and elevation match popovers so transient
  * feedback reads as product chrome rather than a tinted banner. Tone is
  * carried by a compact glyph; copy stays in the regular UI voice.
  */
@@ -44,7 +46,7 @@
   padding: 8px 12px;
   border: 1px solid var(--po-menu-border, var(--po-border));
   border-radius: var(--po-menu-radius, 8px);
-  background: var(--po-menu-bg, var(--po-panel-raised));
+  background: var(--po-overlay, var(--po-panel-raised));
   background-clip: padding-box;
   box-shadow: var(--po-elevation-popover, var(--po-elevation-low));
   color: var(--po-text);
