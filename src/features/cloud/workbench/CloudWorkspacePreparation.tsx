@@ -1,6 +1,6 @@
 import { useLocalization } from "@puppyone/localization";
 import { ExplorerTreeSkeleton } from "@puppyone/shared-ui";
-import { PageLoading } from "../../../components/loading";
+import { CloudWorkspaceOpeningLoading } from "./CloudWorkspaceOpeningLoading";
 import type { CloudWorkspaceSwitch } from "./useCloudWorkspaceSwitch";
 import { CloudWorkspaceRecovery } from "./CloudWorkspaceRecovery";
 
@@ -26,7 +26,7 @@ export function CloudWorkspacePreparation({ controller, onOpenAccount }: { contr
         actions={<>
           <button type="button" className="desktop-dialog-button" onClick={controller.cancel}>{t("common.action.close")}</button>
           {controller.recoveryAction === "account" && onOpenAccount && <button type="button" className="desktop-dialog-button" onClick={onOpenAccount}>{t("settings.sidebar.account")}</button>}
-        </>} /> : <PageLoading variant="fill" label={null} ariaLabel={t("cloud.loading.project")} />}
+        </>} /> : <CloudWorkspaceOpeningLoading phase={controller.openingPhase} />}
     </main>
   </section>;
 }

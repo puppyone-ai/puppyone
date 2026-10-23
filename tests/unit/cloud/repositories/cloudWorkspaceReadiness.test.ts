@@ -15,6 +15,48 @@ function client(assertCurrent?: () => void) {
 afterEach(() => { vi.useRealTimers(); api.mockReset(); });
 
 describe('workspace readiness', () => {
+  it('shares real opening progress across coalesced callers without extra requests', async () => {
+    const row = liveWorkbench();
+    const operation = { pending: true, phase: 'connecting', deadline: new Date(Date.now() + 60_000).toISOString(), error: null, retryable: false };
+    let finishStatus!: (value: unknown) => void;
+    let finishReady!: (value: unknown) => void;
+    api.mockImplementationOnce(() => new Promise(resolve => { finishStatus = resolve; }))
+      .mockResolvedValueOnce({ ...row, state: 'resuming', operation })
+      .mockImplementationOnce(() => new Promise(resolve => { finishReady = resolve; }));
+    const session = { user_id: 'owner', session_generation: crypto.randomUUID() } as DesktopCloudSession;
+    const first = createCloudWorkspaceClient(session, context, 'https://fixture.invalid/api/v1');
+    const second = createCloudWorkspaceClient(session, context, 'https://fixture.invalid/api/v1');
+    const phases: string[] = [];
+    const unsubscribe = second.openingProgress.subscribe(() => phases.push(second.openingProgress.getSnapshot()));
+    const a = first.list('');
+    const b = second.list('');
+    expect(second.openingProgress.getSnapshot()).toBe('checking');
+    finishStatus({ workspace: { ...row, state: 'paused' } });
+    await vi.waitFor(() => expect(api).toHaveBeenCalledTimes(3));
+    expect(first.openingProgress.getSnapshot()).toBe('connecting');
+    expect(phases).toEqual(['connecting']);
+    finishReady({ workspace: row, entries: [] });
+    await Promise.all([a, b]);
+    // The server returned the root; no fabricated loading step or file request.
+    expect(api).toHaveBeenCalledTimes(3);
+    expect(phases).toEqual(['connecting']);
+    unsubscribe();
+  });
+
+  it('shows file loading for a running workspace and resets progress on retry', async () => {
+    api.mockResolvedValueOnce({ workspace: liveWorkbench() })
+      .mockRejectedValueOnce(new Error('file connection failed'));
+    const source = client();
+    const phases: string[] = [];
+    source.openingProgress.subscribe(() => phases.push(source.openingProgress.getSnapshot()));
+    await expect(source.list('')).rejects.toThrow('file connection failed');
+    expect(phases).toEqual(['files']);
+    api.mockResolvedValueOnce({ workspace: liveWorkbench() }).mockResolvedValueOnce(liveWorkbench());
+    await source.resume();
+    expect(phases).toEqual(['files', 'checking', 'connecting']);
+    expect(api).toHaveBeenCalledTimes(4);
+  });
+
   it('starts bounded waiting immediately and adds no delay after a long reply', async () => {
     vi.useFakeTimers();
     const row = liveWorkbench();

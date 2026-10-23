@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import { cloudMessage, type CloudMessageDescriptor } from "../cloudPresentation";
 import type { NativeCloudDataService } from "../files/cloudDataPort";
 import { describeCloudOpeningFailure, type CloudOpeningFailure } from "../cloudOpeningFailure";
+
+const idleOpeningProgress = { subscribe: () => () => {}, getSnapshot: () => "checking" as const };
 
 type SwitchIntent = { scope: string; attempt: number };
 type Preparation = { intent: SwitchIntent; service: NativeCloudDataService | null; error: CloudMessageDescriptor | null; recoveryAction?: CloudOpeningFailure["action"] };
@@ -20,6 +22,8 @@ export function useCloudWorkspaceSwitch({
   initializationPending: boolean;
   onCommit: () => void;
 }) {
+  const progress = service?.openingProgress ?? idleOpeningProgress;
+  const openingPhase = useSyncExternalStore(progress.subscribe, progress.getSnapshot);
   const [intent, setIntent] = useState<SwitchIntent | null>(null);
   const [preparation, setPreparation] = useState<Preparation | null>(null);
   const current = useRef({ enabled, scope, intent, session, service, initializationPending, onCommit });
@@ -72,7 +76,7 @@ export function useCloudWorkspaceSwitch({
 
   const pending = Boolean(enabled && intent?.scope === scope);
   const prepared = preparation?.intent === intent && preparation.service === service ? preparation : null;
-  return { pending, requestedLocation: pending ? "cloud" as const : undefined,
+  return { pending, openingPhase, requestedLocation: pending ? "cloud" as const : undefined,
     checking: Boolean(pending && session && service && !initializationPending && !prepared?.error),
     error: prepared?.error ?? null, recoveryAction: prepared?.recoveryAction ?? "retry", request, cancel, retry };
 }

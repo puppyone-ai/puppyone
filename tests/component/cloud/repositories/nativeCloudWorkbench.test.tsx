@@ -1,4 +1,4 @@
-import { workspaceFixtureBridge, fixtureWorkspaceWatch, fileVersion, liveEntry } from "../../../fixtures/cloud/repositories/liveWorkspace";
+import { workspaceFixtureBridge, fixtureWorkspaceWatch, fileVersion, liveEntry, liveWorkbench } from "../../../fixtures/cloud/repositories/liveWorkspace";
 import { nativeSnapshot } from "../../../fixtures/cloud/repositories/nativeRepository";
 /** @vitest-environment happy-dom */
 import { act, useCallback, useEffect, useState, type ReactNode } from "react";
@@ -86,6 +86,33 @@ function installBridge() {
 }
 
 describe("native Cloud workbench switching", () => {
+  it("shows the current request stage beside the loader and ignores completion after cancellation", async () => {
+    installBridge();
+    let finishStatus!: (value: unknown) => void;
+    let finishReady!: (value: unknown) => void;
+    const row = liveWorkbench();
+    const request = vi.fn()
+      .mockImplementationOnce(() => new Promise(resolve => { finishStatus = resolve; }))
+      .mockResolvedValueOnce({ ...row, state: "resuming", operation: { pending: true, phase: "connecting",
+        deadline: new Date(Date.now() + 60_000).toISOString(), error: null, retryable: false } })
+      .mockImplementationOnce(() => new Promise(resolve => { finishReady = resolve; }));
+    window.puppyoneDesktop!.requestCloudSessionApi = request;
+    await render(<Harness />);
+    await act(async () => { document.querySelector<HTMLButtonElement>('button[data-project-location="cloud"]')!.click(); });
+    const label = () => document.querySelector('.desktop-cloud-preparation [data-puppy-loader]')?.nextElementSibling?.textContent;
+    expect(label()).toBe("Connecting to Cloud…");
+    await act(async () => { finishStatus({ workspace: { ...row, state: "paused" } }); });
+    expect(label()).toBe("Starting and connecting workspace…");
+    expect(document.querySelector('.desktop-cloud-preparation [data-puppy-loader][role="status"]')?.getAttribute("aria-label"))
+      .toBe("Starting and connecting workspace…");
+    expect(request).toHaveBeenCalledTimes(3);
+    await act(async () => { document.querySelector<HTMLButtonElement>('button[data-project-location="local"]')!.click(); });
+    await act(async () => { finishReady({ workspace: row, entries: [] }); });
+    expect(document.querySelector('.desktop-cloud-preparation')).toBeNull();
+    expect(surface("local").hidden).toBe(false);
+    expect(request).toHaveBeenCalledTimes(3);
+  });
+
   it("shares the active tab after a folder selection and the root after closing the last tab", async () => {
     installBridge(); await render(<Harness />); await click("Open in a hosted workspace");
     const [node] = await cloud.dataPort!.listChildren(null);
@@ -211,7 +238,7 @@ describe("native Cloud workbench switching", () => {
     expect(document.querySelector('.desktop-cloud-preparation')).not.toBeNull();
     expect(document.querySelector('.desktop-cloud-preparation [data-testid="explorer-tree-skeleton"]')).not.toBeNull();
     expect(document.querySelector('.desktop-cloud-preparation [data-puppy-loader="pulse-grid"]')).not.toBeNull();
-    expect(document.querySelector('.desktop-cloud-preparation')?.textContent).toBe("");
+    expect(document.querySelector('.desktop-cloud-preparation')?.textContent).toBe("Loading files…");
     expect(surface("local").hasAttribute("inert")).toBe(true);
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     await act(async () => { release({ entries: [], ...nativeSnapshot("cloud-head") }); await pending; });

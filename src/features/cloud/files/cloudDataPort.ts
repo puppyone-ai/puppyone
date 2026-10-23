@@ -23,6 +23,7 @@ import { createCloudNativePreviewPorts } from "../../../platform";
 import { waitForCloudRead } from "./cloudFileReads";
 import { createCloudWorkspaceClient, encodeWorkspaceBytes } from "./cloudWorkspaceClient";
 import { statusOf, type CloudEntry } from "./contracts";
+import type { CloudWorkspaceOpeningProgress } from "./cloudWorkspaceOpening";
 import type { CloudWorkspaceHandoff } from "./cloudWorkspaceHandoff";
 
 export type NativeCloudDataService = Readonly<{
@@ -33,6 +34,7 @@ export type NativeCloudDataService = Readonly<{
   invalidateReads: () => void;
   watch?: (changed: () => void, failed: (error: Error) => void) => () => void;
   resume?: () => Promise<unknown>;
+  openingProgress?: CloudWorkspaceOpeningProgress;
   handoff?: () => CloudWorkspaceHandoff | undefined;
   resolveResource: (path: string | null) => ResolvedWorkbenchDataResource | null;
   getPathForCopy: (path: string) => string;
@@ -291,7 +293,7 @@ export function createCloudDataService({
       }),
     } : {}),
   };
-  return { workspace, folder, dataPort, writable, watch: files.watch, resume: files.resume, handoff: files.handoff,
+  return { workspace, folder, dataPort, writable, openingProgress: files.openingProgress, watch: files.watch, resume: files.resume, handoff: files.handoff,
     getCachedFileContent: (path) => {
       assertCurrent();
       const versions = snapshots.get(remotePath(path));

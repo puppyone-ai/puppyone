@@ -2,6 +2,7 @@ import { cloudApiRequest, type DesktopCloudSession } from "../../../lib/cloudApi
 import type { ProjectCloudContext } from "../project/context/projectCloudContext";
 import { getFileSemanticKind } from "@puppyone/shared-ui";
 import type { CloudEntry } from "./contracts";
+import { createCloudWorkspaceOpeningProgress } from "./cloudWorkspaceOpening";
 import { cloudWorkspaceIdentity, inspectCloudWorkspaceHandoff, takeCloudWorkspaceHandoff, type CloudWorkspaceHandoff } from "./cloudWorkspaceHandoff";
 
 export type CloudWorkbench = { id: string; project_id: string; generation: string; state: string; target_ref: string;
@@ -10,7 +11,8 @@ export type WorkspaceEntry = { name: string; kind: string; size: number; modifie
 type FileReply = WorkspaceEntry & { content_base64: string; revision: string };
 export type WorkspaceVersion = { workspace: string; generation: string; revision: string };
 type OpeningResult = { workspace: CloudWorkbench; entries?: WorkspaceEntry[] };
-const openings = new Map<string, Promise<OpeningResult>>();
+type Opening = { result: Promise<OpeningResult>; progress: ReturnType<typeof createCloudWorkspaceOpeningProgress> };
+const openings = new Map<string, Opening>();
 const limit = 8 * 1024 * 1024;
 const failure = (message: string, status = 409, code?: string, retryable = true) => Object.assign(new Error(message), { status, code, retryable });
 
@@ -52,6 +54,7 @@ export function createCloudWorkspaceClient(session: DesktopCloudSession,
   const identity = cloudWorkspaceIdentity(session, context, apiBaseUrl);
   let workspace: CloudWorkbench | null = null;
   let preparing: Promise<CloudWorkbench> | null = null;
+  const openingProgress = createCloudWorkspaceOpeningProgress();
   const directories = new Map<string, { entries: CloudEntry[] }>();
   const reads = new Map<string, Promise<FileReply>>();
   const listings = new Map<string, Promise<{ entries: CloudEntry[] }>>();
@@ -106,9 +109,11 @@ export function createCloudWorkspaceClient(session: DesktopCloudSession,
     }
   }
   async function prepare(force = false) {
+    openingProgress.set("checking");
     let pending = openings.get(identity);
     if (!pending) {
-      pending = (async () => {
+      const progress = createCloudWorkspaceOpeningProgress();
+      const result = (async () => {
         const status = await request<{workspace: CloudWorkbench | null; entries?: WorkspaceEntry[]}>("");
         assertCurrent();
         if (status.workspace && ["retained", "cleanup_pending"].includes(status.workspace.state)) {
@@ -119,15 +124,25 @@ export function createCloudWorkspaceClient(session: DesktopCloudSession,
         // A subsequent file request proves actual readiness for running hosts.
         if (!force && status.workspace?.state === "running"
           && !status.workspace.operation?.pending && !status.workspace.operation?.error) return { ...status, workspace: status.workspace };
+        // The server waits through startup and connection in one request.
+        progress.set("connecting");
         return waitForReady({ workspace: await request<CloudWorkbench>("", { method: "POST" }) });
       })();
+      pending = { result, progress };
       openings.set(identity, pending);
-      void pending.finally(() => { if (openings.get(identity) === pending) openings.delete(identity); }).catch(() => {});
+      void result.finally(() => { if (openings.get(identity) === pending) openings.delete(identity); }).catch(() => {});
     }
-    const result = await pending; assertCurrent();
-    const row = accept(result.workspace);
-    if (result.entries) openingRoot = { entries: result.entries.map(entry => map(entry, "")), expiresAt: Date.now() + 5_000 };
-    return row;
+    // Coalesced clients observe the same opening without issuing another request.
+    const progress = pending.progress;
+    const update = () => openingProgress.set(progress.getSnapshot());
+    const unsubscribe = progress.subscribe(update);
+    update();
+    try {
+      const result = await pending.result; assertCurrent();
+      const row = accept(result.workspace);
+      if (result.entries) openingRoot = { entries: result.entries.map(entry => map(entry, "")), expiresAt: Date.now() + 5_000 };
+      return row;
+    } finally { unsubscribe(); }
   }
   async function ensure() {
     assertCurrent();
@@ -180,7 +195,9 @@ export function createCloudWorkspaceClient(session: DesktopCloudSession,
             return value;
           }
         }
-        const result = await request<{entries: WorkspaceEntry[]}>(`/files?${await query(path)}`);
+        const parameters = await query(path);
+        if (!path) openingProgress.set("files");
+        const result = await request<{entries: WorkspaceEntry[]}>(`/files?${parameters}`);
         const value = { entries: result.entries.map(entry => map(entry, path)) };
         if (epoch === cacheEpoch) {
           directories.set(path, value);
@@ -251,7 +268,7 @@ export function createCloudWorkspaceClient(session: DesktopCloudSession,
     }).catch(failed);
     return () => { stopped = true; release(); off?.(); void bridge?.stopCloudWorkspaceWatch?.({ id }).catch(() => {}); };
   }
-  return { ensure, list, stat, read, write, change, invalidate, watch,
+  return { ensure, list, stat, read, write, change, invalidate, watch, openingProgress,
     handoff: (): CloudWorkspaceHandoff | undefined => {
       assertCurrent();
       const root = directories.get("");
