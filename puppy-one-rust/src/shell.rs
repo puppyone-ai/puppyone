@@ -505,14 +505,12 @@ impl Shell {
                     && !self.files.busy()
                     && let Some(doc) = &self.files.document
                 {
-                    let direction = if command == Command::Undo {
-                        "undo"
-                    } else {
-                        "redo"
-                    };
-                    self.files.outgoing.push(
-                        serde_json::json!({"kind":"history","id":doc.id,"direction":direction}),
-                    );
+                    self.files
+                        .outgoing
+                        .push(crate::documents::HostMessage::History {
+                            id: doc.id.clone(),
+                            redo: command == Command::Redo,
+                        });
                 }
             }
             Command::Save => self.files.begin(Intent::Save, &self.wake),
@@ -711,7 +709,7 @@ impl Shell {
             }
             let messages = std::mem::take(&mut self.files.outgoing);
             for message in messages {
-                focus_native |= message["kind"] == "open";
+                focus_native |= matches!(message, crate::documents::HostMessage::Open { .. });
                 let replies = self
                     .native
                     .update(cx, |s, cx| s.receive(&message, window, cx));

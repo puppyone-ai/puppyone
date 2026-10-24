@@ -41,7 +41,7 @@ fn native_keyboard_autosaves_and_closes_without_prompt_and_adopts_disk(cx: &mut 
     let (view, cx) = setup(cx);
     view.update_in(cx, |s,w,cx| {
         s.files=Documents::default(); s.files.workspace=Some(workspace); s.files.document=Some(document.clone());
-        s.files.outgoing.push(serde_json::json!({"kind":"open","id":document.id,"name":"native.md","text":document.text}));
+        s.files.outgoing.push(crate::documents::HostMessage::Open { id: document.id.clone(), name: "native.md".into(), text: document.text.clone(), revision: 0, external: false });
         s.sync_editor(w,cx);
     });
     cx.update(|w, cx| {

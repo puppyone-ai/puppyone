@@ -2,7 +2,7 @@
 //! pane menu, running its entries, and find routing.
 use super::DocumentEditor;
 use crate::{
-    documents::ClientMessage,
+    documents::{ClientMessage, HostMessage},
     editor::{
         markdown::MarkdownExtension,
         view::style,
@@ -30,7 +30,7 @@ fn setup<'a>(cx: &'a mut TestAppContext, name: &str, text: &str) -> (Entity<Docu
     let messages = Rc::new(RefCell::new(Vec::new()));
     let sink = messages.clone();
     cx.update(|_, cx| cx.subscribe(&view, move |_, m: &ClientMessage, _| sink.borrow_mut().push(m.clone())).detach());
-    let open = serde_json::json!({"kind": "open", "id": "doc-1", "name": name, "text": text});
+    let open = HostMessage::Open { id: "doc-1".into(), name: name.into(), text: text.into(), revision: 0, external: false };
     view.update_in(cx, |v, w, cx| {
         v.receive(&open, w, cx);
     });
@@ -125,7 +125,7 @@ fn a_snapshot_waits_for_the_composition_and_resumes_when_it_ends(cx: &mut TestAp
     });
     cx.run_until_parked();
     assert!(dirty(&messages).is_empty(), "provisional text is not reported");
-    let snapshot = serde_json::json!({"kind": "snapshot", "request": 7, "freeze": true});
+    let snapshot = HostMessage::Snapshot { request: 7, freeze: true };
     let replies = view.update_in(cx, |v, w, cx| v.receive(&snapshot, w, cx));
     assert!(matches!(replies.as_slice(), [ClientMessage::Deferred { request: 7, .. }]), "{replies:?}");
     // Cancelling changes nothing but still reports, so the host proceeds.

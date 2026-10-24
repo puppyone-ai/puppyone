@@ -6,7 +6,7 @@
 //! otherwise.
 //! It never writes files; `documents.rs` owns saving.
 use crate::{
-    documents::ClientMessage,
+    documents::{ClientMessage, HostMessage},
     editor::{
         csv::{CsvEditor, CsvEvent},
         markdown::MarkdownExtension,
@@ -178,18 +178,13 @@ impl DocumentEditor {
         }
     }
 
-    pub fn receive(&mut self, message: &serde_json::Value, window: &mut Window, cx: &mut Context<Self>) -> Vec<ClientMessage> {
+    pub fn receive(&mut self, message: &HostMessage, window: &mut Window, cx: &mut Context<Self>) -> Vec<ClientMessage> {
         let mut replies = Vec::new();
-        match message["kind"].as_str().unwrap_or("") {
-            "open" => {
-                let id = message["id"].as_str().unwrap_or_default().to_owned();
-                let text = message["text"].as_str().unwrap_or_default();
-                let baseline = message["baseline"].as_str().unwrap_or(text).to_owned();
-                let revision = message["revision"].as_u64().unwrap_or(0);
-                let name = message["name"].as_str().unwrap_or_default();
+        match message {
+            HostMessage::Open { id, name, text, revision, external } => {
                 let kind = Kind::of(name);
-                let same = self.session.as_ref().is_some_and(|s| s.id == id && s.kind == kind) && self.editor.is_some();
-                if same && self.text(cx) == text && message["external"] != true {
+                let same = self.session.as_ref().is_some_and(|s| &s.id == id && s.kind == kind) && self.editor.is_some();
+                if same && &self.text(cx) == text && !external {
                     // The same document re-sent (e.g. after a save): keep history.
                 } else if same {
                     // External change of the open document: replace its text.
@@ -204,13 +199,13 @@ impl DocumentEditor {
                     if let Some(bar) = &self.find {
                         bar.update(cx, |b, cx| b.hide(cx));
                     }
-                    self.open_editor(&id, name, text, kind, window, cx);
+                    self.open_editor(id, name, text, kind, window, cx);
                 }
                 let label = name.rsplit(['/', '\\']).next().unwrap_or(name).to_owned();
-                self.session = Some(Session { id: id.clone(), name: label, baseline, revision, frozen: false, kind });
-                replies.push(ClientMessage::Loaded { id });
+                self.session = Some(Session { id: id.clone(), name: label, baseline: text.clone(), revision: *revision, frozen: false, kind });
+                replies.push(ClientMessage::Loaded { id: id.clone() });
             }
-            "clear" => {
+            HostMessage::Clear => {
                 self.session = None;
                 self.editor = None;
                 self.subscription = None;
@@ -219,43 +214,36 @@ impl DocumentEditor {
                     bar.update(cx, |b, cx| b.hide(cx));
                 }
             }
-            "snapshot" => {
+            HostMessage::Snapshot { request, freeze } => {
                 let composing = self.composing(cx);
                 let text = self.text(cx);
                 if let Some(session) = &mut self.session {
-                    let request = message["request"].as_u64().unwrap_or(0);
                     if composing {
-                        replies.push(ClientMessage::Deferred { request, id: session.id.clone() });
+                        replies.push(ClientMessage::Deferred { request: *request, id: session.id.clone() });
                     } else {
-                        session.frozen = message["freeze"].as_bool().unwrap_or(true);
-                        replies.push(ClientMessage::Snapshot { request, id: session.id.clone(), revision: session.revision, text });
+                        session.frozen = *freeze;
+                        replies.push(ClientMessage::Snapshot { request: *request, id: session.id.clone(), revision: session.revision, text });
                     }
                 }
             }
-            "thaw" => {
+            HostMessage::Thaw => {
                 if let Some(session) = &mut self.session {
                     session.frozen = false;
                 }
             }
-            "saved" => {
-                let current = self.text(cx);
+            HostMessage::Saved { id, revision, text } => {
                 if let Some(session) = &mut self.session
-                    && message["id"] == session.id
+                    && id == &session.id
+                    && *revision <= session.revision
                 {
-                    if let Some(text) = message["text"].as_str()
-                        && message["revision"].as_u64().is_some_and(|r| r <= session.revision)
-                    {
-                        session.baseline = text.into();
-                    } else if message["revision"].as_u64() == Some(session.revision) {
-                        session.baseline = current;
-                    }
+                    session.baseline = text.clone();
                 }
             }
-            "history" => {
-                let redo = message["direction"] == "redo";
-                self.undo(redo, window, cx);
+            HostMessage::History { id, redo } => {
+                if self.session.as_ref().is_some_and(|s| &s.id == id) {
+                    self.undo(*redo, window, cx);
+                }
             }
-            _ => {}
         }
         self.apply_gate(cx);
         cx.notify();

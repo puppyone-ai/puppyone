@@ -11,7 +11,6 @@ use crate::{
     model::Node,
     workspace::{self, Document, MAX_TEXT_BYTES, Workspace},
 };
-use serde_json::{Value, json};
 use std::{
     path::PathBuf,
     sync::{
@@ -29,6 +28,38 @@ pub enum Intent {
     CloseFile,
     Quit,
     Save,
+}
+/// What the document session asks the editor host (`editor::host`) to do.
+#[derive(Clone, Debug, PartialEq)]
+pub enum HostMessage {
+    /// Show a document's text. `external`: the file changed on disk under
+    /// the open document, which replaces its text in place.
+    Open {
+        id: String,
+        name: String,
+        text: String,
+        revision: u64,
+        external: bool,
+    },
+    /// No document is open.
+    Clear,
+    /// Report the current text; `freeze` holds edits until `Thaw`.
+    Snapshot {
+        request: u64,
+        freeze: bool,
+    },
+    Thaw,
+    /// A snapshot reached disk: it is the document's clean baseline.
+    Saved {
+        id: String,
+        revision: u64,
+        text: String,
+    },
+    /// Undo (or redo) in the open document.
+    History {
+        id: String,
+        redo: bool,
+    },
 }
 /// What the document editor reports back.
 #[derive(Clone, Debug)]
@@ -110,7 +141,7 @@ pub struct Documents {
     pub error: Option<String>,
     pub status: String,
     pub allow_quit: bool,
-    pub outgoing: Vec<Value>,
+    pub outgoing: Vec<HostMessage>,
     pub tree_update: Option<Vec<Node>>,
     pub children_update: Option<(PathBuf, workspace::Result<Vec<Node>>)>,
     pub folder_busy: bool,
@@ -197,8 +228,10 @@ impl Documents {
         }
         self.autosave_request = None;
         self.serial += 1;
-        self.outgoing
-            .push(json!({"kind":"snapshot","request":self.serial,"freeze":true}));
+        self.outgoing.push(HostMessage::Snapshot {
+            request: self.serial,
+            freeze: true,
+        });
         self.phase = Phase::Snapshot {
             request: self.serial,
             intent,
@@ -206,20 +239,30 @@ impl Documents {
         };
         ctx.after(Duration::from_millis(100));
     }
-    fn show_document(&mut self) {
-        if let Some(doc) = &self.document {
-            self.outgoing.push(json!({"kind":"open","id":doc.id,"name":doc.relative.to_string_lossy(),"text":doc.text,"revision":self.revision}));
-        } else {
-            self.outgoing.push(json!({"kind":"clear"}));
+    fn open_message(&self, doc: &Document, external: bool) -> HostMessage {
+        HostMessage::Open {
+            id: doc.id.clone(),
+            name: doc.relative.to_string_lossy().into_owned(),
+            text: doc.text.clone(),
+            revision: self.revision,
+            external,
         }
+    }
+    fn show_document(&mut self) {
+        let message = match &self.document {
+            Some(doc) => self.open_message(doc, false),
+            None => HostMessage::Clear,
+        };
+        self.outgoing.push(message);
     }
     fn show_storage_update(&mut self) {
         self.autosave_request = None;
         self.read_generation += 1;
         self.outgoing
-            .retain(|m| m["kind"] != "snapshot" && m["kind"] != "saved");
+            .retain(|m| !matches!(m, HostMessage::Snapshot { .. } | HostMessage::Saved { .. }));
         if let Some(doc) = &self.document {
-            self.outgoing.push(json!({"kind":"open","id":doc.id,"name":doc.relative.to_string_lossy(),"text":doc.text,"revision":self.revision,"external":true}));
+            let message = self.open_message(doc, true);
+            self.outgoing.push(message);
         }
     }
     pub fn client(&mut self, message: ClientMessage, ctx: &Wake) {
@@ -346,7 +389,7 @@ impl Documents {
         }
     }
     fn thaw(&mut self) {
-        self.outgoing.push(json!({"kind":"thaw"}));
+        self.outgoing.push(HostMessage::Thaw);
     }
     fn fail(&mut self, message: String) {
         self.error = Some(message);
@@ -373,7 +416,11 @@ impl Documents {
                 });
             }
             if let Some(snapshot) = s.take_receipt() {
-                self.outgoing.push(json!({"kind":"saved","id":s.id,"revision":snapshot.revision,"text":snapshot.text}));
+                self.outgoing.push(HostMessage::Saved {
+                    id: s.id.clone(),
+                    revision: snapshot.revision,
+                    text: snapshot.text,
+                });
             }
         }
         self.sync_state();
@@ -600,8 +647,10 @@ impl Documents {
                 self.serial += 1;
                 self.autosave_request = Some((self.serial, s.epoch, Instant::now()));
                 s.needs_snapshot = false;
-                self.outgoing
-                    .push(json!({"kind":"snapshot","request":self.serial,"freeze":false}));
+                self.outgoing.push(HostMessage::Snapshot {
+                    request: self.serial,
+                    freeze: false,
+                });
             }
             if !self.observing
                 && Instant::now() >= self.next_observation

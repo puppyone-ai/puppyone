@@ -64,7 +64,7 @@ fn local_edit_automatically_snapshots_without_freezing_and_writes_real_file() {
         assert!(
             d.outgoing
                 .iter()
-                .any(|v| v["kind"] == "snapshot" && v["freeze"] == false)
+                .any(|v| matches!(v, HostMessage::Snapshot { freeze: false, .. }))
         );
         reply(&mut d, &ctx, request, 1, "自动落盘 🐶");
         wait(&mut d, &ctx);
@@ -149,7 +149,7 @@ fn genuine_write_failure_blocks_close_and_retains_current_document() {
     assert!(d.dirty);
     assert!(d.error.is_some());
     assert!(!temp.path().join("a.md").exists());
-    assert!(d.outgoing.iter().any(|v| v["kind"] == "thaw"));
+    assert!(d.outgoing.contains(&HostMessage::Thaw));
 }
 #[test]
 fn observed_disk_change_replaces_model_without_a_write_or_conflict_error() {
@@ -180,7 +180,11 @@ fn observed_disk_change_replaces_model_without_a_write_or_conflict_error() {
     assert_eq!(d.document.as_ref().unwrap().text, "agent changed it");
     assert!(!d.saving());
     assert!(d.error.is_none());
-    assert!(d.outgoing.iter().any(|v| v["external"] == true));
+    assert!(
+        d.outgoing
+            .iter()
+            .any(|v| matches!(v, HostMessage::Open { external: true, .. }))
+    );
 }
 #[test]
 fn read_started_before_save_receipt_cannot_restore_old_content() {
