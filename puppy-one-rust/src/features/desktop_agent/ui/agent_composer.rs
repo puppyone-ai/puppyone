@@ -9,7 +9,7 @@ use crate::{
     ui::{icon_sized, menu_icon, tooltip},
 };
 use gpui_kit::component::{
-    Disableable, Sizable,
+    Disableable,
     button::{Button, ButtonVariants},
     menu::{DropdownMenu, PopupMenuItem},
 };
@@ -38,7 +38,6 @@ impl AgentChat {
         }
     }
     pub(super) fn render_composer(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Div {
-        let t = Theme::new(self.dark);
         let label = self.installation.label.clone();
         let snapshot = self.session.snapshot();
         let model = snapshot
@@ -138,8 +137,8 @@ impl AgentChat {
             )))
         }
         let a = super::agent_theme::AgentTheme::new(&Theme::new(self.dark));
-        let references = self.render_references(cx);
-        let has_references = !self.session.references.is_empty() || self.attachment_rx.is_some();
+        let visual = self.render_visual_attachments(cx);
+        let mentions = self.render_mentions();
         // `AgentAttachmentButton`: 32px quiet trigger (Paperclip 16 / 1.7).
         let host = cx.weak_entity();
         let workspace_host = cx.weak_entity();
@@ -242,9 +241,7 @@ impl AgentChat {
             .border_1()
             .border_color(if focused { a.border } else { a.border_subtle })
             .bg(a.composer_surface)
-            .when(has_references, |d| {
-                d.child(div().px(px(16.)).pt(px(12.)).child(references))
-            })
+            .children(visual)
             .child(
                 // `.cm-content`: 12px block padding, 16px inline inset (Kit's
                 // xsmall editor adds 4px inline), 1.5em lines.
@@ -254,7 +251,32 @@ impl AgentChat {
                     .min_h(px(size * 1.5 + 24.))
                     .text_size(px(size))
                     .line_height(px(size * 1.5))
-                    .child(self.composer.clone()),
+                    .capture_key_down(cx.listener(|s, e: &KeyDownEvent, _, cx| {
+                        if e.keystroke.key == "backspace"
+                            && s.composer.read(cx).text().is_empty()
+                            && s.remove_last_mention()
+                        {
+                            cx.stop_propagation();
+                            cx.notify();
+                        }
+                    }))
+                    .map(|d| {
+                        if mentions.is_empty() {
+                            d.child(self.composer.clone())
+                        } else {
+                            d.child(
+                                row()
+                                    .flex_wrap()
+                                    .items_start()
+                                    .pl(px(4.))
+                                    .gap_y(px(1.))
+                                    .children(mentions)
+                                    .child(
+                                        div().flex_1().min_w(px(40.)).child(self.composer.clone()),
+                                    ),
+                            )
+                        }
+                    }),
             )
             .child(
                 // `.desktop-agent-composer-trailing`.

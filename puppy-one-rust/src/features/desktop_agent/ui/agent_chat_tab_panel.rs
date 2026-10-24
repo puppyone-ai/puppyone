@@ -375,7 +375,12 @@ impl AgentChat {
 impl Render for AgentChat {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let t = Theme::new(self.dark);
-        let placeholder = self.composer_placeholder();
+        // A leading mention makes the prompt non-empty (`.cm-placeholder` hides).
+        let placeholder = if self.render_mentions().is_empty() {
+            self.composer_placeholder()
+        } else {
+            String::new()
+        };
         let subtle = super::agent_theme::AgentTheme::new(&t).text_subtle;
         self.composer.update(cx, |i, _| {
             i.dark = self.dark;

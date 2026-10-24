@@ -139,7 +139,7 @@ const COMPLETED_TURNS: Turn[] = [
 ];
 
 function projectionFor(id: string) {
-  if (id === "chat-empty" || id === "tabs-narrow" || id === "close-dialog") return createEmptyAgentDisplay();
+  if (id === "chat-empty" || id === "tabs-narrow" || id === "close-dialog" || id === "chat-references") return createEmptyAgentDisplay();
   if (id === "chat-transcript" || id === "chat-tool-expanded") return display(transcriptParts(false), COMPLETED_TURNS, null);
   // Running: turn 2 is still working, its tools are live and no summary exists.
   const parts = transcriptParts(true).filter((part) => part.id !== "assistant:2");
@@ -168,6 +168,14 @@ const CONTROLS = [
   { id: "mode", value: "code", options: [{ value: "code", label: "Code" }, { value: "plan", label: "Plan" }] },
 ] as const;
 
+// chat-references: one image attachment and one workspace file mention. The
+// 80x80 quadrant PNG is shared with `AgentChat::lab_fixture`.
+export const LAB_IMAGE_PNG = "iVBORw0KGgoAAAANSUhEUgAAAFAAAABQCAIAAAABc2X6AAAAhklEQVR42u3RMQ3AIBRFUdowdcZKBXSrCqZqIMEKM+IqAxl/4FwDLyfv+PubIvrKCNk902YBAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA0eX23OHDM+rehgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYeIcW8P0FVRa1ROAAAAAASUVORK5CYII=";
+const REFERENCES = [
+  { id: "ref-image", kind: "staged-attachment", displayName: "screenshot.png", mime: "image/png", size: 256, status: "ready" },
+  { id: "ref-file", kind: "workspace-entry", entryType: "file", relativePath: "README.md", displayName: "README.md", status: "ready" },
+];
+
 function translate(key: string, values?: Record<string, unknown>) {
   const message = window.__catalogs[fixture.locale]?.[key] ?? key;
   return message.replace(/\{(\w+)\}/gu, (_match, name) => String(values?.[name] ?? ""));
@@ -175,10 +183,11 @@ function translate(key: string, values?: Record<string, unknown>) {
 
 function FixtureChat() {
   const t = translate;
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState(scenario === "chat-references" ? "@README.md " : "");
   const projection = useMemo(() => projectionFor(scenario), []);
   const running = projection.runningTurnId !== null && projection.runningTurnId !== undefined;
-  const empty = scenario === "chat-empty" || scenario === "tabs-narrow" || scenario === "close-dialog";
+  const empty = scenario === "chat-empty" || scenario === "tabs-narrow" || scenario === "close-dialog" || scenario === "chat-references";
+  const withReferences = scenario === "chat-references";
   const approval = scenario === "chat-approval" ? APPROVAL : null;
   const question = scenario === "chat-question" ? QUESTION : null;
   return <AgentPanelLayout
@@ -194,7 +203,10 @@ function FixtureChat() {
         running={running} stopping={false} submitting={false}
         placeholder={t(empty ? "agent.composer.placeholder.default" : "agent.composer.placeholder.followUp")}
         runtimeLabel="Codex" sessionControls={CONTROLS as never} onSelectSessionControl={() => {}}
-        commands={[]} references={[]} onSubmit={async () => true} onStop={() => {}}
+        commands={[]} onSubmit={async () => true} onStop={() => {}}
+        references={(withReferences ? REFERENCES : []) as never}
+        draftMentions={withReferences ? [{ referenceId: "ref-file", start: 0, end: 10 }] : []}
+        getReferencePreviewUrl={(id: string) => id === "ref-image" ? `data:image/png;base64,${LAB_IMAGE_PNG}` : null}
       />
     </>}
   />;

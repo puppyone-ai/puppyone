@@ -63,6 +63,8 @@ impl AgentChat {
 pub(crate) const LAB_USER_1: &str = "Make the terminal colours follow the theme.";
 pub(crate) const LAB_ANSWER_1: &str = "Two follow-ups:\n\n- Keep a soft divider beside the transcript.\n- Colours stay theme-owned.\n\n| Layer | Owner |\n| --- | --- |\n| Terminal | Theme pack |\n| Chat | Agent UI |";
 pub(crate) const LAB_USER_2: &str = "Give the editor equal padding.";
+/// `LAB_IMAGE_PNG` in the reference entry: an 80x80 four-quadrant PNG.
+pub(crate) const LAB_IMAGE_PNG: &str = "iVBORw0KGgoAAAANSUhEUgAAAFAAAABQCAIAAAABc2X6AAAAhklEQVR42u3RMQ3AIBRFUdowdcZKBXSrCqZqIMEKM+IqAxl/4FwDLyfv+PubIvrKCNk902YBAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA0eX23OHDM+rehgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYeIcW8P0FVRa1ROAAAAAASUVORK5CYII=";
 pub(crate) const LAB_ANSWER_2: &str = "Changed `padding` to `24px` so both axes match.";
 
 impl AgentChat {
@@ -91,7 +93,8 @@ impl AgentChat {
         snapshot.capabilities.models = true;
         snapshot.capabilities.modes = true;
         let running = matches!(scenario, "chat-running" | "chat-approval" | "chat-question");
-        if scenario != "chat-empty" {
+        let empty = matches!(scenario, "chat-empty" | "chat-references");
+        if !empty {
             let status = if running { "running" } else { "completed" };
             snapshot.upsert("user:1", "You", LAB_USER_1, "");
             snapshot.upsert("assistant:1", &label, LAB_ANSWER_1, "completed");
@@ -212,7 +215,7 @@ impl AgentChat {
         use crate::features::desktop_agent::application::agent_session_controller::{
             RunningTurn, TurnOutcome, TurnTiming, now_ms,
         };
-        if scenario != "chat-empty" {
+        if !empty {
             let completed = |duration_ms| TurnTiming {
                 duration_ms,
                 outcome: TurnOutcome::Completed,
@@ -231,6 +234,28 @@ impl AgentChat {
                     .turn_timings
                     .insert("user:2".into(), completed(31_000));
             }
+        }
+        if scenario == "chat-references" {
+            use crate::agent::domain::reference_input::{Reference, ReferenceContent};
+            view.session.references = vec![
+                Reference {
+                    id: "ref-image".into(),
+                    name: "screenshot.png".into(),
+                    source: "screenshot.png".into(),
+                    content: ReferenceContent::Image {
+                        mime: "image/png".into(),
+                        data: LAB_IMAGE_PNG.into(),
+                    },
+                    bytes: 256,
+                },
+                Reference {
+                    id: "ref-file".into(),
+                    name: "README.md".into(),
+                    source: "README.md".into(),
+                    content: ReferenceContent::Text(String::new()),
+                    bytes: 0,
+                },
+            ];
         }
         if scenario == "chat-tool-expanded" {
             view.rail_selected
