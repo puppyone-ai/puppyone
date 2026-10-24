@@ -421,6 +421,23 @@ impl Workbench {
             .id(("workbench-header", group))
             .track_focus(&focus)
             .on_key_down(cx.listener(move |s, e: &KeyDownEvent, _, cx| {
+                // `moveEdgeFromKeyboard`: Alt+Shift+Arrow splits the active tab
+                // to that edge of its group when the split fits.
+                let m = e.keystroke.modifiers;
+                if m.alt && m.shift && !m.control && !m.platform {
+                    let edge = match e.keystroke.key.as_str() {
+                        "left" => Some(drag::Edge::Left),
+                        "right" => Some(drag::Edge::Right),
+                        "up" => Some(drag::Edge::Top),
+                        "down" => Some(drag::Edge::Bottom),
+                        _ => None,
+                    };
+                    if let Some(edge) = edge {
+                        s.move_active_to_edge(group, edge, cx);
+                        cx.stop_propagation();
+                        return;
+                    }
+                }
                 if ["left", "right", "home", "end"].contains(&e.keystroke.key.as_str()) {
                     if let Some(p) = s.project_mut() {
                         p.layout.navigate(group, &e.keystroke.key);

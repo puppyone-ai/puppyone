@@ -843,6 +843,23 @@ impl Workbench {
             }
         }
     }
+    /// `onMoveByKeyboard`: split `group`'s active tab to `edge` if `canDrop`.
+    fn move_active_to_edge(&mut self, group: Id, edge: Edge, cx: &mut Context<Self>) {
+        let Some(tab) = self
+            .project()
+            .and_then(|p| p.layout.groups.get(&group))
+            .and_then(|g| g.active)
+        else {
+            return;
+        };
+        let Some(bounds) = self.bounds.get(&group).copied() else {
+            return;
+        };
+        let (axis, after) = edge.split();
+        if self.can_split(tab, group, axis, bounds) {
+            self.split(group, axis, Some(tab), after, cx);
+        }
+    }
     fn end_drag(&mut self, cx: &mut Context<Self>) {
         if self.drag_split.is_some() || self.drop_intent.is_some() || self.dragging.is_some() {
             self.drag_split = None;
@@ -1045,6 +1062,36 @@ mod tests {
         });
         cx.update(|w, cx| {
             let _ = w.draw(cx);
+        });
+    }
+    #[gpui::test]
+    fn keyboard_move_splits_only_when_both_sides_fit(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        cx.update(gpui_kit::init);
+        let (view, cx) = cx.add_window_view(Workbench::new);
+        view.update(cx, |s, cx| {
+            s.set_workspace(PathBuf::from("/project"), cx);
+            s.add(0, cx);
+            s.add(0, cx);
+            s.project_mut().unwrap().loading = false;
+            // 420 wide: two 280px launchers cannot sit side by side.
+            s.bounds.insert(
+                0,
+                Bounds::new(point(px(0.), px(38.)), size(px(420.), px(722.))),
+            );
+            s.move_active_to_edge(0, Edge::Right, cx);
+            assert_eq!(s.project().unwrap().layout.groups.len(), 1);
+            // 722 tall: 260 + 1 + 260 fits, so the active tab splits below.
+            let active = s.project().unwrap().layout.groups[&0].active;
+            s.move_active_to_edge(0, Edge::Bottom, cx);
+            let layout = &s.project().unwrap().layout;
+            assert_eq!(layout.groups.len(), 2);
+            assert!(
+                layout
+                    .groups
+                    .values()
+                    .any(|g| g.tabs == active.into_iter().collect::<Vec<_>>())
+            );
         });
     }
     #[gpui::test]
