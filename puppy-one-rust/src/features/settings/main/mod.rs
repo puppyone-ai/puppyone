@@ -46,8 +46,8 @@ impl SettingsWorkspaceSurface {
             Page::Host => self.host_server(t, cx),
             Page::Git => self.git(t, cx),
             Page::Files => self.files(t, cx),
-            Page::Account => self.account(t),
-            Page::Plan => self.plan(t),
+            Page::Account => self.account(t, cx),
+            Page::Plan => self.plan(t, cx),
         }
     }
 }

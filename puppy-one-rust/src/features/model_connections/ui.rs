@@ -5,11 +5,11 @@
 use super::infrastructure::{self as client, ModelConnection};
 use crate::{
     features::settings::components::{
-        category, category_list, muted_row, section, setting_row, value_row,
+        category, category_body, category_list, muted_row, section, setting_row, value_row,
     },
     localization::{t as tr, tf},
     theme::{self, Theme},
-    ui::{Tone, action_button, column, form_input::TextInput, icon_sized, row, switch, tooltip},
+    ui::{Tone, action_button, column, form_input::TextInput, row, switch, tooltip},
     wake::Wake,
 };
 use gpui::{prelude::*, *};
@@ -66,6 +66,9 @@ pub struct ModelConnections {
     error: Option<String>,
     busy: bool,
     rx: std::sync::mpsc::Receiver<Result<Vec<ModelConnection>, String>>,
+    /// Reachable local services from the last discovery, and a pending one.
+    candidates: Vec<client::Candidate>,
+    discover_rx: Option<std::sync::mpsc::Receiver<Vec<client::Candidate>>>,
     wake: Wake,
 }
 impl EventEmitter<Saved> for ModelConnections {}
@@ -98,10 +101,17 @@ impl ModelConnections {
             error: None,
             busy: true,
             rx: result,
+            candidates: vec![],
+            discover_rx: None,
             wake,
         }
     }
     fn receive(&mut self, cx: &mut Context<Self>) {
+        if let Some(found) = self.discover_rx.as_ref().and_then(|rx| rx.try_recv().ok()) {
+            self.discover_rx = None;
+            self.candidates = found;
+            cx.notify();
+        }
         let Ok(result) = self.rx.try_recv() else {
             return;
         };
@@ -206,7 +216,65 @@ impl ModelConnections {
             PageState::List => tr("settings.modelConnections.title").into(),
         }
     }
+    /// `ModelConnectionsList`: per source kind a category with quiet text
+    /// actions over a `.model-connections-list` card of 34px rows.
     fn list(&self, t: Theme, cx: &mut Context<Self>) -> Div {
+        let m = theme::ty();
+        let table = |rows: Vec<AnyElement>| {
+            div()
+                .flex()
+                .flex_col()
+                .w_full()
+                .p(px(4.))
+                .border_1()
+                .border_color(t.border_subtle)
+                .rounded(px(7.))
+                .bg(t.panel)
+                .children(rows)
+        };
+        let table_row = || {
+            row()
+                .w_full()
+                .min_w_0()
+                .min_h(px(theme::control_large()))
+                .p(px(8.))
+                .gap(px(10.))
+                .rounded(px(6.))
+                .text_size(px(m.ui.label))
+                .line_height(px(18.))
+                .text_color(t.muted)
+        };
+        let identity = |name: SharedString, endpoint: SharedString| {
+            column()
+                .flex_1()
+                .min_w_0()
+                .gap(px(3.))
+                .child(div().truncate().text_color(t.text).child(name))
+                .child(
+                    div()
+                        .truncate()
+                        .text_size(px(m.ui.caption))
+                        .line_height(px(15.))
+                        .text_color(t.subtle)
+                        .child(endpoint),
+                )
+        };
+        // `.model-connections-text-action`: 20px, 4px inline, caption type.
+        let text_action = |id: SharedString, icon: &'static str, size: f32, label: String| {
+            div()
+                .id(id)
+                .h(px(theme::control_micro()))
+                .px(px(4.))
+                .flex()
+                .items_center()
+                .gap(px(5.))
+                .rounded(px(6.))
+                .text_size(px(m.ui.caption))
+                .text_color(t.subtle)
+                .hover(move |s| s.bg(t.hover).text_color(t.text))
+                .child(crate::ui::icon_stroke(icon, size, 2., t.subtle))
+                .child(label)
+        };
         let mut categories = vec![];
         for kind in [SourceKind::Api, SourceKind::Local] {
             let mut rows: Vec<AnyElement> = vec![];
@@ -218,90 +286,129 @@ impl ModelConnections {
             {
                 let id = item.id.clone();
                 rows.push(
-                    gpui_kit::base::Button::new(SharedString::from(format!(
-                        "connection-{}-{index}",
-                        kind.key()
-                    )))
-                    .accessibility_label(item.name.clone())
-                    .flex()
-                    .items_center()
-                    .w_full()
-                    .gap(px(10.))
-                    .min_h(px(46.))
-                    .px(px(10.))
-                    .rounded(px(theme::metric::CONTROL_RADIUS))
-                    .cursor(theme::clickable_cursor())
-                    .hover(move |s| s.bg(t.hover))
-                    .child(icon_sized(
-                        if kind == SourceKind::Api {
-                            "key-round"
-                        } else {
-                            "server"
-                        },
-                        18.,
-                        t.muted,
-                    ))
-                    .child(
-                        column()
-                            .flex_1()
-                            .min_w_0()
-                            .child(
-                                div()
-                                    .truncate()
-                                    .text_size(px(theme::ty().ui.label))
-                                    .text_color(t.text)
-                                    .child(item.name.clone()),
-                            )
-                            .child(
-                                div()
-                                    .truncate()
-                                    .text_size(px(theme::ty().ui.caption))
-                                    .text_color(t.subtle)
-                                    .child(item.endpoint.clone()),
-                            ),
-                    )
-                    .child(
-                        div()
-                            .text_size(px(theme::ty().ui.caption))
-                            .text_color(t.subtle)
-                            .child(tr(if item.model.is_empty() {
-                                "settings.modelConnections.status.unread"
+                    table_row()
+                        .id(SharedString::from(format!(
+                            "connection-{}-{index}",
+                            kind.key()
+                        )))
+                        .cursor(theme::clickable_cursor())
+                        .hover(move |s| s.bg(t.hover))
+                        .child(crate::ui::icon_stroke(
+                            if kind == SourceKind::Api {
+                                "key-round"
                             } else {
-                                "settings.modelConnections.status.ready"
-                            })),
-                    )
-                    .child(icon_sized("chevron-right", 14., t.subtle))
-                    .on_click(
-                        cx.listener(move |s, _, _, cx| {
+                                "server"
+                            },
+                            18.,
+                            2.,
+                            t.muted,
+                        ))
+                        .child(identity(
+                            item.name.clone().into(),
+                            item.endpoint.clone().into(),
+                        ))
+                        .child(
+                            div()
+                                .max_w(relative(0.32))
+                                .text_size(px(m.ui.caption))
+                                .text_color(t.muted)
+                                .child(tr(if item.model.is_empty() {
+                                    "settings.modelConnections.status.unread"
+                                } else {
+                                    "settings.modelConnections.status.ready"
+                                })),
+                        )
+                        .child(crate::ui::icon_stroke("chevron-right", 14., 2., t.muted))
+                        .on_click(cx.listener(move |s, _, _, cx| {
                             s.navigate(PageState::Detail(id.clone()), cx)
-                        }),
-                    )
-                    .into_any_element(),
+                        }))
+                        .into_any_element(),
                 );
             }
             if rows.is_empty() && self.loaded {
                 rows.push(
-                    muted_row(
-                        tr(&format!("settings.modelConnections.empty.{}", kind.key())),
-                        t,
-                    )
-                    .into_any_element(),
+                    table_row()
+                        .text_color(t.subtle)
+                        .child(tr(&format!(
+                            "settings.modelConnections.empty.{}",
+                            kind.key()
+                        )))
+                        .into_any_element(),
                 );
             }
-            let add = action_button(
-                SharedString::from(format!("add-{}", kind.key())),
-                tr("settings.modelConnections.add"),
-                Some("plus"),
-                Tone::Default,
-                self.busy,
-                t,
-            )
-            .accessibility_label(tr(&format!("settings.modelConnections.add.{}", kind.key())))
-            .on_click(cx.listener(move |s, _, _, cx| s.navigate(PageState::Add(kind), cx)));
-            categories.push(category(
+            if kind == SourceKind::Local {
+                for (index, candidate) in self
+                    .candidates
+                    .iter()
+                    .filter(|c| !self.items.iter().any(|i| i.endpoint == c.endpoint))
+                    .cloned()
+                    .enumerate()
+                {
+                    rows.push(
+                        table_row()
+                            .child(crate::ui::icon_stroke("server", 18., 2., t.muted))
+                            .child(identity(candidate.name.into(), candidate.endpoint.into()))
+                            .child(
+                                action_button(
+                                    ("connect-candidate", index),
+                                    tr("settings.modelConnections.connect"),
+                                    None,
+                                    Tone::Default,
+                                    self.busy,
+                                    t,
+                                )
+                                .on_click(cx.listener(
+                                    move |s, _, _, cx| {
+                                        s.navigate(PageState::Add(SourceKind::Local), cx);
+                                        s.name.update(cx, |i, cx| i.set_text(candidate.name, cx));
+                                        s.endpoint
+                                            .update(cx, |i, cx| i.set_text(candidate.endpoint, cx));
+                                    },
+                                )),
+                            )
+                            .into_any_element(),
+                    );
+                }
+            }
+            let mut actions = row().gap(px(8.));
+            if kind == SourceKind::Local {
+                let discovering = self.discover_rx.is_some();
+                actions = actions.child(
+                    text_action(
+                        "discover-local-models".into(),
+                        if discovering {
+                            "loader-circle"
+                        } else {
+                            "refresh-cw"
+                        },
+                        12.,
+                        tr(if discovering {
+                            "settings.modelConnections.discovering"
+                        } else {
+                            "settings.modelConnections.discover"
+                        })
+                        .into(),
+                    )
+                    .on_click(cx.listener(|s, _, _, cx| s.discover(cx))),
+                );
+            }
+            actions = actions.child(
+                text_action(
+                    SharedString::from(format!("add-{}", kind.key())),
+                    "plus",
+                    14.,
+                    tr("settings.modelConnections.add").into(),
+                )
+                .tooltip(tooltip(tr(&format!(
+                    "settings.modelConnections.add.{}",
+                    kind.key()
+                ))))
+                .on_click(cx.listener(move |s, _, _, cx| s.navigate(PageState::Add(kind), cx))),
+            );
+            categories.push(category_body(
                 tr(&format!("settings.modelConnections.source.{}", kind.key())),
-                Some(add.into_any_element()),
-                rows,
+                Some(actions.into_any_element()),
+                table(rows),
                 t,
             ));
         }
@@ -310,6 +417,13 @@ impl ModelConnections {
                 .child(muted_row(tr("settings.modelConnections.loading"), t));
         }
         category_list(categories)
+    }
+    /// `discover()`: probe local model services (Ollama, LM Studio).
+    fn discover(&mut self, cx: &mut Context<Self>) {
+        if self.discover_rx.is_none() {
+            self.discover_rx = Some(client::discover(self.wake.clone()));
+            cx.notify();
+        }
     }
     fn detail(&self, id: &str, t: Theme, cx: &mut Context<Self>) -> Div {
         let Some(item) = self.items.iter().find(|c| c.id == id).cloned() else {

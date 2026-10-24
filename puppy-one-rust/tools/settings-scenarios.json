@@ -14,6 +14,7 @@
     {"scenario": "local-project", "width": 1280, "height": 800},
     {"scenario": "cloud", "width": 1280, "height": 800},
     {"scenario": "git", "width": 1280, "height": 800},
+    {"scenario": "git-remotes", "width": 1280, "height": 800},
     {"scenario": "files", "width": 1280, "height": 800}
   ]
 }

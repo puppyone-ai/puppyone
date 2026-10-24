@@ -146,6 +146,8 @@ embedded! {
     "icons" / "table-move-up.svg",
     "icons" / "table-reset-widths.svg",
     "icons" / "terminal.svg",
+    "icons" / "textarea-resizer.svg",
+    "icons" / "textarea-resizer-highlight.svg",
     "icons" / "trash-2.svg",
     "icons" / "triangle-alert.svg",
     "icons" / "type.svg",

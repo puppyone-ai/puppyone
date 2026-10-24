@@ -92,7 +92,9 @@ pub fn action_button_sized(
     if let Some((name, size)) = icon {
         b = b.child(icon_stroke(name, size, 2., fg));
     }
-    b.child(label)
+    // Content-sized like the product's `inline-flex` buttons: the label keeps
+    // its fractional width instead of GPUI's whole-point rounding.
+    b.child(super::exact_text(label))
 }
 pub fn icon_sized(name: &str, size: f32, color: Rgba) -> Svg {
     svg()
@@ -239,6 +241,9 @@ pub enum SegmentLayout {
     Grid(f32),
     /// `.desktop-appearance-hug-segment`: content-sized, 6px padding.
     Hug,
+    /// A hug segment whose first option has its own inline padding
+    /// (`.desktop-typography-scale-segment button:first-child`).
+    HugFirst(f32),
     /// Content-sized with a minimum option width (`.desktop-interface-style-segment`).
     MinWidth(f32),
 }
@@ -273,7 +278,8 @@ pub fn segment_with(
             let disabled = option.disabled;
             let select = option.on_select;
             let padding = match layout {
-                SegmentLayout::Grid(_) | SegmentLayout::Hug => 6.,
+                SegmentLayout::HugFirst(first) if index == 0 => first,
+                SegmentLayout::Grid(_) | SegmentLayout::Hug | SegmentLayout::HugFirst(_) => 6.,
                 _ => 8.,
             };
             let mut b = Button::new(SharedString::from(format!("{id}-{index}")))
@@ -347,7 +353,12 @@ pub fn sidebar_group(title: Option<SharedString>, first: bool, t: Theme) -> Div 
                 .line_height(px(theme::ty().left.line_height))
                 .font_weight(FontWeight::MEDIUM)
                 .text_color(t.subtle)
-                .child(title),
+                .child(
+                    div()
+                        .relative()
+                        .top(px(theme::chromium_baseline(theme::ty().left.meta)))
+                        .child(title),
+                ),
         );
     }
     group

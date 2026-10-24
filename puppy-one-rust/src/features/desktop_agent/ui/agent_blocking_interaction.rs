@@ -272,29 +272,21 @@ impl AgentChat {
                     card = card.child(details);
                 }
                 // `::before` attention ring: three soft pulses, then it rests.
-                card.child(
-                    div()
-                        .absolute()
-                        .inset_0()
-                        .rounded(px(8.))
-                        .border_1()
-                        .border_color(a.blocking_attention_border)
-                        .with_animation(
-                            "approval-attention",
-                            Animation::new(std::time::Duration::from_millis(7_800)),
-                            |ring, delta| {
-                                let phase = (delta * 3.).fract();
-                                let wave = 0.5 - 0.5 * (phase * std::f32::consts::TAU).cos();
-                                ring.opacity(if delta >= 1. {
-                                    0.34
-                                } else {
-                                    0.34 + 0.44 * wave
-                                })
-                            },
-                        ),
-                )
-                .child(actions)
-                .into_any_element()
+                let ring = div()
+                    .absolute()
+                    .inset_0()
+                    .rounded(px(8.))
+                    .border_1()
+                    .border_color(a.blocking_attention_border);
+                #[cfg(feature = "dev-capture")]
+                let ring = if crate::lab::settled() {
+                    ring.opacity(0.34).into_any_element()
+                } else {
+                    attention(ring)
+                };
+                #[cfg(not(feature = "dev-capture"))]
+                let ring = attention(ring);
+                card.child(ring).child(actions).into_any_element()
             }
             InteractionKind::Questions(questions) => {
                 let mut card = card(12.).child(
@@ -735,4 +727,22 @@ fn choice_mark(selected: bool, multiple: bool, t: &Theme) -> Div {
     } else {
         base
     }
+}
+/// `desktop-agent-approval-attention`: 2.6s ease-in-out between 0.34 and
+/// 0.78 opacity, three times, then at rest.
+fn attention(ring: Div) -> AnyElement {
+    ring.with_animation(
+        "approval-attention",
+        Animation::new(std::time::Duration::from_millis(7_800)),
+        |ring, delta| {
+            let phase = (delta * 3.).fract();
+            let wave = 0.5 - 0.5 * (phase * std::f32::consts::TAU).cos();
+            ring.opacity(if delta >= 1. {
+                0.34
+            } else {
+                0.34 + 0.44 * wave
+            })
+        },
+    )
+    .into_any_element()
 }

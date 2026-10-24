@@ -5,7 +5,7 @@ use crate::{
     localization::t as tr,
     theme::{self, Theme},
     typography::Scale,
-    ui::{SegmentOption, column, icon_sized, row, segment},
+    ui::{SegmentLayout, SegmentOption, column, row, segment_with},
 };
 use gpui::{prelude::*, *};
 impl SettingsWorkspaceSurface {
@@ -29,7 +29,7 @@ impl SettingsWorkspaceSurface {
         section(tr(Page::Typography.title()), t).child(lead_list(vec![
             setting_row(
                 tr("settings.typography.textSize.title"),
-                segment("text-scale", options, t),
+                segment_with("text-scale", options, SegmentLayout::HugFirst(9.), t),
                 t,
             )
             .into_any_element(),
@@ -37,9 +37,20 @@ impl SettingsWorkspaceSurface {
         ]))
     }
 }
-/// `TypographyPreview`: static workspace sample on the live type roles.
+/// `TypographyPreview` (`settings-controls.css`): a static workspace on the
+/// live type roles: header, Files sidebar, a Markdown sample on the product
+/// heading rhythm (`--po-md-h*-gap-*`) and a Chat sidebar.
 fn preview(t: Theme) -> Div {
     let m = theme::ty();
+    let md = crate::editor::tokens::Tokens::get(t.dark, theme::scale());
+    let icon = |name: &str, size: f32| crate::ui::icon_stroke(name, size, 2., t.muted);
+    let pane_title = || {
+        row()
+            .gap(px(7.))
+            .px(px(6.))
+            .pb(px(10.))
+            .font_weight(FontWeight::MEDIUM)
+    };
     let file = |name: &'static str, selected: bool| {
         row()
             .gap(px(6.))
@@ -47,13 +58,23 @@ fn preview(t: Theme) -> Div {
             .pl(px(26.))
             .rounded(px(5.))
             .when(selected, |d| d.bg(t.control))
-            .child(icon_sized("file-text", 15., t.muted))
+            .child(icon("file-text", 15.))
             .child(div().truncate().child(name))
     };
-    // grid-template-columns: 1fr 2.1fr 1.15fr
+    // `grid-template-columns: 1fr 2.1fr 1.15fr`: the track takes its exact
+    // share; padding and borders stay inside (flex would add them first).
+    let track = |grow: f32, cell: Div| {
+        div()
+            .flex_grow(grow)
+            .flex_basis(px(0.))
+            .min_w_0()
+            .flex()
+            .child(cell.flex_1().min_w_0())
+    };
+    // The product draws Geist as a variable font at these exact weights;
+    // the editor's static instances carry each one as its own family.
+    let geist = |weight: f32| -> SharedString { format!("PuppyOne Geist {weight}").into() };
     let left = column()
-        .w(relative(1. / 4.25))
-        .min_w_0()
         .py(px(12.))
         .px(px(8.))
         .bg(t.panel)
@@ -61,64 +82,97 @@ fn preview(t: Theme) -> Div {
         .border_color(t.divider)
         .text_size(px(m.left.content))
         .line_height(px(m.left.line_height))
-        .text_color(t.sidebar_text)
-        .child(
-            div()
-                .px(px(6.))
-                .pb(px(10.))
-                .text_size(px(m.left.meta))
-                .text_color(t.subtle)
-                .child(tr("shell.navigation.files")),
-        )
+        .text_color(t.text)
+        .child(pane_title().child(tr("shell.navigation.files")))
         .child(
             row()
                 .gap(px(6.))
                 .p(px(6.))
-                .child(icon_sized("chevron-down", 14., t.muted))
-                .child(icon_sized("folder", 15., t.muted))
+                .child(icon("chevron-down", 14.))
+                .child(icon("folder", 15.))
                 .child("PuppyOne"),
         )
         .child(file("Notes.md", true))
         .child(file("Ideas.md", false));
+    // Collapsed heading margins: max(previous after, next before).
+    let gap = |name: &str| md.len(name, 16.);
+    let h1_top = gap("--po-md-h1-gap-before");
+    let h2_top = gap("--po-md-h1-gap-after").max(gap("--po-md-h2-gap-before"));
+    let h3_top = gap("--po-md-h2-gap-after").max(gap("--po-md-h3-gap-before"));
+    let p_top = gap("--po-md-h3-gap-after").max(gap("--po-md-paragraph-gap-before"));
+    let heading = |size: f32, weight: f32, top: f32, text: &'static str| {
+        div()
+            .mt(px(top))
+            .text_size(px(size))
+            .line_height(px(size * 1.5))
+            .font_family(geist(weight))
+            .font_weight(FontWeight(weight))
+            .text_color(md.color("--po-md-heading-color"))
+            .child(tr(text))
+    };
+    let body = tr("settings.typography.preview.body");
+    let bold = tr("settings.typography.preview.bold");
+    let text = format!("{body} {bold}.");
+    let strong = body.len() + 1..body.len() + 1 + bold.len();
+    let strong_weight = md.number("--po-md-strong-weight");
+    let body_font = |weight: f32| Font {
+        family: geist(weight),
+        features: FontFeatures::default(),
+        fallbacks: None,
+        weight: FontWeight(weight),
+        style: FontStyle::Normal,
+    };
+    let run = |len: usize, weight: f32, color: Rgba| TextRun {
+        len,
+        font: body_font(weight),
+        color: color.into(),
+        background_color: None,
+        underline: None,
+        strikethrough: None,
+    };
+    let content = md.color("--po-md-content-color");
+    let runs = vec![
+        run(strong.start, 450., content),
+        run(
+            strong.len(),
+            strong_weight,
+            md.color("--po-md-strong-color"),
+        ),
+        run(text.len() - strong.end, 450., content),
+    ];
     let editor = column()
-        .w(relative(2.1 / 4.25))
-        .min_w_0()
         .p(px(18.))
-        .gap(px(8.))
         .bg(t.canvas)
-        .text_color(t.text)
+        .child(heading(
+            m.editor.headings[0],
+            650.,
+            h1_top,
+            "settings.typography.preview.headingOne",
+        ))
+        .child(heading(
+            m.editor.headings[1],
+            625.,
+            h2_top,
+            "settings.typography.preview.headingTwo",
+        ))
+        .child(heading(
+            m.editor.headings[2],
+            600.,
+            h3_top,
+            "settings.typography.preview.headingThree",
+        ))
         .child(
+            // `.desktop-typography-preview-body`: reading weight 450, 1.75 lines.
             div()
-                .text_size(px(m.editor.headings[0]))
-                .font_weight(FontWeight::SEMIBOLD)
-                .child(tr("settings.typography.preview.headingOne")),
-        )
-        .child(
-            div()
-                .text_size(px(m.editor.headings[1]))
-                .font_weight(FontWeight::SEMIBOLD)
-                .child(tr("settings.typography.preview.headingTwo")),
-        )
-        .child(
-            div()
-                .text_size(px(m.editor.headings[2]))
-                .font_weight(FontWeight::SEMIBOLD)
-                .child(tr("settings.typography.preview.headingThree")),
-        )
-        .child(
-            div()
+                .mt(px(p_top))
                 .text_size(px(m.editor.content))
-                .line_height(px(m.editor.line_height))
-                .text_color(theme::mix(t.text, t.muted, 0.8))
-                .child(format!(
-                    "{} {}.",
-                    tr("settings.typography.preview.body"),
-                    tr("settings.typography.preview.bold")
-                )),
+                .line_height(px(m.editor.content * 1.75))
+                .font_family(geist(450.))
+                .font_weight(FontWeight(450.))
+                .text_color(content)
+                .child(StyledText::new(text).with_runs(runs)),
         );
     let right = column()
-        .w(relative(1.15 / 4.25))
-        .min_w_0()
         .py(px(12.))
         .px(px(8.))
         .bg(t.panel)
@@ -126,36 +180,35 @@ fn preview(t: Theme) -> Div {
         .border_color(t.divider)
         .text_size(px(m.right.content))
         .line_height(px(m.right.control_line_height))
+        .text_color(t.text)
         .child(
-            row()
-                .gap(px(6.))
-                .px(px(6.))
-                .pb(px(10.))
-                .text_color(t.muted)
-                .child(icon_sized("message-square", 15., t.muted))
+            pane_title()
+                .child(icon("message-square", 15.))
                 .child(tr("settings.typography.preview.chat")),
         )
         .child(
             column()
                 .px(px(6.))
                 .py(px(4.))
-                .gap(px(2.))
                 .child(
                     div()
                         .text_size(px(m.right.meta))
-                        .text_color(t.subtle)
+                        .line_height(px(m.right.meta_line_height))
+                        .text_color(t.muted)
                         .child(tr("agent.name")),
                 )
                 .child(
                     div()
+                        .mt(px(6.))
                         .line_height(px(m.right.content + 8.))
-                        .text_color(t.text)
+                        .font_family(geist(450.))
+                        .font_weight(FontWeight(450.))
                         .child(tr("settings.typography.preview.message")),
                 ),
         );
     column()
-        .w_full()
-        .mt(px(8.))
+        .mt(px(18.))
+        .mx(px(10.))
         .rounded(px(10.))
         .border_1()
         .border_color(t.divider)
@@ -166,14 +219,22 @@ fn preview(t: Theme) -> Div {
                 .min_h(px(theme::control()))
                 .px(px(12.))
                 .py(px(6.))
-                .gap(px(6.))
+                .gap(px(8.))
                 .bg(t.panel)
                 .border_b_1()
                 .border_color(t.divider)
                 .text_size(px(m.header.content))
+                .line_height(px(m.header.line_height))
+                .font_weight(FontWeight::MEDIUM)
                 .text_color(t.text)
-                .child(icon_sized("folder", 15., t.muted))
+                .child(icon("folder", 15.))
                 .child("PuppyOne"),
         )
-        .child(row().items_stretch().child(left).child(editor).child(right))
+        .child(
+            row()
+                .items_stretch()
+                .child(track(1., left))
+                .child(track(2.1, editor))
+                .child(track(1.15, right)),
+        )
 }

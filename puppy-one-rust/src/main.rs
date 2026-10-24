@@ -93,7 +93,10 @@ fn main() {
                         },
                     )
                     .expect("open lab window");
-                let _ = window.update(cx, |_, window, _| capture::send_to_back(window));
+                let _ = window.update(cx, |_, window, cx| {
+                    capture::send_to_back(window);
+                    capture::pump_frames(window, cx);
+                });
                 cx.on_window_closed(|cx, _| {
                     if cx.windows().is_empty() {
                         cx.quit();

@@ -30,6 +30,12 @@ pub struct SettingsWorkspaceSurface {
     pub(super) patterns: Entity<crate::ui::form_input::TextInput>,
     /// Transient "Copied" feedback keyed by the copied control.
     pub(super) copied: Option<(SharedString, std::time::Instant)>,
+    /// Host Server draft of `.puppyone/config.json`, the saved document it
+    /// was derived from, and its branch fields.
+    pub(super) hosting_draft: super::workspace_config::WorkspaceConfig,
+    pub(super) hosting_base: Option<super::workspace_config::WorkspaceConfig>,
+    pub(super) hosting_branch: Entity<crate::ui::form_input::TextInput>,
+    pub(super) hosting_backup_branch: Entity<crate::ui::form_input::TextInput>,
     /// The page scroller and whether its content overflowed at the last
     /// layout: product scrollbars then reserve their 12px gutter.
     content_scroll: ScrollHandle,
@@ -95,6 +101,12 @@ impl SettingsWorkspaceSurface {
             repository,
             patterns,
             copied: None,
+            hosting_draft: Default::default(),
+            hosting_base: None,
+            hosting_branch: cx
+                .new(|cx| crate::ui::form_input::TextInput::new("", false, 200, window, cx)),
+            hosting_backup_branch: cx
+                .new(|cx| crate::ui::form_input::TextInput::new("", false, 200, window, cx)),
             content_scroll: ScrollHandle::new(),
             content_overflows: false,
             capture_page: None,
@@ -120,11 +132,21 @@ impl SettingsWorkspaceSurface {
         s
     }
     /// Dev-capture: a project at `root` with `page` open
-    /// (`tools/reference-settings-entry.tsx`).
+    /// (`tools/reference-settings-entry.tsx`); `with_remotes` adds the
+    /// `git-remotes` case's two remotes.
     #[cfg(feature = "dev-capture")]
-    pub fn lab_fixture(&mut self, root: PathBuf, page: Page, cx: &mut Context<Self>) {
+    pub fn lab_fixture(
+        &mut self,
+        root: PathBuf,
+        page: Page,
+        with_remotes: bool,
+        cx: &mut Context<Self>,
+    ) {
+        self.agents.update(cx, |a, _| a.lab_fixture());
         self.set_root(Some(root), cx);
         self.select_page(page, cx);
+        self.repository
+            .update(cx, |r, cx| r.lab_fixture(with_remotes, cx));
     }
     /// Track the open project; Settings reads repository facts lazily.
     pub fn set_root(&mut self, root: Option<PathBuf>, cx: &mut Context<Self>) {

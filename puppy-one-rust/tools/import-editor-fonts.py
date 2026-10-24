@@ -29,8 +29,10 @@ product = (root / config['checkout']).resolve()
 out = root / 'assets/fonts/editor'
 # Weights used by the Markdown/CSV theme contract (content 500, strong/h3 600,
 # h2 625, h1/table header/metadata 650, list markers 400) plus 700 for bold
-# inside monospaced code. Italic: emphasis at body and heading/strong weights.
-SANS = {'weights': [400, 500, 600, 625, 650, 700], 'oblique': [400, 500, 600, 625, 650, 700]}
+# inside monospaced code, and the reading weight (`--po-content-reading-weight`,
+# 450) of chat messages and the Typography preview. Italic: emphasis at body
+# and heading/strong weights.
+SANS = {'weights': [400, 450, 500, 600, 625, 650, 700], 'oblique': [400, 500, 600, 625, 650, 700]}
 MONO = {'weights': [400, 500, 600, 700], 'oblique': [500, 600]}
 # Chromium (Skia) synthetic italic: horizontal skew of 1/4 em per em.
 SKEW = 0.25

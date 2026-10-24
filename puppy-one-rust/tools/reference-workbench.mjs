@@ -34,6 +34,8 @@ if (!suite) throw Error(`Unknown suite ${suiteName}`);
 const out = path.join(root, process.env.PUPPYONE_REFERENCE_OUT ?? `artifacts/${suiteName}-reference`);
 const profile = mkdtempSync(path.join(os.tmpdir(), 'puppyone-workbench-reference-'));
 app.setPath('userData', profile); app.on('window-all-closed', () => {});
+// Offscreen references must never take the screen or keyboard from the user.
+if (process.platform === 'darwin') { app.setActivationPolicy('accessory'); app.dock?.hide(); }
 const only = process.env.PUPPYONE_REFERENCE_ONLY?.split(',');
 
 const {scenarios: SCENARIOS} = JSON.parse(await readFile(path.join(root, suite.scenarios), 'utf8'));
@@ -64,8 +66,12 @@ async function run() {
         await win.webContents.executeJavaScript(`(async()=>{const el=document.querySelector(${JSON.stringify(c.click)});
           if(!el)throw Error('Missing click target ${c.click}');el.click();await new Promise(r=>setTimeout(r,500));})()`);
       }
-      // Hover/focus chrome must not leak into the reference.
+      // Hover/focus chrome must not leak into the reference, and finite
+      // animations (the approval attention ring's three pulses) are captured
+      // at rest so the frame doesn't depend on timing; the native lab
+      // settles the same ones (\`crate::lab::settled\`).
       await win.webContents.executeJavaScript(`(async()=>{document.activeElement?.blur?.();
+        for(const a of document.getAnimations()){if(Number.isFinite(a.effect?.getComputedTiming?.().endTime))a.finish();}
         document.dispatchEvent(new PointerEvent('pointermove',{clientX:-10,clientY:-10}));await new Promise(r=>setTimeout(r,250));})()`);
       const state = await win.webContents.executeJavaScript(`(()=>{
         const sel=${JSON.stringify(suite.elements)};

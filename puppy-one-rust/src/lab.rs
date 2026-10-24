@@ -31,6 +31,12 @@ pub struct Lab {
     frames: u32,
 }
 
+/// True in the pixel lab: finite attention animations render at rest, as
+/// the reference finishes them before capturing (`tools/reference-workbench.mjs`).
+pub fn settled() -> bool {
+    std::env::var_os("PUPPYONE_LAB").is_some()
+}
+
 /// Product `SettingsSection` id → native page.
 fn settings_page(section: &str) -> Option<Page> {
     Some(match section {
@@ -47,7 +53,7 @@ fn settings_page(section: &str) -> Option<Page> {
         "model-connections" => Page::ModelConnections,
         "local-project" => Page::Project,
         "cloud" => Page::Host,
-        "git" => Page::Git,
+        "git" | "git-remotes" => Page::Git,
         "files" => Page::Files,
         _ => return None,
     })
@@ -67,7 +73,12 @@ impl Lab {
                 let settings = cx.new(|cx| {
                     let mut settings = SettingsWorkspaceSurface::new(preferences, window, cx);
                     settings.dark_override = Some(dark);
-                    settings.lab_fixture(PathBuf::from("/reference/project"), page, cx);
+                    settings.lab_fixture(
+                        PathBuf::from("/reference/project"),
+                        page,
+                        scenario == "settings-git-remotes",
+                        cx,
+                    );
                     settings
                 });
                 cx.observe(&settings, |_, _, cx| cx.notify()).detach();

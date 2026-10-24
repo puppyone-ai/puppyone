@@ -26,10 +26,12 @@ pub fn section_with_action(
         crate::typography::Scale::Medium => 12.,
         crate::typography::Scale::Large => 14.,
     };
+    // `line-height: 1.25` of the page title (26.25px at Medium).
+    let line_height = theme::ty().ui.page_title * 1.25;
     let heading = div()
         .text_size(px(theme::ty().ui.page_title))
-        // `line-height: 1.25` of the page title (26.25px at Medium).
-        .line_height(px(theme::ty().ui.page_title * 1.25))
+        .line_height(px(line_height))
+        .h(px(theme::chromium_line_box(line_height)))
         .font_weight(FontWeight::MEDIUM)
         .text_color(t.text)
         .child(title.into());
@@ -158,7 +160,17 @@ pub fn category(
                 )
                 .children(action),
         )
-        .child(list(rows))
+        .when(!rows.is_empty(), |d| d.child(list(rows)))
+}
+/// `.desktop-settings-category` whose body is one element (a tree or table)
+/// rather than a row list.
+pub fn category_body(
+    title: impl Into<SharedString>,
+    action: Option<AnyElement>,
+    body: impl IntoElement,
+    t: Theme,
+) -> Div {
+    category(title, action, vec![], t).child(body)
 }
 /// `.desktop-settings-category-list`: categories 20px apart, inset 10px.
 pub fn category_list(categories: Vec<Div>) -> Div {
@@ -192,38 +204,6 @@ pub fn setting_row(label: impl Into<SharedString>, control: impl IntoElement, t:
         )
         .child(control)
 }
-/// A control row whose label carries a second line (detail/error).
-pub fn setting_row_detail(
-    label: impl Into<SharedString>,
-    detail: Option<(SharedString, Rgba)>,
-    control: impl IntoElement,
-    t: Theme,
-) -> Div {
-    row()
-        .w_full()
-        .min_w_0()
-        .min_h(px(42.))
-        .justify_between()
-        .gap(px(18.))
-        .px(px(10.))
-        .text_size(px(theme::ty().ui.label))
-        .child(
-            column()
-                .min_w_0()
-                .flex_1()
-                .gap(px(2.))
-                .child(div().text_color(t.subtle).child(label.into()))
-                .when_some(detail, |d, (detail, color)| {
-                    d.child(
-                        div()
-                            .text_size(px(theme::ty().ui.caption))
-                            .text_color(color)
-                            .child(detail),
-                    )
-                }),
-        )
-        .child(control)
-}
 /// `SettingsValueRow`.
 pub fn value_row(
     label: impl Into<SharedString>,
@@ -241,6 +221,8 @@ pub fn value_row(
         .gap(px(18.))
         .px(px(10.))
         .text_size(px(theme::ty().ui.label))
+        // `line-height: normal` of 14px Geist (18px once Chromium rounds).
+        .line_height(px(18.))
         .child(
             div()
                 .flex_shrink_0()
@@ -252,12 +234,18 @@ pub fn value_row(
                 .min_w_0()
                 .gap(px(8.))
                 .child(
+                    // Right-aligned: GPUI rounds the measured width up, so
+                    // the glyphs keep to the end like the product's.
                     div()
                         .min_w_0()
                         .truncate()
+                        .text_right()
                         .text_color(t.text)
                         .when(monospace, |d| {
-                            d.font_family("Menlo").text_size(px(theme::ty().ui.meta))
+                            // `.desktop-settings-code`: Geist Mono 13px.
+                            d.font_family(theme::MONO)
+                                .text_size(px(theme::ty().ui.meta))
+                                .line_height(px(17.))
                         })
                         .child(value.into()),
                 )
@@ -265,24 +253,32 @@ pub fn value_row(
         )
 }
 /// `.desktop-settings-muted-row` / `.desktop-utility-empty`.
+/// `.desktop-settings-muted-row` (and `.desktop-utility-empty`, which the
+/// lead state lifts to the lead row height): subtle label-size text.
 pub fn muted_row(text: impl Into<SharedString>, t: Theme) -> Div {
     row()
         .w_full()
-        .min_h(px(theme::control()))
+        .min_h(px(42.))
         .px(px(10.))
-        .text_size(px(theme::ty().ui.meta))
+        .text_size(px(theme::ty().ui.label))
         .text_color(t.subtle)
         .child(text.into())
 }
 pub fn danger_row(text: impl Into<SharedString>, t: Theme) -> Div {
     muted_row(text, t).text_color(t.danger)
 }
-pub fn notice(message: impl Into<SharedString>, t: Theme) -> Div {
-    div()
-        .px(px(10.))
-        .text_size(px(theme::ty().ui.meta))
-        .text_color(t.muted)
-        .child(message.into())
+/// `.desktop-settings-row-action`: 28px, 9px inline, 5px icon gap; disabled
+/// it turns `--po-text-disabled` at 55%.
+pub fn row_action(
+    id: impl Into<ElementId>,
+    label: impl Into<SharedString>,
+    icon: Option<(&str, f32)>,
+    disabled: bool,
+    t: Theme,
+) -> gpui_kit::base::Button {
+    crate::ui::action_button_sized(id, label, icon, crate::ui::Tone::Default, disabled, t)
+        .gap(px(5.))
+        .when(disabled, |b| b.opacity(0.55).text_color(t.text_disabled))
 }
 /// `.desktop-settings-select`: a native `<select>` (220px max, 8px inline
 /// padding). Chromium's macOS menu list adds 4px before the label and draws

@@ -10,7 +10,8 @@ use gpui::{FontFallbacks, FontFeatures, FontStyle, FontWeight, Rgba, SharedStrin
 pub const INLINE_CODE_FAMILY: &str = "PuppyOne Geist Mono Inline";
 
 /// Weights generated for each editor family (assets/fonts/editor).
-const SANS_WEIGHTS: [u16; 6] = [400, 500, 600, 625, 650, 700];
+const SANS_WEIGHTS: [u16; 7] = [400, 450, 500, 600, 625, 650, 700];
+const SANS_OBLIQUE: [u16; 6] = [400, 500, 600, 625, 650, 700];
 const MONO_WEIGHTS: [u16; 4] = [400, 500, 600, 700];
 const MONO_OBLIQUE: [u16; 2] = [500, 600];
 /// The product's CJK/emoji fallbacks after Geist (`--po-md-content-font`).
@@ -24,7 +25,7 @@ pub fn font_bytes() -> Vec<std::borrow::Cow<'static, [u8]>> {
         };
     }
     faces!(
-        "geist-sans-400.ttf", "geist-sans-500.ttf", "geist-sans-600.ttf", "geist-sans-625.ttf", "geist-sans-650.ttf", "geist-sans-700.ttf",
+        "geist-sans-400.ttf", "geist-sans-450.ttf", "geist-sans-500.ttf", "geist-sans-600.ttf", "geist-sans-625.ttf", "geist-sans-650.ttf", "geist-sans-700.ttf",
         "geist-sans-400-oblique.ttf", "geist-sans-500-oblique.ttf", "geist-sans-600-oblique.ttf", "geist-sans-625-oblique.ttf",
         "geist-sans-650-oblique.ttf", "geist-sans-700-oblique.ttf", "geist-sans-500-bold.ttf", "geist-sans-500-bold-oblique.ttf",
         "geist-mono-400.ttf", "geist-mono-500.ttf", "geist-mono-600.ttf", "geist-mono-700.ttf",
@@ -78,7 +79,15 @@ impl TextStyle {
             let w = nearest(if self.italic { &MONO_OBLIQUE } else { &MONO_WEIGHTS }, self.weight);
             format!("PuppyOne Geist Mono {w}").into()
         } else {
-            format!("PuppyOne Geist {}", nearest(&SANS_WEIGHTS, self.weight)).into()
+            let w = nearest(
+                if self.italic {
+                    &SANS_OBLIQUE
+                } else {
+                    &SANS_WEIGHTS
+                },
+                self.weight,
+            );
+            format!("PuppyOne Geist {w}").into()
         }
     }
     pub fn line_height_px(&self) -> f32 {
@@ -117,7 +126,11 @@ fn zero_advance(mono: bool, italic: bool, weight: f32) -> f32 {
         let manifest: serde_json::Value = serde_json::from_str(include_str!("../../../assets/fonts/editor/manifest.json")).expect("font manifest");
         manifest["zeroAdvance"].as_object().map(|m| m.iter().filter_map(|(k, v)| Some((k.clone(), v.as_f64()? as f32))).collect()).unwrap_or_default()
     });
-    let (slug, weights): (&str, &[u16]) = if mono { ("mono", if italic { &MONO_OBLIQUE } else { &MONO_WEIGHTS }) } else { ("sans", &SANS_WEIGHTS) };
+    let (slug, weights): (&str, &[u16]) = if mono {
+        ("mono", if italic { &MONO_OBLIQUE } else { &MONO_WEIGHTS })
+    } else {
+        ("sans", if italic { &SANS_OBLIQUE } else { &SANS_WEIGHTS })
+    };
     let w = nearest(weights, weight);
     let suffix = if italic { "-oblique" } else { "" };
     table.get(&format!("geist-{slug}-{w}{suffix}.ttf")).copied().unwrap_or(0.6)

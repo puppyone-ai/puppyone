@@ -288,14 +288,20 @@ impl SettingsWorkspaceSurface {
                 let prefs = prefs.clone();
                 SegmentOption {
                     label: tr(&format!("settings.appearance.loadingAnimation.{id}.label")).into(),
+                    // `.desktop-loading-animation-preview`: the 13px grid
+                    // centred in a 17px cell.
                     leading: Some(
-                        pulse_grid::pulse_grid(
-                            SharedString::from(format!("loading-preview-{id}")),
-                            id,
-                            pulse_grid::PulseSize::Sm,
-                            t.subtle,
-                        )
-                        .into_any_element(),
+                        div()
+                            .w(px(17.))
+                            .flex()
+                            .justify_center()
+                            .child(pulse_grid::pulse_grid(
+                                SharedString::from(format!("loading-preview-{id}")),
+                                id,
+                                pulse_grid::PulseSize::Sm,
+                                t.subtle,
+                            ))
+                            .into_any_element(),
                     ),
                     active: state.loading_animation == id,
                     disabled: false,

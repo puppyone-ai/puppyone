@@ -45,6 +45,25 @@ pub fn clickable_cursor() -> gpui::CursorStyle {
 }
 
 /// `--po-control-size` and its derived variants.
+/// Chromium lays a line out with the font's ascent and descent rounded to
+/// whole pixels (Geist: 1.005 and 0.295 em); GPUI keeps the exact metrics.
+/// The vertical offset that puts GPUI's Geist baseline at Chromium's.
+pub fn chromium_baseline(size: f32) -> f32 {
+    let (ascent, descent) = (1.005 * size, 0.295 * size);
+    (ascent.round() - descent.round() - (ascent - descent)) / 2.
+}
+/// The height of a one-line box with a fractional CSS `line-height`. GPUI
+/// rounds line heights to whole points, and where Chromium snaps a box
+/// left on half a device pixel down the page (round half up), GPUI rounds
+/// half toward zero. A quarter point more puts what follows on the device
+/// pixel Chromium paints it at, at 1x and 2x alike.
+pub fn chromium_line_box(line_height: f32) -> f32 {
+    if line_height.fract() > 0. {
+        line_height + 0.25
+    } else {
+        line_height
+    }
+}
 pub fn control() -> f32 {
     ty().control_size
 }
@@ -55,6 +74,14 @@ pub fn opencode_mark_surface() -> Rgba {
 /// `--po-control-size-large`.
 pub fn control_large() -> f32 {
     control() + 2.
+}
+/// `--po-control-size-mini`.
+pub fn control_mini() -> f32 {
+    control() - 10.
+}
+/// `--po-control-size-micro`.
+pub fn control_micro() -> f32 {
+    control() - 12.
 }
 pub fn control_compact() -> f32 {
     control() - 4.
@@ -202,6 +229,31 @@ pub fn mix(a: Rgba, b: Rgba, a_weight: f32) -> Rgba {
 /// CSS `color-mix(in srgb, c p%, white)` used by Header status glyphs.
 pub fn tint(c: Rgba, weight: f32) -> Rgba {
     mix(c, rgb(0xffffff), weight)
+}
+/// CSS `color-mix(in srgb, c p%, black)` (pressed/hovered solid fills).
+pub fn shade(c: Rgba, weight: f32) -> Rgba {
+    mix(c, rgb(0x000000), weight)
+}
+/// `#fff` text on a solid status fill (`.desktop-settings-save-action`).
+pub fn on_solid() -> Rgba {
+    rgb(0xffffff)
+}
+/// Chromium's unchecked native checkbox: (fill, border) in the colour scheme.
+pub fn native_checkbox(dark: bool) -> (Rgba, Rgba) {
+    if dark {
+        (rgb(0x3b3b3b), rgb(0x858585))
+    } else {
+        (rgb(0xffffff), rgb(0x767676))
+    }
+}
+/// Chromium's `resize: vertical` textarea grip: the diagonal shadow and, in
+/// dark schemes, the embossing highlight drawn beside it.
+pub fn native_resize_grip(dark: bool) -> (Rgba, Option<Rgba>) {
+    if dark {
+        (rgb(0x0e0e0e), Some(rgb(0xaaaaaa)))
+    } else {
+        (rgb(0x666666), None)
+    }
 }
 /// CSS `color-mix(in srgb, c p%, transparent)`.
 pub fn alpha(c: Rgba, weight: f32) -> Rgba {

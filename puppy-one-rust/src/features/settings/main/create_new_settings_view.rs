@@ -7,33 +7,51 @@ use crate::{
     features::create_new::create_entry_menu_registry::{Entry, MenuSettings, Placement},
     localization::{t as tr, tf},
     theme::{self, Theme},
-    ui::{Tone, action_button, column, icon_sized, menu_icon, row, tooltip},
+    ui::{Tone, action_button, column, menu_icon, row, tooltip},
 };
 use gpui::{prelude::*, *};
 use gpui_kit::component::menu::{ContextMenuExt, PopupMenuItem};
 #[derive(Clone)]
 struct DragEntry(Entry, SharedString);
 
+/// `.desktop-create-new-glyph`: a 20px slot holding the 18px file glyph (or
+/// the 15px Workflow mark of the custom submenu).
 fn glyph(entry: Entry, icon_theme: &str, dark: bool) -> AnyElement {
+    let slot = div()
+        .size(px(20.))
+        .flex_shrink_0()
+        .flex()
+        .items_center()
+        .justify_center();
     if entry == Entry::CustomFiles {
-        return div()
-            .size(px(20.))
-            .flex()
-            .items_center()
-            .justify_center()
-            .child(icon_sized("workflow", 15., theme::Theme::new(dark).muted))
+        return slot
+            .child(crate::ui::icon_stroke(
+                "workflow",
+                15.,
+                2.,
+                theme::Theme::new(dark).muted,
+            ))
             .into_any_element();
     }
     let (name, folder) = match entry {
         Entry::Folder => ("folder".to_owned(), true),
         e => (format!("x{}", e.extension()), false),
     };
-    img(SharedString::from(crate::file_kind::asset_path(
-        icon_theme, &name, folder, dark,
-    )))
-    .size(px(18.))
-    .flex_shrink_0()
+    slot.child(
+        img(SharedString::from(crate::file_kind::asset_path(
+            icon_theme, &name, folder, dark,
+        )))
+        .size(px(18.)),
+    )
     .into_any_element()
+}
+/// `isCreateNewItemAvailable`: only experiment-gated entries are unavailable
+/// in this list (PuppyFlow files behind `enablePuppyFlowFiles`).
+fn listed_available(
+    entry: Entry,
+    experimental: &super::super::preference_types::Experimental,
+) -> bool {
+    entry != Entry::Puppyflow || experimental.puppy_flow_files
 }
 
 impl SettingsWorkspaceSurface {
@@ -43,6 +61,7 @@ impl SettingsWorkspaceSurface {
         placement: Placement,
         index: usize,
         icon_theme: &str,
+        experimental: &super::super::preference_types::Experimental,
         t: Theme,
     ) -> AnyElement {
         let label: SharedString = tr(entry.label_key()).into();
@@ -50,22 +69,25 @@ impl SettingsWorkspaceSurface {
         let drop_prefs = self.preferences.clone();
         let menu_prefs = self.preferences.clone();
         let submenu = entry == Entry::CustomFiles;
-        let unavailable = !submenu && !entry.available();
+        let unavailable = !submenu && !listed_available(entry, experimental);
         let drag_label = tf(
             "settings.createNew.dragToReorder",
             &[("type", label.to_string().into())],
         );
         let _ = prefs;
+        // `.desktop-create-new-row`: `24px 20px 1fr auto`, 7px gaps, 34px.
         row()
             .id(SharedString::from(format!("create-new-{entry:?}")))
             .w_full()
             .min_w_0()
-            .min_h(px(theme::control() + 2.))
+            .min_h(px(theme::control_large()))
             .gap(px(7.))
             .px(px(8.))
             .rounded(px(6.))
             .text_size(px(theme::ty().ui.label))
-            .text_color(if unavailable { t.subtle } else { t.muted })
+            .line_height(px(18.))
+            .text_color(t.muted)
+            .when(unavailable, |d| d.opacity(0.52))
             .hover(move |s| s.bg(t.hover))
             .drag_over::<DragEntry>(move |s, _, _, _| s.bg(theme::alpha(t.accent, 0.14)))
             .child(
@@ -75,22 +97,31 @@ impl SettingsWorkspaceSurface {
                     .flex()
                     .items_center()
                     .justify_center()
+                    .flex_shrink_0()
                     .rounded(px(5.))
+                    .opacity(0.62)
                     .cursor_grab()
-                    .hover(move |s| s.bg(t.hover))
+                    .hover(move |s| s.bg(t.hover).opacity(1.))
                     .tooltip(tooltip(drag_label))
-                    .child(icon_sized("grip-vertical", 14., t.subtle))
+                    .child(crate::ui::icon_stroke("grip-vertical", 14., 2., t.subtle))
                     .on_drag(DragEntry(entry, label.clone()), |drag, _, _, cx| {
                         let text = drag.1.clone();
                         cx.new(move |_| DragLabel(text))
                     }),
             )
             .child(glyph(entry, icon_theme, t.dark))
-            .child(div().flex_1().min_w_0().truncate().child(label.clone()))
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .truncate()
+                    .text_color(t.text)
+                    .child(label.clone()),
+            )
             .when(submenu, |d| {
                 d.child(
                     row()
-                        .gap(px(4.))
+                        .gap(px(5.))
                         .child(
                             div()
                                 .px(px(7.))
@@ -103,7 +134,7 @@ impl SettingsWorkspaceSurface {
                                 .text_color(t.subtle)
                                 .child(tr("settings.createNew.submenu.badge")),
                         )
-                        .child(icon_sized("chevron-right", 14., t.subtle)),
+                        .child(crate::ui::icon_stroke("chevron-right", 14., 2., t.muted)),
                 )
             })
             .on_drop(move |drag: &DragEntry, _, cx| {
@@ -158,15 +189,19 @@ impl SettingsWorkspaceSurface {
         t: Theme,
     ) -> Stateful<Div> {
         let prefs = self.preferences.clone();
+        // `.desktop-create-new-drop-zone`: a 6px strip inset 8px, or the
+        // 38px empty-state line.
         div()
             .id(SharedString::from(format!("create-new-drop-{placement:?}")))
-            .w_full()
             .min_h(px(if empty.is_some() { 38. } else { 6. }))
             .flex()
             .items_center()
-            .px(px(10.))
+            .justify_center()
+            .when(empty.is_some(), |d| d.px(px(10.)).py(px(5.)))
+            .when(empty.is_none(), |d| d.mx(px(8.)))
             .rounded(px(5.))
             .text_size(px(theme::ty().ui.hint))
+            .line_height(px(16.))
             .text_color(t.subtle)
             .drag_over::<DragEntry>(move |s, _, _, _| s.bg(theme::alpha(t.accent, 0.14)))
             .when_some(empty, |d, key| d.child(tr(key)))
@@ -178,6 +213,7 @@ impl SettingsWorkspaceSurface {
     }
     pub(super) fn create_new(&self, t: Theme, cx: &mut Context<Self>) -> Div {
         let state = self.preferences.read(cx).state.clone();
+        let experimental = state.experimental.clone();
         let settings = state.create_new.clone();
         let icon_theme = state.file_icon_theme.clone();
         let tree = |children: Vec<AnyElement>| {
@@ -191,24 +227,36 @@ impl SettingsWorkspaceSurface {
                 .children(children)
         };
         let mut main: Vec<AnyElement> = vec![
+            // `.desktop-create-new-row-fixed`: a 20px lock marker at 58% in
+            // the 24px handle column, the folder and its Fixed label.
             row()
-                .min_h(px(theme::control() + 2.))
+                .min_h(px(theme::control_large()))
                 .gap(px(7.))
                 .px(px(8.))
                 .text_size(px(theme::ty().ui.label))
-                .text_color(t.text)
+                .line_height(px(18.))
+                .text_color(t.subtle)
                 .child(
-                    div()
-                        .size(px(24.))
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .child(icon_sized("lock-keyhole", 12., t.subtle)),
+                    div().w(px(24.)).flex_shrink_0().child(
+                        div()
+                            .size(px(20.))
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .opacity(0.58)
+                            .child(crate::ui::icon_stroke("lock-keyhole", 12., 2., t.subtle)),
+                    ),
                 )
                 .child(glyph(Entry::Folder, &icon_theme, t.dark))
-                .child(div().flex_1().child(tr(Entry::Folder.label_key())))
                 .child(
                     div()
+                        .flex_1()
+                        .text_color(t.text)
+                        .child(tr(Entry::Folder.label_key())),
+                )
+                .child(
+                    div()
+                        .px(px(7.))
                         .text_size(px(theme::ty().ui.caption))
                         .text_color(t.subtle)
                         .child(tr("settings.createNew.fixed")),
@@ -222,7 +270,14 @@ impl SettingsWorkspaceSurface {
                 .into_any_element(),
         ];
         for (index, entry) in settings.main.iter().copied().enumerate() {
-            main.push(self.create_row(entry, Placement::Main, index, &icon_theme, t));
+            main.push(self.create_row(
+                entry,
+                Placement::Main,
+                index,
+                &icon_theme,
+                &experimental,
+                t,
+            ));
             if entry == Entry::CustomFiles {
                 let mut children = column()
                     .ml(px(20.))
@@ -241,6 +296,7 @@ impl SettingsWorkspaceSurface {
                         Placement::Submenu,
                         child_index,
                         &icon_theme,
+                        &experimental,
                         t,
                     ));
                 }
@@ -267,7 +323,7 @@ impl SettingsWorkspaceSurface {
             .iter()
             .copied()
             .enumerate()
-            .map(|(i, e)| self.create_row(e, Placement::Hidden, i, &icon_theme, t))
+            .map(|(i, e)| self.create_row(e, Placement::Hidden, i, &icon_theme, &experimental, t))
             .collect();
         hidden.push(
             self.drop_zone(
@@ -296,28 +352,18 @@ impl SettingsWorkspaceSurface {
             })
         }));
         let _ = menu_icon;
+        // `.desktop-settings-lead-categories`; the footer right-aligns Restore.
         section(tr(Page::CreateNew.title()), t).child(
             category_list(vec![
-                column()
-                    .gap(px(7.))
-                    .child(category(
-                        tr("settings.createNew.location.main"),
-                        None,
-                        vec![],
-                        t,
-                    ))
-                    .child(tree(main)),
-                column()
-                    .gap(px(7.))
-                    .child(category(
-                        tr("settings.createNew.hidden.title"),
-                        None,
-                        vec![],
-                        t,
-                    ))
-                    .child(tree(hidden)),
+                category_body(tr("settings.createNew.location.main"), None, tree(main), t),
+                category_body(tr("settings.createNew.hidden.title"), None, tree(hidden), t),
             ])
-            .child(row().child(restore)),
+            .child(
+                row()
+                    .min_h(px(theme::control_large()))
+                    .justify_end()
+                    .child(restore),
+            ),
         )
     }
 }
