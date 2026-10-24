@@ -52,6 +52,10 @@ pub struct AgentTheme {
     pub config_border: Rgba,
     /// `DotsLoader tone="neutral"` (`--po-text-muted`).
     pub loader: Rgba,
+    /// `--agent-launcher-*` (history browser search and permission button).
+    pub launcher_placeholder_surface: Rgba,
+    pub launcher_placeholder_text: Rgba,
+    pub launcher_focus_border: Rgba,
 }
 
 impl AgentTheme {
@@ -105,6 +109,9 @@ impl AgentTheme {
             config_surface_hover: t.control_hover,
             config_border: t.border_subtle,
             loader: t.muted,
+            launcher_placeholder_surface: alpha(control_surface, 0.64),
+            launcher_placeholder_text: alpha(t.subtle, 0.82),
+            launcher_focus_border: mix(t.focus_ring, border_subtle, 0.58),
         }
     }
 }

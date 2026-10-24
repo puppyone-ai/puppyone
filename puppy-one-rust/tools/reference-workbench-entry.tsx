@@ -25,6 +25,8 @@ import { AgentEmptyState } from "PRODUCT/src/features/desktop-agent/ui/AgentEmpt
 import { AgentApprovalDock } from "PRODUCT/src/features/desktop-agent/ui/AgentApprovalDock";
 import { AgentQuestionDock } from "PRODUCT/src/features/desktop-agent/ui/AgentQuestionDock";
 import { createEmptyAgentDisplay } from "PRODUCT/shared/agent-contract/display-state.mjs";
+import { AgentChatHistoryBrowser } from "PRODUCT/src/features/desktop-agent/workbench/AgentChatHistoryBrowser";
+import { AgentConversationHistory } from "PRODUCT/src/features/desktop-agent/ui/AgentConversationHistory";
 import { createAgentChatCloseAdapter } from "PRODUCT/src/features/desktop-agent/workbench/agentChatCloseAdapter";
 import { TerminalSessionHeaderStatus } from "PRODUCT/src/features/desktop-terminal/ui/session-header/TerminalSessionHeaderStatus";
 import "PRODUCT/src/features/desktop-agent/ui/desktop-agent.css";
@@ -198,6 +200,35 @@ function FixtureChat() {
   />;
 }
 
+// history-list: the cross-runtime browser after discovery was allowed. The
+// session data mirrors `HistoryBrowser::lab_fixture` in the native lab.
+const HISTORY_RUNTIMES = [["codex", "Codex"], ["claude", "Claude Code"], ["pi", "Pi"], ["opencode", "OpenCode"]] as const;
+const HISTORY_SESSIONS = [
+  ["codex", "Make the terminal colours follow the theme", 5 * 60_000],
+  ["claude", "Refactor the workbench split constraints", 2 * 3_600_000],
+  ["codex", "Port the approval dock to GPUI", 26 * 3_600_000],
+  ["pi", "Investigate the flaky terminal resize test after the PTY host moved", 3 * 86_400_000],
+  ["opencode", "Audit markdown table rendering", 9 * 86_400_000],
+] as const;
+
+function FixtureHistory({ context }: { context: Record<string, unknown> }) {
+  if (scenario === "history-permission") {
+    return <AgentChatHistoryBrowser {...(context as never)} historyDiscoveryEnabled={false} onHistoryDiscoveryEnabledChange={() => {}} />;
+  }
+  const runtimes = HISTORY_RUNTIMES.map(([id, displayName]) => ({ descriptor: { id, displayName, iconKey: id }, readiness: { status: "ready" } }));
+  const sessions = HISTORY_SESSIONS.map(([runtimeId, title, age], index) => ({
+    id: `history-${index}`, runtimeId, runtime: null, provider: runtimeId, providerSessionId: `native-${index}`, workspaceRoot: "/reference/project",
+    title, createdAt: new Date(NOW - age).toISOString(), updatedAt: new Date(NOW - age).toISOString(), terminalState: "idle",
+    selectedModel: null, lastSequence: 0,
+  }));
+  const sources = Object.fromEntries(HISTORY_RUNTIMES.map(([id]) => [id, { runtimeId: id, status: "complete", coverage: "complete", nextCursor: null, scanId: null, indexed: 0, warnings: [] }]));
+  return <div className="desktop-agent-boundary desktop-agent-runtime-launcher is-history">
+    <AgentConversationHistory sessions={sessions as never} runtimes={runtimes as never} loading={false} refreshing={false}
+      loadingMore={false} hasMore error={null} sources={sources as never} openingSessionId={null}
+      onOpen={() => {}} onRefresh={() => {}} onLoadMore={() => {}} onBack={() => {}} />
+  </div>;
+}
+
 function Fixture() {
   const [store] = useState(() => new ProjectWorkbenchStore({ projectId: "reference", rootPath: "/reference/project", generation: "reference" }));
   const appearance = useMemo(() => resolveSurfaceAppearance({
@@ -212,7 +243,7 @@ function Fixture() {
       initialSnapshot: { title: "Codex", accessibleLabel: "Codex", detail: null, iconKey: "codex", status: "idle", running: false, resourceId: null },
       creationRecipes: AGENT_CHAT_CREATION_RECIPES,
       // The production chat contribution always offers History beside the launcher heading.
-      history: { label: "History", iconKey: "history", renderBrowser: () => null },
+      history: { label: "History", iconKey: "history", renderBrowser: (context: never) => <FixtureHistory context={context} /> },
       renderItem: () => <FixtureChat />,
       // close-dialog: the chat is mid-turn, so closing asks first (`createAgentChatCloseAdapter`).
       // The tab keeps its idle status so the backdrop covers the chat-empty frame.
@@ -236,7 +267,7 @@ function Fixture() {
   useEffect(() => {
     let cancelled = false;
     const timer = setTimeout(async () => {
-      if (scenario === "launcher") {
+      if (scenario === "launcher" || scenario.startsWith("history-")) {
         store.createLauncher(null, "New tab");
       } else {
         const codex = AGENT_CHAT_CREATION_RECIPES.find((recipe) => recipe.id === "codex")!;

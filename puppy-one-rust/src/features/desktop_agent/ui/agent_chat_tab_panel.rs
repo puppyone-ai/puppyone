@@ -400,7 +400,9 @@ impl Render for AgentChat {
             .on_action(cx.listener(|s, _: &SendMessage, w, cx| s.send(w, cx)))
             .children(self.render_header(cx))
             .child(self.render_status(cx));
-        if self.session.snapshot().history_mode {
+        // A chat opened from History resumes its locator; it never shows
+        // the in-chat list while that resume is pending.
+        if self.session.snapshot().history_mode && self.pending_resume.is_none() {
             return pane.child(self.render_history(cx));
         }
         if self.rows.is_empty() && self.live_status_visible() {

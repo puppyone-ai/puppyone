@@ -25,6 +25,9 @@ impl Workbench {
             runtime.map_or(LauncherIdentity::Shell, LauncherIdentity::Runtime)
         };
         match content {
+            Content::Launcher if self.history_open(tab) => {
+                icon_stroke("history", 14., 2., fg).into_any_element()
+            }
             Content::Launcher | Content::Retained(RetainedItem::Launcher) => {
                 icon_stroke("square-dashed", 14., 2., fg).into_any_element()
             }
@@ -156,7 +159,7 @@ impl Workbench {
             let Some(content) = project.content.get(&tab) else {
                 continue;
             };
-            let label: SharedString = content.title(cx).into();
+            let label: SharedString = self.tab_title(tab, content, cx).into();
             let active = g.active == Some(tab);
             let compact = !active && layout.mode != Mode::Full;
             let fg = if active { t.text } else { t.muted };
@@ -491,7 +494,7 @@ impl Workbench {
             .iter()
             .filter_map(|&tab| {
                 let content = self.project()?.content.get(&tab)?;
-                let title = content.title(cx);
+                let title = self.tab_title(tab, content, cx);
                 let status = self.tab_status(tab, content, t.muted, cx);
                 let this = this.clone();
                 let close_label = crate::localization::tf(

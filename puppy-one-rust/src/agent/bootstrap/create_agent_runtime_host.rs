@@ -32,6 +32,15 @@ pub fn create(
         inner: create_inner(installation, root, history, wake),
     })
 }
+/// A locator-only history listing (`listSessions`): it lists saved
+/// conversations and never opens one, so it takes no project session lease.
+pub fn create_listing(
+    installation: Installation,
+    root: PathBuf,
+    wake: Wake,
+) -> Box<dyn AgentRuntimePort> {
+    create_inner(installation, root, true, wake)
+}
 fn create_inner(
     installation: Installation,
     root: PathBuf,

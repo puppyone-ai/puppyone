@@ -3,6 +3,7 @@ mod close_dialog;
 mod drag;
 mod header;
 mod header_layout;
+mod history;
 #[cfg(feature = "dev-capture")]
 mod lab;
 mod layout;
@@ -132,6 +133,13 @@ pub struct Workbench {
     /// The tab being dragged and where releasing it would put it.
     dragging: Option<Id>,
     drop_intent: Option<DropIntent>,
+    /// Launcher tabs showing the cross-runtime History browser.
+    history: HashMap<
+        Id,
+        Entity<crate::features::desktop_agent::ui::agent_conversation_history::HistoryBrowser>,
+    >,
+    /// Owner of `localAgents.chatHistoryDiscovery` (set by the shell).
+    preferences: Option<Entity<crate::features::settings::preferences_store::PreferencesStore>>,
 }
 impl Workbench {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
@@ -191,6 +199,8 @@ impl Workbench {
             overflow_hidden: HashMap::new(),
             dragging: None,
             drop_intent: None,
+            history: HashMap::new(),
+            preferences: None,
         }
     }
     #[cfg(feature = "dev-capture")]
@@ -472,6 +482,7 @@ impl Workbench {
             p.layout.remove(id);
             p.content.remove(&id);
         }
+        self.history.remove(&id);
         self.confirm = None;
         cx.notify();
     }
@@ -608,7 +619,10 @@ impl Workbench {
                 view.update(cx, |s, _| s.dark = self.dark);
                 div().size_full().child(view).into_any_element()
             }
-            _ => self.launcher(id, g.active, width, cx).into_any_element(),
+            _ => match g.active.and_then(|tab| self.render_history(tab, cx)) {
+                Some(history) => history,
+                None => self.launcher(id, g.active, width, cx).into_any_element(),
+            },
         };
         let mut group = column()
             .id(("group", id))
@@ -859,6 +873,12 @@ impl Workbench {
         if self.can_split(tab, group, axis, bounds) {
             self.split(group, axis, Some(tab), after, cx);
         }
+    }
+    pub fn set_preference_store(
+        &mut self,
+        store: Entity<crate::features::settings::preferences_store::PreferencesStore>,
+    ) {
+        self.preferences = Some(store);
     }
     fn end_drag(&mut self, cx: &mut Context<Self>) {
         if self.drag_split.is_some() || self.drop_intent.is_some() || self.dragging.is_some() {

@@ -91,10 +91,65 @@ pub enum Resolution {
     Approval(Decision),
     Answers(std::collections::BTreeMap<String, Vec<String>>),
 }
+/// `YYYY-MM-DDTHH:MM:SS[.fff](Z|±HH:MM)` to Unix milliseconds (ACP
+/// `SessionInfo.updatedAt`); anything else is an unknown time.
+pub fn parse_rfc3339_ms(value: &str) -> Option<i64> {
+    let b = value.trim().as_bytes();
+    let num = |range: std::ops::Range<usize>| -> Option<i64> {
+        std::str::from_utf8(b.get(range)?).ok()?.parse().ok()
+    };
+    if b.len() < 20 || b[4] != b'-' || b[7] != b'-' || !matches!(b[10], b'T' | b't' | b' ') {
+        return None;
+    }
+    let (year, month, day) = (num(0..4)?, num(5..7)?, num(8..10)?);
+    let (hour, minute, second) = (num(11..13)?, num(14..16)?, num(17..19)?);
+    if !(1..=12).contains(&month)
+        || !(1..=31).contains(&day)
+        || hour > 23
+        || minute > 59
+        || second > 60
+    {
+        return None;
+    }
+    let mut i = 19;
+    let mut millis = 0;
+    if b.get(i) == Some(&b'.') {
+        let start = i + 1;
+        i = start;
+        while b.get(i).is_some_and(u8::is_ascii_digit) {
+            i += 1;
+        }
+        let digits = std::str::from_utf8(&b[start..i]).ok()?;
+        let padded = format!("{:0<3}", &digits[..digits.len().min(3)]);
+        millis = padded.parse::<i64>().ok()?;
+    }
+    let offset = match b.get(i)? {
+        b'Z' | b'z' if i + 1 == b.len() => 0,
+        sign @ (b'+' | b'-') if i + 6 == b.len() && b[i + 3] == b':' => {
+            let minutes = num(i + 1..i + 3)? * 60 + num(i + 4..i + 6)?;
+            if *sign == b'+' { minutes } else { -minutes }
+        }
+        _ => return None,
+    };
+    // Howard Hinnant's days-from-civil.
+    let y = if month <= 2 { year - 1 } else { year };
+    let era = y.div_euclid(400);
+    let yoe = y - era * 400;
+    let mp = (month + 9) % 12;
+    let doy = (153 * mp + 2) / 5 + day - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    let days = era * 146_097 + doe - 719_468;
+    Some(((days * 24 + hour) * 60 + minute - offset) * 60_000 + second * 1000 + millis)
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct HistoryEntry {
     pub id: String,
     pub title: String,
+    /// Last update in Unix milliseconds when the provider reports it
+    /// (`AgentSessionListItem.updatedAt`, `updatedAtKnown`).
+    #[serde(default)]
+    pub updated_at: Option<i64>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -119,6 +174,10 @@ pub struct SessionSnapshot {
     pub history: Vec<HistoryEntry>,
     pub cursor: Option<String>,
     pub history_mode: bool,
+    /// Bumped whenever a history page (or its failure) has been applied, so
+    /// locator-only listings can tell a pending scan from an empty one.
+    #[serde(default)]
+    pub history_listed: u64,
     pub usage: String,
     pub title: String,
     pub revision: u64,
@@ -168,6 +227,7 @@ impl SessionSnapshot {
             history: vec![],
             cursor: None,
             history_mode: history,
+            history_listed: 0,
             usage: String::new(),
             title: runtime.into(),
             revision: 0,
@@ -314,4 +374,29 @@ pub fn bounded_text(mut text: String, limit: usize) -> String {
     }
     text.truncate(end);
     text
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_rfc3339_ms;
+    use core::prelude::v1::test;
+
+    #[test]
+    fn rfc3339_timestamps_become_unix_milliseconds() {
+        assert_eq!(parse_rfc3339_ms("1970-01-01T00:00:00Z"), Some(0));
+        assert_eq!(
+            parse_rfc3339_ms("2027-01-15T08:00:00.000Z"),
+            Some(1_800_000_000_000)
+        );
+        assert_eq!(
+            parse_rfc3339_ms("2027-01-15T16:00:00.5+08:00"),
+            Some(1_800_000_000_500)
+        );
+        assert_eq!(
+            parse_rfc3339_ms("2000-02-29T12:30:00-01:30"),
+            Some(951_832_800_000)
+        );
+        assert_eq!(parse_rfc3339_ms("yesterday"), None);
+        assert_eq!(parse_rfc3339_ms("2027-13-15T08:00:00Z"), None);
+    }
 }

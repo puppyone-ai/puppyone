@@ -484,6 +484,7 @@ impl AgentRuntimePort for Session {
                 Ok(entries) => self.snapshot.history = entries,
                 Err(e) => self.snapshot.notice = Some(e),
             }
+            self.snapshot.history_listed += 1;
             self.snapshot.revision += 1;
         }
         if !self.snapshot.messages.is_empty()

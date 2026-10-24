@@ -81,6 +81,43 @@ pub fn svg_path(runtime: Runtime, dark: bool) -> Option<&'static str> {
     })
 }
 
+/// `AgentBrandMark appearance="monochrome"` inside `.desktop-agent-history-option`:
+/// a 14px slot (radius 3, `--desktop-agent-brand-mark-scale: 1`, overflow
+/// visible). ChatGPT/Codex, Claude, Cursor and Pi have single-colour marks in
+/// `color`; other brands keep their image at its `assetOpticalScale`, and
+/// OpenCode sits on `--po-canvas`.
+pub fn monochrome_mark(runtime: Runtime, dark: bool, size: f32, color: Rgba, canvas: Rgba) -> Div {
+    let slot = div()
+        .size(px(size))
+        .flex_shrink_0()
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded(px(3.));
+    let mark = match runtime {
+        Runtime::Codex => Some(CHATGPT_MARK),
+        Runtime::Claude => Some("agents/claude-code.svg"),
+        Runtime::Cursor => Some("agents/cursor-monochrome.svg"),
+        Runtime::Pi => Some("agents/pi-monochrome.svg"),
+        _ => None,
+    };
+    if let Some(path) = mark {
+        return slot.child(
+            svg()
+                .path(path)
+                .size(px(size))
+                .flex_shrink_0()
+                .text_color(color),
+        );
+    }
+    let scale = match runtime {
+        Runtime::Hermes => 0.82,
+        Runtime::OpenCode => 1.3,
+        _ => 1.,
+    };
+    slot.when(runtime == Runtime::OpenCode, |d| d.bg(canvas))
+        .child(brand_image(runtime, dark, size * scale).flex_shrink_0())
+}
 /// What `AgentLauncherIcon` draws: an Agent brand or the shell. (Native chats
 /// always know their runtime, so the product's chat fallback glyph is unused.)
 #[derive(Clone, Copy, Debug, PartialEq)]

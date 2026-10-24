@@ -632,6 +632,17 @@ impl Session {
             return;
         };
         if let Some(error) = value.get("error") {
+            if method == "thread/list" {
+                self.snapshot.error = Some(
+                    error["message"]
+                        .as_str()
+                        .unwrap_or("History unavailable")
+                        .into(),
+                );
+                self.snapshot.history_listed += 1;
+                self.snapshot.revision += 1;
+                return;
+            }
             if method == "turn/interrupt" {
                 // A turn may finish between the Stop click and the RPC response.
                 // A failed cancellation receipt is never evidence that a completed turn failed.
@@ -805,11 +816,16 @@ impl Session {
                                     .chars()
                                     .take(100)
                                     .collect(),
+                                updated_at: e["updatedAt"]
+                                    .as_i64()
+                                    .or(e["createdAt"].as_i64())
+                                    .map(|seconds| seconds * 1000),
                             });
                         }
                     }
                 }
                 self.snapshot.cursor = result["nextCursor"].as_str().map(str::to_owned);
+                self.snapshot.history_listed += 1;
             }
             "turn/start" => {
                 if let Some(id) = result["turn"]["id"].as_str()

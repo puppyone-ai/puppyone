@@ -5,6 +5,10 @@ use std::{
     io::{BufRead, BufReader, Read},
     path::{Path, PathBuf},
 };
+fn unix_ms(time: std::time::SystemTime) -> Option<i64> {
+    let ms = time.duration_since(std::time::UNIX_EPOCH).ok()?.as_millis();
+    i64::try_from(ms).ok()
+}
 fn base() -> Option<PathBuf> {
     std::env::var_os("CLAUDE_CONFIG_DIR")
         .map(PathBuf::from)
@@ -126,6 +130,7 @@ pub fn list(root: &Path) -> Vec<HistoryEntry> {
                 HistoryEntry {
                     id: id.into(),
                     title,
+                    updated_at: modified.and_then(unix_ms),
                 },
             ));
         }

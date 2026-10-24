@@ -150,6 +150,7 @@ fn access(path: &Path, entry: Option<Entry>) -> Result<Vec<HistoryEntry>, String
         .map(|e| HistoryEntry {
             id: e.id,
             title: e.title,
+            updated_at: i64::try_from(e.updated).ok().map(|s| s * 1000),
         })
         .collect())
 }

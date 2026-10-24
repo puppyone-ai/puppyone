@@ -313,6 +313,10 @@ impl Shell {
             cx.notify();
         })
         .detach();
+        let preferences = s.preferences.clone();
+        s.workbench.update(cx, |workbench, _| {
+            workbench.set_preference_store(preferences)
+        });
         cx.subscribe_in(
             &s.workbench,
             window,

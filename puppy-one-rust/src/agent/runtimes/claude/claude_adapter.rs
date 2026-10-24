@@ -542,6 +542,7 @@ impl AgentRuntimePort for Session {
             match result {
                 History::List(entries) => {
                     self.snapshot.history = entries;
+                    self.snapshot.history_listed += 1;
                     for e in &self.snapshot.history {
                         self.catalog.remember(&e.id, &e.title);
                     }

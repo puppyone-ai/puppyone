@@ -13,7 +13,7 @@ use crate::{
 use gpui_kit::component::{
     Sizable,
     button::ButtonVariants,
-    menu::{ContextMenuExt, DropdownMenu, PopupMenuItem},
+    menu::{ContextMenuExt, PopupMenuItem},
 };
 
 /// `.desktop-terminal-launcher-content`: `min(100%, 252px)`, 264px from a 460px container.
@@ -154,9 +154,8 @@ impl Workbench {
         .child(icon_stroke("refresh-cw", 12., 1.7, t.subtle))
         .on_click(cx.listener(|s, _, _, cx| s.rescan(cx)));
 
-        // History: choose which Agent's saved chats to browse.
-        let host = cx.weak_entity();
-        let chats: Vec<_> = visible.iter().filter(|i| i.chat).cloned().collect();
+        // `.desktop-terminal-launcher-history`: opens the cross-runtime
+        // History browser in this launcher (`onOpenHistory`).
         let history_label = tr("agent.history.title");
         let history = gpui_kit::component::button::Button::new(ElementId::NamedInteger(
             "launcher-history".into(),
@@ -171,22 +170,7 @@ impl Workbench {
         .bg(t.auxiliary())
         .text_color(t.subtle)
         .tooltip(history_label)
-        .dropdown_menu(move |mut menu, _, _| {
-            menu = menu.label(tr("agent.history.title"));
-            for installation in &chats {
-                let host = host.clone();
-                let installation = installation.clone();
-                menu = menu.item(PopupMenuItem::new(installation.label.clone()).on_click(
-                    move |_, w, cx| {
-                        let _ = host.update(cx, |s, cx| {
-                            s.chat_mode = true;
-                            s.launch(group, tab, Some(installation.clone()), true, w, cx)
-                        });
-                    },
-                ));
-            }
-            menu
-        });
+        .on_click(cx.listener(move |s, _, window, cx| s.open_history(group, tab, window, cx)));
 
         let mut entries = column().gap(px(1.)).child(external);
         let feedback = self.scanning

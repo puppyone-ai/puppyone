@@ -83,6 +83,7 @@ pub fn history(root: &Path) -> Vec<HistoryEntry> {
             (!c.archived).then_some(HistoryEntry {
                 id: c.id,
                 title: c.title,
+                updated_at: i64::try_from(c.updated).ok().map(|s| s * 1000),
             })
         })
         .take(500)

@@ -402,6 +402,9 @@ impl Session {
                     .unwrap_or("Agent operation failed")
                     .into(),
             );
+            if request.method == "session/list" {
+                self.snapshot.history_listed += 1;
+            }
             if matches!(
                 request.method.as_str(),
                 "initialize" | "session/new" | "session/load" | "session/fork"
@@ -471,10 +474,14 @@ impl Session {
                                 .as_str()
                                 .unwrap_or("Untitled conversation")
                                 .into(),
+                            updated_at: e["updatedAt"].as_str().and_then(
+                                crate::agent::domain::agent_session_model::parse_rfc3339_ms,
+                            ),
                         });
                     }
                 }
                 self.snapshot.cursor = result["nextCursor"].as_str().map(str::to_owned);
+                self.snapshot.history_listed += 1;
             }
             "session/set_config_option" => self.config(result),
             "session/set_model" => {

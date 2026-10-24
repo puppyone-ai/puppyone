@@ -354,6 +354,7 @@ impl Engine {
             }
             Command::History => {
                 self.snapshot.history = session_store::history(&self.conversation.root);
+                self.snapshot.history_listed += 1;
                 self.snapshot.history_mode = true;
                 self.snapshot.state = State::History;
             }

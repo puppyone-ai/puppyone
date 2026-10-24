@@ -15,3 +15,10 @@ pub fn create(
 ) -> Box<dyn AgentRuntimePort> {
     crate::agent::bootstrap::create_agent_runtime_host::create(installation, root, history, wake)
 }
+pub fn create_listing(
+    installation: Installation,
+    root: PathBuf,
+    wake: Wake,
+) -> Box<dyn AgentRuntimePort> {
+    crate::agent::bootstrap::create_agent_runtime_host::create_listing(installation, root, wake)
+}
