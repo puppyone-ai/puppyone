@@ -24,6 +24,9 @@ pub enum ButtonVariant {
     OutlinePrimary,
     /// Bordered, tinted with danger.
     OutlineDanger,
+    /// A bordered command filled with success while it can run
+    /// (`.desktop-settings-save-action`).
+    Success,
     /// Filled with the control material (`.desktop-git-operation-button`).
     Filled,
     /// Filled with the accent (`.desktop-git-operation-button.is-primary`).
@@ -45,7 +48,7 @@ impl ButtonVariant {
     fn outlined(self) -> bool {
         matches!(
             self,
-            Self::Outline | Self::OutlinePrimary | Self::OutlineDanger
+            Self::Outline | Self::OutlinePrimary | Self::OutlineDanger | Self::Success
         )
     }
     fn dialog(self) -> bool {
@@ -65,10 +68,18 @@ fn paint(variant: ButtonVariant, selected: bool, open: bool, disabled: bool, t: 
     let accent = if t.dark { t.accent } else { t.brand_blue };
     let clear = theme::alpha(t.text, 0.);
     match variant {
-        ButtonVariant::Outline => Paint {
+        ButtonVariant::Success if !disabled => Paint {
+            border: Some(t.success),
+            bg: t.success,
+            fg: theme::on_solid(),
+            hover_bg: theme::shade(t.success, 0.88),
+            hover_fg: theme::on_solid(),
+        },
+        ButtonVariant::Outline | ButtonVariant::Success => Paint {
             border: Some(t.divider),
             bg: clear,
-            fg: if disabled { t.text_disabled } else { t.muted },
+            // `.desktop-settings-action:disabled` only fades (62%).
+            fg: t.muted,
             hover_bg: t.hover,
             hover_fg: t.text,
         },

@@ -7,12 +7,15 @@ use crate::{
     features::settings::preferences_store::PreferencesStore,
     localization::{t, tf},
     theme::{self, Theme},
-    ui::{row, switch},
+    ui::{
+        appearance::ActiveAppearance,
+        components::{Icon, SettingsCategory, SettingsCategoryList, Switch, tooltip},
+    },
     wake::Wake,
 };
 use gpui::{prelude::*, *};
+use gpui_kit::{base::h_flex, component::Sizable as _};
 pub struct AgentSettings {
-    pub dark: bool,
     preferences: Entity<PreferencesStore>,
     installations: Option<Vec<Installation>>,
     pending: Option<std::sync::mpsc::Receiver<Vec<Installation>>>,
@@ -44,7 +47,6 @@ impl AgentSettings {
         .detach();
         cx.observe(&preferences, |_, _, cx| cx.notify()).detach();
         let mut s = Self {
-            dark: true,
             preferences,
             installations: None,
             pending: None,
@@ -72,11 +74,11 @@ impl AgentSettings {
         self.installations = Some(local_agent_inventory::lab_installations());
     }
     /// Category rows for the Settings page (rendered inside its section).
-    pub fn categories(&self, t: Theme, cx: &mut Context<Self>) -> Vec<Div> {
+    fn categories(&self, t: Theme, cx: &mut Context<Self>) -> Vec<SettingsCategory> {
         use crate::features::desktop_agent::ui::agent_brand_mark::{
             LauncherIdentity, launcher_icon,
         };
-        use crate::features::settings::components::category_body;
+        let dark = cx.is_dark();
         let scanning = self.pending.is_some();
         let prefs = self.preferences.read(cx).state.clone();
         // `LOCAL_AGENT_CHAT_RECIPES` order; terminal launchers name the agent.
@@ -125,7 +127,7 @@ impl AgentSettings {
                 .children(rows)
         };
         let table_row = || {
-            row()
+            h_flex()
                 .w_full()
                 .min_w_0()
                 .min_h(px(theme::control_large()))
@@ -139,13 +141,13 @@ impl AgentSettings {
                 .hover(move |s| s.bg(t.hover))
         };
         let identity = |agent: &Installation, name: String| {
-            row()
+            h_flex()
                 .gap(px(8.))
                 .min_w_0()
                 .child(launcher_icon(
                     LauncherIdentity::Runtime(agent.runtime),
                     false,
-                    self.dark,
+                    dark,
                     t.muted,
                 ))
                 .child(div().truncate().text_color(t.text).child(name))
@@ -163,16 +165,16 @@ impl AgentSettings {
                 .text_size(px(theme::ty().ui.caption))
                 .text_color(t.subtle)
                 .hover(move |s| s.bg(t.hover).text_color(t.text))
-                .child(crate::ui::icon_stroke(
-                    if spinning {
+                .child(
+                    Icon::new(if spinning {
                         "loader-circle"
                     } else {
                         "refresh-cw"
-                    },
-                    12.,
-                    2.,
-                    t.subtle,
-                ))
+                    })
+                    .xsmall()
+                    .stroke(2.)
+                    .color(t.subtle),
+                )
                 .child(label)
         };
         let mut rows: Vec<AnyElement> = vec![];
@@ -184,13 +186,13 @@ impl AgentSettings {
             rows.push(
                 table_row()
                     .child(identity(agent, name.clone()))
-                    .child(switch(
-                        ("agent-visible", index),
-                        tf("settings.localAgents.toggle", &[("agent", name.into())]),
-                        visible,
-                        false,
-                        t,
-                        move |on, _, cx| {
+                    .child(
+                        Switch::new(
+                            ("agent-visible", index),
+                            tf("settings.localAgents.toggle", &[("agent", name.into())]),
+                        )
+                        .checked(visible)
+                        .on_change(move |on, _, cx| {
                             store.update(cx, |p, cx| {
                                 p.change(
                                     |p| {
@@ -203,8 +205,8 @@ impl AgentSettings {
                                     cx,
                                 )
                             })
-                        },
-                    ))
+                        }),
+                    )
                     .into_any_element(),
             );
         }
@@ -229,18 +231,18 @@ impl AgentSettings {
         let store = self.preferences.clone();
         let history = table_row()
             .child(t_static("settings.localAgents.history.toggle"))
-            .child(switch(
-                "chat-history-discovery",
-                t_static("settings.localAgents.history.toggle"),
-                prefs.local_agents.chat_history_discovery,
-                false,
-                t,
-                move |on, _, cx| {
+            .child(
+                Switch::new(
+                    "chat-history-discovery",
+                    t_static("settings.localAgents.history.toggle"),
+                )
+                .checked(prefs.local_agents.chat_history_discovery)
+                .on_change(move |on, _, cx| {
                     store.update(cx, |p, cx| {
                         p.change(|p| p.local_agents.chat_history_discovery = on, cx)
                     })
-                },
-            ))
+                }),
+            )
             .into_any_element();
         // `LocalAgentHooksSettingsSection`: the configurable providers that are
         // detected (`hook-registration-service.mjs`). Installing the PuppyOne
@@ -264,7 +266,7 @@ impl AgentSettings {
                 let label = tf("settings.localAgentHooks.toggle", &[("agent", name.into())]);
                 table_row()
                     .id(SharedString::from(format!("agent-hook-{}", agent.id)))
-                    .tooltip(crate::ui::tooltip(tf(
+                    .tooltip(tooltip(tf(
                         "settings.sidebar.notAvailable",
                         &[("section", label.into())],
                     )))
@@ -310,24 +312,14 @@ impl AgentSettings {
         }))
         .into_any_element();
         vec![
-            category_body(
-                t_static("settings.localAgents.activeChat.title"),
-                Some(scan),
-                table(rows),
-                t,
-            ),
-            category_body(
-                t_static("settings.localAgents.history.title"),
-                None,
-                table(vec![history]),
-                t,
-            ),
-            category_body(
-                t_static("settings.localAgentHooks.title"),
-                Some(refresh_hooks),
-                table(hooks),
-                t,
-            ),
+            SettingsCategory::new(t_static("settings.localAgents.activeChat.title"))
+                .action(scan)
+                .body(table(rows)),
+            SettingsCategory::new(t_static("settings.localAgents.history.title"))
+                .body(table(vec![history])),
+            SettingsCategory::new(t_static("settings.localAgentHooks.title"))
+                .action(refresh_hooks)
+                .body(table(hooks)),
         ]
     }
 }
@@ -336,7 +328,7 @@ fn t_static(key: &str) -> &'static str {
 }
 impl Render for AgentSettings {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let t = Theme::new(self.dark);
-        crate::features::settings::components::category_list(self.categories(t, cx))
+        let t = cx.palette();
+        SettingsCategoryList::new().children(self.categories(t, cx))
     }
 }

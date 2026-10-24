@@ -1,40 +1,46 @@
 //! Port of `TypographySettingsView.tsx`: `TypographyScaleSetting` + `TypographyPreview`.
-use super::super::{components::*, settings_workspace_surface::SettingsWorkspaceSurface};
+use super::super::settings_workspace_surface::SettingsWorkspaceSurface;
 use super::Page;
 use crate::{
     localization::t as tr,
     theme::{self, Theme},
     typography::Scale,
-    ui::{SegmentLayout, SegmentOption, column, row, segment_with},
+    ui::components::{
+        Icon, Segment, SegmentLayout, SegmentedControl, SettingRow, SettingsList, SettingsSection,
+    },
 };
 use gpui::{prelude::*, *};
+use gpui_kit::{
+    base::{h_flex, v_flex},
+    component::Sizable as _,
+};
 impl SettingsWorkspaceSurface {
-    pub(super) fn typography(&self, t: Theme, cx: &mut Context<Self>) -> Div {
+    pub(super) fn typography(&self, t: Theme, cx: &mut Context<Self>) -> AnyElement {
         let selected = self.preferences.read(cx).state.text_scale;
-        let options = [Scale::Small, Scale::Medium, Scale::Large]
+        let segments = [Scale::Small, Scale::Medium, Scale::Large]
             .into_iter()
             .map(|scale| {
                 let prefs = self.preferences.clone();
-                SegmentOption {
-                    label: tr(scale.label_key()).into(),
-                    leading: None,
-                    active: scale == selected,
-                    disabled: false,
-                    on_select: Box::new(move |_, cx| {
+                Segment::new(tr(scale.label_key()))
+                    .selected(scale == selected)
+                    .on_select(move |_, cx| {
                         prefs.update(cx, |p, cx| p.change(|p| p.text_scale = scale, cx))
-                    }),
-                }
-            })
-            .collect();
-        section(tr(Page::Typography.title()), t).child(lead_list(vec![
-            setting_row(
-                tr("settings.typography.textSize.title"),
-                segment_with("text-scale", options, SegmentLayout::HugFirst(9.), t),
-                t,
+                    })
+            });
+        SettingsSection::new(tr(Page::Typography.title()))
+            .child(
+                SettingsList::new()
+                    .lead(true)
+                    .child(
+                        SettingRow::new(tr("settings.typography.textSize.title")).control(
+                            SegmentedControl::new("text-scale")
+                                .layout(SegmentLayout::HugFirst(9.))
+                                .segments(segments),
+                        ),
+                    )
+                    .child(preview(t)),
             )
-            .into_any_element(),
-            preview(t).into_any_element(),
-        ]))
+            .into_any_element()
     }
 }
 /// `TypographyPreview` (`settings-controls.css`): a static workspace on the
@@ -43,16 +49,21 @@ impl SettingsWorkspaceSurface {
 fn preview(t: Theme) -> Div {
     let m = theme::ty();
     let md = crate::editor::tokens::Tokens::get(t.dark, theme::scale());
-    let icon = |name: &str, size: f32| crate::ui::icon_stroke(name, size, 2., t.muted);
+    let icon = |name: &'static str, size: f32| {
+        Icon::new(name)
+            .with_size(px(size))
+            .stroke(2.)
+            .color(t.muted)
+    };
     let pane_title = || {
-        row()
+        h_flex()
             .gap(px(7.))
             .px(px(6.))
             .pb(px(10.))
             .font_weight(FontWeight::MEDIUM)
     };
     let file = |name: &'static str, selected: bool| {
-        row()
+        h_flex()
             .gap(px(6.))
             .p(px(6.))
             .pl(px(26.))
@@ -74,7 +85,7 @@ fn preview(t: Theme) -> Div {
     // The product draws Geist as a variable font at these exact weights;
     // the editor's static instances carry each one as its own family.
     let geist = |weight: f32| -> SharedString { format!("PuppyOne Geist {weight}").into() };
-    let left = column()
+    let left = v_flex()
         .py(px(12.))
         .px(px(8.))
         .bg(t.panel)
@@ -85,7 +96,7 @@ fn preview(t: Theme) -> Div {
         .text_color(t.text)
         .child(pane_title().child(tr("shell.navigation.files")))
         .child(
-            row()
+            h_flex()
                 .gap(px(6.))
                 .p(px(6.))
                 .child(icon("chevron-down", 14.))
@@ -141,7 +152,7 @@ fn preview(t: Theme) -> Div {
         ),
         run(text.len() - strong.end, 450., content),
     ];
-    let editor = column()
+    let editor = v_flex()
         .p(px(18.))
         .bg(t.canvas)
         .child(heading(
@@ -179,7 +190,7 @@ fn preview(t: Theme) -> Div {
                 // 26.25px lines: GPUI's text element would round them to 26.
                 .child(crate::ui::fractional_text(text).with_runs(runs)),
         );
-    let right = column()
+    let right = v_flex()
         .py(px(12.))
         .px(px(8.))
         .bg(t.panel)
@@ -194,7 +205,7 @@ fn preview(t: Theme) -> Div {
                 .child(tr("settings.typography.preview.chat")),
         )
         .child(
-            column()
+            v_flex()
                 .px(px(6.))
                 .py(px(4.))
                 .child(
@@ -213,7 +224,7 @@ fn preview(t: Theme) -> Div {
                         .child(tr("settings.typography.preview.message")),
                 ),
         );
-    column()
+    v_flex()
         .mt(px(18.))
         .mx(px(10.))
         .rounded(px(10.))
@@ -222,7 +233,7 @@ fn preview(t: Theme) -> Div {
         .overflow_hidden()
         .bg(t.canvas)
         .child(
-            row()
+            h_flex()
                 .min_h(px(theme::control()))
                 .px(px(12.))
                 .py(px(6.))
@@ -238,7 +249,7 @@ fn preview(t: Theme) -> Div {
                 .child("PuppyOne"),
         )
         .child(
-            row()
+            h_flex()
                 .items_stretch()
                 .child(track(1., left))
                 .child(track(2.1, editor))

@@ -1,5 +1,6 @@
 //! `.desktop-settings-switch` on GPUI Kit's headless switch: 34×20 track,
 //! 14px thumb, accent when on.
+use super::tooltip;
 use crate::{
     theme::{self, metric},
     ui::appearance::ActiveAppearance,
@@ -16,6 +17,7 @@ pub struct Switch {
     label: SharedString,
     checked: bool,
     disabled: bool,
+    tooltip: Option<SharedString>,
     on_change: Option<ChangeHandler>,
     style: StyleRefinement,
 }
@@ -27,12 +29,17 @@ impl Switch {
             label: label.into(),
             checked: false,
             disabled: false,
+            tooltip: None,
             on_change: None,
             style: StyleRefinement::default(),
         }
     }
     pub fn checked(mut self, checked: bool) -> Self {
         self.checked = checked;
+        self
+    }
+    pub fn tooltip(mut self, text: impl Into<SharedString>) -> Self {
+        self.tooltip = Some(text.into());
         self
     }
     pub fn on_change(mut self, handler: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
@@ -78,6 +85,7 @@ impl RenderOnce for Switch {
             .bg(track)
             // A disabled product switch only loses its pointer cursor.
             .when(!self.disabled, |s| s.cursor(theme::clickable_cursor()))
+            .when_some(self.tooltip, |s, text| s.tooltip(tooltip(text)))
             .when_some(self.on_change, |s, handler| {
                 s.on_change(move |checked, _, window, cx| handler(checked, window, cx))
             })

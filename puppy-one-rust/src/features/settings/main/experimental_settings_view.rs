@@ -6,16 +6,18 @@
 //! natively), like the Web view. The Homepage group follows the product
 //! build's `assetLibraryHome` flag (`features/flags/flags.json`: on).
 use super::super::{
-    components::*, preference_types::Preferences,
-    settings_workspace_surface::SettingsWorkspaceSurface,
+    preference_types::Preferences, settings_workspace_surface::SettingsWorkspaceSurface,
 };
 use super::Page;
 use crate::{
     localization::{t as tr, tf},
     theme::Theme,
-    ui::{SegmentOption, segment, switch, tooltip},
+    ui::components::{
+        Segment, SegmentedControl, SettingRow, SettingsSection, SettingsSubsection, Switch,
+    },
 };
 use gpui::{prelude::*, *};
+use gpui_kit::base::Disableable as _;
 
 type Get = fn(&Preferences) -> bool;
 type Set = fn(&mut Preferences, bool);
@@ -133,9 +135,9 @@ fn groups() -> Vec<(&'static str, Vec<Setting>)> {
     ]
 }
 impl SettingsWorkspaceSurface {
-    pub(super) fn experimental(&self, t: Theme, cx: &mut Context<Self>) -> Div {
+    pub(super) fn experimental(&self, _: Theme, cx: &mut Context<Self>) -> AnyElement {
         let state = self.preferences.read(cx).state.clone();
-        let mut content = section(tr(Page::Experimental.title()), t);
+        let mut content = SettingsSection::new(tr(Page::Experimental.title()));
         for (index, (group, settings)) in groups().into_iter().enumerate() {
             let rows = settings
                 .into_iter()
@@ -153,69 +155,60 @@ impl SettingsWorkspaceSurface {
                     });
                     let control: AnyElement = match setting.choices {
                         Some((off, on)) => {
-                            let options = [(false, off), (true, on)]
-                                .into_iter()
-                                .map(|(choice, key)| {
+                            let segments =
+                                [(false, off), (true, on)].into_iter().map(|(choice, key)| {
                                     let prefs = self.preferences.clone();
                                     let set = setting.set;
-                                    SegmentOption {
-                                        label: tr(&format!(
-                                            "settings.experimental.{}.{key}",
-                                            setting.key
-                                        ))
-                                        .into(),
-                                        leading: None,
-                                        active: value == choice,
-                                        disabled: false,
-                                        on_select: Box::new(move |_, cx| {
+                                    Segment::new(tr(&format!(
+                                        "settings.experimental.{}.{key}",
+                                        setting.key
+                                    )))
+                                    .selected(value == choice)
+                                    .on_select(
+                                        move |_, cx| {
                                             if !disabled {
                                                 prefs.update(cx, |p, cx| {
                                                     p.change(|p| set(p, choice), cx)
                                                 })
                                             }
-                                        }),
-                                    }
-                                })
-                                .collect();
-                            let seg = segment(SharedString::from(setting.key), options, t)
-                                .id(SharedString::from(format!("{}-segment", setting.key)));
-                            match reason.clone().or(detail.map(String::from)) {
-                                Some(text) => seg.tooltip(tooltip(text)).into_any_element(),
-                                None => seg.into_any_element(),
-                            }
+                                        },
+                                    )
+                                });
+                            SegmentedControl::new(setting.key)
+                                .segments(segments)
+                                .when_some(
+                                    reason.clone().or(detail.map(String::from)),
+                                    |s, text| s.tooltip(text),
+                                )
+                                .into_any_element()
                         }
                         None => {
                             let prefs = self.preferences.clone();
                             let set = setting.set;
-                            switch(
-                                SharedString::from(setting.key),
-                                label,
-                                value,
-                                disabled,
-                                t,
-                                move |on, _, cx| {
+                            Switch::new(SharedString::from(setting.key), label)
+                                .checked(value)
+                                .disabled(disabled)
+                                .tooltip(
+                                    reason
+                                        .clone()
+                                        .unwrap_or_else(|| detail.unwrap_or(label).into()),
+                                )
+                                .on_change(move |on, _, cx| {
                                     prefs.update(cx, |p, cx| p.change(|p| set(p, on), cx))
-                                },
-                            )
-                            .tooltip(tooltip(
-                                reason
-                                    .clone()
-                                    .unwrap_or_else(|| detail.unwrap_or(label).into()),
-                            ))
-                            .into_any_element()
+                                })
+                                .into_any_element()
                         }
                     };
-                    setting_row(label, control, t).into_any_element()
+                    SettingRow::new(label).control(control)
                 })
-                .collect();
-            content = content.child(subsection(
-                Some(tr(&format!("settings.experimental.groups.{group}")).into()),
-                None,
-                index == 0,
-                rows,
-                t,
-            ));
+                .collect::<Vec<_>>();
+            content = content.child(
+                SettingsSubsection::new()
+                    .title(tr(&format!("settings.experimental.groups.{group}")))
+                    .lead(index == 0)
+                    .children(rows),
+            );
         }
-        content
+        content.into_any_element()
     }
 }

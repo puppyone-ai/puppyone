@@ -1,7 +1,6 @@
 //! Port of `AppearanceSettingsView.tsx` with `InterfacePaletteSettings`,
 //! `ThemePreview`, `SubThemeSettingsSection` and `InterfaceStyleSetting`.
 use super::super::{
-    components::*,
     preference_types::{GitSidebarLayout, ThemeMode},
     settings_workspace_surface::SettingsWorkspaceSurface,
 };
@@ -10,12 +9,18 @@ use crate::{
     localization::{t as tr, tf},
     theme::{self, Theme},
     ui::{
-        SegmentLayout, SegmentOption, column, icon_stroke, pulse_grid, row, segment_with, switch,
-        tooltip,
+        components::{
+            FileIcon, Icon, Segment, SegmentLayout, SegmentedControl, Select, SelectOption,
+            SettingRow, SettingsList, SettingsSection, Switch, tooltip,
+        },
+        pulse_grid,
     },
 };
 use gpui::{prelude::*, *};
-use gpui_kit::component::menu::PopupMenuItem;
+use gpui_kit::{
+    base::{Disableable as _, h_flex, v_flex},
+    component::Sizable as _,
+};
 
 /// `ThemePreviewSurface`: a miniature window drawn with one pack/mode palette.
 /// `(left, right)` round the outer corners: GPUI clips children to the
@@ -34,7 +39,7 @@ fn preview_surface(pack: &str, dark: bool, (left, right): (bool, bool)) -> Div {
                 theme::alpha(p.muted, 0.28)
             })
     };
-    row()
+    h_flex()
         .flex_1()
         .min_w_0()
         .h_full()
@@ -43,7 +48,7 @@ fn preview_surface(pack: &str, dark: bool, (left, right): (bool, bool)) -> Div {
         .when(left, |d| d.rounded_l(px(R)))
         .when(right, |d| d.rounded_r(px(R)))
         .child(
-            column()
+            v_flex()
                 .when(left, |d| d.rounded_l(px(R)))
                 .w(relative(0.31))
                 .gap(px(3.))
@@ -57,7 +62,7 @@ fn preview_surface(pack: &str, dark: bool, (left, right): (bool, bool)) -> Div {
                 .child(bar(0.78, false)),
         )
         .child(
-            column()
+            v_flex()
                 .when(right, |d| d.rounded_r(px(R)))
                 .flex_1()
                 .gap(px(3.))
@@ -71,15 +76,19 @@ fn preview_surface(pack: &str, dark: bool, (left, right): (bool, bool)) -> Div {
 }
 
 impl SettingsWorkspaceSurface {
-    pub(super) fn appearance(&self, t: Theme, cx: &mut Context<Self>) -> Div {
+    pub(super) fn appearance(&self, t: Theme, cx: &mut Context<Self>) -> AnyElement {
         let state = self.preferences.read(cx).state.clone();
         let prefs = self.preferences.clone();
 
         // Theme mode cards (`desktop-theme-choice`).
-        let mut modes = row().flex_wrap().justify_end().gap(px(6.)).max_w(px(520.));
+        let mut modes = h_flex()
+            .flex_wrap()
+            .justify_end()
+            .gap(px(6.))
+            .max_w(px(520.));
         for mode in [ThemeMode::System, ThemeMode::Light, ThemeMode::Dark] {
             let active = state.theme_mode == mode;
-            let preview = row()
+            let preview = h_flex()
                 .w_full()
                 .h(px(38.))
                 .overflow_hidden()
@@ -150,17 +159,17 @@ impl SettingsWorkspaceSurface {
                     .child(preview)
                     .child(
                         // `.desktop-theme-choice-label`: 13px icon, 17px line.
-                        row()
+                        h_flex()
                             .gap(px(5.))
                             .px(px(2.))
                             .h(px(17.))
                             .line_height(px(17.))
-                            .child(icon_stroke(
-                                mode.icon(),
-                                13.,
-                                2.,
-                                if active { t.text } else { t.muted },
-                            ))
+                            .child(
+                                Icon::new(mode.icon())
+                                    .with_size(px(13.))
+                                    .stroke(2.)
+                                    .color(if active { t.text } else { t.muted }),
+                            )
                             .child(tr(mode.label_key())),
                     )
                     .on_click(move |_, _, cx| {
@@ -188,29 +197,25 @@ impl SettingsWorkspaceSurface {
         let pack_prefs = prefs.clone();
         // `.desktop-theme-pack-controls`: the select hugs its value between
         // 124 and 156px; two 28px icon actions follow, 4px apart.
-        let pack_control = row()
+        let pack_control = h_flex()
             .gap(px(4.))
-            .child(select_sized(
-                "theme-pack",
-                pack_name,
-                false,
-                (124., 156.),
-                t,
-                move || {
+            .child(
+                Select::new("theme-pack", pack_name, move |_| {
                     theme::pack_choices()
                         .map(|(id, name)| {
                             let prefs = pack_prefs.clone();
-                            PopupMenuItem::new(name)
-                                .checked(id == current_pack)
-                                .on_click(move |_, _, cx| {
+                            SelectOption::new(name)
+                                .selected(id == current_pack)
+                                .on_select(move |_, cx| {
                                     prefs.update(cx, |p, cx| {
                                         p.change(|p| p.theme_pack = id.into(), cx)
                                     })
                                 })
                         })
                         .collect()
-                },
-            ))
+                })
+                .width_range(124., 156.),
+            )
             .children(["folder-open", "plus"].into_iter().map(|icon| {
                 let label = tr(if icon == "plus" {
                     "settings.appearance.themes.add"
@@ -227,7 +232,7 @@ impl SettingsWorkspaceSurface {
                     .justify_center()
                     .rounded(px(6.))
                     .opacity(0.58)
-                    .child(icon_stroke(icon, 14., 2., t.text_disabled))
+                    .child(Icon::new(icon).small().stroke(2.).color(t.text_disabled))
                     .tooltip(tooltip(tf(
                         "settings.sidebar.notAvailable",
                         &[("section", label.into())],
@@ -238,26 +243,14 @@ impl SettingsWorkspaceSurface {
         let icon_options = crate::file_kind::themes()
             .map(|id| {
                 let prefs = prefs.clone();
-                SegmentOption {
-                    label: tr(&format!("settings.appearance.fileIcons.{id}.label")).into(),
-                    leading: Some(
-                        img(SharedString::from(crate::file_kind::asset_path(
-                            id,
-                            "document.md",
-                            false,
-                            t.dark,
-                        )))
-                        .size(px(14.))
-                        .into_any_element(),
-                    ),
-                    active: state.file_icon_theme == id,
-                    disabled: false,
-                    on_select: Box::new(move |_, cx| {
+                Segment::new(tr(&format!("settings.appearance.fileIcons.{id}.label")))
+                    .leading(FileIcon::file("document.md", id).size_px(14.))
+                    .selected(state.file_icon_theme == id)
+                    .on_select(move |_, cx| {
                         prefs.update(cx, |p, cx| p.change(|p| p.file_icon_theme = id.into(), cx))
-                    }),
-                }
+                    })
             })
-            .collect();
+            .collect::<Vec<_>>();
 
         // Git sidebar layout.
         let layout_options = [GitSidebarLayout::Cards, GitSidebarLayout::Dividers]
@@ -270,54 +263,45 @@ impl SettingsWorkspaceSurface {
                         "settings.appearance.gitSidebarLayout.dividers.label"
                     }
                 };
-                SegmentOption {
-                    label: tr(key).into(),
-                    leading: None,
-                    active: state.git_sidebar_layout == layout,
-                    disabled: false,
-                    on_select: Box::new(move |_, cx| {
+                Segment::new(tr(key))
+                    .selected(state.git_sidebar_layout == layout)
+                    .on_select(move |_, cx| {
                         prefs.update(cx, |p, cx| p.change(|p| p.git_sidebar_layout = layout, cx))
-                    }),
-                }
+                    })
             })
-            .collect();
+            .collect::<Vec<_>>();
 
         // Loading animation.
-        let loading_options = pulse_grid::presets()
-            .map(|id| {
-                let prefs = prefs.clone();
-                SegmentOption {
-                    label: tr(&format!("settings.appearance.loadingAnimation.{id}.label")).into(),
+        let loading_options =
+            pulse_grid::presets()
+                .map(|id| {
+                    let prefs = prefs.clone();
+                    Segment::new(tr(&format!(
+                        "settings.appearance.loadingAnimation.{id}.label"
+                    )))
                     // `.desktop-loading-animation-preview`: the 13px grid
                     // centred in a 17px cell.
-                    leading: Some(
-                        div()
-                            .w(px(17.))
-                            .flex()
-                            .justify_center()
-                            .child(pulse_grid::pulse_grid(
-                                SharedString::from(format!("loading-preview-{id}")),
-                                id,
-                                pulse_grid::PulseSize::Sm,
-                                t.subtle,
-                            ))
-                            .into_any_element(),
-                    ),
-                    active: state.loading_animation == id,
-                    disabled: false,
-                    on_select: Box::new(move |_, cx| {
+                    .leading(div().w(px(17.)).flex().justify_center().child(
+                        pulse_grid::pulse_grid(
+                            SharedString::from(format!("loading-preview-{id}")),
+                            id,
+                            pulse_grid::PulseSize::Sm,
+                            t.subtle,
+                        ),
+                    ))
+                    .selected(state.loading_animation == id)
+                    .on_select(move |_, cx| {
                         prefs.update(cx, |p, cx| {
                             p.change(|p| p.loading_animation = id.into(), cx)
                         })
-                    }),
-                }
-            })
-            .collect();
+                    })
+                })
+                .collect::<Vec<_>>();
 
         // Header elements (`HeaderElementsSetting`, `.desktop-settings-tool-list`):
         // 32px items, 8px start padding, a 14px subtle glyph 7px before the
         // 13px label, the switch 8px after it.
-        let mut tools = column().gap(px(2.));
+        let mut tools = v_flex().gap(px(2.));
         for (id, icon, enabled) in [
             ("changes", "version-control", state.header_changes),
             ("terminal", "agent-entry", state.header_terminal),
@@ -325,130 +309,120 @@ impl SettingsWorkspaceSurface {
             let prefs = prefs.clone();
             let label = tr(&format!("settings.appearance.headerElements.{id}"));
             tools = tools.child(
-                row()
+                h_flex()
                     .h(px(theme::control()))
                     .pl(px(8.))
                     .justify_between()
                     .gap(px(8.))
                     .child(
-                        row()
+                        h_flex()
                             .gap(px(7.))
                             .text_size(px(theme::ty().ui.meta))
                             .line_height(px(17.))
                             .text_color(t.muted)
-                            .child(crate::ui::icon_sized(icon, 14., t.subtle))
+                            .child(Icon::new(icon).small().color(t.subtle))
                             .child(label),
                     )
-                    .child(switch(
-                        SharedString::from(format!("header-{id}")),
-                        label,
-                        enabled,
-                        false,
-                        t,
-                        move |on, _, cx| {
-                            prefs.update(cx, |p, cx| {
-                                p.change(
-                                    |p| {
-                                        if id == "changes" {
-                                            p.header_changes = on
-                                        } else {
-                                            p.header_terminal = on
-                                        }
-                                    },
-                                    cx,
-                                )
-                            })
-                        },
-                    )),
+                    .child(
+                        Switch::new(SharedString::from(format!("header-{id}")), label)
+                            .checked(enabled)
+                            .on_change(move |on, _, cx| {
+                                prefs.update(cx, |p, cx| {
+                                    p.change(
+                                        |p| {
+                                            if id == "changes" {
+                                                p.header_changes = on
+                                            } else {
+                                                p.header_terminal = on
+                                            }
+                                        },
+                                        cx,
+                                    )
+                                })
+                            }),
+                    ),
             );
         }
 
         // Interface style: only the Default skin exists natively.
         let xp_label = tr("settings.appearance.interfaceStyle.windowsXp");
-        let style_options = vec![
-            SegmentOption {
-                label: tr("settings.appearance.interfaceStyle.default").into(),
-                leading: None,
-                active: true,
-                disabled: false,
-                on_select: Box::new(|_, _| {}),
-            },
-            SegmentOption {
-                label: xp_label.into(),
-                leading: None,
-                active: false,
-                disabled: true,
-                on_select: Box::new(|_, _| {}),
-            },
+        let style_options = [
+            Segment::new(tr("settings.appearance.interfaceStyle.default")).selected(true),
+            Segment::new(xp_label).disabled(true),
         ];
         let pointer_prefs = prefs.clone();
         // `.desktop-theme-mode-row`: the label and cards align to the top,
         // 7px inside the row.
-        let theme_row = setting_row(tr("settings.appearance.theme.title"), modes, t)
+        let theme_row = SettingRow::new(tr("settings.appearance.theme.title"))
+            .control(modes)
             .items_start()
             .py(px(7.));
         // `.desktop-theme-settings-section` (`SubThemeSettingsSection`) opens
         // 20px below the theme row and owns its own list.
-        section(tr(Page::Appearance.title()), t).child(lead_list(vec![
-            theme_row.into_any_element(),
-            setting_row(tr("settings.appearance.themes.pack"), pack_control, t)
-                .mt(px(20.))
-                .into_any_element(),
-            setting_row(
-                tr("settings.appearance.fileIcons.title"),
-                segment_with("file-icons", icon_options, SegmentLayout::Grid(360.), t),
-                t,
+        SettingsSection::new(tr(Page::Appearance.title()))
+            .child(
+                SettingsList::new()
+                    .lead(true)
+                    .child(theme_row)
+                    .child(
+                        SettingRow::new(tr("settings.appearance.themes.pack"))
+                            .control(pack_control)
+                            .mt(px(20.)),
+                    )
+                    .child(
+                        SettingRow::new(tr("settings.appearance.fileIcons.title")).control(
+                            SegmentedControl::new("file-icons")
+                                .layout(SegmentLayout::Equal(360.))
+                                .segments(icon_options),
+                        ),
+                    )
+                    .child(
+                        SettingRow::new(tr("settings.appearance.gitSidebarLayout.title")).control(
+                            SegmentedControl::new("git-layout")
+                                .layout(SegmentLayout::Hug)
+                                .segments(layout_options),
+                        ),
+                    )
+                    .child(
+                        SettingRow::new(tr("settings.appearance.loadingAnimation.title")).control(
+                            SegmentedControl::new("loading-animation")
+                                .layout(SegmentLayout::Hug)
+                                .segments(loading_options),
+                        ),
+                    )
+                    // `.desktop-settings-tools-row`: top-aligned, 5px block padding.
+                    .child(
+                        SettingRow::new(tr("settings.appearance.headerElements.title"))
+                            .control(tools)
+                            .items_start()
+                            .py(px(5.)),
+                    )
+                    .child(
+                        SettingRow::new(tr("settings.appearance.pointerCursors.title")).control(
+                            Switch::new(
+                                "pointer-cursors",
+                                tr("settings.appearance.pointerCursors.title"),
+                            )
+                            .checked(state.pointer_cursors)
+                            .tooltip(tr("settings.appearance.pointerCursors.detail"))
+                            .on_change(move |on, _, cx| {
+                                pointer_prefs
+                                    .update(cx, |p, cx| p.change(|p| p.pointer_cursors = on, cx))
+                            }),
+                        ),
+                    )
+                    .child(
+                        SettingRow::new(tr("settings.appearance.interfaceStyle.title")).control(
+                            SegmentedControl::new("interface-style")
+                                .layout(SegmentLayout::MinWidth(104.))
+                                .segments(style_options)
+                                .tooltip(tf(
+                                    "settings.sidebar.notAvailable",
+                                    &[("section", xp_label.into())],
+                                )),
+                        ),
+                    ),
             )
-            .into_any_element(),
-            setting_row(
-                tr("settings.appearance.gitSidebarLayout.title"),
-                segment_with("git-layout", layout_options, SegmentLayout::Hug, t),
-                t,
-            )
-            .into_any_element(),
-            setting_row(
-                tr("settings.appearance.loadingAnimation.title"),
-                segment_with("loading-animation", loading_options, SegmentLayout::Hug, t),
-                t,
-            )
-            .into_any_element(),
-            // `.desktop-settings-tools-row`: top-aligned, 5px block padding.
-            setting_row(tr("settings.appearance.headerElements.title"), tools, t)
-                .items_start()
-                .py(px(5.))
-                .into_any_element(),
-            setting_row(
-                tr("settings.appearance.pointerCursors.title"),
-                switch(
-                    "pointer-cursors",
-                    tr("settings.appearance.pointerCursors.title"),
-                    state.pointer_cursors,
-                    false,
-                    t,
-                    move |on, _, cx| {
-                        pointer_prefs.update(cx, |p, cx| p.change(|p| p.pointer_cursors = on, cx))
-                    },
-                )
-                .tooltip(tooltip(tr("settings.appearance.pointerCursors.detail"))),
-                t,
-            )
-            .into_any_element(),
-            setting_row(
-                tr("settings.appearance.interfaceStyle.title"),
-                segment_with(
-                    "interface-style",
-                    style_options,
-                    SegmentLayout::MinWidth(104.),
-                    t,
-                )
-                .id("interface-style-segment")
-                .tooltip(tooltip(tf(
-                    "settings.sidebar.notAvailable",
-                    &[("section", xp_label.into())],
-                ))),
-                t,
-            )
-            .into_any_element(),
-        ]))
+            .into_any_element()
     }
 }

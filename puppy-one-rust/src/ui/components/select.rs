@@ -148,8 +148,9 @@ impl RenderOnce for SelectTrigger {
             .h(px(theme::control_compact()))
             .min_w(px(self.min_width))
             .max_w(px(self.max_width))
+            // A native menu list: its arrow ends at the inner border.
             .pl(px(12.))
-            .pr(px(6.))
+            .pr(px(0.))
             .border_1()
             .border_color(if self.open { t.focus_ring } else { t.divider })
             .rounded(px(metric::CONTROL_RADIUS))

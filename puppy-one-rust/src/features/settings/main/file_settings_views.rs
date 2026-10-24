@@ -1,23 +1,29 @@
 //! Port of `FileSettingsViews.tsx` ("Git Ignore"): Explorer visibility —
 //! show hidden files, and newline-separated exclude patterns with Apply/Reset.
 use super::super::{
-    components::*,
     preference_types::{FilesVisibility, normalize_patterns},
     settings_workspace_surface::SettingsWorkspaceSurface,
 };
 use super::Page;
 use crate::{
-    localization::{t as tr, tf},
+    localization::t as tr,
     theme::{self, Theme},
-    ui::{column, row, switch},
+    ui::{
+        appearance::ActiveAppearance,
+        components::{Button, Icon, SettingRow, SettingsSection, SettingsSubsection, Switch},
+    },
 };
 use gpui::{prelude::*, *};
+use gpui_kit::{
+    base::{Disableable as _, h_flex, v_flex},
+    component::Sizable as _,
+};
 impl SettingsWorkspaceSurface {
-    pub(super) fn files(&self, t: Theme, cx: &mut Context<Self>) -> Div {
+    pub(super) fn files(&self, t: Theme, cx: &mut Context<Self>) -> AnyElement {
         let state = self.preferences.read(cx).state.files.clone();
         let draft = normalize_patterns(self.patterns.read(cx).text());
         let dirty = draft != state.exclude_patterns;
-        let dark = self.dark();
+        let dark = cx.is_dark();
         self.patterns.update(cx, |i, _| {
             i.dark = dark;
             i.appearance = false;
@@ -27,54 +33,41 @@ impl SettingsWorkspaceSurface {
             i.min_height = 0.;
         });
         let prefs = self.preferences.clone();
-        let show_hidden = setting_row(
-            tr("settings.files.showHidden"),
-            switch(
-                "show-hidden-files",
-                tr("settings.files.showHidden"),
-                state.show_hidden_files,
-                false,
-                t,
-                move |on, _, cx| {
+        let show_hidden = SettingRow::new(tr("settings.files.showHidden")).control(
+            Switch::new("show-hidden-files", tr("settings.files.showHidden"))
+                .checked(state.show_hidden_files)
+                .on_change(move |on, _, cx| {
                     prefs.update(cx, |p, cx| p.change(|p| p.files.show_hidden_files = on, cx))
-                },
-            ),
-            t,
+                }),
         );
-        let apply = row_action(
-            "apply-patterns",
-            tr("common.action.apply"),
-            Some(("check", 13.)),
-            !dirty,
-            t,
-        )
-        .on_click(cx.listener(|s, _, _, cx| {
-            let patterns = normalize_patterns(s.patterns.read(cx).text());
-            s.preferences.update(cx, |p, cx| {
-                p.change(|p| p.files.exclude_patterns = patterns, cx)
-            });
-        }));
-        let reset = row_action(
-            "reset-patterns",
-            tr("common.action.reset"),
-            Some(("refresh-cw", 13.)),
-            false,
-            t,
-        )
-        .on_click(cx.listener(|s, _, _, cx| {
-            s.preferences.update(cx, |p, cx| {
-                p.change(
-                    |p| p.files.exclude_patterns = FilesVisibility::default().exclude_patterns,
-                    cx,
-                )
-            });
-            s.sync_patterns(cx);
-        }));
+        // `.desktop-settings-row-action`.
+        let apply = Button::new("apply-patterns")
+            .icon("check")
+            .label(tr("common.action.apply"))
+            .disabled(!dirty)
+            .on_click(cx.listener(|s, _, _, cx| {
+                let patterns = normalize_patterns(s.patterns.read(cx).text());
+                s.preferences.update(cx, |p, cx| {
+                    p.change(|p| p.files.exclude_patterns = patterns, cx)
+                });
+            }));
+        let reset = Button::new("reset-patterns")
+            .icon("refresh-cw")
+            .label(tr("common.action.reset"))
+            .on_click(cx.listener(|s, _, _, cx| {
+                s.preferences.update(cx, |p, cx| {
+                    p.change(
+                        |p| p.files.exclude_patterns = FilesVisibility::default().exclude_patterns,
+                        cx,
+                    )
+                });
+                s.sync_patterns(cx);
+            }));
         // `.desktop-settings-pattern-editor`: top-aligned, 7px block padding,
         // the control `min(100%, 520px)` at the end; the textarea is Geist Mono
         // 13/17 with 9px/10px padding over `--po-input`. The pattern count is
         // only the textarea's description in the product.
-        let editor = row()
+        let editor = h_flex()
             .w_full()
             .min_h(px(184.))
             .items_start()
@@ -91,7 +84,7 @@ impl SettingsWorkspaceSurface {
                     .child(tr("settings.files.excludePatterns")),
             )
             .child(
-                column()
+                v_flex()
                     .w(px(520.))
                     .max_w_full()
                     .min_w_0()
@@ -117,23 +110,26 @@ impl SettingsWorkspaceSurface {
                             .child(self.patterns.clone())
                             .child(resize_grip(t)),
                     )
-                    .child(row().justify_end().gap(px(6.)).child(apply).child(reset)),
+                    .child(h_flex().justify_end().gap(px(6.)).child(apply).child(reset)),
             );
-        let _ = tf;
-        section(tr(Page::Files.title()), t).child(subsection(
-            None,
-            None,
-            true,
-            vec![show_hidden.into_any_element(), editor.into_any_element()],
-            t,
-        ))
+        SettingsSection::new(tr(Page::Files.title()))
+            .child(
+                SettingsSubsection::new()
+                    .lead(true)
+                    .child(show_hidden)
+                    .child(editor),
+            )
+            .into_any_element()
     }
 }
 /// Chromium's `resize: vertical` grip in the textarea's inner corner: an
 /// 8px pair of diagonals, embossed with a highlight in dark schemes.
 fn resize_grip(t: Theme) -> Div {
-    let layer = |name: &str, stroke: f32, color: Rgba| {
-        crate::ui::icon_stroke(name, 8., stroke, color)
+    let layer = |name: &'static str, stroke: f32, color: Rgba| {
+        Icon::new(name)
+            .with_size(px(8.))
+            .stroke(stroke)
+            .color(color)
             .absolute()
             .top_0()
             .left_0()

@@ -1,4 +1,3 @@
-pub(crate) mod components;
 mod main;
 pub mod preference_types;
 pub mod preferences_store;

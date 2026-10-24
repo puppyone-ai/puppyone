@@ -66,6 +66,7 @@ pub struct SegmentedControl {
     id: SharedString,
     layout: SegmentLayout,
     segments: Vec<Segment>,
+    tooltip: Option<SharedString>,
     style: StyleRefinement,
 }
 impl SegmentedControl {
@@ -74,11 +75,16 @@ impl SegmentedControl {
             id: id.into(),
             layout: SegmentLayout::Plain,
             segments: vec![],
+            tooltip: None,
             style: StyleRefinement::default(),
         }
     }
     pub fn layout(mut self, layout: SegmentLayout) -> Self {
         self.layout = layout;
+        self
+    }
+    pub fn tooltip(mut self, text: impl Into<SharedString>) -> Self {
+        self.tooltip = Some(text.into());
         self
     }
     pub fn segment(mut self, segment: Segment) -> Self {
@@ -109,6 +115,7 @@ impl RenderOnce for SegmentedControl {
             .p(px(2.))
             .rounded(px(7.))
             .bg(t.control)
+            .when_some(self.tooltip, |d, text| d.tooltip(super::tooltip(text)))
             .when_some(
                 match layout {
                     SegmentLayout::Equal(width) => Some(width),

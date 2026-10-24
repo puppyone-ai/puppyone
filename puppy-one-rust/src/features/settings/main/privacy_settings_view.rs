@@ -3,26 +3,27 @@
 //! native app has no telemetry client, so the switch reports the truth (off)
 //! and stays locked; the product shows "on" only for a running telemetry
 //! service.
-use super::super::{components::*, settings_workspace_surface::SettingsWorkspaceSurface};
+use super::super::settings_workspace_surface::SettingsWorkspaceSurface;
 use super::Page;
 use crate::{
     localization::t as tr,
     theme::{self, Theme},
-    ui::{row, switch, tooltip},
+    ui::components::{SettingRow, SettingsList, SettingsSection, Switch},
 };
 use gpui::{prelude::*, *};
+use gpui_kit::base::{Disableable as _, h_flex};
 
 /// `DESKTOP_TELEMETRY_DISCLOSURE_URL`.
 const DISCLOSURE_URL: &str = "https://github.com/puppyone-ai/puppyone/blob/main/README.md#privacy";
 
 impl SettingsWorkspaceSurface {
-    pub(super) fn privacy(&self, t: Theme) -> Div {
+    pub(super) fn privacy(&self, t: Theme) -> AnyElement {
         let title = tr("settings.privacy.productAnalyze.title");
         let detail = tr("settings.privacy.productAnalyze.detail");
         let underline = theme::alpha(t.muted, 0.42);
         // `.desktop-product-analyze-label`: title, then the 13px muted link
         // 8px after it with a 42% underline.
-        let label = row()
+        let label = h_flex()
             .gap(px(8.))
             .min_w_0()
             .child(div().line_height(px(18.)).text_color(t.subtle).child(title))
@@ -39,21 +40,16 @@ impl SettingsWorkspaceSurface {
                     .on_click(|_, _, cx| cx.open_url(DISCLOSURE_URL))
                     .child(tr("settings.privacy.productAnalyze.learnMore")),
             );
-        section(tr(Page::Privacy.title()), t).child(lead_list(vec![
-            row()
-                .w_full()
-                .min_w_0()
-                .min_h(px(42.))
-                .justify_between()
-                .gap(px(18.))
-                .px(px(10.))
-                .text_size(px(theme::ty().ui.label))
-                .child(label)
-                .child(
-                    switch("product-analytics", title, false, true, t, |_, _, _| {})
-                        .tooltip(tooltip(detail)),
-                )
-                .into_any_element(),
-        ]))
+        SettingsSection::new(tr(Page::Privacy.title()))
+            .child(
+                SettingsList::new().lead(true).child(
+                    SettingRow::new("").label_element(label).control(
+                        Switch::new("product-analytics", title)
+                            .disabled(true)
+                            .tooltip(detail),
+                    ),
+                ),
+            )
+            .into_any_element()
     }
 }

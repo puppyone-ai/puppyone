@@ -4,15 +4,23 @@
 //! never rendered.
 use super::infrastructure::{self as client, ModelConnection};
 use crate::{
-    features::settings::components::{
-        category, category_body, category_list, muted_row, section, setting_row, value_row,
-    },
     localization::{t as tr, tf},
     theme::{self, Theme},
-    ui::{Tone, action_button, column, form_input::TextInput, row, switch, tooltip},
+    ui::{
+        appearance::ActiveAppearance,
+        components::{
+            Button, ButtonVariant, Icon, MutedRow, SettingRow, SettingsCategory,
+            SettingsCategoryList, SettingsSection, Switch, ValueRow, tooltip,
+        },
+        form_input::TextInput,
+    },
     wake::Wake,
 };
 use gpui::{prelude::*, *};
+use gpui_kit::{
+    base::{Disableable as _, h_flex, v_flex},
+    component::Sizable as _,
+};
 pub struct Saved;
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum SourceKind {
@@ -50,7 +58,6 @@ enum PageState {
     Add(SourceKind),
 }
 pub struct ModelConnections {
-    pub dark: bool,
     items: Vec<ModelConnection>,
     loaded: bool,
     page: PageState,
@@ -85,7 +92,6 @@ impl ModelConnections {
         })
         .detach();
         Self {
-            dark: true,
             items: vec![],
             loaded: false,
             page: PageState::List,
@@ -218,7 +224,7 @@ impl ModelConnections {
     }
     /// `ModelConnectionsList`: per source kind a category with quiet text
     /// actions over a `.model-connections-list` card of 34px rows.
-    fn list(&self, t: Theme, cx: &mut Context<Self>) -> Div {
+    fn list(&self, t: Theme, cx: &mut Context<Self>) -> SettingsCategoryList {
         let m = theme::ty();
         let table = |rows: Vec<AnyElement>| {
             div()
@@ -233,7 +239,7 @@ impl ModelConnections {
                 .children(rows)
         };
         let table_row = || {
-            row()
+            h_flex()
                 .w_full()
                 .min_w_0()
                 .min_h(px(theme::control_large()))
@@ -245,7 +251,7 @@ impl ModelConnections {
                 .text_color(t.muted)
         };
         let identity = |name: SharedString, endpoint: SharedString| {
-            column()
+            v_flex()
                 .flex_1()
                 .min_w_0()
                 .gap(px(3.))
@@ -272,7 +278,12 @@ impl ModelConnections {
                 .text_size(px(m.ui.caption))
                 .text_color(t.subtle)
                 .hover(move |s| s.bg(t.hover).text_color(t.text))
-                .child(crate::ui::icon_stroke(icon, size, 2., t.subtle))
+                .child(
+                    Icon::new(icon)
+                        .with_size(px(size))
+                        .stroke(2.)
+                        .color(t.subtle),
+                )
                 .child(label)
         };
         let mut categories = vec![];
@@ -293,16 +304,16 @@ impl ModelConnections {
                         )))
                         .cursor(theme::clickable_cursor())
                         .hover(move |s| s.bg(t.hover))
-                        .child(crate::ui::icon_stroke(
-                            if kind == SourceKind::Api {
+                        .child(
+                            Icon::new(if kind == SourceKind::Api {
                                 "key-round"
                             } else {
                                 "server"
-                            },
-                            18.,
-                            2.,
-                            t.muted,
-                        ))
+                            })
+                            .with_size(px(18.))
+                            .stroke(2.)
+                            .color(t.muted),
+                        )
                         .child(identity(
                             item.name.clone().into(),
                             item.endpoint.clone().into(),
@@ -318,7 +329,7 @@ impl ModelConnections {
                                     "settings.modelConnections.status.ready"
                                 })),
                         )
-                        .child(crate::ui::icon_stroke("chevron-right", 14., 2., t.muted))
+                        .child(Icon::new("chevron-right").small().stroke(2.).color(t.muted))
                         .on_click(cx.listener(move |s, _, _, cx| {
                             s.navigate(PageState::Detail(id.clone()), cx)
                         }))
@@ -346,31 +357,29 @@ impl ModelConnections {
                 {
                     rows.push(
                         table_row()
-                            .child(crate::ui::icon_stroke("server", 18., 2., t.muted))
+                            .child(
+                                Icon::new("server")
+                                    .with_size(px(18.))
+                                    .stroke(2.)
+                                    .color(t.muted),
+                            )
                             .child(identity(candidate.name.into(), candidate.endpoint.into()))
                             .child(
-                                action_button(
-                                    ("connect-candidate", index),
-                                    tr("settings.modelConnections.connect"),
-                                    None,
-                                    Tone::Default,
-                                    self.busy,
-                                    t,
-                                )
-                                .on_click(cx.listener(
-                                    move |s, _, _, cx| {
+                                Button::new(("connect-candidate", index))
+                                    .label(tr("settings.modelConnections.connect"))
+                                    .disabled(self.busy)
+                                    .on_click(cx.listener(move |s, _, _, cx| {
                                         s.navigate(PageState::Add(SourceKind::Local), cx);
                                         s.name.update(cx, |i, cx| i.set_text(candidate.name, cx));
                                         s.endpoint
                                             .update(cx, |i, cx| i.set_text(candidate.endpoint, cx));
-                                    },
-                                )),
+                                    })),
                             )
                             .into_any_element(),
                     );
                 }
             }
-            let mut actions = row().gap(px(8.));
+            let mut actions = h_flex().gap(px(8.));
             if kind == SourceKind::Local {
                 let discovering = self.discover_rx.is_some();
                 actions = actions.child(
@@ -405,18 +414,20 @@ impl ModelConnections {
                 ))))
                 .on_click(cx.listener(move |s, _, _, cx| s.navigate(PageState::Add(kind), cx))),
             );
-            categories.push(category_body(
-                tr(&format!("settings.modelConnections.source.{}", kind.key())),
-                Some(actions.into_any_element()),
-                table(rows),
-                t,
-            ));
+            categories.push(
+                SettingsCategory::new(tr(&format!(
+                    "settings.modelConnections.source.{}",
+                    kind.key()
+                )))
+                .action(actions)
+                .body(table(rows)),
+            );
         }
-        if !self.loaded {
-            return category_list(categories)
-                .child(muted_row(tr("settings.modelConnections.loading"), t));
-        }
-        category_list(categories)
+        SettingsCategoryList::new()
+            .children(categories)
+            .when(!self.loaded, |list| {
+                list.child(MutedRow::new(tr("settings.modelConnections.loading")))
+            })
     }
     /// `discover()`: probe local model services (Ollama, LM Studio).
     fn discover(&mut self, cx: &mut Context<Self>) {
@@ -431,44 +442,31 @@ impl ModelConnections {
         };
         let kind = SourceKind::of(&item.endpoint);
         let edit_id = item.id.clone();
-        let edit = action_button(
-            "edit-connection",
-            tr("settings.modelConnections.edit"),
-            None,
-            Tone::Default,
-            self.busy,
-            t,
-        )
-        .on_click(cx.listener(move |s, _, _, cx| s.navigate(PageState::Edit(edit_id.clone()), cx)));
-        let refresh = action_button(
-            "refresh-models",
-            tr("settings.modelConnections.refresh"),
-            Some(if self.busy {
+        let edit = Button::new("edit-connection")
+            .label(tr("settings.modelConnections.edit"))
+            .disabled(self.busy)
+            .on_click(
+                cx.listener(move |s, _, _, cx| s.navigate(PageState::Edit(edit_id.clone()), cx)),
+            );
+        let refresh = Button::new("refresh-models")
+            .icon(if self.busy {
                 "loader-circle"
             } else {
                 "refresh-cw"
-            }),
-            Tone::Default,
-            self.busy,
-            t,
-        )
-        .on_click(cx.listener(|s, _, _, cx| s.reload(cx)));
+            })
+            .label(tr("settings.modelConnections.refresh"))
+            .disabled(self.busy)
+            .on_click(cx.listener(|s, _, _, cx| s.reload(cx)));
         let models: Vec<AnyElement> = if item.model.is_empty() {
-            vec![muted_row(tr("settings.modelConnections.modelsEmpty"), t).into_any_element()]
+            vec![MutedRow::new(tr("settings.modelConnections.modelsEmpty")).into_any_element()]
         } else {
             vec![
-                value_row(
-                    item.model.clone(),
-                    tr("settings.modelConnections.loaded"),
-                    false,
-                    None,
-                    t,
-                )
-                .into_any_element(),
+                ValueRow::new(item.model.clone(), tr("settings.modelConnections.loaded"))
+                    .into_any_element(),
             ]
         };
         let remove: AnyElement = if self.confirm_remove {
-            column()
+            v_flex()
                 .gap(px(8.))
                 .px(px(10.))
                 .child(
@@ -478,119 +476,100 @@ impl ModelConnections {
                         .child(tr("settings.modelConnections.deleteWarning")),
                 )
                 .child(
-                    row()
+                    h_flex()
                         .gap(px(6.))
                         .child(
-                            action_button(
-                                "confirm-remove",
-                                tr("settings.modelConnections.confirmDelete"),
-                                None,
-                                Tone::Danger,
-                                self.busy,
-                                t,
-                            )
-                            .on_click(cx.listener(|s, _, _, cx| {
-                                if !s.busy {
-                                    if let PageState::Detail(id) = &s.page {
-                                        let generation = s
-                                            .items
-                                            .iter()
-                                            .find(|c| &c.id == id)
-                                            .map(|c| c.generation.clone())
-                                            .unwrap_or_default();
-                                        s.rx =
-                                            client::remove(id.clone(), generation, s.wake.clone());
-                                        s.busy = true;
+                            Button::new("confirm-remove")
+                                .variant(ButtonVariant::OutlineDanger)
+                                .label(tr("settings.modelConnections.confirmDelete"))
+                                .disabled(self.busy)
+                                .on_click(cx.listener(|s, _, _, cx| {
+                                    if !s.busy {
+                                        if let PageState::Detail(id) = &s.page {
+                                            let generation = s
+                                                .items
+                                                .iter()
+                                                .find(|c| &c.id == id)
+                                                .map(|c| c.generation.clone())
+                                                .unwrap_or_default();
+                                            s.rx = client::remove(
+                                                id.clone(),
+                                                generation,
+                                                s.wake.clone(),
+                                            );
+                                            s.busy = true;
+                                        }
+                                        s.confirm_remove = false;
+                                        cx.notify();
                                     }
-                                    s.confirm_remove = false;
-                                    cx.notify();
-                                }
-                            })),
+                                })),
                         )
                         .child(
-                            action_button(
-                                "cancel-remove",
-                                tr("common.action.cancel"),
-                                None,
-                                Tone::Default,
-                                false,
-                                t,
-                            )
-                            .on_click(cx.listener(|s, _, _, cx| {
-                                s.confirm_remove = false;
-                                cx.notify()
-                            })),
+                            Button::new("cancel-remove")
+                                .label(tr("common.action.cancel"))
+                                .on_click(cx.listener(|s, _, _, cx| {
+                                    s.confirm_remove = false;
+                                    cx.notify()
+                                })),
                         ),
                 )
                 .into_any_element()
         } else {
-            row()
+            h_flex()
                 .px(px(10.))
                 .child(
-                    action_button(
-                        "remove-connection",
-                        tr("settings.modelConnections.remove"),
-                        None,
-                        Tone::Danger,
-                        self.busy,
-                        t,
-                    )
-                    .on_click(cx.listener(|s, _, _, cx| {
-                        s.confirm_remove = true;
-                        cx.notify()
-                    })),
+                    Button::new("remove-connection")
+                        .variant(ButtonVariant::OutlineDanger)
+                        .label(tr("settings.modelConnections.remove"))
+                        .disabled(self.busy)
+                        .on_click(cx.listener(|s, _, _, cx| {
+                            s.confirm_remove = true;
+                            cx.notify()
+                        })),
                 )
                 .into_any_element()
         };
-        column()
+        v_flex()
             .gap(px(20.))
             .child(
-                column()
+                v_flex()
                     .gap(px(2.))
-                    .child(value_row(
+                    .child(ValueRow::new(
                         tr("settings.modelConnections.sourceKind"),
                         tr(&format!("settings.modelConnections.source.{}", kind.key())),
-                        false,
-                        None,
-                        t,
                     ))
-                    .child(value_row(
-                        tr("settings.modelConnections.url"),
-                        item.endpoint.clone(),
-                        true,
-                        None,
-                        t,
-                    ))
-                    .child(value_row(
-                        tr("settings.modelConnections.apiKey"),
-                        tr(if item.authenticated {
-                            "settings.modelConnections.keyConfigured"
-                        } else {
-                            "settings.modelConnections.noKey"
-                        }),
-                        false,
-                        Some(edit.into_any_element()),
-                        t,
-                    )),
+                    .child(
+                        ValueRow::new(tr("settings.modelConnections.url"), item.endpoint.clone())
+                            .monospace(true),
+                    )
+                    .child(
+                        ValueRow::new(
+                            tr("settings.modelConnections.apiKey"),
+                            tr(if item.authenticated {
+                                "settings.modelConnections.keyConfigured"
+                            } else {
+                                "settings.modelConnections.noKey"
+                            }),
+                        )
+                        .action(edit),
+                    ),
             )
             .child(
-                category(
-                    format!(
+                div().px(px(10.)).child(
+                    SettingsCategory::new(format!(
                         "{} {}",
                         tr("settings.modelConnections.models"),
                         usize::from(!item.model.is_empty())
-                    ),
-                    Some(refresh.into_any_element()),
-                    models,
-                    t,
-                )
-                .px(px(10.)),
+                    ))
+                    .action(refresh)
+                    .children(models),
+                ),
             )
             .child(remove)
     }
     fn form(&self, t: Theme, cx: &mut Context<Self>) -> Div {
         let field = |label: &'static str, input: AnyElement| {
-            column()
+            v_flex()
                 .gap(px(6.))
                 .px(px(10.))
                 .child(
@@ -607,7 +586,7 @@ impl ModelConnections {
             tr("settings.modelConnections.noKey")
         };
         let paste_label = tf("workspace.node.pasteItems", &[("count", 0usize.into())]);
-        let key_row = row()
+        let key_row = h_flex()
             .gap(px(8.))
             .px(px(10.))
             .child(
@@ -618,38 +597,27 @@ impl ModelConnections {
                     .child(key_status),
             )
             .child(
-                action_button(
-                    "paste-key",
-                    paste_label,
-                    Some("clipboard-paste"),
-                    Tone::Default,
-                    false,
-                    t,
-                )
-                .tooltip(tooltip(tr("settings.modelConnections.keyHelp")))
-                .on_click(cx.listener(|s, _, _, cx| {
-                    s.secret = cx.read_from_clipboard().and_then(|c| c.text());
-                    cx.notify();
-                })),
+                Button::new("paste-key")
+                    .icon("clipboard-paste")
+                    .label(paste_label)
+                    .tooltip(tr("settings.modelConnections.keyHelp"))
+                    .on_click(cx.listener(|s, _, _, cx| {
+                        s.secret = cx.read_from_clipboard().and_then(|c| c.text());
+                        cx.notify();
+                    })),
             )
             .child(
-                action_button(
-                    "no-key",
-                    tr("settings.modelConnections.noKey"),
-                    None,
-                    Tone::Default,
-                    false,
-                    t,
-                )
-                .on_click(cx.listener(|s, _, _, cx| {
-                    s.authenticated = false;
-                    s.secret = None;
-                    cx.notify();
-                })),
+                Button::new("no-key")
+                    .label(tr("settings.modelConnections.noKey"))
+                    .on_click(cx.listener(|s, _, _, cx| {
+                        s.authenticated = false;
+                        s.secret = None;
+                        cx.notify();
+                    })),
             );
         let images = self.images;
         let host = cx.weak_entity();
-        column()
+        v_flex()
             .gap(px(14.))
             .child(field(
                 "settings.modelConnections.name",
@@ -675,7 +643,7 @@ impl ModelConnections {
                     .child(tr("settings.modelConnections.keyHelp")),
             )
             .child(
-                column()
+                v_flex()
                     .gap(px(10.))
                     .child(
                         div()
@@ -688,88 +656,70 @@ impl ModelConnections {
                         "settings.modelConnections.defaultModel",
                         self.model.clone().into_any_element(),
                     ))
-                    .child(setting_row(
-                        tr("settings.modelConnections.advertised"),
-                        switch(
-                            "model-images",
-                            tr("settings.modelConnections.advertised"),
-                            images,
-                            false,
-                            t,
-                            move |on, _, cx| {
-                                let _ = host.update(cx, |s, cx| {
-                                    s.images = on;
-                                    cx.notify()
-                                });
-                            },
+                    .child(
+                        SettingRow::new(tr("settings.modelConnections.advertised")).control(
+                            Switch::new("model-images", tr("settings.modelConnections.advertised"))
+                                .checked(images)
+                                .on_change(move |on, _, cx| {
+                                    let _ = host.update(cx, |s, cx| {
+                                        s.images = on;
+                                        cx.notify()
+                                    });
+                                }),
                         ),
-                        t,
-                    )),
+                    ),
             )
             .child(
-                row()
+                h_flex()
                     .gap(px(6.))
                     .px(px(10.))
                     .child(
-                        action_button(
-                            "save-connection",
-                            tr(if self.busy {
+                        Button::new("save-connection")
+                            .variant(ButtonVariant::OutlinePrimary)
+                            .label(tr(if self.busy {
                                 "settings.modelConnections.saving"
                             } else {
                                 "settings.modelConnections.save"
-                            }),
-                            None,
-                            Tone::Primary,
-                            self.busy,
-                            t,
-                        )
-                        .on_click(cx.listener(|s, _, _, cx| s.save(cx))),
+                            }))
+                            .disabled(self.busy)
+                            .on_click(cx.listener(|s, _, _, cx| s.save(cx))),
                     )
                     .child(
-                        action_button(
-                            "cancel-connection",
-                            tr("common.action.cancel"),
-                            None,
-                            Tone::Default,
-                            false,
-                            t,
-                        )
-                        .on_click(cx.listener(|s, _, _, cx| {
-                            s.secret = None;
-                            let back = match &s.page {
-                                PageState::Edit(id) => PageState::Detail(id.clone()),
-                                _ => PageState::List,
-                            };
-                            s.navigate(back, cx)
-                        })),
+                        Button::new("cancel-connection")
+                            .label(tr("common.action.cancel"))
+                            .on_click(cx.listener(|s, _, _, cx| {
+                                s.secret = None;
+                                let back = match &s.page {
+                                    PageState::Edit(id) => PageState::Detail(id.clone()),
+                                    _ => PageState::List,
+                                };
+                                s.navigate(back, cx)
+                            })),
                     ),
             )
     }
 }
 impl Render for ModelConnections {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
+        let dark = cx.is_dark();
         for input in [&self.name, &self.endpoint, &self.model] {
-            input.update(cx, |i, _| i.dark = self.dark);
+            input.update(cx, |i, _| i.dark = dark);
         }
         let back = match &self.page {
             PageState::List => None,
             PageState::Edit(id) => Some(PageState::Detail(id.clone())),
             _ => Some(PageState::List),
         };
-        let mut view = section(self.title(), t);
+        let mut view = SettingsSection::new(self.title());
         if let Some(back) = back {
             view = view.child(
-                row().px(px(10.)).child(
-                    action_button(
-                        "model-connections-back",
-                        tr("settings.modelConnections.back"),
-                        Some("chevron-left"),
-                        Tone::Default,
-                        self.busy,
-                        t,
-                    )
-                    .on_click(cx.listener(move |s, _, _, cx| s.navigate(back.clone(), cx))),
+                h_flex().px(px(10.)).child(
+                    Button::new("model-connections-back")
+                        .icon("chevron-left")
+                        .label(tr("settings.modelConnections.back"))
+                        .disabled(self.busy)
+                        .on_click(cx.listener(move |s, _, _, cx| s.navigate(back.clone(), cx))),
                 ),
             );
         }
@@ -786,9 +736,9 @@ impl Render for ModelConnections {
             );
         }
         let content = match self.page.clone() {
-            PageState::List => self.list(t, cx),
-            PageState::Detail(id) => self.detail(&id, t, cx),
-            PageState::Edit(_) | PageState::Add(_) => self.form(t, cx),
+            PageState::List => self.list(t, cx).into_any_element(),
+            PageState::Detail(id) => self.detail(&id, t, cx).into_any_element(),
+            PageState::Edit(_) | PageState::Add(_) => self.form(t, cx).into_any_element(),
         };
         view.child(content)
     }

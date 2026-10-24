@@ -10,19 +10,23 @@ mod other_app_imports_settings_view;
 mod privacy_settings_view;
 mod repository_settings_views;
 mod typography_settings_view;
+pub(super) use create_new_settings_view::CreateNewMenu;
+
 use super::{
-    components::*, settings_workspace_surface::SettingsWorkspaceSurface,
-    sidebar::settings_sidebar_model::Page,
+    settings_workspace_surface::SettingsWorkspaceSurface, sidebar::settings_sidebar_model::Page,
 };
-use crate::{localization::t as tr, theme::Theme};
+use crate::{
+    localization::t as tr,
+    ui::{appearance::ActiveAppearance, components::SettingsSection},
+};
 use gpui::{prelude::*, *};
 impl SettingsWorkspaceSurface {
     pub(in crate::features::settings) fn page_content(
         &mut self,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> Div {
-        let t = Theme::new(self.dark());
+    ) -> AnyElement {
+        let t = cx.palette();
         match self.page {
             Page::General => self.general(t, cx),
             Page::Appearance => self.appearance(t, cx),
@@ -31,16 +35,12 @@ impl SettingsWorkspaceSurface {
             Page::OtherAppImports => self.other_app_imports(t),
             Page::Privacy => self.privacy(t),
             Page::Experimental => self.experimental(t, cx),
-            Page::LocalAgents => {
-                let dark = self.dark();
-                self.agents.update(cx, |s, _| s.dark = dark);
-                section(tr(Page::LocalAgents.title()), t).child(self.agents.clone())
-            }
+            Page::LocalAgents => SettingsSection::new(tr(Page::LocalAgents.title()))
+                .child(self.agents.clone())
+                .into_any_element(),
             Page::ModelConnections => {
-                let dark = self.dark();
-                self.models.update(cx, |s, _| s.dark = dark);
                 // The connection flow owns its own title (list/detail/edit).
-                div().w_full().child(self.models.clone())
+                div().w_full().child(self.models.clone()).into_any_element()
             }
             Page::Project => self.local_project(t, window, cx),
             Page::Host => self.host_server(t, cx),

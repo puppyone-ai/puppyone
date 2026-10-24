@@ -1,22 +1,33 @@
 //! Port of `CreateNewSettingsView.tsx`: Main menu tree with the nested custom
 //! submenu, Hidden list, drag to reorder and Restore defaults. A context menu
 //! offers the same moves without a pointer drag.
-use super::super::{components::*, settings_workspace_surface::SettingsWorkspaceSurface};
+use super::super::settings_workspace_surface::SettingsWorkspaceSurface;
 use super::Page;
 use crate::{
     features::create_new::create_entry_menu_registry::{Entry, MenuSettings, Placement},
     localization::{t as tr, tf},
     theme::{self, Theme},
-    ui::{Tone, action_button, column, menu_icon, row, tooltip},
+    ui::{
+        appearance::ActiveAppearance,
+        components::{
+            AnchoredMenu, Button, FileIcon, Icon, Menu, MenuItem, SettingsCategory,
+            SettingsCategoryList, SettingsSection, tooltip,
+        },
+    },
 };
 use gpui::{prelude::*, *};
-use gpui_kit::component::menu::{ContextMenuExt, PopupMenuItem};
+use gpui_kit::{
+    base::{Disableable as _, h_flex, v_flex},
+    component::Sizable as _,
+};
 #[derive(Clone)]
 struct DragEntry(Entry, SharedString);
+/// The row context menu: the entry, its group and where it was opened.
+pub(in crate::features::settings) type CreateNewMenu = (Entry, Placement, Point<Pixels>);
 
 /// `.desktop-create-new-glyph`: a 20px slot holding the 18px file glyph (or
 /// the 15px Workflow mark of the custom submenu).
-fn glyph(entry: Entry, icon_theme: &str, dark: bool) -> AnyElement {
+fn glyph(entry: Entry, icon_theme: &str, t: Theme) -> AnyElement {
     let slot = div()
         .size(px(20.))
         .flex_shrink_0()
@@ -25,25 +36,14 @@ fn glyph(entry: Entry, icon_theme: &str, dark: bool) -> AnyElement {
         .justify_center();
     if entry == Entry::CustomFiles {
         return slot
-            .child(crate::ui::icon_stroke(
-                "workflow",
-                15.,
-                2.,
-                theme::Theme::new(dark).muted,
-            ))
+            .child(Icon::new("workflow").stroke(2.).color(t.muted))
             .into_any_element();
     }
-    let (name, folder) = match entry {
-        Entry::Folder => ("folder".to_owned(), true),
-        e => (format!("x{}", e.extension()), false),
+    let icon = match entry {
+        Entry::Folder => FileIcon::folder(icon_theme.to_owned()),
+        e => FileIcon::file(format!("x{}", e.extension()), icon_theme.to_owned()),
     };
-    slot.child(
-        img(SharedString::from(crate::file_kind::asset_path(
-            icon_theme, &name, folder, dark,
-        )))
-        .size(px(18.)),
-    )
-    .into_any_element()
+    slot.child(icon).into_any_element()
 }
 /// `isCreateNewItemAvailable`: only experiment-gated entries are unavailable
 /// in this list (PuppyFlow files behind `enablePuppyFlowFiles`).
@@ -63,20 +63,18 @@ impl SettingsWorkspaceSurface {
         icon_theme: &str,
         experimental: &super::super::preference_types::Experimental,
         t: Theme,
+        cx: &mut Context<Self>,
     ) -> AnyElement {
         let label: SharedString = tr(entry.label_key()).into();
-        let prefs = self.preferences.clone();
         let drop_prefs = self.preferences.clone();
-        let menu_prefs = self.preferences.clone();
         let submenu = entry == Entry::CustomFiles;
         let unavailable = !submenu && !listed_available(entry, experimental);
         let drag_label = tf(
             "settings.createNew.dragToReorder",
             &[("type", label.to_string().into())],
         );
-        let _ = prefs;
         // `.desktop-create-new-row`: `24px 20px 1fr auto`, 7px gaps, 34px.
-        row()
+        h_flex()
             .id(SharedString::from(format!("create-new-{entry:?}")))
             .w_full()
             .min_w_0()
@@ -103,13 +101,18 @@ impl SettingsWorkspaceSurface {
                     .cursor_grab()
                     .hover(move |s| s.bg(t.hover).opacity(1.))
                     .tooltip(tooltip(drag_label))
-                    .child(crate::ui::icon_stroke("grip-vertical", 14., 2., t.subtle))
+                    .child(
+                        Icon::new("grip-vertical")
+                            .small()
+                            .stroke(2.)
+                            .color(t.subtle),
+                    )
                     .on_drag(DragEntry(entry, label.clone()), |drag, _, _, cx| {
                         let text = drag.1.clone();
                         cx.new(move |_| DragLabel(text))
                     }),
             )
-            .child(glyph(entry, icon_theme, t.dark))
+            .child(glyph(entry, icon_theme, t))
             .child(
                 div()
                     .flex_1()
@@ -120,7 +123,7 @@ impl SettingsWorkspaceSurface {
             )
             .when(submenu, |d| {
                 d.child(
-                    row()
+                    h_flex()
                         .gap(px(5.))
                         .child(
                             div()
@@ -134,7 +137,7 @@ impl SettingsWorkspaceSurface {
                                 .text_color(t.subtle)
                                 .child(tr("settings.createNew.submenu.badge")),
                         )
-                        .child(crate::ui::icon_stroke("chevron-right", 14., 2., t.muted)),
+                        .child(Icon::new("chevron-right").small().stroke(2.).color(t.muted)),
                 )
             })
             .on_drop(move |drag: &DragEntry, _, cx| {
@@ -153,33 +156,64 @@ impl SettingsWorkspaceSurface {
                     )
                 })
             })
-            .context_menu(move |mut menu, _, _| {
-                for (place, key) in [
+            .on_mouse_down(
+                MouseButton::Right,
+                cx.listener(move |s, e: &MouseDownEvent, _, cx| {
+                    cx.stop_propagation();
+                    s.create_new_menu = Some((entry, placement, e.position));
+                    cx.notify();
+                }),
+            )
+            .into_any_element()
+    }
+    /// The row context menu: move the entry to another group.
+    fn create_new_context_menu(&self, cx: &mut Context<Self>) -> Option<AnchoredMenu> {
+        let (entry, placement, position) = self.create_new_menu?;
+        let close = cx.weak_entity();
+        let menu = Menu::new("create-new-context-menu")
+            .min_w(px(180.))
+            .items(
+                [
                     (Placement::Main, "settings.createNew.location.main"),
                     (Placement::Submenu, "settings.createNew.submenu.title"),
                     (Placement::Hidden, "settings.createNew.hidden.title"),
-                ] {
-                    let prefs = menu_prefs.clone();
-                    menu = menu.item(
-                        PopupMenuItem::new(tr(key))
-                            .checked(place == placement)
-                            .disabled(entry == Entry::CustomFiles && place != Placement::Main)
-                            .on_click(move |_, _, cx| {
-                                prefs.update(cx, |s, cx| {
-                                    s.change(
-                                        |s| {
-                                            let len = s.create_new.group(place).len();
-                                            s.create_new.move_entry(entry, place, len)
-                                        },
-                                        cx,
-                                    )
-                                })
-                            }),
-                    );
+                ]
+                .into_iter()
+                .map(|(place, key)| {
+                    let prefs = self.preferences.clone();
+                    MenuItem::new(tr(key))
+                        .checked(place == placement)
+                        .disabled(entry == Entry::CustomFiles && place != Placement::Main)
+                        .on_click(move |_, cx| {
+                            prefs.update(cx, |s, cx| {
+                                s.change(
+                                    |s| {
+                                        let len = s.create_new.group(place).len();
+                                        s.create_new.move_entry(entry, place, len)
+                                    },
+                                    cx,
+                                )
+                            })
+                        })
+                }),
+            )
+            .on_dismiss({
+                let close = close.clone();
+                move |_, cx| {
+                    let _ = close.update(cx, |s, cx| {
+                        s.create_new_menu = None;
+                        cx.notify();
+                    });
                 }
-                menu
-            })
-            .into_any_element()
+            });
+        Some(
+            AnchoredMenu::new("create-new-context", position, menu).on_dismiss(move |_, cx| {
+                let _ = close.update(cx, |s, cx| {
+                    s.create_new_menu = None;
+                    cx.notify();
+                });
+            }),
+        )
     }
     fn drop_zone(
         &self,
@@ -211,13 +245,13 @@ impl SettingsWorkspaceSurface {
                 })
             })
     }
-    pub(super) fn create_new(&self, t: Theme, cx: &mut Context<Self>) -> Div {
+    pub(super) fn create_new(&self, t: Theme, cx: &mut Context<Self>) -> AnyElement {
         let state = self.preferences.read(cx).state.clone();
         let experimental = state.experimental.clone();
         let settings = state.create_new.clone();
         let icon_theme = state.file_icon_theme.clone();
         let tree = |children: Vec<AnyElement>| {
-            column()
+            v_flex()
                 .w_full()
                 .p(px(4.))
                 .border_1()
@@ -229,7 +263,7 @@ impl SettingsWorkspaceSurface {
         let mut main: Vec<AnyElement> = vec![
             // `.desktop-create-new-row-fixed`: a 20px lock marker at 58% in
             // the 24px handle column, the folder and its Fixed label.
-            row()
+            h_flex()
                 .min_h(px(theme::control_large()))
                 .gap(px(7.))
                 .px(px(8.))
@@ -244,10 +278,15 @@ impl SettingsWorkspaceSurface {
                             .items_center()
                             .justify_center()
                             .opacity(0.58)
-                            .child(crate::ui::icon_stroke("lock-keyhole", 12., 2., t.subtle)),
+                            .child(
+                                Icon::new("lock-keyhole")
+                                    .xsmall()
+                                    .stroke(2.)
+                                    .color(t.subtle),
+                            ),
                     ),
                 )
-                .child(glyph(Entry::Folder, &icon_theme, t.dark))
+                .child(glyph(Entry::Folder, &icon_theme, t))
                 .child(
                     div()
                         .flex_1()
@@ -277,9 +316,10 @@ impl SettingsWorkspaceSurface {
                 &icon_theme,
                 &experimental,
                 t,
+                cx,
             ));
             if entry == Entry::CustomFiles {
-                let mut children = column()
+                let mut children = v_flex()
                     .ml(px(20.))
                     .mr(px(6.))
                     .mt(px(1.))
@@ -298,6 +338,7 @@ impl SettingsWorkspaceSurface {
                         &icon_theme,
                         &experimental,
                         t,
+                        cx,
                     ));
                 }
                 children = children.child(
@@ -323,7 +364,9 @@ impl SettingsWorkspaceSurface {
             .iter()
             .copied()
             .enumerate()
-            .map(|(i, e)| self.create_row(e, Placement::Hidden, i, &icon_theme, &experimental, t))
+            .map(|(i, e)| {
+                self.create_row(e, Placement::Hidden, i, &icon_theme, &experimental, t, cx)
+            })
             .collect();
         hidden.push(
             self.drop_zone(
@@ -338,39 +381,42 @@ impl SettingsWorkspaceSurface {
             .into_any_element(),
         );
         let defaults = settings == MenuSettings::default();
-        let restore = action_button(
-            "restore-create-new",
-            tr("settings.createNew.restoreDefaults"),
-            Some("rotate-ccw"),
-            Tone::Default,
-            defaults,
-            t,
-        )
-        .on_click(cx.listener(|s, _, _, cx| {
-            s.preferences.update(cx, |p, cx| {
-                p.change(|p| p.create_new = MenuSettings::default(), cx)
-            })
-        }));
-        let _ = menu_icon;
+        let restore = Button::new("restore-create-new")
+            .icon("rotate-ccw")
+            .label(tr("settings.createNew.restoreDefaults"))
+            .disabled(defaults)
+            .on_click(cx.listener(|s, _, _, cx| {
+                s.preferences.update(cx, |p, cx| {
+                    p.change(|p| p.create_new = MenuSettings::default(), cx)
+                })
+            }));
         // `.desktop-settings-lead-categories`; the footer right-aligns Restore.
-        section(tr(Page::CreateNew.title()), t).child(
-            category_list(vec![
-                category_body(tr("settings.createNew.location.main"), None, tree(main), t),
-                category_body(tr("settings.createNew.hidden.title"), None, tree(hidden), t),
-            ])
+        SettingsSection::new(tr(Page::CreateNew.title()))
             .child(
-                row()
-                    .min_h(px(theme::control_large()))
-                    .justify_end()
-                    .child(restore),
-            ),
-        )
+                SettingsCategoryList::new()
+                    .child(
+                        SettingsCategory::new(tr("settings.createNew.location.main"))
+                            .body(tree(main)),
+                    )
+                    .child(
+                        SettingsCategory::new(tr("settings.createNew.hidden.title"))
+                            .body(tree(hidden)),
+                    )
+                    .child(
+                        h_flex()
+                            .min_h(px(theme::control_large()))
+                            .justify_end()
+                            .child(restore),
+                    ),
+            )
+            .children(self.create_new_context_menu(cx))
+            .into_any_element()
     }
 }
 struct DragLabel(SharedString);
 impl Render for DragLabel {
-    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        let t = Theme::new(true);
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let t = cx.palette();
         div()
             .px(px(10.))
             .py(px(6.))

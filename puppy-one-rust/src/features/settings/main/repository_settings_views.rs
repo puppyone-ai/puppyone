@@ -2,7 +2,6 @@
 //! Server page (`CloudHostingSettingsView` with
 //! `PuppyoneWorkspaceConfigSettings` over `.puppyone/config.json`).
 use super::super::{
-    components::*,
     repository_settings::{is_puppyone_remote, mask_remote_url, remote_kind_label},
     settings_workspace_surface::SettingsWorkspaceSurface,
     workspace_config,
@@ -11,62 +10,56 @@ use super::Page;
 use crate::{
     localization::{t as tr, tf},
     theme::{self, Theme},
-    ui::{Tone, action_button, row, switch},
+    ui::components::{
+        Button, ButtonVariant, MutedRow, Select, SelectOption, SettingRow, SettingsSection,
+        SettingsSubsection, Switch, ValueRow,
+    },
 };
 use gpui::{prelude::*, *};
-use gpui_kit::component::menu::PopupMenuItem;
+use gpui_kit::base::{Disableable as _, h_flex};
 impl SettingsWorkspaceSurface {
-    fn refresh_action(&self, t: Theme, cx: &mut Context<Self>) -> AnyElement {
+    fn refresh_action(&self, cx: &mut Context<Self>) -> Button {
         let loading = self.repository.read(cx).loading;
-        action_button(
-            "refresh-repository",
-            tr("common.action.refresh"),
-            Some(if loading {
+        Button::new("refresh-repository")
+            .icon(if loading {
                 "loader-circle"
             } else {
                 "refresh-cw"
-            }),
-            Tone::Default,
-            loading,
-            t,
-        )
-        .on_click(cx.listener(|s, _, _, cx| s.repository.update(cx, |r, cx| r.refresh(cx))))
-        .into_any_element()
+            })
+            .label(tr("common.action.refresh"))
+            .disabled(loading)
+            .on_click(cx.listener(|s, _, _, cx| s.repository.update(cx, |r, cx| r.refresh(cx))))
     }
     /// Shared error/loading/not-a-repository states (`desktop-settings-lead-state`).
-    fn repository_state(&self, t: Theme, cx: &App) -> Option<Div> {
+    fn repository_state(&self, cx: &App) -> Option<MutedRow> {
         let repo = self.repository.read(cx);
         if let Some(error) = &repo.error {
-            return Some(danger_row(error.clone(), t).min_h(px(54.)));
+            return Some(MutedRow::new(error.clone()).danger().min_h(px(54.)));
         }
         match &repo.info {
-            None => Some(muted_row(tr("settings.git.reading"), t).min_h(px(54.))),
+            None => Some(MutedRow::new(tr("settings.git.reading")).min_h(px(54.))),
             Some(info) if !info.is_repo => {
-                Some(muted_row(tr("settings.git.notRepository"), t).min_h(px(54.)))
+                Some(MutedRow::new(tr("settings.git.notRepository")).min_h(px(54.)))
             }
             _ => None,
         }
     }
-    pub(super) fn host_server(&mut self, t: Theme, cx: &mut Context<Self>) -> Div {
-        let action = self.refresh_action(t, cx);
-        let content = section_with_action(tr(Page::Host.title()), Some(action), t);
-        match self.repository_state(t, cx) {
+    pub(super) fn host_server(&mut self, t: Theme, cx: &mut Context<Self>) -> AnyElement {
+        let content = SettingsSection::new(tr(Page::Host.title())).action(self.refresh_action(cx));
+        match self.repository_state(cx) {
             Some(state) => content.child(state),
             None => content.child(self.workspace_config(t, cx)),
         }
+        .into_any_element()
     }
     /// `PuppyoneWorkspaceConfigSettings` (`.desktop-puppyone-config-*`).
-    fn workspace_config(&mut self, t: Theme, cx: &mut Context<Self>) -> Div {
+    fn workspace_config(&mut self, t: Theme, cx: &mut Context<Self>) -> SettingsSubsection {
         const CLOUD_ENABLED: bool = true;
         let repo = self.repository.read(cx);
         let Some(saved) = repo.config.clone() else {
-            return subsection(
-                None,
-                None,
-                true,
-                vec![muted_row(tr("settings.workspaceConfig.reading"), t).into_any_element()],
-                t,
-            );
+            return SettingsSubsection::new()
+                .lead(true)
+                .child(MutedRow::new(tr("settings.workspaceConfig.reading")));
         };
         let saving = repo.config_saving;
         let error = repo.config_error.clone();
@@ -127,7 +120,7 @@ impl SettingsWorkspaceSurface {
                 .unwrap_or_else(|| tr("settings.workspaceConfig.auto").into())
                 .into();
             let host = host.clone();
-            select_sized(id, label, saving, (220., 220.), t, move || {
+            Select::new(id, label, move |_| {
                 std::iter::once(None)
                     .chain(names.iter().cloned().map(Some))
                     .map(|choice| {
@@ -135,8 +128,9 @@ impl SettingsWorkspaceSurface {
                         let text = choice
                             .clone()
                             .unwrap_or_else(|| tr("settings.workspaceConfig.auto").into());
-                        PopupMenuItem::new(text).checked(choice == value).on_click(
-                            move |_, _, cx| {
+                        SelectOption::new(text)
+                            .selected(choice == value)
+                            .on_select(move |_, cx| {
                                 let choice = choice.clone();
                                 let _ = host.update(cx, |s, cx| {
                                     if backup {
@@ -147,11 +141,12 @@ impl SettingsWorkspaceSurface {
                                     }
                                     cx.notify();
                                 });
-                            },
-                        )
+                            })
                     })
                     .collect()
             })
+            .width_range(220., 220.)
+            .disabled(saving)
         };
         // `.desktop-settings-text-input`: 220×28, 9px inset, 13px over `--po-input`.
         let text_input = |input: &Entity<crate::ui::form_input::TextInput>,
@@ -179,11 +174,14 @@ impl SettingsWorkspaceSurface {
                 .child(div().w_full().child(input.clone()))
         };
         let config_row = |label: String, control: AnyElement| {
-            setting_row(label, control, t).py(px(7.)).into_any_element()
+            SettingRow::new(label)
+                .control(control)
+                .py(px(7.))
+                .into_any_element()
         };
         // `.desktop-hosting-service-options`: a 2px-inset group; the active
         // option is raised with a 1px divider ring.
-        let mut services = row()
+        let mut services = h_flex()
             .gap(px(3.))
             .p(px(2.))
             .border_1()
@@ -254,15 +252,10 @@ impl SettingsWorkspaceSurface {
                     .child(service.label()),
             );
         }
-        let mut rows: Vec<AnyElement> = vec![
-            setting_row(
-                tr("settings.workspaceConfig.sourceService.title"),
-                services,
-                t,
-            )
-            .py(px(7.))
-            .into_any_element(),
-        ];
+        let mut rows: Vec<AnyElement> = vec![config_row(
+            tr("settings.workspaceConfig.sourceService.title").into(),
+            services.into_any_element(),
+        )];
         if draft.source_service != workspace_config::Service::Puppyone {
             rows.push(config_row(
                 tr("settings.workspaceConfig.gitRemote.title").into(),
@@ -282,22 +275,21 @@ impl SettingsWorkspaceSurface {
         }
         rows.push(config_row(
             tr("settings.workspaceConfig.backupEnabled.title").into(),
-            switch(
+            Switch::new(
                 "hosting-backup",
                 tr("settings.workspaceConfig.backupEnabled.title"),
-                draft.backup_enabled,
-                saving,
-                t,
-                {
-                    let host = cx.weak_entity();
-                    move |on, _, cx| {
-                        let _ = host.update(cx, |s, cx| {
-                            s.hosting_draft.backup_enabled = on;
-                            cx.notify();
-                        });
-                    }
-                },
             )
+            .checked(draft.backup_enabled)
+            .disabled(saving)
+            .on_change({
+                let host = cx.weak_entity();
+                move |on, _, cx| {
+                    let _ = host.update(cx, |s, cx| {
+                        s.hosting_draft.backup_enabled = on;
+                        cx.notify();
+                    });
+                }
+            })
             .into_any_element(),
         ));
         if draft.backup_enabled {
@@ -313,51 +305,46 @@ impl SettingsWorkspaceSurface {
             let remotes = info.remotes.clone();
             rows.push(config_row(
                 tr("settings.workspaceConfig.backupTarget.title").into(),
-                select_sized(
-                    "hosting-backup-target",
-                    target.label(),
-                    saving,
-                    (220., 220.),
-                    t,
-                    move || {
-                        targets
-                            .iter()
-                            .map(|service| {
-                                let host = host.clone();
-                                let service = *service;
-                                let remotes = remotes.clone();
-                                PopupMenuItem::new(service.label())
-                                    .checked(service == target)
-                                    .on_click(move |_, _, cx| {
-                                        let remotes = remotes.clone();
-                                        let _ = host.update(cx, |s, cx| {
-                                            s.hosting_draft.backup_service = service;
-                                            let pick = |f: &dyn Fn(Option<&str>) -> bool| {
-                                                remotes
-                                                    .iter()
-                                                    .find(|r| {
-                                                        f(r.fetch_url
-                                                            .as_deref()
-                                                            .or(r.push_url.as_deref()))
-                                                    })
-                                                    .map(|r| r.name.clone())
-                                            };
-                                            s.hosting_draft.backup_remote = match service {
-                                                workspace_config::Service::Puppyone => pick(&|u| {
-                                                    u.is_some_and(|u| {
-                                                        u.to_lowercase().contains("puppyone")
-                                                    })
+                Select::new("hosting-backup-target", target.label(), move |_| {
+                    targets
+                        .iter()
+                        .map(|service| {
+                            let host = host.clone();
+                            let service = *service;
+                            let remotes = remotes.clone();
+                            SelectOption::new(service.label())
+                                .selected(service == target)
+                                .on_select(move |_, cx| {
+                                    let remotes = remotes.clone();
+                                    let _ = host.update(cx, |s, cx| {
+                                        s.hosting_draft.backup_service = service;
+                                        let pick = |f: &dyn Fn(Option<&str>) -> bool| {
+                                            remotes
+                                                .iter()
+                                                .find(|r| {
+                                                    f(r.fetch_url
+                                                        .as_deref()
+                                                        .or(r.push_url.as_deref()))
                                                 })
-                                                .or(s.hosting_draft.backup_remote.clone()),
-                                                _ => pick(&|u| remote_kind_label(u) == "GitHub"),
-                                            };
-                                            cx.notify();
-                                        });
-                                    })
-                            })
-                            .collect()
-                    },
-                )
+                                                .map(|r| r.name.clone())
+                                        };
+                                        s.hosting_draft.backup_remote = match service {
+                                            workspace_config::Service::Puppyone => pick(&|u| {
+                                                u.is_some_and(|u| {
+                                                    u.to_lowercase().contains("puppyone")
+                                                })
+                                            })
+                                            .or(s.hosting_draft.backup_remote.clone()),
+                                            _ => pick(&|u| remote_kind_label(u) == "GitHub"),
+                                        };
+                                        cx.notify();
+                                    });
+                                })
+                        })
+                        .collect()
+                })
+                .width_range(220., 220.)
+                .disabled(saving)
                 .into_any_element(),
             ));
             if target != workspace_config::Service::Puppyone {
@@ -386,46 +373,31 @@ impl SettingsWorkspaceSurface {
             })
             .into()
         });
-        let reset = row_action(
-            "hosting-reset",
-            tr("common.action.reset"),
-            Some(("refresh-cw", 13.)),
-            !dirty || saving,
-            t,
-        )
-        .on_click(cx.listener(|s, _, _, cx| {
-            s.hosting_base = None;
-            cx.notify();
-        }));
+        let reset = Button::new("hosting-reset")
+            .icon("refresh-cw")
+            .label(tr("common.action.reset"))
+            .disabled(!dirty || saving)
+            .on_click(cx.listener(|s, _, _, cx| {
+                s.hosting_base = None;
+                cx.notify();
+            }));
         let save_enabled = dirty && !saving;
-        let save = row_action(
-            "hosting-save",
-            tr(if saving {
+        let save = Button::new("hosting-save")
+            .variant(ButtonVariant::Success)
+            .icon("check")
+            .label(tr(if saving {
                 "settings.workspaceConfig.saving"
             } else {
                 "common.action.save"
-            }),
-            Some(("check", 13.)),
-            !save_enabled,
-            t,
-        )
-        // `.desktop-settings-save-action:not(:disabled)`.
-        .when(save_enabled, |b| {
-            b.border_color(t.success)
-                .bg(t.success)
-                .text_color(theme::on_solid())
-                .hover(move |s| {
-                    s.border_color(theme::shade(t.success, 0.86))
-                        .bg(theme::shade(t.success, 0.88))
-                })
-        })
-        .on_click(cx.listener(move |s, _, _, cx| {
-            let config = draft.clone();
-            s.repository.update(cx, |r, cx| r.save_config(config, cx));
-        }));
+            }))
+            .disabled(!save_enabled)
+            .on_click(cx.listener(move |s, _, _, cx| {
+                let config = draft.clone();
+                s.repository.update(cx, |r, cx| r.save_config(config, cx));
+            }));
         // `.desktop-puppyone-config-footer`.
         rows.push(
-            row()
+            h_flex()
                 .w_full()
                 .min_h(px(40.))
                 .justify_between()
@@ -435,30 +407,26 @@ impl SettingsWorkspaceSurface {
                 .text_size(px(m.ui.hint))
                 .text_color(t.subtle)
                 .child(div().min_w_0().truncate().child(status))
-                .child(row().gap(px(6.)).child(reset).child(save))
+                .child(h_flex().gap(px(6.)).child(reset).child(save))
                 .into_any_element(),
         );
-        subsection(None, None, true, rows, t)
+        SettingsSubsection::new().lead(true).children(rows)
     }
-    pub(super) fn git(&self, t: Theme, cx: &mut Context<Self>) -> Div {
-        let action = self.refresh_action(t, cx);
-        let content = section_with_action(tr(Page::Git.title()), Some(action), t);
-        if let Some(state) = self.repository_state(t, cx) {
-            return content.child(state);
+    pub(super) fn git(&self, t: Theme, cx: &mut Context<Self>) -> AnyElement {
+        let content = SettingsSection::new(tr(Page::Git.title())).action(self.refresh_action(cx));
+        if let Some(state) = self.repository_state(cx) {
+            return content.child(state).into_any_element();
         }
         let info = self.repository.read(cx).info.clone().unwrap_or_default();
         let repository = vec![
-            value_row(
+            ValueRow::new(
                 tr("settings.git.branch"),
                 info.branch
                     .clone()
                     .unwrap_or_else(|| tr("settings.git.detached").into()),
-                false,
-                None,
-                t,
             )
             .into_any_element(),
-            value_row(
+            ValueRow::new(
                 tr("settings.git.branches"),
                 tf(
                     "settings.git.branchCounts",
@@ -467,22 +435,16 @@ impl SettingsWorkspaceSurface {
                         ("remoteCount", info.remote_branches.into()),
                     ],
                 ),
-                false,
-                None,
-                t,
             )
             .into_any_element(),
-            value_row(
+            ValueRow::new(
                 tr("settings.git.upstream"),
                 info.upstream
                     .clone()
                     .unwrap_or_else(|| tr("settings.shared.notConfigured").into()),
-                false,
-                None,
-                t,
             )
             .into_any_element(),
-            value_row(
+            ValueRow::new(
                 tr("settings.git.syncStatus"),
                 if info.upstream.is_some() {
                     tf(
@@ -492,27 +454,22 @@ impl SettingsWorkspaceSurface {
                 } else {
                     tr("settings.git.localOnly").into()
                 },
-                false,
-                None,
-                t,
             )
             .into_any_element(),
-            value_row(
+            ValueRow::new(
                 "HEAD",
                 info.head
                     .as_ref()
                     // `shortCommit`: the first 8 characters.
                     .map(|h| h.chars().take(8).collect::<String>())
                     .unwrap_or_else(|| tr("settings.git.noCommits").into()),
-                true,
-                None,
-                t,
             )
+            .monospace(true)
             .into_any_element(),
         ];
         let mut remotes: Vec<AnyElement> = vec![];
         if info.remotes.is_empty() {
-            remotes.push(muted_row(tr("settings.git.noRemotes"), t).into_any_element());
+            remotes.push(MutedRow::new(tr("settings.git.noRemotes")).into_any_element());
         }
         for (index, remote) in info.remotes.iter().enumerate() {
             let url = remote.fetch_url.clone().or_else(|| remote.push_url.clone());
@@ -524,22 +481,19 @@ impl SettingsWorkspaceSurface {
             // `CopyAction`: always the Copy glyph; only the label changes.
             let copy = {
                 let url = url.clone();
-                row_action(
-                    ("copy-remote", index),
-                    tr(if copied {
+                Button::new(("copy-remote", index))
+                    .icon("copy")
+                    .label(tr(if copied {
                         "common.action.copied"
                     } else {
                         "common.action.copy"
-                    }),
-                    Some(("copy", 13.)),
-                    url.is_none(),
-                    t,
-                )
-                .on_click(cx.listener(move |s, _, _, cx| {
-                    if let Some(url) = url.clone() {
-                        s.copy(key.clone(), url, cx)
-                    }
-                }))
+                    }))
+                    .disabled(url.is_none())
+                    .on_click(cx.listener(move |s, _, _, cx| {
+                        if let Some(url) = url.clone() {
+                            s.copy(key.clone(), url, cx)
+                        }
+                    }))
             };
             remotes.push(
                 remote_row(
@@ -555,20 +509,18 @@ impl SettingsWorkspaceSurface {
             );
         }
         content
-            .child(subsection(
-                Some(tr("settings.git.repository").into()),
-                None,
-                true,
-                repository,
-                t,
-            ))
-            .child(subsection(
-                Some(tr("settings.git.remotes").into()),
-                None,
-                false,
-                remotes,
-                t,
-            ))
+            .child(
+                SettingsSubsection::new()
+                    .title(tr("settings.git.repository"))
+                    .lead(true)
+                    .children(repository),
+            )
+            .child(
+                SettingsSubsection::new()
+                    .title(tr("settings.git.remotes"))
+                    .children(remotes),
+            )
+            .into_any_element()
     }
 }
 /// `.desktop-settings-remote-setting`: a 48px grid of
@@ -592,7 +544,7 @@ fn remote_row(
     };
     let connected = is_puppyone_remote(url);
     // `.desktop-settings-badge(.connected)`.
-    let badge = row()
+    let badge = h_flex()
         .flex_shrink_0()
         .justify_center()
         .h(px(theme::control_mini()))
@@ -607,11 +559,11 @@ fn remote_row(
         .text_size(px(theme::ty().ui.caption))
         .line_height(px(16.))
         .font_weight(FontWeight::MEDIUM)
-        .child(crate::ui::exact_text(if connected {
+        .child(if connected {
             "puppyone"
         } else {
             remote_kind_label(url)
-        }));
+        });
     let main = track(0.28)
         .min_w(px(120.))
         .overflow_hidden()
@@ -669,7 +621,7 @@ fn remote_row(
         .when(push_differs, |d| {
             d.child(line(tr("settings.git.pushUrlDiffers").into()).text_color(t.subtle))
         });
-    row()
+    h_flex()
         .w_full()
         .min_w_0()
         .min_h(px(48.))

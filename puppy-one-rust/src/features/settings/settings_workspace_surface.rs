@@ -7,10 +7,17 @@ use super::{
 };
 use crate::{
     localization::t as tr,
-    theme::{self, Theme, metric},
-    ui::{column, icon_sized, row},
+    theme::{self, metric},
+    ui::{
+        appearance::ActiveAppearance,
+        components::{Button, Icon, IconButton, MutedRow, SettingsSection},
+    },
 };
 use gpui::{prelude::*, *};
+use gpui_kit::{
+    base::{h_flex, v_flex},
+    component::Sizable as _,
+};
 use std::path::PathBuf;
 #[derive(Clone)]
 pub enum SettingsEvent {
@@ -22,7 +29,6 @@ pub enum SettingsEvent {
 pub struct SettingsWorkspaceSurface {
     pub preferences: Entity<PreferencesStore>,
     pub root: Option<PathBuf>,
-    pub dark_override: Option<bool>,
     pub(super) page: Page,
     pub(super) models: Entity<crate::features::model_connections::ModelConnections>,
     pub(super) agents: Entity<crate::features::agent_settings::AgentSettings>,
@@ -30,6 +36,8 @@ pub struct SettingsWorkspaceSurface {
     pub(super) patterns: Entity<crate::ui::form_input::TextInput>,
     /// Transient "Copied" feedback keyed by the copied control.
     pub(super) copied: Option<(SharedString, std::time::Instant)>,
+    /// The New-menu page's open row context menu.
+    pub(super) create_new_menu: Option<super::main::CreateNewMenu>,
     /// Host Server draft of `.puppyone/config.json`, the saved document it
     /// was derived from, and its branch fields.
     pub(super) hosting_draft: super::workspace_config::WorkspaceConfig,
@@ -94,13 +102,13 @@ impl SettingsWorkspaceSurface {
         let mut s = Self {
             preferences,
             root: None,
-            dark_override: Some(true),
             page: Page::General,
             models,
             agents,
             repository,
             patterns,
             copied: None,
+            create_new_menu: None,
             hosting_draft: Default::default(),
             hosting_base: None,
             hosting_branch: cx
@@ -170,9 +178,6 @@ impl SettingsWorkspaceSurface {
             }
         });
     }
-    pub(super) fn dark(&self) -> bool {
-        self.dark_override.unwrap_or(true)
-    }
     pub(super) fn visibility(&self, cx: &App) -> Visibility {
         Visibility {
             local_workspace: self.root.is_some(),
@@ -211,7 +216,7 @@ impl SettingsWorkspaceSurface {
 }
 impl Render for SettingsWorkspaceSurface {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let t = Theme::new(self.dark());
+        let t = cx.palette();
         // `grid-template-columns: clamp(164px, 24vw, 196px)` of the window width.
         let width = (f32::from(window.viewport_size().width) * 0.24).clamp(164., 196.);
         if let Some(page) = self.capture_page
@@ -224,36 +229,33 @@ impl Render for SettingsWorkspaceSurface {
             self.page = Page::General;
         }
         let content = if !self.preferences.read(cx).loaded {
-            super::components::section(tr(self.page.title()), t)
-                .child(super::components::muted_row(tr("settings.git.reading"), t))
+            SettingsSection::new(tr(self.page.title()))
+                .child(MutedRow::new(tr("settings.git.reading")))
+                .into_any_element()
         } else {
             self.page_content(window, cx)
         };
-        let mut content = content;
-        if let Some(error) = &self.preferences.read(cx).error {
-            content = content
-                .child(super::components::danger_row(error.clone(), t))
-                .child(
-                    crate::ui::action_button(
-                        "retry-preferences",
-                        tr("common.action.retry"),
-                        Some("rotate-ccw"),
-                        crate::ui::Tone::Default,
-                        false,
-                        t,
+        let error =
+            self.preferences.read(cx).error.clone().map(|error| {
+                v_flex()
+                    .w_full()
+                    .child(MutedRow::new(error).danger())
+                    .child(
+                        Button::new("retry-preferences")
+                            .icon("rotate-ccw")
+                            .label(tr("common.action.retry"))
+                            .on_click(cx.listener(|s, _, _, cx| {
+                                s.preferences.update(cx, |p, cx| p.retry(cx))
+                            })),
                     )
-                    .on_click(
-                        cx.listener(|s, _, _, cx| s.preferences.update(cx, |p, cx| p.retry(cx))),
-                    ),
-                )
-        }
-        column()
+            });
+        v_flex()
             .size_full()
             .bg(t.canvas)
             .font_weight(FontWeight::NORMAL)
             .text_color(t.text)
             .child(
-                row()
+                h_flex()
                     .relative()
                     .h(px(metric::CHROME_HEIGHT))
                     .flex_shrink_0()
@@ -267,7 +269,7 @@ impl Render for SettingsWorkspaceSurface {
                             .flex()
                             .items_center()
                             .justify_center()
-                            .child(icon_sized("settings", 15., t.muted)),
+                            .child(Icon::new("settings").color(t.muted)),
                     )
                     .child(
                         div()
@@ -281,25 +283,12 @@ impl Render for SettingsWorkspaceSurface {
                     .child(
                         // `DesktopDialogCloseButton` in the task header: 32×28,
                         // its own 16-unit cross drawn at 14px.
-                        div()
-                            .id("settings-close")
+                        IconButton::new("settings-close", Icon::new("dialog-close").small())
+                            .label(tr("common.action.close"))
+                            .color(t.muted)
                             .w(px(theme::control()))
-                            .h(px(theme::control_compact()))
-                            .flex()
-                            .items_center()
-                            .justify_center()
                             .rounded(px(metric::TOOLBAR_ACTION_RADIUS))
-                            .text_color(t.muted)
-                            .hover(move |s| s.bg(t.hover).text_color(t.text))
-                            .cursor(theme::clickable_cursor())
-                            .tooltip(crate::ui::tooltip(tr("common.action.close")))
-                            .on_click(cx.listener(|_, _, _, cx| cx.emit(SettingsEvent::Close)))
-                            .child(
-                                svg()
-                                    .path("icons/dialog-close.svg")
-                                    .size(px(14.))
-                                    .text_color(t.muted),
-                            ),
+                            .on_click(cx.listener(|_, _, _, cx| cx.emit(SettingsEvent::Close))),
                     )
                     .child(
                         div()
@@ -312,13 +301,13 @@ impl Render for SettingsWorkspaceSurface {
                     ),
             )
             .child(
-                row()
+                h_flex()
                     .flex_1()
                     .min_h_0()
                     .items_start()
                     .child(self.sidebar(width, cx))
                     .child(
-                        column()
+                        v_flex()
                             .id(SharedString::from(format!(
                                 "settings-content-{:?}",
                                 self.page
@@ -337,6 +326,7 @@ impl Render for SettingsWorkspaceSurface {
                             .overflow_y_scroll()
                             .track_scroll(&self.content_scroll)
                             .child(content)
+                            .children(error)
                             .child({
                                 let entity = cx.entity();
                                 let scroll = self.content_scroll.clone();

@@ -81,7 +81,6 @@ impl Lab {
                     let preferences = cx.new(|_| PreferencesStore::memory());
                     let settings = cx.new(|cx| {
                         let mut settings = SettingsWorkspaceSurface::new(preferences, window, cx);
-                        settings.dark_override = Some(dark);
                         settings.lab_fixture(
                             PathBuf::from("/reference/project"),
                             page,

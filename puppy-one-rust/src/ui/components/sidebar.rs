@@ -210,6 +210,7 @@ impl RenderOnce for SidebarRow {
             _ => 56.,
         };
         let dimmed = self.dimmed;
+        let nav = self.variant == RowVariant::Nav;
         let mut row = self
             .base
             .group(group.clone())
@@ -227,7 +228,13 @@ impl RenderOnce for SidebarRow {
             } else {
                 metric::SIDEBAR_ROW_CONTENT_RIGHT
             }))
-            .gap(px(metric::SIDEBAR_ICON_LABEL_GAP))
+            // Navigation rows keep the shared `.po-sidebar-row` 6px gap; the
+            // desktop tree and lists tighten it to 4.
+            .gap(px(if nav {
+                6.
+            } else {
+                metric::SIDEBAR_ICON_LABEL_GAP
+            }))
             .rounded(px(metric::SIDEBAR_ROW_RADIUS))
             .text_size(px(text_size))
             .line_height(px(theme::ty().left.line_height))
@@ -256,8 +263,9 @@ impl RenderOnce for SidebarRow {
                     Leading::Icon(icon) => icon.into_any_element(),
                     Leading::Element(element) => element,
                 };
+                // Navigation glyphs sit unslotted (`.po-sidebar-row > svg`).
                 div()
-                    .size(px(metric::SIDEBAR_ICON_SLOT))
+                    .when(!nav, |d| d.size(px(metric::SIDEBAR_ICON_SLOT)))
                     .flex_shrink_0()
                     .flex()
                     .items_center()

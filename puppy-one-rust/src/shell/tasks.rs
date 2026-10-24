@@ -155,7 +155,6 @@ impl Shell {
     ) -> gpui_kit::base::Dialog {
         let root = self.files.workspace.as_ref().map(|ws| ws.path.clone());
         self.task_ui.settings.update(cx, |s, cx| {
-            s.dark_override = Some(self.dark);
             s.set_root(root, cx);
         });
         let host = cx.weak_entity();

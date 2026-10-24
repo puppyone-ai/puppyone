@@ -6,6 +6,7 @@ use crate::{
     ui::appearance::ActiveAppearance,
 };
 use gpui::{prelude::*, *};
+use gpui_kit::base::StyledExt as _;
 
 /// A per-text-size value (Small, Medium, Large).
 fn by_scale(values: [f32; 3]) -> f32 {
@@ -289,19 +290,33 @@ impl RenderOnce for SettingsCategoryList {
 /// `.desktop-settings-row.desktop-settings-row-control`: a label and its control.
 #[derive(IntoElement)]
 pub struct SettingRow {
+    style: StyleRefinement,
     label: SharedString,
+    label_element: Option<AnyElement>,
     control: Option<AnyElement>,
 }
 impl SettingRow {
     pub fn new(label: impl Into<SharedString>) -> Self {
         Self {
             label: label.into(),
+            label_element: None,
             control: None,
+            style: StyleRefinement::default(),
         }
+    }
+    /// A composed label (a title with an inline link) in the label slot.
+    pub fn label_element(mut self, element: impl IntoElement) -> Self {
+        self.label_element = Some(element.into_any_element());
+        self
     }
     pub fn control(mut self, control: impl IntoElement) -> Self {
         self.control = Some(control.into_any_element());
         self
+    }
+}
+impl Styled for SettingRow {
+    fn style(&mut self) -> &mut StyleRefinement {
+        &mut self.style
     }
 }
 impl RenderOnce for SettingRow {
@@ -324,15 +339,18 @@ impl RenderOnce for SettingRow {
                     .max_w(px(320.))
                     .line_height(px(18.))
                     .text_color(t.subtle)
-                    .child(self.label),
+                    .when_some(self.label_element, |d, label| d.child(label))
+                    .when(!self.label.is_empty(), |d| d.child(self.label)),
             )
             .children(self.control)
+            .refine_style(&self.style)
     }
 }
 
 /// `SettingsValueRow`: a label and a read-only value, optionally with an action.
 #[derive(IntoElement)]
 pub struct ValueRow {
+    style: StyleRefinement,
     label: SharedString,
     value: SharedString,
     monospace: bool,
@@ -345,6 +363,7 @@ impl ValueRow {
             value: value.into(),
             monospace: false,
             action: None,
+            style: StyleRefinement::default(),
         }
     }
     pub fn monospace(mut self, monospace: bool) -> Self {
@@ -354,6 +373,11 @@ impl ValueRow {
     pub fn action(mut self, action: impl IntoElement) -> Self {
         self.action = Some(action.into_any_element());
         self
+    }
+}
+impl Styled for ValueRow {
+    fn style(&mut self) -> &mut StyleRefinement {
+        &mut self.style
     }
 }
 impl RenderOnce for ValueRow {
@@ -394,6 +418,7 @@ impl RenderOnce for ValueRow {
                     )
                     .children(self.action),
             )
+            .refine_style(&self.style)
     }
 }
 
@@ -401,6 +426,7 @@ impl RenderOnce for ValueRow {
 /// or danger text for an error.
 #[derive(IntoElement)]
 pub struct MutedRow {
+    style: StyleRefinement,
     text: SharedString,
     danger: bool,
 }
@@ -409,11 +435,17 @@ impl MutedRow {
         Self {
             text: text.into(),
             danger: false,
+            style: StyleRefinement::default(),
         }
     }
     pub fn danger(mut self) -> Self {
         self.danger = true;
         self
+    }
+}
+impl Styled for MutedRow {
+    fn style(&mut self) -> &mut StyleRefinement {
+        &mut self.style
     }
 }
 impl RenderOnce for MutedRow {
@@ -428,5 +460,6 @@ impl RenderOnce for MutedRow {
             .text_size(px(theme::ty().ui.label))
             .text_color(if self.danger { t.danger } else { t.subtle })
             .child(self.text)
+            .refine_style(&self.style)
     }
 }

@@ -2,14 +2,15 @@
 //! `SeatsSettingsView.tsx` (`PersonalPlanRows` over the catalogue fallback).
 //! Desktop browser sign-in is not native yet: like a product build without
 //! `supportsDesktopCloudOAuth()`, the sign-in action is shown disabled.
-use super::super::{components::*, settings_workspace_surface::SettingsWorkspaceSurface};
+use super::super::settings_workspace_surface::SettingsWorkspaceSurface;
 use super::Page;
 use crate::{
     localization::{t as tr, tf},
     theme::{self, Theme},
-    ui::{Tone, action_button, column, row},
+    ui::components::{Button, ButtonVariant, SettingsSection, SettingsSubsection, ValueRow},
 };
 use gpui::{prelude::*, *};
+use gpui_kit::base::{Disableable as _, h_flex, v_flex};
 
 /// `resolvePersonalOffer` without a catalogue: Personal, $19 a month, 10 GB
 /// and one Cloud Computer.
@@ -18,11 +19,11 @@ const OFFER_STORAGE: &str = "10 GB";
 const INCLUDED_COMPUTERS: usize = 1;
 
 impl SettingsWorkspaceSurface {
-    pub(super) fn account(&self, t: Theme, cx: &mut Context<Self>) -> Div {
+    pub(super) fn account(&self, t: Theme, cx: &mut Context<Self>) -> AnyElement {
         let m = theme::ty();
         // `.desktop-account-identity`: a 38px round mark (an initial once
         // signed in), 11px before the name and the signed-out reason.
-        let identity = row()
+        let identity = h_flex()
             .gap(px(11.))
             .px(px(10.))
             .pt(px(4.))
@@ -35,7 +36,7 @@ impl SettingsWorkspaceSurface {
                     .bg(t.control),
             )
             .child(
-                column()
+                v_flex()
                     .min_w_0()
                     .gap(px(1.))
                     .child(
@@ -55,23 +56,15 @@ impl SettingsWorkspaceSurface {
                     ),
             );
         // `.desktop-account-signin`.
-        let sign_in = row().px(px(10.)).pt(px(2.)).pb(px(6.)).child(action_button(
-            "sign-in",
-            tr("settings.account.signInWithBrowser"),
-            None,
-            Tone::Primary,
-            true,
-            t,
-        ));
-        let upgrade = action_button(
-            "account-upgrade",
-            tr("settings.account.upgrade"),
-            None,
-            Tone::Default,
-            false,
-            t,
-        )
-        .on_click(cx.listener(|s, _, _, cx| s.select_page(Page::Plan, cx)));
+        let sign_in = h_flex().px(px(10.)).pt(px(2.)).pb(px(6.)).child(
+            Button::new("sign-in")
+                .variant(ButtonVariant::OutlinePrimary)
+                .label(tr("settings.account.signInWithBrowser"))
+                .disabled(true),
+        );
+        let upgrade = Button::new("account-upgrade")
+            .label(tr("settings.account.upgrade"))
+            .on_click(cx.listener(|s, _, _, cx| s.select_page(Page::Plan, cx)));
         // `.desktop-plan-note`: 12px at 1.4, 10px below the plan row.
         let note = div()
             .mt(px(10.))
@@ -80,84 +73,54 @@ impl SettingsWorkspaceSurface {
             .line_height(px(m.ui.caption * 1.4))
             .text_color(t.subtle)
             .child(tr("settings.account.localFreeNote"));
-        section(tr(Page::Account.title()), t)
+        SettingsSection::new(tr(Page::Account.title()))
             .child(identity)
             .child(sign_in)
-            .child(subsection(
-                None,
-                None,
-                true,
-                vec![
-                    value_row(
-                        tr("settings.account.plan"),
-                        tr("settings.plan.freePrice"),
-                        false,
-                        Some(upgrade.into_any_element()),
-                        t,
+            .child(
+                SettingsSubsection::new()
+                    .lead(true)
+                    .child(
+                        ValueRow::new(tr("settings.account.plan"), tr("settings.plan.freePrice"))
+                            .action(upgrade),
                     )
-                    .into_any_element(),
-                    note.into_any_element(),
-                ],
-                t,
-            ))
+                    .child(note),
+            )
+            .into_any_element()
     }
-    pub(super) fn plan(&self, t: Theme, cx: &mut Context<Self>) -> Div {
-        let subscribe = action_button(
-            "subscribe",
-            tr("settings.seats.signInToSubscribe"),
-            None,
-            Tone::Primary,
-            false,
-            t,
-        )
-        // Buying needs an account, and Account owns the one sign-in flow.
-        .on_click(cx.listener(|s, _, _, cx| s.select_page(Page::Account, cx)));
-        section(tr(Page::Plan.title()), t)
-            .child(subsection(
-                None,
-                None,
-                true,
-                vec![
-                    value_row(
+    pub(super) fn plan(&self, _: Theme, cx: &mut Context<Self>) -> AnyElement {
+        let subscribe = Button::new("subscribe")
+            .variant(ButtonVariant::OutlinePrimary)
+            .label(tr("settings.seats.signInToSubscribe"))
+            // Buying needs an account, and Account owns the one sign-in flow.
+            .on_click(cx.listener(|s, _, _, cx| s.select_page(Page::Account, cx)));
+        SettingsSection::new(tr(Page::Plan.title()))
+            .child(
+                SettingsSubsection::new().lead(true).child(
+                    ValueRow::new(
                         tr("settings.seats.planName"),
                         tf(
                             "settings.plan.monthlyFor",
                             &[("amount", OFFER_PRICE.into())],
                         ),
-                        false,
-                        Some(subscribe.into_any_element()),
-                        t,
                     )
-                    .into_any_element(),
-                ],
-                t,
-            ))
-            .child(subsection(
-                Some(tr("settings.seats.includesTitle").into()),
-                None,
-                false,
-                vec![
-                    value_row(
+                    .action(subscribe),
+                ),
+            )
+            .child(
+                SettingsSubsection::new()
+                    .title(tr("settings.seats.includesTitle"))
+                    .child(ValueRow::new(
                         tr("settings.seats.storageTitle"),
                         OFFER_STORAGE,
-                        false,
-                        None,
-                        t,
-                    )
-                    .into_any_element(),
-                    value_row(
+                    ))
+                    .child(ValueRow::new(
                         tr("settings.seats.computerTitle"),
                         tf(
                             "settings.seats.computerCount",
                             &[("count", INCLUDED_COMPUTERS.into())],
                         ),
-                        false,
-                        None,
-                        t,
-                    )
-                    .into_any_element(),
-                ],
-                t,
-            ))
+                    )),
+            )
+            .into_any_element()
     }
 }
