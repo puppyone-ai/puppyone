@@ -14,12 +14,15 @@ use super::super::super::domain::{
 };
 use super::agent_theme::AgentTheme;
 use super::*;
+use crate::ui::appearance::ActiveAppearance;
+use crate::ui::components::{Icon, tooltip};
 use crate::{
     agent::domain::agent_session_model::Message,
     localization::{t as tr, tf},
     theme,
-    ui::{icon_stroke, tooltip},
 };
+use gpui_kit::base::{h_flex, v_flex};
+use gpui_kit::component::Sizable as _;
 
 /// `--agent-evidence-*` geometry.
 const EVIDENCE_ROW: f32 = 26.;
@@ -75,7 +78,7 @@ pub(super) fn tool_glyph(
             .text_color(color)
     };
     let frame = || div().relative().size(px(GLYPH)).flex_shrink_0();
-    let lucide = |name: &str| icon_stroke(name, 15., 1.85, color).into_any_element();
+    let lucide = |name: &str| Icon::new(name).stroke(1.85).color(color).into_any_element();
     let duration = |ms: u64| Animation::new(std::time::Duration::from_millis(ms)).repeat();
     match presentation::glyph(tool) {
         Glyph::Search if active => frame()
@@ -208,7 +211,13 @@ fn status_icon(status: &str, a: &AgentTheme, t: &Theme) -> Option<AnyElement> {
         ActivityStatus::Stopped => ("circle-slash-2", a.text_subtle),
         ActivityStatus::Waiting | ActivityStatus::Unknown => ("circle", a.text_subtle),
     };
-    Some(icon_stroke(name, 12., 2., color).into_any_element())
+    Some(
+        Icon::new(name)
+            .xsmall()
+            .stroke(2.)
+            .color(color)
+            .into_any_element(),
+    )
 }
 
 fn running(status: &str) -> bool {
@@ -343,7 +352,7 @@ fn evidence_node(
 
 fn evidence_tree(nodes: Vec<(Option<&'static str>, AnyElement)>, a: &AgentTheme) -> AnyElement {
     let count = nodes.len();
-    column()
+    v_flex()
         .min_w_0()
         .py(px(2.))
         .pl(px(EVIDENCE_RAIL_INLINE))
@@ -363,7 +372,7 @@ fn evidence_tree(nodes: Vec<(Option<&'static str>, AnyElement)>, a: &AgentTheme)
 fn search_results(output: &str, a: &AgentTheme) -> AnyElement {
     let (lines, omitted) = agent_tool_evidence::result_lines(output, 80);
     let line_height = mono_size() * 1.45;
-    let mut list = column()
+    let mut list = v_flex()
         .id(SharedString::from(format!("results-{}", output.len())))
         .min_w_0()
         .max_h(px(260.))
@@ -490,7 +499,7 @@ fn diff_stats(message: &Message, a: &AgentTheme) -> Option<AnyElement> {
     }
     let (added, removed) = presentation::file_change_totals(&presentation::file_changes(message))?;
     Some(
-        row()
+        h_flex()
             .gap(px(5.))
             .flex_shrink_0()
             .text_size(px(theme::ty().left.content))
@@ -543,7 +552,7 @@ impl AgentChat {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let row_id = timeline_row.id.clone();
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         let a = AgentTheme::new(&t);
         let messages = &self.session.snapshot().messages;
         let parts: Vec<Message> = timeline_row
@@ -554,7 +563,11 @@ impl AgentChat {
         let visible_count = rail_visible_count(parts.len(), width);
         let selected = self.rail_selected.get(&row_id).cloned();
         let overflow_open = self.rail_overflow.contains(&row_id);
-        let mut rail = row().w_full().min_w_0().gap(px(RAIL_GAP)).overflow_hidden();
+        let mut rail = h_flex()
+            .w_full()
+            .min_w_0()
+            .gap(px(RAIL_GAP))
+            .overflow_hidden();
         for (index, part) in parts.iter().take(visible_count).enumerate() {
             let is_selected = selected.as_deref() == Some(part.id.as_str());
             let has_detail = tool_evidence(part, &a).is_some();
@@ -650,14 +663,14 @@ impl AgentChat {
                 })),
             );
         }
-        let mut group = column()
+        let mut group = v_flex()
             .w_full()
             .min_w_0()
             .mx(px(RAIL_GROUP_INSET / 2.))
             .mb(px(8.))
             .child(rail);
         if overflow_open && !hidden.is_empty() {
-            let mut panel = column()
+            let mut panel = v_flex()
                 .mt(px(2.))
                 .mr(px(4.))
                 .mb(px(4.))
@@ -687,7 +700,7 @@ impl AgentChat {
         row_id: &str,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         let a = AgentTheme::new(&t);
         let key = format!("{row_id}:{}", part.id);
         let expanded = self.expanded.contains(&key);
@@ -712,7 +725,7 @@ impl AgentChat {
             false,
             cx,
         );
-        column()
+        v_flex()
             .min_w_0()
             .child(shell)
             .when_some(evidence.filter(|_| expanded), |d, e| {
@@ -738,11 +751,11 @@ impl AgentChat {
         fit: bool,
         cx: &mut Context<Self>,
     ) -> Stateful<Div> {
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         let a = AgentTheme::new(&t);
         let m = theme::ty();
         let group = SharedString::from(format!("{id}-group"));
-        row()
+        h_flex()
             .id(id)
             .group(group.clone())
             .when(!fit, |d| d.w_full())
@@ -794,7 +807,7 @@ impl AgentChat {
         row_id: &str,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         let a = AgentTheme::new(&t);
         let key = format!("{row_id}:{}", message.id);
         let expanded = self.expanded.contains(&key);
@@ -813,13 +826,13 @@ impl AgentChat {
                 cx,
             )
             .text_color(a.text_muted);
-        column()
+        v_flex()
             .mx(px(4.))
             .mt(px(1.))
             .mb(px(4.))
             .min_w_0()
             .opacity(0.92)
-            .child(row().child(header))
+            .child(h_flex().child(header))
             .when(expanded, |d| {
                 d.child(prose_branch(
                     div()
@@ -846,13 +859,19 @@ impl AgentChat {
         row_id: &str,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         let a = AgentTheme::new(&t);
         let key = format!("{row_id}:{}", message.id);
         let expanded = self.expanded.contains(&key) != running(&message.status);
         let header = self.shell_header(
             SharedString::from(format!("plan-{}", message.id)),
-            Some(icon_stroke("list-todo", 13., 2., a.tool_action).into_any_element()),
+            Some(
+                Icon::new("list-todo")
+                    .with_size(px(13.))
+                    .stroke(2.)
+                    .color(a.tool_action)
+                    .into_any_element(),
+            ),
             tr("agent.tool.plan").into(),
             FontWeight::NORMAL,
             None,
@@ -863,7 +882,7 @@ impl AgentChat {
             false,
             cx,
         );
-        column()
+        v_flex()
             .mx(px(4.))
             .mb(px(8.))
             .min_w_0()
@@ -886,7 +905,7 @@ impl AgentChat {
 /// `.desktop-agent-context-divider`: a rule on both sides of a small label.
 pub(super) fn context_divider(label: SharedString, a: &AgentTheme) -> AnyElement {
     let rule = || div().flex_1().min_w(px(18.)).h(px(1.)).bg(a.border_subtle);
-    row()
+    h_flex()
         .mt(px(5.))
         .mx(px(4.))
         .mb(px(8.))
@@ -907,7 +926,7 @@ pub(super) fn context_divider(label: SharedString, a: &AgentTheme) -> AnyElement
 /// `DotsLoader size="xs"`: three 3px dots bouncing 2px, staggered 160ms.
 pub(super) fn dots(id: impl Into<SharedString>, color: Rgba) -> AnyElement {
     let id: SharedString = id.into();
-    let mut row = row().gap(px(3.)).flex_shrink_0();
+    let mut row = h_flex().gap(px(3.)).flex_shrink_0();
     for index in 0..3u32 {
         row = row.child(div().size(px(3.)).rounded_full().bg(color).with_animation(
             ElementId::Name(format!("{id}-dot-{index}").into()),
@@ -933,7 +952,7 @@ pub(super) fn dots(id: impl Into<SharedString>, color: Rgba) -> AnyElement {
 
 /// `AgentRunFeedback`: meta label (and dots while busy) at the content inset.
 pub(super) fn run_feedback(label: SharedString, busy: Option<SharedString>, a: &AgentTheme) -> Div {
-    row()
+    h_flex()
         .min_h(px(theme::ty().right.meta_line_height))
         .gap(px(7.))
         .px(px(12.))

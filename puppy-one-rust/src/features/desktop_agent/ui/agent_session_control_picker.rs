@@ -5,6 +5,9 @@
 //! "no matches" and the `showing` footer past `maxRenderedOptions`.
 use super::*;
 use crate::localization::{t as tr, tf};
+use crate::ui::appearance::ActiveAppearance;
+use crate::ui::components::Icon;
+use gpui_kit::component::Sizable as _;
 
 /// `agentPickerLimits.maxRenderedOptions`.
 const MAX_RENDERED: usize = 120;
@@ -52,7 +55,7 @@ impl AgentChat {
         width: f32,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         let a = super::agent_theme::AgentTheme::new(&t);
         let disabled = self.session.busy();
         let open = self.picker_open == Some(id);
@@ -122,7 +125,7 @@ impl AgentChat {
         choices: Vec<(String, Selection, bool)>,
         cx: &mut Context<Self>,
     ) -> Stateful<Div> {
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         let m = crate::theme::ty();
         let (_, width) = presentation(id);
         let searchable = choices.len() > 6;
@@ -164,7 +167,7 @@ impl AgentChat {
                     .on_click(cx.listener(move |s, _, _, cx| s.choose(selection.clone(), cx)))
                     .child(div().flex_1().min_w_0().truncate().child(label))
                     .when(selected, |d| {
-                        d.child(crate::ui::icon_stroke("check", 14., 2., t.muted))
+                        d.child(Icon::new("check").small().stroke(2.).color(t.muted))
                     }),
             );
         }
@@ -241,7 +244,12 @@ impl AgentChat {
                         .gap(px(7.))
                         .border_b_1()
                         .border_color(t.divider)
-                        .child(crate::ui::icon_stroke("search", 13., 2., t.subtle))
+                        .child(
+                            Icon::new("search")
+                                .with_size(px(13.))
+                                .stroke(2.)
+                                .color(t.subtle),
+                        )
                         .child(
                             // Kit's xsmall editor insets 4px; the product input has none.
                             div()

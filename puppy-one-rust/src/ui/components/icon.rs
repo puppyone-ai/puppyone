@@ -21,6 +21,7 @@ pub struct Icon {
     size: Size,
     color: Option<Hsla>,
     group_hover: Option<(SharedString, Hsla)>,
+    spin: Option<ElementId>,
     style: StyleRefinement,
 }
 impl Icon {
@@ -32,8 +33,14 @@ impl Icon {
             size: Size::Medium,
             color: None,
             group_hover: None,
+            spin: None,
             style: StyleRefinement::default(),
         }
+    }
+    /// Turn once every 900ms (`.is-spinning`); `id` keys the animation.
+    pub fn spinning(mut self, id: impl Into<ElementId>) -> Self {
+        self.spin = Some(id.into());
+        self
     }
     /// Redraw at the call site's `strokeWidth` (Lucide's default is 2).
     pub fn stroke(mut self, stroke: f32) -> Self {
@@ -84,7 +91,7 @@ impl Styled for Icon {
 impl RenderOnce for Icon {
     fn render(self, window: &mut Window, _: &mut App) -> impl IntoElement {
         let color = self.color.unwrap_or(window.text_style().color);
-        svg()
+        let icon = svg()
             .path(self.path())
             .size(self.pixels())
             .flex_shrink_0()
@@ -92,7 +99,17 @@ impl RenderOnce for Icon {
             .when_some(self.group_hover, |svg, (group, color)| {
                 svg.group_hover(group, move |s| s.text_color(color))
             })
-            .refine_style(&self.style)
+            .refine_style(&self.style);
+        match self.spin {
+            Some(id) => icon
+                .with_animation(
+                    id,
+                    Animation::new(std::time::Duration::from_millis(900)).repeat(),
+                    |svg, delta| svg.with_transformation(Transformation::rotate(percentage(delta))),
+                )
+                .into_any_element(),
+            None => icon.into_any_element(),
+        }
     }
 }
 impl From<&'static str> for Icon {

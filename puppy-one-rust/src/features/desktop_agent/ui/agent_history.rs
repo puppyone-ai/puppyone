@@ -1,17 +1,19 @@
 //! Port of `AgentConversationHistory` / `workbench/AgentChatHistoryBrowser`:
 //! search, open and archive saved chats; mutations use controller commands.
 use super::*;
+use crate::ui::appearance::ActiveAppearance;
+use crate::ui::components::{Button, Icon};
 use crate::{
     localization::{t as tr, tf},
     theme,
-    ui::icon_sized,
 };
+use gpui_kit::base::{h_flex, v_flex};
 impl AgentChat {
     pub(super) fn render_history(&mut self, cx: &mut Context<Self>) -> Stateful<Div> {
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         let m = theme::ty();
         let snapshot = self.session.snapshot().clone();
-        let mut history = column()
+        let mut history = v_flex()
             .id("agent-history")
             .flex_1()
             .min_h_0()
@@ -20,21 +22,16 @@ impl AgentChat {
             .py(px(12.))
             .gap(px(8.))
             .child(
-                row()
+                h_flex()
                     .gap(px(8.))
                     .child(
-                        crate::ui::action_button(
-                            "history-back",
-                            tr("agent.history.back"),
-                            Some("chevron-left"),
-                            crate::ui::Tone::Default,
-                            false,
-                            t,
-                        )
-                        .on_click(cx.listener(|s, _, _, cx| {
-                            s.session.new_thread();
-                            cx.notify();
-                        })),
+                        Button::new("history-back")
+                            .icon("chevron-left")
+                            .label(tr("agent.history.back"))
+                            .on_click(cx.listener(|s, _, _, cx| {
+                                s.session.new_thread();
+                                cx.notify();
+                            })),
                     )
                     .child(
                         div()
@@ -75,7 +72,7 @@ impl AgentChat {
                 &[("title", entry.title.clone().into())],
             );
             history = history.child(
-                row()
+                h_flex()
                     .id(("history", i))
                     .w_full()
                     .min_h(px(theme::control() + 4.))
@@ -86,7 +83,7 @@ impl AgentChat {
                     .hover(move |s| s.bg(theme::alpha(t.hover, 0.86)))
                     .text_size(px(m.left.content))
                     .text_color(t.sidebar_text)
-                    .child(icon_sized("message-square", 15., t.subtle))
+                    .child(Icon::new("message-square").color(t.subtle))
                     .child(
                         div()
                             .flex_1()
@@ -123,19 +120,13 @@ impl AgentChat {
         }
         if snapshot.cursor.is_some() {
             history = history.child(
-                row().child(
-                    crate::ui::action_button(
-                        "more-history",
-                        tr("agent.history.loadMore"),
-                        None,
-                        crate::ui::Tone::Default,
-                        false,
-                        t,
-                    )
-                    .on_click(cx.listener(|s, _, _, cx| {
-                        s.session.list_history();
-                        cx.notify();
-                    })),
+                h_flex().child(
+                    Button::new("more-history")
+                        .label(tr("agent.history.loadMore"))
+                        .on_click(cx.listener(|s, _, _, cx| {
+                            s.session.list_history();
+                            cx.notify();
+                        })),
                 ),
             );
         }

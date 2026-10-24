@@ -703,9 +703,7 @@ impl Render for ModelConnections {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let t = cx.palette();
         let dark = cx.is_dark();
-        for input in [&self.name, &self.endpoint, &self.model] {
-            input.update(cx, |i, _| i.dark = dark);
-        }
+        for input in [&self.name, &self.endpoint, &self.model] {}
         let back = match &self.page {
             PageState::List => None,
             PageState::Edit(id) => Some(PageState::Detail(id.clone())),

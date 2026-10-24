@@ -15,6 +15,7 @@ mod agent_status;
 #[path = "agent_surface_header.rs"]
 mod agent_surface_header;
 use super::agent_theme;
+use crate::ui::appearance::ActiveAppearance;
 pub use agent_surface_header::AgentChatEvent;
 #[path = "agent_transcript.rs"]
 mod agent_transcript;
@@ -32,10 +33,11 @@ use crate::{
         domain::agent_session_model::{Decision, InteractionKind, Resolution, State},
     },
     theme::Theme,
-    ui::{column, form_input::TextInput, row},
+    ui::form_input::TextInput,
     wake::Wake,
 };
 use gpui::{prelude::*, *};
+use gpui_kit::base::v_flex;
 use std::{collections::HashMap, path::PathBuf, time::Duration};
 actions!(agent, [SendMessage]);
 pub fn bind_keys(cx: &mut App) {
@@ -49,7 +51,6 @@ pub struct AgentChat {
     root: PathBuf,
     wake: Wake,
     pub session: AgentSessionController,
-    pub dark: bool,
     composer: Entity<TextInput>,
     answers: HashMap<String, Entity<TextInput>>,
     /// Options chosen per pending question (`AgentQuestionDock` answers).
@@ -259,7 +260,6 @@ impl AgentChat {
             root,
             wake,
             session,
-            dark: true,
             composer,
             answers: HashMap::new(),
             question_choices: HashMap::new(),
@@ -398,33 +398,29 @@ impl AgentChat {
 }
 impl Render for AgentChat {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         // A leading mention makes the prompt non-empty (`.cm-placeholder` hides).
-        let placeholder = if self.render_mentions().is_empty() {
+        let placeholder = if self.render_mentions(cx).is_empty() {
             self.composer_placeholder()
         } else {
             String::new()
         };
         let subtle = super::agent_theme::AgentTheme::new(&t).text_subtle;
         self.composer.update(cx, |i, _| {
-            i.dark = self.dark;
             i.set_placeholder(placeholder);
             // `.cm-placeholder { color: var(--agent-text-subtle) }`.
             i.placeholder_color = Some(subtle);
         });
-        self.history_filter.update(cx, |i, _| i.dark = self.dark);
         let picker_placeholder = self.picker_search_placeholder().unwrap_or_default();
         let m = crate::theme::ty();
         self.picker_query.update(cx, |i, _| {
-            i.dark = self.dark;
             i.set_placeholder(picker_placeholder);
             // `.desktop-agent-picker-search input`: menu item type, subtle placeholder.
             i.prompt_text = Some((m.right.content, m.right.control_line_height));
             i.placeholder_color = Some(t.subtle);
         });
-        self.rename_input.update(cx, |i, _| i.dark = self.dark);
         self.refresh_transcript();
-        let mut pane = column()
+        let mut pane = v_flex()
             .id("agent-chat")
             .key_context("AgentChat")
             .size_full()
@@ -455,7 +451,7 @@ impl Render for AgentChat {
         let commands = self.render_commands(cx);
         let composer = self.render_composer(window, cx);
         pane.child(
-            column()
+            v_flex()
                 .flex_shrink_0()
                 .pt(px(12.))
                 .px(px(12.))

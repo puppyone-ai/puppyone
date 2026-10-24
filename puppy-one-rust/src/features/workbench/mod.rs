@@ -7,22 +7,26 @@ mod history;
 #[cfg(feature = "dev-capture")]
 mod lab;
 mod layout;
+mod menus;
 mod persistence;
 use super::{desktop_agent::AgentChat, terminal::TerminalView};
 use crate::platform::ui_state_store::{self, ResultEvent};
 use crate::theme;
+use crate::ui::{
+    appearance::ActiveAppearance,
+    components::{Button, ButtonVariant},
+};
 use crate::{
     agent::{
         connections::local_agent_inventory::{self as agents, Installation},
         runtime::agent_runtime_registry::Runtime,
     },
     theme::Theme,
-    ui::{column, row},
     wake::Wake,
 };
 use drag::{DropIntent, Edge};
 use gpui::{prelude::*, *};
-use gpui_kit::component::menu::ContextMenuExt;
+use gpui_kit::base::{h_flex, v_flex};
 use layout::{Axis, Id, Layout, Node};
 use persistence::{RetainedItem, StoredProject};
 use std::{collections::HashMap, path::PathBuf, sync::mpsc};
@@ -64,7 +68,6 @@ struct DragTab {
     root: PathBuf,
     tab: Id,
     title: String,
-    dark: bool,
 }
 impl Render for DragTab {
     /// `.desktop-terminal-tab-move-preview`: a quiet pill under the pointer.
@@ -72,8 +75,8 @@ impl Render for DragTab {
     /// not a theme token, so the product paints only border and text; the
     /// popover shadow is dropped because GPUI would draw it under the
     /// transparent body instead of only outside it.
-    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        let t = Theme::new(self.dark);
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let t = cx.palette();
         let m = theme::ty();
         div()
             .max_w(px(220.))
@@ -109,7 +112,6 @@ pub struct Workbench {
     scan_started: Option<std::time::Instant>,
     scan_rx: mpsc::Receiver<Vec<Installation>>,
     scan_tx: mpsc::Sender<Vec<Installation>>,
-    pub dark: bool,
     chat_mode: bool,
     confirm: Option<Id>,
     /// Close dialog keyboard state: focused action (0 Cancel, 1 confirm),
@@ -121,14 +123,15 @@ pub struct Workbench {
     bounds: HashMap<Id, Bounds<Pixels>>,
     drag_split: Option<(Id, Axis, Bounds<Pixels>)>,
     overflow: Option<Id>,
+    /// The open tab or launcher context menu.
+    context_menu: Option<menus::ContextMenu>,
     wake: Wake,
     store_tx: mpsc::SyncSender<ResultEvent>,
     store_rx: mpsc::Receiver<ResultEvent>,
     header_focus: HashMap<(PathBuf, Id), FocusHandle>,
     /// Rendered tab window per group (`preferredVisibleSessionIds`).
     header_windows: HashMap<(PathBuf, Id), Vec<Id>>,
-    /// Overflow trigger offset and hidden items from the last header layout.
-    overflow_anchor: HashMap<Id, f32>,
+    /// Hidden items of each group's header (its overflow menu).
     overflow_hidden: HashMap<Id, Vec<Id>>,
     /// The tab being dragged and where releasing it would put it.
     dragging: Option<Id>,
@@ -185,7 +188,6 @@ impl Workbench {
             scan_started: Some(std::time::Instant::now()),
             scan_rx,
             scan_tx,
-            dark: true,
             chat_mode: true,
             confirm: None,
             close_focus: cx.focus_handle(),
@@ -195,9 +197,9 @@ impl Workbench {
             bounds: HashMap::new(),
             drag_split: None,
             overflow: None,
+            context_menu: None,
             header_focus: HashMap::new(),
             header_windows: HashMap::new(),
-            overflow_anchor: HashMap::new(),
             overflow_hidden: HashMap::new(),
             dragging: None,
             drop_intent: None,
@@ -569,7 +571,7 @@ impl Workbench {
         cx.notify();
     }
     fn group(&mut self, id: Id, cx: &mut Context<Self>) -> AnyElement {
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         let g = self.project().unwrap().layout.groups[&id].clone();
         let width = self
             .bounds
@@ -593,7 +595,7 @@ impl Workbench {
                 let item = item.clone();
                 let tab = g.active.unwrap();
                 let title = item.title();
-                column()
+                v_flex()
                     .p(px(20.))
                     .gap(px(12.))
                     .child(title)
@@ -603,36 +605,30 @@ impl Workbench {
                             .child(crate::localization::t("native.agent.retainedDetail")),
                     )
                     .child(
-                        row().child(
-                            crate::ui::action_button(
-                                ("resume-retained", tab),
-                                crate::localization::t(
+                        h_flex().child(
+                            Button::new(("resume-retained", tab))
+                                .variant(ButtonVariant::OutlinePrimary)
+                                .icon("rotate-ccw")
+                                .label(crate::localization::t(
                                     if matches!(item, RetainedItem::Terminal { .. }) {
                                         "terminal.launcher.shell.action"
                                     } else {
                                         "agent.readiness.reconnect"
                                     },
-                                ),
-                                Some("rotate-ccw"),
-                                crate::ui::Tone::Primary,
-                                false,
-                                t,
-                            )
-                            .on_click(cx.listener(
-                                move |s, _, w, cx| s.reopen(id, tab, item.clone(), w, cx),
-                            )),
+                                ))
+                                .on_click(cx.listener(move |s, _, w, cx| {
+                                    s.reopen(id, tab, item.clone(), w, cx)
+                                })),
                         ),
                     )
                     .into_any_element()
             }
             Some(Content::Chat(view)) => {
                 let view = view.clone();
-                view.update(cx, |s, _| s.dark = self.dark);
                 div().size_full().child(view).into_any_element()
             }
             Some(Content::Terminal(view, ..)) => {
                 let view = view.clone();
-                view.update(cx, |s, _| s.dark = self.dark);
                 div().size_full().child(view).into_any_element()
             }
             _ => match g.active.and_then(|tab| self.render_history(tab, cx)) {
@@ -640,7 +636,7 @@ impl Workbench {
                 None => self.launcher(id, g.active, width, cx).into_any_element(),
             },
         };
-        let mut group = column()
+        let group = v_flex()
             .id(("group", id))
             .size_full()
             .min_w_0()
@@ -649,9 +645,6 @@ impl Workbench {
             .overflow_hidden()
             .bg(t.auxiliary())
             .child(header);
-        if let Some(menu) = self.render_overflow_menu(id, width, cx) {
-            group = group.child(menu);
-        }
         let entity = cx.entity();
         group
             .child(
@@ -758,7 +751,7 @@ impl Workbench {
             } => {
                 let id = *id;
                 let axis = *axis;
-                let t = Theme::new(self.dark);
+                let t = cx.palette();
                 let a = self.node(first, cx);
                 let b = self.node(second, cx);
                 let entity = cx.entity();
@@ -980,7 +973,7 @@ impl Workbench {
 }
 impl Render for Workbench {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         self.persist(cx);
         // The close dialog follows its item: a vanished item takes it down.
         if let Some(tab) = self.confirm
@@ -1009,6 +1002,7 @@ impl Render for Workbench {
                 .child(crate::localization::t("agent.launcher.title"))
                 .into_any_element()
         };
+        let context_menu = self.render_context_menu(cx);
         div()
             .size_full()
             .bg(t.auxiliary())
@@ -1051,8 +1045,9 @@ impl Render for Workbench {
             // A tab released over the sidebar or editor still ends the move.
             .on_mouse_up_out(MouseButton::Left, cx.listener(|s, _, _, cx| s.end_drag(cx)))
             .children(close_dialog)
+            .children(context_menu)
             .child(
-                column()
+                v_flex()
                     .size_full()
                     .when_some(error, |d, e| {
                         d.child(div().p(px(8.)).text_color(t.focus).child(e))

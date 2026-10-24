@@ -4,16 +4,16 @@
 //! History control sit on its top border. Right-click an Agent to run its CLI
 //! in a terminal instead of Chat.
 use super::*;
+use crate::ui::appearance::ActiveAppearance;
 use crate::{
     features::desktop_agent::ui::agent_brand_mark::{LauncherIdentity, launcher_icon},
     localization::t as tr,
     theme,
-    ui::{icon_stroke, tooltip},
+    ui::components::{Icon, IconButton, Spinner},
 };
-use gpui_kit::component::{
-    Sizable,
-    button::ButtonVariants,
-    menu::{ContextMenuExt, PopupMenuItem},
+use gpui_kit::{
+    base::{Disableable as _, h_flex, v_flex},
+    component::Sizable as _,
 };
 
 /// `.desktop-terminal-launcher-content`: `min(100%, 252px)`, 264px from a 460px container.
@@ -35,8 +35,9 @@ impl Workbench {
         identity: LauncherIdentity,
         label: SharedString,
         group: SharedString,
+        cx: &App,
     ) -> gpui_kit::base::Button {
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         let m = theme::ty();
         gpui_kit::base::Button::new(id)
             .accessibility_label(format!("{}: {label}", tr("terminal.launcher.title")))
@@ -54,7 +55,7 @@ impl Workbench {
             .cursor(theme::clickable_cursor())
             .hover(move |b| b.bg(t.hover).text_color(t.text))
             .child(
-                launcher_icon(identity, false, self.dark, t.muted)
+                launcher_icon(identity, false, t.dark, t.muted)
                     .group_hover(group, |s| s.opacity(1.)),
             )
             .child(
@@ -74,13 +75,12 @@ impl Workbench {
         width: f32,
         cx: &mut Context<Self>,
     ) -> Stateful<Div> {
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         let m = theme::ty();
         let visible = self.visible_installations();
-        let mut external = column().gap(px(1.));
+        let mut external = v_flex().gap(px(1.));
         for (i, installation) in visible.iter().filter(|i| !i.bundled()).cloned().enumerate() {
             let terminal = installation.clone();
-            let host = cx.weak_entity();
             let row_group = SharedString::from(format!("launch-agent-{group}-{i}"));
             external = external.child(
                 self.launcher_row(
@@ -88,26 +88,30 @@ impl Workbench {
                     LauncherIdentity::Runtime(installation.runtime),
                     installation.label.clone().into(),
                     row_group,
+                    cx,
                 )
                 .on_click(cx.listener(move |s, _, w, cx| {
                     s.chat_mode = true;
                     s.launch(group, tab, Some(installation.clone()), false, w, cx)
                 }))
-                .context_menu(move |menu, _, _| {
-                    let host = host.clone();
-                    let terminal = terminal.clone();
-                    menu.item(
-                        PopupMenuItem::new(tr("terminal.title")).on_click(move |_, w, cx| {
-                            let _ = host.update(cx, |s, cx| {
-                                s.chat_mode = false;
-                                s.launch(group, tab, Some(terminal.clone()), false, w, cx)
-                            });
-                        }),
-                    )
-                }),
+                .on_mouse_down(
+                    MouseButton::Right,
+                    cx.listener(move |s, e: &MouseDownEvent, _, cx| {
+                        cx.stop_propagation();
+                        s.open_context_menu(
+                            super::menus::ContextMenu::Launcher {
+                                group,
+                                tab,
+                                installation: terminal.clone(),
+                                at: e.position,
+                            },
+                            cx,
+                        );
+                    }),
+                ),
             );
         }
-        let mut bundled = column().gap(px(1.));
+        let mut bundled = v_flex().gap(px(1.));
         for (i, installation) in visible.iter().filter(|i| i.bundled()).cloned().enumerate() {
             bundled = bundled.child(
                 self.launcher_row(
@@ -115,6 +119,7 @@ impl Workbench {
                     LauncherIdentity::Runtime(installation.runtime),
                     installation.label.clone().into(),
                     format!("launch-bundled-{group}-{i}").into(),
+                    cx,
                 )
                 .on_click(cx.listener(move |s, _, w, cx| {
                     s.chat_mode = true;
@@ -128,51 +133,37 @@ impl Workbench {
                 LauncherIdentity::Shell,
                 tr("terminal.title").into(),
                 format!("open-shell-{group}").into(),
+                cx,
             )
             .on_click(cx.listener(move |s, _, w, cx| s.launch(group, tab, None, false, w, cx)));
 
         // `.desktop-terminal-launcher-scan` / `-history`: 18px quiet controls.
-        let quiet = |button: gpui_kit::base::Button, enabled: bool| {
-            button
-                .size(px(18.))
+        let quiet = |id: &'static str, icon: Icon, label: &'static str| {
+            IconButton::new(ElementId::NamedInteger(id.into(), group), icon)
+                .label(label)
+                .with_size(px(18.))
+                .color(t.subtle)
                 .rounded(px(4.))
-                .text_color(t.subtle)
-                .when(enabled, |b| {
-                    b.cursor(theme::clickable_cursor())
-                        .hover(move |b| b.bg(t.hover).text_color(t.muted))
-                })
-                .when(!enabled, |b| b.opacity(0.52))
         };
-        let scan_label = tr("terminal.launcher.scanAgain");
         let scan = quiet(
-            gpui_kit::base::Button::new(ElementId::NamedInteger("launcher-scan".into(), group))
-                .accessibility_label(scan_label)
-                .disabled(self.scanning),
-            !self.scanning,
+            "launcher-scan",
+            Icon::new("refresh-cw").xsmall().stroke(1.7),
+            tr("terminal.launcher.scanAgain"),
         )
-        .tooltip(tooltip(scan_label))
-        .child(icon_stroke("refresh-cw", 12., 1.7, t.subtle))
+        .disabled(self.scanning)
         .on_click(cx.listener(|s, _, _, cx| s.rescan(cx)));
 
         // `.desktop-terminal-launcher-history`: opens the cross-runtime
         // History browser in this launcher (`onOpenHistory`).
-        let history_label = tr("agent.history.title");
-        let history = gpui_kit::component::button::Button::new(ElementId::NamedInteger(
-            "launcher-history".into(),
-            group,
-        ))
-        .ghost()
-        .xsmall()
-        .p_0()
-        .child(icon_stroke("history", 13., 1.7, t.subtle))
-        .size(px(18.))
-        .rounded(px(4.))
+        let history = quiet(
+            "launcher-history",
+            Icon::new("history").with_size(px(13.)).stroke(1.7),
+            tr("agent.history.title"),
+        )
         .bg(t.auxiliary())
-        .text_color(t.subtle)
-        .tooltip(history_label)
         .on_click(cx.listener(move |s, _, window, cx| s.open_history(group, tab, window, cx)));
 
-        let mut entries = column().gap(px(1.)).child(external);
+        let mut entries = v_flex().gap(px(1.)).child(external);
         let feedback = self.scanning
             && self
                 .scan_started
@@ -184,34 +175,30 @@ impl Workbench {
         }
         if feedback {
             // `LauncherDiscoveryFeedback`: an 11px spinning ring in the icon column.
-            entries =
-                entries.child(
-                    row()
-                        .min_h(px(theme::control_large()))
-                        .px(px(8.))
-                        .py(px(5.))
-                        .gap(px(9.))
-                        .border_1()
-                        .border_color(theme::alpha(t.border, 0.))
-                        .text_size(px(m.right.content))
-                        .line_height(px(m.right.control_line_height))
-                        .text_color(t.subtle)
-                        .child(div().w(px(18.)).flex().justify_center().child(
-                            crate::ui::spinner_ring(
-                                ElementId::NamedInteger("launcher-scanning".into(), group),
-                                11.,
-                                t.border,
-                                t.subtle,
-                            ),
-                        ))
-                        .child(tr("terminal.launcher.detecting")),
-                );
+            entries = entries.child(
+                h_flex()
+                    .min_h(px(theme::control_large()))
+                    .px(px(8.))
+                    .py(px(5.))
+                    .gap(px(9.))
+                    .border_1()
+                    .border_color(theme::alpha(t.border, 0.))
+                    .text_size(px(m.right.content))
+                    .line_height(px(m.right.control_line_height))
+                    .text_color(t.subtle)
+                    .child(div().w(px(18.)).flex().justify_center().child(Spinner::new(
+                        ElementId::NamedInteger("launcher-scanning".into(), group),
+                        t.border,
+                        t.subtle,
+                    )))
+                    .child(tr("terminal.launcher.detecting")),
+            );
         }
         entries = entries.child(bundled).child(shell);
 
         // `.desktop-terminal-launcher-error`.
         let error = self.launch_errors.get(&group).map(|message| {
-            row()
+            h_flex()
                 .min_w_0()
                 .items_start()
                 .gap(px(6.))
@@ -222,12 +209,14 @@ impl Workbench {
                 .text_color(t.danger)
                 .text_size(px(m.right.caption))
                 .line_height(px(m.right.caption_line_height))
-                .child(div().mt(px(1.)).flex_shrink_0().child(icon_stroke(
-                    "circle-alert",
-                    13.,
-                    1.7,
-                    t.danger,
-                )))
+                .child(
+                    div().mt(px(1.)).flex_shrink_0().child(
+                        Icon::new("circle-alert")
+                            .with_size(px(13.))
+                            .stroke(1.7)
+                            .color(t.danger),
+                    ),
+                )
                 .child(
                     div()
                         .flex_1()
@@ -236,7 +225,7 @@ impl Workbench {
                         .child(message.clone()),
                 )
         });
-        let heading = row()
+        let heading = h_flex()
             .absolute()
             .top(px(-theme::control() / 2.))
             .left(px(22.))
@@ -277,13 +266,13 @@ impl Workbench {
             .text_color(t.terminal_fg)
             .child(
                 // `place-items: safe center`: centred, but never above the top edge.
-                column()
+                v_flex()
                     .min_h_full()
                     .py(px(32.))
                     .items_center()
                     .justify_center()
                     .child(
-                        column()
+                        v_flex()
                             .relative()
                             .w(px(content_width(width)))
                             .p(px(18.))

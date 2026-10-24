@@ -1,5 +1,12 @@
 use super::*;
-use crate::features::settings::{SettingsWorkspaceSurface, preferences_store::PreferencesStore};
+use crate::{
+    features::settings::{SettingsWorkspaceSurface, preferences_store::PreferencesStore},
+    ui::components::{Button, ButtonVariant, Dialog, Icon},
+};
+use gpui_kit::{
+    base::{Disableable as _, h_flex, v_flex},
+    component::Sizable as _,
+};
 pub struct TaskUi {
     pub settings: Entity<SettingsWorkspaceSurface>,
     pub message: Entity<ui::form_input::TextInput>,
@@ -93,59 +100,42 @@ impl Shell {
             .close_on_escape(false)
             .close_on_backdrop_press(false)
             .on_ok(|_, _, _| false)
-            .backdrop(div().size_full().bg(Theme::new(self.dark).backdrop))
+            .backdrop(div().size_full().bg(cx.palette().backdrop))
     }
-    pub(super) fn modal_card(&self, r: Rect) -> Stateful<Div> {
-        modal_card(r, Theme::new(self.dark))
+    pub(super) fn modal_card(&self, r: Rect, cx: &App) -> Stateful<Div> {
+        modal_card(r, cx.palette())
     }
+    /// A notice or confirmation: title, message and footer actions. Escape
+    /// and the close button run the first action (the cancel or dismiss).
     pub(super) fn simple_modal(
         &self,
         title: &str,
         message: &str,
-        actions: Vec<(&'static str, Command, ui::Tone)>,
+        actions: Vec<(&'static str, Command, ButtonVariant)>,
         cx: &mut Context<Self>,
-    ) -> gpui_kit::base::Dialog {
-        let t = Theme::new(self.dark);
-        let w = (self.layout.header.w - 32.).min(440.);
-        let h = 180.;
-        let card = self.modal_card(Rect::new(
-            (self.layout.header.w - w) / 2.,
-            (self.layout.editor.bottom() - h) / 2.,
-            w,
-            h,
-        ));
-        self.dialog_host(cx).popup(
-            card.child(
-                column()
-                    .p(px(24.))
-                    .size_full()
-                    .gap(px(10.))
-                    .child(
-                        div()
-                            .text_size(px(crate::theme::ty().ui.title))
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .text_color(t.text)
-                            .child(title.to_owned()),
-                    )
-                    .child(
-                        div()
-                            .flex_1()
-                            .text_size(px(crate::theme::ty().ui.body))
-                            .text_color(t.muted)
-                            .child(message.to_owned()),
-                    )
-                    .child(
-                        row()
-                            .justify_end()
-                            .gap(px(8.))
-                            .children(actions.into_iter().map(|(label, action, tone)| {
-                                ui::action_button(label, label, None, tone, false, t).on_click(
-                                    cx.listener(move |s, _, w, cx| s.command(action, w, cx)),
-                                )
-                            })),
-                    ),
-            ),
-        )
+    ) -> Dialog {
+        let cancel = actions.first().map(|(_, command, _)| *command);
+        let mut dialog = Dialog::new("simple-modal")
+            .width(440.)
+            .title(title.to_owned())
+            .focus_handle(self.modal_focus.clone())
+            .keep_on_backdrop()
+            .child(message.to_owned());
+        if let Some(command) = cancel {
+            let host = cx.weak_entity();
+            dialog = dialog.on_close(move |w, cx| {
+                let _ = host.update(cx, |s, cx| s.command(command, w, cx));
+            });
+        }
+        for (label, command, variant) in actions {
+            dialog = dialog.footer(
+                Button::new(label)
+                    .variant(variant)
+                    .label(label)
+                    .on_click(cx.listener(move |s, _, w, cx| s.command(command, w, cx))),
+            );
+        }
+        dialog
     }
     pub(super) fn settings_view(
         &self,
@@ -159,7 +149,7 @@ impl Shell {
         });
         let host = cx.weak_entity();
         self.dialog_host(cx)
-            .backdrop(div().size_full().bg(task_backdrop(Theme::new(self.dark))))
+            .backdrop(div().size_full().bg(task_backdrop(cx.palette())))
             .close_on_backdrop_press(true)
             .on_cancel(move |_, w, cx| {
                 let _ = host.update(cx, |s, cx| {
@@ -172,7 +162,7 @@ impl Shell {
                 self.task_ui.settings.clone(),
                 w,
                 h,
-                Theme::new(self.dark),
+                cx.palette(),
             ))
     }
     pub(super) fn create_entry_view(
@@ -183,56 +173,39 @@ impl Shell {
     ) -> gpui_kit::base::Dialog {
         let width = (w - 64.).clamp(280., 420.);
         let height = 240.;
-        self.dialog_host(cx).popup(
-            self.modal_card(Rect::new(
-                (w - width) / 2.,
-                (h - height) / 2.,
-                width,
-                height,
-            ))
-            .child(self.create_entry.clone().unwrap()),
-        )
+        let card = self.modal_card(
+            Rect::new((w - width) / 2., (h - height) / 2., width, height),
+            cx,
+        );
+        self.dialog_host(cx)
+            .popup(card.child(self.create_entry.clone().unwrap()))
     }
-    pub(super) fn feedback_view(
-        &self,
-        w: f32,
-        h: f32,
-        cx: &mut Context<Self>,
-    ) -> gpui_kit::base::Dialog {
-        let t = Theme::new(self.dark);
-        let width = (w - 32.).clamp(280., 400.);
-        let height = (h - 32.).min(480.);
+    /// The Help & feedback task: message, screenshot hint and contact. A
+    /// backdrop press keeps the draft; Escape and Close discard it.
+    pub(super) fn feedback_view(&self, w: f32, cx: &mut Context<Self>) -> Dialog {
+        let t = cx.palette();
+        let dark = cx.is_dark();
         self.task_ui.message.update(cx, |i, _| {
-            i.dark = self.dark;
             i.set_placeholder(self.locale.text("shell.feedback.placeholder"));
         });
-        self.task_ui.email.update(cx, |i, _| i.dark = self.dark);
-        self.dialog_host(cx).popup(
-            self.modal_card(Rect::new(
-                (w - width) / 2.,
-                (h - height) / 2.,
-                width,
-                height,
-            ))
+        let count = self.task_ui.message.read(cx).text().chars().count();
+        Dialog::new("feedback")
+            .width((w - 32.).clamp(280., 400.))
+            .title(self.locale.text("shell.feedback.label"))
+            .focus_handle(self.modal_focus.clone())
+            .keep_on_backdrop()
+            .on_close({
+                let host = cx.weak_entity();
+                move |w, cx| {
+                    let _ = host.update(cx, |s, cx| {
+                        s.close_tasks(w, cx);
+                        cx.notify();
+                    });
+                }
+            })
             .child(
-                column()
-                    .id("feedback-content")
-                    .size_full()
-                    .p(px(20.))
-                    .gap(px(12.))
-                    .overflow_y_scroll()
-                    .child(
-                        row()
-                            .justify_between()
-                            .child(self.locale.text("shell.feedback.label"))
-                            .child(
-                                ui::icon_button("feedback-close", "x", t)
-                                    .accessibility_label(self.locale.text("common.action.close"))
-                                    .on_click(cx.listener(|s, _, w, cx| {
-                                        s.command(Command::CloseFile, w, cx)
-                                    })),
-                            ),
-                    )
+                v_flex()
+                    .gap(px(6.))
                     .child(format!(
                         "{} *",
                         self.locale.text("shell.feedback.messageLabel")
@@ -240,20 +213,21 @@ impl Shell {
                     .child(self.task_ui.message.clone())
                     .child(
                         div()
-                            .text_size(px(crate::theme::font_size(11.)))
+                            .text_size(px(crate::theme::ty().ui.hint))
                             .text_color(t.subtle)
-                            .child(format!(
-                                "{} / 2000",
-                                self.task_ui.message.read(cx).text().chars().count()
-                            )),
-                    )
-                    .child(
-                        row()
-                            .gap(px(6.))
-                            .text_color(t.subtle)
-                            .child(ui::icon_sized("image-plus", 14., t.subtle))
-                            .child(self.locale.text("shell.feedback.attachScreenshot")),
-                    )
+                            .child(format!("{count} / 2000")),
+                    ),
+            )
+            .child(
+                h_flex()
+                    .gap(px(6.))
+                    .text_color(t.subtle)
+                    .child(Icon::new("image-plus").small())
+                    .child(self.locale.text("shell.feedback.attachScreenshot")),
+            )
+            .child(
+                v_flex()
+                    .gap(px(6.))
                     .child(format!(
                         "{} *",
                         self.locale.text("shell.feedback.contactLabel")
@@ -261,19 +235,17 @@ impl Shell {
                     .child(self.task_ui.email.clone())
                     .child(
                         div()
-                            .text_size(px(crate::theme::font_size(12.)))
+                            .text_size(px(crate::theme::ty().ui.caption))
                             .text_color(t.subtle)
                             .child(self.locale.text("native.feedback.notConnected")),
-                    )
-                    .child(
-                        row().justify_end().child(
-                            div()
-                                .text_color(t.subtle)
-                                .child(self.locale.text("shell.feedback.send")),
-                        ),
                     ),
-            ),
-        )
+            )
+            .footer(
+                Button::new("feedback-send")
+                    .variant(ButtonVariant::Solid)
+                    .label(self.locale.text("shell.feedback.send"))
+                    .disabled(true),
+            )
     }
 }
 #[cfg(test)]

@@ -36,7 +36,7 @@ impl Shell {
                 })
                 .unwrap_or_default()
         });
-        let form = cx.new(|cx| CreateEntryDialog::new(ws, parent, kind, self.dark, window, cx));
+        let form = cx.new(|cx| CreateEntryDialog::new(ws, parent, kind, window, cx));
         cx.subscribe_in(&form, window, |s, _, event, w, cx| {
             match event {
                 CreateEvent::Cancel => {

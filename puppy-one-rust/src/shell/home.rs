@@ -5,7 +5,14 @@
 use super::*;
 use crate::{
     localization::{t as tr, tf},
-    ui::{icon_sized, tooltip},
+    ui::{
+        appearance::ActiveAppearance,
+        components::{Icon, IconButton},
+    },
+};
+use gpui_kit::{
+    base::{h_flex, v_flex},
+    component::Sizable as _,
 };
 impl Shell {
     /// Web hides the workspace chrome on the homepage; so does the native shell.
@@ -21,7 +28,7 @@ impl Shell {
         disabled: bool,
         cx: &mut Context<Self>,
     ) -> gpui_kit::base::Button {
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         let (bg, fg) = if primary {
             (theme::alpha(t.accent, 0.12), t.accent_text)
         } else {
@@ -46,14 +53,14 @@ impl Shell {
                 b.cursor(theme::clickable_cursor())
                     .hover(move |s| s.bg(t.control_hover))
             })
-            .child(icon_sized(icon, 16., fg))
+            .child(Icon::new(icon).large().color(fg))
             .child(label)
             .when(!disabled && id == "open-folder", |b| {
                 b.on_click(cx.listener(|s, _, w, cx| s.command(Command::OpenFolder, w, cx)))
             })
     }
     pub(super) fn home_view(&self, cx: &mut Context<Self>) -> Div {
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         let r = Rect::new(
             0.,
             theme::HEADER,
@@ -65,7 +72,7 @@ impl Shell {
         // On dark the product applies `grayscale(1) brightness(0.7)` to the mark;
         // GPUI images have no brightness filter, so the dark variant is the same
         // artwork with that filter baked in (`assets/README.md`).
-        let brand = row()
+        let brand = h_flex()
             .gap(px(12.))
             .mb(px(if has_projects { 34. } else { 24. }))
             .child(
@@ -92,7 +99,7 @@ impl Shell {
                         "onboarding.brand.agentReadyMessage"
                     })),
             );
-        let mut list = column()
+        let mut list = v_flex()
             .id("home-projects")
             .w_full()
             .max_h(px(360.))
@@ -112,7 +119,7 @@ impl Shell {
                 &[("project", name.clone().into())],
             );
             list = list.child(
-                row()
+                h_flex()
                     .id(("home-project", index))
                     .w_full()
                     .min_h(px(theme::control() + 8.))
@@ -121,9 +128,9 @@ impl Shell {
                     .rounded(px(theme::metric::CONTROL_RADIUS))
                     .cursor(theme::clickable_cursor())
                     .hover(move |s| s.bg(t.hover))
-                    .child(icon_sized("folder", 16., t.muted))
+                    .child(Icon::new("folder").large().color(t.muted))
                     .child(
-                        column()
+                        v_flex()
                             .flex_1()
                             .min_w_0()
                             .child(
@@ -143,13 +150,13 @@ impl Shell {
                             ),
                     )
                     .child(
-                        crate::ui::icon_button(("home-project-remove", index), "unlink", t)
-                            .size(px(24.))
-                            .accessibility_label(remove_label.clone())
-                            .tooltip(tooltip(format!(
+                        IconButton::new(("home-project-remove", index), "unlink")
+                            .with_size(px(24.))
+                            .label(remove_label.clone())
+                            .tooltip(format!(
                                 "{remove_label}\n{}",
                                 tr("onboarding.projects.removeHint")
-                            )))
+                            ))
                             .on_click(cx.listener(move |s, _, _, cx| {
                                 cx.stop_propagation();
                                 let remove = remove.clone();
@@ -161,10 +168,10 @@ impl Shell {
                     .on_click(cx.listener(move |s, _, w, cx| s.open_project(path.clone(), w, cx))),
             );
         }
-        let mut launcher = column().w(px(440.)).max_w_full().child(brand);
+        let mut launcher = v_flex().w(px(440.)).max_w_full().child(brand);
         if has_projects {
             launcher = launcher.child(
-                column()
+                v_flex()
                     .gap(px(6.))
                     .mb(px(12.))
                     .child(
@@ -178,7 +185,7 @@ impl Shell {
             );
         }
         launcher = launcher.child(
-            column()
+            v_flex()
                 .gap(px(6.))
                 .child(self.entry_action(
                     "create-project",

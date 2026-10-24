@@ -4,8 +4,11 @@
 //! compact context, close connection) plus native extensions (history, fork,
 //! rename, copy). Model connections open in Settings.
 use super::*;
-use crate::localization::t as tr;
-use gpui_kit::component::menu::{PopupMenu, PopupMenuItem};
+use crate::{
+    localization::t as tr,
+    ui::components::{Button, ButtonVariant, Menu, MenuItem},
+};
+use gpui_kit::base::h_flex;
 
 /// Raised to the workbench, which routes it to the shell.
 #[derive(Clone, Debug)]
@@ -16,7 +19,7 @@ impl EventEmitter<AgentChatEvent> for AgentChat {}
 
 impl AgentChat {
     /// Fill a tab context menu with this session's actions.
-    pub fn session_menu(chat: Entity<Self>, mut menu: PopupMenu, cx: &App) -> PopupMenu {
+    pub fn session_menu(chat: Entity<Self>, mut menu: Menu, cx: &App) -> Menu {
         let s = chat.read(cx);
         let caps = s.session.snapshot().capabilities.clone();
         let busy = s.session.busy();
@@ -24,9 +27,9 @@ impl AgentChat {
             == crate::agent::runtime::agent_runtime_registry::Runtime::PuppyOne;
         let item = |label: &'static str, enabled: bool, action: u8| {
             let chat = chat.clone();
-            PopupMenuItem::new(tr(label))
+            MenuItem::new(tr(label))
                 .disabled(!enabled)
-                .on_click(move |_, window, cx| {
+                .on_click(move |window, cx| {
                     chat.update(cx, |s, cx| s.session_action(action, window, cx));
                 })
         };
@@ -88,42 +91,30 @@ impl AgentChat {
         if !self.show_rename {
             return None;
         }
-        let t = Theme::new(self.dark);
         Some(
-            row()
+            h_flex()
                 .flex_shrink_0()
                 .px(px(12.))
                 .pt(px(12.))
                 .gap(px(6.))
                 .child(div().flex_1().child(self.rename_input.clone()))
                 .child(
-                    crate::ui::action_button(
-                        "save-agent-name",
-                        tr("common.action.save"),
-                        None,
-                        crate::ui::Tone::Primary,
-                        false,
-                        t,
-                    )
-                    .on_click(cx.listener(|s, _, _, cx| {
-                        s.session.rename(s.rename_input.read(cx).text().into());
-                        s.show_rename = false;
-                        cx.notify()
-                    })),
+                    Button::new("save-agent-name")
+                        .variant(ButtonVariant::OutlinePrimary)
+                        .label(tr("common.action.save"))
+                        .on_click(cx.listener(|s, _, _, cx| {
+                            s.session.rename(s.rename_input.read(cx).text().into());
+                            s.show_rename = false;
+                            cx.notify()
+                        })),
                 )
                 .child(
-                    crate::ui::action_button(
-                        "cancel-agent-name",
-                        tr("common.action.cancel"),
-                        None,
-                        crate::ui::Tone::Default,
-                        false,
-                        t,
-                    )
-                    .on_click(cx.listener(|s, _, _, cx| {
-                        s.show_rename = false;
-                        cx.notify()
-                    })),
+                    Button::new("cancel-agent-name")
+                        .label(tr("common.action.cancel"))
+                        .on_click(cx.listener(|s, _, _, cx| {
+                            s.show_rename = false;
+                            cx.notify()
+                        })),
                 ),
         )
     }

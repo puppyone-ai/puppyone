@@ -3,15 +3,15 @@
 //! action (send / stop). While a turn runs, Enter steers when supported.
 use super::agent_session_control_picker::Selection;
 use super::*;
+use crate::ui::appearance::ActiveAppearance;
 use crate::{
     localization::{t as tr, tf},
-    theme::{self, metric},
-    ui::{icon_sized, menu_icon, tooltip},
+    theme,
+    ui::components::{Icon, IconButton, MenuItem, PopoverMenu, tooltip},
 };
-use gpui_kit::component::{
-    Disableable,
-    button::{Button, ButtonVariants},
-    menu::{DropdownMenu, PopupMenuItem},
+use gpui_kit::{
+    base::{Disableable as _, h_flex, v_flex},
+    component::Sizable as _,
 };
 /// `agent.effort.*` label for a reasoning effort id.
 fn effort_label(id: &str) -> String {
@@ -101,7 +101,7 @@ impl AgentChat {
         // `.desktop-agent-composer-picker.is-*`: max-content up to
         // min(148px, 34vw) / min(72px, 20vw) / min(88px, 22vw).
         let viewport = f32::from(window.viewport_size().width);
-        let mut controls = row()
+        let mut controls = h_flex()
             .min_w_0()
             .flex_1()
             .gap(px(2.))
@@ -137,42 +137,35 @@ impl AgentChat {
                 cx,
             )))
         }
-        let a = super::agent_theme::AgentTheme::new(&Theme::new(self.dark));
+        let a = super::agent_theme::AgentTheme::new(&cx.palette());
         let visual = self.render_visual_attachments(cx);
-        let mentions = self.render_mentions();
+        let mentions = self.render_mentions(cx);
         // `AgentAttachmentButton`: 32px quiet trigger (Paperclip 16 / 1.7).
         let host = cx.weak_entity();
         let workspace_host = cx.weak_entity();
         let attach_disabled = self.session.busy() && !running;
-        let variant = gpui_kit::component::button::ButtonCustomVariant::new(cx)
-            .color(theme::alpha(a.row_hover, 0.).into())
-            .foreground(a.text_subtle.into())
-            .hover(a.row_hover.into())
-            .active(a.row_hover.into());
-        let attach = Button::new("attach-agent")
-            .custom(variant)
-            .size(px(theme::control()))
-            .p_0()
-            .rounded(px(metric::CONTROL_RADIUS))
-            .text_color(a.text_subtle)
-            .child(crate::ui::icon_stroke("paperclip", 16., 1.7, a.text_subtle))
-            .when(attach_disabled, |b| b.opacity(0.48))
-            .tooltip(tr("agent.reference.add"))
-            .disabled(attach_disabled)
-            .dropdown_menu(move |menu, _, _| {
-                let host = host.clone();
-                let workspace_host = workspace_host.clone();
+        // The attachment menu opens above the composer.
+        let attach = PopoverMenu::new("attach-agent-menu")
+            .anchor(Anchor::BottomLeft)
+            .trigger(
+                IconButton::new("attach-agent", Icon::new("paperclip").large().stroke(1.7))
+                    .label(tr("agent.reference.add"))
+                    .with_size(px(theme::control()))
+                    .color(a.text_subtle)
+                    .disabled(attach_disabled),
+            )
+            .menu(move |menu, _, _| {
                 menu.item(
-                    PopupMenuItem::new(tr("agent.reference.addFromComputer"))
-                        .icon(menu_icon("paperclip"))
-                        .on_click(move |_, w, cx| {
+                    MenuItem::new(tr("agent.reference.addFromComputer"))
+                        .icon("paperclip")
+                        .on_click(move |w, cx| {
                             let _ = host.update(cx, |s, cx| s.attach(false, w, cx));
                         }),
                 )
                 .item(
-                    PopupMenuItem::new(tr("agent.reference.addFromWorkspace"))
-                        .icon(menu_icon("folder"))
-                        .on_click(move |_, w, cx| {
+                    MenuItem::new(tr("agent.reference.addFromWorkspace"))
+                        .icon("folder")
+                        .on_click(move |w, cx| {
                             let _ = workspace_host.update(cx, |s, cx| s.attach(true, w, cx));
                         }),
                 )
@@ -192,7 +185,9 @@ impl AgentChat {
             (a.action_disabled_surface, a.action_disabled_text, 1.)
         };
         let glyph: AnyElement = if stopping {
-            icon_sized("loader-circle", 15., glyph_color).into_any_element()
+            Icon::new("loader-circle")
+                .color(glyph_color)
+                .into_any_element()
         } else if running {
             div()
                 .size(px(11.))
@@ -200,7 +195,11 @@ impl AgentChat {
                 .bg(glyph_color)
                 .into_any_element()
         } else {
-            crate::ui::icon_stroke("arrow-up", 17., 1.6, glyph_color).into_any_element()
+            Icon::new("arrow-up")
+                .with_size(px(17.))
+                .stroke(1.6)
+                .color(glyph_color)
+                .into_any_element()
         };
         let primary = gpui_kit::base::Button::new("send-agent")
             .accessibility_label(action_label.clone())
@@ -233,7 +232,7 @@ impl AgentChat {
             }));
         let focused = self.composer.focus_handle(cx).contains_focused(window, cx);
         let size = theme::ty().left.content;
-        column()
+        v_flex()
             .w_full()
             .min_w_0()
             .max_w(px(900.))
@@ -266,7 +265,7 @@ impl AgentChat {
                             d.child(self.composer.clone())
                         } else {
                             d.child(
-                                row()
+                                h_flex()
                                     .flex_wrap()
                                     .items_start()
                                     .pl(px(4.))
@@ -281,14 +280,14 @@ impl AgentChat {
             )
             .child(
                 // `.desktop-agent-composer-trailing`.
-                row()
+                h_flex()
                     .min_h(px(38.))
                     .pb(px(8.))
                     .px(px(8.))
                     .gap(px(8.))
                     .child(controls)
                     .child(
-                        row()
+                        h_flex()
                             .gap(px(2.))
                             .flex_shrink_0()
                             .child(attach)

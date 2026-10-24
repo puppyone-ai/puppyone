@@ -4,8 +4,10 @@
 //! tables use Chromium's auto layout inside a 12px scrollbar gutter, and code
 //! blocks carry the language toolbar. Inline content is `RichText`.
 use super::agent_rich_text::{CODE_FAMILY, CODE_PAD, ChipGeometry, RichText};
+use crate::ui::components::Icon;
 use crate::{theme, theme::Theme};
 use gpui::{prelude::*, *};
+use gpui_kit::component::Sizable as _;
 use pulldown_cmark::{CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
 use std::ops::Range;
 
@@ -707,7 +709,7 @@ fn code_block(language: &str, text: &str, cx: &mut Context<'_>, path: &str) -> A
                     .cursor(theme::clickable_cursor())
                     .hover(move |s| s.bg(t.hover).text_color(a.text))
                     .tooltip(crate::ui::tooltip(label))
-                    .child(crate::ui::icon_stroke("copy", 14., 2., a.text_subtle))
+                    .child(Icon::new("copy").small().stroke(2.).color(a.text_subtle))
                     .on_click(move |_, _, cx| {
                         cx.write_to_clipboard(ClipboardItem::new_string(copy.clone()))
                     }),

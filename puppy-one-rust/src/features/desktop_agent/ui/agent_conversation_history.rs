@@ -4,6 +4,8 @@
 //! is the workbench's job (`HistoryBrowserEvent::Open`).
 use super::agent_brand_mark::monochrome_mark;
 use super::agent_theme::AgentTheme;
+use crate::ui::appearance::ActiveAppearance;
+use crate::ui::components::{Icon, tooltip};
 use crate::{
     agent::connections::local_agent_inventory::Installation,
     features::desktop_agent::application::conversation_history::{
@@ -11,10 +13,11 @@ use crate::{
     },
     localization::{t as tr, tf},
     theme::{self, Theme},
-    ui::{form_input::TextInput, icon_stroke, tooltip},
+    ui::form_input::TextInput,
     wake::Wake,
 };
 use gpui::{prelude::*, *};
+use gpui_kit::component::Sizable as _;
 use std::path::PathBuf;
 
 /// `--desktop-chrome-height` in the right sidebar.
@@ -35,7 +38,6 @@ pub enum HistoryBrowserEvent {
 }
 
 pub struct HistoryBrowser {
-    pub dark: bool,
     installations: Vec<Installation>,
     root: PathBuf,
     history: Option<ConversationHistory>,
@@ -58,19 +60,16 @@ impl HistoryBrowser {
         installations: Vec<Installation>,
         root: PathBuf,
         enabled: bool,
-        dark: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
         let search = cx.new(|cx| {
             let mut input = TextInput::new(tr("agent.history.search"), false, 200, window, cx);
             input.appearance = false;
-            input.dark = dark;
             input
         });
         cx.observe(&search, |_, _, cx| cx.notify()).detach();
         let mut browser = Self {
-            dark,
             installations,
             root,
             history: None,
@@ -183,7 +182,10 @@ impl HistoryBrowser {
             .toolbar_button(
                 "history-back",
                 tr("agent.history.back"),
-                icon_stroke("arrow-left", 15., 1.7, a.text_subtle).into_any_element(),
+                Icon::new("arrow-left")
+                    .stroke(1.7)
+                    .color(a.text_subtle)
+                    .into_any_element(),
                 false,
                 a,
             )
@@ -231,12 +233,14 @@ impl HistoryBrowser {
                         } else {
                             a.launcher_placeholder_surface
                         })
-                        .child(div().w(px(16.)).flex().justify_center().child(icon_stroke(
-                            "search",
-                            13.,
-                            1.7,
-                            a.launcher_placeholder_text,
-                        )))
+                        .child(
+                            div().w(px(16.)).flex().justify_center().child(
+                                Icon::new("search")
+                                    .with_size(px(13.))
+                                    .stroke(1.7)
+                                    .color(a.launcher_placeholder_text),
+                            ),
+                        )
                         .child(div().flex_1().min_w_0().child(self.search.clone())),
                 )
             } else {
@@ -244,7 +248,10 @@ impl HistoryBrowser {
                     self.toolbar_button(
                         "history-search-open",
                         tr("agent.history.search"),
-                        icon_stroke("search", 15., 1.7, a.text_subtle).into_any_element(),
+                        Icon::new("search")
+                            .stroke(1.7)
+                            .color(a.text_subtle)
+                            .into_any_element(),
                         false,
                         a,
                     )
@@ -265,7 +272,11 @@ impl HistoryBrowser {
                 a.text_subtle,
             )
         } else {
-            icon_stroke("refresh-cw", 12., 1.7, a.text_subtle).into_any_element()
+            Icon::new("refresh-cw")
+                .xsmall()
+                .stroke(1.7)
+                .color(a.text_subtle)
+                .into_any_element()
         };
         let refresh = self
             .toolbar_button(
@@ -357,7 +368,11 @@ impl HistoryBrowser {
             .child(if spin {
                 spinning("history-loading", icon, 13., 2., a.text_subtle).into_any_element()
             } else {
-                icon_stroke(icon, 13., 2., a.text_subtle).into_any_element()
+                Icon::new(icon)
+                    .with_size(px(13.))
+                    .stroke(2.)
+                    .color(a.text_subtle)
+                    .into_any_element()
             })
             .child(text)
     }
@@ -397,7 +412,7 @@ impl HistoryBrowser {
                         d.hover(move |s| s.bg(hover).text_color(text))
                     })
                     .children(runtime.map(|runtime| {
-                        monochrome_mark(runtime, self.dark, 14., a.text_subtle, t.canvas)
+                        monochrome_mark(runtime, t.dark, 14., a.text_subtle, t.canvas)
                     }))
                     .child(
                         div()
@@ -614,7 +629,7 @@ impl HistoryBrowser {
 
 impl Render for HistoryBrowser {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         let a = AgentTheme::new(&t);
         self.search_focused = self
             .search
@@ -622,7 +637,6 @@ impl Render for HistoryBrowser {
             .focus_handle(cx)
             .contains_focused(window, cx);
         self.search.update(cx, |s, _| {
-            s.dark = self.dark;
             s.prompt_text = Some((
                 theme::ty().right.caption,
                 theme::ty().right.meta_line_height,
@@ -663,12 +677,11 @@ fn spinning(
     stroke: f32,
     color: Rgba,
 ) -> AnyElement {
-    icon_stroke(icon, size, stroke, color)
-        .with_animation(
-            id,
-            Animation::new(std::time::Duration::from_millis(900)).repeat(),
-            |svg, delta| svg.with_transformation(Transformation::rotate(percentage(delta))),
-        )
+    Icon::new(icon)
+        .with_size(px(size))
+        .stroke(stroke)
+        .color(color)
+        .spinning(id)
         .into_any_element()
 }
 

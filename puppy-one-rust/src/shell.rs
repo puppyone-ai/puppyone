@@ -4,7 +4,11 @@ use crate::{
     localization::Locale,
     model::Tree,
     theme::{self, Layout, Theme},
-    ui::{self, column, row},
+    ui::{
+        self,
+        appearance::ActiveAppearance,
+        components::{ButtonVariant, IconButton},
+    },
     wake::Wake,
 };
 use gpui::{prelude::*, *};
@@ -737,8 +741,8 @@ impl Shell {
         self.receive(window, cx);
         cx.notify();
     }
-    fn editor(&self, _: &mut Context<Self>) -> Div {
-        let t = Theme::new(self.dark);
+    fn editor(&self, cx: &mut Context<Self>) -> Div {
+        let t = cx.palette();
         let r = self.layout.editor;
         let mut content = at(r);
         if self.files.document.is_some() {
@@ -755,7 +759,7 @@ impl Shell {
     }
     /// Compact `ProjectSwitcherRail`: one mark per remembered project.
     fn project_rail(&self, h: f32, cx: &mut Context<Self>) -> Div {
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         let current = self.files.workspace.as_ref().map(|ws| ws.path.clone());
         let mut rail = at(Rect::new(0., theme::HEADER, 56., h - theme::HEADER))
             .bg(t.sidebar)
@@ -799,27 +803,23 @@ impl Shell {
                     .text_color(if active { t.text } else { t.muted })
                     .cursor(theme::clickable_cursor())
                     .hover(move |s| s.bg(t.hover))
-                    .tooltip(ui::tooltip(project.name.clone()))
+                    .tooltip(ui::components::tooltip(project.name.clone()))
                     .child(initial)
                     .on_click(cx.listener(move |s, _, w, cx| s.open_project(path.clone(), w, cx))),
             );
         }
         rail.child(
-            ui::labelled_icon_button(
-                "rail-plus",
-                "plus",
-                crate::localization::t("shell.workspaceSwitcher.addProject"),
-                t,
-            )
-            .size(px(theme::control()))
-            .on_click(cx.listener(|s, _, w, cx| s.command(Command::OpenFolder, w, cx))),
+            IconButton::new("rail-plus", "plus")
+                .label(crate::localization::t("shell.workspaceSwitcher.addProject"))
+                .size(px(theme::control()))
+                .on_click(cx.listener(|s, _, w, cx| s.command(Command::OpenFolder, w, cx))),
         )
     }
     /// `.po-pane-edge-resize-handle` + `.po-pane-edge-chrome`: an 8px
     /// transparent hit lane whose only paint is the 1px divider, plus the
     /// adjacent hover / active stroke (and ring while dragging).
     fn sash(&self, left: bool, cx: &mut Context<Self>) -> Stateful<Div> {
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         let x = if left {
             self.layout.editor.x
         } else {
@@ -920,7 +920,7 @@ impl Render for Shell {
                 self.error = Some(error.to_string());
             }
         }
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         let mut root = div()
             .id("gpui-shell")
             .relative()
@@ -972,7 +972,6 @@ impl Render for Shell {
             root = root.child(self.explorer(cx)).child(self.footer(cx));
         }
         if self.right_open && !home {
-            self.workbench.update(cx, |s, _| s.dark = self.dark);
             root = root.child(
                 // The 8px sash overlays the pane edge (`.po-pane-edge-resize-handle`);
                 // content starts at the divider like the product's.
@@ -1003,7 +1002,7 @@ impl Render for Shell {
             root = root.child(self.settings_view(w, h, cx));
         }
         if self.help {
-            root = root.child(self.feedback_view(w, h, cx));
+            root = root.child(self.feedback_view(w, cx));
         }
         if self.confirm_quit {
             use crate::localization::t as tr;
@@ -1014,12 +1013,12 @@ impl Render for Shell {
                     (
                         tr("native.quit.cancel"),
                         Command::CancelProcessQuit,
-                        ui::Tone::Default,
+                        ButtonVariant::Secondary,
                     ),
                     (
                         tr("native.quit.confirm"),
                         Command::QuitWithProcesses,
-                        ui::Tone::Danger,
+                        ButtonVariant::SolidDanger,
                     ),
                 ],
                 cx,
@@ -1032,7 +1031,7 @@ impl Render for Shell {
                 vec![(
                     crate::localization::t("common.action.close"),
                     Command::ClearError,
-                    ui::Tone::Primary,
+                    ButtonVariant::Solid,
                 )],
                 cx,
             ));

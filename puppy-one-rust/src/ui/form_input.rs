@@ -1,6 +1,7 @@
 //! Application adapter for GPUI Kit's Input / Textarea. Kit owns editing,
 //! selection, IME, clipboard and history; this adapter only bridges host events.
 pub use super::input::InputSnapshot;
+use crate::ui::appearance::ActiveAppearance;
 use gpui::{prelude::*, *};
 use gpui_kit::component::input::{
     Input, InputEvent as KitEvent, InputState, Textarea, TextareaState,
@@ -29,7 +30,6 @@ pub struct TextInput {
     value: SharedString,
     placeholder: SharedString,
     pending: Option<InputSnapshot>,
-    pub dark: bool,
     pub appearance: bool,
     pub submit_on_enter: bool,
     pub min_height: f32,
@@ -101,7 +101,6 @@ impl TextInput {
             value: "".into(),
             placeholder,
             pending: None,
-            dark: true,
             appearance: true,
             submit_on_enter: false,
             prompt_text: None,
@@ -184,7 +183,7 @@ impl Render for TextInput {
                 });
             }
         });
-        let t = crate::theme::Theme::new(self.dark);
+        let t = cx.palette();
         let control = match &self.field {
             Field::Single(s) => Input::new(s)
                 .appearance(self.appearance)

@@ -31,9 +31,7 @@ impl Workbench {
         }
         let enabled = self.history_discovery(cx);
         let installations = self.installations.clone();
-        let dark = self.dark;
-        let browser =
-            cx.new(|cx| HistoryBrowser::new(installations, root, enabled, dark, window, cx));
+        let browser = cx.new(|cx| HistoryBrowser::new(installations, root, enabled, window, cx));
         cx.observe(&browser, |_, _, cx| cx.notify()).detach();
         cx.subscribe_in(&browser, window, move |s, _, event, window, cx| {
             s.history_event(tab, event, window, cx)
@@ -126,10 +124,8 @@ impl Workbench {
     pub(super) fn render_history(&mut self, tab: Id, cx: &mut Context<Self>) -> Option<AnyElement> {
         let browser = self.history.get(&tab)?.clone();
         let excluded = self.open_threads(cx);
-        let dark = self.dark;
         let enabled = self.history_discovery(cx);
         browser.update(cx, |b, cx| {
-            b.dark = dark;
             b.set_excluded(excluded);
             // Permission granted elsewhere (Settings) starts discovery too.
             if enabled && !b.enabled() {

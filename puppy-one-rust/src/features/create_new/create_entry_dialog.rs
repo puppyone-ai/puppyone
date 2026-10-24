@@ -1,16 +1,15 @@
 //! Draft form; filesystem work belongs to the native creation port.
 use super::{create_entry_draft::normalize_name, create_entry_menu_registry::Entry};
+use crate::ui::appearance::ActiveAppearance;
+use crate::ui::components::{Button, ButtonVariant};
 use crate::{
     localization::{t as tr, tf},
     theme::Theme,
-    ui::{
-        Tone, action_button, column,
-        form_input::{InputEvent, TextInput},
-        row,
-    },
+    ui::form_input::{InputEvent, TextInput},
     workspace::Workspace,
 };
 use gpui::{prelude::*, *};
+use gpui_kit::base::{Disableable as _, h_flex, v_flex};
 use std::{path::PathBuf, sync::Arc};
 pub enum CreateEvent {
     Cancel,
@@ -27,7 +26,6 @@ pub struct CreateEntryDialog {
     parent: PathBuf,
     kind: Entry,
     input: Entity<TextInput>,
-    pub dark: bool,
     busy: bool,
     error: Option<String>,
 }
@@ -37,7 +35,6 @@ impl CreateEntryDialog {
         workspace: Arc<Workspace>,
         parent: PathBuf,
         kind: Entry,
-        dark: bool,
         w: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -68,7 +65,6 @@ impl CreateEntryDialog {
             parent,
             kind,
             input,
-            dark,
             busy: false,
             error: None,
         }
@@ -123,15 +119,14 @@ impl CreateEntryDialog {
 }
 impl Render for CreateEntryDialog {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let t = Theme::new(self.dark);
-        self.input.update(cx, |s, _| s.dark = self.dark);
+        let t = cx.palette();
         // Catalog `…kind.<id>.title` ("Create folder"); kinds without one use "Create new".
         let title_key = self.kind.label_key().replace(".label", ".title");
         let title = match tr(&title_key) {
             text if text != title_key => text,
             _ => tr("workspace.node.createNew"),
         };
-        column()
+        v_flex()
             .size_full()
             .p(px(24.))
             .gap(px(12.))
@@ -160,38 +155,29 @@ impl Render for CreateEntryDialog {
                 )
             })
             .child(
-                row()
+                h_flex()
                     .justify_end()
                     .gap(px(8.))
                     .child(
-                        action_button(
-                            "cancel-create",
-                            tr("common.action.cancel"),
-                            None,
-                            Tone::Default,
-                            self.busy,
-                            t,
-                        )
-                        .on_click(cx.listener(|s, _, _, cx| {
-                            if !s.busy {
-                                cx.emit(CreateEvent::Cancel)
-                            }
-                        })),
+                        Button::new("cancel-create")
+                            .label(tr("common.action.cancel"))
+                            .disabled(self.busy)
+                            .on_click(cx.listener(|s, _, _, cx| {
+                                if !s.busy {
+                                    cx.emit(CreateEvent::Cancel)
+                                }
+                            })),
                     )
                     .child(
-                        action_button(
-                            "create-entry",
-                            tr(if self.busy {
+                        Button::new("create-entry")
+                            .variant(ButtonVariant::OutlinePrimary)
+                            .label(tr(if self.busy {
                                 "workspace.node.creating"
                             } else {
                                 "workspace.node.create"
-                            }),
-                            None,
-                            Tone::Primary,
-                            self.busy,
-                            t,
-                        )
-                        .on_click(cx.listener(|s, _, w, cx| s.create(w, cx))),
+                            }))
+                            .disabled(self.busy)
+                            .on_click(cx.listener(|s, _, w, cx| s.create(w, cx))),
                     ),
             )
     }

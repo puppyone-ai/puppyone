@@ -3,11 +3,14 @@
 //! interactions sit in the dock above the composer and cannot scroll away.
 use super::agent_theme::AgentTheme;
 use super::*;
+use crate::ui::appearance::ActiveAppearance;
+use crate::ui::components::Icon;
 use crate::{
     localization::{t as tr, tf},
     theme,
-    ui::icon_stroke,
 };
+use gpui_kit::base::{h_flex, v_flex};
+use gpui_kit::component::Sizable as _;
 
 #[derive(Clone, Copy, PartialEq)]
 enum ButtonTone {
@@ -25,8 +28,9 @@ impl AgentChat {
         tone: ButtonTone,
         radius: f32,
         disabled: bool,
+        cx: &App,
     ) -> gpui_kit::base::Button {
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         let a = AgentTheme::new(&t);
         let (border, bg, fg, hover_bg, hover_border) = match tone {
             ButtonTone::Quiet => (
@@ -104,7 +108,6 @@ impl AgentChat {
                 })
             })
             .clone();
-        input.update(cx, |i, _| i.dark = self.dark);
         input
     }
 
@@ -115,12 +118,12 @@ impl AgentChat {
     ) -> Option<AnyElement> {
         let interaction = self.session.snapshot().interactions.first().cloned()?;
         let queue = self.session.snapshot().interactions.len();
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         let a = AgentTheme::new(&t);
         let m = theme::ty();
         let id = interaction.id.clone();
         let card = |padding: f32| {
-            column()
+            v_flex()
                 .id("agent-interaction-dock")
                 .relative()
                 .w_full()
@@ -175,7 +178,7 @@ impl AgentChat {
                     tr("agent.approval.waiting").into()
                 };
                 let show_details = command_line.is_some() || cwd.is_some() || reason.is_some();
-                let mut details = column().gap(px(6.)).mt(px(8.)).pl(px(32.)).min_w_0();
+                let mut details = v_flex().gap(px(6.)).mt(px(8.)).pl(px(32.)).min_w_0();
                 if let Some(command) = command_line {
                     details = details.child(
                         div()
@@ -207,7 +210,7 @@ impl AgentChat {
                 if let Some(reason) = reason {
                     details = details.child(meta(reason));
                 }
-                let mut actions = row().justify_end().flex_wrap().gap(px(4.)).mt(px(10.));
+                let mut actions = h_flex().justify_end().flex_wrap().gap(px(4.)).mt(px(10.));
                 let ordered = [
                     (Decision::Decline, ButtonTone::Quiet),
                     (Decision::AcceptForSession, ButtonTone::Secondary),
@@ -226,6 +229,7 @@ impl AgentChat {
                             tone,
                             6.,
                             false,
+                            cx,
                         )
                         .on_click(cx.listener(move |s, _, _, cx| {
                             s.session.resolve(&id, Resolution::Approval(decision));
@@ -235,7 +239,7 @@ impl AgentChat {
                 }
                 let mut card = card(10.).child(
                     // `.desktop-agent-approval-heading`: 24px icon, title, status.
-                    row()
+                    h_flex()
                         .gap(px(8.))
                         .min_w_0()
                         .child(
@@ -247,7 +251,12 @@ impl AgentChat {
                                 .items_center()
                                 .justify_center()
                                 .bg(a.blocking_icon_surface)
-                                .child(icon_stroke("shield-alert", 14., 1.7, a.blocking_icon)),
+                                .child(
+                                    Icon::new("shield-alert")
+                                        .small()
+                                        .stroke(1.7)
+                                        .color(a.blocking_icon),
+                                ),
                         )
                         .child(
                             div()
@@ -290,11 +299,11 @@ impl AgentChat {
             }
             InteractionKind::Questions(questions) => {
                 let mut card = card(12.).child(
-                    row()
+                    h_flex()
                         .gap(px(8.))
                         .text_size(px(m.left.content))
                         .text_color(a.text)
-                        .child(icon_stroke("circle-help", 15., 2., a.text))
+                        .child(Icon::new("circle-help").stroke(2.).color(a.text))
                         .child(
                             div()
                                 .font_weight(FontWeight::BOLD)
@@ -336,7 +345,7 @@ impl AgentChat {
                     // `fieldset`: the 19px legend sits in flow on the top border
                     // (drawn through its middle); content starts 10px below it.
                     let legend_height = m.right.meta_line_height;
-                    let mut fieldset = column()
+                    let mut fieldset = v_flex()
                         .relative()
                         .mt(px(10.))
                         .pt(px(legend_height + 10.))
@@ -385,7 +394,7 @@ impl AgentChat {
                         let value = option.clone();
                         let multiple = question.multiple;
                         fieldset = fieldset.child(
-                            row()
+                            h_flex()
                                 .id(SharedString::from(format!("{key}:option:{option_index}")))
                                 .items_start()
                                 .gap(px(8.))
@@ -402,7 +411,7 @@ impl AgentChat {
                                         .child(choice_mark(selected, multiple, &t)),
                                 )
                                 .child(
-                                    column()
+                                    v_flex()
                                         .min_w_0()
                                         .child(
                                             div()
@@ -476,7 +485,7 @@ impl AgentChat {
                         .child(label)
                 };
                 card.child(
-                    row()
+                    h_flex()
                         .justify_end()
                         .gap(px(6.))
                         .mt(px(9.))
@@ -525,7 +534,7 @@ impl AgentChat {
                 .into_any_element()
             }
             InteractionKind::Permission { prompt, options } => {
-                let mut actions = row().justify_end().flex_wrap().gap(px(4.)).mt(px(10.));
+                let mut actions = h_flex().justify_end().flex_wrap().gap(px(4.)).mt(px(10.));
                 for (index, (option, label)) in options.iter().enumerate() {
                     let id = id.clone();
                     let option = option.clone();
@@ -541,6 +550,7 @@ impl AgentChat {
                             tone,
                             6.,
                             false,
+                            cx,
                         )
                         .on_click(cx.listener(move |s, _, _, cx| {
                             s.session.resolve(&id, Resolution::Choice(option.clone()));
@@ -585,13 +595,14 @@ impl AgentChat {
                 {
                     let target = url.clone();
                     card = card.child(
-                        row().child(
+                        h_flex().child(
                             self.dock_button(
                                 "open-mcp-url",
                                 url.clone().into(),
                                 ButtonTone::Secondary,
                                 6.,
                                 false,
+                                cx,
                             )
                             .on_click(move |_, _, cx| cx.open_url(&target)),
                         ),
@@ -620,7 +631,7 @@ impl AgentChat {
                         )
                         .child(input);
                 }
-                let mut actions = row().justify_end().gap(px(4.));
+                let mut actions = h_flex().justify_end().gap(px(4.));
                 for (decision, tone, key) in [
                     (Decision::Cancel, ButtonTone::Quiet, "common.action.cancel"),
                     (
@@ -643,6 +654,7 @@ impl AgentChat {
                             tone,
                             6.,
                             false,
+                            cx,
                         )
                         .on_click(cx.listener(move |s, _, _, cx| {
                             let values = keys
@@ -669,7 +681,7 @@ impl AgentChat {
 
 fn approval_heading(title: SharedString, status: SharedString, a: &AgentTheme) -> Div {
     let m = theme::ty();
-    row()
+    h_flex()
         .gap(px(8.))
         .child(
             div()
@@ -680,7 +692,12 @@ fn approval_heading(title: SharedString, status: SharedString, a: &AgentTheme) -
                 .items_center()
                 .justify_center()
                 .bg(a.blocking_icon_surface)
-                .child(icon_stroke("shield-alert", 14., 1.7, a.blocking_icon)),
+                .child(
+                    Icon::new("shield-alert")
+                        .small()
+                        .stroke(1.7)
+                        .color(a.blocking_icon),
+                ),
         )
         .child(
             div()
@@ -716,7 +733,11 @@ fn choice_mark(selected: bool, multiple: bool, t: &Theme) -> Div {
     };
     if selected {
         base.bg(t.accent).border_color(t.accent).child(if multiple {
-            icon_stroke("check", 10., 3., t.text_inverse).into_any_element()
+            Icon::new("check")
+                .with_size(px(10.))
+                .stroke(3.)
+                .color(t.text_inverse)
+                .into_any_element()
         } else {
             div()
                 .size(px(5.))

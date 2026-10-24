@@ -3,7 +3,10 @@
 //! `createAgentChatCloseAdapter`'s copy, a live shell the terminal's.
 use super::*;
 use crate::localization::{t as tr, tf};
-use crate::ui::{icon_stroke, tooltip};
+use crate::ui::appearance::ActiveAppearance;
+use crate::ui::components::{Icon, tooltip};
+use gpui_kit::base::{h_flex, v_flex};
+use gpui_kit::component::Sizable as _;
 
 /// `DesktopDialogSurface width={380}`.
 const WIDTH: f32 = 380.;
@@ -58,13 +61,13 @@ impl Workbench {
     ) -> Option<AnyElement> {
         let tab = self.confirm?;
         let copy = self.close_copy(tab, cx)?;
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         let m = theme::ty();
         let viewport = window.viewport_size();
         let width = WIDTH.min(f32::from(viewport.width) - 2. * INSET);
         // `.desktop-workbench-close-dialog-icon.is-danger`.
         let danger_icon = theme::mix(t.danger, t.muted, 0.74);
-        let header = row()
+        let header = h_flex()
             .items_center()
             .justify_between()
             .gap(px(16.))
@@ -72,7 +75,7 @@ impl Workbench {
             .px(px(16.))
             .pb(px(6.))
             .child(
-                row()
+                h_flex()
                     .min_w_0()
                     .items_center()
                     .gap(px(8.))
@@ -83,7 +86,12 @@ impl Workbench {
                             .flex()
                             .items_center()
                             .justify_center()
-                            .child(icon_stroke("circle-alert", 16., 1.7, danger_icon)),
+                            .child(
+                                Icon::new("circle-alert")
+                                    .large()
+                                    .stroke(1.7)
+                                    .color(danger_icon),
+                            ),
                     )
                     .child(
                         div()
@@ -174,7 +182,7 @@ impl Workbench {
                 .child(copy.action),
             self.close_keyboard && self.close_choice == 1,
         );
-        let footer = row()
+        let footer = h_flex()
             .justify_end()
             .items_center()
             .gap(px(6.))
@@ -185,7 +193,7 @@ impl Workbench {
             // repainted here.
             .child(cancel)
             .child(confirm);
-        let surface = column()
+        let surface = v_flex()
             .id("workbench-close-dialog")
             .w(px(width))
             .overflow_hidden()

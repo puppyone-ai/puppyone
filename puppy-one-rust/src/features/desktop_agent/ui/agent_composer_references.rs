@@ -6,6 +6,10 @@
 //! empty prompt removes the last one, like deleting an atomic range.
 use super::*;
 use crate::agent::domain::reference_input::{Reference, ReferenceContent};
+use crate::ui::appearance::ActiveAppearance;
+use crate::ui::components::Icon;
+use gpui_kit::base::h_flex;
+use gpui_kit::component::Sizable as _;
 
 /// `--agent-reference-card-height`.
 const CARD: f32 = 40.;
@@ -50,7 +54,7 @@ impl AgentChat {
     /// `.desktop-agent-visual-attachments`: 40px cards, 14px apart, inset
     /// 12px; the remove control appears on hover at the top-right corner.
     pub(super) fn render_visual_attachments(&mut self, cx: &mut Context<Self>) -> Option<Div> {
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         let a = super::agent_theme::AgentTheme::new(&t);
         let images: Vec<Reference> = self
             .session
@@ -65,7 +69,7 @@ impl AgentChat {
             return None;
         }
         let action_hover = crate::theme::mix(t.menu_bg, t.text, 0.88);
-        let mut shelf = row()
+        let mut shelf = h_flex()
             .w_full()
             .min_w_0()
             .flex_wrap()
@@ -108,9 +112,12 @@ impl AgentChat {
                                         .rounded(px(5.))
                                         .object_fit(ObjectFit::Cover),
                                 ),
-                                None => {
-                                    d.child(crate::ui::icon_stroke("image", 18., 2., a.text_muted))
-                                }
+                                None => d.child(
+                                    Icon::new("image")
+                                        .with_size(px(18.))
+                                        .stroke(2.)
+                                        .color(a.text_muted),
+                                ),
                             }),
                     )
                     .child(
@@ -135,7 +142,7 @@ impl AgentChat {
                                 s.session.references.retain(|r| r.id != id);
                                 cx.notify();
                             }))
-                            .child(crate::ui::icon_stroke("x", 12., 2., a.text_muted)),
+                            .child(Icon::new("x").xsmall().stroke(2.).color(a.text_muted)),
                     ),
             );
         }
@@ -143,8 +150,8 @@ impl AgentChat {
     }
     /// `.desktop-agent-prompt-mention` chips for path references, plus a
     /// resolving chip while new references are being read.
-    pub(super) fn render_mentions(&self) -> Vec<AnyElement> {
-        let t = Theme::new(self.dark);
+    pub(super) fn render_mentions(&self, cx: &App) -> Vec<AnyElement> {
+        let t = cx.palette();
         let a = super::agent_theme::AgentTheme::new(&t);
         let chip = |label: String, resolving: bool| {
             div()

@@ -67,7 +67,6 @@ impl Shell {
     pub(in crate::shell) fn rename_dialog(&self, cx: &mut Context<Self>) -> Option<Dialog> {
         let rename = self.explorer.rename.as_ref()?;
         let t = cx.palette();
-        rename.input.update(cx, |i, _| i.dark = t.dark);
         let host = self.weak.clone();
         Some(
             Dialog::new("rename-dialog")

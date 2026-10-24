@@ -1,13 +1,16 @@
 //! GPUI paints the terminal grid. PTY and VT state survive hiding, resizing, and tab moves.
 use super::terminal_activity::TerminalActivity;
+use crate::ui::appearance::ActiveAppearance;
+use crate::ui::components::IconButton;
 use crate::{
     localization::{t as tr, tf},
     platform::terminal::{Event, Terminal},
     theme::Theme,
-    ui::{column, icon_button, row, tooltip},
     wake::Wake,
 };
 use gpui::{prelude::*, *};
+use gpui_kit::base::{h_flex, v_flex};
+use gpui_kit::component::Sizable as _;
 use std::{ops::Range, path::PathBuf, time::Instant};
 #[path = "terminal_interaction.rs"]
 mod interaction;
@@ -25,7 +28,6 @@ pub struct TerminalView {
     parser: vt100::Parser,
     queries: terminal_queries::Queries,
     focus: FocusHandle,
-    pub dark: bool,
     pub running: bool,
     error: Option<String>,
     marked: String,
@@ -102,7 +104,6 @@ impl TerminalView {
             parser: vt100::Parser::new(24, 80, 5000),
             queries: terminal_queries::Queries::default(),
             focus: cx.focus_handle(),
-            dark: true,
             running: true,
             error: None,
             marked: String::new(),
@@ -369,10 +370,10 @@ impl Focusable for TerminalView {
 }
 impl Render for TerminalView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         let entity = cx.entity();
         let paint_entity = entity.clone();
-        column()
+        v_flex()
             .size_full()
             .min_h_0()
             .bg(t.terminal_bg)
@@ -385,7 +386,7 @@ impl Render for TerminalView {
             .on_action(|_: &crate::ui::input::Undo, _, _| {})
             .on_action(|_: &crate::ui::input::Redo, _, _| {})
             .child(
-                row()
+                h_flex()
                     .h(px(28.))
                     .flex_shrink_0()
                     .px(px(8.))
@@ -413,10 +414,9 @@ impl Render for TerminalView {
                         ),
                     )
                     .child(
-                        icon_button("terminal-bottom", "arrow-down", t)
-                            .size(px(22.))
-                            .accessibility_label(tr("native.terminal.scrollBottom"))
-                            .tooltip(tooltip(tr("native.terminal.scrollBottom")))
+                        IconButton::new("terminal-bottom", "arrow-down")
+                            .label(tr("native.terminal.scrollBottom"))
+                            .with_size(px(22.))
                             .on_click(cx.listener(|s, _, _, cx| {
                                 s.parser.set_scrollback(0);
                                 s.selection = None;
@@ -736,7 +736,6 @@ mod tests {
             parser: vt100::Parser::new(24, 80, 10),
             queries: terminal_queries::Queries::default(),
             focus: cx.focus_handle(),
-            dark: true,
             running: false,
             error: None,
             marked: String::new(),

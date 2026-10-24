@@ -153,7 +153,6 @@ impl SettingsWorkspaceSurface {
                           placeholder: String,
                           cx: &mut Context<Self>| {
             input.update(cx, |i, _| {
-                i.dark = t.dark;
                 i.appearance = false;
                 i.prompt_text = Some((m.ui.meta, 17.));
                 i.placeholder_color = Some(t.subtle);

@@ -4,10 +4,10 @@
 use super::drag::{self, DropIntent};
 use super::header_layout::{self as metrics, Mode};
 use super::*;
-use crate::{
-    features::desktop_agent::ui::agent_brand_mark::{LauncherIdentity, launcher_icon},
-    ui::icon_stroke,
-};
+use crate::features::desktop_agent::ui::agent_brand_mark::{LauncherIdentity, launcher_icon};
+use crate::ui::appearance::ActiveAppearance;
+use crate::ui::components::Icon;
+use gpui_kit::component::Sizable as _;
 
 /// `--desktop-toolbar-action-radius`.
 const RADIUS: f32 = theme::metric::TOOLBAR_ACTION_RADIUS;
@@ -20,26 +20,29 @@ impl Workbench {
     /// `AuxiliaryWorkbenchStatus`: the item's own icon in a 14px slot; a running
     /// chat adds the pulsing 5px accent dot at its corner.
     pub(super) fn tab_status(&self, tab: Id, content: &Content, fg: Rgba, cx: &App) -> AnyElement {
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         let identity = |runtime: Option<Runtime>| {
             runtime.map_or(LauncherIdentity::Shell, LauncherIdentity::Runtime)
         };
         match content {
-            Content::Launcher if self.history_open(tab) => {
-                icon_stroke("history", 14., 2., fg).into_any_element()
-            }
+            Content::Launcher if self.history_open(tab) => Icon::new("history")
+                .small()
+                .stroke(2.)
+                .color(fg)
+                .into_any_element(),
             Content::Launcher | Content::Retained(RetainedItem::Launcher) => {
-                icon_stroke("square-dashed", 14., 2., fg).into_any_element()
+                Icon::new("square-dashed")
+                    .small()
+                    .stroke(2.)
+                    .color(fg)
+                    .into_any_element()
             }
-            Content::Retained(RetainedItem::Chat { runtime, .. }) => launcher_icon(
-                LauncherIdentity::Runtime(*runtime),
-                true,
-                self.dark,
-                t.muted,
-            )
-            .into_any_element(),
+            Content::Retained(RetainedItem::Chat { runtime, .. }) => {
+                launcher_icon(LauncherIdentity::Runtime(*runtime), true, t.dark, t.muted)
+                    .into_any_element()
+            }
             Content::Retained(RetainedItem::Terminal { runtime, .. }) => {
-                launcher_icon(identity(*runtime), true, self.dark, t.muted).into_any_element()
+                launcher_icon(identity(*runtime), true, t.dark, t.muted).into_any_element()
             }
             Content::Terminal(view, _, runtime) => {
                 let terminal = view.read(cx);
@@ -58,7 +61,7 @@ impl Workbench {
                         if active {
                             d.child(activity_grid(tab, fg))
                         } else {
-                            d.child(launcher_icon(identity(*runtime), true, self.dark, t.muted))
+                            d.child(launcher_icon(identity(*runtime), true, t.dark, t.muted))
                         }
                     })
                     .into_any_element()
@@ -72,7 +75,7 @@ impl Workbench {
                     .child(launcher_icon(
                         LauncherIdentity::Runtime(view.runtime()),
                         true,
-                        self.dark,
+                        t.dark,
                         t.muted,
                     ))
                     .when(running, |d| d.child(running_dot(tab, t)))
@@ -87,7 +90,7 @@ impl Workbench {
         width: f32,
         cx: &mut Context<Self>,
     ) -> Stateful<Div> {
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         let root = self.root.clone().unwrap();
         let focus = self
             .header_focus
@@ -131,6 +134,7 @@ impl Workbench {
         if layout.hidden.is_empty() && self.overflow == Some(group) {
             self.overflow = None;
         }
+        self.overflow_hidden.insert(group, layout.hidden.clone());
         let m = theme::ty();
         let mut rail = div().relative().w_full().h(px(metrics::COMPACT));
         for bounds in &layout.tabs {
@@ -164,16 +168,11 @@ impl Workbench {
             let compact = !active && layout.mode != Mode::Full;
             let fg = if active { t.text } else { t.muted };
             let status = self.tab_status(tab, content, fg, cx);
-            let chat = match content {
-                Content::Chat(view) => Some(view.clone()),
-                _ => None,
-            };
             let group_name = SharedString::from(format!("workbench-tab-{tab}"));
             let drag = DragTab {
                 root: root.clone(),
                 tab,
                 title: label.to_string(),
-                dark: self.dark,
             };
             let close_label: SharedString = crate::localization::tf(
                 "terminal.closeSession",
@@ -229,23 +228,19 @@ impl Workbench {
                     cx.notify();
                 }))
                 .on_drag(drag, |drag, _, _, cx| cx.new(|_| drag.clone()))
-                .context_menu({
-                    let host = cx.weak_entity();
-                    let close = close_label.clone();
-                    move |mut menu, _, cx| {
-                        if let Some(view) = &chat {
-                            menu = AgentChat::session_menu(view.clone(), menu, cx).separator();
-                        }
-                        let host = host.clone();
-                        menu.item(
-                            gpui_kit::component::menu::PopupMenuItem::new(close.clone()).on_click(
-                                move |_, _, cx| {
-                                    let _ = host.update(cx, |s, cx| s.close(tab, false, cx));
-                                },
-                            ),
-                        )
-                    }
-                });
+                .on_mouse_down(
+                    MouseButton::Right,
+                    cx.listener(move |s, e: &MouseDownEvent, _, cx| {
+                        cx.stop_propagation();
+                        s.open_context_menu(
+                            super::menus::ContextMenu::Tab {
+                                tab,
+                                at: e.position,
+                            },
+                            cx,
+                        );
+                    }),
+                );
             let close = (!compact).then(|| {
                 gpui_kit::base::Button::new(("close-tab", tab))
                     .accessibility_label(close_label.clone())
@@ -268,7 +263,7 @@ impl Workbench {
                             .group_hover(group_name.clone(), |s| s.visible())
                     })
                     .tooltip(crate::ui::tooltip(close_label.clone()))
-                    .child(icon_stroke("x", 12., 1.8, t.subtle))
+                    .child(Icon::new("x").xsmall().stroke(1.8).color(t.subtle))
                     .on_click(cx.listener(move |s, _, _, cx| {
                         cx.stop_propagation();
                         s.close(tab, false, cx);
@@ -303,12 +298,11 @@ impl Workbench {
                 .cursor(theme::clickable_cursor())
                 .hover(move |s| s.bg(t.control_hover).text_color(t.text))
                 .tooltip(crate::ui::tooltip(label))
-                .child(icon_stroke(
-                    name,
-                    14.,
-                    1.9,
-                    if open { t.text } else { t.muted },
-                ))
+                .child(Icon::new(name).small().stroke(1.9).color(if open {
+                    t.text
+                } else {
+                    t.muted
+                }))
         };
         let mut create_start = layout.tabs_width + metrics::GAP;
         if !layout.hidden.is_empty() {
@@ -318,21 +312,10 @@ impl Workbench {
             )
             .into();
             rail = rail.child(
-                square(
-                    ElementId::NamedInteger("overflow".into(), group),
-                    "ellipsis",
-                    label,
-                    self.overflow == Some(group),
-                )
-                .left(px(create_start))
-                .on_click(cx.listener(move |s, _, _, cx| {
-                    s.overflow = if s.overflow == Some(group) {
-                        None
-                    } else {
-                        Some(group)
-                    };
-                    cx.notify();
-                })),
+                self.overflow_menu(group, label, width, cx)
+                    .absolute()
+                    .top_0()
+                    .left(px(create_start)),
             );
             create_start += metrics::OVERFLOW_CONTROL + metrics::GAP;
         }
@@ -430,9 +413,6 @@ impl Workbench {
                 s.dragging = None;
                 cx.notify();
             }));
-        self.overflow_anchor
-            .insert(group, layout.tabs_width + metrics::GAP);
-        self.overflow_hidden.insert(group, layout.hidden.clone());
         div()
             .id(("workbench-header", group))
             .track_focus(&focus)
@@ -469,81 +449,6 @@ impl Workbench {
             .bg(t.auxiliary())
             .text_color(t.muted)
             .child(rail)
-    }
-
-    /// `AuxiliaryWorkbenchOverflowMenu`: hidden items only, anchored under the
-    /// trigger and kept inside the panel (`preferredWidth` 260, margin 8, gap 4).
-    pub(super) fn render_overflow_menu(
-        &mut self,
-        group: Id,
-        width: f32,
-        cx: &mut Context<Self>,
-    ) -> Option<AnyElement> {
-        if self.overflow != Some(group) {
-            return None;
-        }
-        use crate::ui::menu::{MenuEntry, MenuItem, menu_surface};
-        let t = Theme::new(self.dark);
-        let hidden = self
-            .overflow_hidden
-            .get(&group)
-            .cloned()
-            .unwrap_or_default();
-        let this = cx.entity().downgrade();
-        let entries = hidden
-            .iter()
-            .filter_map(|&tab| {
-                let content = self.project()?.content.get(&tab)?;
-                let title = self.tab_title(tab, content, cx);
-                let status = self.tab_status(tab, content, t.muted, cx);
-                let this = this.clone();
-                let close_label = crate::localization::tf(
-                    "terminal.closeSession",
-                    &[("title", title.to_string().into())],
-                );
-                Some(MenuEntry::Item(
-                    MenuItem::new(title, move |_, cx| {
-                        let _ = this.update(cx, |s, cx| {
-                            if let Some(p) = s.project_mut() {
-                                p.layout.activate(group, tab);
-                            }
-                            s.overflow = None;
-                            cx.notify();
-                        });
-                    })
-                    .icon_element(status)
-                    .trailing(
-                        gpui_kit::base::Button::new(("overflow-close", tab))
-                            .accessibility_label(close_label.clone())
-                            .size(px(theme::control()))
-                            .rounded(px(RADIUS))
-                            .text_color(t.subtle)
-                            .hover(move |s| s.bg(t.hover).text_color(t.text))
-                            .tooltip(crate::ui::tooltip(close_label))
-                            .child(icon_stroke("x", 12., 1.8, t.subtle))
-                            .on_click(cx.listener(move |s, _, _, cx| {
-                                cx.stop_propagation();
-                                s.overflow = None;
-                                s.close(tab, false, cx)
-                            }))
-                            .into_any_element(),
-                    ),
-                ))
-            })
-            .collect();
-        let menu_width = 260f32.min(width - 16.);
-        let anchor = metrics::HEADER_PADDING_INLINE
-            + self.overflow_anchor.get(&group).copied().unwrap_or(0.);
-        let left = anchor.min(width - 8. - menu_width).max(8.);
-        Some(
-            menu_surface(format!("overflow-menu-{group}"), entries, t)
-                .absolute()
-                .top(px(metrics::HEADER_PADDING_TOP + metrics::COMPACT + 4.))
-                .left(px(left))
-                .w(px(menu_width))
-                .max_h(px(320.))
-                .into_any_element(),
-        )
     }
 }
 

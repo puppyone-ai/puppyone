@@ -95,7 +95,6 @@ impl Lab {
                 None => {
                     let workbench = cx.new(|cx| {
                         let mut workbench = Workbench::new(window, cx);
-                        workbench.dark = dark;
                         workbench.lab_fixture(&scenario, window, cx);
                         workbench
                     });

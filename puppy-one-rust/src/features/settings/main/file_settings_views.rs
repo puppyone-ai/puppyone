@@ -25,7 +25,6 @@ impl SettingsWorkspaceSurface {
         let dirty = draft != state.exclude_patterns;
         let dark = cx.is_dark();
         self.patterns.update(cx, |i, _| {
-            i.dark = dark;
             i.appearance = false;
             i.prompt_text = Some((theme::ty().ui.meta, 17.));
             // Kit centres a textarea's lines in any extra height; the box

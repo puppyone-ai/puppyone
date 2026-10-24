@@ -9,11 +9,15 @@ use super::super::super::domain::{
 use super::agent_activity::{context_divider, run_feedback};
 use super::agent_theme::AgentTheme;
 use super::*;
+use crate::ui::appearance::ActiveAppearance;
+use crate::ui::components::Icon;
 use crate::{
     features::desktop_agent::application::agent_session_controller::now_ms,
     localization::{t as tr, tf},
     theme,
 };
+use gpui_kit::base::{h_flex, v_flex};
+use gpui_kit::component::Sizable as _;
 
 /// `--agent-content-max`, transcript padding and the 12px product scrollbar gutter.
 const CONTENT_MAX: f32 = 900.;
@@ -249,7 +253,7 @@ impl AgentChat {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         let a = AgentTheme::new(&t);
         let m = theme::ty();
         let last = index + 1 == self.row_signatures.len();
@@ -264,7 +268,7 @@ impl AgentChat {
                         "failed" | "not-sent" => Some(tr("agent.status.notSent")),
                         _ => None,
                     };
-                    column()
+                    v_flex()
                         .w_full()
                         .px(px(12.))
                         .py(px(8.))
@@ -389,7 +393,7 @@ impl AgentChat {
     /// `AgentHistoryNotice` for a display window: a quiet disclosure above
     /// the conversation ("Showing recent messages.") with its reason.
     fn history_notice(&mut self, cx: &mut Context<Self>) -> AnyElement {
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         let a = AgentTheme::new(&t);
         let m = theme::ty();
         let open = self.history_notice_open;
@@ -404,7 +408,7 @@ impl AgentChat {
             .text_size(px(m.right.caption))
             .line_height(px(m.right.meta_line_height))
             .child(
-                row()
+                h_flex()
                     .id("agent-history-notice")
                     .gap(px(7.))
                     .cursor(theme::clickable_cursor())
@@ -413,7 +417,7 @@ impl AgentChat {
                         s.refresh_transcript();
                         cx.notify();
                     }))
-                    .child(crate::ui::icon_stroke("info", 14., 2., a.text_subtle))
+                    .child(Icon::new("info").small().stroke(2.).color(a.text_subtle))
                     .child(tr("agent.transcript.historyWindow")),
             )
             .when(open, |d| {
@@ -430,7 +434,7 @@ impl AgentChat {
     /// `desktop-agent-live-tail`: "Thinking"/"Working · 12s" with dots; a
     /// running reasoning summary can be disclosed beneath it.
     fn render_live_tail(&mut self, cx: &mut Context<Self>) -> AnyElement {
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         let a = AgentTheme::new(&t);
         let Some((label, summary)) = self.live_status() else {
             return div().into_any_element();
@@ -440,7 +444,7 @@ impl AgentChat {
             return indicator.into_any_element();
         };
         let open = self.run_summary_open;
-        column()
+        v_flex()
             .max_w(px(520.))
             .items_start()
             .child(
@@ -478,7 +482,7 @@ impl AgentChat {
 
     /// The scrolling transcript with its top edge fade and Jump to latest.
     pub(super) fn render_transcript(&mut self, cx: &mut Context<Self>) -> AnyElement {
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         let a = AgentTheme::new(&t);
         let weak = cx.weak_entity();
         let entity = cx.entity();
@@ -527,7 +531,7 @@ impl AgentChat {
             .when(scrolled, |d| {
                 // `.desktop-agent-transcript-wrap::before`: canvas → 78% canvas → transparent.
                 d.child(
-                    column()
+                    v_flex()
                         .absolute()
                         .top_0()
                         .left_0()
@@ -565,7 +569,7 @@ impl AgentChat {
                                 .cursor(theme::clickable_cursor())
                                 .hover(move |s| s.bg(a.row_hover))
                                 .tooltip(crate::ui::tooltip(tr("agent.transcript.jumpLatest")))
-                                .child(crate::ui::icon_stroke("arrow-down", 15., 2., a.text))
+                                .child(Icon::new("arrow-down").stroke(2.).color(a.text))
                                 .on_click(cx.listener(|s, _, _, cx| {
                                     s.follow = true;
                                     s.unread = 0;
@@ -580,7 +584,7 @@ impl AgentChat {
 
     /// `AgentEmptyState`: the monochrome runtime mark (click to spin) and prompt.
     pub(super) fn render_empty(&mut self, cx: &mut Context<Self>) -> Div {
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         let a = AgentTheme::new(&t);
         let turns = self.logo_turns;
         let pressed = self.logo_pressed;
@@ -589,7 +593,7 @@ impl AgentChat {
             &[("agent", self.installation.label.clone().into())],
         );
         let mark: AnyElement =
-            match super::super::agent_brand_mark::svg_path(self.runtime(), self.dark) {
+            match super::super::agent_brand_mark::svg_path(self.runtime(), t.dark) {
                 // `:hover` lifts the mark's colour; `:active` presses the
                 // button to 91%.
                 Some(path) => svg()
@@ -626,13 +630,13 @@ impl AgentChat {
                 None => div()
                     .opacity(0.55)
                     .child(
-                        super::super::agent_brand_mark::brand_image(self.runtime(), self.dark, 28.)
+                        super::super::agent_brand_mark::brand_image(self.runtime(), t.dark, 28.)
                             .grayscale(true),
                     )
                     .into_any_element(),
             };
         // The dock overlays the transcript; the empty state centres above it.
-        column()
+        v_flex()
             .flex_1()
             .items_center()
             .justify_center()

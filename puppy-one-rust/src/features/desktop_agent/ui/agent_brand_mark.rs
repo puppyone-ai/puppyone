@@ -1,7 +1,9 @@
 //! Port of `AgentBrandMark`: official local product assets shared by the
 //! launcher, workbench tabs and the empty state.
 use crate::agent::runtime::agent_runtime_registry::Runtime;
+use crate::ui::components::Icon;
 use gpui::{prelude::*, *};
+use gpui_kit::component::Sizable as _;
 fn asset(runtime: Runtime, dark: bool) -> &'static str {
     match runtime {
         Runtime::PuppyOne => {
@@ -167,13 +169,11 @@ pub fn launcher_icon(identity: LauncherIdentity, compact: bool, dark: bool, colo
                 .flex_shrink_0()
                 .into_any_element()
         }
-        LauncherIdentity::Shell => crate::ui::icon_stroke(
-            "square-terminal",
-            if compact { 14. } else { 16. },
-            1.6,
-            color,
-        )
-        .into_any_element(),
+        LauncherIdentity::Shell => Icon::new("square-terminal")
+            .with_size(px(if compact { 14. } else { 16. }))
+            .stroke(1.6)
+            .color(color)
+            .into_any_element(),
     };
     div()
         .size(px(size))
