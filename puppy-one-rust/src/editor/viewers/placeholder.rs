@@ -1,7 +1,6 @@
 //! `DocumentPreview` (`document-preview.css`): the honest surface of a file no
 //! viewer can render here — the fallback for binary files, product viewers
-//! the native build does not have yet, and Viewer Packs without a host
-//! surface.
+//! the native build does not have yet.
 use crate::{
     editor::registry::{SurfaceRequest, ViewerSurface},
     localization::t,
@@ -26,28 +25,11 @@ pub fn open_unavailable(
 ) -> Box<dyn ViewerSurface> {
     preview(request, t("editor.preview.unavailable"), cx)
 }
-/// `ExternalViewerAdapter` without `renderSurface`: the pack that would
-/// render the file, and why it cannot here.
-pub fn open_without_host(
-    request: &SurfaceRequest,
-    pack: SharedString,
-    cx: &mut App,
-) -> Box<dyn ViewerSurface> {
-    let _ = request;
-    let view = cx.new(|_| DocumentPreview {
-        label: pack,
-        file_type: None,
-        detail: Some(t("editor.viewer.noHostSurface").into()),
-    });
-    Box::new(PlaceholderSurface { view })
-}
-
 fn preview(request: &SurfaceRequest, label: &str, cx: &mut App) -> Box<dyn ViewerSurface> {
     let file_type = file_type(request.name);
     let view = cx.new(|_| DocumentPreview {
         label: label.to_owned().into(),
         file_type,
-        detail: None,
     });
     Box::new(PlaceholderSurface { view })
 }
@@ -71,7 +53,6 @@ impl ViewerSurface for PlaceholderSurface {
 struct DocumentPreview {
     label: SharedString,
     file_type: Option<String>,
-    detail: Option<SharedString>,
 }
 impl Render for DocumentPreview {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -122,8 +103,7 @@ impl Render for DocumentPreview {
                                     .text_color(t.text_disabled)
                                     .child(format!(" · {kind}"))
                             })),
-                    )
-                    .children(self.detail.clone()),
+                    ),
             )
     }
 }

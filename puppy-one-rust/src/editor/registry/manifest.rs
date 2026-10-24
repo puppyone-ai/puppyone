@@ -226,6 +226,7 @@ impl ViewerManifest {
     }
     /// `getPresetViewerDefinitionForViewerId`: canonical ids and the format
     /// registry's `defaultViewer` ids resolve through the same manifest.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn definition_for_viewer_id(&self, viewer_id: &str) -> Option<&ViewerDefinition> {
         self.viewers
             .iter()

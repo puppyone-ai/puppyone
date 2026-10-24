@@ -12,6 +12,8 @@ use gpui::{App, Window};
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SourceKind {
     Local,
+    /// Cloud workspaces are not native yet; routing already refuses them.
+    #[cfg_attr(not(test), allow(dead_code))]
     Cloud,
     #[default]
     Unknown,

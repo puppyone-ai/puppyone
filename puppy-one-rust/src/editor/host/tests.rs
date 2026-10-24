@@ -173,3 +173,49 @@ fn the_registry_picks_each_documents_surface(cx: &mut TestAppContext) {
     });
     assert!(!messages.borrow().iter().any(|m| matches!(m, ClientMessage::Dirty { .. })));
 }
+
+thread_local! {
+    static PACK_SURFACES: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+}
+struct PackProbe;
+impl crate::editor::registry::ViewerSurface for PackProbe {
+    fn element(&self) -> gpui::AnyElement {
+        use gpui::IntoElement;
+        gpui::div().into_any_element()
+    }
+}
+fn pack_surface(
+    _: &crate::editor::registry::SurfaceRequest,
+    pack: &crate::editor::registry::packs::PackContribution,
+    _: &mut gpui::Window,
+    _: &mut gpui::App,
+) -> Box<dyn crate::editor::registry::ViewerSurface> {
+    PACK_SURFACES.with(|s| s.borrow_mut().push(pack.plugin_id.clone()));
+    Box::new(PackProbe)
+}
+
+#[gpui::test]
+fn installed_packs_render_placeholder_documents_through_the_host_port(cx: &mut TestAppContext) {
+    use crate::editor::registry::packs::{ExtensionHost, Snapshot, route::tests::pack};
+    let (view, _, cx) = setup(cx, "notes.md", "# Title\n");
+    let open = |view: &Entity<DocumentEditor>, cx: &mut VisualTestContext, id: &str, name: &str| {
+        let message = HostMessage::OpenResource { id: id.into(), name: name.into(), path: format!("/tmp/{name}").into() };
+        view.update_in(cx, |v, w, cx| v.receive(&message, w, cx));
+    };
+    let rendered = || PACK_SURFACES.with(|s| s.borrow().clone());
+    // A pack without a host surface changes nothing.
+    view.update(cx, |v, _| v.set_extension_host(Some(ExtensionHost { snapshot: Snapshot { sequence: 1, contributions: vec![pack("a.glb", &[".glb"], &[])] }, surface: None })));
+    open(&view, cx, "1", "scene/model.glb");
+    assert!(rendered().is_empty());
+    // With one: the matching pack renders the placeholder-grade file.
+    view.update(cx, |v, _| v.set_extension_host(Some(ExtensionHost { snapshot: Snapshot { sequence: 2, contributions: vec![pack("a.glb", &[".glb"], &[]), pack("md.pack", &[".md"], &[])] }, surface: Some(pack_surface) })));
+    open(&view, cx, "2", "scene/model.glb");
+    assert_eq!(rendered(), vec!["a.glb"]);
+    // A preset viewer always wins.
+    view.update_in(cx, |v, w, cx| v.receive(&HostMessage::Open { id: "3".into(), name: "readme.md".into(), text: "# x\n".into(), revision: 0, external: false }, w, cx));
+    view.update(cx, |v, _| assert_eq!(v.session.as_ref().unwrap().viewer.id, "markdown"));
+    // Two equal candidates: the chooser opens, nothing renders until a pick.
+    view.update(cx, |v, _| v.set_extension_host(Some(ExtensionHost { snapshot: Snapshot { sequence: 3, contributions: vec![pack("a.glb", &[".glb"], &[]), pack("b.glb", &[".glb"], &[])] }, surface: Some(pack_surface) })));
+    open(&view, cx, "4", "scene/model.glb");
+    assert_eq!(rendered(), vec!["a.glb"]);
+}

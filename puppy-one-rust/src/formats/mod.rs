@@ -130,6 +130,7 @@ fn registry() -> &'static Registry {
 }
 
 /// Every registered format, in registry order (`FILE_FORMATS`).
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn all() -> &'static [FileFormat] {
     &registry().formats
 }
@@ -272,6 +273,7 @@ impl FileFormat {
         }
     }
     /// `isTextLikeFileFormat`.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn is_text_like(&self) -> bool {
         matches!(
             self.category,
@@ -348,6 +350,7 @@ pub fn resolved_extension(
 }
 
 /// `getPreferredMimeType`.
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn preferred_mime(name: &str) -> Option<&'static str> {
     let format = of(name);
     if let Some(extension) = format.extension_in(name)

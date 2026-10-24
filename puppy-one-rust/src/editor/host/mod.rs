@@ -9,8 +9,9 @@ use crate::{
         registry::{
             self, EditorDocument, Presentation, PresetViewer, SurfaceEvent, SurfaceInput,
             SurfaceRequest, ViewerSurface,
+            packs::{ExtensionHost, Route, route},
         },
-        viewers::placeholder,
+        viewers::{external, placeholder},
     },
     typography::Scale,
 };
@@ -57,6 +58,9 @@ pub struct DocumentEditor {
     find: Option<Entity<crate::editor::workbench::find::FindBar>>,
     find_subscription: Option<Subscription>,
     bounds: Option<Bounds<Pixels>>,
+    /// External Viewer Packs (`ViewerExtensionHostAdapter`); none while the
+    /// pack runtime is not part of the build.
+    extensions: Option<ExtensionHost>,
 }
 
 impl EventEmitter<ClientMessage> for DocumentEditor {}
@@ -75,6 +79,25 @@ impl DocumentEditor {
             find: None,
             find_subscription: None,
             bounds: None,
+            extensions: None,
+        }
+    }
+
+    /// Install the host port for external Viewer Packs.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub fn set_extension_host(&mut self, host: Option<ExtensionHost>) {
+        self.extensions = host;
+    }
+
+    /// A placeholder-grade local document an installed pack renders, when
+    /// the host can render packs (`EditorDocumentHost`'s plugin routes).
+    fn extension_surface(&self, document: &EditorDocument, request: &SurfaceRequest, window: &mut Window, cx: &mut App) -> Option<Box<dyn ViewerSurface>> {
+        let host = self.extensions.as_ref()?;
+        let render = host.surface?;
+        match route::route_for_document(document, &host.snapshot) {
+            Route::Plugin(pack) => Some(render(request, pack, window, cx)),
+            Route::Chooser(candidates) => Some(external::chooser(request, candidates.into_iter().cloned().collect(), render, cx)),
+            Route::Core { .. } | Route::Unsupported(_) => None,
         }
     }
 
@@ -89,9 +112,12 @@ impl DocumentEditor {
             _ => false,
         };
         let request = SurfaceRequest { id, name, input, format: resolved.format, resolved_extension: resolved.resolved_extension.as_deref(), dark: self.dark, scale: self.scale };
-        let surface = match viewer.presentation {
-            Presentation::Native(open) => open(&request, window, cx),
-            Presentation::Unavailable => placeholder::open_unavailable(&request, window, cx),
+        let surface = match self.extension_surface(&document, &request, window, cx) {
+            Some(surface) => surface,
+            None => match viewer.presentation {
+                Presentation::Native(open) => open(&request, window, cx),
+                Presentation::Unavailable => placeholder::open_unavailable(&request, window, cx),
+            },
         };
         let host = cx.weak_entity();
         self.subscription = surface.subscribe(

@@ -6,6 +6,7 @@
 //! contribution.rs    what a viewer implementation adds, validated against it
 //! surface.rs         the hooks an open viewer gives the document host
 //! builtin.rs         the built-in contributions, in match order (the only list)
+//! packs/             external Viewer Packs: manifests, routing, the host port
 //! ```
 //!
 //! Resolution (`resolveEditorViewer`): the document's format, then the first
@@ -16,6 +17,7 @@
 mod builtin;
 mod contribution;
 mod manifest;
+pub mod packs;
 mod surface;
 
 pub use contribution::{
@@ -80,9 +82,12 @@ impl ViewerRegistry {
             fallback,
         })
     }
+    // Listing and lookup serve the Viewer Pack layer and tests.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn contributions(&self) -> &[PresetViewer] {
         &self.contributions
     }
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn fallback(&self) -> &PresetViewer {
         &self.fallback
     }
@@ -92,6 +97,7 @@ impl ViewerRegistry {
             .find(|viewer| viewer.matches(m))
             .unwrap_or(&self.fallback)
     }
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn get(&self, id: &str) -> Option<&PresetViewer> {
         self.contributions
             .iter()

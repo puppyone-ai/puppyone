@@ -51,6 +51,34 @@ which receive the file's checked path (`Workspace::resource`). The host
 concrete viewer; product viewers the native build does not have yet are
 `Presentation::Unavailable` and show the honest placeholder.
 
+Text input is capped by the workspace at 4 MiB (`MAX_TEXT_BYTES`), below
+every content viewer's `maxSourceBytes`, so the manifest budget never binds
+before the read does.
+
+### External Viewer Packs (`registry/packs/`)
+
+Users bring their own formats as Viewer Packs (the product's
+`viewer-packs/<id>/manifest.json`, API v1). The native layer has the
+product's rules:
+
+- `packs::manifest::validate` — the strict `manifest-schema.mjs` checks
+  (ids, canonical versions, npm host ranges, local-only sources, no network
+  or related files, activation by extension only, no core viewer ids);
+  `compatible` checks the host version.
+- `packs::route` — only placeholder-grade documents (no preset viewer
+  renders them) and only local files route to packs; the longest matching
+  extension wins, MIME types count below extensions, equal candidates open
+  the chooser (`viewers/external.rs`), a remembered choice wins.
+- `packs::ExtensionHost` — the one port into the document host: a snapshot
+  of enabled packs and the surface renderer for an activated pack. Without a
+  renderer every document stays on its preset viewer.
+
+The pack runtime (the isolated surface that runs pack code, the range-read
+resource broker, the signed package store) is not native yet; like the
+product's default package (`externalViewerPacks: false`), packs are off
+(`packs::enabled`, development builds with
+`PUPPYONE_ENABLE_EXTERNAL_VIEWER_PACKS=1` only) and no host is installed.
+
 ### Adding a viewer
 
 1. If the product added it, re-import the tables

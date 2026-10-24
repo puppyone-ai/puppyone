@@ -5485,6 +5485,7 @@ dependencies = [
  "pulldown-cmark",
  "raw-window-handle",
  "security-framework",
+ "semver",
  "serde",
  "serde_json",
  "tempfile",
