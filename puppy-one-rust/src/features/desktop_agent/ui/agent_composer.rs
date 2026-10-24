@@ -46,18 +46,19 @@ impl AgentChat {
             .find(|(id, _)| Some(id) == snapshot.model.as_ref())
             .map(|(_, label)| label.clone())
             .unwrap_or_else(|| tr("agent.model.placeholder").into());
-        let mut models = vec![(
-            tr("agent.model.placeholder").to_owned(),
-            Selection::Model(None),
-            snapshot.model.is_none(),
-        )];
-        models.extend(snapshot.models.iter().map(|(id, label)| {
-            (
-                label.clone(),
-                Selection::Model(Some(id.clone())),
-                snapshot.model.as_ref() == Some(id),
-            )
-        }));
+        // `AgentSessionControlPicker`: the runtime's options only; the
+        // trigger shows the placeholder while no model is chosen.
+        let models: Vec<_> = snapshot
+            .models
+            .iter()
+            .map(|(id, label)| {
+                (
+                    label.clone(),
+                    Selection::Model(Some(id.clone())),
+                    snapshot.model.as_ref() == Some(id),
+                )
+            })
+            .collect();
         let modes = snapshot
             .modes
             .iter()

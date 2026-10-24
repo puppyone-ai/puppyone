@@ -139,7 +139,7 @@ const COMPLETED_TURNS: Turn[] = [
 ];
 
 function projectionFor(id: string) {
-  if (id === "chat-empty" || id === "tabs-narrow" || id === "close-dialog" || id === "chat-references") return createEmptyAgentDisplay();
+  if (id === "chat-empty" || id === "tabs-narrow" || id === "close-dialog" || id === "chat-references" || id === "chat-picker") return createEmptyAgentDisplay();
   if (id === "chat-transcript" || id === "chat-tool-expanded") return display(transcriptParts(false), COMPLETED_TURNS, null);
   // Running: turn 2 is still working, its tools are live and no summary exists.
   const parts = transcriptParts(true).filter((part) => part.id !== "assistant:2");
@@ -162,8 +162,11 @@ const QUESTION = {
     options: [{ label: "24px on every side", description: "Match the horizontal padding" }, { label: "Keep 12px vertical", description: "Only widen the sides" }] }],
 };
 
+// chat-picker opens the model picker over eight models (search appears past six).
+const PICKER_MODELS = [["gpt-5.4", "GPT-5.4"], ["gpt-5.4-mini", "GPT-5.4 Mini"], ["gpt-5.3-codex", "GPT-5.3 Codex"], ["gpt-5.2", "GPT-5.2"],
+  ["o4-mini", "o4-mini"], ["o3", "o3"], ["gpt-4.1", "GPT-4.1"], ["gpt-4.1-mini", "GPT-4.1 Mini"]] as const;
 const CONTROLS = [
-  { id: "model", value: "gpt-5.4", options: [{ value: "gpt-5.4", label: "GPT-5.4" }, { value: "gpt-5.4-mini", label: "GPT-5.4 Mini" }] },
+  { id: "model", value: "gpt-5.4", options: (scenario === "chat-picker" ? PICKER_MODELS : PICKER_MODELS.slice(0, 2)).map(([value, label]) => ({ value, label })) },
   { id: "effort", value: "medium", options: ["low", "medium", "high"].map((value) => ({ value, label: value })) },
   { id: "mode", value: "code", options: [{ value: "code", label: "Code" }, { value: "plan", label: "Plan" }] },
 ] as const;
@@ -186,7 +189,7 @@ function FixtureChat() {
   const [draft, setDraft] = useState(scenario === "chat-references" ? "@README.md " : "");
   const projection = useMemo(() => projectionFor(scenario), []);
   const running = projection.runningTurnId !== null && projection.runningTurnId !== undefined;
-  const empty = scenario === "chat-empty" || scenario === "tabs-narrow" || scenario === "close-dialog" || scenario === "chat-references";
+  const empty = scenario === "chat-empty" || scenario === "tabs-narrow" || scenario === "close-dialog" || scenario === "chat-references" || scenario === "chat-picker";
   const withReferences = scenario === "chat-references";
   const approval = scenario === "chat-approval" ? APPROVAL : null;
   const question = scenario === "chat-question" ? QUESTION : null;

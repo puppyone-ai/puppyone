@@ -81,6 +81,11 @@ pub struct AgentChat {
     diagnostics_open: bool,
     image_previews: HashMap<String, std::sync::Arc<Image>>,
     pending_resume: Option<String>,
+    /// The open session-control picker, its keyboard row and search field.
+    picker_open: Option<&'static str>,
+    picker_active: Option<usize>,
+    picker_query: Entity<TextInput>,
+    picker_focus: FocusHandle,
     drafts: super::super::application::session_draft_store::SessionDraftStore,
 }
 impl AgentChat {
@@ -224,9 +229,23 @@ impl AgentChat {
             )
         });
         cx.observe(&history_filter, |_, _, cx| cx.notify()).detach();
+        let picker_query = cx.new(|cx| {
+            let mut input = TextInput::new("", false, 200, window, cx);
+            input.appearance = false;
+            input
+        });
+        cx.observe(&picker_query, |s: &mut Self, _, cx| {
+            s.picker_active = None;
+            cx.notify()
+        })
+        .detach();
         cx.observe(&composer, |_, _, cx| cx.notify()).detach();
         Self {
             pending_resume: None,
+            picker_open: None,
+            picker_active: None,
+            picker_query,
+            picker_focus: cx.focus_handle(),
             drafts: Default::default(),
             logo_turns: 0,
             diagnostics_open: false,
@@ -389,6 +408,15 @@ impl Render for AgentChat {
             i.placeholder_color = Some(subtle);
         });
         self.history_filter.update(cx, |i, _| i.dark = self.dark);
+        let picker_placeholder = self.picker_search_placeholder().unwrap_or_default();
+        let m = crate::theme::ty();
+        self.picker_query.update(cx, |i, _| {
+            i.dark = self.dark;
+            i.set_placeholder(picker_placeholder);
+            // `.desktop-agent-picker-search input`: menu item type, subtle placeholder.
+            i.prompt_text = Some((m.right.content, m.right.control_line_height));
+            i.placeholder_color = Some(t.subtle);
+        });
         self.rename_input.update(cx, |i, _| i.dark = self.dark);
         self.refresh_transcript();
         let mut pane = column()

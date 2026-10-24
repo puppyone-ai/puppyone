@@ -82,6 +82,20 @@ impl AgentChat {
             ("gpt-5.4".into(), "GPT-5.4".into()),
             ("gpt-5.4-mini".into(), "GPT-5.4 Mini".into()),
         ];
+        if scenario == "chat-picker" {
+            // `PICKER_MODELS`: eight models, so the picker is searchable.
+            snapshot.models.extend(
+                [
+                    ("gpt-5.3-codex", "GPT-5.3 Codex"),
+                    ("gpt-5.2", "GPT-5.2"),
+                    ("o4-mini", "o4-mini"),
+                    ("o3", "o3"),
+                    ("gpt-4.1", "GPT-4.1"),
+                    ("gpt-4.1-mini", "GPT-4.1 Mini"),
+                ]
+                .map(|(id, label)| (id.to_owned(), label.to_owned())),
+            );
+        }
         snapshot.model = Some("gpt-5.4".into());
         snapshot.efforts = vec!["low".into(), "medium".into(), "high".into()];
         snapshot.effort = Some("medium".into());
@@ -93,7 +107,7 @@ impl AgentChat {
         snapshot.capabilities.models = true;
         snapshot.capabilities.modes = true;
         let running = matches!(scenario, "chat-running" | "chat-approval" | "chat-question");
-        let empty = matches!(scenario, "chat-empty" | "chat-references");
+        let empty = matches!(scenario, "chat-empty" | "chat-references" | "chat-picker");
         if !empty {
             let status = if running { "running" } else { "completed" };
             snapshot.upsert("user:1", "You", LAB_USER_1, "");
@@ -234,6 +248,9 @@ impl AgentChat {
                     .turn_timings
                     .insert("user:2".into(), completed(31_000));
             }
+        }
+        if scenario == "chat-picker" {
+            view.picker_open = Some("model-picker");
         }
         if scenario == "chat-references" {
             use crate::agent::domain::reference_input::{Reference, ReferenceContent};
