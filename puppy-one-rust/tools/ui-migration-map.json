@@ -1,0 +1,833 @@
+{
+  "source_repository": "puppyone-qubits",
+  "policy": "Component-boundary traceability for the shell, sidebar, Header, Settings and right workbench (PARITY_TODO.md §0.1). A group records which Rust files own the behaviour of its Web sources. `ported` requires verifiable evidence (an existing Rust test function or a file under artifacts/); `partial` must name what remains; `excluded` must give a reason. Unlisted sources are reported as pending. The Agent conversation layer is tracked separately in tools/agent-migration-map.json.",
+  "source_roots": [
+    "src/features/app-shell",
+    "src/features/settings",
+    "src/features/data-workspace",
+    "src/features/create-new",
+    "src/features/local-agents",
+    "src/features/model-connections",
+    "src/features/appearance",
+    "src/features/themes",
+    "src/features/typography",
+    "src/features/source-control",
+    "src/features/desktop-terminal",
+    "src/components",
+    "src/localization",
+    "src/styles",
+    "packages/shared-ui/src/data",
+    "packages/shared-ui/src/styles",
+    "src/features/editor-workbench",
+    "packages/shared-ui/src/editor"
+  ],
+  "excluded_patterns": [
+    {
+      "pattern": "**/*VisualSmokeHarness.tsx",
+      "reason": "Browser visual-smoke harness; native verification uses capture modes and Rust tests."
+    },
+    {
+      "pattern": "**/*SmokeHarness.tsx",
+      "reason": "Browser visual-smoke harness; native verification uses capture modes and Rust tests."
+    },
+    {
+      "pattern": "**/*visual-smoke*",
+      "reason": "Styles or fixtures used only by browser visual-smoke harnesses."
+    },
+    {
+      "pattern": "**/README.md",
+      "reason": "Documentation, not runtime behaviour."
+    },
+    {
+      "pattern": "**/index.ts",
+      "reason": "Module barrel; re-exports only. Rust modules use mod.rs/pub use."
+    }
+  ],
+  "groups": [
+    {
+      "name": "Style tokens and theme packs",
+      "status": "partial",
+      "sources": [
+        "src/styles/tokens.css",
+        "src/styles/fallback-theme.generated.css",
+        "packages/shared-ui/src/styles/control-geometry.css",
+        "src/features/themes/builtinSubThemes.ts",
+        "src/features/themes/builtinSubThemes.generated.ts",
+        "src/features/themes/subThemeBootstrap.generated.ts",
+        "src/features/themes/themeTypes.ts",
+        "src/features/themes/subThemePreferences.ts"
+      ],
+      "targets": [
+        "src/theme.rs",
+        "assets/themes.json",
+        "tools/import-themes.mjs",
+        "tools/css-tokens.mjs"
+      ],
+      "evidence": [
+        "test:semantic_tokens_follow_the_web_formulas"
+      ],
+      "remaining": "The five built-in packs and the tokens.css semantic layer are projected into Theme. Installing or removing external sub-theme packages (useSubThemeCatalog / SubThemeStyleHost) and forced-colours mode are not ported."
+    },
+    {
+      "name": "Typography scale and roles",
+      "status": "partial",
+      "sources": [
+        "src/features/typography/fontCatalog.ts",
+        "src/features/typography/typographyRuntime.ts",
+        "src/styles/typography/foundations.css",
+        "src/styles/typography/roles.css"
+      ],
+      "targets": [
+        "src/typography.rs",
+        "src/theme.rs"
+      ],
+      "evidence": [
+        "test:medium_literals_follow_the_product_role_table"
+      ],
+      "remaining": "TYPOGRAPHY_SCALE_METRICS and the UI role sizes follow the three scales. Font selection from the font catalog, per-locale font stacks (locales.css) and Geist Mono for code/terminal are not ported; bundled Geist Sans and Open Sans are used."
+    },
+    {
+      "name": "Appearance preferences and runtime",
+      "status": "partial",
+      "sources": [
+        "src/features/appearance/appearancePreferences.ts",
+        "src/features/appearance/resolveAppearance.ts",
+        "src/features/appearance/legacyAppearancePreferences.ts",
+        "src/features/appearance/legacyTextSizeMigration.ts",
+        "src/features/appearance/AppearanceRuntime.tsx",
+        "src/features/settings/useDesktopAppearance.ts",
+        "src/features/settings/appearanceSlice.ts"
+      ],
+      "targets": [
+        "src/features/settings/preference_types.rs",
+        "src/shell.rs",
+        "src/theme.rs",
+        "src/platform/environment.rs"
+      ],
+      "evidence": [
+        "test:legacy_theme_flag_becomes_an_explicit_mode_and_new_fields_default"
+      ],
+      "remaining": "Theme mode (including following the OS), theme pack, text scale, file icon theme and pointer cursors apply natively. Palette overrides and interface styles are stored but not applied."
+    },
+    {
+      "name": "Interface styles (skins)",
+      "status": "excluded",
+      "sources": [
+        "src/styles/interfaces/**",
+        "src/styles/interface-styles.generated.css",
+        "src/styles/interface-skin-contract.css",
+        "src/features/appearance/interfaceStyles.ts",
+        "src/features/appearance/interfaceStyles.generated.ts",
+        "src/features/appearance/interface-style-manifest.json"
+      ],
+      "targets": [],
+      "reason": "Out of scope for this round (PARITY_TODO.md §5): the native shell renders the default interface only and the Appearance page shows the interface-style row disabled."
+    },
+    {
+      "name": "Localization runtime",
+      "status": "partial",
+      "sources": [
+        "src/localization/bootstrap.ts",
+        "src/localization/loadRendererCatalog.ts",
+        "src/localization/localeClient.ts",
+        "src/localization/catalog-loaders/*.ts"
+      ],
+      "targets": [
+        "src/localization.rs",
+        "assets/locales.json",
+        "assets/native-locales.json",
+        "tools/import-localization.py"
+      ],
+      "evidence": [
+        "test:icu_subset_matches_product_catalog_usage",
+        "test:languages_come_from_product_and_invalid_updates_keep_previous_state",
+        "test:workers_inherit_the_spawning_locale"
+      ],
+      "remaining": "Catalogs are bundled rather than lazily loaded. The ICU subset covers what the catalogs use ({arg}, number, plural with =N and #); select and date/relative-time formats are not implemented."
+    },
+    {
+      "name": "Settings composition and controls",
+      "status": "partial",
+      "sources": [
+        "src/features/settings/SettingsDialog.tsx",
+        "src/features/settings/SettingsView.tsx",
+        "src/features/settings/SettingsWorkspaceSurface.tsx",
+        "src/features/settings/components.tsx",
+        "src/features/settings/types.ts",
+        "src/features/settings/utils.ts",
+        "src/features/settings/sidebar/SettingsSidebar.tsx",
+        "src/components/SettingsControls.tsx",
+        "src/styles/settings.css",
+        "src/styles/settings-controls.css",
+        "src/styles/settings-view.css"
+      ],
+      "targets": [
+        "src/features/settings/settings_workspace_surface.rs",
+        "src/features/settings/components.rs",
+        "src/features/settings/sidebar/settings_sidebar.rs",
+        "src/features/settings/main/mod.rs",
+        "src/ui/primitives.rs",
+        "src/task_ui.rs"
+      ],
+      "evidence": [
+        "test:product_settings_geometry_is_bounded",
+        "test:native_buttons_toggle_slots_and_open_settings"
+      ],
+      "remaining": "Dialog, sidebar and rows follow settings.css geometry; checked by capture screenshots only. There is no automated pixel comparison against the Web Settings pages."
+    },
+    {
+      "name": "Settings sidebar model",
+      "status": "ported",
+      "sources": [
+        "src/features/settings/sidebar/settingsSidebarModel.ts"
+      ],
+      "targets": [
+        "src/features/settings/sidebar/settings_sidebar_model.rs"
+      ],
+      "evidence": [
+        "test:project_and_import_pages_follow_visibility"
+      ]
+    },
+    {
+      "name": "Preferences store",
+      "status": "partial",
+      "sources": [
+        "src/features/settings/preferenceTypes.ts",
+        "src/features/settings/preferenceActions.ts",
+        "src/features/settings/preferencesPersistence.ts",
+        "src/features/settings/layoutSlice.ts",
+        "src/features/settings/editorSlice.ts",
+        "src/features/settings/experimentsSlice.ts",
+        "src/features/settings/gitDisplaySlice.ts",
+        "src/features/settings/agentSlice.ts",
+        "src/features/settings/useDesktopPreferenceEffects.ts",
+        "src/features/app-shell/preferences.ts"
+      ],
+      "targets": [
+        "src/features/settings/preference_types.rs",
+        "src/features/settings/preferences_store.rs",
+        "src/platform/preference_storage.rs"
+      ],
+      "evidence": [
+        "test:preferences_roundtrip_preserves_menu_placement_and_defaults_new_fields"
+      ],
+      "remaining": "One persisted owner with serde defaults and legacy migration. Fields whose Web consumer has no native counterpart (share slice, editor presentation details) are not represented."
+    },
+    {
+      "name": "General settings page",
+      "status": "partial",
+      "sources": [
+        "src/features/settings/main/GeneralSettingsView.tsx",
+        "src/features/settings/LanguageSetting.tsx",
+        "src/features/settings/main/AutomaticUpdateDownloadSettingRow.tsx"
+      ],
+      "targets": [
+        "src/features/settings/main/general_settings_view.rs"
+      ],
+      "remaining": "Language and version rows are native. Update download/install needs the Electron updater; the row reports availability only."
+    },
+    {
+      "name": "Appearance settings page",
+      "status": "partial",
+      "sources": [
+        "src/features/settings/main/AppearanceSettingsView.tsx",
+        "src/features/settings/main/ThemePreview.tsx",
+        "src/features/settings/main/SubThemeSettingsSection.tsx",
+        "src/features/settings/main/InterfacePaletteSettings.tsx",
+        "src/features/settings/main/InterfaceStyleSetting.tsx"
+      ],
+      "targets": [
+        "src/features/settings/main/appearance_settings_view.rs",
+        "src/ui/pulse_grid.rs",
+        "assets/pulse-grid.json",
+        "tools/import-pulse-grid.mjs"
+      ],
+      "remaining": "Theme mode cards, theme pack, file icons, Git layout, loading animation, Header elements and pointer cursors are live. Theme-pack folder/add actions, palette overrides and interface styles are shown disabled (no native theme directory service)."
+    },
+    {
+      "name": "Typography settings page",
+      "status": "partial",
+      "sources": [
+        "src/features/settings/main/TypographySettingsView.tsx",
+        "src/features/settings/main/TypographyPreview.tsx",
+        "src/features/settings/TypographyScaleSetting.tsx"
+      ],
+      "targets": [
+        "src/features/settings/main/typography_settings_view.rs"
+      ],
+      "remaining": "Scale segment and three-pane preview are ported; the preview renders with bundled fonts rather than the catalog font stacks."
+    },
+    {
+      "name": "Create New settings page and entry registry",
+      "status": "partial",
+      "sources": [
+        "src/features/settings/main/CreateNewSettingsView.tsx",
+        "src/features/create-new/createEntryMenuRegistry.ts",
+        "src/styles/settings-new-menu.css"
+      ],
+      "targets": [
+        "src/features/settings/main/create_new_settings_view.rs",
+        "src/features/create_new/create_entry_menu_registry.rs",
+        "src/features/create_new/create_entry_draft.rs",
+        "src/features/create_new/create_entry_dialog.rs",
+        "src/features/create_new/native_create_entry.rs",
+        "src/create_new_ui.rs"
+      ],
+      "evidence": [
+        "test:move_preserves_exactly_one_owner_and_fixed_entries",
+        "test:names_match_product_extensions_and_reject_path_escape"
+      ],
+      "remaining": "Menu and settings share one registry. Folder, Markdown, text, JSON, CSV and HTML are created natively; specialised formats (documents, slides, apps) are listed but unavailable."
+    },
+    {
+      "name": "Experimental settings page",
+      "status": "partial",
+      "sources": [
+        "src/features/settings/main/ExperimentalSettingsView.tsx"
+      ],
+      "targets": [
+        "src/features/settings/main/experimental_settings_view.rs"
+      ],
+      "remaining": "Same groups and rows as the Web; rows without a native consumer are shown disabled."
+    },
+    {
+      "name": "Project, Git and Git Ignore settings pages",
+      "status": "partial",
+      "sources": [
+        "src/features/settings/main/LocalProjectSettingsView.tsx",
+        "src/features/settings/main/RepositorySettingsViews.tsx",
+        "src/features/settings/main/FileSettingsViews.tsx",
+        "src/features/settings/PuppyoneWorkspaceConfigSettings.tsx"
+      ],
+      "targets": [
+        "src/features/settings/main/local_project_settings_view.rs",
+        "src/features/settings/main/repository_settings_views.rs",
+        "src/features/settings/main/file_settings_views.rs",
+        "src/features/settings/repository_settings.rs",
+        "src/platform/git.rs"
+      ],
+      "evidence": [
+        "test:remote_labels_and_masking",
+        "test:visibility_display_names_and_selection_follow_the_product"
+      ],
+      "remaining": "Project info, repository facts (branch, upstream, sync, remotes) and Git Ignore (hidden files + exclude patterns applied to the tree) are native. Auto-commit and the workspace backup/source-service config (PuppyoneWorkspaceConfigSettings) are not ported."
+    },
+    {
+      "name": "Other App Imports settings page",
+      "status": "partial",
+      "sources": [
+        "src/features/settings/main/OtherAppImportsSettingsView.tsx"
+      ],
+      "targets": [
+        "src/features/settings/main/other_app_imports_settings_view.rs"
+      ],
+      "remaining": "Page structure and visibility gate are ported; import actions need the Electron import services and are shown unavailable."
+    },
+    {
+      "name": "Privacy settings page",
+      "status": "partial",
+      "sources": [
+        "src/features/settings/main/PrivacySettingsView.tsx",
+        "src/features/settings/main/ProductAnalyticsSettingsRow.tsx"
+      ],
+      "targets": [
+        "src/features/settings/main/privacy_settings_view.rs"
+      ],
+      "remaining": "There is no native telemetry service; the analytics row is shown disabled."
+    },
+    {
+      "name": "Account and plan settings pages",
+      "status": "partial",
+      "sources": [
+        "src/features/settings/main/AccountSettingsView.tsx",
+        "src/features/settings/main/AccountIdentity.tsx",
+        "src/features/settings/main/AccountAICredits.tsx",
+        "src/features/settings/main/AccountUsageMeters.tsx",
+        "src/features/settings/main/PersonalPlan.tsx",
+        "src/features/settings/main/SeatsSettingsView.tsx",
+        "src/features/settings/main/planPricing.ts",
+        "src/features/settings/main/useAccountPlan.ts"
+      ],
+      "targets": [
+        "src/features/settings/main/account_settings_view.rs"
+      ],
+      "remaining": "Signed-out states only. Sign-in, credits, plans and seats need cloud services (PARITY_TODO.md §5)."
+    },
+    {
+      "name": "Local Agents settings and inventory",
+      "status": "partial",
+      "sources": [
+        "src/features/local-agents/setup/LocalAgentsSettingsView.tsx",
+        "src/features/local-agents/setup/localAgentCatalog.ts",
+        "src/features/local-agents/setup/localAgentSelection.ts",
+        "src/features/local-agents/setup/localAgentSetupPreferences.ts",
+        "src/features/local-agents/setup/useLocalAgentSetup.ts",
+        "src/features/local-agents/installation/localAgentInventoryClient.ts"
+      ],
+      "targets": [
+        "src/features/agent_settings.rs",
+        "src/agent/connections/local_agent_inventory.rs",
+        "src/features/settings/preference_types.rs"
+      ],
+      "remaining": "Detected agents with persisted show/hide, rescan, empty/error states and history discovery are native; the Launcher honours hidden agents. The Hooks and setup-guide sections depend on Electron installation/activity services and are hidden, as the Web does when those services are unsupported."
+    },
+    {
+      "name": "Model Connections settings",
+      "status": "partial",
+      "sources": [
+        "src/features/model-connections/ModelConnectionsSettings.tsx",
+        "src/features/model-connections/ModelConnectionSetup.tsx",
+        "src/features/model-connections/ModelConnectionDetails.tsx",
+        "src/features/model-connections/modelConnectionsStore.ts",
+        "src/features/model-connections/modelConnectionsApi.ts",
+        "src/features/model-connections/model-connections-settings.css"
+      ],
+      "targets": [
+        "src/features/model_connections/ui.rs",
+        "src/features/model_connections/infrastructure.rs",
+        "src/model_connections/configuration.rs"
+      ],
+      "evidence": [
+        "test:endpoint_boundary_rejects_credentials_redirect_shapes_and_remote_http",
+        "test:concurrent_edit_and_delete_do_not_resurrect_or_retire_active_credentials"
+      ],
+      "remaining": "List, add/edit and detail flow with Keychain credentials. Local service discovery, tool-support verification and managed (cloud) connections are not ported."
+    },
+    {
+      "name": "Header and window chrome",
+      "status": "partial",
+      "sources": [
+        "src/components/DesktopWindowChrome.tsx",
+        "src/features/app-shell/DesktopTitlebarActions.tsx",
+        "src/features/app-shell/DesktopTitlebarContext.tsx",
+        "src/features/app-shell/DesktopTitlebarMenuLayer.tsx",
+        "src/features/app-shell/headerElements.tsx",
+        "src/features/app-shell/useGitPresentation.ts",
+        "src/features/source-control/gitTitlebarStatus.ts",
+        "src/features/app-shell/header-editor-columns.css",
+        "src/styles/titlebar.css",
+        "src/styles/window-chrome.css"
+      ],
+      "targets": [
+        "src/header_ui.rs",
+        "src/shell.rs"
+      ],
+      "evidence": [
+        "test:git_header_uses_changes_outlet_and_terminal_returns_to_retained_workbench"
+      ],
+      "remaining": "Project button, Agent entry (bubble icon with show/hide tooltip), Changes status icons and Header elements are native. Header coachmarks, Reach/Share and cloud location states are not ported."
+    },
+    {
+      "name": "Project menu, location switcher and project rail",
+      "status": "partial",
+      "sources": [
+        "src/features/app-shell/DesktopWorkspaceSwitcher.tsx",
+        "src/features/app-shell/DesktopProjectLocationSwitcher.tsx",
+        "src/features/app-shell/DesktopProjectMenuItem.tsx",
+        "src/features/app-shell/ProjectMenuHeader.tsx",
+        "src/features/app-shell/ProjectSwitcherRail.tsx",
+        "src/features/app-shell/projectSwitcherRailGeometry.ts",
+        "src/features/app-shell/project-switcher-rail.css",
+        "src/features/app-shell/useProjectOpenHistory.ts",
+        "src/features/app-shell/useProjectSwitcherSurface.ts",
+        "src/components/DesktopMenu.tsx",
+        "src/styles/menus.css"
+      ],
+      "targets": [
+        "src/project_ui.rs",
+        "src/ui/menu.rs",
+        "src/shell.rs",
+        "src/features/settings/preference_types.rs"
+      ],
+      "evidence": [
+        "test:project_popup_toggle_outside_and_escape_restore_focus",
+        "test:choosing_local_closes_popup_and_restores_trigger",
+        "test:project_history_is_most_recent_first_and_bounded"
+      ],
+      "remaining": "Recent-project list, open folder, Home and remove-from-recents are native; the rail lists recent projects. Per-project row actions (rename/unlink, ProjectRowActions) and cloud locations are not ported."
+    },
+    {
+      "name": "Home page",
+      "status": "partial",
+      "sources": [
+        "src/components/MinimalOnboarding.tsx",
+        "src/components/onboarding/OnboardingHomeLayout.tsx",
+        "src/components/onboarding/OnboardingProjectList.tsx",
+        "src/components/onboarding/OnboardingEntryActions.tsx",
+        "src/components/onboarding/OnboardingBrandLockup.tsx",
+        "src/components/onboarding/HomeProjectIcon.tsx",
+        "src/components/brand/PuppyBrandMark.tsx",
+        "src/features/app-shell/workspaceHomeModel.ts",
+        "src/styles/onboarding.css"
+      ],
+      "targets": [
+        "src/home_ui.rs",
+        "assets/brand"
+      ],
+      "evidence": [
+        "test:project_menu_home_shows_the_homepage_and_hides_the_editor"
+      ],
+      "remaining": "Recent projects and Open Folder are native. Templates, cloud import and the onboarding telemetry disclosure are not ported."
+    },
+    {
+      "name": "Explorer tree and file actions",
+      "status": "partial",
+      "sources": [
+        "packages/shared-ui/src/data/ExplorerTree.tsx",
+        "packages/shared-ui/src/data/DataWorkspace.tsx",
+        "packages/shared-ui/src/data/DataWorkspaceFrame.tsx",
+        "packages/shared-ui/src/data/explorer/explorerVisibleModel.ts",
+        "packages/shared-ui/src/data/explorer/explorerRowInteraction.ts",
+        "packages/shared-ui/src/data/explorer/explorerTreeReconciliation.ts",
+        "packages/shared-ui/src/data/explorer/useExplorerVirtualWindow.ts",
+        "packages/shared-ui/src/styles/data-workspace.css",
+        "packages/shared-ui/src/styles/sidebar-primitives.css",
+        "src/features/data-workspace/nodeActions.tsx",
+        "src/features/data-workspace/useDataNodeActions.ts",
+        "src/features/data-workspace/fileClipboard.ts",
+        "src/features/data-workspace/useFileClipboard.ts",
+        "src/features/data-workspace/explorer.ts",
+        "src/features/app-shell/useWorkspaceFolderDrop.ts",
+        "src/components/sidebar/*.tsx",
+        "src/styles/sidebar/patterns.css",
+        "src/styles/file-actions.css"
+      ],
+      "targets": [
+        "src/explorer_ui.rs",
+        "src/model.rs",
+        "src/workspace.rs",
+        "src/file_kind.rs",
+        "assets/file-icons.json",
+        "tools/import-file-icons.mjs"
+      ],
+      "evidence": [
+        "test:visibility_display_names_and_selection_follow_the_product",
+        "test:rename_move_copy_import_and_delete_stay_inside_the_grant",
+        "test:large_tree_uses_gpui_virtual_rows",
+        "test:classification_and_display_follow_the_product_registry"
+      ],
+      "remaining": "File-type icons, Git marks, hover actions, context menu, keyboard navigation, multi-select, drag-move and external drop import are native. Expand/collapse motion, reference drag into the Agent composer, drag export to other apps and multi-root workspaces are not ported."
+    },
+    {
+      "name": "Sidebar footer navigation and help",
+      "status": "partial",
+      "sources": [
+        "src/features/app-shell/navigation/DesktopSidebarFooterNavigation.tsx",
+        "src/features/app-shell/navigation/DesktopNavigationItems.tsx",
+        "src/features/app-shell/navigation/navigationModel.tsx",
+        "src/features/app-shell/navigation/types.ts",
+        "src/features/app-shell/navigation.tsx",
+        "src/features/app-shell/DesktopHelpLauncher.tsx",
+        "src/features/app-shell/desktop-help-launcher.css"
+      ],
+      "targets": [
+        "src/explorer_ui.rs",
+        "src/task_ui.rs"
+      ],
+      "remaining": "Changes (with status), Settings and Help are native in the footer. Plugins and the rail/top navigation variants are not ported."
+    },
+    {
+      "name": "Workbench launcher",
+      "status": "partial",
+      "sources": [
+        "src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchLauncher.tsx",
+        "src/features/app-shell/auxiliary-workbench/auxiliary-workbench-launcher.css",
+        "src/features/app-shell/auxiliary-workbench/WorkbenchLauncherState.ts",
+        "src/features/desktop-terminal/ui/TerminalLauncher.tsx",
+        "src/features/desktop-terminal/ui/LauncherDiscoveryFeedback.tsx",
+        "src/components/brand/AgentLauncherIcon.tsx",
+        "src/components/brand/AgentEntryIcon.tsx",
+        "src/components/brand/agent-launcher-icon.css"
+      ],
+      "targets": [
+        "src/features/workbench/auxiliary_workbench_launcher.rs",
+        "src/assets.rs",
+        "assets/agents",
+        "src/features/desktop_agent/ui/agent_brand_mark.rs",
+        "tools/import-agent-marks.py"
+      ],
+      "evidence": [
+        "test:launchers_are_independent_and_last_close_is_empty",
+        "test:referenced_icons_exist"
+      ],
+      "remaining": "Detected agents, the Built-in Agent + Terminal group, rescan, History and discovery status are native and respect hidden agents; Codex uses the monochrome ChatGPT mark like AgentMonochromeBrandImage. Install guides and per-agent activation are not ported."
+    },
+    {
+      "name": "Workbench tabs, split layout and close flow",
+      "status": "partial",
+      "sources": [
+        "src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel.tsx",
+        "src/features/app-shell/auxiliary-workbench/layout/AuxiliaryWorkbenchHeader.tsx",
+        "src/features/app-shell/auxiliary-workbench/layout/AuxiliaryWorkbenchTab.tsx",
+        "src/features/app-shell/auxiliary-workbench/layout/AuxiliaryWorkbenchOverflowMenu.tsx",
+        "src/features/app-shell/auxiliary-workbench/layout/WorkbenchGroupPane.tsx",
+        "src/features/app-shell/auxiliary-workbench/layout/WorkbenchSplitResizeHandle.tsx",
+        "src/features/app-shell/auxiliary-workbench/layout/workbenchSplitConstraints.ts",
+        "src/features/app-shell/auxiliary-workbench/layout/workbenchTabMove.ts",
+        "src/features/app-shell/auxiliary-workbench/layout/auxiliary-workbench-header.css",
+        "src/features/app-shell/auxiliary-workbench/layout/interactions/useWorkbenchTabMoveDrag.ts",
+        "src/features/app-shell/auxiliary-workbench/layout/interactions/workbenchContentDropTarget.ts",
+        "src/features/app-shell/auxiliary-workbench/layout/interactions/workbenchTabBarDropTarget.ts",
+        "src/features/app-shell/auxiliary-workbench/auxiliary-workbench.css",
+        "src/features/app-shell/auxiliary-workbench/ProjectWorkbenchStore.ts",
+        "src/features/app-shell/auxiliary-workbench/useAuxiliaryWorkbench.ts",
+        "src/features/app-shell/auxiliary-workbench/types.ts",
+        "src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchCloseDialog.tsx",
+        "src/features/app-shell/auxiliary-workbench/useAuxiliaryWorkbenchCloseCoordinator.ts",
+        "src/features/app-shell/auxiliary-workbench/auxiliary-workbench-close-dialog.css"
+      ],
+      "targets": [
+        "src/features/workbench/mod.rs",
+        "src/features/workbench/layout.rs",
+        "src/features/workbench/persistence.rs"
+      ],
+      "evidence": [
+        "test:move_split_preserves_identity_and_order",
+        "test:stored_layout_rejects_orphan_tabs"
+      ],
+      "remaining": "38px tab bar with compact/overflow modes, brand icons with the running-chat dot (AuxiliaryWorkbenchStatus), tab context menu, drag split and close confirmation are native. Session-header motion, tab-move preview animation and render-failure boundaries are not ported."
+    },
+    {
+      "name": "Changes panel (source control)",
+      "status": "partial",
+      "sources": [
+        "src/features/source-control/SourceControlSidebar.tsx",
+        "src/features/source-control/GitChangesSidebar.tsx",
+        "src/features/source-control/GitHistorySidebar.tsx",
+        "src/features/source-control/GitHistoryTimeline.tsx",
+        "src/features/source-control/GitCommitDetail.tsx",
+        "src/features/source-control/WorkingFileDetail.tsx",
+        "src/features/source-control/operationDialogs.tsx",
+        "src/features/source-control/components.tsx",
+        "src/features/source-control/viewModel.ts",
+        "src/features/source-control/useDesktopGitController.ts",
+        "src/features/source-control/sidebar/GitLocalStatusPanels.tsx",
+        "src/features/source-control/sidebar/GitLocalStatusSection.tsx",
+        "src/features/source-control/sidebar/GitSidebarPrimitives.tsx",
+        "src/features/source-control/sidebar/SourceControlResourceLists.tsx",
+        "src/features/source-control/diff/contributions/text-unified/TextUnifiedDiff.tsx",
+        "src/features/source-control/source-control.css",
+        "src/features/source-control/styles/*.css"
+      ],
+      "targets": [
+        "src/features/source_control.rs",
+        "src/platform/git.rs"
+      ],
+      "evidence": [
+        "test:real_repository_stage_commit_diff_and_unborn_unstage",
+        "test:nul_paths_renames_and_counts"
+      ],
+      "remaining": "Status sections, stage/unstage, commit, sync buttons, history and unified text diffs are native and localized. Unlike the Web (git rev-parse --is-inside-work-tree), Git is managed only when the opened folder is the repository root, so mutations cannot reach files outside the granted folder. DOCX redline and binary-summary diffs, remote management, incoming-change review and repository setup are not ported."
+    },
+    {
+      "name": "Terminal surface",
+      "status": "partial",
+      "sources": [
+        "src/features/desktop-terminal/ui/TerminalSessionView.tsx",
+        "src/features/desktop-terminal/ui/TerminalSessionHost.tsx",
+        "src/features/desktop-terminal/runtime/terminalAppearance.ts",
+        "src/features/desktop-terminal/runtime/terminalRuntime.ts",
+        "src/features/desktop-terminal/ui/styles/terminal-surface.css",
+        "src/features/desktop-terminal/ui/styles/xterm-adapter.css"
+      ],
+      "targets": [
+        "src/features/terminal.rs",
+        "src/features/terminal_interaction.rs",
+        "src/features/terminal_queries.rs",
+        "src/platform/terminal.rs",
+        "src/theme.rs"
+      ],
+      "evidence": [
+        "test:terminal_keys_preserve_navigation_modifiers_and_control_bytes",
+        "test:selection_preserves_wide_characters_reverse_drag_and_soft_wrap",
+        "test:split_queries_and_clipboard_are_handled_safely"
+      ],
+      "remaining": "Terminal colours come from the pack (--po-terminal-bg/fg/cursor and the 16 ANSI colours). The terminal uses Menlo instead of --po-font-terminal (Geist Mono); the activity grid and resource drop are not ported."
+    },
+    {
+      "name": "Shared overlays, dialogs and tooltips",
+      "status": "partial",
+      "sources": [
+        "src/components/DesktopDialog.tsx",
+        "src/components/DesktopTooltipLayer.tsx",
+        "src/components/DesktopOverlayLayer.tsx",
+        "src/styles/dialogs.css",
+        "src/styles/tooltip.css",
+        "src/styles/scrollbars.css"
+      ],
+      "targets": [
+        "src/ui/primitives.rs",
+        "src/ui/menu.rs",
+        "src/task_ui.rs",
+        "src/geometry.rs"
+      ],
+      "evidence": [
+        "test:popup_only_owns_its_rectangle_and_modal_owns_everything",
+        "test:kit_dialog_tab_order_keeps_focus_inside_feedback"
+      ],
+      "remaining": "Dialogs and tooltips use GPUI Kit with product tokens. Scrollbar activity fading (ScrollbarActivity) is not ported."
+    },
+    {
+      "name": "Markdown viewer (product code in the editor island)",
+      "status": "partial",
+      "sources": [
+        "packages/shared-ui/src/editor/markdown/**",
+        "packages/shared-ui/src/editor/table/**"
+      ],
+      "targets": [
+        "editor/src/pane.tsx",
+        "editor/src/editor.js",
+        "editor/build.mjs",
+        "editor/src/webkit-parity.css",
+        "src/web_editor.rs"
+      ],
+      "evidence": [
+        "artifact:editor-parity/report.json",
+        "artifact:editor-smoke/result.json"
+      ],
+      "remaining": "The product MarkdownViewer (live preview, source mode, tables, task lists, code blocks, KaTeX) runs unchanged; tools/compare-editor.py gates it against the Chromium product with zero layout mismatches. The native host does not yet provide markdownEnvironment (workspace link graph, wiki-link commands, image asset resolver), AI edit review or document navigation, so those features are inactive."
+    },
+    {
+      "name": "Text, JSON and code viewers and shared editor infrastructure",
+      "status": "ported",
+      "sources": [
+        "packages/shared-ui/src/editor/viewers/code/**",
+        "packages/shared-ui/src/editor/viewers/shared/**",
+        "packages/shared-ui/src/editor/viewers/fallback/**",
+        "packages/shared-ui/src/editor/code/**",
+        "packages/shared-ui/src/editor/codemirror/**",
+        "packages/shared-ui/src/editor/find/**",
+        "packages/shared-ui/src/editor/sourceSnapshot.ts",
+        "packages/shared-ui/src/editor/editorPaneMenuContribution.tsx",
+        "packages/shared-ui/src/editor/host/PresetViewerRenderer.tsx",
+        "packages/shared-ui/src/editor/registry/presetViewerContribution.ts",
+        "packages/shared-ui/src/editor/registry/presetViewerManifest.ts",
+        "packages/shared-ui/src/editor/registry/presetViewerManifest.json",
+        "packages/shared-ui/src/editor/registry/viewerTypes.ts",
+        "packages/shared-ui/src/editor/registry/editorProviderPolicy.ts"
+      ],
+      "targets": [
+        "editor/src/pane.tsx",
+        "editor/src/editor.js",
+        "editor/build.mjs",
+        "editor/src/webkit-parity.css",
+        "src/web_editor.rs"
+      ],
+      "evidence": [
+        "artifact:editor-parity/report.json",
+        "artifact:editor-smoke/result.json"
+      ]
+    },
+    {
+      "name": "CSV table viewer",
+      "status": "ported",
+      "sources": [
+        "packages/shared-ui/src/editor/viewers/csv/**"
+      ],
+      "targets": [
+        "editor/src/pane.tsx",
+        "editor/src/editor.js",
+        "editor/build.mjs",
+        "editor/src/webkit-parity.css",
+        "src/web_editor.rs"
+      ],
+      "evidence": [
+        "artifact:editor-parity/report.json",
+        "artifact:editor-smoke/result.json"
+      ]
+    },
+    {
+      "name": "Viewer registry",
+      "status": "partial",
+      "sources": [
+        "packages/shared-ui/src/editor/registry/viewerRegistry.tsx",
+        "packages/shared-ui/src/editor/registry/builtinViewerContributions.ts"
+      ],
+      "targets": [
+        "editor/src/pane.tsx",
+        "src/file_kind.rs"
+      ],
+      "remaining": "The island registers the Markdown, JSON, CSV and text contributions in BUILTIN order with createPresetViewerRegistry's first-match rule (routing verified per case); HTML, PDF, media, Office, database, context-map, app and PuppyFlow viewers fall back to the product fallback viewer."
+    },
+    {
+      "name": "Editor pane chrome and actions menu",
+      "status": "ported",
+      "sources": [
+        "src/features/editor-workbench/layout/EditorPaneShell.tsx",
+        "src/features/editor-workbench/layout/EditorPaneChrome.tsx",
+        "src/features/editor-workbench/layout/EditorPaneActionsMenu.tsx",
+        "src/features/editor-workbench/layout/useEditorPaneChromeReveal.ts",
+        "src/features/editor-workbench/layout/desktop-editor-split-view.css",
+        "src/features/editor-workbench/runtime/EditorPaneRuntime.tsx"
+      ],
+      "targets": [
+        "editor/src/pane.tsx",
+        "editor/src/editor.js",
+        "editor/build.mjs",
+        "editor/src/webkit-parity.css",
+        "src/web_editor.rs",
+        "src/shell.rs"
+      ],
+      "evidence": [
+        "artifact:editor-parity/report.json",
+        "artifact:editor-smoke/result.json"
+      ]
+    },
+    {
+      "name": "Editor document session",
+      "status": "partial",
+      "sources": [
+        "packages/shared-ui/src/editor/document-session/**"
+      ],
+      "targets": [
+        "src/editor/document_session/document_editing_session.rs",
+        "src/documents.rs",
+        "editor/src/pane.tsx"
+      ],
+      "remaining": "Rust owns the save queue, disk epochs and drains; the island implements EditableDocumentSource over the product snapshot ports and keeps a DocumentModelOwner per document (undo survives live/source switches). The multi-document working-copy registry and external-conflict notices are not ported."
+    },
+    {
+      "name": "Editor workbench: splits, tabs, pane move and file drop",
+      "status": "partial",
+      "sources": [
+        "src/features/editor-workbench/layout/DesktopEditorSplitView.tsx",
+        "src/features/editor-workbench/layout/EditorSplitResizeHandle.tsx",
+        "src/features/editor-workbench/layout/pane-host/*",
+        "src/features/editor-workbench/header/*",
+        "src/features/editor-workbench/drag-and-drop/*",
+        "src/features/editor-workbench/interactions/*",
+        "src/features/editor-workbench/controller/*",
+        "src/features/editor-workbench/persistence/*",
+        "src/features/editor-workbench/runtime/EditorPaneDocumentRuntime.tsx",
+        "src/features/editor-workbench/runtime/EditorPaneRenderBoundary.tsx",
+        "src/features/editor-workbench/runtime/editorNodeIndex.ts",
+        "src/features/editor-workbench/runtime/useEditorPaneSource.ts",
+        "packages/shared-ui/src/editor/workbench/*"
+      ],
+      "targets": [
+        "src/documents.rs",
+        "src/shell.rs"
+      ],
+      "remaining": "One pane, one document per window. Split panes, editor tabs, dragging a pane by its handle, explorer drop-to-split and workbench persistence are not ported (they need multiple native document sessions)."
+    },
+    {
+      "name": "Editor and shared-ui stylesheets (bundled verbatim in the editor island)",
+      "status": "ported",
+      "sources": [
+        "packages/shared-ui/src/styles/editor.css",
+        "packages/shared-ui/src/styles/editor/**",
+        "packages/shared-ui/src/styles/floating-notice.css",
+        "packages/shared-ui/src/styles/overflow-dots.css",
+        "packages/shared-ui/src/styles/shared-ui-patterns.css",
+        "packages/shared-ui/src/styles/shared-ui.css"
+      ],
+      "targets": [
+        "editor/build.mjs",
+        "editor/src/webkit-parity.css"
+      ],
+      "evidence": [
+        "artifact:editor-parity/report.json"
+      ]
+    }
+  ]
+}

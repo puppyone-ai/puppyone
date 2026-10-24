@@ -1,0 +1,61 @@
+[package]
+name = "puppy-one-rust"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+url = "2.5"
+gpui-kit = { version = "=0.8.0" }
+# GPUI Kit's tree-sitter highlighter for Markdown code blocks, with the
+# grammars of the languages the product highlights
+# (shared-ui/src/editor/code/codeLanguageSupport.ts; JSON comes with the base).
+gpui-component = { version = "=0.8.0", features = ["tree-sitter-css", "tree-sitter-html", "tree-sitter-javascript", "tree-sitter-typescript", "tree-sitter-tsx", "tree-sitter-python", "tree-sitter-yaml", "tree-sitter-bash", "tree-sitter-toml", "tree-sitter-sql"] }
+async-channel = "2"
+anyhow = "1"
+raw-window-handle = "0.6"
+unicode-segmentation = "1"
+unicode-linebreak = "0.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+cap-std = "3.4"
+blake3 = "1.8"
+uuid = { version = "1", features = ["v4"] }
+portable-pty = "0.9"
+vt100 = "0.15"
+vte = "0.11"
+pulldown-cmark = "0.13"
+base64 = "0.22"
+reqwest = { package = "zed-reqwest", version = "=0.12.15-zed", default-features = false, features = ["json", "stream", "rustls-tls"] }
+tokio = { version = "1", features = ["rt", "sync", "time", "macros"] }
+futures-util = "0.3"
+
+[target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
+wry = "=0.57.0"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = "3.7"
+objc2 = "=0.6.4"
+objc2-app-kit = { version = "=0.3.2", default-features = false, features = ["std", "NSApplication", "NSEvent", "NSResponder", "NSView", "NSWindow"] }
+objc2-foundation = { version = "=0.3.2", default-features = false, features = ["std", "NSGeometry"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+gpui-kit = { version = "=0.8.0", features = ["test-support"] }
+tempfile = "3"
+
+[features]
+# Explicitly opt-in local integration driver; absent from normal builds.
+webview-smoke = []
+
+[profile.dev]
+debug = 0
+incremental = false
+
+[profile.release]
+strip = true
+lto = "thin"
+codegen-units = 1

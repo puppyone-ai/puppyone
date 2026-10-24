@@ -1,0 +1,208 @@
+//! Port of `MinimalOnboarding` / `OnboardingHomeLayout`: brand lockup, the
+//! project history and entry actions. Shown with no open project and from the
+//! project menu's Home item. Creating projects from templates and importing from
+//! other apps are not native yet, so those actions are disabled.
+use super::*;
+use crate::{
+    localization::{t as tr, tf},
+    ui::{icon_sized, tooltip},
+};
+impl Shell {
+    /// Web hides the workspace chrome on the homepage; so does the native shell.
+    pub(super) fn home_visible(&self) -> bool {
+        !self.fixture && (self.home || self.files.workspace.is_none())
+    }
+    fn entry_action(
+        &self,
+        id: &'static str,
+        icon: &'static str,
+        label: &'static str,
+        primary: bool,
+        disabled: bool,
+        cx: &mut Context<Self>,
+    ) -> gpui_kit::base::Button {
+        let t = Theme::new(self.dark);
+        let (bg, fg) = if primary {
+            (theme::alpha(t.accent, 0.12), t.accent_text)
+        } else {
+            (t.control, t.text)
+        };
+        gpui_kit::base::Button::new(id)
+            .accessibility_label(label)
+            .disabled(disabled)
+            .flex()
+            .items_center()
+            .w_full()
+            .h(px(theme::control() + 4.))
+            .px(px(12.))
+            .gap(px(8.))
+            .rounded(px(theme::metric::CONTROL_RADIUS + 2.))
+            .bg(bg)
+            .text_size(px(theme::ty().ui.body))
+            .font_weight(FontWeight::MEDIUM)
+            .text_color(fg)
+            .when(disabled, |b| b.opacity(0.5))
+            .when(!disabled, |b| {
+                b.cursor(theme::clickable_cursor())
+                    .hover(move |s| s.bg(t.control_hover))
+            })
+            .child(icon_sized(icon, 16., fg))
+            .child(label)
+            .when(!disabled, |b| {
+                b.on_click(cx.listener(move |s, _, w, cx| s.command(id, w, cx)))
+            })
+    }
+    pub(super) fn home_view(&self, cx: &mut Context<Self>) -> Div {
+        let t = Theme::new(self.dark);
+        let r = Rect::new(
+            0.,
+            theme::HEADER,
+            self.layout.header.w,
+            self.layout.editor.h,
+        );
+        let has_projects = !self.recent_projects.is_empty();
+        let brand = row()
+            .gap(px(12.))
+            .mb(px(if has_projects { 34. } else { 24. }))
+            .child(
+                img(SharedString::from(if self.dark {
+                    "brand/puppy-dark.svg"
+                } else {
+                    "brand/puppy-lite.svg"
+                }))
+                .size(px(28.))
+                .flex_shrink_0(),
+            )
+            .child(
+                div()
+                    .text_size(px(theme::ty().ui.heading))
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(t.text)
+                    .child(tr(if has_projects {
+                        "onboarding.section.chooseProject"
+                    } else {
+                        "onboarding.brand.agentReadyMessage"
+                    })),
+            );
+        let mut list = column()
+            .id("home-projects")
+            .w_full()
+            .max_h(px(360.))
+            .overflow_y_scroll()
+            .gap(px(2.));
+        for (index, project) in self.recent_projects.iter().enumerate() {
+            let path = project.path.clone();
+            let remove = project.path.clone();
+            let name = project.name.clone();
+            let parent = project
+                .path
+                .parent()
+                .map(|p| p.display().to_string())
+                .unwrap_or_default();
+            let remove_label = tf(
+                "onboarding.projects.removeFor",
+                &[("project", name.clone().into())],
+            );
+            list = list.child(
+                row()
+                    .id(("home-project", index))
+                    .w_full()
+                    .min_h(px(theme::control() + 8.))
+                    .gap(px(10.))
+                    .px(px(10.))
+                    .rounded(px(theme::metric::CONTROL_RADIUS))
+                    .cursor(theme::clickable_cursor())
+                    .hover(move |s| s.bg(t.hover))
+                    .child(icon_sized("folder", 16., t.muted))
+                    .child(
+                        column()
+                            .flex_1()
+                            .min_w_0()
+                            .child(
+                                div()
+                                    .truncate()
+                                    .text_size(px(theme::ty().ui.body))
+                                    .font_weight(FontWeight::MEDIUM)
+                                    .text_color(t.text)
+                                    .child(name),
+                            )
+                            .child(
+                                div()
+                                    .truncate()
+                                    .text_size(px(theme::ty().ui.meta))
+                                    .text_color(t.subtle)
+                                    .child(parent),
+                            ),
+                    )
+                    .child(
+                        crate::ui::icon_button(("home-project-remove", index), "unlink", t)
+                            .size(px(24.))
+                            .accessibility_label(remove_label.clone())
+                            .tooltip(tooltip(format!(
+                                "{remove_label}\n{}",
+                                tr("onboarding.projects.removeHint")
+                            )))
+                            .on_click(cx.listener(move |s, _, _, cx| {
+                                cx.stop_propagation();
+                                let remove = remove.clone();
+                                s.preferences.update(cx, |p, cx| {
+                                    p.change(|p| p.forget_project(&remove), cx)
+                                });
+                            })),
+                    )
+                    .on_click(cx.listener(move |s, _, w, cx| s.open_project(path.clone(), w, cx))),
+            );
+        }
+        let mut launcher = column().w(px(440.)).max_w_full().child(brand);
+        if has_projects {
+            launcher = launcher.child(
+                column()
+                    .gap(px(6.))
+                    .mb(px(12.))
+                    .child(
+                        div()
+                            .px(px(10.))
+                            .text_size(px(theme::ty().ui.meta))
+                            .text_color(t.subtle)
+                            .child(tr("onboarding.projects.title")),
+                    )
+                    .child(list),
+            );
+        }
+        launcher = launcher.child(
+            column()
+                .gap(px(6.))
+                .child(self.entry_action(
+                    "create-project",
+                    "file-plus-2",
+                    tr("onboarding.action.createLocalProject"),
+                    !has_projects,
+                    true,
+                    cx,
+                ))
+                .child(self.entry_action(
+                    "open-folder",
+                    "folder-open",
+                    tr("onboarding.action.openFolder"),
+                    false,
+                    self.pending || self.files.busy(),
+                    cx,
+                ))
+                .child(self.entry_action(
+                    "import-project",
+                    "download",
+                    tr("onboarding.action.importFromApps"),
+                    false,
+                    true,
+                    cx,
+                )),
+        );
+        at(r)
+            .bg(t.canvas)
+            .flex()
+            .items_center()
+            .justify_center()
+            .px(px(24.))
+            .child(launcher)
+    }
+}

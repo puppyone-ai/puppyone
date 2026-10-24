@@ -1,0 +1,15 @@
+/* Engine parity for the WKWebView island (loaded after the product CSS).
+ *
+ * WebKit sizes inline line boxes with the floor of a fractional line-height
+ * (26.25px → 26px) while Chromium, which renders the product, keeps the exact
+ * value. CodeMirror lines carry fractional product line-heights, so every
+ * line was 0.25–0.5px shorter and documents drifted cumulatively.
+ *
+ * Lines are border-box, so the minimum is expressed on the content box: one
+ * exact line-height (`1lh`) plus the product's own padding. Auto widths are
+ * unaffected by box-sizing. Verified against tools/reference-editor.mjs with
+ * tools/island-webkit.py: every .cm-line rect matches the product exactly. */
+.cm-content > .cm-line {
+  box-sizing: content-box;
+  min-height: 1lh;
+}

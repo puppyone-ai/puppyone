@@ -1,0 +1,27 @@
+[package]
+name = "puppyone-native-editor-probe"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+publish = false
+
+# Independent, opt-in executable. Not a dependency of the application.
+[workspace]
+
+[dependencies]
+gpui-kit = "=0.8.0"
+unicode-segmentation = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+gpui-kit = { version = "=0.8.0", features = ["test-support"] }
+
+[profile.dev]
+debug = 0
+incremental = false
+
+[profile.release]
+strip = true
+lto = "thin"
+codegen-units = 1

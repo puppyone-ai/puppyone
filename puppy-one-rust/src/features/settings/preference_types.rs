@@ -1,0 +1,268 @@
+//! Product preferences are independent of a window, filesystem, and controls.
+//! Field defaults mirror `src/preferences.ts` / `localAgentPreferences.ts`.
+use crate::features::create_new::create_entry_menu_registry::MenuSettings;
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ThemeMode {
+    #[default]
+    System,
+    Light,
+    Dark,
+}
+impl ThemeMode {
+    pub fn label_key(self) -> &'static str {
+        match self {
+            Self::System => "settings.appearance.theme.system",
+            Self::Light => "settings.appearance.theme.light",
+            Self::Dark => "settings.appearance.theme.dark",
+        }
+    }
+    pub fn icon(self) -> &'static str {
+        match self {
+            Self::System => "monitor",
+            Self::Light => "sun",
+            Self::Dark => "moon",
+        }
+    }
+}
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum GitSidebarLayout {
+    #[default]
+    Cards,
+    Dividers,
+}
+
+pub const DEFAULT_EXCLUDE_PATTERNS: [&str; 6] = [
+    "**/.git",
+    "**/.puppyone",
+    "**/.svn",
+    "**/.hg",
+    "**/.DS_Store",
+    "**/Thumbs.db",
+];
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct FilesVisibility {
+    pub show_hidden_files: bool,
+    pub exclude_patterns: Vec<String>,
+}
+impl Default for FilesVisibility {
+    fn default() -> Self {
+        Self {
+            show_hidden_files: false,
+            exclude_patterns: DEFAULT_EXCLUDE_PATTERNS.map(String::from).to_vec(),
+        }
+    }
+}
+/// `normalizeExplorerExcludePatterns`: one pattern per line or comma,
+/// trimmed, `\` → `/`, leading `/` dropped, comments and duplicates removed.
+pub fn normalize_patterns(text: &str) -> Vec<String> {
+    let mut seen = std::collections::HashSet::new();
+    text.split(['\n', ','])
+        .map(|line| {
+            line.trim()
+                .replace('\\', "/")
+                .trim_start_matches('/')
+                .to_owned()
+        })
+        .filter(|p| !p.is_empty() && !p.starts_with('#') && seen.insert(p.clone()))
+        .collect()
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct LocalAgents {
+    /// Local agent ids hidden from Chat/Terminal launchers.
+    pub hidden_agent_ids: Vec<String>,
+    pub chat_history_discovery: bool,
+}
+
+/// `ExperimentalSettings` except `enableProjectSwitcherRail`, which keeps its
+/// earlier top-level field for stored-preference compatibility.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Experimental {
+    pub project_reach: bool,
+    pub centered_project_in_header: bool,
+    pub project_location_icons_in_header: bool,
+    pub workbench_tabs_in_header: bool,
+    pub share_onboarding: bool,
+    pub multi_root_workspaces: bool,
+    pub always_show_onboarding_coachmarks: bool,
+    pub editor_tabs_in_header: bool,
+    pub markdown_block_drag: bool,
+    pub markdown_heading_outline: bool,
+    pub other_app_imports: bool,
+    pub viewer_plugins: bool,
+    pub cloud_workspace: bool,
+    pub cloud_automation: bool,
+    pub payments: bool,
+    pub puppy_flow_files: bool,
+    pub git_auto_commit: bool,
+    pub asset_library_home: bool,
+}
+impl Default for Experimental {
+    fn default() -> Self {
+        Self {
+            project_reach: false,
+            centered_project_in_header: false,
+            project_location_icons_in_header: false,
+            workbench_tabs_in_header: false,
+            share_onboarding: true,
+            multi_root_workspaces: false,
+            always_show_onboarding_coachmarks: false,
+            editor_tabs_in_header: false,
+            markdown_block_drag: false,
+            markdown_heading_outline: false,
+            other_app_imports: false,
+            viewer_plugins: false,
+            cloud_workspace: false,
+            cloud_automation: false,
+            payments: false,
+            puppy_flow_files: false,
+            git_auto_commit: false,
+            asset_library_home: false,
+        }
+    }
+}
+
+/// One entry of the project open history (`useProjectOpenHistory`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct RecentProject {
+    pub path: std::path::PathBuf,
+    pub name: String,
+    /// Seconds since the Unix epoch.
+    pub opened_at: u64,
+}
+pub const RECENT_PROJECT_LIMIT: usize = 20;
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Preferences {
+    pub version: u32,
+    /// A production locale id, or `system` to follow the OS language.
+    pub locale: String,
+    /// Legacy explicit theme flag; superseded by `theme_mode`.
+    pub dark: bool,
+    pub theme_mode: ThemeMode,
+    /// Default-interface Sub Theme id (`default.neutral`, …).
+    pub theme_pack: String,
+    pub text_scale: crate::typography::Scale,
+    pub file_icon_theme: String,
+    pub git_sidebar_layout: GitSidebarLayout,
+    pub loading_animation: String,
+    pub pointer_cursors: bool,
+    pub header_changes: bool,
+    pub header_terminal: bool,
+    pub project_switcher_rail: bool,
+    pub create_new: MenuSettings,
+    pub files: FilesVisibility,
+    pub local_agents: LocalAgents,
+    pub experimental: Experimental,
+    pub recent_projects: Vec<RecentProject>,
+}
+impl Default for Preferences {
+    fn default() -> Self {
+        Self {
+            version: 2,
+            locale: "system".into(),
+            dark: true,
+            theme_mode: ThemeMode::System,
+            theme_pack: "default.neutral".into(),
+            text_scale: crate::typography::Scale::Medium,
+            file_icon_theme: "default".into(),
+            git_sidebar_layout: GitSidebarLayout::Cards,
+            loading_animation: "ikun".into(),
+            pointer_cursors: false,
+            header_changes: true,
+            header_terminal: true,
+            project_switcher_rail: false,
+            create_new: MenuSettings::default(),
+            files: FilesVisibility::default(),
+            local_agents: LocalAgents::default(),
+            experimental: Experimental::default(),
+            recent_projects: vec![],
+        }
+    }
+}
+impl Preferences {
+    /// Read a stored value, upgrading version-1 files whose only theme
+    /// choice was the explicit `dark` flag.
+    pub fn from_stored(value: serde_json::Value) -> Result<Self, serde_json::Error> {
+        let legacy = value.get("theme_mode").is_none();
+        let legacy_dark = value.get("dark").and_then(|v| v.as_bool());
+        let legacy_locale = value.get("version").and_then(|v| v.as_u64()) == Some(1);
+        let mut p: Self = serde_json::from_value(value)?;
+        if legacy && let Some(dark) = legacy_dark {
+            p.theme_mode = if dark {
+                ThemeMode::Dark
+            } else {
+                ThemeMode::Light
+            };
+        }
+        if legacy_locale && p.locale.is_empty() {
+            p.locale = "system".into();
+        }
+        p.version = 2;
+        p.create_new.normalize();
+        Ok(p)
+    }
+    /// Remember an opened folder at the head of the history.
+    pub fn remember_project(&mut self, path: &std::path::Path, now: u64) {
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| path.display().to_string());
+        self.recent_projects.retain(|p| p.path != path);
+        self.recent_projects.insert(
+            0,
+            RecentProject {
+                path: path.to_owned(),
+                name,
+                opened_at: now,
+            },
+        );
+        self.recent_projects.truncate(RECENT_PROJECT_LIMIT);
+    }
+    pub fn forget_project(&mut self, path: &std::path::Path) {
+        self.recent_projects.retain(|p| p.path != path);
+    }
+    pub fn agent_visible(&self, id: &str) -> bool {
+        !self.local_agents.hidden_agent_ids.iter().any(|h| h == id)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn legacy_theme_flag_becomes_an_explicit_mode_and_new_fields_default() {
+        let p = Preferences::from_stored(serde_json::json!({"version":1,"dark":false})).unwrap();
+        assert_eq!(p.theme_mode, ThemeMode::Light);
+        assert_eq!(p.files.exclude_patterns.len(), 6);
+        assert!(p.experimental.share_onboarding);
+        let fresh = Preferences::from_stored(serde_json::json!({})).unwrap();
+        assert_eq!(fresh.theme_mode, ThemeMode::System);
+        assert_eq!(
+            normalize_patterns(" /a\\b \n#c\n**/x, **/x\n"),
+            vec!["a/b".to_string(), "**/x".to_string()]
+        );
+    }
+    #[test]
+    fn project_history_is_most_recent_first_and_bounded() {
+        let mut p = Preferences::default();
+        for i in 0..25 {
+            p.remember_project(std::path::Path::new(&format!("/p/{i}")), i);
+        }
+        p.remember_project(std::path::Path::new("/p/10"), 99);
+        assert_eq!(p.recent_projects.len(), RECENT_PROJECT_LIMIT);
+        assert_eq!(p.recent_projects[0].name, "10");
+        assert_eq!(
+            p.recent_projects.iter().filter(|r| r.name == "10").count(),
+            1
+        );
+    }
+}

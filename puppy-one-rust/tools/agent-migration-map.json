@@ -1,0 +1,280 @@
+{
+  "source_repository": "puppyone",
+  "source_base_commit": "e0270706ed84e55ddc9447a7fc62ef1d7a5fedd3",
+  "source_roots": [
+    "src/features/desktop-agent",
+    "electron/main/agent",
+    "shared/agent-contract"
+  ],
+  "policy": "Preserve business ownership and public behavior while replacing platform mechanisms. These mappings identify implemented native coverage and explicit remaining gaps; they are not a file-count completion percentage. No source file is declared fully equivalent.",
+  "groups": [
+    {
+      "name": "Frontend session ownership",
+      "status": "partial",
+      "sources": [
+        "src/features/desktop-agent/application/AgentSessionController.ts",
+        "src/features/desktop-agent/application/AgentSessionLifecycle.ts",
+        "src/features/desktop-agent/application/AgentTurnSubmissionCoordinator.ts",
+        "src/features/desktop-agent/application/AgentClientPort.ts"
+      ],
+      "targets": [
+        "src/features/desktop_agent/application/agent_session_controller.rs",
+        "src/agent/runtime/agent_runtime_port.rs"
+      ],
+      "remaining": "Send/stop/resume, immutable references, fork/steer, typed controls and explicit failed-draft recovery are implemented. Durable feed acknowledgement/replay ledgers and the complete shared controller contract remain unported."
+    },
+    {
+      "name": "Native platform client",
+      "status": "partial",
+      "sources": [
+        "src/features/desktop-agent/infrastructure/electron/electronAgentClient.ts",
+        "src/features/desktop-agent/infrastructure/electron/agentSessionClient.ts",
+        "src/features/desktop-agent/infrastructure/electron/agentExecutionClient.ts"
+      ],
+      "targets": [
+        "src/features/desktop_agent/infrastructure/native/native_agent_client.rs"
+      ],
+      "remaining": "In-process native composition now routes Codex, Claude, ACP providers, Pi and the Rust PuppyOne runtime. Complete Electron setup/account/installation services are not represented by this port."
+    },
+    {
+      "name": "Chat presentation",
+      "status": "partial",
+      "sources": [
+        "src/features/desktop-agent/ui/AgentChatTabPanel.tsx",
+        "src/features/desktop-agent/ui/AgentTranscript.tsx",
+        "src/features/desktop-agent/ui/AgentComposer.tsx",
+        "src/features/desktop-agent/ui/AgentApprovalDock.tsx",
+        "src/features/desktop-agent/ui/AgentQuestionDock.tsx",
+        "src/features/desktop-agent/ui/AgentConversationHistory.tsx",
+        "src/features/desktop-agent/ui/AgentSessionControlPicker.tsx",
+        "src/features/desktop-agent/domain/agent-chat-presentation.ts",
+        "src/features/desktop-agent/domain/agent-ui-state.ts"
+      ],
+      "targets": [
+        "src/features/desktop_agent/ui/agent_chat_tab_panel.rs",
+        "src/features/desktop_agent/domain/agent_chat_presentation.rs",
+        "src/features/desktop_agent/ui/agent_surface_header.rs",
+        "src/features/desktop_agent/ui/agent_composer.rs",
+        "src/features/desktop_agent/ui/agent_composer_references.rs",
+        "src/features/desktop_agent/ui/agent_transcript.rs",
+        "src/features/desktop_agent/ui/agent_history.rs",
+        "src/features/desktop_agent/ui/agent_status.rs",
+        "src/features/desktop_agent/ui/agent_blocking_interaction.rs",
+        "src/features/desktop_agent/ui/agent_session_control_picker.rs",
+        "src/features/desktop_agent/application/session_draft_store.rs"
+      ],
+      "remaining": "Native virtual transcript, CommonMark, tables/code/copy, attachment/image previews, commands, typed approval/question/MCP forms, history filtering and controls exist. Mermaid graphics, all provider activity renderers, inline file navigation, accessibility and pixel parity remain pending."
+    },
+    {
+      "name": "Agent workbench items",
+      "status": "partial",
+      "sources": [
+        "src/features/desktop-agent/workbench/AgentChatWorkbenchItem.tsx",
+        "src/features/desktop-agent/workbench/AgentChatHistoryBrowser.tsx",
+        "src/features/desktop-agent/workbench/agentChatCloseAdapter.ts",
+        "src/features/desktop-agent/workbench/projectAgentControllers.ts"
+      ],
+      "targets": [
+        "src/features/workbench/mod.rs",
+        "src/features/workbench/layout.rs",
+        "src/features/desktop_agent/ui/agent_chat_tab_panel.rs"
+      ],
+      "remaining": "Project-retained entities and persisted validated tabs/splits/native identities exist; restart uses explicit resume and never replays terminal commands. Formal RootId/session-registry integration, exact preparation leases and visual drag/drop parity remain pending."
+    },
+    {
+      "name": "Codex runtime and protocol",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/runtimes/codex/codex-app-server-adapter.mjs",
+        "electron/main/agent/runtimes/codex/codex-events.mjs",
+        "electron/main/agent/runtimes/codex/codex-interactions.mjs"
+      ],
+      "targets": [
+        "src/agent/runtimes/codex/codex_app_server_adapter.rs"
+      ],
+      "remaining": "Native send/stream/resume/tools/stop plus text/image inputs, fork/steer/rename/compact/archive, modes/effort and typed MCP/permission interactions exist. Full account login UI, all experimental protocol methods and complete event-schema parity are not claimed."
+    },
+    {
+      "name": "Bounded native JSONL transport",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/transports/jsonl-rpc-connection.mjs",
+        "electron/main/agent/transports/managed-agent-process.mjs"
+      ],
+      "targets": [
+        "src/agent/transports/jsonl_rpc_connection.rs",
+        "src/platform/process.rs"
+      ],
+      "remaining": "Input/output/frame and aggregate queue limits, bounded redacted stderr, correlated receipts, timed controls and process-group cleanup exist. External crash supervisor and full durable request/replay ledger remain pending."
+    },
+    {
+      "name": "Native installation inventory",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/connections/local-agent-inventory.mjs"
+      ],
+      "targets": [
+        "src/agent/connections/local_agent_inventory.rs",
+        "src/platform/environment.rs"
+      ],
+      "remaining": "Installed native Chat runtimes are discovered; startup negotiates provider capabilities. Formal cached readiness/version compatibility, installation/setup and global accounts remain pending. OpenCode user-profile plugin failure is recorded separately from isolated handshake verification."
+    },
+    {
+      "name": "Runtime contract and read model",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/runtime/agent-runtime-port.mjs",
+        "electron/main/agent/domain/agent-session-model.mjs",
+        "shared/agent-contract/types.ts"
+      ],
+      "targets": [
+        "src/agent/runtime/agent_runtime_port.rs",
+        "src/agent/domain/agent_session_model.rs"
+      ],
+      "remaining": "Provider-independent commands, bounded snapshots, references and typed interactions exist. Full normalized shared schema, stable cross-product identities and durable delivery ledger remain pending."
+    },
+    {
+      "name": "ACP protocol core",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/protocols/acp/acp-client.mjs",
+        "electron/main/agent/protocols/acp/acp-event-normalizer.mjs",
+        "electron/main/agent/protocols/acp/acp-history-discovery.mjs",
+        "electron/main/agent/protocols/acp/acp-history-replay.mjs",
+        "electron/main/agent/protocols/acp/acp-interactions.mjs",
+        "electron/main/agent/protocols/acp/acp-limits.mjs",
+        "electron/main/agent/protocols/acp/acp-methods.mjs",
+        "electron/main/agent/protocols/acp/acp-native-values.mjs",
+        "electron/main/agent/protocols/acp/acp-prompt-input.mjs",
+        "electron/main/agent/protocols/acp/acp-runtime-adapter.mjs",
+        "electron/main/agent/protocols/acp/acp-session-config.mjs"
+      ],
+      "targets": [
+        "src/agent/protocols/acp/acp_runtime_adapter.rs"
+      ],
+      "remaining": "ACP v1 negotiation, prompt/reference input, stream/tool/plan projection, exact permissions, modes/models and native history/load/fork are implemented. Provider-specific extensions, history coverage diagnostics and Hermes/WorkBuddy live inference remain unverified."
+    },
+    {
+      "name": "Pi RPC protocol core",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/protocols/pi-rpc/pi-event-normalizer.mjs",
+        "electron/main/agent/protocols/pi-rpc/pi-prompt-input.mjs",
+        "electron/main/agent/protocols/pi-rpc/pi-rpc-client.mjs",
+        "electron/main/agent/protocols/pi-rpc/pi-rpc-runtime-adapter.mjs"
+      ],
+      "targets": [
+        "src/agent/protocols/pi_rpc/pi_rpc_adapter.rs"
+      ],
+      "remaining": "Pi JSONL commands/events, exact native identity/history hydration, agent_settled/retry outcome handling, tools, extension interactions, effort/model selection, steering/abort/compact/rename are implemented. Live replies and second-turn context pass, but the installed pi-with-claude/opus provider loses model context after process restart; reproduced with the native CLI alone. Broad history discovery and full upstream event/schema parity remain pending."
+    },
+    {
+      "name": "Claude native adapter",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/runtimes/claude/claude-agent-sdk-adapter.mjs",
+        "electron/main/agent/runtimes/claude/claude-discovery.mjs",
+        "electron/main/agent/runtimes/claude/claude-events.mjs",
+        "electron/main/agent/runtimes/claude/claude-history-discovery.mjs",
+        "electron/main/agent/runtimes/claude/claude-history-reader.mjs",
+        "electron/main/agent/runtimes/claude/claude-history-source.mjs",
+        "electron/main/agent/runtimes/claude/claude-identity.mjs",
+        "electron/main/agent/runtimes/claude/claude-interactions.mjs",
+        "electron/main/agent/runtimes/claude/claude-message-channel.mjs",
+        "electron/main/agent/runtimes/claude/claude-native-values.mjs",
+        "electron/main/agent/runtimes/claude/claude-prompt-input.mjs",
+        "electron/main/agent/runtimes/claude/claude-runtime-definition.mjs",
+        "electron/main/agent/runtimes/claude/claude-spawn.mjs"
+      ],
+      "targets": [
+        "src/agent/runtimes/claude/claude_adapter.rs",
+        "src/agent/runtimes/claude/history.rs"
+      ],
+      "remaining": "Direct native CLI control protocol replaces SDK bridge. Stream/tools, exact approvals/questions/MCP forms, modes/models, native history, rename/fork/stop are implemented. Full SDK control surface and live inference/resume are not yet verified; configured upstream returned HTTP 522."
+    },
+    {
+      "name": "Product-owned PuppyOne runtime",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/runtimes/puppyone-agent/model-connection-binding.mjs",
+        "electron/main/agent/runtimes/puppyone-agent/model-connection-verifier.mjs",
+        "electron/main/agent/runtimes/puppyone-agent/puppyone-agent-adapter.mjs",
+        "electron/main/agent/runtimes/puppyone-agent/puppyone-agent-approval.mjs",
+        "electron/main/agent/runtimes/puppyone-agent/puppyone-agent-discovery.mjs",
+        "electron/main/agent/runtimes/puppyone-agent/puppyone-agent-environment.mjs",
+        "electron/main/agent/runtimes/puppyone-agent/puppyone-agent-history-source.mjs",
+        "electron/main/agent/runtimes/puppyone-agent/puppyone-agent-identity.mjs",
+        "electron/main/agent/runtimes/puppyone-agent/puppyone-agent-kernel.mjs",
+        "electron/main/agent/runtimes/puppyone-agent/puppyone-agent-public-identity.mjs",
+        "electron/main/agent/runtimes/puppyone-agent/puppyone-agent-runtime-definition.mjs",
+        "electron/main/agent/runtimes/puppyone-agent/worker/main.mjs",
+        "electron/main/agent/runtimes/puppyone-agent/worker/model-configuration.mjs",
+        "electron/main/agent/runtimes/puppyone-agent/worker/policy.mjs",
+        "electron/main/agent/runtimes/puppyone-agent/worker/redact-model-response.mjs",
+        "electron/main/agent/runtimes/puppyone-agent/worker/runtime.mjs",
+        "electron/main/agent/runtimes/puppyone-agent/worker/session-resolver.mjs"
+      ],
+      "targets": [
+        "src/agent/runtimes/puppyone_agent/adapter.rs",
+        "src/model_connections/configuration.rs",
+        "src/agent/runtimes/puppyone_agent/model_client.rs",
+        "src/agent/runtimes/puppyone_agent/session_store.rs",
+        "src/agent/runtimes/puppyone_agent/tools.rs",
+        "src/features/model_connections/ui.rs",
+        "src/features/model_connections/infrastructure.rs"
+      ],
+      "remaining": "A native Rust HTTP/tool harness replaces the Pi SDK worker. OpenAI-compatible model connections, Keychain references, binding generations, approvals, scoped tools, stop and durable sessions are implemented and loopback-tested. Existing Electron encrypted credentials are not imported; managed compute, native provider discovery/catalog verification, full Pi kernel parity and real configured-model inference remain pending."
+    },
+    {
+      "name": "Reference ingestion",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/infrastructure/attachments/agent-attachment-store.mjs",
+        "electron/main/agent/agent-reference-authorization.mjs",
+        "electron/main/agent/runtimes/codex/codex-reference-input.mjs"
+      ],
+      "targets": [
+        "src/agent/infrastructure/attachments.rs",
+        "src/agent/domain/reference_input.rs",
+        "src/features/desktop_agent/infrastructure/native/native_attachment_client.rs"
+      ],
+      "remaining": "Explicit picker/drop snapshots with MIME/UTF-8/size checks and provider-capability gates exist. Product attachment grants, durable binary assets, deduplication, full mention/reference navigation and all lifetime policies remain pending."
+    },
+    {
+      "name": "Session catalog and capacity",
+      "status": "partial",
+      "sources": [
+        "electron/main/agent/persistence/agent-conversation-catalog.mjs",
+        "electron/main/agent/persistence/agent-session-repository.mjs",
+        "electron/main/agent/runtime/agent-runtime-registry.mjs"
+      ],
+      "targets": [
+        "src/agent/persistence/session_catalog.rs",
+        "src/agent/runtime/session_lease.rs",
+        "src/agent/bootstrap/create_agent_runtime_host.rs"
+      ],
+      "remaining": "Native identities and metadata are stored separately from provider transcripts; a lease limits sessions to eight per workspace and 32 per application. Complete catalog migrations, cross-product durable identity and external crash supervision remain pending."
+    },
+    {
+      "name": "Native rich transcript and composer",
+      "status": "partial",
+      "sources": [
+        "src/features/desktop-agent/ui/SafeMarkdown.tsx",
+        "src/features/desktop-agent/ui/AgentReferenceDisplayList.tsx",
+        "src/features/desktop-agent/ui/AgentRecoverySurface.tsx",
+        "src/features/desktop-agent/ui/composer/AgentAttachmentButton.tsx",
+        "src/features/desktop-agent/ui/composer/AgentCommandSuggestions.tsx",
+        "src/features/desktop-agent/ui/composer/AgentVisualAttachmentList.tsx",
+        "src/features/desktop-agent/ui/markdown/AgentMarkdownCodeBlock.tsx",
+        "src/features/desktop-agent/ui/markdown/AgentMarkdownDocument.tsx",
+        "src/features/desktop-agent/ui/transcript/transcript-viewport.ts"
+      ],
+      "targets": [
+        "src/features/desktop_agent/ui/agent_markdown.rs",
+        "src/features/desktop_agent/ui/agent_markdown.rs",
+        "src/features/desktop_agent/ui/agent_chat_tab_panel.rs"
+      ],
+      "remaining": "Bounded virtual rows, native Markdown/table/code rendering, copy, previews, slash suggestions and per-thread drafts are implemented. Full renderer registry, Mermaid, inline assets, advanced autocomplete, accessibility and OS visual verification remain pending."
+    }
+  ]
+}
