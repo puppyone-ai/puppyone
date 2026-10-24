@@ -48,8 +48,8 @@ impl Shell {
             })
             .child(icon_sized(icon, 16., fg))
             .child(label)
-            .when(!disabled, |b| {
-                b.on_click(cx.listener(move |s, _, w, cx| s.command(id, w, cx)))
+            .when(!disabled && id == "open-folder", |b| {
+                b.on_click(cx.listener(|s, _, w, cx| s.command(Command::OpenFolder, w, cx)))
             })
     }
     pub(super) fn home_view(&self, cx: &mut Context<Self>) -> Div {

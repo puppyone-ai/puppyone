@@ -1,4 +1,5 @@
 //! GPUI presentation primitives and text input; no document or service ownership.
+pub mod appearance;
 mod exact_text;
 pub mod form_input;
 mod fractional_text;

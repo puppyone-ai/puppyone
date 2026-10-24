@@ -266,11 +266,11 @@ CARGO_TARGET_DIR=../target cargo run --release --locked
 - `src/native_editor/`：早期原型；`src/ui/input.rs` 仍从这里导出共享输入类型/动作，计划退役。
 - `src/platform/ime.rs`：系统输入法补充（丢弃组字、过滤功能键字符）。
 - `src/wake.rs`：后台 I/O 的有界唤醒；`src/capture.rs`：显式启用的 macOS 合成截图。
-- `src/task_ui.rs`：首批原生 Settings / Feedback；尚未通过完整像素验收。
+- `src/shell/tasks.rs`：首批原生 Settings / Feedback；尚未通过完整像素验收。
 - `src/workspace.rs`：受限文件访问、编码和保存。
 - `src/documents.rs`：单文档状态机和关闭检查。
 - `src/localization.rs` / `tools/import-localization.py`：同源 locale 投影，不持久化用户偏好。
-- `src/project_ui.rs`：锚定 Header 的原生项目位置 popup。
+- `src/shell/project_menu.rs`：锚定 Header 的原生项目位置 popup。
 
 下一批按架构门槛推进：**字体/像素/叠层适配性 → 同源外观与原生组件 → 正式 Workspace 导航 → 保留现有 Editor 内核并适配 Rust 端口 → Right Sidebar/执行宿主**。文件操作随所属领域补齐，不顺手新增产品未接受的草稿历史或并发多视图语义。
 

@@ -173,16 +173,19 @@ pub const FONT: f32 = 14.0;
 
 /// Project the product palette into Kit's styled controls and Base primitives.
 /// Update only when appearance changes, so an idle window stays idle.
-pub fn sync_kit(dark: bool, window: &mut gpui::Window, cx: &mut gpui::App) {
+pub fn sync_kit(dark: bool, window: Option<&mut gpui::Window>, cx: &mut gpui::App) {
     use gpui_kit::component::{Theme as KitTheme, ThemeMode};
     let mode = if dark {
         ThemeMode::Dark
     } else {
         ThemeMode::Light
     };
+    if cx.try_global::<KitTheme>().is_none() {
+        return;
+    }
     let palette = Theme::new(dark);
     if KitTheme::global(cx).mode != mode {
-        KitTheme::change(mode, Some(window), cx);
+        KitTheme::change(mode, window, cx);
     }
     if KitTheme::global(cx).background != palette.canvas.into()
         || KitTheme::global(cx).popover != palette.menu_bg.into()
@@ -431,6 +434,8 @@ pub fn pack_id() -> &'static str {
     &packs()[PACK.with(|p| p.get())].id
 }
 /// `(id, name)` in built-in order.
+/// The built-in Sub Theme used until preferences load (`default.neutral`).
+pub const DEFAULT_PACK: &str = "default.neutral";
 pub fn pack_choices() -> impl Iterator<Item = (&'static str, &'static str)> {
     packs().iter().map(|p| (p.id.as_str(), p.name.as_str()))
 }

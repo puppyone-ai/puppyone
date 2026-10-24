@@ -144,18 +144,18 @@ fn main() {
             let undo_view = shell_view.clone();
             cx.on_action(move |_: &ui::input::Undo, cx| {
                 let _ = window.update(cx, |_, w, cx| {
-                    undo_view.update(cx, |s, cx| s.command("undo", w, cx))
+                    undo_view.update(cx, |s, cx| s.command(shell::Command::Undo, w, cx))
                 });
             });
             let redo_view = shell_view.clone();
             cx.on_action(move |_: &ui::input::Redo, cx| {
                 let _ = window.update(cx, |_, w, cx| {
-                    redo_view.update(cx, |s, cx| s.command("redo", w, cx))
+                    redo_view.update(cx, |s, cx| s.command(shell::Command::Redo, w, cx))
                 });
             });
-            cx.on_action(move |action: &shell::HostAction, cx| {
+            shell::on_global_shell_actions(cx, move |command, cx| {
                 let _ = window.update(cx, |_, window, cx| {
-                    shell_view.update(cx, |s, cx| s.command(&action.name, window, cx))
+                    shell_view.update(cx, |s, cx| s.command(command, window, cx))
                 });
             });
             cx.on_window_closed(|cx, _| {

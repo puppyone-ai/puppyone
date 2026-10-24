@@ -167,7 +167,7 @@
         "src/features/settings/sidebar/settings_sidebar.rs",
         "src/features/settings/main/mod.rs",
         "src/ui/primitives.rs",
-        "src/task_ui.rs"
+        "src/shell/tasks.rs"
       ],
       "evidence": [
         "test:product_settings_geometry_is_bounded",
@@ -271,7 +271,7 @@
         "src/features/create_new/create_entry_draft.rs",
         "src/features/create_new/create_entry_dialog.rs",
         "src/features/create_new/native_create_entry.rs",
-        "src/create_new_ui.rs"
+        "src/shell/create_new.rs"
       ],
       "evidence": [
         "test:move_preserves_exactly_one_owner_and_fixed_entries",
@@ -410,7 +410,7 @@
         "src/features/app-shell/layout/desktopPaneLayout.ts"
       ],
       "targets": [
-        "src/header_ui.rs",
+        "src/shell/header.rs",
         "src/shell.rs",
         "src/theme.rs"
       ],
@@ -438,7 +438,7 @@
         "src/features/app-shell/useAnchoredOverlayPosition.ts"
       ],
       "targets": [
-        "src/project_ui.rs",
+        "src/shell/project_menu.rs",
         "src/ui/menu.rs",
         "src/shell.rs",
         "src/features/settings/preference_types.rs",
@@ -467,7 +467,7 @@
         "src/styles/onboarding.css"
       ],
       "targets": [
-        "src/home_ui.rs",
+        "src/shell/home.rs",
         "assets/brand"
       ],
       "evidence": [
@@ -501,7 +501,7 @@
         "src/components/useDesktopSidebarMenuInteraction.ts"
       ],
       "targets": [
-        "src/explorer_ui.rs",
+        "src/shell/explorer.rs",
         "src/model.rs",
         "src/workspace.rs",
         "src/file_kind.rs",
@@ -533,8 +533,8 @@
         "src/features/app-shell/desktop-help-launcher.css"
       ],
       "targets": [
-        "src/explorer_ui.rs",
-        "src/task_ui.rs"
+        "src/shell/explorer.rs",
+        "src/shell/tasks.rs"
       ],
       "remaining": "Settings and Help (product FeedbackHelpIcon) are native in the footer with the product geometry, utility colour, no divider and the tree edge fade; like the product, Git is not in the footer (Changes lives in the Header). Plugins, the rail/top navigation variants and the Project Rail utilities are not ported; the busy pulse grid is a native stand-in for FloatingNoticeStack."
     },
@@ -671,7 +671,7 @@
       "targets": [
         "src/ui/primitives.rs",
         "src/ui/menu.rs",
-        "src/task_ui.rs",
+        "src/shell/tasks.rs",
         "src/geometry.rs"
       ],
       "evidence": [

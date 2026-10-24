@@ -141,7 +141,7 @@ impl Shell {
             .hover(move |s| s.bg(t.hover))
             .tooltip(tooltip(label))
             .child(indicators)
-            .on_click(cx.listener(|s, _, w, cx| s.command("changes", w, cx)))
+            .on_click(cx.listener(|s, _, w, cx| s.command(Command::Changes, w, cx)))
     }
     fn agent_action(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let t = Theme::new(self.dark);
@@ -165,7 +165,7 @@ impl Shell {
             .hover(move |s| s.bg(t.hover))
             .tooltip(tooltip(label))
             .child(icon_sized("agent-entry", 15., t.muted))
-            .on_click(cx.listener(|s, _, w, cx| s.command("toggle-right", w, cx)))
+            .on_click(cx.listener(|s, _, w, cx| s.command(Command::ToggleRightSidebar, w, cx)))
     }
     /// `DesktopWorkspaceSwitcher` trigger + `DesktopProjectLocationSwitcher` trigger.
     fn project_context(&self, cx: &mut Context<Self>) -> Div {
@@ -225,9 +225,9 @@ impl Shell {
                                         self.project.clone()
                                     }),
                             )
-                            .on_click(cx.listener(|s, _, w, cx| s.command("project-menu", w, cx))),
+                            .on_click(cx.listener(|s, _, w, cx| s.command(Command::ProjectMenu, w, cx))),
                     )
-                    .child(header_ui::measure(&self.anchors, "project")),
+                    .child(header::measure(&self.anchors, "project")),
             )
             .when(cloud, |d| {
                 d.child(
@@ -253,10 +253,10 @@ impl Shell {
                                 .tooltip(tooltip(device))
                                 .child(icon_sized("laptop", 16., t.muted))
                                 .on_click(
-                                    cx.listener(|s, _, w, cx| s.command("location-menu", w, cx)),
+                                    cx.listener(|s, _, w, cx| s.command(Command::LocationMenu, w, cx)),
                                 ),
                         )
-                        .child(header_ui::measure(&self.anchors, "location")),
+                        .child(header::measure(&self.anchors, "location")),
                 )
             })
     }
@@ -292,7 +292,7 @@ impl Shell {
                 )
                 .w(px(theme::control()))
                 .rounded(px(metric::TOOLBAR_ACTION_RADIUS))
-                .on_click(cx.listener(|s, _, w, cx| s.command("toggle-explorer", w, cx))),
+                .on_click(cx.listener(|s, _, w, cx| s.command(Command::ToggleExplorer, w, cx))),
             );
         }
         if show_project && !centered {

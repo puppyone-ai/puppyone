@@ -1800,7 +1800,7 @@ impl Shell {
                             tr("shell.navigation.settings").into(),
                             self.settings,
                         )
-                        .on_click(cx.listener(|s, _, w, cx| s.command("settings", w, cx))),
+                        .on_click(cx.listener(|s, _, w, cx| s.command(Command::Settings, w, cx))),
                     )
                     .child(
                         utility(
@@ -1809,7 +1809,7 @@ impl Shell {
                             tr("shell.feedback.label").into(),
                             self.help,
                         )
-                        .on_click(cx.listener(|s, _, w, cx| s.command("feedback", w, cx))),
+                        .on_click(cx.listener(|s, _, w, cx| s.command(Command::Feedback, w, cx))),
                     ),
             )
             // Native-only progress cue until file-operation notices are ported

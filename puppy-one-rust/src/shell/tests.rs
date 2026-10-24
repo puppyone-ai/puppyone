@@ -24,8 +24,8 @@ fn setup(cx: &mut TestAppContext) -> (Entity<Shell>, &mut VisualTestContext) {
     });
     (view, cx)
 }
-fn command(view: &Entity<Shell>, cx: &mut VisualTestContext, name: &str) {
-    view.update_in(cx, |s, w, cx| s.command(name, w, cx));
+fn command(view: &Entity<Shell>, cx: &mut VisualTestContext, command: Command) {
+    view.update_in(cx, |s, w, cx| s.command(command, w, cx));
     cx.update(|w, cx| {
         let _ = w.draw(cx);
     });
@@ -78,7 +78,7 @@ fn native_keyboard_autosaves_and_closes_without_prompt_and_adopts_disk(cx: &mut 
         assert_eq!(s.files.document.as_ref().unwrap().text, "External edit\n");
     });
     assert_eq!(std::fs::read_to_string(&path).unwrap(), "External edit\n");
-    command(&view, cx, "close-file");
+    command(&view, cx, Command::CloseFile);
     settle(&view, cx);
     view.update(cx, |s, _| assert!(s.files.document.is_none()));
 }
@@ -86,13 +86,13 @@ fn native_keyboard_autosaves_and_closes_without_prompt_and_adopts_disk(cx: &mut 
 fn native_buttons_toggle_slots_and_open_settings(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     // ⌘B collapses the Explorer; the Header then offers the expand button.
-    command(&view, cx, "toggle-explorer");
+    command(&view, cx, Command::ToggleExplorer);
     view.update(cx, |s, _| assert!(!s.left_open));
     cx.simulate_click(point(px(100.), px(20.)), Modifiers::none());
     view.update(cx, |s, _| assert!(s.left_open));
-    command(&view, cx, "toggle-right");
+    command(&view, cx, Command::ToggleRightSidebar);
     view.update(cx, |s, _| assert!(s.right_open));
-    command(&view, cx, "settings");
+    command(&view, cx, Command::Settings);
     view.update(cx, |s, _| assert!(s.settings));
     let retained = view.update(cx, |s, cx| {
         s.task_ui.settings.update(cx, |s, cx| {
@@ -113,8 +113,8 @@ fn native_buttons_toggle_slots_and_open_settings(cx: &mut TestAppContext) {
     cx.update(|w, cx| {
         let _ = w.draw(cx);
     });
-    command(&view, cx, "escape");
-    command(&view, cx, "settings");
+    command(&view, cx, Command::Escape);
+    command(&view, cx, Command::Settings);
     view.update(cx, |s, _| {
         assert_eq!(s.task_ui.settings.entity_id(), retained)
     });
@@ -124,27 +124,27 @@ fn git_header_uses_changes_outlet_and_terminal_returns_to_retained_workbench(
     cx: &mut TestAppContext,
 ) {
     let (view, cx) = setup(cx);
-    command(&view, cx, "changes");
+    command(&view, cx, Command::Changes);
     view.update(cx, |s, _| assert!(!s.right_open));
     let dir = tempfile::tempdir().unwrap();
     view.update(cx, |s, _| {
         s.files.workspace = Some(crate::workspace::Workspace::open(dir.path()).unwrap())
     });
-    command(&view, cx, "changes");
+    command(&view, cx, Command::Changes);
     view.update(cx, |s, _| {
         assert!(s.changes && s.right_open);
         assert!(!s.modal());
     });
-    command(&view, cx, "toggle-right");
+    command(&view, cx, Command::ToggleRightSidebar);
     view.update(cx, |s, _| assert!(s.right_open && !s.changes));
-    command(&view, cx, "changes");
-    command(&view, cx, "changes");
+    command(&view, cx, Command::Changes);
+    command(&view, cx, Command::Changes);
     view.update(cx, |s, _| assert!(!s.right_open && !s.changes));
 }
 #[gpui::test]
 fn task_shortcuts_do_not_save_or_close_the_retained_document(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
-    command(&view, cx, "settings");
+    command(&view, cx, Command::Settings);
     cx.simulate_keystrokes("cmd-s");
     view.update(cx, |s, _| {
         assert!(s.settings);
@@ -160,7 +160,7 @@ fn task_shortcuts_do_not_save_or_close_the_retained_document(cx: &mut TestAppCon
 #[gpui::test]
 fn feedback_backdrop_keeps_draft_and_escape_resets_it(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
-    command(&view, cx, "feedback");
+    command(&view, cx, Command::Feedback);
     let field = view.update(cx, |s, _| s.task_ui.message.clone());
     field.update_in(cx, |i, w, cx| {
         i.replace_text_in_range(None, "draft 中🐶", w, cx)
@@ -180,7 +180,7 @@ fn feedback_backdrop_keeps_draft_and_escape_resets_it(cx: &mut TestAppContext) {
 #[gpui::test]
 fn kit_dialog_tab_order_keeps_focus_inside_feedback(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
-    command(&view, cx, "feedback");
+    command(&view, cx, Command::Feedback);
     cx.simulate_input("draft");
     for key in ["tab", "shift-tab"] {
         for _ in 0..8 {
@@ -195,14 +195,14 @@ fn kit_dialog_tab_order_keeps_focus_inside_feedback(cx: &mut TestAppContext) {
 #[gpui::test]
 fn project_popup_toggle_outside_and_escape_restore_focus(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
-    command(&view, cx, "project-menu");
+    command(&view, cx, Command::ProjectMenu);
     view.update(cx, |s, _| assert_eq!(s.popover, Some(Popover::Project)));
-    command(&view, cx, "project-menu");
+    command(&view, cx, Command::ProjectMenu);
     view.update(cx, |s, _| assert!(s.popover.is_none()));
-    command(&view, cx, "project-menu");
+    command(&view, cx, Command::ProjectMenu);
     cx.simulate_click(point(px(30.), px(700.)), Modifiers::none());
     view.update(cx, |s, _| assert!(s.popover.is_none()));
-    command(&view, cx, "project-menu");
+    command(&view, cx, Command::ProjectMenu);
     cx.simulate_keystrokes("escape");
     view.update_in(cx, |s, w, _| {
         assert!(s.popover.is_none());
@@ -212,7 +212,7 @@ fn project_popup_toggle_outside_and_escape_restore_focus(cx: &mut TestAppContext
 #[gpui::test]
 fn choosing_local_closes_popup_and_restores_trigger(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
-    command(&view, cx, "location-menu");
+    command(&view, cx, Command::LocationMenu);
     let r = view.update(cx, |s, cx| s.popover_bounds(cx).unwrap());
     // Section label, then the selected "This Mac" row.
     cx.simulate_click(
@@ -227,8 +227,8 @@ fn choosing_local_closes_popup_and_restores_trigger(cx: &mut TestAppContext) {
 #[gpui::test]
 fn project_menu_home_shows_the_homepage_and_hides_the_editor(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
-    command(&view, cx, "project-menu");
-    command(&view, cx, "home");
+    command(&view, cx, Command::ProjectMenu);
+    command(&view, cx, Command::Home);
     view.update(cx, |s, _| {
         assert!(s.home && s.popover.is_none());
         // Fixture shells stay on the workspace surface for visual capture.
@@ -240,8 +240,8 @@ fn project_menu_home_shows_the_homepage_and_hides_the_editor(cx: &mut TestAppCon
 #[gpui::test]
 fn opening_settings_dismisses_popup_without_document_transition(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
-    command(&view, cx, "project-menu");
-    command(&view, cx, "settings");
+    command(&view, cx, Command::ProjectMenu);
+    command(&view, cx, Command::Settings);
     view.update(cx, |s, _| {
         assert!(s.settings);
         assert!(s.popover.is_none());
@@ -304,7 +304,7 @@ fn large_tree_uses_gpui_virtual_rows(cx: &mut TestAppContext) {
 }
 #[test]
 fn sidebar_tree_fade_follows_use_scroll_edge_state() {
-    use explorer_ui::bottom_fade;
+    use explorer::bottom_fade;
     // Not scrollable (overflow within the 1px threshold): no fade.
     assert_eq!(bottom_fade(0., 0.), 0.);
     assert_eq!(bottom_fade(0., 1.), 0.);
@@ -341,7 +341,7 @@ fn sidebar_tree_fades_into_the_footer_only_while_rows_remain_below(cx: &mut Test
     let fade = |view: &Entity<Shell>, cx: &mut VisualTestContext| {
         view.update(cx, |s, _| {
             let state = s.scroll.0.borrow();
-            explorer_ui::bottom_fade(
+            explorer::bottom_fade(
                 f32::from(state.base_handle.offset().y),
                 f32::from(state.base_handle.max_offset().y),
             )

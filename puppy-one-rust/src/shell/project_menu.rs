@@ -113,16 +113,16 @@ impl Shell {
     }
     /// `DesktopWorkspaceSwitcher` "projects" view.
     fn project_menu(&self, style: MenuStyle, t: Theme, host: WeakEntity<Self>) -> Stateful<Div> {
-        let action = |name: &'static str| {
+        let action = |command: Command| {
             let host = host.clone();
             move |w: &mut Window, cx: &mut App| {
-                let _ = host.update(cx, |s, cx| s.command(name, w, cx));
+                let _ = host.update(cx, |s, cx| s.command(command, w, cx));
             }
         };
         let current = self.files.workspace.as_ref().map(|ws| ws.path.clone());
         let mut menu = menu_frame("header-popover", style, t).child(menu_row(
             "project-menu-home",
-            MenuItem::new(tr("shell.workspaceSwitcher.home"), action("home")).lucide(
+            MenuItem::new(tr("shell.workspaceSwitcher.home"), action(Command::Home)).lucide(
                 "arrow-left",
                 15.,
                 2.,
@@ -147,7 +147,7 @@ impl Shell {
             // `onCreateProject`: the native project entry is a folder picker.
             MenuItem::new(
                 tr("shell.workspaceSwitcher.createNew"),
-                action("open-folder"),
+                action(Command::OpenFolder),
             )
             .lucide("plus", 15., 2.),
             style,

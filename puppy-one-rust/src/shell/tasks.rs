@@ -102,7 +102,7 @@ impl Shell {
         &self,
         title: &str,
         message: &str,
-        actions: Vec<(&'static str, &'static str, ui::Tone)>,
+        actions: Vec<(&'static str, Command, ui::Tone)>,
         cx: &mut Context<Self>,
     ) -> gpui_kit::base::Dialog {
         let t = Theme::new(self.dark);
@@ -139,7 +139,7 @@ impl Shell {
                             .justify_end()
                             .gap(px(8.))
                             .children(actions.into_iter().map(|(label, action, tone)| {
-                                ui::action_button(action, label, None, tone, false, t).on_click(
+                                ui::action_button(label, label, None, tone, false, t).on_click(
                                     cx.listener(move |s, _, w, cx| s.command(action, w, cx)),
                                 )
                             })),
@@ -229,9 +229,9 @@ impl Shell {
                             .child(
                                 ui::icon_button("feedback-close", "x", t)
                                     .accessibility_label(self.locale.text("common.action.close"))
-                                    .on_click(
-                                        cx.listener(|s, _, w, cx| s.command("close-file", w, cx)),
-                                    ),
+                                    .on_click(cx.listener(|s, _, w, cx| {
+                                        s.command(Command::CloseFile, w, cx)
+                                    })),
                             ),
                     )
                     .child(format!(

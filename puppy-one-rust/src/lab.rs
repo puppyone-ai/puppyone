@@ -66,7 +66,9 @@ impl Lab {
             .trim_end_matches("-light")
             .trim_end_matches("-dark")
             .to_owned();
-        theme::sync_kit(dark, window, cx);
+        crate::ui::appearance::Appearance::default()
+            .with_dark(dark)
+            .apply(Some(window), cx);
         let surface = match scenario.strip_prefix("settings-").and_then(settings_page) {
             Some(page) => {
                 let preferences = cx.new(|_| PreferencesStore::memory());
@@ -107,7 +109,6 @@ impl Lab {
 
 impl Render for Lab {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        theme::sync_kit(self.dark, window, cx);
         // Let lists measure and images decode before the OS capture.
         self.frames += 1;
         if self.frames == 1 {
@@ -150,9 +151,9 @@ impl Render for Lab {
                         div()
                             .absolute()
                             .inset_0()
-                            .bg(crate::shell::task_ui::task_backdrop(t)),
+                            .bg(crate::shell::tasks::task_backdrop(t)),
                     )
-                    .child(crate::shell::task_ui::settings_dialog(
+                    .child(crate::shell::tasks::settings_dialog(
                         settings.clone(),
                         f32::from(size.width),
                         f32::from(size.height),

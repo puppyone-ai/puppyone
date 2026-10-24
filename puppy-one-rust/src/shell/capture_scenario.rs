@@ -7,10 +7,10 @@
 //! `node-menu:<path>` (the row's "⋮"), `create-menu:<path>` (the row's "+"),
 //! `new-menu` (list-end "New"), `context:<x>,<y>` (right click),
 //! `submenu` (Custom files), `project-menu`, `location-menu`, `changes`,
-//! `agent`, `command:<name>`.
+//! `agent`.
 use super::*;
 use crate::geometry::menu_position::{self, CreatePlacement};
-use explorer_ui::{RowTrigger, row_action_rect};
+use explorer::{RowTrigger, row_action_rect};
 use std::collections::VecDeque;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -23,7 +23,7 @@ enum Step {
     NewMenu,
     Context(f32, f32),
     Submenu,
-    Command(String),
+    Command(super::Command),
 }
 fn parse(text: &str) -> VecDeque<Step> {
     text.split(';')
@@ -44,11 +44,10 @@ fn parse(text: &str) -> VecDeque<Step> {
                     Step::Context(x.trim().parse().ok()?, y.trim().parse().ok()?)
                 }
                 "submenu" => Step::Submenu,
-                "project-menu" => Step::Command("project-menu".into()),
-                "location-menu" => Step::Command("location-menu".into()),
-                "changes" => Step::Command("changes".into()),
-                "agent" => Step::Command("toggle-right".into()),
-                "command" => Step::Command(arg.into()),
+                "project-menu" => Step::Command(super::Command::ProjectMenu),
+                "location-menu" => Step::Command(super::Command::LocationMenu),
+                "changes" => Step::Command(super::Command::Changes),
+                "agent" => Step::Command(super::Command::ToggleRightSidebar),
                 other => {
                     eprintln!("Unknown capture step {other:?}");
                     return None;
@@ -194,7 +193,7 @@ impl Shell {
                 }
             }
             Step::Submenu => self.set_create_submenu(true, cx),
-            Step::Command(name) => self.command(name, window, cx),
+            Step::Command(command) => self.command(*command, window, cx),
         }
         self.receive(window, cx);
         true

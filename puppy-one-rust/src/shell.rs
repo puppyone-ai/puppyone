@@ -11,20 +11,17 @@ use gpui::{prelude::*, *};
 use std::{cell::RefCell, path::PathBuf, rc::Rc};
 #[cfg(feature = "dev-capture")]
 mod capture_scenario;
-#[path = "create_new_ui.rs"]
-mod create_new_ui;
-#[path = "explorer_ui.rs"]
-mod explorer_ui;
-#[path = "header_ui.rs"]
-mod header_ui;
-#[path = "home_ui.rs"]
-mod home_ui;
-#[path = "project_ui.rs"]
-mod project_ui;
-#[path = "task_ui.rs"]
-pub(crate) mod task_ui;
-use explorer_ui::{ExplorerMenu, FileClipboard, FileOp, OpOutcome, RowAnchors};
-use task_ui::TaskUi;
+mod command;
+mod create_new;
+mod explorer;
+mod header;
+mod home;
+mod project_menu;
+pub(crate) mod tasks;
+use command::on_shell_actions;
+pub use command::{Command, app_menus, bind_keys, on_global_shell_actions};
+use explorer::{ExplorerMenu, FileClipboard, FileOp, OpOutcome, RowAnchors};
+use tasks::TaskUi;
 /// Anchored popovers owned by the shell, each with a known rectangle.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Popover {
@@ -34,73 +31,6 @@ pub enum Popover {
 }
 /// Last painted bounds of popover triggers, keyed by trigger name.
 pub type Anchors = Rc<RefCell<std::collections::HashMap<&'static str, Bounds<Pixels>>>>;
-#[derive(Clone, PartialEq, serde::Deserialize, Action)]
-#[action(no_json)]
-pub struct HostAction {
-    pub name: String,
-}
-impl HostAction {
-    pub fn new(name: &str) -> Self {
-        Self { name: name.into() }
-    }
-}
-pub fn bind_keys(cx: &mut App) {
-    for modifier in ["cmd", "ctrl"] {
-        for (key, action) in [
-            ("b", "toggle-explorer"),
-            ("j", "toggle-right"),
-            (",", "settings"),
-            ("o", "open-folder"),
-            ("s", "save"),
-            ("w", "close-file"),
-            ("q", "quit"),
-        ] {
-            cx.bind_keys([KeyBinding::new(
-                &format!("{modifier}-{key}"),
-                HostAction::new(action),
-                None,
-            )]);
-        }
-    }
-    cx.bind_keys([KeyBinding::new("escape", HostAction::new("escape"), None)]);
-}
-/// Native menu bar in the current locale; rebuilt when the locale changes.
-pub fn app_menus() -> Vec<Menu> {
-    use crate::localization::t as tr;
-    vec![
-        Menu {
-            disabled: false,
-            name: "PuppyOne".into(),
-            items: vec![
-                MenuItem::action(tr("native.menu.settings"), HostAction::new("settings")),
-                MenuItem::separator(),
-                MenuItem::action(tr("native.menu.quit"), HostAction::new("quit")),
-            ],
-        },
-        Menu {
-            disabled: false,
-            name: tr("native.menu.file").into(),
-            items: vec![
-                MenuItem::action(
-                    tr("shell.workspaceSwitcher.openFolder"),
-                    HostAction::new("open-folder"),
-                ),
-                MenuItem::action(tr("native.menu.reload"), HostAction::new("reload")),
-                MenuItem::action(tr("native.menu.closeFile"), HostAction::new("close-file")),
-            ],
-        },
-        ui::input::edit_menu(|id| tr(&format!("native.menu.edit.{id}")).into()),
-        crate::native_editor::format_menu(|id| tr(&format!("native.menu.format.{id}")).into()),
-        Menu {
-            disabled: false,
-            name: tr("native.menu.view").into(),
-            items: vec![MenuItem::action(
-                tr("native.menu.toggleSource"),
-                HostAction::new("preview"),
-            )],
-        },
-    ]
-}
 pub struct Shell {
     tree: Tree,
     project: String,
@@ -185,7 +115,7 @@ impl Shell {
                 {
                     true
                 } else {
-                    s.command("quit", window, cx);
+                    s.command(Command::Quit, window, cx);
                     false
                 }
             })
@@ -323,7 +253,7 @@ impl Shell {
                         .update(cx, |p, cx| p.change(|p| p.forget_project(&path), cx));
                     s.close_tasks(w, cx);
                     if s.files.workspace.as_ref().is_some_and(|ws| ws.path == path) {
-                        s.command("home", w, cx);
+                        s.command(Command::Home, w, cx);
                     }
                 }
             }
@@ -342,7 +272,7 @@ impl Shell {
                     s.task_ui.settings.update(cx, |settings, cx| {
                         settings.select_page(crate::features::settings::Page::ModelConnections, cx)
                     });
-                    s.command("settings", w, cx);
+                    s.command(Command::Settings, w, cx);
                 }
             },
         )
@@ -353,7 +283,9 @@ impl Shell {
         cx.subscribe_in(&s.native, window, |s, _, event, window, cx| {
             // Pane menu commands (open in default app, close) are the shell's.
             if let ClientMessage::Action { action } = event {
-                s.command(action, window, cx);
+                if let Some(command) = Command::from_protocol(action) {
+                    s.command(command, window, cx);
+                }
                 return;
             }
             s.files.client(event.clone(), &s.wake);
@@ -407,6 +339,10 @@ impl Shell {
         if let Some(path) = workspace {
             s.files.begin(Intent::OpenFolder(path), &s.wake);
         }
+        // Until preferences load: the default Sub Theme in the start-up mode.
+        crate::ui::appearance::Appearance::default()
+            .with_dark(s.dark)
+            .apply(Some(window), cx);
         s
     }
     /// Project persisted appearance/locale preferences onto the process-wide
@@ -438,9 +374,8 @@ impl Shell {
                 _ => {}
             }
         }
-        theme::set_scale(scale);
-        theme::set_pack(&p.theme_pack);
-        theme::set_pointer_cursors(p.pointer_cursors);
+        crate::ui::appearance::Appearance::new(self.dark, &p.theme_pack, scale, p.pointer_cursors)
+            .apply(Some(window), cx);
         let visibility = crate::model::Visibility {
             show_hidden: p.files.show_hidden_files,
             patterns: p.files.exclude_patterns.clone(),
@@ -508,26 +443,26 @@ impl Shell {
         })
         .detach();
     }
-    pub fn command(&mut self, action: &str, window: &mut Window, cx: &mut Context<Self>) {
-        if action == "quit" && self.workbench.read(cx).has_running(cx) {
+    pub fn command(&mut self, command: Command, window: &mut Window, cx: &mut Context<Self>) {
+        if command == Command::Quit && self.workbench.read(cx).has_running(cx) {
             self.confirm_quit = true;
             self.focus.focus(window, cx);
             cx.notify();
             return;
         }
-        if action == "quit-with-processes" {
+        if command == Command::QuitWithProcesses {
             self.confirm_quit = false;
             self.files.begin(Intent::Quit, &self.wake);
             self.receive(window, cx);
             cx.notify();
             return;
         }
-        if action == "cancel-process-quit" {
+        if command == Command::CancelProcessQuit {
             self.confirm_quit = false;
             cx.notify();
             return;
         }
-        if self.create_entry.is_some() && matches!(action, "close-file" | "escape") {
+        if self.create_entry.is_some() && matches!(command, Command::CloseFile | Command::Escape) {
             if self
                 .create_entry
                 .as_ref()
@@ -541,11 +476,11 @@ impl Shell {
             return;
         }
         if self.settings || self.help {
-            match action {
-                "close-file" | "escape" => {
+            match command {
+                Command::CloseFile | Command::Escape => {
                     self.close_tasks(window, cx);
                 }
-                "settings" => {
+                Command::Settings => {
                     if self.help {
                         self.task_ui.clear(cx);
                     }
@@ -553,29 +488,34 @@ impl Shell {
                     self.settings = !self.settings;
                     self.focus.focus(window, cx);
                 }
-                "quit" => self.files.begin(Intent::Quit, &self.wake),
+                Command::Quit => self.files.begin(Intent::Quit, &self.wake),
                 _ => {}
             }
             self.receive(window, cx);
             cx.notify();
             return;
         }
-        match action {
-            "undo" | "redo" => {
+        match command {
+            Command::Undo | Command::Redo => {
                 if !self.modal()
                     && !self.files.busy()
                     && let Some(doc) = &self.files.document
                 {
-                    self.files
-                        .outgoing
-                        .push(serde_json::json!({"kind":"history","id":doc.id,"direction":action}));
+                    let direction = if command == Command::Undo {
+                        "undo"
+                    } else {
+                        "redo"
+                    };
+                    self.files.outgoing.push(
+                        serde_json::json!({"kind":"history","id":doc.id,"direction":direction}),
+                    );
                 }
             }
-            "save" => self.files.begin(Intent::Save, &self.wake),
-            "reload" => self.files.begin(Intent::Reload, &self.wake),
-            "close-file" => self.files.begin(Intent::CloseFile, &self.wake),
+            Command::Save => self.files.begin(Intent::Save, &self.wake),
+            Command::Reload => self.files.begin(Intent::Reload, &self.wake),
+            Command::CloseFile => self.files.begin(Intent::CloseFile, &self.wake),
             // Pane menu "Open in default app" (`EditorPaneActionsMenu`).
-            "open-external" => {
+            Command::OpenExternal => {
                 if let (Some(ws), Some(doc)) = (&self.files.workspace, &self.files.document) {
                     match ws.absolute(&doc.relative) {
                         Ok(path) => {
@@ -587,24 +527,24 @@ impl Shell {
                     }
                 }
             }
-            "quit" => self.files.begin(Intent::Quit, &self.wake),
-            "open-folder" => self.pick_workspace(window, cx),
-            "toggle-explorer" => self.left_open = !self.left_open,
-            "toggle-right" => {
+            Command::Quit => self.files.begin(Intent::Quit, &self.wake),
+            Command::OpenFolder => self.pick_workspace(window, cx),
+            Command::ToggleExplorer => self.left_open = !self.left_open,
+            Command::ToggleRightSidebar => {
                 self.right_open = self.changes || !self.right_open;
                 self.changes = false;
             }
-            "settings" => {
+            Command::Settings => {
                 self.popover = None;
                 self.settings = true;
                 self.modal_focus.focus(window, cx);
             }
-            "feedback" => {
+            Command::Feedback => {
                 self.popover = None;
                 self.help = true;
                 self.task_ui.message.focus_handle(cx).focus(window, cx);
             }
-            "project-menu" => {
+            Command::ProjectMenu => {
                 self.popover = if self.popover == Some(Popover::Project) {
                     None
                 } else {
@@ -612,19 +552,19 @@ impl Shell {
                 };
                 self.project_focus.focus(window, cx);
             }
-            "location-menu" => {
+            Command::LocationMenu => {
                 self.popover = if self.popover == Some(Popover::Location) {
                     None
                 } else {
                     Some(Popover::Location)
                 };
             }
-            "home" => {
+            Command::Home => {
                 self.popover = None;
                 self.home = true;
             }
-            "dismiss-popovers" => self.popover = None,
-            "escape" => {
+            Command::DismissPopovers => self.popover = None,
+            Command::Escape => {
                 if self.rename.is_some() {
                     self.rename = None;
                     self.focus.focus(window, cx);
@@ -641,17 +581,17 @@ impl Shell {
                     self.files.error = None;
                 }
             }
-            "preview" => {
+            Command::ToggleMarkdownSource => {
                 if !self.files.busy() && !self.modal() {
                     self.native
                         .update(cx, |s, cx| s.command("source", window, cx));
                 }
             }
-            "clear-error" => {
+            Command::ClearError => {
                 self.error = None;
                 self.files.error = None;
             }
-            "changes" => {
+            Command::Changes => {
                 if self.files.workspace.is_none() {
                     return;
                 }
@@ -897,7 +837,7 @@ impl Shell {
                 t,
             )
             .size(px(theme::control()))
-            .on_click(cx.listener(|s, _, w, cx| s.command("open-folder", w, cx))),
+            .on_click(cx.listener(|s, _, w, cx| s.command(Command::OpenFolder, w, cx))),
         )
     }
     /// `.po-pane-edge-resize-handle` + `.po-pane-edge-chrome`: an 8px
@@ -974,7 +914,6 @@ impl Render for Shell {
             self.frames += 1;
             self.painted_rows = 0;
         }
-        theme::sync_kit(self.dark, window, cx);
         let size = window.viewport_size();
         let w = f32::from(size.width);
         let h = f32::from(size.height);
@@ -1016,7 +955,6 @@ impl Render for Shell {
             .text_size(px(theme::font_size(theme::FONT)))
             .text_color(t.text)
             .track_focus(&self.focus)
-            .on_action(cx.listener(|s, a: &HostAction, w, cx| s.command(&a.name, w, cx)))
             .on_mouse_move(cx.listener(|s, e: &MouseMoveEvent, _, cx| {
                 if let Some(left) = s.drag {
                     let x = f32::from(e.position.x);
@@ -1047,6 +985,10 @@ impl Render for Shell {
                 }),
             )
             .child(self.editor(cx));
+        let weak = cx.weak_entity();
+        root = on_shell_actions(root, move |command, window, cx| {
+            let _ = weak.update(cx, |s, cx| s.command(command, window, cx));
+        });
         let home = self.home_visible();
         if home {
             root = root.child(self.home_view(cx));
@@ -1107,12 +1049,12 @@ impl Render for Shell {
                 vec![
                     (
                         tr("native.quit.cancel"),
-                        "cancel-process-quit",
+                        Command::CancelProcessQuit,
                         ui::Tone::Default,
                     ),
                     (
                         tr("native.quit.confirm"),
-                        "quit-with-processes",
+                        Command::QuitWithProcesses,
                         ui::Tone::Danger,
                     ),
                 ],
@@ -1125,7 +1067,7 @@ impl Render for Shell {
                 &error,
                 vec![(
                     crate::localization::t("common.action.close"),
-                    "clear-error",
+                    Command::ClearError,
                     ui::Tone::Primary,
                 )],
                 cx,
