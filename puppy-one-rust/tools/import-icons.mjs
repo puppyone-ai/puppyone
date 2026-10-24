@@ -29,6 +29,10 @@ const frame = body => `<svg xmlns="http://www.w3.org/2000/svg" width="24" height
 await writeFile(path.join(root, 'assets/icons', 'editor-mode-edit.svg'), frame('<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>'));
 await writeFile(path.join(root, 'assets/icons', 'editor-mode-source.svg'), frame('<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>'));
 await writeFile(path.join(root, 'assets/icons', 'editor-mode-preview.svg'), frame('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>'));
+// Product-owned discovery spinner (.desktop-terminal-launcher-discovery-spinner):
+// an 11px ring with a 1.5px border whose top edge carries the current colour.
+await writeFile(path.join(root, 'assets/icons', 'spinner-track.svg'), `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="white" stroke-width="1.5"><circle cx="5.5" cy="5.5" r="4.75"/></svg>\n`);
+await writeFile(path.join(root, 'assets/icons', 'spinner-arc.svg'), `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="white" stroke-width="1.5"><path d="M2.141 2.141A4.75 4.75 0 0 1 8.859 2.141"/></svg>\n`);
 // Product-owned editable-table menu icons (packages/shared-ui/src/editor/table/editableTableMenuIcons.ts,
 // drawn by EditableTableMenuIcon.tsx at stroke-width 1.75).
 {

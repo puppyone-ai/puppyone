@@ -86,6 +86,44 @@ pub fn icon_sized(name: &str, size: f32, color: Rgba) -> Svg {
         .flex_shrink_0()
         .text_color(color)
 }
+/// Lucide icon at the product call site's `strokeWidth` (`icons/<name>@<stroke>.svg`).
+pub fn icon_stroke(name: &str, size: f32, stroke: f32, color: Rgba) -> Svg {
+    svg()
+        .path(format!("icons/{name}@{stroke}.svg"))
+        .size(px(size))
+        .flex_shrink_0()
+        .text_color(color)
+}
+/// `.desktop-terminal-launcher-discovery-spinner`: a ring in `track` whose top
+/// arc in `color` turns once every 900ms.
+pub fn spinner_ring(id: impl Into<ElementId>, size: f32, track: Rgba, color: Rgba) -> Div {
+    div()
+        .relative()
+        .size(px(size))
+        .child(
+            svg()
+                .path("icons/spinner-track.svg")
+                .absolute()
+                .size(px(size))
+                .text_color(track),
+        )
+        .child(
+            svg()
+                .path("icons/spinner-arc.svg")
+                .absolute()
+                .size(px(size))
+                .text_color(color)
+                .with_animation(
+                    id,
+                    Animation::new(std::time::Duration::from_millis(900)).repeat(),
+                    |arc, delta| {
+                        arc.with_transformation(Transformation::rotate(radians(
+                            delta * std::f32::consts::TAU,
+                        )))
+                    },
+                ),
+        )
+}
 /// Kit menu icon from the product asset set.
 pub fn menu_icon(name: &str) -> gpui_kit::component::Icon {
     gpui_kit::component::Icon::empty().path(format!("icons/{name}.svg"))

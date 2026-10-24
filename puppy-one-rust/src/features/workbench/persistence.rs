@@ -12,13 +12,16 @@ pub enum RetainedItem {
     },
     Terminal {
         title: String,
+        /// CLI launched in the terminal (`launcherId`); `None` for the shell.
+        #[serde(default)]
+        runtime: Option<Runtime>,
     },
 }
 impl RetainedItem {
     pub fn title(&self) -> String {
         match self {
             Self::Launcher => crate::localization::t("workspace.workbench.newTab").into(),
-            Self::Chat { title, .. } | Self::Terminal { title } => title.clone(),
+            Self::Chat { title, .. } | Self::Terminal { title, .. } => title.clone(),
         }
     }
 }
@@ -58,6 +61,7 @@ mod tests {
             1,
             RetainedItem::Terminal {
                 title: "shell".into(),
+                runtime: None,
             },
         );
         assert!(state.validate());

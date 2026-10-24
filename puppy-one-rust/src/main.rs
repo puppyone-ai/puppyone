@@ -8,6 +8,8 @@ mod editor;
 mod features;
 mod file_kind;
 mod geometry;
+#[cfg(feature = "dev-capture")]
+mod lab;
 mod localization;
 mod model;
 mod model_connections;
@@ -28,6 +30,9 @@ fn main() {
             cx.text_system()
                 .add_fonts(vec![
                     std::borrow::Cow::Borrowed(include_bytes!("../assets/Geist-Regular.ttf")),
+                    std::borrow::Cow::Borrowed(include_bytes!("../assets/Geist-Medium.ttf")),
+                    std::borrow::Cow::Borrowed(include_bytes!("../assets/Geist-SemiBold.ttf")),
+                    std::borrow::Cow::Borrowed(include_bytes!("../assets/Geist-Bold.ttf")),
                     std::borrow::Cow::Borrowed(include_bytes!("../assets/OpenSans-Regular.ttf")),
                     std::borrow::Cow::Borrowed(include_bytes!("../assets/OpenSans-Bold.ttf")),
                     std::borrow::Cow::Borrowed(include_bytes!("../assets/OpenSans-Italic.ttf")),
@@ -62,6 +67,30 @@ fn main() {
                 ),
                 cx,
             );
+            #[cfg(feature = "dev-capture")]
+            if let Ok(case) = std::env::var("PUPPYONE_LAB") {
+                cx.open_window(
+                    WindowOptions {
+                        window_bounds: Some(WindowBounds::Windowed(bounds)),
+                        titlebar: None,
+                        window_background: WindowBackgroundAppearance::Opaque,
+                        ..Default::default()
+                    },
+                    |window, cx| {
+                        let view = cx.new(|cx| lab::Lab::new(&case, window, cx));
+                        cx.new(|cx| gpui_kit::base::Root::new(view, window, cx))
+                    },
+                )
+                .expect("open lab window");
+                cx.on_window_closed(|cx, _| {
+                    if cx.windows().is_empty() {
+                        cx.quit();
+                    }
+                })
+                .detach();
+                cx.activate(true);
+                return;
+            }
             let (window, shell_view) = open_shell_window(
                 WindowOptions {
                     window_bounds: Some(WindowBounds::Windowed(bounds)),

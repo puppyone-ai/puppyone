@@ -1,0 +1,13 @@
+{
+  "comment": "Right-sidebar pixel scenarios shared by tools/reference-workbench.mjs (product) and tools/capture-workbench.py (native lab).",
+  "scenarios": [
+    {"scenario": "launcher", "width": 420, "height": 760},
+    {"scenario": "chat-empty", "width": 420, "height": 760},
+    {"scenario": "chat-transcript", "width": 420, "height": 860},
+    {"scenario": "chat-tool-expanded", "width": 420, "height": 860, "click": ".desktop-agent-tool-group-item:nth-child(2) .desktop-agent-tool-row"},
+    {"scenario": "chat-running", "width": 420, "height": 860},
+    {"scenario": "chat-approval", "width": 420, "height": 860},
+    {"scenario": "chat-question", "width": 420, "height": 860},
+    {"scenario": "tabs-narrow", "width": 300, "height": 400}
+  ]
+}

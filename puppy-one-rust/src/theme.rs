@@ -48,6 +48,14 @@ pub fn clickable_cursor() -> gpui::CursorStyle {
 pub fn control() -> f32 {
     ty().control_size
 }
+/// `.desktop-terminal-launcher-icon.is-opencode` backing behind the OpenCode mark.
+pub fn opencode_mark_surface() -> Rgba {
+    rgb(0x111418)
+}
+/// `--po-control-size-large`.
+pub fn control_large() -> f32 {
+    control() + 2.
+}
 pub fn control_compact() -> f32 {
     control() - 4.
 }
@@ -488,7 +496,9 @@ impl Theme {
             diff_removed_bg: c("diff-removed-bg"),
             diff_removed_text: c("diff-removed-text"),
             code_block: if dark { rgb(0x202020) } else { rgb(0xf2f2f2) },
-            terminal_bg: c("surface-editor"),
+            // Terminals live only in the right sidebar, where layout.css sets
+            // --po-surface-terminal (and so --po-terminal-bg) to the auxiliary surface.
+            terminal_bg: c("sidebar"),
             // --po-terminal-fg
             terminal_fg: mix(text, muted, 0.70),
             terminal_cursor: c("terminal-cursor"),
@@ -515,9 +525,10 @@ impl Theme {
     pub fn true_color(r: u8, g: u8, b: u8) -> Rgba {
         rgb((r as u32) << 16 | (g as u32) << 8 | b as u32)
     }
-    /// Agent conversation surface (`--po-surface-agent`, the editor material).
+    /// Agent conversation surface. Chat lives only in the right sidebar, where
+    /// `.desktop-right-sidebar` sets `--po-surface-agent: var(--po-surface-auxiliary)`.
     pub fn agent(&self) -> Rgba {
-        self.canvas
+        self.auxiliary()
     }
     /// Right auxiliary workbench material (`--po-surface-auxiliary`).
     pub fn auxiliary(&self) -> Rgba {

@@ -160,6 +160,38 @@ pub fn discover() -> Vec<Installation> {
     });
     result
 }
+/// Deterministic installations for the dev-capture lab: the reference fixture's
+/// detected agents (`tools/reference-workbench-entry.tsx`) plus Built-in Agent.
+#[cfg(feature = "dev-capture")]
+pub fn lab_installations() -> Vec<Installation> {
+    const DETECTED: [&str; 6] = [
+        "claude",
+        "codex",
+        "cursor",
+        "opencode",
+        "pi",
+        "workbuddy-china",
+    ];
+    let mut result: Vec<Installation> = LOCAL_AGENTS
+        .iter()
+        .filter(|agent| DETECTED.contains(&agent.id))
+        .map(|agent| Installation {
+            runtime: agent.runtime,
+            id: agent.id,
+            label: agent.label.into(),
+            executable: PathBuf::new(),
+            chat: true,
+        })
+        .collect();
+    result.push(Installation {
+        runtime: Runtime::PuppyOne,
+        id: BUILT_IN_AGENT_ID,
+        label: BUILT_IN_AGENT_LABEL.into(),
+        executable: PathBuf::new(),
+        chat: true,
+    });
+    result
+}
 fn executable(path: &Path) -> bool {
     #[cfg(unix)]
     {

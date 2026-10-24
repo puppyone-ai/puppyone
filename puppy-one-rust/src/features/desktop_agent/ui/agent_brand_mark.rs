@@ -80,3 +80,81 @@ pub fn svg_path(runtime: Runtime, dark: bool) -> Option<&'static str> {
         _ => "agents/pi.svg",
     })
 }
+
+/// What `AgentLauncherIcon` draws: an Agent brand, the shell, or the generic
+/// chat glyph used before a chat has chosen its runtime.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum LauncherIdentity {
+    Runtime(Runtime),
+    Shell,
+    ChatFallback,
+}
+/// `AgentLauncherIcon` with `src/components/brand/agent-launcher-icon.css`:
+/// an 18px (14px compact) clipped slot in `--po-text-muted`, the brand's
+/// optical scale (`agentBrandCatalog` `assetOpticalScale`) and its resting
+/// opacity. Hover owners raise the opacity to 1.
+pub fn launcher_icon(identity: LauncherIdentity, compact: bool, dark: bool, color: Rgba) -> Div {
+    let size = if compact { 14. } else { 18. };
+    let mut radius = if compact { 3. } else { 4. };
+    let mut opacity = if compact { 0.78 } else { 0.72 };
+    let mut backing = None;
+    let inner: AnyElement = match identity {
+        LauncherIdentity::Runtime(Runtime::Codex) => {
+            radius = 4.;
+            opacity = 0.9;
+            svg()
+                .path(CHATGPT_MARK)
+                .size(px(size))
+                .text_color(color)
+                .into_any_element()
+        }
+        LauncherIdentity::Runtime(runtime) => {
+            let scale = match runtime {
+                Runtime::Claude | Runtime::Cursor => 0.84,
+                Runtime::Hermes if compact => 0.94,
+                Runtime::Hermes => 0.82,
+                Runtime::OpenCode => 1.3,
+                Runtime::Pi => 1.28,
+                _ => 1.,
+            };
+            match runtime {
+                Runtime::Pi => radius = 3.,
+                Runtime::Hermes => radius = 4.,
+                Runtime::OpenCode => backing = Some(crate::theme::opencode_mark_surface()),
+                Runtime::PuppyOne => {
+                    radius = 5.;
+                    opacity = 1.;
+                }
+                _ => {}
+            }
+            brand_image(runtime, dark, size * scale)
+                .flex_shrink_0()
+                .into_any_element()
+        }
+        LauncherIdentity::Shell => crate::ui::icon_stroke(
+            "square-terminal",
+            if compact { 14. } else { 16. },
+            1.6,
+            color,
+        )
+        .into_any_element(),
+        LauncherIdentity::ChatFallback => crate::ui::icon_stroke(
+            "message-square",
+            if compact { 14. } else { 16. },
+            1.7,
+            color,
+        )
+        .into_any_element(),
+    };
+    div()
+        .size(px(size))
+        .flex_shrink_0()
+        .flex()
+        .items_center()
+        .justify_center()
+        .overflow_hidden()
+        .rounded(px(radius))
+        .opacity(opacity)
+        .when_some(backing, |d, bg| d.bg(bg))
+        .child(inner)
+}

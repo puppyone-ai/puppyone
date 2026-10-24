@@ -1,13 +1,20 @@
 mod auxiliary_workbench_launcher;
+mod header;
+mod header_layout;
+#[cfg(feature = "dev-capture")]
+mod lab;
 mod layout;
 mod persistence;
 use super::{desktop_agent::AgentChat, terminal::TerminalView};
 use crate::platform::ui_state_store::{self, ResultEvent};
 use crate::theme;
 use crate::{
-    agent::connections::local_agent_inventory::{self as agents, Installation},
+    agent::{
+        connections::local_agent_inventory::{self as agents, Installation},
+        runtime::agent_runtime_registry::Runtime,
+    },
     theme::Theme,
-    ui::{column, icon, row},
+    ui::{column, row},
     wake::Wake,
 };
 use gpui::{prelude::*, *};
@@ -20,13 +27,14 @@ enum Content {
     Launcher,
     Retained(RetainedItem),
     Chat(Entity<AgentChat>),
-    Terminal(Entity<TerminalView>, String),
+    /// A PTY, its tab title and the CLI it launched (`None` for the shell).
+    Terminal(Entity<TerminalView>, String, Option<Runtime>),
 }
 impl Content {
     fn busy(&self, cx: &App) -> bool {
         match self {
             Self::Chat(e) => e.read(cx).busy(),
-            Self::Terminal(e, _) => e.read(cx).running,
+            Self::Terminal(e, ..) => e.read(cx).running,
             _ => false,
         }
     }
@@ -35,7 +43,7 @@ impl Content {
             Self::Launcher => crate::localization::t("workspace.workbench.newTab").into(),
             Self::Retained(item) => item.title(),
             Self::Chat(e) => e.read(cx).session.snapshot().title.clone(),
-            Self::Terminal(_, name) => name.clone(),
+            Self::Terminal(_, name, _) => name.clone(),
         }
     }
 }
@@ -80,6 +88,8 @@ pub struct Workbench {
     /// Appearance → Loading animation preset.
     loading_animation: String,
     scanning: bool,
+    /// When the running discovery began (`useDelayedDiscoveryFeedback`).
+    scan_started: Option<std::time::Instant>,
     scan_rx: mpsc::Receiver<Vec<Installation>>,
     scan_tx: mpsc::Sender<Vec<Installation>>,
     pub dark: bool,
@@ -92,6 +102,11 @@ pub struct Workbench {
     store_tx: mpsc::SyncSender<ResultEvent>,
     store_rx: mpsc::Receiver<ResultEvent>,
     header_focus: HashMap<(PathBuf, Id), FocusHandle>,
+    /// Rendered tab window per group (`preferredVisibleSessionIds`).
+    header_windows: HashMap<(PathBuf, Id), Vec<Id>>,
+    /// Overflow trigger offset and hidden items from the last header layout.
+    overflow_anchor: HashMap<Id, f32>,
+    overflow_hidden: HashMap<Id, Vec<Id>>,
 }
 impl Workbench {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
@@ -132,6 +147,7 @@ impl Workbench {
             hidden_agents: vec![],
             loading_animation: "ikun".into(),
             scanning: true,
+            scan_started: Some(std::time::Instant::now()),
             scan_rx,
             scan_tx,
             dark: true,
@@ -141,6 +157,9 @@ impl Workbench {
             drag_split: None,
             overflow: None,
             header_focus: HashMap::new(),
+            header_windows: HashMap::new(),
+            overflow_anchor: HashMap::new(),
+            overflow_hidden: HashMap::new(),
         }
     }
     #[cfg(feature = "dev-capture")]
@@ -186,6 +205,7 @@ impl Workbench {
             return;
         }
         self.scanning = true;
+        self.scan_started = Some(std::time::Instant::now());
         let tx = self.scan_tx.clone();
         let wake = self.wake.clone();
         std::thread::spawn(move || {
@@ -284,8 +304,9 @@ impl Workbench {
                                     title: view.session.snapshot().title.clone(),
                                 }
                             }
-                            Content::Terminal(_, title) => RetainedItem::Terminal {
+                            Content::Terminal(_, title, runtime) => RetainedItem::Terminal {
                                 title: title.clone(),
+                                runtime: *runtime,
                             },
                         },
                     )
@@ -359,7 +380,7 @@ impl Workbench {
             RetainedItem::Terminal { .. } => {
                 let view = cx.new(|cx| TerminalView::new(root, None, window, cx));
                 cx.observe(&view, |_, _, cx| cx.notify()).detach();
-                Content::Terminal(view, crate::localization::t("terminal.title").into())
+                Content::Terminal(view, crate::localization::t("terminal.title").into(), None)
             }
             RetainedItem::Launcher => Content::Launcher,
         };
@@ -464,10 +485,11 @@ impl Workbench {
                     .as_ref()
                     .map(|i| i.label.clone())
                     .unwrap_or_else(|| crate::localization::t("terminal.title").into());
+                let runtime = installation.as_ref().map(|i| i.runtime);
                 let exe = installation.map(|i| i.executable);
                 let view = cx.new(|cx| TerminalView::new(root, exe, window, cx));
                 cx.observe(&view, |_, _, cx| cx.notify()).detach();
-                Content::Terminal(view, label)
+                Content::Terminal(view, label, runtime)
             };
         if let Some(p) = self.project_mut() {
             let id = tab.unwrap_or_else(|| p.layout.add(group));
@@ -502,276 +524,13 @@ impl Workbench {
     }
     fn group(&mut self, id: Id, cx: &mut Context<Self>) -> AnyElement {
         let t = Theme::new(self.dark);
-        let focus = self
-            .header_focus
-            .entry((self.root.clone().unwrap(), id))
-            .or_insert_with(|| cx.focus_handle())
-            .clone();
-        let project = self.project().unwrap();
-        let g = project.layout.groups[&id].clone();
-        let root = self.root.clone().unwrap();
+        let g = self.project().unwrap().layout.groups[&id].clone();
         let width = self
             .bounds
             .get(&id)
             .map(|b| f32::from(b.size.width))
             .unwrap_or(360.);
-        // `layoutWorkbenchSessionHeader`: full 144px tabs, else compact
-        // inactive tabs (28px), else an overflow control.
-        const GAP: f32 = 3.;
-        const FULL: f32 = 144.;
-        const MIN_FULL: f32 = 104.;
-        const COMPACT: f32 = 28.;
-        let available = (width - 12. - COMPACT - GAP).max(COMPACT);
-        let count = g.tabs.len().max(1) as f32;
-        let (mode_full, mode_compact) = (
-            count * (MIN_FULL + GAP) <= available,
-            FULL + (count - 1.) * (COMPACT + GAP) <= available,
-        );
-        let full_width = ((available / count) - GAP).clamp(MIN_FULL, FULL);
-        let active_index = g
-            .active
-            .and_then(|a| g.tabs.iter().position(|i| *i == a))
-            .unwrap_or(0);
-        let capacity = if mode_full || mode_compact {
-            g.tabs.len().max(1)
-        } else {
-            (((available - COMPACT - GAP - FULL) / (COMPACT + GAP))
-                .floor()
-                .max(0.) as usize
-                + 1)
-            .max(1)
-        };
-        let start = active_index.saturating_sub(capacity - 1);
-        let visible = g
-            .tabs
-            .iter()
-            .skip(start)
-            .take(capacity)
-            .copied()
-            .collect::<Vec<_>>();
-        let mut header = row()
-            .track_focus(&focus)
-            .on_key_down(cx.listener(move |s, e: &KeyDownEvent, _, cx| {
-                if ["left", "right", "home", "end"].contains(&e.keystroke.key.as_str()) {
-                    if let Some(p) = s.project_mut() {
-                        p.layout.navigate(id, &e.keystroke.key);
-                    }
-                    cx.notify();
-                    cx.stop_propagation();
-                }
-            }))
-            .h(px(38.))
-            .flex_shrink_0()
-            .pt(px(4.))
-            .pb(px(6.))
-            .px(px(6.))
-            .bg(t.auxiliary())
-            .gap(px(GAP));
-        for tab in &visible {
-            let focus = focus.clone();
-            let tab = *tab;
-            let content = &project.content[&tab];
-            let label = content.title(cx);
-            let busy = content.busy(cx);
-            let active = g.active == Some(tab);
-            let compact = !active && !mode_full;
-            let drag = DragTab {
-                root: root.clone(),
-                tab,
-                title: label.clone(),
-                dark: self.dark,
-            };
-            let fg = if active { t.text } else { t.muted };
-            // `AuxiliaryWorkbenchStatus`: the item's own icon stays visible; a
-            // running chat adds the pulsing 5px accent dot at its corner.
-            let glyph: AnyElement = match content {
-                Content::Chat(view) => div()
-                    .relative()
-                    .size(px(14.))
-                    .flex_shrink_0()
-                    .child(crate::features::desktop_agent::ui::agent_brand_mark::brand(
-                        view.read(cx).runtime(),
-                        self.dark,
-                        14.,
-                        fg,
-                    ))
-                    .when(busy, |d| {
-                        d.child(
-                            div()
-                                .absolute()
-                                .right(px(-1.))
-                                .bottom(px(-1.))
-                                .size(px(5.))
-                                .rounded_full()
-                                .border_1()
-                                .border_color(t.auxiliary())
-                                .bg(t.accent)
-                                .with_animation(
-                                    ElementId::NamedInteger("tab-running".into(), tab),
-                                    Animation::new(std::time::Duration::from_millis(1400))
-                                        .repeat()
-                                        .with_easing(ease_in_out),
-                                    |dot, delta| {
-                                        // 0.48 → 1 → 0.48 opacity over one cycle.
-                                        let wave = 1. - (delta * 2. - 1.).abs();
-                                        dot.opacity(0.48 + 0.52 * wave)
-                                    },
-                                ),
-                        )
-                    })
-                    .into_any_element(),
-                Content::Terminal(..) => {
-                    icon("square-terminal", fg).size(px(14.)).into_any_element()
-                }
-                Content::Retained(_) => icon("history", fg).size(px(14.)).into_any_element(),
-                Content::Launcher => icon("plus", fg).size(px(14.)).into_any_element(),
-            };
-            let group_name = SharedString::from(format!("workbench-tab-{tab}"));
-            let close_label = crate::localization::tf(
-                "terminal.closeSession",
-                &[("title", label.to_string().into())],
-            );
-            header = header.child(
-                gpui_kit::base::Tab::new(("tab", tab))
-                    .selected(active)
-                    .accessibility_label(label.clone())
-                    .group(group_name.clone())
-                    .flex()
-                    .items_center()
-                    .flex_shrink_0()
-                    .w(px(if compact { COMPACT } else { full_width }))
-                    .h(px(28.))
-                    .when(!compact, |d| d.pl(px(8.)).pr(px(4.)).gap(px(6.)))
-                    .when(compact, |d| d.justify_center())
-                    .rounded(px(theme::metric::TOOLBAR_ACTION_RADIUS))
-                    .text_size(px(theme::ty().right.meta))
-                    .text_color(fg)
-                    .cursor(crate::theme::clickable_cursor())
-                    .when(active, |d| d.bg(t.control))
-                    .hover(move |d| d.bg(t.control_hover).text_color(t.text))
-                    .tooltip(crate::ui::tooltip(label.clone()))
-                    .child(
-                        div()
-                            .size(px(14.))
-                            .flex_shrink_0()
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .child(glyph),
-                    )
-                    .when(!compact, |d| {
-                        d.child(div().flex_1().min_w_0().truncate().child(label.clone()))
-                            .child(
-                                crate::ui::icon_button(("close-tab", tab), "x", t)
-                                    .size(px(18.))
-                                    .rounded(px(4.))
-                                    .accessibility_label(close_label)
-                                    .when(!active, |b| {
-                                        b.invisible()
-                                            .group_hover(group_name.clone(), |s| s.visible())
-                                    })
-                                    .on_click(cx.listener(move |s, _, _, cx| {
-                                        cx.stop_propagation();
-                                        s.close(tab, false, cx);
-                                    })),
-                            )
-                    })
-                    .on_click(cx.listener(move |s, _, w, cx| {
-                        if let Some(p) = s.project_mut() {
-                            p.layout.activate(id, tab);
-                        }
-                        focus.focus(w, cx);
-                        cx.notify();
-                    }))
-                    .on_drag(drag, |drag, _, _, cx| cx.new(|_| drag.clone()))
-                    .on_drop(cx.listener(move |s, drag: &DragTab, _, cx| {
-                        if s.root.as_ref() != Some(&drag.root) {
-                            return;
-                        }
-                        if let Some(p) = s.project_mut() {
-                            let index = p.layout.groups[&id]
-                                .tabs
-                                .iter()
-                                .position(|x| *x == tab)
-                                .unwrap_or(0);
-                            p.layout.move_tab(drag.tab, id, index);
-                        }
-                        cx.notify();
-                    }))
-                    .context_menu({
-                        let chat = match content {
-                            Content::Chat(view) => Some(view.clone()),
-                            _ => None,
-                        };
-                        let host = cx.weak_entity();
-                        let close = crate::localization::tf(
-                            "terminal.closeSession",
-                            &[("title", label.to_string().into())],
-                        );
-                        move |mut menu, _, cx| {
-                            if let Some(view) = &chat {
-                                menu = AgentChat::session_menu(view.clone(), menu, cx).separator();
-                            }
-                            let host = host.clone();
-                            menu.item(
-                                gpui_kit::component::menu::PopupMenuItem::new(close.clone())
-                                    .on_click(move |_, _, cx| {
-                                        let _ = host.update(cx, |s, cx| s.close(tab, false, cx));
-                                    }),
-                            )
-                        }
-                    }),
-            );
-        }
-        let square = |id: ElementId, name: &str, label: SharedString| {
-            crate::ui::icon_button(id, name, t)
-                .size(px(COMPACT))
-                .rounded(px(theme::metric::TOOLBAR_ACTION_RADIUS))
-                .accessibility_label(label.clone())
-                .tooltip(crate::ui::tooltip(label))
-        };
-        if visible.len() < g.tabs.len() {
-            let hidden = g.tabs.len() - visible.len();
-            header = header.child(
-                square(
-                    ElementId::NamedInteger("overflow".into(), id),
-                    "ellipsis",
-                    crate::localization::tf("terminal.tabs.more", &[("count", hidden.into())])
-                        .into(),
-                )
-                .on_click(cx.listener(move |s, _, _, cx| {
-                    s.overflow = if s.overflow == Some(id) {
-                        None
-                    } else {
-                        Some(id)
-                    };
-                    cx.notify();
-                })),
-            );
-        }
-        header = header.child(
-            square(
-                ElementId::NamedInteger("new-tab".into(), id),
-                "plus",
-                crate::localization::t("workspace.workbench.newTab").into(),
-            )
-            .on_click(cx.listener(move |s, _, _, cx| s.add(id, cx))),
-        );
-        if g.tabs.is_empty() && self.project().unwrap().layout.groups.len() > 1 {
-            header = header.child(
-                square(
-                    ElementId::NamedInteger("close-group".into(), id),
-                    "x",
-                    crate::localization::t("common.action.close").into(),
-                )
-                .on_click(cx.listener(move |s, _, _, cx| {
-                    if let Some(p) = s.project_mut() {
-                        p.layout.remove_empty_group(id);
-                    }
-                    cx.notify();
-                })),
-            );
-        }
+        let header = self.render_header(id, width, cx);
         let content = match g
             .active
             .and_then(|tab| self.project().unwrap().content.get(&tab))
@@ -817,12 +576,12 @@ impl Workbench {
                 view.update(cx, |s, _| s.dark = self.dark);
                 div().size_full().child(view).into_any_element()
             }
-            Some(Content::Terminal(view, _)) => {
+            Some(Content::Terminal(view, ..)) => {
                 let view = view.clone();
                 view.update(cx, |s, _| s.dark = self.dark);
                 div().size_full().child(view).into_any_element()
             }
-            _ => self.launcher(id, g.active, cx).into_any_element(),
+            _ => self.launcher(id, g.active, width, cx).into_any_element(),
         };
         let mut group = column()
             .id(("group", id))
@@ -831,53 +590,10 @@ impl Workbench {
             .min_h_0()
             .relative()
             .overflow_hidden()
-            .bg(t.canvas)
+            .bg(t.auxiliary())
             .child(header);
-        if self.overflow == Some(id) {
-            use crate::ui::menu::{MenuEntry, MenuItem, menu_surface};
-            let this = cx.entity().downgrade();
-            let entries = g
-                .tabs
-                .iter()
-                .map(|&tab| {
-                    let title = self.project().unwrap().content[&tab].title(cx);
-                    let this = this.clone();
-                    let close_label = crate::localization::tf(
-                        "terminal.closeSession",
-                        &[("title", title.to_string().into())],
-                    );
-                    MenuEntry::Item(
-                        MenuItem::new(title, move |_, cx| {
-                            let _ = this.update(cx, |s, cx| {
-                                if let Some(p) = s.project_mut() {
-                                    p.layout.activate(id, tab);
-                                }
-                                s.overflow = None;
-                                cx.notify();
-                            });
-                        })
-                        .checked(g.active == Some(tab))
-                        .trailing(
-                            crate::ui::icon_button(("overflow-close", tab), "x", t)
-                                .size(px(20.))
-                                .accessibility_label(close_label)
-                                .on_click(cx.listener(move |s, _, _, cx| {
-                                    cx.stop_propagation();
-                                    s.close(tab, false, cx)
-                                }))
-                                .into_any_element(),
-                        ),
-                    )
-                })
-                .collect();
-            group = group.child(
-                menu_surface(format!("overflow-menu-{id}"), entries, t)
-                    .absolute()
-                    .top(px(38.))
-                    .right(px(6.))
-                    .w(px(260.))
-                    .max_h(px(280.)),
-            );
+        if let Some(menu) = self.render_overflow_menu(id, width, cx) {
+            group = group.child(menu);
         }
         if let Some(tab) = self.confirm.filter(|tab| g.tabs.contains(tab)) {
             group = group.child(
@@ -933,8 +649,11 @@ impl Workbench {
                     .child(
                         canvas(
                             move |bounds, _, cx| {
-                                entity.update(cx, |s, _| {
-                                    s.bounds.insert(id, bounds);
+                                entity.update(cx, |s, cx| {
+                                    // Header density follows the measured group width.
+                                    if s.bounds.insert(id, bounds) != Some(bounds) {
+                                        cx.notify();
+                                    }
                                 });
                             },
                             |_, _, _, _| {},
@@ -1032,8 +751,11 @@ impl Workbench {
                     .child(
                         canvas(
                             move |bounds, _, cx| {
-                                entity.update(cx, |s, _| {
-                                    s.bounds.insert(id, bounds);
+                                entity.update(cx, |s, cx| {
+                                    // Header density follows the measured group width.
+                                    if s.bounds.insert(id, bounds) != Some(bounds) {
+                                        cx.notify();
+                                    }
                                 });
                             },
                             |_, _, _, _| {},
@@ -1069,7 +791,7 @@ impl Render for Workbench {
         };
         div()
             .size_full()
-            .bg(t.canvas)
+            .bg(t.auxiliary())
             .text_color(t.text)
             .on_mouse_move(cx.listener(|s, e: &MouseMoveEvent, _, cx| {
                 if let Some((id, axis, b)) = s.drag_split {

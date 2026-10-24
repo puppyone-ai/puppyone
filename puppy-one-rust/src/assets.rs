@@ -112,6 +112,8 @@ embedded! {
     "icons" / "shield-alert.svg",
     "icons" / "shield-check.svg",
     "icons" / "sparkles.svg",
+    "icons" / "spinner-arc.svg",
+    "icons" / "spinner-track.svg",
     "icons" / "square.svg",
     "icons" / "square-dashed.svg",
     "icons" / "square-terminal.svg",
@@ -167,6 +169,9 @@ impl AssetSource for Assets {
         if path.starts_with("file-icons/") {
             return Ok(crate::file_kind::glyph_svg(path).map(Cow::Owned));
         }
+        if let Some(svg) = stroke_variant(path) {
+            return Ok(Some(Cow::Owned(svg)));
+        }
         match embedded(path) {
             Some(bytes) => Ok(Some(Cow::Borrowed(bytes))),
             None => gpui_kit::assets::Assets.load(path),
@@ -175,6 +180,22 @@ impl AssetSource for Assets {
     fn list(&self, path: &str) -> anyhow::Result<Vec<SharedString>> {
         gpui_kit::assets::Assets.list(path)
     }
+}
+/// `icons/<name>@<stroke>.svg`: the embedded Lucide icon redrawn at the
+/// product call site's `strokeWidth` (icons are imported at 1.8).
+fn stroke_variant(path: &str) -> Option<Vec<u8>> {
+    let (name, stroke) = path
+        .strip_prefix("icons/")?
+        .strip_suffix(".svg")?
+        .split_once('@')?;
+    let stroke: f32 = stroke
+        .parse()
+        .ok()
+        .filter(|s: &f32| s.is_finite() && *s > 0.)?;
+    let base = std::str::from_utf8(embedded(&format!("icons/{name}.svg"))?).ok()?;
+    let (before, after) = base.split_once("stroke-width=\"")?;
+    let (_, rest) = after.split_once('"')?;
+    Some(format!("{before}stroke-width=\"{stroke}\"{rest}").into_bytes())
 }
 /// True when `icons/<name>.svg` resolves from the product or Kit assets.
 #[cfg(test)]
@@ -202,7 +223,7 @@ mod tests {
                     continue;
                 }
                 let text = std::fs::read_to_string(&path).unwrap();
-                for pattern in ["icon(\"", "icon_sized(\"", "menu_icon(\""] {
+                for pattern in ["icon(\"", "icon_sized(\"", "menu_icon(\"", "icon_stroke(\""] {
                     for (index, _) in text.match_indices(pattern) {
                         let rest = &text[index + pattern.len()..];
                         let Some(end) = rest.find('"') else { continue };
@@ -220,5 +241,8 @@ mod tests {
         }
         assert!(missing.is_empty(), "missing icons: {missing:#?}");
         assert!(EMBEDDED.contains(&"icons/history.svg"));
+        let variant = String::from_utf8(stroke_variant("icons/x@1.9.svg").unwrap()).unwrap();
+        assert!(variant.contains("stroke-width=\"1.9\""));
+        assert!(stroke_variant("icons/x@nan.svg").is_none());
     }
 }
