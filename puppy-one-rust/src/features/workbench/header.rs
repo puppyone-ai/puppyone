@@ -199,7 +199,9 @@ impl Workbench {
                         s.bg(t.control_hover).text_color(t.text)
                     })
                 })
-                .when(compact, |d| d.tooltip(crate::ui::tooltip(label.clone())))
+                .when(compact, |d| {
+                    d.tooltip(crate::ui::components::tooltip(label.clone()))
+                })
                 .child(
                     div()
                         .w(px(metrics::COMPACT))
@@ -262,7 +264,7 @@ impl Workbench {
                         b.invisible()
                             .group_hover(group_name.clone(), |s| s.visible())
                     })
-                    .tooltip(crate::ui::tooltip(close_label.clone()))
+                    .tooltip(crate::ui::components::tooltip(close_label.clone()))
                     .child(Icon::new("x").xsmall().stroke(1.8).color(t.subtle))
                     .on_click(cx.listener(move |s, _, _, cx| {
                         cx.stop_propagation();
@@ -297,7 +299,7 @@ impl Workbench {
                 .text_color(t.muted)
                 .cursor(theme::clickable_cursor())
                 .hover(move |s| s.bg(t.control_hover).text_color(t.text))
-                .tooltip(crate::ui::tooltip(label))
+                .tooltip(crate::ui::components::tooltip(label))
                 .child(Icon::new(name).small().stroke(1.9).color(if open {
                     t.text
                 } else {

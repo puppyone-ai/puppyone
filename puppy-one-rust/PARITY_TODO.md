@@ -31,7 +31,7 @@
 ## 1. 基础设施
 
 - [x] S1 样式 token：`theme.rs` 从 5 个内置主题包（`assets/themes.json`，`tools/import-themes.mjs`）+ `tokens.css` 语义层公式构建；控件几何、UI 字号角色随三档尺度变化。证据：`semantic_tokens_follow_the_web_formulas`、`medium_literals_follow_the_product_role_table`
-- [x] S2 样式原语：`src/ui/primitives.rs`（sidebar row/group、settings row/switch/segment/select/action、tooltip 化 icon button）、`src/ui/menu.rs`、`src/ui/pulse_grid.rs`
+- [x] S2 样式原语：组件库 `src/ui/components/`（SidebarRow/SidebarGroup、Settings 行/开关/分段/下拉/按钮、IconButton + tooltip、Menu/PopoverMenu、Dialog）与 `src/ui/pulse_grid.rs`
 - [x] S3 本地化：加入 `source-control` 命名空间；ICU 子集覆盖目录实际用到的 `{arg}`、`number`、`plural`（含 `=N`、`#`），`select` 目录未使用故未实现；全局当前语言 + `localization::spawn` 让工作线程继承语言。证据：`icu_subset_matches_product_catalog_usage`、`workers_inherit_the_spawning_locale`
 - [x] S4 图标：Lucide 0.562 导入清单扩充；Agent 入口图标；`tools/generate-assets-rs.py` 生成资产表。证据：`referenced_icons_exist`
 - [x] S5 文件类型图标：5 套图标主题生成 light/dark SVG（`tools/import-file-icons.mjs`）；扩展名 → 语义类型与 Web 注册表一致。证据：`classification_and_display_follow_the_product_registry`

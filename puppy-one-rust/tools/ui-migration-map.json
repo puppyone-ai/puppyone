@@ -163,10 +163,10 @@
       ],
       "targets": [
         "src/features/settings/settings_workspace_surface.rs",
-        "src/features/settings/components.rs",
+        "src/ui/components/settings.rs",
         "src/features/settings/sidebar/settings_sidebar.rs",
         "src/features/settings/main/mod.rs",
-        "src/ui/primitives.rs",
+        "src/ui/components/sidebar.rs",
         "src/shell/tasks.rs"
       ],
       "evidence": [
@@ -669,7 +669,7 @@
         "src/styles/scrollbars.css"
       ],
       "targets": [
-        "src/ui/primitives.rs",
+        "src/ui/components/dialog.rs",
         "src/ui/components/menu.rs",
         "src/shell/tasks.rs",
         "src/geometry.rs"

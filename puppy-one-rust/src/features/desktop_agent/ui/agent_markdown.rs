@@ -708,7 +708,7 @@ fn code_block(language: &str, text: &str, cx: &mut Context<'_>, path: &str) -> A
                     .text_color(a.text_subtle)
                     .cursor(theme::clickable_cursor())
                     .hover(move |s| s.bg(t.hover).text_color(a.text))
-                    .tooltip(crate::ui::tooltip(label))
+                    .tooltip(crate::ui::components::tooltip(label))
                     .child(Icon::new("copy").small().stroke(2.).color(a.text_subtle))
                     .on_click(move |_, _, cx| {
                         cx.write_to_clipboard(ClipboardItem::new_string(copy.clone()))

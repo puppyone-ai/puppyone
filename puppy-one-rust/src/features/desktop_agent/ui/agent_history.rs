@@ -2,12 +2,13 @@
 //! search, open and archive saved chats; mutations use controller commands.
 use super::*;
 use crate::ui::appearance::ActiveAppearance;
-use crate::ui::components::{Button, Icon};
+use crate::ui::components::{Button, Icon, IconButton};
 use crate::{
     localization::{t as tr, tf},
     theme,
 };
 use gpui_kit::base::{h_flex, v_flex};
+use gpui_kit::component::Sizable as _;
 impl AgentChat {
     pub(super) fn render_history(&mut self, cx: &mut Context<Self>) -> Stateful<Div> {
         let t = cx.palette();
@@ -93,8 +94,8 @@ impl AgentChat {
                     )
                     .when(snapshot.capabilities.archive, |d| {
                         d.child(
-                            crate::ui::icon_button(("archive-history", i), "x", t)
-                                .size(px(22.))
+                            IconButton::new(("archive-history", i), "x")
+                                .with_size(px(22.))
                                 .on_click(cx.listener(move |s, _, _, cx| {
                                     cx.stop_propagation();
                                     s.session.archive(archive_id.clone());
@@ -102,7 +103,7 @@ impl AgentChat {
                                 })),
                         )
                     })
-                    .tooltip(crate::ui::tooltip(open))
+                    .tooltip(crate::ui::components::tooltip(open))
                     .on_click(cx.listener(move |s, _, _, cx| {
                         s.session.resume(id.clone());
                         cx.notify();

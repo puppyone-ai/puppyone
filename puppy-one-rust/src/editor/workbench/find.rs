@@ -7,11 +7,12 @@ use crate::{
     localization::{Arg, t, tf},
     theme::{self, Theme},
     ui::{
+        components::{Icon, tooltip},
         form_input::{InputEvent, TextInput},
-        icon_sized, tooltip,
     },
 };
 use gpui::{prelude::*, *};
+use gpui_kit::component::Sizable as _;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum FindEvent {
@@ -131,7 +132,7 @@ impl Render for FindBar {
                 .flex_shrink_0()
                 .rounded(px(4.))
                 .tooltip(tooltip(t(label)))
-                .child(icon_sized(icon, 15., fg))
+                .child(Icon::new(icon).color(fg))
                 .when(enabled, |d| {
                     d.cursor(theme::clickable_cursor())
                         .hover(move |s| s.bg(hover_bg).text_color(hover_fg))
@@ -186,15 +187,11 @@ impl Render for FindBar {
                 }
             }))
             .child(
-                div()
-                    .ml(px(4.))
-                    .mr(px(2.))
-                    .flex_shrink_0()
-                    .child(icon_sized(
-                        "search",
-                        14.,
-                        theme::mix(t_.accent, t_.muted, 0.42),
-                    )),
+                div().ml(px(4.)).mr(px(2.)).flex_shrink_0().child(
+                    Icon::new("search")
+                        .small()
+                        .color(theme::mix(t_.accent, t_.muted, 0.42)),
+                ),
             )
             .child(
                 div()

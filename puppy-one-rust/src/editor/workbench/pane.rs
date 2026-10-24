@@ -7,9 +7,10 @@
 use crate::{
     localization::t,
     theme::{self, Theme, metric},
-    ui::{icon_sized, tooltip},
+    ui::components::{Icon, tooltip},
 };
 use gpui::{prelude::*, *};
+use gpui_kit::component::Sizable as _;
 use std::rc::Rc;
 
 /// `PANE_HANDLE_REVEAL_RATIO`.
@@ -36,7 +37,9 @@ pub struct Segmented {
 pub enum ItemKind {
     /// Toggles keep the menu open.
     Toggle(bool),
-    Command { disabled: bool },
+    Command {
+        disabled: bool,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -68,7 +71,11 @@ pub enum Action {
 impl Contribution {
     /// Every focusable menu item in order, with what it does.
     pub fn entries(&self) -> Vec<Action> {
-        let mut out: Vec<Action> = self.segmented.iter().flat_map(|s| s.options.iter().map(|o| Action::Segment(o.id))).collect();
+        let mut out: Vec<Action> = self
+            .segmented
+            .iter()
+            .flat_map(|s| s.options.iter().map(|o| Action::Segment(o.id)))
+            .collect();
         if self.find {
             out.push(Action::Find);
         }
@@ -76,7 +83,12 @@ impl Contribution {
             out.push(Action::OpenExternal);
         }
         out.push(Action::Close);
-        out.extend(self.items.iter().filter(|i| !matches!(i.kind, ItemKind::Command { disabled: true })).map(|i| Action::Item(i.id)));
+        out.extend(
+            self.items
+                .iter()
+                .filter(|i| !matches!(i.kind, ItemKind::Command { disabled: true }))
+                .map(|i| Action::Item(i.id)),
+        );
         out
     }
 
@@ -85,7 +97,10 @@ impl Contribution {
     pub fn closes(&self, action: &Action) -> bool {
         match action {
             Action::Segment(_) => false,
-            Action::Item(id) => !self.items.iter().any(|i| i.id == *id && matches!(i.kind, ItemKind::Toggle(_))),
+            Action::Item(id) => !self
+                .items
+                .iter()
+                .any(|i| i.id == *id && matches!(i.kind, ItemKind::Toggle(_))),
             _ => true,
         }
     }
@@ -104,7 +119,13 @@ pub struct PaneChrome {
 
 impl PaneChrome {
     pub fn new(focus: FocusHandle) -> Self {
-        Self { open: false, hot: false, focus, selected: 0, keyboard: false }
+        Self {
+            open: false,
+            hot: false,
+            focus,
+            selected: 0,
+            keyboard: false,
+        }
     }
 
     pub fn revealed(&self) -> bool {
@@ -113,7 +134,8 @@ impl PaneChrome {
 
     /// `isPointInPaneHandleRevealZone`.
     pub fn reveal_zone(bounds: Bounds<Pixels>, position: Point<Pixels>) -> bool {
-        bounds.contains(&position) && position.y < bounds.origin.y + bounds.size.height * REVEAL_RATIO
+        bounds.contains(&position)
+            && position.y < bounds.origin.y + bounds.size.height * REVEAL_RATIO
     }
 
     /// Arrow keys / Home / End over the menu items; returns the entry Enter
@@ -146,11 +168,21 @@ pub fn menu_key(selected: usize, key: &str, count: usize) -> (usize, bool, Optio
 type OnAction = Rc<dyn Fn(Action, &mut Window, &mut App)>;
 
 /// The handle (`.desktop-editor-pane-handle-shell` / `-handle`).
-pub fn handle(dark: bool, revealed: bool, label: SharedString, on_toggle: impl Fn(&mut Window, &mut App) + 'static) -> AnyElement {
+pub fn handle(
+    dark: bool,
+    revealed: bool,
+    label: SharedString,
+    on_toggle: impl Fn(&mut Window, &mut App) + 'static,
+) -> AnyElement {
     let t_ = Theme::new(dark);
     let color = theme::mix(t_.muted, Rgba::default(), 0.68);
     let hover = theme::mix(t_.muted, Rgba::default(), 0.82);
-    let dot = || div().size(px(2.)).bg(color).group_hover("desktop-editor-pane-handle", move |s| s.bg(hover));
+    let dot = || {
+        div()
+            .size(px(2.))
+            .bg(color)
+            .group_hover("desktop-editor-pane-handle", move |s| s.bg(hover))
+    };
     div()
         .id("desktop-editor-pane-handle-shell")
         .group("desktop-editor-pane-handle-shell")
@@ -192,7 +224,15 @@ pub fn handle(dark: bool, revealed: bool, label: SharedString, on_toggle: impl F
 
 /// The actions menu: centred under the handle (gap 4), content-sized,
 /// within the pane less 8px margins, at most 360px tall.
-pub fn menu(chrome: &PaneChrome, contribution: &Contribution, dark: bool, pane: Bounds<Pixels>, on_action: OnAction, on_dismiss: Rc<dyn Fn(bool, &mut Window, &mut App)>, on_key: Rc<dyn Fn(&KeyDownEvent, &mut Window, &mut App)>) -> Option<AnyElement> {
+pub fn menu(
+    chrome: &PaneChrome,
+    contribution: &Contribution,
+    dark: bool,
+    pane: Bounds<Pixels>,
+    on_action: OnAction,
+    on_dismiss: Rc<dyn Fn(bool, &mut Window, &mut App)>,
+    on_key: Rc<dyn Fn(&KeyDownEvent, &mut Window, &mut App)>,
+) -> Option<AnyElement> {
     if !chrome.open {
         return None;
     }
@@ -204,7 +244,15 @@ pub fn menu(chrome: &PaneChrome, contribution: &Contribution, dark: bool, pane: 
         index += 1;
         i
     };
-    let icon_button = |id: ElementId, icon: &'static str, label: SharedString, fg: Rgba, hover_bg: Rgba, hover_fg: Rgba, focused: bool, action: Action, on_action: OnAction| {
+    let icon_button = |id: ElementId,
+                       icon: &'static str,
+                       label: SharedString,
+                       fg: Rgba,
+                       hover_bg: Rgba,
+                       hover_fg: Rgba,
+                       focused: bool,
+                       action: Action,
+                       on_action: OnAction| {
         div()
             .id(id)
             .size(px(ACTION))
@@ -217,7 +265,7 @@ pub fn menu(chrome: &PaneChrome, contribution: &Contribution, dark: bool, pane: 
             .hover(move |s| s.bg(hover_bg))
             .tooltip(tooltip(label))
             .on_click(move |_, window, cx| on_action(action.clone(), window, cx))
-            .child(icon_sized(icon, 15., if focused { hover_fg } else { fg }))
+            .child(Icon::new(icon).color(if focused { hover_fg } else { fg }))
     };
     let mut primary = div().flex().items_center().gap(px(3.));
     if let Some(segmented) = &contribution.segmented {
@@ -226,8 +274,18 @@ pub fn menu(chrome: &PaneChrome, contribution: &Contribution, dark: bool, pane: 
             let n = next();
             let checked = option.id == segmented.value;
             let focused = selected == Some(n);
-            let bg = if checked { t_.selected } else if focused { t_.hover } else { Rgba::default() };
-            let fg = if checked || focused { t_.text } else { t_.muted };
+            let bg = if checked {
+                t_.selected
+            } else if focused {
+                t_.hover
+            } else {
+                Rgba::default()
+            };
+            let fg = if checked || focused {
+                t_.text
+            } else {
+                t_.muted
+            };
             let action = Action::Segment(option.id);
             let on_action = on_action.clone();
             let hover = t_.hover;
@@ -244,25 +302,67 @@ pub fn menu(chrome: &PaneChrome, contribution: &Contribution, dark: bool, pane: 
                     .when(!checked, |d| d.hover(move |s| s.bg(hover)))
                     .tooltip(tooltip(option.label.clone()))
                     .on_click(move |_, window, cx| on_action(action.clone(), window, cx))
-                    .child(svg().path(format!("icons/{}.svg", option.icon)).size(px(12.)).text_color(fg)),
+                    .child(
+                        svg()
+                            .path(format!("icons/{}.svg", option.icon))
+                            .size(px(12.))
+                            .text_color(fg),
+                    ),
             );
         }
         primary = primary.child(group);
     }
     let mut end = div().flex().items_center().gap(px(3.));
     if contribution.segmented.is_some() {
-        end = end.child(div().w(px(1.)).h(px(18.)).mx(px(3.)).flex_shrink_0().bg(t_.divider));
+        end = end.child(
+            div()
+                .w(px(1.))
+                .h(px(18.))
+                .mx(px(3.))
+                .flex_shrink_0()
+                .bg(t_.divider),
+        );
     }
     if contribution.find {
         let n = next();
-        end = end.child(icon_button("desktop-editor-pane-menu-find".into(), "search", t("editor.find.label").into(), t_.muted, t_.hover, t_.text, selected == Some(n), Action::Find, on_action.clone()));
+        end = end.child(icon_button(
+            "desktop-editor-pane-menu-find".into(),
+            "search",
+            t("editor.find.label").into(),
+            t_.muted,
+            t_.hover,
+            t_.text,
+            selected == Some(n),
+            Action::Find,
+            on_action.clone(),
+        ));
     }
     if contribution.open_external {
         let n = next();
-        end = end.child(icon_button("desktop-editor-pane-menu-external".into(), "external-link", t("editor.openDefaultApp").into(), t_.muted, t_.hover, t_.text, selected == Some(n), Action::OpenExternal, on_action.clone()));
+        end = end.child(icon_button(
+            "desktop-editor-pane-menu-external".into(),
+            "external-link",
+            t("editor.openDefaultApp").into(),
+            t_.muted,
+            t_.hover,
+            t_.text,
+            selected == Some(n),
+            Action::OpenExternal,
+            on_action.clone(),
+        ));
     }
     let n = next();
-    end = end.child(icon_button("desktop-editor-pane-menu-close".into(), "x", t("editor.panes.closePane").into(), t_.danger, theme::alpha(t_.danger, 0.10), t_.danger, selected == Some(n), Action::Close, on_action.clone()));
+    end = end.child(icon_button(
+        "desktop-editor-pane-menu-close".into(),
+        "x",
+        t("editor.panes.closePane").into(),
+        t_.danger,
+        theme::alpha(t_.danger, 0.10),
+        t_.danger,
+        selected == Some(n),
+        Action::Close,
+        on_action.clone(),
+    ));
     primary = primary.child(end);
     let items = contribution.items.iter();
     let mut secondary = div().flex().flex_col().gap(px(2.));
@@ -271,17 +371,34 @@ pub fn menu(chrome: &PaneChrome, contribution: &Contribution, dark: bool, pane: 
         any = true;
         let disabled = matches!(item.kind, ItemKind::Command { disabled: true });
         let focused = !disabled && selected == Some(next());
-        let fg = if disabled { t_.text_disabled } else if focused { t_.text } else { t_.muted };
+        let fg = if disabled {
+            t_.text_disabled
+        } else if focused {
+            t_.text
+        } else {
+            t_.muted
+        };
         let hover = (t_.hover, t_.text);
         let action = Action::Item(item.id);
         let on_action = on_action.clone();
         let icon = match item.kind {
-            ItemKind::Toggle(checked) => Some(div().size(px(metric::MENU_ICON_SLOT)).flex_shrink_0().flex().items_center().justify_center().children(checked.then(|| icon_sized("check", 14., fg)))),
+            ItemKind::Toggle(checked) => Some(
+                div()
+                    .size(px(metric::MENU_ICON_SLOT))
+                    .flex_shrink_0()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .children(checked.then(|| Icon::new("check").small().color(fg))),
+            ),
             ItemKind::Command { .. } => None,
         };
         secondary = secondary.child(
             div()
-                .id(SharedString::from(format!("desktop-editor-pane-menu-item-{}", item.id)))
+                .id(SharedString::from(format!(
+                    "desktop-editor-pane-menu-item-{}",
+                    item.id
+                )))
                 .flex()
                 .items_center()
                 .gap(px(metric::MENU_ITEM_GAP))
@@ -294,14 +411,22 @@ pub fn menu(chrome: &PaneChrome, contribution: &Contribution, dark: bool, pane: 
                 .whitespace_nowrap()
                 .when(focused, |d| d.bg(hover.0))
                 .when(!disabled, |d| {
-                    d.cursor(theme::clickable_cursor()).hover(move |s| s.bg(hover.0).text_color(hover.1)).on_click(move |_, window, cx| on_action(action.clone(), window, cx))
+                    d.cursor(theme::clickable_cursor())
+                        .hover(move |s| s.bg(hover.0).text_color(hover.1))
+                        .on_click(move |_, window, cx| on_action(action.clone(), window, cx))
                 })
                 .children(icon)
                 .child(item.label.clone()),
         );
     }
     let dismiss = on_dismiss.clone();
-    let shadow = BoxShadow { color: theme::alpha(t_.shadow, 0.28).into(), offset: point(px(0.), px(2.)), blur_radius: px(4.), spread_radius: px(-2.), inset: false };
+    let shadow = BoxShadow {
+        color: theme::alpha(t_.shadow, 0.28).into(),
+        offset: point(px(0.), px(2.)),
+        blur_radius: px(4.),
+        spread_radius: px(-2.),
+        inset: false,
+    };
     let top = pane.origin.y + px(4. + 13. + 4.);
     let surface = div()
         .id("desktop-editor-pane-menu")
@@ -322,13 +447,25 @@ pub fn menu(chrome: &PaneChrome, contribution: &Contribution, dark: bool, pane: 
         .on_key_down(move |e: &KeyDownEvent, window, cx| on_key(e, window, cx))
         .on_mouse_down_out(move |e: &MouseDownEvent, window, cx| {
             // A press on the handle toggles instead (it is "inside").
-            let handle = Bounds::centered_at(point(pane.center().x, pane.origin.y + px(4. + 6.5)), size(px(27.), px(13.)));
+            let handle = Bounds::centered_at(
+                point(pane.center().x, pane.origin.y + px(4. + 6.5)),
+                size(px(27.), px(13.)),
+            );
             if !handle.contains(&e.position) {
                 dismiss(false, window, cx);
             }
         })
         .child(primary)
-        .when(any, |d| d.child(div().mt(px(4.)).pt(px(4.)).border_t_1().border_color(t_.divider).child(secondary)));
+        .when(any, |d| {
+            d.child(
+                div()
+                    .mt(px(4.))
+                    .pt(px(4.))
+                    .border_t_1()
+                    .border_color(t_.divider)
+                    .child(secondary),
+            )
+        });
     Some(
         deferred(
             div()
@@ -352,11 +489,38 @@ mod tests {
 
     fn contribution() -> Contribution {
         Contribution {
-            segmented: Some(Segmented { label: "Mode".into(), options: vec![Segment { id: "live", icon: "editor-mode-edit", label: "Live".into() }, Segment { id: "source", icon: "editor-mode-source", label: "Source".into() }], value: "live" }),
+            segmented: Some(Segmented {
+                label: "Mode".into(),
+                options: vec![
+                    Segment {
+                        id: "live",
+                        icon: "editor-mode-edit",
+                        label: "Live".into(),
+                    },
+                    Segment {
+                        id: "source",
+                        icon: "editor-mode-source",
+                        label: "Source".into(),
+                    },
+                ],
+                value: "live",
+            }),
             items: vec![
-                Item { id: "toggle", label: "Toggle".into(), kind: ItemKind::Toggle(true) },
-                Item { id: "off", label: "Off".into(), kind: ItemKind::Command { disabled: true } },
-                Item { id: "run", label: "Run".into(), kind: ItemKind::Command { disabled: false } },
+                Item {
+                    id: "toggle",
+                    label: "Toggle".into(),
+                    kind: ItemKind::Toggle(true),
+                },
+                Item {
+                    id: "off",
+                    label: "Off".into(),
+                    kind: ItemKind::Command { disabled: true },
+                },
+                Item {
+                    id: "run",
+                    label: "Run".into(),
+                    kind: ItemKind::Command { disabled: false },
+                },
             ],
             find: true,
             open_external: true,
@@ -366,8 +530,24 @@ mod tests {
     #[test]
     fn entries_follow_the_menu_order_and_skip_disabled_commands() {
         let c = contribution();
-        assert_eq!(c.entries(), vec![Action::Segment("live"), Action::Segment("source"), Action::Find, Action::OpenExternal, Action::Close, Action::Item("toggle"), Action::Item("run")]);
-        assert!(!c.closes(&Action::Item("toggle")) && c.closes(&Action::Item("run")) && !c.closes(&Action::Segment("source")) && c.closes(&Action::Find));
+        assert_eq!(
+            c.entries(),
+            vec![
+                Action::Segment("live"),
+                Action::Segment("source"),
+                Action::Find,
+                Action::OpenExternal,
+                Action::Close,
+                Action::Item("toggle"),
+                Action::Item("run")
+            ]
+        );
+        assert!(
+            !c.closes(&Action::Item("toggle"))
+                && c.closes(&Action::Item("run"))
+                && !c.closes(&Action::Segment("source"))
+                && c.closes(&Action::Find)
+        );
     }
 
     #[test]

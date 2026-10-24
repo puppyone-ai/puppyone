@@ -8,7 +8,7 @@ use crate::{
     editor::csv::operations::{MAX_COLUMNS, MAX_DATA_ROWS},
     localization::{Arg, tf},
     theme::{Theme, metric},
-    ui::menu::menu_shadow,
+    ui::components::MenuVariant,
 };
 use std::time::Instant;
 
@@ -61,7 +61,11 @@ pub(super) struct Picker {
 /// `snapOutwardDistanceToTrackCount`: a track counts once the edge crosses
 /// its midpoint.
 pub(super) fn snap(distance: f32, track: f32, maximum: usize) -> usize {
-    let track = if track.is_finite() && track > 0. { track } else { 1. };
+    let track = if track.is_finite() && track > 0. {
+        track
+    } else {
+        1.
+    };
     (((distance.max(0.) + track / 2.) / track).floor() as usize).min(maximum)
 }
 
@@ -72,7 +76,13 @@ pub(super) fn edge_velocity(pointer_x: f32, viewport_right: f32) -> f32 {
 }
 
 fn dimensions(rows: usize, columns: usize) -> String {
-    tf("editor.csv.dimensions", &[("rows", Arg::Number(rows as i64)), ("columns", Arg::Number(columns as i64))])
+    tf(
+        "editor.csv.dimensions",
+        &[
+            ("rows", Arg::Number(rows as i64)),
+            ("columns", Arg::Number(columns as i64)),
+        ],
+    )
 }
 
 fn delta(e: Expansion) -> String {
@@ -86,27 +96,47 @@ impl CsvEditor {
 
     /// The live drag preview (empty unless a drag has moved).
     pub(super) fn preview(&self) -> Expansion {
-        self.expansion.drag.filter(|d| d.moved).map(|d| d.preview).unwrap_or_default()
+        self.expansion
+            .drag
+            .filter(|d| d.moved)
+            .map(|d| d.preview)
+            .unwrap_or_default()
     }
 
     fn available(&self) -> (usize, usize) {
-        (MAX_DATA_ROWS.saturating_sub(self.data_rows()), MAX_COLUMNS.saturating_sub(self.columns()))
+        (
+            MAX_DATA_ROWS.saturating_sub(self.data_rows()),
+            MAX_COLUMNS.saturating_sub(self.columns()),
+        )
     }
 
-    pub(super) fn start_expand(&mut self, position: Point<Pixels>, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn start_expand(
+        &mut self,
+        position: Point<Pixels>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let (rows, columns) = self.available();
         if self.read_only || (rows == 0 && columns == 0) {
             return;
         }
-        let Some(origin) = self.port.origin else { return };
+        let Some(origin) = self.port.origin else {
+            return;
+        };
         self.expansion.picker = None;
         self.close_menu(false, window, cx);
         // Vertical growth uses the canvas left below the table.
         let (_, ty) = self.table_origin();
         let (_, th) = self.table_size();
         let surface_bottom = f32::from(origin.y) + ty + th - self.port.scroll.y;
-        let viewport = (f32::from(origin.y), f32::from(origin.y) + self.port.size.height);
-        let max_rows = rows.min(((viewport.1 - surface_bottom).max(0.) / self.theme.table.row_min_height).floor() as usize);
+        let viewport = (
+            f32::from(origin.y),
+            f32::from(origin.y) + self.port.size.height,
+        );
+        let max_rows = rows.min(
+            ((viewport.1 - surface_bottom).max(0.) / self.theme.table.row_min_height).floor()
+                as usize,
+        );
         self.expansion.drag = Some(ExpandDrag {
             start: position,
             current: position,
@@ -125,11 +155,21 @@ impl CsvEditor {
     }
 
     fn publish_preview(&mut self, cx: &mut Context<Self>) {
-        let Some(mut drag) = self.expansion.drag else { return };
+        let Some(mut drag) = self.expansion.drag else {
+            return;
+        };
         let y = f32::from(drag.current.y).clamp(drag.bounds.0, drag.bounds.1);
         let preview = Expansion {
-            rows: snap(y - f32::from(drag.start.y), self.theme.table.row_min_height, drag.max_rows),
-            columns: snap(f32::from(drag.current.x - drag.start.x) + drag.auto_scroll, ADDED_COLUMN_WIDTH, drag.max_columns),
+            rows: snap(
+                y - f32::from(drag.start.y),
+                self.theme.table.row_min_height,
+                drag.max_rows,
+            ),
+            columns: snap(
+                f32::from(drag.current.x - drag.start.x) + drag.auto_scroll,
+                ADDED_COLUMN_WIDTH,
+                drag.max_columns,
+            ),
         };
         if preview != drag.preview {
             drag.preview = preview;
@@ -139,9 +179,14 @@ impl CsvEditor {
     }
 
     pub(super) fn drag_expand(&mut self, position: Point<Pixels>, cx: &mut Context<Self>) {
-        let Some(mut drag) = self.expansion.drag else { return };
+        let Some(mut drag) = self.expansion.drag else {
+            return;
+        };
         let y = f32::from(position.y).clamp(drag.bounds.0, drag.bounds.1);
-        let (dx, dy) = (f32::from(position.x - drag.start.x), y - f32::from(drag.start.y));
+        let (dx, dy) = (
+            f32::from(position.x - drag.start.x),
+            y - f32::from(drag.start.y),
+        );
         if !drag.moved && dx.hypot(dy) < ACTIVATION {
             return;
         }
@@ -155,23 +200,34 @@ impl CsvEditor {
     /// One edge-scroll frame (`advanceAutoScroll`); returns whether to keep
     /// animating.
     pub(super) fn advance_expand_scroll(&mut self, cx: &mut Context<Self>) -> bool {
-        let Some(mut drag) = self.expansion.drag.filter(|d| d.moved) else { return false };
-        let Some(origin) = self.port.origin else { return false };
-        let velocity = edge_velocity(f32::from(drag.current.x), f32::from(origin.x) + self.port.size.width);
+        let Some(mut drag) = self.expansion.drag.filter(|d| d.moved) else {
+            return false;
+        };
+        let Some(origin) = self.port.origin else {
+            return false;
+        };
+        let velocity = edge_velocity(
+            f32::from(drag.current.x),
+            f32::from(origin.x) + self.port.size.width,
+        );
         if velocity == 0. || drag.preview.columns >= drag.max_columns {
             drag.last_frame = None;
             self.expansion.drag = Some(drag);
             return false;
         }
         let now = Instant::now();
-        let elapsed = drag.last_frame.map_or(16., |t| (now - t).as_secs_f32() * 1000.).clamp(0., 32.);
+        let elapsed = drag
+            .last_frame
+            .map_or(16., |t| (now - t).as_secs_f32() * 1000.)
+            .clamp(0., 32.);
         drag.last_frame = Some(now);
         drag.auto_scroll += velocity * elapsed / 1000.;
         self.expansion.drag = Some(drag);
         self.publish_preview(cx);
         // The new tracks exist before scrolling into them.
         let (cw, _) = self.content_size();
-        self.port.scroll.x = (drag.start_scroll_x + drag.auto_scroll).min((cw - self.port.size.width).max(0.));
+        self.port.scroll.x =
+            (drag.start_scroll_x + drag.auto_scroll).min((cw - self.port.size.width).max(0.));
         cx.notify();
         true
     }
@@ -179,7 +235,9 @@ impl CsvEditor {
     /// Release: a drag grows the table to its preview; a click toggles the
     /// size picker. `cancel` restores the scroll position.
     pub(super) fn end_expand(&mut self, cancel: bool, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(drag) = self.expansion.drag.take() else { return };
+        let Some(drag) = self.expansion.drag.take() else {
+            return;
+        };
         cx.notify();
         if cancel {
             self.port.scroll.x = drag.start_scroll_x;
@@ -190,14 +248,31 @@ impl CsvEditor {
             return;
         }
         if drag.preview != Expansion::default() {
-            self.expand_to(drag.base_rows + drag.preview.rows, drag.base_columns + drag.preview.columns, window, cx);
+            self.expand_to(
+                drag.base_rows + drag.preview.rows,
+                drag.base_columns + drag.preview.columns,
+                window,
+                cx,
+            );
         }
     }
 
-    fn expand_to(&mut self, data_rows: usize, columns: usize, window: &mut Window, cx: &mut Context<Self>) {
+    fn expand_to(
+        &mut self,
+        data_rows: usize,
+        columns: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.expansion.picker = None;
         let row = self.rows().saturating_sub(1);
-        self.apply_operation(Operation::ExpandToShape { data_rows, columns }, row, 0, window, cx);
+        self.apply_operation(
+            Operation::ExpandToShape { data_rows, columns },
+            row,
+            0,
+            window,
+            cx,
+        );
     }
 
     fn picker_size(&self) -> (usize, usize) {
@@ -213,15 +288,27 @@ impl CsvEditor {
         }
         let focus = cx.focus_handle();
         focus.focus(window, cx);
-        self.expansion.picker = Some(Picker { selection: Expansion { rows: 1, columns: 1 }, keyboard: false, focus });
+        self.expansion.picker = Some(Picker {
+            selection: Expansion {
+                rows: 1,
+                columns: 1,
+            },
+            keyboard: false,
+            focus,
+        });
         cx.notify();
     }
 
     /// `movePickerSelection`.
     fn picker_key(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
         let (rows, columns) = self.picker_size();
-        let Some(picker) = &mut self.expansion.picker else { return };
-        let Expansion { rows: r, columns: c } = picker.selection;
+        let Some(picker) = &mut self.expansion.picker else {
+            return;
+        };
+        let Expansion {
+            rows: r,
+            columns: c,
+        } = picker.selection;
         let next = match event.keystroke.key.as_str() {
             "up" => (r.saturating_sub(1), c),
             "down" => (r + 1, c),
@@ -243,7 +330,10 @@ impl CsvEditor {
             _ => return,
         };
         cx.stop_propagation();
-        picker.selection = Expansion { rows: next.0.clamp(1, rows), columns: next.1.clamp(1, columns) };
+        picker.selection = Expansion {
+            rows: next.0.clamp(1, rows),
+            columns: next.1.clamp(1, columns),
+        };
         picker.keyboard = true;
         cx.notify();
     }
@@ -258,7 +348,15 @@ impl CsvEditor {
         let (rows, columns) = self.picker_size();
         let selection = picker.selection;
         let text = |weight: f32, color: Rgba| {
-            let style = TextStyle { size: self.theme.body.size, weight, italic: false, mono: false, color, tabular: true, line_height: LineHeight::Factor(1.2) };
+            let style = TextStyle {
+                size: self.theme.body.size,
+                weight,
+                italic: false,
+                mono: false,
+                color,
+                tabular: true,
+                line_height: LineHeight::Factor(1.2),
+            };
             let mut d = div().whitespace_nowrap();
             style.apply(d.style());
             d
@@ -274,7 +372,13 @@ impl CsvEditor {
             for column in 1..=columns {
                 let chosen = row <= selection.rows && column <= selection.columns;
                 let focused = picker.keyboard && selection == Expansion { rows: row, columns };
-                let label = tf("editor.csv.expandTo", &[("rows", Arg::Number((self.data_rows() + row) as i64)), ("columns", Arg::Number((self.columns() + column) as i64))]);
+                let label = tf(
+                    "editor.csv.expandTo",
+                    &[
+                        ("rows", Arg::Number((self.data_rows() + row) as i64)),
+                        ("columns", Arg::Number((self.columns() + column) as i64)),
+                    ],
+                );
                 line = line.child(
                     div()
                         .id(("csv-resize-picker-cell", row * 16 + column))
@@ -284,16 +388,28 @@ impl CsvEditor {
                         .border_color(if chosen { selected_border } else { cell_border })
                         .bg(if chosen { selected_bg } else { cell_bg })
                         .cursor(crate::theme::clickable_cursor())
-                        .when(focused, |d| d.shadow(vec![BoxShadow { color: focus_ring.into(), offset: point(px(0.), px(0.)), blur_radius: px(0.), spread_radius: px(1.5), inset: false }]))
-                        .tooltip(crate::ui::tooltip(label))
+                        .when(focused, |d| {
+                            d.shadow(vec![BoxShadow {
+                                color: focus_ring.into(),
+                                offset: point(px(0.), px(0.)),
+                                blur_radius: px(0.),
+                                spread_radius: px(1.5),
+                                inset: false,
+                            }])
+                        })
+                        .tooltip(crate::ui::components::tooltip(label))
                         .on_hover(cx.listener(move |this, hovered: &bool, _, cx| {
                             if *hovered && let Some(p) = &mut this.expansion.picker {
-                                p.selection = Expansion { rows: row, columns: column };
+                                p.selection = Expansion {
+                                    rows: row,
+                                    columns: column,
+                                };
                                 cx.notify();
                             }
                         }))
                         .on_click(cx.listener(move |this, _, window, cx| {
-                            let (data_rows, cols) = (this.data_rows() + row, this.columns() + column);
+                            let (data_rows, cols) =
+                                (this.data_rows() + row, this.columns() + column);
                             this.expand_to(data_rows, cols, window, cx);
                         })),
                 );
@@ -304,41 +420,57 @@ impl CsvEditor {
             .flex()
             .items_baseline()
             .gap(px(12.))
-            .child(text(650., t.text).flex_1().min_w_0().overflow_hidden().text_ellipsis().child(dimensions(self.data_rows() + selection.rows, self.columns() + selection.columns)))
+            .child(
+                text(650., t.text)
+                    .flex_1()
+                    .min_w_0()
+                    .overflow_hidden()
+                    .text_ellipsis()
+                    .child(dimensions(
+                        self.data_rows() + selection.rows,
+                        self.columns() + selection.columns,
+                    )),
+            )
             .child(text(400., t.muted).flex_shrink_0().child(delta(selection)));
         let width = 200.;
         let right = tx + tw + self.theme.table.action_gutter;
         let bottom = ty + th - 6.;
         Some(
             deferred(
-                div().absolute().left(px(right - width)).top(px(bottom)).child(
-                    div()
-                        .id("csv-resize-picker")
-                        .track_focus(&picker.focus)
-                        .occlude()
-                        .absolute()
-                        .bottom_0()
-                        .left_0()
-                        .w(px(width))
-                        .flex()
-                        .flex_col()
-                        .gap(px(8.))
-                        .p(px(9.))
-                        .border_1()
-                        .border_color(t.border)
-                        .rounded(px(metric::MENU_RADIUS))
-                        .bg(t.menu_bg)
-                        .shadow(menu_shadow(t))
-                        .on_key_down(cx.listener(|this, e: &KeyDownEvent, window, cx| this.picker_key(e, window, cx)))
-                        .on_mouse_down_out(cx.listener(|this, _, _, cx| {
-                            if this.expansion.picker.take().is_some() {
-                                cx.notify();
-                            }
-                        }))
-                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                        .child(summary)
-                        .child(grid),
-                ),
+                div()
+                    .absolute()
+                    .left(px(right - width))
+                    .top(px(bottom))
+                    .child(
+                        div()
+                            .id("csv-resize-picker")
+                            .track_focus(&picker.focus)
+                            .occlude()
+                            .absolute()
+                            .bottom_0()
+                            .left_0()
+                            .w(px(width))
+                            .flex()
+                            .flex_col()
+                            .gap(px(8.))
+                            .p(px(9.))
+                            .border_1()
+                            .border_color(t.border)
+                            .rounded(px(metric::MENU_RADIUS))
+                            .bg(t.menu_bg)
+                            .shadow(MenuVariant::Default.shadow(t))
+                            .on_key_down(cx.listener(|this, e: &KeyDownEvent, window, cx| {
+                                this.picker_key(e, window, cx)
+                            }))
+                            .on_mouse_down_out(cx.listener(|this, _, _, cx| {
+                                if this.expansion.picker.take().is_some() {
+                                    cx.notify();
+                                }
+                            }))
+                            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                            .child(summary)
+                            .child(grid),
+                    ),
             )
             .with_priority(2)
             .into_any_element(),
@@ -355,13 +487,27 @@ impl CsvEditor {
         let drag = self.expansion.drag?;
         let t = Theme::new(self.theme.dark);
         let text = |weight: f32, color: Rgba| {
-            let style = TextStyle { size: self.theme.body.size, weight, italic: false, mono: false, color, tabular: false, line_height: LineHeight::Factor(1.2) };
+            let style = TextStyle {
+                size: self.theme.body.size,
+                weight,
+                italic: false,
+                mono: false,
+                color,
+                tabular: false,
+                line_height: LineHeight::Factor(1.2),
+            };
             let mut d = div().whitespace_nowrap();
             style.apply(d.style());
             d
         };
         // `--po-elevation-low`.
-        let shadow = BoxShadow { color: crate::theme::alpha(t.shadow, 0.28).into(), offset: point(px(0.), px(2.)), blur_radius: px(4.), spread_radius: px(-2.), inset: false };
+        let shadow = BoxShadow {
+            color: crate::theme::alpha(t.shadow, 0.28).into(),
+            offset: point(px(0.), px(2.)),
+            blur_radius: px(4.),
+            spread_radius: px(-2.),
+            inset: false,
+        };
         Some(
             div()
                 .absolute()
@@ -377,7 +523,10 @@ impl CsvEditor {
                 .rounded(px(7.))
                 .bg(crate::theme::mix(t.panel_raised, Rgba::default(), 0.96))
                 .shadow(vec![shadow])
-                .child(text(650., t.text).child(dimensions(drag.base_rows + preview.rows, drag.base_columns + preview.columns)))
+                .child(text(650., t.text).child(dimensions(
+                    drag.base_rows + preview.rows,
+                    drag.base_columns + preview.columns,
+                )))
                 .child(text(400., t.muted).child(delta(preview)))
                 .into_any_element(),
         )

@@ -96,7 +96,7 @@ impl AgentChat {
                     .border_1()
                     .border_color(a.border_subtle)
                     .bg(a.row_hover)
-                    .tooltip(crate::ui::tooltip(reference.name.clone()))
+                    .tooltip(crate::ui::components::tooltip(reference.name.clone()))
                     .child(
                         div()
                             .size_full()
@@ -137,7 +137,7 @@ impl AgentChat {
                             .invisible()
                             .group_hover(group, |s| s.visible())
                             .hover(move |s| s.bg(action_hover))
-                            .tooltip(crate::ui::tooltip(remove))
+                            .tooltip(crate::ui::components::tooltip(remove))
                             .on_click(cx.listener(move |s, _, _, cx| {
                                 s.session.references.retain(|r| r.id != id);
                                 cx.notify();

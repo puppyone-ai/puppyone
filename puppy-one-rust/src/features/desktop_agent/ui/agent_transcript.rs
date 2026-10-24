@@ -568,7 +568,9 @@ impl AgentChat {
                                 .text_color(a.text)
                                 .cursor(theme::clickable_cursor())
                                 .hover(move |s| s.bg(a.row_hover))
-                                .tooltip(crate::ui::tooltip(tr("agent.transcript.jumpLatest")))
+                                .tooltip(crate::ui::components::tooltip(tr(
+                                    "agent.transcript.jumpLatest",
+                                )))
                                 .child(Icon::new("arrow-down").stroke(2.).color(a.text))
                                 .on_click(cx.listener(|s, _, _, cx| {
                                     s.follow = true;
@@ -672,7 +674,7 @@ impl AgentChat {
                     .m(px(-4.))
                     .rounded_full()
                     .cursor(theme::clickable_cursor())
-                    .tooltip(crate::ui::tooltip(spin))
+                    .tooltip(crate::ui::components::tooltip(spin))
                     .child(mark)
                     .on_click(cx.listener(|s, _, _, cx| {
                         s.logo_turns += 1;

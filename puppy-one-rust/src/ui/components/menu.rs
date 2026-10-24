@@ -81,7 +81,9 @@ impl MenuVariant {
             trailing_inherits: self == Self::Project,
         }
     }
-    fn shadow(self, t: Theme) -> Vec<BoxShadow> {
+    /// The surface's elevation (`--po-elevation-*`), for surfaces that
+    /// draw their own rows (editor menus).
+    pub fn shadow(self, t: Theme) -> Vec<BoxShadow> {
         let shadow = |color: Rgba, y: f32, blur: f32, spread: f32| BoxShadow {
             inset: false,
             color: color.into(),
