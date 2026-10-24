@@ -4,6 +4,7 @@
 //! and product renders are compared at the same viewport and DPR.
 //!
 //! - `<workbench scenario>-<mode>`: the right sidebar (`tools/workbench-scenarios.json`).
+//! - `gallery[-dialog]-<mode>`: the component library (`ui::gallery`).
 //! - `settings-<section>-<mode>`: `SettingsDialog` on one page over the task
 //!   backdrop (`tools/settings-scenarios.json`).
 use crate::{
@@ -17,6 +18,7 @@ use gpui::{prelude::*, *};
 use std::path::PathBuf;
 
 enum Surface {
+    Gallery(Entity<crate::ui::gallery::Gallery>),
     Workbench(Entity<Workbench>),
     Settings(Entity<SettingsWorkspaceSurface>),
 }
@@ -69,32 +71,38 @@ impl Lab {
         crate::ui::appearance::Appearance::default()
             .with_dark(dark)
             .apply(Some(window), cx);
-        let surface = match scenario.strip_prefix("settings-").and_then(settings_page) {
-            Some(page) => {
-                let preferences = cx.new(|_| PreferencesStore::memory());
-                let settings = cx.new(|cx| {
-                    let mut settings = SettingsWorkspaceSurface::new(preferences, window, cx);
-                    settings.dark_override = Some(dark);
-                    settings.lab_fixture(
-                        PathBuf::from("/reference/project"),
-                        page,
-                        scenario == "settings-git-remotes",
-                        cx,
-                    );
-                    settings
-                });
-                cx.observe(&settings, |_, _, cx| cx.notify()).detach();
-                Surface::Settings(settings)
-            }
-            None => {
-                let workbench = cx.new(|cx| {
-                    let mut workbench = Workbench::new(window, cx);
-                    workbench.dark = dark;
-                    workbench.lab_fixture(&scenario, window, cx);
-                    workbench
-                });
-                cx.observe(&workbench, |_, _, cx| cx.notify()).detach();
-                Surface::Workbench(workbench)
+        let gallery = scenario.strip_prefix("gallery");
+        let surface = if let Some(rest) = gallery {
+            let dialog = rest == "-dialog";
+            Surface::Gallery(cx.new(|_| crate::ui::gallery::Gallery::new(dialog)))
+        } else {
+            match scenario.strip_prefix("settings-").and_then(settings_page) {
+                Some(page) => {
+                    let preferences = cx.new(|_| PreferencesStore::memory());
+                    let settings = cx.new(|cx| {
+                        let mut settings = SettingsWorkspaceSurface::new(preferences, window, cx);
+                        settings.dark_override = Some(dark);
+                        settings.lab_fixture(
+                            PathBuf::from("/reference/project"),
+                            page,
+                            scenario == "settings-git-remotes",
+                            cx,
+                        );
+                        settings
+                    });
+                    cx.observe(&settings, |_, _, cx| cx.notify()).detach();
+                    Surface::Settings(settings)
+                }
+                None => {
+                    let workbench = cx.new(|cx| {
+                        let mut workbench = Workbench::new(window, cx);
+                        workbench.dark = dark;
+                        workbench.lab_fixture(&scenario, window, cx);
+                        workbench
+                    });
+                    cx.observe(&workbench, |_, _, cx| cx.notify()).detach();
+                    Surface::Workbench(workbench)
+                }
             }
         };
         Self {
@@ -141,6 +149,7 @@ impl Render for Lab {
             .text_color(t.text)
             .relative();
         let root = match &self.surface {
+            Surface::Gallery(gallery) => root.child(gallery.clone()),
             Surface::Workbench(workbench) => root.bg(t.auxiliary()).child(workbench.clone()),
             Surface::Settings(settings) => {
                 // The product page body is `--po-canvas`; the task backdrop
