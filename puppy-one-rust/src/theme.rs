@@ -52,18 +52,6 @@ pub fn chromium_baseline(size: f32) -> f32 {
     let (ascent, descent) = (1.005 * size, 0.295 * size);
     (ascent.round() - descent.round() - (ascent - descent)) / 2.
 }
-/// The height of a one-line box with a fractional CSS `line-height`. GPUI
-/// rounds line heights to whole points, and where Chromium snaps a box
-/// left on half a device pixel down the page (round half up), GPUI rounds
-/// half toward zero. A quarter point more puts what follows on the device
-/// pixel Chromium paints it at, at 1x and 2x alike.
-pub fn chromium_line_box(line_height: f32) -> f32 {
-    if line_height.fract() > 0. {
-        line_height + 0.25
-    } else {
-        line_height
-    }
-}
 pub fn control() -> f32 {
     ty().control_size
 }

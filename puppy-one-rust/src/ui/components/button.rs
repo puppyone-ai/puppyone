@@ -406,6 +406,11 @@ impl RenderOnce for Button {
                     .line_height(px(ty.control_line_height))
             })
             .when(disabled && outlined, |b| b.opacity(0.62))
+            // `.desktop-titlebar-action:disabled`.
+            .when(
+                disabled && matches!(variant, ButtonVariant::Ghost | ButtonVariant::Titlebar),
+                |b| b.opacity(0.68),
+            )
             .when(!disabled, |b| {
                 b.cursor(theme::clickable_cursor())
                     .hover(move |s| s.bg(hover_bg).text_color(hover_fg))

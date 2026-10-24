@@ -48,6 +48,8 @@ impl Render for Gallery {
             ("Filled", ButtonVariant::Filled),
             ("Commit", ButtonVariant::FilledPrimary),
             ("Ghost", ButtonVariant::Ghost),
+            ("Titlebar", ButtonVariant::Titlebar),
+            ("Save", ButtonVariant::Success),
             ("Cancel", ButtonVariant::Secondary),
             ("Save", ButtonVariant::Solid),
             ("Delete", ButtonVariant::SolidDanger),
@@ -148,6 +150,36 @@ impl Render for Gallery {
                     .gap(px(10.))
                     .child(button_row(false))
                     .child(button_row(true)),
+            ))
+            .child(section(
+                "Button states · open (menu expanded) and selected",
+                row()
+                    .child(
+                        Button::new("state-0")
+                            .variant(ButtonVariant::Ghost)
+                            .icon(Icon::new("house-compact").large())
+                            .label("Ghost open")
+                            .open(true),
+                    )
+                    .child(
+                        Button::new("state-1")
+                            .variant(ButtonVariant::Titlebar)
+                            .icon("agent-entry")
+                            .accessibility_label("Titlebar selected")
+                            .selected(true),
+                    )
+                    .child(
+                        Button::new("state-2")
+                            .variant(ButtonVariant::Titlebar)
+                            .icon("laptop")
+                            .accessibility_label("Titlebar open")
+                            .open(true),
+                    )
+                    .child(
+                        Icon::new("loader-circle")
+                            .color(t.muted)
+                            .spinning("gallery-spinning-icon"),
+                    ),
             ))
             .child(section(
                 "IconButton",
