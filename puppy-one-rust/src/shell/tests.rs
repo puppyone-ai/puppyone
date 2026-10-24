@@ -213,7 +213,7 @@ fn project_popup_toggle_outside_and_escape_restore_focus(cx: &mut TestAppContext
 fn choosing_local_closes_popup_and_restores_trigger(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     command(&view, cx, "location-menu");
-    let r = view.update(cx, |s, _| s.popover_bounds().unwrap());
+    let r = view.update(cx, |s, cx| s.popover_bounds(cx).unwrap());
     // Section label, then the selected "This Mac" row.
     cx.simulate_click(
         point(px(r.x + 60.), px(r.y + 5. + 23. + 16.)),

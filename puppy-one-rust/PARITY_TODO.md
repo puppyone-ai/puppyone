@@ -55,7 +55,7 @@
 
 ### 左侧栏（`ExplorerTree.tsx` / `DataWorkspace.tsx` / `nodeActions.tsx`）
 - [x] P1-2 文件类型图标（跟随文件图标主题设置）+ 扩展名区分
-- [x] P1-3 行内 Git 状态字母（M/A/D/U/R/C）
+- [x] P1-3 ~~行内 Git 状态字母~~：桌面产品的 Explorer 行不显示 Git 字母/颜色（实测 qubits），已移除；Git 状态只在 Header 与 Changes 中呈现
 - [x] P1-4 悬停行操作与右键菜单：在此新建、复制路径、复制相对路径、在 Finder 中显示、用默认应用打开、创建副本、复制/剪切/粘贴、重命名、删除（确认）。证据：`rename_move_copy_import_and_delete_stay_inside_the_grant`
 - [x] P1-5 键盘：↑↓←→ Home End Enter；多选（⌘ 加选、⇧ 范围）
 - [x] P1-6 拖拽：树内移动到文件夹；从系统拖入文件导入
@@ -110,6 +110,14 @@
 - [x] P2-4 对话记录：用户消息气泡、助手消息无角色行、工具活动分组、回合耗时摘要、工作中指示、跳到最新
 - [x] P2-5 输入框：选择器单行不换行、附件菜单（文件 + 项目引用）、发送按钮忙碌态
 - [x] P2-6 Header 中项目按钮、右侧按钮几何与 Web 对齐
+- [x] P2-7 弹层与侧栏页面对齐（以完整 TS 应用实测为参照，目标约 95% 而非逐像素）：
+  - 菜单原语 `ui/menu.rs` 按 `DesktopMenuSurface` 变体（UI / left-sidebar 字体、popover / compact / 项目菜单阴影、3px 项目菜单内边距、侧栏 launcher 行几何且隐藏分隔线）；定位 `geometry/menu_position.rs` 移植 `resolveDesktopSidebarActionMenuPosition`、`getCreateEntryMenuPosition`、`resolveAnchoredOverlayPosition`。证据：`sidebar_action_menus_open_four_pixels_below_their_trigger`、`create_menus_follow_the_product_placements`、`titlebar_menus_hang_below_their_trigger`
+  - Explorer：行 ⋮ / + 以按钮矩形为锚（下 4px / 6px），右键以指针为锚，"New" 菜单与行同宽右对齐；菜单打开时行保持 open 态（底色、按钮高亮、操作可见）；条目顺序同 `DesktopNodeActionMenu`（含 Change file type，粘贴项禁用而非隐藏）；Custom files 为悬停子菜单；行几何改用桌面 token（content-left 6、gap 4、400 字重、19 行高、`TreeDisclosureMarker`、选中渐变）
+  - Header：项目菜单挂在按钮下 2px、240 宽、`.desktop-project-menu` 外观；位置切换按钮只在 Cloud workspace 实验开启时出现；Changes 与 Agent 之间 1×18 分隔线
+  - 布局：移植 `resolveDesktopPaneLayout`（Explorer 默认 320 / 220–520，右侧栏默认 560 / ≥320，主区 ≥320，主区先让、右侧栏次之）；右侧栏内容不再被 8px sash 内缩
+  - Changes：`GitChangesSidebar` 结构（安静标题 + History、可折叠 Staged/Unstaged/Merge/Committed 面板、行内 Commit / Stage and Commit、悬停行操作、12px 分隔、Pull 提示），提交使用产品默认消息（`buildDefaultCommitMessage`），去掉底部提交输入框与 Fetch/Refresh。证据：`empty_commits_take_the_product_default_message`
+  - 实测（1280×800 深色，同一 fixture 仓库，区域一致率，容差 8）：节点菜单 98.2%、行 + 菜单 98.3%、New 菜单 98.3%、右键菜单 98.8%、项目菜单 98.1%、Changes 99.6%、Agent 右侧栏 97.7%
+  - 复现：`dev-capture` 构建以 `PUPPYONE_SCREENSHOT=out.png PUPPYONE_CAPTURE_SCENARIO="select:src;node-menu:docs" ./target/debug/puppy-one-rust --workspace <repo>` 截图（步骤见 `src/shell/capture_scenario.rs`；窗口在后台、不抢焦点）
 
 ## 5. 已知差异（有意保留）
 

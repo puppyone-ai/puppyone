@@ -105,8 +105,19 @@ fn main() {
                 .detach();
                 return;
             }
+            // Dev captures of the shell run like the lab: an accessory window
+            // behind every other one that never takes the keyboard.
+            #[cfg(feature = "dev-capture")]
+            let background = std::env::var_os("PUPPYONE_SCREENSHOT").is_some();
+            #[cfg(not(feature = "dev-capture"))]
+            let background = false;
+            #[cfg(feature = "dev-capture")]
+            if background {
+                capture::run_in_background();
+            }
             let (window, shell_view) = open_shell_window(
                 WindowOptions {
+                    focus: !background,
                     window_bounds: Some(WindowBounds::Windowed(bounds)),
                     titlebar: Some(TitlebarOptions {
                         title: Some("PuppyOne GPUI — local text workspace".into()),
@@ -121,6 +132,13 @@ fn main() {
                 |window, cx| cx.new(|cx| shell::Shell::new(window, cx)),
             )
             .expect("open GPUI window");
+            #[cfg(feature = "dev-capture")]
+            if background {
+                let _ = window.update(cx, |_, window, cx| {
+                    capture::send_to_back(window);
+                    capture::pump_frames(window, cx);
+                });
+            }
             // GPUI's macOS Undo/Redo menu items dispatch GPUI actions. Native
             // input consumes these first; an unhandled action reaches the editor model.
             let undo_view = shell_view.clone();
@@ -146,7 +164,9 @@ fn main() {
                 }
             })
             .detach();
-            cx.activate(true);
+            if !background {
+                cx.activate(true);
+            }
         });
 }
 

@@ -33,6 +33,8 @@ pub(super) fn measure(anchors: &Anchors, key: &'static str) -> impl IntoElement 
         |_, _, _, _| {},
     )
     .absolute()
+    .top_0()
+    .left_0()
     .size_full()
 }
 impl Shell {
@@ -179,6 +181,9 @@ impl Shell {
         } else {
             "shell.workspaceSwitcher.location.thisComputer"
         });
+        // `DesktopProjectLocationSwitcher` renders only when Cloud workspaces
+        // are enabled (`projectLocation` is undefined otherwise).
+        let cloud = self.preferences.read(cx).state.experimental.cloud_workspace;
         row()
             .min_w_0()
             .gap(px(2.))
@@ -206,7 +211,7 @@ impl Shell {
                             .when(project_open, |b| b.bg(t.hover))
                             .hover(move |s| s.bg(t.hover).text_color(t.text))
                             .child(icon_sized(
-                                "house",
+                                "house-compact",
                                 16.,
                                 if project_open { t.text } else { t.muted },
                             ))
@@ -224,32 +229,36 @@ impl Shell {
                     )
                     .child(header_ui::measure(&self.anchors, "project")),
             )
-            .child(
-                div()
-                    .relative()
-                    .flex_shrink_0()
-                    .child(
-                        gpui_kit::base::Button::new("project-location")
-                            .accessibility_label(format!(
-                                "{device}, {}",
-                                tr("shell.workspaceSwitcher.projectDetails")
-                            ))
-                            .selected(location_open)
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .w(px(theme::control()))
-                            .h(px(theme::control_compact()))
-                            .rounded(px(metric::TOOLBAR_ACTION_RADIUS))
-                            .cursor(theme::clickable_cursor())
-                            .when(location_open, |b| b.bg(t.hover))
-                            .hover(move |s| s.bg(t.hover))
-                            .tooltip(tooltip(device))
-                            .child(icon_sized("laptop", 16., t.muted))
-                            .on_click(cx.listener(|s, _, w, cx| s.command("location-menu", w, cx))),
-                    )
-                    .child(header_ui::measure(&self.anchors, "location")),
-            )
+            .when(cloud, |d| {
+                d.child(
+                    div()
+                        .relative()
+                        .flex_shrink_0()
+                        .child(
+                            gpui_kit::base::Button::new("project-location")
+                                .accessibility_label(format!(
+                                    "{device}, {}",
+                                    tr("shell.workspaceSwitcher.projectDetails")
+                                ))
+                                .selected(location_open)
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .w(px(theme::control()))
+                                .h(px(theme::control_compact()))
+                                .rounded(px(metric::TOOLBAR_ACTION_RADIUS))
+                                .cursor(theme::clickable_cursor())
+                                .when(location_open, |b| b.bg(t.hover))
+                                .hover(move |s| s.bg(t.hover))
+                                .tooltip(tooltip(device))
+                                .child(icon_sized("laptop", 16., t.muted))
+                                .on_click(
+                                    cx.listener(|s, _, w, cx| s.command("location-menu", w, cx)),
+                                ),
+                        )
+                        .child(header_ui::measure(&self.anchors, "location")),
+                )
+            })
     }
     pub(super) fn header(&self, cx: &mut Context<Self>) -> Div {
         let t = Theme::new(self.dark);
@@ -289,11 +298,19 @@ impl Shell {
         if show_project && !centered {
             left = left.child(self.project_context(cx));
         }
-        let mut actions = row().h_full().gap(px(2.)).pr(px(8.));
-        if !home && self.files.workspace.is_some() && prefs.header_changes {
+        // `.desktop-titlebar-actions`: 2px apart, 6px from the window edge,
+        // with `.desktop-titlebar-action-divider` (1×18, 3px margins) between
+        // Changes and the Agent entry.
+        let mut actions = row().h_full().gap(px(2.)).pr(px(6.));
+        let changes = !home && self.files.workspace.is_some() && prefs.header_changes;
+        let agent = !home && prefs.header_terminal;
+        if changes {
             actions = actions.child(self.changes_action(cx));
         }
-        if !home && prefs.header_terminal {
+        if changes && agent {
+            actions = actions.child(div().w(px(1.)).h(px(18.)).mx(px(3.)).bg(t.shell_divider));
+        }
+        if agent {
             actions = actions.child(self.agent_action(cx));
         }
         let mut bar = at(r)

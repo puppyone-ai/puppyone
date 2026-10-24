@@ -9,6 +9,8 @@ use crate::{
 };
 use gpui::{prelude::*, *};
 use std::{cell::RefCell, path::PathBuf, rc::Rc};
+#[cfg(feature = "dev-capture")]
+mod capture_scenario;
 #[path = "create_new_ui.rs"]
 mod create_new_ui;
 #[path = "explorer_ui.rs"]
@@ -21,7 +23,7 @@ mod home_ui;
 mod project_ui;
 #[path = "task_ui.rs"]
 pub(crate) mod task_ui;
-use explorer_ui::{ExplorerMenu, FileClipboard, FileOp, GitMark, OpOutcome};
+use explorer_ui::{ExplorerMenu, FileClipboard, FileOp, OpOutcome, RowAnchors};
 use task_ui::TaskUi;
 /// Anchored popovers owned by the shell, each with a known rectangle.
 #[derive(Clone, Debug, PartialEq)]
@@ -127,7 +129,12 @@ pub struct Shell {
     queued_op: Option<FileOp>,
     reopen: Option<PathBuf>,
     rename: Option<(PathBuf, Entity<ui::form_input::TextInput>)>,
-    git_marks: std::collections::HashMap<PathBuf, GitMark>,
+    /// Painted Explorer row bounds: row triggers anchor their menus here.
+    row_anchors: RowAnchors,
+    /// Hover generation of the Custom files submenu (`scheduleCloseSubmenu`).
+    submenu_hover_epoch: u64,
+    /// The rename dialog was opened as "Change file type".
+    rename_type: bool,
     create_entry:
         Option<Entity<crate::features::create_new::create_entry_dialog::CreateEntryDialog>>,
     task_ui: TaskUi,
@@ -146,6 +153,8 @@ pub struct Shell {
     captured: bool,
     drag: Option<bool>,
     layout: Layout,
+    #[cfg(feature = "dev-capture")]
+    capture_scenario: Option<capture_scenario::CaptureScenario>,
     #[cfg(test)]
     painted_rows: usize,
     #[cfg(test)]
@@ -230,8 +239,8 @@ impl Shell {
             locale: Locale::default(),
             left_open: true,
             right_open: std::env::var("PUPPYONE_RIGHT").as_deref() == Ok("1"),
-            left_width: theme::SIDEBAR,
-            right_width: 360.,
+            left_width: theme::pane::DEFAULT_EXPLORER_WIDTH,
+            right_width: theme::pane::DEFAULT_RIGHT_SIDEBAR_WIDTH,
             rail: false,
             settings: std::env::var("PUPPYONE_CAPTURE_SURFACE").as_deref() == Ok("settings"),
             help: std::env::var("PUPPYONE_CAPTURE_SURFACE").as_deref() == Ok("feedback"),
@@ -251,7 +260,9 @@ impl Shell {
             queued_op: None,
             reopen: None,
             rename: None,
-            git_marks: Default::default(),
+            row_anchors: Default::default(),
+            submenu_hover_epoch: 0,
+            rename_type: false,
             create_entry: None,
             task_ui: TaskUi::new(preferences.clone(), window, cx),
             preferences,
@@ -272,7 +283,13 @@ impl Shell {
             scroll: UniformListScrollHandle::new(),
             captured: false,
             drag: None,
-            layout: Layout::new(1280., 800., 220., 0., 0.),
+            layout: Layout::new(1280., 800., theme::pane::DEFAULT_EXPLORER_WIDTH, 0., 0.),
+            #[cfg(feature = "dev-capture")]
+            capture_scenario: if cfg!(test) {
+                None
+            } else {
+                capture_scenario::CaptureScenario::from_env()
+            },
             #[cfg(test)]
             painted_rows: 0,
             #[cfg(test)]
@@ -330,11 +347,9 @@ impl Shell {
             },
         )
         .detach();
-        cx.observe(&s.source_control, |s, sc, cx| {
-            s.git_marks = explorer_ui::git_marks(sc.read(cx).snapshot.as_ref());
-            cx.notify()
-        })
-        .detach();
+        // The Header's Changes status follows the Git snapshot.
+        cx.observe(&s.source_control, |_, _, cx| cx.notify())
+            .detach();
         cx.subscribe_in(&s.native, window, |s, _, event, window, cx| {
             // Pane menu commands (open in default app, close) are the shell's.
             if let ClientMessage::Action { action } = event {
@@ -975,7 +990,12 @@ impl Render for Shell {
             if self.rail { 56. } else { 0. },
         );
         self.sync_editor(window, cx);
+        #[cfg(feature = "dev-capture")]
+        let scenario_done = self.advance_capture_scenario(window, cx);
+        #[cfg(not(feature = "dev-capture"))]
+        let scenario_done = true;
         if !self.captured
+            && scenario_done
             && let Some(path) = std::env::var_os("PUPPYONE_SCREENSHOT")
         {
             self.captured = true;
@@ -1000,10 +1020,20 @@ impl Render for Shell {
             .on_mouse_move(cx.listener(|s, e: &MouseMoveEvent, _, cx| {
                 if let Some(left) = s.drag {
                     let x = f32::from(e.position.x);
+                    // Explorer 220–520; the right sidebar keeps the main
+                    // pane floor (`resolveDesktopPaneLayout` maxima).
+                    let rail = if s.rail { 56. } else { 0. };
                     if left {
-                        s.left_width = (x - if s.rail { 56. } else { 0. }).clamp(160., 480.);
+                        s.left_width = (x - rail).clamp(
+                            theme::pane::MIN_EXPLORER_WIDTH,
+                            theme::pane::MAX_EXPLORER_WIDTH,
+                        );
                     } else {
-                        s.right_width = (s.layout.header.w - x).clamp(240., 640.);
+                        let available = s.layout.header.w - rail;
+                        s.right_width = (s.layout.header.w - x).clamp(
+                            theme::pane::MIN_RIGHT_SIDEBAR_WIDTH,
+                            theme::right_sidebar_max_width(available, s.layout.explorer.w),
+                        );
                     }
                     cx.notify();
                 }
@@ -1028,9 +1058,10 @@ impl Render for Shell {
             self.workbench.update(cx, |s, _| s.dark = self.dark);
             self.source_control.update(cx, |s, _| s.dark = self.dark);
             root = root.child(
+                // The 8px sash overlays the pane edge (`.po-pane-edge-resize-handle`);
+                // content starts at the divider like the product's.
                 at(self.layout.auxiliary)
                     .bg(t.auxiliary())
-                    .pl(px(theme::metric::PANE_SASH))
                     .child(if self.changes {
                         self.source_control.clone().into_any_element()
                     } else {

@@ -149,6 +149,8 @@ embedded! {
     "icons" / "textarea-resizer.svg",
     "icons" / "textarea-resizer-highlight.svg",
     "icons" / "trash-2.svg",
+    "icons" / "tree-disclosure.svg",
+    "icons" / "tree-disclosure-open.svg",
     "icons" / "triangle-alert.svg",
     "icons" / "type.svg",
     "icons" / "undo-2.svg",

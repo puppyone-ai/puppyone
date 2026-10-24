@@ -406,14 +406,17 @@
         "src/features/source-control/gitTitlebarStatus.ts",
         "src/features/app-shell/header-editor-columns.css",
         "src/styles/titlebar.css",
-        "src/styles/window-chrome.css"
+        "src/styles/window-chrome.css",
+        "src/features/app-shell/layout/desktopPaneLayout.ts"
       ],
       "targets": [
         "src/header_ui.rs",
-        "src/shell.rs"
+        "src/shell.rs",
+        "src/theme.rs"
       ],
       "evidence": [
-        "test:git_header_uses_changes_outlet_and_terminal_returns_to_retained_workbench"
+        "test:git_header_uses_changes_outlet_and_terminal_returns_to_retained_workbench",
+        "test:pane_widths_follow_the_product_policy"
       ],
       "remaining": "Project button, Agent entry (bubble icon with show/hide tooltip), Changes status icons and Header elements are native. Header coachmarks, Reach/Share and cloud location states are not ported."
     },
@@ -431,18 +434,21 @@
         "src/features/app-shell/useProjectOpenHistory.ts",
         "src/features/app-shell/useProjectSwitcherSurface.ts",
         "src/components/DesktopMenu.tsx",
-        "src/styles/menus.css"
+        "src/styles/menus.css",
+        "src/features/app-shell/useAnchoredOverlayPosition.ts"
       ],
       "targets": [
         "src/project_ui.rs",
         "src/ui/menu.rs",
         "src/shell.rs",
-        "src/features/settings/preference_types.rs"
+        "src/features/settings/preference_types.rs",
+        "src/geometry/menu_position.rs"
       ],
       "evidence": [
         "test:project_popup_toggle_outside_and_escape_restore_focus",
         "test:choosing_local_closes_popup_and_restores_trigger",
-        "test:project_history_is_most_recent_first_and_bounded"
+        "test:project_history_is_most_recent_first_and_bounded",
+        "test:titlebar_menus_hang_below_their_trigger"
       ],
       "remaining": "Recent-project list, open folder, Home and remove-from-recents are native; the rail lists recent projects. Per-project row actions (rename/unlink, ProjectRowActions) and cloud locations are not ported."
     },
@@ -490,7 +496,9 @@
         "src/features/app-shell/useWorkspaceFolderDrop.ts",
         "src/components/sidebar/*.tsx",
         "src/styles/sidebar/patterns.css",
-        "src/styles/file-actions.css"
+        "src/styles/file-actions.css",
+        "src/components/DesktopSidebarActionMenu.tsx",
+        "src/components/useDesktopSidebarMenuInteraction.ts"
       ],
       "targets": [
         "src/explorer_ui.rs",
@@ -498,15 +506,19 @@
         "src/workspace.rs",
         "src/file_kind.rs",
         "assets/file-icons.json",
-        "tools/import-file-icons.mjs"
+        "tools/import-file-icons.mjs",
+        "src/geometry/menu_position.rs",
+        "src/ui/menu.rs"
       ],
       "evidence": [
         "test:visibility_display_names_and_selection_follow_the_product",
         "test:rename_move_copy_import_and_delete_stay_inside_the_grant",
         "test:large_tree_uses_gpui_virtual_rows",
-        "test:classification_and_display_follow_the_product_registry"
+        "test:classification_and_display_follow_the_product_registry",
+        "test:sidebar_action_menus_open_four_pixels_below_their_trigger",
+        "test:create_menus_follow_the_product_placements"
       ],
-      "remaining": "File-type icons, Git marks, hover actions, context menu, keyboard navigation, multi-select, drag-move and external drop import are native. Expand/collapse motion, reference drag into the Agent composer, drag export to other apps and multi-root workspaces are not ported."
+      "remaining": "File-type icons, hover actions, row/context/create menus anchored like the product (no Git letters on rows, matching the desktop Explorer), keyboard navigation, multi-select, drag-move and external drop import are native. Expand/collapse motion, reference drag into the Agent composer, drag export to other apps and multi-root workspaces are not ported."
     },
     {
       "name": "Sidebar footer navigation and help",
@@ -615,9 +627,10 @@
       ],
       "evidence": [
         "test:real_repository_stage_commit_diff_and_unborn_unstage",
-        "test:nul_paths_renames_and_counts"
+        "test:nul_paths_renames_and_counts",
+        "test:empty_commits_take_the_product_default_message"
       ],
-      "remaining": "Status sections, stage/unstage, commit, sync buttons, history and unified text diffs are native and localized. Unlike the Web (git rev-parse --is-inside-work-tree), Git is managed only when the opened folder is the repository root, so mutations cannot reach files outside the granted folder. DOCX redline and binary-summary diffs, remote management, incoming-change review and repository setup are not ported."
+      "remaining": "Collapsible Staged/Unstaged/Merge/Committed panels with Commit and Stage and Commit (product default message), Pull notice, Push, history and unified text diffs are native and localized; Pull/Push/Discard keep a native confirmation. Unlike the Web (git rev-parse --is-inside-work-tree), Git is managed only when the opened folder is the repository root, so mutations cannot reach files outside the granted folder. DOCX redline and binary-summary diffs, remote management, incoming-change review and repository setup are not ported."
     },
     {
       "name": "Terminal surface",

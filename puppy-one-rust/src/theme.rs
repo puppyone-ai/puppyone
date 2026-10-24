@@ -115,6 +115,8 @@ pub mod metric {
     pub const SIDEBAR_ROW_CONTENT_RIGHT: f32 = 6.;
     pub const SIDEBAR_LIST_PADDING_BLOCK: f32 = 8.;
     pub const SIDEBAR_ICON_SLOT: f32 = 18.;
+    /// `--desktop-sidebar-icon-label-gap`.
+    pub const SIDEBAR_ICON_LABEL_GAP: f32 = 4.;
     /// `.po-desktop-sidebar-group + .po-desktop-sidebar-group` rhythm.
     pub const SIDEBAR_GROUP_GAP: f32 = 12.;
     pub const SIDEBAR_GROUP_DIVIDER_TOP: f32 = 5.;
@@ -130,14 +132,27 @@ pub mod metric {
     /// `--desktop-sidebar-utility-icon-size` (Settings / Help in the footer).
     pub const SIDEBAR_UTILITY_ICON: f32 = 14.;
     pub const TREE_INDENT: f32 = 24.;
-    pub const TREE_ROW_CONTENT_LEFT: f32 = 8.;
-    pub const TREE_ROW_ICON_LABEL_GAP: f32 = 6.;
+    /// The desktop Explorer maps `--po-tree-row-content-left` and
+    /// `--po-tree-row-icon-label-gap` to the sidebar row tokens
+    /// (`data-workspace/browser.css`), not the shared-ui 8/6 defaults.
+    pub const TREE_ROW_CONTENT_LEFT: f32 = SIDEBAR_ROW_CONTENT_LEFT;
+    pub const TREE_ROW_ICON_LABEL_GAP: f32 = SIDEBAR_ICON_LABEL_GAP;
     pub const TREE_ROW_ACTION_SIZE: f32 = 24.;
+    /// `.tree-row-actions { right: 4px; gap: 2px }`.
+    pub const TREE_ROW_ACTION_INSET: f32 = 4.;
+    pub const TREE_ROW_ACTION_GAP: f32 = 2.;
+    /// `--tree-row-action-icon-size`.
+    pub const TREE_ROW_ACTION_ICON: f32 = 15.;
     pub const MENU_RADIUS: f32 = 8.;
     pub const MENU_PADDING: f32 = 4.;
     pub const MENU_ITEM_PADDING_INLINE: f32 = 8.;
     pub const MENU_ITEM_GAP: f32 = 8.;
     pub const MENU_ICON_SLOT: f32 = 18.;
+    /// `.desktop-menu-separator`: 1px plus `margin: 4px 0`
+    /// (`MENU_SEPARATOR_BLOCK_SIZE` in `nodeActions.tsx`).
+    pub const MENU_SEPARATOR_BLOCK: f32 = 9.;
+    /// `--desktop-project-menu-spacing` (`.desktop-project-menu` padding).
+    pub const PROJECT_MENU_SPACING: f32 = 3.;
     pub const READING_CONTENT_WIDTH: f32 = 724.;
     pub const UTILITY_PADDING_INLINE: f32 = 28.;
     pub const UTILITY_PADDING_BOTTOM: f32 = 40.;
@@ -154,7 +169,6 @@ pub mod metric {
 pub const MONO: &str = "PuppyOne Geist Mono 400";
 pub const MONO_MEDIUM: &str = "PuppyOne Geist Mono 500";
 pub const HEADER: f32 = 40.0;
-pub const SIDEBAR: f32 = 220.0;
 pub const FONT: f32 = 14.0;
 
 /// Project the product palette into Kit's styled controls and Base primitives.
@@ -591,6 +605,69 @@ impl Theme {
     }
 }
 
+/// `app-shell/layout/desktopPaneLayout.ts` pane contract.
+pub mod pane {
+    pub const DEFAULT_EXPLORER_WIDTH: f32 = 320.;
+    pub const MIN_EXPLORER_WIDTH: f32 = 220.;
+    pub const MAX_EXPLORER_WIDTH: f32 = 520.;
+    pub const DEFAULT_RIGHT_SIDEBAR_WIDTH: f32 = 560.;
+    pub const MIN_RIGHT_SIDEBAR_WIDTH: f32 = 320.;
+    pub const MIN_MAIN_PANE_WIDTH: f32 = 320.;
+    pub const EXPLORER_RESIZE_GUTTER_WIDTH: f32 = 8.;
+}
+/// `resolveDesktopPaneLayout`: `(explorer, right sidebar, layout width)` for
+/// the preferred widths of the open panes (`0` = closed). Passive window
+/// resizing consumes the main pane first, then the auxiliary pane, then the
+/// Explorer; when every minimum cannot fit, the layout keeps its minimum
+/// width (the product raises the native window minimum instead).
+pub fn resolve_pane_widths(available: f32, explorer: f32, right: f32) -> (f32, f32, f32) {
+    use pane::*;
+    let width = available.max(0.).round();
+    let (explorer_open, right_open) = (explorer > 0., right > 0.);
+    let when = |open: bool, value: f32| if open { value } else { 0. };
+    let gutter = when(explorer_open, EXPLORER_RESIZE_GUTTER_WIDTH);
+    let minimum = MIN_MAIN_PANE_WIDTH
+        + gutter
+        + when(explorer_open, MIN_EXPLORER_WIDTH)
+        + when(right_open, MIN_RIGHT_SIDEBAR_WIDTH);
+    let layout = width.max(minimum);
+    let right_max = width.max(MIN_RIGHT_SIDEBAR_WIDTH);
+    let mut explorer_width = when(
+        explorer_open,
+        explorer
+            .round()
+            .clamp(MIN_EXPLORER_WIDTH, MAX_EXPLORER_WIDTH),
+    );
+    let mut right_width = when(
+        right_open,
+        right.round().clamp(MIN_RIGHT_SIDEBAR_WIDTH, right_max),
+    );
+    let mut deficit =
+        (MIN_MAIN_PANE_WIDTH - (layout - gutter - explorer_width - right_width)).max(0.);
+    if deficit > 0. && right_open {
+        let reclaimed = deficit.min(right_width - MIN_RIGHT_SIDEBAR_WIDTH);
+        right_width -= reclaimed;
+        deficit -= reclaimed;
+    }
+    if deficit > 0. && explorer_open {
+        explorer_width -= deficit.min(explorer_width - MIN_EXPLORER_WIDTH);
+    }
+    (explorer_width, right_width, layout)
+}
+/// Live maximum of a dragged right sidebar: what remains after the current
+/// Explorer, its gutter and the main pane floor (`rightSidebar.maxWidth`).
+pub fn right_sidebar_max_width(available: f32, explorer: f32) -> f32 {
+    use pane::*;
+    let gutter = if explorer > 0. {
+        EXPLORER_RESIZE_GUTTER_WIDTH
+    } else {
+        0.
+    };
+    (available - gutter - MIN_MAIN_PANE_WIDTH - explorer).clamp(
+        MIN_RIGHT_SIDEBAR_WIDTH,
+        available.max(MIN_RIGHT_SIDEBAR_WIDTH),
+    )
+}
 /// Native layout owns all bounds.
 #[derive(Clone, Copy, Debug)]
 pub struct Layout {
@@ -601,16 +678,18 @@ pub struct Layout {
     pub auxiliary: Rect,
 }
 impl Layout {
+    /// `left` / `right` are the preferred widths of the open panes (`0` when
+    /// closed); the product pane policy resolves what they get.
     pub fn new(w: f32, h: f32, left: f32, right: f32, rail: f32) -> Self {
-        let left = left.max(0.).min((w - rail - 240.).max(0.));
-        let right = right.max(0.).min((w - rail - left - 200.).max(0.));
+        let (left, right, layout) = resolve_pane_widths(w - rail, left, right);
+        let main = layout - left - right;
         let footer = footer();
         Self {
             header: Rect::new(0., 0., w, HEADER),
             explorer: Rect::new(rail, HEADER, left, h - HEADER - footer),
             footer: Rect::new(rail, h - footer, left, footer),
-            editor: Rect::new(rail + left, HEADER, w - rail - left - right, h - HEADER),
-            auxiliary: Rect::new(w - right, HEADER, right, h - HEADER),
+            editor: Rect::new(rail + left, HEADER, main, h - HEADER),
+            auxiliary: Rect::new(rail + left + main, HEADER, right, h - HEADER),
         }
     }
     /// The editor pane (`.desktop-editor-pane`) fills the area right of the
@@ -633,14 +712,36 @@ mod tests {
     fn panes_tile_without_overlapping() {
         for w in [640., 875., 1280., 1920.] {
             for rail in [0., 56.] {
-                let l = Layout::new(w, 800., 220., 360., rail);
+                let l = Layout::new(w, 800., 320., 560., rail);
                 assert_eq!(l.explorer.right(), l.editor.x);
                 assert_eq!(l.editor.right(), l.auxiliary.x);
-                assert!(l.editor.w >= 200.);
+                assert!(l.editor.w >= pane::MIN_MAIN_PANE_WIDTH);
                 assert_eq!(l.header.h, 40.);
                 assert_eq!(l.footer.h, 48.);
             }
         }
+    }
+    #[test]
+    fn pane_widths_follow_the_product_policy() {
+        // Defaults at 1280: Explorer 320, right sidebar 560, main 400.
+        let l = Layout::new(1280., 800., 320., 560., 0.);
+        assert_eq!(
+            (l.explorer.w, l.editor.w, l.auxiliary.w),
+            (320., 400., 560.)
+        );
+        assert_eq!(l.auxiliary.x, 720.);
+        // Narrowing the window takes the main pane down to its 320 floor
+        // (plus the 8px Explorer gutter), then the auxiliary pane yields.
+        assert_eq!(resolve_pane_widths(1208., 320., 560.).1, 560.);
+        assert_eq!(resolve_pane_widths(1000., 320., 560.).1, 352.);
+        // Only once the auxiliary pane is at its minimum does the Explorer.
+        assert_eq!(resolve_pane_widths(900., 320., 560.), (252., 320., 900.));
+        // Below every minimum the layout keeps its minimum width.
+        assert_eq!(resolve_pane_widths(700., 320., 560.), (220., 320., 868.));
+        // Preferences are clamped to each pane's range.
+        assert_eq!(resolve_pane_widths(1600., 100., 0.), (220., 0., 1600.));
+        assert_eq!(resolve_pane_widths(1600., 900., 0.), (520., 0., 1600.));
+        assert_eq!(right_sidebar_max_width(1280., 320.), 632.);
     }
     #[test]
     fn sidebar_footer_follows_the_navigation_height_formula() {
@@ -652,7 +753,7 @@ mod tests {
         ] {
             set_scale(preset);
             assert_eq!(footer(), height);
-            let l = Layout::new(1280., 800., 220., 0., 0.);
+            let l = Layout::new(1280., 800., 320., 0., 0.);
             assert_eq!(l.footer.h, height);
             assert_eq!(l.explorer.bottom(), l.footer.y);
         }

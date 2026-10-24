@@ -115,10 +115,7 @@ fn git(
         root,
         input,
         Duration::from_secs(
-            if args.first() == Some(&"pull")
-                || args.first() == Some(&"push")
-                || args.first() == Some(&"fetch")
-            {
+            if args.first() == Some(&"pull") || args.first() == Some(&"push") {
                 120
             } else {
                 60
@@ -179,11 +176,12 @@ pub fn validate_path(path: &str) -> Result<(), String> {
 pub enum Operation {
     Stage(Change),
     Unstage(Change),
-    StageAll,
-    UnstageAll,
     Discard(Change),
+    /// An empty message commits with the product default
+    /// (`normalizeCommitMessage` in `local-api/workspace.mjs`).
     Commit(String),
-    Fetch,
+    /// "Stage and Commit": stage every local change, then commit.
+    StageAndCommit,
     Pull,
     Push,
     Init,
@@ -204,33 +202,32 @@ pub fn operate(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result<Snaps
     let mut args = match op {
         Operation::Stage(_) => vec!["add", "--"],
         Operation::Unstage(_) => vec!["reset", "-q", "HEAD", "--"],
-        Operation::StageAll => vec!["add", "--all", "--", "."],
-        Operation::UnstageAll => vec!["reset", "-q", "HEAD", "--", "."],
         Operation::Discard(c) => {
             if c.untracked() || c.conflict() {
                 return Err(crate::localization::t("native.git.discardTrackedOnly").into());
             }
             vec!["restore", "--worktree", "--"]
         }
-        Operation::Commit(message) => {
-            if message.trim().is_empty() {
-                return Err(crate::localization::t("native.git.messageRequired").into());
-            }
+        Operation::Commit(_) => vec!["commit", "-F", "-"],
+        Operation::StageAndCommit => {
+            git(root, &["add", "--all", "--", "."], None, cancel)?;
             vec!["commit", "-F", "-"]
         }
-        Operation::Fetch => vec!["fetch", "--prune"],
         Operation::Pull => vec!["pull", "--ff-only"],
         Operation::Push => vec!["push"],
         Operation::Init => vec!["init"],
     };
     args.extend(paths);
-    let input = if let Operation::Commit(message) = op {
-        Some(message.as_bytes())
-    } else {
-        None
+    let message = match op {
+        Operation::Commit(message) if !message.trim().is_empty() => Some(message.trim().to_owned()),
+        Operation::Commit(_) | Operation::StageAndCommit => {
+            Some(default_commit_message(root, cancel))
+        }
+        _ => None,
     };
+    let input = message.as_deref().map(str::as_bytes);
     // An unborn branch has no HEAD: remove paths from the index without touching working files.
-    if matches!(op, Operation::Unstage(_) | Operation::UnstageAll)
+    if matches!(op, Operation::Unstage(_))
         && git(root, &["rev-parse", "--verify", "HEAD"], None, cancel).is_err()
     {
         args = vec!["rm", "--cached", "-r", "--ignore-unmatch", "--"];
@@ -239,12 +236,36 @@ pub fn operate(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result<Snaps
             if let Some(old) = &c.original {
                 args.push(old);
             }
-        } else {
-            args.push(".");
         }
     }
     git(root, &args, input, cancel)?;
     status(root, cancel)
+}
+/// `buildDefaultCommitMessage`: names the one staged file, counts several.
+fn default_commit_message(root: &Path, cancel: &AtomicBool) -> String {
+    let staged = git(
+        root,
+        &["diff", "--cached", "--name-only", "-z"],
+        None,
+        cancel,
+    )
+    .unwrap_or_default();
+    let paths = staged
+        .split(|b| *b == 0)
+        .filter(|p| !p.is_empty())
+        .map(String::from_utf8_lossy)
+        .collect::<Vec<_>>();
+    match paths.as_slice() {
+        [] => "Update workspace".into(),
+        [one] => format!(
+            "Update {}",
+            Path::new(one.as_ref())
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| one.to_string())
+        ),
+        many => format!("Update {} files", many.len()),
+    }
 }
 pub fn diff(
     root: &Path,
@@ -454,6 +475,38 @@ mod tests {
         assert!(validate_path("-flag").is_ok());
     }
     #[test]
+    fn empty_commits_take_the_product_default_message() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let cancel = AtomicBool::new(false);
+        operate(root, &Operation::Init, &cancel).unwrap();
+        for (key, value) in [
+            ("user.name", "GPUI Test"),
+            ("user.email", "gpui@example.invalid"),
+        ] {
+            git(root, &["config", key, value], None, &cancel).unwrap();
+        }
+        let subject = |cancel: &AtomicBool| {
+            String::from_utf8(git(root, &["log", "-1", "--format=%s"], None, cancel).unwrap())
+                .unwrap()
+                .trim()
+                .to_owned()
+        };
+        std::fs::create_dir(root.join("docs")).unwrap();
+        std::fs::write(root.join("docs/a.md"), "a\n").unwrap();
+        std::fs::write(root.join("b.md"), "b\n").unwrap();
+        let s = operate(root, &Operation::StageAndCommit, &cancel).unwrap();
+        assert!(s.changes.is_empty());
+        assert_eq!(subject(&cancel), "Update 2 files");
+        std::fs::write(root.join("docs/a.md"), "aa\n").unwrap();
+        let s = status(root, &cancel).unwrap();
+        operate(root, &Operation::Stage(s.changes[0].clone()), &cancel).unwrap();
+        operate(root, &Operation::Commit("  ".into()), &cancel).unwrap();
+        assert_eq!(subject(&cancel), "Update a.md");
+        operate(root, &Operation::Commit(" Explicit ".into()), &cancel).unwrap_err();
+        assert_eq!(subject(&cancel), "Update a.md");
+    }
+    #[test]
     fn real_repository_stage_commit_diff_and_unborn_unstage() {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path();
@@ -468,11 +521,12 @@ mod tests {
         )
         .unwrap();
         std::fs::write(root.join("a\n-b"), "one\n").unwrap();
-        let s = operate(root, &Operation::StageAll, &cancel).unwrap();
+        let s = status(root, &cancel).unwrap();
+        let s = operate(root, &Operation::Stage(s.changes[0].clone()), &cancel).unwrap();
         assert!(s.changes[0].staged());
         let s = operate(root, &Operation::Unstage(s.changes[0].clone()), &cancel).unwrap();
         assert!(s.changes[0].untracked());
-        operate(root, &Operation::StageAll, &cancel).unwrap();
+        operate(root, &Operation::Stage(s.changes[0].clone()), &cancel).unwrap();
         operate(root, &Operation::Commit("Initial".into()), &cancel).unwrap();
         std::fs::write(root.join("a\n-b"), "two\n").unwrap();
         let s = status(root, &cancel).unwrap();
