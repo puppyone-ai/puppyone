@@ -5,6 +5,7 @@
 //! `EditorExtension` and block widgets.
 pub mod command;
 pub mod commands;
+mod composition;
 pub mod decoration;
 pub mod editor;
 pub mod find;
@@ -17,6 +18,8 @@ pub mod projection;
 pub mod render;
 pub mod style;
 pub mod widget;
+#[cfg(test)]
+mod ime_tests;
 #[cfg(test)]
 mod tests;
 
@@ -125,7 +128,8 @@ macro_rules! motion {
 }
 
 impl Render for EditorView {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.watch_focus(window, cx);
         let root = div()
             .id("puppy-editor")
             .size_full()

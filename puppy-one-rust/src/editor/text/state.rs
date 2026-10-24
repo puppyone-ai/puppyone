@@ -9,6 +9,10 @@ use super::{buffer::Buffer, change::ChangeSet, selection::Selection};
 pub enum UserEvent {
     /// Typed text, including IME commits.
     Input,
+    /// Provisional IME composition text (marked text). History folds a whole
+    /// composition into one `Input` step when it ends; listeners outside the
+    /// view only hear about the result.
+    Compose,
     /// Backward/forward deletion.
     Delete,
     Paste,

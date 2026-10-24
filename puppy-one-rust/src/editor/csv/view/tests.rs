@@ -6,7 +6,7 @@ use crate::{
     editor::view::{bind_keys, style},
     typography::Scale,
 };
-use gpui::{Entity, TestAppContext, VisualTestContext, point, px, size};
+use gpui::{Entity, EntityInputHandler, TestAppContext, VisualTestContext, point, px, size};
 use std::{cell::RefCell, rc::Rc};
 
 fn setup<'a>(cx: &'a mut TestAppContext, text: &str) -> (Entity<CsvEditor>, Rc<RefCell<usize>>, &'a mut VisualTestContext) {
@@ -502,4 +502,73 @@ fn find_walks_matching_cells_and_follows_edits(cx: &mut TestAppContext) {
         v.find_clear(cx);
         assert!(v.find.matches.is_empty());
     });
+}
+
+#[gpui::test]
+fn an_ime_composition_in_a_cell_reaches_the_model_once(cx: &mut TestAppContext) {
+    let (view, changes, cx) = setup(cx, "id,name\n1,alice\n");
+    view.update_in(cx, |v, w, cx| v.activate(1, 1, Some(5), w, cx));
+    let cell = view.update(cx, |v, _| v.cell.as_ref().unwrap().editor.clone());
+    for preedit in ["n", "ni", "nihao"] {
+        let end = preedit.len();
+        cell.update_in(cx, |e, w, cx| e.replace_and_mark_text_in_range(None, preedit, Some(end..end), w, cx));
+        cx.run_until_parked();
+        // Provisional text stays in the cell editor.
+        assert_eq!(text(&view, cx), "id,name\n1,alice\n");
+        assert_eq!(active(&view, cx), Some((1, 1, format!("alice{preedit}"))));
+    }
+    assert!(view.update(cx, |v, cx| v.composing(cx)));
+    assert_eq!(*changes.borrow(), 0);
+    cell.update_in(cx, |e, w, cx| e.replace_text_in_range(None, "你好", w, cx));
+    cx.run_until_parked();
+    assert_eq!((text(&view, cx).as_str(), *changes.borrow()), ("id,name\n1,alice你好\n", 1));
+    // One table history step for the whole composition.
+    cx.simulate_keystrokes("cmd-z");
+    cx.run_until_parked();
+    assert_eq!(text(&view, cx), "id,name\n1,alice\n");
+    assert_eq!(active(&view, cx), Some((1, 1, "alice".into())));
+}
+
+fn compose_in_cell(view: &Entity<CsvEditor>, cx: &mut VisualTestContext, preedit: &str) {
+    let cell = view.update(cx, |v, _| v.cell.as_ref().unwrap().editor.clone());
+    let end = preedit.encode_utf16().count();
+    cell.update_in(cx, |e, w, cx| e.replace_and_mark_text_in_range(None, preedit, Some(end..end), w, cx));
+    cx.run_until_parked();
+}
+
+#[gpui::test]
+fn leaving_a_cell_mid_composition_keeps_the_typed_text(cx: &mut TestAppContext) {
+    let (view, _, cx) = setup(cx, "id,name\n1,alice\n");
+    // A click on another cell.
+    view.update_in(cx, |v, w, cx| v.activate(1, 1, Some(5), w, cx));
+    compose_in_cell(&view, cx, "ni");
+    view.update_in(cx, |v, w, cx| v.activate(1, 0, None, w, cx));
+    cx.run_until_parked();
+    assert_eq!(text(&view, cx), "id,name\n1,aliceni\n");
+    assert!(!view.update(cx, |v, cx| v.composing(cx)));
+    // Tab handed back by the input method: commit, then move on.
+    view.update_in(cx, |v, w, cx| v.activate(1, 0, Some(1), w, cx));
+    compose_in_cell(&view, cx, "ka");
+    cx.simulate_keystrokes("tab");
+    cx.run_until_parked();
+    assert_eq!(text(&view, cx), "id,name\n1ka,aliceni\n");
+    assert_eq!(active(&view, cx).map(|(r, c, _)| (r, c)), Some((1, 1)));
+}
+
+#[gpui::test]
+fn a_structure_change_keeps_pending_input_in_its_own_cell(cx: &mut TestAppContext) {
+    let (view, _, cx) = setup(cx, "a,b\n1,2\n3,4\n");
+    view.update_in(cx, |v, w, cx| v.activate(1, 0, Some(1), w, cx));
+    compose_in_cell(&view, cx, "ni");
+    // A new record above the edited one: the committed value moves down with
+    // its record; the new record stays empty.
+    view.update_in(cx, |v, w, cx| v.apply_operation(super::Operation::InsertRowAbove, 1, 0, w, cx));
+    cx.run_until_parked();
+    assert_eq!(text(&view, cx), "a,b\n,\n1ni,2\n3,4\n");
+    assert_eq!(active(&view, cx), Some((1, 0, String::new())));
+    // Typing (no composition) then the same operation.
+    cx.simulate_input("x");
+    view.update_in(cx, |v, w, cx| v.apply_operation(super::Operation::InsertRowAbove, 1, 0, w, cx));
+    cx.run_until_parked();
+    assert_eq!(text(&view, cx), "a,b\n,\nx,\n1ni,2\n3,4\n");
 }

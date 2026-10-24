@@ -51,6 +51,8 @@ struct PlannedBlock {
 
 /// One built document: the element tree and the plan it was built from.
 pub struct Frame {
+    /// The document revision it was built from.
+    revision: u64,
     child: AnyElement,
     leaves: Vec<LeafEntry>,
     blocks: Vec<PlannedBlock>,
@@ -68,9 +70,9 @@ pub struct Prepainted {
 impl EditorElement {
     /// Builds the document for a pane `bounds` big at the view's scroll.
     fn build(&self, bounds: Bounds<Pixels>, focused: bool, window: &mut Window, cx: &mut App) -> Frame {
-        let (doc, decorations, cache, measures, kit, scroll, selection, read_only) = self.view.update(cx, |v, _| {
+        let (revision, doc, decorations, cache, measures, kit, scroll, selection, read_only) = self.view.update(cx, |v, _| {
             let s = v.state.selection;
-            (v.doc_snapshot(), v.decorations.clone(), v.paragraph_cache.clone(), v.measures.clone(), v.kit_context(), v.scroll_y, (s.from(), s.to()), v.read_only)
+            (v.state.revision, v.doc_snapshot(), v.decorations.clone(), v.paragraph_cache.clone(), v.measures.clone(), v.kit_context(), v.scroll_y, (s.from(), s.to()), v.read_only)
         });
         let width = f32::from(bounds.size.width);
         let surface = decorations.surface.clone();
@@ -120,7 +122,7 @@ impl EditorElement {
         let height = y + content.bottom;
         let document = div().absolute().left_0().top(px(-scroll)).w(px(width)).h(px(height)).children(children);
         let child = div().relative().w(bounds.size.width).h(bounds.size.height).overflow_hidden().bg(surface.background).child(document).into_any_element();
-        Frame { child, leaves, blocks, column_left, column_width, height, scroll }
+        Frame { revision, child, leaves, blocks, column_left, column_width, height, scroll }
     }
 
     /// Lays `frame` out at `bounds`, prepaints it and publishes the layout
@@ -130,7 +132,8 @@ impl EditorElement {
         let view = self.view.read(cx);
         let surface = &view.decorations.surface;
         let color: Hsla = if focused { surface.selection } else { surface.selection_inactive }.into();
-        let selection = view.state.selection.as_range();
+        // The clause an input method converts is underlined, not selected.
+        let selection = if view.composition_clause().is_some() { 0..0 } else { view.state.selection.as_range() };
         let measures = view.measures.clone();
         let mut decorations: HashMap<u64, Vec<(Range<usize>, Hsla)>> = HashMap::new();
         // A widget the selection covers whole shows its block-selected state
@@ -170,7 +173,7 @@ impl EditorElement {
                 source: b.source.clone(),
             })
             .collect();
-        let layout = Rc::new(DocLayout { bounds, scroll: px(frame.scroll), height: px(frame.height), leaves, blocks });
+        let layout = Rc::new(DocLayout { revision: frame.revision, bounds, scroll: px(frame.scroll), height: px(frame.height), leaves, blocks });
         let scale = window.scale_factor();
         self.view.update(cx, |v, _| {
             v.bounds = Some(bounds);
@@ -293,7 +296,8 @@ impl Element for EditorElement {
         let Some(layout) = view.layout.clone() else { return };
         let surface = view.decorations.surface.clone();
         let selection = view.state.selection;
-        let marked = view.marked.clone();
+        let composition = view.composition_range();
+        let clause = view.composition_clause();
         let show_caret = focused && selection.is_empty() && !view.read_only && view.caret_visible();
         window.handle_input(&focus, ElementInputHandler::new(bounds, self.view.clone()), cx);
         window.with_content_mask(Some(ContentMask { bounds }), |window| {
@@ -303,14 +307,21 @@ impl Element for EditorElement {
                 let id = text_system.resolve_font(&font(leaf.style.family()));
                 text_system.advance(id, px(leaf.style.size), ' ').map_or(px(leaf.style.size / 4.), |s| s.width)
             };
-            for b in layout.line_break_boxes(selection.as_range(), space) {
-                window.paint_quad(fill(b, color));
+            if clause.is_none() {
+                for b in layout.line_break_boxes(selection.as_range(), space) {
+                    window.paint_quad(fill(b, color));
+                }
             }
-            if let Some(m) = &marked {
-                let (a, b) = (layout.caret(m.start, false), layout.caret(m.end, true));
-                if a.row_top == b.row_top {
-                    let r = Bounds::new(point(a.x, a.top + a.height - px(1.)), size((b.x - a.x).max(px(1.)), px(1.)));
+            // Marked text: a thin underline on every row it covers; the
+            // clause being converted gets a thick one (NSTextView's look).
+            if let Some(range) = &composition {
+                for r in layout.underline_boxes(range.clone(), px(1.)) {
                     window.paint_quad(fill(r, surface.caret));
+                }
+                if let Some(clause) = &clause {
+                    for r in layout.underline_boxes(clause.clone(), px(2.)) {
+                        window.paint_quad(fill(r, surface.caret));
+                    }
                 }
             }
             if show_caret {
@@ -319,5 +330,24 @@ impl Element for EditorElement {
                 window.paint_quad(fill(r, surface.caret));
             }
         });
+        // The candidate window follows the marked text when layout or scroll
+        // moves it.
+        let moved = self.view.update(cx, |v, _| {
+            let current = v.composition.as_ref().map(|c| c.range.clone()).map(|r| {
+                let rect = layout.first_row_rect(r.start..r.start);
+                Bounds::new(rect.origin + point(px(0.), layout.scroll - px(v.scroll_y)), rect.size)
+            });
+            match &mut v.composition {
+                Some(c) if c.anchor != current => {
+                    let first = c.anchor.is_none();
+                    c.anchor = current;
+                    !first
+                }
+                _ => false,
+            }
+        });
+        if moved {
+            window.invalidate_character_coordinates();
+        }
     }
 }

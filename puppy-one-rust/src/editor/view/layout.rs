@@ -64,6 +64,8 @@ pub struct Caret {
 }
 
 pub struct DocLayout {
+    /// The document revision this frame laid out.
+    pub revision: u64,
     /// The editor element's bounds.
     pub bounds: Bounds<Pixels>,
     /// The scroll offset the frame was laid out with.
@@ -199,6 +201,27 @@ impl DocLayout {
             push(row, &mut out);
         }
         out
+    }
+
+    /// The first row of `range` (its line box from the start to the end of
+    /// the range or of that row): `firstRectForCharacterRange`, where input
+    /// methods anchor their candidate window. An empty range is the caret.
+    pub fn first_row_rect(&self, range: Range<usize>) -> Bounds<Pixels> {
+        let start = self.caret(range.start, false);
+        let width = (!range.is_empty())
+            .then(|| self.range_boxes(range.clone()).into_iter().next())
+            .flatten()
+            .map_or(px(1.), |b| (b.right() - start.x).max(px(1.)));
+        Bounds::new(point(start.x, start.row_top), gpui::size(width, start.row_height))
+    }
+
+    /// Underlines of `range`, one per row it covers, `thickness` tall at the
+    /// bottom of the text (marked text and its converted clause).
+    pub fn underline_boxes(&self, range: Range<usize>, thickness: Pixels) -> Vec<Bounds<Pixels>> {
+        self.range_boxes(range)
+            .into_iter()
+            .map(|b| Bounds::new(point(b.left(), b.bottom() - thickness), gpui::size(b.size.width, thickness)))
+            .collect()
     }
 
     /// Selection ranges in each leaf's display space, by leaf key.

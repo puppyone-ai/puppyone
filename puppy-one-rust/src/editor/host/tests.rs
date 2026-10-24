@@ -109,3 +109,36 @@ fn find_marks_and_selects_matches_in_text_editors(cx: &mut TestAppContext) {
     cx.run_until_parked();
     editor.update(cx, |e, _| assert!(e.find_marks().matches.is_empty()));
 }
+
+#[gpui::test]
+fn a_snapshot_waits_for_the_composition_and_resumes_when_it_ends(cx: &mut TestAppContext) {
+    use gpui::EntityInputHandler;
+    let (view, messages, cx) = setup(cx, "notes.md", "a");
+    let editor = view.update(cx, |v, _| match v.editor.clone() {
+        Some(super::Surface::Text(e)) => e,
+        _ => panic!(),
+    });
+    let dirty = |messages: &Rc<RefCell<Vec<ClientMessage>>>| messages.borrow().iter().filter_map(|m| if let ClientMessage::Dirty { dirty, .. } = m { Some(*dirty) } else { None }).collect::<Vec<_>>();
+    editor.update_in(cx, |e, w, cx| {
+        e.set_selection(crate::editor::text::selection::Selection::cursor(1), cx);
+        e.replace_and_mark_text_in_range(None, "ni", Some(2..2), w, cx);
+    });
+    cx.run_until_parked();
+    assert!(dirty(&messages).is_empty(), "provisional text is not reported");
+    let snapshot = serde_json::json!({"kind": "snapshot", "request": 7, "freeze": true});
+    let replies = view.update_in(cx, |v, w, cx| v.receive(&snapshot, w, cx));
+    assert!(matches!(replies.as_slice(), [ClientMessage::Deferred { request: 7, .. }]), "{replies:?}");
+    // Cancelling changes nothing but still reports, so the host proceeds.
+    editor.update_in(cx, |e, w, cx| e.replace_and_mark_text_in_range(None, "", Some(0..0), w, cx));
+    cx.run_until_parked();
+    assert_eq!(dirty(&messages), vec![false]);
+    // A committed composition reports once.
+    editor.update_in(cx, |e, w, cx| {
+        e.replace_and_mark_text_in_range(None, "ni", Some(2..2), w, cx);
+        e.replace_text_in_range(None, "你", w, cx);
+    });
+    cx.run_until_parked();
+    assert_eq!(dirty(&messages), vec![false, true]);
+    let replies = view.update_in(cx, |v, w, cx| v.receive(&snapshot, w, cx));
+    assert!(matches!(replies.as_slice(), [ClientMessage::Snapshot { request: 7, text, .. }] if text == "a你"), "{replies:?}");
+}

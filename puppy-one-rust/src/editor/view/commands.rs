@@ -1,6 +1,10 @@
 //! Default commands (CodeMirror `@codemirror/commands` standard keymap):
 //! cursor motion by character, group, visual line, page and document; deletion;
 //! line breaks; clipboard. A format extension may intercept editing intents.
+//!
+//! While a composition is open, keys go to the input method first; a key it
+//! hands back (`doCommandBySelector:`) commits the marked text and then runs
+//! as usual, as in AppKit text views.
 use super::{editor::EditorView, extension::EditIntent};
 use crate::editor::text::{
     change::ChangeSet,
@@ -115,9 +119,7 @@ impl EditorView {
     }
 
     pub fn motion(&mut self, motion: Motion, extend: bool, cx: &mut Context<Self>) {
-        if self.marked.is_some() {
-            return;
-        }
+        self.commit_composition(cx);
         let selection = self.target(motion, extend);
         self.dispatch(Transaction::select(selection), cx);
     }
@@ -125,9 +127,8 @@ impl EditorView {
     /// A format may replace a default motion (e.g. ← across a hidden block
     /// marker); otherwise the motion runs.
     pub fn intent_or_motion(&mut self, intent: EditIntent, motion: Motion, cx: &mut Context<Self>) {
-        if self.marked.is_none()
-            && let Some(tr) = self.extension.intercept(intent, &self.state)
-        {
+        self.commit_composition(cx);
+        if let Some(tr) = self.extension.intercept(intent, &self.state) {
             self.dispatch(tr, cx);
             return;
         }
@@ -140,7 +141,8 @@ impl EditorView {
     }
 
     fn try_intercept(&mut self, intent: EditIntent, cx: &mut Context<Self>) -> bool {
-        if self.read_only || self.marked.is_some() {
+        self.commit_composition(cx);
+        if self.read_only {
             return true;
         }
         if let Some(tr) = self.extension.intercept(intent, &self.state) {
@@ -157,7 +159,8 @@ impl EditorView {
         if matches!(motion, Motion::CharLeft | Motion::CharRight) && self.try_intercept(intent, cx) {
             return;
         }
-        if self.read_only || self.marked.is_some() {
+        self.commit_composition(cx);
+        if self.read_only {
             return;
         }
         let s = self.state.selection;

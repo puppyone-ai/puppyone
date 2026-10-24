@@ -175,7 +175,9 @@ impl CsvEditor {
         self.model.replace_content(text);
         self.sync_layout();
         self.find_changed();
-        self.cell = None;
+        if let Some(cell) = self.cell.take() {
+            cell.editor.update(cx, |e, cx| e.abandon_composition(cx));
+        }
         if let Some((source, _)) = &self.source {
             source.update(cx, |s, cx| s.replace_text(text, cx));
         }
@@ -189,8 +191,10 @@ impl CsvEditor {
         self.theme = CsvTheme::resolve(dark, scale);
         self.frame = FrameTheme::resolve(dark, scale, self.theme.surface);
         // Editors carry resolved styles: rebuild them in the new appearance.
+        self.flush_cell(cx);
         self.cell = None;
         if let Some((source, _)) = self.source.take() {
+            source.update(cx, |s, cx| s.commit_composition(cx));
             let text = source.read(cx).text().to_owned();
             self.source = Some(self.source_editor(&text, cx));
         }
@@ -204,10 +208,7 @@ impl CsvEditor {
         self.read_only = read_only;
         let editors: Vec<_> = self.cell.as_ref().map(|c| c.editor.clone()).into_iter().chain(self.source.as_ref().map(|(s, _)| s.clone())).collect();
         for editor in editors {
-            editor.update(cx, |e, cx| {
-                e.read_only = read_only;
-                cx.notify();
-            });
+            editor.update(cx, |e, cx| e.set_read_only(read_only, cx));
         }
         cx.notify();
     }
@@ -225,7 +226,8 @@ impl CsvEditor {
             }
             return;
         }
-        if self.read_only || !self.model.undo(redo) {
+        // As in the editors, undo waits for an open composition.
+        if self.read_only || self.composing(cx) || !self.model.undo(redo) {
             return;
         }
         self.sync_layout();
@@ -370,9 +372,32 @@ impl CsvEditor {
         }
     }
 
+    /// End the active cell's edit session's pending input: commit an open
+    /// composition and make sure the model has the editor's value (its
+    /// change event is delivered after this update, when a replaced session
+    /// no longer listens).
+    fn flush_cell(&mut self, cx: &mut Context<Self>) {
+        let Some(cell) = &self.cell else { return };
+        let (row, column, editor) = (cell.row, cell.column, cell.editor.clone());
+        editor.update(cx, |e, cx| e.commit_composition(cx));
+        let value = display(editor.read(cx).text());
+        if self.model.set_cell(row, column, &value) {
+            self.find_changed();
+            cx.emit(CsvEvent::Changed);
+        }
+    }
+
+    /// End the edit session before the table's structure changes (its row
+    /// and column would no longer name its cell); true when there was one.
+    fn end_cell(&mut self, cx: &mut Context<Self>) -> bool {
+        self.flush_cell(cx);
+        self.cell.take().is_some()
+    }
+
     /// Activate a cell (`requestFocus`): keyboard focus selects the value; a
     /// press puts the caret at `caret`.
     fn activate(&mut self, row: usize, column: usize, caret: Option<usize>, window: &mut Window, cx: &mut Context<Self>) {
+        self.flush_cell(cx);
         let value = display(self.model.rows().get(row).and_then(|r| r.cells.get(column)).map_or("", String::as_str));
         let outbox = Outbox::default();
         let p = self.theme.table.cell_padding;
@@ -386,12 +411,14 @@ impl CsvEditor {
         };
         let editor = cx.new(|cx| {
             let mut e = EditorView::new(&value, Box::new(extension), cx);
-            e.read_only = read_only;
+            e.set_read_only(read_only, cx);
             e.set_selection(selection, cx);
             e
         });
+        // The cell's value reaches the model once per edit: provisional IME
+        // text is not reported, a composition is when it commits.
         let changed = cx.subscribe(&editor, move |this: &mut Self, editor, event: &EditorEvent, cx| {
-            let EditorEvent::Changed(_) = event;
+            let EditorEvent::Changed(_) = event else { return };
             let mut text = editor.read(cx).text().to_owned();
             if text.contains(['\n', '\r']) {
                 // `<input>` value sanitisation: pasted line breaks are dropped.
@@ -441,7 +468,9 @@ impl CsvEditor {
         let Some(cell) = &self.cell else { return };
         let (row, column) = (cell.row, cell.column);
         if row >= self.rows() || column >= self.columns() {
-            self.cell = None;
+            if let Some(cell) = self.cell.take() {
+                cell.editor.update(cx, |e, cx| e.abandon_composition(cx));
+            }
             return;
         }
         let value = display(&self.model.rows()[row].cells[column]);
@@ -479,11 +508,13 @@ impl CsvEditor {
     }
 
     fn add_row(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.end_cell(cx);
         let change = self.model.append_row(self.header);
         self.after_structure(change, window, cx);
     }
 
     fn add_column(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.end_cell(cx);
         let change = self.model.append_column(self.header);
         self.after_structure(change, window, cx);
     }
@@ -507,10 +538,12 @@ impl CsvEditor {
             return;
         }
         let moving = operation.move_axis();
-        if moving.is_some() && self.cell.take().is_some() {
+        let had_cell = self.end_cell(cx);
+        let mut change = self.model.apply(self.header, operation, row, column);
+        if had_cell && (moving.is_some() || change.focus.is_none()) {
+            // No cell takes over: keyboard focus stays with the table.
             self.focus.focus(window, cx);
         }
-        let mut change = self.model.apply(self.header, operation, row, column);
         if let Some(axis) = moving {
             // Menu, keyboard and drop moves leave the moved row / column
             // selected at its destination.
@@ -544,7 +577,7 @@ impl CsvEditor {
         let read_only = self.read_only;
         let editor = cx.new(|cx| {
             let mut e = EditorView::new(text, Box::new(PlainText { line, decorations: Decorations { surface, ..Default::default() } }), cx);
-            e.read_only = read_only;
+            e.set_read_only(read_only, cx);
             e
         });
         let sub = cx.subscribe(&editor, |_, _, _: &EditorEvent, cx| cx.emit(CsvEvent::Changed));
@@ -558,7 +591,11 @@ impl CsvEditor {
         if live {
             // The draft re-enters the structured view (`TextEditorFrame`).
             if let Some((source, _)) = self.source.take() {
+                source.update(cx, |s, cx| s.commit_composition(cx));
                 let text = source.read(cx).text().to_owned();
+                if let Some(cell) = self.cell.take() {
+                    cell.editor.update(cx, |e, cx| e.abandon_composition(cx));
+                }
                 if text != *self.model.text() {
                     self.model.replace_content(&text);
                     self.sync_layout();
@@ -567,6 +604,7 @@ impl CsvEditor {
             }
             self.focus.focus(window, cx);
         } else {
+            self.flush_cell(cx);
             self.cell = None;
             let text = (*self.model.text()).clone();
             let (editor, sub) = self.source_editor(&text, cx);

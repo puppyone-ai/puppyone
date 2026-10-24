@@ -138,9 +138,10 @@ impl DocumentEditor {
             view
         });
         let _ = window;
-        self.subscription = Some(cx.subscribe(&editor, |s, _, event: &EditorEvent, cx| {
-            let EditorEvent::Changed(_) = event;
-            s.changed(cx);
+        self.subscription = Some(cx.subscribe(&editor, |s, _, event: &EditorEvent, cx| match event {
+            // A cancelled composition changes nothing, but a save or switch
+            // deferred while it was open waits for this report.
+            EditorEvent::Changed(_) | EditorEvent::CompositionEnded => s.changed(cx),
         }));
         self.editor = Some(Surface::Text(editor));
     }
@@ -281,8 +282,8 @@ impl DocumentEditor {
         }
         if let Some(Surface::Text(editor)) = &self.editor {
             editor.update(cx, |e, cx| {
-                let mut changed = e.read_only != read_only || e.dark != dark;
-                e.read_only = read_only;
+                let mut changed = e.read_only() != read_only || e.dark != dark;
+                e.set_read_only(read_only, cx);
                 e.dark = dark;
                 if let Some(md) = e.extension_mut::<MarkdownExtension>() {
                     md.read_only = read_only;

@@ -15,7 +15,7 @@ use crate::editor::text::{
 };
 use gpui::{prelude::*, *};
 use gpui_kit::base::text::{TextViewStyle, editor_host::RenderContext};
-use std::{cell::RefCell, ops::Range, rc::Rc, time::{Duration, Instant}};
+use std::{cell::RefCell, rc::Rc, time::{Duration, Instant}};
 
 /// Caret blink half-period (macOS insertion point).
 pub const BLINK: Duration = Duration::from_millis(530);
@@ -35,8 +35,12 @@ pub(super) struct Drag {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum EditorEvent {
-    /// The document text changed (not emitted for External replacement).
+    /// The document text changed (not emitted for External replacement, nor
+    /// for provisional IME text: a composition reports once, when it ends).
     Changed(UserEvent),
+    /// An IME composition ended without changing the document (cancelled).
+    /// Hosts that deferred work while it was open can proceed.
+    CompositionEnded,
 }
 
 #[derive(Clone, PartialEq)]
@@ -65,8 +69,13 @@ pub struct EditorView {
     kit: Option<(Surface, Rc<RenderContext>)>,
     pub(super) scroll_y: f32,
     pub(super) bounds: Option<Bounds<Pixels>>,
-    /// IME composition range in source offsets.
-    pub(super) marked: Option<Range<usize>>,
+    /// The open IME composition (`composition.rs`).
+    pub(super) composition: Option<super::composition::Composition>,
+    /// The input method is applying an edit (the composition continues).
+    pub(super) ime_update: bool,
+    /// Times the view asked the input method to discard its composition.
+    pub(super) discard_requests: usize,
+    blur: Option<Subscription>,
     pub(super) drag: Option<Drag>,
     pub(super) last_click: Option<(Instant, Point<Pixels>, usize)>,
     pub(super) blink_epoch: Instant,
@@ -76,7 +85,8 @@ pub struct EditorView {
     pub(super) find: super::find::FindMarks,
     focused_before: bool,
     blink_task: Option<Task<()>>,
-    pub read_only: bool,
+    /// See `set_read_only`.
+    pub(super) read_only: bool,
     pub dark: bool,
     /// Bumped when theme/scale change so decorations rebuild.
     pub appearance: u64,
@@ -117,7 +127,10 @@ impl EditorView {
             kit: None,
             scroll_y: if capture { std::env::var("PUPPYONE_EDITOR_SCROLL").ok().and_then(|v| v.parse().ok()).unwrap_or(0.) } else { 0. },
             bounds: None,
-            marked: None,
+            composition: None,
+            ime_update: false,
+            discard_requests: 0,
+            blur: None,
             drag: None,
             last_click: None,
             blink_epoch: Instant::now(),
@@ -152,16 +165,35 @@ impl EditorView {
     pub fn focus(&self, window: &mut Window, cx: &mut App) {
         self.focus.focus(window, cx);
     }
-    /// An IME composition is open (its text is provisional).
-    pub fn composing(&self) -> bool {
-        self.marked.is_some()
-    }
     pub fn can_undo(&self) -> bool {
         self.history.can_undo()
+    }
+    pub fn read_only(&self) -> bool {
+        self.read_only
+    }
+    /// Block or allow editing. Becoming read-only commits an open IME
+    /// composition first.
+    pub fn set_read_only(&mut self, read_only: bool, cx: &mut Context<Self>) {
+        if read_only == self.read_only {
+            return;
+        }
+        if read_only {
+            self.commit_composition(cx);
+        }
+        self.read_only = read_only;
+        cx.notify();
+    }
+
+    /// Commit an open composition when keyboard focus leaves the editor.
+    pub(super) fn watch_focus(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.blur.is_none() {
+            self.blur = Some(cx.on_blur(&self.focus, window, |this, _, cx| this.commit_composition(cx)));
+        }
     }
 
     /// Replace the whole document from storage (not undoable).
     pub fn replace_text(&mut self, text: &str, cx: &mut Context<Self>) {
+        self.abandon_composition(cx);
         if text == self.text() {
             return;
         }
@@ -172,6 +204,11 @@ impl EditorView {
     }
 
     pub fn dispatch(&mut self, tr: Transaction, cx: &mut Context<Self>) {
+        // Anything but the input method itself ends an open composition
+        // first (the marked text stays as typed).
+        if !self.ime_update {
+            self.commit_composition(cx);
+        }
         let editing = !tr.changes.is_empty();
         if editing && self.read_only && tr.event != UserEvent::External {
             return;
@@ -179,7 +216,10 @@ impl EditorView {
         let scroll = tr.scroll_into_view;
         let event = tr.event;
         let applied = self.state.apply(tr);
-        if let Some(selection) = self.extension.normalize_selection(&self.state) {
+        // The caret stays where the input method put it while it composes.
+        if !self.history.composing()
+            && let Some(selection) = self.extension.normalize_selection(&self.state)
+        {
             self.state.selection = selection;
         }
         match applied {
@@ -188,7 +228,7 @@ impl EditorView {
                 self.find_changed();
                 let focused = self.focused_before;
                 self.extension.applied(&applied, &self.state, focused);
-                if event != UserEvent::External {
+                if !matches!(event, UserEvent::External | UserEvent::Compose) {
                     cx.emit(EditorEvent::Changed(event));
                 }
             }
@@ -203,7 +243,9 @@ impl EditorView {
     }
 
     pub fn undo(&mut self, redo: bool, cx: &mut Context<Self>) {
-        if self.read_only || self.marked.is_some() {
+        // Undo during a composition belongs to nobody: the input method owns
+        // the marked text until it commits.
+        if self.read_only || self.composing() {
             return;
         }
         if self.extension.owns_history() {
@@ -313,9 +355,11 @@ impl EditorView {
         self.dispatch(Transaction::select(selection), cx);
     }
 
-    /// Insert text at the selection (typing, paste).
+    /// Insert text at the selection (paste, programmatic input). An open
+    /// composition is committed first.
     pub fn insert(&mut self, text: &str, event: UserEvent, cx: &mut Context<Self>) {
-        let range = self.marked.take().unwrap_or_else(|| self.state.selection.as_range());
+        self.commit_composition(cx);
+        let range = self.state.selection.as_range();
         let caret = range.start + text.len();
         self.dispatch(Transaction::edit(ChangeSet::replace(range, text), Some(Selection::cursor(caret)), event), cx);
     }

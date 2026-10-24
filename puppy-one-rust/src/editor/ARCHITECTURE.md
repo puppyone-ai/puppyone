@@ -38,7 +38,27 @@ tokens.rs        product theme tokens (assets/editor/*-theme.json)
   line boxes; Chromium-exact baseline placement (`baseline.rs`); paragraph and
   measurement caches (`cache.rs`).
 - `element.rs`, `layout.rs`, `commands.rs`, `input.rs`, `pointer.rs`,
-  `find.rs` — layout, geometry, keymap, IME, pointer, find marks.
+  `find.rs` — layout, geometry, keymap, platform text input, pointer, find
+  marks.
+- `composition.rs` — IME composition (marked text) for every editor built on
+  the view (Markdown, CSV cells, CSV source, plain text). `input.rs` only
+  translates `NSTextInputClient` (UTF-16) into it. The rules formats and
+  hosts can rely on:
+  - the whole marked text is the composition; the platform's selected range
+    is the caret or the clause being converted inside it;
+  - provisional text is `UserEvent::Compose`: history folds a composition
+    into one sealed step when it ends (none when cancelled), and
+    `EditorEvent::Changed` is emitted once then — `CompositionEnded` when it
+    was cancelled, so deferred host work (snapshots) can resume;
+  - no selection normalisation or format commands while it is open;
+  - anything but the input method (dispatch of any other transaction, a
+    click, a key handed back, focus loss, read-only) commits the marked text
+    and asks the input method to discard its composition
+    (`platform/ime.rs`); replacing the document abandons it;
+  - an owner that drops an editor mid-composition commits it first and reads
+    the result directly (CSV `flush_cell`): events are delivered after the
+    current update.
+  Scenarios per language and interruption: `view/ime_tests.rs`.
 
 ## Markdown (`markdown/`)
 

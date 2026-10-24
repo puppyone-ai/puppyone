@@ -1,6 +1,7 @@
 pub mod desktop;
 pub mod environment;
 pub mod git;
+pub mod ime;
 pub mod preference_storage;
 pub mod process;
 pub mod terminal;

@@ -1,8 +1,18 @@
-//! Platform text input (IME) for the editor: GPUI speaks UTF-16 ranges; the
-//! document uses UTF-8 byte offsets. Composition text is a real, provisional
-//! document edit (like the browser), committed or replaced by the platform.
+//! Platform text input (`NSTextInputClient` through GPUI's
+//! `EntityInputHandler`): GPUI speaks UTF-16 ranges, the document uses UTF-8
+//! byte offsets. The composition lifecycle and its rules live in
+//! `composition.rs`; this file only translates the protocol.
+//!
+//! - `replace_and_mark_text_in_range` (`setMarkedText:selectedRange:
+//!   replacementRange:`): the new text becomes the composition; the selected
+//!   range is relative to it (the caret, or the clause being converted).
+//! - `replace_text_in_range` (`insertText:replacementRange:`): commits an
+//!   open composition, or inserts typed text; an explicit replacement range
+//!   (press-and-hold accents, reconversion, Vietnamese / Telex rewrites)
+//!   wins over both.
+//! - `unmark_text`: the marked text stays as typed.
 use super::editor::EditorView;
-use crate::editor::text::{change::ChangeSet, selection::Selection, state::{Transaction, UserEvent}};
+use crate::editor::text::selection::Selection;
 use gpui::*;
 use std::ops::Range;
 
@@ -10,6 +20,8 @@ pub(super) fn to_utf16(text: &str, offset: usize) -> usize {
     text[..offset.min(text.len())].encode_utf16().count()
 }
 
+/// The byte offset of a UTF-16 offset; an offset inside a surrogate pair
+/// resolves to the end of its character.
 pub(super) fn from_utf16(text: &str, offset: usize) -> usize {
     let mut units = 0;
     for (byte, ch) in text.char_indices() {
@@ -24,35 +36,20 @@ pub(super) fn from_utf16(text: &str, offset: usize) -> usize {
 impl EditorView {
     fn range_from_utf16(&self, range: &Range<usize>) -> Range<usize> {
         let t = self.state.doc.as_str();
-        from_utf16(t, range.start)..from_utf16(t, range.end)
+        let (a, b) = (from_utf16(t, range.start), from_utf16(t, range.end));
+        a.min(b)..a.max(b)
     }
     fn range_to_utf16(&self, range: &Range<usize>) -> Range<usize> {
         let t = self.state.doc.as_str();
         to_utf16(t, range.start)..to_utf16(t, range.end)
     }
-    fn replace(&mut self, range: Option<Range<usize>>, text: &str, mark: Option<Range<usize>>, selected: Option<Range<usize>>, cx: &mut Context<Self>) {
-        if self.read_only {
-            return;
-        }
-        let range = range
+    /// The source range an input-method edit replaces: its explicit
+    /// replacement range, else the marked text, else the selection.
+    fn input_target(&self, range: Option<Range<usize>>) -> Range<usize> {
+        range
             .map(|r| self.range_from_utf16(&r))
-            .or_else(|| self.marked.clone())
-            .unwrap_or_else(|| self.state.selection.as_range());
-        let caret = match &selected {
-            Some(sel) => range.start + from_utf16(text, sel.end),
-            None => range.start + text.len(),
-        };
-        let anchor = selected.as_ref().map_or(caret, |sel| range.start + from_utf16(text, sel.start));
-        self.marked = mark.map(|m| range.start + from_utf16(text, m.start)..range.start + from_utf16(text, m.end));
-        if self.marked.as_ref().is_some_and(|m| m.is_empty()) {
-            self.marked = None;
-        }
-        let event = UserEvent::Input;
-        let tr = Transaction::edit(ChangeSet::replace(range, text), Some(Selection::range(anchor, caret)), event);
-        let marked = self.marked.clone();
-        self.dispatch(tr, cx);
-        // dispatch maps nothing for marked; restore the composition range.
-        self.marked = marked;
+            .or_else(|| self.composition_range())
+            .unwrap_or_else(|| self.state.selection.as_range())
     }
 }
 
@@ -62,36 +59,70 @@ impl EntityInputHandler for EditorView {
         *actual = Some(self.range_to_utf16(&r));
         Some(self.state.doc.slice(r).to_owned())
     }
-    fn selected_text_range(&mut self, _ignore_disabled: bool, _: &mut Window, _: &mut Context<Self>) -> Option<UTF16Selection> {
+
+    fn selected_text_range(&mut self, ignore_disabled_input: bool, _: &mut Window, _: &mut Context<Self>) -> Option<UTF16Selection> {
+        // A read-only editor offers no text input (the input method stays off).
+        if self.read_only && !ignore_disabled_input {
+            return None;
+        }
         let s = self.state.selection;
         Some(UTF16Selection { range: self.range_to_utf16(&s.as_range()), reversed: s.head < s.anchor })
     }
+
     fn marked_text_range(&self, _: &mut Window, _: &mut Context<Self>) -> Option<Range<usize>> {
-        self.marked.as_ref().map(|m| self.range_to_utf16(m))
+        self.composition_range().map(|m| self.range_to_utf16(&m))
     }
+
     fn unmark_text(&mut self, _: &mut Window, cx: &mut Context<Self>) {
-        self.marked = None;
-        cx.notify();
+        self.unmark(cx);
     }
+
     fn replace_text_in_range(&mut self, range: Option<Range<usize>>, text: &str, _: &mut Window, cx: &mut Context<Self>) {
-        self.replace(range, text, None, None, cx);
+        if range.is_none() && text.is_empty() && !self.composing() {
+            // An empty insert outside a composition is not an edit (it would
+            // delete the selection).
+            return;
+        }
+        let target = self.input_target(range);
+        self.apply_input(target, text, text.len()..text.len(), false, cx);
     }
-    fn replace_and_mark_text_in_range(&mut self, range: Option<Range<usize>>, text: &str, marked: Option<Range<usize>>, cx_window: &mut Window, cx: &mut Context<Self>) {
-        let _ = cx_window;
-        let mark = Some(marked.clone().unwrap_or(0..text.encode_utf16().count()));
-        self.replace(range, text, mark, marked, cx);
+
+    fn replace_and_mark_text_in_range(&mut self, range: Option<Range<usize>>, text: &str, selected: Option<Range<usize>>, _: &mut Window, cx: &mut Context<Self>) {
+        let target = self.input_target(range);
+        let units = text.encode_utf16().count();
+        let selected = selected.map_or(text.len()..text.len(), |s| {
+            let (a, b) = (from_utf16(text, s.start.min(units)), from_utf16(text, s.end.min(units)));
+            a.min(b)..a.max(b)
+        });
+        self.apply_input(target, text, selected, true, cx);
     }
+
     fn bounds_for_range(&mut self, range: Range<usize>, _: Bounds<Pixels>, _: &mut Window, _: &mut Context<Self>) -> Option<Bounds<Pixels>> {
         let layout = self.layout.as_ref()?;
         let r = self.range_from_utf16(&range);
-        let caret = layout.caret(r.start, false);
+        // The input method asks right after an edit, before the next frame:
+        // an older layout is only exact before the edit, so anchor at the
+        // start (the composition's first row follows once laid out).
+        let rect = if layout.revision == self.state.revision { layout.first_row_rect(r) } else { layout.first_row_rect(r.start..r.start) };
         // Shift from the layout frame's scroll to the current one.
-        let dy = layout.scroll - px(self.scroll_y);
-        Some(Bounds::new(point(caret.x, caret.row_top + dy), size(px(1.), caret.row_height)))
+        Some(Bounds::new(rect.origin + point(px(0.), layout.scroll - px(self.scroll_y)), rect.size))
     }
+
     fn character_index_for_point(&mut self, p: Point<Pixels>, _: &mut Window, _: &mut Context<Self>) -> Option<usize> {
         let layout = self.layout.as_ref()?;
         let (offset, _) = layout.offset_at(layout.to_layout(p, self.scroll_y));
         Some(to_utf16(self.state.doc.as_str(), offset))
+    }
+
+    fn set_selected_text_range(&mut self, range: Range<usize>, _: &mut Window, cx: &mut Context<Self>) {
+        if self.composing() {
+            return;
+        }
+        let r = self.range_from_utf16(&range);
+        self.set_selection(Selection::range(r.start, r.end), cx);
+    }
+
+    fn accepts_text_input(&self, _: &mut Window, _: &mut Context<Self>) -> bool {
+        !self.read_only
     }
 }
