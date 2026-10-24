@@ -70,6 +70,7 @@ embedded! {
     "icons" / "file-plus-2.svg",
     "icons" / "file-search.svg",
     "icons" / "file-text.svg",
+    "icons" / "file-warning.svg",
     "icons" / "flask-conical.svg",
     "icons" / "folder.svg",
     "icons" / "folder-closed.svg",

@@ -630,18 +630,35 @@
         "src/features/source-control/sidebar/SourceControlResourceLists.tsx",
         "src/features/source-control/diff/contributions/text-unified/TextUnifiedDiff.tsx",
         "src/features/source-control/source-control.css",
-        "src/features/source-control/styles/*.css"
+        "src/features/source-control/styles/*.css",
+        "src/features/source-control/diff/GitFileDiffSurface.tsx",
+        "src/features/source-control/diff/FormatAwareDiff.tsx",
+        "src/features/source-control/diff/core/registry.ts",
+        "src/features/source-control/diff/contributions/binary-summary/BinarySummaryDiff.tsx"
       ],
       "targets": [
-        "src/features/source_control.rs",
-        "src/platform/git.rs"
+        "src/features/source_control/mod.rs",
+        "src/features/source_control/history.rs",
+        "src/features/source_control/diff/mod.rs",
+        "src/features/source_control/diff/text_unified.rs",
+        "src/features/source_control/diff/binary_summary.rs",
+        "src/platform/git.rs",
+        "src/platform/git_diff.rs",
+        "src/platform/git_history.rs"
       ],
       "evidence": [
         "test:real_repository_stage_commit_diff_and_unborn_unstage",
         "test:nul_paths_renames_and_counts",
-        "test:empty_commits_take_the_product_default_message"
+        "test:empty_commits_take_the_product_default_message",
+        "test:patches_parse_like_parse_git_patch",
+        "test:working_tree_diffs_cover_each_scope",
+        "test:each_file_resolves_to_the_products_renderer",
+        "test:the_list_lays_out_cards_with_their_hunks",
+        "test:logs_merge_like_read_git_history",
+        "test:commits_group_by_day_newest_first",
+        "test:changes_open_file_opens_it_in_the_editor"
       ],
-      "remaining": "Collapsible Staged/Unstaged/Merge/Committed panels with Commit and Stage and Commit (product default message), Pull notice, Push, history and unified text diffs are native and localized; Pull/Push/Discard keep a native confirmation. Unlike the Web (git rev-parse --is-inside-work-tree), Git is managed only when the opened folder is the repository root, so mutations cannot reach files outside the granted folder. DOCX redline and binary-summary diffs, remote management, incoming-change review and repository setup are not ported."
+      "remaining": "Collapsible Staged/Unstaged/Merge/Committed panels with Commit and Stage and Commit (product default message), Pull notice and Push are native and localized. A selected change opens WorkingFileDetail in place (Open file / Stage / Unstage / Discard) over the Diff Registry: the unified text diff (numbered lines, hunk separators, wrapping) and the binary summary (format, before/after sizes, open current file), framed by GitFileDiffSurface. History is the day-grouped timeline with change totals and a four-file preview; a commit opens its summary (HEAD, copyable id, totals) and file diffs. Unlike the Web (git rev-parse --is-inside-work-tree), Git is managed only when the opened folder is the repository root, so mutations cannot reach files outside the granted folder. Pull/Push/Discard confirm inline rather than in the product's dialogs; the DOCX redline, remote management, incoming-change review and repository setup are not ported."
     },
     {
       "name": "Terminal surface",

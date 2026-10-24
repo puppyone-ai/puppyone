@@ -93,7 +93,7 @@ pub fn parse_status(bytes: &[u8]) -> Result<Snapshot, String> {
     }
     Ok(result)
 }
-fn git(
+pub(super) fn git(
     root: &Path,
     args: &[&str],
     input: Option<&[u8]>,
@@ -203,8 +203,22 @@ pub fn operate(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result<Snaps
         Operation::Stage(_) => vec!["add", "--"],
         Operation::Unstage(_) => vec!["reset", "-q", "HEAD", "--"],
         Operation::Discard(c) => {
-            if c.untracked() || c.conflict() {
+            if c.conflict() {
                 return Err(crate::localization::t("native.git.discardTrackedOnly").into());
+            }
+            if c.untracked() {
+                // `discardWorkspaceGitPaths`: an untracked path is removed.
+                // `validate_path` admits only normal components, and a
+                // symlink is removed itself, never followed.
+                let target = root.join(&c.path);
+                let meta = std::fs::symlink_metadata(&target).map_err(|e| e.to_string())?;
+                if meta.is_dir() {
+                    std::fs::remove_dir_all(&target)
+                } else {
+                    std::fs::remove_file(&target)
+                }
+                .map_err(|e| e.to_string())?;
+                return status(root, cancel);
             }
             vec!["restore", "--worktree", "--"]
         }
@@ -266,37 +280,6 @@ fn default_commit_message(root: &Path, cancel: &AtomicBool) -> String {
         ),
         many => format!("Update {} files", many.len()),
     }
-}
-pub fn diff(
-    root: &Path,
-    change: &Change,
-    staged: bool,
-    cancel: &AtomicBool,
-) -> Result<String, String> {
-    validate_path(&change.path)?;
-    if change.untracked() {
-        let path = root
-            .join(&change.path)
-            .canonicalize()
-            .map_err(|e| e.to_string())?;
-        if !path.starts_with(root.canonicalize().map_err(|e| e.to_string())?) {
-            return Err(crate::localization::t("native.git.symlinkPreview").into());
-        }
-        let file = std::fs::File::open(path).map_err(|e| e.to_string())?;
-        let bytes = process::bounded_read(file, 1024 * 1024).map_err(|e| e.to_string())?;
-        return String::from_utf8(bytes)
-            .map_err(|_| crate::localization::t("native.git.binaryPreview").into());
-    }
-    let mut args = vec!["diff", "--no-ext-diff", "--no-textconv", "--unified=3"];
-    if staged {
-        args.push("--cached");
-    }
-    args.extend(["--", &change.path]);
-    if let Some(old) = &change.original {
-        validate_path(old)?;
-        args.push(old);
-    }
-    Ok(String::from_utf8_lossy(&git(root, &args, None, cancel)?).into_owned())
 }
 /// Repository facts for Settings → Git (`GitSettingsView`).
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -415,51 +398,6 @@ pub fn repository_info(root: &Path, cancel: &AtomicBool) -> Result<RepositoryInf
     }
     Ok(info)
 }
-#[derive(Clone, Debug)]
-pub struct Commit {
-    pub id: String,
-    pub title: String,
-    pub author: String,
-    pub date: String,
-}
-pub fn history(root: &Path, cancel: &AtomicBool) -> Result<Vec<Commit>, String> {
-    let bytes = git(
-        root,
-        &["log", "-100", "--format=%H%x00%s%x00%an%x00%ar", "-z"],
-        None,
-        cancel,
-    )?;
-    let values = bytes.split(|x| *x == 0).collect::<Vec<_>>();
-    Ok(values
-        .chunks_exact(4)
-        .map(|v| Commit {
-            id: String::from_utf8_lossy(v[0]).into(),
-            title: String::from_utf8_lossy(v[1]).into(),
-            author: String::from_utf8_lossy(v[2]).into(),
-            date: String::from_utf8_lossy(v[3]).into(),
-        })
-        .collect())
-}
-pub fn commit_diff(root: &Path, id: &str, cancel: &AtomicBool) -> Result<String, String> {
-    if id.len() != 40 || !id.bytes().all(|c| c.is_ascii_hexdigit()) {
-        return Err("Invalid commit identity".into());
-    }
-    Ok(String::from_utf8_lossy(&git(
-        root,
-        &[
-            "show",
-            "--format=fuller",
-            "--no-ext-diff",
-            "--no-textconv",
-            id,
-            "--",
-        ],
-        None,
-        cancel,
-    )?)
-    .into_owned())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -530,12 +468,22 @@ mod tests {
         operate(root, &Operation::Commit("Initial".into()), &cancel).unwrap();
         std::fs::write(root.join("a\n-b"), "two\n").unwrap();
         let s = status(root, &cancel).unwrap();
-        assert!(
-            diff(root, &s.changes[0], false, &cancel)
+        let files = super::super::git_diff::file_diff(
+            root,
+            &s.changes[0].path,
+            None,
+            super::super::git_diff::Scope::Unstaged,
+            &cancel,
+        )
+        .unwrap();
+        assert!(files[0].lines.iter().any(|l| l.text == "two"));
+        assert_eq!(
+            super::super::git_history::history(root, &cancel)
                 .unwrap()
-                .contains("+two")
+                .commits
+                .len(),
+            1
         );
-        assert_eq!(history(root, &cancel).unwrap().len(), 1);
         git(
             root,
             &["remote", "add", "origin", "https://github.com/a/b.git"],
@@ -553,6 +501,19 @@ mod tests {
         let plain = tempfile::tempdir().unwrap();
         assert!(!repository_info(plain.path(), &cancel).unwrap().is_repo);
         operate(root, &Operation::Discard(s.changes[0].clone()), &cancel).unwrap();
+        assert!(status(root, &cancel).unwrap().changes.is_empty());
+        // Discarding an untracked file removes it; a symlink goes, not its target.
+        std::fs::write(root.join("scratch.txt"), "x").unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::write(outside.path().join("keep.txt"), "keep").unwrap();
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(outside.path(), root.join("link")).unwrap();
+        for change in status(root, &cancel).unwrap().changes {
+            assert!(change.untracked());
+            operate(root, &Operation::Discard(change), &cancel).unwrap();
+        }
+        assert!(!root.join("scratch.txt").exists());
+        assert!(outside.path().join("keep.txt").exists());
         assert!(status(root, &cancel).unwrap().changes.is_empty());
     }
 }

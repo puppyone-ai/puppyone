@@ -392,8 +392,90 @@ fn relative_past_in(code: &str, n: i64, unit: TimeUnit) -> String {
     }
 }
 
+/// `Intl.RelativeTimeFormat(locale, { numeric: "auto" }).format(n, "day")`
+/// for today (0) and yesterday (-1).
+pub fn relative_day(offset: i64) -> String {
+    let code = CURRENT.with(|c| c.borrow().clone());
+    relative_day_in(&code, offset).to_owned()
+}
+fn relative_day_in(code: &str, offset: i64) -> &'static str {
+    let (today, yesterday) = match code {
+        "zh-Hans" => ("今天", "昨天"),
+        "ja" => ("今日", "昨日"),
+        "ko" => ("오늘", "어제"),
+        "de" => ("heute", "gestern"),
+        "fr" => ("aujourd’hui", "hier"),
+        "es" => ("hoy", "ayer"),
+        "pt-BR" => ("hoje", "ontem"),
+        _ => ("today", "yesterday"),
+    };
+    if offset == 0 { today } else { yesterday }
+}
+/// `Intl.DateTimeFormat(locale, { month: "short", day: "numeric", year })`:
+/// "Oct 23", "10月23日", "23. Okt."; the year only when given.
+pub fn month_day(year: Option<i32>, month: u32, day: u32) -> String {
+    let code = CURRENT.with(|c| c.borrow().clone());
+    month_day_in(&code, year, month, day)
+}
+fn month_day_in(code: &str, year: Option<i32>, month: u32, day: u32) -> String {
+    let short = |names: [&'static str; 12]| names[(month.clamp(1, 12) - 1) as usize];
+    match (code, year) {
+        ("zh-Hans" | "ja", None) => format!("{month}月{day}日"),
+        ("zh-Hans" | "ja", Some(y)) => format!("{y}年{month}月{day}日"),
+        ("ko", None) => format!("{month}월 {day}일"),
+        ("ko", Some(y)) => format!("{y}년 {month}월 {day}일"),
+        ("de", _) => {
+            let m = short([
+                "Jan.", "Feb.", "März", "Apr.", "Mai", "Juni", "Juli", "Aug.", "Sept.", "Okt.",
+                "Nov.", "Dez.",
+            ]);
+            year.map_or(format!("{day}. {m}"), |y| format!("{day}. {m} {y}"))
+        }
+        ("fr", _) => {
+            let m = short([
+                "janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.",
+                "nov.", "déc.",
+            ]);
+            year.map_or(format!("{day} {m}"), |y| format!("{day} {m} {y}"))
+        }
+        ("es", _) => {
+            let m = short([
+                "ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sept", "oct", "nov", "dic",
+            ]);
+            year.map_or(format!("{day} {m}"), |y| format!("{day} {m} {y}"))
+        }
+        ("pt-BR", _) => {
+            let m = short([
+                "jan.", "fev.", "mar.", "abr.", "mai.", "jun.", "jul.", "ago.", "set.", "out.",
+                "nov.", "dez.",
+            ]);
+            year.map_or(format!("{day} de {m}"), |y| format!("{day} de {m} de {y}"))
+        }
+        _ => {
+            let m = short([
+                "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+            ]);
+            year.map_or(format!("{m} {day}"), |y| format!("{m} {day}, {y}"))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn days_and_dates_follow_intl() {
+        use super::{month_day_in, relative_day_in};
+        assert_eq!(relative_day_in("en", -1), "yesterday");
+        assert_eq!(relative_day_in("zh-Hans", 0), "今天");
+        assert_eq!(month_day_in("en", None, 10, 23), "Oct 23");
+        assert_eq!(month_day_in("en", Some(2025), 1, 5), "Jan 5, 2025");
+        assert_eq!(month_day_in("zh-Hans", None, 10, 23), "10月23日");
+        assert_eq!(month_day_in("de", None, 3, 2), "2. März");
+        assert_eq!(
+            month_day_in("pt-BR", Some(2024), 10, 23),
+            "23 de out. de 2024"
+        );
+    }
     #[test]
     fn relative_past_follows_intl_relative_time_format() {
         use super::{TimeUnit::*, relative_past_in};

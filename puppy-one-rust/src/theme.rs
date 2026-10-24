@@ -154,6 +154,12 @@ pub mod metric {
 }
 
 /// `--po-font-mono` (Geist Mono) for machine output; static editor faces.
+/// CSS `line-height: normal` for Geist (ascender 1005 + descender 295 per
+/// 1000 units); GPUI's own default is 1.618.
+pub const NORMAL_LINE_HEIGHT: f32 = 1.3;
+/// The interface sans with true oblique faces (the editor's Geist build),
+/// for the product's italic interface notes.
+pub const SANS_ITALIC: &str = "PuppyOne Geist 400";
 pub const MONO: &str = "PuppyOne Geist Mono 400";
 pub const MONO_MEDIUM: &str = "PuppyOne Geist Mono 500";
 pub const HEADER: f32 = 40.0;

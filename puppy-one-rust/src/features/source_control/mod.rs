@@ -3,9 +3,18 @@
 //! `SourceControlSectionHeader`, `SourceControlWorkingTreeRow`,
 //! `GitOperationButton`, `GitIncomingUpdateNotice`) with
 //! `source-control/styles/*`. Git runs through `platform/git.rs` on a worker.
+//! A selected change opens its file diff in place (`WorkingFileDetail` over
+//! the format-aware `diff` registry).
+mod diff;
+mod history;
+
 use crate::{
     localization::{t as tr, tf},
-    platform::git::{self, Change, Commit, Operation, Snapshot},
+    platform::{
+        git::{self, Change, Operation, Snapshot},
+        git_diff::{self, FileDiff, Scope},
+        git_history::{self, CommitSummary, History},
+    },
     theme::{self, Theme, metric},
     ui::{
         appearance::ActiveAppearance,
@@ -33,8 +42,81 @@ use std::{
 
 enum ResultValue {
     Status(Result<Snapshot, String>),
-    History(Result<Vec<Commit>, String>, u64),
-    Diff(Result<String, String>, u64),
+    History(Result<History, String>, u64),
+    Diff(Result<Vec<FileDiff>, String>, u64),
+}
+/// The focused Changes file (`GitWorkingSelection`).
+#[derive(Clone, Debug)]
+struct Selection {
+    change: Change,
+    scope: Scope,
+}
+impl Selection {
+    fn staged(&self) -> bool {
+        self.scope == Scope::Staged
+    }
+    /// The letter its row shows for this scope.
+    fn status(&self) -> char {
+        match (self.scope, self.change.index, self.change.worktree) {
+            (Scope::Untracked, ..) => 'U',
+            (Scope::Staged, index, _) => index,
+            (_, _, ' ') => self.change.index,
+            (_, _, worktree) => worktree,
+        }
+    }
+}
+/// What the detail view shows.
+#[derive(Clone, Debug)]
+enum DetailKind {
+    Working(Selection),
+    Commit(CommitSummary),
+}
+/// A file diff list (Changes detail or a History commit) and its rows.
+struct Detail {
+    kind: DetailKind,
+    /// `None` while Git reads it.
+    files: Option<Result<Vec<FileDiff>, String>>,
+    rows: Vec<diff::Row>,
+    list: ListState,
+}
+impl Detail {
+    fn new(kind: DetailKind) -> Self {
+        let list = ListState::new(0, ListAlignment::Top, px(400.));
+        let detail = Self {
+            kind,
+            files: None,
+            rows: Vec::new(),
+            list,
+        };
+        detail.list.reset(detail.lead());
+        detail
+    }
+    /// Changes is a sidebar list; a History commit is a page.
+    fn density(&self) -> diff::Density {
+        match self.kind {
+            DetailKind::Working(_) => diff::Density::Sidebar,
+            DetailKind::Commit(_) => diff::Density::Page,
+        }
+    }
+    /// Rows above the diffs: a commit's summary.
+    fn lead(&self) -> usize {
+        usize::from(matches!(self.kind, DetailKind::Commit(_)))
+    }
+    fn publish(&mut self, files: Result<Vec<FileDiff>, String>) {
+        let density = self.density();
+        self.rows = files
+            .as_deref()
+            .map(|f| diff::rows(f, density))
+            .unwrap_or_default();
+        self.list.reset(self.lead() + self.rows.len());
+        self.files = Some(files);
+    }
+}
+/// What the Changes surface asks of the shell.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SourceControlEvent {
+    /// `onOpenFile`: open a workspace-relative file in the editor.
+    OpenFile(String),
 }
 /// `GitSidebarPanelId` of the local status panels, in display order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -135,18 +217,27 @@ pub struct SourceControl {
     history_ticket: u64,
     history_cancel: Arc<AtomicBool>,
     detail_cancel: Arc<AtomicBool>,
-    commits: Vec<Commit>,
+    history: History,
+    /// History has been read at least once (an empty one is final).
+    history_loaded: bool,
+    timeline: Vec<history::TimelineRow>,
+    timeline_list: ListState,
+    /// Collapsed days of the timeline (local `YYYY-MM-DD`).
+    collapsed_days: std::collections::HashSet<String>,
+    /// The commit id just copied (its icon reads "copied" briefly).
+    copied: Option<String>,
     sections: Vec<Section>,
     /// Collapsed disclosure panels (`useGitSidebarExpansionState`).
     collapsed: std::collections::HashSet<Panel>,
     selection: u64,
-    detail: Option<(String, Vec<String>)>,
+    detail: Option<Detail>,
     confirm: Option<Operation>,
     layout: crate::features::settings::preference_types::GitSidebarLayout,
     icon_theme: String,
     #[cfg(test)]
     painted_rows: usize,
 }
+impl EventEmitter<SourceControlEvent> for SourceControl {}
 impl SourceControl {
     /// Appearance → Git sidebar layout and file icon theme.
     pub fn set_presentation(
@@ -196,7 +287,12 @@ impl SourceControl {
             history_ticket: 0,
             history_cancel: Arc::new(AtomicBool::new(false)),
             detail_cancel: Arc::new(AtomicBool::new(false)),
-            commits: vec![],
+            history: History::default(),
+            history_loaded: false,
+            timeline: vec![],
+            timeline_list: ListState::new(0, ListAlignment::Top, px(400.)),
+            collapsed_days: Default::default(),
+            copied: None,
             sections: vec![],
             collapsed: Default::default(),
             selection: 0,
@@ -227,7 +323,10 @@ impl SourceControl {
         self.history_open = false;
         self.detail = None;
         self.confirm = None;
-        self.commits.clear();
+        self.history = History::default();
+        self.history_loaded = false;
+        self.collapsed_days.clear();
+        self.rebuild_timeline();
         self.sections.clear();
         self.refresh(cx);
     }
@@ -316,24 +415,20 @@ impl SourceControl {
                 ResultValue::History(result, ticket) => {
                     if ticket == self.history_ticket {
                         match result {
-                            Ok(c) => self.commits = c,
+                            Ok(history) => {
+                                self.history = history;
+                                self.history_loaded = true;
+                                self.rebuild_timeline();
+                            }
                             Err(e) => self.error = Some(e),
                         }
                     }
                 }
                 ResultValue::Diff(result, selection) => {
-                    if selection == self.selection {
-                        match result {
-                            Ok(text) => {
-                                if let Some((_, lines)) = &mut self.detail {
-                                    *lines = text.lines().take(20_000).map(str::to_owned).collect();
-                                    if lines.is_empty() {
-                                        lines.push(tr("native.git.noDifferences").into());
-                                    }
-                                }
-                            }
-                            Err(e) => self.error = Some(e),
-                        }
+                    if selection == self.selection
+                        && let Some(detail) = &mut self.detail
+                    {
+                        detail.publish(result);
                     }
                 }
             }
@@ -361,30 +456,81 @@ impl SourceControl {
         self.history_ticket += 1;
         let ticket = self.history_ticket;
         self.task_with(self.history_cancel.clone(), move |root, cancel| {
-            ResultValue::History(git::history(&root, cancel), ticket)
+            ResultValue::History(git_history::history(&root, cancel), ticket)
         });
     }
-    fn select(&mut self, change: Change, staged: bool, cx: &mut Context<Self>) {
+    /// Open a detail and read its files off the main thread.
+    fn open_detail(
+        &mut self,
+        kind: DetailKind,
+        read: impl FnOnce(PathBuf, &AtomicBool) -> Result<Vec<FileDiff>, String> + Send + 'static,
+        cx: &mut Context<Self>,
+    ) {
         self.selection += 1;
         let selection = self.selection;
-        self.detail = Some((
-            format!(
-                "{} · {}",
-                change.path,
-                tr(if staged {
-                    "source-control.label.staged"
-                } else {
-                    "source-control.label.changes"
-                })
-            ),
-            vec![tr("source-control.status.loadingDiff").to_string()],
-        ));
+        self.detail = Some(Detail::new(kind));
         self.detail_cancel.store(true, Ordering::Relaxed);
         self.detail_cancel = Arc::new(AtomicBool::new(false));
         self.task_with(self.detail_cancel.clone(), move |root, cancel| {
-            ResultValue::Diff(git::diff(&root, &change, staged, cancel), selection)
+            ResultValue::Diff(read(root, cancel), selection)
         });
         cx.notify();
+    }
+    /// `selectWorkingFile`: the change's diff in its scope.
+    fn select(&mut self, change: Change, staged: bool, cx: &mut Context<Self>) {
+        let scope = if change.untracked() {
+            Scope::Untracked
+        } else if staged {
+            Scope::Staged
+        } else {
+            Scope::Unstaged
+        };
+        let (path, old) = (change.path.clone(), change.original.clone());
+        self.open_detail(
+            DetailKind::Working(Selection { change, scope }),
+            move |root, cancel| git_diff::file_diff(&root, &path, old.as_deref(), scope, cancel),
+            cx,
+        );
+    }
+    /// `onOpenHistory`.
+    pub fn open_history(&mut self, cx: &mut Context<Self>) {
+        self.detail = None;
+        self.history_open = true;
+        self.load_history();
+        cx.notify();
+    }
+    /// Open the `index`th History commit (capture scenarios and tests).
+    #[cfg_attr(not(any(test, feature = "dev-capture")), allow(dead_code))]
+    pub fn select_commit(&mut self, index: usize, cx: &mut Context<Self>) -> bool {
+        let Some(commit) = self.history.commits.get(index).cloned() else {
+            return false;
+        };
+        let id = commit.id.clone();
+        self.open_detail(
+            DetailKind::Commit(commit),
+            move |root, cancel| git_diff::commit_detail(&root, &id, cancel),
+            cx,
+        );
+        true
+    }
+    /// A detail or the opened History is still being read.
+    #[cfg_attr(not(feature = "dev-capture"), allow(dead_code))]
+    pub fn reading_detail(&self) -> bool {
+        self.detail.as_ref().is_some_and(|d| d.files.is_none())
+            || (self.history_open && !self.history_loaded)
+    }
+    /// Open the change at `path` (capture scenarios and tests).
+    #[cfg_attr(not(any(test, feature = "dev-capture")), allow(dead_code))]
+    pub fn select_path(&mut self, path: &str, staged: bool, cx: &mut Context<Self>) -> bool {
+        let Some(change) = self
+            .snapshot
+            .as_ref()
+            .and_then(|s| s.changes.iter().find(|c| c.path == path).cloned())
+        else {
+            return false;
+        };
+        self.select(change, staged, cx);
+        true
     }
 }
 impl Drop for SourceControl {
@@ -483,10 +629,19 @@ impl SourceControl {
             ' ' => change.index,
             other => other,
         };
-        let name = std::path::Path::new(&change.path)
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_else(|| change.path.clone());
+        // `getGitDisplayName`: `old -> new` for a rename (Geist draws the
+        // arrow ligature).
+        let base = |p: &str| p.rsplit('/').next().unwrap_or(p).to_owned();
+        let name = match change.original.as_deref().filter(|o| *o != change.path) {
+            Some(old) => format!("{} -> {}", base(old), base(&change.path)),
+            None => base(&change.path),
+        };
+        // `.desktop-working-tree-state` sits on the name's baseline; GPUI
+        // text has none to align to, so place it by Geist's metrics.
+        let baseline =
+            |size: f32, line: f32| (line - size * theme::NORMAL_LINE_HEIGHT) / 2. + size * 1.005;
+        let marker_top =
+            baseline(m.left.content, m.left.line_height) - baseline(m.ui.micro, m.ui.micro);
         let select = change.clone();
         let stage = change.clone();
         let discard = change.clone();
@@ -512,32 +667,32 @@ impl SourceControl {
             h_flex()
                 .flex_1()
                 .min_w_0()
-                .items_baseline()
+                .items_start()
                 .gap(px(5.))
                 .child(div().min_w_0().truncate().child(name))
                 .child(
                     div()
                         .flex_shrink_0()
+                        .mt(px(marker_top))
                         .text_size(px(m.ui.micro))
                         .line_height(px(m.ui.micro))
                         .text_color(t.text_disabled)
                         .child(status.to_string()),
                 ),
         )
-        .when(
-            !staged && !change.untracked() && !change.conflict(),
-            |row| {
-                row.action(
-                    row_action(("discard", index), "undo-2", discard_label)
-                        .danger()
-                        .on_click(cx.listener(move |s, _, _, cx| {
-                            cx.stop_propagation();
-                            s.confirm = Some(Operation::Discard(discard.clone()));
-                            cx.notify();
-                        })),
-                )
-            },
-        )
+        // Every unstaged change can be discarded; an untracked file is
+        // deleted (`discardWorkspaceGitPaths`).
+        .when(!staged && !change.conflict(), |row| {
+            row.action(
+                row_action(("discard", index), "undo-2", discard_label)
+                    .danger()
+                    .on_click(cx.listener(move |s, _, _, cx| {
+                        cx.stop_propagation();
+                        s.confirm = Some(Operation::Discard(discard.clone()));
+                        cx.notify();
+                    })),
+            )
+        })
         .action(
             row_action(
                 ("stage", index),
@@ -995,118 +1150,164 @@ impl SourceControl {
                     ),
             )
     }
-    fn diff_view(&self, title: String, count: usize, cx: &mut Context<Self>) -> Div {
+    /// `WorkingFileActions`: open the file, stage or unstage it, discard it.
+    fn working_actions(&self, selection: &Selection, cx: &mut Context<Self>) -> Div {
+        let change = selection.change.clone();
+        let can_open = selection.status() != 'D';
+        let open_path = change.path.clone();
+        let mut actions = h_flex().flex_none().gap(px(4.)).when(can_open, |d| {
+            d.child(
+                Button::new("git-detail-open")
+                    .variant(ButtonVariant::GitAction)
+                    .icon("file-text")
+                    .label(tr("source-control.action.openFile"))
+                    .disabled(self.busy)
+                    .on_click(cx.listener(move |_, _, _, cx| {
+                        cx.emit(SourceControlEvent::OpenFile(open_path.clone()))
+                    })),
+            )
+        });
+        if selection.staged() {
+            actions = actions.child(
+                Button::new("git-detail-unstage")
+                    .variant(ButtonVariant::GitAction)
+                    .label(tr("source-control.action.unstage"))
+                    .disabled(self.busy)
+                    .on_click(cx.listener(move |s, _, _, cx| {
+                        s.operation(Operation::Unstage(change.clone()), cx)
+                    })),
+            );
+        } else {
+            let stage = change.clone();
+            actions = actions
+                .child(
+                    Button::new("git-detail-stage")
+                        .variant(ButtonVariant::GitAction)
+                        .label(tr("source-control.action.stage"))
+                        .disabled(self.busy)
+                        .on_click(cx.listener(move |s, _, _, cx| {
+                            s.operation(Operation::Stage(stage.clone()), cx)
+                        })),
+                )
+                .child(
+                    Button::new("git-detail-discard")
+                        .variant(ButtonVariant::GitActionDanger)
+                        .label(tr("source-control.action.discard"))
+                        .disabled(self.busy)
+                        .on_click(cx.listener(move |s, _, _, cx| {
+                            s.confirm = Some(Operation::Discard(change.clone()));
+                            cx.notify();
+                        })),
+                );
+        }
+        actions
+    }
+    /// One row of the open detail's list: a commit's summary, then diffs.
+    fn detail_row(&self, index: usize, cx: &mut Context<Self>) -> AnyElement {
+        let Some(detail) = &self.detail else {
+            return div().into_any_element();
+        };
+        if let DetailKind::Commit(commit) = &detail.kind
+            && index == 0
+        {
+            return self.commit_summary(commit, cx);
+        }
+        let Some(index) = index.checked_sub(detail.lead()) else {
+            return div().into_any_element();
+        };
+        let (Some(Ok(files)), Some(row)) = (&detail.files, detail.rows.get(index)) else {
+            return div().into_any_element();
+        };
+        // Working-tree files open from their binary summary; deleted and
+        // committed ones cannot.
+        let open_file = match &detail.kind {
+            DetailKind::Working(selection) if selection.status() != 'D' => {
+                let host = cx.weak_entity();
+                Some(
+                    std::rc::Rc::new(move |path: &str, _: &mut Window, cx: &mut App| {
+                        let path = path.to_owned();
+                        let _ =
+                            host.update(cx, |_, cx| cx.emit(SourceControlEvent::OpenFile(path)));
+                    }) as diff::OpenFile,
+                )
+            }
+            _ => None,
+        };
+        let context = diff::RowContext {
+            files,
+            density: detail.density(),
+            palette: diff::DiffPalette::new(cx.palette()),
+            open_file,
+        };
+        diff::render_row(row, &context)
+    }
+    /// `WorkingFileDetail` / the History commit's files: loading, an error,
+    /// nothing textual, or the diff list.
+    fn detail_view(&self, cx: &mut Context<Self>) -> AnyElement {
         let t = cx.palette();
+        let Some(detail) = &self.detail else {
+            return div().into_any_element();
+        };
+        if matches!(&detail.files, Some(Ok(files)) if !files.is_empty()) {
+            let host = cx.weak_entity();
+            return list(detail.list.clone(), move |i, _, cx| {
+                host.update(cx, |s, cx| s.detail_row(i, cx))
+                    .unwrap_or_else(|_| div().into_any_element())
+            })
+            .flex_1()
+            .min_h_0()
+            .into_any_element();
+        }
+        // `.desktop-commit-empty` / `.desktop-utility-empty`: under the
+        // commit's summary, or at the top of a working file's detail.
+        let summary = match &detail.kind {
+            DetailKind::Commit(commit) => Some(self.commit_summary(commit, cx)),
+            DetailKind::Working(_) => None,
+        };
+        let inline = detail.density().inline();
+        let note = |text: SharedString, color: Rgba, italic: bool| {
+            div()
+                .px(px(inline))
+                .when(summary.is_none(), |d| d.pt(px(8.)))
+                .child(
+                    div()
+                        .px(px(16.))
+                        .py(px(14.))
+                        .text_size(px(theme::ty().ui.meta))
+                        .line_height(relative(theme::NORMAL_LINE_HEIGHT))
+                        .text_color(color)
+                        .when(italic, |d| d.font_family(theme::SANS_ITALIC).italic())
+                        .child(text),
+                )
+        };
+        let body = match &detail.files {
+            None => {
+                let label = match &detail.kind {
+                    DetailKind::Working(selection) => tf(
+                        "source-control.status.loadingDiffFor",
+                        &[("path", selection.change.path.clone().into())],
+                    ),
+                    DetailKind::Commit(_) => tr("source-control.status.loadingDiff").to_owned(),
+                };
+                Self::centered_note(label, t)
+            }
+            Some(Err(error)) => note(error.clone().into(), t.danger, false),
+            Some(Ok(_)) => note(
+                tr(match detail.kind {
+                    DetailKind::Working(_) => "source-control.diff.noText",
+                    DetailKind::Commit(_) => "source-control.commit.noFileChanges",
+                })
+                .into(),
+                t.subtle,
+                true,
+            ),
+        };
         v_flex()
             .flex_1()
             .min_h_0()
-            .child(
-                div()
-                    .flex_shrink_0()
-                    .px(px(14.))
-                    .py(px(8.))
-                    .truncate()
-                    .text_size(px(theme::ty().left.content))
-                    .text_color(t.text)
-                    .child(title),
-            )
-            .child(
-                uniform_list(
-                    "git-diff",
-                    count,
-                    cx.processor(|s, range: std::ops::Range<usize>, _, cx| {
-                        let t = cx.palette();
-                        range
-                            .map(|i| {
-                                let line = &s.detail.as_ref().unwrap().1[i];
-                                let added = line.starts_with('+') && !line.starts_with("+++");
-                                let removed = line.starts_with('-') && !line.starts_with("---");
-                                let hunk = line.starts_with("@@");
-                                div()
-                                    .h(px(20.))
-                                    .px(px(14.))
-                                    .font_family(theme::MONO)
-                                    .text_size(px(theme::ty().ui.caption))
-                                    .whitespace_nowrap()
-                                    .when(added, |d| d.bg(t.diff_added_bg))
-                                    .when(removed, |d| d.bg(t.diff_removed_bg))
-                                    .text_color(if added {
-                                        t.diff_added_text
-                                    } else if removed {
-                                        t.diff_removed_text
-                                    } else if hunk {
-                                        t.subtle
-                                    } else {
-                                        t.muted
-                                    })
-                                    .child(line.clone())
-                            })
-                            .collect::<Vec<_>>()
-                    }),
-                )
-                .flex_1()
-                .min_h_0(),
-            )
-    }
-    fn history_view(&self, cx: &mut Context<Self>) -> AnyElement {
-        uniform_list(
-            "git-log",
-            self.commits.len(),
-            cx.processor(|s, range: std::ops::Range<usize>, _, cx| {
-                let t = cx.palette();
-                let m = theme::ty();
-                range
-                    .map(|i| {
-                        let c = s.commits[i].clone();
-                        v_flex()
-                            .id(i)
-                            .h(px(52.))
-                            .mx(px(metric::SIDEBAR_ROW_LEFT_GAP))
-                            .px(px(metric::SIDEBAR_ROW_CONTENT_LEFT))
-                            .py(px(7.))
-                            .gap(px(2.))
-                            .rounded(px(metric::SIDEBAR_ROW_RADIUS))
-                            .cursor(theme::clickable_cursor())
-                            .text_color(t.muted)
-                            .hover(move |d| d.bg(t.hover).text_color(t.text))
-                            .child(div().truncate().text_size(px(m.left.content)).child(
-                                if c.title.is_empty() {
-                                    tr("source-control.commit.noMessage").to_string()
-                                } else {
-                                    c.title.clone()
-                                },
-                            ))
-                            .child(
-                                div()
-                                    .text_size(px(m.left.meta))
-                                    .text_color(t.subtle)
-                                    .truncate()
-                                    .child(format!("{} · {} · {}", &c.id[..7], c.author, c.date)),
-                            )
-                            .on_click(cx.listener(move |s, _, _, cx| {
-                                s.selection += 1;
-                                let selection = s.selection;
-                                s.detail = Some((
-                                    c.title.clone(),
-                                    vec![tr("source-control.status.readingHistory").to_string()],
-                                ));
-                                let id = c.id.clone();
-                                s.task(move |root, cancel| {
-                                    ResultValue::Diff(
-                                        git::commit_diff(&root, &id, cancel),
-                                        selection,
-                                    )
-                                });
-                                cx.notify();
-                            }))
-                    })
-                    .collect::<Vec<_>>()
-            }),
-        )
-        .flex_1()
-        .min_h_0()
-        .pt(px(metric::SIDEBAR_LIST_PADDING_BLOCK))
-        .into_any_element()
+            .children(summary)
+            .child(body)
+            .into_any_element()
     }
 }
 impl Render for SourceControl {
@@ -1123,8 +1324,30 @@ impl Render for SourceControl {
             .bg(t.auxiliary())
             .text_color(t.text);
         let nested = self.detail.is_some() || self.history_open;
+        let working = match self.detail.as_ref().map(|d| &d.kind) {
+            Some(DetailKind::Working(selection)) => Some(selection.clone()),
+            _ => None,
+        };
         let mut header = view_header(t);
-        if nested {
+        if let Some(selection) = &working {
+            // `.desktop-git-changes-detail-header`: Back, then the file's
+            // actions at the far edge.
+            header = header.pl(px(8.)).child(
+                view_action(
+                    "git-back",
+                    "arrow-left",
+                    15.,
+                    tr("shared-ui.navigation.back"),
+                    t,
+                )
+                .on_click(cx.listener(|s, _, _, cx| {
+                    s.detail = None;
+                    s.selection += 1;
+                    cx.notify();
+                })),
+            );
+            header = header.child(self.working_actions(selection, cx));
+        } else if nested {
             // `.desktop-git-changes-detail-header` / `.desktop-git-history-header`.
             header = header.pl(px(8.)).justify_start().child(
                 view_action(
@@ -1143,14 +1366,16 @@ impl Render for SourceControl {
                 })),
             );
         }
-        header = header.child(view_title(
-            tr(if self.history_open && self.detail.is_none() {
-                "source-control.history.title"
-            } else {
-                "source-control.label.changes"
-            }),
-            t,
-        ));
+        if working.is_none() {
+            header = header.child(view_title(
+                tr(if self.history_open {
+                    "source-control.history.title"
+                } else {
+                    "source-control.label.changes"
+                }),
+                t,
+            ));
+        }
         if !nested {
             header = header.child(
                 view_action(
@@ -1160,21 +1385,15 @@ impl Render for SourceControl {
                     tr("source-control.history.title"),
                     t,
                 )
-                .on_click(cx.listener(|s, _, _, cx| {
-                    s.detail = None;
-                    s.history_open = true;
-                    s.load_history();
-                    cx.notify();
-                })),
+                .on_click(cx.listener(|s, _, _, cx| s.open_history(cx))),
             );
         }
         let pane = pane.child(header);
         if let Some(op) = self.confirm.clone() {
             return pane.child(self.confirm_view(&op, cx));
         }
-        if let Some((title, lines)) = &self.detail {
-            let (title, count) = (title.clone(), lines.len());
-            return pane.child(self.diff_view(title, count, cx));
+        if self.detail.is_some() {
+            return pane.child(self.detail_view(cx));
         }
         if self.history_open {
             return pane.child(self.history_view(cx));
@@ -1228,7 +1447,18 @@ mod tests {
             s.epoch = 3;
             s.selection = 9;
             s.history_ticket = 5;
-            s.detail = Some(("current".into(), vec!["current diff".into()]));
+            let commit = CommitSummary {
+                id: "abc1234".into(),
+                parents: vec![],
+                author_name: String::new(),
+                author_email: String::new(),
+                created_at: None,
+                message: "current".into(),
+                changes: vec![],
+            };
+            let mut current = Detail::new(DetailKind::Commit(commit.clone()));
+            current.publish(Ok(vec![]));
+            s.detail = Some(current);
             s.tx.send((
                 2,
                 ResultValue::Status(Ok(Snapshot {
@@ -1237,25 +1467,28 @@ mod tests {
                 })),
             ))
             .unwrap();
-            s.tx.send((3, ResultValue::Diff(Ok("old diff".into()), 8)))
+            s.tx.send((3, ResultValue::Diff(Err("old diff".into()), 8)))
                 .unwrap();
             s.tx.send((
                 3,
                 ResultValue::History(
-                    Ok(vec![Commit {
-                        id: "old".into(),
-                        title: "stale".into(),
-                        author: String::new(),
-                        date: String::new(),
-                    }]),
+                    Ok(History {
+                        commits: vec![CommitSummary {
+                            message: "stale".into(),
+                            ..commit.clone()
+                        }],
+                        head: None,
+                    }),
                     4,
                 ),
             ))
             .unwrap();
             s.poll(w, cx);
             assert!(s.snapshot.is_none());
-            assert!(s.commits.is_empty());
-            assert_eq!(s.detail.as_ref().unwrap().1, vec!["current diff"]);
+            assert!(s.history.commits.is_empty());
+            assert!(
+                matches!(s.detail.as_ref().unwrap().files, Some(Ok(ref files)) if files.is_empty())
+            );
         });
     }
     #[gpui::test]

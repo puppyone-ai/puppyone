@@ -283,6 +283,15 @@ impl Shell {
         // The Header's Changes status follows the Git snapshot.
         cx.observe(&s.source_control, |_, _, cx| cx.notify())
             .detach();
+        // Changes "Open file" (`onOpenFile`): the file in the editor.
+        cx.subscribe_in(&s.source_control, window, |s, _, event, window, cx| {
+            let crate::features::source_control::SourceControlEvent::OpenFile(path) = event;
+            s.files
+                .begin(Intent::OpenFile(PathBuf::from(path)), &s.wake);
+            s.receive(window, cx);
+            cx.notify();
+        })
+        .detach();
         cx.subscribe_in(&s.native, window, |s, _, event, window, cx| {
             // Pane menu commands (open in default app, close) are the shell's.
             if let ClientMessage::Action { action } = event {

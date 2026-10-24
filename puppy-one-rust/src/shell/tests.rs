@@ -517,3 +517,40 @@ fn opening_a_pane_in_a_narrow_window_widens_it_to_the_pane_minima(cx: &mut TestA
     assert_eq!(cx.update(|w, _| f32::from(w.bounds().size.width)), 868.);
     view.update(cx, |s, _| assert_eq!(s.window_minimum, 868.));
 }
+
+#[gpui::test]
+fn changes_open_file_opens_it_in_the_editor(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("notes.md"), "# Notes\n").unwrap();
+    let (view, cx) = setup(cx);
+    view.update(cx, |s, _| {
+        s.files = Documents::default();
+        s.files.workspace = Some(crate::workspace::Workspace::open(temp.path()).unwrap());
+    });
+    view.update(cx, |s, cx| {
+        s.source_control.update(cx, |_, cx| {
+            cx.emit(
+                crate::features::source_control::SourceControlEvent::OpenFile("notes.md".into()),
+            )
+        })
+    });
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    loop {
+        view.update_in(cx, |s, w, cx| s.receive(w, cx));
+        cx.run_until_parked();
+        if view.read_with(cx, |s, _| s.files.document.is_some()) {
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the file did not open"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    view.read_with(cx, |s, _| {
+        assert_eq!(
+            s.files.document.as_ref().unwrap().relative,
+            std::path::Path::new("notes.md")
+        )
+    });
+}

@@ -9,8 +9,10 @@
 //! `submenu` (Custom files), `project-menu`, `location-menu`, `changes`,
 //! `agent`, `toggle-explorer`, `home`, `remember:<absolute path>` and
 //! `forget:<absolute path>` (a recent project), `create-project:<name>`
-//! (the create dialog with a fixed name). The capture waits for the
-//! homepage's project activity.
+//! (the create dialog with a fixed name), `git-diff:<path>` /
+//! `git-diff-staged:<path>` (a change's diff in Changes), `git-history`,
+//! `git-commit:<index>` (a History commit). The capture waits
+//! for the homepage's project activity and an open diff.
 use super::*;
 use explorer::{MenuAt, RowTrigger};
 use std::collections::VecDeque;
@@ -23,6 +25,9 @@ enum Step {
     Remember(PathBuf),
     Forget(PathBuf),
     CreateProject(String),
+    GitDiff(String, bool),
+    GitHistory,
+    GitCommit(usize),
     Open(PathBuf),
     NodeMenu(PathBuf),
     CreateMenu(PathBuf),
@@ -45,6 +50,10 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "remember" => Step::Remember(path()),
                 "forget" => Step::Forget(path()),
                 "create-project" => Step::CreateProject(arg.to_string()),
+                "git-diff" => Step::GitDiff(arg.to_string(), false),
+                "git-diff-staged" => Step::GitDiff(arg.to_string(), true),
+                "git-history" => Step::GitHistory,
+                "git-commit" => Step::GitCommit(arg.parse().ok()?),
                 "open" => Step::Open(path()),
                 "node-menu" => Step::NodeMenu(path()),
                 "create-menu" => Step::CreateMenu(path()),
@@ -124,7 +133,8 @@ impl Shell {
             return false;
         }
         let Some(step) = scenario.steps.front().cloned() else {
-            return !self.homepage.reading || timed_out;
+            let reading = self.homepage.reading || self.source_control.read(cx).reading_detail();
+            return !reading || timed_out;
         };
         if !self.apply_capture_step(&step, window, cx) && !timed_out {
             // Wait for the state the step needs (a loaded folder, a painted row).
@@ -170,6 +180,25 @@ impl Shell {
                 let path = path.clone();
                 self.preferences
                     .update(cx, |p, cx| p.change(|p| p.forget_project(&path), cx));
+            }
+            Step::GitDiff(path, staged) => {
+                let (path, staged) = (path.clone(), *staged);
+                if !self
+                    .source_control
+                    .update(cx, |s, cx| s.select_path(&path, staged, cx))
+                {
+                    return false;
+                }
+            }
+            Step::GitHistory => self.source_control.update(cx, |s, cx| s.open_history(cx)),
+            Step::GitCommit(index) => {
+                let index = *index;
+                if !self
+                    .source_control
+                    .update(cx, |s, cx| s.select_commit(index, cx))
+                {
+                    return false;
+                }
             }
             Step::CreateProject(name) => {
                 self.begin_create_project(window, cx);

@@ -126,6 +126,14 @@
   - Changes：`GitChangesSidebar` 结构（安静标题 + History、可折叠 Staged/Unstaged/Merge/Committed 面板、行内 Commit / Stage and Commit、悬停行操作、12px 分隔、Pull 提示），提交使用产品默认消息（`buildDefaultCommitMessage`），去掉底部提交输入框与 Fetch/Refresh。证据：`empty_commits_take_the_product_default_message`
   - 实测（1280×800 深色，同一 fixture 仓库，区域一致率，容差 8）：节点菜单 98.2%、行 + 菜单 98.3%、New 菜单 98.3%、右键菜单 98.8%、项目菜单 98.1%、Changes 99.6%、Agent 右侧栏 97.7%
   - 复现：`dev-capture` 构建以 `PUPPYONE_SCREENSHOT=out.png PUPPYONE_CAPTURE_SCENARIO="select:src;node-menu:docs" ./target/debug/puppy-one-rust --workspace <repo>` 截图（步骤见 `src/shell/capture_scenario.rs`；窗口在后台、不抢焦点）
+- [x] P2-9 Git 右侧栏（`GitChangesSidebar` / `WorkingFileDetail` / `GitFileDiffSurface` / `GitHistoryTimeline` / `GitCommitDetail`，`src/features/source_control/`）：
+  - 点开改动在侧栏内打开文件 diff：顶部返回 + Open file / Stage（Unstage）/ Discard（`ButtonVariant::GitAction`），已删除文件不能打开；未跟踪文件也可丢弃（删除文件，同 `discardWorkspaceGitPaths`）
+  - Diff Registry（`diff/mod.rs`）：按格式选择渲染器，顺序同产品（docx 修订视图原生暂缺，落到二进制摘要）。统一文本 diff：行号 / `+-` / 等宽、增删底色、hunk 分隔、长行换行、截断提示；二进制摘要：格式名、前后大小、打开当前文件。卡片头：文件名（重命名 `old → new`）、状态徽标、`+n −m`。变高虚拟列表渲染
+  - 结构化 diff（`platform/git_diff.rs`）移植 `parseGitPatch`（每文件 900 行 / 总 4000 行上限）、未跟踪文件全部视为新增、二进制前后大小；Changes 列表的重命名显示 `old -> new`，状态字母按 Geist 度量对齐基线
+  - History（`history.rs`、`platform/git_history.rs`）：按本地日期分组（今天 / 昨天 / 月日，8 种语言），可折叠；每条提交显示增删总数与最多 4 个文件预览（新增 `+`、删除 `−`、`+N files`）。提交详情：标题 + HEAD、可复制 ID、`N files changed +a -d`，下方为该提交的文件 diff（History 用页面密度：13px、42px 行号列）
+  - 实测（1280×800 深色，`/tmp` 专用 Git fixture，右侧栏区域，容差 8）：Changes 列表 99.4%、代码 diff 96.0%（浅色 95.8%；剩余为 Chromium / CoreText 字形抗锯齿）、二进制 99.3%、新文件 99.5%、删除 99.5%、重命名 99.6%、History 99.4%、提交详情 99.4%
+  - 已知差异：Pull / Push / Discard 的确认仍是侧栏内确认框（产品为对话框）；docx 修订视图、远程管理、待拉取改动审阅未移植
+  - 证据：`patches_parse_like_parse_git_patch`、`long_patches_are_capped_per_file`、`working_tree_diffs_cover_each_scope`、`each_file_resolves_to_the_products_renderer`、`the_list_lays_out_cards_with_their_hunks`、`logs_merge_like_read_git_history`、`a_repository_reads_its_history_and_head`、`commits_group_by_day_newest_first`、`changes_open_file_opens_it_in_the_editor`；截图步骤 `git-diff:` / `git-diff-staged:` / `git-history` / `git-commit:`
 - [x] P2-8 侧栏动效（移植 `explorerMotionPlan.ts` / `explorerMotionAnimation.ts` / `CollapsiblePaneFrame`）：
   - 文件夹展开 / 收起 220ms，产品的「平滑起步 → 匀速 → 平滑刹停」曲线（ramp 0.22）：新出现的行按连续段依次自上而下露出，消失的行留在原位作为幽灵行、最后一行先收起，其余行与列表末尾 New 行从旧位置平移（FLIP），展开箭头同步旋转；项目首次载入和换项目不播放（`src/shell/explorer/motion.rs`）
   - 侧栏开合 360ms `cubic-bezier(0.42, 0, 0.58, 1)`：只有外框宽度在动，内容保持展开宽度并贴住外侧边裁切，主区跟随；窗口缩放与拖动分隔条不播放，动画中途反向从当前画面开始（`src/shell/pane_motion.rs`）

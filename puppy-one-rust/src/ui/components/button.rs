@@ -48,6 +48,15 @@ pub enum ButtonVariant {
     Solid,
     /// Dialog destructive action (`.desktop-dialog-button.destructive`).
     SolidDanger,
+    /// A quiet Git file action (`.desktop-working-file-actions
+    /// .secondary-action`, `.desktop-commit-stats .secondary-action`): no
+    /// chrome until hovered, left-sidebar meta type.
+    GitAction,
+    /// Its destructive sibling (`.danger-action`).
+    GitActionDanger,
+    /// A raised command on a content surface (`.secondary-action`, as the
+    /// binary diff summary's "Open current file").
+    Raised,
 }
 impl ButtonVariant {
     fn outlined(self) -> bool {
@@ -194,6 +203,34 @@ fn paint(variant: ButtonVariant, selected: bool, open: bool, disabled: bool, t: 
             fg: t.text_inverse,
             hover_bg: theme::mix(t.accent, t.canvas, 0.88),
             hover_fg: t.text_inverse,
+        },
+        ButtonVariant::GitAction | ButtonVariant::GitActionDanger if disabled => Paint {
+            border: Some(clear),
+            bg: clear,
+            fg: t.text_disabled,
+            hover_bg: clear,
+            hover_fg: t.text_disabled,
+        },
+        ButtonVariant::GitAction => Paint {
+            border: Some(clear),
+            bg: clear,
+            fg: t.subtle,
+            hover_bg: t.hover,
+            hover_fg: t.text,
+        },
+        ButtonVariant::GitActionDanger => Paint {
+            border: Some(clear),
+            bg: clear,
+            fg: theme::mix(t.danger, t.muted, 0.72),
+            hover_bg: theme::alpha(t.danger, 0.09),
+            hover_fg: t.danger,
+        },
+        ButtonVariant::Raised => Paint {
+            border: Some(t.border),
+            bg: if disabled { t.control } else { t.panel_raised },
+            fg: if disabled { t.text_disabled } else { t.text },
+            hover_bg: t.control_hover,
+            hover_fg: t.text,
         },
         ButtonVariant::Titlebar if selected || open => Paint {
             border: None,
@@ -352,10 +389,15 @@ impl RenderOnce for Button {
             ButtonVariant::Filled | ButtonVariant::FilledPrimary
         );
         let entry = matches!(variant, ButtonVariant::Entry | ButtonVariant::EntryPrimary);
-        // Outline: 13px icon at stroke 2; filled Git actions: 15px at 2.25;
-        // entries: 14px at 1.85.
+        let git = matches!(
+            variant,
+            ButtonVariant::GitAction | ButtonVariant::GitActionDanger
+        );
+        let raised = variant == ButtonVariant::Raised;
+        // Outline and Git file actions: 13px icon at stroke 2; filled Git
+        // actions: 15px at 2.25; entries: 14px at 1.85.
         let icon = self.icon.map(|icon| {
-            if outlined {
+            if outlined || git || raised {
                 icon.with_size(px(13.)).stroke(2.)
             } else if filled {
                 icon.with_size(px(15.)).stroke(2.25)
@@ -403,22 +445,30 @@ impl RenderOnce for Button {
                 ButtonVariant::FilledPrimary => 5.,
                 ButtonVariant::Filled => 4.,
                 ButtonVariant::Entry | ButtonVariant::EntryPrimary => metric::MENU_ITEM_GAP,
+                ButtonVariant::GitAction | ButtonVariant::GitActionDanger => 5.,
+                ButtonVariant::Raised => 8.,
                 _ => 6.,
             }))
-            .h(height(if (dialog || entry) && self.size == Size::Medium {
-                Size::Large
-            } else {
-                self.size
-            }))
+            .h(height(
+                if (dialog || entry || raised) && self.size == Size::Medium {
+                    Size::Large
+                } else if git && self.size == Size::Medium {
+                    Size::Small
+                } else {
+                    self.size
+                },
+            ))
             .px(px(if dialog {
                 14.
+            } else if raised {
+                12.
             } else if outlined {
                 9.
             } else {
                 7.
             }))
             .when(entry, |b| b.justify_start())
-            .rounded(px(if outlined || dialog || entry {
+            .rounded(px(if outlined || dialog || entry || raised {
                 metric::CONTROL_RADIUS
             } else {
                 metric::TOOLBAR_ACTION_RADIUS
@@ -437,6 +487,15 @@ impl RenderOnce for Button {
                             FontWeight::MEDIUM
                         },
                     )
+            })
+            .when(git, |b| {
+                b.text_size(px(theme::ty().left.meta))
+                    .font_weight(FontWeight::MEDIUM)
+            })
+            .when(disabled && git, |b| b.opacity(0.62))
+            .when(raised, |b| {
+                b.text_size(px(theme::ty().ui.body))
+                    .font_weight(FontWeight::SEMIBOLD)
             })
             .when(entry, |b| {
                 b.text_size(px(theme::ty().ui.body))
