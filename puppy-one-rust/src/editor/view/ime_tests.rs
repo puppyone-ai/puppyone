@@ -46,6 +46,7 @@ fn open<'a>(cx: &'a mut TestAppContext, format: Format, text: &str, caret: usize
     cx.update(|cx| {
         if cx.try_global::<gpui_kit::component::Theme>().is_none() {
             gpui_kit::init(cx);
+            crate::platform::ime::init(cx);
         }
         cx.text_system().add_fonts(style::font_bytes()).unwrap();
         bind_keys(cx);
@@ -434,4 +435,39 @@ fn markdown_keeps_its_rules_around_a_composition(cx: &mut TestAppContext) {
     // After the commit, Markdown's Enter continues the list as usual.
     ime.cx.simulate_keystrokes("enter");
     assert_eq!(ime.text(), "# Title\n- item你\n- ");
+}
+
+// --- Function keys as text (Sogou Pinyin and similar) ---------------------------
+
+#[gpui::test]
+fn function_key_text_from_an_input_method_moves_instead_of_inserting(cx: &mut TestAppContext) {
+    each_format(cx, "ab\ncd", 5, |ime, format| {
+        // The input method swallows ↑ and inserts NSUpArrowFunctionKey.
+        ime.insert("\u{F700}");
+        assert_eq!(ime.text(), "ab\ncd", "{format:?}: never document text");
+        assert!(ime.selected().start <= 2, "{format:?}: the caret went up, at {:?}", ime.selected());
+        ime.insert("\u{F703}");
+        let at = ime.selected().start;
+        // Shift held: the replayed key extends the selection.
+        ime.cx.simulate_modifiers_change(Modifiers::shift());
+        ime.insert("\u{F703}");
+        ime.cx.simulate_modifiers_change(Modifiers::none());
+        assert_eq!(ime.selected(), at..at + 1, "{format:?}");
+        // As marked text it is ignored too.
+        ime.mark("\u{F701}");
+        assert_eq!((ime.text().as_str(), ime.composing()), ("ab\ncd", false), "{format:?}");
+        assert_eq!(ime.changes(), 0, "{format:?}");
+    });
+}
+
+#[gpui::test]
+fn a_function_key_the_platform_delivers_is_not_replayed(cx: &mut TestAppContext) {
+    each_format(cx, "abcd", 4, |ime, format| {
+        // The input method inserted the character but also handed the key
+        // back: GPUI dispatches it, the replay must not move a second time.
+        ime.view.update_in(ime.cx, |v, w, cx| v.replace_text_in_range(None, "\u{F702}", w, cx));
+        ime.cx.simulate_keystrokes("left");
+        ime.draw();
+        assert_eq!((ime.text().as_str(), ime.selected()), ("abcd", 3..3), "{format:?}");
+    });
 }

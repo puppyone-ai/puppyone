@@ -11,8 +11,10 @@
 //!   (press-and-hold accents, reconversion, Vietnamese / Telex rewrites)
 //!   wins over both.
 //! - `unmark_text`: the marked text stays as typed.
+//! - Function-key text some input methods insert for arrows and the like
+//!   is not text: dropped, the key replayed (`platform::ime`).
 use super::editor::EditorView;
-use crate::editor::text::selection::Selection;
+use crate::{editor::text::selection::Selection, platform::ime};
 use gpui::*;
 use std::ops::Range;
 
@@ -77,7 +79,10 @@ impl EntityInputHandler for EditorView {
         self.unmark(cx);
     }
 
-    fn replace_text_in_range(&mut self, range: Option<Range<usize>>, text: &str, _: &mut Window, cx: &mut Context<Self>) {
+    fn replace_text_in_range(&mut self, range: Option<Range<usize>>, text: &str, window: &mut Window, cx: &mut Context<Self>) {
+        if ime::intercept_function_key(text, window, cx) {
+            return;
+        }
         if range.is_none() && text.is_empty() && !self.composing() {
             // An empty insert outside a composition is not an edit (it would
             // delete the selection).
@@ -87,7 +92,10 @@ impl EntityInputHandler for EditorView {
         self.apply_input(target, text, text.len()..text.len(), false, cx);
     }
 
-    fn replace_and_mark_text_in_range(&mut self, range: Option<Range<usize>>, text: &str, selected: Option<Range<usize>>, _: &mut Window, cx: &mut Context<Self>) {
+    fn replace_and_mark_text_in_range(&mut self, range: Option<Range<usize>>, text: &str, selected: Option<Range<usize>>, window: &mut Window, cx: &mut Context<Self>) {
+        if ime::intercept_function_key(text, window, cx) {
+            return;
+        }
         let target = self.input_target(range);
         let units = text.encode_utf16().count();
         let selected = selected.map_or(text.len()..text.len(), |s| {

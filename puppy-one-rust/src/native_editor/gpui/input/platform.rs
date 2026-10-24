@@ -101,9 +101,12 @@ impl EntityInputHandler for TextInput {
         &mut self,
         range_utf16: Option<Range<usize>>,
         text: &str,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if crate::platform::ime::intercept_function_key(text, window, cx) {
+            return;
+        }
         if self.read_only {
             return;
         }
@@ -124,9 +127,12 @@ impl EntityInputHandler for TextInput {
         range_utf16: Option<Range<usize>>,
         text: &str,
         selection: Option<Range<usize>>,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if crate::platform::ime::intercept_function_key(text, window, cx) {
+            return;
+        }
         if self.read_only {
             return;
         }

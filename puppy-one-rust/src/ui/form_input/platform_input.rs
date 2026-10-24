@@ -1,5 +1,7 @@
 //! A bounded input bridge. All editing, IME transactions, history and geometry
-//! remain in Kit; only incoming text is capped to the product's field limits.
+//! remain in Kit; only incoming text is capped to the product's field limits,
+//! and function-key text some input methods insert for arrows is dropped
+//! (the key replayed, `platform::ime`).
 use super::*;
 use std::ops::Range;
 
@@ -66,6 +68,9 @@ impl EntityInputHandler for TextInput {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if crate::platform::ime::intercept_function_key(text, window, cx) {
+            return;
+        }
         let text = self.bounded(range.clone(), text, window, cx);
         dispatch!(&self.field, |s| s.update(cx, |s, cx| s
             .replace_text_in_range(range, &text, window, cx)));
@@ -79,6 +84,9 @@ impl EntityInputHandler for TextInput {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if crate::platform::ime::intercept_function_key(text, window, cx) {
+            return;
+        }
         let text = self.bounded(range.clone(), text, window, cx);
         let len = text.encode_utf16().count();
         let selection = selection.map(|r| r.start.min(len)..r.end.min(len));

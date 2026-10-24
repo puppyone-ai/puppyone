@@ -617,9 +617,14 @@ impl EntityInputHandler for TerminalView {
         &mut self,
         _: Option<Range<usize>>,
         text: &str,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        // Function-key text is the key itself, replayed as its escape
+        // sequence through key dispatch, never bytes for the shell.
+        if crate::platform::ime::intercept_function_key(text, window, cx) {
+            return;
+        }
         self.marked.clear();
         self.input(text.as_bytes().to_vec(), cx);
     }
@@ -628,9 +633,12 @@ impl EntityInputHandler for TerminalView {
         _: Option<Range<usize>>,
         text: &str,
         _: Option<Range<usize>>,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if crate::platform::ime::intercept_function_key(text, window, cx) {
+            return;
+        }
         self.marked = text.into();
         cx.notify();
     }

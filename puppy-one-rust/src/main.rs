@@ -50,6 +50,8 @@ fn main() {
             cx.text_system()
                 .add_fonts(editor::view::style::font_bytes())
                 .expect("load editor faces");
+            // Before any input: tells swallowed function keys from delivered ones.
+            platform::ime::init(cx);
             ui::input::bind_keys(cx);
             ui::form_input::bind_keys(cx);
             shell::bind_keys(cx);
