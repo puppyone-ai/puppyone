@@ -64,15 +64,11 @@ impl Appearance {
 
 /// Read access to the active [`Appearance`] from any context.
 pub trait ActiveAppearance {
-    fn appearance(&self) -> Appearance;
     /// The active palette (`Theme` is `Copy`; read it once per render).
     fn palette(&self) -> Theme;
     fn is_dark(&self) -> bool;
 }
 impl ActiveAppearance for App {
-    fn appearance(&self) -> Appearance {
-        self.try_global::<Appearance>().cloned().unwrap_or_default()
-    }
     fn palette(&self) -> Theme {
         self.try_global::<Appearance>()
             .map(|a| a.palette)

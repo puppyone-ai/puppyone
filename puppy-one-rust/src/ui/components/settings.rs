@@ -123,12 +123,11 @@ impl RenderOnce for SettingsList {
     }
 }
 
-/// `SettingsSubsection`: an optional title and detail over a row list.
+/// `SettingsSubsection`: an optional title over a row list.
 /// `lead` adds the lead-group spacing (titled) or lead row (untitled).
 #[derive(IntoElement, Default)]
 pub struct SettingsSubsection {
     title: Option<SharedString>,
-    detail: Option<SharedString>,
     lead: bool,
     children: Vec<AnyElement>,
 }
@@ -138,10 +137,6 @@ impl SettingsSubsection {
     }
     pub fn title(mut self, title: impl Into<SharedString>) -> Self {
         self.title = Some(title.into());
-        self
-    }
-    pub fn detail(mut self, detail: impl Into<SharedString>) -> Self {
-        self.detail = Some(detail.into());
         self
     }
     pub fn lead(mut self, lead: bool) -> Self {
@@ -176,14 +171,6 @@ impl RenderOnce for SettingsSubsection {
                     .font_weight(FontWeight::MEDIUM)
                     .text_color(t.subtle)
                     .child(title)
-            }))
-            .children(self.detail.map(|detail| {
-                div()
-                    .px(px(10.))
-                    .mb(px(2.))
-                    .text_size(px(meta))
-                    .text_color(t.subtle)
-                    .child(detail)
             }))
             .child(
                 SettingsList::new()

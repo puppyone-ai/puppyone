@@ -224,7 +224,6 @@ enum MenuEntry {
     List(Vec<MenuItem>, f32),
     Separator,
     Label(SharedString),
-    Element(AnyElement),
 }
 
 /// A menu surface. Items run their handler, then `on_dismiss`.
@@ -277,12 +276,6 @@ impl Menu {
         self.entries.push(MenuEntry::Label(text.into()));
         self
     }
-    /// A row the caller composes (a project list, an error line).
-    pub fn element(mut self, element: impl IntoElement) -> Self {
-        self.entries
-            .push(MenuEntry::Element(element.into_any_element()));
-        self
-    }
     pub fn on_dismiss(mut self, handler: impl Fn(&mut Window, &mut App) + 'static) -> Self {
         self.on_dismiss = Some(Rc::new(handler));
         self
@@ -291,14 +284,6 @@ impl Menu {
         if self.on_dismiss.is_none() {
             self.on_dismiss = handler;
         }
-    }
-    /// The placement estimate the product uses (`estimatedHeight`):
-    /// padding, rows and 9px separator blocks, without the border.
-    pub fn estimated_height(variant: MenuVariant, items: usize, separators: usize) -> f32 {
-        let s = variant.style();
-        s.padding * 2.
-            + items as f32 * s.item_height
-            + separators as f32 * metric::MENU_SEPARATOR_BLOCK
     }
 }
 impl Styled for Menu {
@@ -347,7 +332,6 @@ impl RenderOnce for Menu {
                         .text_color(t.text_disabled)
                         .child(text),
                 ),
-                MenuEntry::Element(element) => surface.child(element),
                 MenuEntry::List(items, gap) => surface.child(
                     div()
                         .flex()

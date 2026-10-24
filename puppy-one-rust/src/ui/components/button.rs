@@ -239,15 +239,6 @@ impl Button {
         self.variant = variant;
         self
     }
-    pub fn primary(self) -> Self {
-        self.variant(ButtonVariant::OutlinePrimary)
-    }
-    pub fn danger(self) -> Self {
-        self.variant(ButtonVariant::OutlineDanger)
-    }
-    pub fn ghost(self) -> Self {
-        self.variant(ButtonVariant::Ghost)
-    }
     pub fn label(mut self, label: impl Into<SharedString>) -> Self {
         self.label = Some(label.into());
         self
@@ -497,10 +488,6 @@ impl IconButton {
         handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.on_click = Some(Rc::new(handler));
-        self
-    }
-    pub fn track_focus(mut self, handle: &FocusHandle) -> Self {
-        self.base = self.base.track_focus(handle);
         self
     }
 }

@@ -87,10 +87,6 @@ impl SegmentedControl {
         self.tooltip = Some(text.into());
         self
     }
-    pub fn segment(mut self, segment: Segment) -> Self {
-        self.segments.push(segment);
-        self
-    }
     pub fn segments(mut self, segments: impl IntoIterator<Item = Segment>) -> Self {
         self.segments.extend(segments);
         self

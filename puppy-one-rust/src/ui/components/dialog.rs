@@ -4,14 +4,14 @@ use super::{IconButton, menu::child_id};
 use crate::{theme, ui::appearance::ActiveAppearance};
 use gpui::{prelude::*, *};
 use gpui_kit::{
-    base::{Dialog as BaseDialog, Disableable, StyledExt as _},
+    base::{Dialog as BaseDialog, StyledExt as _},
     component::Sizable as _,
 };
 use std::rc::Rc;
 
 type Handler = Rc<dyn Fn(&mut Window, &mut App)>;
 
-/// A modal dialog: optional leading glyph and title, a body, and footer
+/// A modal dialog: an optional title, a body, and footer
 /// actions. Escape, the close button and (unless `keep_on_backdrop`) a
 /// backdrop press call `on_close`; the owner removes the dialog.
 #[derive(IntoElement)]
@@ -19,11 +19,9 @@ pub struct Dialog {
     id: ElementId,
     width: Pixels,
     title: Option<SharedString>,
-    leading: Option<AnyElement>,
     body: Vec<AnyElement>,
     footer: Vec<AnyElement>,
     on_close: Option<Handler>,
-    close_disabled: bool,
     close_on_backdrop: bool,
     focus: Option<FocusHandle>,
     style: StyleRefinement,
@@ -34,11 +32,9 @@ impl Dialog {
             id: id.into(),
             width: px(420.),
             title: None,
-            leading: None,
             body: Vec::new(),
             footer: Vec::new(),
             on_close: None,
-            close_disabled: false,
             close_on_backdrop: true,
             focus: None,
             style: StyleRefinement::default(),
@@ -54,22 +50,12 @@ impl Dialog {
         self.title = Some(title.into());
         self
     }
-    /// `.desktop-dialog-leading`: a 28px glyph tile beside the title.
-    pub fn leading(mut self, element: impl IntoElement) -> Self {
-        self.leading = Some(element.into_any_element());
-        self
-    }
     pub fn footer(mut self, action: impl IntoElement) -> Self {
         self.footer.push(action.into_any_element());
         self
     }
     pub fn on_close(mut self, handler: impl Fn(&mut Window, &mut App) + 'static) -> Self {
         self.on_close = Some(Rc::new(handler));
-        self
-    }
-    /// While work is in flight the dialog cannot be dismissed.
-    pub fn busy(mut self, busy: bool) -> Self {
-        self.close_disabled = busy;
         self
     }
     pub fn keep_on_backdrop(mut self) -> Self {
@@ -103,53 +89,37 @@ impl RenderOnce for Dialog {
         });
         let viewport = window.viewport_size();
         let close = self.on_close.clone();
-        let busy = self.close_disabled;
         let cancel = close.clone();
-        let header = (self.title.is_some() || close.is_some()).then(|| {
-            div()
-                .flex()
-                .flex_shrink_0()
-                .items_start()
-                .justify_between()
-                .gap(px(16.))
-                .pt(px(14.))
-                .px(px(20.))
-                .pb(px(8.))
-                .child(
-                    div()
-                        .flex()
-                        .min_w_0()
-                        .items_center()
-                        .gap(px(10.))
-                        .children(self.leading.map(|leading| {
-                            div()
-                                .flex()
-                                .flex_shrink_0()
-                                .size(px(28.))
-                                .items_center()
-                                .justify_center()
-                                .rounded(px(7.))
-                                .child(leading)
-                        }))
-                        .children(self.title.map(|title| {
+        let header =
+            (self.title.is_some() || close.is_some()).then(|| {
+                div()
+                    .flex()
+                    .flex_shrink_0()
+                    .items_start()
+                    .justify_between()
+                    .gap(px(16.))
+                    .pt(px(14.))
+                    .px(px(20.))
+                    .pb(px(8.))
+                    .child(div().flex().min_w_0().items_center().gap(px(10.)).children(
+                        self.title.map(|title| {
                             div()
                                 .text_size(px(theme::ty().ui.meta))
                                 .line_height(px(18.))
                                 .font_weight(FontWeight::MEDIUM)
                                 .text_color(t.muted)
                                 .child(title)
-                        })),
-                )
-                .children(close.clone().map(|close| {
-                    IconButton::new(child_id(&self.id, "close"), "dialog-close")
-                        .label(crate::localization::t("common.action.close"))
-                        .no_tooltip()
-                        .with_size(px(24.))
-                        .color(t.subtle)
-                        .disabled(busy)
-                        .on_click(move |_, window, cx| close(window, cx))
-                }))
-        });
+                        }),
+                    ))
+                    .children(close.clone().map(|close| {
+                        IconButton::new(child_id(&self.id, "close"), "dialog-close")
+                            .label(crate::localization::t("common.action.close"))
+                            .no_tooltip()
+                            .with_size(px(24.))
+                            .color(t.subtle)
+                            .on_click(move |_, window, cx| close(window, cx))
+                    }))
+            });
         let surface = div()
             .id(self.id.clone())
             .flex()
@@ -201,8 +171,8 @@ impl RenderOnce for Dialog {
             .refine_style(&self.style);
         BaseDialog::new(cx)
             .focus_handle(focus)
-            .close_on_escape(!busy)
-            .close_on_backdrop_press(self.close_on_backdrop && !busy)
+            .close_on_escape(true)
+            .close_on_backdrop_press(self.close_on_backdrop)
             // Enter belongs to the dialog's own controls.
             .on_ok(|_, _, _| false)
             .on_cancel(move |_, window, cx| {

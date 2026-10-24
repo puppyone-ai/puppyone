@@ -130,8 +130,6 @@ impl RenderOnce for PopoverMenu {
 pub struct AnchoredMenu {
     id: ElementId,
     position: Point<Pixels>,
-    anchor: Anchor,
-    margin: Pixels,
     content: AnyElement,
     on_dismiss: Option<Handler>,
 }
@@ -144,21 +142,9 @@ impl AnchoredMenu {
         Self {
             id: id.into(),
             position,
-            anchor: Anchor::TopLeft,
-            margin: px(12.),
             content: content.into_any_element(),
             on_dismiss: None,
         }
-    }
-    /// Which corner of the surface sits at the point (`TopLeft` by default).
-    pub fn anchor(mut self, anchor: Anchor) -> Self {
-        self.anchor = anchor;
-        self
-    }
-    /// Minimum distance from the window edge.
-    pub fn margin(mut self, margin: Pixels) -> Self {
-        self.margin = margin;
-        self
     }
     pub fn on_dismiss(mut self, handler: impl Fn(&mut Window, &mut App) + 'static) -> Self {
         self.on_dismiss = Some(Rc::new(handler));
@@ -169,8 +155,9 @@ impl RenderOnce for AnchoredMenu {
     fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
         let dismiss = self.on_dismiss;
         deferred(
-            Positioner::corner(self.anchor, self.position)
-                .margin(self.margin)
+            // Its top-left corner at the point, 12px clear of the window edge.
+            Positioner::corner(Anchor::TopLeft, self.position)
+                .margin(px(12.))
                 .occlude()
                 .child(
                     div()

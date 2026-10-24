@@ -19,10 +19,6 @@ impl Spinner {
             color: color.into(),
         }
     }
-    pub fn size_px(mut self, size: f32) -> Self {
-        self.size = px(size);
-        self
-    }
 }
 impl RenderOnce for Spinner {
     fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {

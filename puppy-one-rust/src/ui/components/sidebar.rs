@@ -55,7 +55,6 @@ pub struct SidebarRow {
     disabled: bool,
     dimmed: bool,
     indent: f32,
-    margin: bool,
     on_click: Option<ClickHandler>,
 }
 impl SidebarRow {
@@ -75,7 +74,6 @@ impl SidebarRow {
             disabled: false,
             dimmed: false,
             indent: 0.,
-            margin: true,
             on_click: None,
         }
     }
@@ -110,11 +108,6 @@ impl SidebarRow {
     /// Leading indentation (tree depth).
     pub fn indent(mut self, indent: f32) -> Self {
         self.indent = indent;
-        self
-    }
-    /// Drop the 1px block margins (rows placed by their owner).
-    pub fn no_margin(mut self) -> Self {
-        self.margin = false;
         self
     }
     pub fn on_click(
@@ -221,7 +214,7 @@ impl RenderOnce for SidebarRow {
             .min_w_0()
             .flex_shrink_0()
             .h(px(theme::control()))
-            .when(self.margin, |d| d.my(px(1.)))
+            .my(px(1.))
             .pl(px(metric::SIDEBAR_ROW_CONTENT_LEFT + self.indent))
             .pr(px(if open && has_actions {
                 reserve
