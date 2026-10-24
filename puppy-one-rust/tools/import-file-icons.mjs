@@ -2,7 +2,7 @@
 // Renders the product's own FileGlyphIcon themes (packages/shared-ui/src/file)
 // to static SVG and resolves their CSS custom properties against the
 // default-neutral palette, so the native Explorer shows the same glyphs.
-// Output: assets/file-icons.json { kinds, themes: { id: { kind: { light, dark } } } }.
+// Output: assets/file-icons.json { order, themes: { id: { kind: { light, dark } } } }.
 // A glyph whose label depends on the file extension contains the placeholder
 // `QQQQ`; the native asset source substitutes the real label at load time.
 import { readFile, writeFile } from 'node:fs/promises';
@@ -15,18 +15,11 @@ const entry = `
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { FileGlyphIcon, FILE_ICON_THEMES, FILE_VISUAL_KINDS } from './packages/shared-ui/src/file/fileIcons.tsx';
-import { FILE_FORMATS, getSemanticKindForFormat } from './packages/shared-ui/src/core/fileFormats.ts';
 export const themes = FILE_ICON_THEMES.map((t) => t.id);
 export const kinds = [...FILE_VISUAL_KINDS];
 export function render(theme, kind) {
   return renderToStaticMarkup(createElement(FileGlyphIcon, { name: kind === 'folder' ? 'folder' : 'x.qqqq', type: kind, size: 18, theme }));
 }
-export const formats = FILE_FORMATS.map((f) => ({
-  kind: getSemanticKindForFormat(f),
-  filenames: f.filenames ?? [],
-  extensions: f.extensions ?? [],
-  patterns: f.filenamePatterns ?? [],
-}));
 `;
 {
   const bundle = await importProductModule(product, entry);
@@ -51,13 +44,8 @@ export const formats = FILE_FORMATS.map((f) => ({
       themes[theme][kind] = { light, dark };
     }
   }
-  const kinds = { filenames: {}, extensions: {}, patterns: [] };
-  for (const format of bundle.formats) {
-    for (const name of format.filenames) kinds.filenames[name.toLowerCase()] ??= format.kind;
-    for (const ext of format.extensions) kinds.extensions[ext.toLowerCase()] ??= format.kind;
-    for (const pattern of format.patterns) kinds.patterns.push([pattern.toLowerCase(), format.kind]);
-  }
-  const output = { source: 'packages/shared-ui/src/file + src/core/fileFormats.json', order: bundle.themes, kinds, themes };
+  // Which kind a file is comes from the format registry (src/formats).
+  const output = { source: 'packages/shared-ui/src/file', order: bundle.themes, themes };
   await writeFile(path.join(root, 'assets/file-icons.json'), JSON.stringify(output) + '\n');
-  console.log(`File icons: ${bundle.themes.length} themes × ${bundle.kinds.length} kinds; ${Object.keys(kinds.extensions).length} extensions`);
+  console.log(`File icons: ${bundle.themes.length} themes × ${bundle.kinds.length} kinds`);
 }

@@ -7,6 +7,7 @@ mod documents;
 mod editor;
 mod features;
 mod file_kind;
+mod formats;
 mod geometry;
 #[cfg(feature = "dev-capture")]
 mod lab;

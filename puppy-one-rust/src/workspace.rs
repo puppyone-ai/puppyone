@@ -291,7 +291,7 @@ impl Workspace {
         let extension = if folder {
             String::new()
         } else {
-            crate::file_kind::matched_extension(preferred)
+            crate::formats::matched_extension(preferred)
                 .filter(|e| preferred.len() > e.len() + 1)
                 .map(|e| format!(".{}", &preferred[preferred.len() - e.len()..]))
                 .unwrap_or_default()

@@ -69,7 +69,7 @@ impl Visibility {
             } else {
                 format!("**/{pattern}")
             };
-            crate::file_kind::glob(&target, &text)
+            crate::formats::glob(&target, &text)
         })
     }
 }
