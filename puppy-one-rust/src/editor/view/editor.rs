@@ -105,7 +105,7 @@ impl EditorView {
         let mut state = EditorState::new(text);
         // Dev captures (smoke builds, or screenshot mode): an initial
         // selection and scroll.
-        let capture = cfg!(feature = "webview-smoke") || std::env::var_os("PUPPYONE_SCREENSHOT").is_some();
+        let capture = cfg!(feature = "dev-capture") || std::env::var_os("PUPPYONE_SCREENSHOT").is_some();
         if capture
             && let Ok(value) = std::env::var("PUPPYONE_EDITOR_SELECTION")
             && let Some((a, b)) = value.split_once(',')

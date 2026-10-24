@@ -662,34 +662,34 @@
         "src/geometry.rs"
       ],
       "evidence": [
-        "test:popup_only_owns_its_rectangle_and_modal_owns_everything",
         "test:kit_dialog_tab_order_keeps_focus_inside_feedback"
       ],
       "remaining": "Dialogs and tooltips use GPUI Kit with product tokens. Scrollbar activity fading (ScrollbarActivity) is not ported."
     },
     {
-      "name": "Markdown viewer (product code in the editor island)",
+      "name": "Markdown viewer (native editor)",
       "status": "partial",
       "sources": [
         "packages/shared-ui/src/editor/markdown/**",
         "packages/shared-ui/src/editor/table/**"
       ],
       "targets": [
-        "editor/src/pane.tsx",
-        "editor/src/editor.js",
-        "editor/build.mjs",
-        "editor/src/webkit-parity.css",
-        "src/web_editor.rs"
+        "src/editor/markdown",
+        "src/editor/table",
+        "src/editor/view",
+        "src/editor/host/mod.rs"
       ],
       "evidence": [
-        "artifact:editor-parity/report.json",
-        "artifact:editor-smoke/result.json"
+        "test:markers_hide_and_reveal_with_the_caret",
+        "test:lists_continue_and_tasks_toggle_with_history",
+        "test:the_rails_and_menu_operations_rewrite_the_table",
+        "test:supported_languages_highlight_and_others_stay_plain"
       ],
-      "remaining": "The product MarkdownViewer (live preview, source mode, tables, task lists, code blocks, KaTeX) runs unchanged; tools/compare-editor.py gates it against the Chromium product with zero layout mismatches. The native host does not yet provide markdownEnvironment (workspace link graph, wiki-link commands, image asset resolver), AI edit review or document navigation, so those features are inactive."
+      "remaining": "Native live preview and source mode: headings, emphasis, links and wiki links, lists, tasks, quotes, rules, highlighted code blocks and editable tables (PARITY_TODO §7). Not native: KaTeX math, Mermaid, images, HTML and MDX blocks, markdownEnvironment (workspace link graph, wiki-link commands, asset resolver), AI edit review, document navigation, block drag, heading outline, table column resize and viewport virtualisation. The WebView island that ran the product viewer was removed."
     },
     {
       "name": "Text, JSON and code viewers and shared editor infrastructure",
-      "status": "ported",
+      "status": "partial",
       "sources": [
         "packages/shared-ui/src/editor/viewers/code/**",
         "packages/shared-ui/src/editor/viewers/shared/**",
@@ -707,34 +707,32 @@
         "packages/shared-ui/src/editor/registry/editorProviderPolicy.ts"
       ],
       "targets": [
-        "editor/src/pane.tsx",
-        "editor/src/editor.js",
-        "editor/build.mjs",
-        "editor/src/webkit-parity.css",
-        "src/web_editor.rs"
+        "src/editor/host/mod.rs",
+        "src/editor/view",
+        "src/editor/workbench/find.rs",
+        "src/editor/workbench/pane.rs"
       ],
       "evidence": [
-        "artifact:editor-parity/report.json",
-        "artifact:editor-smoke/result.json"
-      ]
+        "test:find_marks_and_selects_matches_in_text_editors",
+        "test:typing_motion_deletion_and_history"
+      ],
+      "remaining": "Text, JSON and code files open in the native plain-text editor (find, pane menu, undo, IME). No syntax highlighting, folding, JSON validation or language services outside Markdown code blocks."
     },
     {
       "name": "CSV table viewer",
-      "status": "ported",
+      "status": "partial",
       "sources": [
         "packages/shared-ui/src/editor/viewers/csv/**"
       ],
       "targets": [
-        "editor/src/pane.tsx",
-        "editor/src/editor.js",
-        "editor/build.mjs",
-        "editor/src/webkit-parity.css",
-        "src/web_editor.rs"
+        "src/editor/csv"
       ],
       "evidence": [
-        "artifact:editor-parity/report.json",
-        "artifact:editor-smoke/result.json"
-      ]
+        "test:typing_replaces_the_selected_value_and_history_belongs_to_the_table",
+        "test:source_mode_edits_the_raw_text_and_returns_it_to_the_table",
+        "test:parse_and_stringify_round_trip_with_layout"
+      ],
+      "remaining": "Native table, source mode, structure operations, column widths, references and find (PARITY_TODO N9). Workspace reference resolution through the product link graph is not ported."
     },
     {
       "name": "Viewer registry",
@@ -744,14 +742,17 @@
         "packages/shared-ui/src/editor/registry/builtinViewerContributions.ts"
       ],
       "targets": [
-        "editor/src/pane.tsx",
+        "src/editor/host/mod.rs",
         "src/file_kind.rs"
       ],
-      "remaining": "The island registers the Markdown, JSON, CSV and text contributions in BUILTIN order with createPresetViewerRegistry's first-match rule (routing verified per case); HTML, PDF, media, Office, database, context-map, app and PuppyFlow viewers fall back to the product fallback viewer."
+      "remaining": "Markdown (.md, .mdx, .markdown) and CSV / TSV open in their native editors, every other text file in the native plain-text editor. HTML, PDF, media, Office, database, context-map, app and PuppyFlow viewers have no native implementation.",
+      "evidence": [
+        "test:classification_and_display_follow_the_product_registry"
+      ]
     },
     {
       "name": "Editor pane chrome and actions menu",
-      "status": "ported",
+      "status": "partial",
       "sources": [
         "src/features/editor-workbench/layout/EditorPaneShell.tsx",
         "src/features/editor-workbench/layout/EditorPaneChrome.tsx",
@@ -761,17 +762,17 @@
         "src/features/editor-workbench/runtime/EditorPaneRuntime.tsx"
       ],
       "targets": [
-        "editor/src/pane.tsx",
-        "editor/src/editor.js",
-        "editor/build.mjs",
-        "editor/src/webkit-parity.css",
-        "src/web_editor.rs",
+        "src/editor/workbench/pane.rs",
+        "src/editor/host/chrome.rs",
         "src/shell.rs"
       ],
       "evidence": [
-        "artifact:editor-parity/report.json",
-        "artifact:editor-smoke/result.json"
-      ]
+        "test:entries_follow_the_menu_order_and_skip_disabled_commands",
+        "test:keys_cycle_and_activate",
+        "test:csv_contributes_view_items_and_find",
+        "test:markdown_contributes_its_mode_segments"
+      ],
+      "remaining": "Native ⋯ handle, actions menu (live / source, CSV view items, find, open externally, close) and find bar for the single pane; multi-pane runtime is tracked under the editor workbench group."
     },
     {
       "name": "Editor document session",
@@ -782,9 +783,13 @@
       "targets": [
         "src/editor/document_session/document_editing_session.rs",
         "src/documents.rs",
-        "editor/src/pane.tsx"
+        "src/editor/host/mod.rs"
       ],
-      "remaining": "Rust owns the save queue, disk epochs and drains; the island implements EditableDocumentSource over the product snapshot ports and keeps a DocumentModelOwner per document (undo survives live/source switches). The multi-document working-copy registry and external-conflict notices are not ported."
+      "remaining": "Rust owns the save queue, disk epochs and drains; the native document editor reports dirty state, snapshots and saved receipts over the host protocol, one document per window. The multi-document working-copy registry and external-conflict notices are not ported.",
+      "evidence": [
+        "test:one_active_write_coalesces_pending_input_and_closes_only_after_last_receipt",
+        "test:a_snapshot_waits_for_the_composition_and_resumes_when_it_ends"
+      ]
     },
     {
       "name": "Editor workbench: splits, tabs, pane move and file drop",
@@ -811,8 +816,8 @@
       "remaining": "One pane, one document per window. Split panes, editor tabs, dragging a pane by its handle, explorer drop-to-split and workbench persistence are not ported (they need multiple native document sessions)."
     },
     {
-      "name": "Editor and shared-ui stylesheets (bundled verbatim in the editor island)",
-      "status": "ported",
+      "name": "Editor and shared-ui stylesheets (product tokens in native styles)",
+      "status": "partial",
       "sources": [
         "packages/shared-ui/src/styles/editor.css",
         "packages/shared-ui/src/styles/editor/**",
@@ -822,12 +827,16 @@
         "packages/shared-ui/src/styles/shared-ui.css"
       ],
       "targets": [
-        "editor/build.mjs",
-        "editor/src/webkit-parity.css"
+        "src/editor/tokens.rs",
+        "assets/editor",
+        "src/editor/markdown/style",
+        "src/editor/csv/theme.rs",
+        "src/editor/table/style.rs"
       ],
       "evidence": [
-        "artifact:editor-parity/report.json"
-      ]
+        "test:tokens_resolve_units_and_colours"
+      ],
+      "remaining": "Token values are imported from the product CSS (tools/import-editor-theme.mjs → assets/editor); the rules are re-expressed per element in Rust styles. Floating notices, overflow dots and the shared-ui patterns have no native consumer yet."
     }
   ]
 }

@@ -1,6 +1,5 @@
 //! Port of `components/DesktopMenu.tsx` (`.desktop-menu-surface`). Menus are
-//! positioned by their owner so the owner can register the exact rectangle with
-//! native hit routing above the Web editor.
+//! positioned by their owner, which knows their exact rectangle.
 use crate::theme::{self, Theme, metric};
 use gpui::{prelude::*, *};
 use std::rc::Rc;

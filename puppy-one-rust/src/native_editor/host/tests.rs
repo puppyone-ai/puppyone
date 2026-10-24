@@ -124,16 +124,13 @@ fn identical_host_open_retains_history_and_saved_receipt_checks_revision() {
     let reply = protocol::receive(
         &mut current,
         &serde_json::json!({
-            "kind":"open","id":"doc","name":"note.md","text":text,"baseline":"Hello\n","revision":revision,"transfer":17
+            "kind":"open","id":"doc","name":"note.md","text":text,"baseline":"Hello\n","revision":revision
         }),
     );
     assert!(!reply.reset_input);
     assert!(matches!(
         &reply.messages[0],
-        ClientMessage::Loaded {
-            transfer: Some(17),
-            ..
-        }
+        ClientMessage::Loaded { .. }
     ));
     assert!(current.as_ref().unwrap().can_undo());
     protocol::receive(

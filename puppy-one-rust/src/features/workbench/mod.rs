@@ -143,7 +143,7 @@ impl Workbench {
             header_focus: HashMap::new(),
         }
     }
-    #[cfg(feature = "webview-smoke")]
+    #[cfg(feature = "dev-capture")]
     pub(crate) fn visual_fixture(
         &mut self,
         populated: bool,

@@ -92,12 +92,13 @@ fn groups() -> Vec<(&'static str, Vec<Setting>)> {
         (
             "markdown",
             vec![
-                // Consumed by the product Markdown Viewer in the editor island.
-                setting!("markdownBlockDrag", experimental.markdown_block_drag, true),
+                // The native Markdown editor has no block drag or heading
+                // outline yet (the WebView product viewer was removed).
+                setting!("markdownBlockDrag", experimental.markdown_block_drag, false),
                 setting!(
                     "markdownHeadingOutline",
                     experimental.markdown_heading_outline,
-                    true
+                    false
                 ),
             ],
         ),

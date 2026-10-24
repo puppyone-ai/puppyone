@@ -525,7 +525,7 @@ impl Theme {
     }
 }
 
-/// Native layout owns all bounds. A future Web island receives only its own rect.
+/// Native layout owns all bounds.
 #[derive(Clone, Copy, Debug)]
 pub struct Layout {
     pub header: Rect,
@@ -555,15 +555,6 @@ impl Layout {
             self.editor.x + 1.,
             self.editor.y,
             (self.editor.w - 1.).max(0.),
-            self.editor.h,
-        )
-    }
-    /// Hit area of the left pane resizer, above the editor content.
-    pub fn left_sash(self) -> Rect {
-        Rect::new(
-            self.editor.x,
-            self.editor.y,
-            metric::PANE_SASH,
             self.editor.h,
         )
     }

@@ -1,6 +1,6 @@
 //! Header popovers: `DesktopWorkspaceSwitcher` menu (Home, projects, Open
 //! Folder) and `DesktopProjectLocationSwitcher` (This Mac / Cloud). Each popover
-//! has a known rectangle so native hit routing owns it above the Web editor.
+//! has a known rectangle.
 use super::*;
 use crate::{
     localization::t as tr,
@@ -19,7 +19,7 @@ impl Shell {
             )
         })
     }
-    /// Popover rectangle in window coordinates (registered with `HitMap`).
+    /// Popover rectangle in window coordinates.
     pub(super) fn popover_bounds(&self) -> Option<Rect> {
         let popover = self.popover.as_ref()?;
         let (key, width, height) = match popover {

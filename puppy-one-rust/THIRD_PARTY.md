@@ -31,9 +31,6 @@ are upstream; the continuous document retains its host-owned editing model.
 ## Other material
 
 - `unicode-segmentation`: MIT OR Apache-2.0; grapheme boundaries.
-- Wry 0.57.0: MIT OR Apache-2.0; system WebView host.
-- Existing local web bundle dependencies and notices:
-  [editor/bundle/THIRD_PARTY.txt](editor/bundle/THIRD_PARTY.txt).
 - Embedded icons/fonts and their retained notices: [assets/README.md](assets/README.md).
 - Probe fonts and dependency details: [native-editor-probe/THIRD_PARTY.md](native-editor-probe/THIRD_PARTY.md).
 

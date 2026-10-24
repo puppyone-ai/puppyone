@@ -2,7 +2,7 @@
 // MarkdownViewer (real CodeMirror + product CSS + default sub-theme) with a
 // document and selection, then dump line boxes, per-character rectangles and
 // computed text styles, widget boxes, list-marker pseudo-elements, the caret
-// and the selection. tools/compare-editor-geometry.py diffs this against the
+// and the selection. tools/compare-native-geometry.py diffs this against the
 // native editor's own dump.
 //   electron tools/probe-editor.mjs spec.json
 // spec: {file, mode: dark|light, scale: small|medium|large, width, height,

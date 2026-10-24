@@ -31,10 +31,7 @@ pub fn receive(current: &mut Option<Session>, message: &serde_json::Value) -> Re
                 ));
                 reply.reset_input = true;
             }
-            reply.messages.push(ClientMessage::Loaded {
-                id,
-                transfer: message["transfer"].as_u64(),
-            });
+            reply.messages.push(ClientMessage::Loaded { id });
         }
         "clear" => {
             *current = None;

@@ -1,12 +1,11 @@
 use crate::{
-    documents::{ClientMessage, Documents, EditorProvider, Intent, Phase},
-    geometry::{HitMap, Rect},
+    documents::{ClientMessage, Documents, Intent},
+    geometry::Rect,
     localization::Locale,
     model::Tree,
     theme::{self, Layout, Theme},
     ui::{self, column, row},
     wake::Wake,
-    web_editor::WebEditor,
 };
 use gpui::{prelude::*, *};
 use std::{cell::RefCell, path::PathBuf, rc::Rc};
@@ -24,8 +23,7 @@ mod project_ui;
 mod task_ui;
 use explorer_ui::{ExplorerMenu, FileClipboard, FileOp, GitMark, OpOutcome};
 use task_ui::TaskUi;
-/// Anchored popovers owned by the shell; each has a known rectangle so native
-/// hit routing claims it above the Web editor.
+/// Anchored popovers owned by the shell, each with a known rectangle.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Popover {
     Project,
@@ -96,12 +94,6 @@ pub fn app_menus() -> Vec<Menu> {
             name: tr("native.menu.view").into(),
             items: vec![
                 MenuItem::action(tr("native.menu.toggleSource"), HostAction::new("preview")),
-                MenuItem::separator(),
-                MenuItem::action(
-                    tr("native.menu.nativeEditor"),
-                    HostAction::new("editor-native"),
-                ),
-                MenuItem::action(tr("native.menu.webEditor"), HostAction::new("editor-web")),
             ],
         },
     ]
@@ -135,7 +127,6 @@ pub struct Shell {
     reopen: Option<PathBuf>,
     rename: Option<(PathBuf, Entity<ui::form_input::TextInput>)>,
     git_marks: std::collections::HashMap<PathBuf, GitMark>,
-    live_preview: bool,
     create_entry:
         Option<Entity<crate::features::create_new::create_entry_dialog::CreateEntryDialog>>,
     task_ui: TaskUi,
@@ -143,14 +134,10 @@ pub struct Shell {
     error: Option<String>,
     pending: bool,
     files: Documents,
-    web: Option<WebEditor>,
-    web_ready: bool,
     native: Entity<crate::editor::host::DocumentEditor>,
-    painted_provider: EditorProvider,
     fixture: bool,
     startup_file: Option<PathBuf>,
     wake: Wake,
-    hits: Rc<RefCell<HitMap>>,
     focus: FocusHandle,
     project_focus: FocusHandle,
     modal_focus: FocusHandle,
@@ -162,8 +149,6 @@ pub struct Shell {
     painted_rows: usize,
     #[cfg(test)]
     frames: usize,
-    #[cfg(feature = "webview-smoke")]
-    smoke: Option<crate::smoke::Smoke>,
 }
 fn at(r: Rect) -> Div {
     div()
@@ -176,26 +161,9 @@ fn at(r: Rect) -> Div {
 impl Shell {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let (wake, rx) = Wake::channel();
-        let hits = Rc::new(RefCell::new(HitMap::default()));
         let fixture = cfg!(test)
             || std::env::var_os("PUPPYONE_FIXTURE").is_some()
             || std::env::var_os("PUPPYONE_SCREENSHOT").is_some();
-        #[cfg(feature = "webview-smoke")]
-        if std::env::var_os("PUPPYONE_SMOKE_DIR").is_some() {
-            eprintln!("Smoke: attaching editor");
-        }
-        let (web, error) = if cfg!(test) || std::env::var_os("PUPPYONE_SCREENSHOT").is_some() {
-            (None, None)
-        } else {
-            match WebEditor::new(window, &wake, hits.clone()) {
-                Ok(web) => (Some(web), None),
-                Err(e) => (None, Some(e)),
-            }
-        };
-        #[cfg(feature = "webview-smoke")]
-        if std::env::var_os("PUPPYONE_SMOKE_DIR").is_some() {
-            eprintln!("Smoke: editor attached");
-        }
         let focus = cx.focus_handle();
         focus.focus(window, cx);
         let weak = cx.weak_entity();
@@ -229,12 +197,6 @@ impl Shell {
                             s.project.clone(),
                         );
                         if before != after {
-                            cx.notify();
-                        }
-                        // The opt-in visual driver advances checkpoints even when
-                        // the product is idle. Production never requests these frames.
-                        #[cfg(feature = "webview-smoke")]
-                        if s.smoke.is_some() {
                             cx.notify();
                         }
                     })
@@ -289,23 +251,13 @@ impl Shell {
             reopen: None,
             rename: None,
             git_marks: Default::default(),
-            live_preview: true,
             create_entry: None,
             task_ui: TaskUi::new(preferences.clone(), window, cx),
             preferences,
-            error,
+            error: None,
             pending: false,
-            files: if std::env::var("PUPPYONE_EDITOR").as_deref() == Ok("native")
-                || (!cfg!(test) && web.is_none())
-            {
-                Documents::native()
-            } else {
-                Documents::default()
-            },
-            web,
-            web_ready: false,
+            files: Documents::default(),
             native: cx.new(crate::editor::host::DocumentEditor::new),
-            painted_provider: EditorProvider::Web,
             fixture,
             startup_file: if cfg!(test) {
                 None
@@ -313,7 +265,6 @@ impl Shell {
                 std::env::var_os("PUPPYONE_FILE").map(PathBuf::from)
             },
             wake,
-            hits,
             focus,
             project_focus: cx.focus_handle(),
             modal_focus: cx.focus_handle(),
@@ -325,8 +276,6 @@ impl Shell {
             painted_rows: 0,
             #[cfg(test)]
             frames: 0,
-            #[cfg(feature = "webview-smoke")]
-            smoke: crate::smoke::Smoke::from_environment(),
         };
         cx.subscribe_in(
             &s.preferences,
@@ -387,8 +336,7 @@ impl Shell {
                 s.command(action, window, cx);
                 return;
             }
-            s.files
-                .client_from(EditorProvider::Native, event.clone(), &s.wake);
+            s.files.client(event.clone(), &s.wake);
             cx.notify();
         })
         .detach();
@@ -420,7 +368,7 @@ impl Shell {
                 s.error = Some(crate::localization::t("native.usage").into());
             }
         }
-        #[cfg(feature = "webview-smoke")]
+        #[cfg(feature = "dev-capture")]
         if std::env::var_os("PUPPYONE_SCREENSHOT").is_some() {
             let surface = std::env::var("PUPPYONE_CAPTURE_SURFACE").unwrap_or_default();
             if surface == "changes" {
@@ -435,10 +383,6 @@ impl Shell {
                     workbench.visual_fixture(surface == "agent-transcript", window, cx)
                 });
             }
-        }
-        #[cfg(feature = "webview-smoke")]
-        if s.smoke.is_some() {
-            s.wake.notify();
         }
         if let Some(path) = workspace {
             s.files.begin(Intent::OpenFolder(path), &s.wake);
@@ -607,19 +551,6 @@ impl Shell {
                         .push(serde_json::json!({"kind":"history","id":doc.id,"direction":action}));
                 }
             }
-            "editor-native" | "editor-web" => {
-                let target = if action == "editor-native" {
-                    EditorProvider::Native
-                } else {
-                    EditorProvider::Web
-                };
-                if target == EditorProvider::Web && !self.web_ready {
-                    self.error = Some(crate::localization::t("native.editor.webNotReady").into());
-                } else if !self.modal() {
-                    self.files.begin(Intent::SwitchEditor(target), &self.wake);
-                    self.files.ready = true;
-                }
-            }
             "save" => self.files.begin(Intent::Save, &self.wake),
             "reload" => self.files.begin(Intent::Reload, &self.wake),
             "close-file" => self.files.begin(Intent::CloseFile, &self.wake),
@@ -692,14 +623,8 @@ impl Shell {
             }
             "preview" => {
                 if !self.files.busy() && !self.modal() {
-                    if self.files.provider == EditorProvider::Native {
-                        self.native
-                            .update(cx, |s, cx| s.command("source", window, cx));
-                    } else {
-                        self.live_preview = !self.live_preview;
-                        if let Some(web) = &self.web
-                        && let Err(e)=web.send(&serde_json::json!({"kind":"presentation","livePreview":self.live_preview})){self.error=Some(e);}
-                    }
+                    self.native
+                        .update(cx, |s, cx| s.command("source", window, cx));
                 }
             }
             "clear-error" => {
@@ -732,24 +657,6 @@ impl Shell {
     }
     fn receive(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let previous = self.files.document.as_ref().map(|d| d.id.clone());
-        for message in self
-            .web
-            .as_ref()
-            .map(WebEditor::messages)
-            .unwrap_or_default()
-        {
-            if matches!(message, ClientMessage::Ready) {
-                self.web_ready = true;
-            }
-            if self.files.provider != EditorProvider::Web {
-                continue;
-            }
-            if let ClientMessage::Action { action } = message {
-                self.command(&action, window, cx);
-            } else {
-                self.files.client(message, &self.wake);
-            }
-        }
         self.files.poll(&self.wake);
         self.poll_file_ops(window, cx);
         if let Some(nodes) = self.files.tree_update.take() {
@@ -799,27 +706,13 @@ impl Shell {
         {
             self.tree.selected = doc.relative.clone();
         }
-        if self.files.ready
-            && self.files.workspace.is_some()
+        if self.files.workspace.is_some()
             && !self.files.busy()
             && let Some(path) = self.startup_file.take()
         {
             self.files.begin(Intent::OpenFile(path), &self.wake);
         }
         self.sync_editor(window, cx);
-        #[cfg(feature = "webview-smoke")]
-        if let Some(mut smoke) = self.smoke.take() {
-            let size = window.viewport_size();
-            let popover = self.popover_bounds();
-            smoke.tick(
-                &mut self.files,
-                self.web.as_ref(),
-                &self.wake,
-                (f32::from(size.width), f32::from(size.height)),
-                popover,
-            );
-            self.smoke = Some(smoke);
-        }
         if self.files.allow_quit
             && self
                 .create_entry
@@ -837,114 +730,37 @@ impl Shell {
         }
         if self.files.allow_quit {
             self.workbench.update(cx, |s, cx| s.shutdown(cx));
-            #[cfg(feature = "webview-smoke")]
-            if let Some(mut smoke) = self.smoke.take() {
-                let size = window.viewport_size();
-                let popover = self.popover_bounds();
-                smoke.tick(
-                    &mut self.files,
-                    self.web.as_ref(),
-                    &self.wake,
-                    (f32::from(size.width), f32::from(size.height)),
-                    popover,
-                );
-                self.smoke = Some(smoke);
-            }
             window.remove_window();
         }
     }
     fn sync_editor(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let mut focus_native = false;
-        // Snapshot -> switch/open -> loaded -> thaw can settle synchronously for
-        // the native adapter. A failed target keeps the old surface intact.
+        // Snapshot -> open -> loaded -> thaw settle synchronously with the
+        // native editor; a few rounds cover replies that queue new messages.
         for _ in 0..4 {
-            if self.files.outgoing.is_empty()
-                || (self.files.provider == EditorProvider::Web && !self.web_ready)
-            {
+            if self.files.outgoing.is_empty() {
                 break;
             }
-            let provider = self.files.provider;
             let messages = std::mem::take(&mut self.files.outgoing);
             for message in messages {
-                let replies = if provider == EditorProvider::Native {
-                    focus_native |= message["kind"] == "open";
-                    self.native
-                        .update(cx, |s, cx| s.receive(&message, window, cx))
-                } else if let Some(web) = &self.web {
-                    match web.send(&message) {
-                        Ok(()) => vec![],
-                        Err(message) => vec![ClientMessage::Fault { message }],
-                    }
-                } else {
-                    vec![]
-                };
+                focus_native |= message["kind"] == "open";
+                let replies = self
+                    .native
+                    .update(cx, |s, cx| s.receive(&message, window, cx));
                 for reply in replies {
-                    self.files.client_from(provider, reply, &self.wake);
+                    self.files.client(reply, &self.wake);
                 }
             }
         }
         let modal = self.modal();
-        let overlay = modal || self.popover.is_some();
-        let content = self.layout.content();
-        let native = self.files.provider == EditorProvider::Native;
         let home = self.home_visible();
         self.native.update(cx, |s, cx| {
-            s.gate(modal || home || self.files.busy() || !native, self.dark, cx)
+            s.gate(modal || home || self.files.busy(), self.dark, cx)
         });
-        *self.hits.borrow_mut() = HitMap {
-            editor: if native || home {
-                Rect::default()
-            } else {
-                content
-            },
-            overlays: self
-                .popover_bounds()
-                .into_iter()
-                .chain((self.left_open && !home).then(|| self.layout.left_sash()))
-                .collect(),
-            modal,
-            dragging: self.drag.is_some(),
-        };
-        if let Some(web) = &mut self.web {
-            let experimental = &self.preferences.read(cx).state.experimental;
-            let interaction = (
-                experimental.markdown_block_drag,
-                experimental.markdown_heading_outline,
-            );
-            if self.web_ready
-                && let Err(e) = web.interaction(interaction.0, interaction.1)
-            {
-                self.error = Some(e);
-            }
-            if self.web_ready
-                && let Err(e) = web.presentation(
-                    &self.locale.code,
-                    self.popover.is_some(),
-                    modal || native || matches!(self.files.phase, Phase::Switching { .. }),
-                )
-            {
-                self.error = Some(e);
-            }
-            if let Err(e) = web.sync(
-                window.scale_factor(),
-                content,
-                self.files.document.is_some() && !native && !home,
-                self.dark,
-                self.web_ready,
-                overlay,
-            ) {
-                self.error = Some(e);
-            }
-        }
-        if native
-            && !modal
-            && !self.files.busy()
-            && (focus_native || self.painted_provider != self.files.provider)
-        {
+        if focus_native && !modal && !self.files.busy() {
             self.native
                 .update(cx, |editor, cx| editor.focus_document(window, cx));
         }
-        self.painted_provider = self.files.provider;
     }
     fn open_row(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
         if self.pending || self.files.busy() || self.files.folder_busy {
@@ -991,12 +807,10 @@ impl Shell {
         let mut content = at(r);
         if self.files.document.is_some() {
             let body = self.layout.content();
-            content = content.when(self.files.provider == EditorProvider::Native, |d| {
-                d.bg(t.canvas).child(
-                    at(Rect::new(body.x - r.x, body.y - r.y, body.w, body.h))
-                        .child(self.native.clone()),
-                )
-            });
+            content = content.bg(t.canvas).child(
+                at(Rect::new(body.x - r.x, body.y - r.y, body.w, body.h))
+                    .child(self.native.clone()),
+            );
         } else {
             // A project with no open document shows the quiet editor canvas.
             content = content.bg(t.canvas);
@@ -1093,13 +907,11 @@ impl Shell {
                     }
                 } else {
                     s.drag = Some(left);
-                    s.hits.borrow_mut().dragging = true;
                 }
                 cx.notify();
             }),
         )
-        // The divider is opaque on its own: under the overlaid left sash
-        // there is no painted surface (the WebView starts right of it).
+        // The divider paints its own canvas under the overlaid left sash.
         .child(
             div()
                 .w(px(1.))
@@ -1170,7 +982,6 @@ impl Render for Shell {
                 MouseButton::Left,
                 cx.listener(|s, _, _, cx| {
                     if s.drag.take().is_some() {
-                        s.hits.borrow_mut().dragging = false;
                         cx.notify();
                     }
                 }),

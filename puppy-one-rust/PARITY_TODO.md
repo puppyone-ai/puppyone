@@ -99,11 +99,11 @@ python3 tools/verify.py          # fmt、边界守护、本地化/资产/Agent �
 python3 tools/audit-ui-migration.py
 ```
 
-截图：`PUPPYONE_SCREENSHOT=out.png PUPPYONE_LOCALE=zh-Hans PUPPYONE_CAPTURE_SURFACE=settings PUPPYONE_CAPTURE_SETTINGS_PAGE=Git ./target/debug/puppy-one-rust`（需 `--features webview-smoke` 构建；`PUPPYONE_LOCALE` 代替系统语言）。
+截图：`PUPPYONE_SCREENSHOT=out.png PUPPYONE_LOCALE=zh-Hans PUPPYONE_CAPTURE_SURFACE=settings PUPPYONE_CAPTURE_SETTINGS_PAGE=Git ./target/debug/puppy-one-rust`（需 `--features dev-capture` 构建；`PUPPYONE_LOCALE` 代替系统语言）。
 
 ## 7. 原生编辑器：Markdown / CSV / 多窗格（Rust 原生，基于 GPUI Kit `editor_host`）
 
-决定：MD 与 CSV 由 Rust 原生实现；正文文字由 **GPUI Kit `editor_host`** 排版与绘制（不修改 Kit 源码），宿主（本应用）负责文档、装饰、每个块的盒子几何、选区、光标、输入法和指针。沿用原型 `native_editor` 的分层与 Kit 适配方式（`collect_leaf_geometry` 叶子几何），文档内核改为与产品一致的“Markdown 源码为唯一真相”。WebView 只用于 HTML，以及原生无法处理时的兜底。
+决定：MD 与 CSV 由 Rust 原生实现；正文文字由 **GPUI Kit `editor_host`** 排版与绘制（不修改 Kit 源码），宿主（本应用）负责文档、装饰、每个块的盒子几何、选区、光标、输入法和指针。沿用原型 `native_editor` 的分层与 Kit 适配方式（`collect_leaf_geometry` 叶子几何），文档内核改为与产品一致的“Markdown 源码为唯一真相”。Rust 版不再内嵌 WebView：所有文档都由原生编辑器打开，没有 WebView 兜底。
 
 ### 7.1 架构
 
@@ -123,7 +123,7 @@ python3 tools/audit-ui-migration.py
 ### 7.2 验收（`tools/compare-native-geometry.py` + 截图像素对比）
 
 - 产品参照：`electron tools/probe-editor.mjs artifacts/probe/sample*.json`（字符矩形、行盒、组件盒、截图）。
-- 原生：`webview-smoke` 构建，`PUPPYONE_EDITOR_GEOMETRY=out.json`（字符矩形，坐标同参照）；`PUPPYONE_EDITOR_SCROLL` 用于截取下半部分。
+- 原生：`dev-capture` 构建，`PUPPYONE_EDITOR_GEOMETRY=out.json`（字符矩形，坐标同参照）；`PUPPYONE_EDITOR_SCROLL` 用于截取下半部分。
 - 当前 `fixtures/editor/sample.md`（深色 / 中号）：
   - 所有块的位置和高度与参照完全一致（H1 48/71、H2 56.5、H3 47.5、代码块 114、表格 147、分隔线 37）。
   - 字符位置：标题 0.00–0.09px，列表 / 任务 / 引用 ≤0.13px（垂直 0.25px），表格单元格 ≤0.05px，代码块 ≤0.05px。
@@ -170,7 +170,7 @@ python3 tools/audit-ui-migration.py
   - [x] 查找栏（`EditorFindHost`）：⌘F / 菜单打开，Enter / ⇧Enter 上下，结果“n / 共 m”，Esc 关闭并回到编辑器；CSV 适配器与编辑视图适配器（CodeMirror 等价：不区分大小写的字面匹配、当前项选中并居中、匹配标记与当前项外框、编辑后保持）
   - [ ] 标签页（`EditorHeaderTabs`）、分屏与拖动窗格、每窗格独立文档会话、工作台布局持久化
   - 已知差异：当前匹配被选中时，选区由 Kit 绘制在匹配底色之上（产品为底色在选区之上），颜色叠加顺序略有不同
-- [ ] N11 路由：MD / CSV 默认原生，HTML 走 WebView，原生失败回退 WebView；退役原型 `native_editor` 的富文本模型
+- [~] N11 路由：MD / CSV / 纯文本只走原生编辑器；WebView 编辑器、其产品代码打包（`editor/`）和 GUI 冒烟驱动已删除，不存在回退路径。缺：代码 / JSON 语法高亮，HTML / PDF / 媒体查看器；退役原型 `native_editor` 的富文本模型
 
 ## 8. 明确不在本轮范围
 

@@ -1,5 +1,5 @@
 //! Cached explorer projection. Capability-scoped I/O lives in workspace.rs;
-//! selecting a row never supplies an arbitrary path to the Web editor.
+//! selecting a row never supplies an arbitrary path to the editor.
 //! Visibility and display-name rules mirror `data-workspace/explorer.ts` and
 //! `shared-ui/data/explorer/explorerVisibleModel.ts`.
 use serde::Deserialize;

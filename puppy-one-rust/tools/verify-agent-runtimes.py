@@ -45,7 +45,7 @@ with tempfile.TemporaryDirectory(prefix='puppyone-runtime-verification-', dir='/
     env = dict(os.environ, PUPPYONE_RUST_DATA_DIR=data)
     for name, test in tests:
         print(f'Checking {name}…', flush=True)
-        command = [cargo, 'test', '--locked', '--features', 'webview-smoke', test,
+        command = [cargo, 'test', '--locked', '--features', 'dev-capture', test,
                    '--', '--ignored', '--nocapture', '--test-threads=1']
         try:
             result = subprocess.run(command, cwd=root, env=env, text=True,

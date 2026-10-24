@@ -1,4 +1,5 @@
 use super::*;
+use crate::documents::Phase;
 use core::prelude::v1::test;
 use gpui::EntityInputHandler;
 fn setup(cx: &mut TestAppContext) -> (Entity<Shell>, &mut VisualTestContext) {
@@ -39,7 +40,7 @@ fn native_keyboard_autosaves_and_closes_without_prompt_and_adopts_disk(cx: &mut 
     let document = workspace.read(std::path::Path::new("native.md")).unwrap();
     let (view, cx) = setup(cx);
     view.update_in(cx, |s,w,cx| {
-        s.files=Documents::native(); s.files.workspace=Some(workspace); s.files.document=Some(document.clone());
+        s.files=Documents::default(); s.files.workspace=Some(workspace); s.files.document=Some(document.clone());
         s.files.outgoing.push(serde_json::json!({"kind":"open","id":document.id,"name":"native.md","text":document.text}));
         s.sync_editor(w,cx);
     });

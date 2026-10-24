@@ -1,5 +1,5 @@
-//! The native document surface the shell embeds (the provider counterpart of
-//! the Web editor island): it speaks the document host protocol of
+//! The document surface the shell embeds (the only editor provider): it
+//! speaks the document host protocol of
 //! `documents.rs` (`open`, `clear`, `snapshot`, `thaw`, `saved`, `history`)
 //! and hosts the native editor for the file — Markdown live preview for
 //! `.md`/`.mdx`/`.markdown`, the CSV table for `.csv`/`.tsv`, plain text
@@ -208,7 +208,7 @@ impl DocumentEditor {
                 }
                 let label = name.rsplit(['/', '\\']).next().unwrap_or(name).to_owned();
                 self.session = Some(Session { id: id.clone(), name: label, baseline, revision, frozen: false, kind });
-                replies.push(ClientMessage::Loaded { id, transfer: message["transfer"].as_u64() });
+                replies.push(ClientMessage::Loaded { id });
             }
             "clear" => {
                 self.session = None;

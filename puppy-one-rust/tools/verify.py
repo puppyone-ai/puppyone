@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reproducible GPUI migration checks; GUI smoke is explicitly opt-in."""
+"""Reproducible GPUI migration checks (no windows are opened)."""
 import argparse
 from datetime import datetime
 import hashlib
@@ -11,14 +11,13 @@ import shutil
 import subprocess
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('--gui', action='store_true', help='also run disposable native-window smoke and OS capture')
 args = parser.parse_args()
 root = Path(__file__).resolve().parents[1]
 out = root / 'artifacts/gpui-verification'
 out.mkdir(parents=True, exist_ok=True)
 cargo = shutil.which('cargo') or str(Path.home() / '.cargo/bin/cargo')
-paths = [root / p for p in ['Cargo.toml', 'Cargo.lock', 'README.md', 'THIRD_PARTY.md', 'product-source.json', 'editor/build.mjs', 'editor/package.json', 'editor/package-lock.json']]
-for folder in ['src', 'assets', 'editor/src', 'editor/bundle', 'native-editor-probe/src', 'native-editor-probe/assets', 'tools']:
+paths = [root / p for p in ['Cargo.toml', 'Cargo.lock', 'README.md', 'THIRD_PARTY.md', 'product-source.json']]
+for folder in ['src', 'assets', 'native-editor-probe/src', 'native-editor-probe/assets', 'tools']:
     paths.extend(p for p in sorted((root / folder).rglob('*')) if p.is_file() and "__pycache__" not in p.parts)
 paths.extend(root / p for p in ['native-editor-probe/Cargo.toml', 'native-editor-probe/Cargo.lock'])
 def source_hashes():
@@ -32,17 +31,12 @@ commands = [
     ('localization', ['python3', 'tools/import-localization.py', '--check']),
     ('assets', ['python3', 'tools/generate-assets-rs.py', '--check']),
     ('agent-marks', ['python3', 'tools/import-agent-marks.py', '--check']),
-    ('editor-bundle', ['python3', 'tools/check-editor-bundle.py']),
     ('ui-migration', ['python3', 'tools/audit-ui-migration.py']),
-    ('test', [cargo, 'test', '--locked', '--features', 'webview-smoke']),
-    ('clippy', [cargo, 'clippy', '--locked', '--all-targets', '--features', 'webview-smoke', '--', '-D', 'warnings']),
+    ('test', [cargo, 'test', '--locked', '--features', 'dev-capture']),
+    ('clippy', [cargo, 'clippy', '--locked', '--all-targets', '--features', 'dev-capture', '--', '-D', 'warnings']),
     ('release', [cargo, 'build', '--locked', '--release']),
     ('native-probe', ['python3', 'native-editor-probe/tools/verify.py']),
 ]
-if args.gui:
-    commands.append(('gui-smoke', ['python3', 'tools/smoke-editor.py', '--capture']))
-    # Product editor (Chromium reference artifacts) vs the embedded island in WebKit.
-    commands.append(('editor-parity', ['python3', 'tools/compare-editor.py', '--check']))
 checks = []
 for name, command in commands:
     print(f'Checking {name}…', flush=True)
@@ -64,7 +58,7 @@ receipt = {
     'verifiedAt': datetime.now().astimezone().isoformat(),
     'platform': platform.platform(), 'checks': checks,
     'baseCommit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip(),
-    'implementation': 'uncommitted worktree; baseCommit does not contain this Rust implementation',
+    'implementation': 'puppy-one-rust at baseCommit; sourceHashes record the verified files, including uncommitted changes',
     'sourceUnchangedDuringVerification': True,
     'sourceHashes': verified_sources,
     'releaseBinarySha256': hashlib.sha256((root/'target/release/puppy-one-rust').read_bytes()).hexdigest(),

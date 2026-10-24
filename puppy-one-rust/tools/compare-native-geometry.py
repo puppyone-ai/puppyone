@@ -4,7 +4,7 @@
   python3 tools/compare-native-geometry.py native.json artifacts/probe/sample-dark.json
 
 Both files give per-character rects relative to the editor viewport
-(`PUPPYONE_EDITOR_GEOMETRY` from a `webview-smoke` build; tools/probe-editor.mjs
+(`PUPPYONE_EDITOR_GEOMETRY` from a `dev-capture` build; tools/probe-editor.mjs
 for Chromium). Prints block tops and the per-line x/y deltas of glyph boxes.
 """
 import json

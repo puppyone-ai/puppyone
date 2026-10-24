@@ -1,5 +1,6 @@
-//! Native document-session boundary. Format adapters report revisions and
-//! provide snapshots; the shared editing session owns autosave and disk epochs.
+//! Native document-session boundary. The native document editor
+//! (`editor::host`) reports revisions and provides snapshots; the shared
+//! editing session owns autosave and disk epochs.
 pub use crate::editor::document_session::types::Snapshot;
 use crate::editor::document_session::{
     document_editing_session::DocumentEditingSession,
@@ -10,7 +11,6 @@ use crate::{
     model::Node,
     workspace::{self, Document, MAX_TEXT_BYTES, Workspace},
 };
-use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{
     path::PathBuf,
@@ -21,13 +21,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum EditorProvider {
-    #[default]
-    Web,
-    Native,
-}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Intent {
     OpenFolder(PathBuf),
@@ -36,12 +29,10 @@ pub enum Intent {
     CloseFile,
     Quit,
     Save,
-    SwitchEditor(EditorProvider),
 }
-#[derive(Clone, Deserialize, Debug)]
-#[serde(tag = "type", rename_all = "kebab-case", deny_unknown_fields)]
+/// What the document editor reports back.
+#[derive(Clone, Debug)]
 pub enum ClientMessage {
-    Ready,
     Dirty {
         id: String,
         revision: u64,
@@ -62,9 +53,8 @@ pub enum ClientMessage {
     },
     Loaded {
         id: String,
-        #[serde(default)]
-        transfer: Option<u64>,
     },
+    /// The editor could not apply an edit or protocol step.
     Fault {
         message: String,
     },
@@ -87,10 +77,6 @@ pub enum Phase {
         intent: Intent,
     },
     Working,
-    Switching {
-        from: EditorProvider,
-        since: Instant,
-    },
 }
 enum Completed {
     Root(workspace::Result<(Arc<Workspace>, Vec<Node>)>),
@@ -112,7 +98,6 @@ pub type PresentationKey = (
     u64,
     bool,
     bool,
-    EditorProvider,
     String,
     Option<String>,
 );
@@ -121,7 +106,6 @@ pub struct Documents {
     pub document: Option<Document>,
     pub dirty: bool,
     pub revision: u64,
-    pub ready: bool,
     pub phase: Phase,
     pub error: Option<String>,
     pub status: String,
@@ -130,8 +114,6 @@ pub struct Documents {
     pub tree_update: Option<Vec<Node>>,
     pub children_update: Option<(PathBuf, workspace::Result<Vec<Node>>)>,
     pub folder_busy: bool,
-    pub web_loaded: Option<String>,
-    pub provider: EditorProvider,
     serial: u64,
     session: Option<DocumentEditingSession>,
     autosave_request: Option<(u64, u64, Instant)>,
@@ -149,7 +131,6 @@ impl Default for Documents {
             document: None,
             dirty: false,
             revision: 0,
-            ready: false,
             phase: Phase::Idle,
             error: None,
             status: "Open a folder to start".into(),
@@ -158,8 +139,6 @@ impl Default for Documents {
             tree_update: None,
             children_update: None,
             folder_busy: false,
-            web_loaded: None,
-            provider: EditorProvider::Web,
             serial: 0,
             session: None,
             autosave_request: None,
@@ -172,18 +151,11 @@ impl Default for Documents {
     }
 }
 impl Documents {
-    pub fn native() -> Self {
-        Self {
-            provider: EditorProvider::Native,
-            ready: true,
-            ..Default::default()
-        }
-    }
     /// Background persistence does not block keyboard input or native commands.
     pub fn busy(&self) -> bool {
         !matches!(self.phase, Phase::Idle | Phase::AwaitComposition { .. })
     }
-    #[cfg(any(test, feature = "webview-smoke"))]
+    #[cfg(test)]
     pub fn saving(&self) -> bool {
         self.session.as_ref().is_some_and(|s| !s.drained()) || self.autosave_request.is_some()
     }
@@ -214,9 +186,6 @@ impl Documents {
             return;
         }
         self.ensure_session();
-        if intent == Intent::SwitchEditor(self.provider) {
-            return;
-        }
         if let (Intent::OpenFile(path), Some(doc)) = (&intent, &self.document)
             && path == &doc.relative
         {
@@ -224,10 +193,6 @@ impl Documents {
         }
         if self.document.is_none() {
             self.execute(intent, ctx);
-            return;
-        }
-        if !self.ready {
-            self.error = Some(crate::localization::t("native.editor.notResponding").into());
             return;
         }
         self.autosave_request = None;
@@ -258,29 +223,14 @@ impl Documents {
         }
     }
     pub fn client(&mut self, message: ClientMessage, ctx: &Wake) {
-        self.client_from(self.provider, message, ctx);
-    }
-    pub fn client_from(&mut self, provider: EditorProvider, message: ClientMessage, ctx: &Wake) {
-        if provider != self.provider {
-            return;
-        }
         self.ensure_session();
         match message {
-            ClientMessage::Ready => {
-                if self.ready && self.document.is_some() {
-                    self.error = Some(crate::localization::t("native.editor.restarted").into());
-                    return;
-                }
-                self.ready = true;
-                self.show_document();
-            }
             ClientMessage::Dirty {
                 id,
                 revision,
                 dirty,
             } => {
-                if !matches!(self.phase, Phase::Switching { .. })
-                    && let Some(s) = &mut self.session
+                if let Some(s) = &mut self.session
                     && s.id == id
                     && revision >= s.revision
                 {
@@ -358,33 +308,12 @@ impl Documents {
                     else {
                         unreachable!()
                     };
-                    if let Intent::SwitchEditor(target) = intent {
-                        let from = self.provider;
-                        self.provider = target;
-                        self.phase = Phase::Switching {
-                            from,
-                            since: Instant::now(),
-                        };
-                        let doc = self.document.as_ref().unwrap();
-                        self.outgoing.push(json!({"kind":"open","id":doc.id,"name":doc.relative.to_string_lossy(),"text":snapshot.text,"baseline":doc.text,"revision":snapshot.revision,"transfer":self.serial}));
-                        ctx.after(Duration::from_millis(100));
-                    } else {
-                        self.phase = Phase::Draining { intent };
-                    }
+                    self.phase = Phase::Draining { intent };
                 }
                 self.pump(ctx);
             }
-            ClientMessage::Loaded { id, transfer } => {
-                if matches!(self.phase, Phase::Switching { .. }) && transfer != Some(self.serial) {
-                    return;
-                }
+            ClientMessage::Loaded { id } => {
                 if self.document.as_ref().is_some_and(|d| d.id == id) {
-                    self.web_loaded = Some(id);
-                    if matches!(self.phase, Phase::Switching { .. }) {
-                        self.phase = Phase::Idle;
-                        self.error = None;
-                        self.thaw();
-                    }
                     self.pump(ctx);
                 }
             }
@@ -399,8 +328,6 @@ impl Documents {
                 }
             }
             ClientMessage::Fault { message } => {
-                #[cfg(feature = "webview-smoke")]
-                eprintln!("Editor fault: {message}");
                 let message = crate::localization::tf(
                     "native.editor.fault",
                     &[(
@@ -422,10 +349,6 @@ impl Documents {
         self.outgoing.push(json!({"kind":"thaw"}));
     }
     fn fail(&mut self, message: String) {
-        if let Phase::Switching { from, .. } = self.phase {
-            self.provider = from;
-            self.outgoing.clear();
-        }
         self.error = Some(message);
         self.phase = Phase::Idle;
         self.autosave_request = None;
@@ -485,10 +408,6 @@ impl Documents {
                 });
             }
             Intent::OpenFile(_) | Intent::Reload => {
-                if !self.ready {
-                    self.fail(crate::localization::t("native.editor.notReadyRetry").into());
-                    return;
-                }
                 let Some(ws) = self.workspace.clone() else {
                     self.fail(crate::localization::t("native.editor.fixtureReadonly").into());
                     return;
@@ -515,7 +434,6 @@ impl Documents {
                 self.revision = 0;
                 self.phase = Phase::Idle;
                 self.session = None;
-                self.web_loaded = None;
                 self.show_document();
                 self.status = "Select a text file".into();
             }
@@ -526,10 +444,6 @@ impl Documents {
             Intent::Save => {
                 self.phase = Phase::Idle;
                 self.thaw();
-            }
-            Intent::SwitchEditor(provider) => {
-                self.provider = provider;
-                self.phase = Phase::Idle;
             }
         }
     }
@@ -557,14 +471,13 @@ impl Documents {
             self.revision,
             self.dirty,
             self.busy(),
-            self.provider,
             self.status.clone(),
             self.error.clone(),
         )
     }
     pub fn poll(&mut self, ctx: &Wake) {
         self.ensure_session();
-        if matches!(&self.phase, Phase::Switching { since, .. } | Phase::Snapshot { since, .. } if since.elapsed() > Duration::from_secs(5))
+        if matches!(&self.phase, Phase::Snapshot { since, .. } if since.elapsed() > Duration::from_secs(5))
         {
             self.fail(crate::localization::t("native.editor.noAck").into());
         }
@@ -586,7 +499,6 @@ impl Documents {
                     self.dirty = false;
                     self.revision = 0;
                     self.folder_busy = false;
-                    self.web_loaded = None;
                     self.tree_update = Some(rows);
                     self.phase = Phase::Idle;
                     self.error = None;
@@ -600,7 +512,6 @@ impl Documents {
                     self.revision = 0;
                     self.phase = Phase::Idle;
                     self.error = None;
-                    self.web_loaded = None;
                     self.ensure_session();
                     self.status = "Opened".into();
                     self.show_document();
@@ -681,7 +592,7 @@ impl Documents {
             }
         }
         self.pump(ctx);
-        if matches!(self.phase, Phase::Idle) && self.ready {
+        if matches!(self.phase, Phase::Idle) {
             if self.autosave_request.is_none()
                 && let Some(s) = &mut self.session
                 && s.needs_snapshot

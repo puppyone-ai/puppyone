@@ -201,7 +201,7 @@ impl EditorElement {
                 settled = false;
             }
         });
-        #[cfg(feature = "webview-smoke")]
+        #[cfg(feature = "dev-capture")]
         if settled
             && let Some(path) = std::env::var_os("PUPPYONE_EDITOR_GEOMETRY")
         {

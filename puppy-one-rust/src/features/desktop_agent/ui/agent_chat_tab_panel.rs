@@ -15,7 +15,7 @@ mod agent_surface_header;
 pub use agent_surface_header::AgentChatEvent;
 #[path = "agent_transcript.rs"]
 mod agent_transcript;
-#[cfg(feature = "webview-smoke")]
+#[cfg(feature = "dev-capture")]
 #[path = "visual_fixture.rs"]
 mod visual_fixture;
 use super::super::{

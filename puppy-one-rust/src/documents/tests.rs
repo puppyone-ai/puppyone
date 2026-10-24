@@ -10,7 +10,6 @@ fn setup() -> (TempDir, Documents, Wake) {
     let d = Documents {
         workspace: Some(ws),
         document: Some(doc),
-        ready: true,
         ..Default::default()
     };
     (temp, d, Wake::default())
@@ -49,9 +48,8 @@ fn wait(d: &mut Documents, ctx: &Wake) {
 }
 #[test]
 fn local_edit_automatically_snapshots_without_freezing_and_writes_real_file() {
-    for provider in [EditorProvider::Native, EditorProvider::Web] {
+    {
         let (temp, mut d, ctx) = setup();
-        d.provider = provider;
         d.client(
             ClientMessage::Dirty {
                 id: d.document.as_ref().unwrap().id.clone(),
@@ -201,65 +199,6 @@ fn read_started_before_save_receipt_cannot_restore_old_content() {
     .unwrap();
     d.poll(&ctx);
     assert_eq!(d.document.as_ref().unwrap().text, "latest");
-}
-#[test]
-fn provider_handoff_preserves_buffer_and_uses_the_same_autosave_session() {
-    let (temp, mut d, ctx) = setup();
-    d.begin(Intent::SwitchEditor(EditorProvider::Native), &ctx);
-    snapshot(&mut d, &ctx, "shared input");
-    assert_eq!(d.provider, EditorProvider::Native);
-    let id = d.document.as_ref().unwrap().id.clone();
-    assert!(d.outgoing.iter().any(|m| m["kind"] == "open"
-        && m["text"] == "shared input"
-        && m["baseline"] == "original"));
-    d.client_from(
-        EditorProvider::Web,
-        ClientMessage::Dirty {
-            id: id.clone(),
-            revision: 999,
-            dirty: false,
-        },
-        &ctx,
-    );
-    assert_eq!(d.revision, 1);
-    d.client(
-        ClientMessage::Loaded {
-            id: id.clone(),
-            transfer: None,
-        },
-        &ctx,
-    );
-    assert!(d.busy());
-    d.client(
-        ClientMessage::Loaded {
-            id,
-            transfer: Some(d.serial),
-        },
-        &ctx,
-    );
-    wait(&mut d, &ctx);
-    assert!(!d.dirty);
-    assert_eq!(
-        std::fs::read_to_string(temp.path().join("a.md")).unwrap(),
-        "shared input"
-    );
-}
-#[test]
-fn failed_handoff_returns_to_previous_surface() {
-    let (_temp, mut d, ctx) = setup();
-    d.provider = EditorProvider::Native;
-    d.begin(Intent::SwitchEditor(EditorProvider::Web), &ctx);
-    snapshot(&mut d, &ctx, "mine");
-    d.client(
-        ClientMessage::Fault {
-            message: "target unavailable".into(),
-        },
-        &ctx,
-    );
-    assert_eq!(d.provider, EditorProvider::Native);
-    assert!(!d.busy());
-    assert!(d.error.is_some());
-    assert_eq!(d.outgoing.last().unwrap()["kind"], "thaw");
 }
 #[test]
 fn switch_file_automatically_drains_then_ignores_previous_document_events() {

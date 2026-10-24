@@ -15,7 +15,6 @@ parser.add_argument('--qa-root', type=Path, help='Existing disposable workspace 
 parser.add_argument('--preview-root', type=Path, help='Existing disposable workspace for a separate continuous-editor preview; leaves the running QA app untouched')
 parser.add_argument('--kit-preview-root', type=Path, help='Package only a new GPUI Kit preview with a separate bundle identity and data directory')
 parser.add_argument('--kit-preview-name', default='PuppyOne GPUI Kit Preview', help='Distinct app name when preserving an already-running Kit preview')
-parser.add_argument('--qa-editor', choices=['web', 'native'], default='web', help='Initial editor in the isolated QA app')
 args = parser.parse_args()
 root = Path(__file__).resolve().parents[1]
 if args.kit_preview_root and (args.qa_root or args.preview_root):
@@ -81,7 +80,6 @@ def package(path, name, identifier, environment=None):
         (root / 'README.md', 'README.md'),
         (root / 'THIRD_PARTY.md', 'THIRD_PARTY.md'),
         (root.parent / 'LICENSE', 'LICENSE'),
-        (root / 'editor/bundle/THIRD_PARTY.txt', 'EDITOR_THIRD_PARTY.txt'),
         (root / 'assets/OpenSans-OFL.txt', 'OpenSans-OFL.txt'),
         (root / 'assets/agents/lobe-icons-license.txt', 'AGENT_ICONS_LICENSE.txt'),
     ]:
@@ -102,7 +100,6 @@ if kit_root:
     package(app, args.kit_preview_name, f'local.puppyone.{kit_slug}', {
         'PUPPYONE_WORKSPACE': str(kit_root), 'PUPPYONE_FILE': 'note.md',
         'PUPPYONE_RUST_DATA_DIR': str(kit_root / '.puppyone-data'),
-        'PUPPYONE_EDITOR': 'native',
     })
 else:
     package(app, 'PuppyOne GPUI Workbench', 'local.puppyone.gpui-workbench')
@@ -111,14 +108,12 @@ if qa_root:
             'local.puppyone.workbench-qa', {
                 'PUPPYONE_WORKSPACE': str(qa_root), 'PUPPYONE_RIGHT': '1',
                 'PUPPYONE_RUST_DATA_DIR': str(qa_root / '.puppyone-data'),
-                'PUPPYONE_EDITOR': args.qa_editor,
             })
 preview = root / 'artifacts/PuppyOne Continuous Editor Preview.app'
 if preview_root:
     package(preview, 'PuppyOne Continuous Editor Preview', 'local.puppyone.continuous-editor-preview', {
         'PUPPYONE_WORKSPACE': str(preview_root),
         'PUPPYONE_RUST_DATA_DIR': str(preview_root / '.puppyone-data'),
-        'PUPPYONE_EDITOR': 'native',
     })
 expected = {'puppyone-native', 'handshakes', 'pty', 'codex', 'claude', 'cursor', 'pi'}
 scope = set(runtimes.get('scope', [c['name'] for c in runtimes['checks']]))
@@ -136,13 +131,11 @@ receipt = {
         'artifacts/agent-runtime-verification/pi-native-control.log',
     ],
     'guiVerified': False,
-    'guiStatus': 'Partial editor smoke only when listed in source verification; full workbench, OS IME and pixel parity are not certified.',
-    'editorGuiSmokePassed': any(c['name']=='gui-smoke' and c['exit']==0 for c in checks['checks']),
+    'guiStatus': 'No GUI smoke in source verification; native editors are covered by GPUI tests, while full workbench, OS IME and pixel parity are not certified.',
     'previewApp': str(app.relative_to(root)) if kit_root else str(preview.relative_to(root)) if preview_root else None,
-    'sourceStatus': 'Uncommitted codex/rust-shell-spike worktree',
+    'sourceStatus': 'puppyone-rust branch',
     'fullElectronParity': False,
-    'editorModes': ['web', 'native'],
-    'qaEditor': args.qa_editor if qa_root else None,
+    'editorModes': ['native'],
 }
 receipt_name = f'{kit_slug}-delivery.json' if custom_kit_name else 'kit-preview-delivery.json'
 (root / (f'artifacts/{receipt_name}' if kit_root else 'artifacts/workbench-delivery.json')).write_text(json.dumps(receipt, indent=2) + '\n')
