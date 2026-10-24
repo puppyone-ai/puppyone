@@ -32,6 +32,7 @@ impl Workbench {
             let chat_scenario = if scenario == "tabs-narrow"
                 || scenario.starts_with("drag-")
                 || scenario == "split"
+                || scenario == "close-dialog"
             {
                 "chat-empty"
             } else {
@@ -75,6 +76,7 @@ impl Workbench {
                         allowed: scenario == "drag-split",
                     });
                 }
+                "close-dialog" => self.request_close_confirmation(chat, cx),
                 "split" => {
                     project
                         .layout

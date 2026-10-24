@@ -753,7 +753,8 @@ impl Shell {
                 }
             }
         }
-        let modal = self.modal();
+        // The workbench close dialog is window-level too.
+        let modal = self.modal() || self.workbench.read(cx).dialog_open();
         let home = self.home_visible();
         self.native.update(cx, |s, cx| {
             s.gate(modal || home || self.files.busy(), self.dark, cx)

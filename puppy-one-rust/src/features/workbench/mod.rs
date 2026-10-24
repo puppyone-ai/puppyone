@@ -1,4 +1,5 @@
 mod auxiliary_workbench_launcher;
+mod close_dialog;
 mod drag;
 mod header;
 mod header_layout;
@@ -110,6 +111,12 @@ pub struct Workbench {
     pub dark: bool,
     chat_mode: bool,
     confirm: Option<Id>,
+    /// Close dialog keyboard state: focused action (0 Cancel, 1 confirm),
+    /// whether it was reached by keyboard, and a pending initial focus.
+    close_focus: FocusHandle,
+    close_choice: usize,
+    close_keyboard: bool,
+    close_focus_pending: bool,
     bounds: HashMap<Id, Bounds<Pixels>>,
     drag_split: Option<(Id, Axis, Bounds<Pixels>)>,
     overflow: Option<Id>,
@@ -171,6 +178,10 @@ impl Workbench {
             dark: true,
             chat_mode: true,
             confirm: None,
+            close_focus: cx.focus_handle(),
+            close_choice: 0,
+            close_keyboard: false,
+            close_focus_pending: false,
             bounds: HashMap::new(),
             drag_split: None,
             overflow: None,
@@ -454,8 +465,7 @@ impl Workbench {
                 .and_then(|p| p.content.get(&id))
                 .is_some_and(|c| c.busy(cx))
         {
-            self.confirm = Some(id);
-            cx.notify();
+            self.request_close_confirmation(id, cx);
             return;
         }
         if let Some(p) = self.project_mut() {
@@ -611,46 +621,6 @@ impl Workbench {
             .child(header);
         if let Some(menu) = self.render_overflow_menu(id, width, cx) {
             group = group.child(menu);
-        }
-        if let Some(tab) = self.confirm.filter(|tab| g.tabs.contains(tab)) {
-            group = group.child(
-                column()
-                    .p(px(12.))
-                    .gap(px(8.))
-                    .bg(t.overlay)
-                    .child(crate::localization::t("native.workbench.stopTitle"))
-                    .child(
-                        row()
-                            .gap(px(6.))
-                            .child(
-                                crate::ui::action_button(
-                                    ("confirm-close", id),
-                                    crate::localization::t("native.workbench.stopConfirm"),
-                                    None,
-                                    crate::ui::Tone::Danger,
-                                    false,
-                                    t,
-                                )
-                                .on_click(cx.listener(move |s, _, _, cx| s.close(tab, true, cx))),
-                            )
-                            .child(
-                                crate::ui::action_button(
-                                    ("cancel-close", id),
-                                    crate::localization::t("agent.closeDialog.keepOpen"),
-                                    None,
-                                    crate::ui::Tone::Default,
-                                    false,
-                                    t,
-                                )
-                                .on_click(cx.listener(
-                                    |s, _, _, cx| {
-                                        s.confirm = None;
-                                        cx.notify();
-                                    },
-                                )),
-                            ),
-                    ),
-            );
         }
         let entity = cx.entity();
         group
@@ -956,9 +926,19 @@ impl Workbench {
     }
 }
 impl Render for Workbench {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let t = Theme::new(self.dark);
         self.persist(cx);
+        // The close dialog follows its item: a vanished item takes it down.
+        if let Some(tab) = self.confirm
+            && self.close_copy(tab, cx).is_none()
+        {
+            self.confirm = None;
+        }
+        if std::mem::take(&mut self.close_focus_pending) && self.confirm.is_some() {
+            self.close_focus.focus(window, cx);
+        }
+        let close_dialog = self.render_close_dialog(window, cx);
         let loading = self.project().is_some_and(|p| p.loading);
         let error = self.project().and_then(|p| p.storage_error.clone());
         let tree = self.project().map(|p| p.layout.tree.clone());
@@ -1017,6 +997,7 @@ impl Render for Workbench {
             .on_mouse_up(MouseButton::Left, cx.listener(|s, _, _, cx| s.end_drag(cx)))
             // A tab released over the sidebar or editor still ends the move.
             .on_mouse_up_out(MouseButton::Left, cx.listener(|s, _, _, cx| s.end_drag(cx)))
+            .children(close_dialog)
             .child(
                 column()
                     .size_full()

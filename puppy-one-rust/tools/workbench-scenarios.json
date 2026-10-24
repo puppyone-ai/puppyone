@@ -8,6 +8,7 @@
     {"scenario": "chat-running", "width": 420, "height": 860},
     {"scenario": "chat-approval", "width": 420, "height": 860},
     {"scenario": "chat-question", "width": 420, "height": 860},
+    {"scenario": "close-dialog", "width": 420, "height": 760, "click": ".desktop-terminal-tab.is-active .desktop-terminal-tab-close"},
     {"scenario": "tabs-narrow", "width": 300, "height": 400}
   ]
 }

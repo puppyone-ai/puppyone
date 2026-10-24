@@ -56,6 +56,7 @@ embedded! {
     "icons" / "copy.svg",
     "icons" / "copy-plus.svg",
     "icons" / "credit-card.svg",
+    "icons" / "dialog-close.svg",
     "icons" / "download.svg",
     "icons" / "editor-mode-edit.svg",
     "icons" / "editor-mode-preview.svg",

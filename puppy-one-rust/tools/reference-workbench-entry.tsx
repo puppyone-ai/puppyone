@@ -25,6 +25,7 @@ import { AgentEmptyState } from "PRODUCT/src/features/desktop-agent/ui/AgentEmpt
 import { AgentApprovalDock } from "PRODUCT/src/features/desktop-agent/ui/AgentApprovalDock";
 import { AgentQuestionDock } from "PRODUCT/src/features/desktop-agent/ui/AgentQuestionDock";
 import { createEmptyAgentDisplay } from "PRODUCT/shared/agent-contract/display-state.mjs";
+import { createAgentChatCloseAdapter } from "PRODUCT/src/features/desktop-agent/workbench/agentChatCloseAdapter";
 import { TerminalSessionHeaderStatus } from "PRODUCT/src/features/desktop-terminal/ui/session-header/TerminalSessionHeaderStatus";
 import "PRODUCT/src/features/desktop-agent/ui/desktop-agent.css";
 import "PRODUCT/src/features/desktop-terminal/ui/desktop-terminal.css";
@@ -136,7 +137,7 @@ const COMPLETED_TURNS: Turn[] = [
 ];
 
 function projectionFor(id: string) {
-  if (id === "chat-empty" || id === "tabs-narrow") return createEmptyAgentDisplay();
+  if (id === "chat-empty" || id === "tabs-narrow" || id === "close-dialog") return createEmptyAgentDisplay();
   if (id === "chat-transcript" || id === "chat-tool-expanded") return display(transcriptParts(false), COMPLETED_TURNS, null);
   // Running: turn 2 is still working, its tools are live and no summary exists.
   const parts = transcriptParts(true).filter((part) => part.id !== "assistant:2");
@@ -165,15 +166,17 @@ const CONTROLS = [
   { id: "mode", value: "code", options: [{ value: "code", label: "Code" }, { value: "plan", label: "Plan" }] },
 ] as const;
 
+function translate(key: string, values?: Record<string, unknown>) {
+  const message = window.__catalogs[fixture.locale]?.[key] ?? key;
+  return message.replace(/\{(\w+)\}/gu, (_match, name) => String(values?.[name] ?? ""));
+}
+
 function FixtureChat() {
-  const t = (key: string, values?: Record<string, unknown>) => {
-    const message = window.__catalogs[fixture.locale]?.[key] ?? key;
-    return message.replace(/\{(\w+)\}/gu, (_match, name) => String(values?.[name] ?? ""));
-  };
+  const t = translate;
   const [draft, setDraft] = useState("");
   const projection = useMemo(() => projectionFor(scenario), []);
   const running = projection.runningTurnId !== null && projection.runningTurnId !== undefined;
-  const empty = scenario === "chat-empty" || scenario === "tabs-narrow";
+  const empty = scenario === "chat-empty" || scenario === "tabs-narrow" || scenario === "close-dialog";
   const approval = scenario === "chat-approval" ? APPROVAL : null;
   const question = scenario === "chat-question" ? QUESTION : null;
   return <AgentPanelLayout
@@ -211,7 +214,13 @@ function Fixture() {
       // The production chat contribution always offers History beside the launcher heading.
       history: { label: "History", iconKey: "history", renderBrowser: () => null },
       renderItem: () => <FixtureChat />,
-      close: { decide: () => ({ kind: "close" }), commit: async () => true },
+      // close-dialog: the chat is mid-turn, so closing asks first (`createAgentChatCloseAdapter`).
+      // The tab keeps its idle status so the backdrop covers the chat-empty frame.
+      close: scenario === "close-dialog"
+        ? { ...createAgentChatCloseAdapter(translate, async () => true),
+          decide: ({ snapshot }: { snapshot: Record<string, unknown> }) =>
+            createAgentChatCloseAdapter(translate, async () => true).decide({ snapshot: { ...snapshot, running: true } } as never) }
+        : { decide: () => ({ kind: "close" }), commit: async () => true },
     };
     const terminal = {
       ...chat, kind: "terminal", label: "Terminal", createLabel: "Terminal",

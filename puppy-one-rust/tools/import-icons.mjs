@@ -33,6 +33,8 @@ await writeFile(path.join(root, 'assets/icons', 'editor-mode-preview.svg'), fram
 // an 11px ring with a 1.5px border whose top edge carries the current colour.
 await writeFile(path.join(root, 'assets/icons', 'spinner-track.svg'), `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="white" stroke-width="1.5"><circle cx="5.5" cy="5.5" r="4.75"/></svg>\n`);
 await writeFile(path.join(root, 'assets/icons', 'spinner-arc.svg'), `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="white" stroke-width="1.5"><path d="M2.141 2.141A4.75 4.75 0 0 1 8.859 2.141"/></svg>\n`);
+// DesktopDialogCloseButton: its own 16-unit cross, drawn into a 12px box.
+await writeFile(path.join(root, 'assets/icons', 'dialog-close.svg'), `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="white" stroke-width="1.75" stroke-linecap="round"><path d="M5 5L11 11M11 5L5 11"/></svg>\n`);
 // Product-owned AgentToolGlyph frames (src/features/desktop-agent/ui/activity/AgentToolGlyph.tsx):
 // 18-unit paths drawn at 16px with a non-scaling 1.8px stroke (2.025 units).
 {
