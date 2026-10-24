@@ -139,6 +139,24 @@ impl Shell {
             .w(px(metric::TITLEBAR_TOOL_ACTION_WIDTH))
             .on_click(cx.listener(|s, _, w, cx| s.command(Command::ToggleRightSidebar, w, cx)))
     }
+    /// `HomepageCloudStatus` signed out: "Sign in" (`.homepage-cloud-sign-in`).
+    /// Cloud sign-in is not native yet; it opens Account, which says so.
+    fn sign_in_action(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let ty = theme::ty().header;
+        Button::new("home-sign-in")
+            .variant(ButtonVariant::Titlebar)
+            .label(tr("cloud.auth.signIn"))
+            .accessibility_label(tr("cloud.auth.signInToCloud"))
+            .pr(px(8.))
+            .text_size(px(ty.content))
+            .line_height(px(ty.line_height))
+            .on_click(cx.listener(|s, _, w, cx| {
+                s.command(Command::Settings, w, cx);
+                s.task_ui.settings.update(cx, |settings, cx| {
+                    settings.select_page(crate::features::settings::Page::Account, cx)
+                });
+            }))
+    }
     /// `DesktopWorkspaceSwitcher` trigger + `DesktopProjectLocationSwitcher` trigger.
     fn project_context(&self, cx: &mut Context<Self>) -> Div {
         let label = tf(
@@ -237,6 +255,9 @@ impl Shell {
         }
         if agent {
             actions = actions.child(self.agent_action(cx));
+        }
+        if home {
+            actions = actions.child(self.sign_in_action(cx));
         }
         let mut bar = at(r)
             .flex()

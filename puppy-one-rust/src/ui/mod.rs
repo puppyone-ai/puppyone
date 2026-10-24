@@ -7,4 +7,6 @@ mod fractional_text;
 pub mod gallery;
 pub mod input;
 pub mod pulse_grid;
+mod tracked_text;
 pub use fractional_text::fractional_text;
+pub use tracked_text::tracked_text;

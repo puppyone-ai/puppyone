@@ -464,16 +464,27 @@
         "src/components/onboarding/HomeProjectIcon.tsx",
         "src/components/brand/PuppyBrandMark.tsx",
         "src/features/app-shell/workspaceHomeModel.ts",
-        "src/styles/onboarding.css"
+        "src/styles/onboarding.css",
+        "src/components/OnboardingProjectEntryDialog.tsx",
+        "src/styles/onboarding-entry-dialog.css"
       ],
       "targets": [
-        "src/shell/home.rs",
-        "assets/brand"
+        "src/shell/home/mod.rs",
+        "src/shell/home/create_project.rs",
+        "src/platform/project_activity.rs",
+        "assets/brand",
+        "assets/integrations"
       ],
       "evidence": [
-        "test:project_menu_home_shows_the_homepage_and_hides_the_editor"
+        "test:project_menu_home_shows_the_homepage_and_hides_the_editor",
+        "test:project_names_and_folders_display_like_the_product",
+        "test:modification_times_round_down_to_minutes_hours_and_days",
+        "test:project_names_follow_the_product_rules",
+        "test:a_blank_project_is_a_new_empty_folder",
+        "test:a_repository_counts_its_commit_and_its_changes",
+        "test:relative_past_follows_intl_relative_time_format"
       ],
-      "remaining": "Recent projects and Open Folder are native. Templates, cloud import and the onboarding telemetry disclosure are not ported."
+      "remaining": "Brand lockup, recent projects (sorted by last change, with folder, time and unlink), New empty project with its create dialog, Open a folder and Sign in are native. Import (Git clone, cloud sources) and template links are shown disabled; the onboarding telemetry disclosure is not ported."
     },
     {
       "name": "Explorer tree and file actions",

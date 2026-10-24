@@ -37,6 +37,11 @@ pub enum ButtonVariant {
     /// `.desktop-titlebar-action`: hover only adds the backplate; pressed or
     /// expanded wears the active fill.
     Titlebar,
+    /// `.onboarding-entry-action`: a quiet command laid out like a menu row
+    /// (32px, an 18px icon slot, body type).
+    Entry,
+    /// `.onboarding-entry-action-default`: the same, filled with the accent.
+    EntryPrimary,
     /// Dialog secondary action (`.desktop-dialog-button`).
     Secondary,
     /// Dialog primary action: the inverted text colour (`.desktop-dialog-button.primary`).
@@ -168,6 +173,27 @@ fn paint(variant: ButtonVariant, selected: bool, open: bool, disabled: bool, t: 
             fg: if selected || open { t.text } else { t.muted },
             hover_bg: if selected { t.selected } else { t.hover },
             hover_fg: t.text,
+        },
+        ButtonVariant::Entry | ButtonVariant::EntryPrimary if disabled => Paint {
+            border: Some(clear),
+            bg: clear,
+            fg: t.text_disabled,
+            hover_bg: clear,
+            hover_fg: t.text_disabled,
+        },
+        ButtonVariant::Entry => Paint {
+            border: Some(clear),
+            bg: clear,
+            fg: t.muted,
+            hover_bg: theme::alpha(t.text, 0.05),
+            hover_fg: t.muted,
+        },
+        ButtonVariant::EntryPrimary => Paint {
+            border: Some(t.accent),
+            bg: t.accent,
+            fg: t.text_inverse,
+            hover_bg: theme::mix(t.accent, t.canvas, 0.88),
+            hover_fg: t.text_inverse,
         },
         ButtonVariant::Titlebar if selected || open => Paint {
             border: None,
@@ -325,12 +351,16 @@ impl RenderOnce for Button {
             variant,
             ButtonVariant::Filled | ButtonVariant::FilledPrimary
         );
-        // Outline: 13px icon at stroke 2; filled Git actions: 15px at 2.25.
+        let entry = matches!(variant, ButtonVariant::Entry | ButtonVariant::EntryPrimary);
+        // Outline: 13px icon at stroke 2; filled Git actions: 15px at 2.25;
+        // entries: 14px at 1.85.
         let icon = self.icon.map(|icon| {
             if outlined {
                 icon.with_size(px(13.)).stroke(2.)
             } else if filled {
                 icon.with_size(px(15.)).stroke(2.25)
+            } else if entry {
+                icon.small().stroke(1.85)
             } else {
                 icon
             }
@@ -339,10 +369,23 @@ impl RenderOnce for Button {
         let (hover_bg, hover_fg) = (p.hover_bg, p.hover_fg);
         let group = hover_group(&self.id);
         let icon = icon.map(|icon| {
-            if disabled {
+            let icon = if disabled {
                 icon
             } else {
                 icon.group_hover_color(group.clone(), hover_fg)
+            };
+            // Entries keep the menu's 18px icon slot.
+            if entry {
+                div()
+                    .size(px(metric::MENU_ICON_SLOT))
+                    .flex_shrink_0()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(icon)
+                    .into_any_element()
+            } else {
+                icon.into_any_element()
             }
         });
         self.base
@@ -359,9 +402,10 @@ impl RenderOnce for Button {
             .gap(px(match variant {
                 ButtonVariant::FilledPrimary => 5.,
                 ButtonVariant::Filled => 4.,
+                ButtonVariant::Entry | ButtonVariant::EntryPrimary => metric::MENU_ITEM_GAP,
                 _ => 6.,
             }))
-            .h(height(if dialog && self.size == Size::Medium {
+            .h(height(if (dialog || entry) && self.size == Size::Medium {
                 Size::Large
             } else {
                 self.size
@@ -373,7 +417,8 @@ impl RenderOnce for Button {
             } else {
                 7.
             }))
-            .rounded(px(if outlined || dialog {
+            .when(entry, |b| b.justify_start())
+            .rounded(px(if outlined || dialog || entry {
                 metric::CONTROL_RADIUS
             } else {
                 metric::TOOLBAR_ACTION_RADIUS
@@ -381,14 +426,22 @@ impl RenderOnce for Button {
             .when_some(p.border, |b, border| b.border_1().border_color(border))
             .bg(p.bg)
             .text_color(p.fg)
+            // `.desktop-dialog-button`: `--po-text-size-interface`.
             .when(outlined || dialog, |b| {
-                b.text_size(px(theme::ty().ui.meta)).font_weight(
-                    if matches!(variant, ButtonVariant::Solid | ButtonVariant::SolidDanger) {
-                        FontWeight::SEMIBOLD
-                    } else {
-                        FontWeight::MEDIUM
-                    },
-                )
+                let ty = theme::ty().ui;
+                b.text_size(px(if dialog { ty.control } else { ty.meta }))
+                    .font_weight(
+                        if matches!(variant, ButtonVariant::Solid | ButtonVariant::SolidDanger) {
+                            FontWeight::SEMIBOLD
+                        } else {
+                            FontWeight::MEDIUM
+                        },
+                    )
+            })
+            .when(entry, |b| {
+                b.text_size(px(theme::ty().ui.body))
+                    .line_height(px(18.))
+                    .font_weight(FontWeight::MEDIUM)
             })
             // `GitOperationButton` sets the right-sidebar control type.
             .when(filled, |b| {
@@ -535,7 +588,12 @@ impl RenderOnce for IconButton {
         let t = cx.palette();
         let disabled = self.disabled;
         let (fg, hover_bg, hover_fg) = if self.danger {
-            (t.danger, theme::alpha(t.danger, 0.12), t.danger)
+            // A destructive control may rest quiet and turn red on hover.
+            (
+                self.color.map(Rgba::from).unwrap_or(t.danger),
+                theme::alpha(t.danger, 0.12),
+                t.danger,
+            )
         } else if self.selected {
             (t.text, t.selected, t.text)
         } else if self.open {

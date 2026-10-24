@@ -3,6 +3,7 @@ pub mod environment;
 pub mod git;
 pub mod ime;
 pub mod preference_storage;
+pub mod project_activity;
 pub mod process;
 pub mod terminal;
 pub mod text_rendering;

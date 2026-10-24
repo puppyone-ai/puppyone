@@ -55,6 +55,7 @@ pub struct Shell {
     recent_projects: Vec<crate::features::settings::preference_types::RecentProject>,
     weak: WeakEntity<Shell>,
     explorer: Explorer,
+    homepage: home::Homepage,
     create_entry:
         Option<Entity<crate::features::create_new::create_entry_dialog::CreateEntryDialog>>,
     task_ui: TaskUi,
@@ -191,6 +192,7 @@ impl Shell {
             recent_projects: vec![],
             weak: cx.weak_entity(),
             explorer: Explorer::new(cx),
+            homepage: Default::default(),
             create_entry: None,
             task_ui: TaskUi::new(preferences.clone(), window, cx),
             preferences,
@@ -403,6 +405,7 @@ impl Shell {
     }
     fn modal(&self) -> bool {
         self.explorer.rename.is_some()
+            || self.homepage.create.is_some()
             || self.create_entry.is_some()
             || self.settings
             || self.help
@@ -567,6 +570,9 @@ impl Shell {
             Command::Escape => {
                 if self.explorer.rename.is_some() {
                     self.cancel_rename(window, cx);
+                } else if self.homepage.create.is_some() {
+                    self.homepage.create = None;
+                    self.focus.focus(window, cx);
                 } else if self.explorer.menu.is_some() {
                     self.explorer.menu = None;
                 } else if self.popover.is_some() {
@@ -935,6 +941,7 @@ impl Render for Shell {
         }
         self.sync_editor(window, cx);
         self.advance_tree_motion(window, cx);
+        self.refresh_home_activity(cx);
         #[cfg(feature = "dev-capture")]
         let scenario_done = self.advance_capture_scenario(window, cx);
         #[cfg(not(feature = "dev-capture"))]
@@ -1033,6 +1040,7 @@ impl Render for Shell {
             root = root.child(self.sash(false, cx));
         }
         root = root.children(self.rename_dialog(cx));
+        root = root.children(self.create_project_dialog(cx));
         if self.create_entry.is_some() {
             root = root.child(self.create_entry_view(w, h, cx));
         }

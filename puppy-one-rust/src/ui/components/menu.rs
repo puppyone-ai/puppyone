@@ -29,6 +29,10 @@ pub enum MenuVariant {
     SidebarLauncher,
     /// `.desktop-project-menu` under the Header.
     Project,
+    /// `.onboarding-project-row`: a homepage project row, outside any
+    /// surface ([`MenuRow`]): body type, a medium name, subtle detail and
+    /// activity time.
+    Homepage,
 }
 /// Resolved metrics of a menu variant.
 #[derive(Clone, Copy, Debug)]
@@ -44,11 +48,45 @@ struct MenuStyle {
     item_radius: f32,
     hide_separators: bool,
     icon_opacity: f32,
-    trailing_inherits: bool,
+    trailing: Trailing,
+    label_weight: FontWeight,
+    /// The name's largest share of the row (the detail takes the rest).
+    label_share: Option<f32>,
+    /// Where a hover-only end control sits.
+    hover_trailing_inset: f32,
+}
+/// How trailing text (shortcuts, times) is painted.
+#[derive(Clone, Copy, Debug)]
+enum Trailing {
+    /// `--po-text-disabled` (shortcuts).
+    Disabled,
+    /// The row's own colour.
+    Inherit,
+    /// `--po-text-subtle`, medium weight (homepage activity).
+    Subtle,
 }
 impl MenuVariant {
     fn style(self) -> MenuStyle {
         let m = theme::ty();
+        if self == Self::Homepage {
+            return MenuStyle {
+                font: m.ui.body,
+                line_height: 18.,
+                meta: m.ui.meta,
+                meta_line_height: 18.,
+                padding: 0.,
+                item_height: theme::control(),
+                item_padding: metric::MENU_ITEM_PADDING_INLINE,
+                item_gap: metric::MENU_ITEM_GAP,
+                item_radius: metric::CONTROL_RADIUS,
+                hide_separators: false,
+                icon_opacity: 1.,
+                trailing: Trailing::Subtle,
+                label_weight: FontWeight::MEDIUM,
+                label_share: Some(0.65),
+                hover_trailing_inset: 6.,
+            };
+        }
         let sidebar = !matches!(self, Self::Default);
         MenuStyle {
             font: if sidebar {
@@ -78,7 +116,14 @@ impl MenuVariant {
             item_radius: metric::CONTROL_RADIUS,
             hide_separators: self == Self::SidebarLauncher,
             icon_opacity: if self == Self::Project { 1. } else { 0.82 },
-            trailing_inherits: self == Self::Project,
+            trailing: if self == Self::Project {
+                Trailing::Inherit
+            } else {
+                Trailing::Disabled
+            },
+            label_weight: FontWeight::NORMAL,
+            label_share: None,
+            hover_trailing_inset: metric::MENU_ITEM_PADDING_INLINE,
         }
     }
     /// The surface's elevation (`--po-elevation-*`), for surfaces that
@@ -110,6 +155,7 @@ impl MenuVariant {
                 shadow(theme::alpha(t.shadow, 0.45), 2., 4., 0.),
                 shadow(theme::alpha(t.shadow, 0.65), 6., 16., -4.),
             ],
+            Self::Homepage => vec![],
         }
     }
 }
@@ -121,6 +167,7 @@ pub struct MenuItem {
     glyph: Option<AnyElement>,
     detail: Option<SharedString>,
     shortcut: Option<SharedString>,
+    trailing_text: Option<SharedString>,
     trailing: Option<AnyElement>,
     hover_trailing: Option<AnyElement>,
     selected: bool,
@@ -138,6 +185,7 @@ impl MenuItem {
             glyph: None,
             detail: None,
             shortcut: None,
+            trailing_text: None,
             trailing: None,
             hover_trailing: None,
             selected: false,
@@ -169,6 +217,11 @@ impl MenuItem {
     /// Keyboard shortcut hint (`⌘C`).
     pub fn shortcut(mut self, text: impl Into<SharedString>) -> Self {
         self.shortcut = Some(text.into());
+        self
+    }
+    /// A note at the row end (`.desktop-menu-item-trailing`: an activity time).
+    pub fn trailing_text(mut self, text: impl Into<SharedString>) -> Self {
+        self.trailing_text = Some(text.into());
         self
     }
     pub fn trailing(mut self, element: impl IntoElement) -> Self {
@@ -406,10 +459,10 @@ fn row(
     } else {
         t.hover
     };
-    let trailing_fg = if s.trailing_inherits {
-        resting
-    } else {
-        t.text_disabled
+    let trailing_fg = match s.trailing {
+        Trailing::Inherit => resting,
+        Trailing::Disabled => t.text_disabled,
+        Trailing::Subtle => t.subtle,
     };
     let has_hover_trailing = item.hover_trailing.is_some();
     let submenu = item.submenu.clone();
@@ -466,7 +519,16 @@ fn row(
                 .min_w_0()
                 .items_baseline()
                 .gap(px(7.))
-                .child(div().min_w_0().truncate().child(item.label))
+                .child(
+                    div()
+                        .min_w_0()
+                        .truncate()
+                        .font_weight(s.label_weight)
+                        .when_some(s.label_share, |d, share| {
+                            d.flex_none().max_w(relative(share))
+                        })
+                        .child(item.label),
+                )
                 .children(item.detail.map(|detail| {
                     div()
                         .flex_1()
@@ -482,6 +544,19 @@ fn row(
                 .flex_shrink_0()
                 .text_size(px(s.meta))
                 .text_color(trailing_fg)
+                .child(text)
+        }))
+        .children(item.trailing_text.map(|text| {
+            div()
+                .flex_shrink_0()
+                .max_w(px(112.))
+                .truncate()
+                .text_size(px(s.meta))
+                .font_weight(FontWeight::MEDIUM)
+                .text_color(trailing_fg)
+                .when(has_hover_trailing, |d| {
+                    d.group_hover(group.clone(), |s| s.invisible())
+                })
                 .child(text)
         }))
         .children(item.trailing.map(|element| {
@@ -500,7 +575,7 @@ fn row(
                 .absolute()
                 .top_0()
                 .bottom_0()
-                .right(px(s.item_padding))
+                .right(px(s.hover_trailing_inset))
                 .flex()
                 .items_center()
                 .invisible()
@@ -632,6 +707,32 @@ impl RenderOnce for SubmenuRow {
             );
         }
         row
+    }
+}
+/// One [`MenuItem`] on its own, outside a [`Menu`] surface
+/// (`DesktopMenuItem` where a page lists rows, such as the homepage).
+#[derive(IntoElement)]
+pub struct MenuRow {
+    id: ElementId,
+    item: MenuItem,
+    variant: MenuVariant,
+}
+impl MenuRow {
+    pub fn new(id: impl Into<ElementId>, item: MenuItem) -> Self {
+        Self {
+            id: id.into(),
+            item,
+            variant: MenuVariant::Default,
+        }
+    }
+    pub fn variant(mut self, variant: MenuVariant) -> Self {
+        self.variant = variant;
+        self
+    }
+}
+impl RenderOnce for MenuRow {
+    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+        row(self.id, self.item, self.variant.style(), cx.palette(), None)
     }
 }
 /// A stable id for a named part of an element.

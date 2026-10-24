@@ -19,7 +19,7 @@ catalogs = {}
 for descriptor in locales:
     locale = descriptor['locale']
     catalogs[locale] = {}
-    for namespace in ['settings', 'shell', 'common', 'workspace', 'agent', 'updates', 'terminal', 'source-control', 'shared-ui', 'onboarding', 'editor']:
+    for namespace in ['settings', 'shell', 'common', 'workspace', 'agent', 'updates', 'terminal', 'source-control', 'shared-ui', 'onboarding', 'editor', 'cloud']:
         source = repo / f'locales/renderer/{locale}/{namespace}.json'
         inputs.append(source)
         catalogs[locale].update({f'{namespace}.{k}': v for k, v in json.loads(source.read_text()).items()})

@@ -307,8 +307,103 @@ fn branches(options: &str) -> Vec<(String, String)> {
     result
 }
 
+/// A unit of [`relative_past`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TimeUnit {
+    Minute,
+    Hour,
+    Day,
+}
+/// `Intl.RelativeTimeFormat(locale, { numeric: "always" }).format(-n, unit)`
+/// in the current locale: "2 minutes ago", "2分钟前", "vor 2 Minuten".
+pub fn relative_past(n: i64, unit: TimeUnit) -> String {
+    let code = CURRENT.with(|c| c.borrow().clone());
+    relative_past_in(&code, n, unit)
+}
+fn relative_past_in(code: &str, n: i64, unit: TimeUnit) -> String {
+    use TimeUnit::*;
+    let one = plural_category(code, n) == "one";
+    let pick = |singular: &'static str, plural: &'static str| if one { singular } else { plural };
+    match code {
+        "zh-Hans" => format!(
+            "{n}{}前",
+            match unit {
+                Minute => "分钟",
+                Hour => "小时",
+                Day => "天",
+            }
+        ),
+        "ja" => format!(
+            "{n} {}前",
+            match unit {
+                Minute => "分",
+                Hour => "時間",
+                Day => "日",
+            }
+        ),
+        "ko" => format!(
+            "{n}{} 전",
+            match unit {
+                Minute => "분",
+                Hour => "시간",
+                Day => "일",
+            }
+        ),
+        "de" => format!(
+            "vor {n} {}",
+            match unit {
+                Minute => pick("Minute", "Minuten"),
+                Hour => pick("Stunde", "Stunden"),
+                Day => pick("Tag", "Tagen"),
+            }
+        ),
+        "fr" => format!(
+            "il y a {n} {}",
+            match unit {
+                Minute => pick("minute", "minutes"),
+                Hour => pick("heure", "heures"),
+                Day => pick("jour", "jours"),
+            }
+        ),
+        "es" => format!(
+            "hace {n} {}",
+            match unit {
+                Minute => pick("minuto", "minutos"),
+                Hour => pick("hora", "horas"),
+                Day => pick("día", "días"),
+            }
+        ),
+        "pt-BR" => format!(
+            "há {n} {}",
+            match unit {
+                Minute => pick("minuto", "minutos"),
+                Hour => pick("hora", "horas"),
+                Day => pick("dia", "dias"),
+            }
+        ),
+        _ => format!(
+            "{n} {} ago",
+            match unit {
+                Minute => pick("minute", "minutes"),
+                Hour => pick("hour", "hours"),
+                Day => pick("day", "days"),
+            }
+        ),
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn relative_past_follows_intl_relative_time_format() {
+        use super::{TimeUnit::*, relative_past_in};
+        assert_eq!(relative_past_in("en", 1, Day), "1 day ago");
+        assert_eq!(relative_past_in("en", 2, Minute), "2 minutes ago");
+        assert_eq!(relative_past_in("zh-Hans", 3, Hour), "3小时前");
+        assert_eq!(relative_past_in("de", 1, Day), "vor 1 Tag");
+        assert_eq!(relative_past_in("fr", 1, Minute), "il y a 1 minute");
+        assert_eq!(relative_past_in("ja", 5, Day), "5 日前");
+    }
     use super::*;
     #[test]
     fn languages_come_from_product_and_invalid_updates_keep_previous_state() {

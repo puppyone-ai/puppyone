@@ -62,7 +62,13 @@
 - [~] P1-7 "New" 是列表末尾的一行；加载/空状态行已做。文件夹读取失败时，错误和"重试"显示在该文件夹行尾（Web 是文件夹下方单独一行）。证据：`failed_folder_read_stays_on_its_row_until_a_retry_succeeds`
 - [x] P1-8 底部栏与产品一致：只有 Settings + Help（产品 `useWorkspaceSurfaceContent` 把 `git` 从底部导航过滤掉，Changes 在 Header）；无分割线，树在仍有下方行时以 18px 渐隐过渡到底部栏（`useScrollEdgeState`）；高度 = control + 16 随文字尺度变化，按钮 control−4、图标 14px / 描边 1.65、utility 色（`mix(muted 80%, sidebar)`），Help 用产品自有 `FeedbackHelpIcon`。证据：`sidebar_footer_follows_the_navigation_height_formula`、`sidebar_tree_fade_follows_use_scroll_edge_state`、`sidebar_tree_fades_into_the_footer_only_while_rows_remain_below`。已知差异：忙碌时右侧的 pulse grid 是原生临时进度提示（产品用 `FloatingNoticeStack`，尚未移植）；Project Rail 打开时产品隐藏底部栏、把工具按钮移入 Rail，原生未移植
 - [~] P1-9 最近项目持久化；项目菜单（项目列表、打开文件夹、首页、移除）；Project Rail 列出项目。缺：Rail 上的重命名/取消关联（`ProjectRowActions`）。证据：`project_history_is_most_recent_first_and_bounded`
-- [x] P1-10 首页（Home）：最近项目 + 打开文件夹；品牌标记 28px，标题为 `text-muted`，深色下标记按产品 `grayscale(1) brightness(0.7)` 预烘焙（`brand/puppy-dark-onboarding.svg`）。已知差异：GPUI 无 letter-spacing（产品 −0.035em）
+- [x] P1-10 首页（`MinimalOnboarding` / `OnboardingHomeLayout` / `OnboardingProjectEntryDialog`，`src/shell/home/`）：
+  - 品牌标记 28px + 标题（`text-muted`，−0.035em 字距由 `ui::tracked_text` 逐字形绘制）；深色下标记按产品 `grayscale(1) brightness(0.7)` 预烘焙（`brand/puppy-dark-onboarding.svg`）。有项目时标题为「Which project…」，无项目时为「Start with your files…」且 New empty project 为主按钮
+  - 最近项目按最后修改时间排序（`readWorkspaceModifiedAt`：Git 提交时间 + 改动文件时间，非仓库扫描文件，超过 1024 项视为未知，后台线程读取，`src/platform/project_activity.rs`），每行显示上级目录（`~` 缩写）、相对时间（`Intl.RelativeTimeFormat` 规则，8 种语言）与悬停时的取消关联按钮（确认后移出列表）。行用 `MenuRow` + `MenuVariant::Homepage`
+  - New empty project 打开创建对话框：默认名「My project XXXX」、默认位置 `~/Documents/PuppyOne`、名称规则同 `requireProjectName`、可改位置、创建空文件夹后打开；Open a folder；Header 右侧 Sign in（打开 Settings → Account）
+  - 实测（1280×800，区域一致率，容差 8）：有项目深色 97.6% / 浅色 97.5%、空状态 99.2%、创建对话框 97.9%。剩余差异为亚像素字形位置与 Import
+  - 已知差异：Import（Git 克隆 / 云端来源）与模板链接以禁用态显示（悬停提示「not available」）；产品的首次启动遥测说明未移植
+  - 证据：`project_names_and_folders_display_like_the_product`、`modification_times_round_down_to_minutes_hours_and_days`、`project_names_follow_the_product_rules`、`a_blank_project_is_a_new_empty_folder`、`a_repository_counts_its_commit_and_its_changes`、`relative_past_follows_intl_relative_time_format`；截图场景步骤 `home` / `remember:` / `forget:` / `create-project:`
 
 ### Settings
 - [x] P1-11 Appearance：System/Light/Dark（带预览、跟随系统）、主题包、文件图标主题、Git 侧栏布局、加载动画、Header 元素、指针样式；主题包目录/添加、调色板、界面风格禁用展示

@@ -7,7 +7,10 @@
 //! `node-menu:<path>` (the row's "⋮"), `create-menu:<path>` (the row's "+"),
 //! `new-menu` (list-end "New"), `context:<x>,<y>` (right click),
 //! `submenu` (Custom files), `project-menu`, `location-menu`, `changes`,
-//! `agent`, `toggle-explorer`.
+//! `agent`, `toggle-explorer`, `home`, `remember:<absolute path>` and
+//! `forget:<absolute path>` (a recent project), `create-project:<name>`
+//! (the create dialog with a fixed name). The capture waits for the
+//! homepage's project activity.
 use super::*;
 use explorer::{MenuAt, RowTrigger};
 use std::collections::VecDeque;
@@ -17,6 +20,9 @@ enum Step {
     Select(PathBuf),
     Expand(PathBuf),
     Collapse(PathBuf),
+    Remember(PathBuf),
+    Forget(PathBuf),
+    CreateProject(String),
     Open(PathBuf),
     NodeMenu(PathBuf),
     CreateMenu(PathBuf),
@@ -36,6 +42,9 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "select" => Step::Select(path()),
                 "expand" => Step::Expand(path()),
                 "collapse" => Step::Collapse(path()),
+                "remember" => Step::Remember(path()),
+                "forget" => Step::Forget(path()),
+                "create-project" => Step::CreateProject(arg.to_string()),
                 "open" => Step::Open(path()),
                 "node-menu" => Step::NodeMenu(path()),
                 "create-menu" => Step::CreateMenu(path()),
@@ -50,6 +59,7 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "changes" => Step::Command(super::Command::Changes),
                 "agent" => Step::Command(super::Command::ToggleRightSidebar),
                 "toggle-explorer" => Step::Command(super::Command::ToggleExplorer),
+                "home" => Step::Command(super::Command::Home),
                 other => {
                     eprintln!("Unknown capture step {other:?}");
                     return None;
@@ -114,7 +124,7 @@ impl Shell {
             return false;
         }
         let Some(step) = scenario.steps.front().cloned() else {
-            return true;
+            return !self.homepage.reading || timed_out;
         };
         if !self.apply_capture_step(&step, window, cx) && !timed_out {
             // Wait for the state the step needs (a loaded folder, a painted row).
@@ -148,6 +158,24 @@ impl Shell {
                         self.files.load_children(path.clone(), &self.wake);
                     }
                     return false;
+                }
+            }
+            Step::Remember(path) => {
+                let path = path.clone();
+                self.preferences.update(cx, |p, cx| {
+                    p.change(|p| p.remember_project(&path, 1_792_800_000), cx)
+                });
+            }
+            Step::Forget(path) => {
+                let path = path.clone();
+                self.preferences
+                    .update(cx, |p, cx| p.change(|p| p.forget_project(&path), cx));
+            }
+            Step::CreateProject(name) => {
+                self.begin_create_project(window, cx);
+                if let Some(create) = &self.homepage.create {
+                    let name = name.clone();
+                    create.name.update(cx, |input, cx| input.set_text(name, cx));
                 }
             }
             Step::Collapse(path) => {

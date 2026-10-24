@@ -1,6 +1,6 @@
 //! `DesktopDialog` (`.desktop-dialog-surface`) on GPUI Kit's headless dialog,
 //! which owns centring, the focus trap, Escape, backdrop presses and layering.
-use super::{IconButton, menu::child_id};
+use super::{Icon, IconButton, menu::child_id};
 use crate::{theme, ui::appearance::ActiveAppearance};
 use gpui::{prelude::*, *};
 use gpui_kit::{
@@ -11,7 +11,7 @@ use std::rc::Rc;
 
 type Handler = Rc<dyn Fn(&mut Window, &mut App)>;
 
-/// A modal dialog: an optional title, a body, and footer
+/// A modal dialog: an optional leading glyph and title, a body, and footer
 /// actions. Escape, the close button and (unless `keep_on_backdrop`) a
 /// backdrop press call `on_close`; the owner removes the dialog.
 #[derive(IntoElement)]
@@ -19,6 +19,9 @@ pub struct Dialog {
     id: ElementId,
     width: Pixels,
     title: Option<SharedString>,
+    leading: Option<(Icon, Hsla)>,
+    inset: Option<f32>,
+    body_padding: (f32, f32),
     body: Vec<AnyElement>,
     footer: Vec<AnyElement>,
     on_close: Option<Handler>,
@@ -32,6 +35,9 @@ impl Dialog {
             id: id.into(),
             width: px(420.),
             title: None,
+            leading: None,
+            inset: None,
+            body_padding: (12., 18.),
             body: Vec::new(),
             footer: Vec::new(),
             on_close: None,
@@ -48,6 +54,23 @@ impl Dialog {
     }
     pub fn title(mut self, title: impl Into<SharedString>) -> Self {
         self.title = Some(title.into());
+        self
+    }
+    /// `.desktop-dialog-leading`: a 28px tile tinted with `tint` holding `icon`.
+    pub fn leading(mut self, icon: impl Into<Icon>, tint: impl Into<Hsla>) -> Self {
+        self.leading = Some((icon.into(), tint.into()));
+        self
+    }
+    /// One inset for the header, body and footer edges (the entry dialogs'
+    /// `--onboarding-entry-inset` / `--desktop-create-entry-inset`); the
+    /// header then keeps 10px below its title row.
+    pub fn inset(mut self, inset: f32) -> Self {
+        self.inset = Some(inset);
+        self
+    }
+    /// The body's top and bottom padding (12 / 18 by default).
+    pub fn body_padding(mut self, top: f32, bottom: f32) -> Self {
+        self.body_padding = (top, bottom);
         self
     }
     pub fn footer(mut self, action: impl IntoElement) -> Self {
@@ -90,36 +113,52 @@ impl RenderOnce for Dialog {
         let viewport = window.viewport_size();
         let close = self.on_close.clone();
         let cancel = close.clone();
-        let header =
-            (self.title.is_some() || close.is_some()).then(|| {
-                div()
-                    .flex()
-                    .flex_shrink_0()
-                    .items_start()
-                    .justify_between()
-                    .gap(px(16.))
-                    .pt(px(14.))
-                    .px(px(20.))
-                    .pb(px(8.))
-                    .child(div().flex().min_w_0().items_center().gap(px(10.)).children(
-                        self.title.map(|title| {
+        let header = (self.title.is_some() || close.is_some()).then(|| {
+            div()
+                .flex()
+                .flex_shrink_0()
+                .items_start()
+                .justify_between()
+                .gap(px(16.))
+                .pt(px(self.inset.unwrap_or(14.)))
+                .px(px(self.inset.unwrap_or(20.)))
+                .pb(px(if self.inset.is_some() { 10. } else { 8. }))
+                .child(
+                    div()
+                        .flex()
+                        .min_w_0()
+                        .items_center()
+                        .gap(px(10.))
+                        .children(self.leading.map(|(icon, tint)| {
                             div()
-                                .text_size(px(theme::ty().ui.meta))
+                                .flex()
+                                .flex_shrink_0()
+                                .size(px(28.))
+                                .items_center()
+                                .justify_center()
+                                .rounded(px(7.))
+                                .bg(tint.opacity(0.11))
+                                .child(icon.with_size(px(16.)).color(tint))
+                        }))
+                        // `--po-text-size-interface`.
+                        .children(self.title.map(|title| {
+                            div()
+                                .text_size(px(theme::ty().ui.label))
                                 .line_height(px(18.))
                                 .font_weight(FontWeight::MEDIUM)
                                 .text_color(t.muted)
                                 .child(title)
-                        }),
-                    ))
-                    .children(close.clone().map(|close| {
-                        IconButton::new(child_id(&self.id, "close"), "dialog-close")
-                            .label(crate::localization::t("common.action.close"))
-                            .no_tooltip()
-                            .with_size(px(24.))
-                            .color(t.subtle)
-                            .on_click(move |_, window, cx| close(window, cx))
-                    }))
-            });
+                        })),
+                )
+                .children(close.clone().map(|close| {
+                    IconButton::new(child_id(&self.id, "close"), "dialog-close")
+                        .label(crate::localization::t("common.action.close"))
+                        .no_tooltip()
+                        .with_size(px(24.))
+                        .color(t.subtle)
+                        .on_click(move |_, window, cx| close(window, cx))
+                }))
+        });
         let surface = div()
             .id(self.id.clone())
             .flex()
@@ -147,9 +186,9 @@ impl RenderOnce for Dialog {
                     .flex_col()
                     .gap(px(12.))
                     .overflow_y_scroll()
-                    .pt(px(12.))
-                    .px(px(24.))
-                    .pb(px(18.))
+                    .pt(px(self.body_padding.0))
+                    .px(px(self.inset.unwrap_or(24.)))
+                    .pb(px(self.body_padding.1))
                     .text_size(px(theme::ty().ui.meta))
                     .line_height(px(20.))
                     .text_color(t.muted)
@@ -163,8 +202,8 @@ impl RenderOnce for Dialog {
                         .items_center()
                         .justify_end()
                         .gap(px(10.))
-                        .px(px(20.))
-                        .pb(px(20.))
+                        .px(px(self.inset.unwrap_or(20.)))
+                        .pb(px(self.inset.unwrap_or(20.)))
                         .children(self.footer),
                 )
             })

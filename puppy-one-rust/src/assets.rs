@@ -180,6 +180,9 @@ embedded! {
     "brand" / "puppy-dark-onboarding.svg",
     "brand" / "puppy-dark.svg",
     "brand" / "puppy-lite.svg",
+    "integrations" / "github-inverse.svg",
+    "integrations" / "github.svg",
+    "integrations" / "gitlab.svg",
 }
 pub struct Assets;
 impl AssetSource for Assets {

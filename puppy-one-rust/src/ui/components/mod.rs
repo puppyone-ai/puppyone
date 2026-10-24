@@ -7,6 +7,7 @@
 //! [`Appearance`](crate::ui::appearance::Appearance). Feature code composes
 //! these; it does not draw controls of its own.
 mod button;
+mod checkbox;
 mod dialog;
 mod icon;
 pub(crate) mod menu;
@@ -19,9 +20,10 @@ mod spinner;
 mod switch;
 
 pub use button::{Button, ButtonVariant, IconButton};
+pub use checkbox::Checkbox;
 pub use dialog::Dialog;
 pub use icon::{FileIcon, Icon};
-pub use menu::{Menu, MenuItem, MenuVariant};
+pub use menu::{Menu, MenuItem, MenuRow, MenuVariant};
 pub use popover::{AnchoredMenu, PopoverMenu};
 pub use segmented::{Segment, SegmentLayout, SegmentedControl};
 pub use select::{Select, SelectOption};
