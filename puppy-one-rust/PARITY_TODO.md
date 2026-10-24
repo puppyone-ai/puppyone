@@ -78,6 +78,30 @@
 - [x] P1-19 Launcher：已安装组 + 内置组（Built-in Agent、Terminal）；重新扫描、History 按钮、错误/可用性状态；历史浏览器独立
 - [x] P1-20 模型配置入口跳转 Settings → Model Connections
 
+### 右侧栏像素级对齐（参考流水线：`tools/reference-workbench.mjs` 渲染真实 TS 组件，`tools/capture-workbench.py` 对比原生 lab）
+
+场景与当前一致率（容差 8，含 Chromium/CoreText 抗锯齿差）：
+
+| 场景 | 深色 | 浅色 | 覆盖内容 |
+| --- | --- | --- | --- |
+| launcher | 99.54% | 99.52% | 居中行、Tab 栏底色、扫描/History 按钮 |
+| chat-empty | 99.25% | 99.36% | 空态品牌标记、输入框、选择器 |
+| chat-references | 98.89% | 99.01% | 40px 图片卡、`@path` 提及 chip |
+| chat-picker | 99.02% | 99.13% | 选择器弹层（搜索、选中对勾） |
+| close-dialog | 98.99% | 97.81% | 关闭确认对话框（浅色差异主要是遮罩 `blur(2px)`） |
+| history-permission / history-list | 98.99% / 99.11% | 99.12% / 99.21% | 跨运行时历史浏览器 |
+| tabs-narrow | 98.11% | 98.32% | 窄宽度 Tab 布局 |
+| chat-transcript / tool-expanded / running / approval / question | 93.6–96.6% | 93.6–96.6% | 对话记录、工具 rail、审批/提问 dock |
+
+已完成：
+- [x] Tab 栏：产品几何（`header_layout`）、拖拽插入槽（虚线 accent / 拒绝时 danger）、源 Tab 0.56 透明度、拖拽 pill
+- [x] 分屏：内容区半区预览（拒绝时 135° 斜纹）、按条目最小尺寸校验（chat 280×260、终端 188×196）、1px 分隔线 + 8px 命中区、拖拽钳制、Alt+Shift+方向键移动到边缘
+- [x] 关闭确认：窗口级 380px `DesktopDialog`（chat/终端各自文案、Esc/背景点击关闭、初始焦点在取消）
+- [x] 终端 Tab：Agent CLI 活动网格（`TerminalActivityController`：700ms 输出静默、250ms resize 屏蔽、braille/Cursor 标题协议）
+- [x] 启动器：跨运行时 History 浏览器（权限门、合并排序、搜索、刷新、加载更多、已打开排除、来源提示）；容量不足时保留启动器并显示 `launchError`
+- [x] 输入框：图片附件架、`@path` 原子提及（空输入 Backspace 删除）、选择器弹层（>6 项搜索、无匹配、N/M 页脚、键盘导航）
+- [x] 对话记录：显示窗口截断提示（`AgentHistoryNotice`）、"Starting turn" 状态、空态 logo 悬停变色/按压 91%
+
 ## 4. P2 — 视觉与细节
 
 - [x] P2-1 Settings 视觉：侧栏通栏分隔线、组间距、行高、标签色 `text-subtle`、开关/分段/下拉样式（截图核对，无像素比对门禁）
@@ -90,7 +114,11 @@
 ## 5. 已知差异（有意保留）
 
 - Changes 面板只在打开的文件夹就是仓库根目录时管理 Git；Web 用 `--is-inside-work-tree`，子目录也会管理整个仓库。Rust 保留这条限制，避免暂存/丢弃波及授权文件夹以外的文件。Settings → Git 页只读，子目录也能显示仓库信息。
-- 终端 Tab 统一显示终端图标；Web 对在终端里运行的 Agent TUI 会显示活动网格，Rust 终端不记录启动器，未移植。
+- 右侧栏残余像素差（GPUI 能力边界）：行高/基线取整（≤2px 累积漂移）、无 `letter-spacing`（上下文分隔标签）、无 `backdrop-filter`（对话框遮罩模糊）、行内代码 chip 用占位字形近似、Mermaid 不渲染。
+- `@path` 提及：Kit 文本框不能承载行内组件，提及 chip 排在提示词首行开头，而非任意光标位置。
+- 历史日期按 en-US 格式（`Jan 15, 3:55 PM`）在本地时区显示；产品使用系统区域的 `Intl.DateTimeFormat`。
+- 聚焦分组的 1px 内阴影在产品中被不透明子层完全覆盖（参考图像素验证），不移植。
+- 拖拽 pill 的 `--po-surface` 在产品主题中未定义，产品实际为透明底；Rust 同样透明，且不画外阴影（GPUI 会把阴影画到透明主体下方）。
 
 ## 6. 验证
 
