@@ -678,7 +678,7 @@ impl EntityInputHandler for TerminalView {
     ) {
         // Function-key text is the key itself, replayed as its escape
         // sequence through key dispatch, never bytes for the shell.
-        if crate::platform::ime::intercept_function_key(text, window, cx) {
+        if crate::ui::ime::intercept_function_key(text, window, cx) {
             return;
         }
         self.marked.clear();
@@ -692,7 +692,7 @@ impl EntityInputHandler for TerminalView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if crate::platform::ime::intercept_function_key(text, window, cx) {
+        if crate::ui::ime::intercept_function_key(text, window, cx) {
             return;
         }
         self.marked = text.into();

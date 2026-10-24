@@ -131,6 +131,6 @@ impl EditorView {
         self.discard_requests += 1;
         // Outside the current update: the input method may call back into
         // the view while it discards.
-        cx.spawn(async move |_, _| crate::platform::ime::discard_marked_text()).detach();
+        cx.spawn(async move |_, _| crate::ui::ime::discard_marked_text()).detach();
     }
 }

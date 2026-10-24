@@ -5,6 +5,7 @@ pub mod form_input;
 mod fractional_text;
 #[cfg(feature = "dev-capture")]
 pub mod gallery;
+pub mod ime;
 pub mod input;
 pub mod pulse_grid;
 mod tracked_text;

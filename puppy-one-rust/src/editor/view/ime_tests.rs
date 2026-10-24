@@ -46,7 +46,7 @@ fn open<'a>(cx: &'a mut TestAppContext, format: Format, text: &str, caret: usize
     cx.update(|cx| {
         if cx.try_global::<gpui_kit::component::Theme>().is_none() {
             gpui_kit::init(cx);
-            crate::platform::ime::init(cx);
+            crate::ui::ime::init(cx);
         }
         cx.text_system().add_fonts(style::font_bytes()).unwrap();
         bind_keys(cx);

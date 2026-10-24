@@ -83,10 +83,14 @@ for retired in ["src/ui/primitives.rs", "src/ui/menu.rs", "src/ui/exact_text.rs"
     if (root / retired).exists():
         errors.append(f"{retired}: retired presentation helper remains; use ui::components")
 # Style system: `theme.rs` is the only colour source (projected from the
-# product theme packs and tokens.css); everything else reads `Theme` fields.
+# product theme packs and tokens.css) and `editor/tokens.rs` the editor's
+# (it parses and composites the product's computed editor tokens);
+# everything else reads `Theme` or token fields. Test fixtures may spell out
+# the colours they assert.
 colour_literal = re.compile(r"\b(?:rgb|rgba|hsla|hsl)\s*\(|\b(?:Rgba|Hsla)\s*\{\s*[rh]\s*:|\"#[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?\"")
+colour_sources = {root / 'src/theme.rs', root / 'src/editor/tokens.rs'}
 for path in (root / 'src').rglob('*.rs'):
-    if path == root / 'src/theme.rs':
+    if path in colour_sources or path.name == 'tests.rs' or path.name.endswith('_tests.rs'):
         continue
     for number, line in enumerate(path.read_text().splitlines(), 1):
         if colour_literal.search(line) and not line.lstrip().startswith('//'):

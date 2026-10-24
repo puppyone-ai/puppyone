@@ -274,7 +274,7 @@ CARGO_TARGET_DIR=../target cargo run --release --locked
 - `src/main.rs` / `shell.rs` / `theme.rs`：GPUI Application、entity、事件与布局。
 - `src/editor/`：原生文档编辑器（文本内核、视图、Markdown、CSV、表格、宿主协议），见其 `ARCHITECTURE.md`。
 - `src/ui/components/`：产品组件库；`src/ui/form_input.rs`：表单输入（Kit Input / Textarea 的薄适配）；`src/ui/input.rs`：共享的编辑动作与 Edit 菜单；`src/ui/appearance.rs`：当前外观（深浅色、主题包、字号）的全局状态。
-- `src/platform/ime.rs`：系统输入法补充（丢弃组字、过滤功能键字符）。
+- `src/ui/ime.rs`：系统输入法补充（丢弃组字、过滤功能键字符），所有文本输入共用。
 - `src/wake.rs`：后台 I/O 的有界唤醒；`src/capture.rs`：显式启用的 macOS 合成截图。
 - `src/shell/tasks.rs`：首批原生 Settings / Feedback；尚未通过完整像素验收。
 - `src/workspace.rs`：受限文件访问、编码和保存。

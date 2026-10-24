@@ -12,9 +12,9 @@
 //!   wins over both.
 //! - `unmark_text`: the marked text stays as typed.
 //! - Function-key text some input methods insert for arrows and the like
-//!   is not text: dropped, the key replayed (`platform::ime`).
+//!   is not text: dropped, the key replayed (`ui::ime`).
 use super::editor::EditorView;
-use crate::{editor::text::selection::Selection, platform::ime};
+use crate::{editor::text::selection::Selection, ui::ime};
 use gpui::*;
 use std::ops::Range;
 

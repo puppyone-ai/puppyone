@@ -125,7 +125,7 @@ product's default package (`externalViewerPacks: false`), packs are off
   - anything but the input method (dispatch of any other transaction, a
     click, a key handed back, focus loss, read-only) commits the marked text
     and asks the input method to discard its composition
-    (`platform/ime.rs`); replacing the document abandons it;
+    (`ui/ime.rs`); replacing the document abandons it;
   - an owner that drops an editor mid-composition commits it first and reads
     the result directly (CSV `flush_cell`): events are delivered after the
     current update.

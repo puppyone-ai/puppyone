@@ -27,7 +27,7 @@ impl TaskStyle {
             completed_decoration: t.color("--po-md-task-completed-decoration-color"),
             box_border: Rgba { a: text.a * 0.72, ..text },
             checked: t.color("--po-accent"),
-            check: Rgba { r: 1., g: 1., b: 1., a: 1. },
+            check: crate::theme::on_solid(),
             box_em: 1.05,
             hit: 24.,
             border_width: 1.5,

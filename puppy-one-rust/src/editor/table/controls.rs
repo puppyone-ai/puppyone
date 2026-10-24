@@ -102,7 +102,8 @@ pub fn grip(style: &EditableTableStyle, axis: Axis, id: SharedString, bounds: Bo
         Axis::Column => (22., 14.),
         Axis::Row => (14., 22.),
     };
-    let white = rgb(0xffffff);
+    // `.is-menu-active` / `.is-dragging`: white dots on the selection fill.
+    let white = crate::theme::on_solid();
     let (face, dots, hover) = if active { (style.selection_border, white, white) } else { (style.handle_background, style.handle_color, style.handle_hover_color) };
     let left = (bounds.size.width - w) / 2.;
     let top = (bounds.size.height - h) / 2.;
