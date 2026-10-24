@@ -121,6 +121,8 @@
   - Explorer：行 ⋮ / + 以按钮矩形为锚（下 4px / 6px），右键以指针为锚，"New" 菜单与行同宽右对齐；菜单打开时行保持 open 态（底色、按钮高亮、操作可见）；条目顺序同 `DesktopNodeActionMenu`（含 Change file type，粘贴项禁用而非隐藏）；Custom files 为悬停子菜单；行几何改用桌面 token（content-left 6、gap 4、400 字重、19 行高、`TreeDisclosureMarker`、选中渐变）
   - Header：项目菜单挂在按钮下 2px、240 宽、`.desktop-project-menu` 外观；位置切换按钮只在 Cloud workspace 实验开启时出现；Changes 与 Agent 之间 1×18 分隔线
   - 布局：移植 `resolveDesktopPaneLayout`（Explorer 默认 320 / 220–520，右侧栏默认 560 / ≥320，主区 ≥320，主区先让、右侧栏次之）；右侧栏内容不再被 8px sash 内缩
+  - 窗口下限（`window-layout:set-minimum-width`）：原生窗口最小宽度 = 打开的各栏最小宽度之和（+ Project Rail），且不低于 640 × 520；窗口已经更窄时（如在小窗口里打开右侧栏）自动加宽，不再把右侧栏挤出窗口右缘。全屏无法加宽时布局保持最小宽度。证据：`opening_a_pane_in_a_narrow_window_widens_it_to_the_pane_minima`、`the_window_minimum_follows_the_open_panes`
+  - 工作台没有任何标签时，启动器铺满右侧栏、不显示标签栏（`AuxiliaryWorkbenchPanel` 的空态）；1280×800 fixture 右侧栏区域 99.7%
   - Changes：`GitChangesSidebar` 结构（安静标题 + History、可折叠 Staged/Unstaged/Merge/Committed 面板、行内 Commit / Stage and Commit、悬停行操作、12px 分隔、Pull 提示），提交使用产品默认消息（`buildDefaultCommitMessage`），去掉底部提交输入框与 Fetch/Refresh。证据：`empty_commits_take_the_product_default_message`
   - 实测（1280×800 深色，同一 fixture 仓库，区域一致率，容差 8）：节点菜单 98.2%、行 + 菜单 98.3%、New 菜单 98.3%、右键菜单 98.8%、项目菜单 98.1%、Changes 99.6%、Agent 右侧栏 97.7%
   - 复现：`dev-capture` 构建以 `PUPPYONE_SCREENSHOT=out.png PUPPYONE_CAPTURE_SCENARIO="select:src;node-menu:docs" ./target/debug/puppy-one-rust --workspace <repo>` 截图（步骤见 `src/shell/capture_scenario.rs`；窗口在后台、不抢焦点）

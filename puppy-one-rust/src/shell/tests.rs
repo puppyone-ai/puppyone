@@ -502,3 +502,18 @@ fn closing_the_explorer_moves_its_frame_unless_motion_is_reduced(cx: &mut TestAp
     command(&view, cx, Command::ToggleExplorer);
     view.update(cx, |s, _| assert_eq!(s.layout.editor.x, open));
 }
+
+#[gpui::test]
+fn opening_a_pane_in_a_narrow_window_widens_it_to_the_pane_minima(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    cx.simulate_resize(size(px(760.), px(700.)));
+    cx.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+    // Explorer alone fits: the window keeps its width.
+    assert_eq!(cx.update(|w, _| f32::from(w.bounds().size.width)), 760.);
+    // Explorer + right sidebar need 320 + 8 + 220 + 320.
+    command(&view, cx, Command::ToggleRightSidebar);
+    assert_eq!(cx.update(|w, _| f32::from(w.bounds().size.width)), 868.);
+    view.update(cx, |s, _| assert_eq!(s.window_minimum, 868.));
+}

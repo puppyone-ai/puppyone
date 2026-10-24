@@ -578,7 +578,16 @@ impl Workbench {
             .get(&id)
             .map(|b| f32::from(b.size.width))
             .unwrap_or(360.);
-        let header = self.render_header(id, width, cx);
+        // `AuxiliaryWorkbenchPanel`: with no items at all the launcher fills
+        // the panel and there is no tab header.
+        let empty = self
+            .project()
+            .unwrap()
+            .layout
+            .groups
+            .values()
+            .all(|g| g.tabs.is_empty());
+        let header = (!empty).then(|| self.render_header(id, width, cx));
         let split_preview = match self.drop_intent {
             Some(DropIntent::Split {
                 group,
@@ -644,7 +653,7 @@ impl Workbench {
             .relative()
             .overflow_hidden()
             .bg(t.auxiliary())
-            .child(header);
+            .children(header);
         let entity = cx.entity();
         group
             .child(

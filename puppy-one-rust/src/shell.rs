@@ -75,6 +75,8 @@ pub struct Shell {
     layout: Layout,
     /// Opening and closing the side panes.
     pane_motion: pane_motion::PaneMotion,
+    /// The native window minimum last applied (`window_minimum_width`).
+    window_minimum: f32,
     #[cfg(feature = "dev-capture")]
     capture_scenario: Option<capture_scenario::CaptureScenario>,
     #[cfg(test)]
@@ -214,6 +216,7 @@ impl Shell {
             drag: None,
             layout: Layout::new(1280., 800., theme::pane::DEFAULT_EXPLORER_WIDTH, 0., 0.),
             pane_motion: Default::default(),
+            window_minimum: 0.,
             #[cfg(feature = "dev-capture")]
             capture_scenario: if cfg!(test) {
                 None
@@ -909,6 +912,25 @@ impl Shell {
         .into_element()
     }
 }
+impl Shell {
+    /// The native window cannot be resized below the open panes' minima; a
+    /// window already narrower (a pane opened in a small window) widens to
+    /// fit, like the product's `setMinimumSize` + `setSize`. Full screen
+    /// cannot grow, so the layout keeps its minimum width there.
+    fn constrain_window(&mut self, rail: f32, window: &mut Window) {
+        let minimum = theme::window_minimum_width(self.left_open, self.right_open, rail);
+        if minimum == self.window_minimum {
+            return;
+        }
+        self.window_minimum = minimum;
+        let floor = size(px(minimum), px(theme::pane::WINDOW_MIN_HEIGHT));
+        crate::native_window::set_content_min_size(window, floor);
+        let viewport = window.viewport_size();
+        if f32::from(viewport.width) < minimum && !window.is_fullscreen() {
+            window.resize(size(px(minimum), viewport.height));
+        }
+    }
+}
 impl Render for Shell {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         #[cfg(test)]
@@ -919,6 +941,7 @@ impl Render for Shell {
         let size = window.viewport_size();
         let w = f32::from(size.width);
         let h = f32::from(size.height);
+        let rail = if self.rail { 56. } else { 0. };
         let target = Layout::new(
             w,
             h,
@@ -928,8 +951,9 @@ impl Render for Shell {
             } else {
                 0.
             },
-            if self.rail { 56. } else { 0. },
+            rail,
         );
+        self.constrain_window(rail, window);
         // Sash drags follow the pointer; opening and closing a pane moves it.
         let animate = self.drag.is_none() && !cx.reduce_motion();
         let panes = self

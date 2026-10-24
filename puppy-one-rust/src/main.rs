@@ -13,6 +13,7 @@ mod lab;
 mod localization;
 mod model;
 mod model_connections;
+mod native_window;
 mod platform;
 mod shell;
 mod theme;
@@ -124,7 +125,10 @@ fn main() {
                         traffic_light_position: Some(point(px(12.), px(12.))),
                     }),
                     window_background: WindowBackgroundAppearance::Opaque,
-                    window_min_size: Some(size(px(640.), px(420.))),
+                    window_min_size: Some(size(
+                        px(theme::pane::WINDOW_MIN_WIDTH),
+                        px(theme::pane::WINDOW_MIN_HEIGHT),
+                    )),
                     ..Default::default()
                 },
                 cx,
