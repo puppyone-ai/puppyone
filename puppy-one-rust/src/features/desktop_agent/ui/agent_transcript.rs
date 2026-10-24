@@ -96,8 +96,7 @@ impl AgentChat {
                 tf(
                     "agent.transcript.preparing",
                     &[("agent", self.installation.label.clone().into())],
-                )
-                .into(),
+                ),
                 None,
             ));
         }
@@ -125,8 +124,7 @@ impl AgentChat {
                     ("status", label.to_string().into()),
                     ("duration", format_duration(ms / 1_000 * 1_000).into()),
                 ],
-            )
-            .into(),
+            ),
             None => label.to_string(),
         };
         let summary = (status == RunStatus::Thinking)

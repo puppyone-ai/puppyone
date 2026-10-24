@@ -252,21 +252,22 @@ fn safe_href(url: &str) -> Option<SharedString> {
 struct Palette {
     text: Rgba,
     strong: Rgba,
-    chip: ChipGeometry,
-    weight: FontWeight,
 }
+
+/// Flattened inline text: content, styled runs, code-chip ranges and links.
+type Flattened = (
+    String,
+    Vec<TextRun>,
+    Vec<Range<usize>>,
+    Vec<(Range<usize>, SharedString)>,
+);
 
 /// Flattens inlines into text, runs, chip and link ranges (`white-space` per block).
 fn flatten(
     inlines: &[Inline],
     preserve: bool,
     palette: Palette,
-    out: &mut (
-        String,
-        Vec<TextRun>,
-        Vec<Range<usize>>,
-        Vec<(Range<usize>, SharedString)>,
-    ),
+    out: &mut Flattened,
     style: (FontWeight, bool, bool, Option<SharedString>),
 ) {
     let (weight, italic, strike, link) = style.clone();
@@ -280,15 +281,7 @@ fn flatten(
         },
         ..Font::default()
     };
-    let push = |out: &mut (
-        String,
-        Vec<TextRun>,
-        Vec<Range<usize>>,
-        Vec<(Range<usize>, SharedString)>,
-    ),
-                text: &str,
-                f: Font,
-                color: Rgba| {
+    let push = |out: &mut Flattened, text: &str, f: Font, color: Rgba| {
         if text.is_empty() {
             return;
         }
@@ -517,8 +510,6 @@ fn rich(
     let palette = Palette {
         text: a.text_muted,
         strong: a.text_muted,
-        chip,
-        weight,
     };
     let mut out = (String::new(), vec![], vec![], vec![]);
     flatten(
@@ -796,11 +787,11 @@ fn table(
     };
     let mut maxima = vec![0f32; columns];
     for (c, cell) in head.iter().enumerate() {
-        maxima[c] = maxima[c].max(measure(cell, true, cx.window).min(280.).max(76.) + 18.);
+        maxima[c] = maxima[c].max(measure(cell, true, cx.window).clamp(76., 280.) + 18.);
     }
     for row in rows {
         for (c, cell) in row.iter().enumerate() {
-            maxima[c] = maxima[c].max(measure(cell, false, cx.window).min(280.).max(76.) + 18.);
+            maxima[c] = maxima[c].max(measure(cell, false, cx.window).clamp(76., 280.) + 18.);
         }
     }
     // The table fills the answer width inside the wrapper border and the
@@ -835,7 +826,7 @@ fn table(
         let mut row = div().flex().when(!header && body_index % 2 == 1, |d| {
             d.bg(a.table_alternate_surface)
         });
-        for c in 0..columns {
+        for (c, &width) in widths.iter().enumerate().take(columns) {
             let inlines = cells.get(c).cloned().unwrap_or_default();
             let weight = if *header {
                 FontWeight::SEMIBOLD
@@ -853,7 +844,7 @@ fn table(
             );
             row = row.child(cell(
                 content,
-                widths[c],
+                width,
                 c + 1 == columns,
                 r + 1 == row_count,
                 *header,
@@ -905,18 +896,9 @@ mod tests {
         let Block::Paragraph { inlines, .. } = &blocks[0] else {
             panic!("paragraph")
         };
-        let chip = ChipGeometry {
-            top: 0.,
-            height: 0.,
-            fill: Hsla::default(),
-            border: Hsla::default(),
-            radius: 6.,
-        };
         let palette = Palette {
             text: Rgba::default(),
             strong: Rgba::default(),
-            chip,
-            weight: FontWeight::NORMAL,
         };
         let mut out = (String::new(), vec![], vec![], vec![]);
         flatten(

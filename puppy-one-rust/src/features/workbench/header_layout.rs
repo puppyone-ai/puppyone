@@ -87,8 +87,7 @@ pub fn resolve(ids: &[Id], active: Option<Id>, available: f32, preferred: &[Id])
         nearest(ids, active, inactive)
     };
     let active_width = (width - OVERFLOW_CONTROL - GAP - inactive as f32 * (COMPACT + GAP))
-        .min(FULL_MAXIMUM)
-        .max(ABSOLUTE_ACTIVE_MINIMUM);
+        .clamp(ABSOLUTE_ACTIVE_MINIMUM, FULL_MAXIMUM);
     let hidden = ids
         .iter()
         .copied()

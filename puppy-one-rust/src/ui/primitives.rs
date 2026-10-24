@@ -76,9 +76,6 @@ pub fn action_button(
     }
     b.child(label)
 }
-pub fn icon(name: &str, color: Rgba) -> Svg {
-    icon_sized(name, 16., color)
-}
 pub fn icon_sized(name: &str, size: f32, color: Rgba) -> Svg {
     svg()
         .path(format!("icons/{name}.svg"))

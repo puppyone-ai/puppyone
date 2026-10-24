@@ -122,9 +122,6 @@ impl ConversationHistory {
     pub fn installation(&self, index: usize) -> Option<&Installation> {
         self.sources.get(index).map(|s| &s.installation)
     }
-    pub fn installations(&self) -> impl Iterator<Item = &Installation> {
-        self.sources.iter().map(|s| &s.installation)
-    }
     /// Drive every listing; a ready provider that did not list on its own is
     /// asked once (`listSessions`).
     pub fn poll(&mut self) {

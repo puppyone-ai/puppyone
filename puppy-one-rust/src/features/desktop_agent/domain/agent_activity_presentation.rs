@@ -335,8 +335,11 @@ pub struct FileChange {
     pub blocks: Vec<(Option<String>, Option<String>)>,
 }
 
+/// One removed/added run of a unified diff.
+type DiffBlock = (Option<String>, Option<String>);
+
 /// Removed/added runs of a unified diff, with line counts.
-fn diff_blocks(diff: &str) -> (Vec<(Option<String>, Option<String>)>, usize, usize) {
+fn diff_blocks(diff: &str) -> (Vec<DiffBlock>, usize, usize) {
     let (mut blocks, mut removed, mut added) = (Vec::new(), Vec::<&str>::new(), Vec::<&str>::new());
     let (mut additions, mut deletions) = (0, 0);
     let flush = |blocks: &mut Vec<_>, removed: &mut Vec<&str>, added: &mut Vec<&str>| {

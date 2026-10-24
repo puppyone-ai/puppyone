@@ -199,28 +199,22 @@ impl AgentChat {
                         .child(text)
                 };
                 if let Some(cwd) = cwd {
-                    details = details.child(meta(
-                        tf("agent.approval.inPath", &[("path", cwd.clone().into())]).into(),
-                    ));
+                    details = details.child(meta(tf(
+                        "agent.approval.inPath",
+                        &[("path", cwd.clone().into())],
+                    )));
                 }
                 if let Some(reason) = reason {
                     details = details.child(meta(reason));
                 }
                 let mut actions = row().justify_end().flex_wrap().gap(px(4.)).mt(px(10.));
                 let ordered = [
-                    (Decision::Decline, ButtonTone::Quiet, "agent.approval.deny"),
-                    (
-                        Decision::AcceptForSession,
-                        ButtonTone::Secondary,
-                        "agent.approval.allowSession",
-                    ),
-                    (
-                        Decision::Accept,
-                        ButtonTone::Primary,
-                        "agent.approval.allowOnce",
-                    ),
+                    (Decision::Decline, ButtonTone::Quiet),
+                    (Decision::AcceptForSession, ButtonTone::Secondary),
+                    (Decision::Accept, ButtonTone::Primary),
                 ];
-                for (decision, tone, key) in ordered {
+                for (decision, tone) in ordered {
+                    let key = crate::features::desktop_agent::domain::agent_chat_presentation::decision_label(decision);
                     if decision != Decision::Decline && !decisions.contains(&decision) {
                         continue;
                     }

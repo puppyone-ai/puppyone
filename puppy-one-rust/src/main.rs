@@ -34,7 +34,9 @@ fn main() {
                     std::borrow::Cow::Borrowed(include_bytes!("../assets/Geist-SemiBold.ttf")),
                     std::borrow::Cow::Borrowed(include_bytes!("../assets/Geist-Bold.ttf")),
                     // Agent Markdown inline code (`tools/import-agent-code-font.py`).
-                    std::borrow::Cow::Borrowed(include_bytes!("../assets/fonts/agent-inline-code.ttf")),
+                    std::borrow::Cow::Borrowed(include_bytes!(
+                        "../assets/fonts/agent-inline-code.ttf"
+                    )),
                     std::borrow::Cow::Borrowed(include_bytes!("../assets/OpenSans-Regular.ttf")),
                     std::borrow::Cow::Borrowed(include_bytes!("../assets/OpenSans-Bold.ttf")),
                     std::borrow::Cow::Borrowed(include_bytes!("../assets/OpenSans-Italic.ttf")),
