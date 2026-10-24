@@ -104,6 +104,7 @@ embedded! {
     "icons" / "monitor.svg",
     "icons" / "moon.svg",
     "icons" / "mouse-pointer-2.svg",
+    "icons" / "overflow-dots.svg",
     "icons" / "panel-left.svg",
     "icons" / "panel-right.svg",
     "icons" / "paperclip.svg",

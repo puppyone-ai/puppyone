@@ -225,7 +225,9 @@ impl Shell {
                                         self.project.clone()
                                     }),
                             )
-                            .on_click(cx.listener(|s, _, w, cx| s.command(Command::ProjectMenu, w, cx))),
+                            .on_click(
+                                cx.listener(|s, _, w, cx| s.command(Command::ProjectMenu, w, cx)),
+                            ),
                     )
                     .child(header::measure(&self.anchors, "project")),
             )
@@ -252,9 +254,9 @@ impl Shell {
                                 .hover(move |s| s.bg(t.hover))
                                 .tooltip(tooltip(device))
                                 .child(icon_sized("laptop", 16., t.muted))
-                                .on_click(
-                                    cx.listener(|s, _, w, cx| s.command(Command::LocationMenu, w, cx)),
-                                ),
+                                .on_click(cx.listener(|s, _, w, cx| {
+                                    s.command(Command::LocationMenu, w, cx)
+                                })),
                         )
                         .child(header::measure(&self.anchors, "location")),
                 )

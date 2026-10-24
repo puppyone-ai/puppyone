@@ -25,7 +25,6 @@ pub enum Command {
     ProjectMenu,
     LocationMenu,
     Home,
-    DismissPopovers,
     Escape,
     /// View → Toggle Markdown Source.
     ToggleMarkdownSource,
@@ -96,6 +95,7 @@ pub fn bind_keys(cx: &mut App) {
         ]);
     }
     cx.bind_keys([KeyBinding::new("escape", Escape, None)]);
+    super::explorer::bind_keys(cx);
 }
 
 /// Native menu bar in the current locale; rebuilt when the locale changes.

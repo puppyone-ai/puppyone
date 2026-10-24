@@ -34,6 +34,8 @@ await writeFile(path.join(root, 'assets/icons', 'editor-mode-preview.svg'), fram
 const disclosure = d => `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>\n`;
 await writeFile(path.join(root, 'assets/icons', 'tree-disclosure.svg'), disclosure('M4 2.5 7.5 6 4 9.5'));
 await writeFile(path.join(root, 'assets/icons', 'tree-disclosure-open.svg'), disclosure('M9.5 4 6 7.5 2.5 4'));
+// Product-owned `po-overflow-dots--vertical`: three 2px squares, 2px apart.
+await writeFile(path.join(root, 'assets/icons', 'overflow-dots.svg'), `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 10 10" fill="white"><rect x="4" y="0" width="2" height="2"/><rect x="4" y="4" width="2" height="2"/><rect x="4" y="8" width="2" height="2"/></svg>\n`);
 // Product-owned discovery spinner (.desktop-terminal-launcher-discovery-spinner):
 // an 11px ring with a 1.5px border whose top edge carries the current colour.
 await writeFile(path.join(root, 'assets/icons', 'spinner-track.svg'), `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="white" stroke-width="1.5"><circle cx="5.5" cy="5.5" r="4.75"/></svg>\n`);

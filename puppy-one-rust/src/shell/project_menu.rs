@@ -61,7 +61,6 @@ impl Shell {
                 LOCATION_MENU_WIDTH,
                 self.location_menu_height(style),
             ),
-            Popover::Explorer(menu) => return Some(self.explorer_menu_frame(menu, cx).menu),
         };
         let viewport = (self.layout.header.w, self.layout.editor.bottom());
         let anchor = self.anchor(key).unwrap_or(Rect::new(86., 6., 120., 28.));

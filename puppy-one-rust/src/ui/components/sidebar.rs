@@ -14,6 +14,7 @@ use gpui_kit::{
 use std::rc::Rc;
 
 type ClickHandler = Rc<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
+type Handler = Rc<dyn Fn(&mut Window, &mut App)>;
 
 /// Which backplates a row uses.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -27,6 +28,10 @@ pub enum RowVariant {
     List,
     /// Navigation (`.po-sidebar-row`): the selected row takes the selected tint.
     Nav,
+    /// A quiet command row (the Explorer's list-end "New"): UI meta type in
+    /// a muted mix, lifting to subtle on hover and to text while its menu is
+    /// open.
+    Launcher,
 }
 
 /// A 32px sidebar row: leading glyph, label (and any trailing content),
@@ -41,7 +46,7 @@ pub struct SidebarRow {
     base: Stateful<Div>,
     style: StyleRefinement,
     variant: RowVariant,
-    leading: Option<AnyElement>,
+    leading: Option<Leading>,
     label: Option<SharedString>,
     children: Vec<AnyElement>,
     actions: Vec<AnyElement>,
@@ -78,14 +83,15 @@ impl SidebarRow {
         self.variant = variant;
         self
     }
-    /// The 18px leading slot (an [`Icon`], a file glyph, a disclosure marker).
+    /// Any glyph in the 18px leading slot (a file icon, a brand mark).
     pub fn leading(mut self, element: impl IntoElement) -> Self {
-        self.leading = Some(element.into_any_element());
+        self.leading = Some(Leading::Element(element.into_any_element()));
         self
     }
-    /// A Lucide icon in the leading slot.
-    pub fn icon(self, name: impl Into<SharedString>) -> Self {
-        self.leading(Icon::new(name))
+    /// An icon in the leading slot; it follows the row's hover colour.
+    pub fn icon(mut self, icon: impl Into<Icon>) -> Self {
+        self.leading = Some(Leading::Icon(Box::new(icon.into())));
+        self
     }
     pub fn label(mut self, label: impl Into<SharedString>) -> Self {
         self.label = Some(label.into());
@@ -94,11 +100,6 @@ impl SidebarRow {
     /// Row actions (24px [`RowActionButton`]s), revealed on hover or while open.
     pub fn action(mut self, action: impl IntoElement) -> Self {
         self.actions.push(action.into_any_element());
-        self
-    }
-    /// A menu launched from this row is open: actions stay revealed.
-    pub fn open(mut self, open: bool) -> Self {
-        self.open = open;
         self
     }
     /// Cut to the clipboard: the glyph and label fade.
@@ -132,6 +133,14 @@ impl Selectable for SidebarRow {
     fn is_selected(&self) -> bool {
         self.selected
     }
+    /// A menu launched from this row is open: its actions stay revealed.
+    fn open(mut self, open: bool) -> Self {
+        self.open = open;
+        self
+    }
+    fn is_open(&self) -> bool {
+        self.open
+    }
 }
 impl Disableable for SidebarRow {
     fn disabled(mut self, disabled: bool) -> Self {
@@ -164,6 +173,8 @@ impl RenderOnce for SidebarRow {
         let tint = theme::alpha(t.hover, 0.86);
         let (fg, hover_fg) = match self.variant {
             RowVariant::Tree => (if lit { t.text } else { t.sidebar_text }, t.text),
+            RowVariant::Launcher if open => (t.text, t.text),
+            RowVariant::Launcher => (theme::mix(t.subtle, t.sidebar, 0.68), t.subtle),
             _ => (if lit { t.text } else { t.muted }, t.text),
         };
         // (resting background, hover background); `None` keeps the rest.
@@ -183,6 +194,12 @@ impl RenderOnce for SidebarRow {
                 selected.then(|| solid(t.selected)),
                 Some(solid(if selected { t.selected } else { t.hover })),
             ),
+            RowVariant::Launcher => (None, Some(solid(tint))),
+        };
+        let text_size = if self.variant == RowVariant::Launcher {
+            theme::ty().ui.meta
+        } else {
+            theme::ty().left.content
         };
         let has_actions = !self.actions.is_empty();
         // `--tree-row-action-reserve`: the content's end padding while the
@@ -212,7 +229,7 @@ impl RenderOnce for SidebarRow {
             }))
             .gap(px(metric::SIDEBAR_ICON_LABEL_GAP))
             .rounded(px(metric::SIDEBAR_ROW_RADIUS))
-            .text_size(px(theme::ty().left.content))
+            .text_size(px(text_size))
             .line_height(px(theme::ty().left.line_height))
             .font_weight(FontWeight::NORMAL)
             .text_color(fg)
@@ -222,7 +239,7 @@ impl RenderOnce for SidebarRow {
                 d.cursor(theme::clickable_cursor()).hover(move |s| {
                     let s = s.text_color(hover_fg);
                     let s = if has_actions { s.pr(px(reserve)) } else { s };
-                    match hover.clone() {
+                    match hover {
                         Some(fill) => s.bg(fill),
                         None => s,
                     }
@@ -232,6 +249,13 @@ impl RenderOnce for SidebarRow {
                 d.on_click(move |event, window, cx| handler(event, window, cx))
             })
             .children(self.leading.map(|leading| {
+                let leading = match leading {
+                    Leading::Icon(icon) if !disabled => icon
+                        .group_hover_color(group.clone(), hover_fg)
+                        .into_any_element(),
+                    Leading::Icon(icon) => icon.into_any_element(),
+                    Leading::Element(element) => element,
+                };
                 div()
                     .size(px(metric::SIDEBAR_ICON_SLOT))
                     .flex_shrink_0()
@@ -267,6 +291,10 @@ impl RenderOnce for SidebarRow {
         row.refine_style(&self.style)
     }
 }
+enum Leading {
+    Icon(Box<Icon>),
+    Element(AnyElement),
+}
 fn solid(color: Rgba) -> Background {
     Hsla::from(color).into()
 }
@@ -289,6 +317,10 @@ impl RowActionButton {
         Self {
             button: IconButton::new(id, icon).with_size(px(24.)),
         }
+    }
+    /// The "⋮" more-actions trigger (`po-overflow-dots--vertical`).
+    pub fn more(id: impl Into<ElementId>) -> Self {
+        Self::new(id, Icon::new("overflow-dots").with_size(px(10.)))
     }
     pub fn label(mut self, label: impl Into<SharedString>) -> Self {
         self.button = self.button.label(label);
@@ -337,22 +369,6 @@ impl RenderOnce for RowActionButton {
     }
 }
 
-/// `po-overflow-dots--vertical`: three 2px squares, 2px apart, in the
-/// current text colour.
-#[derive(IntoElement, Default)]
-pub struct OverflowDots;
-impl RenderOnce for OverflowDots {
-    fn render(self, window: &mut Window, _: &mut App) -> impl IntoElement {
-        let color = window.text_style().color;
-        div()
-            .flex()
-            .flex_col()
-            .items_center()
-            .gap(px(2.))
-            .children((0..3).map(move |_| div().size(px(2.)).bg(color)))
-    }
-}
-
 /// `SourceControlSectionHeader`: a collapsible title with its count and
 /// trailing actions.
 #[derive(IntoElement)]
@@ -362,7 +378,7 @@ pub struct SectionHeader {
     count: Option<usize>,
     expanded: bool,
     actions: Vec<AnyElement>,
-    on_toggle: Option<Rc<dyn Fn(&mut Window, &mut App)>>,
+    on_toggle: Option<Handler>,
 }
 impl SectionHeader {
     pub fn new(id: impl Into<ElementId>, title: impl Into<SharedString>) -> Self {

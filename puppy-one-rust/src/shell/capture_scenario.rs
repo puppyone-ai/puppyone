@@ -9,8 +9,7 @@
 //! `submenu` (Custom files), `project-menu`, `location-menu`, `changes`,
 //! `agent`.
 use super::*;
-use crate::geometry::menu_position::{self, CreatePlacement};
-use explorer::{RowTrigger, row_action_rect};
+use explorer::{MenuAt, RowTrigger};
 use std::collections::VecDeque;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -150,52 +149,45 @@ impl Shell {
             }
             Step::Open(path) => self.files.begin(Intent::OpenFile(path.clone()), &self.wake),
             Step::NodeMenu(path) => {
-                let (Some(index), Some(row)) =
-                    (self.tree.index_of(path), self.row_anchors.row(path))
-                else {
+                let Some(index) = self.tree.index_of(path) else {
                     return false;
                 };
-                self.open_node_menu(index, row_action_rect(row, RowTrigger::More), false, cx);
+                let at = MenuAt::Row(path.clone(), RowTrigger::More);
+                self.open_node_menu(index, at, cx);
             }
             Step::CreateMenu(path) => {
-                let Some(row) = self.row_anchors.row(path) else {
-                    return false;
-                };
-                self.open_create_menu(
-                    path.clone(),
-                    row_action_rect(row, RowTrigger::Create),
-                    CreatePlacement::BelowStart,
-                    cx,
-                );
+                let at = MenuAt::Row(path.clone(), RowTrigger::Create);
+                self.open_create_menu(path.clone(), at, cx);
             }
-            Step::NewMenu => {
-                let Some(row) = self.row_anchors.new_row() else {
-                    return false;
-                };
-                self.open_create_menu(PathBuf::new(), row, CreatePlacement::AutoEnd, cx);
-            }
+            Step::NewMenu => self.open_create_menu(PathBuf::new(), MenuAt::NewRow, cx),
             Step::Context(x, y) => {
-                let anchor = menu_position::point_anchor(*x, *y);
-                let hit = self.tree.rows.iter().enumerate().find_map(|(index, r)| {
-                    self.row_anchors
-                        .row(&r.path)
-                        .filter(|rect| rect.contains((*x, *y)))
-                        .map(|_| index)
-                });
-                match hit {
-                    Some(index) => self.open_node_menu(index, anchor, true, cx),
-                    None => self.open_create_menu(
-                        PathBuf::new(),
-                        anchor,
-                        CreatePlacement::BelowStart,
-                        cx,
-                    ),
+                let position = point(px(*x), px(*y));
+                match self.explorer_row_at(*x, *y) {
+                    Some(index) => self.open_node_menu(index, MenuAt::Pointer(position), cx),
+                    None => self.open_create_menu(PathBuf::new(), MenuAt::Pointer(position), cx),
                 }
             }
-            Step::Submenu => self.set_create_submenu(true, cx),
+            Step::Submenu => {
+                if let Some(menu) = &mut self.explorer.menu {
+                    menu.submenu_open = true;
+                }
+            }
             Step::Command(command) => self.command(*command, window, cx),
         }
         self.receive(window, cx);
         true
+    }
+    /// The tree row under a window point (rows stack from the list's 12px
+    /// top padding, one stride each).
+    fn explorer_row_at(&self, x: f32, y: f32) -> Option<usize> {
+        let list = self.layout.explorer;
+        if x < list.x || x >= list.right() {
+            return None;
+        }
+        let offset = f32::from(self.explorer.scroll.0.borrow().base_handle.offset().y);
+        let row = (y - list.y - 12. - offset) / theme::sidebar_stride();
+        (row >= 0.)
+            .then_some(row as usize)
+            .filter(|index| *index < self.tree.rows.len())
     }
 }

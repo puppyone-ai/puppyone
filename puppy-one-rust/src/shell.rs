@@ -20,14 +20,13 @@ mod project_menu;
 pub(crate) mod tasks;
 use command::on_shell_actions;
 pub use command::{Command, app_menus, bind_keys, on_global_shell_actions};
-use explorer::{ExplorerMenu, FileClipboard, FileOp, OpOutcome, RowAnchors};
+use explorer::Explorer;
 use tasks::TaskUi;
-/// Anchored popovers owned by the shell, each with a known rectangle.
-#[derive(Clone, Debug, PartialEq)]
+/// Header popovers owned by the shell.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Popover {
     Project,
     Location,
-    Explorer(ExplorerMenu),
 }
 /// Last painted bounds of popover triggers, keyed by trigger name.
 pub type Anchors = Rc<RefCell<std::collections::HashMap<&'static str, Bounds<Pixels>>>>;
@@ -53,18 +52,7 @@ pub struct Shell {
     anchors: Anchors,
     recent_projects: Vec<crate::features::settings::preference_types::RecentProject>,
     weak: WeakEntity<Shell>,
-    explorer_focus: FocusHandle,
-    clipboard: Option<FileClipboard>,
-    file_op: Option<std::sync::mpsc::Receiver<OpOutcome>>,
-    queued_op: Option<FileOp>,
-    reopen: Option<PathBuf>,
-    rename: Option<(PathBuf, Entity<ui::form_input::TextInput>)>,
-    /// Painted Explorer row bounds: row triggers anchor their menus here.
-    row_anchors: RowAnchors,
-    /// Hover generation of the Custom files submenu (`scheduleCloseSubmenu`).
-    submenu_hover_epoch: u64,
-    /// The rename dialog was opened as "Change file type".
-    rename_type: bool,
+    explorer: Explorer,
     create_entry:
         Option<Entity<crate::features::create_new::create_entry_dialog::CreateEntryDialog>>,
     task_ui: TaskUi,
@@ -79,7 +67,6 @@ pub struct Shell {
     focus: FocusHandle,
     project_focus: FocusHandle,
     modal_focus: FocusHandle,
-    scroll: UniformListScrollHandle,
     captured: bool,
     drag: Option<bool>,
     layout: Layout,
@@ -184,15 +171,7 @@ impl Shell {
             anchors: Rc::new(RefCell::new(Default::default())),
             recent_projects: vec![],
             weak: cx.weak_entity(),
-            explorer_focus: cx.focus_handle(),
-            clipboard: None,
-            file_op: None,
-            queued_op: None,
-            reopen: None,
-            rename: None,
-            row_anchors: Default::default(),
-            submenu_hover_epoch: 0,
-            rename_type: false,
+            explorer: Explorer::new(cx),
             create_entry: None,
             task_ui: TaskUi::new(preferences.clone(), window, cx),
             preferences,
@@ -210,7 +189,6 @@ impl Shell {
             focus,
             project_focus: cx.focus_handle(),
             modal_focus: cx.focus_handle(),
-            scroll: UniformListScrollHandle::new(),
             captured: false,
             drag: None,
             layout: Layout::new(1280., 800., theme::pane::DEFAULT_EXPLORER_WIDTH, 0., 0.),
@@ -404,7 +382,7 @@ impl Shell {
         cx.notify();
     }
     fn modal(&self) -> bool {
-        self.rename.is_some()
+        self.explorer.rename.is_some()
             || self.create_entry.is_some()
             || self.settings
             || self.help
@@ -536,11 +514,13 @@ impl Shell {
             }
             Command::Settings => {
                 self.popover = None;
+                self.explorer.menu = None;
                 self.settings = true;
                 self.modal_focus.focus(window, cx);
             }
             Command::Feedback => {
                 self.popover = None;
+                self.explorer.menu = None;
                 self.help = true;
                 self.task_ui.message.focus_handle(cx).focus(window, cx);
             }
@@ -561,19 +541,17 @@ impl Shell {
             }
             Command::Home => {
                 self.popover = None;
+                self.explorer.menu = None;
                 self.home = true;
             }
-            Command::DismissPopovers => self.popover = None,
             Command::Escape => {
-                if self.rename.is_some() {
-                    self.rename = None;
-                    self.focus.focus(window, cx);
+                if self.explorer.rename.is_some() {
+                    self.cancel_rename(window, cx);
+                } else if self.explorer.menu.is_some() {
+                    self.explorer.menu = None;
                 } else if self.popover.is_some() {
-                    let header = matches!(self.popover, Some(Popover::Project | Popover::Location));
                     self.popover = None;
-                    if header {
-                        self.project_focus.focus(window, cx);
-                    }
+                    self.project_focus.focus(window, cx);
                 } else if self.confirm_quit {
                     self.confirm_quit = false;
                 } else if self.error.is_some() || self.files.error.is_some() {
@@ -639,11 +617,12 @@ impl Shell {
                 ..Tree::new()
             };
             self.tree.rebuild();
-            self.scroll = UniformListScrollHandle::new();
+            self.explorer.scroll = UniformListScrollHandle::new();
+            self.explorer.menu = None;
             self.fixture = false;
             self.error = None;
             self.home = false;
-            self.clipboard = None;
+            self.explorer.clipboard = None;
             let opened = ws.path.clone();
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -1021,17 +1000,10 @@ impl Render for Shell {
         if self.right_open && !home {
             root = root.child(self.sash(false, cx));
         }
-        match &self.popover {
-            Some(Popover::Explorer(menu)) => {
-                let menu = menu.clone();
-                root = root.child(self.explorer_popup(&menu, cx));
-            }
-            Some(_) => root = root.child(self.project_popup(cx)),
-            None => {}
+        if self.popover.is_some() {
+            root = root.child(self.project_popup(cx));
         }
-        if self.rename.is_some() {
-            root = root.child(self.rename_view(w, h, cx));
-        }
+        root = root.children(self.rename_dialog(cx));
         if self.create_entry.is_some() {
             root = root.child(self.create_entry_view(w, h, cx));
         }

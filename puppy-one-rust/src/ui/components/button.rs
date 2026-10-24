@@ -164,6 +164,7 @@ fn height(size: Size) -> Pixels {
 /// A labelled command.
 #[derive(IntoElement)]
 pub struct Button {
+    id: ElementId,
     base: BaseButton,
     style: StyleRefinement,
     variant: ButtonVariant,
@@ -178,8 +179,10 @@ pub struct Button {
 }
 impl Button {
     pub fn new(id: impl Into<ElementId>) -> Self {
+        let id = id.into();
         Self {
-            base: BaseButton::new(id),
+            base: BaseButton::new(id.clone()),
+            id,
             style: StyleRefinement::default(),
             variant: ButtonVariant::default(),
             size: Size::Medium,
@@ -290,7 +293,16 @@ impl RenderOnce for Button {
         });
         let label = self.label.clone();
         let (hover_bg, hover_fg) = (p.hover_bg, p.hover_fg);
+        let group = hover_group(&self.id);
+        let icon = icon.map(|icon| {
+            if disabled {
+                icon
+            } else {
+                icon.group_hover_color(group.clone(), hover_fg)
+            }
+        });
         self.base
+            .group(group)
             .disabled(disabled)
             .selected(self.selected)
             .when_some(label.clone(), |b, label| b.accessibility_label(label))
@@ -351,6 +363,7 @@ impl RenderOnce for Button {
 /// Sizes: `xsmall` 22, `small` 24, medium 28, `large` 32.
 #[derive(IntoElement)]
 pub struct IconButton {
+    id: ElementId,
     base: BaseButton,
     style: StyleRefinement,
     icon: Icon,
@@ -367,8 +380,10 @@ pub struct IconButton {
 }
 impl IconButton {
     pub fn new(id: impl Into<ElementId>, icon: impl Into<Icon>) -> Self {
+        let id = id.into();
         Self {
-            base: BaseButton::new(id),
+            base: BaseButton::new(id.clone()),
+            id,
             style: StyleRefinement::default(),
             icon: icon.into(),
             size: Size::Medium,
@@ -469,7 +484,14 @@ impl RenderOnce for IconButton {
             )
         };
         let label = self.label.clone();
+        let group = hover_group(&self.id);
+        let icon = if disabled {
+            self.icon
+        } else {
+            self.icon.group_hover_color(group.clone(), hover_fg)
+        };
         self.base
+            .group(group)
             .disabled(disabled)
             .selected(self.selected)
             .when_some(label.clone(), |b, label| b.accessibility_label(label))
@@ -493,7 +515,11 @@ impl RenderOnce for IconButton {
             .when_some(self.on_click.filter(|_| !disabled), |b, handler| {
                 b.on_click(move |event, window, cx| handler(event, window, cx))
             })
-            .child(self.icon)
+            .child(icon)
             .refine_style(&self.style)
     }
+}
+/// The hover group a control names so its icon follows its hover colour.
+pub(super) fn hover_group(id: &ElementId) -> SharedString {
+    format!("control-{id}").into()
 }

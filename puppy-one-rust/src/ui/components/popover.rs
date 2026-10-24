@@ -64,7 +64,10 @@ impl PopoverMenu {
     }
     /// The trigger is told when its surface is open (`Selectable::open`).
     pub fn trigger<T: Selectable + IntoElement + 'static>(mut self, trigger: T) -> Self {
-        self.trigger = Some(Box::new(move |open| trigger.open(open).into_any_element()));
+        self.trigger = Some(Box::new(move |open| {
+            let lit = trigger.is_open();
+            trigger.open(lit || open).into_any_element()
+        }));
         self
     }
     /// A product menu; its items close the popover after running.

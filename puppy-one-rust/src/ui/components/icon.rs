@@ -8,7 +8,9 @@ use gpui_kit::{
 };
 
 /// A Lucide icon. Without an explicit colour it takes the text colour of
-/// where it is placed, so it follows its row's hover and selected states.
+/// where it is placed. An SVG paints its own colour only, so a control that
+/// changes its text colour on hover hands its icon the hover colour through
+/// [`Icon::group_hover_color`].
 ///
 /// Sizes: `xsmall` 12, `small` 14, medium (default) 15, `large` 16, or
 /// `with_size(px(n))`.
@@ -18,6 +20,7 @@ pub struct Icon {
     stroke: Option<f32>,
     size: Size,
     color: Option<Hsla>,
+    group_hover: Option<(SharedString, Hsla)>,
     style: StyleRefinement,
 }
 impl Icon {
@@ -28,6 +31,7 @@ impl Icon {
             stroke: None,
             size: Size::Medium,
             color: None,
+            group_hover: None,
             style: StyleRefinement::default(),
         }
     }
@@ -38,6 +42,15 @@ impl Icon {
     }
     pub fn color(mut self, color: impl Into<Hsla>) -> Self {
         self.color = Some(color.into());
+        self
+    }
+    /// The colour while the pointer is over `group` (the owning control).
+    pub fn group_hover_color(
+        mut self,
+        group: impl Into<SharedString>,
+        color: impl Into<Hsla>,
+    ) -> Self {
+        self.group_hover = Some((group.into(), color.into()));
         self
     }
     /// Size in pixels.
@@ -76,6 +89,9 @@ impl RenderOnce for Icon {
             .size(self.pixels())
             .flex_shrink_0()
             .text_color(color)
+            .when_some(self.group_hover, |svg, (group, color)| {
+                svg.group_hover(group, move |s| s.text_color(color))
+            })
             .refine_style(&self.style)
     }
 }

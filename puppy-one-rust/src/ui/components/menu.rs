@@ -15,6 +15,7 @@ use gpui_kit::{
 use std::{rc::Rc, time::Duration};
 
 type Handler = Rc<dyn Fn(&mut Window, &mut App)>;
+type SubmenuBuilder = Rc<dyn Fn(&mut Window, &mut App) -> Menu>;
 
 /// Which `.desktop-menu-surface` a menu is.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -114,7 +115,8 @@ impl MenuVariant {
 /// One row of a [`Menu`].
 pub struct MenuItem {
     label: SharedString,
-    icon: Option<AnyElement>,
+    icon: Option<Icon>,
+    glyph: Option<AnyElement>,
     detail: Option<SharedString>,
     shortcut: Option<SharedString>,
     trailing: Option<AnyElement>,
@@ -122,7 +124,8 @@ pub struct MenuItem {
     selected: bool,
     disabled: bool,
     danger: bool,
-    submenu: Option<Rc<dyn Fn(&mut Window, &mut App) -> Menu>>,
+    submenu: Option<SubmenuBuilder>,
+    open_submenu: bool,
     on_click: Option<Handler>,
 }
 impl MenuItem {
@@ -130,6 +133,7 @@ impl MenuItem {
         Self {
             label: label.into(),
             icon: None,
+            glyph: None,
             detail: None,
             shortcut: None,
             trailing: None,
@@ -138,16 +142,22 @@ impl MenuItem {
             disabled: false,
             danger: false,
             submenu: None,
+            open_submenu: false,
             on_click: None,
         }
     }
     /// A Lucide icon at the product's menu default (14px, stroke 2).
     pub fn icon(self, name: impl Into<SharedString>) -> Self {
-        self.icon_element(Icon::new(name).small().stroke(2.))
+        self.icon_sized(Icon::new(name).small().stroke(2.))
     }
-    /// Any glyph: a sized [`Icon`], a file icon, a brand mark.
+    /// An icon drawn at its own size and stroke; it follows the row's hover.
+    pub fn icon_sized(mut self, icon: Icon) -> Self {
+        self.icon = Some(icon);
+        self
+    }
+    /// Any other glyph: a file icon, a brand mark.
     pub fn icon_element(mut self, element: impl IntoElement) -> Self {
-        self.icon = Some(element.into_any_element());
+        self.glyph = Some(element.into_any_element());
         self
     }
     pub fn detail(mut self, detail: impl Into<SharedString>) -> Self {
@@ -194,6 +204,12 @@ impl MenuItem {
         self.submenu = Some(Rc::new(build));
         self
     }
+    /// Opens the submenu without a hover, as keyboard navigation does; the
+    /// pointer closes it as usual afterwards.
+    pub fn open_submenu(mut self, open: bool) -> Self {
+        self.open_submenu = open;
+        self
+    }
     pub fn on_click(mut self, handler: impl Fn(&mut Window, &mut App) + 'static) -> Self {
         self.on_click = Some(Rc::new(handler));
         self
@@ -201,7 +217,7 @@ impl MenuItem {
 }
 
 enum MenuEntry {
-    Item(MenuItem),
+    Item(Box<MenuItem>),
     Separator,
     Label(SharedString),
     Element(AnyElement),
@@ -231,11 +247,15 @@ impl Menu {
         self
     }
     pub fn item(mut self, item: MenuItem) -> Self {
-        self.entries.push(MenuEntry::Item(item));
+        self.entries.push(MenuEntry::Item(Box::new(item)));
         self
     }
     pub fn items(mut self, items: impl IntoIterator<Item = MenuItem>) -> Self {
-        self.entries.extend(items.into_iter().map(MenuEntry::Item));
+        self.entries.extend(
+            items
+                .into_iter()
+                .map(|item| MenuEntry::Item(Box::new(item))),
+        );
         self
     }
     pub fn separator(mut self) -> Self {
@@ -320,7 +340,7 @@ impl RenderOnce for Menu {
                 MenuEntry::Element(element) => surface.child(element),
                 MenuEntry::Item(item) => surface.child(row(
                     child_id(&id, index.to_string()),
-                    item,
+                    *item,
                     s,
                     t,
                     dismiss.clone(),
@@ -344,6 +364,8 @@ fn separator(t: Theme) -> Div {
 #[derive(Default)]
 struct SubmenuState {
     open: bool,
+    /// An `open_submenu` request was honoured.
+    requested: bool,
     epoch: u64,
     trigger: Bounds<Pixels>,
 }
@@ -381,6 +403,7 @@ fn row(
     };
     let has_hover_trailing = item.hover_trailing.is_some();
     let submenu = item.submenu.clone();
+    let open_submenu = item.open_submenu;
     let action = item.on_click.clone();
     let row = h_row()
         .id(element_id.clone())
@@ -403,16 +426,28 @@ fn row(
             d.cursor(theme::clickable_cursor())
                 .hover(move |s| s.bg(hover_bg).text_color(hover_fg))
         })
-        .children(item.icon.map(|icon| {
-            div()
-                .size(px(metric::MENU_ICON_SLOT))
-                .flex_shrink_0()
-                .flex()
-                .items_center()
-                .justify_center()
-                .opacity(s.icon_opacity)
-                .child(icon)
-        }))
+        .children(
+            item.icon
+                .map(|icon| {
+                    if disabled {
+                        icon.into_any_element()
+                    } else {
+                        icon.group_hover_color(group.clone(), hover_fg)
+                            .into_any_element()
+                    }
+                })
+                .or(item.glyph)
+                .map(|icon| {
+                    div()
+                        .size(px(metric::MENU_ICON_SLOT))
+                        .flex_shrink_0()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .opacity(s.icon_opacity)
+                        .child(icon)
+                }),
+        )
         .child(
             h_row()
                 .flex_1()
@@ -473,28 +508,24 @@ fn row(
             })
             .into_any_element();
     };
-    submenu_row(element_id, row, submenu, dismiss).into_any_element()
+    SubmenuRow {
+        id: element_id,
+        row,
+        build: submenu,
+        open: open_submenu,
+        dismiss,
+    }
+    .into_any_element()
 }
 /// A row whose submenu opens on hover or click and closes 180ms after the
 /// pointer leaves both, placed 4px past the row's end and 4px above it.
-fn submenu_row(
-    id: ElementId,
-    row: Stateful<Div>,
-    build: Rc<dyn Fn(&mut Window, &mut App) -> Menu>,
-    dismiss: Option<Handler>,
-) -> impl IntoElement {
-    SubmenuRow {
-        id,
-        row,
-        build,
-        dismiss,
-    }
-}
 #[derive(IntoElement)]
 struct SubmenuRow {
     id: ElementId,
     row: Stateful<Div>,
-    build: Rc<dyn Fn(&mut Window, &mut App) -> Menu>,
+    build: SubmenuBuilder,
+    /// Open once without a hover.
+    open: bool,
     dismiss: Option<Handler>,
 }
 impl RenderOnce for SubmenuRow {
@@ -502,6 +533,14 @@ impl RenderOnce for SubmenuRow {
         let state = window.use_keyed_state(child_id(&self.id, "submenu"), cx, |_, _| {
             SubmenuState::default()
         });
+        if self.open {
+            state.update(cx, |s, _| {
+                if !s.requested {
+                    s.requested = true;
+                    s.open = true;
+                }
+            });
+        }
         let hover = {
             let state = state.clone();
             move |hovered: bool, window: &mut Window, cx: &mut App| {
@@ -522,7 +561,7 @@ impl RenderOnce for SubmenuRow {
                         cx.background_executor()
                             .timer(Duration::from_millis(180))
                             .await;
-                        let _ = state.update(cx, |s, cx| {
+                        state.update(cx, |s, cx| {
                             if s.epoch == epoch && s.open {
                                 s.open = false;
                                 cx.notify();
@@ -547,8 +586,11 @@ impl RenderOnce for SubmenuRow {
         };
         let hover_row = hover.clone();
         let click_state = state.clone();
+        let t = cx.palette();
         let mut row = self
             .row
+            // The trigger stays lit while its submenu is open (`data-open`).
+            .when(open, |row| row.bg(t.hover).text_color(t.text))
             .child(measure)
             .on_hover(move |hovered, window, cx| hover_row(*hovered, window, cx))
             .on_click(move |_, _, cx| {

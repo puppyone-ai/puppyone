@@ -47,6 +47,8 @@ impl Disableable for SelectOption {
 }
 
 /// Options are built when the menu opens, so they always reflect current state.
+type Options = Rc<dyn Fn(&mut App) -> Vec<SelectOption>>;
+
 #[derive(IntoElement)]
 pub struct Select {
     id: ElementId,
@@ -54,7 +56,7 @@ pub struct Select {
     disabled: bool,
     min_width: f32,
     max_width: f32,
-    options: Rc<dyn Fn(&mut App) -> Vec<SelectOption>>,
+    options: Options,
 }
 impl Select {
     pub fn new(

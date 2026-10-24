@@ -209,6 +209,80 @@ fn project_popup_toggle_outside_and_escape_restore_focus(cx: &mut TestAppContext
         assert!(s.project_focus.is_focused(w));
     });
 }
+fn draw(cx: &mut VisualTestContext) {
+    cx.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+}
+#[gpui::test]
+fn explorer_row_menus_light_their_trigger_and_dismiss(cx: &mut TestAppContext) {
+    use explorer::{MenuAt, RowTrigger};
+    let (view, cx) = setup(cx);
+    let (index, path) = view.update(cx, |s, _| {
+        let index = s.tree.rows.iter().position(|r| !r.folder).unwrap();
+        (index, s.tree.rows[index].path.clone())
+    });
+    // "⋮" leaves the selection alone and lights its own trigger.
+    view.update(cx, |s, cx| {
+        let before = s.tree.selected.clone();
+        s.open_node_menu(index, MenuAt::Row(path.clone(), RowTrigger::More), cx);
+        assert_eq!(s.tree.selected, before);
+        let menu = s.explorer.menu.as_ref().unwrap();
+        assert_eq!(menu.row_trigger(&path), Some(RowTrigger::More));
+    });
+    draw(cx);
+    // GPUI Kit dismisses the popover on a press outside it.
+    cx.simulate_click(point(px(900.), px(500.)), Modifiers::none());
+    view.update(cx, |s, _| assert!(s.explorer.menu.is_none()));
+    // A right click selects the row and pins the menu at the pointer.
+    view.update(cx, |s, cx| {
+        s.open_node_menu(index, MenuAt::Pointer(point(px(100.), px(100.))), cx);
+        assert_eq!(s.tree.selected, path);
+        assert!(s.tree.selection.contains(&path));
+    });
+    draw(cx);
+    cx.simulate_keystrokes("escape");
+    view.update(cx, |s, _| assert!(s.explorer.menu.is_none()));
+}
+#[gpui::test]
+fn explorer_keys_move_the_selection_and_fill_the_clipboard(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    view.update_in(cx, |s, w, cx| {
+        let first = s.tree.rows[0].path.clone();
+        s.tree.select(&first, false, false);
+        s.explorer.focus.focus(w, cx);
+    });
+    draw(cx);
+    cx.simulate_keystrokes("down");
+    view.update(cx, |s, _| assert_eq!(s.tree.selected, s.tree.rows[1].path));
+    cx.simulate_keystrokes("end");
+    view.update(cx, |s, _| {
+        assert_eq!(s.tree.selected, s.tree.rows.last().unwrap().path)
+    });
+    cx.simulate_keystrokes("secondary-x");
+    view.update(cx, |s, _| {
+        let selected = s.tree.selected.clone();
+        assert_eq!(
+            s.explorer.clipboard,
+            Some(explorer::FileClipboard::Cut(vec![selected]))
+        );
+    });
+}
+#[gpui::test]
+fn rename_dialog_focuses_its_name_and_escape_cancels(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    view.update_in(cx, |s, w, cx| {
+        let path = s.tree.rows[0].path.clone();
+        s.begin_rename(path, false, w, cx);
+    });
+    draw(cx);
+    view.update(cx, |s, _| assert!(s.explorer.rename.is_some() && s.modal()));
+    cx.simulate_keystrokes("escape");
+    view.update_in(cx, |s, w, _| {
+        assert!(s.explorer.rename.is_none());
+        assert!(s.focus.is_focused(w));
+    });
+}
 #[gpui::test]
 fn choosing_local_closes_popup_and_restores_trigger(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
@@ -340,7 +414,7 @@ fn sidebar_tree_fades_into_the_footer_only_while_rows_remain_below(cx: &mut Test
     });
     let fade = |view: &Entity<Shell>, cx: &mut VisualTestContext| {
         view.update(cx, |s, _| {
-            let state = s.scroll.0.borrow();
+            let state = s.explorer.scroll.0.borrow();
             explorer::bottom_fade(
                 f32::from(state.base_handle.offset().y),
                 f32::from(state.base_handle.max_offset().y),
@@ -349,7 +423,7 @@ fn sidebar_tree_fades_into_the_footer_only_while_rows_remain_below(cx: &mut Test
     };
     assert_eq!(fade(&view, cx), 1.);
     view.update(cx, |s, cx| {
-        s.scroll.scroll_to_bottom();
+        s.explorer.scroll.scroll_to_bottom();
         cx.notify();
     });
     cx.update(|w, cx| {
