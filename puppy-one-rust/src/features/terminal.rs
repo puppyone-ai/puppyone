@@ -1,4 +1,5 @@
 //! GPUI paints the terminal grid. PTY and VT state survive hiding, resizing, and tab moves.
+use super::terminal_activity::TerminalActivity;
 use crate::{
     localization::{t as tr, tf},
     platform::terminal::{Event, Terminal},
@@ -7,7 +8,7 @@ use crate::{
     wake::Wake,
 };
 use gpui::{prelude::*, *};
-use std::{ops::Range, path::PathBuf};
+use std::{ops::Range, path::PathBuf, time::Instant};
 #[path = "terminal_interaction.rs"]
 mod interaction;
 #[path = "terminal_queries.rs"]
@@ -35,6 +36,11 @@ pub struct TerminalView {
     last_mouse: Option<CellPoint>,
     hover_link: Option<String>,
     scroll_pixels: f32,
+    /// Agent CLI activity (`TerminalActivityController`), its pending idle
+    /// timer and the last OSC title seen.
+    activity: TerminalActivity,
+    activity_timer: bool,
+    title: String,
 }
 impl TerminalView {
     pub fn new(
@@ -43,6 +49,7 @@ impl TerminalView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
+        let agent = executable.is_some();
         let (wake, rx) = Wake::channel();
         cx.spawn_in(window, async move |this, cx| {
             while rx.recv().await.is_ok() {
@@ -58,12 +65,21 @@ impl TerminalView {
                                     for reply in s.queries.process(&bytes, s.parser.screen()) {
                                         let _ = s.terminal.input(reply);
                                     }
+                                    if s.activity.note_output(Instant::now(), bytes.len()) {
+                                        s.watch_activity(cx);
+                                    }
+                                    if s.parser.screen().title() != s.title {
+                                        s.title = s.parser.screen().title().to_owned();
+                                        s.activity.note_title(&s.title);
+                                    }
                                 }
                                 Event::Error(e) => {
                                     s.error = Some(e);
                                     s.running = false;
+                                    s.activity.reset();
                                 }
                                 Event::Exit(code) => {
+                                    s.activity.reset();
                                     s.error = Some(tf(
                                         "terminal.processExitedCode",
                                         &[("code", (code as i64).into())],
@@ -97,7 +113,46 @@ impl TerminalView {
             last_mouse: None,
             hover_link: None,
             scroll_pixels: 0.,
+            activity: TerminalActivity::new(agent),
+            activity_timer: false,
+            title: String::new(),
         }
+    }
+    /// Dev-capture: an Agent CLI whose title reports work.
+    #[cfg(feature = "dev-capture")]
+    pub fn lab_busy_agent(&mut self) {
+        self.activity = TerminalActivity::new(true);
+        self.activity.note_title("⠋ claude");
+        self.running = true;
+    }
+    /// `TerminalSessionHeaderStatus`: an Agent CLI that is running and busy.
+    pub fn agent_active(&self) -> bool {
+        self.running && self.activity.active(Instant::now())
+    }
+    /// Re-render once the output signal lapses (`OUTPUT_IDLE_MS`).
+    fn watch_activity(&mut self, cx: &mut Context<Self>) {
+        if std::mem::replace(&mut self.activity_timer, true) {
+            return;
+        }
+        cx.spawn(async move |this, cx| {
+            loop {
+                let Ok(deadline) = this.read_with(cx, |s, _| s.activity.output_deadline()) else {
+                    return;
+                };
+                let now = Instant::now();
+                match deadline {
+                    Some(deadline) if deadline > now => {
+                        cx.background_executor().timer(deadline - now).await;
+                    }
+                    _ => break,
+                }
+            }
+            let _ = this.update(cx, |s, cx| {
+                s.activity_timer = false;
+                cx.notify();
+            });
+        })
+        .detach();
     }
     fn input(&mut self, bytes: Vec<u8>, cx: &mut Context<Self>) {
         self.selection = None;
@@ -402,6 +457,7 @@ impl Render for TerminalView {
                                         .clamp(8., 300.)
                                         as u16;
                                     if s.parser.screen().size() != (rows, cols) {
+                                        s.activity.begin_presentation_refresh(Instant::now());
                                         s.selection = None;
                                         s.hover_link = None;
                                         s.parser.set_size(rows, cols);
@@ -691,6 +747,9 @@ mod tests {
             last_mouse: None,
             hover_link: None,
             scroll_pixels: 0.,
+            activity: TerminalActivity::new(false),
+            activity_timer: false,
+            title: String::new(),
         });
         cx.update(|w, cx| {
             let _ = w.draw(cx);

@@ -5,4 +5,5 @@ pub mod model_connections;
 pub mod settings;
 pub mod source_control;
 pub mod terminal;
+mod terminal_activity;
 pub mod workbench;

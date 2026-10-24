@@ -33,6 +33,7 @@ impl Workbench {
                 || scenario.starts_with("drag-")
                 || scenario == "split"
                 || scenario == "close-dialog"
+                || scenario == "terminal-activity"
             {
                 "chat-empty"
             } else {
@@ -77,6 +78,21 @@ impl Workbench {
                     });
                 }
                 "close-dialog" => self.request_close_confirmation(chat, cx),
+                "terminal-activity" => {
+                    let view = cx.new(|cx| {
+                        let mut view = TerminalView::new(std::env::temp_dir(), None, window, cx);
+                        view.lab_busy_agent();
+                        view
+                    });
+                    project.content.insert(
+                        terminal,
+                        Content::Terminal(
+                            view,
+                            "Claude Code".into(),
+                            Some(crate::agent::runtime::agent_runtime_registry::Runtime::Claude),
+                        ),
+                    );
+                }
                 "split" => {
                     project
                         .layout
