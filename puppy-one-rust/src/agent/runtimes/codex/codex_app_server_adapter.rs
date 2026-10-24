@@ -205,7 +205,7 @@ impl Session {
                     } else {
                         Value::Null
                     };
-                    json!({"action": match decision { Decision::Accept=>"accept", Decision::Decline=>"decline", Decision::Cancel=>"cancel" }, "content":content})
+                    json!({"action": match decision { Decision::Accept | Decision::AcceptForSession=>"accept", Decision::Decline=>"decline", Decision::Cancel=>"cancel" }, "content":content})
                 }
                 (InteractionKind::Permission { options, .. }, Resolution::Choice(choice))
                     if options.iter().any(|o| o.0 == choice) =>
@@ -218,7 +218,7 @@ impl Session {
                 (InteractionKind::Approval { decisions, .. }, Resolution::Approval(decision))
                     if decisions.contains(&decision) =>
                 {
-                    json!({"decision": match decision { Decision::Accept => "accept", Decision::Decline => "decline", Decision::Cancel => "cancel" }})
+                    json!({"decision": match decision { Decision::Accept => "accept", Decision::AcceptForSession => "acceptForSession", Decision::Decline => "decline", Decision::Cancel => "cancel" }})
                 }
                 (InteractionKind::Questions(questions), Resolution::Answers(answers))
                     if questions.iter().all(|q| answers.contains_key(&q.id)) =>
@@ -469,15 +469,27 @@ impl Session {
                                 .as_array()
                                 .into_iter()
                                 .flatten()
-                                .map(|q| Question {
-                                    id: q["id"].as_str().unwrap_or("").into(),
-                                    text: q["question"].as_str().unwrap_or("").into(),
-                                    options: q["options"]
-                                        .as_array()
-                                        .into_iter()
-                                        .flatten()
-                                        .filter_map(|o| o["label"].as_str().map(str::to_owned))
-                                        .collect(),
+                                .map(|q| {
+                                    let options =
+                                        q["options"].as_array().cloned().unwrap_or_default();
+                                    Question {
+                                        id: q["id"].as_str().unwrap_or("").into(),
+                                        text: q["question"].as_str().unwrap_or("").into(),
+                                        options: options
+                                            .iter()
+                                            .filter_map(|o| o["label"].as_str().map(str::to_owned))
+                                            .collect(),
+                                        descriptions: options
+                                            .iter()
+                                            .filter(|o| o["label"].is_string())
+                                            .map(|o| {
+                                                o["description"].as_str().unwrap_or("").to_owned()
+                                            })
+                                            .collect(),
+                                        header: q["header"].as_str().unwrap_or("").into(),
+                                        multiple: q["multiSelect"].as_bool().unwrap_or(false),
+                                        custom: q["isOther"].as_bool().unwrap_or(false),
+                                    }
                                 })
                                 .collect(),
                         )
@@ -487,6 +499,7 @@ impl Session {
                                 .iter()
                                 .filter_map(|v| match v.as_str() {
                                     Some("accept") => Some(Decision::Accept),
+                                    Some("acceptForSession") => Some(Decision::AcceptForSession),
                                     Some("decline") => Some(Decision::Decline),
                                     Some("cancel") => Some(Decision::Cancel),
                                     _ => None,
@@ -494,14 +507,28 @@ impl Session {
                                 .collect(),
                             None => vec![Decision::Accept, Decision::Decline],
                         };
+                        // Product titles (`codex-interactions.mjs`).
+                        let command = method.contains("commandExecution");
+                        let network = params["networkApprovalContext"].is_object();
                         InteractionKind::Approval {
-                            command: method.contains("commandExecution"),
+                            command,
                             prompt: params["command"]
                                 .as_str()
                                 .or(params["reason"].as_str())
                                 .unwrap_or("The Agent requests permission to continue.")
                                 .into(),
                             decisions,
+                            title: if network {
+                                "Allow network access"
+                            } else if command {
+                                "Run command"
+                            } else {
+                                "Apply file changes"
+                            }
+                            .into(),
+                            command_line: params["command"].as_str().map(str::to_owned),
+                            cwd: params["cwd"].as_str().map(str::to_owned),
+                            reason: params["reason"].as_str().map(str::to_owned),
                         }
                     };
                     self.snapshot.interactions.push(Interaction {

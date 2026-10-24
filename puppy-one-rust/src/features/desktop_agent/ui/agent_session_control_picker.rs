@@ -1,7 +1,7 @@
 //! Kit owns picker focus, keyboard navigation and popup dismissal.
 use super::*;
 use gpui_kit::component::{
-    Disableable, IconName, Sizable,
+    Disableable,
     button::{Button, ButtonVariants},
     menu::{DropdownMenu, PopupMenuItem},
 };
@@ -22,22 +22,38 @@ impl AgentChat {
     ) -> AnyElement {
         let host = cx.weak_entity();
         let t = Theme::new(self.dark);
-        // `.desktop-agent-picker` in the composer: quiet label, chevron, bounded width.
+        let a = super::agent_theme::AgentTheme::new(&t);
+        let disabled = self.session.busy();
+        // `.desktop-agent-composer-picker .desktop-agent-picker-trigger`:
+        // quiet 14px label, no indicator, bounded width, row hover.
+        let variant = gpui_kit::component::button::ButtonCustomVariant::new(cx)
+            .color(crate::theme::alpha(a.row_hover, 0.).into())
+            .foreground(a.text_subtle.into())
+            .hover(a.row_hover.into())
+            .active(a.row_hover.into());
         Button::new(id)
-            .ghost()
-            .small()
-            .compact()
+            .custom(variant)
+            .h(px(crate::theme::control()))
             .px(px(8.))
-            .gap(px(4.))
-            .text_color(t.subtle)
-            .text_size(px(crate::theme::ty().left.meta))
-            .child(div().min_w_0().truncate().child(label))
-            .child(gpui_kit::component::Icon::new(IconName::ChevronDown).size(px(12.)))
+            .py_0()
+            .rounded(px(crate::theme::metric::CONTROL_RADIUS))
+            .text_color(a.text_subtle)
+            .text_size(px(crate::theme::ty().left.content))
+            .font_weight(FontWeight::NORMAL)
+            .child(
+                div()
+                    .min_w_0()
+                    .truncate()
+                    .text_size(px(crate::theme::ty().left.content))
+                    .line_height(px(crate::theme::ty().left.line_height))
+                    .child(label),
+            )
             .flex_shrink(1.)
             .min_w_0()
             .max_w(px(width))
             .overflow_hidden()
-            .disabled(self.session.busy())
+            .when(disabled, |b| b.opacity(0.45))
+            .disabled(disabled)
             .dropdown_menu(move |mut menu, _, _| {
                 for (label, selection, checked) in &choices {
                     let host = host.clone();

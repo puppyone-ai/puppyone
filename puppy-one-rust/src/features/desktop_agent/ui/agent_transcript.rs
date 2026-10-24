@@ -228,7 +228,12 @@ impl AgentChat {
         }
     }
 
-    pub(super) fn render_row(&mut self, index: usize, cx: &mut Context<Self>) -> AnyElement {
+    pub(super) fn render_row(
+        &mut self,
+        index: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         let t = Theme::new(self.dark);
         let a = AgentTheme::new(&t);
         let m = theme::ty();
@@ -297,8 +302,10 @@ impl AgentChat {
                                 .child(super::super::agent_markdown::render(
                                     &message_preview(&message.text),
                                     t,
-                                    index,
-                                    cx,
+                                    &message.id,
+                                    index as u64 * 10_000,
+                                    content_width - 24.,
+                                    window,
                                 )),
                         )
                         .children(terminal.map(|label| {
@@ -432,8 +439,8 @@ impl AgentChat {
             .flex_1()
             .min_h_0()
             .child(
-                list(self.transcript.clone(), move |i, _, cx| {
-                    weak.update(cx, |s, cx| s.render_row(i, cx))
+                list(self.transcript.clone(), move |i, window, cx| {
+                    weak.update(cx, |s, cx| s.render_row(i, window, cx))
                         .unwrap_or_else(|_| div().into_any_element())
                 })
                 .size_full(),

@@ -14,8 +14,7 @@ mod agent_session_control_picker;
 mod agent_status;
 #[path = "agent_surface_header.rs"]
 mod agent_surface_header;
-#[path = "agent_theme.rs"]
-mod agent_theme;
+use super::agent_theme;
 pub use agent_surface_header::AgentChatEvent;
 #[path = "agent_transcript.rs"]
 mod agent_transcript;
@@ -24,7 +23,7 @@ mod agent_transcript;
 mod visual_fixture;
 use super::super::{
     application::agent_session_controller::AgentSessionController,
-    domain::agent_chat_presentation::{decision_label, message_preview},
+    domain::agent_chat_presentation::message_preview,
     infrastructure::native::{native_agent_client, native_attachment_client},
 };
 use crate::{
@@ -53,6 +52,8 @@ pub struct AgentChat {
     pub dark: bool,
     composer: Entity<TextInput>,
     answers: HashMap<String, Entity<TextInput>>,
+    /// Options chosen per pending question (`AgentQuestionDock` answers).
+    question_choices: HashMap<String, Vec<String>>,
     transcript: ListState,
     follow: bool,
     /// Timeline rows (`domain::agent_timeline`) and their list signatures.
@@ -172,8 +173,12 @@ impl AgentChat {
             )
         });
         composer.update(cx, |i, _| {
-            i.min_height = 29.;
+            // One 1.5em line at rest; Enter sends, Shift+Enter breaks the line.
+            let size = crate::theme::ty().left.content;
+            i.prompt_text = Some((size, size * 1.5));
+            i.min_height = size * 1.5;
             i.appearance = false;
+            i.submit_on_enter = true;
         });
         cx.subscribe_in(
             &composer,
@@ -233,6 +238,7 @@ impl AgentChat {
             dark: true,
             composer,
             answers: HashMap::new(),
+            question_choices: HashMap::new(),
             transcript,
             follow: true,
             rows: vec![],
@@ -370,9 +376,12 @@ impl Render for AgentChat {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let t = Theme::new(self.dark);
         let placeholder = self.composer_placeholder();
+        let subtle = super::agent_theme::AgentTheme::new(&t).text_subtle;
         self.composer.update(cx, |i, _| {
             i.dark = self.dark;
             i.set_placeholder(placeholder);
+            // `.cm-placeholder { color: var(--agent-text-subtle) }`.
+            i.placeholder_color = Some(subtle);
         });
         self.history_filter.update(cx, |i, _| i.dark = self.dark);
         self.rename_input.update(cx, |i, _| i.dark = self.dark);
@@ -401,11 +410,21 @@ impl Render for AgentChat {
         } else {
             pane = pane.child(self.render_transcript(cx));
         }
-        if let Some(card) = self.render_interaction(window, cx) {
-            pane = pane.child(card)
-        }
+        // `.desktop-agent-dock-region`: 12px padding, 8px between its cards.
+        let card = self.render_interaction(window, cx);
         let commands = self.render_commands(cx);
-        pane.children(commands).child(self.render_composer(cx))
+        let composer = self.render_composer(window, cx);
+        pane.child(
+            column()
+                .flex_shrink_0()
+                .pt(px(12.))
+                .px(px(12.))
+                .pb(px(12.))
+                .gap(px(8.))
+                .children(card)
+                .children(commands)
+                .child(composer),
+        )
     }
 }
 
@@ -456,6 +475,7 @@ mod tests {
                 id: "answer".into(),
                 text: "Choose".into(),
                 options: vec!["One".into(), "Two".into()],
+                ..Default::default()
             }]);
             s.session.replace_client(Box::new(Unavailable { snapshot }));
             s.sync_draft(cx);

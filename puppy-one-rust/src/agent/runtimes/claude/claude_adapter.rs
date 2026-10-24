@@ -443,15 +443,25 @@ impl Session {
                             .as_array()
                             .into_iter()
                             .flatten()
-                            .map(|q| Question {
-                                id: q["question"].as_str().unwrap_or("answer").into(),
-                                text: q["question"].as_str().unwrap_or("").into(),
-                                options: q["options"]
-                                    .as_array()
-                                    .into_iter()
-                                    .flatten()
-                                    .filter_map(|o| o["label"].as_str().map(str::to_owned))
-                                    .collect(),
+                            .map(|q| {
+                                let options = q["options"].as_array().cloned().unwrap_or_default();
+                                Question {
+                                    id: q["question"].as_str().unwrap_or("answer").into(),
+                                    text: q["question"].as_str().unwrap_or("").into(),
+                                    options: options
+                                        .iter()
+                                        .filter_map(|o| o["label"].as_str().map(str::to_owned))
+                                        .collect(),
+                                    descriptions: options
+                                        .iter()
+                                        .filter(|o| o["label"].is_string())
+                                        .map(|o| o["description"].as_str().unwrap_or("").to_owned())
+                                        .collect(),
+                                    header: q["header"].as_str().unwrap_or("").into(),
+                                    multiple: q["multiSelect"].as_bool().unwrap_or(false),
+                                    // AskUserQuestion always accepts an "Other" answer.
+                                    custom: true,
+                                }
                             })
                             .collect(),
                     )
@@ -463,7 +473,27 @@ impl Session {
                             request["tool_name"].as_str().unwrap_or("Tool"),
                             input
                         ),
-                        decisions: vec![Decision::Accept, Decision::Decline],
+                        decisions: vec![
+                            Decision::Accept,
+                            Decision::AcceptForSession,
+                            Decision::Decline,
+                        ],
+                        // `claude-interactions.mjs`: "Allow {tool}", the request as detail.
+                        title: request["title"]
+                            .as_str()
+                            .map(str::to_owned)
+                            .unwrap_or_else(|| {
+                                format!(
+                                    "Allow {}",
+                                    humanize_tool(request["tool_name"].as_str().unwrap_or("tool"))
+                                )
+                            }),
+                        command_line: input["command"].as_str().map(str::to_owned),
+                        cwd: None,
+                        reason: request["description"]
+                            .as_str()
+                            .or(request["decision_reason"].as_str())
+                            .map(str::to_owned),
                     }
                 };
                 self.requests.insert(id.to_string(), request.clone());
@@ -642,10 +672,17 @@ impl AgentRuntimePort for Session {
                 } else {
                     Value::Null
                 };
-                json!({"action":match decision{Decision::Accept=>"accept",Decision::Decline=>"decline",Decision::Cancel=>"cancel"},"content":content})
+                json!({"action":match decision{Decision::Accept|Decision::AcceptForSession=>"accept",Decision::Decline=>"decline",Decision::Cancel=>"cancel"},"content":content})
             }
             (InteractionKind::Approval { .. }, Resolution::Approval(Decision::Accept)) => {
                 json!({"behavior":"allow","updatedInput":request["input"]})
+            }
+            // Session scope: allow and keep the permission suggestions Claude offered.
+            (
+                InteractionKind::Approval { .. },
+                Resolution::Approval(Decision::AcceptForSession),
+            ) => {
+                json!({"behavior":"allow","updatedInput":request["input"],"updatedPermissions":request["permission_suggestions"].as_array().cloned().unwrap_or_default()})
             }
             (InteractionKind::Approval { .. }, Resolution::Approval(_)) => {
                 json!({"behavior":"deny","message":"User declined this operation"})
@@ -738,5 +775,42 @@ mod tests {
         );
         s.resolve(&json!("permission"), Resolution::Approval(Decision::Accept));
         assert!(rx.try_recv().is_err());
+    }
+}
+
+/// `humanize(toolName)` (`claude-native-values.mjs`): separators become
+/// spaces and each word starts upper-case (`web_fetch` → "Web Fetch").
+fn humanize_tool(name: &str) -> String {
+    let spaced: String = name
+        .trim()
+        .chars()
+        .take(160)
+        .map(|c| if c == '_' || c == '-' { ' ' } else { c })
+        .collect();
+    let mut out = String::new();
+    let mut start = true;
+    for c in spaced.chars() {
+        if start && c.is_alphanumeric() {
+            out.extend(c.to_uppercase());
+        } else {
+            out.push(c);
+        }
+        start = !(c.is_alphanumeric() || c == '_');
+    }
+    if out.trim().is_empty() {
+        "tool".into()
+    } else {
+        out
+    }
+}
+
+#[cfg(test)]
+mod humanize_tests {
+    #[test]
+    fn tool_names_read_like_the_product_titles() {
+        assert_eq!(super::humanize_tool("Bash"), "Bash");
+        assert_eq!(super::humanize_tool("web_fetch"), "Web Fetch");
+        assert_eq!(super::humanize_tool("WebFetch"), "WebFetch");
+        assert_eq!(super::humanize_tool(""), "tool");
     }
 }

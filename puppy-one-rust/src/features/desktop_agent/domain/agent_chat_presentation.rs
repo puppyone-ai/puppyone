@@ -4,6 +4,7 @@ use crate::agent::domain::agent_session_model::Decision;
 pub fn decision_label(decision: Decision) -> &'static str {
     match decision {
         Decision::Accept => "agent.approval.allowOnce",
+        Decision::AcceptForSession => "agent.approval.allowSession",
         Decision::Decline => "agent.approval.deny",
         Decision::Cancel => "common.action.cancel",
     }

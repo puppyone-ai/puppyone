@@ -33,6 +33,11 @@ pub struct TextInput {
     pub appearance: bool,
     pub submit_on_enter: bool,
     pub min_height: f32,
+    /// Prompt editors: Kit's smallest editor padding (4px inline, 0 block) so
+    /// the host owns the inset, with an explicit text size and line height.
+    pub prompt_text: Option<(f32, f32)>,
+    /// Draw the placeholder in this colour (Kit's follows the global theme).
+    pub placeholder_color: Option<Rgba>,
     max_chars: usize,
     _subscriptions: Vec<Subscription>,
 }
@@ -99,6 +104,8 @@ impl TextInput {
             dark: true,
             appearance: true,
             submit_on_enter: false,
+            prompt_text: None,
+            placeholder_color: None,
             min_height: 22.,
             max_chars,
             _subscriptions: vec![subscription],
@@ -164,10 +171,16 @@ impl Render for TextInput {
                 );
             }));
         }
+        // A custom placeholder colour is drawn by this host over an empty field.
+        let kit_placeholder = if self.placeholder_color.is_some() {
+            SharedString::default()
+        } else {
+            self.placeholder.clone()
+        };
         dispatch!(&self.field, |s| {
-            if s.read(cx).presentation().placeholder() != &self.placeholder {
+            if s.read(cx).presentation().placeholder() != &kit_placeholder {
                 s.update(cx, |s, cx| {
-                    s.set_placeholder(self.placeholder.clone(), window, cx)
+                    s.set_placeholder(kit_placeholder.clone(), window, cx)
                 });
             }
         });
@@ -176,17 +189,45 @@ impl Render for TextInput {
             Field::Single(s) => Input::new(s)
                 .appearance(self.appearance)
                 .w_full()
+                .when_some(self.prompt_text, |input, (size, line)| {
+                    use gpui_kit::component::Sizable as _;
+                    input.xsmall().text_size(px(size)).line_height(px(line))
+                })
                 .into_any_element(),
             Field::Multi(s) => Textarea::new(s)
                 .appearance(self.appearance)
                 .w_full()
-                .min_h(px(self.min_height + 16.))
+                .when_some(self.prompt_text, |area, (size, line)| {
+                    use gpui_kit::component::Sizable as _;
+                    area.xsmall().text_size(px(size)).line_height(px(line))
+                })
+                .min_h(px(
+                    self.min_height + if self.prompt_text.is_some() { 0. } else { 16. }
+                ))
                 .into_any_element(),
         };
+        let overlay = self
+            .placeholder_color
+            .filter(|_| self.value.is_empty())
+            .map(|color| {
+                let (size, line) = self.prompt_text.unwrap_or((14., 21.));
+                div()
+                    .absolute()
+                    .top_0()
+                    .left(px(4.))
+                    .right(px(4.))
+                    .text_size(px(size))
+                    .line_height(px(line))
+                    .text_color(color)
+                    .truncate()
+                    .child(self.placeholder.clone())
+            });
         div()
             .key_context("PuppyForm")
+            .relative()
             .w_full()
             .text_color(t.text)
+            .children(overlay)
             .on_action(cx.listener(|_, _: &NextField, w, cx| {
                 move_focus(false, w, cx);
             }))
@@ -237,7 +278,11 @@ impl Render for TextInput {
                     cx.stop_propagation();
                     return;
                 }
-                if a.secondary || (s.submit_on_enter && matches!(s.field, Field::Single(_))) {
+                // Multi-line prompts with `submit_on_enter` send on Enter and keep
+                // Shift+Enter for a new line (`AgentPromptEditor`'s keymap).
+                if a.secondary
+                    || (s.submit_on_enter && (matches!(s.field, Field::Single(_)) || !a.shift))
+                {
                     cx.emit(InputEvent::Submit);
                     cx.stop_propagation();
                 } else if matches!(s.field, Field::Multi(_)) {

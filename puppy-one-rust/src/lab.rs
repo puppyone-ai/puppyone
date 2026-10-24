@@ -67,6 +67,9 @@ impl Render for Lab {
             .text_size(px(theme::font_size(theme::FONT)))
             .text_color(t.text)
             .bg(t.auxiliary())
+            .relative()
             .child(self.workbench.clone())
+            // The OS cursor may rest over the window; captures show no hover.
+            .child(div().id("lab-hover-shield").absolute().inset_0().occlude())
     }
 }

@@ -576,6 +576,15 @@ impl Engine {
                     serde_json::to_string_pretty(args).unwrap_or_default()
                 ),
                 decisions: vec![Decision::Accept, Decision::Decline, Decision::Cancel],
+                title: if name == "bash" {
+                    "Run command".into()
+                } else {
+                    format!("Allow {name}")
+                },
+                command_line: args["command"].as_str().map(str::to_owned),
+                cwd: None,
+                reason: (name != "bash")
+                    .then(|| serde_json::to_string_pretty(args).unwrap_or_default()),
             },
         });
         self.publish();

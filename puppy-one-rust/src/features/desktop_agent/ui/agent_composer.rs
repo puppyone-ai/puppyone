@@ -37,7 +37,7 @@ impl AgentChat {
             tr("agent.composer.placeholder.followUp").into()
         }
     }
-    pub(super) fn render_composer(&mut self, cx: &mut Context<Self>) -> Div {
+    pub(super) fn render_composer(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Div {
         let t = Theme::new(self.dark);
         let label = self.installation.label.clone();
         let snapshot = self.session.snapshot();
@@ -98,7 +98,9 @@ impl AgentChat {
             && self.attachment_rx.is_none()
             && (!self.composer.read(cx).text().trim().is_empty()
                 || !self.session.references.is_empty());
-        // The model label yields space first; effort and mode stay readable.
+        // `.desktop-agent-composer-picker.is-*`: max-content up to
+        // min(148px, 34vw) / min(72px, 20vw) / min(88px, 22vw).
+        let viewport = f32::from(window.viewport_size().width);
         let mut controls = row()
             .min_w_0()
             .flex_1()
@@ -109,14 +111,20 @@ impl AgentChat {
                     .min_w_0()
                     .flex_shrink(1.)
                     .overflow_hidden()
-                    .child(self.picker("model-picker", model, models, 148., cx)),
+                    .child(self.picker(
+                        "model-picker",
+                        model,
+                        models,
+                        148f32.min(viewport * 0.34),
+                        cx,
+                    )),
             );
         if !efforts.is_empty() {
             controls = controls.child(div().flex_shrink_0().child(self.picker(
                 "effort-picker",
                 effort,
                 efforts,
-                96.,
+                72f32.min(viewport * 0.2),
                 cx,
             )))
         }
@@ -125,22 +133,32 @@ impl AgentChat {
                 "mode-picker",
                 mode,
                 modes,
-                96.,
+                88f32.min(viewport * 0.22),
                 cx,
             )))
         }
+        let a = super::agent_theme::AgentTheme::new(&Theme::new(self.dark));
         let references = self.render_references(cx);
         let has_references = !self.session.references.is_empty() || self.attachment_rx.is_some();
-        // Attachment menu (`AgentAttachmentButton`).
+        // `AgentAttachmentButton`: 32px quiet trigger (Paperclip 16 / 1.7).
         let host = cx.weak_entity();
         let workspace_host = cx.weak_entity();
+        let attach_disabled = self.session.busy() && !running;
+        let variant = gpui_kit::component::button::ButtonCustomVariant::new(cx)
+            .color(theme::alpha(a.row_hover, 0.).into())
+            .foreground(a.text_subtle.into())
+            .hover(a.row_hover.into())
+            .active(a.row_hover.into());
         let attach = Button::new("attach-agent")
-            .ghost()
-            .small()
-            .icon(menu_icon("paperclip"))
-            .text_color(t.subtle)
+            .custom(variant)
+            .size(px(theme::control()))
+            .p_0()
+            .rounded(px(metric::CONTROL_RADIUS))
+            .text_color(a.text_subtle)
+            .child(crate::ui::icon_stroke("paperclip", 16., 1.7, a.text_subtle))
+            .when(attach_disabled, |b| b.opacity(0.48))
             .tooltip(tr("agent.reference.add"))
-            .disabled(self.session.busy() && !running)
+            .disabled(attach_disabled)
             .dropdown_menu(move |menu, _, _| {
                 let host = host.clone();
                 let workspace_host = workspace_host.clone();
@@ -164,31 +182,32 @@ impl AgentChat {
         } else {
             tr("agent.composer.send").to_owned()
         };
+        // `.desktop-agent-composer-action`: a 28px disc inside a 32px target.
         let enabled = running || ready;
-        let (surface, glyph_color) = if enabled {
-            (t.text, t.canvas)
+        let (surface, glyph_color, opacity) = if running || stopping {
+            (a.text, a.canvas, if stopping { 0.52 } else { 1. })
+        } else if enabled {
+            (a.text, a.canvas, 1.)
         } else {
-            (theme::alpha(t.text, 0.14), theme::alpha(t.text, 0.48))
+            (a.action_disabled_surface, a.action_disabled_text, 1.)
         };
         let glyph: AnyElement = if stopping {
             icon_sized("loader-circle", 15., glyph_color).into_any_element()
         } else if running {
             div()
-                .size(px(10.))
+                .size(px(11.))
                 .rounded(px(2.))
                 .bg(glyph_color)
                 .into_any_element()
         } else {
-            icon_sized("arrow-up", 17., glyph_color).into_any_element()
+            crate::ui::icon_stroke("arrow-up", 17., 1.6, glyph_color).into_any_element()
         };
         let primary = gpui_kit::base::Button::new("send-agent")
             .accessibility_label(action_label.clone())
             .disabled(!enabled || stopping)
             .size(px(theme::control()))
-            .flex()
-            .items_center()
-            .justify_center()
             .ml(px(4.))
+            .opacity(opacity)
             .child(
                 div()
                     .size(px(28.))
@@ -199,7 +218,7 @@ impl AgentChat {
                     .justify_center()
                     .child(glyph),
             )
-            .when(enabled, |b| {
+            .when(enabled && !stopping, |b| {
                 b.cursor(theme::clickable_cursor())
                     .hover(|s| s.opacity(0.84))
             })
@@ -212,38 +231,45 @@ impl AgentChat {
                     s.send(w, cx)
                 }
             }));
+        let focused = self.composer.focus_handle(cx).contains_focused(window, cx);
+        let size = theme::ty().left.content;
         column()
-            .flex_shrink_0()
-            .px(px(metric::SIDEBAR_ROW_LEFT_GAP))
-            .py(px(12.))
+            .w_full()
+            .min_w_0()
+            .max_w(px(900.))
+            .mx_auto()
+            .rounded(px(8.))
+            .border_1()
+            .border_color(if focused { a.border } else { a.border_subtle })
+            .bg(a.composer_surface)
+            .when(has_references, |d| {
+                d.child(div().px(px(16.)).pt(px(12.)).child(references))
+            })
             .child(
-                column()
-                    .w_full()
-                    .min_w_0()
-                    .max_w(px(900.))
-                    .mx_auto()
-                    .rounded(px(8.))
-                    .border_1()
-                    .border_color(t.divider)
-                    .bg(t.active)
-                    .when(has_references, |d| {
-                        d.child(div().px(px(12.)).pt(px(10.)).child(references))
-                    })
-                    .child(
-                        div()
-                            .px(px(8.))
-                            .pt(px(6.))
-                            .text_size(px(theme::ty().left.content))
-                            .child(self.composer.clone()),
-                    )
+                // `.cm-content`: 12px block padding, 16px inline inset (Kit's
+                // xsmall editor adds 4px inline), 1.5em lines.
+                div()
+                    .px(px(12.))
+                    .py(px(12.))
+                    .min_h(px(size * 1.5 + 24.))
+                    .text_size(px(size))
+                    .line_height(px(size * 1.5))
+                    .child(self.composer.clone()),
+            )
+            .child(
+                // `.desktop-agent-composer-trailing`.
+                row()
+                    .min_h(px(38.))
+                    .pb(px(8.))
+                    .px(px(8.))
+                    .gap(px(8.))
+                    .child(controls)
                     .child(
                         row()
-                            .min_h(px(38.))
-                            .pb(px(8.))
-                            .px(px(8.))
-                            .gap(px(8.))
-                            .child(controls)
-                            .child(row().gap(px(2.)).child(attach).child(primary)),
+                            .gap(px(2.))
+                            .flex_shrink_0()
+                            .child(attach)
+                            .child(primary),
                     ),
             )
     }

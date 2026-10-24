@@ -26,14 +26,27 @@ pub struct Message {
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Decision {
     Accept,
+    /// Allow this request and the same kind for the rest of the session.
+    AcceptForSession,
     Decline,
     Cancel,
 }
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Question {
     pub id: String,
     pub text: String,
     pub options: Vec<String>,
+    /// `AgentQuestionPrompt.header` (the fieldset legend).
+    #[serde(default)]
+    pub header: String,
+    /// Option descriptions, parallel to `options`.
+    #[serde(default)]
+    pub descriptions: Vec<String>,
+    #[serde(default)]
+    pub multiple: bool,
+    /// Free-text answers are allowed beside the options ("Other…").
+    #[serde(default)]
+    pub custom: bool,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum InteractionKind {
@@ -50,6 +63,15 @@ pub enum InteractionKind {
         command: bool,
         prompt: String,
         decisions: Vec<Decision>,
+        /// `AgentApproval.title`, `command`, `cwd` and `reason`.
+        #[serde(default)]
+        title: String,
+        #[serde(default)]
+        command_line: Option<String>,
+        #[serde(default)]
+        cwd: Option<String>,
+        #[serde(default)]
+        reason: Option<String>,
     },
     Questions(Vec<Question>),
 }

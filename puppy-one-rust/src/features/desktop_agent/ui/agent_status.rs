@@ -175,7 +175,6 @@ impl AgentChat {
             return None;
         }
         let mut list = column()
-            .mx(px(12.))
             .p(px(4.))
             .rounded(px(8.))
             .border_1()

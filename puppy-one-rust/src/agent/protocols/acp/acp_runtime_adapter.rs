@@ -361,6 +361,10 @@ impl Session {
                                         o["label"].as_str().or(o.as_str()).map(str::to_owned)
                                     })
                                     .collect(),
+                                header: q["title"].as_str().unwrap_or("").into(),
+                                multiple: q["allowMultiple"].as_bool().unwrap_or(false),
+                                custom: q["allowFreeText"].as_bool().unwrap_or(false),
+                                ..Default::default()
                             })
                             .collect(),
                     )

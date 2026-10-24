@@ -40,6 +40,10 @@ async function run() {
         for(let i=0;i<300&&!window.__referenceReady&&!window.__errors.length;i++)await new Promise(r=>setTimeout(r,20));
         if(!window.__referenceReady)throw Error('Fixture did not render: '+window.__errors.join(';'));
         await new Promise(r=>setTimeout(r,500));})()`);
+      // A live conversation is pinned to its latest output (`initialPinned`);
+      // the harness mounts asynchronously, so settle the viewport there.
+      await win.webContents.executeJavaScript(`(async()=>{for(const el of document.querySelectorAll('.desktop-agent-transcript')){el.scrollTop=el.scrollHeight;el.dispatchEvent(new Event('scroll'));}
+        await new Promise(r=>setTimeout(r,300));})()`);
       if (c.click) {
         await win.webContents.executeJavaScript(`(async()=>{const el=document.querySelector(${JSON.stringify(c.click)});
           if(!el)throw Error('Missing click target ${c.click}');el.click();await new Promise(r=>setTimeout(r,500));})()`);

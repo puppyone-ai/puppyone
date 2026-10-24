@@ -152,22 +152,27 @@ impl AgentChat {
                 snapshot.upsert("assistant:2", &label, LAB_ANSWER_2, "completed");
             }
             if scenario == "chat-approval" {
-                snapshot.interactions.push(
-                    crate::agent::domain::agent_session_model::Interaction {
-                        id: serde_json::Value::String("reference-approval".into()),
-                        thread: String::new(),
-                        turn: "turn-2".into(),
-                        kind:
-                            crate::agent::domain::agent_session_model::InteractionKind::Approval {
-                                command: true,
-                                prompt: "rg -n padding src".into(),
-                                decisions: vec![
-                                    crate::agent::domain::agent_session_model::Decision::Accept,
-                                    crate::agent::domain::agent_session_model::Decision::Decline,
-                                ],
-                            },
+                snapshot
+                    .interactions
+                    .push(crate::agent::domain::agent_session_model::Interaction {
+                    id: serde_json::Value::String("reference-approval".into()),
+                    thread: String::new(),
+                    turn: "turn-2".into(),
+                    kind: crate::agent::domain::agent_session_model::InteractionKind::Approval {
+                        command: true,
+                        prompt: "rg -n padding src".into(),
+                        decisions: vec![
+                            crate::agent::domain::agent_session_model::Decision::Accept,
+                            crate::agent::domain::agent_session_model::Decision::AcceptForSession,
+                            crate::agent::domain::agent_session_model::Decision::Decline,
+                            crate::agent::domain::agent_session_model::Decision::Cancel,
+                        ],
+                        title: "Run rg -n padding src".into(),
+                        command_line: Some("rg -n padding src".into()),
+                        cwd: Some("/reference/project".into()),
+                        reason: Some("Search the project for padding declarations".into()),
                     },
-                );
+                });
             }
             if scenario == "chat-question" {
                 snapshot.interactions.push(
@@ -183,6 +188,13 @@ impl AgentChat {
                                     "24px on every side".into(),
                                     "Keep 12px vertical".into(),
                                 ],
+                                descriptions: vec![
+                                    "Match the horizontal padding".into(),
+                                    "Only widen the sides".into(),
+                                ],
+                                header: "Padding".into(),
+                                multiple: false,
+                                custom: true,
                             }],
                         ),
                     },

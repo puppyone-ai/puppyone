@@ -432,9 +432,15 @@ impl Session {
                                 v["message"].as_str().unwrap_or("")
                             ),
                             decisions: vec![Decision::Accept, Decision::Decline],
+                            title: v["title"].as_str().unwrap_or("Confirm").into(),
+                            command_line: None,
+                            cwd: None,
+                            reason: v["message"].as_str().map(str::to_owned),
                         }
                     } else {
                         InteractionKind::Questions(vec![Question {
+                            // `input`/`editor` take free text; `select` offers options.
+                            custom: method != "select",
                             id: "answer".into(),
                             text: v["title"].as_str().unwrap_or("Pi needs your input").into(),
                             options: v["options"]
@@ -443,6 +449,7 @@ impl Session {
                                 .flatten()
                                 .filter_map(|o| o.as_str().map(str::to_owned))
                                 .collect(),
+                            ..Default::default()
                         }])
                     };
                     self.dialogs.insert(id.to_string(), method.into());
