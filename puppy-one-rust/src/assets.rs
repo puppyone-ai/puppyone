@@ -54,6 +54,7 @@ embedded! {
     "icons" / "ellipsis.svg",
     "icons" / "ellipsis-vertical.svg",
     "icons" / "external-link.svg",
+    "icons" / "feedback-help.svg",
     "icons" / "file.svg",
     "icons" / "file-pen-line.svg",
     "icons" / "file-plus-2.svg",
@@ -156,6 +157,7 @@ embedded! {
     "agents" / "pi-dark.svg",
     "agents" / "pi.svg",
     "agents" / "workbuddy.png",
+    "brand" / "puppy-dark-onboarding.svg",
     "brand" / "puppy-dark.svg",
     "brand" / "puppy-lite.svg",
 }

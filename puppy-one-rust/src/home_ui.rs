@@ -61,23 +61,31 @@ impl Shell {
             self.layout.editor.h,
         );
         let has_projects = !self.recent_projects.is_empty();
+        // `OnboardingBrandLockup`: a 28px mark and the heading in `--po-text-muted`.
+        // On dark the product applies `grayscale(1) brightness(0.7)` to the mark;
+        // GPUI images have no brightness filter, so the dark variant is the same
+        // artwork with that filter baked in (`assets/README.md`).
         let brand = row()
             .gap(px(12.))
             .mb(px(if has_projects { 34. } else { 24. }))
             .child(
                 img(SharedString::from(if self.dark {
-                    "brand/puppy-dark.svg"
+                    "brand/puppy-dark-onboarding.svg"
                 } else {
                     "brand/puppy-lite.svg"
                 }))
                 .size(px(28.))
+                .object_fit(ObjectFit::Contain)
                 .flex_shrink_0(),
             )
             .child(
                 div()
+                    .min_w_0()
+                    .truncate()
                     .text_size(px(theme::ty().ui.heading))
+                    .line_height(px(22.))
                     .font_weight(FontWeight::MEDIUM)
-                    .text_color(t.text)
+                    .text_color(t.muted)
                     .child(tr(if has_projects {
                         "onboarding.section.chooseProject"
                     } else {

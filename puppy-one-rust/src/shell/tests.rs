@@ -301,6 +301,61 @@ fn large_tree_uses_gpui_virtual_rows(cx: &mut TestAppContext) {
         assert!(s.painted_rows < 1000, "painted {}", s.painted_rows);
     });
 }
+#[test]
+fn sidebar_tree_fade_follows_use_scroll_edge_state() {
+    use explorer_ui::bottom_fade;
+    // Not scrollable (overflow within the 1px threshold): no fade.
+    assert_eq!(bottom_fade(0., 0.), 0.);
+    assert_eq!(bottom_fade(0., 1.), 0.);
+    // Rows remain below: full fade until within 24px of the end.
+    assert_eq!(bottom_fade(0., 400.), 1.);
+    assert_eq!(bottom_fade(-376., 400.), 1.);
+    assert_eq!(bottom_fade(-388., 400.), 0.5);
+    assert_eq!(bottom_fade(-400., 400.), 0.);
+    // Overscroll is clamped like `scrollTop`.
+    assert_eq!(bottom_fade(-480., 400.), 0.);
+    assert_eq!(bottom_fade(30., 400.), 1.);
+}
+#[gpui::test]
+fn sidebar_tree_fades_into_the_footer_only_while_rows_remain_below(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    view.update(cx, |s, cx| {
+        s.tree.rows = (0..500)
+            .map(|i| crate::model::Row {
+                path: format!("{i}.txt").into(),
+                name: format!("{i}.txt"),
+                folder: false,
+                expanded: false,
+                depth: 0,
+                display: format!("{i}"),
+                extension: None,
+                error: None,
+            })
+            .collect();
+        cx.notify();
+    });
+    cx.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+    let fade = |view: &Entity<Shell>, cx: &mut VisualTestContext| {
+        view.update(cx, |s, _| {
+            let state = s.scroll.0.borrow();
+            explorer_ui::bottom_fade(
+                f32::from(state.base_handle.offset().y),
+                f32::from(state.base_handle.max_offset().y),
+            )
+        })
+    };
+    assert_eq!(fade(&view, cx), 1.);
+    view.update(cx, |s, cx| {
+        s.scroll.scroll_to_bottom();
+        cx.notify();
+    });
+    cx.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+    assert_eq!(fade(&view, cx), 0.);
+}
 #[gpui::test]
 fn idle_shell_does_not_schedule_continuous_frames(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);

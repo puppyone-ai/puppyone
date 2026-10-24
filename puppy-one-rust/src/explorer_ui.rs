@@ -1165,7 +1165,7 @@ impl Shell {
         }
         let count =
             self.tree.rows.len() + usize::from(self.files.workspace.is_some() || self.fixture);
-        column_el.child(
+        let column_el = column_el.child(
             div()
                 .id("explorer-tree")
                 .flex_1()
@@ -1219,115 +1219,127 @@ impl Shell {
                     .px(px(metric::SIDEBAR_ROW_LEFT_GAP))
                     .track_scroll(&self.scroll),
                 ),
-        )
+        );
+        column_el.child(self.tree_bottom_fade(t))
     }
-    /// `DesktopSidebarFooterNavigation`: Changes, Settings and Help.
+    /// `.explorer-tree-shell::after` with the navigation at the bottom: while rows
+    /// remain below the viewport the tree fades into the footer, which has no
+    /// divider. Read at paint time so the fade follows every scroll frame.
+    fn tree_bottom_fade(&self, t: Theme) -> impl IntoElement {
+        let scroll = self.scroll.clone();
+        let sidebar = t.sidebar;
+        canvas(
+            |_, _, _| {},
+            move |bounds, _, window, _| {
+                let fade = {
+                    let state = scroll.0.borrow();
+                    let (offset, max) =
+                        (state.base_handle.offset(), state.base_handle.max_offset());
+                    bottom_fade(f32::from(offset.y), f32::from(max.y))
+                };
+                if fade <= 0. {
+                    return;
+                }
+                // linear-gradient(to top, sidebar 0%, sidebar/78% 46%, transparent 100%)
+                // at height 18px x fade and opacity fade. GPUI gradients have two stops,
+                // so the curve is two quads joined on a device-pixel row.
+                let scale = window.scale_factor();
+                let bottom = f32::from(bounds.bottom());
+                let top = bottom - metric::SIDEBAR_NAVIGATION_FADE_SIZE * fade;
+                let mid = ((bottom - (bottom - top) * 0.46) * scale).round() / scale;
+                let left = bounds.origin.x;
+                let width = bounds.size.width;
+                let band = |from: f32, to: f32, y0: f32, y1: f32| {
+                    fill(
+                        Bounds::new(point(left, px(y0)), size(width, px(y1 - y0))),
+                        linear_gradient(
+                            0.,
+                            linear_color_stop(theme::alpha(sidebar, from * fade), 0.),
+                            linear_color_stop(theme::alpha(sidebar, to * fade), 1.),
+                        ),
+                    )
+                };
+                window.paint_quad(band(1., 0.78, mid, bottom));
+                window.paint_quad(band(0.78, 0., top, mid));
+            },
+        )
+        .absolute()
+        .left_0()
+        .right_0()
+        .bottom_0()
+        .h(px(metric::SIDEBAR_NAVIGATION_FADE_SIZE))
+    }
+    /// `DesktopSidebarFooterNavigation` as the workspace sidebar mounts it:
+    /// Settings, then the Help launcher (`DesktopHelpLauncher`) in the utility
+    /// slot. The product removes the Git surface from the footer
+    /// (`useWorkspaceSurfaceContent` filters `git`); Changes lives in the Header.
+    /// With the navigation at the bottom the footer has no divider
+    /// (`--data-explorer-footer-divider-width: 0px`).
     pub(super) fn footer(&self, cx: &mut Context<Self>) -> Div {
         let t = Theme::new(self.dark);
-        let status = self.git_status(cx);
-        let changes_open = self.changes && self.right_open;
-        let changes_label = if status.incoming > 0 {
-            tf(
-                "shell.navigation.remoteChangeCount",
-                &[
-                    ("label", tr("shell.navigation.changes").into()),
-                    ("count", status.incoming.into()),
-                ],
-            )
-        } else if status.local > 0 {
-            tf(
-                "shell.navigation.workspaceChangesDetected",
-                &[("label", tr("shell.navigation.changes").into())],
-            )
-        } else {
-            tr("shell.navigation.changes").into()
-        };
-        let nav = |id: &'static str, icon: &'static str, size: f32, label: String, active: bool| {
+        // `.desktop-sidebar-footer-button[data-navigation-item="settings"]` and
+        // `.desktop-help-launcher`: compact square, 14px icon at stroke 1.65 in
+        // the utility colour; hover and open states raise the icon to text.
+        let utility = |id: &'static str, icon: &'static str, label: String, active: bool| {
+            let group = SharedString::from(format!("footer-{id}"));
             gpui_kit::base::Button::new(id)
+                .group(group.clone())
                 .accessibility_label(label.clone())
                 .selected(active)
-                .relative()
                 .flex()
+                .flex_shrink_0()
                 .items_center()
                 .justify_center()
-                .size(px(theme::control()))
+                .size(px(theme::control_compact()))
                 .rounded(px(metric::CONTROL_RADIUS))
                 .cursor(theme::clickable_cursor())
                 .when(active, |b| b.bg(t.selected))
-                .hover(move |s| s.bg(t.hover))
+                .when(!active, |b| b.hover(move |s| s.bg(t.hover)))
                 .tooltip(tooltip(label))
-                .child(icon_sized(
-                    icon,
-                    size,
-                    if active { t.text } else { t.muted },
-                ))
+                .child(
+                    icon_sized(
+                        icon,
+                        metric::SIDEBAR_UTILITY_ICON,
+                        if active { t.text } else { t.sidebar_utility },
+                    )
+                    .group_hover(group, move |s| s.text_color(t.text)),
+                )
         };
-        let mut changes = nav(
-            "nav-changes",
-            "git-branch",
-            18.,
-            changes_label,
-            changes_open,
-        )
-        .on_click(cx.listener(|s, _, w, cx| s.command("changes", w, cx)));
-        if status.incoming > 0 {
-            changes = changes.child(
-                div()
-                    .absolute()
-                    .top(px(3.))
-                    .right(px(2.))
-                    .min_w(px(14.))
-                    .h(px(14.))
-                    .px(px(3.))
-                    .rounded_full()
-                    .bg(t.accent)
-                    .text_size(px(10.))
-                    .text_color(t.text_inverse)
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .child(status.incoming.min(99).to_string()),
-            );
-        } else if status.local > 0 {
-            changes = changes.child(
-                div()
-                    .absolute()
-                    .top(px(6.))
-                    .right(px(6.))
-                    .size(px(6.))
-                    .rounded_full()
-                    .bg(t.warning),
-            );
-        }
         at(self.layout.footer)
             .bg(t.sidebar)
-            .border_t_1()
-            .border_color(t.sidebar_divider)
             .flex()
             .items_center()
-            .px(px(metric::SIDEBAR_ROW_LEFT_GAP))
-            .gap(px(4.))
-            .when(self.files.workspace.is_some(), |d| d.child(changes))
+            .justify_between()
+            .py(px(metric::SIDEBAR_NAVIGATION_PADDING_BALANCED))
+            .px(px(metric::SIDEBAR_NAVIGATION_PADDING_INLINE))
+            .gap(px(metric::SIDEBAR_NAV_GAP))
             .child(
-                nav(
-                    "settings",
-                    "settings",
-                    16.,
-                    tr("shell.navigation.settings").into(),
-                    self.settings,
-                )
-                .on_click(cx.listener(|s, _, w, cx| s.command("settings", w, cx))),
+                div()
+                    .flex()
+                    .flex_shrink_0()
+                    .items_center()
+                    .gap(px(metric::SIDEBAR_NAV_GAP))
+                    .child(
+                        utility(
+                            "settings",
+                            "settings-compact",
+                            tr("shell.navigation.settings").into(),
+                            self.settings,
+                        )
+                        .on_click(cx.listener(|s, _, w, cx| s.command("settings", w, cx))),
+                    )
+                    .child(
+                        utility(
+                            "feedback",
+                            "feedback-help",
+                            tr("shell.feedback.label").into(),
+                            self.help,
+                        )
+                        .on_click(cx.listener(|s, _, w, cx| s.command("feedback", w, cx))),
+                    ),
             )
-            .child(
-                nav(
-                    "feedback",
-                    "circle-help",
-                    16.,
-                    tr("shell.feedback.label").into(),
-                    self.help,
-                )
-                .on_click(cx.listener(|s, _, w, cx| s.command("feedback", w, cx))),
-            )
+            // Native-only progress cue until file-operation notices are ported
+            // (the product shows them in `FloatingNoticeStack`).
             .when(
                 self.pending
                     || self.files.busy()
@@ -1335,7 +1347,7 @@ impl Shell {
                     || self.file_op.is_some(),
                 |d| {
                     let preset = self.preferences.read(cx).state.loading_animation.clone();
-                    d.child(div().flex_1()).child(ui::pulse_grid::pulse_grid(
+                    d.child(ui::pulse_grid::pulse_grid(
                         "footer-busy",
                         &preset,
                         ui::pulse_grid::PulseSize::Sm,
@@ -1344,4 +1356,16 @@ impl Shell {
                 },
             )
     }
+}
+/// `useScrollEdgeState` bottom fade: the remaining scroll over a 24px distance,
+/// zero unless the list overflows by more than 1px. `offset_y` is GPUI's
+/// (non-positive) scroll offset, `max_y` the maximum scroll distance.
+pub(super) fn bottom_fade(offset_y: f32, max_y: f32) -> f32 {
+    const FADE_DISTANCE: f32 = 24.;
+    const OVERFLOW_THRESHOLD: f32 = 1.;
+    if max_y <= OVERFLOW_THRESHOLD {
+        return 0.;
+    }
+    let scroll_top = (-offset_y).clamp(0., max_y);
+    ((max_y - scroll_top) / FADE_DISTANCE).clamp(0., 1.)
 }
