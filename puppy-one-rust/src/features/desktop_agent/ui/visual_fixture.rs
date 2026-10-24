@@ -90,8 +90,8 @@ impl AgentChat {
         snapshot.mode = Some("code".into());
         snapshot.capabilities.models = true;
         snapshot.capabilities.modes = true;
+        let running = matches!(scenario, "chat-running" | "chat-approval" | "chat-question");
         if scenario != "chat-empty" {
-            let running = matches!(scenario, "chat-running" | "chat-approval" | "chat-question");
             let status = if running { "running" } else { "completed" };
             snapshot.upsert("user:1", "You", LAB_USER_1, "");
             snapshot.upsert("assistant:1", &label, LAB_ANSWER_1, "completed");
@@ -102,25 +102,91 @@ impl AgentChat {
                 "Located the editor surface padding and compared both axes.",
                 "completed",
             );
-            snapshot.upsert("tool:grep", "grep", "padding src\nsrc/markdown-editor.css:42:padding: 12px 24px;\nsrc/editor-shell.css:18:padding-inline: 24px;", status);
-            snapshot.upsert(
-                "tool:command",
-                "Command",
-                "rg -n padding src/markdown-editor.css\n42:  padding: 12px 24px;",
-                "completed",
-            );
-            snapshot.upsert(
-                "tool:read",
-                "read",
-                "src/markdown-editor.css\n.markdown-editor {\n  padding: 12px 24px;\n}",
+            snapshot.tool_result("compaction:1", "compaction", "", "completed");
+            snapshot.tool_call(
+                "tool:grep",
+                "grep",
+                r#"{"pattern":"padding","path":"src"}"#,
                 status,
             );
-            snapshot.upsert("tool:edit", "File changes", "src/markdown-editor.css\n@@ -42,1 +42,1 @@\n-  padding: 12px 24px;\n+  padding: 24px;", "completed");
+            snapshot.tool_result(
+                "tool:grep",
+                "grep",
+                "src/markdown-editor.css:42:padding: 12px 24px;\nsrc/editor-shell.css:18:padding-inline: 24px;",
+                status,
+            );
+            snapshot.tool_call(
+                "tool:command",
+                "Command",
+                "rg -n padding src/markdown-editor.css",
+                "completed",
+            );
+            snapshot.tool_result(
+                "tool:command",
+                "Command",
+                "42:  padding: 12px 24px;",
+                "completed",
+            );
+            snapshot.tool_call(
+                "tool:read",
+                "read",
+                r#"{"file_path":"src/markdown-editor.css"}"#,
+                status,
+            );
+            snapshot.tool_result(
+                "tool:read",
+                "read",
+                ".markdown-editor {\n  padding: 12px 24px;\n}",
+                status,
+            );
+            snapshot.tool_result(
+                "tool:edit",
+                "File changes",
+                "src/markdown-editor.css\n@@ -42,1 +42,1 @@\n-  padding: 12px 24px;\n+  padding: 24px;",
+                "completed",
+            );
             if running {
                 snapshot.state = State::Running;
                 snapshot.turn = Some("turn-2".into());
             } else {
                 snapshot.upsert("assistant:2", &label, LAB_ANSWER_2, "completed");
+            }
+            if scenario == "chat-approval" {
+                snapshot.interactions.push(
+                    crate::agent::domain::agent_session_model::Interaction {
+                        id: serde_json::Value::String("reference-approval".into()),
+                        thread: String::new(),
+                        turn: "turn-2".into(),
+                        kind:
+                            crate::agent::domain::agent_session_model::InteractionKind::Approval {
+                                command: true,
+                                prompt: "rg -n padding src".into(),
+                                decisions: vec![
+                                    crate::agent::domain::agent_session_model::Decision::Accept,
+                                    crate::agent::domain::agent_session_model::Decision::Decline,
+                                ],
+                            },
+                    },
+                );
+            }
+            if scenario == "chat-question" {
+                snapshot.interactions.push(
+                    crate::agent::domain::agent_session_model::Interaction {
+                        id: serde_json::Value::String("reference-question".into()),
+                        thread: String::new(),
+                        turn: "turn-2".into(),
+                        kind: crate::agent::domain::agent_session_model::InteractionKind::Questions(
+                            vec![crate::agent::domain::agent_session_model::Question {
+                                id: "padding".into(),
+                                text: "Which padding should the editor use?".into(),
+                                options: vec![
+                                    "24px on every side".into(),
+                                    "Keep 12px vertical".into(),
+                                ],
+                            }],
+                        ),
+                    },
+                );
             }
         }
         let mut view = Self::with_client_factory(
@@ -131,6 +197,33 @@ impl AgentChat {
             cx,
             move |_, _, _, _| Box::new(Unavailable { snapshot }),
         );
+        use crate::features::desktop_agent::application::agent_session_controller::{
+            RunningTurn, TurnOutcome, TurnTiming, now_ms,
+        };
+        if scenario != "chat-empty" {
+            let completed = |duration_ms| TurnTiming {
+                duration_ms,
+                outcome: TurnOutcome::Completed,
+            };
+            view.session
+                .turn_timings
+                .insert("user:1".into(), completed(2_400));
+            if running {
+                view.session.running = Some(RunningTurn {
+                    started_ms: now_ms().saturating_sub(12_000),
+                    user_wait_ms: 0,
+                    user_wait_started_ms: None,
+                });
+            } else {
+                view.session
+                    .turn_timings
+                    .insert("user:2".into(), completed(31_000));
+            }
+        }
+        if scenario == "chat-tool-expanded" {
+            view.rail_selected
+                .insert("tool-group:row:tool:grep".into(), "tool:command".into());
+        }
         view.refresh_transcript();
         view
     }

@@ -5,12 +5,57 @@ use crate::agent::{
     runtime::agent_runtime_port::AgentRuntimePort,
 };
 use serde_json::Value;
+use std::collections::HashMap;
+
+/// How a turn ended (`AgentTurnTerminalState`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum TurnOutcome {
+    Completed,
+    Failed,
+    Interrupted,
+}
+/// Confirmed timing of a finished turn; `Worked for` exists only with one.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TurnTiming {
+    pub duration_ms: u64,
+    pub outcome: TurnOutcome,
+}
+/// The running turn's clock (`agentRunActiveElapsedMs`): wall time minus the
+/// time spent waiting for the user's approval or answers.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RunningTurn {
+    pub started_ms: u64,
+    pub user_wait_ms: u64,
+    pub user_wait_started_ms: Option<u64>,
+}
+impl RunningTurn {
+    pub fn active_elapsed_ms(&self, now_ms: u64) -> u64 {
+        let open = self
+            .user_wait_started_ms
+            .map_or(0, |start| now_ms.saturating_sub(start));
+        now_ms
+            .saturating_sub(self.started_ms)
+            .saturating_sub(self.user_wait_ms)
+            .saturating_sub(open)
+    }
+}
+pub fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis() as u64)
+}
+
 pub struct AgentSessionController {
     client: Box<dyn AgentRuntimePort>,
     pub references: Vec<Reference>,
     pub draft_error: Option<String>,
     pending: Option<Prompt>,
     pub recoverable: Option<Prompt>,
+    /// The turn in progress, observed from the runtime's state transitions.
+    pub running: Option<RunningTurn>,
+    stop_requested: bool,
+    /// Finished turns keyed by the user message that started them.
+    pub turn_timings: HashMap<String, TurnTiming>,
 }
 impl AgentSessionController {
     pub fn new(client: Box<dyn AgentRuntimePort>) -> Self {
@@ -20,6 +65,60 @@ impl AgentSessionController {
             draft_error: None,
             pending: None,
             recoverable: None,
+            running: None,
+            stop_requested: false,
+            turn_timings: HashMap::new(),
+        }
+    }
+    /// Turn clock: a turn runs while the runtime is Running/Stopping; its end
+    /// is attached to the user message that opened it.
+    fn observe_turn(&mut self) {
+        let snapshot = self.client.snapshot();
+        let active = matches!(snapshot.state, State::Running | State::Stopping);
+        let now = now_ms();
+        match (&mut self.running, active) {
+            (None, true) => {
+                self.running = Some(RunningTurn {
+                    started_ms: now,
+                    user_wait_ms: 0,
+                    user_wait_started_ms: None,
+                })
+            }
+            (Some(turn), true) => {
+                let waiting = !snapshot.interactions.is_empty();
+                match (turn.user_wait_started_ms, waiting) {
+                    (None, true) => turn.user_wait_started_ms = Some(now),
+                    (Some(start), false) => {
+                        turn.user_wait_ms += now.saturating_sub(start);
+                        turn.user_wait_started_ms = None;
+                    }
+                    _ => {}
+                }
+            }
+            (Some(turn), false) => {
+                let outcome = if snapshot.state == State::Failed {
+                    TurnOutcome::Failed
+                } else if self.stop_requested {
+                    TurnOutcome::Interrupted
+                } else {
+                    TurnOutcome::Completed
+                };
+                let duration_ms = turn.active_elapsed_ms(now);
+                if let Some(anchor) = snapshot.messages.iter().rev().find(|m| {
+                    m.role == "You" && !matches!(m.status.as_str(), "steering" | "queued")
+                }) {
+                    self.turn_timings.insert(
+                        anchor.id.clone(),
+                        TurnTiming {
+                            duration_ms,
+                            outcome,
+                        },
+                    );
+                }
+                self.running = None;
+                self.stop_requested = false;
+            }
+            (None, false) => {}
         }
     }
     pub fn snapshot(&self) -> &SessionSnapshot {
@@ -28,8 +127,13 @@ impl AgentSessionController {
     pub fn busy(&self) -> bool {
         self.snapshot().busy()
     }
+    /// A submitted prompt is waiting for the session (`preparing-session`).
+    pub fn awaiting_session(&self) -> bool {
+        self.pending.is_some()
+    }
     pub fn poll(&mut self) {
         self.client.poll();
+        self.observe_turn();
         if let Some(prompt) = self.pending.take() {
             if self.snapshot().state == State::Failed || self.snapshot().error.is_some() {
                 self.recoverable = Some(prompt);
@@ -50,6 +154,7 @@ impl AgentSessionController {
         };
         self.pending = Some(prompt.clone());
         self.client.submit(prompt);
+        self.observe_turn();
         if !matches!(self.snapshot().state, State::Running | State::Starting) {
             return false;
         }
@@ -58,6 +163,7 @@ impl AgentSessionController {
     }
     pub fn replace_client(&mut self, client: Box<dyn AgentRuntimePort>) {
         self.client = client;
+        self.observe_turn();
         if self.pending.is_some() {
             self.recoverable = self.pending.take();
         }
@@ -71,6 +177,7 @@ impl AgentSessionController {
         self.client.reload_configuration();
     }
     pub fn stop(&mut self) {
+        self.stop_requested = self.running.is_some();
         self.client.stop()
     }
     pub fn resume(&mut self, id: String) {
@@ -171,5 +278,20 @@ impl AgentSessionController {
             .map(|m| format!("## {}\n\n{}", m.role, m.text))
             .collect::<Vec<_>>()
             .join("\n\n")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn running_clock_excludes_user_waits() {
+        let turn = RunningTurn {
+            started_ms: 1_000,
+            user_wait_ms: 2_000,
+            user_wait_started_ms: Some(9_000),
+        };
+        // 10s wall − 2s settled wait − 2s open wait.
+        assert_eq!(turn.active_elapsed_ms(11_000), 6_000);
     }
 }

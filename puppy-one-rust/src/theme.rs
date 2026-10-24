@@ -123,6 +123,9 @@ pub mod metric {
     pub const SWITCH_THUMB: f32 = 14.;
 }
 
+/// `--po-font-mono` (Geist Mono) for machine output; static editor faces.
+pub const MONO: &str = "PuppyOne Geist Mono 400";
+pub const MONO_MEDIUM: &str = "PuppyOne Geist Mono 500";
 pub const HEADER: f32 = 40.0;
 pub const SIDEBAR: f32 = 220.0;
 pub const FONT: f32 = 14.0;

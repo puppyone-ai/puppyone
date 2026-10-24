@@ -123,8 +123,9 @@ function transcriptParts(runningTools: boolean): Part[] {
       detail: { tool: "read", input: { file_path: "src/markdown-editor.css" } },
       output: ".markdown-editor {\n  padding: 12px 24px;\n}", sequence: 8 },
     { id: "tool:edit", kind: "file-change", turnId: "turn-2", itemId: "tool-edit", label: "Updated markdown-editor.css", status: "completed",
-      detail: { tool: "edit", path: "src/markdown-editor.css", changes: [{ path: "src/markdown-editor.css", additions: 1, deletions: 1 }],
-        input: { patch: "@@ -42,1 +42,1 @@\n-  padding: 12px 24px;\n+  padding: 24px;" } },
+      detail: { tool: "edit", path: "src/markdown-editor.css", changes: [{ path: "src/markdown-editor.css", additions: 1, deletions: 1,
+        diff: "@@ -42,1 +42,1 @@\n-  padding: 12px 24px;\n+  padding: 24px;",
+        blocks: [{ removed: "  padding: 12px 24px;", added: "  padding: 24px;" }] }] },
       output: "", sequence: 9 },
     { id: "assistant:2", kind: "assistant", turnId: "turn-2", itemId: "message-2", text: ANSWER_2, streaming: false, terminalState: "completed", sequence: 10 },
   ];

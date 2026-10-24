@@ -524,7 +524,7 @@ impl Engine {
                 let output = match args {
                     Err(_) => Err("Malformed tool arguments".into()),
                     Ok(args) => {
-                        self.snapshot.upsert(
+                        self.snapshot.tool_call(
                             &id,
                             &name,
                             serde_json::to_string_pretty(&args).unwrap_or_default(),
@@ -552,7 +552,7 @@ impl Engine {
                     Ok(text) => (text, "completed"),
                     Err(error) => (format!("Error: {error}"), "failed"),
                 };
-                self.snapshot.upsert(&id, &name, &text, status);
+                self.snapshot.tool_result(&id, &name, &text, status);
                 self.conversation
                     .context
                     .push(json!({"role":"tool","tool_call_id":id,"content":text}));

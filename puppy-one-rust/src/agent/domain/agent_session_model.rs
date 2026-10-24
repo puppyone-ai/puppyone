@@ -15,8 +15,13 @@ pub enum State {
 pub struct Message {
     pub id: String,
     pub role: String,
+    /// Content; for a tool call, its result.
     pub text: String,
     pub status: String,
+    /// The tool request (arguments JSON or command line), kept beside the
+    /// result so evidence shows both (`detail.input` in the product contract).
+    #[serde(default)]
+    pub input: Option<String>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Decision {
@@ -170,6 +175,7 @@ impl SessionSnapshot {
                 role: role.into(),
                 text,
                 status,
+                input: None,
             });
         }
         self.bound();
@@ -185,6 +191,70 @@ impl SessionSnapshot {
                 role: role.into(),
                 text: bounded_text(delta.into(), 2 * 1024 * 1024),
                 status: "running".into(),
+                input: None,
+            });
+        }
+        self.bound();
+        self.revision += 1;
+    }
+    /// A tool call starts (or its request is revised). Later results keep it.
+    pub fn tool_call(
+        &mut self,
+        id: impl Into<String>,
+        name: impl Into<String>,
+        input: impl Into<String>,
+        status: impl Into<String>,
+    ) {
+        let id = id.into();
+        let input = bounded_text(input.into(), 256 * 1024);
+        let status = status.into();
+        if let Some(m) = self.messages.iter_mut().find(|m| m.id == id) {
+            m.input = Some(input);
+            m.status = status;
+        } else {
+            self.messages.push(Message {
+                id,
+                role: name.into(),
+                text: String::new(),
+                status,
+                input: Some(input),
+            });
+        }
+        self.bound();
+        self.revision += 1;
+    }
+    /// Streamed tool arguments (Claude `input_json_delta`).
+    pub fn tool_input_delta(&mut self, id: &str, name: &str, delta: &str) {
+        if let Some(m) = self.messages.iter_mut().find(|m| m.id == id) {
+            let input = m.input.get_or_insert_with(String::new);
+            let remaining = (256 * 1024usize).saturating_sub(input.len());
+            input.push_str(&bounded_text(delta.into(), remaining));
+            self.revision += 1;
+        } else {
+            self.tool_call(id, name, delta, "running");
+        }
+    }
+    /// A tool result; the request recorded by `tool_call` is preserved.
+    pub fn tool_result(
+        &mut self,
+        id: impl Into<String>,
+        name: impl Into<String>,
+        output: impl Into<String>,
+        status: impl Into<String>,
+    ) {
+        let id = id.into();
+        let output = bounded_text(output.into(), 2 * 1024 * 1024);
+        let status = status.into();
+        if let Some(m) = self.messages.iter_mut().find(|m| m.id == id) {
+            m.text = output;
+            m.status = status;
+        } else {
+            self.messages.push(Message {
+                id,
+                role: name.into(),
+                text: output,
+                status,
+                input: None,
             });
         }
         self.bound();

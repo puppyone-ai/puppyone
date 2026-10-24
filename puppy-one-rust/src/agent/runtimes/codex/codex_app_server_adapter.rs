@@ -112,6 +112,7 @@ impl Session {
             role: "You".into(),
             text: text.clone(),
             status: String::new(),
+            input: None,
         });
         self.snapshot.error = None;
         self.snapshot.state = State::Running;
@@ -281,10 +282,16 @@ impl Session {
     fn item(&mut self, item: &Value, history: bool) {
         let kind = item["type"].as_str().unwrap_or("");
         let id = item["id"].as_str().unwrap_or("").to_owned();
-        let (role, text) = match kind {
-            "agentMessage" => ("Codex", item["text"].as_str().unwrap_or("").to_owned()),
+        // Tool items keep their request (`input`) beside their result (`text`).
+        let (role, input, text): (&str, Option<String>, String) = match kind {
+            "agentMessage" => (
+                "Codex",
+                None,
+                item["text"].as_str().unwrap_or("").to_owned(),
+            ),
             "userMessage" if history => (
                 "You",
+                None,
                 item["content"]
                     .as_array()
                     .map(|a| {
@@ -297,14 +304,12 @@ impl Session {
             ),
             "commandExecution" => (
                 "Command",
-                format!(
-                    "{}\n{}",
-                    item["command"].as_str().unwrap_or(""),
-                    item["aggregatedOutput"].as_str().unwrap_or("")
-                ),
+                item["command"].as_str().map(str::to_owned),
+                item["aggregatedOutput"].as_str().unwrap_or("").to_owned(),
             ),
             "fileChange" => (
                 "File changes",
+                None,
                 item["changes"]
                     .as_array()
                     .map(|a| {
@@ -322,16 +327,21 @@ impl Session {
                     .unwrap_or_default(),
             ),
             "mcpToolCall" => (
-                "Tool",
-                format!(
-                    "{} · {}",
-                    item["server"].as_str().unwrap_or(""),
-                    item["tool"].as_str().unwrap_or("")
-                ) + &format!("\n{}", item.get("result").unwrap_or(&Value::Null)),
+                item["tool"].as_str().unwrap_or("Tool"),
+                Some(item.get("arguments").unwrap_or(&Value::Null).to_string()),
+                item.get("result")
+                    .filter(|v| !v.is_null())
+                    .map(Value::to_string)
+                    .unwrap_or_default(),
             ),
-            "webSearch" => ("Search", item["query"].as_str().unwrap_or("").into()),
+            "webSearch" => (
+                "websearch",
+                Some(json!({ "query": item["query"] }).to_string()),
+                String::new(),
+            ),
             "reasoning" => (
                 "Reasoning",
+                None,
                 item["summary"]
                     .as_array()
                     .into_iter()
@@ -340,31 +350,29 @@ impl Session {
                     .collect::<Vec<_>>()
                     .join("\n"),
             ),
-            "plan" => ("Plan", item["text"].as_str().unwrap_or("").into()),
-            "contextCompaction" => ("System", "Conversation context compacted".into()),
+            "plan" => ("Plan", None, item["text"].as_str().unwrap_or("").into()),
+            "contextCompaction" => ("System", None, "Conversation context compacted".into()),
             "dynamicToolCall" => (
-                "Tool",
-                format!(
-                    "{}\n{}",
-                    item["tool"].as_str().unwrap_or("Tool"),
-                    item["contentItems"]
-                ),
+                item["tool"].as_str().unwrap_or("Tool"),
+                Some(item.get("arguments").unwrap_or(&Value::Null).to_string()),
+                item["contentItems"].to_string(),
             ),
             "collabAgentToolCall" => (
                 "Agent task",
-                format!(
-                    "{}\n{}",
-                    item["tool"].as_str().unwrap_or("Task"),
-                    item["prompt"].as_str().unwrap_or("")
-                ),
+                Some(json!({ "description": item["prompt"] }).to_string()),
+                item["tool"].as_str().unwrap_or("Task").into(),
             ),
             _ => return,
         };
         let status = item["status"].as_str().unwrap_or("").into();
         let text = bounded(text);
+        let input = input.map(bounded);
         if let Some(message) = self.snapshot.messages.iter_mut().find(|m| m.id == id) {
             message.text = text;
             message.status = status;
+            if input.is_some() {
+                message.input = input;
+            }
             self.snapshot.revision += 1;
         } else {
             self.push(Message {
@@ -372,6 +380,7 @@ impl Session {
                 role: role.into(),
                 text,
                 status,
+                input,
             });
         }
     }

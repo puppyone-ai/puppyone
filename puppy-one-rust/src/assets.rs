@@ -18,6 +18,15 @@ macro_rules! embedded {
 }
 embedded! {
     "icons" / "agent-entry.svg",
+    "icons" / "agent-glyph-edit.svg",
+    "icons" / "agent-glyph-edit-base.svg",
+    "icons" / "agent-glyph-ink.svg",
+    "icons" / "agent-glyph-pen.svg",
+    "icons" / "agent-glyph-read.svg",
+    "icons" / "agent-glyph-read-scan.svg",
+    "icons" / "agent-glyph-search.svg",
+    "icons" / "agent-glyph-write.svg",
+    "icons" / "agent-glyph-write-base.svg",
     "icons" / "arrow-down.svg",
     "icons" / "arrow-down-right.svg",
     "icons" / "arrow-left.svg",

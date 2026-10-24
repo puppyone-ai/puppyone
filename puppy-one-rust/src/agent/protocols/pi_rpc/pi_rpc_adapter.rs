@@ -110,7 +110,7 @@ impl Session {
             if let Some(value) = part["text"].as_str() {
                 text.push_str(value);
             } else if part["type"] == "toolCall" {
-                self.snapshot.upsert(
+                self.snapshot.tool_call(
                     part["id"].as_str().unwrap_or("tool"),
                     part["name"].as_str().unwrap_or("Tool"),
                     part["arguments"].to_string(),
@@ -385,7 +385,7 @@ impl Session {
                 self.project(&v["message"], &id);
                 self.observe_outcome(&v["message"]);
             }
-            "tool_execution_start" => self.snapshot.upsert(
+            "tool_execution_start" => self.snapshot.tool_call(
                 v["toolCallId"].as_str().unwrap_or("tool"),
                 v["toolName"].as_str().unwrap_or("Tool"),
                 v["args"].to_string(),
@@ -404,7 +404,7 @@ impl Session {
                     .filter_map(|p| p["text"].as_str())
                     .collect::<Vec<_>>()
                     .join("\n");
-                self.snapshot.upsert(
+                self.snapshot.tool_result(
                     v["toolCallId"].as_str().unwrap_or("tool"),
                     v["toolName"].as_str().unwrap_or("Tool"),
                     text,

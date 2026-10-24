@@ -81,13 +81,12 @@ pub fn svg_path(runtime: Runtime, dark: bool) -> Option<&'static str> {
     })
 }
 
-/// What `AgentLauncherIcon` draws: an Agent brand, the shell, or the generic
-/// chat glyph used before a chat has chosen its runtime.
+/// What `AgentLauncherIcon` draws: an Agent brand or the shell. (Native chats
+/// always know their runtime, so the product's chat fallback glyph is unused.)
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum LauncherIdentity {
     Runtime(Runtime),
     Shell,
-    ChatFallback,
 }
 /// `AgentLauncherIcon` with `src/components/brand/agent-launcher-icon.css`:
 /// an 18px (14px compact) clipped slot in `--po-text-muted`, the brand's
@@ -135,13 +134,6 @@ pub fn launcher_icon(identity: LauncherIdentity, compact: bool, dark: bool, colo
             "square-terminal",
             if compact { 14. } else { 16. },
             1.6,
-            color,
-        )
-        .into_any_element(),
-        LauncherIdentity::ChatFallback => crate::ui::icon_stroke(
-            "message-square",
-            if compact { 14. } else { 16. },
-            1.7,
             color,
         )
         .into_any_element(),

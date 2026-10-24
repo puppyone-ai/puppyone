@@ -182,7 +182,7 @@ impl Session {
                     block["thinking"].as_str().unwrap_or(""),
                     "",
                 ),
-                Some("tool_use") => self.snapshot.upsert(
+                Some("tool_use") => self.snapshot.tool_call(
                     block["id"].as_str().unwrap_or("tool"),
                     block["name"].as_str().unwrap_or("Tool"),
                     block["input"].to_string(),
@@ -202,7 +202,7 @@ impl Session {
                                     .collect::<Vec<_>>()
                                     .join("\n")
                             });
-                    self.snapshot.upsert(
+                    self.snapshot.tool_result(
                         block["tool_use_id"].as_str().unwrap_or("tool"),
                         "Tool",
                         output,
@@ -330,7 +330,7 @@ impl Session {
                         let block = &e["content_block"];
                         if block["type"] == "tool_use" {
                             self.tool_id = block["id"].as_str().unwrap_or("tool").into();
-                            self.snapshot.upsert(
+                            self.snapshot.tool_call(
                                 self.tool_id.clone(),
                                 block["name"].as_str().unwrap_or("Tool"),
                                 "",
@@ -351,7 +351,7 @@ impl Session {
                                 "Reasoning",
                                 delta["thinking"].as_str().unwrap_or(""),
                             ),
-                            Some("input_json_delta") => self.snapshot.delta(
+                            Some("input_json_delta") => self.snapshot.tool_input_delta(
                                 &self.tool_id,
                                 "Tool",
                                 delta["partial_json"].as_str().unwrap_or(""),

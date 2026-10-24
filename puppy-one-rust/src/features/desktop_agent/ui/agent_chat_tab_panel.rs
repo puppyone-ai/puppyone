@@ -1,3 +1,5 @@
+#[path = "agent_activity.rs"]
+mod agent_activity;
 #[path = "agent_blocking_interaction.rs"]
 mod agent_blocking_interaction;
 #[path = "agent_composer.rs"]
@@ -12,6 +14,8 @@ mod agent_session_control_picker;
 mod agent_status;
 #[path = "agent_surface_header.rs"]
 mod agent_surface_header;
+#[path = "agent_theme.rs"]
+mod agent_theme;
 pub use agent_surface_header::AgentChatEvent;
 #[path = "agent_transcript.rs"]
 mod agent_transcript;
@@ -51,8 +55,17 @@ pub struct AgentChat {
     answers: HashMap<String, Entity<TextInput>>,
     transcript: ListState,
     follow: bool,
-    signatures: Vec<(String, blake3::Hash, String)>,
+    /// Timeline rows (`domain::agent_timeline`) and their list signatures.
+    rows: Vec<super::super::domain::agent_timeline::Row>,
+    row_signatures: Vec<(String, blake3::Hash)>,
+    /// Open standalone disclosures (reasoning, plan, overflow tools).
     expanded: std::collections::HashSet<String>,
+    /// The tool rail's single open item and open `+N` panels, per row.
+    rail_selected: HashMap<String, String>,
+    rail_overflow: std::collections::HashSet<String>,
+    run_summary_open: bool,
+    unread: usize,
+    transcript_width: f32,
     attachment_rx: Option<
         std::sync::mpsc::Receiver<
             Result<Vec<crate::agent::domain::reference_input::Reference>, String>,
@@ -179,7 +192,7 @@ impl AgentChat {
             history,
             wake.clone(),
         ));
-        let transcript = ListState::new(0, ListAlignment::Bottom, px(300.));
+        let transcript = ListState::new(0, ListAlignment::Top, px(300.));
         let weak = cx.entity().downgrade();
         transcript.set_scroll_handler(move |event, _, cx| {
             let _ = weak.update(cx, |s, cx| {
@@ -222,8 +235,14 @@ impl AgentChat {
             answers: HashMap::new(),
             transcript,
             follow: true,
-            signatures: vec![],
+            rows: vec![],
+            row_signatures: vec![],
             expanded: Default::default(),
+            rail_selected: HashMap::new(),
+            rail_overflow: Default::default(),
+            run_summary_open: false,
+            unread: 0,
+            transcript_width: 0.,
             attachment_rx: None,
             attachment_thread: None,
             history_filter,
@@ -303,45 +322,6 @@ impl AgentChat {
         self.session.busy()
     }
 
-    fn refresh_transcript(&mut self) {
-        let next = self
-            .session
-            .snapshot()
-            .messages
-            .iter()
-            .map(|m| {
-                (
-                    m.id.clone(),
-                    blake3::hash(m.text.as_bytes()),
-                    m.status.clone(),
-                )
-            })
-            .collect::<Vec<_>>();
-        if next.len() < self.signatures.len()
-            || next.first().map(|x| &x.0) != self.signatures.first().map(|x| &x.0)
-        {
-            self.transcript.reset(next.len());
-        } else {
-            for (i, sig) in next.iter().enumerate().take(self.signatures.len()) {
-                if self.signatures.get(i) != Some(sig) {
-                    self.transcript.splice(i..i + 1, 1);
-                }
-            }
-            if next.len() > self.signatures.len() {
-                self.transcript.splice(
-                    self.signatures.len()..self.signatures.len(),
-                    next.len() - self.signatures.len(),
-                );
-            }
-        }
-        self.signatures = next;
-        if self.follow {
-            self.transcript.scroll_to(ListOffset {
-                item_ix: self.signatures.len(),
-                offset_in_item: px(0.),
-            });
-        }
-    }
     fn stage(&mut self, paths: Vec<PathBuf>, cx: &mut Context<Self>) {
         if self.attachment_rx.is_some() {
             return;
@@ -414,52 +394,12 @@ impl Render for AgentChat {
         if self.session.snapshot().history_mode {
             return pane.child(self.render_history(cx));
         }
-        if self.session.snapshot().messages.is_empty() {
+        if self.rows.is_empty() && self.live_status_visible() {
+            pane = pane.child(self.render_transcript(cx));
+        } else if self.rows.is_empty() {
             pane = pane.child(self.render_empty(cx));
         } else {
-            let weak = cx.weak_entity();
-            pane = pane.child(
-                div()
-                    .relative()
-                    .flex_1()
-                    .min_h_0()
-                    .child(
-                        list(self.transcript.clone(), move |i, _, cx| {
-                            weak.update(cx, |s, cx| s.render_message(i, cx))
-                                .unwrap_or_else(|_| div().into_any_element())
-                        })
-                        .size_full()
-                        .pb(px(12.)),
-                    )
-                    .when(!self.follow, |d| {
-                        d.child(
-                            div()
-                                .absolute()
-                                .bottom(px(8.))
-                                .w_full()
-                                .flex()
-                                .justify_center()
-                                .child(
-                                    crate::ui::action_button(
-                                        "latest-agent",
-                                        crate::localization::t("agent.transcript.jumpLatest"),
-                                        Some("arrow-down"),
-                                        crate::ui::Tone::Default,
-                                        false,
-                                        t,
-                                    )
-                                    .bg(t.menu_bg)
-                                    .on_click(cx.listener(
-                                        |s, _, _, cx| {
-                                            s.follow = true;
-                                            s.refresh_transcript();
-                                            cx.notify()
-                                        },
-                                    )),
-                                ),
-                        )
-                    }),
-            );
+            pane = pane.child(self.render_transcript(cx));
         }
         if let Some(card) = self.render_interaction(window, cx) {
             pane = pane.child(card)

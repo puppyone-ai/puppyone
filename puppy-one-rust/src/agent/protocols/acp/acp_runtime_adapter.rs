@@ -235,7 +235,29 @@ impl Session {
                     .map(str::to_owned)
                     .or_else(|| previous.map(|m| m.status.clone()))
                     .unwrap_or_default();
-                self.snapshot.upsert(id, title, text, status);
+                // ACP `kind` (read/edit/search/execute/fetch/think…) names the
+                // tool for presentation; `rawInput` is the request.
+                let name = match u["kind"].as_str() {
+                    Some("execute") => "bash".to_owned(),
+                    Some("read") => "read".to_owned(),
+                    Some("edit") | Some("delete") | Some("move") => "edit".to_owned(),
+                    Some("search") => "grep".to_owned(),
+                    Some("fetch") => "fetch".to_owned(),
+                    _ => title.clone(),
+                };
+                let input = u.get("rawInput").filter(|v| !v.is_null()).map(|v| {
+                    let mut input = v.clone();
+                    if let Some(object) = input.as_object_mut()
+                        && !object.contains_key("description")
+                    {
+                        object.insert("description".into(), Value::String(title.clone()));
+                    }
+                    input.to_string()
+                });
+                if let Some(input) = input {
+                    self.snapshot.tool_call(id, &name, input, status.clone());
+                }
+                self.snapshot.tool_result(id, name, text, status);
             }
             "plan" => {
                 let text = u["entries"]

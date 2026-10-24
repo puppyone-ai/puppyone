@@ -33,6 +33,15 @@ await writeFile(path.join(root, 'assets/icons', 'editor-mode-preview.svg'), fram
 // an 11px ring with a 1.5px border whose top edge carries the current colour.
 await writeFile(path.join(root, 'assets/icons', 'spinner-track.svg'), `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="white" stroke-width="1.5"><circle cx="5.5" cy="5.5" r="4.75"/></svg>\n`);
 await writeFile(path.join(root, 'assets/icons', 'spinner-arc.svg'), `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="white" stroke-width="1.5"><path d="M2.141 2.141A4.75 4.75 0 0 1 8.859 2.141"/></svg>\n`);
+// Product-owned AgentToolGlyph frames (src/features/desktop-agent/ui/activity/AgentToolGlyph.tsx):
+// 18-unit paths drawn at 16px with a non-scaling 1.8px stroke (2.025 units).
+{
+  const glyph = body => `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="white" stroke-width="2.025" stroke-linecap="round" stroke-linejoin="round">${body}</svg>\n`;
+  const parts = {"agent-glyph-search": "<circle cx=\"7.25\" cy=\"7.25\" r=\"4.25\"/><path d=\"m10.45 10.45 4 4\"/>", "agent-glyph-read": "<path d=\"M4 2.5h6.25L14 6.25V15.5H4z\"/><path d=\"M10.25 2.5v3.75H14\"/><path d=\"M6.25 9h5.5M6.25 12h4.25\"/>", "agent-glyph-read-scan": "<path d=\"M5.75 8h6.5\"/>", "agent-glyph-edit-base": "<path d=\"M3.25 15h5.2\"/>", "agent-glyph-write-base": "<path d=\"M3.25 3h6.5M3.25 6h4.5\"/>", "agent-glyph-ink": "<path d=\"M3.5 14.25c1.6-.15 3.15-.55 4.55-1.2\"/>", "agent-glyph-pen": "<path d=\"m5.25 12.5.65-2.65 6.7-6.7 2.25 2.25-6.7 6.7z\"/><path d=\"m11.45 4.3 2.25 2.25\"/>"};
+  parts['agent-glyph-edit'] = parts['agent-glyph-edit-base'] + parts['agent-glyph-ink'] + parts['agent-glyph-pen'];
+  parts['agent-glyph-write'] = parts['agent-glyph-write-base'] + parts['agent-glyph-ink'] + parts['agent-glyph-pen'];
+  for (const [name, body] of Object.entries(parts)) await writeFile(path.join(root, 'assets/icons', `${name}.svg`), glyph(body));
+}
 // Product-owned editable-table menu icons (packages/shared-ui/src/editor/table/editableTableMenuIcons.ts,
 // drawn by EditableTableMenuIcon.tsx at stroke-width 1.75).
 {
