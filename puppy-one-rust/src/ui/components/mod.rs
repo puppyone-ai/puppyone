@@ -22,7 +22,7 @@ pub use button::{Button, ButtonVariant, IconButton};
 pub use dialog::Dialog;
 pub use icon::{FileIcon, Icon};
 pub use menu::{Menu, MenuItem, MenuVariant};
-pub use popover::{AnchoredMenu, Dismiss, PopoverMenu};
+pub use popover::{AnchoredMenu, PopoverMenu};
 pub use segmented::{Segment, SegmentLayout, SegmentedControl};
 pub use select::{Select, SelectOption};
 pub use settings::{

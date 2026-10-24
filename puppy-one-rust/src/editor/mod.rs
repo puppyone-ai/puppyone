@@ -1,4 +1,5 @@
 //! Product editor services shared by the native and Web format adapters.
+pub mod actions;
 pub mod document_session;
 pub mod frame;
 pub mod host;

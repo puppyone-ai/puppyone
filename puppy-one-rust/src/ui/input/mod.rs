@@ -3,28 +3,18 @@
 use gpui::{prelude::*, *};
 use std::ops::Range;
 use unicode_segmentation::UnicodeSegmentation;
-#[path = "layout.rs"]
 mod layout;
 pub use layout::TextRegion;
 use layout::{KitTextElement, TextLayout, index_at, position_at};
-#[path = "input/actions.rs"]
 mod actions;
-#[path = "input/clipboard.rs"]
 mod clipboard;
-#[path = "input/editing.rs"]
 mod editing;
-#[path = "input/navigation.rs"]
 mod navigation;
-#[path = "input/platform.rs"]
 mod platform;
-#[path = "input/pointer.rs"]
 mod pointer;
-#[path = "presentation.rs"]
 pub mod presentation;
-#[path = "input/render.rs"]
 mod render;
 #[cfg(test)]
-#[path = "input/tests.rs"]
 mod tests;
 pub use actions::*;
 /// Shared native input boundary used by the form bridge and document host.

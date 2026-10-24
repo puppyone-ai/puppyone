@@ -120,7 +120,7 @@ pub fn app_menus() -> Vec<Menu> {
             ],
         },
         ui::input::edit_menu(|id| tr(&format!("native.menu.edit.{id}")).into()),
-        crate::native_editor::format_menu(|id| tr(&format!("native.menu.format.{id}")).into()),
+        crate::editor::actions::format_menu(|id| tr(&format!("native.menu.format.{id}")).into()),
         Menu {
             disabled: false,
             name: tr("native.menu.view").into(),

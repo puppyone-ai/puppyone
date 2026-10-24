@@ -13,7 +13,6 @@ mod lab;
 mod localization;
 mod model;
 mod model_connections;
-mod native_editor;
 mod platform;
 mod shell;
 mod theme;
@@ -51,7 +50,7 @@ fn main() {
             ui::input::bind_keys(cx);
             ui::form_input::bind_keys(cx);
             shell::bind_keys(cx);
-            native_editor::bind_keys(cx);
+            editor::actions::bind_keys(cx);
             editor::view::bind_keys(cx);
             editor::csv::bind_keys(cx);
             editor::host::bind_keys(cx);

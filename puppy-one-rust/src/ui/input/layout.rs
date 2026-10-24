@@ -5,7 +5,6 @@ use super::*;
 use gpui_kit::base::text::editor_host::*;
 use std::collections::HashMap;
 
-#[path = "hit_test.rs"]
 mod hit_test;
 pub use hit_test::TextRegion;
 use hit_test::{Label, Leaf};

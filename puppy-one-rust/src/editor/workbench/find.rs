@@ -42,29 +42,15 @@ impl FindBar {
             input.min_height = 0.;
             input
         });
-        let subscription = cx.subscribe(
-            &input,
-            |this: &mut Self, input, event: &InputEvent, cx| match event {
-                InputEvent::Changed => cx.emit(FindEvent::Query(input.read(cx).text().to_owned())),
-                InputEvent::Submit => this.step(true, cx),
-            },
-        );
-        Self {
-            input,
-            open: false,
-            current: 0,
-            total: 0,
-            dark,
-            _subscription: subscription,
-        }
+        let subscription = cx.subscribe(&input, |this: &mut Self, input, event: &InputEvent, cx| match event {
+            InputEvent::Changed => cx.emit(FindEvent::Query(input.read(cx).text().to_owned())),
+            InputEvent::Submit => this.step(true, cx),
+        });
+        Self { input, open: false, current: 0, total: 0, dark, _subscription: subscription }
     }
 
     pub fn query(&self, cx: &App) -> String {
         self.input.read(cx).text().to_owned()
-    }
-
-    pub fn set_dark(&mut self, dark: bool, cx: &mut Context<Self>) {
-        self.dark = dark;
     }
 
     /// `openFind`: show the bar and select its query.
@@ -108,13 +94,7 @@ impl Render for FindBar {
         let result = if !has_query {
             None
         } else if self.total > 0 {
-            Some(tf(
-                "editor.find.resultCount",
-                &[
-                    ("current", Arg::Number(self.current as i64)),
-                    ("total", Arg::Number(self.total as i64)),
-                ],
-            ))
+            Some(tf("editor.find.resultCount", &[("current", Arg::Number(self.current as i64)), ("total", Arg::Number(self.total as i64))]))
         } else {
             Some(t("editor.find.noResults").to_owned())
         };
@@ -133,30 +113,13 @@ impl Render for FindBar {
                 .rounded(px(4.))
                 .tooltip(tooltip(t(label)))
                 .child(Icon::new(icon).color(fg))
-                .when(enabled, |d| {
-                    d.cursor(theme::clickable_cursor())
-                        .hover(move |s| s.bg(hover_bg).text_color(hover_fg))
-                })
+                .when(enabled, |d| d.cursor(theme::clickable_cursor()).hover(move |s| s.bg(hover_bg).text_color(hover_fg)))
         };
         // `--po-elevation-low`.
-        let shadow = BoxShadow {
-            color: theme::alpha(t_.shadow, 0.28).into(),
-            offset: point(px(0.), px(2.)),
-            blur_radius: px(4.),
-            spread_radius: px(-2.),
-            inset: false,
-        };
+        let shadow = BoxShadow { color: theme::alpha(t_.shadow, 0.28).into(), offset: point(px(0.), px(2.)), blur_radius: px(4.), spread_radius: px(-2.), inset: false };
         // `:focus-within` strengthens the border.
-        let focused = self
-            .input
-            .read(cx)
-            .focus_handle(cx)
-            .contains_focused(window, cx);
-        let border = if focused {
-            theme::mix(t_.muted, t_.border, 0.48)
-        } else {
-            theme::mix(t_.border_subtle, Rgba::default(), 0.86)
-        };
+        let focused = self.input.read(cx).focus_handle(cx).contains_focused(window, cx);
+        let border = if focused { theme::mix(t_.muted, t_.border, 0.48) } else { theme::mix(t_.border_subtle, Rgba::default(), 0.86) };
         div()
             .id("editor-find-widget")
             .occlude()
@@ -186,24 +149,8 @@ impl Render for FindBar {
                     this.step(false, cx);
                 }
             }))
-            .child(
-                div().ml(px(4.)).mr(px(2.)).flex_shrink_0().child(
-                    Icon::new("search")
-                        .small()
-                        .color(theme::mix(t_.accent, t_.muted, 0.42)),
-                ),
-            )
-            .child(
-                div()
-                    .flex_1()
-                    .min_w_0()
-                    .h(px(control_tight))
-                    .flex()
-                    .items_center()
-                    .px(px(4.))
-                    .text_size(px(theme::ty().ui.label))
-                    .child(self.input.clone()),
-            )
+            .child(div().ml(px(4.)).mr(px(2.)).flex_shrink_0().child(Icon::new("search").small().color(theme::mix(t_.accent, t_.muted, 0.42))))
+            .child(div().flex_1().min_w_0().h(px(control_tight)).flex().items_center().px(px(4.)).text_size(px(theme::ty().ui.label)).child(self.input.clone()))
             .children(result.map(|label| {
                 div()
                     .min_w(px(44.))
@@ -221,27 +168,8 @@ impl Render for FindBar {
                     .text_ellipsis()
                     .child(label)
             }))
-            .child(
-                button(
-                    "editor-find-previous",
-                    "chevron-up",
-                    "editor.find.previous",
-                    can_move,
-                )
-                .on_click(cx.listener(|this, _, _, cx| this.step(false, cx))),
-            )
-            .child(
-                button(
-                    "editor-find-next",
-                    "chevron-down",
-                    "editor.find.next",
-                    can_move,
-                )
-                .on_click(cx.listener(|this, _, _, cx| this.step(true, cx))),
-            )
-            .child(
-                button("editor-find-close", "x", "editor.find.close", true)
-                    .on_click(cx.listener(|_, _, _, cx| cx.emit(FindEvent::Close))),
-            )
+            .child(button("editor-find-previous", "chevron-up", "editor.find.previous", can_move).on_click(cx.listener(|this, _, _, cx| this.step(false, cx))))
+            .child(button("editor-find-next", "chevron-down", "editor.find.next", can_move).on_click(cx.listener(|this, _, _, cx| this.step(true, cx))))
+            .child(button("editor-find-close", "x", "editor.find.close", true).on_click(cx.listener(|_, _, _, cx| cx.emit(FindEvent::Close))))
     }
 }

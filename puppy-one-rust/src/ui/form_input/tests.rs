@@ -98,9 +98,7 @@ fn function_key_text_from_an_input_method_is_not_field_text(cx: &mut TestAppCont
     let (input, cx) = setup(cx, false, 100);
     cx.simulate_input("ab");
     // Sogou Pinyin's ← as text: dropped, the key replayed (caret moves).
-    input.update_in(cx, |i, w, cx| {
-        i.replace_text_in_range(None, "\u{F702}", w, cx)
-    });
+    input.update_in(cx, |i, w, cx| i.replace_text_in_range(None, "\u{F702}", w, cx));
     cx.run_until_parked();
     cx.simulate_input("x");
     assert_eq!(input.read_with(cx, |i, _| i.text().to_owned()), "axb");

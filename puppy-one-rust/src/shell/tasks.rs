@@ -184,7 +184,6 @@ impl Shell {
     /// backdrop press keeps the draft; Escape and Close discard it.
     pub(super) fn feedback_view(&self, w: f32, cx: &mut Context<Self>) -> Dialog {
         let t = cx.palette();
-        let dark = cx.is_dark();
         self.task_ui.message.update(cx, |i, _| {
             i.set_placeholder(self.locale.text("shell.feedback.placeholder"));
         });

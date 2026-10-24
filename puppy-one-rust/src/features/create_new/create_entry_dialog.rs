@@ -4,7 +4,6 @@ use crate::ui::appearance::ActiveAppearance;
 use crate::ui::components::{Button, ButtonVariant};
 use crate::{
     localization::{t as tr, tf},
-    theme::Theme,
     ui::form_input::{InputEvent, TextInput},
     workspace::Workspace,
 };

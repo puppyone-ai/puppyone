@@ -29,13 +29,23 @@ cargo run --release --locked -- --workspace /path/to/project --file README.md
 ## GPUI Kit 复用范围
 
 - `gpui_kit::application/open_window`：平台入口、窗口 Root、焦点和组件初始化；不维护 Kit fork。
-- 共用 Button / IconButton、工作台 Tab、Checkbox、Dialog 直接使用 Kit；保留产品颜色、布局与业务命令。
+- 界面控件来自产品组件库 `src/ui/components/`（见下节）：外观是 PuppyOne 的，行为——焦点、键盘、弹层定位与关闭、对话框焦点陷阱——来自 Kit 的无样式层 `gpui-base`。Kit 不 fork、不改源码，也不使用 `gpui-component` 的默认外观组件（如 `PopupMenu`）。
 - 普通表单、Agent composer、Git commit、模型配置及问答字段使用 Kit Input/Textarea。选择、文本编辑、IME 事务和撤销交给 Kit；薄适配器保留长度限制、Tab 焦点和 ⌘Enter。
 - Agent Markdown 使用 Kit TextView，代码复制和受限链接保留；正文中的图片地址不会自动读取本地文件或请求网络。
 - 原生文档编辑器（`src/editor/`）由 Kit 公开的 `text::editor_host` 排版和绘制正文；文档、装饰、块几何、选区、光标、输入法和指针由应用持有（见 [`src/editor/ARCHITECTURE.md`](src/editor/ARCHITECTURE.md)）。Kit 不是完整的编辑内核；文件树加载、分屏拓扑、Terminal/Agent 运行和文件保存同样保留各自 owner。
-- `src/native_editor/` 是早期原型，仍提供少量共享输入类型与动作，计划退役（PARITY_TODO N11）。
 
 未采用 `gpui-kit-markdown-editor` 或其他独立编辑器库。GPUI Kit 上游在 2026-10-23 查询时为 18,506 stars；这是本次选型门槛，不是成熟度或无缺陷保证。此后新增直接依赖仍需按用户的项目规模限制评估。
+
+## 组件库（`src/ui/components/`）
+
+产品界面只用这里的组件，功能代码不自己画控件：
+
+- 写法与 Kit 一致：每个组件是 `#[derive(IntoElement)]` + `RenderOnce` 的结构体，用链式方法配置（`Button::new(id).variant(..).icon(..).label(..)`），状态走 Kit 的 `Selectable`（选中 / 展开）、`Disableable`、`Sizable` trait，需要微调布局时实现 `Styled`。
+- 颜色从全局外观读取（`cx.palette()` / `cx.is_dark()`，见 `ui/appearance.rs`），不再由调用方传 `Theme` 或 `dark` 参数。
+- 现有组件：`Button`（Outline / Filled / Ghost / Titlebar / 对话框等变体）、`IconButton`、`Icon` / `FileIcon`、`Switch`、`SegmentedControl`、`Select`、`Menu` / `MenuItem`、`PopoverMenu`（挂在触发按钮上）、`AnchoredMenu`（右键菜单）、`Dialog`、`SidebarRow` / `SectionHeader` / `SidebarGroup` / `RowActionButton`、设置页的 `SettingsSection` / `SettingRow` / `ValueRow` 等，以及 `Spinner`、`tooltip`。
+- 弹层统一交给 Kit 的 `Popover` / `Positioner`：位置、贴边、点外部和 Esc 关闭、焦点恢复都不手写。
+- 样例页：`PUPPYONE_LAB=gallery-dark`（或 `gallery-light`、`gallery-dialog-dark`）配合 `dev-capture` 构建打开，展示所有组件和状态。
+- `tools/check-ui-boundaries.py` 会拦截：功能 / Shell 代码里使用 Kit 默认外观组件（`gpui_kit::component::{button,menu,…}`、`PopupMenu` 等）、自建配色（`Theme::new`），以及已退役的旧辅助文件（`ui/primitives.rs`、`ui/menu.rs` 等）重新出现。
 
 ## 这一版可以做什么
 
@@ -263,7 +273,7 @@ CARGO_TARGET_DIR=../target cargo run --release --locked
 
 - `src/main.rs` / `shell.rs` / `theme.rs`：GPUI Application、entity、事件与布局。
 - `src/editor/`：原生文档编辑器（文本内核、视图、Markdown、CSV、表格、宿主协议），见其 `ARCHITECTURE.md`。
-- `src/native_editor/`：早期原型；`src/ui/input.rs` 仍从这里导出共享输入类型/动作，计划退役。
+- `src/ui/components/`：产品组件库；`src/ui/input/`：原生文本输入（表单与文档共用）；`src/ui/appearance.rs`：当前外观（深浅色、主题包、字号）的全局状态。
 - `src/platform/ime.rs`：系统输入法补充（丢弃组字、过滤功能键字符）。
 - `src/wake.rs`：后台 I/O 的有界唤醒；`src/capture.rs`：显式启用的 macOS 合成截图。
 - `src/shell/tasks.rs`：首批原生 Settings / Feedback；尚未通过完整像素验收。

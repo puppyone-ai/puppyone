@@ -395,7 +395,7 @@ impl Render for DocumentEditor {
             .relative()
             .size_full()
             .track_focus(&self.focus)
-            .on_action(cx.listener(|s, a: &crate::native_editor::EditorAction, w, cx| s.command(&a.name, w, cx)))
+            .on_action(cx.listener(|s, a: &crate::editor::actions::EditorAction, w, cx| s.command(&a.name, w, cx)))
             .on_action(cx.listener(|s, _: &OpenFind, w, cx| s.open_find(w, cx)))
             // Ghostty-style reveal: the handle shows in the leading third.
             .on_mouse_move(cx.listener(|s, e: &MouseMoveEvent, _, cx| {

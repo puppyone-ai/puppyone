@@ -8,10 +8,7 @@ use super::Page;
 use crate::{
     localization::t as tr,
     theme::{self, Theme},
-    ui::{
-        appearance::ActiveAppearance,
-        components::{Button, Icon, SettingRow, SettingsSection, SettingsSubsection, Switch},
-    },
+    ui::components::{Button, Icon, SettingRow, SettingsSection, SettingsSubsection, Switch},
 };
 use gpui::{prelude::*, *};
 use gpui_kit::{
@@ -23,7 +20,6 @@ impl SettingsWorkspaceSurface {
         let state = self.preferences.read(cx).state.files.clone();
         let draft = normalize_patterns(self.patterns.read(cx).text());
         let dirty = draft != state.exclude_patterns;
-        let dark = cx.is_dark();
         self.patterns.update(cx, |i, _| {
             i.appearance = false;
             i.prompt_text = Some((theme::ty().ui.meta, 17.));
