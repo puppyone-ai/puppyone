@@ -86,6 +86,9 @@ pub struct AgentChat {
     picker_active: Option<usize>,
     picker_query: Entity<TextInput>,
     picker_focus: FocusHandle,
+    /// `AgentHistoryNotice` disclosure and the empty-state logo press.
+    history_notice_open: bool,
+    logo_pressed: bool,
     drafts: super::super::application::session_draft_store::SessionDraftStore,
 }
 impl AgentChat {
@@ -246,6 +249,8 @@ impl AgentChat {
             picker_active: None,
             picker_query,
             picker_focus: cx.focus_handle(),
+            history_notice_open: false,
+            logo_pressed: false,
             drafts: Default::default(),
             logo_turns: 0,
             diagnostics_open: false,

@@ -178,6 +178,10 @@ pub struct SessionSnapshot {
     /// locator-only listings can tell a pending scan from an empty one.
     #[serde(default)]
     pub history_listed: u64,
+    /// The thread whose oldest output fell outside the live display window
+    /// (`displayWindow.truncated`); its transcript says it shows recent messages.
+    #[serde(default)]
+    pub truncated_thread: Option<Option<String>>,
     pub usage: String,
     pub title: String,
     pub revision: u64,
@@ -228,6 +232,7 @@ impl SessionSnapshot {
             cursor: None,
             history_mode: history,
             history_listed: 0,
+            truncated_thread: None,
             usage: String::new(),
             title: runtime.into(),
             revision: 0,
@@ -351,7 +356,7 @@ impl SessionSnapshot {
         }
         if remove > 0 {
             self.messages.drain(..remove);
-            self.notice=Some("Older output is outside the live display limit. Reopen native history to inspect the conversation.".into());
+            self.truncated_thread = Some(self.thread.clone());
         }
     }
     pub fn finish(&mut self, status: &str) {

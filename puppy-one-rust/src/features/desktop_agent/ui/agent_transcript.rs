@@ -101,6 +101,14 @@ impl AgentChat {
                 None,
             ));
         }
+        // `agentSubmissionStatusLabel("starting-turn")`: the prompt is sent
+        // and the provider has not opened its turn yet.
+        if snapshot.state == State::Running
+            && snapshot.turn.is_none()
+            && snapshot.interactions.is_empty()
+        {
+            return Some((tr("agent.transcript.startingTurn").into(), None));
+        }
         let status = self.run_status()?;
         let label = tr(match status {
             RunStatus::Thinking => "agent.activity.thinking",
@@ -205,6 +213,15 @@ impl AgentChat {
         }
         if !self.follow && added > 0 {
             self.unread = (self.unread + added).min(99);
+        }
+        // The history notice leads the first row; its state re-measures it.
+        if let Some(first) = next.first_mut()
+            && self.history_notice_visible()
+        {
+            let mut hasher = blake3::Hasher::new();
+            hasher.update(first.1.as_bytes());
+            hasher.update(&[1, u8::from(self.history_notice_open)]);
+            first.1 = hasher.finalize();
         }
         self.row_signatures = next;
         if self.follow {
@@ -355,13 +372,60 @@ impl AgentChat {
         } else {
             0.
         };
+        let notice = (index == 0 && self.history_notice_visible()).then(|| self.history_notice(cx));
         div()
             .w_full()
             .pl(px(INSET))
             .pr(px(INSET))
             .when(index == 0, |d| d.pt(px(PAD_TOP)))
+            .children(notice)
             .pb(px(gap + tail_padding + if last { PAD_BOTTOM } else { 0. }))
             .child(div().w_full().max_w(px(CONTENT_MAX)).mx_auto().child(body))
+            .into_any_element()
+    }
+
+    fn history_notice_visible(&self) -> bool {
+        let snapshot = self.session.snapshot();
+        snapshot.truncated_thread.as_ref() == Some(&snapshot.thread)
+    }
+    /// `AgentHistoryNotice` for a display window: a quiet disclosure above
+    /// the conversation ("Showing recent messages.") with its reason.
+    fn history_notice(&mut self, cx: &mut Context<Self>) -> AnyElement {
+        let t = Theme::new(self.dark);
+        let a = AgentTheme::new(&t);
+        let m = theme::ty();
+        let open = self.history_notice_open;
+        div()
+            .w_full()
+            .max_w(px(CONTENT_MAX))
+            .mx_auto()
+            .mb(px(12.))
+            .px(px(12.))
+            .py(px(3.))
+            .text_color(a.text_subtle)
+            .text_size(px(m.right.caption))
+            .line_height(px(m.right.meta_line_height))
+            .child(
+                row()
+                    .id("agent-history-notice")
+                    .gap(px(7.))
+                    .cursor(theme::clickable_cursor())
+                    .on_click(cx.listener(|s, _, _, cx| {
+                        s.history_notice_open = !s.history_notice_open;
+                        s.refresh_transcript();
+                        cx.notify();
+                    }))
+                    .child(crate::ui::icon_stroke("info", 14., 2., a.text_subtle))
+                    .child(tr("agent.transcript.historyWindow")),
+            )
+            .when(open, |d| {
+                d.child(
+                    div()
+                        .mt(px(6.))
+                        .whitespace_normal()
+                        .child(tr("agent.transcript.historyReason.displayWindow")),
+                )
+            })
             .into_any_element()
     }
 
@@ -521,16 +585,22 @@ impl AgentChat {
         let t = Theme::new(self.dark);
         let a = AgentTheme::new(&t);
         let turns = self.logo_turns;
+        let pressed = self.logo_pressed;
         let spin = tf(
             "agent.empty.spinLogo",
             &[("agent", self.installation.label.clone().into())],
         );
         let mark: AnyElement =
             match super::super::agent_brand_mark::svg_path(self.runtime(), self.dark) {
+                // `:hover` lifts the mark's colour; `:active` presses the
+                // button to 91%.
                 Some(path) => svg()
                     .path(path)
                     .size(px(28.))
                     .text_color(a.empty_brand)
+                    .group_hover("agent-empty-logo", move |s| {
+                        s.text_color(a.empty_brand_hover)
+                    })
                     .with_animation(
                         ElementId::NamedInteger("agent-logo-spin".into(), turns as u64),
                         // `transform 780ms cubic-bezier(0.16, 0.86, 0.22, 1.1)`: a soft overshoot.
@@ -546,7 +616,11 @@ impl AgentChat {
                             } else {
                                 delta * std::f32::consts::TAU
                             };
-                            el.with_transformation(Transformation::rotate(radians(angle)))
+                            let scale = if pressed { 0.91 } else { 1. };
+                            el.with_transformation(
+                                Transformation::rotate(radians(angle))
+                                    .with_scaling(size(scale, scale)),
+                            )
                         },
                     )
                     .into_any_element(),
@@ -568,6 +642,28 @@ impl AgentChat {
             .px(px(12.))
             .child(
                 gpui_kit::base::Button::new("agent-empty-logo")
+                    .group("agent-empty-logo")
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(|s, _, _, cx| {
+                            s.logo_pressed = true;
+                            cx.notify();
+                        }),
+                    )
+                    .on_mouse_up(
+                        MouseButton::Left,
+                        cx.listener(|s, _, _, cx| {
+                            s.logo_pressed = false;
+                            cx.notify();
+                        }),
+                    )
+                    .on_mouse_up_out(
+                        MouseButton::Left,
+                        cx.listener(|s, _, _, cx| {
+                            s.logo_pressed = false;
+                            cx.notify();
+                        }),
+                    )
                     .accessibility_label(spin.clone())
                     // `--po-control-size-roomy` with a -4px margin.
                     .size(px(theme::control() + 4.))
