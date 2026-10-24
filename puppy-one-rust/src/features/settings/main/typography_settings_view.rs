@@ -108,7 +108,8 @@ fn preview(t: Theme) -> Div {
             .font_family(geist(weight))
             .font_weight(FontWeight(weight))
             .text_color(md.color("--po-md-heading-color"))
-            .child(tr(text))
+            // 34.5 / 28.5px line boxes stay fractional, as in the product.
+            .child(crate::ui::fractional_text(tr(text)))
     };
     let body = tr("settings.typography.preview.body");
     let bold = tr("settings.typography.preview.bold");
@@ -163,14 +164,20 @@ fn preview(t: Theme) -> Div {
         ))
         .child(
             // `.desktop-typography-preview-body`: reading weight 450, 1.75 lines.
+            // Its `margin-block-end: 0` (0,2,0) loses to the Markdown
+            // surface's `p` rule (0,2,1), so the source-line and paragraph
+            // gaps stay below it inside the flow-root surface.
             div()
                 .mt(px(p_top))
+                .mb(px(md.len("--po-md-source-line-gap", m.editor.content)
+                    + md.len("--po-md-paragraph-gap-after", m.editor.content)))
                 .text_size(px(m.editor.content))
                 .line_height(px(m.editor.content * 1.75))
                 .font_family(geist(450.))
                 .font_weight(FontWeight(450.))
                 .text_color(content)
-                .child(StyledText::new(text).with_runs(runs)),
+                // 26.25px lines: GPUI's text element would round them to 26.
+                .child(crate::ui::fractional_text(text).with_runs(runs)),
         );
     let right = column()
         .py(px(12.))
