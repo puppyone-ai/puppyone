@@ -75,7 +75,9 @@ impl SettingsWorkspaceSurface {
                 )
                 .accessibility_label(copy_label)
                 .tooltip(tooltip(copy_label))
-                .px(px(7.))
+                // `.desktop-build-version-copy`: a 28px square.
+                .w(px(28.))
+                .px(px(0.))
                 .on_click(cx.listener(move |s, _, _, cx| {
                     s.copy("build-version".into(), diagnostics.clone(), cx)
                 })),
@@ -95,10 +97,10 @@ impl SettingsWorkspaceSurface {
         );
         let updates = setting_row(
             tr("updates.settings.title"),
-            action_button(
+            crate::ui::action_button_sized(
                 "development-build",
                 tr("updates.action.developmentBuild"),
-                Some("info"),
+                Some(("info", 14.)),
                 Tone::Default,
                 true,
                 t,

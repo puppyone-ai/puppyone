@@ -121,7 +121,8 @@ impl Default for Experimental {
             viewer_plugins: false,
             cloud_workspace: false,
             cloud_automation: false,
-            payments: false,
+            // `DEFAULT_EXPERIMENTAL_SETTINGS.enablePayments`.
+            payments: true,
             puppy_flow_files: false,
             git_auto_commit: false,
             asset_library_home: false,

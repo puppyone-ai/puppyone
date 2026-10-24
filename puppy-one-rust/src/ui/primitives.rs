@@ -31,6 +31,24 @@ pub fn action_button(
     disabled: bool,
     t: Theme,
 ) -> Button {
+    action_button_sized(
+        id,
+        label,
+        icon_name.map(|name| (name, 13.)),
+        tone,
+        disabled,
+        t,
+    )
+}
+/// `action_button` with the call site's Lucide icon size.
+pub fn action_button_sized(
+    id: impl Into<ElementId>,
+    label: impl Into<SharedString>,
+    icon: Option<(&str, f32)>,
+    tone: Tone,
+    disabled: bool,
+    t: Theme,
+) -> Button {
     let label = label.into();
     let (border, bg, fg, hover) = match tone {
         Tone::Default => (t.divider, theme::alpha(t.text, 0.), t.muted, t.hover),
@@ -71,8 +89,8 @@ pub fn action_button(
                     .text_color(if tone == Tone::Default { t.text } else { fg })
             })
         });
-    if let Some(name) = icon_name {
-        b = b.child(icon_sized(name, 13., fg));
+    if let Some((name, size)) = icon {
+        b = b.child(icon_stroke(name, size, 2., fg));
     }
     b.child(label)
 }
@@ -184,7 +202,7 @@ pub fn switch(
         .border_1()
         .border_color(track_border)
         .bg(track)
-        .when(disabled, |b| b.opacity(0.62))
+        // A disabled product switch only loses its pointer cursor.
         .when(!disabled, |b| b.cursor(theme::clickable_cursor()))
         .child(
             div()
@@ -211,19 +229,53 @@ pub struct SegmentOption {
     pub on_select: SelectHandler,
 }
 pub type SelectHandler = Box<dyn Fn(&mut Window, &mut App)>;
+/// How a `.desktop-theme-segment` sizes its options.
+#[derive(Clone, Copy, PartialEq)]
+pub enum SegmentLayout {
+    /// Content-sized options, 8px inline padding.
+    Plain,
+    /// `.desktop-appearance-option-segment`: `min(100%, width)` split into
+    /// equal columns; 6px padding and truncated labels.
+    Grid(f32),
+    /// `.desktop-appearance-hug-segment`: content-sized, 6px padding.
+    Hug,
+    /// Content-sized with a minimum option width (`.desktop-interface-style-segment`).
+    MinWidth(f32),
+}
 /// `.desktop-theme-segment`: 2px inset group of quiet options.
 pub fn segment(id: impl Into<SharedString>, options: Vec<SegmentOption>, t: Theme) -> Div {
+    segment_with(id, options, SegmentLayout::Plain, t)
+}
+pub fn segment_with(
+    id: impl Into<SharedString>,
+    options: Vec<SegmentOption>,
+    layout: SegmentLayout,
+    t: Theme,
+) -> Div {
     let id = id.into();
+    let size = theme::ty().ui.meta;
+    let grid = matches!(layout, SegmentLayout::Grid(_));
     row()
         .flex_shrink_0()
         .gap(px(2.))
         .p(px(2.))
         .rounded(px(7.))
         .bg(t.control)
+        .when_some(
+            match layout {
+                SegmentLayout::Grid(width) => Some(width),
+                _ => None,
+            },
+            |d, width| d.w(px(width)).max_w_full().min_w_0().flex_shrink(1.),
+        )
         .children(options.into_iter().enumerate().map(|(index, option)| {
             let active = option.active;
             let disabled = option.disabled;
             let select = option.on_select;
+            let padding = match layout {
+                SegmentLayout::Grid(_) | SegmentLayout::Hug => 6.,
+                _ => 8.,
+            };
             let mut b = Button::new(SharedString::from(format!("{id}-{index}")))
                 .accessibility_label(option.label.clone())
                 .selected(active)
@@ -233,10 +285,19 @@ pub fn segment(id: impl Into<SharedString>, options: Vec<SegmentOption>, t: Them
                 .justify_center()
                 .gap(px(5.))
                 .h(px(theme::control_small()))
-                .px(px(8.))
+                .px(px(padding))
                 .rounded(px(5.))
-                .text_size(px(theme::ty().ui.meta))
+                .text_size(px(size))
+                .line_height(px(17.))
                 .text_color(if active { t.text } else { t.muted })
+                .when(grid, |b| b.flex_1().flex_basis(px(0.)).min_w_0())
+                .when_some(
+                    match layout {
+                        SegmentLayout::MinWidth(width) => Some(width),
+                        _ => None,
+                    },
+                    |b, width| b.min_w(px(width)),
+                )
                 .when(active, |b| b.bg(t.selected).font_weight(FontWeight::MEDIUM))
                 .when(disabled, |b| b.opacity(0.5))
                 .when(!disabled, |b| {
@@ -249,9 +310,14 @@ pub fn segment(id: impl Into<SharedString>, options: Vec<SegmentOption>, t: Them
                     }
                 });
             if let Some(leading) = option.leading {
-                b = b.child(leading);
+                b = b.child(div().flex_shrink_0().child(leading));
             }
-            b.child(option.label)
+            b.child(
+                div()
+                    .min_w_0()
+                    .when(grid, |d| d.truncate())
+                    .child(option.label),
+            )
         }))
 }
 

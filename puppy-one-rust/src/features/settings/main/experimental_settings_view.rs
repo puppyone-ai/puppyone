@@ -1,8 +1,10 @@
 //! Port of `ExperimentalSettingsView.tsx`: the same groups, rows and choice
 //! segments. Rows whose behaviour has a native consumer are live; the others
-//! keep their stored value but are disabled with the product's "not available
-//! yet" message instead of silently doing nothing. `gitAutoCommit` appears only
-//! when the platform exposes it (never natively), like the Web view.
+//! look exactly like the product's but are inert, and their tooltip carries
+//! the product's "not available yet" message instead of silently doing
+//! nothing. `gitAutoCommit` appears only when the platform exposes it (never
+//! natively), like the Web view. The Homepage group follows the product
+//! build's `assetLibraryHome` flag (`features/flags/flags.json`: on).
 use super::super::{
     components::*, preference_types::Preferences,
     settings_workspace_surface::SettingsWorkspaceSurface,
@@ -118,6 +120,16 @@ fn groups() -> Vec<(&'static str, Vec<Setting>)> {
                 setting!("flowFiles", experimental.puppy_flow_files, false),
             ],
         ),
+        (
+            "homepage",
+            vec![setting!(
+                "projectsHome",
+                experimental.asset_library_home,
+                false,
+                "list",
+                "cards"
+            )],
+        ),
     ]
 }
 impl SettingsWorkspaceSurface {
@@ -154,17 +166,18 @@ impl SettingsWorkspaceSurface {
                                         .into(),
                                         leading: None,
                                         active: value == choice,
-                                        disabled,
+                                        disabled: false,
                                         on_select: Box::new(move |_, cx| {
-                                            prefs.update(cx, |p, cx| {
-                                                p.change(|p| set(p, choice), cx)
-                                            })
+                                            if !disabled {
+                                                prefs.update(cx, |p, cx| {
+                                                    p.change(|p| set(p, choice), cx)
+                                                })
+                                            }
                                         }),
                                     }
                                 })
                                 .collect();
                             let seg = segment(SharedString::from(setting.key), options, t)
-                                .when(disabled, |d| d.opacity(0.55))
                                 .id(SharedString::from(format!("{}-segment", setting.key)));
                             match reason.clone().or(detail.map(String::from)) {
                                 Some(text) => seg.tooltip(tooltip(text)).into_any_element(),

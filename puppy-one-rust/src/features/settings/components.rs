@@ -2,7 +2,7 @@
 //! Layout only: no persistence, no platform access.
 use crate::{
     theme::{self, Theme},
-    ui::{column, icon_sized, row},
+    ui::{column, row},
 };
 use gpui::{prelude::*, *};
 use gpui_kit::component::{
@@ -28,7 +28,8 @@ pub fn section_with_action(
     };
     let heading = div()
         .text_size(px(theme::ty().ui.page_title))
-        .line_height(rems(1.25))
+        // `line-height: 1.25` of the page title (26.25px at Medium).
+        .line_height(px(theme::ty().ui.page_title * 1.25))
         .font_weight(FontWeight::MEDIUM)
         .text_color(t.text)
         .child(title.into());
@@ -90,6 +91,7 @@ pub fn subsection(
         crate::typography::Scale::Medium => 18.,
         crate::typography::Scale::Large => 20.,
     };
+    let untitled = title.is_none();
     column()
         .w_full()
         .min_w_0()
@@ -117,7 +119,10 @@ pub fn subsection(
                     .child(detail),
             )
         })
-        .child(if leading && !rows.is_empty() {
+        // A titled lead subsection (`.desktop-settings-lead-group`) only adds
+        // top space; an untitled one (`.desktop-settings-lead-rows`) gives its
+        // first row the lead height.
+        .child(if leading && untitled && !rows.is_empty() {
             lead_list(rows)
         } else {
             list(rows)
@@ -177,9 +182,11 @@ pub fn setting_row(label: impl Into<SharedString>, control: impl IntoElement, t:
         .rounded(px(theme::metric::CONTROL_RADIUS))
         .text_size(px(theme::ty().ui.label))
         .child(
+            // `.desktop-settings-row > span`: 14px at `line-height: normal`.
             div()
                 .flex_shrink_0()
                 .max_w(px(320.))
+                .line_height(px(18.))
                 .text_color(t.subtle)
                 .child(label.into()),
         )
@@ -277,7 +284,10 @@ pub fn notice(message: impl Into<SharedString>, t: Theme) -> Div {
         .text_color(t.muted)
         .child(message.into())
 }
-/// `.desktop-settings-select`: bordered menu trigger, 220px max.
+/// `.desktop-settings-select`: a native `<select>` (220px max, 8px inline
+/// padding). Chromium's macOS menu list adds 4px before the label and draws
+/// its arrow as an 8.5×5 chevron of about 0.85px in the text colour, ending
+/// at the inner border; Lucide's chevron at 16px/1.3 traces the same stroke.
 pub fn select(
     id: impl Into<ElementId>,
     label: impl Into<SharedString>,
@@ -285,21 +295,46 @@ pub fn select(
     t: Theme,
     items: impl Fn() -> Vec<PopupMenuItem> + 'static,
 ) -> impl IntoElement {
+    select_sized(id, label, disabled, (0., 220.), t, items)
+}
+/// `select` with the call site's `(min-width, max-width)`.
+pub fn select_sized(
+    id: impl Into<ElementId>,
+    label: impl Into<SharedString>,
+    disabled: bool,
+    (min_width, max_width): (f32, f32),
+    t: Theme,
+    items: impl Fn() -> Vec<PopupMenuItem> + 'static,
+) -> impl IntoElement {
+    let size = theme::ty().ui.meta;
     Button::new(id)
         .small()
         .h(px(theme::control_compact()))
-        .max_w(px(220.))
-        .px(px(8.))
-        .gap(px(6.))
+        .min_w(px(min_width))
+        .max_w(px(max_width))
+        .justify_between()
+        .pl(px(12.))
+        .pr(px(0.))
         .border_1()
         .border_color(t.divider)
         .rounded(px(theme::metric::CONTROL_RADIUS))
         .bg(t.input)
         .text_color(t.text)
-        .text_size(px(theme::ty().ui.meta))
+        .when(disabled, |b| b.opacity(0.62))
         .disabled(disabled)
-        .child(div().truncate().child(label.into()))
-        .child(icon_sized("chevron-down", 12., t.muted))
+        // Kit's small button sizes its content layer; the label keeps 13px.
+        // The label takes any width past its content (`min-width`), so the
+        // arrow stays at the end as in a native select.
+        .child(
+            div()
+                .flex_1()
+                .truncate()
+                .text_size(px(size))
+                .line_height(px(size * 1.3))
+                .child(label.into()),
+        )
+        // Kit's content layer owns the gap; the arrow sits 13.5px after the label.
+        .child(crate::ui::icon_stroke("chevron-down", 16., 1.3, t.text).ml(px(4.5)))
         .dropdown_menu(move |mut menu, _, _| {
             for entry in items() {
                 menu = menu.item(entry)

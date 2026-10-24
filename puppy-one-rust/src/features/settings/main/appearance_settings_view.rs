@@ -9,13 +9,19 @@ use super::Page;
 use crate::{
     localization::{t as tr, tf},
     theme::{self, Theme},
-    ui::{SegmentOption, column, icon_sized, pulse_grid, row, segment, switch, tooltip},
+    ui::{
+        SegmentLayout, SegmentOption, column, icon_stroke, pulse_grid, row, segment_with, switch,
+        tooltip,
+    },
 };
 use gpui::{prelude::*, *};
 use gpui_kit::component::menu::PopupMenuItem;
 
 /// `ThemePreviewSurface`: a miniature window drawn with one pack/mode palette.
-fn preview_surface(pack: &str, dark: bool) -> Div {
+/// `(left, right)` round the outer corners: GPUI clips children to the
+/// preview's rectangle, not its 5px corners, so each edge owns its 4px radius.
+fn preview_surface(pack: &str, dark: bool, (left, right): (bool, bool)) -> Div {
+    const R: f32 = 4.;
     let p = theme::pack_theme(pack, dark);
     let bar = move |width: f32, accent: bool| {
         div()
@@ -34,8 +40,11 @@ fn preview_surface(pack: &str, dark: bool) -> Div {
         .h_full()
         .items_stretch()
         .bg(p.canvas)
+        .when(left, |d| d.rounded_l(px(R)))
+        .when(right, |d| d.rounded_r(px(R)))
         .child(
             column()
+                .when(left, |d| d.rounded_l(px(R)))
                 .w(relative(0.31))
                 .gap(px(3.))
                 .px(px(4.))
@@ -49,6 +58,7 @@ fn preview_surface(pack: &str, dark: bool) -> Div {
         )
         .child(
             column()
+                .when(right, |d| d.rounded_r(px(R)))
                 .flex_1()
                 .gap(px(3.))
                 .px(px(4.))
@@ -80,17 +90,33 @@ impl SettingsWorkspaceSurface {
             let preview = match mode {
                 ThemeMode::System => preview
                     .child(
-                        preview_surface(&state.theme_pack, false)
+                        preview_surface(&state.theme_pack, false, (true, false))
                             .border_r_1()
                             .border_color(theme::alpha(t.border_strong, 0.72)),
                     )
-                    .child(preview_surface(&state.theme_pack, true)),
-                ThemeMode::Light => preview.child(preview_surface(&state.theme_pack, false)),
-                ThemeMode::Dark => preview.child(preview_surface(&state.theme_pack, true)),
+                    .child(preview_surface(&state.theme_pack, true, (false, true))),
+                ThemeMode::Light => {
+                    preview.child(preview_surface(&state.theme_pack, false, (true, true)))
+                }
+                ThemeMode::Dark => {
+                    preview.child(preview_surface(&state.theme_pack, true, (true, true)))
+                }
             };
             let prefs = prefs.clone();
             let hover_border = theme::mix(t.accent, t.border, 0.42);
             let hover_bg = theme::mix(t.selected, t.panel, 0.72);
+            // `.desktop-theme-choice.active`: `0 0 0 1px` accent ring at 26%,
+            // drawn as an outline because a GPUI shadow would also show
+            // through the card's translucent fill.
+            let ring = div()
+                .absolute()
+                .top(px(-2.))
+                .left(px(-2.))
+                .right(px(-2.))
+                .bottom(px(-2.))
+                .rounded(px(9.))
+                .border_1()
+                .border_color(theme::alpha(t.accent, 0.26));
             modes = modes.child(
                 gpui_kit::base::Button::new(SharedString::from(format!("theme-mode-{mode:?}")))
                     .accessibility_label(tr(mode.label_key()))
@@ -104,9 +130,12 @@ impl SettingsWorkspaceSurface {
                     .rounded(px(8.))
                     .cursor(theme::clickable_cursor())
                     .text_size(px(theme::ty().ui.hint))
+                    .relative()
+                    .items_stretch()
                     .when(active, |b| {
                         b.border_color(hover_border)
                             .bg(hover_bg)
+                            .child(ring)
                             .text_color(t.text)
                             .font_weight(FontWeight::MEDIUM)
                     })
@@ -120,12 +149,16 @@ impl SettingsWorkspaceSurface {
                     })
                     .child(preview)
                     .child(
+                        // `.desktop-theme-choice-label`: 13px icon, 17px line.
                         row()
                             .gap(px(5.))
                             .px(px(2.))
-                            .child(icon_sized(
+                            .h(px(17.))
+                            .line_height(px(17.))
+                            .child(icon_stroke(
                                 mode.icon(),
                                 13.,
+                                2.,
                                 if active { t.text } else { t.muted },
                             ))
                             .child(tr(mode.label_key())),
@@ -153,30 +186,48 @@ impl SettingsWorkspaceSurface {
             .map(|(_, n)| n)
             .unwrap_or("Neutral");
         let pack_prefs = prefs.clone();
+        // `.desktop-theme-pack-controls`: the select hugs its value between
+        // 124 and 156px; two 28px icon actions follow, 4px apart.
         let pack_control = row()
             .gap(px(4.))
-            .child(select("theme-pack", pack_name, false, t, move || {
-                theme::pack_choices()
-                    .map(|(id, name)| {
-                        let prefs = pack_prefs.clone();
-                        PopupMenuItem::new(name)
-                            .checked(id == current_pack)
-                            .on_click(move |_, _, cx| {
-                                prefs.update(cx, |p, cx| p.change(|p| p.theme_pack = id.into(), cx))
-                            })
-                    })
-                    .collect()
-            }))
+            .child(select_sized(
+                "theme-pack",
+                pack_name,
+                false,
+                (124., 156.),
+                t,
+                move || {
+                    theme::pack_choices()
+                        .map(|(id, name)| {
+                            let prefs = pack_prefs.clone();
+                            PopupMenuItem::new(name)
+                                .checked(id == current_pack)
+                                .on_click(move |_, _, cx| {
+                                    prefs.update(cx, |p, cx| {
+                                        p.change(|p| p.theme_pack = id.into(), cx)
+                                    })
+                                })
+                        })
+                        .collect()
+                },
+            ))
             .children(["folder-open", "plus"].into_iter().map(|icon| {
                 let label = tr(if icon == "plus" {
                     "settings.appearance.themes.add"
                 } else {
                     "settings.appearance.themes.openFolder"
                 });
-                crate::ui::icon_button(SharedString::from(format!("theme-pack-{icon}")), icon, t)
-                    .accessibility_label(label)
-                    .disabled(true)
-                    .opacity(0.5)
+                // `.desktop-theme-pack-icon-action:disabled`: 14px glyph in
+                // `--po-text-disabled` at 58%.
+                div()
+                    .id(SharedString::from(format!("theme-pack-{icon}")))
+                    .size(px(theme::control_compact()))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .rounded(px(6.))
+                    .opacity(0.58)
+                    .child(icon_stroke(icon, 14., 2., t.text_disabled))
                     .tooltip(tooltip(tf(
                         "settings.sidebar.notAvailable",
                         &[("section", label.into())],
@@ -257,10 +308,12 @@ impl SettingsWorkspaceSurface {
             })
             .collect();
 
-        // Header elements (`HeaderElementsSetting`): Changes and the Agent entry.
-        let mut tools = column().gap(px(2.)).min_w(px(220.));
+        // Header elements (`HeaderElementsSetting`, `.desktop-settings-tool-list`):
+        // 32px items, 8px start padding, a 14px subtle glyph 7px before the
+        // 13px label, the switch 8px after it.
+        let mut tools = column().gap(px(2.));
         for (id, icon, enabled) in [
-            ("changes", "git-branch", state.header_changes),
+            ("changes", "version-control", state.header_changes),
             ("terminal", "agent-entry", state.header_terminal),
         ] {
             let prefs = prefs.clone();
@@ -268,13 +321,16 @@ impl SettingsWorkspaceSurface {
             tools = tools.child(
                 row()
                     .h(px(theme::control()))
+                    .pl(px(8.))
                     .justify_between()
-                    .gap(px(12.))
+                    .gap(px(8.))
                     .child(
                         row()
-                            .gap(px(6.))
+                            .gap(px(7.))
+                            .text_size(px(theme::ty().ui.meta))
+                            .line_height(px(17.))
                             .text_color(t.muted)
-                            .child(icon_sized(icon, 14., t.muted))
+                            .child(crate::ui::icon_sized(icon, 14., t.subtle))
                             .child(label),
                     )
                     .child(switch(
@@ -320,30 +376,40 @@ impl SettingsWorkspaceSurface {
             },
         ];
         let pointer_prefs = prefs.clone();
+        // `.desktop-theme-mode-row`: the label and cards align to the top,
+        // 7px inside the row.
+        let theme_row = setting_row(tr("settings.appearance.theme.title"), modes, t)
+            .items_start()
+            .py(px(7.));
+        // `.desktop-theme-settings-section` (`SubThemeSettingsSection`) opens
+        // 20px below the theme row and owns its own list.
         section(tr(Page::Appearance.title()), t).child(lead_list(vec![
-            setting_row(tr("settings.appearance.theme.title"), modes, t).into_any_element(),
-            setting_row(tr("settings.appearance.themes.pack"), pack_control, t).into_any_element(),
+            theme_row.into_any_element(),
+            setting_row(tr("settings.appearance.themes.pack"), pack_control, t)
+                .mt(px(20.))
+                .into_any_element(),
             setting_row(
                 tr("settings.appearance.fileIcons.title"),
-                segment("file-icons", icon_options, t),
+                segment_with("file-icons", icon_options, SegmentLayout::Grid(360.), t),
                 t,
             )
             .into_any_element(),
             setting_row(
                 tr("settings.appearance.gitSidebarLayout.title"),
-                segment("git-layout", layout_options, t),
+                segment_with("git-layout", layout_options, SegmentLayout::Hug, t),
                 t,
             )
             .into_any_element(),
             setting_row(
                 tr("settings.appearance.loadingAnimation.title"),
-                segment("loading-animation", loading_options, t),
+                segment_with("loading-animation", loading_options, SegmentLayout::Hug, t),
                 t,
             )
             .into_any_element(),
+            // `.desktop-settings-tools-row`: top-aligned, 5px block padding.
             setting_row(tr("settings.appearance.headerElements.title"), tools, t)
                 .items_start()
-                .py(px(6.))
+                .py(px(5.))
                 .into_any_element(),
             setting_row(
                 tr("settings.appearance.pointerCursors.title"),
@@ -363,12 +429,17 @@ impl SettingsWorkspaceSurface {
             .into_any_element(),
             setting_row(
                 tr("settings.appearance.interfaceStyle.title"),
-                segment("interface-style", style_options, t)
-                    .id("interface-style-segment")
-                    .tooltip(tooltip(tf(
-                        "settings.sidebar.notAvailable",
-                        &[("section", xp_label.into())],
-                    ))),
+                segment_with(
+                    "interface-style",
+                    style_options,
+                    SegmentLayout::MinWidth(104.),
+                    t,
+                )
+                .id("interface-style-segment")
+                .tooltip(tooltip(tf(
+                    "settings.sidebar.notAvailable",
+                    &[("section", xp_label.into())],
+                ))),
                 t,
             )
             .into_any_element(),

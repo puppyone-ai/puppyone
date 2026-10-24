@@ -152,6 +152,7 @@ embedded! {
     "icons" / "undo-2.svg",
     "icons" / "unlink.svg",
     "icons" / "user-round.svg",
+    "icons" / "version-control.svg",
     "icons" / "workflow.svg",
     "icons" / "wrench.svg",
     "icons" / "x.svg",
