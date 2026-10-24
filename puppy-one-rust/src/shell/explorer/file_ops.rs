@@ -49,11 +49,11 @@ impl Shell {
             return;
         }
         let touched = op.touched();
-        if let Some(doc) = &self.files.document
-            && touched.iter().any(|p| doc.relative.starts_with(p))
+        if let Some((_, relative)) = self.files.opened()
+            && touched.iter().any(|p| relative.starts_with(p))
         {
             // Drain autosave and close first; resume when the document is gone.
-            self.explorer.reopen = Some(doc.relative.clone());
+            self.explorer.reopen = Some(relative.to_path_buf());
             self.explorer.queued_op = Some(op);
             self.files.begin(Intent::CloseFile, &self.wake);
             self.receive(window, cx);
@@ -138,7 +138,7 @@ impl Shell {
     /// Called from `receive`: resume queued operations and apply results.
     pub(in crate::shell) fn poll_file_ops(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.explorer.op.is_none()
-            && self.files.document.is_none()
+            && self.files.opened().is_none()
             && !self.files.busy()
             && let Some(op) = self.explorer.queued_op.take()
         {

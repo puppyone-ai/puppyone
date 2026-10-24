@@ -275,3 +275,65 @@ fn stale_oversized_and_timed_out_snapshots_never_authorize_navigation() {
     assert!(!d.allow_quit);
     assert!(d.document.is_some());
 }
+#[test]
+fn files_their_viewer_reads_itself_open_as_resources_without_reading_text() {
+    let (temp, mut d, ctx) = setup();
+    // Not UTF-8: an editor could not open it, an image viewer reads it.
+    std::fs::write(
+        temp.path().join("logo.png"),
+        [0x89, b'P', b'N', b'G', 0xff, 0x00],
+    )
+    .unwrap();
+    // Leaving the open document drains it first, as for any switch.
+    d.begin(Intent::OpenFile("logo.png".into()), &ctx);
+    snapshot(&mut d, &ctx, "original");
+    wait(&mut d, &ctx);
+    assert!(d.error.is_none(), "{:?}", d.error);
+    assert!(d.document.is_none());
+    let resource = d.resource.clone().unwrap();
+    assert_eq!(resource.relative, Path::new("logo.png"));
+    assert_eq!(
+        d.opened().map(|(_, p)| p.to_path_buf()),
+        Some(resource.relative.clone())
+    );
+    assert!(d.outgoing.iter().any(|m| matches!(
+        m,
+        HostMessage::OpenResource { name, path, .. }
+            if name == "logo.png" && path == &resource.absolute
+    )));
+    // Opening a text file afterwards replaces it with a document.
+    d.begin(Intent::OpenFile("b.md".into()), &ctx);
+    wait(&mut d, &ctx);
+    assert!(d.resource.is_none());
+    assert_eq!(d.document.as_ref().unwrap().text, "second");
+}
+#[test]
+fn resources_outside_the_workspace_or_through_symlinks_are_refused() {
+    let (temp, mut d, ctx) = setup();
+    let outside = tempfile::tempdir().unwrap();
+    std::fs::write(outside.path().join("secret.png"), b"x").unwrap();
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(
+        outside.path().join("secret.png"),
+        temp.path().join("link.png"),
+    )
+    .unwrap();
+    d.begin(Intent::OpenFile("link.png".into()), &ctx);
+    wait(&mut d, &ctx);
+    assert!(d.resource.is_none());
+    assert!(d.error.is_some());
+}
+#[test]
+fn a_referenced_workspace_path_opens_that_file() {
+    let (_temp, mut d, ctx) = setup();
+    d.document = None;
+    d.client(
+        ClientMessage::OpenPaths {
+            paths: vec!["/b.md".into()],
+        },
+        &ctx,
+    );
+    wait(&mut d, &ctx);
+    assert!(d.error.is_none(), "{:?}", d.error);
+    assert_eq!(d.document.as_ref().unwrap().relative, Path::new("b.md"));
+}

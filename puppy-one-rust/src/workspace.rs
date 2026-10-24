@@ -404,6 +404,17 @@ impl Workspace {
         Err(crate::localization::t("native.workspace.nameExhausted").into())
     }
     /// Absolute path of an entry, for platform reveal/open actions.
+    /// A regular file a viewer reads itself (an image, a binary preview):
+    /// checked through the workspace capability — no symlinks, nothing
+    /// outside the root — and returned as an absolute path.
+    pub fn resource(&self, relative: &Path) -> Result<PathBuf> {
+        let (dir, name) = self.parent(relative)?;
+        let meta = dir.symlink_metadata(&name).map_err(io)?;
+        if !meta.is_file() {
+            return Err(crate::localization::t("native.workspace.regularOnly").into());
+        }
+        Ok(self.path.join(relative))
+    }
     pub fn absolute(&self, relative: &Path) -> Result<PathBuf> {
         validate(relative, true)?;
         Ok(self.path.join(relative))

@@ -41,6 +41,12 @@ pub enum HostMessage {
         revision: u64,
         external: bool,
     },
+    /// Show a file its viewer reads itself (`resource` / `none` sources).
+    OpenResource {
+        id: String,
+        name: String,
+        path: PathBuf,
+    },
     /// No document is open.
     Clear,
     /// Report the current text; `freeze` holds edits until `Thaw`.
@@ -109,9 +115,17 @@ pub enum Phase {
     },
     Working,
 }
+/// An open file whose viewer reads it itself: no text, nothing to save.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Resource {
+    pub id: String,
+    pub relative: PathBuf,
+    pub absolute: PathBuf,
+}
 enum Completed {
     Root(workspace::Result<(Arc<Workspace>, Vec<Node>)>),
     File(workspace::Result<Document>),
+    Resource(PathBuf, workspace::Result<PathBuf>),
     Save {
         id: String,
         sequence: u64,
@@ -135,6 +149,8 @@ pub type PresentationKey = (
 pub struct Documents {
     pub workspace: Option<Arc<Workspace>>,
     pub document: Option<Document>,
+    /// The open file when its viewer does not edit text (never with `document`).
+    pub resource: Option<Resource>,
     pub dirty: bool,
     pub revision: u64,
     pub phase: Phase,
@@ -160,6 +176,7 @@ impl Default for Documents {
         Self {
             workspace: None,
             document: None,
+            resource: None,
             dirty: false,
             revision: 0,
             phase: Phase::Idle,
@@ -185,6 +202,14 @@ impl Documents {
     /// Background persistence does not block keyboard input or native commands.
     pub fn busy(&self) -> bool {
         !matches!(self.phase, Phase::Idle | Phase::AwaitComposition { .. })
+    }
+    /// The open file's session id and workspace-relative path, text or not.
+    pub fn opened(&self) -> Option<(&str, &std::path::Path)> {
+        match (&self.document, &self.resource) {
+            (Some(doc), _) => Some((&doc.id, &doc.relative)),
+            (None, Some(resource)) => Some((&resource.id, &resource.relative)),
+            (None, None) => None,
+        }
     }
     #[cfg(test)]
     pub fn saving(&self) -> bool {
@@ -217,8 +242,8 @@ impl Documents {
             return;
         }
         self.ensure_session();
-        if let (Intent::OpenFile(path), Some(doc)) = (&intent, &self.document)
-            && path == &doc.relative
+        if let (Intent::OpenFile(path), Some((_, open))) = (&intent, self.opened())
+            && path == open
         {
             return;
         }
@@ -249,9 +274,14 @@ impl Documents {
         }
     }
     fn show_document(&mut self) {
-        let message = match &self.document {
-            Some(doc) => self.open_message(doc, false),
-            None => HostMessage::Clear,
+        let message = match (&self.document, &self.resource) {
+            (Some(doc), _) => self.open_message(doc, false),
+            (None, Some(resource)) => HostMessage::OpenResource {
+                id: resource.id.clone(),
+                name: resource.relative.to_string_lossy().into_owned(),
+                path: resource.absolute.clone(),
+            },
+            (None, None) => HostMessage::Clear,
         };
         self.outgoing.push(message);
     }
@@ -362,11 +392,13 @@ impl Documents {
             }
             ClientMessage::OpenPaths { paths } => {
                 // Workspace-relative candidates; the first one opens.
-                if let (Some(path), Some(workspace)) = (paths.first(), &self.workspace) {
+                if let (Some(path), Some(_)) = (paths.first(), &self.workspace) {
                     let path = std::path::Path::new(path.trim_start_matches('/'));
-                    if path.components().all(|c| matches!(c, std::path::Component::Normal(_))) {
-                        let target = workspace.path.join(path);
-                        self.begin(Intent::OpenFile(target), ctx);
+                    if path
+                        .components()
+                        .all(|c| matches!(c, std::path::Component::Normal(_)))
+                    {
+                        self.begin(Intent::OpenFile(path.to_path_buf()), ctx);
                     }
                 }
             }
@@ -461,22 +493,32 @@ impl Documents {
                 };
                 let path = match intent {
                     Intent::OpenFile(path) => path,
-                    _ => match &self.document {
-                        Some(d) => d.relative.clone(),
+                    _ => match self.opened() {
+                        Some((_, relative)) => relative.to_path_buf(),
                         None => return,
                     },
                 };
                 self.phase = Phase::Working;
                 self.status = "Reading file…".into();
+                // The resolved viewer's source decides what is read: text for
+                // editors, nothing for viewers that read the file themselves.
+                let content = crate::editor::registry::source_requirement(&path.to_string_lossy())
+                    .reads_content();
                 let tx = self.tx.clone();
                 let ctx = ctx.clone();
                 crate::localization::spawn(move || {
-                    let _ = tx.send(Completed::File(ws.read(&path)));
+                    let _ = tx.send(if content {
+                        Completed::File(ws.read(&path))
+                    } else {
+                        let result = ws.resource(&path);
+                        Completed::Resource(path, result)
+                    });
                     ctx.notify();
                 });
             }
             Intent::CloseFile => {
                 self.document = None;
+                self.resource = None;
                 self.dirty = false;
                 self.revision = 0;
                 self.phase = Phase::Idle;
@@ -514,7 +556,15 @@ impl Documents {
         (
             self.document
                 .as_ref()
-                .map(|d| (d.id.clone(), blake3::hash(d.text.as_bytes()))),
+                .map(|d| (d.id.clone(), blake3::hash(d.text.as_bytes())))
+                .or_else(|| {
+                    self.resource.as_ref().map(|r| {
+                        (
+                            r.id.clone(),
+                            blake3::hash(r.absolute.as_os_str().as_encoded_bytes()),
+                        )
+                    })
+                }),
             self.revision,
             self.dirty,
             self.busy(),
@@ -542,6 +592,7 @@ impl Documents {
                 Completed::Root(Ok((ws, rows))) => {
                     self.workspace = Some(ws);
                     self.document = None;
+                    self.resource = None;
                     self.session = None;
                     self.dirty = false;
                     self.revision = 0;
@@ -554,6 +605,7 @@ impl Documents {
                 }
                 Completed::File(Ok(doc)) => {
                     self.document = Some(doc);
+                    self.resource = None;
                     self.session = None;
                     self.dirty = false;
                     self.revision = 0;
@@ -625,7 +677,24 @@ impl Documents {
                         Err(error) => self.error = Some(error),
                     }
                 }
-                Completed::Root(Err(error)) | Completed::File(Err(error)) => self.fail(error),
+                Completed::Resource(relative, Ok(absolute)) => {
+                    self.document = None;
+                    self.resource = Some(Resource {
+                        id: uuid::Uuid::new_v4().to_string(),
+                        relative,
+                        absolute,
+                    });
+                    self.session = None;
+                    self.dirty = false;
+                    self.revision = 0;
+                    self.phase = Phase::Idle;
+                    self.error = None;
+                    self.status = "Opened".into();
+                    self.show_document();
+                }
+                Completed::Root(Err(error))
+                | Completed::File(Err(error))
+                | Completed::Resource(_, Err(error)) => self.fail(error),
                 Completed::Children(ws, path, result) => {
                     if self
                         .workspace

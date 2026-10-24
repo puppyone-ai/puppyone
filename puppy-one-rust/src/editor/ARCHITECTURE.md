@@ -9,7 +9,11 @@ decorations, boxes, selection, caret, IME, pointer, widgets — is ours.
 
 ```text
 host/            DocumentEditor: the shell's native provider (document protocol),
-                 pane chrome and find routing for the open editor
+                 pane chrome and find routing for the open viewer
+registry/        which viewer opens a document: the preset viewer manifest,
+                 contributions validated against it, the surface contract
+viewers/         the surfaces built-in contributions open (text, csv, image,
+                 placeholder)
 workbench/       pane chrome (⋯ handle, actions menu) and the find widget
 markdown/ csv/   document formats
 table/           the editable-table primitive shared by CSV and Markdown tables
@@ -18,6 +22,45 @@ view/            the editor view (CodeMirror view counterpart) on Kit editor_hos
 text/            the text kernel: buffer, changes, selection, transactions, history
 tokens.rs        product theme tokens (assets/editor/*-theme.json)
 ```
+
+## Viewers (`registry/`, `viewers/`)
+
+The product's editor extensibility (`packages/shared-ui/src/editor/registry`)
+with the same layers and names:
+
+1. **Formats** (`crate::formats`): which format a file is — the product's
+   `fileFormats.json` (extensions, MIME types, category, `defaultViewer`,
+   `editable`) with `resolveFileFormat`'s rules.
+2. **Manifest** (`registry/manifest.rs`): what each preset viewer may do —
+   capability (`edit` / `preview` / `placeholder`), its input (`source`),
+   isolation and budgets — from the product's `presetViewerManifest.json`.
+3. **Contributions** (`registry/builtin.rs`, the only list, in match order):
+   each adds `matches`, the `editable` veto, its pane policy and how it is
+   presented. `PresetViewer::define` refuses a contribution that breaks its
+   manifest entry; `ViewerRegistry::new` refuses duplicates, a wrong
+   fallback, or a declared viewer without a contribution.
+4. **Surfaces** (`registry/surface.rs`, `viewers/`): `ViewerSurface` is
+   everything the host drives — the element, text and composition for
+   editors, undo, read-only and appearance, commands, focus, pane menu
+   entries and the find adapter. Read-only previews implement `element`.
+
+The document session (`documents.rs`) asks the registry what to read: text
+for `content` viewers (autosaved), nothing for `resource` / `none` viewers,
+which receive the file's checked path (`Workspace::resource`). The host
+(`host/`) opens the resolved contribution's surface and never names a
+concrete viewer; product viewers the native build does not have yet are
+`Presentation::Unavailable` and show the honest placeholder.
+
+### Adding a viewer
+
+1. If the product added it, re-import the tables
+   (`python3 tools/import-formats.py`); the registry then refuses to start
+   until it has a contribution.
+2. Write its surface in `viewers/<name>.rs` (implement `ViewerSurface`;
+   `open(&SurfaceRequest, …)` receives the text or the file path its
+   manifest `source` asks for).
+3. Add its `ViewerImplementation` to `registry/builtin.rs` at the product's
+   position, with the product's `matches`.
 
 ## The view (`view/`)
 

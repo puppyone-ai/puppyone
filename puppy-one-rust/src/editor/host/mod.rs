@@ -1,22 +1,16 @@
-//! The document surface the shell embeds (the only editor provider): it
-//! speaks the document host protocol of
-//! `documents.rs` (`open`, `clear`, `snapshot`, `thaw`, `saved`, `history`)
-//! and hosts the native editor for the file — Markdown live preview for
-//! `.md`/`.mdx`/`.markdown`, the CSV table for `.csv`/`.tsv`, plain text
-//! otherwise.
-//! It never writes files; `documents.rs` owns saving.
+//! The document surface the shell embeds (`DocumentSurfaceHost`): it speaks
+//! the document host protocol of `documents.rs` (`HostMessage`) and opens
+//! the viewer the registry resolves for the file (`editor::registry`) —
+//! Markdown, CSV, source text, images, or an honest placeholder. It never
+//! names a concrete viewer and never writes files; `documents.rs` owns saving.
 use crate::{
     documents::{ClientMessage, HostMessage},
     editor::{
-        csv::{CsvEditor, CsvEvent},
-        markdown::MarkdownExtension,
-        view::{
-            EditorView,
-            decoration::Decorations,
-            editor::EditorEvent,
-            extension::{EditIntent, EditorExtension, PlainText},
-            style::{Edges, LineHeight, LineStyle, TextStyle},
+        registry::{
+            self, EditorDocument, Presentation, PresetViewer, SurfaceEvent, SurfaceInput,
+            SurfaceRequest, ViewerSurface,
         },
+        viewers::placeholder,
     },
     typography::Scale,
 };
@@ -36,24 +30,6 @@ pub fn bind_keys(cx: &mut App) {
     cx.bind_keys([KeyBinding::new("cmd-f", OpenFind, Some(KEY_CONTEXT)), KeyBinding::new("ctrl-f", OpenFind, Some(KEY_CONTEXT))]);
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Kind {
-    Markdown,
-    Csv,
-    Text,
-}
-
-impl Kind {
-    fn of(name: &str) -> Self {
-        let ext = name.rsplit('.').next().unwrap_or_default().to_ascii_lowercase();
-        match ext.as_str() {
-            "md" | "mdx" | "markdown" => Kind::Markdown,
-            "csv" | "tsv" => Kind::Csv,
-            _ => Kind::Text,
-        }
-    }
-}
-
 struct Session {
     id: String,
     /// The file name the pane shows (`editorLabel`).
@@ -61,19 +37,15 @@ struct Session {
     baseline: String,
     revision: u64,
     frozen: bool,
-    kind: Kind,
-}
-
-/// The format editor of the open document.
-#[derive(Clone)]
-enum Surface {
-    Text(Entity<EditorView>),
-    Csv(Entity<CsvEditor>),
+    /// The resolved viewer: another viewer for the same id means a new surface.
+    viewer: &'static PresetViewer,
+    /// The Host's edit gate (`PresetViewer::editable`).
+    editable: bool,
 }
 
 pub struct DocumentEditor {
     session: Option<Session>,
-    editor: Option<Surface>,
+    surface: Option<Box<dyn ViewerSurface>>,
     subscription: Option<Subscription>,
     focus: FocusHandle,
     dark: bool,
@@ -89,20 +61,11 @@ pub struct DocumentEditor {
 
 impl EventEmitter<ClientMessage> for DocumentEditor {}
 
-/// Plain text files: the Markdown body typography without syntax.
-fn plain_text(dark: bool, scale: Scale) -> PlainText {
-    let theme = crate::editor::markdown::style::MarkdownTheme::resolve(dark, scale);
-    let body = &theme.body;
-    let text = TextStyle { line_height: LineHeight::Factor(body.text.line_height_px() / body.text.size), ..body.text.clone() };
-    let line = LineStyle { padding: Edges::new(0., 0., body.source_line_gap, 0.), ..LineStyle::new(text) };
-    PlainText { line: std::rc::Rc::new(line), decorations: Decorations { surface: crate::editor::markdown::core::decorations::surface(&theme), ..Default::default() } }
-}
-
 impl DocumentEditor {
     pub fn new(cx: &mut Context<Self>) -> Self {
         Self {
             session: None,
-            editor: None,
+            surface: None,
             subscription: None,
             focus: cx.focus_handle(),
             dark: true,
@@ -115,99 +78,82 @@ impl DocumentEditor {
         }
     }
 
-    fn extension(&self, markdown: bool) -> Box<dyn EditorExtension> {
-        if markdown { Box::new(MarkdownExtension::new(self.dark, self.scale)) } else { Box::new(plain_text(self.dark, self.scale)) }
-    }
-
-    fn open_editor(&mut self, id: &str, name: &str, text: &str, kind: Kind, window: &mut Window, cx: &mut Context<Self>) {
-        if kind == Kind::Csv {
-            let (dark, scale) = (self.dark, self.scale);
-            let editor = cx.new(|cx| CsvEditor::new(id, name, text, dark, scale, cx));
-            self.subscription = Some(cx.subscribe(&editor, |s, _, event: &CsvEvent, cx| match event {
-                CsvEvent::Changed => s.changed(cx),
-                CsvEvent::OpenReference(paths) => cx.emit(ClientMessage::OpenPaths { paths: paths.clone() }),
-            }));
-            self.editor = Some(Surface::Csv(editor));
-            return;
+    /// Open the resolved viewer's surface for a document and follow its
+    /// changes.
+    fn open_surface(&mut self, id: &str, name: &str, input: SurfaceInput, window: &mut Window, cx: &mut Context<Self>) -> (&'static PresetViewer, bool) {
+        let document = EditorDocument::local(name);
+        let resolved = registry::resolve(&document);
+        let viewer = resolved.viewer;
+        let editable = match input {
+            SurfaceInput::Text(text) => viewer.editable(&resolved.view_match(&document), text),
+            _ => false,
+        };
+        let request = SurfaceRequest { id, name, input, format: resolved.format, resolved_extension: resolved.resolved_extension.as_deref(), dark: self.dark, scale: self.scale };
+        let surface = match viewer.presentation {
+            Presentation::Native(open) => open(&request, window, cx),
+            Presentation::Unavailable => placeholder::open_unavailable(&request, window, cx),
+        };
+        let host = cx.weak_entity();
+        self.subscription = surface.subscribe(
+            Rc::new(move |event, cx| {
+                let _ = host.update(cx, |s, cx| match event {
+                    SurfaceEvent::Changed => s.changed(cx),
+                    SurfaceEvent::OpenPaths(paths) => cx.emit(ClientMessage::OpenPaths { paths }),
+                });
+            }),
+            cx,
+        );
+        // A new surface: its find adapter and menu start fresh.
+        self.chrome.open = false;
+        if let Some(bar) = &self.find {
+            bar.update(cx, |b, cx| b.hide(cx));
         }
-        let extension = self.extension(kind == Kind::Markdown);
-        let dark = self.dark;
-        let editor = cx.new(|cx| {
-            let mut view = EditorView::new(text, extension, cx);
-            view.dark = dark;
-            view
-        });
-        let _ = window;
-        self.subscription = Some(cx.subscribe(&editor, |s, _, event: &EditorEvent, cx| match event {
-            // A cancelled composition changes nothing, but a save or switch
-            // deferred while it was open waits for this report.
-            EditorEvent::Changed(_) | EditorEvent::CompositionEnded => s.changed(cx),
-        }));
-        self.editor = Some(Surface::Text(editor));
+        self.surface = Some(surface);
+        (viewer, editable)
     }
 
     fn changed(&mut self, cx: &mut Context<Self>) {
-        let text = self.text(cx);
+        let Some(text) = self.text(cx) else { return };
         let Some(session) = &mut self.session else { return };
         session.revision += 1;
         let dirty = text != session.baseline;
         cx.emit(ClientMessage::Dirty { id: session.id.clone(), revision: session.revision, dirty });
     }
 
-    fn text(&self, cx: &App) -> String {
-        match &self.editor {
-            Some(Surface::Text(e)) => e.read(cx).text().to_owned(),
-            Some(Surface::Csv(e)) => e.read(cx).text(cx),
-            None => String::new(),
-        }
-    }
-
-    fn composing(&self, cx: &App) -> bool {
-        match &self.editor {
-            Some(Surface::Text(e)) => e.read(cx).composing(),
-            Some(Surface::Csv(e)) => e.read(cx).composing(cx),
-            None => false,
-        }
-    }
-
-    fn undo(&self, redo: bool, window: &mut Window, cx: &mut App) {
-        match &self.editor {
-            Some(Surface::Text(e)) => e.update(cx, |e, cx| e.undo(redo, cx)),
-            Some(Surface::Csv(e)) => e.update(cx, |e, cx| e.undo(redo, window, cx)),
-            None => {}
-        }
+    fn text(&self, cx: &App) -> Option<String> {
+        self.surface.as_ref().and_then(|s| s.text(cx))
     }
 
     pub fn receive(&mut self, message: &HostMessage, window: &mut Window, cx: &mut Context<Self>) -> Vec<ClientMessage> {
         let mut replies = Vec::new();
         match message {
             HostMessage::Open { id, name, text, revision, external } => {
-                let kind = Kind::of(name);
-                let same = self.session.as_ref().is_some_and(|s| &s.id == id && s.kind == kind) && self.editor.is_some();
-                if same && &self.text(cx) == text && !external {
-                    // The same document re-sent (e.g. after a save): keep history.
-                } else if same {
-                    // External change of the open document: replace its text.
-                    match &self.editor {
-                        Some(Surface::Text(e)) => e.update(cx, |e, cx| e.replace_text(text, cx)),
-                        Some(Surface::Csv(e)) => e.update(cx, |e, cx| e.replace_text(text, cx)),
-                        None => {}
+                let viewer = registry::resolve(&EditorDocument::local(name)).viewer.id;
+                let same = self.session.as_ref().is_some_and(|s| &s.id == id && s.viewer.id == viewer) && self.surface.is_some();
+                let (viewer, editable) = if same {
+                    if self.text(cx).as_ref() != Some(text) || *external {
+                        // External change of the open document: replace its text.
+                        if let Some(surface) = &self.surface {
+                            surface.replace_text(text, cx);
+                        }
                     }
+                    // Otherwise the same document re-sent (after a save): keep history.
+                    let session = self.session.as_ref().unwrap();
+                    (session.viewer, session.editable)
                 } else {
-                    // A new editor: its find adapter and menu start fresh.
-                    self.chrome.open = false;
-                    if let Some(bar) = &self.find {
-                        bar.update(cx, |b, cx| b.hide(cx));
-                    }
-                    self.open_editor(id, name, text, kind, window, cx);
-                }
-                let label = name.rsplit(['/', '\\']).next().unwrap_or(name).to_owned();
-                self.session = Some(Session { id: id.clone(), name: label, baseline: text.clone(), revision: *revision, frozen: false, kind });
+                    self.open_surface(id, name, SurfaceInput::Text(text), window, cx)
+                };
+                self.session = Some(Session { id: id.clone(), name: label(name), baseline: text.clone(), revision: *revision, frozen: false, viewer, editable });
+                replies.push(ClientMessage::Loaded { id: id.clone() });
+            }
+            HostMessage::OpenResource { id, name, path } => {
+                let (viewer, editable) = self.open_surface(id, name, SurfaceInput::Resource(path), window, cx);
+                self.session = Some(Session { id: id.clone(), name: label(name), baseline: String::new(), revision: 0, frozen: false, viewer, editable });
                 replies.push(ClientMessage::Loaded { id: id.clone() });
             }
             HostMessage::Clear => {
                 self.session = None;
-                self.editor = None;
+                self.surface = None;
                 self.subscription = None;
                 self.chrome.open = false;
                 if let Some(bar) = &self.find {
@@ -215,9 +161,9 @@ impl DocumentEditor {
                 }
             }
             HostMessage::Snapshot { request, freeze } => {
-                let composing = self.composing(cx);
+                let composing = self.surface.as_ref().is_some_and(|s| s.composing(cx));
                 let text = self.text(cx);
-                if let Some(session) = &mut self.session {
+                if let (Some(session), Some(text)) = (&mut self.session, text) {
                     if composing {
                         replies.push(ClientMessage::Deferred { request: *request, id: session.id.clone() });
                     } else {
@@ -240,8 +186,10 @@ impl DocumentEditor {
                 }
             }
             HostMessage::History { id, redo } => {
-                if self.session.as_ref().is_some_and(|s| &s.id == id) {
-                    self.undo(*redo, window, cx);
+                if self.session.as_ref().is_some_and(|s| &s.id == id)
+                    && let Some(surface) = &self.surface
+                {
+                    surface.undo(*redo, window, cx);
                 }
             }
         }
@@ -260,78 +208,30 @@ impl DocumentEditor {
     }
 
     fn apply_gate(&mut self, cx: &mut Context<Self>) {
-        let read_only = self.blocked || self.session.as_ref().is_some_and(|s| s.frozen);
-        let (dark, scale) = (self.dark, self.scale);
-        if let Some(Surface::Csv(editor)) = &self.editor {
-            editor.update(cx, |e, cx| {
-                e.set_read_only(read_only, cx);
-                e.set_appearance(dark, scale, cx);
-            });
-        }
-        if let Some(Surface::Text(editor)) = &self.editor {
-            editor.update(cx, |e, cx| {
-                let mut changed = e.read_only() != read_only || e.dark != dark;
-                e.set_read_only(read_only, cx);
-                e.dark = dark;
-                if let Some(md) = e.extension_mut::<MarkdownExtension>() {
-                    md.read_only = read_only;
-                    if md.set_appearance(dark, scale) {
-                        changed = true;
-                    }
-                }
-                if changed {
-                    e.appearance += 1;
-                    cx.notify();
-                }
-            });
+        let read_only = self.blocked || self.session.as_ref().is_none_or(|s| s.frozen || !s.editable);
+        if let Some(surface) = &self.surface {
+            surface.apply(read_only, self.dark, self.scale, cx);
         }
     }
 
     /// Menu and shell commands (`source`, `undo`, `redo`, formatting).
     pub fn command(&mut self, name: &str, window: &mut Window, cx: &mut Context<Self>) {
-        let editor = match self.editor.clone() {
-            Some(Surface::Text(editor)) => editor,
-            Some(Surface::Csv(editor)) => {
-                match name {
-                    "source" => editor.update(cx, |e, cx| e.toggle_mode(window, cx)),
-                    "undo" | "redo" => editor.update(cx, |e, cx| e.undo(name == "redo", window, cx)),
-                    _ => {}
-                }
-                self.focus_document(window, cx);
-                return;
-            }
-            None => return,
-        };
-        editor.update(cx, |e, cx| match name {
-            "source" => {
-                if let Some(md) = e.extension_mut::<MarkdownExtension>() {
-                    md.live = !md.live;
-                    e.appearance += 1;
-                    cx.notify();
-                }
-            }
-            "undo" => e.undo(false, cx),
-            "redo" => e.undo(true, cx),
-            "bold" => e.edit_intent(EditIntent::Bold, cx),
-            "italic" => e.edit_intent(EditIntent::Italic, cx),
-            _ => {}
-        });
+        let Some(surface) = &self.surface else { return };
+        surface.command(name, window, cx);
         self.focus_document(window, cx);
     }
 
     pub fn focus_document(&self, window: &mut Window, cx: &mut App) {
-        match &self.editor {
-            Some(Surface::Text(editor)) => {
-                let handle = editor.read(cx).focus_handle(cx);
-                handle.focus(window, cx);
-            }
-            Some(Surface::Csv(editor)) => {
-                let handle = editor.read(cx).focus_target(cx);
-                handle.focus(window, cx);
-            }
+        match self.surface.as_ref().and_then(|s| s.focus_handle(cx)) {
+            Some(handle) => handle.focus(window, cx),
             None => self.focus.focus(window, cx),
         }
     }
+}
+
+/// The pane's label: the file name of a workspace-relative path.
+fn label(name: &str) -> String {
+    name.rsplit(['/', '\\']).next().unwrap_or(name).to_owned()
 }
 
 impl Render for DocumentEditor {
@@ -400,10 +300,7 @@ impl Render for DocumentEditor {
                 }
             }))
             .child(measure)
-            .children(self.editor.clone().map(|e| match e {
-                Surface::Text(e) => e.into_any_element(),
-                Surface::Csv(e) => e.into_any_element(),
-            }))
+            .children(self.surface.as_ref().map(|s| s.element()))
             .children(self.find_bar(cx))
             .children(handle)
             .children(menu)

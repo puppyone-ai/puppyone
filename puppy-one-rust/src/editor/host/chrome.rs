@@ -1,63 +1,27 @@
 //! The pane around the native editor (EditorPaneShell + EditorFindHost):
 //! what the editor contributes to the pane menu, running its actions, and
 //! routing the find widget to the editor's adapter.
-use super::{DocumentEditor, Surface};
-use gpui::Focusable as _;
+use super::DocumentEditor;
 use crate::{
     documents::ClientMessage,
-    editor::{
-        csv::CsvEditor,
-        markdown::MarkdownExtension,
-        workbench::{
-            find::{FindBar, FindEvent},
-            pane::{Action, Contribution, Item, ItemKind, Segment, Segmented},
-        },
+    editor::workbench::{
+        find::{FindBar, FindEvent},
+        pane::{Action, Contribution},
     },
-    localization::t,
 };
 use gpui::{prelude::*, *};
 
 impl DocumentEditor {
-    fn csv(&self) -> Option<Entity<CsvEditor>> {
-        match &self.editor {
-            Some(Surface::Csv(e)) => Some(e.clone()),
-            _ => None,
-        }
-    }
-
-    fn markdown_live(&self, cx: &App) -> Option<bool> {
-        match &self.editor {
-            Some(Surface::Text(e)) => e.read(cx).extension::<MarkdownExtension>().map(|m| m.live),
-            _ => None,
-        }
-    }
-
-    /// `EditorPaneMenuContribution`: Markdown contributes its live / source
-    /// segments to the menu (CSV keeps its inline toggle); CSV its view
-    /// items; editors with a find adapter the find command.
+    /// `EditorPaneMenuContribution`: what the open viewer contributes (its
+    /// segments, items and find adapter) plus the external opener.
     pub(super) fn contribution(&self, cx: &App) -> Contribution {
-        if self.session.is_none() {
+        let (Some(session), Some(surface)) = (&self.session, &self.surface) else {
             return Contribution::default();
-        }
-        let segmented = self.markdown_live(cx).map(|live| Segmented {
-            label: t("editor.mode.label").into(),
-            options: vec![
-                Segment { id: "live", icon: "editor-mode-edit", label: t("editor.mode.live").into() },
-                Segment { id: "source", icon: "editor-mode-source", label: t("editor.mode.source").into() },
-            ],
-            value: if live { "live" } else { "source" },
-        });
-        let items = self
-            .csv()
-            .map(|csv| {
-                csv.read(cx)
-                    .view_items()
-                    .into_iter()
-                    .map(|i| Item { id: i.id, label: i.label.into(), kind: i.checked.map_or(ItemKind::Command { disabled: false }, ItemKind::Toggle) })
-                    .collect()
-            })
-            .unwrap_or_default();
-        Contribution { segmented, items, find: true, open_external: true }
+        };
+        let entries = surface.pane(cx);
+        // The live / source toggle is the contribution's to declare.
+        let segmented = entries.segmented.filter(|_| session.viewer.policy.source_toggle);
+        Contribution { segmented, items: entries.items, find: entries.find, open_external: true }
     }
 
     pub(super) fn toggle_pane_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -112,8 +76,8 @@ impl DocumentEditor {
         }
         match action {
             Action::Segment(id) => {
-                if self.markdown_live(cx).is_some_and(|live| live != (id == "live")) {
-                    self.command("source", window, cx);
+                if let Some(surface) = &self.surface {
+                    surface.pane_segment(id, window, cx);
                     self.chrome.focus.focus(window, cx);
                 }
             }
@@ -121,8 +85,8 @@ impl DocumentEditor {
             Action::OpenExternal => cx.emit(ClientMessage::Action { action: "open-external".into() }),
             Action::Close => cx.emit(ClientMessage::Action { action: "close-file".into() }),
             Action::Item(id) => {
-                if let Some(csv) = self.csv() {
-                    csv.update(cx, |c, cx| c.view_command(id, window, cx));
+                if let Some(surface) = &self.surface {
+                    surface.pane_item(id, window, cx);
                 }
             }
         }
@@ -152,45 +116,15 @@ impl DocumentEditor {
     }
 
     fn find_event(&mut self, event: FindEvent, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(Surface::Text(editor)) = self.editor.clone() {
-            // The CodeMirror adapter: the view searches and marks.
-            let result = match event {
-                FindEvent::Query(query) => Some(editor.update(cx, |e, cx| e.find_query(&query, cx))),
-                FindEvent::Move { forward } => Some(editor.update(cx, |e, cx| e.find_move(forward, cx))),
-                FindEvent::Close => {
-                    editor.update(cx, |e, cx| e.find_clear(cx));
-                    let handle = editor.read(cx).focus_handle(cx);
-                    handle.focus(window, cx);
-                    if let Some(bar) = &self.find {
-                        bar.update(cx, |b, cx| b.hide(cx));
-                    }
-                    None
-                }
-            };
-            if let (Some((current, total)), Some(bar)) = (result, &self.find) {
-                bar.update(cx, |b, cx| b.set_result(current, total, cx));
+        let Some(surface) = &self.surface else { return };
+        let close = matches!(event, FindEvent::Close);
+        let result = surface.find(event, window, cx);
+        if let Some(bar) = &self.find {
+            match result {
+                Some((current, total)) => bar.update(cx, |b, cx| b.set_result(current, total, cx)),
+                None if close => bar.update(cx, |b, cx| b.hide(cx)),
+                None => {}
             }
-            cx.notify();
-            return;
-        }
-        let Some(csv) = self.csv() else { return };
-        let result = match event {
-            FindEvent::Query(query) => Some(csv.update(cx, |c, cx| c.find_query(&query, cx))),
-            FindEvent::Move { forward } => Some(csv.update(cx, |c, cx| c.find_move(forward, cx))),
-            FindEvent::Close => {
-                // `closeFind`: focus the current match's cell, then clear.
-                csv.update(cx, |c, cx| {
-                    c.find_focus_editor(window, cx);
-                    c.find_clear(cx);
-                });
-                if let Some(bar) = &self.find {
-                    bar.update(cx, |b, cx| b.hide(cx));
-                }
-                None
-            }
-        };
-        if let (Some(result), Some(bar)) = (result, &self.find) {
-            bar.update(cx, |b, cx| b.set_result(result.current, result.total, cx));
         }
         cx.notify();
     }

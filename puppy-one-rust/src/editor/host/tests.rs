@@ -80,7 +80,7 @@ fn markdown_contributes_its_mode_segments(cx: &mut TestAppContext) {
         // Segments keep the menu open.
         assert!(v.chrome.open);
         assert_eq!(v.contribution(cx).segmented.map(|s| s.value), Some("source"));
-        let super::Surface::Text(editor) = v.editor.clone().unwrap() else { panic!() };
+        let editor = v.surface.as_ref().and_then(|s| s.editor_view()).unwrap();
         assert!(!editor.read(cx).extension::<MarkdownExtension>().unwrap().live);
     });
 }
@@ -93,10 +93,7 @@ fn find_marks_and_selects_matches_in_text_editors(cx: &mut TestAppContext) {
     bar.update(cx, |_, cx| cx.emit(FindEvent::Query("ALPHA".into())));
     cx.run_until_parked();
     bar.update(cx, |b, _| assert_eq!((b.current, b.total), (1, 3)));
-    let editor = view.update(cx, |v, _| match v.editor.clone() {
-        Some(super::Surface::Text(e)) => e,
-        _ => panic!(),
-    });
+    let editor = view.update(cx, |v, _| v.surface.as_ref().and_then(|s| s.editor_view()).unwrap());
     editor.update(cx, |e, _| {
         assert_eq!(e.find_marks().matches, vec![0..5, 11..16, 23..28]);
         assert_eq!((e.state().selection.from(), e.state().selection.to()), (0, 5));
@@ -114,10 +111,7 @@ fn find_marks_and_selects_matches_in_text_editors(cx: &mut TestAppContext) {
 fn a_snapshot_waits_for_the_composition_and_resumes_when_it_ends(cx: &mut TestAppContext) {
     use gpui::EntityInputHandler;
     let (view, messages, cx) = setup(cx, "notes.md", "a");
-    let editor = view.update(cx, |v, _| match v.editor.clone() {
-        Some(super::Surface::Text(e)) => e,
-        _ => panic!(),
-    });
+    let editor = view.update(cx, |v, _| v.surface.as_ref().and_then(|s| s.editor_view()).unwrap());
     let dirty = |messages: &Rc<RefCell<Vec<ClientMessage>>>| messages.borrow().iter().filter_map(|m| if let ClientMessage::Dirty { dirty, .. } = m { Some(*dirty) } else { None }).collect::<Vec<_>>();
     editor.update_in(cx, |e, w, cx| {
         e.set_selection(crate::editor::text::selection::Selection::cursor(1), cx);
@@ -141,4 +135,41 @@ fn a_snapshot_waits_for_the_composition_and_resumes_when_it_ends(cx: &mut TestAp
     assert_eq!(dirty(&messages), vec![false, true]);
     let replies = view.update_in(cx, |v, w, cx| v.receive(&snapshot, w, cx));
     assert!(matches!(replies.as_slice(), [ClientMessage::Snapshot { request: 7, text, .. }] if text == "a你"), "{replies:?}");
+}
+
+#[gpui::test]
+fn the_registry_picks_each_documents_surface(cx: &mut TestAppContext) {
+    let (view, messages, cx) = setup(cx, "notes.md", "# Title\n");
+    let open = |view: &Entity<DocumentEditor>, cx: &mut VisualTestContext, message: HostMessage| {
+        view.update_in(cx, |v, w, cx| v.receive(&message, w, cx))
+    };
+    view.update(cx, |v, _| {
+        let session = v.session.as_ref().unwrap();
+        assert_eq!((session.viewer.id, session.editable), ("markdown", true));
+    });
+    // An image: a resource surface, read only, with nothing to snapshot.
+    let replies = open(&view, cx, HostMessage::OpenResource { id: "img".into(), name: "assets/logo.png".into(), path: "/tmp/logo.png".into() });
+    assert!(matches!(replies.as_slice(), [ClientMessage::Loaded { id }] if id == "img"));
+    view.update(cx, |v, cx| {
+        let session = v.session.as_ref().unwrap();
+        assert_eq!((session.viewer.id, session.editable, session.name.as_str()), ("image-preview", false, "logo.png"));
+        assert!(v.surface.as_ref().unwrap().text(cx).is_none());
+        let c = v.contribution(cx);
+        assert!(!c.find && c.segmented.is_none() && c.open_external);
+    });
+    let replies = open(&view, cx, HostMessage::Snapshot { request: 3, freeze: true });
+    assert!(replies.is_empty());
+    // A file no viewer renders, and a product viewer the native build lacks.
+    open(&view, cx, HostMessage::OpenResource { id: "bin".into(), name: "model.qqqq".into(), path: "/tmp/model.qqqq".into() });
+    view.update(cx, |v, _| assert_eq!(v.session.as_ref().unwrap().viewer.id, "document-placeholder"));
+    open(&view, cx, HostMessage::OpenResource { id: "pdf".into(), name: "paper.pdf".into(), path: "/tmp/paper.pdf".into() });
+    view.update(cx, |v, _| assert_eq!(v.session.as_ref().unwrap().viewer.id, "pdf-preview"));
+    // Source text keeps its editor; nothing reported dirty along the way.
+    open(&view, cx, HostMessage::Open { id: "rs".into(), name: "src/main.rs".into(), text: "fn main() {}\n".into(), revision: 0, external: false });
+    view.update(cx, |v, cx| {
+        let session = v.session.as_ref().unwrap();
+        assert_eq!((session.viewer.id, session.editable), ("text", true));
+        assert_eq!(v.surface.as_ref().unwrap().text(cx).as_deref(), Some("fn main() {}\n"));
+    });
+    assert!(!messages.borrow().iter().any(|m| matches!(m, ClientMessage::Dirty { .. })));
 }

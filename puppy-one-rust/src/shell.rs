@@ -518,8 +518,10 @@ impl Shell {
             Command::CloseFile => self.files.begin(Intent::CloseFile, &self.wake),
             // Pane menu "Open in default app" (`EditorPaneActionsMenu`).
             Command::OpenExternal => {
-                if let (Some(ws), Some(doc)) = (&self.files.workspace, &self.files.document) {
-                    match ws.absolute(&doc.relative) {
+                if let (Some(ws), Some((_, relative))) =
+                    (&self.files.workspace, self.files.opened())
+                {
+                    match ws.absolute(relative) {
                         Ok(path) => {
                             if let Err(e) = crate::platform::desktop::open(&path) {
                                 self.error = Some(e);
@@ -621,7 +623,7 @@ impl Shell {
         self.focus.focus(window, cx);
     }
     fn receive(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let previous = self.files.document.as_ref().map(|d| d.id.clone());
+        let previous = self.files.opened().map(|(id, _)| id.to_owned());
         self.files.poll(&self.wake);
         self.poll_file_ops(window, cx);
         if let Some(nodes) = self.files.tree_update.take() {
@@ -667,10 +669,10 @@ impl Shell {
                 Err(e) => self.tree.fail_children(&path, e),
             }
         }
-        if let Some(doc) = &self.files.document
-            && previous.as_ref() != Some(&doc.id)
+        if let Some((id, relative)) = self.files.opened()
+            && previous.as_deref() != Some(id)
         {
-            self.tree.selected = doc.relative.clone();
+            self.tree.selected = relative.to_path_buf();
         }
         if self.files.workspace.is_some()
             && !self.files.busy()
@@ -772,7 +774,7 @@ impl Shell {
         let t = cx.palette();
         let r = self.layout.editor;
         let mut content = at(r);
-        if self.files.document.is_some() {
+        if self.files.opened().is_some() {
             let body = self.layout.content();
             content = content.bg(t.canvas).child(
                 at(Rect::new(body.x - r.x, body.y - r.y, body.w, body.h))
