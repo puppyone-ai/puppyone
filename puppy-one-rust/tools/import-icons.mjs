@@ -22,6 +22,8 @@ for (const name of icons) {
 await copyFile(path.join(modules, 'lucide-react/LICENSE'), path.join(root, 'assets/icons/LICENSE'));
 // Product-owned AgentEntryIcon (src/components/brand/AgentEntryIcon.tsx), same Lucide frame.
 await writeFile(path.join(root, 'assets/icons', 'agent-entry.svg'), `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h12A4.5 4.5 0 0 1 22.5 8v5.5A4.5 4.5 0 0 1 18 18h-7l-3.9 3.05a1.1 1.1 0 0 1-1.77-.98l.25-2.55A4.5 4.5 0 0 1 1.5 13.5V8A4.5 4.5 0 0 1 6 3.5Z"/></svg>\n`);
+// Product-owned FeedbackHelpIcon (src/features/app-shell/DesktopHelpLauncher.tsx), stroke-width 1.65.
+await writeFile(path.join(root, 'assets/icons', 'feedback-help.svg'), `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.1 9.2C9.35 7.65 10.45 6.8 12 6.8C13.78 6.8 14.9 7.75 14.9 9.3C14.9 10.55 14.25 11.2 13.2 11.9C12.4 12.43 12 13 12 13.75"/><circle cx="12" cy="17" r="0.82" fill="white" stroke="none"/></svg>\n`);
 // Product-owned TextEditorFrame mode icons (packages/shared-ui/src/editor/viewers/shared/TextEditorFrame.tsx).
 const frame = body => `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>\n`;
 await writeFile(path.join(root, 'assets/icons', 'editor-mode-edit.svg'), frame('<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>'));

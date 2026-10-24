@@ -60,9 +60,9 @@
 - [x] P1-5 键盘：↑↓←→ Home End Enter；多选（⌘ 加选、⇧ 范围）
 - [x] P1-6 拖拽：树内移动到文件夹；从系统拖入文件导入
 - [~] P1-7 "New" 是列表末尾的一行；加载/空状态行已做。文件夹读取失败时，错误和"重试"显示在该文件夹行尾（Web 是文件夹下方单独一行）。证据：`failed_folder_read_stays_on_its_row_until_a_retry_succeeds`
-- [x] P1-8 底部栏：Changes 入口（带状态）+ Settings + Help
+- [x] P1-8 底部栏与产品一致：只有 Settings + Help（产品 `useWorkspaceSurfaceContent` 把 `git` 从底部导航过滤掉，Changes 在 Header）；无分割线，树在仍有下方行时以 18px 渐隐过渡到底部栏（`useScrollEdgeState`）；高度 = control + 16 随文字尺度变化，按钮 control−4、图标 14px / 描边 1.65、utility 色（`mix(muted 80%, sidebar)`），Help 用产品自有 `FeedbackHelpIcon`。证据：`sidebar_footer_follows_the_navigation_height_formula`、`sidebar_tree_fade_follows_use_scroll_edge_state`、`sidebar_tree_fades_into_the_footer_only_while_rows_remain_below`。已知差异：忙碌时右侧的 pulse grid 是原生临时进度提示（产品用 `FloatingNoticeStack`，尚未移植）；Project Rail 打开时产品隐藏底部栏、把工具按钮移入 Rail，原生未移植
 - [~] P1-9 最近项目持久化；项目菜单（项目列表、打开文件夹、首页、移除）；Project Rail 列出项目。缺：Rail 上的重命名/取消关联（`ProjectRowActions`）。证据：`project_history_is_most_recent_first_and_bounded`
-- [x] P1-10 首页（Home）：最近项目 + 打开文件夹
+- [x] P1-10 首页（Home）：最近项目 + 打开文件夹；品牌标记 28px，标题为 `text-muted`，深色下标记按产品 `grayscale(1) brightness(0.7)` 预烘焙（`brand/puppy-dark-onboarding.svg`）。已知差异：GPUI 无 letter-spacing（产品 −0.035em）
 
 ### Settings
 - [x] P1-11 Appearance：System/Light/Dark（带预览、跟随系统）、主题包、文件图标主题、Git 侧栏布局、加载动画、Header 元素、指针样式；主题包目录/添加、调色板、界面风格禁用展示

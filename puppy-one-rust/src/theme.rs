@@ -61,6 +61,11 @@ pub fn control_tight() -> f32 {
 pub fn sidebar_stride() -> f32 {
     control() + 2.
 }
+/// `--desktop-sidebar-navigation-height`: the sidebar control plus the outer
+/// and inner navigation padding. The footer follows the text-size preset.
+pub fn footer() -> f32 {
+    control() + metric::SIDEBAR_NAVIGATION_PADDING_OUTER + metric::SIDEBAR_NAVIGATION_PADDING_INNER
+}
 
 /// Fixed geometry from `tokens.css`; these do not follow the text-size preset.
 pub mod metric {
@@ -78,6 +83,17 @@ pub mod metric {
     /// `.po-desktop-sidebar-group + .po-desktop-sidebar-group` rhythm.
     pub const SIDEBAR_GROUP_GAP: f32 = 12.;
     pub const SIDEBAR_GROUP_DIVIDER_TOP: f32 = 5.;
+    /// `--desktop-sidebar-navigation-padding-{outer,inner,balanced,inline}`.
+    pub const SIDEBAR_NAVIGATION_PADDING_OUTER: f32 = 12.;
+    pub const SIDEBAR_NAVIGATION_PADDING_INNER: f32 = 4.;
+    pub const SIDEBAR_NAVIGATION_PADDING_BALANCED: f32 = 8.;
+    pub const SIDEBAR_NAVIGATION_PADDING_INLINE: f32 = 12.;
+    /// `--desktop-sidebar-nav-gap`.
+    pub const SIDEBAR_NAV_GAP: f32 = 4.;
+    /// `--desktop-sidebar-navigation-fade-size`: the tree's edge fade above the footer.
+    pub const SIDEBAR_NAVIGATION_FADE_SIZE: f32 = 18.;
+    /// `--desktop-sidebar-utility-icon-size` (Settings / Help in the footer).
+    pub const SIDEBAR_UTILITY_ICON: f32 = 14.;
     pub const TREE_INDENT: f32 = 24.;
     pub const TREE_ROW_CONTENT_LEFT: f32 = 8.;
     pub const TREE_ROW_ICON_LABEL_GAP: f32 = 6.;
@@ -100,7 +116,6 @@ pub mod metric {
 }
 
 pub const HEADER: f32 = 40.0;
-pub const FOOTER: f32 = 48.0;
 pub const SIDEBAR: f32 = 220.0;
 pub const FONT: f32 = 14.0;
 
@@ -241,6 +256,8 @@ pub struct Theme {
     pub sidebar_text: Rgba,
     /// Header utility icon colour.
     pub utility: Rgba,
+    /// `--desktop-sidebar-utility-icon-color`: Settings / Help in the sidebar footer.
+    pub sidebar_utility: Rgba,
     // Lines.
     pub border: Rgba,
     pub border_subtle: Rgba,
@@ -419,6 +436,8 @@ impl Theme {
             sidebar_text: mix(muted, text, 0.84),
             // --desktop-titlebar-text-muted
             utility: muted,
+            // color-mix(in srgb, var(--po-text-muted) 80%, var(--po-sidebar))
+            sidebar_utility: mix(muted, sidebar, 0.8),
             border: c("border"),
             border_subtle: c("border-subtle"),
             border_strong: c("border-strong"),
@@ -519,10 +538,11 @@ impl Layout {
     pub fn new(w: f32, h: f32, left: f32, right: f32, rail: f32) -> Self {
         let left = left.max(0.).min((w - rail - 240.).max(0.));
         let right = right.max(0.).min((w - rail - left - 200.).max(0.));
+        let footer = footer();
         Self {
             header: Rect::new(0., 0., w, HEADER),
-            explorer: Rect::new(rail, HEADER, left, h - HEADER - FOOTER),
-            footer: Rect::new(rail, h - FOOTER, left, FOOTER),
+            explorer: Rect::new(rail, HEADER, left, h - HEADER - footer),
+            footer: Rect::new(rail, h - footer, left, footer),
             editor: Rect::new(rail + left, HEADER, w - rail - left - right, h - HEADER),
             auxiliary: Rect::new(w - right, HEADER, right, h - HEADER),
         }
@@ -564,6 +584,27 @@ mod tests {
                 assert_eq!(l.footer.h, 48.);
             }
         }
+    }
+    #[test]
+    fn sidebar_footer_follows_the_navigation_height_formula() {
+        // control + outer 12 + inner 4, per text-size preset.
+        for (preset, height) in [
+            (Scale::Small, 46.),
+            (Scale::Medium, 48.),
+            (Scale::Large, 50.),
+        ] {
+            set_scale(preset);
+            assert_eq!(footer(), height);
+            let l = Layout::new(1280., 800., 220., 0., 0.);
+            assert_eq!(l.footer.h, height);
+            assert_eq!(l.explorer.bottom(), l.footer.y);
+        }
+        set_scale(Scale::Medium);
+        // --desktop-sidebar-utility-icon-color = mix(muted 80%, sidebar).
+        let dark = Theme::new(true);
+        let expected = mix(dark.muted, dark.sidebar, 0.8);
+        assert_eq!(dark.sidebar_utility, expected);
+        assert!(dark.sidebar_utility != dark.muted);
     }
     #[test]
     fn collapsed_panels_consume_no_space() {

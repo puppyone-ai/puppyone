@@ -524,7 +524,7 @@
         "src/explorer_ui.rs",
         "src/task_ui.rs"
       ],
-      "remaining": "Changes (with status), Settings and Help are native in the footer. Plugins and the rail/top navigation variants are not ported."
+      "remaining": "Settings and Help (product FeedbackHelpIcon) are native in the footer with the product geometry, utility colour, no divider and the tree edge fade; like the product, Git is not in the footer (Changes lives in the Header). Plugins, the rail/top navigation variants and the Project Rail utilities are not ported; the busy pulse grid is a native stand-in for FloatingNoticeStack."
     },
     {
       "name": "Workbench launcher",
