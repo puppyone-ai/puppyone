@@ -12,6 +12,16 @@ pub struct Lease {
     root: PathBuf,
 }
 impl Lease {
+    /// Whether `acquire` would succeed now (the launcher keeps a refused
+    /// creation in place instead of opening a failed chat).
+    pub fn available(root: &std::path::Path) -> bool {
+        CAPACITY
+            .get_or_init(|| Mutex::new(HashMap::new()))
+            .lock()
+            .is_ok_and(|counts| {
+                counts.values().sum::<usize>() < 32 && counts.get(root).copied().unwrap_or(0) < 8
+            })
+    }
     pub fn acquire(root: PathBuf) -> Result<Self, String> {
         let mut counts = CAPACITY
             .get_or_init(|| Mutex::new(HashMap::new()))
@@ -126,7 +136,9 @@ mod tests {
             .map(|_| Lease::acquire(root.clone()).unwrap())
             .collect::<Vec<_>>();
         assert!(Lease::acquire(root.clone()).is_err());
+        assert!(!Lease::available(&root));
         drop(leases);
+        assert!(Lease::available(&root));
         assert!(Lease::acquire(root).is_ok());
     }
 }

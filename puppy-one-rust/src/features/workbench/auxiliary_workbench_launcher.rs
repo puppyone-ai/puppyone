@@ -209,6 +209,33 @@ impl Workbench {
         }
         entries = entries.child(bundled).child(shell);
 
+        // `.desktop-terminal-launcher-error`.
+        let error = self.launch_errors.get(&group).map(|message| {
+            row()
+                .min_w_0()
+                .items_start()
+                .gap(px(6.))
+                .px(px(8.))
+                .py(px(5.))
+                .rounded(px(5.))
+                .bg(theme::alpha(t.danger, 0.08))
+                .text_color(t.danger)
+                .text_size(px(m.right.caption))
+                .line_height(px(m.right.caption_line_height))
+                .child(div().mt(px(1.)).flex_shrink_0().child(icon_stroke(
+                    "circle-alert",
+                    13.,
+                    1.7,
+                    t.danger,
+                )))
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .whitespace_normal()
+                        .child(message.clone()),
+                )
+        });
         let heading = row()
             .absolute()
             .top(px(-theme::control() / 2.))
@@ -265,6 +292,7 @@ impl Workbench {
                             .border_color(t.border)
                             .child(heading)
                             .child(history)
+                            .children(error)
                             .child(entries),
                     ),
             )

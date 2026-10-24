@@ -138,6 +138,8 @@ pub struct Workbench {
         Id,
         Entity<crate::features::desktop_agent::ui::agent_conversation_history::HistoryBrowser>,
     >,
+    /// The launcher's last refused creation, per group (`launchError`).
+    launch_errors: HashMap<Id, String>,
     /// Owner of `localAgents.chatHistoryDiscovery` (set by the shell).
     preferences: Option<Entity<crate::features::settings::preferences_store::PreferencesStore>>,
 }
@@ -200,6 +202,7 @@ impl Workbench {
             dragging: None,
             drop_intent: None,
             history: HashMap::new(),
+            launch_errors: HashMap::new(),
             preferences: None,
         }
     }
@@ -507,6 +510,19 @@ impl Workbench {
         {
             return;
         }
+        let chat = installation
+            .as_ref()
+            .is_some_and(|i| i.chat && self.chat_mode);
+        // `launchError`: a refused creation stays on the launcher with its reason.
+        if chat && !crate::agent::runtime::session_lease::Lease::available(&root) {
+            self.launch_errors.insert(
+                group,
+                crate::localization::t("native.agent.capacity").into(),
+            );
+            cx.notify();
+            return;
+        }
+        self.launch_errors.remove(&group);
         let content =
             if let Some(installation) = installation.clone().filter(|i| i.chat && self.chat_mode) {
                 let view = cx.new(|cx| AgentChat::new(installation, root, history, window, cx));
