@@ -28,7 +28,7 @@ export async function catalogs(namespaces, locales = ['en', 'zh-Hans']) {
 }
 
 /** Bundle a TSX entry (as a string) plus the complete renderer stylesheet. */
-export async function bundleProduct(input, extraInputs = []) {
+export async function bundleProduct(input, extraInputs = [], env = {}) {
   const {build} = await import(pathToFileURL(path.join(modules, 'esbuild/lib/main.js')));
   const alias = {'react': path.join(modules, 'react'), 'react-dom': path.join(modules, 'react-dom'),
     '@puppyone/shared-ui': source('packages/shared-ui/src/index.ts'),
@@ -41,7 +41,7 @@ export async function bundleProduct(input, extraInputs = []) {
   const plugins = [{name: 'offline-public-assets', setup(b) { b.onResolve({filter: /^\/(fonts|assets)\//}, args => ({path: source(`public${args.path}`)})); }}];
   const loader = {'.woff2': 'dataurl', '.woff': 'dataurl', '.ttf': 'dataurl', '.svg': 'dataurl', '.png': 'dataurl'};
   const bundle = await build({absWorkingDir: repo, stdin: {contents: input, resolveDir: repo, loader: 'tsx'}, nodePaths: [modules], alias, plugins, bundle: true, write: false, format: 'esm', platform: 'browser', jsx: 'automatic',
-    define: {'process.env.NODE_ENV': '"production"', 'import.meta.env': JSON.stringify({DEV: false, PROD: true, MODE: 'production', BASE_URL: pathToFileURL(source('public')).href + '/'})},
+    define: {'process.env.NODE_ENV': '"production"', 'import.meta.env': JSON.stringify({DEV: false, PROD: true, MODE: 'production', BASE_URL: pathToFileURL(source('public')).href + '/', ...env})},
     loader, metafile: true, outdir: 'fixture-out', splitting: false, logLevel: 'error'});
   const css = await build({absWorkingDir: repo, entryPoints: [source('src/styles/cascade.css'), source('src/styles.css')], nodePaths: [modules], alias, plugins, bundle: true, write: false, loader, metafile: true, outdir: 'fixture-css', logLevel: 'error'});
   const themePath = 'src/features/themes/builtinSubThemes.generated.ts';

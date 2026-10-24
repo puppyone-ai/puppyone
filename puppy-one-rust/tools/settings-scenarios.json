@@ -1,0 +1,19 @@
+{
+  "comment": "Settings pixel scenarios shared by tools/reference-workbench.mjs (PUPPYONE_REFERENCE_SUITE=settings) and tools/capture-workbench.py --suite settings. The scenario is the product SettingsSection id.",
+  "scenarios": [
+    {"scenario": "account", "width": 1280, "height": 800},
+    {"scenario": "seats", "width": 1280, "height": 800},
+    {"scenario": "general", "width": 1280, "height": 800},
+    {"scenario": "appearance", "width": 1280, "height": 800},
+    {"scenario": "typography", "width": 1280, "height": 800},
+    {"scenario": "new-menu", "width": 1280, "height": 800},
+    {"scenario": "privacy", "width": 1280, "height": 800},
+    {"scenario": "experimental", "width": 1280, "height": 800},
+    {"scenario": "local-agents", "width": 1280, "height": 800},
+    {"scenario": "model-connections", "width": 1280, "height": 800},
+    {"scenario": "local-project", "width": 1280, "height": 800},
+    {"scenario": "cloud", "width": 1280, "height": 800},
+    {"scenario": "git", "width": 1280, "height": 800},
+    {"scenario": "files", "width": 1280, "height": 800}
+  ]
+}

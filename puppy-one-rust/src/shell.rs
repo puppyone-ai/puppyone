@@ -20,7 +20,7 @@ mod home_ui;
 #[path = "project_ui.rs"]
 mod project_ui;
 #[path = "task_ui.rs"]
-mod task_ui;
+pub(crate) mod task_ui;
 use explorer_ui::{ExplorerMenu, FileClipboard, FileOp, GitMark, OpOutcome};
 use task_ui::TaskUi;
 /// Anchored popovers owned by the shell, each with a known rectangle.

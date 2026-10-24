@@ -73,26 +73,33 @@ fn main() {
             );
             #[cfg(feature = "dev-capture")]
             if let Ok(case) = std::env::var("PUPPYONE_LAB") {
-                cx.open_window(
-                    WindowOptions {
-                        window_bounds: Some(WindowBounds::Windowed(bounds)),
-                        titlebar: None,
-                        window_background: WindowBackgroundAppearance::Opaque,
-                        ..Default::default()
-                    },
-                    |window, cx| {
-                        let view = cx.new(|cx| lab::Lab::new(&case, window, cx));
-                        cx.new(|cx| gpui_kit::base::Root::new(view, window, cx))
-                    },
-                )
-                .expect("open lab window");
+                // The lab must never interrupt the person at the keyboard: no
+                // Dock icon or menu bar, no activation, no key window, and
+                // the window waits behind every other one. `screencapture -l`
+                // reads the window's own backing store, so it still captures.
+                capture::run_in_background();
+                let window = cx
+                    .open_window(
+                        WindowOptions {
+                            window_bounds: Some(WindowBounds::Windowed(bounds)),
+                            titlebar: None,
+                            focus: false,
+                            window_background: WindowBackgroundAppearance::Opaque,
+                            ..Default::default()
+                        },
+                        |window, cx| {
+                            let view = cx.new(|cx| lab::Lab::new(&case, window, cx));
+                            cx.new(|cx| gpui_kit::base::Root::new(view, window, cx))
+                        },
+                    )
+                    .expect("open lab window");
+                let _ = window.update(cx, |_, window, _| capture::send_to_back(window));
                 cx.on_window_closed(|cx, _| {
                     if cx.windows().is_empty() {
                         cx.quit();
                     }
                 })
                 .detach();
-                cx.activate(true);
                 return;
             }
             let (window, shell_view) = open_shell_window(

@@ -34,6 +34,54 @@ impl TaskUi {
         self.email.update(cx, |i, cx| i.clear(cx));
     }
 }
+/// `.desktop-settings-dialog-backdrop`: `color-mix(var(--po-backdrop) 84%,
+/// transparent)` (the product's 1.5px backdrop blur has no GPUI equivalent).
+pub(crate) fn task_backdrop(t: Theme) -> Rgba {
+    Rgba {
+        a: t.backdrop.a * 0.84,
+        ..t.backdrop
+    }
+}
+/// `DesktopDialogSurface` (`.desktop-dialog-surface`) at `r`.
+pub(crate) fn modal_card(r: Rect, t: Theme) -> Stateful<Div> {
+    div()
+        .absolute()
+        .left(px(r.x))
+        .top(px(r.y))
+        .w(px(r.w))
+        .h(px(r.h))
+        .id("modal-card")
+        .bg(t.overlay)
+        .border_1()
+        .border_color(t.divider)
+        .rounded(px(crate::theme::metric::DIALOG_RADIUS))
+        .shadow(vec![BoxShadow {
+            inset: false,
+            color: t.shadow.into(),
+            offset: point(px(0.), px(24.)),
+            blur_radius: px(48.),
+            spread_radius: px(0.),
+        }])
+        .overflow_hidden()
+        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+}
+/// `SettingsDialog` (`.desktop-settings-dialog`): the task dialog centred in
+/// a `w`×`h` window. Shared by the shell and the pixel lab.
+pub(crate) fn settings_dialog(
+    settings: Entity<SettingsWorkspaceSurface>,
+    w: f32,
+    h: f32,
+    t: Theme,
+) -> Stateful<Div> {
+    let (width, height) = settings_size(w, h);
+    modal_card(
+        Rect::new((w - width) / 2., (h - height) / 2., width, height),
+        t,
+    )
+    .rounded(px(crate::theme::metric::TASK_DIALOG_RADIUS))
+    .bg(t.canvas)
+    .child(settings)
+}
 pub fn settings_size(w: f32, h: f32) -> (f32, f32) {
     let inset = 2. * crate::theme::metric::TASK_DIALOG_INSET;
     ((w - inset).clamp(280., 960.), (h - inset).clamp(240., 760.))
@@ -48,22 +96,7 @@ impl Shell {
             .backdrop(div().size_full().bg(Theme::new(self.dark).backdrop))
     }
     pub(super) fn modal_card(&self, r: Rect) -> Stateful<Div> {
-        let t = Theme::new(self.dark);
-        at(r)
-            .id("modal-card")
-            .bg(t.overlay)
-            .border_1()
-            .border_color(t.divider)
-            .rounded(px(crate::theme::metric::DIALOG_RADIUS))
-            .shadow(vec![BoxShadow {
-                inset: false,
-                color: t.shadow.into(),
-                offset: point(px(0.), px(24.)),
-                blur_radius: px(48.),
-                spread_radius: px(0.),
-            }])
-            .overflow_hidden()
-            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+        modal_card(r, Theme::new(self.dark))
     }
     pub(super) fn simple_modal(
         &self,
@@ -120,7 +153,6 @@ impl Shell {
         h: f32,
         cx: &mut Context<Self>,
     ) -> gpui_kit::base::Dialog {
-        let (width, height) = settings_size(w, h);
         let root = self.files.workspace.as_ref().map(|ws| ws.path.clone());
         self.task_ui.settings.update(cx, |s, cx| {
             s.dark_override = Some(self.dark);
@@ -128,6 +160,7 @@ impl Shell {
         });
         let host = cx.weak_entity();
         self.dialog_host(cx)
+            .backdrop(div().size_full().bg(task_backdrop(Theme::new(self.dark))))
             .close_on_backdrop_press(true)
             .on_cancel(move |_, w, cx| {
                 let _ = host.update(cx, |s, cx| {
@@ -136,17 +169,12 @@ impl Shell {
                 });
                 true
             })
-            .popup(
-                self.modal_card(Rect::new(
-                    (w - width) / 2.,
-                    (h - height) / 2.,
-                    width,
-                    height,
-                ))
-                .rounded(px(crate::theme::metric::TASK_DIALOG_RADIUS))
-                .bg(Theme::new(self.dark).canvas)
-                .child(self.task_ui.settings.clone()),
-            )
+            .popup(settings_dialog(
+                self.task_ui.settings.clone(),
+                w,
+                h,
+                Theme::new(self.dark),
+            ))
     }
     pub(super) fn create_entry_view(
         &self,

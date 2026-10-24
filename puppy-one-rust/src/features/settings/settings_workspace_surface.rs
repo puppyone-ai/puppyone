@@ -8,7 +8,7 @@ use super::{
 use crate::{
     localization::t as tr,
     theme::{self, Theme, metric},
-    ui::{column, icon_sized, labelled_icon_button, row},
+    ui::{column, icon_sized, row},
 };
 use gpui::{prelude::*, *};
 use std::path::PathBuf;
@@ -30,6 +30,10 @@ pub struct SettingsWorkspaceSurface {
     pub(super) patterns: Entity<crate::ui::form_input::TextInput>,
     /// Transient "Copied" feedback keyed by the copied control.
     pub(super) copied: Option<(SharedString, std::time::Instant)>,
+    /// The page scroller and whether its content overflowed at the last
+    /// layout: product scrollbars then reserve their 12px gutter.
+    content_scroll: ScrollHandle,
+    content_overflows: bool,
     /// Screenshot-only page request, applied once the page becomes available
     /// (project pages wait for the asynchronously opened folder).
     capture_page: Option<Page>,
@@ -91,6 +95,8 @@ impl SettingsWorkspaceSurface {
             repository,
             patterns,
             copied: None,
+            content_scroll: ScrollHandle::new(),
+            content_overflows: false,
             capture_page: None,
         };
         s.sync_patterns(cx);
@@ -112,6 +118,13 @@ impl SettingsWorkspaceSurface {
             }
         }
         s
+    }
+    /// Dev-capture: a project at `root` with `page` open
+    /// (`tools/reference-settings-entry.tsx`).
+    #[cfg(feature = "dev-capture")]
+    pub fn lab_fixture(&mut self, root: PathBuf, page: Page, cx: &mut Context<Self>) {
+        self.set_root(Some(root), cx);
+        self.select_page(page, cx);
     }
     /// Track the open project; Settings reads repository facts lazily.
     pub fn set_root(&mut self, root: Option<PathBuf>, cx: &mut Context<Self>) {
@@ -244,10 +257,27 @@ impl Render for SettingsWorkspaceSurface {
                             .child(tr("shell.navigation.settings")),
                     )
                     .child(
-                        labelled_icon_button("settings-close", "x", tr("common.action.close"), t)
+                        // `DesktopDialogCloseButton` in the task header: 32×28,
+                        // its own 16-unit cross drawn at 14px.
+                        div()
+                            .id("settings-close")
                             .w(px(theme::control()))
+                            .h(px(theme::control_compact()))
+                            .flex()
+                            .items_center()
+                            .justify_center()
                             .rounded(px(metric::TOOLBAR_ACTION_RADIUS))
-                            .on_click(cx.listener(|_, _, _, cx| cx.emit(SettingsEvent::Close))),
+                            .text_color(t.muted)
+                            .hover(move |s| s.bg(t.hover).text_color(t.text))
+                            .cursor(theme::clickable_cursor())
+                            .tooltip(crate::ui::tooltip(tr("common.action.close")))
+                            .on_click(cx.listener(|_, _, _, cx| cx.emit(SettingsEvent::Close)))
+                            .child(
+                                svg()
+                                    .path("icons/dialog-close.svg")
+                                    .size(px(14.))
+                                    .text_color(t.muted),
+                            ),
                     )
                     .child(
                         div()
@@ -271,14 +301,38 @@ impl Render for SettingsWorkspaceSurface {
                                 "settings-content-{:?}",
                                 self.page
                             )))
+                            .relative()
                             .flex_1()
                             .min_w_0()
                             .h_full()
                             .pt(px(48.))
                             .pb(px(metric::UTILITY_PADDING_BOTTOM))
-                            .px(px(metric::UTILITY_PADDING_INLINE))
+                            .pl(px(metric::UTILITY_PADDING_INLINE))
+                            // `data-po-scrollbar="content"`: an overflowing page
+                            // gives its 12px scrollbar a gutter.
+                            .pr(px(metric::UTILITY_PADDING_INLINE
+                                + if self.content_overflows { 12. } else { 0. }))
                             .overflow_y_scroll()
-                            .child(content),
+                            .track_scroll(&self.content_scroll)
+                            .child(content)
+                            .child({
+                                let entity = cx.entity();
+                                let scroll = self.content_scroll.clone();
+                                canvas(
+                                    move |_, _, cx| {
+                                        let overflows = f32::from(scroll.max_offset().y) > 0.5;
+                                        entity.update(cx, |s, cx| {
+                                            if s.content_overflows != overflows {
+                                                s.content_overflows = overflows;
+                                                cx.notify();
+                                            }
+                                        });
+                                    },
+                                    |_, _, _, _| {},
+                                )
+                                .absolute()
+                                .size_0()
+                            }),
                     ),
             )
     }

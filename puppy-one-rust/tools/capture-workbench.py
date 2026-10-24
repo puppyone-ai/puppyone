@@ -22,17 +22,22 @@ import numpy as np
 from PIL import Image
 
 root = Path(__file__).resolve().parents[1]
-scenarios = json.loads((root / "tools/workbench-scenarios.json").read_text())["scenarios"]
-cases = [dict(s, mode=m, id=f"{s['scenario']}-{m}") for s in scenarios for m in ("dark", "light")]
-reference_dir = root / "artifacts/workbench-reference"
-native_dir = root / "artifacts/workbench-native"
+# suite → (scenario file, native lab case prefix)
+SUITES = {"workbench": ("tools/workbench-scenarios.json", ""),
+          "settings": ("tools/settings-scenarios.json", "settings-")}
 
 parser = argparse.ArgumentParser()
 parser.add_argument("only", nargs="*")
+parser.add_argument("--suite", choices=sorted(SUITES), default="workbench")
 parser.add_argument("--no-build", action="store_true")
 parser.add_argument("--compare-only", action="store_true")
 parser.add_argument("--tolerance", type=int, default=8)
 args = parser.parse_args()
+scenario_file, lab_prefix = SUITES[args.suite]
+scenarios = json.loads((root / scenario_file).read_text())["scenarios"]
+cases = [dict(s, mode=m, id=f"{s['scenario']}-{m}") for s in scenarios for m in ("dark", "light")]
+reference_dir = root / f"artifacts/{args.suite}-reference"
+native_dir = root / f"artifacts/{args.suite}-native"
 selected = [c for c in cases if not args.only or c["id"] in args.only]
 if not selected:
     sys.exit(f"No matching cases; known: {', '.join(c['id'] for c in cases)}")
@@ -47,7 +52,7 @@ if not args.compare_only:
             env = {k: v for k, v in os.environ.items() if not k.startswith("PUPPYONE_")}
             env.update(
                 PUPPYONE_RUST_DATA_DIR=data,
-                PUPPYONE_LAB=case["id"],
+                PUPPYONE_LAB=lab_prefix + case["id"],
                 PUPPYONE_WIDTH=str(case["width"]),
                 PUPPYONE_HEIGHT=str(case["height"]),
                 PUPPYONE_SCREENSHOT=str(native_dir / f"{case['id']}.png"),
@@ -77,6 +82,11 @@ for case in selected:
                                    (height - radius, 0, True, False), (height - radius, width - radius, True, True)):
         mask = outside[::-1 if flip_y else 1, ::-1 if flip_x else 1]
         changed[sy:sy + radius, sx:sx + radius] &= ~mask
+    # The borderless window's 1px system edge highlight.
+    changed[:2, :] = False
+    changed[-2:, :] = False
+    changed[:, :2] = False
+    changed[:, -2:] = False
     diff = np.zeros_like(a, dtype=np.uint8)
     diff[..., 0] = np.where(changed, 255, 0)
     diff[..., 1] = (b.mean(axis=2) * 0.35).astype(np.uint8)

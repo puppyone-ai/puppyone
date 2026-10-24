@@ -2,6 +2,36 @@
 //! Never used as a rendering substitute for the live editor.
 use gpui::{App, Window};
 use std::path::PathBuf;
+/// Dev-capture: an accessory process (no Dock icon, never frontmost).
+#[cfg(all(target_os = "macos", feature = "dev-capture"))]
+pub fn run_in_background() {
+    use objc2::MainThreadMarker;
+    use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
+    if let Some(mtm) = MainThreadMarker::new() {
+        NSApplication::sharedApplication(mtm)
+            .setActivationPolicy(NSApplicationActivationPolicy::Accessory);
+    }
+}
+/// Dev-capture: order the window behind all others without activating it.
+#[cfg(all(target_os = "macos", feature = "dev-capture"))]
+pub fn send_to_back(window: &Window) {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    let Ok(handle) = HasWindowHandle::window_handle(window) else {
+        return;
+    };
+    let RawWindowHandle::AppKit(handle) = handle.as_raw() else {
+        return;
+    };
+    // SAFETY: GPUI owns this live NSView; only accessed on AppKit's main thread.
+    let view = unsafe { &*handle.ns_view.as_ptr().cast::<objc2_app_kit::NSView>() };
+    if let Some(window) = view.window() {
+        window.orderBack(None);
+    }
+}
+#[cfg(all(not(target_os = "macos"), feature = "dev-capture"))]
+pub fn run_in_background() {}
+#[cfg(all(not(target_os = "macos"), feature = "dev-capture"))]
+pub fn send_to_back(_: &Window) {}
 #[cfg(target_os = "macos")]
 pub fn schedule(
     window: &Window,
