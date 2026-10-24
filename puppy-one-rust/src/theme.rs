@@ -662,7 +662,7 @@ pub fn right_sidebar_max_width(available: f32, explorer: f32) -> f32 {
     )
 }
 /// Native layout owns all bounds.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Layout {
     pub header: Rect,
     pub explorer: Rect,

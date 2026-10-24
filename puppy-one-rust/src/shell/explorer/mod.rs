@@ -17,6 +17,7 @@ mod file_ops;
 mod footer;
 mod keyboard;
 mod menus;
+pub(super) mod motion;
 mod rename;
 mod rows;
 
@@ -40,6 +41,8 @@ pub(super) struct Explorer {
     /// The document to reopen at its new path once the operation lands.
     pub reopen: Option<PathBuf>,
     pub rename: Option<rename::Rename>,
+    /// The disclosure motion of the visible rows.
+    pub motion: motion::TreeMotion,
 }
 impl Explorer {
     pub fn new(cx: &mut App) -> Self {
@@ -52,6 +55,7 @@ impl Explorer {
             queued_op: None,
             reopen: None,
             rename: None,
+            motion: motion::TreeMotion::default(),
         }
     }
 }
@@ -61,6 +65,20 @@ fn parent_of(path: &Path) -> PathBuf {
 }
 
 impl Shell {
+    /// Commits the visible rows to the disclosure motion and keeps frames
+    /// coming while it runs. Called once per frame before the tree paints.
+    pub(super) fn advance_tree_motion(&mut self, window: &mut Window, cx: &App) {
+        let animate = self.left_open && !cx.reduce_motion();
+        if self.explorer.motion.sync(
+            self.tree.id,
+            self.tree.revision,
+            &self.tree.rows,
+            theme::sidebar_stride(),
+            animate,
+        ) {
+            window.request_animation_frame();
+        }
+    }
     /// The Explorer panel: the virtual tree with its drop target, context
     /// menu and the fade into the footer.
     pub(super) fn explorer(&self, cx: &mut Context<Self>) -> Div {
@@ -111,8 +129,11 @@ impl Shell {
                         {
                             s.painted_rows += range.len();
                         }
+                        // The first row in view also paints the ghosts of
+                        // rows that just went away.
+                        let first = range.start;
                         range
-                            .map(|index| s.explorer_row(index, cx))
+                            .map(|index| s.explorer_row(index, index == first, cx))
                             .collect::<Vec<_>>()
                     }),
                 )

@@ -451,3 +451,54 @@ fn idle_shell_does_not_schedule_continuous_frames(cx: &mut TestAppContext) {
     cx.run_until_parked();
     view.update(cx, |s, _| assert_eq!(s.frames, before));
 }
+#[gpui::test]
+fn opening_a_folder_animates_its_rows_unless_motion_is_reduced(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    // A collapsed fixture folder whose children are already loaded.
+    let folder = view.update(cx, |s, _| {
+        s.tree
+            .rows
+            .iter()
+            .position(|r| r.folder && !r.expanded)
+            .unwrap()
+    });
+    view.update(cx, |s, cx| {
+        let path = s.tree.rows[folder].path.clone();
+        assert!(!s.tree.toggle(&path));
+        cx.notify();
+    });
+    draw(cx);
+    view.update(cx, |s, _| {
+        // The first child starts hidden and the marker starts closed.
+        assert!(s.explorer.motion.row(folder + 1).reveal.unwrap() < 0.5);
+        assert!(s.explorer.motion.disclosure(folder).unwrap() < 0.5);
+    });
+    // With reduced motion the same disclosure lands at once.
+    cx.update(|_, cx| cx.set_reduce_motion(true));
+    view.update(cx, |s, cx| {
+        let path = s.tree.rows[folder].path.clone();
+        s.tree.toggle(&path);
+        cx.notify();
+    });
+    draw(cx);
+    view.update(cx, |s, _| {
+        assert_eq!(s.explorer.motion.disclosure(folder), None);
+        assert_eq!(s.explorer.motion.row(folder + 1), Default::default());
+    });
+}
+#[gpui::test]
+fn closing_the_explorer_moves_its_frame_unless_motion_is_reduced(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    let open = view.update(cx, |s, _| s.layout.editor.x);
+    assert!(open > 0.);
+    command(&view, cx, Command::ToggleExplorer);
+    view.update(cx, |s, _| {
+        // Mid-motion the editor has not reached the window edge, and the
+        // Explorer keeps its open width behind the moving frame.
+        assert!(s.layout.editor.x > 0.);
+        assert_eq!(s.layout.explorer.w, open);
+    });
+    cx.update(|_, cx| cx.set_reduce_motion(true));
+    command(&view, cx, Command::ToggleExplorer);
+    view.update(cx, |s, _| assert_eq!(s.layout.editor.x, open));
+}

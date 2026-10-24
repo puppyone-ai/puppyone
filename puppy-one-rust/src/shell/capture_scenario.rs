@@ -3,11 +3,11 @@
 //! is taken, through the same entry points the pointer uses, so popups open
 //! against their painted triggers. Absent from normal builds.
 //!
-//! Steps: `select:<path>`, `expand:<path>`, `open:<path>`,
+//! Steps: `select:<path>`, `expand:<path>`, `collapse:<path>`, `open:<path>`,
 //! `node-menu:<path>` (the row's "⋮"), `create-menu:<path>` (the row's "+"),
 //! `new-menu` (list-end "New"), `context:<x>,<y>` (right click),
 //! `submenu` (Custom files), `project-menu`, `location-menu`, `changes`,
-//! `agent`.
+//! `agent`, `toggle-explorer`.
 use super::*;
 use explorer::{MenuAt, RowTrigger};
 use std::collections::VecDeque;
@@ -16,6 +16,7 @@ use std::collections::VecDeque;
 enum Step {
     Select(PathBuf),
     Expand(PathBuf),
+    Collapse(PathBuf),
     Open(PathBuf),
     NodeMenu(PathBuf),
     CreateMenu(PathBuf),
@@ -34,6 +35,7 @@ fn parse(text: &str) -> VecDeque<Step> {
             Some(match name {
                 "select" => Step::Select(path()),
                 "expand" => Step::Expand(path()),
+                "collapse" => Step::Collapse(path()),
                 "open" => Step::Open(path()),
                 "node-menu" => Step::NodeMenu(path()),
                 "create-menu" => Step::CreateMenu(path()),
@@ -47,6 +49,7 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "location-menu" => Step::Command(super::Command::LocationMenu),
                 "changes" => Step::Command(super::Command::Changes),
                 "agent" => Step::Command(super::Command::ToggleRightSidebar),
+                "toggle-explorer" => Step::Command(super::Command::ToggleExplorer),
                 other => {
                     eprintln!("Unknown capture step {other:?}");
                     return None;
@@ -146,6 +149,12 @@ impl Shell {
                     }
                     return false;
                 }
+            }
+            Step::Collapse(path) => {
+                if self.tree.index_of(path).is_none() {
+                    return false;
+                }
+                self.tree.set_expanded(path, false);
             }
             Step::Open(path) => self.files.begin(Intent::OpenFile(path.clone()), &self.wake),
             Step::NodeMenu(path) => {

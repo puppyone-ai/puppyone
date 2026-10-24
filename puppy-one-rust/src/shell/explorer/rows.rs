@@ -34,51 +34,101 @@ impl Render for DragNodes {
 
 impl Shell {
     /// One stride of the virtual list: a row inside its 1px block margins
-    /// (`uniform_list` measures items without their margins).
-    pub(super) fn explorer_row(&mut self, index: usize, cx: &mut Context<Self>) -> AnyElement {
-        let row = match self.tree.rows.get(index).cloned() {
-            Some(item) => self.tree_row(index, item, cx),
-            None => self.list_end_row(cx),
-        };
-        div()
-            .w_full()
-            .h(px(theme::sidebar_stride()))
-            .child(row)
-            .into_any_element()
-    }
-    fn tree_row(
+    /// (`uniform_list` measures items without their margins), offset or
+    /// clipped while the disclosure motion runs. `ghosts`: this slot also
+    /// paints the rows that just went away.
+    pub(super) fn explorer_row(
         &mut self,
         index: usize,
-        item: crate::model::Row,
+        ghosts: bool,
         cx: &mut Context<Self>,
     ) -> AnyElement {
+        let stride = theme::sidebar_stride();
+        let (row, frame) = match self.tree.rows.get(index).cloned() {
+            Some(item) => (
+                self.tree_row(index, item, cx),
+                self.explorer.motion.row(index),
+            ),
+            None => (self.list_end_row(cx), self.explorer.motion.list_end()),
+        };
+        let ghosts = if ghosts {
+            self.ghost_rows(index, cx)
+        } else {
+            vec![]
+        };
+        div()
+            .relative()
+            .w_full()
+            .h(px(stride))
+            .child(
+                div()
+                    .w_full()
+                    .h(px(stride))
+                    .when(frame.offset != 0., |d| d.relative().top(px(frame.offset)))
+                    // `clip-path: inset(0 0 x 0)`: revealed from the top.
+                    .when_some(frame.reveal, |d, share| {
+                        d.h(px(stride * share)).overflow_hidden()
+                    })
+                    .child(row),
+            )
+            .children(ghosts)
+            .into_any_element()
+    }
+    /// Rows that just went away, in their old slots from `anchor` to the end
+    /// of the viewport, each clipped to its remaining share (inert).
+    fn ghost_rows(&self, anchor: usize, cx: &App) -> Vec<AnyElement> {
+        let stride = theme::sidebar_stride();
+        let slots = (self.layout.explorer.h / stride).ceil() as usize + 2;
+        self.explorer
+            .motion
+            .ghosts(anchor.saturating_sub(1)..anchor + slots)
+            .into_iter()
+            .map(|(ghost, visible)| {
+                div()
+                    .absolute()
+                    .left_0()
+                    .right_0()
+                    .top(px((ghost.index as f32 - anchor as f32) * stride))
+                    .h(px(stride * visible))
+                    .overflow_hidden()
+                    .child(div().h(px(stride)).child(self.row_body(
+                        ("tree-ghost", ghost.index),
+                        &ghost.row,
+                        None,
+                        cx,
+                    )))
+                    .into_any_element()
+            })
+            .collect()
+    }
+    /// What a tree row shows: disclosure marker or file glyph, indent guides,
+    /// name and the disambiguating extension. `turn`: the marker's progress
+    /// from closed (0) to open (1) while it animates.
+    fn row_body(
+        &self,
+        id: impl Into<ElementId>,
+        item: &crate::model::Row,
+        turn: Option<f32>,
+        cx: &App,
+    ) -> SidebarRow {
         let t = cx.palette();
         let icon_theme = self.preferences.read(cx).state.file_icon_theme.clone();
         let width = self.layout.explorer.w - 2. * metric::SIDEBAR_ROW_LEFT_GAP;
-        let selected = self.tree.selected == item.path || self.tree.selection.contains(&item.path);
-        let lit = self
-            .explorer
-            .menu
-            .as_ref()
-            .and_then(|menu| menu.row_trigger(&item.path));
         let cut = matches!(&self.explorer.clipboard, Some(FileClipboard::Cut(p)) if p.contains(&item.path));
-
-        let mut row = SidebarRow::new(("tree-row", index))
-            .selected(selected)
-            .open(lit.is_some())
+        let mut row = SidebarRow::new(id)
             .dimmed(cut)
             .indent((item.depth as f32 * metric::TREE_INDENT).min((width - 64.).max(0.)));
-        // `TreeDisclosureMarker` (12px, opacity .82) or the file glyph.
+        // `TreeDisclosureMarker` (12px, opacity .82), turning with the
+        // disclosure, or the file glyph.
         row = if item.folder {
-            row.icon(
-                Icon::new(if item.expanded {
-                    "tree-disclosure-open"
-                } else {
-                    "tree-disclosure"
-                })
-                .xsmall()
-                .opacity(0.82),
-            )
+            let marker = match turn {
+                Some(turn) => {
+                    Icon::new("tree-disclosure").rotate(turn * std::f32::consts::FRAC_PI_2)
+                }
+                None if item.expanded => Icon::new("tree-disclosure-open"),
+                None => Icon::new("tree-disclosure"),
+            };
+            row.icon(marker.xsmall().opacity(0.82))
         } else {
             row.leading(FileIcon::file(item.name.clone(), icon_theme))
         };
@@ -97,7 +147,7 @@ impl Shell {
                 .w(px(1.))
                 .bg(t.guide)
         }));
-        row = row.child(
+        row.child(
             div()
                 .flex()
                 .flex_1()
@@ -115,7 +165,26 @@ impl Shell {
                         .text_color(t.subtle)
                         .child(format!("· {ext}"))
                 })),
-        );
+        )
+    }
+    fn tree_row(
+        &mut self,
+        index: usize,
+        item: crate::model::Row,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let t = cx.palette();
+        let selected = self.tree.selected == item.path || self.tree.selection.contains(&item.path);
+        let lit = self
+            .explorer
+            .menu
+            .as_ref()
+            .and_then(|menu| menu.row_trigger(&item.path));
+        let turn = self.explorer.motion.disclosure(index);
+        let mut row = self
+            .row_body(("tree-row", index), &item, turn, cx)
+            .selected(selected)
+            .open(lit.is_some());
         if let Some(error) = item.error.clone() {
             let retry = item.path.clone();
             row = row.child(

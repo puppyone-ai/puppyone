@@ -20,6 +20,7 @@ mod create_new;
 mod explorer;
 mod header;
 mod home;
+mod pane_motion;
 mod project_menu;
 pub(crate) mod tasks;
 use command::on_shell_actions;
@@ -71,6 +72,8 @@ pub struct Shell {
     captured: bool,
     drag: Option<bool>,
     layout: Layout,
+    /// Opening and closing the side panes.
+    pane_motion: pane_motion::PaneMotion,
     #[cfg(feature = "dev-capture")]
     capture_scenario: Option<capture_scenario::CaptureScenario>,
     #[cfg(test)]
@@ -85,6 +88,22 @@ fn at(r: Rect) -> Div {
         .top(px(r.y))
         .w(px(r.w))
         .h(px(r.h))
+}
+/// `content` (laid out in window coordinates) shown only inside `clip`, a
+/// moving pane frame; unclipped when the pane is settled.
+fn clipped(clip: Option<Rect>, w: f32, h: f32, content: Div) -> Div {
+    match clip {
+        None => content,
+        Some(r) => at(r).overflow_hidden().child(
+            div()
+                .absolute()
+                .left(px(-r.x))
+                .top(px(-r.y))
+                .w(px(w))
+                .h(px(h))
+                .child(content),
+        ),
+    }
 }
 impl Shell {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
@@ -192,6 +211,7 @@ impl Shell {
             captured: false,
             drag: None,
             layout: Layout::new(1280., 800., theme::pane::DEFAULT_EXPLORER_WIDTH, 0., 0.),
+            pane_motion: Default::default(),
             #[cfg(feature = "dev-capture")]
             capture_scenario: if cfg!(test) {
                 None
@@ -823,7 +843,8 @@ impl Shell {
         let x = if left {
             self.layout.editor.x
         } else {
-            self.layout.auxiliary.x
+            // The editor's end: the right pane's frame edge, also mid-motion.
+            self.layout.editor.right()
         };
         let resizing = self.drag == Some(left);
         let group = SharedString::from(if left { "left-sash" } else { "right-sash" });
@@ -892,7 +913,7 @@ impl Render for Shell {
         let size = window.viewport_size();
         let w = f32::from(size.width);
         let h = f32::from(size.height);
-        self.layout = Layout::new(
+        let target = Layout::new(
             w,
             h,
             if self.left_open { self.left_width } else { 0. },
@@ -903,7 +924,17 @@ impl Render for Shell {
             },
             if self.rail { 56. } else { 0. },
         );
+        // Sash drags follow the pointer; opening and closing a pane moves it.
+        let animate = self.drag.is_none() && !cx.reduce_motion();
+        let panes = self
+            .pane_motion
+            .frame((self.left_open, self.right_open), target, animate);
+        self.layout = panes.layout;
+        if panes.running {
+            window.request_animation_frame();
+        }
         self.sync_editor(window, cx);
+        self.advance_tree_motion(window, cx);
         #[cfg(feature = "dev-capture")]
         let scenario_done = self.advance_capture_scenario(window, cx);
         #[cfg(not(feature = "dev-capture"))]
@@ -968,21 +999,28 @@ impl Render for Shell {
         if home {
             root = root.child(self.home_view(cx));
         }
-        if self.left_open && !home {
-            root = root.child(self.explorer(cx)).child(self.footer(cx));
+        // A closing pane stays painted, clipped to its frame, until it has closed.
+        if (self.left_open || panes.left_clip.is_some()) && !home {
+            let explorer = div()
+                .absolute()
+                .top_0()
+                .left_0()
+                .size_full()
+                .child(self.explorer(cx))
+                .child(self.footer(cx));
+            root = root.child(clipped(panes.left_clip, w, h, explorer));
         }
-        if self.right_open && !home {
-            root = root.child(
-                // The 8px sash overlays the pane edge (`.po-pane-edge-resize-handle`);
-                // content starts at the divider like the product's.
-                at(self.layout.auxiliary)
-                    .bg(t.auxiliary())
-                    .child(if self.changes {
-                        self.source_control.clone().into_any_element()
-                    } else {
-                        self.workbench.clone().into_any_element()
-                    }),
-            );
+        if (self.right_open || panes.right_clip.is_some()) && !home {
+            // The 8px sash overlays the pane edge (`.po-pane-edge-resize-handle`);
+            // content starts at the divider like the product's.
+            let auxiliary = at(self.layout.auxiliary)
+                .bg(t.auxiliary())
+                .child(if self.changes {
+                    self.source_control.clone().into_any_element()
+                } else {
+                    self.workbench.clone().into_any_element()
+                });
+            root = root.child(clipped(panes.right_clip, w, h, auxiliary));
         }
         if self.rail && !home {
             root = root.child(self.project_rail(h, cx));

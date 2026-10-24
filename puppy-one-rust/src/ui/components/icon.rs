@@ -22,6 +22,7 @@ pub struct Icon {
     color: Option<Hsla>,
     group_hover: Option<(SharedString, Hsla)>,
     spin: Option<ElementId>,
+    rotation: f32,
     style: StyleRefinement,
 }
 impl Icon {
@@ -34,8 +35,14 @@ impl Icon {
             color: None,
             group_hover: None,
             spin: None,
+            rotation: 0.,
             style: StyleRefinement::default(),
         }
+    }
+    /// Turned clockwise by `radians` about its centre.
+    pub fn rotate(mut self, radians: f32) -> Self {
+        self.rotation = radians;
+        self
     }
     /// Turn once every 900ms (`.is-spinning`); `id` keys the animation.
     pub fn spinning(mut self, id: impl Into<ElementId>) -> Self {
@@ -96,6 +103,9 @@ impl RenderOnce for Icon {
             .size(self.pixels())
             .flex_shrink_0()
             .text_color(color)
+            .when(self.rotation != 0., |svg| {
+                svg.with_transformation(Transformation::rotate(radians(self.rotation)))
+            })
             .when_some(self.group_hover, |svg, (group, color)| {
                 svg.group_hover(group, move |s| s.text_color(color))
             })

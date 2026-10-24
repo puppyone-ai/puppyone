@@ -6,7 +6,11 @@ use serde::Deserialize;
 use std::{
     collections::BTreeSet,
     path::{Path, PathBuf},
+    sync::atomic::{AtomicU64, Ordering},
 };
+
+/// Process-wide, so a replaced tree never reuses a revision.
+static NEXT_REVISION: AtomicU64 = AtomicU64::new(1);
 
 pub const MAX_DIRECTORY_ENTRIES: usize = 2_000;
 
@@ -80,6 +84,11 @@ pub struct Tree {
     /// Range anchor for Shift selection.
     pub anchor: Option<PathBuf>,
     pub visibility: Visibility,
+    /// Changes whenever `rows` is rebuilt (the Explorer's motion keys on it).
+    pub revision: u64,
+    /// Identifies this tree: a replaced tree (another project, the first
+    /// load) is new content, not a disclosure.
+    pub id: u64,
 }
 
 impl Tree {
@@ -91,6 +100,8 @@ impl Tree {
             selection: BTreeSet::new(),
             anchor: None,
             visibility: Visibility::default(),
+            revision: 0,
+            id: NEXT_REVISION.fetch_add(1, Ordering::Relaxed),
         }
     }
     pub fn fixture() -> Self {
@@ -146,6 +157,7 @@ impl Tree {
         }
         self.rows.clear();
         visit(&self.roots, 0, &self.visibility, &mut self.rows);
+        self.revision = NEXT_REVISION.fetch_add(1, Ordering::Relaxed);
         let rows = &self.rows;
         self.selection.retain(|p| rows.iter().any(|r| &r.path == p));
     }
