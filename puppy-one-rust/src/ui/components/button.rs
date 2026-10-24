@@ -354,7 +354,11 @@ impl RenderOnce for Button {
             .flex_shrink_0()
             .items_center()
             .justify_center()
-            .gap(px(if filled { 5. } else { 6. }))
+            .gap(px(match variant {
+                ButtonVariant::FilledPrimary => 5.,
+                ButtonVariant::Filled => 4.,
+                _ => 6.,
+            }))
             .h(height(if dialog && self.size == Size::Medium {
                 Size::Large
             } else {
@@ -383,6 +387,12 @@ impl RenderOnce for Button {
                         FontWeight::MEDIUM
                     },
                 )
+            })
+            // `GitOperationButton` sets the right-sidebar control type.
+            .when(filled, |b| {
+                let ty = theme::ty().right;
+                b.text_size(px(ty.content))
+                    .line_height(px(ty.control_line_height))
             })
             .when(disabled && outlined, |b| b.opacity(0.62))
             .when(!disabled, |b| {

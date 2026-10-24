@@ -973,7 +973,6 @@ impl Render for Shell {
         }
         if self.right_open && !home {
             self.workbench.update(cx, |s, _| s.dark = self.dark);
-            self.source_control.update(cx, |s, _| s.dark = self.dark);
             root = root.child(
                 // The 8px sash overlays the pane edge (`.po-pane-edge-resize-handle`);
                 // content starts at the divider like the product's.

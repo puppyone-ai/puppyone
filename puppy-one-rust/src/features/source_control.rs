@@ -7,10 +7,20 @@ use crate::{
     localization::{t as tr, tf},
     platform::git::{self, Change, Commit, Operation, Snapshot},
     theme::{self, Theme, metric},
-    ui::{Tone, action_button, column, icon_stroke, row, tooltip},
+    ui::{
+        appearance::ActiveAppearance,
+        components::{
+            Button, ButtonVariant, FileIcon, Icon, IconButton, RowActionButton, RowVariant,
+            SectionHeader, SidebarRow,
+        },
+    },
     wake::Wake,
 };
 use gpui::{prelude::*, *};
+use gpui_kit::{
+    base::{Disableable as _, h_flex, v_flex},
+    component::Sizable as _,
+};
 use std::{
     path::PathBuf,
     sync::{
@@ -116,7 +126,6 @@ pub struct SourceControl {
     pub snapshot: Option<Snapshot>,
     pub error: Option<String>,
     operation_error: bool,
-    pub dark: bool,
     busy: bool,
     mutating: bool,
     queued_operation: Option<Operation>,
@@ -178,7 +187,6 @@ impl SourceControl {
             snapshot: None,
             error: None,
             operation_error: false,
-            dark: true,
             busy: false,
             mutating: false,
             queued_operation: None,
@@ -391,27 +399,18 @@ fn view_action(
     id: &'static str,
     icon: &'static str,
     size: f32,
+    label: impl Into<SharedString>,
     t: Theme,
-) -> gpui_kit::base::Button {
-    let group = SharedString::from(format!("git-view-{id}"));
-    gpui_kit::base::Button::new(id)
-        .group(group.clone())
-        .flex()
-        .flex_shrink_0()
-        .items_center()
-        .justify_center()
-        .size(px(24.))
+) -> IconButton {
+    IconButton::new(id, Icon::new(icon).with_size(px(size)))
+        .label(label)
+        .with_size(px(24.))
+        .color(t.subtle)
         .rounded(px(metric::TOOLBAR_ACTION_RADIUS))
-        .cursor(theme::clickable_cursor())
-        .hover(move |s| s.bg(t.hover))
-        .child(
-            icon_stroke(icon, size, 1.8, t.subtle)
-                .group_hover(group, move |s| s.text_color(t.text)),
-        )
 }
 /// `.desktop-git-view-header`: `min-height: 36px; padding: 4px 10px 2px 14px`.
 fn view_header(t: Theme) -> Div {
-    row()
+    h_flex()
         .flex_shrink_0()
         .min_h(px(36.))
         .pt(px(4.))
@@ -435,83 +434,32 @@ fn view_title(text: impl Into<SharedString>, t: Theme) -> Div {
         .text_color(t.muted)
         .child(text.into())
 }
-/// `GitOperationButton`: 24px, 7px inline padding, primary in the accent.
+/// `GitOperationButton`: 24px, filled, primary in the accent.
 fn operation_button(
     id: impl Into<ElementId>,
     icon: &'static str,
     label: impl Into<SharedString>,
     primary: bool,
     disabled: bool,
-    t: Theme,
-) -> gpui_kit::base::Button {
-    let m = theme::ty();
-    // `.app-shell:not(.dark) .desktop-git-sidebar` uses the product blue.
-    let accent = if t.dark { t.accent } else { t.brand_blue };
-    let (bg, fg, hover_bg, hover_fg) = if primary {
-        (
-            accent,
-            t.text_inverse,
-            theme::mix(accent, t.text, 0.86),
-            t.text_inverse,
-        )
-    } else {
-        (t.control, t.muted, t.control_hover, t.text)
-    };
-    let (bg, fg) = match (disabled, primary) {
-        (true, true) => (theme::mix(accent, t.control, 0.12), t.text_disabled),
-        (true, false) => (theme::alpha(t.control, 0.), t.text_disabled),
-        _ => (bg, fg),
-    };
-    gpui_kit::base::Button::new(id)
-        .flex()
-        .flex_shrink_0()
-        .items_center()
-        .justify_center()
-        .gap(px(if primary { 5. } else { 4. }))
-        .h(px(24.))
-        .px(px(7.))
-        .rounded(px(metric::TOOLBAR_ACTION_RADIUS))
-        .bg(bg)
-        .text_color(fg)
-        .text_size(px(m.right.content))
-        .line_height(px(m.right.control_line_height))
-        .when(!disabled, |b| {
-            b.cursor(theme::clickable_cursor())
-                .hover(move |s| s.bg(hover_bg).text_color(hover_fg))
+) -> Button {
+    Button::new(id)
+        .variant(if primary {
+            ButtonVariant::FilledPrimary
+        } else {
+            ButtonVariant::Filled
         })
-        .child(icon_stroke(icon, 15., 2.25, fg))
-        .child(div().min_w_0().truncate().child(label.into()))
+        .small()
+        .icon(icon)
+        .label(label)
+        .disabled(disabled)
 }
-/// `.po-sidebar-icon-button` on a working-tree row (24px, 13px glyph).
-fn row_icon_button(
+/// A working-tree row action (24px, 13px glyph).
+fn row_action(
     id: impl Into<ElementId>,
     icon: &'static str,
-    label: SharedString,
-    danger: bool,
-    row_group: SharedString,
-    t: Theme,
-) -> gpui_kit::base::Button {
-    let fg = if danger { t.danger } else { t.muted };
-    let (hover_bg, hover_fg) = if danger {
-        (theme::alpha(t.danger, 0.12), t.danger)
-    } else {
-        (t.control_hover, t.text)
-    };
-    gpui_kit::base::Button::new(id)
-        .flex()
-        .flex_shrink_0()
-        .items_center()
-        .justify_center()
-        .size(px(24.))
-        .rounded(px(metric::SIDEBAR_ROW_RADIUS))
-        .cursor(theme::clickable_cursor())
-        .text_color(fg)
-        .invisible()
-        .group_hover(row_group, |s| s.visible())
-        .hover(move |s| s.bg(hover_bg).text_color(hover_fg))
-        .accessibility_label(label.clone())
-        .tooltip(tooltip(label))
-        .child(icon_stroke(icon, 13., 2., fg))
+    label: impl Into<SharedString>,
+) -> RowActionButton {
+    RowActionButton::new(id, Icon::new(icon).with_size(px(13.)).stroke(2.)).label(label)
 }
 impl SourceControl {
     /// `SourceControlWorkingTreeRow`.
@@ -522,7 +470,7 @@ impl SourceControl {
         change: &Change,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         let m = theme::ty();
         let staged = panel == Panel::Staged;
         let status = if staged {
@@ -539,7 +487,6 @@ impl SourceControl {
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_else(|| change.path.clone());
-        let group = SharedString::from(format!("git-row-{panel:?}-{index}"));
         let select = change.clone();
         let stage = change.clone();
         let discard = change.clone();
@@ -555,94 +502,61 @@ impl SourceControl {
             "source-control.action.discardPath",
             &[("path", change.path.clone().into())],
         );
-        let entry = row()
-            .id(SharedString::from(format!(
-                "git-row-{panel:?}-{}",
-                change.path
-            )))
-            .group(group.clone())
-            .w_full()
-            .h(px(theme::control()))
-            .my(px(1.))
-            .gap(px(2.))
-            .rounded(px(metric::SIDEBAR_ROW_RADIUS))
-            .text_color(t.muted)
-            .cursor(theme::clickable_cursor())
-            .hover(move |d| d.bg(t.hover).text_color(t.text))
-            .child(
-                row()
-                    .flex_1()
-                    .min_w_0()
-                    .h_full()
-                    .pl(px(metric::SIDEBAR_ROW_CONTENT_LEFT))
-                    .gap(px(metric::SIDEBAR_ICON_LABEL_GAP))
-                    .text_size(px(m.left.content))
-                    .line_height(px(m.left.line_height))
-                    .child(
-                        img(SharedString::from(crate::file_kind::asset_path(
-                            &self.icon_theme,
-                            &change.path,
-                            false,
-                            self.dark,
-                        )))
-                        .size(px(18.))
-                        .flex_shrink_0(),
-                    )
-                    .child(
-                        row()
-                            .min_w_0()
-                            .items_baseline()
-                            .gap(px(5.))
-                            .child(div().min_w_0().truncate().child(name))
-                            .child(
-                                div()
-                                    .flex_shrink_0()
-                                    .text_size(px(m.ui.micro))
-                                    .line_height(px(m.ui.micro))
-                                    .text_color(t.text_disabled)
-                                    .child(status.to_string()),
-                            ),
-                    ),
-            )
-            .when(!staged && !change.untracked() && !change.conflict(), |d| {
-                d.child(
-                    row_icon_button(
-                        ("discard", index),
-                        "undo-2",
-                        discard_label.into(),
-                        true,
-                        group.clone(),
-                        t,
-                    )
-                    .on_click(cx.listener(move |s, _, _, cx| {
-                        cx.stop_propagation();
-                        s.confirm = Some(Operation::Discard(discard.clone()));
-                        cx.notify();
-                    })),
+        let entry = SidebarRow::new(SharedString::from(format!(
+            "git-row-{panel:?}-{}",
+            change.path
+        )))
+        .variant(RowVariant::List)
+        .leading(FileIcon::file(change.path.clone(), self.icon_theme.clone()))
+        .child(
+            h_flex()
+                .flex_1()
+                .min_w_0()
+                .items_baseline()
+                .gap(px(5.))
+                .child(div().min_w_0().truncate().child(name))
+                .child(
+                    div()
+                        .flex_shrink_0()
+                        .text_size(px(m.ui.micro))
+                        .line_height(px(m.ui.micro))
+                        .text_color(t.text_disabled)
+                        .child(status.to_string()),
+                ),
+        )
+        .when(
+            !staged && !change.untracked() && !change.conflict(),
+            |row| {
+                row.action(
+                    row_action(("discard", index), "undo-2", discard_label)
+                        .danger()
+                        .on_click(cx.listener(move |s, _, _, cx| {
+                            cx.stop_propagation();
+                            s.confirm = Some(Operation::Discard(discard.clone()));
+                            cx.notify();
+                        })),
                 )
-            })
-            .child(
-                row_icon_button(
-                    ("stage", index),
-                    if staged { "minus" } else { "plus" },
-                    state_label.into(),
-                    false,
-                    group,
-                    t,
-                )
-                .on_click(cx.listener(move |s, _, _, cx| {
-                    cx.stop_propagation();
-                    s.operation(
-                        if staged {
-                            Operation::Unstage(stage.clone())
-                        } else {
-                            Operation::Stage(stage.clone())
-                        },
-                        cx,
-                    )
-                })),
+            },
+        )
+        .action(
+            row_action(
+                ("stage", index),
+                if staged { "minus" } else { "plus" },
+                state_label,
             )
-            .on_click(cx.listener(move |s, _, _, cx| s.select(select.clone(), staged, cx)));
+            .on_click(cx.listener(move |s, _, _, cx| {
+                cx.stop_propagation();
+                s.operation(
+                    if staged {
+                        Operation::Unstage(stage.clone())
+                    } else {
+                        Operation::Stage(stage.clone())
+                    },
+                    cx,
+                )
+            })),
+        )
+        .on_click(cx.listener(move |s, _, _, cx| s.select(select.clone(), staged, cx)));
         // `.desktop-working-tree-list` inline padding (12px each side).
         div()
             .h(px(theme::sidebar_stride()))
@@ -658,69 +572,35 @@ impl SourceControl {
         show_count: bool,
         action: Option<AnyElement>,
         cx: &mut Context<Self>,
-    ) -> Div {
-        let t = Theme::new(self.dark);
-        let m = theme::ty();
-        let expanded = !self.collapsed.contains(&panel);
-        row()
-            .flex_shrink_0()
-            .w_full()
-            .h(px(theme::control()))
-            .pr(px(metric::SIDEBAR_ROW_RIGHT_GAP))
-            .child(
-                row()
-                    .id(SharedString::from(format!("git-section-{panel:?}")))
-                    .flex_1()
-                    .min_w_0()
-                    .h_full()
-                    .ml(px(metric::SIDEBAR_ROW_LEFT_GAP))
-                    .px(px(metric::SIDEBAR_ROW_CONTENT_LEFT))
-                    .gap(px(6.))
-                    .rounded(px(metric::SIDEBAR_ROW_RADIUS))
-                    .text_size(px(m.left.content))
-                    .line_height(px(m.left.line_height))
-                    .text_color(t.subtle)
-                    .cursor(theme::clickable_cursor())
-                    .child(icon_stroke(
-                        if expanded {
-                            "chevron-down"
-                        } else {
-                            "chevron-right"
-                        },
-                        14.,
-                        2.,
-                        t.text_disabled,
-                    ))
-                    .child(div().flex_shrink_0().child(tr(
-                        if panel == Panel::Unstaged && count == 0 {
-                            "source-control.label.changes"
-                        } else {
-                            panel.title()
-                        },
-                    )))
-                    .when(show_count, |d| {
-                        d.child(
-                            div()
-                                .text_size(px(m.left.meta))
-                                .text_color(t.text_disabled)
-                                .child(count.to_string()),
-                        )
-                    })
-                    .on_click(cx.listener(move |s, _, _, cx| {
-                        if !s.collapsed.remove(&panel) {
-                            s.collapsed.insert(panel);
-                        }
-                        cx.notify();
-                    })),
-            )
-            .children(action)
+    ) -> AnyElement {
+        let host = cx.weak_entity();
+        SectionHeader::new(
+            SharedString::from(format!("git-section-{panel:?}")),
+            tr(if panel == Panel::Unstaged && count == 0 {
+                "source-control.label.changes"
+            } else {
+                panel.title()
+            }),
+        )
+        .expanded(!self.collapsed.contains(&panel))
+        .when(show_count, |h| h.count(count))
+        .when_some(action, |h, action| h.action(action))
+        .on_toggle(move |_, cx| {
+            let _ = host.update(cx, |s, cx| {
+                if !s.collapsed.remove(&panel) {
+                    s.collapsed.insert(panel);
+                }
+                cx.notify();
+            });
+        })
+        .into_any_element()
     }
     /// A `desktop-git-resizable-section`: grows by its weight up to its rows
     /// (at most nine), never below 72px, or a single header row collapsed.
-    fn panel(&self, panel: Panel, rows: f32, header: Div, body: AnyElement) -> Div {
+    fn panel(&self, panel: Panel, rows: f32, header: AnyElement, body: AnyElement) -> Div {
         let row_h = theme::control();
         if self.collapsed.contains(&panel) {
-            return column()
+            return v_flex()
                 .flex_none()
                 .h(px(row_h))
                 .overflow_hidden()
@@ -728,7 +608,7 @@ impl SourceControl {
         }
         let visible = rows.min(MAX_VISIBLE_ROWS as f32);
         let max_h = row_h * (visible + 1.) + SECTION_BODY_TOP_GAP + visible * 2.;
-        column()
+        v_flex()
             .flex_grow(panel.grow())
             .flex_shrink(1.)
             .flex_basis(px(0.))
@@ -797,7 +677,7 @@ impl SourceControl {
     }
     /// `GitIncomingUpdateNotice` in the sync priority region.
     fn incoming_notice(&self, behind: u32, primary: bool, cx: &mut Context<Self>) -> Div {
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         let m = theme::ty();
         div()
             .flex_shrink_0()
@@ -805,7 +685,7 @@ impl SourceControl {
             .mb(px(5.))
             .relative()
             .child(
-                row()
+                h_flex()
                     .mt(px(8.))
                     .mx(px(metric::SIDEBAR_ROW_LEFT_GAP))
                     .pt(px(9.))
@@ -835,7 +715,6 @@ impl SourceControl {
                             tr("source-control.sync.pull"),
                             primary,
                             self.busy,
-                            t,
                         )
                         .on_click(cx.listener(|s, _, _, cx| {
                             s.confirm = Some(Operation::Pull);
@@ -856,9 +735,9 @@ impl SourceControl {
     /// The Changes list (`GitSidebar`): priority notice, resizable panels and
     /// the fixed region with errors.
     fn changes_list(&self, snapshot: &Snapshot, cx: &mut Context<Self>) -> Div {
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         let primary = primary_slot(snapshot, &self.sections);
-        let mut stack = column().flex_1().min_h_0().overflow_hidden();
+        let mut stack = v_flex().flex_1().min_h_0().overflow_hidden();
         let mut panels: Vec<Div> = vec![];
         if let Some(section) = self.sections.iter().find(|s| s.panel == Panel::Merge) {
             let count = section.changes.len();
@@ -878,7 +757,6 @@ impl SourceControl {
                 push,
                 primary == Some(PrimarySlot::Committed),
                 self.busy,
-                t,
             )
             .on_click(cx.listener(|s, _, _, cx| {
                 s.confirm = Some(Operation::Push);
@@ -915,9 +793,8 @@ impl SourceControl {
                 }),
                 primary == Some(PrimarySlot::Staged),
                 self.busy,
-                t,
             )
-            .tooltip(tooltip(tr("source-control.sync.commitStaged")))
+            .tooltip(tr("source-control.sync.commitStaged"))
             .on_click(cx.listener(|s, _, _, cx| s.operation(Operation::Commit(String::new()), cx)));
             let header = self.section_header(
                 Panel::Staged,
@@ -942,9 +819,8 @@ impl SourceControl {
                 tr("source-control.action.stageCommit"),
                 primary == Some(PrimarySlot::StageAndCommit),
                 self.busy || conflicts,
-                t,
             )
-            .tooltip(tooltip(tr("source-control.action.stageCommitTitle")))
+            .tooltip(tr("source-control.action.stageCommitTitle"))
             .on_click(cx.listener(|s, _, _, cx| s.operation(Operation::StageAndCommit, cx)));
             let header = self.section_header(
                 Panel::Unstaged,
@@ -972,7 +848,7 @@ impl SourceControl {
             }
             stack = stack.child(panel);
         }
-        let mut list = column()
+        let mut list = v_flex()
             .flex_1()
             .min_h_0()
             .pt(px(metric::SIDEBAR_LIST_PADDING_BLOCK));
@@ -1007,8 +883,8 @@ impl SourceControl {
     }
     /// `.desktop-git-operation-error`.
     fn error_banner(&self, error: String, cx: &mut Context<Self>) -> Div {
-        let t = Theme::new(self.dark);
-        row()
+        let t = cx.palette();
+        h_flex()
             .flex_shrink_0()
             .mx(px(metric::SIDEBAR_ROW_LEFT_GAP))
             .my(px(8.))
@@ -1021,19 +897,24 @@ impl SourceControl {
             .text_color(t.danger)
             .child(div().flex_1().min_w_0().child(error))
             .child(
-                view_action("git-dismiss-error", "x", 13., t)
-                    .accessibility_label(tr("source-control.action.dismiss"))
-                    .on_click(cx.listener(|s, _, _, cx| {
-                        s.error = None;
-                        s.operation_error = false;
-                        cx.notify();
-                    })),
+                view_action(
+                    "git-dismiss-error",
+                    "x",
+                    13.,
+                    tr("source-control.action.dismiss"),
+                    t,
+                )
+                .on_click(cx.listener(|s, _, _, cx| {
+                    s.error = None;
+                    s.operation_error = false;
+                    cx.notify();
+                })),
             )
     }
     /// `.desktop-git-loading-state` / setup state: centred quiet text.
     fn centered_note(text: impl Into<SharedString>, t: Theme) -> Div {
         let m = theme::ty();
-        column()
+        v_flex()
             .flex_1()
             .min_h(px(120.))
             .items_center()
@@ -1047,7 +928,7 @@ impl SourceControl {
             .child(text.into())
     }
     fn confirm_view(&self, op: &Operation, cx: &mut Context<Self>) -> Div {
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         let target = self
             .snapshot
             .as_ref()
@@ -1060,25 +941,25 @@ impl SourceControl {
                     &[("path", c.path.clone().into())],
                 ),
                 tr("source-control.action.discard").to_owned(),
-                Tone::Danger,
+                ButtonVariant::OutlineDanger,
             ),
             Operation::Push => (
                 tf("native.git.pushConfirm", &[("target", target.into())]),
                 tr("source-control.sync.push").to_owned(),
-                Tone::Primary,
+                ButtonVariant::OutlinePrimary,
             ),
             Operation::Pull => (
                 tf("native.git.pullConfirm", &[("target", target.into())]),
                 tr("source-control.sync.pull").to_owned(),
-                Tone::Primary,
+                ButtonVariant::OutlinePrimary,
             ),
             _ => (
                 tr("source-control.sync.continueTitle").to_owned(),
                 tr("source-control.sync.continue").to_owned(),
-                Tone::Primary,
+                ButtonVariant::OutlinePrimary,
             ),
         };
-        column()
+        v_flex()
             .mx(px(metric::SIDEBAR_ROW_LEFT_GAP))
             .mt(px(metric::SIDEBAR_LIST_PADDING_BLOCK))
             .p(px(12.))
@@ -1091,37 +972,32 @@ impl SourceControl {
             .text_color(t.muted)
             .child(label)
             .child(
-                row()
+                h_flex()
                     .gap(px(8.))
                     .justify_end()
                     .child(
-                        action_button(
-                            "git-cancel",
-                            tr("common.action.cancel"),
-                            None,
-                            Tone::Default,
-                            false,
-                            t,
-                        )
-                        .on_click(cx.listener(|s, _, _, cx| {
-                            s.confirm = None;
-                            cx.notify();
-                        })),
+                        Button::new("git-cancel")
+                            .label(tr("common.action.cancel"))
+                            .on_click(cx.listener(|s, _, _, cx| {
+                                s.confirm = None;
+                                cx.notify();
+                            })),
                     )
                     .child(
-                        action_button("git-confirm", action, None, tone, false, t).on_click(
-                            cx.listener(|s, _, _, cx| {
+                        Button::new("git-confirm")
+                            .variant(tone)
+                            .label(action)
+                            .on_click(cx.listener(|s, _, _, cx| {
                                 if let Some(op) = s.confirm.take() {
                                     s.operation(op, cx);
                                 }
-                            }),
-                        ),
+                            })),
                     ),
             )
     }
     fn diff_view(&self, title: String, count: usize, cx: &mut Context<Self>) -> Div {
-        let t = Theme::new(self.dark);
-        column()
+        let t = cx.palette();
+        v_flex()
             .flex_1()
             .min_h_0()
             .child(
@@ -1138,8 +1014,8 @@ impl SourceControl {
                 uniform_list(
                     "git-diff",
                     count,
-                    cx.processor(|s, range: std::ops::Range<usize>, _, _| {
-                        let t = Theme::new(s.dark);
+                    cx.processor(|s, range: std::ops::Range<usize>, _, cx| {
+                        let t = cx.palette();
                         range
                             .map(|i| {
                                 let line = &s.detail.as_ref().unwrap().1[i];
@@ -1177,12 +1053,12 @@ impl SourceControl {
             "git-log",
             self.commits.len(),
             cx.processor(|s, range: std::ops::Range<usize>, _, cx| {
-                let t = Theme::new(s.dark);
+                let t = cx.palette();
                 let m = theme::ty();
                 range
                     .map(|i| {
                         let c = s.commits[i].clone();
-                        column()
+                        v_flex()
                             .id(i)
                             .h(px(52.))
                             .mx(px(metric::SIDEBAR_ROW_LEFT_GAP))
@@ -1239,9 +1115,9 @@ impl Render for SourceControl {
         {
             self.painted_rows = 0;
         }
-        let t = Theme::new(self.dark);
+        let t = cx.palette();
         // `.desktop-git-changes-sidebar` on `--po-surface-auxiliary`.
-        let pane = column()
+        let pane = v_flex()
             .size_full()
             .min_h_0()
             .bg(t.auxiliary())
@@ -1251,16 +1127,20 @@ impl Render for SourceControl {
         if nested {
             // `.desktop-git-changes-detail-header` / `.desktop-git-history-header`.
             header = header.pl(px(8.)).justify_start().child(
-                view_action("git-back", "arrow-left", 15., t)
-                    .accessibility_label(tr("shared-ui.navigation.back"))
-                    .tooltip(tooltip(tr("shared-ui.navigation.back")))
-                    .on_click(cx.listener(|s, _, _, cx| {
-                        if s.detail.take().is_none() {
-                            s.history_open = false;
-                        }
-                        s.selection += 1;
-                        cx.notify();
-                    })),
+                view_action(
+                    "git-back",
+                    "arrow-left",
+                    15.,
+                    tr("shared-ui.navigation.back"),
+                    t,
+                )
+                .on_click(cx.listener(|s, _, _, cx| {
+                    if s.detail.take().is_none() {
+                        s.history_open = false;
+                    }
+                    s.selection += 1;
+                    cx.notify();
+                })),
             );
         }
         header = header.child(view_title(
@@ -1273,15 +1153,19 @@ impl Render for SourceControl {
         ));
         if !nested {
             header = header.child(
-                view_action("git-history", "history", 14., t)
-                    .accessibility_label(tr("source-control.history.title"))
-                    .tooltip(tooltip(tr("source-control.history.title")))
-                    .on_click(cx.listener(|s, _, _, cx| {
-                        s.detail = None;
-                        s.history_open = true;
-                        s.load_history();
-                        cx.notify();
-                    })),
+                view_action(
+                    "git-history",
+                    "history",
+                    14.,
+                    tr("source-control.history.title"),
+                    t,
+                )
+                .on_click(cx.listener(|s, _, _, cx| {
+                    s.detail = None;
+                    s.history_open = true;
+                    s.load_history();
+                    cx.notify();
+                })),
             );
         }
         let pane = pane.child(header);
@@ -1314,7 +1198,6 @@ impl Render for SourceControl {
                         tr("source-control.setup.enable"),
                         true,
                         false,
-                        t,
                     )
                     .on_click(cx.listener(|s, _, _, cx| s.operation(Operation::Init, cx))),
                 ),
