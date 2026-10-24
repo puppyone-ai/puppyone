@@ -1,4 +1,5 @@
 mod auxiliary_workbench_launcher;
+mod drag;
 mod header;
 mod header_layout;
 #[cfg(feature = "dev-capture")]
@@ -17,6 +18,7 @@ use crate::{
     ui::{column, row},
     wake::Wake,
 };
+use drag::{DropIntent, Edge};
 use gpui::{prelude::*, *};
 use gpui_kit::component::menu::ContextMenuExt;
 use layout::{Axis, Id, Layout, Node};
@@ -63,13 +65,26 @@ struct DragTab {
     dark: bool,
 }
 impl Render for DragTab {
+    /// `.desktop-terminal-tab-move-preview`: a quiet pill under the pointer.
+    /// Its fill is `color-mix(var(--po-surface) 94%)`, and `--po-surface` is
+    /// not a theme token, so the product paints only border and text; the
+    /// popover shadow is dropped because GPUI would draw it under the
+    /// transparent body instead of only outside it.
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
         let t = Theme::new(self.dark);
+        let m = theme::ty();
         div()
-            .p(px(8.))
-            .rounded(px(5.))
-            .bg(t.overlay)
+            .max_w(px(220.))
+            .px(px(10.))
+            .py(px(6.))
+            .rounded(px(theme::metric::TOOLBAR_ACTION_RADIUS))
+            .border_1()
+            .border_color(theme::alpha(t.border, 0.8))
+            .opacity(0.94)
+            .text_size(px(m.header.content))
+            .line_height(px(m.header.line_height))
             .text_color(t.text)
+            .truncate()
             .child(self.title.clone())
     }
 }
@@ -107,6 +122,9 @@ pub struct Workbench {
     /// Overflow trigger offset and hidden items from the last header layout.
     overflow_anchor: HashMap<Id, f32>,
     overflow_hidden: HashMap<Id, Vec<Id>>,
+    /// The tab being dragged and where releasing it would put it.
+    dragging: Option<Id>,
+    drop_intent: Option<DropIntent>,
 }
 impl Workbench {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
@@ -160,6 +178,8 @@ impl Workbench {
             header_windows: HashMap::new(),
             overflow_anchor: HashMap::new(),
             overflow_hidden: HashMap::new(),
+            dragging: None,
+            drop_intent: None,
         }
     }
     #[cfg(feature = "dev-capture")]
@@ -506,17 +526,6 @@ impl Workbench {
         after: bool,
         cx: &mut Context<Self>,
     ) {
-        if let Some(bounds) = self.bounds.get(&group) {
-            let size = if axis == Axis::Horizontal {
-                bounds.size.width
-            } else {
-                bounds.size.height
-            };
-            let min = if axis == Axis::Horizontal { 440. } else { 320. };
-            if f32::from(size) < min {
-                return;
-            }
-        }
         if let Some(p) = self.project_mut() {
             p.layout.split(group, axis, after, tab);
         }
@@ -531,6 +540,14 @@ impl Workbench {
             .map(|b| f32::from(b.size.width))
             .unwrap_or(360.);
         let header = self.render_header(id, width, cx);
+        let split_preview = match self.drop_intent {
+            Some(DropIntent::Split {
+                group,
+                edge,
+                allowed,
+            }) if group == id => Some((edge, allowed)),
+            _ => None,
+        };
         let content = match g
             .active
             .and_then(|tab| self.project().unwrap().content.get(&tab))
@@ -661,27 +678,69 @@ impl Workbench {
                         .absolute()
                         .size_full(),
                     )
-                    .on_drop(cx.listener(move |s, drag: &DragTab, w, cx| {
+                    .when_some(split_preview, |d, (edge, allowed)| {
+                        // `.desktop-terminal-drop-preview`: the half the tab would take.
+                        // Refused drops stripe 10% / 18% danger at 135deg, 5px each.
+                        let preview = div()
+                            .absolute()
+                            .bg(if allowed { theme::alpha(t.accent, 0.14) } else { theme::alpha(t.danger, 0.10) })
+                            .when(!allowed, |d| {
+                                d.child(
+                                    div()
+                                        .size_full()
+                                        .bg(pattern_slash(theme::alpha(t.danger, 0.089), 5., 5.)),
+                                )
+                            });
+                        d.child(match edge {
+                            Edge::Left => preview.top_0().bottom_0().left_0().w(relative(0.5)),
+                            Edge::Right => preview.top_0().bottom_0().right_0().w(relative(0.5)),
+                            Edge::Top => preview.left_0().right_0().top_0().h(relative(0.5)),
+                            Edge::Bottom => preview.left_0().right_0().bottom_0().h(relative(0.5)),
+                        })
+                    })
+                    .on_drag_move::<DragTab>(cx.listener(move |s, e: &DragMoveEvent<DragTab>, _, cx| {
+                        let drag = e.drag(cx).clone();
                         if s.root.as_ref() != Some(&drag.root) {
                             return;
                         }
-                        if let Some(b) = s.bounds.get(&id) {
-                            let p = w.mouse_position();
-                            let x = (p.x - b.origin.x) / b.size.width;
-                            let y = (p.y - b.origin.y) / b.size.height;
-                            if !(0.2..=0.8).contains(&x) {
-                                s.split(id, Axis::Horizontal, Some(drag.tab), x > 0.5, cx);
-                                return;
+                        let b = e.bounds;
+                        let p = e.event.position;
+                        let here = matches!(s.drop_intent, Some(DropIntent::Split { group, .. }) if group == id);
+                        if !b.contains(&p) {
+                            if here {
+                                s.drop_intent = None;
+                                cx.notify();
                             }
-                            if !(0.2..=0.8).contains(&y) {
-                                s.split(id, Axis::Vertical, Some(drag.tab), y > 0.5, cx);
-                                return;
-                            }
+                            return;
                         }
-                        if let Some(p) = s.project_mut() {
-                            let n = p.layout.groups[&id].tabs.len();
-                            p.layout.move_tab(drag.tab, id, n);
+                        let edge = drag::closest_edge(
+                            f32::from(b.origin.x),
+                            f32::from(b.origin.y),
+                            f32::from(b.size.width),
+                            f32::from(b.size.height),
+                            f32::from(p.x),
+                            f32::from(p.y),
+                        );
+                        let allowed = s.can_split(drag.tab, id, edge.split().0, b);
+                        let next = Some(DropIntent::Split { group: id, edge, allowed });
+                        s.dragging = Some(drag.tab);
+                        if s.drop_intent != next {
+                            s.drop_intent = next;
+                            cx.notify();
                         }
+                    }))
+                    .on_drop(cx.listener(move |s, drag: &DragTab, _, cx| {
+                        if s.root.as_ref() != Some(&drag.root) {
+                            return;
+                        }
+                        if let Some(DropIntent::Split { group, edge, allowed: true }) = s.drop_intent
+                            && group == id
+                        {
+                            let (axis, after) = edge.split();
+                            s.split(id, axis, Some(drag.tab), after, cx);
+                        }
+                        s.drop_intent = None;
+                        s.dragging = None;
                         cx.notify();
                     })),
             )
@@ -703,10 +762,72 @@ impl Workbench {
                 let a = self.node(first, cx);
                 let b = self.node(second, cx);
                 let entity = cx.entity();
+                let horizontal = axis == Axis::Horizontal;
+                // `grid-template-*: (100% - 1px) × ratio | 1px | rest`.
+                let total = self.bounds.get(&id).map(|b| {
+                    f32::from(if horizontal {
+                        b.size.width
+                    } else {
+                        b.size.height
+                    })
+                });
+                let first_size = total.map(|total| (total - layout::DIVIDER).max(0.) * ratio);
+                let resizing = self.drag_split.map(|d| d.0) == Some(id);
+                let hover = theme::mix(t.focus, t.divider, 0.55);
+                let group = SharedString::from(format!("workbench-split-{id}"));
+                // `.desktop-terminal-splitter`: a 1px painter with an 8px hit
+                // lane centred on it, above both panes.
+                let painter = div()
+                    .flex_shrink_0()
+                    .when(horizontal, |d| d.w(px(layout::DIVIDER)).h_full())
+                    .when(!horizontal, |d| d.h(px(layout::DIVIDER)).w_full())
+                    .bg(if resizing { t.focus } else { t.divider })
+                    .when(resizing, |d| {
+                        d.shadow(vec![BoxShadow {
+                            inset: false,
+                            color: theme::alpha(t.focus, 0.24).into(),
+                            offset: point(px(0.), px(0.)),
+                            blur_radius: px(0.),
+                            spread_radius: px(1.),
+                        }])
+                    })
+                    .when(!resizing, |d| {
+                        d.group_hover(group.clone(), move |s| s.bg(hover))
+                    });
+                let lane = div()
+                    .id(("split-sash", id))
+                    .group(group)
+                    .absolute()
+                    .occlude()
+                    .when(horizontal, |d| {
+                        let left = first_size.map(px).unwrap_or(px(0.));
+                        d.top_0()
+                            .bottom_0()
+                            .left(left - px(3.5))
+                            .w(px(8.))
+                            .cursor(CursorStyle::ResizeLeftRight)
+                    })
+                    .when(!horizontal, |d| {
+                        let top = first_size.map(px).unwrap_or(px(0.));
+                        d.left_0()
+                            .right_0()
+                            .top(top - px(3.5))
+                            .h(px(8.))
+                            .cursor(CursorStyle::ResizeUpDown)
+                    })
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(move |s, _, _, cx| {
+                            if let Some(bounds) = s.bounds.get(&id) {
+                                s.drag_split = Some((id, axis, *bounds));
+                            }
+                            cx.notify();
+                        }),
+                    );
                 div()
                     .relative()
                     .flex()
-                    .when(axis == Axis::Vertical, |d| d.flex_col())
+                    .when(!horizontal, |d| d.flex_col())
                     .size_full()
                     .min_h_0()
                     .min_w_0()
@@ -714,32 +835,17 @@ impl Workbench {
                         div()
                             .min_w_0()
                             .min_h_0()
+                            .flex_shrink_0()
                             .overflow_hidden()
-                            .when(axis == Axis::Vertical, |d| d.h(relative(*ratio)).w_full())
-                            .when(axis == Axis::Horizontal, |d| d.w(relative(*ratio)).h_full())
+                            .map(|d| match (horizontal, first_size) {
+                                (true, Some(size)) => d.w(px(size)).h_full(),
+                                (true, None) => d.w(relative(*ratio)).h_full(),
+                                (false, Some(size)) => d.h(px(size)).w_full(),
+                                (false, None) => d.h(relative(*ratio)).w_full(),
+                            })
                             .child(a),
                     )
-                    .child(
-                        div()
-                            .id(("split-sash", id))
-                            .flex_shrink_0()
-                            .bg(t.divider)
-                            .when(axis == Axis::Vertical, |d| {
-                                d.h(px(5.)).w_full().cursor(CursorStyle::ResizeUpDown)
-                            })
-                            .when(axis == Axis::Horizontal, |d| {
-                                d.w(px(5.)).h_full().cursor(CursorStyle::ResizeLeftRight)
-                            })
-                            .on_mouse_down(
-                                MouseButton::Left,
-                                cx.listener(move |s, _, _, cx| {
-                                    if let Some(bounds) = s.bounds.get(&id) {
-                                        s.drag_split = Some((id, axis, *bounds));
-                                    }
-                                    cx.notify();
-                                }),
-                            ),
-                    )
+                    .child(painter)
                     .child(
                         div()
                             .flex_1()
@@ -748,11 +854,11 @@ impl Workbench {
                             .overflow_hidden()
                             .child(b),
                     )
+                    .when(first_size.is_some(), |d| d.child(lane))
                     .child(
                         canvas(
                             move |bounds, _, cx| {
                                 entity.update(cx, |s, cx| {
-                                    // Header density follows the measured group width.
                                     if s.bounds.insert(id, bounds) != Some(bounds) {
                                         cx.notify();
                                     }
@@ -764,6 +870,87 @@ impl Workbench {
                         .size_full(),
                     )
                     .into_any_element()
+            }
+        }
+    }
+    fn end_drag(&mut self, cx: &mut Context<Self>) {
+        if self.drag_split.is_some() || self.drop_intent.is_some() || self.dragging.is_some() {
+            self.drag_split = None;
+            self.drop_intent = None;
+            self.dragging = None;
+            cx.notify();
+        }
+    }
+    /// Minimum size of a group: the largest of its items'
+    /// (`AuxiliaryWorkbenchContribution.minimumSize`; chat 280×260, terminal
+    /// `terminalLeafMinimumSize` 188×196).
+    fn group_minimum(&self, group: Id) -> (f32, f32) {
+        let Some(project) = self.project() else {
+            return (280., 260.);
+        };
+        let tabs = project
+            .layout
+            .groups
+            .get(&group)
+            .map(|g| g.tabs.clone())
+            .unwrap_or_default();
+        tabs.iter()
+            .map(|tab| match project.content.get(tab) {
+                Some(Content::Terminal(..))
+                | Some(Content::Retained(RetainedItem::Terminal { .. })) => (188., 196.),
+                _ => (280., 260.),
+            })
+            .fold(None, |acc: Option<(f32, f32)>, (w, h)| {
+                Some(acc.map_or((w, h), |(aw, ah)| (aw.max(w), ah.max(h))))
+            })
+            .unwrap_or((280., 260.))
+    }
+    /// `canPlaceWorkbenchSplit` for dropping `source` on `target`'s `edge`.
+    fn can_split(&self, source: Id, target: Id, axis: Axis, bounds: Bounds<Pixels>) -> bool {
+        let Some(project) = self.project() else {
+            return false;
+        };
+        let Some(source_group) = project
+            .layout
+            .groups
+            .iter()
+            .find(|(_, g)| g.tabs.contains(&source))
+            .map(|(id, _)| *id)
+        else {
+            return false;
+        };
+        let remaining: Vec<Id> = project.layout.groups[&target]
+            .tabs
+            .iter()
+            .copied()
+            .filter(|t| *t != source)
+            .collect();
+        if remaining.is_empty() {
+            return false;
+        }
+        if source_group != target && project.layout.groups[&source_group].tabs.len() == 1 {
+            return true;
+        }
+        let source_min: (f32, f32) = match project.content.get(&source) {
+            Some(Content::Terminal(..)) => (188., 196.),
+            _ => (280., 260.),
+        };
+        let target_min = remaining
+            .iter()
+            .map(|tab| match project.content.get(tab) {
+                Some(Content::Terminal(..)) => (188., 196.),
+                _ => (280., 260.),
+            })
+            .fold((1f32, 1f32), |(w, h), (a, b)| (w.max(a), h.max(b)));
+        let (width, height) = (f32::from(bounds.size.width), f32::from(bounds.size.height));
+        match axis {
+            Axis::Horizontal => {
+                width >= source_min.0 + layout::DIVIDER + target_min.0
+                    && height >= source_min.1.max(target_min.1)
+            }
+            Axis::Vertical => {
+                height >= source_min.1 + layout::DIVIDER + target_min.1
+                    && width >= source_min.0.max(target_min.0)
             }
         }
     }
@@ -795,24 +982,41 @@ impl Render for Workbench {
             .text_color(t.text)
             .on_mouse_move(cx.listener(|s, e: &MouseMoveEvent, _, cx| {
                 if let Some((id, axis, b)) = s.drag_split {
-                    let ratio = if axis == Axis::Horizontal {
-                        (e.position.x - b.origin.x) / b.size.width
+                    let horizontal = axis == Axis::Horizontal;
+                    let total = f32::from(if horizontal {
+                        b.size.width
                     } else {
-                        (e.position.y - b.origin.y) / b.size.height
-                    };
+                        b.size.height
+                    });
+                    let offset = f32::from(if horizontal {
+                        e.position.x - b.origin.x
+                    } else {
+                        e.position.y - b.origin.y
+                    });
+                    let ratio = offset / (total - layout::DIVIDER).max(1.);
+                    // `clampWorkbenchRatioToBounds` with both sides' minimum sizes.
+                    let bounds = s.project().and_then(|p| {
+                        let Node::Split { first, second, .. } = p.layout.find(id)? else {
+                            return None;
+                        };
+                        let leaf = |group: Id| s.group_minimum(group);
+                        Some(Layout::ratio_bounds(
+                            axis,
+                            total,
+                            Layout::min_size(first, &leaf),
+                            Layout::min_size(second, &leaf),
+                        ))
+                    });
+                    let ratio = bounds.map_or(ratio, |(min, max)| ratio.clamp(min, max));
                     if let Some(p) = s.project_mut() {
                         p.layout.resize(id, ratio);
                     }
                     cx.notify();
                 }
             }))
-            .on_mouse_up(
-                MouseButton::Left,
-                cx.listener(|s, _, _, cx| {
-                    s.drag_split = None;
-                    cx.notify();
-                }),
-            )
+            .on_mouse_up(MouseButton::Left, cx.listener(|s, _, _, cx| s.end_drag(cx)))
+            // A tab released over the sidebar or editor still ends the move.
+            .on_mouse_up_out(MouseButton::Left, cx.listener(|s, _, _, cx| s.end_drag(cx)))
             .child(
                 column()
                     .size_full()

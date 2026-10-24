@@ -29,7 +29,10 @@ impl Workbench {
             let chat = project.layout.add(0);
             let codex = installation("codex");
             // tabs-narrow exercises the tab bar; its chat stays empty.
-            let chat_scenario = if scenario == "tabs-narrow" {
+            let chat_scenario = if scenario == "tabs-narrow"
+                || scenario.starts_with("drag-")
+                || scenario == "split"
+            {
                 "chat-empty"
             } else {
                 scenario
@@ -53,6 +56,32 @@ impl Workbench {
                 project.content.insert(shell, self.lab_terminal(window, cx));
             }
             project.layout.activate(0, chat);
+            // Native-only interaction states (no product reference): a tab
+            // moving within the bar, split previews and a resolved split.
+            match scenario {
+                "drag-insert" => {
+                    self.dragging = Some(terminal);
+                    self.drop_intent = Some(DropIntent::Insert {
+                        group: 0,
+                        index: 0,
+                        allowed: true,
+                    });
+                }
+                "drag-split" | "drag-split-refused" => {
+                    self.dragging = Some(terminal);
+                    self.drop_intent = Some(DropIntent::Split {
+                        group: 0,
+                        edge: Edge::Bottom,
+                        allowed: scenario == "drag-split",
+                    });
+                }
+                "split" => {
+                    project
+                        .layout
+                        .split(0, Axis::Vertical, true, Some(terminal));
+                }
+                _ => {}
+            }
         }
         project.loading = false;
         self.projects.insert(root.clone(), project);

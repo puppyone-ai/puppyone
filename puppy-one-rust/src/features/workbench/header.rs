@@ -1,6 +1,7 @@
 //! Port of `AuxiliaryWorkbenchHeader`, `AuxiliaryWorkbenchTab`,
 //! `AuxiliaryWorkbenchStatus` and `AuxiliaryWorkbenchOverflowMenu` with
 //! `auxiliary-workbench-header.css`. Geometry comes from `header_layout`.
+use super::drag::{self, DropIntent};
 use super::header_layout::{self as metrics, Mode};
 use super::*;
 use crate::{
@@ -12,6 +13,8 @@ use crate::{
 const RADIUS: f32 = theme::metric::TOOLBAR_ACTION_RADIUS;
 /// `.desktop-terminal-tab-close`: 22px menu icon button, 1px from the tab end.
 const CLOSE: f32 = 22.;
+/// Layout key of the insertion slot while a tab is dragged over the bar.
+const SLOT: Id = Id::MAX;
 
 impl Workbench {
     /// `AuxiliaryWorkbenchStatus`: the item's own icon in a 14px slot; a running
@@ -78,15 +81,37 @@ impl Workbench {
         let g = self.project().unwrap().layout.groups[&group].clone();
         let key = (root.clone(), group);
         let preferred = self.header_windows.get(&key).cloned().unwrap_or_default();
-        let layout = metrics::resolve(
-            &g.tabs,
-            g.active,
-            metrics::available_width(width),
-            &preferred,
-        );
-        if layout.visible != preferred {
-            self.header_windows.insert(key, layout.visible.clone());
-        }
+        let available = metrics::available_width(width);
+        // `projectWorkbenchTabInsertionPreview`: the dragged tab leaves its
+        // place and a slot (laid out as the active tab) opens at the target.
+        let source = self.dragging;
+        let insert = match self.drop_intent {
+            Some(DropIntent::Insert {
+                group: target,
+                index,
+                allowed,
+            }) if target == group => Some((index, allowed)),
+            _ => None,
+        };
+        let layout = match insert {
+            Some((index, _)) => {
+                let mut ids: Vec<Id> = g
+                    .tabs
+                    .iter()
+                    .copied()
+                    .filter(|t| Some(*t) != source)
+                    .collect();
+                ids.insert(index.min(ids.len()), SLOT);
+                metrics::resolve(&ids, Some(SLOT), available, &[])
+            }
+            None => {
+                let layout = metrics::resolve(&g.tabs, g.active, available, &preferred);
+                if layout.visible != preferred {
+                    self.header_windows.insert(key, layout.visible.clone());
+                }
+                layout
+            }
+        };
         if layout.hidden.is_empty() && self.overflow == Some(group) {
             self.overflow = None;
         }
@@ -94,6 +119,26 @@ impl Workbench {
         let mut rail = div().relative().w_full().h(px(metrics::COMPACT));
         for bounds in &layout.tabs {
             let tab = bounds.id;
+            if tab == SLOT {
+                // `.desktop-terminal-tab-drop-slot`.
+                let allowed = insert.is_some_and(|(_, allowed)| allowed);
+                let tone = if allowed { t.accent } else { t.danger };
+                rail = rail.child(
+                    div()
+                        .absolute()
+                        .top_0()
+                        .left(px(bounds.inline_start))
+                        .w(px(bounds.width))
+                        .h(px(metrics::COMPACT))
+                        .rounded(px(RADIUS))
+                        .border_1()
+                        .border_dashed()
+                        .border_color(theme::alpha(tone, 0.76))
+                        .bg(theme::alpha(tone, 0.09)),
+                );
+                continue;
+            }
+            let moving = source == Some(tab);
             let project = self.project().unwrap();
             let Some(content) = project.content.get(&tab) else {
                 continue;
@@ -168,20 +213,6 @@ impl Workbench {
                     cx.notify();
                 }))
                 .on_drag(drag, |drag, _, _, cx| cx.new(|_| drag.clone()))
-                .on_drop(cx.listener(move |s, drag: &DragTab, _, cx| {
-                    if s.root.as_ref() != Some(&drag.root) {
-                        return;
-                    }
-                    if let Some(p) = s.project_mut() {
-                        let index = p.layout.groups[&group]
-                            .tabs
-                            .iter()
-                            .position(|x| *x == tab)
-                            .unwrap_or(0);
-                        p.layout.move_tab(drag.tab, group, index);
-                    }
-                    cx.notify();
-                }))
                 .context_menu({
                     let host = cx.weak_entity();
                     let close = close_label.clone();
@@ -236,6 +267,8 @@ impl Workbench {
                     .top_0()
                     .w(px(bounds.width))
                     .h(px(metrics::COMPACT))
+                    // `[data-move-source="true"]`.
+                    .when(moving, |d| d.opacity(0.56))
                     .child(select)
                     .children(close),
             );
@@ -314,6 +347,73 @@ impl Workbench {
                 })),
             );
         }
+        // The bar is an insertion target (`resolveWorkbenchTabBarDropTarget`).
+        let base: Vec<(f32, f32)> = {
+            let ids: Vec<Id> = g
+                .tabs
+                .iter()
+                .copied()
+                .filter(|t| Some(*t) != source)
+                .collect();
+            let active = g
+                .active
+                .filter(|a| Some(*a) != source)
+                .or(ids.first().copied());
+            metrics::resolve(&ids, active, available, &[])
+                .tabs
+                .iter()
+                .map(|b| (b.inline_start, b.width))
+                .collect()
+        };
+        let original = g.tabs.clone();
+        rail = rail
+            .on_drag_move::<DragTab>(cx.listener(move |s, e: &DragMoveEvent<DragTab>, _, cx| {
+                let drag = e.drag(cx).clone();
+                if s.root.as_ref() != Some(&drag.root) {
+                    return;
+                }
+                let here = matches!(
+                    s.drop_intent,
+                    Some(DropIntent::Insert { group: target, .. }) if target == group
+                );
+                if !e.bounds.contains(&e.event.position) {
+                    if here {
+                        s.drop_intent = None;
+                        cx.notify();
+                    }
+                    return;
+                }
+                let x = f32::from(e.event.position.x - e.bounds.origin.x);
+                let index = drag::insertion_index(&base, x);
+                // `canInsertAuxiliaryWorkbenchItem`: a no-op move is refused.
+                let unchanged = original.iter().position(|t| *t == drag.tab) == Some(index);
+                let next = Some(DropIntent::Insert {
+                    group,
+                    index,
+                    allowed: !unchanged,
+                });
+                s.dragging = Some(drag.tab);
+                if s.drop_intent != next {
+                    s.drop_intent = next;
+                    cx.notify();
+                }
+            }))
+            .on_drop(cx.listener(move |s, drag: &DragTab, _, cx| {
+                if s.root.as_ref() == Some(&drag.root)
+                    && let Some(DropIntent::Insert {
+                        group: target,
+                        index,
+                        allowed: true,
+                    }) = s.drop_intent
+                    && target == group
+                    && let Some(p) = s.project_mut()
+                {
+                    p.layout.move_tab(drag.tab, group, index);
+                }
+                s.drop_intent = None;
+                s.dragging = None;
+                cx.notify();
+            }));
         self.overflow_anchor
             .insert(group, layout.tabs_width + metrics::GAP);
         self.overflow_hidden.insert(group, layout.hidden.clone());

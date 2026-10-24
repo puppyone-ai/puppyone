@@ -223,6 +223,66 @@ impl Layout {
         }
         group
     }
+    /// `workbenchSplitNodeMinimumSize`: a split adds its children along its
+    /// axis (plus the 1px divider) and takes the larger across it.
+    pub fn min_size(node: &Node, leaf: &impl Fn(Id) -> (f32, f32)) -> (f32, f32) {
+        match node {
+            Node::Group(id) => leaf(*id),
+            Node::Split {
+                axis,
+                first,
+                second,
+                ..
+            } => {
+                let (a, b) = (Self::min_size(first, leaf), Self::min_size(second, leaf));
+                match axis {
+                    Axis::Horizontal => (a.0 + DIVIDER + b.0, a.1.max(b.1)),
+                    Axis::Vertical => (a.0.max(b.0), a.1 + DIVIDER + b.1),
+                }
+            }
+        }
+    }
+    /// `splitRatioBounds`: the first child's share that keeps both sides at
+    /// their minimum, given the split's size along its axis.
+    pub fn ratio_bounds(
+        axis: Axis,
+        total: f32,
+        first: (f32, f32),
+        second: (f32, f32),
+    ) -> (f32, f32) {
+        let available = (total - DIVIDER).max(1.);
+        let (a, b) = match axis {
+            Axis::Horizontal => (first.0, second.0),
+            Axis::Vertical => (first.1, second.1),
+        };
+        let minimum = (a / available).clamp(0., 1.);
+        let maximum = (1. - b / available).clamp(0., 1.);
+        if minimum > maximum {
+            (0.5, 0.5)
+        } else {
+            (minimum, maximum)
+        }
+    }
+    pub fn find(&self, id: Id) -> Option<&Node> {
+        fn find(node: &Node, id: Id) -> Option<&Node> {
+            match node {
+                Node::Split {
+                    id: own,
+                    first,
+                    second,
+                    ..
+                } => {
+                    if *own == id {
+                        Some(node)
+                    } else {
+                        find(first, id).or_else(|| find(second, id))
+                    }
+                }
+                Node::Group(_) => None,
+            }
+        }
+        find(&self.tree, id)
+    }
     pub fn resize(&mut self, id: Id, value: f32) {
         fn resize(node: &mut Node, id: Id, value: f32) {
             if let Node::Split {
@@ -234,7 +294,7 @@ impl Layout {
             } = node
             {
                 if *own == id {
-                    *ratio = value.clamp(0.15, 0.85);
+                    *ratio = (value.clamp(0., 1.) * 1_000.).round() / 1_000.;
                 } else {
                     resize(first, id, value);
                     resize(second, id, value);
@@ -244,9 +304,23 @@ impl Layout {
         resize(&mut self.tree, id, value);
     }
 }
+/// `WORKBENCH_SPLIT_DIVIDER_SIZE`.
+pub const DIVIDER: f32 = 1.;
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn split_bounds_keep_both_sides_at_their_minimum() {
+        let mut l = Layout::default();
+        let a = l.add(0);
+        l.add(0);
+        let group = l.split(0, Axis::Horizontal, true, Some(a));
+        let leaf = |_: Id| (280., 260.);
+        assert_eq!(Layout::min_size(&l.tree, &leaf), (561., 260.));
+        let (min, max) = Layout::ratio_bounds(Axis::Horizontal, 701., (280., 260.), (280., 260.));
+        assert!((min - 0.4).abs() < 1e-6 && (max - 0.6).abs() < 1e-6);
+        assert!(l.groups.contains_key(&group));
+    }
     #[test]
     fn launchers_are_independent_and_last_close_is_empty() {
         let mut l = Layout::default();

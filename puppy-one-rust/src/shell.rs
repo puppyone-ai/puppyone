@@ -92,9 +92,10 @@ pub fn app_menus() -> Vec<Menu> {
         Menu {
             disabled: false,
             name: tr("native.menu.view").into(),
-            items: vec![
-                MenuItem::action(tr("native.menu.toggleSource"), HostAction::new("preview")),
-            ],
+            items: vec![MenuItem::action(
+                tr("native.menu.toggleSource"),
+                HostAction::new("preview"),
+            )],
         },
     ]
 }
@@ -879,6 +880,9 @@ impl Shell {
             .on_click(cx.listener(|s, _, w, cx| s.command("open-folder", w, cx))),
         )
     }
+    /// `.po-pane-edge-resize-handle` + `.po-pane-edge-chrome`: an 8px
+    /// transparent hit lane whose only paint is the 1px divider, plus the
+    /// adjacent hover / active stroke (and ring while dragging).
     fn sash(&self, left: bool, cx: &mut Context<Self>) -> Stateful<Div> {
         let t = Theme::new(self.dark);
         let x = if left {
@@ -886,15 +890,17 @@ impl Shell {
         } else {
             self.layout.auxiliary.x
         };
+        let resizing = self.drag == Some(left);
+        let group = SharedString::from(if left { "left-sash" } else { "right-sash" });
+        let hover = theme::mix(t.focus, t.divider, 0.55);
         at(Rect::new(
             x,
             self.layout.editor.y,
             theme::metric::PANE_SASH,
             self.layout.editor.h,
         ))
-        // The left sash overlays the editor pane; only its divider paints.
-        .when(!left, |d| d.bg(t.canvas))
-        .id(if left { "left-sash" } else { "right-sash" })
+        .id(group.clone())
+        .group(group.clone())
         .cursor(CursorStyle::ResizeLeftRight)
         .on_mouse_down(
             MouseButton::Left,
@@ -911,13 +917,32 @@ impl Shell {
                 cx.notify();
             }),
         )
-        // The divider paints its own canvas under the overlaid left sash.
         .child(
             div()
+                .absolute()
+                .top_0()
+                .bottom_0()
+                .left_0()
                 .w(px(1.))
-                .h_full()
-                .bg(t.canvas)
-                .child(div().size_full().bg(t.divider)),
+                .bg(t.sidebar_divider),
+        )
+        .child(
+            div()
+                .absolute()
+                .top_0()
+                .bottom_0()
+                .left(px(1.))
+                .w(px(1.))
+                .when(resizing, |d| {
+                    d.bg(t.focus).shadow(vec![BoxShadow {
+                        inset: false,
+                        color: theme::alpha(t.focus, 0.24).into(),
+                        offset: point(px(0.), px(0.)),
+                        blur_radius: px(0.),
+                        spread_radius: px(1.),
+                    }])
+                })
+                .when(!resizing, |d| d.group_hover(group, move |s| s.bg(hover))),
         )
         .into_element()
     }
