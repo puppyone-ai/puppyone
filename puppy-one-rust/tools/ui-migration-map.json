@@ -439,16 +439,16 @@
       ],
       "targets": [
         "src/shell/project_menu.rs",
-        "src/ui/menu.rs",
+        "src/ui/components/menu.rs",
         "src/shell.rs",
         "src/features/settings/preference_types.rs",
-        "src/geometry/menu_position.rs"
+        "src/ui/components/popover.rs"
       ],
       "evidence": [
         "test:project_popup_toggle_outside_and_escape_restore_focus",
         "test:choosing_local_closes_popup_and_restores_trigger",
         "test:project_history_is_most_recent_first_and_bounded",
-        "test:titlebar_menus_hang_below_their_trigger"
+        "test:project_menu_home_shows_the_homepage_and_hides_the_editor"
       ],
       "remaining": "Recent-project list, open folder, Home and remove-from-recents are native; the rail lists recent projects. Per-project row actions (rename/unlink, ProjectRowActions) and cloud locations are not ported."
     },
@@ -501,22 +501,22 @@
         "src/components/useDesktopSidebarMenuInteraction.ts"
       ],
       "targets": [
-        "src/shell/explorer.rs",
+        "src/shell/explorer/mod.rs",
         "src/model.rs",
         "src/workspace.rs",
         "src/file_kind.rs",
         "assets/file-icons.json",
         "tools/import-file-icons.mjs",
-        "src/geometry/menu_position.rs",
-        "src/ui/menu.rs"
+        "src/ui/components/menu.rs",
+        "src/ui/components/popover.rs"
       ],
       "evidence": [
         "test:visibility_display_names_and_selection_follow_the_product",
         "test:rename_move_copy_import_and_delete_stay_inside_the_grant",
         "test:large_tree_uses_gpui_virtual_rows",
         "test:classification_and_display_follow_the_product_registry",
-        "test:sidebar_action_menus_open_four_pixels_below_their_trigger",
-        "test:create_menus_follow_the_product_placements"
+        "test:explorer_row_menus_light_their_trigger_and_dismiss",
+        "test:explorer_keys_move_the_selection_and_fill_the_clipboard"
       ],
       "remaining": "File-type icons, hover actions, row/context/create menus anchored like the product (no Git letters on rows, matching the desktop Explorer), keyboard navigation, multi-select, drag-move and external drop import are native. Expand/collapse motion, reference drag into the Agent composer, drag export to other apps and multi-root workspaces are not ported."
     },
@@ -533,7 +533,7 @@
         "src/features/app-shell/desktop-help-launcher.css"
       ],
       "targets": [
-        "src/shell/explorer.rs",
+        "src/shell/explorer/footer.rs",
         "src/shell/tasks.rs"
       ],
       "remaining": "Settings and Help (product FeedbackHelpIcon) are native in the footer with the product geometry, utility colour, no divider and the tree edge fade; like the product, Git is not in the footer (Changes lives in the Header). Plugins, the rail/top navigation variants and the Project Rail utilities are not ported; the busy pulse grid is a native stand-in for FloatingNoticeStack."
@@ -670,7 +670,7 @@
       ],
       "targets": [
         "src/ui/primitives.rs",
-        "src/ui/menu.rs",
+        "src/ui/components/menu.rs",
         "src/shell/tasks.rs",
         "src/geometry.rs"
       ],

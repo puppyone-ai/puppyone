@@ -111,7 +111,7 @@
 - [x] P2-5 输入框：选择器单行不换行、附件菜单（文件 + 项目引用）、发送按钮忙碌态
 - [x] P2-6 Header 中项目按钮、右侧按钮几何与 Web 对齐
 - [x] P2-7 弹层与侧栏页面对齐（以完整 TS 应用实测为参照，目标约 95% 而非逐像素）：
-  - 菜单原语 `ui/menu.rs` 按 `DesktopMenuSurface` 变体（UI / left-sidebar 字体、popover / compact / 项目菜单阴影、3px 项目菜单内边距、侧栏 launcher 行几何且隐藏分隔线）；定位 `geometry/menu_position.rs` 移植 `resolveDesktopSidebarActionMenuPosition`、`getCreateEntryMenuPosition`、`resolveAnchoredOverlayPosition`。证据：`sidebar_action_menus_open_four_pixels_below_their_trigger`、`create_menus_follow_the_product_placements`、`titlebar_menus_hang_below_their_trigger`
+  - 菜单组件 `ui/components/menu.rs` 按 `DesktopMenuSurface` 变体（UI / left-sidebar 字体、popover / compact / 项目菜单阴影、3px 项目菜单内边距、侧栏 launcher 行几何且隐藏分隔线）；定位、视口夹取、外部点击与 Esc 关闭交给 GPUI Kit 的 `Popover` / `Positioner`（`ui/components/popover.rs`），不再手写坐标。证据：`explorer_row_menus_light_their_trigger_and_dismiss`、`project_popup_toggle_outside_and_escape_restore_focus`、`choosing_local_closes_popup_and_restores_trigger`
   - Explorer：行 ⋮ / + 以按钮矩形为锚（下 4px / 6px），右键以指针为锚，"New" 菜单与行同宽右对齐；菜单打开时行保持 open 态（底色、按钮高亮、操作可见）；条目顺序同 `DesktopNodeActionMenu`（含 Change file type，粘贴项禁用而非隐藏）；Custom files 为悬停子菜单；行几何改用桌面 token（content-left 6、gap 4、400 字重、19 行高、`TreeDisclosureMarker`、选中渐变）
   - Header：项目菜单挂在按钮下 2px、240 宽、`.desktop-project-menu` 外观；位置切换按钮只在 Cloud workspace 实验开启时出现；Changes 与 Agent 之间 1×18 分隔线
   - 布局：移植 `resolveDesktopPaneLayout`（Explorer 默认 320 / 220–520，右侧栏默认 560 / ≥320，主区 ≥320，主区先让、右侧栏次之）；右侧栏内容不再被 8px sash 内缩

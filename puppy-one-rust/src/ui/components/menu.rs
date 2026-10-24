@@ -218,6 +218,8 @@ impl MenuItem {
 
 enum MenuEntry {
     Item(Box<MenuItem>),
+    /// Rows `gap` apart (`.desktop-project-list`).
+    List(Vec<MenuItem>, f32),
     Separator,
     Label(SharedString),
     Element(AnyElement),
@@ -256,6 +258,12 @@ impl Menu {
                 .into_iter()
                 .map(|item| MenuEntry::Item(Box::new(item))),
         );
+        self
+    }
+    /// Rows spaced `gap` apart, as one group (`.desktop-project-list`).
+    pub fn list(mut self, gap: f32, items: impl IntoIterator<Item = MenuItem>) -> Self {
+        self.entries
+            .push(MenuEntry::List(items.into_iter().collect(), gap));
         self
     }
     pub fn separator(mut self) -> Self {
@@ -338,6 +346,22 @@ impl RenderOnce for Menu {
                         .child(text),
                 ),
                 MenuEntry::Element(element) => surface.child(element),
+                MenuEntry::List(items, gap) => surface.child(
+                    div()
+                        .flex()
+                        .flex_col()
+                        .flex_shrink_0()
+                        .gap(px(gap))
+                        .children(items.into_iter().enumerate().map(|(row_index, item)| {
+                            row(
+                                child_id(&id, format!("{index}-{row_index}")),
+                                item,
+                                s,
+                                t,
+                                dismiss.clone(),
+                            )
+                        })),
+                ),
                 MenuEntry::Item(item) => surface.child(row(
                     child_id(&id, index.to_string()),
                     *item,
@@ -405,8 +429,10 @@ fn row(
     let submenu = item.submenu.clone();
     let open_submenu = item.open_submenu;
     let action = item.on_click.clone();
+    let selector = item.label.clone();
     let row = h_row()
         .id(element_id.clone())
+        .debug_selector(move || format!("menu-item:{selector}"))
         .group(group.clone())
         .relative()
         .w_full()

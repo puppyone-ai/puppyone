@@ -286,13 +286,25 @@ fn rename_dialog_focuses_its_name_and_escape_cancels(cx: &mut TestAppContext) {
 #[gpui::test]
 fn choosing_local_closes_popup_and_restores_trigger(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
+    // The location switcher shows only with Cloud workspaces on.
+    view.update(cx, |s, cx| {
+        s.preferences
+            .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
+    });
+    draw(cx);
     command(&view, cx, Command::LocationMenu);
-    let r = view.update(cx, |s, cx| s.popover_bounds(cx).unwrap());
-    // Section label, then the selected "This Mac" row.
-    cx.simulate_click(
-        point(px(r.x + 60.), px(r.y + 5. + 23. + 16.)),
-        Modifiers::none(),
-    );
+    draw(cx);
+    draw(cx);
+    let device = crate::localization::t(if cfg!(target_os = "macos") {
+        "shell.workspaceSwitcher.location.thisMac"
+    } else {
+        "shell.workspaceSwitcher.location.thisComputer"
+    });
+    let selector: &'static str = Box::leak(format!("menu-item:{device}").into_boxed_str());
+    let row = cx
+        .debug_bounds(selector)
+        .expect("the location menu is open");
+    cx.simulate_click(row.center(), Modifiers::none());
     view.update_in(cx, |s, w, _| {
         assert!(s.popover.is_none());
         assert!(s.project_focus.is_focused(w));

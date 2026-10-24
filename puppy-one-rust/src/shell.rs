@@ -8,7 +8,7 @@ use crate::{
     wake::Wake,
 };
 use gpui::{prelude::*, *};
-use std::{cell::RefCell, path::PathBuf, rc::Rc};
+use std::path::PathBuf;
 #[cfg(feature = "dev-capture")]
 mod capture_scenario;
 mod command;
@@ -28,8 +28,6 @@ pub enum Popover {
     Project,
     Location,
 }
-/// Last painted bounds of popover triggers, keyed by trigger name.
-pub type Anchors = Rc<RefCell<std::collections::HashMap<&'static str, Bounds<Pixels>>>>;
 pub struct Shell {
     tree: Tree,
     project: String,
@@ -49,7 +47,6 @@ pub struct Shell {
     popover: Option<Popover>,
     /// Homepage requested from the project menu (`goToHomepage`).
     home: bool,
-    anchors: Anchors,
     recent_projects: Vec<crate::features::settings::preference_types::RecentProject>,
     weak: WeakEntity<Shell>,
     explorer: Explorer,
@@ -168,7 +165,6 @@ impl Shell {
             confirm_quit: false,
             popover: None,
             home: false,
-            anchors: Rc::new(RefCell::new(Default::default())),
             recent_projects: vec![],
             weak: cx.weak_entity(),
             explorer: Explorer::new(cx),
@@ -999,9 +995,6 @@ impl Render for Shell {
         }
         if self.right_open && !home {
             root = root.child(self.sash(false, cx));
-        }
-        if self.popover.is_some() {
-            root = root.child(self.project_popup(cx));
         }
         root = root.children(self.rename_dialog(cx));
         if self.create_entry.is_some() {

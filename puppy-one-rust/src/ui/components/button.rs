@@ -28,8 +28,12 @@ pub enum ButtonVariant {
     Filled,
     /// Filled with the accent (`.desktop-git-operation-button.is-primary`).
     FilledPrimary,
-    /// No chrome until hovered (Header and toolbar commands).
+    /// No chrome until hovered; hover raises the text colour
+    /// (`.desktop-titlebar-workspace-button`, toolbar commands).
     Ghost,
+    /// `.desktop-titlebar-action`: hover only adds the backplate; pressed or
+    /// expanded wears the active fill.
+    Titlebar,
     /// Dialog secondary action (`.desktop-dialog-button`).
     Secondary,
     /// Dialog primary action: the inverted text colour (`.desktop-dialog-button.primary`).
@@ -56,7 +60,7 @@ struct Paint {
     hover_bg: Rgba,
     hover_fg: Rgba,
 }
-fn paint(variant: ButtonVariant, selected: bool, disabled: bool, t: Theme) -> Paint {
+fn paint(variant: ButtonVariant, selected: bool, open: bool, disabled: bool, t: Theme) -> Paint {
     // The product's Git primary is the brand blue in light mode.
     let accent = if t.dark { t.accent } else { t.brand_blue };
     let clear = theme::alpha(t.text, 0.);
@@ -143,10 +147,30 @@ fn paint(variant: ButtonVariant, selected: bool, disabled: bool, t: Theme) -> Pa
         },
         ButtonVariant::Ghost => Paint {
             border: None,
-            bg: if selected { t.selected } else { clear },
-            fg: if selected { t.text } else { t.muted },
+            bg: if selected {
+                t.selected
+            } else if open {
+                t.hover
+            } else {
+                clear
+            },
+            fg: if selected || open { t.text } else { t.muted },
             hover_bg: if selected { t.selected } else { t.hover },
             hover_fg: t.text,
+        },
+        ButtonVariant::Titlebar if selected || open => Paint {
+            border: None,
+            bg: t.selected,
+            fg: t.text,
+            hover_bg: t.selected,
+            hover_fg: t.text,
+        },
+        ButtonVariant::Titlebar => Paint {
+            border: None,
+            bg: clear,
+            fg: t.muted,
+            hover_bg: t.hover,
+            hover_fg: t.muted,
         },
     }
 }
@@ -170,9 +194,12 @@ pub struct Button {
     variant: ButtonVariant,
     size: Size,
     label: Option<SharedString>,
+    accessible: Option<SharedString>,
     icon: Option<Icon>,
     trailing: Option<AnyElement>,
     selected: bool,
+    /// Its popover is open (`aria-expanded`).
+    open: bool,
     disabled: bool,
     tooltip: Option<SharedString>,
     on_click: Option<ClickHandler>,
@@ -187,9 +214,11 @@ impl Button {
             variant: ButtonVariant::default(),
             size: Size::Medium,
             label: None,
+            accessible: None,
             icon: None,
             trailing: None,
             selected: false,
+            open: false,
             disabled: false,
             tooltip: None,
             on_click: None,
@@ -225,6 +254,12 @@ impl Button {
         self.tooltip = Some(text.into());
         self
     }
+    /// The accessible name when it differs from the visible label (or there
+    /// is none).
+    pub fn accessibility_label(mut self, label: impl Into<SharedString>) -> Self {
+        self.accessible = Some(label.into());
+        self
+    }
     pub fn on_click(
         mut self,
         handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
@@ -251,6 +286,13 @@ impl Selectable for Button {
     fn is_selected(&self) -> bool {
         self.selected
     }
+    fn open(mut self, open: bool) -> Self {
+        self.open = open;
+        self
+    }
+    fn is_open(&self) -> bool {
+        self.open
+    }
 }
 impl Disableable for Button {
     fn disabled(mut self, disabled: bool) -> Self {
@@ -274,7 +316,7 @@ impl RenderOnce for Button {
         let t = cx.palette();
         let variant = self.variant;
         let disabled = self.disabled;
-        let p = paint(variant, self.selected, disabled, t);
+        let p = paint(variant, self.selected, self.open, disabled, t);
         let outlined = variant.outlined();
         let dialog = variant.dialog();
         let filled = matches!(
@@ -305,7 +347,9 @@ impl RenderOnce for Button {
             .group(group)
             .disabled(disabled)
             .selected(self.selected)
-            .when_some(label.clone(), |b, label| b.accessibility_label(label))
+            .when_some(self.accessible.or(label.clone()), |b, name| {
+                b.accessibility_label(name)
+            })
             .flex()
             .flex_shrink_0()
             .items_center()
@@ -369,6 +413,7 @@ pub struct IconButton {
     icon: Icon,
     size: Size,
     label: Option<SharedString>,
+    tooltip: Option<SharedString>,
     show_tooltip: bool,
     selected: bool,
     /// Its popover is open (`aria-expanded`): the control-hover backplate.
@@ -388,6 +433,7 @@ impl IconButton {
             icon: icon.into(),
             size: Size::Medium,
             label: None,
+            tooltip: None,
             show_tooltip: true,
             selected: false,
             open: false,
@@ -399,6 +445,11 @@ impl IconButton {
     }
     pub fn label(mut self, label: impl Into<SharedString>) -> Self {
         self.label = Some(label.into());
+        self
+    }
+    /// A tooltip other than the accessible name.
+    pub fn tooltip(mut self, text: impl Into<SharedString>) -> Self {
+        self.tooltip = Some(text.into());
         self
     }
     /// Keep the accessible name but show no tooltip.
@@ -509,9 +560,10 @@ impl RenderOnce for IconButton {
                 b.cursor(theme::clickable_cursor())
                     .hover(move |s| s.bg(hover_bg).text_color(hover_fg))
             })
-            .when_some(label.filter(|_| self.show_tooltip), |b, text| {
-                b.tooltip(tooltip(text))
-            })
+            .when_some(
+                self.tooltip.or(label).filter(|_| self.show_tooltip),
+                |b, text| b.tooltip(tooltip(text)),
+            )
             .when_some(self.on_click.filter(|_| !disabled), |b, handler| {
                 b.on_click(move |event, window, cx| handler(event, window, cx))
             })

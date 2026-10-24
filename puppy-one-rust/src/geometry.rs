@@ -1,5 +1,4 @@
 //! Shell geometry in logical pixels.
-pub mod menu_position;
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Rect {
     pub x: f32,
