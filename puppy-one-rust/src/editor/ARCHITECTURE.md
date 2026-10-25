@@ -75,9 +75,8 @@ product's rules:
 
 The pack runtime (the isolated surface that runs pack code, the range-read
 resource broker, the signed package store) is not native yet; like the
-product's default package (`externalViewerPacks: false`), packs are off
-(`packs::enabled`, development builds with
-`PUPPYONE_ENABLE_EXTERNAL_VIEWER_PACKS=1` only) and no host is installed.
+product's default package (`externalViewerPacks: false`), packs are off:
+no host is installed, and the layer is exercised by its tests only.
 
 ### Adding a viewer
 
