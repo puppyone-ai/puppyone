@@ -68,7 +68,7 @@ impl Shell {
     /// Commits the visible rows to the disclosure motion and keeps frames
     /// coming while it runs. Called once per frame before the tree paints.
     pub(super) fn advance_tree_motion(&mut self, window: &mut Window, cx: &App) {
-        let animate = self.left_open && !cx.reduce_motion();
+        let animate = self.panes.explorer().open && !cx.reduce_motion();
         if self.explorer.motion.sync(
             self.tree.id,
             self.tree.revision,

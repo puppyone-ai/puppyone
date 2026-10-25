@@ -10,12 +10,13 @@
 //! Window resizes and sash drags are direct manipulation and do not animate,
 //! nor does anything when the system asks for reduced motion. A toggle
 //! during the motion starts from what is on screen, so it reverses smoothly.
-use crate::{geometry::Rect, theme::Layout, ui::motion::Timeline};
+use super::layout::Layout;
+use crate::{geometry::Rect, ui::motion::Timeline};
 use gpui_kit::base::motion::Easing;
 use std::time::Duration;
 
 /// `--po-pane-motion-duration`.
-pub(super) const DURATION: Duration = Duration::from_millis(360);
+const DURATION: Duration = Duration::from_millis(360);
 
 fn lerp(a: f32, b: f32, t: f32) -> f32 {
     a + (b - a) * t
@@ -31,7 +32,7 @@ fn lerp_rect(a: Rect, b: Rect, t: f32) -> Rect {
 
 /// What the shell paints this frame.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct PaneFrame {
+pub(in crate::shell) struct PaneFrame {
     /// Pane content at its open width and edge; the editor where it is now.
     pub layout: Layout,
     /// While a pane moves: the window area its frame shows (clip to it).

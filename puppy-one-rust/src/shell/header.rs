@@ -118,13 +118,13 @@ impl Shell {
             .variant(ButtonVariant::Titlebar)
             .accessibility_label(label.clone())
             .tooltip(label)
-            .selected(self.changes && self.right_open)
+            .selected(self.panes.shows(RightContent::Changes))
             .min_w(px(theme::control()))
             .trailing(indicators)
             .on_click(cx.listener(|s, _, w, cx| s.command(Command::Changes, w, cx)))
     }
     fn agent_action(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let open = self.right_open && !self.changes;
+        let open = self.panes.shows(RightContent::Workbench);
         let label = tr(if open {
             "shell.titlebar.hideAgent"
         } else {
@@ -229,7 +229,7 @@ impl Shell {
                 })
         };
         let mut left = h_flex().h_full().min_w_0().pl(px(80. + 6.)).gap(px(2.));
-        if !home && !self.left_open {
+        if !home && !self.panes.explorer().open {
             left = left.child(
                 IconButton::new("expand-explorer", "panel-left")
                     .label(tr("shared-ui.explorer.expandSidebar"))

@@ -95,11 +95,11 @@ fn native_buttons_toggle_slots_and_open_settings(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     // ⌘B collapses the Explorer; the Header then offers the expand button.
     command(&view, cx, Command::ToggleExplorer);
-    view.update(cx, |s, _| assert!(!s.left_open));
+    view.update(cx, |s, _| assert!(!s.panes.explorer().open));
     cx.simulate_click(point(px(100.), px(20.)), Modifiers::none());
-    view.update(cx, |s, _| assert!(s.left_open));
+    view.update(cx, |s, _| assert!(s.panes.explorer().open));
     command(&view, cx, Command::ToggleRightSidebar);
-    view.update(cx, |s, _| assert!(s.right_open));
+    view.update(cx, |s, _| assert!(s.panes.right().open));
     command(&view, cx, Command::Settings);
     view.update(cx, |s, _| assert!(s.settings));
     let retained = view.update(cx, |s, cx| {
@@ -133,21 +133,23 @@ fn git_header_uses_changes_outlet_and_terminal_returns_to_retained_workbench(
 ) {
     let (view, cx) = setup(cx);
     command(&view, cx, Command::Changes);
-    view.update(cx, |s, _| assert!(!s.right_open));
+    view.update(cx, |s, _| assert!(!s.panes.right().open));
     let dir = tempfile::tempdir().unwrap();
     view.update(cx, |s, _| {
         s.files.workspace = Some(crate::workspace::Workspace::open(dir.path()).unwrap())
     });
     command(&view, cx, Command::Changes);
     view.update(cx, |s, _| {
-        assert!(s.changes && s.right_open);
+        assert!(s.panes.shows(RightContent::Changes));
         assert!(!s.modal());
     });
     command(&view, cx, Command::ToggleRightSidebar);
-    view.update(cx, |s, _| assert!(s.right_open && !s.changes));
+    view.update(cx, |s, _| assert!(s.panes.shows(RightContent::Workbench)));
     command(&view, cx, Command::Changes);
     command(&view, cx, Command::Changes);
-    view.update(cx, |s, _| assert!(!s.right_open && !s.changes));
+    view.update(cx, |s, _| {
+        assert!(!s.panes.right().open && s.panes.content() == RightContent::Workbench)
+    });
 }
 #[gpui::test]
 fn task_shortcuts_do_not_save_or_close_the_retained_document(cx: &mut TestAppContext) {
@@ -523,7 +525,7 @@ fn opening_a_pane_in_a_narrow_window_widens_it_to_the_pane_minima(cx: &mut TestA
     // Explorer + right sidebar need 320 + 8 + 220 + 320.
     command(&view, cx, Command::ToggleRightSidebar);
     assert_eq!(cx.update(|w, _| f32::from(w.bounds().size.width)), 868.);
-    view.update(cx, |s, _| assert_eq!(s.window_minimum, 868.));
+    view.update(cx, |s, _| assert_eq!(s.panes.window_minimum(), 868.));
 }
 
 #[gpui::test]
@@ -602,7 +604,10 @@ fn dragging_the_explorer_edge_past_half_its_minimum_collapses_it(cx: &mut TestAp
     // Narrowing within range follows the pointer.
     drag(&view, cx, (322., 400.), &[(280., 400.)], true);
     view.read_with(cx, |s, _| {
-        assert_eq!((s.left_open, s.left_width), (true, 278.))
+        assert_eq!(
+            (s.panes.explorer().open, s.panes.explorer().width),
+            (true, 278.)
+        )
     });
     // Past the 110px boundary the pane previews closed before release…
     drag(
@@ -613,7 +618,7 @@ fn dragging_the_explorer_edge_past_half_its_minimum_collapses_it(cx: &mut TestAp
         false,
     );
     view.read_with(cx, |s, _| {
-        assert!(s.left_open, "nothing is committed mid-drag");
+        assert!(s.panes.explorer().open, "nothing is committed mid-drag");
         assert_eq!(s.layout.editor.x, 0., "the preview is closed");
     });
     // …and releasing commits it, reopening later at the minimum.
@@ -623,7 +628,10 @@ fn dragging_the_explorer_edge_past_half_its_minimum_collapses_it(cx: &mut TestAp
         Modifiers::default(),
     );
     view.read_with(cx, |s, _| {
-        assert_eq!((s.left_open, s.left_width), (false, 220.))
+        assert_eq!(
+            (s.panes.explorer().open, s.panes.explorer().width),
+            (false, 220.)
+        )
     });
     // Both commits are the stored layout.
     view.read_with(cx, |s, cx| {
@@ -656,7 +664,11 @@ fn the_stored_pane_layout_is_the_starting_layout(cx: &mut TestAppContext) {
     });
     view.read_with(cx, |s, _| {
         assert_eq!(
-            (s.left_open, s.left_width, s.right_width),
+            (
+                s.panes.explorer().open,
+                s.panes.explorer().width,
+                s.panes.right().width
+            ),
             (false, 260., 400.)
         );
         assert_eq!(s.layout.editor.x, 0.);
@@ -665,7 +677,10 @@ fn the_stored_pane_layout_is_the_starting_layout(cx: &mut TestAppContext) {
     // Reopening comes back at the stored width, and is stored.
     command(&view, cx, Command::ToggleExplorer);
     view.read_with(cx, |s, cx| {
-        assert_eq!((s.left_open, s.left_width), (true, 260.));
+        assert_eq!(
+            (s.panes.explorer().open, s.panes.explorer().width),
+            (true, 260.)
+        );
         assert!(!s.preferences.read(cx).state.sidebar_collapsed);
     });
 }
@@ -698,7 +713,10 @@ fn a_collapse_preview_retreats_and_escape_rolls_back(cx: &mut TestAppContext) {
         Modifiers::default(),
     );
     view.read_with(cx, |s, _| {
-        assert_eq!((s.left_open, s.left_width), (true, 220.))
+        assert_eq!(
+            (s.panes.explorer().open, s.panes.explorer().width),
+            (true, 220.)
+        )
     });
     // Escape mid-drag (focus anywhere, before any binding) restores what was
     // committed; the release that follows changes nothing.
@@ -709,7 +727,7 @@ fn a_collapse_preview_retreats_and_escape_rolls_back(cx: &mut TestAppContext) {
         let _ = w.draw(cx);
     });
     view.read_with(cx, |s, _| {
-        assert!(s.drag.is_none());
+        assert!(s.panes.dragging().is_none());
         assert_eq!(s.layout.editor.x, 220.);
     });
     cx.simulate_mouse_up(
@@ -718,7 +736,10 @@ fn a_collapse_preview_retreats_and_escape_rolls_back(cx: &mut TestAppContext) {
         Modifiers::default(),
     );
     view.read_with(cx, |s, _| {
-        assert_eq!((s.left_open, s.left_width), (true, 220.))
+        assert_eq!(
+            (s.panes.explorer().open, s.panes.explorer().width),
+            (true, 220.)
+        )
     });
 }
 
@@ -730,10 +751,10 @@ fn a_closed_right_sidebar_is_pulled_out_from_the_window_edge(cx: &mut TestAppCon
     cx.update(|w, cx| {
         let _ = w.draw(cx);
     });
-    view.read_with(cx, |s, _| assert!(!s.right_open));
+    view.read_with(cx, |s, _| assert!(!s.panes.right().open));
     // A short pull snaps back closed…
     drag(&view, cx, (1275., 400.), &[(1200., 400.)], true);
-    view.read_with(cx, |s, _| assert!(!s.right_open));
+    view.read_with(cx, |s, _| assert!(!s.panes.right().open));
     // …one past the 160px threshold opens it.
     drag(
         &view,
@@ -743,6 +764,6 @@ fn a_closed_right_sidebar_is_pulled_out_from_the_window_edge(cx: &mut TestAppCon
         true,
     );
     view.read_with(cx, |s, _| {
-        assert_eq!((s.right_open, s.right_width), (true, 375.))
+        assert_eq!((s.panes.right().open, s.panes.right().width), (true, 375.))
     });
 }

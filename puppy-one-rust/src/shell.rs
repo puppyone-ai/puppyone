@@ -3,7 +3,7 @@ use crate::{
     geometry::Rect,
     localization::Locale,
     model::Tree,
-    theme::{self, Layout, Theme},
+    theme::{self, Theme},
     ui::{
         self,
         appearance::ActiveAppearance,
@@ -20,14 +20,13 @@ mod create_new;
 mod explorer;
 mod header;
 mod home;
-mod pane_gesture;
-mod pane_motion;
+mod panes;
 mod project_menu;
 pub(crate) mod tasks;
 use command::on_shell_actions;
 pub use command::{Command, app_menus, bind_keys, on_global_shell_actions};
 use explorer::Explorer;
-use pane_gesture::Side;
+use panes::{Layout, Panes, RightContent, Side, StoredPanes};
 use tasks::TaskUi;
 /// Header popovers owned by the shell.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -40,14 +39,13 @@ pub struct Shell {
     project: String,
     dark: bool,
     locale: Locale,
-    left_open: bool,
-    right_open: bool,
-    left_width: f32,
-    right_width: f32,
+    /// The Explorer and the right sidebar.
+    panes: Panes,
+    /// The project rail (`ProjectSwitcherRail`) replaces the Header's project
+    /// button.
     rail: bool,
     settings: bool,
     help: bool,
-    changes: bool,
     workbench: Entity<crate::features::workbench::Workbench>,
     source_control: Entity<crate::features::source_control::SourceControl>,
     confirm_quit: bool,
@@ -73,13 +71,8 @@ pub struct Shell {
     project_focus: FocusHandle,
     modal_focus: FocusHandle,
     captured: bool,
-    /// A pane edge drag in progress.
-    drag: Option<pane_gesture::PaneDrag>,
+    /// Where everything sits this frame (pane motion included).
     layout: Layout,
-    /// Opening and closing the side panes.
-    pane_motion: pane_motion::PaneMotion,
-    /// The native window minimum last applied (`window_minimum_width`).
-    window_minimum: f32,
     #[cfg(feature = "dev-capture")]
     capture_scenario: Option<capture_scenario::CaptureScenario>,
     #[cfg(test)]
@@ -180,14 +173,17 @@ impl Shell {
             },
             dark: std::env::var("PUPPYONE_THEME").as_deref() != Ok("light"),
             locale: Locale::default(),
-            left_open: true,
-            right_open: std::env::var("PUPPYONE_RIGHT").as_deref() == Ok("1"),
-            left_width: theme::pane::DEFAULT_EXPLORER_WIDTH,
-            right_width: theme::pane::DEFAULT_RIGHT_SIDEBAR_WIDTH,
+            panes: Panes::new(
+                std::env::var("PUPPYONE_RIGHT").as_deref() == Ok("1"),
+                if std::env::var("PUPPYONE_CAPTURE_SURFACE").as_deref() == Ok("changes") {
+                    RightContent::Changes
+                } else {
+                    RightContent::Workbench
+                },
+            ),
             rail: false,
             settings: std::env::var("PUPPYONE_CAPTURE_SURFACE").as_deref() == Ok("settings"),
             help: std::env::var("PUPPYONE_CAPTURE_SURFACE").as_deref() == Ok("feedback"),
-            changes: std::env::var("PUPPYONE_CAPTURE_SURFACE").as_deref() == Ok("changes"),
             workbench: cx.new(|cx| crate::features::workbench::Workbench::new(window, cx)),
             source_control: cx
                 .new(|cx| crate::features::source_control::SourceControl::new(window, cx)),
@@ -216,10 +212,7 @@ impl Shell {
             project_focus: cx.focus_handle(),
             modal_focus: cx.focus_handle(),
             captured: false,
-            drag: None,
             layout: Layout::new(1280., 800., theme::pane::DEFAULT_EXPLORER_WIDTH, 0., 0.),
-            pane_motion: Default::default(),
-            window_minimum: 0.,
             #[cfg(feature = "dev-capture")]
             capture_scenario: if cfg!(test) {
                 None
@@ -299,7 +292,7 @@ impl Shell {
                 return;
             }
             let _ = shell.update(cx, |s, cx| {
-                if s.drag.is_some() {
+                if s.panes.dragging().is_some() {
                     s.end_pane_drag(false, cx);
                     cx.stop_propagation();
                 }
@@ -362,13 +355,13 @@ impl Shell {
         if std::env::var_os("PUPPYONE_SCREENSHOT").is_some() {
             let surface = std::env::var("PUPPYONE_CAPTURE_SURFACE").unwrap_or_default();
             if surface == "changes" {
-                s.right_open = true;
+                s.panes.open_right();
             }
             if surface == "agent-empty"
                 || surface == "agent-transcript"
                 || surface == "agent-failed"
             {
-                s.right_open = true;
+                s.panes.open_right();
                 s.workbench.update(cx, |workbench, cx| {
                     workbench.visual_fixture(surface == "agent-transcript", window, cx)
                 });
@@ -431,18 +424,12 @@ impl Shell {
         self.source_control
             .update(cx, |s, cx| s.set_presentation(layout, icons, cx));
         self.rail = p.project_switcher_rail;
-        // The pane layout (`useDesktopExplorerFrame`). The Shell writes its
-        // own changes first, so a difference here is the stored layout
-        // arriving: it is the starting state, shown without motion.
-        let panes = (
-            !p.sidebar_collapsed,
-            p.explorer_width,
-            p.right_sidebar_width,
-        );
-        if panes != (self.left_open, self.left_width, self.right_width) {
-            (self.left_open, self.left_width, self.right_width) = panes;
-            self.pane_motion = Default::default();
-        }
+        // The pane layout (`useDesktopExplorerFrame`).
+        self.panes.restore(StoredPanes {
+            explorer_collapsed: p.sidebar_collapsed,
+            explorer_width: p.explorer_width,
+            right_width: p.right_sidebar_width,
+        });
         let code = crate::localization::resolve_preference(
             &p.locale,
             crate::platform::environment::system_languages(),
@@ -581,13 +568,10 @@ impl Shell {
             Command::Quit => self.files.begin(Intent::Quit, &self.wake),
             Command::OpenFolder => self.pick_workspace(window, cx),
             Command::ToggleExplorer => {
-                self.left_open = !self.left_open;
+                self.panes.toggle_explorer();
                 self.persist_panes(cx);
             }
-            Command::ToggleRightSidebar => {
-                self.right_open = self.changes || !self.right_open;
-                self.changes = false;
-            }
+            Command::ToggleRightSidebar => self.panes.toggle_workbench(),
             Command::Settings => {
                 self.popover = None;
                 self.explorer.menu = None;
@@ -652,9 +636,7 @@ impl Shell {
                 if self.files.workspace.is_none() {
                     return;
                 }
-                self.right_open = !self.right_open || !self.changes;
-                self.changes = self.right_open;
-                if self.changes {
+                if self.panes.toggle_changes() {
                     self.source_control.update(cx, |s, cx| s.refresh(cx));
                 }
                 self.focus.focus(window, cx);
@@ -821,34 +803,32 @@ impl Shell {
         cx.notify();
     }
     fn editor(&self, cx: &mut Context<Self>) -> Div {
-        let t = cx.palette();
+        // A project with no open document shows the quiet editor canvas.
         let r = self.layout.editor;
-        let mut content = at(r);
-        if self.files.opened().is_some() {
-            let body = self.layout.content();
-            content = content.bg(t.canvas).child(
-                at(Rect::new(body.x - r.x, body.y - r.y, body.w, body.h))
-                    .child(self.native.clone()),
-            );
-        } else {
-            // A project with no open document shows the quiet editor canvas.
-            content = content.bg(t.canvas);
-        }
-        content
+        at(r)
+            .bg(cx.palette().canvas)
+            .when(self.files.opened().is_some(), |d| {
+                d.child(at(Rect::new(0., 0., r.w, r.h)).child(self.native.clone()))
+            })
     }
     /// Compact `ProjectSwitcherRail`: one mark per remembered project.
     fn project_rail(&self, h: f32, cx: &mut Context<Self>) -> Div {
         let t = cx.palette();
         let current = self.files.workspace.as_ref().map(|ws| ws.path.clone());
-        let mut rail = at(Rect::new(0., theme::HEADER, 56., h - theme::HEADER))
-            .bg(t.sidebar)
-            .border_r_1()
-            .border_color(t.sidebar_divider)
-            .flex()
-            .flex_col()
-            .items_center()
-            .pt(px(12.))
-            .gap(px(6.));
+        let mut rail = at(Rect::new(
+            0.,
+            theme::HEADER,
+            self.rail_width(),
+            h - theme::HEADER,
+        ))
+        .bg(t.sidebar)
+        .border_r_1()
+        .border_color(t.sidebar_divider)
+        .flex()
+        .flex_col()
+        .items_center()
+        .pt(px(12.))
+        .gap(px(6.));
         for (index, project) in self.recent_projects.iter().take(12).enumerate() {
             let active = current.as_ref() == Some(&project.path);
             let initial = project
@@ -910,18 +890,14 @@ impl Shell {
         let side = if left { Side::Start } else { Side::End };
         // A pane that is closing (or previewing closed) keeps its edge
         // painted but cannot be grabbed (`onPointerDown` while collapsed).
-        let grabbable = if left {
-            self.left_open
-        } else {
-            self.right_open
-        };
+        let grabbable = self.panes.pane(side).open;
         ResizeHandle::new(
             if left { "left-sash" } else { "right-sash" },
             Axis::Horizontal,
         )
         .divider(t.sidebar_divider)
         .stroke_at(1.)
-        .resizing(self.drag.is_some_and(|d| d.config.side == side))
+        .resizing(self.panes.dragging() == Some(side))
         .disabled(!grabbable)
         .on_drag_start(
             cx.listener(move |s, e: &MouseDownEvent, _, cx| {
@@ -954,79 +930,34 @@ impl Shell {
             .w(px(lane))
             .h(px(self.layout.editor.h))
     }
+    /// The width the panes share: the window, less the project rail.
+    fn rail_width(&self) -> f32 {
+        if self.rail {
+            theme::metric::PROJECT_RAIL_WIDTH
+        } else {
+            0.
+        }
+    }
     /// Start dragging a pane edge (`useCollapsiblePaneResize`).
     fn begin_pane_drag(&mut self, side: Side, position: Point<Pixels>, cx: &mut Context<Self>) {
-        let rail = if self.rail { 56. } else { 0. };
-        let available = self.layout.header.w - rail;
-        let config = match side {
-            Side::Start => pane_gesture::Config::new(
-                theme::pane::MIN_EXPLORER_WIDTH,
-                theme::explorer_max_width(available, self.right_open),
-                0.,
-                theme::pane::EXPLORER_COLLAPSE_THRESHOLD,
-                true,
-                Side::Start,
-            ),
-            Side::End => pane_gesture::Config::new(
-                theme::pane::MIN_RIGHT_SIDEBAR_WIDTH,
-                theme::right_sidebar_max_width(
-                    available,
-                    if self.left_open { self.left_width } else { 0. },
-                ),
-                0.,
-                theme::pane::RIGHT_SIDEBAR_COLLAPSE_THRESHOLD,
-                true,
-                Side::End,
-            ),
-        };
-        let (open, width) = match side {
-            Side::Start => (self.left_open, self.left_width),
-            Side::End => (self.right_open, self.right_width),
-        };
-        let point = (f32::from(position.x), f32::from(position.y));
-        self.drag = Some(pane_gesture::PaneDrag {
-            config,
-            gesture: pane_gesture::Gesture::begin(&config, point, !open, width),
-        });
+        let available = self.layout.header.w - self.rail_width();
+        self.panes.begin_drag(side, position, available);
         cx.stop_propagation();
         cx.notify();
     }
     /// The pointer moved during a pane drag: only the preview changes.
     fn move_pane_drag(&mut self, position: Point<Pixels>, cx: &mut Context<Self>) {
-        if let Some(drag) = &mut self.drag {
-            let point = (f32::from(position.x), f32::from(position.y));
-            drag.gesture = drag.gesture.moved_to(&drag.config, point);
+        if self.panes.move_drag(position) {
             cx.notify();
         }
     }
     /// Release commits the gesture once; Escape (or losing the window)
     /// rolls the preview back.
     fn end_pane_drag(&mut self, commit: bool, cx: &mut Context<Self>) {
-        let Some(drag) = self.drag.take() else {
+        let Some(changed) = self.panes.end_drag(commit) else {
             return;
         };
-        let result = if commit {
-            drag.gesture.finish(&drag.config)
-        } else {
-            None
-        };
-        let (open, width) = match drag.config.side {
-            Side::Start => (&mut self.left_open, &mut self.left_width),
-            Side::End => (&mut self.right_open, &mut self.right_width),
-        };
-        match result {
-            Some(pane_gesture::Commit::Collapse { restore_width }) => {
-                *width = restore_width;
-                *open = false;
-            }
-            Some(pane_gesture::Commit::Expand { width: expanded }) => {
-                *width = expanded;
-                *open = true;
-            }
-            Some(pane_gesture::Commit::Resize { width: resized }) => *width = resized,
-            None => {}
-        }
-        if result.is_some() {
+        if changed {
             self.persist_panes(cx);
         }
         cx.notify();
@@ -1034,46 +965,17 @@ impl Shell {
     /// Store the committed pane layout (`setExplorerWidth`,
     /// `setSidebarCollapsed`, `setRightSidebarWidth`).
     fn persist_panes(&mut self, cx: &mut Context<Self>) {
-        let (open, width, right) = (self.left_open, self.left_width, self.right_width);
+        let stored = self.panes.stored();
         self.preferences.update(cx, |store, cx| {
             store.change(
                 |p| {
-                    p.sidebar_collapsed = !open;
-                    p.explorer_width = width;
-                    p.right_sidebar_width = right;
+                    p.sidebar_collapsed = stored.explorer_collapsed;
+                    p.explorer_width = stored.explorer_width;
+                    p.right_sidebar_width = stored.right_width;
                 },
                 cx,
             )
         });
-    }
-    /// The panes as the window shows them now: committed, or previewed by a
-    /// drag. `(explorer open, explorer width, right open, right width)`.
-    fn pane_preview(&self) -> (bool, f32, bool, f32) {
-        let mut panes = (
-            self.left_open,
-            self.left_width,
-            self.right_open,
-            self.right_width,
-        );
-        if let Some(drag) = &self.drag {
-            let open = !drag.gesture.preview_collapsed;
-            let width = drag.gesture.preview_width;
-            match drag.config.side {
-                Side::Start => {
-                    panes.0 = open;
-                    if open {
-                        panes.1 = width;
-                    }
-                }
-                Side::End => {
-                    panes.2 = open;
-                    if open {
-                        panes.3 = width;
-                    }
-                }
-            }
-        }
-        panes
     }
 }
 impl Shell {
@@ -1081,12 +983,10 @@ impl Shell {
     /// window already narrower (a pane opened in a small window) widens to
     /// fit, like the product's `setMinimumSize` + `setSize`. Full screen
     /// cannot grow, so the layout keeps its minimum width there.
-    fn constrain_window(&mut self, rail: f32, window: &mut Window) {
-        let minimum = theme::window_minimum_width(self.left_open, self.right_open, rail);
-        if minimum == self.window_minimum {
+    fn constrain_window(&mut self, window: &mut Window) {
+        let Some(minimum) = self.panes.take_window_minimum(self.rail_width()) else {
             return;
-        }
-        self.window_minimum = minimum;
+        };
         let floor = size(px(minimum), px(theme::pane::WINDOW_MIN_HEIGHT));
         crate::native_window::set_content_min_size(window, floor);
         let viewport = window.viewport_size();
@@ -1105,44 +1005,9 @@ impl Render for Shell {
         let size = window.viewport_size();
         let w = f32::from(size.width);
         let h = f32::from(size.height);
-        let rail = if self.rail { 56. } else { 0. };
-        let (left_open, left_width, right_open, right_width) = self.pane_preview();
-        let target = Layout::new(
-            w,
-            h,
-            if left_open { left_width } else { 0. },
-            if right_open { right_width } else { 0. },
-            rail,
-        );
-        self.constrain_window(rail, window);
-        // An edge drag follows the pointer; opening and closing a pane —
-        // a toggle, or a drag crossing its collapse threshold — moves it.
-        let animate = !cx.reduce_motion()
-            && self
-                .drag
-                .is_none_or(|d| d.gesture.phase != pane_gesture::Phase::Resizing);
-        let mut panes = self
-            .pane_motion
-            .frame((left_open, right_open), target, animate);
-        // Shrinking the Explorer clips its content at the committed width
-        // instead of reflowing it at every pointer sample.
-        if let Some(drag) = self.drag
-            && drag.config.side == Side::Start
-            && panes.left_clip.is_none()
-            && left_open
-            && left_width < self.left_width
-            && self.left_open
-        {
-            let frame = panes.layout.explorer;
-            panes.left_clip = Some(Rect::new(
-                frame.x,
-                frame.y,
-                frame.w,
-                panes.layout.footer.bottom() - frame.y,
-            ));
-            panes.layout.explorer.w = self.left_width;
-            panes.layout.footer.w = self.left_width;
-        }
+        let rail = self.rail_width();
+        self.constrain_window(window);
+        let panes = self.panes.frame(w, h, rail, cx.reduce_motion());
         self.layout = panes.layout;
         if panes.running {
             window.request_animation_frame();
@@ -1177,14 +1042,12 @@ impl Render for Shell {
             .text_color(t.text)
             .track_focus(&self.focus)
             .on_mouse_move(cx.listener(|s, e: &MouseMoveEvent, _, cx| {
-                if s.drag.is_some() {
-                    s.move_pane_drag(e.position, cx);
-                }
+                s.move_pane_drag(e.position, cx);
             }))
             .on_mouse_up(
                 MouseButton::Left,
                 cx.listener(|s, e: &MouseUpEvent, _, cx| {
-                    if s.drag.is_some() {
+                    if s.panes.dragging().is_some() {
                         s.move_pane_drag(e.position, cx);
                         s.end_pane_drag(true, cx);
                     }
@@ -1200,7 +1063,7 @@ impl Render for Shell {
             root = root.child(self.home_view(cx));
         }
         // A closing pane stays painted, clipped to its frame, until it has closed.
-        if (self.left_open || panes.left_clip.is_some()) && !home {
+        if (self.panes.explorer().open || panes.left_clip.is_some()) && !home {
             let explorer = div()
                 .absolute()
                 .top_0()
@@ -1210,16 +1073,16 @@ impl Render for Shell {
                 .child(self.footer(cx));
             root = root.child(clipped(panes.left_clip, w, h, explorer));
         }
-        if (self.right_open || panes.right_clip.is_some()) && !home {
+        if (self.panes.right().open || panes.right_clip.is_some()) && !home {
             // The 8px sash overlays the pane edge (`.po-pane-edge-resize-handle`);
             // content starts at the divider like the product's.
-            let auxiliary = at(self.layout.auxiliary)
-                .bg(t.auxiliary())
-                .child(if self.changes {
+            let auxiliary = at(self.layout.auxiliary).bg(t.auxiliary()).child(
+                if self.panes.content() == RightContent::Changes {
                     self.source_control.clone().into_any_element()
                 } else {
                     self.workbench.clone().into_any_element()
-                });
+                },
+            );
             root = root.child(clipped(panes.right_clip, w, h, auxiliary));
         }
         if self.rail && !home {
@@ -1234,7 +1097,7 @@ impl Render for Shell {
         if !home {
             if self.layout.editor.right() < w - 0.5 {
                 root = root.child(self.sash(false, cx));
-            } else if !self.right_open {
+            } else if !self.panes.right().open {
                 root = root.child(self.collapsed_right_edge(w, cx));
             }
         }
