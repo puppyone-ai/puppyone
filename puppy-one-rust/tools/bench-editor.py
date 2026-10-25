@@ -67,6 +67,18 @@ if args.check:
                 for metric, limit in b['maxMs'].items():
                     if r[metric] > limit:
                         failures.append(f"{b['surface']} {r['lines']} lines {metric}: {r[metric]:.2f}ms > {limit}ms")
+    def measured(surface, sections):
+        return next((r for r in results if r['surface'] == surface and r['sections'] == sections), None)
+    for c in budgets.get('scaling', []):
+        small, large = measured(c['surface'], c['small']), measured(c['surface'], c['large'])
+        if small is None or large is None:
+            failures.append(f"{c['surface']} scaling {c['small']}->{c['large']} sections was not measured")
+            continue
+        ratio = large[c['metric']] / max(small[c['metric']], 1e-6)
+        if ratio > c['maxRatio']:
+            failures.append(f"{c['surface']} {c['metric']} grows with the document: "
+                            f"{small['lines']} lines {small[c['metric']]:.2f}ms -> {large['lines']} lines "
+                            f"{large[c['metric']]:.2f}ms (x{ratio:.1f} > x{c['maxRatio']})")
     missing = [b for b in budgets['budgets'] if not any(
         r['surface'] == b['surface'] and r['sections'] == b['sections'] for r in results)]
     if missing:

@@ -35,6 +35,7 @@ commands = [
     ('test', [cargo, 'test', '--locked', '--features', 'dev-capture']),
     ('clippy', [cargo, 'clippy', '--locked', '--all-targets', '--features', 'dev-capture', '--', '-D', 'warnings']),
     ('release', [cargo, 'build', '--locked', '--release']),
+    ('editor-frames', ['python3', 'tools/bench-editor.py', '--check']),
     ('native-probe', ['python3', 'native-editor-probe/tools/verify.py']),
 ]
 checks = []

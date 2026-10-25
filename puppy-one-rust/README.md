@@ -207,6 +207,8 @@ python3 tools/audit-ui-migration.py --check
 cargo test --locked
 cargo clippy --all-targets --features dev-capture --locked -- -D warnings
 cargo build --release --locked
+# 帧耗时预算（Core Text 真实排版，release；仅 macOS）：
+python3 tools/bench-editor.py --check
 ```
 
 `dev-capture` feature 只打开开发用截图、编辑器几何导出和视觉 fixture，不进入正常构建。
@@ -217,6 +219,7 @@ cargo build --release --locked
 | 文档状态机 | 迟到 dirty、过期 token/request/epoch、单写合并、IME Deferred、旧写回执/自身回声、外部采纳、自动 drain |
 | Rust UI | 点击、树展开、布局、10 万行仅绘制可见行、空闲不持续 repaint；任务快捷键不误关文档、Feedback 草稿/backdrop/Escape、Settings 响应式几何 |
 | 原生编辑器 | GPUI 测试平台上的输入、撤销、Markdown 装饰与命令、表格操作、CSV 视图、查找、宿主协议；输入法场景矩阵见 `src/editor/view/ime_tests.rs` |
+| 帧耗时 | `tools/bench-editor.py`：编辑器与整窗在 245–3845 行 Markdown 上滚动 / 缩放的每帧 CPU 耗时（Core Text 真实排版，每个规模独立进程），按 `tools/editor-frame-budgets.json` 检查绝对预算，以及每帧耗时不随文档长度增长 |
 
 GUI 冒烟脚本随 WebView 一起移除。真实系统输入法、焦点、全屏、DPI、辅助技术和原生文件选择器仍需手动验证。
 

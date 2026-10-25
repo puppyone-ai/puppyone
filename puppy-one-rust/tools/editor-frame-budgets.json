@@ -1,0 +1,13 @@
+{
+  "comment": "Frame budgets enforced by tools/bench-editor.py --check. Milliseconds of CPU per frame (build, layout, prepaint, paint), release build, Apple Silicon. Means, not p95: the tail follows machine load. A 120Hz display leaves 8.3ms a frame for everything, the GPU included. Sections are ~24 source lines each (160 = 3845 lines).",
+  "budgets": [
+    {"surface": "editor", "sections": 160, "maxMs": {"scrollMeanMs": 2.5, "resizeMeanMs": 2.5}},
+    {"surface": "window", "sections": 160, "maxMs": {"scrollMeanMs": 6.0, "resizeMeanMs": 4.0}}
+  ],
+  "scaling": [
+    {"comment": "A frame costs what is on screen: a document 16x longer may not cost twice as much.",
+     "surface": "editor", "metric": "scrollMeanMs", "small": 10, "large": 160, "maxRatio": 2.0},
+    {"surface": "editor", "metric": "resizeMeanMs", "small": 10, "large": 160, "maxRatio": 2.0},
+    {"surface": "window", "metric": "scrollMeanMs", "small": 10, "large": 160, "maxRatio": 2.0}
+  ]
+}
