@@ -106,6 +106,9 @@ pub(in crate::shell) struct Explorer {
     motion: motion::TreeMotion,
     #[cfg(test)]
     pub painted_rows: usize,
+    /// Times the Explorer rendered (it is a cached view in the shell).
+    #[cfg(test)]
+    pub renders: usize,
 }
 impl EventEmitter<ExplorerEvent> for Explorer {}
 impl Focusable for Explorer {
@@ -153,6 +156,8 @@ impl Explorer {
             motion: motion::TreeMotion::default(),
             #[cfg(test)]
             painted_rows: 0,
+            #[cfg(test)]
+            renders: 0,
         };
         explorer.apply_visibility(cx);
         explorer
@@ -174,17 +179,27 @@ impl Explorer {
     /// The shell's state this frame; also commits the visible rows to the
     /// disclosure motion and keeps frames coming while it runs. A file
     /// operation waiting on the open document resumes once nothing is open.
+    ///
+    /// The shell embeds the Explorer as a cached view, so the Explorer
+    /// renders again only when notified: when what the shell pushes
+    /// changes, and on every frame of the disclosure motion (the frame it
+    /// requests is the shell's, which is rendering).
     pub fn sync(&mut self, host: Host, window: &mut Window, cx: &mut Context<Self>) {
+        let changed = self.host != host;
         self.host = host;
         let animate = self.host.open && !cx.reduce_motion();
-        if self.motion.sync(
+        let moving = self.motion.sync(
             self.tree.id,
             self.tree.revision,
             &self.tree.rows,
             theme::sidebar_stride(),
             animate,
-        ) {
+        );
+        if moving {
             window.request_animation_frame();
+        }
+        if changed || moving {
+            cx.notify();
         }
         if self.op.is_none()
             && self.host.opened.is_none()
@@ -374,6 +389,7 @@ impl Render for Explorer {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         #[cfg(test)]
         {
+            self.renders += 1;
             self.painted_rows = 0;
         }
         let t = cx.palette();

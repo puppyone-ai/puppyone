@@ -34,6 +34,14 @@ use footer::SidebarFooter;
 use modals::{Modal, Modals, Task};
 use panes::{Layout, Panes, RightContent, Side, StoredPanes};
 use tasks::TaskUi;
+/// The layout of a pane embedded as a cached view: it fills the frame the
+/// shell places it in. A cached pane renders again only when its entity is
+/// notified (or the window refreshes), so editor scrolling and typing do not
+/// rebuild the Explorer or the right sidebar.
+fn fill() -> StyleRefinement {
+    StyleRefinement::default().size_full()
+}
+
 /// Header popovers owned by the shell.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Popover {
@@ -435,7 +443,10 @@ impl Shell {
         if self.locale.set(code) {
             cx.set_menus(app_menus());
         }
-        cx.notify();
+        // Appearance, type scale and locale are process-wide: the cached
+        // panes (Explorer, workbench, Changes) read them while rendering, so
+        // the whole window renders again.
+        window.refresh();
     }
     /// A dialog takes the window: the modal layer, or the Documents error.
     fn modal(&self) -> bool {
@@ -1147,7 +1158,7 @@ impl Render for Shell {
                 .top_0()
                 .left_0()
                 .size_full()
-                .child(at(self.layout.explorer).child(self.explorer.clone()))
+                .child(at(self.layout.explorer).child(self.explorer.clone().cached(fill())))
                 .child(at(self.layout.footer).child(self.footer(cx)));
             root = root.child(clipped(panes.left_clip, w, h, explorer));
         }
@@ -1156,9 +1167,12 @@ impl Render for Shell {
             // content starts at the divider like the product's.
             let auxiliary = at(self.layout.auxiliary).bg(t.auxiliary()).child(
                 if self.panes.content() == RightContent::Changes {
-                    self.source_control.clone().into_any_element()
+                    self.source_control
+                        .clone()
+                        .cached(fill())
+                        .into_any_element()
                 } else {
-                    self.workbench.clone().into_any_element()
+                    self.workbench.clone().cached(fill()).into_any_element()
                 },
             );
             root = root.child(clipped(panes.right_clip, w, h, auxiliary));

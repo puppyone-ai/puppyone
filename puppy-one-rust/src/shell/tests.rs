@@ -897,3 +897,56 @@ fn a_closed_right_sidebar_is_pulled_out_from_the_window_edge(cx: &mut TestAppCon
         assert_eq!((s.panes.right().open, s.panes.right().width), (true, 375.))
     });
 }
+
+#[gpui::test]
+fn the_cached_panes_render_again_only_when_they_change(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    let text: String = (0..400).map(|i| format!("Line {i}\n\n")).collect();
+    std::fs::write(temp.path().join("long.md"), &text).unwrap();
+    let workspace = crate::workspace::Workspace::open(temp.path()).unwrap();
+    let document = workspace.read(std::path::Path::new("long.md")).unwrap();
+    let (view, cx) = setup(cx);
+    view.update_in(cx, |s, w, cx| {
+        s.files = Documents::default();
+        s.files.workspace = Some(workspace);
+        s.files.document = Some(document.clone());
+        s.files.outgoing.push(crate::documents::HostMessage::Open {
+            id: document.id.clone(),
+            name: "long.md".into(),
+            text: document.text.clone(),
+            revision: 0,
+            external: false,
+        });
+        s.sync_editor(w, cx);
+    });
+    draw(cx);
+    draw(cx);
+    let explorer = explorer_of(&view, cx);
+    let renders = |cx: &mut VisualTestContext| explorer.read_with(cx, |e, _| e.renders);
+    let frames = |cx: &mut VisualTestContext| view.read_with(cx, |s, _| s.frames);
+    // Scrolling the editor renders the window, not the Explorer.
+    let editor = view.read_with(cx, |s, _| s.layout.editor);
+    let (before, shell_before) = (renders(cx), frames(cx));
+    for _ in 0..5 {
+        cx.simulate_event(ScrollWheelEvent {
+            position: point(px(editor.x + editor.w / 2.), px(editor.y + editor.h / 2.)),
+            delta: ScrollDelta::Pixels(point(px(0.), px(-40.))),
+            ..Default::default()
+        });
+        draw(cx);
+    }
+    assert!(frames(cx) > shell_before, "the scroll rendered frames");
+    assert_eq!(renders(cx), before, "the Explorer was reused");
+    // What the shell pushes renders it again.
+    view.update(cx, |s, cx| {
+        s.pending = true;
+        cx.notify();
+    });
+    draw(cx);
+    let pushed = renders(cx);
+    assert!(pushed > before, "a host change renders the Explorer");
+    // So does a preference change: appearance is process-wide.
+    view.update_in(cx, |s, w, cx| s.apply_preferences(w, cx));
+    draw(cx);
+    assert!(renders(cx) > pushed, "the window refreshed");
+}

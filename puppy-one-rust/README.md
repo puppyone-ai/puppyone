@@ -56,6 +56,7 @@ cargo run --release --locked -- --workspace /path/to/project --file README.md
 - `explorer/`：独立的 `Entity<Explorer>`，持有文件树、选择、剪贴板、菜单、文件操作和展开动画。Shell 每帧推送 `Host`（所在矩形、当前文档、忙碌状态），并转交目录列表；Explorer 通过 `ExplorerEvent` 请求打开文件、读取目录、先关闭文档、新建 / 重命名对话框和错误提示。
 - `modals.rs`：窗口级弹层栈（Settings / Help 共用一个槽位、新建条目、新建项目、重命名、退出确认、错误）。Esc 回答最上层；Documents 的保存错误是动态状态，显示在栈之上。
 - `header.rs`、`footer.rs`：Header（`TitleBar`、`ChangesButton` 等）和侧栏底部栏是只负责展示的组件，由 `Shell::header` / `Shell::footer` 按状态组装。
+- 缓存的面板：Explorer、右侧工作台与 Changes 以 GPUI 缓存视图（`Entity::cached`）嵌入，只在自身被 notify 时重新渲染；编辑器滚动、输入只重绘编辑器与 Shell 本身。Shell 推送给 Explorer 的 `Host` 变化或展开动画进行中时由 `Explorer::sync` notify；外观、字号与语言是进程级状态，`apply_preferences` 以 `window.refresh()` 让整个窗口重新渲染。
 
 ## 这一版可以做什么
 
