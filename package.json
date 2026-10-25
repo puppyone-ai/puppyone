@@ -46,7 +46,7 @@
     "dev:local-cloud": "npm run dev -- --local-cloud=preview",
     "dev:local-cloud:web": "npm run dev -- --local-cloud=dev",
     "dev:agent-sandbox": "node scripts/dev-agent-sandbox.mjs",
-    "dev:update-preview": "VITE_DESKTOP_UPDATE_PREVIEW=downloaded VITE_DESKTOP_UPDATE_PREVIEW_VERSION=0.3.0-preview.1 VITE_DESKTOP_CLOUD_API_URL=https://api.puppyone.ai/api/v1 VITE_DESKTOP_CLOUD_WEB_URL=https://app.puppyone.ai npm run dev",
+    "dev:update-preview": "VITE_DESKTOP_UPDATE_PREVIEW=downloaded VITE_DESKTOP_UPDATE_PREVIEW_VERSION=0.3.0-preview.1 VITE_DESKTOP_CLOUD_API_URL=https://api.puppyone.ai/api/v1 VITE_DESKTOP_CLOUD_WEB_URL=https://try.puppyone.ai npm run dev",
     "dev:renderer": "vite",
     "dev:browser": "vite --host 127.0.0.1",
     "dev:desktop-telemetry-edge": "wrangler dev --config cloudflare/desktop-telemetry/wrangler.jsonc",
