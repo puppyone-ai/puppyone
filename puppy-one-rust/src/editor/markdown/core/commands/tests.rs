@@ -18,9 +18,22 @@ fn run(text: &str, intent: EditIntent) -> String {
     let mut state = EditorState::new(&clean);
     state.selection = Selection::range(anchor, head);
     let syntax = Syntax::parse(&state.doc);
-    let plans = plans::compile(&state.doc, &syntax, crate::editor::markdown::composition::FEATURES);
+    let plans = plans::compile(
+        &state.doc,
+        &syntax,
+        crate::editor::markdown::composition::FEATURES,
+    );
     let preview = PreviewState::default();
-    let Some(tr) = intercept(intent, &Cx { state: &state, syntax: &syntax, plans: &plans, preview: &preview, read_only: false }) else {
+    let Some(tr) = intercept(
+        intent,
+        &Cx {
+            state: &state,
+            syntax: &syntax,
+            plans: &plans,
+            preview: &preview,
+            read_only: false,
+        },
+    ) else {
         return "<default>".into();
     };
     state.apply(tr);
@@ -39,9 +52,15 @@ fn run(text: &str, intent: EditIntent) -> String {
 fn enter_continues_and_ends_lists() {
     assert_eq!(run("- one|", EditIntent::Enter), "- one\n- |");
     assert_eq!(run("- [x] done|", EditIntent::Enter), "- [x] done\n- [ ] |");
-    assert_eq!(run("1. a|\n2. b\n3. c", EditIntent::Enter), "1. a\n2. |\n3. b\n4. c");
+    assert_eq!(
+        run("1. a|\n2. b\n3. c", EditIntent::Enter),
+        "1. a\n2. |\n3. b\n4. c"
+    );
     assert_eq!(run("- one\n- |", EditIntent::Enter), "- one\n|");
-    assert_eq!(run("- a\n  - b\n  - |", EditIntent::Enter), "- a\n  - b\n- |");
+    assert_eq!(
+        run("- a\n  - b\n  - |", EditIntent::Enter),
+        "- a\n  - b\n- |"
+    );
     assert_eq!(run("> quote|", EditIntent::Enter), "> quote\n> |");
     assert_eq!(run("> |", EditIntent::Enter), "|");
     assert_eq!(run("plain|", EditIntent::Enter), "<default>");
@@ -70,8 +89,14 @@ fn block_toggles_follow_the_product() {
 
 #[test]
 fn inline_formats_wrap_and_unwrap() {
-    assert_eq!(run("say he|llo now", EditIntent::Bold), "say **|hello|** now");
-    assert_eq!(run("say **he|llo** now", EditIntent::Bold), "say he|llo now");
+    assert_eq!(
+        run("say he|llo now", EditIntent::Bold),
+        "say **|hello|** now"
+    );
+    assert_eq!(
+        run("say **he|llo** now", EditIntent::Bold),
+        "say he|llo now"
+    );
     assert_eq!(run("|a b|", EditIntent::Italic), "*|a b|*");
     assert_eq!(run("x |", EditIntent::Code), "x `|`");
     assert_eq!(run("go |here| x", EditIntent::Link), "go [here](|) x");

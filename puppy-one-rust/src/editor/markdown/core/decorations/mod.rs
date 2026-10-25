@@ -24,7 +24,7 @@ use super::{
     syntax::Syntax,
 };
 use crate::editor::{
-    markdown::style::{cascade::LineInput, MarkdownTheme},
+    markdown::style::{MarkdownTheme, cascade::LineInput},
     text::buffer::Buffer,
     view::decoration::{Block, Decorations, Surface},
 };
@@ -77,12 +77,31 @@ pub fn decorate(cx: &DecorateCx) -> Decorations {
     if !cx.live {
         // Source mode: every line is raw Markdown with uniform typography.
         for line in 0..count {
-            b.line_box(line, LineInput { classes: Class::NONE, level: 0, list: None, live: false }, false);
+            b.line_box(
+                line,
+                LineInput {
+                    classes: Class::NONE,
+                    level: 0,
+                    list: None,
+                    live: false,
+                },
+                false,
+            );
         }
         let marks = b.marks();
-        return Decorations { blocks: b.blocks, marks, hidden: Vec::new(), atomic: Vec::new(), surface: surface(cx.theme) };
+        return Decorations {
+            blocks: b.blocks,
+            marks,
+            hidden: Vec::new(),
+            atomic: Vec::new(),
+            surface: surface(cx.theme),
+        };
     }
-    let factory = WidgetFactoryCx { doc, syntax: cx.syntax, theme: cx.theme };
+    let factory = WidgetFactoryCx {
+        doc,
+        syntax: cx.syntax,
+        theme: cx.theme,
+    };
     let mut line = 0;
     while line < count {
         let range = doc.line_range(line);
@@ -92,15 +111,30 @@ pub fn decorate(cx: &DecorateCx) -> Decorations {
             continue;
         }
         // A feature block starting here replaces its lines with its widget.
-        let block = b.by_line[line].iter().find(|p| p.source.start == range.start && p.embed().is_some()).and_then(|p| Some((p.source.clone(), p.embed()?.clone())));
-        let widget = block.as_ref().and_then(|(_, embed)| Some((feature::find(cx.features, embed.feature)?, embed)));
+        let block = b.by_line[line]
+            .iter()
+            .find(|p| p.source.start == range.start && p.embed().is_some())
+            .and_then(|p| Some((p.source.clone(), p.embed()?.clone())));
+        let widget = block
+            .as_ref()
+            .and_then(|(_, embed)| Some((feature::find(cx.features, embed.feature)?, embed)));
         if let Some((feature, embed)) = widget
             && let Some(view) = feature.block_widget(embed, &factory)
         {
             let source = block.as_ref().map(|(s, _)| s.clone()).unwrap_or_default();
             let last = doc.line_index(source.end.saturating_sub(1).max(source.start));
-            b.blocks.push(Block::Widget { lines: line..last + 1, widget: view });
-            feature.decorate_block(embed, &mut BlockDecoration { builder: &mut b, source, lines: line..last + 1 });
+            b.blocks.push(Block::Widget {
+                lines: line..last + 1,
+                widget: view,
+            });
+            feature.decorate_block(
+                embed,
+                &mut BlockDecoration {
+                    builder: &mut b,
+                    source,
+                    lines: line..last + 1,
+                },
+            );
             line = last + 1;
             continue;
         }
@@ -115,5 +149,11 @@ pub fn decorate(cx: &DecorateCx) -> Decorations {
     let mut atomic = hidden.clone();
     atomic.extend(b.atomic.into_iter().filter(|r| !r.is_empty()));
     atomic.sort_by_key(|r| r.start);
-    Decorations { blocks: b.blocks, marks, atomic, hidden, surface: surface(cx.theme) }
+    Decorations {
+        blocks: b.blocks,
+        marks,
+        atomic,
+        hidden,
+        surface: surface(cx.theme),
+    }
 }

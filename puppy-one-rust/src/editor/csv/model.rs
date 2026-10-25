@@ -48,14 +48,27 @@ pub struct CsvModel {
 }
 
 fn size(rows: &[Row]) -> usize {
-    rows.iter().map(|r| 64 + r.cells.iter().map(|c| 16 + c.len() * 2).sum::<usize>()).sum()
+    rows.iter()
+        .map(|r| 64 + r.cells.iter().map(|c| 16 + c.len() * 2).sum::<usize>())
+        .sum()
 }
 
 impl CsvModel {
     pub fn new(text: &str, delimiter: Delimiter) -> Self {
-        let mut model = Self { delimiter, content: Content::empty(), revision: 1, undo: Vec::new(), redo: Vec::new(), next_id: 0, input_enabled: true, serialized: Default::default() };
+        let mut model = Self {
+            delimiter,
+            content: Content::empty(),
+            revision: 1,
+            undo: Vec::new(),
+            redo: Vec::new(),
+            next_id: 0,
+            input_enabled: true,
+            serialized: Default::default(),
+        };
         model.content = model.parse(text, 0);
-        model.serialized.replace(Some((model.revision, Rc::new(text.to_owned()))));
+        model
+            .serialized
+            .replace(Some((model.revision, Rc::new(text.to_owned()))));
         model
     }
 
@@ -69,9 +82,23 @@ impl CsvModel {
         let matrix = document::normalize(parsed.rows);
         let columns = matrix.iter().map(Vec::len).max().unwrap_or(1).max(1);
         let suggested_header = document::infer_header(&matrix);
-        let rows = matrix.into_iter().map(|cells| Row { id: self.id(), cells: Rc::new(cells) }).collect();
+        let rows = matrix
+            .into_iter()
+            .map(|cells| Row {
+                id: self.id(),
+                cells: Rc::new(cells),
+            })
+            .collect();
         let columns = (0..columns).map(|_| self.id()).collect();
-        Content { columns, epoch, has_source: !text.is_empty(), layout: parsed.layout, rows: Rc::new(rows), suggested_header, unclosed_quote: parsed.unclosed_quote }
+        Content {
+            columns,
+            epoch,
+            has_source: !text.is_empty(),
+            layout: parsed.layout,
+            rows: Rc::new(rows),
+            suggested_header,
+            unclosed_quote: parsed.unclosed_quote,
+        }
     }
 
     pub fn content(&self) -> &Content {
@@ -100,8 +127,18 @@ impl CsvModel {
         {
             return text.clone();
         }
-        let rows: Vec<Vec<String>> = self.content.rows.iter().map(|r| (*r.cells).clone()).collect();
-        let text = Rc::new(document::stringify(&rows, self.delimiter, self.content.layout, true));
+        let rows: Vec<Vec<String>> = self
+            .content
+            .rows
+            .iter()
+            .map(|r| (*r.cells).clone())
+            .collect();
+        let text = Rc::new(document::stringify(
+            &rows,
+            self.delimiter,
+            self.content.layout,
+            true,
+        ));
         self.serialized.replace(Some((self.revision, text.clone())));
         text
     }
@@ -112,14 +149,17 @@ impl CsvModel {
         self.undo.clear();
         self.redo.clear();
         self.commit(content, false);
-        self.serialized.replace(Some((self.revision, Rc::new(text.to_owned()))));
+        self.serialized
+            .replace(Some((self.revision, Rc::new(text.to_owned()))));
     }
 
     pub fn set_cell(&mut self, row: usize, column: usize, value: &str) -> bool {
         if !self.input_enabled || column >= self.content.columns.len() {
             return false;
         }
-        let Some(current) = self.content.rows.get(row) else { return false };
+        let Some(current) = self.content.rows.get(row) else {
+            return false;
+        };
         if current.cells.get(column).map(String::as_str) == Some(value) {
             return false;
         }
@@ -127,8 +167,15 @@ impl CsvModel {
         cells.resize(self.content.columns.len(), String::new());
         cells[column] = value.to_owned();
         let mut rows = (*self.content.rows).clone();
-        rows[row] = Row { id: current.id, cells: Rc::new(cells) };
-        let content = Content { has_source: true, rows: Rc::new(rows), ..self.content.clone() };
+        rows[row] = Row {
+            id: current.id,
+            cells: Rc::new(cells),
+        };
+        let content = Content {
+            has_source: true,
+            rows: Rc::new(rows),
+            ..self.content.clone()
+        };
         self.commit(content, true);
         true
     }
@@ -136,12 +183,23 @@ impl CsvModel {
     /// `applyStructureOperation`: identities follow moved rows / columns.
     pub fn apply(&mut self, header: bool, op: Operation, row: usize, column: usize) -> Change {
         if !self.input_enabled {
-            return Change { changed: false, focus: None };
+            return Change {
+                changed: false,
+                focus: None,
+            };
         }
-        let matrix: Vec<Vec<String>> = self.content.rows.iter().map(|r| (*r.cells).clone()).collect();
+        let matrix: Vec<Vec<String>> = self
+            .content
+            .rows
+            .iter()
+            .map(|r| (*r.cells).clone())
+            .collect();
         let (next, focus) = operations::apply(&matrix, header, op, row, column);
         if next == matrix {
-            return Change { changed: false, focus: Some(focus) };
+            return Change {
+                changed: false,
+                focus: Some(focus),
+            };
         }
         let first = usize::from(header);
         let mut row_ids: Vec<u64> = self.content.rows.iter().map(|r| r.id).collect();
@@ -191,18 +249,30 @@ impl CsvModel {
             column_ids.push(id);
         }
         column_ids.truncate(column_count);
-        let previous: std::collections::HashMap<u64, &Row> = self.content.rows.iter().map(|r| (r.id, r)).collect();
+        let previous: std::collections::HashMap<u64, &Row> =
+            self.content.rows.iter().map(|r| (r.id, r)).collect();
         let rows: Vec<Row> = next
             .into_iter()
             .zip(row_ids)
             .map(|(cells, id)| match previous.get(&id) {
                 Some(p) if *p.cells == cells => (*p).clone(),
-                _ => Row { id, cells: Rc::new(cells) },
+                _ => Row {
+                    id,
+                    cells: Rc::new(cells),
+                },
             })
             .collect();
-        let content = Content { columns: column_ids, has_source: true, rows: Rc::new(rows), ..self.content.clone() };
+        let content = Content {
+            columns: column_ids,
+            has_source: true,
+            rows: Rc::new(rows),
+            ..self.content.clone()
+        };
         self.commit(content, true);
-        Change { changed: true, focus: Some(focus) }
+        Change {
+            changed: true,
+            focus: Some(focus),
+        }
     }
 
     /// The add-row rail (`appendRow`).
@@ -210,10 +280,21 @@ impl CsvModel {
         let header_rows = usize::from(header);
         let data = self.content.rows.len().saturating_sub(header_rows);
         if !self.content.has_source && !header {
-            return Change { changed: false, focus: Some(Focus { row: 0, column: 0 }) };
+            return Change {
+                changed: false,
+                focus: Some(Focus { row: 0, column: 0 }),
+            };
         }
         let row = header_rows.max(self.content.rows.len() - 1);
-        self.apply(header, Operation::ExpandToShape { data_rows: data + 1, columns: self.content.columns.len() }, row, 0)
+        self.apply(
+            header,
+            Operation::ExpandToShape {
+                data_rows: data + 1,
+                columns: self.content.columns.len(),
+            },
+            row,
+            0,
+        )
     }
 
     /// The add-column rail (`appendColumn`).
@@ -221,23 +302,42 @@ impl CsvModel {
         let row = usize::from(header).min(self.content.rows.len() - 1);
         let data = self.content.rows.len().saturating_sub(usize::from(header));
         let columns = self.content.columns.len();
-        self.apply(header, Operation::ExpandToShape { data_rows: data, columns: columns + 1 }, row, columns.saturating_sub(1))
+        self.apply(
+            header,
+            Operation::ExpandToShape {
+                data_rows: data,
+                columns: columns + 1,
+            },
+            row,
+            columns.saturating_sub(1),
+        )
     }
 
     pub fn undo(&mut self, redo: bool) -> bool {
         if !self.input_enabled {
             return false;
         }
-        let Some(target) = (if redo { self.redo.pop() } else { self.undo.pop() }) else { return false };
+        let Some(target) = (if redo {
+            self.redo.pop()
+        } else {
+            self.undo.pop()
+        }) else {
+            return false;
+        };
         let current = self.content.clone();
-        if redo { self.undo.push(current) } else { self.redo.push(current) }
+        if redo {
+            self.undo.push(current)
+        } else {
+            self.redo.push(current)
+        }
         self.commit(target, false);
         true
     }
 
     fn commit(&mut self, content: Content, record: bool) {
         if record {
-            self.undo.push(std::mem::replace(&mut self.content, content));
+            self.undo
+                .push(std::mem::replace(&mut self.content, content));
             self.redo.clear();
         } else {
             self.content = content;
@@ -266,7 +366,15 @@ impl CsvModel {
 
 impl Content {
     fn empty() -> Self {
-        Self { columns: vec![0], epoch: 0, has_source: false, layout: Layout::default(), rows: Rc::new(Vec::new()), suggested_header: false, unclosed_quote: false }
+        Self {
+            columns: vec![0],
+            epoch: 0,
+            has_source: false,
+            layout: Layout::default(),
+            rows: Rc::new(Vec::new()),
+            suggested_header: false,
+            unclosed_quote: false,
+        }
     }
 }
 

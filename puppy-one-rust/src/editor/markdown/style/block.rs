@@ -18,6 +18,11 @@ pub struct BlockStyle {
 
 impl BlockStyle {
     pub fn resolve(t: &Tokens, size: f32) -> Self {
-        Self { radius: t.len("--po-md-block-radius", size), hover_ring: t.color("--cm-md-block-hover-ring"), selected_ring: t.color("--cm-md-block-selected-ring"), ring_width: 2. }
+        Self {
+            radius: t.len("--po-md-block-radius", size),
+            hover_ring: t.color("--cm-md-block-hover-ring"),
+            selected_ring: t.color("--cm-md-block-selected-ring"),
+            ring_width: 2.,
+        }
     }
 }

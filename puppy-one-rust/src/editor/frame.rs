@@ -31,16 +31,28 @@ impl FrameTheme {
             active_background: t.color("--po-selected"),
             active_color: t.color("--po-text"),
             button_height: t.len("--po-control-size-tight", 16.),
-            shadow: Rgba { a: shadow.a * 0.28, ..shadow },
+            shadow: Rgba {
+                a: shadow.a * 0.28,
+                ..shadow
+            },
         }
     }
 }
 
 /// `.editor-mode-toggle`: 12px from the bottom-left, a 2px-padded group of
 /// two 24px buttons (pencil: live, code: source).
-pub fn mode_toggle(theme: &FrameTheme, live: bool, on_live: impl Fn(&mut Window, &mut App) + 'static, on_source: impl Fn(&mut Window, &mut App) + 'static) -> Stateful<Div> {
+pub fn mode_toggle(
+    theme: &FrameTheme,
+    live: bool,
+    on_live: impl Fn(&mut Window, &mut App) + 'static,
+    on_source: impl Fn(&mut Window, &mut App) + 'static,
+) -> Stateful<Div> {
     let button = |id: &'static str, icon: &'static str, active: bool| {
-        let (bg, color) = if active { (theme.active_background, theme.active_color) } else { (Rgba::default(), theme.color) };
+        let (bg, color) = if active {
+            (theme.active_background, theme.active_color)
+        } else {
+            (Rgba::default(), theme.color)
+        };
         let hover = (theme.active_background, theme.active_color);
         div()
             .id(id)
@@ -53,7 +65,12 @@ pub fn mode_toggle(theme: &FrameTheme, live: bool, on_live: impl Fn(&mut Window,
             .bg(bg)
             .text_color(color)
             .hover(move |s| s.bg(hover.0).text_color(hover.1))
-            .child(svg().path(format!("icons/{icon}.svg")).size(px(12.)).text_color(color))
+            .child(
+                svg()
+                    .path(format!("icons/{icon}.svg"))
+                    .size(px(12.))
+                    .text_color(color),
+            )
     };
     div()
         .id("editor-mode-toggle")
@@ -68,7 +85,19 @@ pub fn mode_toggle(theme: &FrameTheme, live: bool, on_live: impl Fn(&mut Window,
         .border_color(theme.border)
         .rounded(px(6.))
         .bg(theme.background)
-        .shadow(vec![BoxShadow { color: theme.shadow.into(), offset: point(px(0.), px(2.)), blur_radius: px(4.), spread_radius: px(-2.), inset: false }])
-        .child(button("editor-mode-live", "editor-mode-edit", live).on_click(move |_, w, cx| on_live(w, cx)))
-        .child(button("editor-mode-source", "editor-mode-source", !live).on_click(move |_, w, cx| on_source(w, cx)))
+        .shadow(vec![BoxShadow {
+            color: theme.shadow.into(),
+            offset: point(px(0.), px(2.)),
+            blur_radius: px(4.),
+            spread_radius: px(-2.),
+            inset: false,
+        }])
+        .child(
+            button("editor-mode-live", "editor-mode-edit", live)
+                .on_click(move |_, w, cx| on_live(w, cx)),
+        )
+        .child(
+            button("editor-mode-source", "editor-mode-source", !live)
+                .on_click(move |_, w, cx| on_source(w, cx)),
+        )
 }

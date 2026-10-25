@@ -28,10 +28,21 @@ pub struct WidgetState {
 
 impl WidgetState {
     /// The state of a widget over `source` for a selection `from..to`.
-    pub fn of(source: &Range<usize>, from: usize, to: usize, editor_focused: bool, read_only: bool) -> Self {
+    pub fn of(
+        source: &Range<usize>,
+        from: usize,
+        to: usize,
+        editor_focused: bool,
+        read_only: bool,
+    ) -> Self {
         let selected = from < to && from <= source.start && to >= source.end;
         let caret_inside = from <= source.end && to >= source.start;
-        Self { selected, caret_inside, editor_focused, read_only }
+        Self {
+            selected,
+            caret_inside,
+            editor_focused,
+            read_only,
+        }
     }
 
     /// `:focus-within`: the editor is focused with the caret inside.
@@ -54,7 +65,8 @@ pub struct WidgetCx<'r, 'a> {
 impl WidgetCx<'_, '_> {
     /// The block's positioned box of `height`.
     pub fn block_box(&self, height: f32) -> Div {
-        self.render.block_box(self.top, self.left, self.width, height)
+        self.render
+            .block_box(self.top, self.left, self.width, height)
     }
 
     /// A stable element id for a part of this widget (keyed per block).

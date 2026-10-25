@@ -58,14 +58,26 @@ impl CsvTheme {
             dark,
             scale,
             surface: t.color("--po-csv-surface-background"),
-            header: TextStyle { weight: t.number("--po-editable-table-header-font-weight"), color: t.color("--po-editable-table-header-color"), ..body.clone() },
+            header: TextStyle {
+                weight: t.number("--po-editable-table-header-font-weight"),
+                color: t.color("--po-editable-table-header-color"),
+                ..body.clone()
+            },
             // `.csv-table-editor__record-index` / `-label`: disabled text,
             // tabular numbers, the table size at `line-height: 1`.
-            index: TextStyle { color: t.color("--po-text-disabled"), tabular: true, line_height: LineHeight::Factor(1.), ..body.clone() },
+            index: TextStyle {
+                color: t.color("--po-text-disabled"),
+                tabular: true,
+                line_height: LineHeight::Factor(1.),
+                ..body.clone()
+            },
             index_opacity: 0.78,
             index_background: over(t.color("--csv-table-record-index-background"), editor),
             index_width: t.len("--csv-table-record-index-width", size),
-            header_background: over(t.color("--po-editable-table-sticky-header-background"), editor),
+            header_background: over(
+                t.color("--po-editable-table-sticky-header-background"),
+                editor,
+            ),
             table: EditableTableStyle::resolve(t, size),
             inset: Edges::new(
                 t.len("--csv-table-content-block-start-inset", size),
@@ -91,7 +103,15 @@ mod tests {
     #[test]
     fn resolves_the_reference_table_geometry() {
         let t = CsvTheme::resolve(true, Scale::Medium);
-        assert_eq!((t.body.size, t.header.weight, t.table.row_min_height, t.index_width), (13., 650., 31., 31.));
+        assert_eq!(
+            (
+                t.body.size,
+                t.header.weight,
+                t.table.row_min_height,
+                t.index_width
+            ),
+            (13., 650., 31., 31.)
+        );
         assert!((t.body.line_height_px() - 18.85).abs() < 1e-4);
         assert_eq!(t.table.cell_padding, Edges::new(6., 10., 6., 10.));
         assert_eq!(t.inset, Edges::all(32.));

@@ -32,7 +32,10 @@ fn url_match(text: &[u8], from: usize) -> Option<usize> {
         return None;
     }
     if i < text.len() && text[i] == b':' {
-        let digits = text[i + 1..].iter().take_while(|c| c.is_ascii_digit()).count();
+        let digits = text[i + 1..]
+            .iter()
+            .take_while(|c| c.is_ascii_digit())
+            .count();
         if digits > 0 {
             i += 1 + digits;
         }
@@ -45,10 +48,16 @@ fn url_match(text: &[u8], from: usize) -> Option<usize> {
     }
     // `lastTwoDomainWords` may not contain `_`.
     let matched = &text[from..i];
-    let host_end = matched.iter().position(|&c| c == b'/' || c == b':').unwrap_or(matched.len());
+    let host_end = matched
+        .iter()
+        .position(|&c| c == b'/' || c == b':')
+        .unwrap_or(matched.len());
     let host = &matched[..host_end];
     let mut parts = host.rsplitn(3, |&c| c == b'.');
-    let (last, second) = (parts.next().unwrap_or_default(), parts.next().unwrap_or_default());
+    let (last, second) = (
+        parts.next().unwrap_or_default(),
+        parts.next().unwrap_or_default(),
+    );
     if last.contains(&b'_') || second.contains(&b'_') {
         return None;
     }
@@ -67,7 +76,12 @@ fn url_end(text: &str, from: usize) -> Option<usize> {
             // A trailing entity reference `&name;` is not part of the URL.
             let slice = &text[from..end];
             match slice.rfind('&') {
-                Some(amp) if slice[amp + 1..slice.len() - 1].bytes().all(|c| c.is_ascii_alphanumeric() || c == b'#') && slice.len() - amp > 2 => {
+                Some(amp)
+                    if slice[amp + 1..slice.len() - 1]
+                        .bytes()
+                        .all(|c| c.is_ascii_alphanumeric() || c == b'#')
+                        && slice.len() - amp > 2 =>
+                {
                     end = from + amp;
                 }
                 _ => break,
@@ -135,7 +149,10 @@ pub fn find(text: &str) -> Vec<Range<usize>> {
         let rest = &text[pos..];
         let end = if rest.starts_with("www.") {
             url_end(text, pos + 4)
-        } else if let Some(scheme) = ["https://", "http://"].iter().find(|s| rest.starts_with(**s)) {
+        } else if let Some(scheme) = ["https://", "http://"]
+            .iter()
+            .find(|s| rest.starts_with(**s))
+        {
             url_end(text, pos + scheme.len())
         } else if rest.starts_with("mailto:") {
             email_end(bytes, pos + 7)
@@ -143,7 +160,10 @@ pub fn find(text: &str) -> Vec<Range<usize>> {
             email_end(bytes, pos + 5).map(|end| {
                 // An optional `/resource`.
                 if bytes.get(end) == Some(&b'/') {
-                    let n = bytes[end + 1..].iter().take_while(|c| c.is_ascii_alphanumeric() || **c == b'@' || **c == b'.').count();
+                    let n = bytes[end + 1..]
+                        .iter()
+                        .take_while(|c| c.is_ascii_alphanumeric() || **c == b'@' || **c == b'.')
+                        .count();
                     if n > 0 { end + 1 + n } else { end }
                 } else {
                     end
@@ -173,7 +193,10 @@ mod tests {
     fn literals_follow_the_lezer_extension() {
         let s = "see https://example.com/a(b). and www.x.org, me@mail.co. not_a_url";
         let found: Vec<&str> = find(s).into_iter().map(|r| &s[r]).collect();
-        assert_eq!(found, vec!["https://example.com/a(b)", "www.x.org", "me@mail.co"]);
+        assert_eq!(
+            found,
+            vec!["https://example.com/a(b)", "www.x.org", "me@mail.co"]
+        );
         assert!(find("x.y").is_empty());
         assert!(find("www.a_b.com").is_empty());
     }

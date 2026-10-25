@@ -13,7 +13,6 @@ pub const ROW_LIMIT: usize = 2000;
 pub const CELL_LIMIT: usize = 20_000;
 pub const ROW_BYTE_LIMIT: usize = 64 * 1024;
 
-
 pub use crate::editor::table::operation::Alignment;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -44,12 +43,20 @@ pub struct Table {
 }
 
 fn is_escaped(text: &[u8], index: usize) -> bool {
-    text[..index].iter().rev().take_while(|&&b| b == b'\\').count() % 2 == 1
+    text[..index]
+        .iter()
+        .rev()
+        .take_while(|&&b| b == b'\\')
+        .count()
+        % 2
+        == 1
 }
 
 fn pipes(text: &str) -> Vec<usize> {
     let b = text.as_bytes();
-    (0..b.len()).filter(|&i| b[i] == b'|' && !is_escaped(b, i)).collect()
+    (0..b.len())
+        .filter(|&i| b[i] == b'|' && !is_escaped(b, i))
+        .collect()
 }
 
 /// `splitTableCellSegments`: raw cell byte ranges of one row.
@@ -70,7 +77,10 @@ fn segments(text: &str) -> Vec<Range<usize>> {
     if !trailing {
         bounds.push(text.len() as isize);
     }
-    bounds.windows(2).map(|w| ((w[0] + 1) as usize)..(w[1] as usize).min(text.len())).collect()
+    bounds
+        .windows(2)
+        .map(|w| ((w[0] + 1) as usize)..(w[1] as usize).min(text.len()))
+        .collect()
 }
 
 fn unescape(text: &str) -> String {
@@ -78,7 +88,10 @@ fn unescape(text: &str) -> String {
 }
 
 fn split_cells(text: &str) -> Vec<String> {
-    segments(text).into_iter().map(|r| unescape(text[r].trim())).collect()
+    segments(text)
+        .into_iter()
+        .map(|r| unescape(text[r].trim()))
+        .collect()
 }
 
 fn is_delimiter_cell(cell: &str) -> bool {
@@ -144,7 +157,11 @@ fn row_cells(doc: &Buffer, line: usize) -> Vec<Cell> {
             let trail = raw.len() - raw.trim_end().len();
             let from = range.start + seg.start + lead;
             let to = (range.start + seg.end - trail).max(from);
-            Cell { range: from..to, text: unescape(raw.trim()), editable: true }
+            Cell {
+                range: from..to,
+                text: unescape(raw.trim()),
+                editable: true,
+            }
         })
         .take(COLUMN_LIMIT + 1)
         .collect()
@@ -176,42 +193,78 @@ pub fn table_block(doc: &Buffer, syntax: &Range<usize>) -> Option<Table> {
     }
     let delimiter_cells = split_cells(delim_text);
     let header_cells = row_cells(doc, header);
-    let refinement_valid = !header_cells.is_empty() && !delimiter_cells.is_empty() && delimiter_cells.iter().all(|c| is_delimiter_cell(c));
-    let mut rows = vec![Row { cells: header_cells, header: true, line: header }];
+    let refinement_valid = !header_cells.is_empty()
+        && !delimiter_cells.is_empty()
+        && delimiter_cells.iter().all(|c| is_delimiter_cell(c));
+    let mut rows = vec![Row {
+        cells: header_cells,
+        header: true,
+        line: header,
+    }];
     let mut cell_count = rows[0].cells.len();
     for line in delimiter + 1..=last {
         let cells = row_cells(doc, line);
         cell_count += cells.len();
-        if rows.len() + 1 > ROW_LIMIT || cell_count > CELL_LIMIT || cells.len() > COLUMN_LIMIT || doc.line(line).len() > ROW_BYTE_LIMIT {
+        if rows.len() + 1 > ROW_LIMIT
+            || cell_count > CELL_LIMIT
+            || cells.len() > COLUMN_LIMIT
+            || doc.line(line).len() > ROW_BYTE_LIMIT
+        {
             return None;
         }
-        rows.push(Row { cells, header: false, line });
+        rows.push(Row {
+            cells,
+            header: false,
+            line,
+        });
     }
     if rows[0].cells.len() > COLUMN_LIMIT || delimiter_cells.len() > COLUMN_LIMIT {
         return None;
     }
-    let width = rows.iter().map(|r| r.cells.len()).max().unwrap_or(0).max(delimiter_cells.len()).max(1);
+    let width = rows
+        .iter()
+        .map(|r| r.cells.len())
+        .max()
+        .unwrap_or(0)
+        .max(delimiter_cells.len())
+        .max(1);
     // Rows narrower than the table get empty, non-editable padding cells.
     for row in &mut rows {
         let end = doc.line_range(row.line).end;
         while row.cells.len() < width {
-            row.cells.push(Cell { range: end..end, text: String::new(), editable: false });
+            row.cells.push(Cell {
+                range: end..end,
+                text: String::new(),
+                editable: false,
+            });
         }
         row.cells.truncate(width);
     }
-    let mut alignments: Vec<Alignment> = delimiter_cells.iter().take(width).map(|c| alignment(c)).collect();
+    let mut alignments: Vec<Alignment> = delimiter_cells
+        .iter()
+        .take(width)
+        .map(|c| alignment(c))
+        .collect();
     alignments.resize(width, Alignment::None);
     let range = doc.line_range(header).start..doc.line_range(last).end;
-    Some(Table { range, lines: header..last + 1, alignments, rows, refinement_valid })
+    Some(Table {
+        range,
+        lines: header..last + 1,
+        alignments,
+        rows,
+        refinement_valid,
+    })
 }
 
 /// `estimateMarkdownTableColumnWidths`: the shared estimate, capped at the
 /// compact initial width.
 pub fn column_widths(table: &Table) -> Vec<f32> {
-    crate::editor::table::estimate_widths(&table.rows, table.alignments.len(), |r, c| r.cells.get(c).map(|cell| cell.text.as_str()))
-        .into_iter()
-        .map(|w| w.min(crate::editor::table::COLUMN_INITIAL_MAX_WIDTH))
-        .collect()
+    crate::editor::table::estimate_widths(&table.rows, table.alignments.len(), |r, c| {
+        r.cells.get(c).map(|cell| cell.text.as_str())
+    })
+    .into_iter()
+    .map(|w| w.min(crate::editor::table::COLUMN_INITIAL_MAX_WIDTH))
+    .collect()
 }
 
 #[cfg(test)]

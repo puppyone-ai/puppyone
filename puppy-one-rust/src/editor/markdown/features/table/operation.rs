@@ -51,15 +51,38 @@ fn delimiter_cell(alignment: Alignment) -> &'static str {
 }
 
 /// `serializeMarkdownTable`: the header, the delimiter row, the body.
-pub fn serialize(rows: &[Vec<String>], alignments: &[Alignment]) -> (String, Vec<Vec<Range<usize>>>) {
-    let width = alignments.len().max(rows.iter().map(Vec::len).max().unwrap_or(0)).max(1);
+pub fn serialize(
+    rows: &[Vec<String>],
+    alignments: &[Alignment],
+) -> (String, Vec<Vec<Range<usize>>>) {
+    let width = alignments
+        .len()
+        .max(rows.iter().map(Vec::len).max().unwrap_or(0))
+        .max(1);
     let cells: Vec<Vec<String>> = if rows.is_empty() {
         vec![vec![String::new(); width]]
     } else {
-        rows.iter().map(|r| (0..width).map(|c| sanitize(r.get(c).map_or("", String::as_str))).collect()).collect()
+        rows.iter()
+            .map(|r| {
+                (0..width)
+                    .map(|c| sanitize(r.get(c).map_or("", String::as_str)))
+                    .collect()
+            })
+            .collect()
     };
-    let delimiters: Vec<&str> = (0..width).map(|c| delimiter_cell(alignments.get(c).copied().unwrap_or_default())).collect();
-    let widths: Vec<usize> = (0..width).map(|c| cells.iter().map(|r| units(&r[c])).max().unwrap_or(0).max(delimiters[c].len())).collect();
+    let delimiters: Vec<&str> = (0..width)
+        .map(|c| delimiter_cell(alignments.get(c).copied().unwrap_or_default()))
+        .collect();
+    let widths: Vec<usize> = (0..width)
+        .map(|c| {
+            cells
+                .iter()
+                .map(|r| units(&r[c]))
+                .max()
+                .unwrap_or(0)
+                .max(delimiters[c].len())
+        })
+        .collect();
     let mut out = String::new();
     let mut offsets = Vec::with_capacity(cells.len());
     let row = |out: &mut String, values: &[&str]| -> Vec<Range<usize>> {
@@ -70,7 +93,10 @@ pub fn serialize(rows: &[Vec<String>], alignments: &[Alignment]) -> (String, Vec
             let start = out.len();
             out.push_str(value);
             ranges.push(start..out.len());
-            out.extend(std::iter::repeat_n(' ', widths[c].saturating_sub(units(value))));
+            out.extend(std::iter::repeat_n(
+                ' ',
+                widths[c].saturating_sub(units(value)),
+            ));
             out.push_str(" |");
         }
         ranges
@@ -99,14 +125,36 @@ fn move_item<T>(items: &mut Vec<T>, from: usize, to: usize) {
 /// `applyMarkdownTableOperation` at (`row`, `column`); row 0 is the header.
 pub fn apply(table: &Table, operation: Operation, row: usize, column: usize) -> Edit {
     if operation == Operation::DeleteTable {
-        return Edit { replacement: String::new(), focus: None, cells: Vec::new() };
+        return Edit {
+            replacement: String::new(),
+            focus: None,
+            cells: Vec::new(),
+        };
     }
-    let width = table.alignments.len().max(table.rows.iter().map(|r| r.cells.len()).max().unwrap_or(0)).max(1);
-    let mut rows: Vec<Vec<String>> = table.rows.iter().map(|r| (0..width).map(|c| r.cells.get(c).map_or(String::new(), |cell| cell.text.clone())).collect()).collect();
+    let width = table
+        .alignments
+        .len()
+        .max(table.rows.iter().map(|r| r.cells.len()).max().unwrap_or(0))
+        .max(1);
+    let mut rows: Vec<Vec<String>> = table
+        .rows
+        .iter()
+        .map(|r| {
+            (0..width)
+                .map(|c| {
+                    r.cells
+                        .get(c)
+                        .map_or(String::new(), |cell| cell.text.clone())
+                })
+                .collect()
+        })
+        .collect();
     if rows.is_empty() {
         rows.push(vec![String::new(); width]);
     }
-    let mut alignments: Vec<Alignment> = (0..width).map(|c| table.alignments.get(c).copied().unwrap_or_default()).collect();
+    let mut alignments: Vec<Alignment> = (0..width)
+        .map(|c| table.alignments.get(c).copied().unwrap_or_default())
+        .collect();
     let r = row.min(rows.len() - 1);
     let c = column.min(width - 1);
     let empty = || vec![String::new(); width];
@@ -125,26 +173,38 @@ pub fn apply(table: &Table, operation: Operation, row: usize, column: usize) -> 
         Operation::DeleteRow => {
             if r > 0 && rows.len() > 1 {
                 rows.remove(r);
-                focus = Focus { row: r.min(rows.len() - 1), column: c };
+                focus = Focus {
+                    row: r.min(rows.len() - 1),
+                    column: c,
+                };
             }
         }
         Operation::MoveRowUp => {
             if r > 1 {
                 swap(&mut rows, r, r - 1);
-                focus = Focus { row: r - 1, column: c };
+                focus = Focus {
+                    row: r - 1,
+                    column: c,
+                };
             }
         }
         Operation::MoveRowDown => {
             if r > 0 && r + 1 < rows.len() {
                 swap(&mut rows, r, r + 1);
-                focus = Focus { row: r + 1, column: c };
+                focus = Focus {
+                    row: r + 1,
+                    column: c,
+                };
             }
         }
         Operation::MoveRowTo(target) => {
             let target = target.clamp(1, (rows.len() - 1).max(1));
             if r > 0 && r != target && target < rows.len() {
                 move_item(&mut rows, r, target);
-                focus = Focus { row: target, column: c };
+                focus = Focus {
+                    row: target,
+                    column: c,
+                };
             }
         }
         Operation::DuplicateRow => {
@@ -165,7 +225,10 @@ pub fn apply(table: &Table, operation: Operation, row: usize, column: usize) -> 
                 row.insert(c + 1, String::new());
             }
             alignments.insert(c + 1, Alignment::None);
-            focus = Focus { row: r, column: c + 1 };
+            focus = Focus {
+                row: r,
+                column: c + 1,
+            };
         }
         Operation::DeleteColumn => {
             if width > 1 {
@@ -173,7 +236,10 @@ pub fn apply(table: &Table, operation: Operation, row: usize, column: usize) -> 
                     row.remove(c);
                 }
                 alignments.remove(c);
-                focus = Focus { row: r, column: c.min(width - 2) };
+                focus = Focus {
+                    row: r,
+                    column: c.min(width - 2),
+                };
             }
         }
         Operation::MoveColumnLeft => {
@@ -182,7 +248,10 @@ pub fn apply(table: &Table, operation: Operation, row: usize, column: usize) -> 
                     swap(row, c, c - 1);
                 }
                 swap(&mut alignments, c, c - 1);
-                focus = Focus { row: r, column: c - 1 };
+                focus = Focus {
+                    row: r,
+                    column: c - 1,
+                };
             }
         }
         Operation::MoveColumnRight => {
@@ -191,7 +260,10 @@ pub fn apply(table: &Table, operation: Operation, row: usize, column: usize) -> 
                     swap(row, c, c + 1);
                 }
                 swap(&mut alignments, c, c + 1);
-                focus = Focus { row: r, column: c + 1 };
+                focus = Focus {
+                    row: r,
+                    column: c + 1,
+                };
             }
         }
         Operation::MoveColumnTo(target) => {
@@ -201,14 +273,21 @@ pub fn apply(table: &Table, operation: Operation, row: usize, column: usize) -> 
                     move_item(row, c, target);
                 }
                 move_item(&mut alignments, c, target);
-                focus = Focus { row: r, column: target };
+                focus = Focus {
+                    row: r,
+                    column: target,
+                };
             }
         }
         Operation::SetColumnAlignment(alignment) => alignments[c] = alignment,
         Operation::DeleteTable | Operation::ExpandToShape { .. } => {}
     }
     let (replacement, cells) = serialize(&rows, &alignments);
-    Edit { replacement, focus: Some(focus), cells }
+    Edit {
+        replacement,
+        focus: Some(focus),
+        cells,
+    }
 }
 
 #[cfg(test)]
@@ -225,10 +304,16 @@ mod tests {
     fn serialization_pads_escapes_and_keeps_alignment() {
         let t = table("| Name | Value |\n| :-- | --: |\n| a\\|b | 1 |");
         let edit = apply(&t, Operation::SetColumnAlignment(Alignment::Center), 1, 1);
-        assert_eq!(edit.replacement, "| Name | Value |\n| :--- | :---: |\n| a\\|b | 1     |");
+        assert_eq!(
+            edit.replacement,
+            "| Name | Value |\n| :--- | :---: |\n| a\\|b | 1     |"
+        );
         assert_eq!(&edit.replacement[edit.cells[1][0].clone()], "a\\|b");
         // Unicode widths count UTF-16 units, as `padEnd`.
-        assert_eq!(serialize(&[vec!["中文".into()], vec!["x".into()]], &[Alignment::None]).0, "| 中文  |\n| --- |\n| x   |");
+        assert_eq!(
+            serialize(&[vec!["中文".into()], vec!["x".into()]], &[Alignment::None]).0,
+            "| 中文  |\n| --- |\n| x   |"
+        );
     }
 
     #[test]
@@ -242,7 +327,13 @@ mod tests {
         assert_eq!(e.replacement.lines().nth(2), Some("| c   | d   |"));
         assert_eq!(e.focus, Some(Focus { row: 1, column: 0 }));
         // The header never moves or deletes.
-        assert_eq!(apply(&t, Operation::DeleteRow, 0, 0).replacement.lines().count(), 4);
+        assert_eq!(
+            apply(&t, Operation::DeleteRow, 0, 0)
+                .replacement
+                .lines()
+                .count(),
+            4
+        );
         let e = apply(&t, Operation::InsertColumnRight, 1, 0);
         assert_eq!(e.replacement.lines().next(), Some("| h1  |     | h2  |"));
         assert_eq!(e.focus, Some(Focus { row: 1, column: 1 }));

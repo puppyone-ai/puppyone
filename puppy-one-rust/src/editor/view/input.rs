@@ -56,19 +56,33 @@ impl EditorView {
 }
 
 impl EntityInputHandler for EditorView {
-    fn text_for_range(&mut self, range: Range<usize>, actual: &mut Option<Range<usize>>, _: &mut Window, _: &mut Context<Self>) -> Option<String> {
+    fn text_for_range(
+        &mut self,
+        range: Range<usize>,
+        actual: &mut Option<Range<usize>>,
+        _: &mut Window,
+        _: &mut Context<Self>,
+    ) -> Option<String> {
         let r = self.range_from_utf16(&range);
         *actual = Some(self.range_to_utf16(&r));
         Some(self.state.doc.slice(r).to_owned())
     }
 
-    fn selected_text_range(&mut self, ignore_disabled_input: bool, _: &mut Window, _: &mut Context<Self>) -> Option<UTF16Selection> {
+    fn selected_text_range(
+        &mut self,
+        ignore_disabled_input: bool,
+        _: &mut Window,
+        _: &mut Context<Self>,
+    ) -> Option<UTF16Selection> {
         // A read-only editor offers no text input (the input method stays off).
         if self.read_only && !ignore_disabled_input {
             return None;
         }
         let s = self.state.selection;
-        Some(UTF16Selection { range: self.range_to_utf16(&s.as_range()), reversed: s.head < s.anchor })
+        Some(UTF16Selection {
+            range: self.range_to_utf16(&s.as_range()),
+            reversed: s.head < s.anchor,
+        })
     }
 
     fn marked_text_range(&self, _: &mut Window, _: &mut Context<Self>) -> Option<Range<usize>> {
@@ -79,7 +93,13 @@ impl EntityInputHandler for EditorView {
         self.unmark(cx);
     }
 
-    fn replace_text_in_range(&mut self, range: Option<Range<usize>>, text: &str, window: &mut Window, cx: &mut Context<Self>) {
+    fn replace_text_in_range(
+        &mut self,
+        range: Option<Range<usize>>,
+        text: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if ime::intercept_function_key(text, window, cx) {
             return;
         }
@@ -92,37 +112,70 @@ impl EntityInputHandler for EditorView {
         self.apply_input(target, text, text.len()..text.len(), false, cx);
     }
 
-    fn replace_and_mark_text_in_range(&mut self, range: Option<Range<usize>>, text: &str, selected: Option<Range<usize>>, window: &mut Window, cx: &mut Context<Self>) {
+    fn replace_and_mark_text_in_range(
+        &mut self,
+        range: Option<Range<usize>>,
+        text: &str,
+        selected: Option<Range<usize>>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if ime::intercept_function_key(text, window, cx) {
             return;
         }
         let target = self.input_target(range);
         let units = text.encode_utf16().count();
         let selected = selected.map_or(text.len()..text.len(), |s| {
-            let (a, b) = (from_utf16(text, s.start.min(units)), from_utf16(text, s.end.min(units)));
+            let (a, b) = (
+                from_utf16(text, s.start.min(units)),
+                from_utf16(text, s.end.min(units)),
+            );
             a.min(b)..a.max(b)
         });
         self.apply_input(target, text, selected, true, cx);
     }
 
-    fn bounds_for_range(&mut self, range: Range<usize>, _: Bounds<Pixels>, _: &mut Window, _: &mut Context<Self>) -> Option<Bounds<Pixels>> {
+    fn bounds_for_range(
+        &mut self,
+        range: Range<usize>,
+        _: Bounds<Pixels>,
+        _: &mut Window,
+        _: &mut Context<Self>,
+    ) -> Option<Bounds<Pixels>> {
         let layout = self.layout.as_ref()?;
         let r = self.range_from_utf16(&range);
         // The input method asks right after an edit, before the next frame:
         // an older layout is only exact before the edit, so anchor at the
         // start (the composition's first row follows once laid out).
-        let rect = if layout.revision == self.state.revision { layout.first_row_rect(r) } else { layout.first_row_rect(r.start..r.start) };
+        let rect = if layout.revision == self.state.revision {
+            layout.first_row_rect(r)
+        } else {
+            layout.first_row_rect(r.start..r.start)
+        };
         // Shift from the layout frame's scroll to the current one.
-        Some(Bounds::new(rect.origin + point(px(0.), layout.scroll - px(self.scroll_y)), rect.size))
+        Some(Bounds::new(
+            rect.origin + point(px(0.), layout.scroll - px(self.scroll_y)),
+            rect.size,
+        ))
     }
 
-    fn character_index_for_point(&mut self, p: Point<Pixels>, _: &mut Window, _: &mut Context<Self>) -> Option<usize> {
+    fn character_index_for_point(
+        &mut self,
+        p: Point<Pixels>,
+        _: &mut Window,
+        _: &mut Context<Self>,
+    ) -> Option<usize> {
         let layout = self.layout.as_ref()?;
         let (offset, _) = layout.offset_at(layout.to_layout(p, self.scroll_y));
         Some(to_utf16(self.state.doc.as_str(), offset))
     }
 
-    fn set_selected_text_range(&mut self, range: Range<usize>, _: &mut Window, cx: &mut Context<Self>) {
+    fn set_selected_text_range(
+        &mut self,
+        range: Range<usize>,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if self.composing() {
             return;
         }

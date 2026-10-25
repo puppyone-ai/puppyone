@@ -48,7 +48,12 @@ pub fn block_rhythm(doc: &Buffer, syntax: &Syntax, source_line: Option<usize>) -
         if p.item_quoted {
             continue;
         }
-        let direct: Vec<usize> = syntax.items[item].blocks.iter().filter(|b| b.0 == BlockKind::Paragraph).map(|b| b.1.start).collect();
+        let direct: Vec<usize> = syntax.items[item]
+            .blocks
+            .iter()
+            .filter(|b| b.0 == BlockKind::Paragraph)
+            .map(|b| b.1.start)
+            .collect();
         if direct.first() != Some(&p.range.start) {
             lines[line_of(p.range.start)].classes |= Class::PARAGRAPH_START;
         }
@@ -81,7 +86,11 @@ pub fn block_rhythm(doc: &Buffer, syntax: &Syntax, source_line: Option<usize>) -
         let marker_line = line_of(item.range.start);
         // The item owns its marker line and every direct text block.
         let mut spans = vec![(marker_line, marker_line)];
-        spans.extend(item.blocks.iter().map(|b| (line_of(b.1.start), line_of(b.1.end))));
+        spans.extend(
+            item.blocks
+                .iter()
+                .map(|b| (line_of(b.1.start), line_of(b.1.end))),
+        );
         for (first, last) in spans {
             for line in first..=last.min(doc.line_count() - 1) {
                 // `- - text`: editing exposes both literal markers.
@@ -106,9 +115,21 @@ pub fn block_rhythm(doc: &Buffer, syntax: &Syntax, source_line: Option<usize>) -
                     }
                 }
                 let range = doc.line_range(line);
-                let indent = doc.line(line).bytes().take_while(|b| *b == b' ' || *b == b'\t').count();
-                let source_indent_to = if start { item.marker_from } else { range.start + indent };
-                let marker = if item.marker.starts_with(|c: char| c.is_ascii_digit()) { item.marker.clone() } else { "•".to_owned() };
+                let indent = doc
+                    .line(line)
+                    .bytes()
+                    .take_while(|b| *b == b' ' || *b == b'\t')
+                    .count();
+                let source_indent_to = if start {
+                    item.marker_from
+                } else {
+                    range.start + indent
+                };
+                let marker = if item.marker.starts_with(|c: char| c.is_ascii_digit()) {
+                    item.marker.clone()
+                } else {
+                    "•".to_owned()
+                };
                 let rhythm = &mut lines[line];
                 rhythm.classes |= classes;
                 rhythm.list = Some(ListRhythm {
@@ -116,7 +137,11 @@ pub fn block_rhythm(doc: &Buffer, syntax: &Syntax, source_line: Option<usize>) -
                     marker: if start { marker } else { String::new() },
                     columns,
                     parent_columns: parent_columns.clone(),
-                    prefix_to: if start { item.content_from } else { source_indent_to },
+                    prefix_to: if start {
+                        item.content_from
+                    } else {
+                        source_indent_to
+                    },
                     source_indent_to,
                 });
             }
@@ -137,9 +162,15 @@ mod tests {
         let has = |line: usize, c: Class| r[line].classes.has(c);
         // Probe (artifacts/probe/sample-dark.json): line 2 is the paragraph.
         assert!(has(2, Class::PARAGRAPH_START | Class::PARAGRAPH_END));
-        assert!(has(6, Class::LIST_START | Class::LIST_ITEM_START | Class::LIST_ITEM_END | Class::LIST_LINE));
+        assert!(has(
+            6,
+            Class::LIST_START | Class::LIST_ITEM_START | Class::LIST_ITEM_END | Class::LIST_LINE
+        ));
         assert!(has(7, Class::LIST_ITEM_START) && !has(7, Class::LIST_ITEM_END));
-        assert!(has(8, Class::LIST_END | Class::LIST_ITEM_END | Class::NESTED_LIST_LINE));
+        assert!(has(
+            8,
+            Class::LIST_END | Class::LIST_ITEM_END | Class::NESTED_LIST_LINE
+        ));
         assert_eq!(r[8].list.as_ref().unwrap().depth, 1);
         assert!(has(10, Class::ORDERED_LIST_LINE));
         assert_eq!(r[10].list.as_ref().unwrap().marker, "1.");
@@ -147,6 +178,9 @@ mod tests {
         assert!(has(14, Class::TASK_LINE | Class::TASK_CHECKED));
         assert!(!has(13, Class::TASK_CHECKED) && !has(13, Class::PARAGRAPH_START));
         assert!(has(18, Class::PARAGRAPH_START | Class::PARAGRAPH_END));
-        assert_eq!(r[6].list.as_ref().unwrap().prefix_to, doc.line_range(6).start + 2);
+        assert_eq!(
+            r[6].list.as_ref().unwrap().prefix_to,
+            doc.line_range(6).start + 2
+        );
     }
 }

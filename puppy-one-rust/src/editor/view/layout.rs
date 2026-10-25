@@ -19,7 +19,9 @@ impl Leaf {
     }
     fn display(&self, offset: usize) -> usize {
         let s = self.source();
-        self.entry.text.to_display(offset.clamp(s.start, s.end) - s.start, false)
+        self.entry
+            .text
+            .to_display(offset.clamp(s.start, s.end) - s.start, false)
     }
     fn next_char(&self, index: usize) -> Option<usize> {
         let text = &self.entry.text.text;
@@ -28,7 +30,9 @@ impl Leaf {
     /// The display index ends a soft-wrapped row (GPUI puts a boundary index
     /// on the earlier row).
     fn wraps_after(&self, index: usize) -> bool {
-        let Some(next) = self.next_char(index) else { return false };
+        let Some(next) = self.next_char(index) else {
+            return false;
+        };
         self.geometry.position_for_index(next).y > self.geometry.position_for_index(index).y
     }
     /// Row top-left of a display index; `upstream` keeps a wrap boundary on
@@ -36,7 +40,9 @@ impl Leaf {
     pub fn position(&self, index: usize, upstream: bool) -> Point<Pixels> {
         let p = self.geometry.position_for_index(index);
         if !upstream && self.wraps_after(index) {
-            let next = self.geometry.position_for_index(self.next_char(index).unwrap());
+            let next = self
+                .geometry
+                .position_for_index(self.next_char(index).unwrap());
             return point(self.geometry.bounds().left(), next.y);
         }
         p
@@ -99,13 +105,25 @@ impl DocLayout {
             // Inside a widget without text there: the block's leading edge.
             let b = self.block_of(offset).map_or(self.bounds, |b| b.bounds);
             let h = b.size.height.min(px(20.));
-            return Caret { x: b.left(), row_top: b.top(), row_height: h, top: b.top(), height: h };
+            return Caret {
+                x: b.left(),
+                row_top: b.top(),
+                row_height: h,
+                top: b.top(),
+                height: h,
+            };
         };
         let index = leaf.display(offset);
         let p = leaf.position(index, upstream);
         let row_height = leaf.geometry.line_height();
         let height = leaf.geometry.caret_height();
-        Caret { x: p.x, row_top: p.y, row_height, top: p.y + (row_height - height) / 2., height }
+        Caret {
+            x: p.x,
+            row_top: p.y,
+            row_height,
+            top: p.y + (row_height - height) / 2.,
+            height,
+        }
     }
 
     /// The source offset nearest to a layout point, and whether it belongs
@@ -117,9 +135,20 @@ impl DocLayout {
             (f32::from(dy), f32::from(dx))
         };
         // The block under the point decides; its nearest leaf maps the point.
-        let block = self.blocks.iter().min_by(|a, b| distance(a.bounds).partial_cmp(&distance(b.bounds)).unwrap());
-        let candidates = self.leaves.iter().filter(|l| block.is_none_or(|b| b.source.start <= l.source().start && l.source().end <= b.source.end));
-        let leaf = candidates.min_by(|a, b| distance(a.geometry.bounds()).partial_cmp(&distance(b.geometry.bounds())).unwrap());
+        let block = self
+            .blocks
+            .iter()
+            .min_by(|a, b| distance(a.bounds).partial_cmp(&distance(b.bounds)).unwrap());
+        let candidates = self.leaves.iter().filter(|l| {
+            block.is_none_or(|b| {
+                b.source.start <= l.source().start && l.source().end <= b.source.end
+            })
+        });
+        let leaf = candidates.min_by(|a, b| {
+            distance(a.geometry.bounds())
+                .partial_cmp(&distance(b.geometry.bounds()))
+                .unwrap()
+        });
         let Some(leaf) = leaf else {
             return match block {
                 Some(b) if at.y < b.bounds.center().y => (b.source.start, false),
@@ -127,9 +156,15 @@ impl DocLayout {
                 None => (0, false),
             };
         };
-        let index = leaf.geometry.index_for_position(at).min(leaf.entry.text.text.len());
+        let index = leaf
+            .geometry
+            .index_for_position(at)
+            .min(leaf.entry.text.text.len());
         let upstream = leaf.wraps_after(index) && at.y < leaf.position(index, false).y;
-        (leaf.source().start + leaf.entry.text.to_source(index), upstream)
+        (
+            leaf.source().start + leaf.entry.text.to_source(index),
+            upstream,
+        )
     }
 
     /// Start or end of the visual row holding `offset`.
@@ -139,15 +174,26 @@ impl DocLayout {
         let p = leaf.position(index, upstream);
         let y = p.y + leaf.geometry.line_height() / 2.;
         let b = leaf.geometry.bounds();
-        let x = if end { b.right() + px(1.) } else { b.left() - px(1.) };
-        let edge = leaf.geometry.index_for_position(point(x, y)).min(leaf.entry.text.text.len());
+        let x = if end {
+            b.right() + px(1.)
+        } else {
+            b.left() - px(1.)
+        };
+        let edge = leaf
+            .geometry
+            .index_for_position(point(x, y))
+            .min(leaf.entry.text.text.len());
         let soft = end && leaf.wraps_after(edge);
         Some((leaf.source().start + leaf.entry.text.to_source(edge), soft))
     }
 
     /// Line-break boxes of a selection: one space wide after the last row of
     /// every leaf whose break the selection covers (browser selection).
-    pub fn line_break_boxes(&self, range: Range<usize>, space: impl Fn(&LeafEntry) -> Pixels) -> Vec<Bounds<Pixels>> {
+    pub fn line_break_boxes(
+        &self,
+        range: Range<usize>,
+        space: impl Fn(&LeafEntry) -> Pixels,
+    ) -> Vec<Bounds<Pixels>> {
         let mut out = Vec::new();
         if range.is_empty() {
             return out;
@@ -158,7 +204,10 @@ impl DocLayout {
                 continue;
             }
             let p = leaf.geometry.position_for_index(leaf.entry.text.text.len());
-            out.push(Bounds::new(p, gpui::size(space(&leaf.entry), leaf.geometry.line_height())));
+            out.push(Bounds::new(
+                p,
+                gpui::size(space(&leaf.entry), leaf.geometry.line_height()),
+            ));
         }
         out
     }
@@ -173,8 +222,14 @@ impl DocLayout {
             if s.end <= range.start || s.start >= range.end {
                 continue;
             }
-            let a = leaf.entry.text.to_display(range.start.max(s.start) - s.start, false);
-            let b = leaf.entry.text.to_display(range.end.min(s.end) - s.start, true);
+            let a = leaf
+                .entry
+                .text
+                .to_display(range.start.max(s.start) - s.start, false);
+            let b = leaf
+                .entry
+                .text
+                .to_display(range.end.min(s.end) - s.start, true);
             if a >= b {
                 continue;
             }
@@ -182,7 +237,10 @@ impl DocLayout {
             let mut row: Option<(Pixels, Pixels, Pixels)> = None;
             let push = |row: Option<(Pixels, Pixels, Pixels)>, out: &mut Vec<Bounds<Pixels>>| {
                 if let Some((y, x0, x1)) = row.filter(|(_, x0, x1)| x1 > x0) {
-                    out.push(Bounds::new(point(x0, y + (line - caret) / 2.), gpui::size(x1 - x0, caret)));
+                    out.push(Bounds::new(
+                        point(x0, y + (line - caret) / 2.),
+                        gpui::size(x1 - x0, caret),
+                    ));
                 }
             };
             let mut i = a;
@@ -212,7 +270,10 @@ impl DocLayout {
             .then(|| self.range_boxes(range.clone()).into_iter().next())
             .flatten()
             .map_or(px(1.), |b| (b.right() - start.x).max(px(1.)));
-        Bounds::new(point(start.x, start.row_top), gpui::size(width, start.row_height))
+        Bounds::new(
+            point(start.x, start.row_top),
+            gpui::size(width, start.row_height),
+        )
     }
 
     /// Underlines of `range`, one per row it covers, `thickness` tall at the
@@ -220,12 +281,20 @@ impl DocLayout {
     pub fn underline_boxes(&self, range: Range<usize>, thickness: Pixels) -> Vec<Bounds<Pixels>> {
         self.range_boxes(range)
             .into_iter()
-            .map(|b| Bounds::new(point(b.left(), b.bottom() - thickness), gpui::size(b.size.width, thickness)))
+            .map(|b| {
+                Bounds::new(
+                    point(b.left(), b.bottom() - thickness),
+                    gpui::size(b.size.width, thickness),
+                )
+            })
             .collect()
     }
 
     /// Selection ranges in each leaf's display space, by leaf key.
-    pub fn selection_ranges(leaves: &[LeafEntry], range: &Range<usize>) -> Vec<(u64, Range<usize>)> {
+    pub fn selection_ranges(
+        leaves: &[LeafEntry],
+        range: &Range<usize>,
+    ) -> Vec<(u64, Range<usize>)> {
         let mut out = Vec::new();
         if range.is_empty() {
             return out;
@@ -235,7 +304,9 @@ impl DocLayout {
             if s.end < range.start || s.start > range.end {
                 continue;
             }
-            let a = leaf.text.to_display(range.start.max(s.start) - s.start, false);
+            let a = leaf
+                .text
+                .to_display(range.start.max(s.start) - s.start, false);
             let b = leaf.text.to_display(range.end.min(s.end) - s.start, true);
             if a < b {
                 out.push((leaf.key, a..b));
@@ -265,7 +336,11 @@ impl DocLayout {
                 let j = i + ch.len_utf8();
                 let (p0, p1) = (leaf.geometry.position_for_index(i), leaf.position(j, true));
                 let (x, y) = rel(p0);
-                let w = if p1.y == p0.y { f32::from(p1.x - p0.x) } else { 0. };
+                let w = if p1.y == p0.y {
+                    f32::from(p1.x - p0.x)
+                } else {
+                    0.
+                };
                 let top = y + f32::from((row_h - caret_h) / 2.);
                 chars.push(serde_json::json!({"at": text.source.start + text.to_source(i), "ch": ch.to_string(), "rect": [x, top, w, f32::from(caret_h)], "row": y}));
             }

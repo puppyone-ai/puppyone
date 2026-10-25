@@ -20,12 +20,19 @@ pub fn find_all(text: &str, query: &str) -> Vec<Range<usize>> {
         return Vec::new();
     }
     // Lower-case char by char so offsets stay those of the source.
-    let folded: Vec<(usize, char)> = text.char_indices().flat_map(|(i, c)| c.to_lowercase().map(move |l| (i, l))).collect();
+    let folded: Vec<(usize, char)> = text
+        .char_indices()
+        .flat_map(|(i, c)| c.to_lowercase().map(move |l| (i, l)))
+        .collect();
     let needle: Vec<char> = query.chars().flat_map(char::to_lowercase).collect();
     let mut out = Vec::new();
     let mut k = 0;
     while k + needle.len() <= folded.len() {
-        if folded[k..k + needle.len()].iter().map(|(_, c)| *c).eq(needle.iter().copied()) {
+        if folded[k..k + needle.len()]
+            .iter()
+            .map(|(_, c)| *c)
+            .eq(needle.iter().copied())
+        {
             let start = folded[k].0;
             let last = folded[k + needle.len() - 1].0;
             let end = last + text[last..].chars().next().map_or(0, char::len_utf8);
@@ -57,12 +64,20 @@ impl EditorView {
     }
 
     fn find_result(&self) -> (usize, usize) {
-        (self.find.current.map_or(0, |c| c + 1), self.find.matches.len())
+        (
+            self.find.current.map_or(0, |c| c + 1),
+            self.find.matches.len(),
+        )
     }
 
     /// Select the current match and centre it.
     fn reveal_find(&mut self, cx: &mut Context<Self>) {
-        if let Some(m) = self.find.current.and_then(|c| self.find.matches.get(c)).cloned() {
+        if let Some(m) = self
+            .find
+            .current
+            .and_then(|c| self.find.matches.get(c))
+            .cloned()
+        {
             self.set_selection(Selection::range(m.start, m.end), cx);
             self.reveal_centered = true;
         }
@@ -82,7 +97,11 @@ impl EditorView {
             return self.find_result();
         }
         let current = self.find.current.unwrap_or(if forward { n - 1 } else { 0 });
-        self.find.current = Some(if forward { (current + 1) % n } else { (current + n - 1) % n });
+        self.find.current = Some(if forward {
+            (current + 1) % n
+        } else {
+            (current + n - 1) % n
+        });
         self.reveal_find(cx);
         self.find_result()
     }
@@ -98,7 +117,11 @@ impl EditorView {
             return;
         }
         self.find.matches = find_all(self.text(), &self.find.query);
-        if self.find.current.is_some_and(|c| c >= self.find.matches.len()) {
+        if self
+            .find
+            .current
+            .is_some_and(|c| c >= self.find.matches.len())
+        {
             self.find.current = (!self.find.matches.is_empty()).then_some(0);
         }
     }

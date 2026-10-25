@@ -17,18 +17,31 @@ pub struct ColumnLayout {
 }
 
 fn estimate(model: &CsvModel) -> Vec<f32> {
-    table::estimate_widths(model.rows(), model.column_count(), |r, c| r.cells.get(c).map(String::as_str)).into_iter().map(|w| w.min(COLUMN_INITIAL_MAX_WIDTH)).collect()
+    table::estimate_widths(model.rows(), model.column_count(), |r, c| {
+        r.cells.get(c).map(String::as_str)
+    })
+    .into_iter()
+    .map(|w| w.min(COLUMN_INITIAL_MAX_WIDTH))
+    .collect()
 }
 
 impl ColumnLayout {
     pub fn new(model: &CsvModel, restored: Option<&[f32]>) -> Self {
         let ids = model.content().columns.clone();
         let widths = match restored {
-            Some(w) if w.len() == ids.len() && w.iter().all(|v| v.is_finite() && *v > 0.) => w.iter().map(|v| table::clamp_width(*v, COLUMN_RESIZE_MAX_WIDTH)).collect(),
+            Some(w) if w.len() == ids.len() && w.iter().all(|v| v.is_finite() && *v > 0.) => w
+                .iter()
+                .map(|v| table::clamp_width(*v, COLUMN_RESIZE_MAX_WIDTH))
+                .collect(),
             _ => estimate(model),
         };
         let known = ids.iter().copied().zip(widths.iter().copied()).collect();
-        Self { column_ids: ids, epoch: model.content().epoch, known, widths }
+        Self {
+            column_ids: ids,
+            epoch: model.content().epoch,
+            known,
+            widths,
+        }
     }
 
     /// `syncFromDocument`; returns whether widths changed (to persist).
@@ -40,9 +53,19 @@ impl ColumnLayout {
         let estimates = estimate(model);
         let widths: Vec<f32> = if content.epoch != self.epoch {
             // External replacement: keep compatible tracks by ordinal.
-            content.columns.iter().enumerate().map(|(i, _)| self.widths.get(i).copied().unwrap_or(estimates[i])).collect()
+            content
+                .columns
+                .iter()
+                .enumerate()
+                .map(|(i, _)| self.widths.get(i).copied().unwrap_or(estimates[i]))
+                .collect()
         } else {
-            content.columns.iter().enumerate().map(|(i, id)| self.known.get(id).copied().unwrap_or(estimates[i])).collect()
+            content
+                .columns
+                .iter()
+                .enumerate()
+                .map(|(i, id)| self.known.get(id).copied().unwrap_or(estimates[i]))
+                .collect()
         };
         for (id, w) in content.columns.iter().zip(&widths) {
             self.known.insert(*id, *w);
@@ -54,7 +77,9 @@ impl ColumnLayout {
     }
 
     pub fn set_width(&mut self, column: usize, width: f32) -> bool {
-        let Some(&id) = self.column_ids.get(column) else { return false };
+        let Some(&id) = self.column_ids.get(column) else {
+            return false;
+        };
         let w = table::clamp_width(width, COLUMN_RESIZE_MAX_WIDTH);
         if self.widths[column] == w {
             return false;
@@ -66,7 +91,11 @@ impl ColumnLayout {
 
     /// `autoFitColumn`: the uncapped content estimate.
     pub fn auto_fit(&mut self, model: &CsvModel, column: usize) -> bool {
-        let w = table::estimate_widths(model.rows(), model.column_count(), |r, c| r.cells.get(c).map(String::as_str)).get(column).copied();
+        let w = table::estimate_widths(model.rows(), model.column_count(), |r, c| {
+            r.cells.get(c).map(String::as_str)
+        })
+        .get(column)
+        .copied();
         w.is_some_and(|w| self.set_width(column, w))
     }
 
@@ -91,6 +120,10 @@ impl ColumnLayout {
         if !available.is_finite() || available <= 0. {
             return false;
         }
-        self.replace_all(table::fit_widths(&self.widths, available, COLUMN_RESIZE_MAX_WIDTH))
+        self.replace_all(table::fit_widths(
+            &self.widths,
+            available,
+            COLUMN_RESIZE_MAX_WIDTH,
+        ))
     }
 }

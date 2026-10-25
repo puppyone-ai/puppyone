@@ -64,7 +64,11 @@ pub trait MarkdownFeature: Sync {
     fn compile_blocks(&self, _cx: &CompileCx, _out: &mut Vec<Plan>) {}
 
     /// The widget replacing one of its block plans (`createBlockWidget`).
-    fn block_widget(&self, _embed: &BlockEmbed, _cx: &WidgetFactoryCx) -> Option<Rc<dyn BlockWidget>> {
+    fn block_widget(
+        &self,
+        _embed: &BlockEmbed,
+        _cx: &WidgetFactoryCx,
+    ) -> Option<Rc<dyn BlockWidget>> {
         None
     }
 

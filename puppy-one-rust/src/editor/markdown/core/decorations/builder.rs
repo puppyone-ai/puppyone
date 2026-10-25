@@ -11,8 +11,8 @@ use crate::editor::{
             syntax::Syntax,
         },
         style::{
-            cascade::{self, LineContext, LineInput},
             MarkdownTheme,
+            cascade::{self, LineContext, LineInput},
         },
     },
     text::buffer::Buffer,
@@ -48,7 +48,15 @@ impl<'a> Builder<'a> {
         for plan in cx.plans {
             by_line[cx.doc.line_index(plan.source.start)].push(plan);
         }
-        Self { cx, blocks: Vec::with_capacity(count), hidden: Vec::new(), atomic: Vec::new(), spans: Vec::new(), contexts: vec![None; count], by_line }
+        Self {
+            cx,
+            blocks: Vec::with_capacity(count),
+            hidden: Vec::new(),
+            atomic: Vec::new(),
+            spans: Vec::new(),
+            contexts: vec![None; count],
+            by_line,
+        }
     }
 
     /// Hide `range`, or show it as revealed source.
@@ -57,7 +65,11 @@ impl<'a> Builder<'a> {
             return;
         }
         if reveal {
-            self.spans.push(ClassSpan { range, classes: kind.revealed(), href: None });
+            self.spans.push(ClassSpan {
+                range,
+                classes: kind.revealed(),
+                href: None,
+            });
         } else {
             self.hidden.push(range);
         }
@@ -70,13 +82,24 @@ impl<'a> Builder<'a> {
         let (mut style, context) = cascade::line(cx.theme, &input);
         if features && cx.live {
             let plans = self.by_line[line].clone();
-            let mut decoration = LineDecoration { line, range: cx.doc.line_range(line), plans: &plans, syntax: cx.syntax, theme: cx.theme, context: &context, style: &mut style };
+            let mut decoration = LineDecoration {
+                line,
+                range: cx.doc.line_range(line),
+                plans: &plans,
+                syntax: cx.syntax,
+                theme: cx.theme,
+                context: &context,
+                style: &mut style,
+            };
             for feature in cx.features {
                 feature.decorate_line(&mut decoration);
             }
         }
         self.contexts[line] = Some(context);
-        self.blocks.push(Block::Line { line, style: Rc::new(style) });
+        self.blocks.push(Block::Line {
+            line,
+            style: Rc::new(style),
+        });
     }
 }
 

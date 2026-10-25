@@ -63,21 +63,42 @@ impl RenderCx<'_> {
             features: text.font_features.unwrap_or_default(),
             fallbacks: text.font_fallbacks,
             weight: FontWeight(style.weight),
-            style: if style.italic { FontStyle::Italic } else { FontStyle::Normal },
+            style: if style.italic {
+                FontStyle::Italic
+            } else {
+                FontStyle::Normal
+            },
         }
     }
 
     /// Shape `leaf` with the runs Kit's plain inline path uses.
-    fn measure(&mut self, leaf: &LeafText, style: &TextStyle, wrap: Option<f32>) -> (u64, TextMetrics) {
+    fn measure(
+        &mut self,
+        leaf: &LeafText,
+        style: &TextStyle,
+        wrap: Option<f32>,
+    ) -> (u64, TextMetrics) {
         let mut h = std::collections::hash_map::DefaultHasher::new();
         leaf.text.hash(&mut h);
         for (r, m) in &leaf.marks {
             (r.start, r.end, m.bold, m.italic, m.code).hash(&mut h);
         }
-        (style.family(), style.size.to_bits(), style.weight.to_bits(), style.italic, style.tabular, wrap.map(f32::to_bits)).hash(&mut h);
+        (
+            style.family(),
+            style.size.to_bits(),
+            style.weight.to_bits(),
+            style.italic,
+            style.tabular,
+            wrap.map(f32::to_bits),
+        )
+            .hash(&mut h);
         let key = h.finish();
         let mut cache = self.measures.borrow_mut();
-        let found = cache.used.get(&key).or_else(|| cache.entries.get(&key)).copied();
+        let found = cache
+            .used
+            .get(&key)
+            .or_else(|| cache.entries.get(&key))
+            .copied();
         let mut metrics = match found {
             Some(m) => m,
             None => {
@@ -85,13 +106,25 @@ impl RenderCx<'_> {
                 let base = Self::font(style);
                 // Inline code shapes as Geist Mono at the full size (what the
                 // inline-code family renders at Kit's 0.875 code size).
-                let mono = TextStyle { mono: true, ..style.clone() }.family();
+                let mono = TextStyle {
+                    mono: true,
+                    ..style.clone()
+                }
+                .family();
                 let run = |len: usize, bold: bool, italic: bool, code: bool| TextRun {
                     len,
                     font: Font {
-                        family: if code { mono.clone() } else { base.family.clone() },
+                        family: if code {
+                            mono.clone()
+                        } else {
+                            base.family.clone()
+                        },
                         weight: if bold { FontWeight::BOLD } else { base.weight },
-                        style: if italic { FontStyle::Italic } else { base.style },
+                        style: if italic {
+                            FontStyle::Italic
+                        } else {
+                            base.style
+                        },
                         ..base.clone()
                     },
                     color: black(),
@@ -111,7 +144,13 @@ impl RenderCx<'_> {
                 if at < leaf.text.len() {
                     runs.push(run(leaf.text.len() - at, false, false, false));
                 }
-                let shaped = self.window.text_system().shape_text(leaf.text.clone().into(), px(style.size), &runs, wrap.map(px), None);
+                let shaped = self.window.text_system().shape_text(
+                    leaf.text.clone().into(),
+                    px(style.size),
+                    &runs,
+                    wrap.map(px),
+                    None,
+                );
                 let metrics = match shaped.ok().as_ref().and_then(|lines| lines.first()) {
                     Some(line) if !leaf.text.is_empty() => TextMetrics {
                         rows: line.wrap_boundaries.len() + 1,
@@ -120,7 +159,11 @@ impl RenderCx<'_> {
                     },
                     _ => {
                         let (a, d) = self.primary_metrics(style);
-                        TextMetrics { rows: 1, ascent: a, descent: d }
+                        TextMetrics {
+                            rows: 1,
+                            ascent: a,
+                            descent: d,
+                        }
                     }
                 };
                 cache = self.measures.borrow_mut();
@@ -141,29 +184,85 @@ impl RenderCx<'_> {
 
     /// Top (relative to `block_top`) of a text container whose first row
     /// should sit at document y `row_top` (see `chromium_text_top`).
-    fn baseline_top(&mut self, style: &TextStyle, metrics: TextMetrics, block_top: f32, row_top: f32) -> f32 {
+    fn baseline_top(
+        &mut self,
+        style: &TextStyle,
+        metrics: TextMetrics,
+        block_top: f32,
+        row_top: f32,
+    ) -> f32 {
         let primary = self.primary_metrics(style);
-        chromium_text_top(self.scale, style, primary, (metrics.ascent, metrics.descent), row_top) - block_top
+        chromium_text_top(
+            self.scale,
+            style,
+            primary,
+            (metrics.ascent, metrics.descent),
+            row_top,
+        ) - block_top
     }
 
     /// A keyed Kit text leaf showing `source` with its first row at
     /// (`x`, `y`) inside the block whose document top is `block_top`.
     /// Returns the positioned container and the CSS height of its rows.
-    pub fn text(&mut self, source: Range<usize>, style: &TextStyle, strike: bool, wrap: Option<f32>, line_break: bool, block_top: f32, x: f32, y: f32) -> (AnyElement, f32) {
-        self.text_aligned(source, style, strike, wrap, line_break, block_top, x, y, TextAlign::Left)
+    pub fn text(
+        &mut self,
+        source: Range<usize>,
+        style: &TextStyle,
+        strike: bool,
+        wrap: Option<f32>,
+        line_break: bool,
+        block_top: f32,
+        x: f32,
+        y: f32,
+    ) -> (AnyElement, f32) {
+        self.text_aligned(
+            source,
+            style,
+            strike,
+            wrap,
+            line_break,
+            block_top,
+            x,
+            y,
+            TextAlign::Left,
+        )
     }
 
     /// `text` with a horizontal alignment of its rows (`text-align`).
     #[allow(clippy::too_many_arguments)]
-    pub fn text_aligned(&mut self, source: Range<usize>, style: &TextStyle, strike: bool, wrap: Option<f32>, line_break: bool, block_top: f32, x: f32, y: f32, align: TextAlign) -> (AnyElement, f32) {
+    pub fn text_aligned(
+        &mut self,
+        source: Range<usize>,
+        style: &TextStyle,
+        strike: bool,
+        wrap: Option<f32>,
+        line_break: bool,
+        block_top: f32,
+        x: f32,
+        y: f32,
+        align: TextAlign,
+    ) -> (AnyElement, f32) {
         let d = self.decorations;
-        let leaf = LeafText::build(self.doc.as_str(), source.clone(), d.hidden_in(&source), d.marks_in(&source), strike);
+        let leaf = LeafText::build(
+            self.doc.as_str(),
+            source.clone(),
+            d.hidden_in(&source),
+            d.marks_in(&source),
+            strike,
+        );
         let wrap = wrap.map(|w| self.snap(w));
         let (measure_key, metrics) = self.measure(&leaf, style, wrap);
         let key = self.leaves.len() as u64;
         let (paragraph, text) = self.cache.borrow_mut().get(&leaf, key);
         let code = text.marks.iter().any(|(_, m)| m.code);
-        self.leaves.push(LeafEntry { key, text, style: style.clone(), line_break, rows: metrics.rows, measure_key });
+        self.leaves.push(LeafEntry {
+            key,
+            text,
+            style: style.clone(),
+            line_break,
+            rows: metrics.rows,
+            measure_key,
+        });
         let block = BlockNode::Paragraph(paragraph);
         let refs = [&block];
         let flow = FlowPosition::at(&refs, 0, true);
@@ -171,11 +270,17 @@ impl RenderCx<'_> {
         // paragraph is built; use the editor's inline-code family for it.
         let previous = code.then(|| {
             let theme = gpui_kit::base::Theme::global_mut(self.app);
-            std::mem::replace(&mut theme.tokens.typography.mono, SharedString::from(super::style::INLINE_CODE_FAMILY))
+            std::mem::replace(
+                &mut theme.tokens.typography.mono,
+                SharedString::from(super::style::INLINE_CODE_FAMILY),
+            )
         });
         let element = block.render(key as usize, flow, self.kit, self.window, self.app);
         if let Some(previous) = previous {
-            gpui_kit::base::Theme::global_mut(self.app).tokens.typography.mono = previous;
+            gpui_kit::base::Theme::global_mut(self.app)
+                .tokens
+                .typography
+                .mono = previous;
         }
         let top = self.baseline_top(style, metrics, block_top, block_top + y);
         let mut container = div().absolute().left(px(x)).top(px(top));
@@ -185,7 +290,10 @@ impl RenderCx<'_> {
         };
         style.apply(container.style());
         container.style().text.text_align = Some(align);
-        (container.child(element).into_any_element(), metrics.rows as f32 * style.line_height_px())
+        (
+            container.child(element).into_any_element(),
+            metrics.rows as f32 * style.line_height_px(),
+        )
     }
 
     /// A keyed Kit code leaf (`white-space: pre`, hard line breaks) showing
@@ -208,12 +316,26 @@ impl RenderCx<'_> {
         let styles = highlight(&leaf.text);
         let rows = leaf.text.split('\n').count();
         let (ascent, descent) = self.primary_metrics(style);
-        let metrics = TextMetrics { rows, ascent, descent };
+        let metrics = TextMetrics {
+            rows,
+            ascent,
+            descent,
+        };
         let key = self.leaves.len() as u64;
-        self.leaves.push(LeafEntry { key, text: Rc::new(leaf.clone()), style: style.clone(), line_break: false, rows, measure_key: 0 });
+        self.leaves.push(LeafEntry {
+            key,
+            text: Rc::new(leaf.clone()),
+            style: style.clone(),
+            line_break: false,
+            rows,
+            measure_key: 0,
+        });
         // Kit's code block, restyled to the product panel's text: the panel
         // box itself is the host's.
-        let mut refinement = StyleRefinement::default().p_0().border_0().bg(transparent_black());
+        let mut refinement = StyleRefinement::default()
+            .p_0()
+            .border_0()
+            .bg(transparent_black());
         refinement.text = style.refinement();
         refinement.text.white_space = Some(WhiteSpace::Nowrap);
         let kit = self
@@ -221,23 +343,56 @@ impl RenderCx<'_> {
             .clone()
             .with_style(self.kit.style().clone().with_code_block(refinement))
             .with_code_block_highlighter(move |_| (*styles).clone());
-        let block = BlockNode::CodeBlock(CodeBlock::from_code(leaf.text.clone(), None::<SharedString>).with_leaf_key(key));
+        let block = BlockNode::CodeBlock(
+            CodeBlock::from_code(leaf.text.clone(), None::<SharedString>).with_leaf_key(key),
+        );
         let refs = [&block];
-        let element = block.render(key as usize, FlowPosition::at(&refs, 0, true), &kit, self.window, self.app);
+        let element = block.render(
+            key as usize,
+            FlowPosition::at(&refs, 0, true),
+            &kit,
+            self.window,
+            self.app,
+        );
         let top = self.baseline_top(style, metrics, box_top, box_top + y);
-        let container = div().absolute().left(px(x)).top(px(top)).w(px(width)).child(element);
-        (container.into_any_element(), rows as f32 * style.line_height_px())
+        let container = div()
+            .absolute()
+            .left(px(x))
+            .top(px(top))
+            .w(px(width))
+            .child(element);
+        (
+            container.into_any_element(),
+            rows as f32 * style.line_height_px(),
+        )
     }
 
     /// Non-source text (list markers) on one row of `rect`, its baseline
     /// where the product's flex-centred `::before` puts it.
-    pub fn label(&mut self, rect: Rect, text: &SharedString, style: &TextStyle, align: Align, block_top: f32) -> AnyElement {
+    pub fn label(
+        &mut self,
+        rect: Rect,
+        text: &SharedString,
+        style: &TextStyle,
+        align: Align,
+        block_top: f32,
+    ) -> AnyElement {
         let (a, d) = self.primary_metrics(style);
-        let metrics = TextMetrics { rows: 1, ascent: a, descent: d };
+        let metrics = TextMetrics {
+            rows: 1,
+            ascent: a,
+            descent: d,
+        };
         // A one-row line box of 1lh, centred in the rect.
         let row_top = rect.y + (rect.height - style.line_height_px()) / 2.;
         let top = self.baseline_top(style, metrics, block_top, block_top + row_top);
-        let mut label = div().absolute().left(px(rect.x)).top(px(top)).w(px(rect.width)).flex().whitespace_nowrap();
+        let mut label = div()
+            .absolute()
+            .left(px(rect.x))
+            .top(px(top))
+            .w(px(rect.width))
+            .flex()
+            .whitespace_nowrap();
         label = match align {
             Align::Start => label.justify_start(),
             Align::Center => label.justify_center(),
@@ -250,7 +405,13 @@ impl RenderCx<'_> {
     /// A box decoration (background, border, polygon) or label.
     pub fn paint(&mut self, paint: &Paint, block_top: f32) -> AnyElement {
         match paint {
-            Paint::Quad { rect, background, radii, border, border_color } => {
+            Paint::Quad {
+                rect,
+                background,
+                radii,
+                border,
+                border_color,
+            } => {
                 let mut quad = div()
                     .absolute()
                     .left(px(rect.x))
@@ -269,7 +430,12 @@ impl RenderCx<'_> {
                 }
                 quad.into_any_element()
             }
-            Paint::Label { rect, text, style, align } => self.label(*rect, text, style, *align, block_top),
+            Paint::Label {
+                rect,
+                text,
+                style,
+                align,
+            } => self.label(*rect, text, style, *align, block_top),
             Paint::Polygon { points, color } => {
                 let (points, color) = (points.clone(), *color);
                 canvas(
@@ -278,7 +444,11 @@ impl RenderCx<'_> {
                         let mut builder = PathBuilder::fill();
                         for (k, (x, y)) in points.iter().enumerate() {
                             let p = bounds.origin + point(px(*x), px(*y));
-                            if k == 0 { builder.move_to(p) } else { builder.line_to(p) }
+                            if k == 0 {
+                                builder.move_to(p)
+                            } else {
+                                builder.line_to(p)
+                            }
                         }
                         builder.close();
                         if let Ok(path) = builder.build() {
@@ -316,25 +486,55 @@ impl RenderCx<'_> {
 
     /// A positioned block box of the given document geometry.
     pub fn block_box(&self, top: f32, left: f32, width: f32, height: f32) -> Div {
-        div().absolute().top(px(top)).left(px(left)).w(px(width)).h(px(height))
+        div()
+            .absolute()
+            .top(px(top))
+            .left(px(left))
+            .w(px(width))
+            .h(px(height))
     }
 
     /// A `.cm-line` box at document `top`: background, inset rule, border,
     /// its text leaf and absolutely positioned decorations. Returns the
     /// element and its CSS height.
-    pub fn line(&mut self, source: Range<usize>, style: &LineStyle, line_break: bool, top: f32, left: f32, width: f32) -> (AnyElement, f32) {
+    pub fn line(
+        &mut self,
+        source: Range<usize>,
+        style: &LineStyle,
+        line_break: bool,
+        top: f32,
+        left: f32,
+        width: f32,
+    ) -> (AnyElement, f32) {
         let (p, b) = (style.padding, style.border);
         let x = b.left + p.left;
         let y = b.top + p.top;
         let wrap = (!style.nowrap).then(|| (width - x - p.right - b.right).max(0.));
-        let (text, text_height) = self.text(source, &style.text, style.strike, wrap, line_break, top, x, y);
+        let (text, text_height) = self.text(
+            source,
+            &style.text,
+            style.strike,
+            wrap,
+            line_break,
+            top,
+            x,
+            y,
+        );
         let height = y + text_height + p.bottom + b.bottom;
         let mut line = self.block_box(top, left, width, height);
         if let Some(bg) = style.background {
             line = line.bg(bg);
         }
         if let Some((n, color)) = style.inset_bottom {
-            line = line.child(div().absolute().left_0().w(px(width)).top(px(height - n)).h(px(n)).bg(color));
+            line = line.child(
+                div()
+                    .absolute()
+                    .left_0()
+                    .w(px(width))
+                    .top(px(height - n))
+                    .h(px(n))
+                    .bg(color),
+            );
         }
         if let Some(color) = style.border_color {
             for r in [

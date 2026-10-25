@@ -42,7 +42,8 @@ fn marker_slot(list: &ListStyle, columns: usize, ch: f32) -> f32 {
         list.marker_width
     } else {
         // `.cm-md-ordered-list-line`: max(width, (columns - 1) * 1ch + suffix).
-        list.marker_width.max((columns as f32 - 1.) * ch + list.ordered_suffix_width)
+        list.marker_width
+            .max((columns as f32 - 1.) * ch + list.ordered_suffix_width)
     }
 }
 
@@ -53,7 +54,13 @@ fn list_prefix(s: &ListStyle, list: &ListRhythm, ch: f32) -> (f32, f32) {
     let prefix = match list.parent_columns.split_first() {
         None => s.inset + slot + s.marker_gap + list.depth as f32 * s.indent_step,
         Some((first, rest)) => {
-            let parent = s.inset + marker_slot(s, *first, ch) + s.marker_gap + rest.iter().map(|c| s.indent_step.max(marker_slot(s, *c, ch) + s.marker_gap)).sum::<f32>();
+            let parent = s.inset
+                + marker_slot(s, *first, ch)
+                + s.marker_gap
+                + rest
+                    .iter()
+                    .map(|c| s.indent_step.max(marker_slot(s, *c, ch) + s.marker_gap))
+                    .sum::<f32>();
             parent + s.indent_step.max(slot + s.marker_gap)
         }
     };
@@ -82,7 +89,9 @@ pub fn line(theme: &MarkdownTheme, input: &LineInput) -> (LineStyle, LineContext
         style.border_color = Some(theme.quote.border_color);
     }
     let ch = text.ch();
-    let list = input.list.filter(|_| c.any(Class::LIST_LINE | Class::TASK_LINE));
+    let list = input
+        .list
+        .filter(|_| c.any(Class::LIST_LINE | Class::TASK_LINE));
     let (prefix, slot) = list.map_or((0., 0.), |l| list_prefix(&theme.list, l, ch));
     // `.cm-md-list-line`: the list rail and colour.
     if has(Class::LIST_LINE) {
@@ -120,7 +129,11 @@ pub fn line(theme: &MarkdownTheme, input: &LineInput) -> (LineStyle, LineContext
     // (0,2,0) `.cm-md-heading`: heading colour and current weight.
     if has(Class::HEADING) {
         text.color = theme.heading.level(1).color;
-        text.weight = if heading && input.level <= 3 { theme.heading.level(input.level as usize).weight } else { theme.heading.level(4).weight };
+        text.weight = if heading && input.level <= 3 {
+            theme.heading.level(input.level as usize).weight
+        } else {
+            theme.heading.level(4).weight
+        };
     }
     // (0,2,1) `:is(.cm-md-blockquote, …)`: quote colour, inline foreground.
     if has(Class::BLOCKQUOTE) {
@@ -173,14 +186,40 @@ pub fn line(theme: &MarkdownTheme, input: &LineInput) -> (LineStyle, LineContext
         let left = prefix - slot - theme.list.marker_gap;
         marker = Some((left, slot));
         // `.cm-md-list-line:not(task, continuation, source)::before`.
-        if has(Class::LIST_LINE) && !c.any(Class::TASK_LINE | Class::LIST_CONTINUATION | Class::LIST_SOURCE_LINE) && !list.marker.is_empty() {
+        if has(Class::LIST_LINE)
+            && !c.any(Class::TASK_LINE | Class::LIST_CONTINUATION | Class::LIST_SOURCE_LINE)
+            && !list.marker.is_empty()
+        {
             let l = &theme.list;
-            let marker = TextStyle { weight: l.marker_weight, tabular: l.marker_tabular, color: l.marker_color, italic: false, ..text.clone() };
-            let align = if has(Class::ORDERED_LIST_LINE) { l.ordered_align } else { Align::Center };
-            style.overlays.push(Paint::Label { rect: Rect::new(left, style.padding.top, slot, line_height), text: SharedString::from(list.marker.clone()), style: marker, align });
+            let marker = TextStyle {
+                weight: l.marker_weight,
+                tabular: l.marker_tabular,
+                color: l.marker_color,
+                italic: false,
+                ..text.clone()
+            };
+            let align = if has(Class::ORDERED_LIST_LINE) {
+                l.ordered_align
+            } else {
+                Align::Center
+            };
+            style.overlays.push(Paint::Label {
+                rect: Rect::new(left, style.padding.top, slot, line_height),
+                text: SharedString::from(list.marker.clone()),
+                style: marker,
+                align,
+            });
         }
     }
     style.text = text.clone();
-    let context = LineContext { foreground, weight: text.weight, heading, marker, text_top: style.padding.top + style.border.top, line_height, font_size: text.size };
+    let context = LineContext {
+        foreground,
+        weight: text.weight,
+        heading,
+        marker,
+        text_top: style.padding.top + style.border.top,
+        line_height,
+        font_size: text.size,
+    };
     (style, context)
 }

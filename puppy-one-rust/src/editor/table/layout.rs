@@ -9,7 +9,22 @@ const SAMPLE_ROWS: usize = 128;
 
 /// `estimateMaxLineVisualUnits`: tabs 4, characters above U+00FF 2.
 fn visual_units(text: &str) -> usize {
-    text.split('\n').map(|line| line.chars().map(|c| if c == '\t' { 4 } else if c as u32 > 0xff { 2 } else { 1 }).sum()).max().unwrap_or(0)
+    text.split('\n')
+        .map(|line| {
+            line.chars()
+                .map(|c| {
+                    if c == '\t' {
+                        4
+                    } else if c as u32 > 0xff {
+                        2
+                    } else {
+                        1
+                    }
+                })
+                .sum()
+        })
+        .max()
+        .unwrap_or(0)
 }
 
 /// `sampleTableRows`: at most 128 rows, first and last included.
@@ -27,11 +42,19 @@ fn sample<T>(rows: &[T]) -> Vec<&T> {
 
 /// `estimateEditableTableColumnWidths`: `28 + 7 × units`, clamped to the
 /// readable range, per column of the sampled rows.
-pub fn estimate_widths<T>(rows: &[T], columns: usize, cell: impl Fn(&T, usize) -> Option<&str>) -> Vec<f32> {
+pub fn estimate_widths<T>(
+    rows: &[T],
+    columns: usize,
+    cell: impl Fn(&T, usize) -> Option<&str>,
+) -> Vec<f32> {
     let sampled = sample(rows);
     (0..columns.max(1))
         .map(|c| {
-            let units = sampled.iter().map(|r| cell(r, c).map_or(0, visual_units)).max().unwrap_or(0);
+            let units = sampled
+                .iter()
+                .map(|r| cell(r, c).map_or(0, visual_units))
+                .max()
+                .unwrap_or(0);
             (28. + units as f32 * 7.).clamp(COLUMN_MIN_WIDTH, COLUMN_MAX_WIDTH)
         })
         .collect()
@@ -62,7 +85,11 @@ pub fn fit_widths(current: &[f32], available: f32, maximum: f32) -> Vec<f32> {
     loop {
         let mut clamped_any = false;
         for index in unresolved.clone() {
-            let proportional = if remaining_source > 0. { widths[index] as f64 / remaining_source * remaining_target } else { remaining_target / unresolved.len() as f64 };
+            let proportional = if remaining_source > 0. {
+                widths[index] as f64 / remaining_source * remaining_target
+            } else {
+                remaining_target / unresolved.len() as f64
+            };
             let clamped = if proportional < COLUMN_MIN_WIDTH as f64 {
                 COLUMN_MIN_WIDTH as f64
             } else if proportional > maximum as f64 {
@@ -82,12 +109,24 @@ pub fn fit_widths(current: &[f32], available: f32, maximum: f32) -> Vec<f32> {
     }
     let count = unresolved.len();
     for &index in &unresolved {
-        result[index] = if remaining_source > 0. { widths[index] as f64 / remaining_source * remaining_target } else { remaining_target / count as f64 };
+        result[index] = if remaining_source > 0. {
+            widths[index] as f64 / remaining_source * remaining_target
+        } else {
+            remaining_target / count as f64
+        };
     }
     let mut rounded: Vec<f64> = result.iter().map(|w| w.floor()).collect();
     let mut remainder = target as f64 - rounded.iter().sum::<f64>();
-    let mut by_fraction: Vec<(f64, usize)> = result.iter().enumerate().map(|(i, w)| (w - w.floor(), i)).collect();
-    by_fraction.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal).then(a.1.cmp(&b.1)));
+    let mut by_fraction: Vec<(f64, usize)> = result
+        .iter()
+        .enumerate()
+        .map(|(i, w)| (w - w.floor(), i))
+        .collect();
+    by_fraction.sort_by(|a, b| {
+        b.0.partial_cmp(&a.0)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then(a.1.cmp(&b.1))
+    });
     for (_, index) in by_fraction {
         if remainder <= 0. {
             break;

@@ -25,7 +25,10 @@ pub fn primary_metrics(window: &Window, style: &TextStyle) -> (f32, f32) {
     let ts = window.text_system();
     let id = ts.resolve_font(&RenderCx::font(style));
     let size = px(style.size);
-    (f32::from(ts.ascent(id, size)), f32::from(ts.descent(id, size)).abs())
+    (
+        f32::from(ts.ascent(id, size)),
+        f32::from(ts.descent(id, size)).abs(),
+    )
 }
 
 /// Top of a GPUI text box (in the same coordinates as `row_top`, whose
@@ -35,7 +38,13 @@ pub fn primary_metrics(window: &Window, style: &TextStyle) -> (f32, f32) {
 /// device pixels and floors the upper half-leading; GPUI centres glyphs in
 /// its whole-pixel line height using the shaped line's metrics (`gpui`) and
 /// rounds the baseline to a device pixel.
-pub fn chromium_text_top(scale: f32, style: &TextStyle, primary: (f32, f32), gpui: (f32, f32), row_top: f32) -> f32 {
+pub fn chromium_text_top(
+    scale: f32,
+    style: &TextStyle,
+    primary: (f32, f32),
+    gpui: (f32, f32),
+    row_top: f32,
+) -> f32 {
     let s = scale;
     let target = chromium_baseline(scale, style, primary, row_top) * s;
     let line_height = style.line_height_px();

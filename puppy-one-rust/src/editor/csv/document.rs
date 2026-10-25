@@ -43,7 +43,11 @@ pub struct Layout {
 
 impl Default for Layout {
     fn default() -> Self {
-        Self { line_ending: LineEnding::Lf, trailing_line_ending: false, utf8_bom: false }
+        Self {
+            line_ending: LineEnding::Lf,
+            trailing_line_ending: false,
+            utf8_bom: false,
+        }
     }
 }
 
@@ -63,7 +67,11 @@ fn detect_layout(content: &str) -> Layout {
             _ => LineEnding::Lf,
         })
         .unwrap_or(LineEnding::Lf);
-    Layout { line_ending, trailing_line_ending: content.ends_with(['\n', '\r']), utf8_bom: content.starts_with('\u{FEFF}') }
+    Layout {
+        line_ending,
+        trailing_line_ending: content.ends_with(['\n', '\r']),
+        utf8_bom: content.starts_with('\u{FEFF}'),
+    }
 }
 
 /// `parseDelimitedText`.
@@ -71,7 +79,11 @@ pub fn parse(content: &str, delimiter: Delimiter) -> Parsed {
     let layout = detect_layout(content);
     let source = content.strip_prefix('\u{FEFF}').unwrap_or(content);
     if source.is_empty() {
-        return Parsed { rows: vec![vec![String::new()]], layout, unclosed_quote: false };
+        return Parsed {
+            rows: vec![vec![String::new()]],
+            layout,
+            unclosed_quote: false,
+        };
     }
     let d = delimiter.char();
     let mut rows: Vec<Vec<String>> = vec![Vec::new()];
@@ -113,30 +125,61 @@ pub fn parse(content: &str, delimiter: Delimiter) -> Parsed {
     if rows.is_empty() {
         rows.push(vec![String::new()]);
     }
-    Parsed { rows, layout, unclosed_quote: quoted }
+    Parsed {
+        rows,
+        layout,
+        unclosed_quote: quoted,
+    }
 }
 
 fn serialize_cell(value: &str, delimiter: Delimiter) -> String {
-    let must_quote = value.contains(delimiter.char()) || value.contains(['"', '\n', '\r']) || value != value.trim();
-    if must_quote { format!("\"{}\"", value.replace('"', "\"\"")) } else { value.to_owned() }
+    let must_quote = value.contains(delimiter.char())
+        || value.contains(['"', '\n', '\r'])
+        || value != value.trim();
+    if must_quote {
+        format!("\"{}\"", value.replace('"', "\"\""))
+    } else {
+        value.to_owned()
+    }
 }
 
 /// `stringifyDelimitedText`; `preserve_terminal_empty_record` keeps a final
 /// one-column empty record distinguishable from a line ending.
-pub fn stringify(rows: &[Vec<String>], delimiter: Delimiter, layout: Layout, preserve_terminal_empty_record: bool) -> String {
+pub fn stringify(
+    rows: &[Vec<String>],
+    delimiter: Delimiter,
+    layout: Layout,
+    preserve_terminal_empty_record: bool,
+) -> String {
     let sep = delimiter.char().to_string();
     let body: Vec<String> = rows
         .iter()
         .enumerate()
         .map(|(i, row)| {
-            if preserve_terminal_empty_record && i + 1 == rows.len() && row.len() == 1 && row[0].is_empty() {
+            if preserve_terminal_empty_record
+                && i + 1 == rows.len()
+                && row.len() == 1
+                && row[0].is_empty()
+            {
                 return "\"\"".to_owned();
             }
-            row.iter().map(|c| serialize_cell(c, delimiter)).collect::<Vec<_>>().join(&sep)
+            row.iter()
+                .map(|c| serialize_cell(c, delimiter))
+                .collect::<Vec<_>>()
+                .join(&sep)
         })
         .collect();
     let ending = layout.line_ending.as_str();
-    format!("{}{}{}", if layout.utf8_bom { "\u{FEFF}" } else { "" }, body.join(ending), if layout.trailing_line_ending { ending } else { "" })
+    format!(
+        "{}{}{}",
+        if layout.utf8_bom { "\u{FEFF}" } else { "" },
+        body.join(ending),
+        if layout.trailing_line_ending {
+            ending
+        } else {
+            ""
+        }
+    )
 }
 
 /// `inferDelimiter`: `.tsv`, else whichever of tab / comma is more common in
@@ -148,12 +191,18 @@ pub fn infer_delimiter(name: &str, content: &str) -> Delimiter {
     let sample: String = content.split('\n').take(8).collect::<Vec<_>>().join("\n");
     let tabs = sample.matches('\t').count();
     let commas = sample.matches(',').count();
-    if tabs > commas { Delimiter::Tab } else { Delimiter::Comma }
+    if tabs > commas {
+        Delimiter::Tab
+    } else {
+        Delimiter::Comma
+    }
 }
 
 fn looks_numeric(value: &str) -> bool {
     let t = value.trim();
-    !t.is_empty() && (t.parse::<f64>().is_ok_and(f64::is_finite) || (t.starts_with("0x") && i64::from_str_radix(&t[2..], 16).is_ok()))
+    !t.is_empty()
+        && (t.parse::<f64>().is_ok_and(f64::is_finite)
+            || (t.starts_with("0x") && i64::from_str_radix(&t[2..], 16).is_ok()))
 }
 
 fn looks_structured(value: &str) -> bool {
@@ -164,17 +213,32 @@ fn looks_structured(value: &str) -> bool {
     let lower = t.to_ascii_lowercase();
     let date = |s: &str| {
         let b = s.as_bytes();
-        b.len() >= 10 && b[..4].iter().all(u8::is_ascii_digit) && b[4] == b'-' && b[5..7].iter().all(u8::is_ascii_digit) && b[7] == b'-' && b[8..10].iter().all(u8::is_ascii_digit)
+        b.len() >= 10
+            && b[..4].iter().all(u8::is_ascii_digit)
+            && b[4] == b'-'
+            && b[5..7].iter().all(u8::is_ascii_digit)
+            && b[7] == b'-'
+            && b[8..10].iter().all(u8::is_ascii_digit)
     };
     let email = || {
-        let Some((user, domain)) = t.split_once('@') else { return false };
-        !user.is_empty() && !user.contains(char::is_whitespace) && !domain.contains(['@', ' ']) && domain.split_once('.').is_some_and(|(a, b)| !a.is_empty() && !b.is_empty())
+        let Some((user, domain)) = t.split_once('@') else {
+            return false;
+        };
+        !user.is_empty()
+            && !user.contains(char::is_whitespace)
+            && !domain.contains(['@', ' '])
+            && domain
+                .split_once('.')
+                .is_some_and(|(a, b)| !a.is_empty() && !b.is_empty())
     };
     looks_numeric(t)
         || matches!(lower.as_str(), "true" | "false" | "null")
         || date(t) && (t.len() == 10 || matches!(t.as_bytes()[10], b'T' | b' '))
         || email()
-        || ((lower.starts_with("http://") || lower.starts_with("https://") || lower.starts_with("www.")) && !t.contains(char::is_whitespace))
+        || ((lower.starts_with("http://")
+            || lower.starts_with("https://")
+            || lower.starts_with("www."))
+            && !t.contains(char::is_whitespace))
 }
 
 /// `inferHeaderRow`: distinct short labels over a column of structured data.
@@ -187,8 +251,14 @@ pub fn infer_header(rows: &[Vec<String>]) -> bool {
         return false;
     }
     let labels: Vec<String> = first.iter().map(|c| c.trim().to_lowercase()).collect();
-    let confident = labels.iter().all(|l| !l.is_empty() && l.chars().count() <= 64 && !l.contains('\n') && !looks_structured(l));
-    let distinct = labels.iter().collect::<std::collections::HashSet<_>>().len() == labels.len();
+    let confident = labels.iter().all(|l| {
+        !l.is_empty() && l.chars().count() <= 64 && !l.contains('\n') && !looks_structured(l)
+    });
+    let distinct = labels
+        .iter()
+        .collect::<std::collections::HashSet<_>>()
+        .len()
+        == labels.len();
     if !confident || !distinct {
         return false;
     }
@@ -197,7 +267,11 @@ pub fn infer_header(rows: &[Vec<String>]) -> bool {
         return true;
     }
     (0..first.len()).any(|c| {
-        let values: Vec<&str> = sample.iter().map(|r| r.get(c).map_or("", |v| v.trim())).filter(|v| !v.is_empty()).collect();
+        let values: Vec<&str> = sample
+            .iter()
+            .map(|r| r.get(c).map_or("", |v| v.trim()))
+            .filter(|v| !v.is_empty())
+            .collect();
         if values.is_empty() {
             return false;
         }
@@ -239,21 +313,49 @@ mod tests {
     fn parse_and_stringify_round_trip_with_layout() {
         let text = "\u{FEFF}a,\"b, c\",\"say \"\"hi\"\"\"\r\n1,2,3\r\n";
         let p = parse(text, Delimiter::Comma);
-        assert_eq!(p.rows, vec![vec!["a", "b, c", "say \"hi\""], vec!["1", "2", "3"]]);
-        assert_eq!(p.layout, Layout { line_ending: LineEnding::CrLf, trailing_line_ending: true, utf8_bom: true });
+        assert_eq!(
+            p.rows,
+            vec![vec!["a", "b, c", "say \"hi\""], vec!["1", "2", "3"]]
+        );
+        assert_eq!(
+            p.layout,
+            Layout {
+                line_ending: LineEnding::CrLf,
+                trailing_line_ending: true,
+                utf8_bom: true
+            }
+        );
         assert_eq!(stringify(&p.rows, Delimiter::Comma, p.layout, true), text);
         assert!(parse("\"open", Delimiter::Comma).unclosed_quote);
         assert_eq!(parse("", Delimiter::Comma).rows, vec![vec![""]]);
-        assert_eq!(stringify(&[vec!["".into()]], Delimiter::Comma, Layout::default(), true), "\"\"");
+        assert_eq!(
+            stringify(
+                &[vec!["".into()]],
+                Delimiter::Comma,
+                Layout::default(),
+                true
+            ),
+            "\"\""
+        );
     }
 
     #[test]
     fn inference_follows_the_product_rules() {
         assert_eq!(infer_delimiter("x.tsv", "a,b"), Delimiter::Tab);
         assert_eq!(infer_delimiter("x.csv", "a\tb\tc\nd,e"), Delimiter::Tab);
-        let rows = parse(include_str!("../../../fixtures/editor/sample.csv"), Delimiter::Comma).rows;
+        let rows = parse(
+            include_str!("../../../fixtures/editor/sample.csv"),
+            Delimiter::Comma,
+        )
+        .rows;
         assert!(infer_header(&rows));
-        assert!(!infer_header(&[vec!["1".into(), "2".into()], vec!["3".into(), "4".into()]]));
-        assert_eq!((column_label(0), column_label(25), column_label(26)), ("A".into(), "Z".into(), "AA".into()));
+        assert!(!infer_header(&[
+            vec!["1".into(), "2".into()],
+            vec!["3".into(), "4".into()]
+        ]));
+        assert_eq!(
+            (column_label(0), column_label(25), column_label(26)),
+            ("A".into(), "Z".into(), "AA".into())
+        );
     }
 }

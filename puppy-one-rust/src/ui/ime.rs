@@ -42,7 +42,8 @@ thread_local! {
 /// Count the keystrokes GPUI dispatches, so a function key an input method
 /// swallowed can be told from one GPUI delivers itself. Once per app.
 pub fn init(cx: &mut App) {
-    cx.observe_keystrokes(|_, _, _| DISPATCHED.with(|n| n.set(n.get().wrapping_add(1)))).detach();
+    cx.observe_keystrokes(|_, _, _| DISPATCHED.with(|n| n.set(n.get().wrapping_add(1))))
+        .detach();
 }
 
 /// AppKit's function-key characters (`NSUpArrowFunctionKey` …
@@ -81,13 +82,26 @@ fn key_name(c: char) -> Option<String> {
 /// which the caller must drop. The key itself (with the modifiers held now)
 /// is dispatched again after the current platform event, unless GPUI
 /// dispatched a keystroke in the meantime (the input method handed it back).
-pub fn intercept_function_key<T: 'static>(text: &str, window: &mut Window, cx: &mut Context<T>) -> bool {
+pub fn intercept_function_key<T: 'static>(
+    text: &str,
+    window: &mut Window,
+    cx: &mut Context<T>,
+) -> bool {
     if !is_function_key_text(text) {
         return false;
     }
     let mut chars = text.chars();
-    let (Some(key), None) = (chars.next().and_then(key_name), chars.next()) else { return true };
-    let keystroke = Keystroke { modifiers: Modifiers { function: false, ..window.modifiers() }, key, key_char: None };
+    let (Some(key), None) = (chars.next().and_then(key_name), chars.next()) else {
+        return true;
+    };
+    let keystroke = Keystroke {
+        modifiers: Modifiers {
+            function: false,
+            ..window.modifiers()
+        },
+        key,
+        key_char: None,
+    };
     let dispatched = DISPATCHED.with(Cell::get);
     cx.spawn_in(window, async move |_, cx| {
         if DISPATCHED.with(Cell::get) == dispatched {
@@ -105,7 +119,11 @@ mod tests {
     #[test]
     fn function_key_text_is_the_appkit_private_use_block() {
         assert!(is_function_key_text("\u{F700}") && is_function_key_text("\u{F702}\u{F703}"));
-        assert!(!is_function_key_text("") && !is_function_key_text("a\u{F700}") && !is_function_key_text("中"));
+        assert!(
+            !is_function_key_text("")
+                && !is_function_key_text("a\u{F700}")
+                && !is_function_key_text("中")
+        );
         // Other private-use characters (icon fonts) stay text.
         assert!(!is_function_key_text("\u{E000}"));
         assert_eq!(key_name('\u{F701}').as_deref(), Some("down"));

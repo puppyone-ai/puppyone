@@ -6,4 +6,9 @@ use super::{
     features::{code_block, rule, table, task},
 };
 
-pub static FEATURES: Features = &[&code_block::FEATURE as &dyn MarkdownFeature, &table::FEATURE, &rule::FEATURE, &task::FEATURE];
+pub static FEATURES: Features = &[
+    &code_block::FEATURE as &dyn MarkdownFeature,
+    &table::FEATURE,
+    &rule::FEATURE,
+    &task::FEATURE,
+];

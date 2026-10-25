@@ -14,6 +14,10 @@ pub struct RuleStyle {
 
 impl RuleStyle {
     pub fn resolve(t: &Tokens, _size: f32) -> Self {
-        Self { color: t.color("--po-md-rule-color"), height: 37., thickness: 1. }
+        Self {
+            color: t.color("--po-md-rule-color"),
+            height: 37.,
+            thickness: 1.,
+        }
     }
 }

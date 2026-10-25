@@ -42,7 +42,10 @@ pub fn list_input_prefix(text: &str) -> Option<usize> {
     if i == b.len() {
         return Some(i);
     }
-    let spaces = b[i..].iter().take_while(|c| matches!(c, b' ' | b'\t')).count();
+    let spaces = b[i..]
+        .iter()
+        .take_while(|c| matches!(c, b' ' | b'\t'))
+        .count();
     if spaces == 0 {
         return None;
     }
@@ -53,7 +56,10 @@ pub fn list_input_prefix(text: &str) -> Option<usize> {
             i += 1;
             if b.get(i) == Some(&b']') {
                 i += 1;
-                i += b[i..].iter().take_while(|c| matches!(c, b' ' | b'\t')).count();
+                i += b[i..]
+                    .iter()
+                    .take_while(|c| matches!(c, b' ' | b'\t'))
+                    .count();
             }
         }
     }
@@ -92,7 +98,10 @@ fn composing_prefix(text: &str) -> Option<usize> {
         for rule in [b'-', b'*', b'_'] {
             let n = rest.bytes().take_while(|&c| c == rule).count();
             if n >= 3 {
-                let tail = rest[n..].bytes().take_while(|c| c.is_ascii_whitespace()).count();
+                let tail = rest[n..]
+                    .bytes()
+                    .take_while(|c| c.is_ascii_whitespace())
+                    .count();
                 return Some(lead + n + tail);
             }
         }
@@ -129,8 +138,17 @@ impl PreviewState {
     }
 
     /// A transaction changed the document (`applied` from the view).
-    pub fn applied(&mut self, applied: &Applied, state: &EditorState, syntax: &Syntax, focused: bool, read_only: bool) {
-        let map = |r: &Range<usize>| applied.changes.map(r.start, Assoc::Before)..applied.changes.map(r.end, Assoc::After);
+    pub fn applied(
+        &mut self,
+        applied: &Applied,
+        state: &EditorState,
+        syntax: &Syntax,
+        focused: bool,
+        read_only: bool,
+    ) {
+        let map = |r: &Range<usize>| {
+            applied.changes.map(r.start, Assoc::Before)..applied.changes.map(r.end, Assoc::After)
+        };
         let reveal = self.reveal.as_ref().map(map);
         // Typing ends a pointer gesture.
         self.selecting = false;
@@ -138,7 +156,10 @@ impl PreviewState {
         let doc = &state.doc;
         let line = doc.line_index(state.selection.head);
         let line_start = doc.line_range(line).start;
-        let mut composing = self.composing.map(|c| applied.changes.map(c, Assoc::Before)).filter(|c| *c == line_start);
+        let mut composing = self
+            .composing
+            .map(|c| applied.changes.map(c, Assoc::Before))
+            .filter(|c| *c == line_start);
         match applied.event {
             UserEvent::Paste => composing = None,
             UserEvent::Input | UserEvent::Delete => {
@@ -153,7 +174,11 @@ impl PreviewState {
         self.composing = if focused { composing } else { None };
         // resolvePaneLocalInlineRevealRange with a document change.
         self.reveal = if !focused {
-            reveal.filter(|r| syntax.reveal_element(r.start + 1).is_some_and(|e| e.range == *r))
+            reveal.filter(|r| {
+                syntax
+                    .reveal_element(r.start + 1)
+                    .is_some_and(|e| e.range == *r)
+            })
         } else {
             Self::reveal_at(state, syntax, read_only)
         };
@@ -161,7 +186,14 @@ impl PreviewState {
     }
 
     /// Selection or focus changed without a document change.
-    pub fn selection_changed(&mut self, state: &EditorState, syntax: &Syntax, focused: bool, selecting: bool, read_only: bool) {
+    pub fn selection_changed(
+        &mut self,
+        state: &EditorState,
+        syntax: &Syntax,
+        focused: bool,
+        selecting: bool,
+        read_only: bool,
+    ) {
         let entered = focused && !self.focused;
         let released = self.selecting && !selecting;
         self.selecting = selecting;
@@ -169,7 +201,11 @@ impl PreviewState {
         if !focused {
             self.composing = None;
         } else if let Some(c) = self.composing
-            && state.doc.line_range(state.doc.line_index(state.selection.head)).start != c
+            && state
+                .doc
+                .line_range(state.doc.line_index(state.selection.head))
+                .start
+                != c
         {
             self.composing = None;
         }
@@ -185,7 +221,12 @@ impl PreviewState {
 
     /// `markdownHiddenMarkerSelectionNormalizer`: keep a caret off hidden
     /// block markers (one caret position per visual position).
-    pub fn normalize(&self, doc: &Buffer, syntax: &Syntax, selection: Selection) -> Option<Selection> {
+    pub fn normalize(
+        &self,
+        doc: &Buffer,
+        syntax: &Syntax,
+        selection: Selection,
+    ) -> Option<Selection> {
         if !selection.is_empty() {
             return None;
         }

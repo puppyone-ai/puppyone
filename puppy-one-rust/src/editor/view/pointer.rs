@@ -10,12 +10,19 @@ impl EditorView {
         Some(layout.offset_at(layout.to_layout(position, self.scroll_y)))
     }
 
-    pub(super) fn mouse_down(&mut self, event: &MouseDownEvent, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn mouse_down(
+        &mut self,
+        event: &MouseDownEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.focus.focus(window, cx);
         if event.button != MouseButton::Left {
             return;
         }
-        let Some((offset, upstream)) = self.offset_for(event.position) else { return };
+        let Some((offset, upstream)) = self.offset_for(event.position) else {
+            return;
+        };
         let text = self.state.doc.as_str();
         let granularity = match event.click_count {
             2 => {
@@ -25,29 +32,55 @@ impl EditorView {
             n if n >= 3 => {
                 let line = self.state.doc.line_index(offset);
                 let r = self.state.doc.line_range(line);
-                let end = if line + 1 < self.state.doc.line_count() { r.end + 1 } else { r.end };
+                let end = if line + 1 < self.state.doc.line_count() {
+                    r.end + 1
+                } else {
+                    r.end
+                };
                 Granularity::Line(r.start, end)
             }
             _ => Granularity::Char,
         };
         let selection = match granularity {
-            Granularity::Char if event.modifiers.shift => Selection::range(self.state.selection.anchor, offset),
-            Granularity::Char => Selection { upstream, ..Selection::cursor(offset) },
+            Granularity::Char if event.modifiers.shift => {
+                Selection::range(self.state.selection.anchor, offset)
+            }
+            Granularity::Char => Selection {
+                upstream,
+                ..Selection::cursor(offset)
+            },
             Granularity::Word(a, b) | Granularity::Line(a, b) => Selection::range(a, b),
         };
-        let anchor = if event.modifiers.shift { self.state.selection.anchor } else { selection.anchor };
-        self.drag = Some(Drag { anchor, granularity });
+        let anchor = if event.modifiers.shift {
+            self.state.selection.anchor
+        } else {
+            selection.anchor
+        };
+        self.drag = Some(Drag {
+            anchor,
+            granularity,
+        });
         self.dispatch(Transaction::select(selection), cx);
     }
 
-    pub(super) fn mouse_move(&mut self, event: &MouseMoveEvent, _: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn mouse_move(
+        &mut self,
+        event: &MouseMoveEvent,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let Some(drag) = self.drag else { return };
         if event.pressed_button != Some(MouseButton::Left) {
             return;
         }
-        let Some((offset, upstream)) = self.offset_for(event.position) else { return };
+        let Some((offset, upstream)) = self.offset_for(event.position) else {
+            return;
+        };
         let selection = match drag.granularity {
-            Granularity::Char => Selection { upstream, ..Selection::range(drag.anchor, offset) },
+            Granularity::Char => Selection {
+                upstream,
+                ..Selection::range(drag.anchor, offset)
+            },
             Granularity::Word(a, b) | Granularity::Line(a, b) => {
                 let text = self.state.doc.as_str();
                 let unit = match drag.granularity {
@@ -57,7 +90,11 @@ impl EditorView {
                         r.start..(r.end + 1).min(text.len())
                     }
                 };
-                if offset < a { Selection::range(b, unit.start) } else { Selection::range(a, unit.end.max(b)) }
+                if offset < a {
+                    Selection::range(b, unit.start)
+                } else {
+                    Selection::range(a, unit.end.max(b))
+                }
             }
         };
         if selection != self.state.selection {
@@ -76,8 +113,17 @@ impl EditorView {
         }
     }
 
-    pub(super) fn scroll_wheel(&mut self, event: &ScrollWheelEvent, window: &mut Window, cx: &mut Context<Self>) {
-        let line = self.layout.as_ref().and_then(|l| l.leaves.first()).map_or(px(20.), |l| px(l.entry.style.line_height_px()));
+    pub(super) fn scroll_wheel(
+        &mut self,
+        event: &ScrollWheelEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let line = self
+            .layout
+            .as_ref()
+            .and_then(|l| l.leaves.first())
+            .map_or(px(20.), |l| px(l.entry.style.line_height_px()));
         let delta = event.delta.pixel_delta(line);
         self.scroll_by(-f32::from(delta.y), window, cx);
     }

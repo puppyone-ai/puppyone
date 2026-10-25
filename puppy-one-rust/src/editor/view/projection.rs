@@ -31,18 +31,35 @@ pub struct LeafText {
 impl LeafText {
     /// `hidden` and `marks` may be any superset of those touching `source`
     /// (sorted by start). `strike_all` strikes the whole text (task done).
-    pub fn build(doc: &str, source: Range<usize>, hidden: &[Range<usize>], marks: &[Mark], strike_all: bool) -> Self {
+    pub fn build(
+        doc: &str,
+        source: Range<usize>,
+        hidden: &[Range<usize>],
+        marks: &[Mark],
+        strike_all: bool,
+    ) -> Self {
         Self::build_with_tabs(doc, source, hidden, marks, strike_all, TAB_SIZE)
     }
 
     /// As `build` with an explicit `tab-size` (code panels use 2 or 4).
-    pub fn build_with_tabs(doc: &str, source: Range<usize>, hidden: &[Range<usize>], marks: &[Mark], strike_all: bool, tab_size: usize) -> Self {
+    pub fn build_with_tabs(
+        doc: &str,
+        source: Range<usize>,
+        hidden: &[Range<usize>],
+        marks: &[Mark],
+        strike_all: bool,
+        tab_size: usize,
+    ) -> Self {
         let mut text = String::new();
         let mut pieces = Vec::new();
         let mut cursor = source.start;
         let base = source.start;
         let mut column = 0usize;
-        let push_text = |from: usize, to: usize, text: &mut String, pieces: &mut Vec<Piece>, column: &mut usize| {
+        let push_text = |from: usize,
+                         to: usize,
+                         text: &mut String,
+                         pieces: &mut Vec<Piece>,
+                         column: &mut usize| {
             let mut run_start = from;
             for (i, ch) in doc[from..to].char_indices() {
                 if ch == '\n' {
@@ -50,11 +67,21 @@ impl LeafText {
                 } else if ch == '\t' {
                     let at = from + i;
                     if at > run_start {
-                        pieces.push(Piece { display: text.len(), display_len: at - run_start, source: run_start - base, source_len: at - run_start });
+                        pieces.push(Piece {
+                            display: text.len(),
+                            display_len: at - run_start,
+                            source: run_start - base,
+                            source_len: at - run_start,
+                        });
                         text.push_str(&doc[run_start..at]);
                     }
                     let width = tab_size - *column % tab_size;
-                    pieces.push(Piece { display: text.len(), display_len: width, source: at - base, source_len: 1 });
+                    pieces.push(Piece {
+                        display: text.len(),
+                        display_len: width,
+                        source: at - base,
+                        source_len: 1,
+                    });
                     text.extend(std::iter::repeat_n(' ', width));
                     *column += width;
                     run_start = at + 1;
@@ -62,8 +89,13 @@ impl LeafText {
                     *column += 1;
                 }
             }
-                if to > run_start {
-                pieces.push(Piece { display: text.len(), display_len: to - run_start, source: run_start - base, source_len: to - run_start });
+            if to > run_start {
+                pieces.push(Piece {
+                    display: text.len(),
+                    display_len: to - run_start,
+                    source: run_start - base,
+                    source_len: to - run_start,
+                });
                 text.push_str(&doc[run_start..to]);
             }
         };
@@ -74,15 +106,28 @@ impl LeafText {
                 push_text(cursor, start, &mut text, &mut pieces, &mut column);
             }
             let end = r.end.min(source.end).max(start);
-            pieces.push(Piece { display: text.len(), display_len: 0, source: start - base, source_len: end - start });
+            pieces.push(Piece {
+                display: text.len(),
+                display_len: 0,
+                source: start - base,
+                source_len: end - start,
+            });
             cursor = end.max(cursor);
         }
         if cursor < source.end {
             push_text(cursor, source.end, &mut text, &mut pieces, &mut column);
         }
-        let mut leaf = Self { source: source.clone(), text, pieces, marks: Vec::new() };
+        let mut leaf = Self {
+            source: source.clone(),
+            text,
+            pieces,
+            marks: Vec::new(),
+        };
         let mut out: Vec<(Range<usize>, MarkStyle)> = Vec::new();
-        for m in marks.iter().filter(|m| m.range.end > source.start && m.range.start < source.end) {
+        for m in marks
+            .iter()
+            .filter(|m| m.range.end > source.start && m.range.start < source.end)
+        {
             let a = leaf.to_display(m.range.start.max(source.start) - base, true);
             let b = leaf.to_display(m.range.end.min(source.end) - base, false);
             if a < b {
@@ -111,7 +156,11 @@ impl LeafText {
                 if p.display_len == p.source_len {
                     return p.display + (offset - p.source);
                 }
-                return if after && offset > p.source { p.display + p.display_len } else { p.display };
+                return if after && offset > p.source {
+                    p.display + p.display_len
+                } else {
+                    p.display
+                };
             }
         }
         self.text.len()
@@ -162,7 +211,11 @@ impl LeafText {
                         italic: m.italic,
                         strikethrough: m.strike,
                         code: m.code,
-                        link: m.link.as_ref().map(|url| LinkMark { url: url.clone(), identifier: None, title: None }),
+                        link: m.link.as_ref().map(|url| LinkMark {
+                            url: url.clone(),
+                            identifier: None,
+                            title: None,
+                        }),
                         ..Default::default()
                     },
                 )
@@ -175,19 +228,34 @@ impl LeafText {
 }
 
 /// Add a strikethrough over `0..len`, splitting existing marks.
-fn strike_over(marks: Vec<(Range<usize>, MarkStyle)>, len: usize) -> Vec<(Range<usize>, MarkStyle)> {
+fn strike_over(
+    marks: Vec<(Range<usize>, MarkStyle)>,
+    len: usize,
+) -> Vec<(Range<usize>, MarkStyle)> {
     let mut out = Vec::new();
     let mut at = 0;
     for (r, mut m) in marks {
         if r.start > at {
-            out.push((at..r.start, MarkStyle { strike: true, ..Default::default() }));
+            out.push((
+                at..r.start,
+                MarkStyle {
+                    strike: true,
+                    ..Default::default()
+                },
+            ));
         }
         m.strike = true;
         at = r.end;
         out.push((r, m));
     }
     if at < len {
-        out.push((at..len, MarkStyle { strike: true, ..Default::default() }));
+        out.push((
+            at..len,
+            MarkStyle {
+                strike: true,
+                ..Default::default()
+            },
+        ));
     }
     out
 }
@@ -199,10 +267,25 @@ mod tests {
     #[test]
     fn hidden_ranges_and_tabs_map_both_ways() {
         let doc = "a **bold** z\tq";
-        let marks = [Mark { range: 4..8, style: MarkStyle { bold: true, ..Default::default() } }];
+        let marks = [Mark {
+            range: 4..8,
+            style: MarkStyle {
+                bold: true,
+                ..Default::default()
+            },
+        }];
         let leaf = LeafText::build(doc, 0..doc.len(), &[2..4, 8..10], &marks, false);
         assert_eq!(leaf.text, "a bold z    q");
-        assert_eq!(leaf.marks, vec![(2..6, MarkStyle { bold: true, ..Default::default() })]);
+        assert_eq!(
+            leaf.marks,
+            vec![(
+                2..6,
+                MarkStyle {
+                    bold: true,
+                    ..Default::default()
+                }
+            )]
+        );
         // Hidden markers: both edges show at the same display offset.
         assert_eq!(leaf.to_display(2, false), 2);
         assert_eq!(leaf.to_display(3, true), 2);

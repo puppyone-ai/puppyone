@@ -7,7 +7,9 @@
 //! Lezer marks delimiters as child nodes (`EmphasisMark`, `LinkMark`, …);
 //! pulldown-cmark reports container ranges only, so those children are
 //! derived from the source here with the same extents.
-use super::{autolink, BlockKind, Element, Hl, Kind, List, ListItem, Paragraph, Span, Syntax, TaskLine};
+use super::{
+    BlockKind, Element, Hl, Kind, List, ListItem, Paragraph, Span, Syntax, TaskLine, autolink,
+};
 use crate::editor::text::buffer::Buffer;
 use pulldown_cmark::{CodeBlockKind, Event, LinkType, Options, Parser, Tag, TagEnd};
 
@@ -22,7 +24,12 @@ struct HlNode {
 
 impl HlNode {
     fn new(range: Span, own: Hl, inherit: bool) -> Self {
-        Self { range, own, inherit, children: Vec::new() }
+        Self {
+            range,
+            own,
+            inherit,
+            children: Vec::new(),
+        }
     }
     fn leaf(range: Span, own: Hl) -> Self {
         Self::new(range, own, false)
@@ -33,9 +40,16 @@ enum Frame {
     Root,
     Heading,
     Quote,
-    List { index: usize },
-    Item { index: usize, implicit: Option<usize> },
-    Paragraph { index: usize },
+    List {
+        index: usize,
+    },
+    Item {
+        index: usize,
+        implicit: Option<usize>,
+    },
+    Paragraph {
+        index: usize,
+    },
     Emphasis,
     Strong,
     Strike,
@@ -54,13 +68,17 @@ struct Walker<'a> {
 
 /// `trimEnd`: container ranges end at their last content byte, as Lezer's do.
 fn trim(doc: &str, range: Span) -> Span {
-    let end = range.start + doc[range.clone()].trim_end_matches(['\n', '\r', ' ', '\t']).len();
+    let end = range.start
+        + doc[range.clone()]
+            .trim_end_matches(['\n', '\r', ' ', '\t'])
+            .len();
     range.start..end.max(range.start)
 }
 
 /// CodeMirror `countColumn` with tab size 4.
 fn columns(text: &str) -> usize {
-    text.chars().fold(0, |n, c| if c == '\t' { n + 4 - n % 4 } else { n + 1 })
+    text.chars()
+        .fold(0, |n, c| if c == '\t' { n + 4 - n % 4 } else { n + 1 })
 }
 
 fn line_start(doc: &str, offset: usize) -> usize {
@@ -73,12 +91,19 @@ fn line_end(doc: &str, offset: usize) -> usize {
 
 /// Whitespace (spaces / tabs) from `at` to the end of its line.
 fn blank_run(doc: &str, at: usize) -> usize {
-    doc[at..].bytes().take_while(|&b| b == b' ' || b == b'\t').count()
+    doc[at..]
+        .bytes()
+        .take_while(|&b| b == b' ' || b == b'\t')
+        .count()
 }
 
 impl<'a> Walker<'a> {
     fn new(doc: &'a str) -> Self {
-        Self { doc, syntax: Syntax::default(), stack: vec![(Frame::Root, HlNode::new(0..doc.len(), Hl::NONE, false))] }
+        Self {
+            doc,
+            syntax: Syntax::default(),
+            stack: vec![(Frame::Root, HlNode::new(0..doc.len(), Hl::NONE, false))],
+        }
     }
 
     fn push(&mut self, frame: Frame, node: HlNode) {
@@ -105,11 +130,26 @@ impl<'a> Walker<'a> {
 
     /// Ancestor item indices, outermost first.
     fn items(&self) -> Vec<usize> {
-        self.stack.iter().filter_map(|(f, _)| if let Frame::Item { index, .. } = f { Some(*index) } else { None }).collect()
+        self.stack
+            .iter()
+            .filter_map(|(f, _)| {
+                if let Frame::Item { index, .. } = f {
+                    Some(*index)
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 
     fn innermost_list(&self) -> Option<usize> {
-        self.stack.iter().rev().find_map(|(f, _)| if let Frame::List { index } = f { Some(*index) } else { None })
+        self.stack.iter().rev().find_map(|(f, _)| {
+            if let Frame::List { index } = f {
+                Some(*index)
+            } else {
+                None
+            }
+        })
     }
 
     fn in_code(&self) -> bool {
@@ -125,21 +165,37 @@ impl<'a> Walker<'a> {
     fn inline_content(&mut self, range: &Span) {
         let count = self.syntax.paragraphs.len();
         let item_quoted = self.quoted();
-        let Some((Frame::Item { index, implicit }, _)) = self.stack.last_mut() else { return };
+        let Some((Frame::Item { index, implicit }, _)) = self.stack.last_mut() else {
+            return;
+        };
         match implicit {
             Some(p) => {
                 let p = *p;
-                self.syntax.paragraphs[p].range.end = self.syntax.paragraphs[p].range.end.max(range.end);
+                self.syntax.paragraphs[p].range.end =
+                    self.syntax.paragraphs[p].range.end.max(range.end);
                 let item = &mut self.syntax.items[*index];
-                if let Some(block) = item.blocks.iter_mut().rev().find(|b| b.1.start == self.syntax.paragraphs[p].range.start) {
+                if let Some(block) = item
+                    .blocks
+                    .iter_mut()
+                    .rev()
+                    .find(|b| b.1.start == self.syntax.paragraphs[p].range.start)
+                {
                     block.1.end = block.1.end.max(range.end);
                 }
             }
             None => {
                 *implicit = Some(count);
                 let index = *index;
-                self.syntax.paragraphs.push(Paragraph { range: range.clone(), item: Some(index), item_quoted, direct: true, task: false });
-                self.syntax.items[index].blocks.push((BlockKind::Paragraph, range.clone()));
+                self.syntax.paragraphs.push(Paragraph {
+                    range: range.clone(),
+                    item: Some(index),
+                    item_quoted,
+                    direct: true,
+                    task: false,
+                });
+                self.syntax.items[index]
+                    .blocks
+                    .push((BlockKind::Paragraph, range.clone()));
             }
         }
     }
@@ -151,7 +207,16 @@ impl<'a> Walker<'a> {
     }
 
     fn start(&mut self, tag: Tag, range: Span) {
-        let inline = matches!(tag, Tag::Emphasis | Tag::Strong | Tag::Strikethrough | Tag::Link { .. } | Tag::Image { .. } | Tag::Superscript | Tag::Subscript);
+        let inline = matches!(
+            tag,
+            Tag::Emphasis
+                | Tag::Strong
+                | Tag::Strikethrough
+                | Tag::Link { .. }
+                | Tag::Image { .. }
+                | Tag::Superscript
+                | Tag::Subscript
+        );
         if inline {
             self.inline_content(&range);
         } else {
@@ -165,19 +230,32 @@ impl<'a> Walker<'a> {
                 let item_quoted = items.last().is_some_and(|&i| self.syntax.items[i].quoted);
                 let direct = matches!(self.stack.last(), Some((Frame::Item { .. }, _)));
                 let index = self.syntax.paragraphs.len();
-                self.syntax.paragraphs.push(Paragraph { range: range.clone(), item: items.last().copied(), item_quoted, direct, task: false });
+                self.syntax.paragraphs.push(Paragraph {
+                    range: range.clone(),
+                    item: items.last().copied(),
+                    item_quoted,
+                    direct,
+                    task: false,
+                });
                 if direct {
                     let item = *items.last().unwrap();
-                    self.syntax.items[item].blocks.push((BlockKind::Paragraph, range.clone()));
+                    self.syntax.items[item]
+                        .blocks
+                        .push((BlockKind::Paragraph, range.clone()));
                 }
-                self.push(Frame::Paragraph { index }, HlNode::new(range, Hl::NONE, false));
+                self.push(
+                    Frame::Paragraph { index },
+                    HlNode::new(range, Hl::NONE, false),
+                );
             }
             Tag::Heading { .. } => {
                 let range = trim(doc, range);
                 let atx = doc[range.clone()].trim_start_matches(' ').starts_with('#');
                 if matches!(self.stack.last(), Some((Frame::Item { .. }, _))) {
                     let item = *self.items().last().unwrap();
-                    self.syntax.items[item].blocks.push((BlockKind::Heading, range.clone()));
+                    self.syntax.items[item]
+                        .blocks
+                        .push((BlockKind::Heading, range.clone()));
                 }
                 let marks = heading_marks(doc, &range, atx);
                 if atx {
@@ -206,7 +284,8 @@ impl<'a> Walker<'a> {
                     let text = &doc[at..end];
                     let lead = text.len() - text.trim_start_matches([' ', '\t']).len();
                     if text[lead..].starts_with('>') && at + lead >= range.start {
-                        node.children.push(HlNode::leaf(at + lead..at + lead + 1, Hl::MARKUP));
+                        node.children
+                            .push(HlNode::leaf(at + lead..at + lead + 1, Hl::MARKUP));
                     }
                     at = end + 1;
                 }
@@ -234,14 +313,27 @@ impl<'a> Walker<'a> {
                     l.items.push(index);
                 }
                 let mut node = HlNode::new(range, Hl::NONE, false);
-                node.children.push(HlNode::leaf(item.marker_from..item.marker_from + item.marker.len(), Hl::MARKUP));
+                node.children.push(HlNode::leaf(
+                    item.marker_from..item.marker_from + item.marker.len(),
+                    Hl::MARKUP,
+                ));
                 self.syntax.items.push(item);
-                self.push(Frame::Item { index, implicit: None }, node);
+                self.push(
+                    Frame::Item {
+                        index,
+                        implicit: None,
+                    },
+                    node,
+                );
             }
             Tag::Emphasis | Tag::Strong => {
                 let strong = matches!(tag, Tag::Strong);
                 let n = if strong { 2 } else { 1 };
-                let mut node = HlNode::new(range.clone(), if strong { Hl::STRONG } else { Hl::EMPHASIS }, true);
+                let mut node = HlNode::new(
+                    range.clone(),
+                    if strong { Hl::STRONG } else { Hl::EMPHASIS },
+                    true,
+                );
                 if range.len() >= 2 * n {
                     let markers = vec![range.start..range.start + n, range.end - n..range.end];
                     for m in &markers {
@@ -249,18 +341,33 @@ impl<'a> Walker<'a> {
                     }
                     let content = range.start + n..range.end - n;
                     let kind = if strong { Kind::Strong } else { Kind::Emphasis };
-                    self.syntax.elements.push(Element::new(kind, range, markers, Some(content)));
+                    self.syntax
+                        .elements
+                        .push(Element::new(kind, range, markers, Some(content)));
                 }
-                self.push(if strong { Frame::Strong } else { Frame::Emphasis }, node);
+                self.push(
+                    if strong {
+                        Frame::Strong
+                    } else {
+                        Frame::Emphasis
+                    },
+                    node,
+                );
             }
             Tag::Strikethrough => {
                 // Lezer's GFM extension only knows `~~`; the element itself
                 // comes from the product's line expression (lines.rs).
                 let double = doc[range.clone()].starts_with("~~") && range.len() >= 4;
-                let mut node = HlNode::new(range.clone(), if double { Hl::STRIKE } else { Hl::NONE }, true);
+                let mut node = HlNode::new(
+                    range.clone(),
+                    if double { Hl::STRIKE } else { Hl::NONE },
+                    true,
+                );
                 if double {
-                    node.children.push(HlNode::leaf(range.start..range.start + 2, Hl::MARKUP));
-                    node.children.push(HlNode::leaf(range.end - 2..range.end, Hl::MARKUP));
+                    node.children
+                        .push(HlNode::leaf(range.start..range.start + 2, Hl::MARKUP));
+                    node.children
+                        .push(HlNode::leaf(range.end - 2..range.end, Hl::MARKUP));
                 }
                 self.push(Frame::Strike, node);
             }
@@ -277,11 +384,13 @@ impl<'a> Walker<'a> {
                     node.children.push(HlNode::leaf(m.clone(), Hl::MARKUP));
                 }
                 if autolink && marks.len() == 2 {
-                    node.children.insert(1, HlNode::leaf(marks[0].end..marks[1].start, Hl::LINK));
+                    node.children
+                        .insert(1, HlNode::leaf(marks[0].end..marks[1].start, Hl::LINK));
                 }
                 if !image && marks.len() >= 2 {
                     let content = marks[0].end..marks[1].start.max(marks[0].end);
-                    let mut e = Element::new(Kind::Link, range.clone(), marks.clone(), Some(content));
+                    let mut e =
+                        Element::new(Kind::Link, range.clone(), marks.clone(), Some(content));
                     e.href = autolink.then(|| doc[marks[0].end..marks[1].start].trim().to_owned());
                     self.syntax.elements.push(e);
                 }
@@ -295,7 +404,9 @@ impl<'a> Walker<'a> {
                             node.children.push(mark);
                         }
                     }
-                    CodeBlockKind::Indented => node.children.push(HlNode::leaf(trim(doc, range.clone()), Hl::MONOSPACE)),
+                    CodeBlockKind::Indented => node
+                        .children
+                        .push(HlNode::leaf(trim(doc, range.clone()), Hl::MONOSPACE)),
                 }
                 self.push(Frame::Code, node);
             }
@@ -313,7 +424,8 @@ impl<'a> Walker<'a> {
                     } else if row > 1 {
                         for (i, _) in doc[at..end].match_indices('|') {
                             if !super::super::links::is_escaped(doc.as_bytes(), at + i) {
-                                node.children.push(HlNode::leaf(at + i..at + i + 1, Hl::MARKUP));
+                                node.children
+                                    .push(HlNode::leaf(at + i..at + i + 1, Hl::MARKUP));
                             }
                         }
                     }
@@ -326,7 +438,10 @@ impl<'a> Walker<'a> {
                 let range = trim(self.doc, range);
                 let mut node = HlNode::new(range.clone(), Hl::HEADING, true);
                 for (i, _) in doc[range.clone()].match_indices('|') {
-                    node.children.push(HlNode::leaf(range.start + i..range.start + i + 1, Hl::MARKUP));
+                    node.children.push(HlNode::leaf(
+                        range.start + i..range.start + i + 1,
+                        Hl::MARKUP,
+                    ));
                 }
                 self.push(Frame::TableHead, node);
             }
@@ -335,7 +450,16 @@ impl<'a> Walker<'a> {
     }
 
     fn end(&mut self, tag: TagEnd) {
-        let block = !matches!(tag, TagEnd::Emphasis | TagEnd::Strong | TagEnd::Strikethrough | TagEnd::Link | TagEnd::Image | TagEnd::Superscript | TagEnd::Subscript);
+        let block = !matches!(
+            tag,
+            TagEnd::Emphasis
+                | TagEnd::Strong
+                | TagEnd::Strikethrough
+                | TagEnd::Link
+                | TagEnd::Image
+                | TagEnd::Superscript
+                | TagEnd::Subscript
+        );
         if block {
             self.end_implicit();
         }
@@ -344,7 +468,12 @@ impl<'a> Walker<'a> {
             Frame::List { index } => {
                 let list = &self.syntax.lists[index];
                 if list.ordered {
-                    let widest = list.items.iter().map(|&i| self.syntax.items[i].marker.len()).max().unwrap_or(0);
+                    let widest = list
+                        .items
+                        .iter()
+                        .map(|&i| self.syntax.items[i].marker.len())
+                        .max()
+                        .unwrap_or(0);
                     self.syntax.lists[index].columns = widest;
                 }
             }
@@ -367,8 +496,15 @@ impl<'a> Walker<'a> {
         while at < line_to && matches!(bytes[at], b' ' | b'\t' | b'>') {
             at += 1;
         }
-        let digits = bytes[at..line_to].iter().take_while(|b| b.is_ascii_digit()).count();
-        let marker_len = if digits > 0 && matches!(bytes.get(at + digits), Some(b'.' | b')')) { digits + 1 } else { 1 };
+        let digits = bytes[at..line_to]
+            .iter()
+            .take_while(|b| b.is_ascii_digit())
+            .count();
+        let marker_len = if digits > 0 && matches!(bytes.get(at + digits), Some(b'.' | b')')) {
+            digits + 1
+        } else {
+            1
+        };
         let mark_to = (at + marker_len).min(line_to);
         let marker_to = mark_to + blank_run(doc, mark_to).min(line_to - mark_to);
         let parents = self.items();
@@ -388,20 +524,33 @@ impl<'a> Walker<'a> {
             task: None,
             blocks: Vec::new(),
             indent_columns: columns(&doc[line_from..at]),
-            content_column: marker_end_column + if (1..=4).contains(&padding) { padding } else { 1 },
+            content_column: marker_end_column
+                + if (1..=4).contains(&padding) {
+                    padding
+                } else {
+                    1
+                },
         }
     }
 
     fn task_marker(&mut self, range: Span, checked: bool) {
         let doc = self.doc;
-        let Some(&item_index) = self.items().last() else { return };
+        let Some(&item_index) = self.items().last() else {
+            return;
+        };
         let depth = self.syntax.items[item_index].parents.len();
         let line_from = line_start(doc, range.start);
         let line_to = line_end(doc, range.start);
         let content_from = range.end + blank_run(doc, range.end).min(line_to - range.end);
         let item = &mut self.syntax.items[item_index];
         item.content_from = content_from;
-        item.task = Some(TaskLine { line: line_from..line_to, depth, checked, checkbox: range.clone(), prefix_to: content_from });
+        item.task = Some(TaskLine {
+            line: line_from..line_to,
+            depth,
+            checked,
+            checkbox: range.clone(),
+            prefix_to: content_from,
+        });
         // The paragraph holding the marker is a `Task` block, not a Paragraph.
         if let Some(first) = item.blocks.first_mut() {
             first.0 = BlockKind::Task;
@@ -411,7 +560,12 @@ impl<'a> Walker<'a> {
         }
         let start = range.start;
         // The item's first direct paragraph (implicit or explicit).
-        if let Some(p) = self.syntax.paragraphs.iter_mut().find(|p| p.item == Some(item_index) && p.direct) {
+        if let Some(p) = self
+            .syntax
+            .paragraphs
+            .iter_mut()
+            .find(|p| p.item == Some(item_index) && p.direct)
+        {
             p.task = true;
             p.range.start = p.range.start.min(start);
         }
@@ -426,7 +580,11 @@ impl<'a> Walker<'a> {
         let doc = self.doc;
         // A backslash escape: pulldown-cmark drops the backslash, so the text
         // starts right after an uncovered `\` followed by punctuation.
-        if !self.in_code() && range.start > 0 && doc.as_bytes()[range.start - 1] == b'\\' && doc.as_bytes()[range.start].is_ascii_punctuation() {
+        if !self.in_code()
+            && range.start > 0
+            && doc.as_bytes()[range.start - 1] == b'\\'
+            && doc.as_bytes()[range.start].is_ascii_punctuation()
+        {
             let b = range.start - 1;
             let e = Element::new(Kind::Escape, b..b + 2, vec![b..b + 1], Some(b + 1..b + 2));
             self.syntax.elements.push(e);
@@ -434,22 +592,36 @@ impl<'a> Walker<'a> {
         }
         if !self.in_code() && !self.in_link() {
             for r in autolink::find(&doc[range.clone()]) {
-                self.attach(HlNode::leaf(range.start + r.start..range.start + r.end, Hl::LINK));
+                self.attach(HlNode::leaf(
+                    range.start + r.start..range.start + r.end,
+                    Hl::LINK,
+                ));
             }
         }
     }
 
     fn code(&mut self, range: Span) {
         let doc = self.doc;
-        let ticks = doc[range.clone()].bytes().take_while(|&b| b == b'`').count();
+        let ticks = doc[range.clone()]
+            .bytes()
+            .take_while(|&b| b == b'`')
+            .count();
         let mut node = HlNode::new(range.clone(), Hl::MONOSPACE, false);
         if ticks > 0 && range.len() >= 2 * ticks {
-            let markers = vec![range.start..range.start + ticks, range.end - ticks..range.end];
+            let markers = vec![
+                range.start..range.start + ticks,
+                range.end - ticks..range.end,
+            ];
             for m in &markers {
                 node.children.push(HlNode::leaf(m.clone(), Hl::MARKUP));
             }
             let content = range.start + ticks..range.end - ticks;
-            self.syntax.elements.push(Element::new(Kind::InlineCode, range, markers, Some(content)));
+            self.syntax.elements.push(Element::new(
+                Kind::InlineCode,
+                range,
+                markers,
+                Some(content),
+            ));
         }
         self.attach(node);
     }
@@ -470,7 +642,10 @@ fn heading_marks(doc: &str, range: &Span, atx: bool) -> Vec<Span> {
     // An optional closing sequence ` ###`.
     let body = text.trim_end();
     let closing = body.len() - body.trim_end_matches('#').len();
-    if closing > 0 && body.len() - closing > lead + hashes && body[..body.len() - closing].ends_with([' ', '\t']) {
+    if closing > 0
+        && body.len() - closing > lead + hashes
+        && body[..body.len() - closing].ends_with([' ', '\t'])
+    {
         marks.push(range.start + body.len() - closing..range.start + body.len());
     }
     marks
@@ -481,9 +656,18 @@ fn heading_element(doc: &str, mark: Span, line: Span) -> Option<Element> {
     if mark.is_empty() {
         return None;
     }
-    let marker_to = if doc.as_bytes().get(mark.end) == Some(&b' ') { mark.end + 1 } else { mark.end };
+    let marker_to = if doc.as_bytes().get(mark.end) == Some(&b' ') {
+        mark.end + 1
+    } else {
+        mark.end
+    };
     let level = mark.len() as u8;
-    let mut e = Element::new(Kind::Heading, mark.start..line.end, vec![mark.start..marker_to], Some(marker_to..line.end));
+    let mut e = Element::new(
+        Kind::Heading,
+        mark.start..line.end,
+        vec![mark.start..marker_to],
+        Some(marker_to..line.end),
+    );
     e.line = Some(line);
     e.level = level;
     Some(e)
@@ -497,7 +681,11 @@ fn blockquote_element(doc: &str, range: Span, line: Span) -> Option<Element> {
     if quotes == 0 {
         return None;
     }
-    let space = text[lead + quotes..].chars().next().filter(|c| c.is_whitespace()).map_or(0, char::len_utf8);
+    let space = text[lead + quotes..]
+        .chars()
+        .next()
+        .filter(|c| c.is_whitespace())
+        .map_or(0, char::len_utf8);
     let markers: Vec<Span> = (0..quotes)
         .map(|i| {
             let from = line.start + lead + i;
@@ -505,7 +693,12 @@ fn blockquote_element(doc: &str, range: Span, line: Span) -> Option<Element> {
         })
         .collect();
     let marker_to = markers.iter().map(|m| m.end).max().unwrap_or(line.start);
-    let mut e = Element::new(Kind::Blockquote, range.clone(), markers, Some(marker_to..range.end.max(marker_to)));
+    let mut e = Element::new(
+        Kind::Blockquote,
+        range.clone(),
+        markers,
+        Some(marker_to..range.end.max(marker_to)),
+    );
     e.line = Some(line);
     Some(e)
 }
@@ -521,13 +714,21 @@ fn list_element(doc: &str, item: &ListItem) -> Option<Element> {
             let mut e = Element::new(
                 Kind::Task,
                 item.range.clone(),
-                vec![line.start..task.checkbox.start, task.checkbox.start..task.prefix_to],
+                vec![
+                    line.start..task.checkbox.start,
+                    task.checkbox.start..task.prefix_to,
+                ],
                 Some(task.prefix_to..item.range.end.max(task.prefix_to)),
             );
             e.checked = task.checked;
             e
         }
-        None => Element::new(Kind::List, item.range.clone(), vec![line.start..item.marker_to], Some(item.marker_to..item.range.end.max(item.marker_to))),
+        None => Element::new(
+            Kind::List,
+            item.range.clone(),
+            vec![line.start..item.marker_to],
+            Some(item.marker_to..item.range.end.max(item.marker_to)),
+        ),
     };
     e.line = Some(line);
     Some(e)
@@ -567,16 +768,24 @@ fn link_marks(doc: &str, range: &Span, image: bool, link_type: LinkType) -> Vec<
         }
         i += 1;
     }
-    let Some(close) = close else { return vec![open] };
+    let Some(close) = close else {
+        return vec![open];
+    };
     let mut marks = vec![open, close..close + 1];
     match link_type {
         LinkType::Inline => {
-            if bytes.get(close + 1) == Some(&b'(') && range.end > close + 2 && bytes[range.end - 1] == b')' {
+            if bytes.get(close + 1) == Some(&b'(')
+                && range.end > close + 2
+                && bytes[range.end - 1] == b')'
+            {
                 marks.push(close + 1..close + 2);
                 marks.push(range.end - 1..range.end);
             }
         }
-        LinkType::Reference | LinkType::Collapsed | LinkType::ReferenceUnknown | LinkType::CollapsedUnknown => {
+        LinkType::Reference
+        | LinkType::Collapsed
+        | LinkType::ReferenceUnknown
+        | LinkType::CollapsedUnknown => {
             if bytes.get(close + 1) == Some(&b'[') && bytes[range.end - 1] == b']' {
                 marks.push(close + 1..close + 2);
                 marks.push(range.end - 1..range.end);
@@ -593,10 +802,16 @@ fn fence_marks(doc: &str, range: &Span) -> Vec<HlNode> {
     let text = &doc[range.clone()];
     let mut at = range.start;
     let lines: Vec<&str> = text.split('\n').collect();
-    let last = lines.iter().rposition(|l| !l.trim().is_empty()).unwrap_or(0);
+    let last = lines
+        .iter()
+        .rposition(|l| !l.trim().is_empty())
+        .unwrap_or(0);
     for (k, line) in lines.iter().enumerate() {
         let lead = line.len() - line.trim_start().len();
-        let fence = line[lead..].bytes().take_while(|&b| b == b'`' || b == b'~').count();
+        let fence = line[lead..]
+            .bytes()
+            .take_while(|&b| b == b'`' || b == b'~')
+            .count();
         if (k == 0 || k == last) && fence >= 3 {
             out.push(HlNode::leaf(at + lead..at + lead + fence, Hl::MARKUP));
         } else if !line.is_empty() && k < last {
@@ -667,7 +882,12 @@ pub(super) fn walk(buffer: &Buffer) -> Syntax {
                 w.syntax.elements.push(e);
                 w.attach(HlNode::leaf(range, Hl::MARKUP));
             }
-            Event::SoftBreak | Event::HardBreak | Event::InlineHtml(_) | Event::FootnoteReference(_) | Event::InlineMath(_) | Event::DisplayMath(_) => w.inline_content(&range),
+            Event::SoftBreak
+            | Event::HardBreak
+            | Event::InlineHtml(_)
+            | Event::FootnoteReference(_)
+            | Event::InlineMath(_)
+            | Event::DisplayMath(_) => w.inline_content(&range),
             Event::Html(_) => w.end_implicit(),
         }
     }

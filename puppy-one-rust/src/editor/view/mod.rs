@@ -8,39 +8,82 @@ pub mod commands;
 mod composition;
 pub mod decoration;
 pub mod editor;
-pub mod find;
 pub mod element;
 pub mod extension;
+pub mod find;
+#[cfg(test)]
+mod ime_tests;
 mod input;
 pub mod layout;
 mod pointer;
 pub mod projection;
 pub mod render;
 pub mod style;
-pub mod widget;
-#[cfg(test)]
-mod ime_tests;
 #[cfg(test)]
 mod tests;
+pub mod widget;
 
+use crate::ui::input::{Copy, Cut, Paste, Redo, SelectAll, Undo};
 use commands::Motion;
 pub use editor::EditorView;
 use element::EditorElement;
 use extension::EditIntent;
 use gpui::{prelude::*, *};
-use crate::ui::input::{Copy, Cut, Paste, Redo, SelectAll, Undo};
 
 actions!(
     puppy_editor,
     [
-        MoveLeft, MoveRight, MoveUp, MoveDown, MoveGroupLeft, MoveGroupRight, MoveLineStart, MoveLineEnd,
-        MoveDocStart, MoveDocEnd, MovePageUp, MovePageDown,
-        SelectLeft, SelectRight, SelectUp, SelectDown, SelectGroupLeft, SelectGroupRight, SelectLineStart,
-        SelectLineEnd, SelectDocStart, SelectDocEnd, SelectPageUp, SelectPageDown,
-        DeleteBackward, DeleteForward, DeleteGroupBackward, DeleteGroupForward, DeleteLineBackward,
-        InsertNewline, InsertSoftNewline, Indent, Outdent, ToggleBold, ToggleItalic, ToggleStrike, ToggleCode,
-        ToggleUnderline, InsertLink, Cancel, Heading0, Heading1, Heading2, Heading3, Heading4, Heading5, Heading6,
-        ToggleBulletList, ToggleOrderedList, ToggleTaskList, ToggleQuote,
+        MoveLeft,
+        MoveRight,
+        MoveUp,
+        MoveDown,
+        MoveGroupLeft,
+        MoveGroupRight,
+        MoveLineStart,
+        MoveLineEnd,
+        MoveDocStart,
+        MoveDocEnd,
+        MovePageUp,
+        MovePageDown,
+        SelectLeft,
+        SelectRight,
+        SelectUp,
+        SelectDown,
+        SelectGroupLeft,
+        SelectGroupRight,
+        SelectLineStart,
+        SelectLineEnd,
+        SelectDocStart,
+        SelectDocEnd,
+        SelectPageUp,
+        SelectPageDown,
+        DeleteBackward,
+        DeleteForward,
+        DeleteGroupBackward,
+        DeleteGroupForward,
+        DeleteLineBackward,
+        InsertNewline,
+        InsertSoftNewline,
+        Indent,
+        Outdent,
+        ToggleBold,
+        ToggleItalic,
+        ToggleStrike,
+        ToggleCode,
+        ToggleUnderline,
+        InsertLink,
+        Cancel,
+        Heading0,
+        Heading1,
+        Heading2,
+        Heading3,
+        Heading4,
+        Heading5,
+        Heading6,
+        ToggleBulletList,
+        ToggleOrderedList,
+        ToggleTaskList,
+        ToggleQuote,
     ]
 );
 
@@ -141,8 +184,12 @@ impl Render for EditorView {
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::mouse_up))
             .on_scroll_wheel(cx.listener(Self::scroll_wheel));
         let root = root
-            .on_action(cx.listener(|v, _: &MoveLeft, _, cx| v.intent_or_motion(EditIntent::CharLeft, Motion::CharLeft, cx)))
-            .on_action(cx.listener(|v, _: &MoveLineStart, _, cx| v.intent_or_motion(EditIntent::LineStart, Motion::LineStart, cx)));
+            .on_action(cx.listener(|v, _: &MoveLeft, _, cx| {
+                v.intent_or_motion(EditIntent::CharLeft, Motion::CharLeft, cx)
+            }))
+            .on_action(cx.listener(|v, _: &MoveLineStart, _, cx| {
+                v.intent_or_motion(EditIntent::LineStart, Motion::LineStart, cx)
+            }));
         motion!(self, root, cx,
             MoveRight => Motion::CharRight, false;
             MoveUp => Motion::Up, false;
@@ -169,31 +216,71 @@ impl Render for EditorView {
         );
         root.on_action(cx.listener(|v, _: &DeleteBackward, _, cx| v.delete(Motion::CharLeft, cx)))
             .on_action(cx.listener(|v, _: &DeleteForward, _, cx| v.delete(Motion::CharRight, cx)))
-            .on_action(cx.listener(|v, _: &DeleteGroupBackward, _, cx| v.delete(Motion::GroupLeft, cx)))
-            .on_action(cx.listener(|v, _: &DeleteGroupForward, _, cx| v.delete(Motion::GroupRight, cx)))
-            .on_action(cx.listener(|v, _: &DeleteLineBackward, _, cx| v.delete(Motion::LineStart, cx)))
-            .on_action(cx.listener(|v, _: &InsertNewline, _, cx| v.edit_intent(EditIntent::Enter, cx)))
-            .on_action(cx.listener(|v, _: &InsertSoftNewline, _, cx| v.edit_intent(EditIntent::SoftEnter, cx)))
+            .on_action(
+                cx.listener(|v, _: &DeleteGroupBackward, _, cx| v.delete(Motion::GroupLeft, cx)),
+            )
+            .on_action(
+                cx.listener(|v, _: &DeleteGroupForward, _, cx| v.delete(Motion::GroupRight, cx)),
+            )
+            .on_action(
+                cx.listener(|v, _: &DeleteLineBackward, _, cx| v.delete(Motion::LineStart, cx)),
+            )
+            .on_action(
+                cx.listener(|v, _: &InsertNewline, _, cx| v.edit_intent(EditIntent::Enter, cx)),
+            )
+            .on_action(cx.listener(|v, _: &InsertSoftNewline, _, cx| {
+                v.edit_intent(EditIntent::SoftEnter, cx)
+            }))
             .on_action(cx.listener(|v, _: &Indent, _, cx| v.edit_intent(EditIntent::Tab, cx)))
             .on_action(cx.listener(|v, _: &Outdent, _, cx| v.edit_intent(EditIntent::BackTab, cx)))
             .on_action(cx.listener(|v, _: &ToggleBold, _, cx| v.edit_intent(EditIntent::Bold, cx)))
-            .on_action(cx.listener(|v, _: &ToggleItalic, _, cx| v.edit_intent(EditIntent::Italic, cx)))
-            .on_action(cx.listener(|v, _: &ToggleStrike, _, cx| v.edit_intent(EditIntent::Strike, cx)))
+            .on_action(
+                cx.listener(|v, _: &ToggleItalic, _, cx| v.edit_intent(EditIntent::Italic, cx)),
+            )
+            .on_action(
+                cx.listener(|v, _: &ToggleStrike, _, cx| v.edit_intent(EditIntent::Strike, cx)),
+            )
             .on_action(cx.listener(|v, _: &ToggleCode, _, cx| v.edit_intent(EditIntent::Code, cx)))
-            .on_action(cx.listener(|v, _: &ToggleUnderline, _, cx| v.edit_intent(EditIntent::Underline, cx)))
+            .on_action(
+                cx.listener(|v, _: &ToggleUnderline, _, cx| {
+                    v.edit_intent(EditIntent::Underline, cx)
+                }),
+            )
             .on_action(cx.listener(|v, _: &InsertLink, _, cx| v.edit_intent(EditIntent::Link, cx)))
             .on_action(cx.listener(|v, _: &Cancel, _, cx| v.edit_intent(EditIntent::Escape, cx)))
-            .on_action(cx.listener(|v, _: &Heading0, _, cx| v.edit_intent(EditIntent::Heading(0), cx)))
-            .on_action(cx.listener(|v, _: &Heading1, _, cx| v.edit_intent(EditIntent::Heading(1), cx)))
-            .on_action(cx.listener(|v, _: &Heading2, _, cx| v.edit_intent(EditIntent::Heading(2), cx)))
-            .on_action(cx.listener(|v, _: &Heading3, _, cx| v.edit_intent(EditIntent::Heading(3), cx)))
-            .on_action(cx.listener(|v, _: &Heading4, _, cx| v.edit_intent(EditIntent::Heading(4), cx)))
-            .on_action(cx.listener(|v, _: &Heading5, _, cx| v.edit_intent(EditIntent::Heading(5), cx)))
-            .on_action(cx.listener(|v, _: &Heading6, _, cx| v.edit_intent(EditIntent::Heading(6), cx)))
-            .on_action(cx.listener(|v, _: &ToggleBulletList, _, cx| v.edit_intent(EditIntent::BulletList, cx)))
-            .on_action(cx.listener(|v, _: &ToggleOrderedList, _, cx| v.edit_intent(EditIntent::OrderedList, cx)))
-            .on_action(cx.listener(|v, _: &ToggleTaskList, _, cx| v.edit_intent(EditIntent::TaskList, cx)))
-            .on_action(cx.listener(|v, _: &ToggleQuote, _, cx| v.edit_intent(EditIntent::Quote, cx)))
+            .on_action(
+                cx.listener(|v, _: &Heading0, _, cx| v.edit_intent(EditIntent::Heading(0), cx)),
+            )
+            .on_action(
+                cx.listener(|v, _: &Heading1, _, cx| v.edit_intent(EditIntent::Heading(1), cx)),
+            )
+            .on_action(
+                cx.listener(|v, _: &Heading2, _, cx| v.edit_intent(EditIntent::Heading(2), cx)),
+            )
+            .on_action(
+                cx.listener(|v, _: &Heading3, _, cx| v.edit_intent(EditIntent::Heading(3), cx)),
+            )
+            .on_action(
+                cx.listener(|v, _: &Heading4, _, cx| v.edit_intent(EditIntent::Heading(4), cx)),
+            )
+            .on_action(
+                cx.listener(|v, _: &Heading5, _, cx| v.edit_intent(EditIntent::Heading(5), cx)),
+            )
+            .on_action(
+                cx.listener(|v, _: &Heading6, _, cx| v.edit_intent(EditIntent::Heading(6), cx)),
+            )
+            .on_action(cx.listener(|v, _: &ToggleBulletList, _, cx| {
+                v.edit_intent(EditIntent::BulletList, cx)
+            }))
+            .on_action(cx.listener(|v, _: &ToggleOrderedList, _, cx| {
+                v.edit_intent(EditIntent::OrderedList, cx)
+            }))
+            .on_action(
+                cx.listener(|v, _: &ToggleTaskList, _, cx| v.edit_intent(EditIntent::TaskList, cx)),
+            )
+            .on_action(
+                cx.listener(|v, _: &ToggleQuote, _, cx| v.edit_intent(EditIntent::Quote, cx)),
+            )
             .on_action(cx.listener(|v, _: &SelectAll, _, cx| v.select_all(cx)))
             .on_action(cx.listener(|v, _: &Copy, _, cx| v.copy(false, cx)))
             .on_action(cx.listener(|v, _: &Cut, _, cx| v.copy(true, cx)))

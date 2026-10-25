@@ -51,11 +51,21 @@ impl Geometry {
     /// The cell under a block-local point.
     pub fn hit(&self, x: f32, y: f32) -> Option<(usize, usize)> {
         let t = self.table;
-        if x < t.origin.x || y < t.origin.y || x >= t.origin.x + t.size.width || y >= t.origin.y + t.size.height {
+        if x < t.origin.x
+            || y < t.origin.y
+            || x >= t.origin.x + t.size.width
+            || y >= t.origin.y + t.size.height
+        {
             return None;
         }
-        let row = self.rows.iter().position(|(top, h)| y >= *top && y < top + h)?;
-        let column = self.columns.iter().position(|(left, w)| x >= *left && x < left + w)?;
+        let row = self
+            .rows
+            .iter()
+            .position(|(top, h)| y >= *top && y < top + h)?;
+        let column = self
+            .columns
+            .iter()
+            .position(|(left, w)| x >= *left && x < left + w)?;
         Some((row, column))
     }
 }
@@ -104,9 +114,14 @@ impl TableUi {
         if self.gestures.drag.is_some() || self.menu.is_some() {
             return;
         }
-        let (Some((x, y)), Some(frame)) = (self.local(position), &self.frame) else { return };
+        let (Some((x, y)), Some(frame)) = (self.local(position), &self.frame) else {
+            return;
+        };
         if let Some((row, column)) = frame.geometry.hit(x, y) {
-            let hover = Hover { row: Some(row), column: Some(column) };
+            let hover = Hover {
+                row: Some(row),
+                column: Some(column),
+            };
             if hover != self.gestures.hover {
                 self.gestures.hover = hover;
                 cx.notify();
@@ -116,7 +131,12 @@ impl TableUi {
 
     /// The pointer left the table and its grips.
     pub fn pointer_left(&mut self, cx: &mut Context<Self>) {
-        if !self.gestures.surface_hovered && !self.gestures.grip_hovered && self.gestures.drag.is_none() && self.menu.is_none() && self.gestures.hover != Hover::default() {
+        if !self.gestures.surface_hovered
+            && !self.gestures.grip_hovered
+            && self.gestures.drag.is_none()
+            && self.menu.is_none()
+            && self.gestures.hover != Hover::default()
+        {
             self.gestures.hover = Hover::default();
             cx.notify();
         }
@@ -135,7 +155,11 @@ impl TableUi {
     }
 
     pub fn drag_to(&mut self, position: Point<Pixels>, cx: &mut Context<Self>) {
-        let (Some(mut drag), Some(local), Some(frame)) = (self.gestures.drag, self.local(position), &self.frame) else { return };
+        let (Some(mut drag), Some(local), Some(frame)) =
+            (self.gestures.drag, self.local(position), &self.frame)
+        else {
+            return;
+        };
         if drag.track(position, local, &frame.geometry) {
             self.gestures.drag = Some(drag);
             cx.notify();
@@ -144,50 +168,117 @@ impl TableUi {
 
     /// Release: a drag moves its row / column and selects it at the
     /// destination; a click opens the axis menu below the grip.
-    pub fn end_drag(&mut self, cancel: bool, grip: Bounds<f32>, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(drag) = self.gestures.drag.take() else { return };
+    pub fn end_drag(
+        &mut self,
+        cancel: bool,
+        grip: Bounds<f32>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(drag) = self.gestures.drag.take() else {
+            return;
+        };
         cx.notify();
-        let Some(frame) = self.frame.clone() else { return };
+        let Some(frame) = self.frame.clone() else {
+            return;
+        };
         if cancel {
             return;
         }
         if !drag.moved {
-            let position = self.origin.map(|o| point(o.x + px(grip.origin.x + 5.), o.y + px(grip.origin.y + grip.size.height - 5. + 4.)));
+            let position = self.origin.map(|o| {
+                point(
+                    o.x + px(grip.origin.x + 5.),
+                    o.y + px(grip.origin.y + grip.size.height - 5. + 4.),
+                )
+            });
             let (row, column) = match drag.axis {
                 Axis::Column => (self.gestures.hover.row.unwrap_or(1), drag.source),
                 Axis::Row => (drag.source, self.gestures.hover.column.unwrap_or(0)),
             };
-            let scope = if drag.axis == Axis::Column { Scope::Column } else { Scope::Row };
+            let scope = if drag.axis == Axis::Column {
+                Scope::Column
+            } else {
+                Scope::Row
+            };
             if let Some(position) = position {
-                self.open_menu(scope, row, column, position, Some((drag.axis, drag.source)), window, cx);
+                self.open_menu(
+                    scope,
+                    row,
+                    column,
+                    position,
+                    Some((drag.axis, drag.source)),
+                    window,
+                    cx,
+                );
             }
             return;
         }
-        if let Some((operation, row, column)) = drag.operation(&frame.geometry, self.gestures.hover) {
+        if let Some((operation, row, column)) = drag.operation(&frame.geometry, self.gestures.hover)
+        {
             self.gestures.structural = drag.target(&frame.geometry).map(|t| (drag.axis, t));
-            (frame.sender)(commands::structure(frame.table, operation, row, column), window, cx);
+            (frame.sender)(
+                commands::structure(frame.table, operation, row, column),
+                window,
+                cx,
+            );
         }
     }
 
     /// Open the table actions at a window position.
-    pub fn open_menu(&mut self, scope: Scope, row: usize, column: usize, position: Point<Pixels>, source: Option<(Axis, usize)>, window: &mut Window, cx: &mut Context<Self>) {
+    pub fn open_menu(
+        &mut self,
+        scope: Scope,
+        row: usize,
+        column: usize,
+        position: Point<Pixels>,
+        source: Option<(Axis, usize)>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let Some(frame) = &self.frame else { return };
         let g = &frame.geometry;
-        let target = Target { scope, row, column, rows: g.rows.len(), columns: g.columns.len(), first_movable: 1 };
-        let extras = Extras { alignment: Some(frame.alignments.get(column).copied().unwrap_or_default()), delete_table: true, ..Default::default() };
+        let target = Target {
+            scope,
+            row,
+            column,
+            rows: g.rows.len(),
+            columns: g.columns.len(),
+            first_movable: 1,
+        };
+        let extras = Extras {
+            alignment: Some(frame.alignments.get(column).copied().unwrap_or_default()),
+            delete_table: true,
+            ..Default::default()
+        };
         let sections = menu::sections(target, extras);
         let dark = frame.dark;
         let menu = cx.new(|cx| TableMenu::new(sections, dark, cx));
-        let subscription = cx.subscribe_in(&menu, window, |this: &mut Self, _, event: &MenuEvent, window, cx| this.menu_event(event.clone(), window, cx));
+        let subscription = cx.subscribe_in(
+            &menu,
+            window,
+            |this: &mut Self, _, event: &MenuEvent, window, cx| {
+                this.menu_event(event.clone(), window, cx)
+            },
+        );
         let handle = menu.read(cx).focus_handle(cx);
         handle.focus(window, cx);
         self.gestures.structural = None;
-        self.menu = Some(OpenMenu { menu, position, row, column, source, _subscription: subscription });
+        self.menu = Some(OpenMenu {
+            menu,
+            position,
+            row,
+            column,
+            source,
+            _subscription: subscription,
+        });
         cx.notify();
     }
 
     fn menu_event(&mut self, event: MenuEvent, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(frame) = self.frame.clone() else { return };
+        let Some(frame) = self.frame.clone() else {
+            return;
+        };
         match event {
             MenuEvent::Dismiss { restore_focus } => {
                 self.menu = None;
@@ -197,11 +288,18 @@ impl TableUi {
                 cx.notify();
             }
             MenuEvent::Run(id) => {
-                let (Some(open), Some(operation)) = (&self.menu, Operation::from_menu_id(id)) else { return };
+                let (Some(open), Some(operation)) = (&self.menu, Operation::from_menu_id(id))
+                else {
+                    return;
+                };
                 let (row, column) = (open.row, open.column);
                 // Moves leave the moved row / column selected.
                 self.gestures.structural = moved(operation, row, column, &frame.geometry);
-                (frame.sender)(commands::structure(frame.table, operation, row, column), window, cx);
+                (frame.sender)(
+                    commands::structure(frame.table, operation, row, column),
+                    window,
+                    cx,
+                );
             }
         }
     }
@@ -209,7 +307,8 @@ impl TableUi {
     /// The perimeter: a drag source, a grip menu's target, else the
     /// selection a move left.
     pub fn outline(&self) -> Option<(Axis, usize)> {
-        self.gestures.outline(self.menu.as_ref().and_then(|m| m.source))
+        self.gestures
+            .outline(self.menu.as_ref().and_then(|m| m.source))
     }
 }
 

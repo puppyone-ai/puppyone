@@ -20,8 +20,15 @@ impl Builder<'_> {
                 continue;
             }
             let hl = cx.syntax.highlights_in(range.clone());
-            let first = self.spans.partition_point(|s| s.range.start < range.start).saturating_sub(64);
-            let spans: Vec<&super::builder::ClassSpan> = self.spans[first..].iter().take_while(|s| s.range.start < range.end).filter(|s| s.range.end > range.start && s.range.start < range.end).collect();
+            let first = self
+                .spans
+                .partition_point(|s| s.range.start < range.start)
+                .saturating_sub(64);
+            let spans: Vec<&super::builder::ClassSpan> = self.spans[first..]
+                .iter()
+                .take_while(|s| s.range.start < range.end)
+                .filter(|s| s.range.end > range.start && s.range.start < range.end)
+                .collect();
             let mut cuts = vec![range.start, range.end];
             for s in &spans {
                 cuts.extend([s.range.start, s.range.end]);
@@ -36,13 +43,19 @@ impl Builder<'_> {
                 let seg = pair[0]..pair[1];
                 let mut classes = Class::NONE;
                 let mut href = None;
-                for s in spans.iter().filter(|s| s.range.start <= seg.start && s.range.end >= seg.end) {
+                for s in spans
+                    .iter()
+                    .filter(|s| s.range.start <= seg.start && s.range.end >= seg.end)
+                {
                     classes |= s.classes;
                     if href.is_none() {
                         href = s.href.clone();
                     }
                 }
-                for (r, h) in hl.iter().filter(|(r, _)| r.start <= seg.start && r.end >= seg.end) {
+                for (r, h) in hl
+                    .iter()
+                    .filter(|(r, _)| r.start <= seg.start && r.end >= seg.end)
+                {
                     let _ = r;
                     classes |= Class::from_hl(*h);
                 }
@@ -54,7 +67,9 @@ impl Builder<'_> {
                     continue;
                 }
                 match out.last_mut() {
-                    Some(last) if last.range.end == seg.start && last.style == style => last.range.end = seg.end,
+                    Some(last) if last.range.end == seg.start && last.style == style => {
+                        last.range.end = seg.end
+                    }
                     _ => out.push(Mark { range: seg, style }),
                 }
             }

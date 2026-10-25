@@ -32,7 +32,9 @@ impl ListStyle {
             color: t.color("--po-md-list-color"),
             marker_color: t.color("--po-md-list-marker-color"),
             marker_weight: t.number("--po-md-list-marker-weight"),
-            marker_tabular: t.raw("--po-md-list-marker-numeric-variant").contains("tabular-nums"),
+            marker_tabular: t
+                .raw("--po-md-list-marker-numeric-variant")
+                .contains("tabular-nums"),
             marker_width: len("--po-md-list-marker-width"),
             marker_gap: len("--po-md-list-marker-gap"),
             inset: len("--po-md-list-inset"),

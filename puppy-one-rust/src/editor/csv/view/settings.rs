@@ -21,10 +21,26 @@ impl CsvEditor {
             return Vec::new();
         }
         vec![
-            ViewItem { id: "csv-header-row", label: t("editor.csv.headerToggle"), checked: Some(self.header) },
-            ViewItem { id: "csv-row-numbers", label: t("editor.csv.rowNumbersToggle"), checked: Some(self.row_numbers) },
-            ViewItem { id: "csv-fit-columns-to-viewport", label: t("editor.csv.fitToViewport"), checked: None },
-            ViewItem { id: "csv-reset-column-widths", label: t("editor.csv.resetColumnWidths"), checked: None },
+            ViewItem {
+                id: "csv-header-row",
+                label: t("editor.csv.headerToggle"),
+                checked: Some(self.header),
+            },
+            ViewItem {
+                id: "csv-row-numbers",
+                label: t("editor.csv.rowNumbersToggle"),
+                checked: Some(self.row_numbers),
+            },
+            ViewItem {
+                id: "csv-fit-columns-to-viewport",
+                label: t("editor.csv.fitToViewport"),
+                checked: None,
+            },
+            ViewItem {
+                id: "csv-reset-column-widths",
+                label: t("editor.csv.resetColumnWidths"),
+                checked: None,
+            },
         ]
     }
 
@@ -55,7 +71,9 @@ impl CsvEditor {
             return;
         }
         self.header = header;
-        preferences::update(&self.document_id, |e| e.first_record_as_header = Some(header));
+        preferences::update(&self.document_id, |e| {
+            e.first_record_as_header = Some(header)
+        });
         if let Some(cell) = &self.cell {
             let (row, column) = (cell.row, cell.column);
             let caret = cell.editor.read(cx).state().selection.head;
@@ -68,7 +86,12 @@ impl CsvEditor {
     /// the action gutter and the record gutter.
     pub(super) fn fit_columns_to_viewport(&mut self, cx: &mut Context<Self>) {
         let t = &self.theme;
-        let available = (self.port.size.width - t.inset.left - t.inset.right - t.table.action_gutter - self.index_width()).max(0.);
+        let available = (self.port.size.width
+            - t.inset.left
+            - t.inset.right
+            - t.table.action_gutter
+            - self.index_width())
+        .max(0.);
         self.layout.fit(available);
         self.commit_widths();
         cx.notify();
@@ -77,7 +100,9 @@ impl CsvEditor {
     /// `commitColumnWidths`: persist the tracks with the document's dialect.
     pub(super) fn commit_widths(&self) {
         let (delimiter, widths) = (self.model.delimiter(), self.layout.widths.clone());
-        preferences::update(&self.document_id, |e| e.column_layout = Some((delimiter, widths)));
+        preferences::update(&self.document_id, |e| {
+            e.column_layout = Some((delimiter, widths))
+        });
     }
 
     /// Follow structural changes (`syncFromDocument` persists new tracks).

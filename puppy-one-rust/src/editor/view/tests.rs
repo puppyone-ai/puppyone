@@ -8,8 +8,19 @@ use crate::editor::text::selection::Selection;
 use core::prelude::v1::test;
 
 fn plain() -> Box<PlainText> {
-    let text = TextStyle { size: 15., weight: 500., italic: false, mono: false, color: rgba(0xfafafaff), tabular: false, line_height: LineHeight::Factor(1.75) };
-    let line = LineStyle { padding: Edges::new(0., 0., 3.75, 0.), ..LineStyle::new(text) };
+    let text = TextStyle {
+        size: 15.,
+        weight: 500.,
+        italic: false,
+        mono: false,
+        color: rgba(0xfafafaff),
+        tabular: false,
+        line_height: LineHeight::Factor(1.75),
+    };
+    let line = LineStyle {
+        padding: Edges::new(0., 0., 3.75, 0.),
+        ..LineStyle::new(text)
+    };
     Box::new(PlainText {
         line: std::rc::Rc::new(line),
         decorations: Decorations {
@@ -29,7 +40,10 @@ fn plain() -> Box<PlainText> {
     })
 }
 
-fn setup<'a>(cx: &'a mut TestAppContext, text: &str) -> (Entity<EditorView>, &'a mut VisualTestContext) {
+fn setup<'a>(
+    cx: &'a mut TestAppContext,
+    text: &str,
+) -> (Entity<EditorView>, &'a mut VisualTestContext) {
     cx.update(|cx| {
         if cx.try_global::<gpui_kit::component::Theme>().is_none() {
             gpui_kit::init(cx);
@@ -62,7 +76,11 @@ fn typing_motion_deletion_and_history(cx: &mut TestAppContext) {
     view.update(cx, |v, _| {
         let s = v.state().selection;
         assert_eq!((s.anchor, s.from()), (0, 0));
-        assert_eq!(s.to(), 12, "shift-down extends to the same column of the next row");
+        assert_eq!(
+            s.to(),
+            12,
+            "shift-down extends to the same column of the next row"
+        );
     });
     cx.simulate_keystrokes("cmd-a backspace");
     view.update(cx, |v, _| assert_eq!(v.text(), ""));
@@ -78,18 +96,33 @@ fn layout_centres_the_rail_and_maps_points_to_offsets(cx: &mut TestAppContext) {
         let layout = v.layout().unwrap();
         assert_eq!(layout.blocks.len(), 2);
         let (a, b) = (layout.blocks[0].bounds, layout.blocks[1].bounds);
-        assert!((f32::from(a.size.height) - 30.).abs() < 1e-3, "26.25 line + 3.75 gap: {a:?}");
+        assert!(
+            (f32::from(a.size.height) - 30.).abs() < 1e-3,
+            "26.25 line + 3.75 gap: {a:?}"
+        );
         assert!((f32::from(b.top() - a.top()) - 30.).abs() < 1e-3);
         // 48px insets, or centred on the 724px rail in a wider window.
         let w = f32::from(layout.bounds.size.width);
-        assert_eq!(f32::from(a.left() - layout.bounds.left()), 48f32.max((w - 724f32.min(w - 96.)) / 2.));
+        assert_eq!(
+            f32::from(a.left() - layout.bounds.left()),
+            48f32.max((w - 724f32.min(w - 96.)) / 2.)
+        );
         let caret = layout.caret(4 + 3, false);
         // Kit's row is shifted so its baseline matches Chromium's; the test
         // platform's text system has synthetic metrics, so only bound it.
         let shift = f32::from(caret.row_top - b.top());
-        assert!(caret.x > a.left() + px(10.) && shift.abs() < 8., "caret {caret:?} block {b:?}");
-        assert_eq!(layout.offset_at(point(a.left(), b.top() + px(1.))), (4, false));
-        assert_eq!(layout.offset_at(point(a.left() + px(500.), a.top() + px(2.))), (3, false));
+        assert!(
+            caret.x > a.left() + px(10.) && shift.abs() < 8.,
+            "caret {caret:?} block {b:?}"
+        );
+        assert_eq!(
+            layout.offset_at(point(a.left(), b.top() + px(1.))),
+            (4, false)
+        );
+        assert_eq!(
+            layout.offset_at(point(a.left() + px(500.), a.top() + px(2.))),
+            (3, false)
+        );
     });
 }
 
@@ -100,7 +133,11 @@ struct Pane {
 
 impl Render for Pane {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        div().size_full().flex().child(div().w(px(160.))).child(div().w(px(420.)).h_full().child(self.editor.clone()))
+        div()
+            .size_full()
+            .flex()
+            .child(div().w(px(160.)))
+            .child(div().w(px(420.)).h_full().child(self.editor.clone()))
     }
 }
 
@@ -109,21 +146,35 @@ type PaneLayout = (Bounds<Pixels>, Vec<Bounds<Pixels>>, Vec<Bounds<Pixels>>);
 /// What the editor published from the frame just drawn.
 fn pane_layout(view: &Entity<EditorView>, cx: &App) -> PaneLayout {
     let layout = view.read(cx).layout().expect("laid out on the first frame");
-    (layout.bounds, layout.blocks.iter().map(|b| b.bounds).collect(), layout.leaves.iter().map(|l| l.geometry.bounds()).collect())
+    (
+        layout.bounds,
+        layout.blocks.iter().map(|b| b.bounds).collect(),
+        layout.leaves.iter().map(|l| l.geometry.bounds()).collect(),
+    )
 }
 
 /// The layout fills the 420px pane at x 160: a 324px column at the 48px
 /// gutter that every leaf stays inside.
 fn assert_fits_pane((bounds, blocks, leaves): &PaneLayout) {
-    assert_eq!((f32::from(bounds.left()), f32::from(bounds.size.width)), (160., 420.), "the pane, not the window");
+    assert_eq!(
+        (f32::from(bounds.left()), f32::from(bounds.size.width)),
+        (160., 420.),
+        "the pane, not the window"
+    );
     let (left, right) = (bounds.left() + px(48.), bounds.right() - px(48.));
     for b in blocks {
         assert_eq!((b.left(), b.right()), (left, right), "block {b:?}");
     }
     for l in leaves {
-        assert!(l.left() >= left && l.right() <= right + px(0.5), "leaf {l:?} outside the column {left:?}..{right:?}");
+        assert!(
+            l.left() >= left && l.right() <= right + px(0.5),
+            "leaf {l:?} outside the column {left:?}..{right:?}"
+        );
     }
-    assert!(blocks.iter().any(|b| f32::from(b.size.height) > 60.), "the long paragraph wraps: {blocks:?}");
+    assert!(
+        blocks.iter().any(|b| f32::from(b.size.height) > 60.),
+        "the long paragraph wraps: {blocks:?}"
+    );
 }
 
 #[gpui::test]
@@ -136,7 +187,9 @@ fn a_new_editor_lays_out_for_its_pane_on_its_first_frame(cx: &mut TestAppContext
     });
     let long = "a paragraph long enough to wrap inside a narrow pane ".repeat(6);
     let text = format!("{long}\nshort\n{long}");
-    let (pane, cx) = cx.add_window_view(|_, cx| Pane { editor: cx.new(|cx| EditorView::new(&text, plain(), cx)) });
+    let (pane, cx) = cx.add_window_view(|_, cx| Pane {
+        editor: cx.new(|cx| EditorView::new(&text, plain(), cx)),
+    });
     // Opening a file is a new editor; check the one frame that shows it
     // first, before anything else can draw.
     let open = |cx: &mut VisualTestContext, text: String| {

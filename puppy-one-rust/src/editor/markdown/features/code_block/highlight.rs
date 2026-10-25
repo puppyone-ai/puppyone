@@ -37,7 +37,10 @@ pub fn grammar(language: &str) -> Option<&'static str> {
 
 /// `isWithinMarkdownCodeHighlightSourceBudget`.
 fn within_budget(code: &str) -> bool {
-    code.len() <= SOURCE_BYTE_LIMIT && code.split('\n').all(|l| l.encode_utf16().count() <= LINE_UNIT_LIMIT)
+    code.len() <= SOURCE_BYTE_LIMIT
+        && code
+            .split('\n')
+            .all(|l| l.encode_utf16().count() <= LINE_UNIT_LIMIT)
 }
 
 /// `puppyCodeHighlightStyle`, keyed by tree-sitter capture names.
@@ -49,9 +52,20 @@ impl Roles {
         let head = name.split('.').next().unwrap_or(name);
         Some(match (head, name) {
             ("comment", _) => c.comment,
-            (_, "string.escape" | "string.regex" | "string.special" | "string.special.regex" | "escape") => c.special,
+            (
+                _,
+                "string.escape"
+                | "string.regex"
+                | "string.special"
+                | "string.special.regex"
+                | "escape",
+            ) => c.special,
             ("string" | "character", _) => c.string,
-            ("keyword" | "conditional" | "repeat" | "include" | "exception" | "storageclass" | "boolean_operator", _) => c.keyword,
+            (
+                "keyword" | "conditional" | "repeat" | "include" | "exception" | "storageclass"
+                | "boolean_operator",
+                _,
+            ) => c.keyword,
             ("number" | "float" | "boolean" | "constant", _) => c.constant,
             ("type" | "tag" | "namespace" | "module" | "constructor", _) => c.type_name,
             ("function" | "method", _) => c.function,
@@ -66,7 +80,10 @@ impl Roles {
 
 impl gpui_kit::base::input::HighlightStyleResolver for Roles {
     fn style(&self, name: &str) -> Option<HighlightStyle> {
-        self.color(name).map(|c| HighlightStyle { color: Some(c.into()), ..Default::default() })
+        self.color(name).map(|c| HighlightStyle {
+            color: Some(c.into()),
+            ..Default::default()
+        })
     }
 }
 
@@ -76,8 +93,14 @@ thread_local! {
 
 /// Highlight ranges for `code` (Kit `HighlightStyle` colours), cached by
 /// content; empty when the product would show plain text.
-pub fn highlight(code: &str, language: &str, colors: &SyntaxColors) -> Arc<Vec<(Range<usize>, HighlightStyle)>> {
-    let Some(grammar) = grammar(language).filter(|_| within_budget(code)) else { return Arc::default() };
+pub fn highlight(
+    code: &str,
+    language: &str,
+    colors: &SyntaxColors,
+) -> Arc<Vec<(Range<usize>, HighlightStyle)>> {
+    let Some(grammar) = grammar(language).filter(|_| within_budget(code)) else {
+        return Arc::default();
+    };
     use std::hash::{Hash, Hasher};
     let mut h = std::collections::hash_map::DefaultHasher::new();
     (code, format!("{colors:?}")).hash(&mut h);
@@ -111,11 +134,17 @@ mod tests {
 
     #[test]
     fn supported_languages_highlight_and_others_stay_plain() {
-        let colors = MarkdownTheme::resolve(true, Scale::Medium).code_block.syntax;
+        let colors = MarkdownTheme::resolve(true, Scale::Medium)
+            .code_block
+            .syntax;
         let js = highlight("const x = \"a\"; // c", "js", &colors);
         assert!(!js.is_empty());
         let keyword: Rgba = colors.keyword;
-        assert!(js.iter().any(|(r, s)| *r == (0..5) && s.color == Some(keyword.into())), "{js:?}");
+        assert!(
+            js.iter()
+                .any(|(r, s)| *r == (0..5) && s.color == Some(keyword.into())),
+            "{js:?}"
+        );
         assert!(highlight("fn main() {}", "rust", &colors).is_empty());
         assert!(highlight("x", "", &colors).is_empty());
     }

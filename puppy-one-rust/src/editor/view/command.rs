@@ -21,7 +21,11 @@ impl Command {
     pub fn new<T: Any + Hash>(feature: &'static str, payload: T) -> Self {
         let mut h = DefaultHasher::new();
         (feature, &payload).hash(&mut h);
-        Self { feature, key: h.finish(), payload: Rc::new(payload) }
+        Self {
+            feature,
+            key: h.finish(),
+            payload: Rc::new(payload),
+        }
     }
 
     pub fn feature(&self) -> &'static str {

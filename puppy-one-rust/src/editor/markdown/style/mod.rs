@@ -29,7 +29,10 @@ pub use surface::SurfaceStyle;
 
 use crate::{
     editor::{
-        markdown::features::{code_block::style::CodeBlockStyle, rule::style::RuleStyle, table::style::TableStyle, task::style::TaskStyle},
+        markdown::features::{
+            code_block::style::CodeBlockStyle, rule::style::RuleStyle, table::style::TableStyle,
+            task::style::TaskStyle,
+        },
         tokens::Tokens,
     },
     typography::Scale,
@@ -86,7 +89,10 @@ mod tests {
         assert!((t.body.text.line_height_px() - 26.25).abs() < 1e-4);
         assert!((t.body.source_line_gap - 3.75).abs() < 1e-4);
         let h1 = t.heading.level(1);
-        assert_eq!((h1.size, h1.weight, h1.gap_before, h1.gap_after), (30., 650., 16., 10.));
+        assert_eq!(
+            (h1.size, h1.weight, h1.gap_before, h1.gap_after),
+            (30., 650., 16., 10.)
+        );
         assert_eq!(t.heading.level(2).weight, 625.);
         // List rail at 15px: inset .25em + slot 1.25em + gap .375em.
         assert!((t.list.inset + t.list.marker_width + t.list.marker_gap - 28.125).abs() < 1e-4);
@@ -96,6 +102,9 @@ mod tests {
         assert_eq!(t.inline.code_size, None);
         assert_eq!(t.list.ordered_align, Align::End);
         assert_eq!(t.block.selected_ring.a, 0.3);
-        assert_eq!(MarkdownTheme::resolve(false, Scale::Large).body.text.size, 16.);
+        assert_eq!(
+            MarkdownTheme::resolve(false, Scale::Large).body.text.size,
+            16.
+        );
     }
 }

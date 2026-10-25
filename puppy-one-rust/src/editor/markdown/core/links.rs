@@ -20,7 +20,13 @@ pub struct WikiLinkToken {
 
 /// Whether the character at `index` is escaped by an odd backslash run.
 pub fn is_escaped(source: &[u8], index: usize) -> bool {
-    source[..index].iter().rev().take_while(|&&b| b == b'\\').count() % 2 == 1
+    source[..index]
+        .iter()
+        .rev()
+        .take_while(|&&b| b == b'\\')
+        .count()
+        % 2
+        == 1
 }
 
 /// Find an unescaped `delimiter` from `start` without crossing a line.
@@ -135,7 +141,8 @@ pub fn find_links(source: &str) -> Vec<LinkToken> {
             continue;
         }
         let (label_to, next) = scan_delimiter(bytes, i + 1, b"]");
-        let Some(label_to) = label_to.filter(|&t| t > i + 1 && bytes.get(t + 1) == Some(&b'(')) else {
+        let Some(label_to) = label_to.filter(|&t| t > i + 1 && bytes.get(t + 1) == Some(&b'('))
+        else {
             i = next;
             continue;
         };
@@ -147,7 +154,11 @@ pub fn find_links(source: &str) -> Vec<LinkToken> {
         };
         let label = &source[i + 1..label_to];
         match destination(&source[href_from..href_to]) {
-            Some(href) if !label.trim().is_empty() => tokens.push(LinkToken { range: i..href_to + 1, label: i + 1..label_to, href }),
+            Some(href) if !label.trim().is_empty() => tokens.push(LinkToken {
+                range: i..href_to + 1,
+                label: i + 1..label_to,
+                href,
+            }),
             _ => {}
         }
         i = href_to + 1;
@@ -170,7 +181,10 @@ pub fn find_wiki_links(source: &str) -> Vec<WikiLinkToken> {
             let content_from = i + 2;
             let content = &source[content_from..close];
             let (target, alias) = match content.find('|') {
-                Some(bar) => (content_from..content_from + bar, Some(content_from + bar + 1..close)),
+                Some(bar) => (
+                    content_from..content_from + bar,
+                    Some(content_from + bar + 1..close),
+                ),
                 None => (content_from..close, None),
             };
             let trimmed = source[target.clone()].trim();
@@ -179,7 +193,11 @@ pub fn find_wiki_links(source: &str) -> Vec<WikiLinkToken> {
                     Some(a) if !source[a.clone()].trim().is_empty() => a,
                     _ => target.clone(),
                 };
-                tokens.push(WikiLinkToken { range: i..close + 2, visible, target: trimmed.to_owned() });
+                tokens.push(WikiLinkToken {
+                    range: i..close + 2,
+                    visible,
+                    target: trimmed.to_owned(),
+                });
             }
         }
         i = next;
@@ -193,12 +211,23 @@ mod tests {
 
     #[test]
     fn links_follow_the_product_scanner() {
-        let t = find_links("a [link](https://example.com) and ![img](x) [x](<a b> \"t\") [](no) \\[n](o)");
+        let t = find_links(
+            "a [link](https://example.com) and ![img](x) [x](<a b> \"t\") [](no) \\[n](o)",
+        );
         assert_eq!(t.len(), 2);
-        assert_eq!((t[0].range.clone(), t[0].label.clone(), t[0].href.as_str()), (2..29, 3..7, "https://example.com"));
+        assert_eq!(
+            (t[0].range.clone(), t[0].label.clone(), t[0].href.as_str()),
+            (2..29, 3..7, "https://example.com")
+        );
         assert_eq!(t[1].href, "a b");
         let w = find_wiki_links("see [[Note#H|alias]] and [[Other]]");
         assert_eq!(w.len(), 2);
-        assert_eq!((w[0].target.as_str(), &"see [[Note#H|alias]] and [[Other]]"[w[0].visible.clone()]), ("Note#H", "alias"));
+        assert_eq!(
+            (
+                w[0].target.as_str(),
+                &"see [[Note#H|alias]] and [[Other]]"[w[0].visible.clone()]
+            ),
+            ("Note#H", "alias")
+        );
     }
 }

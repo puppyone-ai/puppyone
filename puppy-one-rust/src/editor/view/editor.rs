@@ -15,7 +15,11 @@ use crate::editor::text::{
 };
 use gpui::{prelude::*, *};
 use gpui_kit::base::text::{TextViewStyle, editor_host::RenderContext};
-use std::{cell::RefCell, rc::Rc, time::{Duration, Instant}};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+    time::{Duration, Instant},
+};
 
 /// Caret blink half-period (macOS insertion point).
 pub const BLINK: Duration = Duration::from_millis(530);
@@ -105,7 +109,8 @@ impl EditorView {
         let mut state = EditorState::new(text);
         // Dev captures (smoke builds, or screenshot mode): an initial
         // selection and scroll.
-        let capture = cfg!(feature = "dev-capture") || std::env::var_os("PUPPYONE_SCREENSHOT").is_some();
+        let capture =
+            cfg!(feature = "dev-capture") || std::env::var_os("PUPPYONE_SCREENSHOT").is_some();
         if capture
             && let Ok(value) = std::env::var("PUPPYONE_EDITOR_SELECTION")
             && let Some((a, b)) = value.split_once(',')
@@ -125,7 +130,14 @@ impl EditorView {
             measures: Rc::default(),
             doc_snapshot: None,
             kit: None,
-            scroll_y: if capture { std::env::var("PUPPYONE_EDITOR_SCROLL").ok().and_then(|v| v.parse().ok()).unwrap_or(0.) } else { 0. },
+            scroll_y: if capture {
+                std::env::var("PUPPYONE_EDITOR_SCROLL")
+                    .ok()
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(0.)
+            } else {
+                0.
+            },
             bounds: None,
             composition: None,
             ime_update: false,
@@ -187,7 +199,9 @@ impl EditorView {
     /// Commit an open composition when keyboard focus leaves the editor.
     pub(super) fn watch_focus(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.blur.is_none() {
-            self.blur = Some(cx.on_blur(&self.focus, window, |this, _, cx| this.commit_composition(cx)));
+            self.blur = Some(cx.on_blur(&self.focus, window, |this, _, cx| {
+                this.commit_composition(cx)
+            }));
         }
     }
 
@@ -199,7 +213,12 @@ impl EditorView {
         }
         let end = self.state.doc.len();
         let head = self.state.selection.head.min(text.len());
-        let tr = Transaction { changes: ChangeSet::replace(0..end, text), selection: Some(Selection::cursor(head)), event: UserEvent::External, scroll_into_view: false };
+        let tr = Transaction {
+            changes: ChangeSet::replace(0..end, text),
+            selection: Some(Selection::cursor(head)),
+            event: UserEvent::External,
+            scroll_into_view: false,
+        };
         self.dispatch(tr, cx);
     }
 
@@ -234,7 +253,8 @@ impl EditorView {
             }
             None => {
                 let (focused, selecting) = (self.focused_before, self.drag.is_some());
-                self.extension.selection_changed(&self.state, focused, selecting);
+                self.extension
+                    .selection_changed(&self.state, focused, selecting);
             }
         }
         self.reveal_caret |= scroll;
@@ -256,7 +276,11 @@ impl EditorView {
         let before = self.state.revision;
         if self.history.step(&mut self.state, redo) {
             if self.state.revision != before {
-                cx.emit(EditorEvent::Changed(if redo { UserEvent::Redo } else { UserEvent::Undo }));
+                cx.emit(EditorEvent::Changed(if redo {
+                    UserEvent::Redo
+                } else {
+                    UserEvent::Undo
+                }));
             }
             self.reveal_caret = true;
             self.blink_epoch = Instant::now();
@@ -268,7 +292,8 @@ impl EditorView {
     pub(super) fn sync_decorations(&mut self, focused: bool) {
         if focused != self.focused_before {
             self.focused_before = focused;
-            self.extension.selection_changed(&self.state, focused, self.drag.is_some());
+            self.extension
+                .selection_changed(&self.state, focused, self.drag.is_some());
         }
         let s = self.state.selection;
         let key = DecoKey {
@@ -281,7 +306,12 @@ impl EditorView {
             appearance: self.appearance,
         };
         if self.deco_key.as_ref() != Some(&key) {
-            let input = DecorateInput { state: &self.state, focused, pointer_selecting: self.drag.is_some(), dark: self.dark };
+            let input = DecorateInput {
+                state: &self.state,
+                focused,
+                pointer_selecting: self.drag.is_some(),
+                dark: self.dark,
+            };
             self.decorations = Rc::new(self.extension.decorate(&input));
             self.deco_key = Some(key);
         }
@@ -290,7 +320,11 @@ impl EditorView {
     /// The document as of this revision, shared with the frame being built.
     pub(super) fn doc_snapshot(&mut self) -> Rc<Buffer> {
         match &self.doc_snapshot {
-            Some((revision, doc)) if *revision == self.state.revision && doc.len() == self.state.doc.len() => doc.clone(),
+            Some((revision, doc))
+                if *revision == self.state.revision && doc.len() == self.state.doc.len() =>
+            {
+                doc.clone()
+            }
             _ => {
                 let doc = Rc::new(self.state.doc.clone());
                 self.doc_snapshot = Some((self.state.revision, doc.clone()));
@@ -313,7 +347,11 @@ impl EditorView {
             .with_dark(self.dark)
             .with_link(surface.link.into())
             .with_code_background(transparent)
-            .with_inline_code(HighlightStyle { color: Some(surface.inline_code.into()), background_color: Some(transparent), ..Default::default() })
+            .with_inline_code(HighlightStyle {
+                color: Some(surface.inline_code.into()),
+                background_color: Some(transparent),
+                ..Default::default()
+            })
             .with_selection(surface.selection.into())
             .with_paragraph_gap(rems(0.));
         let kit = Rc::new(RenderContext::new(style));
@@ -322,7 +360,12 @@ impl EditorView {
     }
 
     /// A widget control or hotspot ran a format command.
-    pub fn run_command(&mut self, command: &super::command::Command, window: &mut Window, cx: &mut Context<Self>) {
+    pub fn run_command(
+        &mut self,
+        command: &super::command::Command,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.focus.focus(window, cx);
         if self.read_only {
             return;
@@ -338,10 +381,12 @@ impl EditorView {
             return;
         }
         if self.blink_task.is_none() {
-            self.blink_task = Some(cx.spawn(async move |this, cx| loop {
-                cx.background_executor().timer(BLINK).await;
-                if this.update(cx, |_, cx| cx.notify()).is_err() {
-                    break;
+            self.blink_task = Some(cx.spawn(async move |this, cx| {
+                loop {
+                    cx.background_executor().timer(BLINK).await;
+                    if this.update(cx, |_, cx| cx.notify()).is_err() {
+                        break;
+                    }
                 }
             }));
         }
@@ -361,7 +406,14 @@ impl EditorView {
         self.commit_composition(cx);
         let range = self.state.selection.as_range();
         let caret = range.start + text.len();
-        self.dispatch(Transaction::edit(ChangeSet::replace(range, text), Some(Selection::cursor(caret)), event), cx);
+        self.dispatch(
+            Transaction::edit(
+                ChangeSet::replace(range, text),
+                Some(Selection::cursor(caret)),
+                event,
+            ),
+            cx,
+        );
     }
 
     pub fn layout(&self) -> Option<&Rc<DocLayout>> {

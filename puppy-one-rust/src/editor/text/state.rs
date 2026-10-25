@@ -36,10 +36,20 @@ pub struct Transaction {
 
 impl Transaction {
     pub fn select(selection: Selection) -> Self {
-        Self { changes: ChangeSet::default(), selection: Some(selection), event: UserEvent::Select, scroll_into_view: true }
+        Self {
+            changes: ChangeSet::default(),
+            selection: Some(selection),
+            event: UserEvent::Select,
+            scroll_into_view: true,
+        }
     }
     pub fn edit(changes: ChangeSet, selection: Option<Selection>, event: UserEvent) -> Self {
-        Self { changes, selection, event, scroll_into_view: true }
+        Self {
+            changes,
+            selection,
+            event,
+            scroll_into_view: true,
+        }
     }
 }
 
@@ -61,7 +71,11 @@ pub struct Applied {
 
 impl EditorState {
     pub fn new(text: &str) -> Self {
-        Self { doc: Buffer::new(text), selection: Selection::default(), revision: 0 }
+        Self {
+            doc: Buffer::new(text),
+            selection: Selection::default(),
+            revision: 0,
+        }
     }
     pub fn apply(&mut self, tr: Transaction) -> Option<Applied> {
         let before_selection = self.selection;
@@ -73,11 +87,23 @@ impl EditorState {
         }
         let before_doc = self.doc.clone();
         tr.changes.apply(&mut self.doc);
-        self.selection = self.clamp_selection(tr.selection.unwrap_or_else(|| before_selection.map(&tr.changes)));
+        self.selection = self.clamp_selection(
+            tr.selection
+                .unwrap_or_else(|| before_selection.map(&tr.changes)),
+        );
         self.revision += 1;
-        Some(Applied { before_doc, before_selection, changes: tr.changes, event: tr.event })
+        Some(Applied {
+            before_doc,
+            before_selection,
+            changes: tr.changes,
+            event: tr.event,
+        })
     }
     fn clamp_selection(&self, s: Selection) -> Selection {
-        Selection { anchor: self.doc.clamp(s.anchor), head: self.doc.clamp(s.head), ..s }
+        Selection {
+            anchor: self.doc.clamp(s.anchor),
+            head: self.doc.clamp(s.head),
+            ..s
+        }
     }
 }

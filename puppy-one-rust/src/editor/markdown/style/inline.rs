@@ -26,7 +26,8 @@ pub struct InlineStyle {
 
 impl InlineStyle {
     pub fn resolve(t: &Tokens, size: f32) -> Self {
-        let code_size = (!t.raw("--po-md-inline-code-font-size").is_empty()).then(|| t.len("--po-md-inline-code-font-size", size));
+        let code_size = (!t.raw("--po-md-inline-code-font-size").is_empty())
+            .then(|| t.len("--po-md-inline-code-font-size", size));
         Self {
             strong_color: t.color("--po-md-strong-color"),
             strong_weight: t.number("--po-md-strong-weight"),

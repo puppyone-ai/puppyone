@@ -32,7 +32,12 @@ impl MarkdownFeature for RuleFeature {
     }
 
     fn compile_element(&self, index: usize, element: &Element, _: &CompileCx) -> Option<Plan> {
-        Some(Plan { element: Some(index), source: element.range.clone(), presentation: Presentation::BlockAtom(BlockEmbed::new(ID, Rule)), delete_units: Vec::new() })
+        Some(Plan {
+            element: Some(index),
+            source: element.range.clone(),
+            presentation: Presentation::BlockAtom(BlockEmbed::new(ID, Rule)),
+            delete_units: Vec::new(),
+        })
     }
 
     fn block_widget(&self, _: &BlockEmbed, cx: &WidgetFactoryCx) -> Option<Rc<dyn BlockWidget>> {

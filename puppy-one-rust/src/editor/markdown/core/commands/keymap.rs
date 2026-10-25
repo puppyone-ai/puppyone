@@ -47,18 +47,33 @@ pub fn intercept(intent: EditIntent, cx: &Cx) -> Option<Transaction> {
         EditIntent::Tab if editing => block::indent(cx.state, cx.syntax, 1),
         EditIntent::BackTab if editing => block::indent(cx.state, cx.syntax, -1),
         EditIntent::Heading(level) if editing => block::set_heading(cx.state, level),
-        EditIntent::BulletList if editing => block::toggle_list(cx.state, cx.syntax, block::ListKind::Bullet),
-        EditIntent::OrderedList if editing => block::toggle_list(cx.state, cx.syntax, block::ListKind::Ordered),
-        EditIntent::TaskList if editing => block::toggle_list(cx.state, cx.syntax, block::ListKind::Task),
+        EditIntent::BulletList if editing => {
+            block::toggle_list(cx.state, cx.syntax, block::ListKind::Bullet)
+        }
+        EditIntent::OrderedList if editing => {
+            block::toggle_list(cx.state, cx.syntax, block::ListKind::Ordered)
+        }
+        EditIntent::TaskList if editing => {
+            block::toggle_list(cx.state, cx.syntax, block::ListKind::Task)
+        }
         EditIntent::Quote if editing => block::toggle_quote(cx.state),
         EditIntent::Bold if editing => inline::toggle(cx.state, cx.syntax, inline::Spec::STRONG),
-        EditIntent::Italic if editing => inline::toggle(cx.state, cx.syntax, inline::Spec::EMPHASIS),
+        EditIntent::Italic if editing => {
+            inline::toggle(cx.state, cx.syntax, inline::Spec::EMPHASIS)
+        }
         EditIntent::Strike if editing => inline::toggle(cx.state, cx.syntax, inline::Spec::STRIKE),
         EditIntent::Code if editing => inline::toggle(cx.state, cx.syntax, inline::Spec::CODE),
-        EditIntent::Underline if editing => inline::toggle(cx.state, cx.syntax, inline::Spec::UNDERLINE),
+        EditIntent::Underline if editing => {
+            inline::toggle(cx.state, cx.syntax, inline::Spec::UNDERLINE)
+        }
         EditIntent::Link if editing => inline::wrap_link(cx.state),
         // Read-only editors still own their formatting keys.
-        EditIntent::Bold | EditIntent::Italic | EditIntent::Strike | EditIntent::Code | EditIntent::Underline | EditIntent::Link => handled(cx.state),
+        EditIntent::Bold
+        | EditIntent::Italic
+        | EditIntent::Strike
+        | EditIntent::Code
+        | EditIntent::Underline
+        | EditIntent::Link => handled(cx.state),
         _ => None,
     }
 }
@@ -80,23 +95,35 @@ fn delete_marker(cx: &Cx, backward: bool) -> Option<Transaction> {
         .and_then(|e| {
             // A task deletes its staged checkbox marker first.
             if e.kind == crate::editor::markdown::core::syntax::Kind::Task {
-                e.markers.iter().find(|m| doc.slice((*m).clone()).contains('[')).or(e.markers.first()).cloned()
+                e.markers
+                    .iter()
+                    .find(|m| doc.slice((*m).clone()).contains('['))
+                    .or(e.markers.first())
+                    .cloned()
             } else {
                 e.markers.first().cloned()
             }
         });
     let unit = block.or_else(|| {
-        cx.plans.iter().filter(|p| !p.delete_units.is_empty() && p.presentation != Presentation::VisibleSource).filter(|p| p.source.start >= line.start && p.source.end <= line.end).find_map(|p| {
-            if backward && caret == p.source.end {
-                p.delete_units.last().cloned()
-            } else if !backward && caret == p.source.start {
-                p.delete_units.first().cloned()
-            } else {
-                None
-            }
-        })
+        cx.plans
+            .iter()
+            .filter(|p| !p.delete_units.is_empty() && p.presentation != Presentation::VisibleSource)
+            .filter(|p| p.source.start >= line.start && p.source.end <= line.end)
+            .find_map(|p| {
+                if backward && caret == p.source.end {
+                    p.delete_units.last().cloned()
+                } else if !backward && caret == p.source.start {
+                    p.delete_units.first().cloned()
+                } else {
+                    None
+                }
+            })
     })?;
-    edit(vec![change(unit.clone(), "")], Some(Selection::cursor(unit.start)), UserEvent::Delete)
+    edit(
+        vec![change(unit.clone(), "")],
+        Some(Selection::cursor(unit.start)),
+        UserEvent::Delete,
+    )
 }
 
 /// `handleMarkdownEnter`: lists continue their item; other markup (quotes)
@@ -104,7 +131,9 @@ fn delete_marker(cx: &Cx, backward: bool) -> Option<Transaction> {
 fn enter(cx: &Cx) -> Option<Transaction> {
     let state = cx.state;
     match cx.syntax.item_at(&state.doc, state.selection.head) {
-        Some(item) if !cx.syntax.items[item].quoted => block::continue_list_item(state, cx.syntax, item),
+        Some(item) if !cx.syntax.items[item].quoted => {
+            block::continue_list_item(state, cx.syntax, item)
+        }
         _ => block::continue_quote(state),
     }
 }

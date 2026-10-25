@@ -1,6 +1,6 @@
 //! Markdown in a live `EditorView` (GPUI test platform): typing, reveal,
 //! the composing block line, task toggling and history.
-use super::{features::task, MarkdownExtension};
+use super::{MarkdownExtension, features::task};
 use crate::{
     editor::{
         text::selection::Selection,
@@ -10,7 +10,10 @@ use crate::{
 };
 use gpui::{Entity, TestAppContext, VisualTestContext};
 
-fn setup<'a>(cx: &'a mut TestAppContext, text: &str) -> (Entity<EditorView>, &'a mut VisualTestContext) {
+fn setup<'a>(
+    cx: &'a mut TestAppContext,
+    text: &str,
+) -> (Entity<EditorView>, &'a mut VisualTestContext) {
     cx.update(|cx| {
         if cx.try_global::<gpui_kit::component::Theme>().is_none() {
             gpui_kit::init(cx);
@@ -19,7 +22,13 @@ fn setup<'a>(cx: &'a mut TestAppContext, text: &str) -> (Entity<EditorView>, &'a
         bind_keys(cx);
     });
     let text = text.to_owned();
-    let (view, cx) = cx.add_window_view(move |_, cx| EditorView::new(&text, Box::new(MarkdownExtension::new(true, Scale::Medium)), cx));
+    let (view, cx) = cx.add_window_view(move |_, cx| {
+        EditorView::new(
+            &text,
+            Box::new(MarkdownExtension::new(true, Scale::Medium)),
+            cx,
+        )
+    });
     view.update_in(cx, |v, w, cx| v.focus(w, cx));
     cx.run_until_parked();
     (view, cx)
@@ -63,7 +72,9 @@ fn lists_continue_and_tasks_toggle_with_history(cx: &mut TestAppContext) {
     cx.simulate_keystrokes("enter");
     cx.simulate_input("two");
     view.update(cx, |v, _| assert_eq!(v.text(), "- [ ] one\n- [ ] two"));
-    view.update_in(cx, |v, w, cx| v.run_command(&task::toggle_command(0), w, cx));
+    view.update_in(cx, |v, w, cx| {
+        v.run_command(&task::toggle_command(0), w, cx)
+    });
     view.update(cx, |v, _| assert_eq!(v.text(), "- [x] one\n- [ ] two"));
     cx.simulate_keystrokes("cmd-z");
     view.update(cx, |v, _| assert_eq!(v.text(), "- [ ] one\n- [ ] two"));

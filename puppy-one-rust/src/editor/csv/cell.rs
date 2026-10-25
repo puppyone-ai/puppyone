@@ -34,13 +34,24 @@ pub struct CellText {
 
 impl EditorExtension for CellText {
     fn decorate(&mut self, input: &DecorateInput) -> Decorations {
-        let blocks = (0..input.state.doc.line_count()).map(|line| Block::Line { line, style: self.line.clone() }).collect();
-        Decorations { blocks, surface: self.surface.clone(), ..Default::default() }
+        let blocks = (0..input.state.doc.line_count())
+            .map(|line| Block::Line {
+                line,
+                style: self.line.clone(),
+            })
+            .collect();
+        Decorations {
+            blocks,
+            surface: self.surface.clone(),
+            ..Default::default()
+        }
     }
     fn intercept(&mut self, intent: EditIntent, state: &EditorState) -> Option<Transaction> {
         match intent {
             EditIntent::Enter | EditIntent::SoftEnter | EditIntent::Escape => {}
-            EditIntent::Tab => self.outbox.set(Some(CellRequest::Next { backwards: false })),
+            EditIntent::Tab => self
+                .outbox
+                .set(Some(CellRequest::Next { backwards: false })),
             EditIntent::BackTab => self.outbox.set(Some(CellRequest::Next { backwards: true })),
             _ => return None,
         }

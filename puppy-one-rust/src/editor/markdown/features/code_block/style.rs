@@ -76,6 +76,14 @@ impl CodeBlockStyle {
 
     /// The code text (`white-space: pre`, code line height).
     pub fn text(&self) -> TextStyle {
-        TextStyle { size: self.size, weight: self.weight, italic: false, mono: true, color: self.color, tabular: false, line_height: LineHeight::Px(self.line_height) }
+        TextStyle {
+            size: self.size,
+            weight: self.weight,
+            italic: false,
+            mono: true,
+            color: self.color,
+            tabular: false,
+            line_height: LineHeight::Px(self.line_height),
+        }
     }
 }

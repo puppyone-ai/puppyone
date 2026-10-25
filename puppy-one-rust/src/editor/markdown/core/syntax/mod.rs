@@ -10,7 +10,7 @@ mod lines;
 mod tests;
 mod tree;
 
-pub use lines::{blockquote_marker, heading_marker, is_fence_line, is_rule_line, Fence};
+pub use lines::{Fence, blockquote_marker, heading_marker, is_fence_line, is_rule_line};
 
 use crate::editor::text::buffer::Buffer;
 use std::ops::Range;
@@ -38,15 +38,35 @@ pub enum Kind {
 impl Kind {
     /// Inline kinds whose markers reveal with the caret inside.
     pub fn reveals(self) -> bool {
-        matches!(self, Kind::Emphasis | Kind::InlineCode | Kind::Link | Kind::Strike | Kind::Strong | Kind::WikiLink)
+        matches!(
+            self,
+            Kind::Emphasis
+                | Kind::InlineCode
+                | Kind::Link
+                | Kind::Strike
+                | Kind::Strong
+                | Kind::WikiLink
+        )
     }
     /// Kinds decorated inline (marks + hidden markers).
     pub fn inline(self) -> bool {
-        matches!(self, Kind::Emphasis | Kind::Escape | Kind::InlineCode | Kind::Link | Kind::Strike | Kind::Strong | Kind::WikiLink)
+        matches!(
+            self,
+            Kind::Emphasis
+                | Kind::Escape
+                | Kind::InlineCode
+                | Kind::Link
+                | Kind::Strike
+                | Kind::Strong
+                | Kind::WikiLink
+        )
     }
     /// Block kinds whose leading marker is deleted as a unit at the visible start.
     pub fn block_marker(self) -> bool {
-        matches!(self, Kind::Blockquote | Kind::Heading | Kind::List | Kind::Task)
+        matches!(
+            self,
+            Kind::Blockquote | Kind::Heading | Kind::List | Kind::Task
+        )
     }
     /// Decoration priority (inlineDecorations.ts compareInlineDecorationPriority).
     pub fn priority(self) -> u8 {
@@ -79,11 +99,23 @@ pub struct Element {
 
 impl Element {
     pub fn new(kind: Kind, range: Span, markers: Vec<Span>, content: Option<Span>) -> Self {
-        Self { kind, range, markers, content, line: None, level: 0, checked: false, href: None }
+        Self {
+            kind,
+            range,
+            markers,
+            content,
+            line: None,
+            level: 0,
+            checked: false,
+            href: None,
+        }
     }
     /// Where visible content starts after the block markers.
     pub fn visible_start(&self) -> usize {
-        self.markers.iter().map(|m| m.end).fold(self.range.start, usize::max)
+        self.markers
+            .iter()
+            .map(|m| m.end)
+            .fold(self.range.start, usize::max)
     }
 }
 
@@ -212,11 +244,24 @@ impl Syntax {
         syntax.code_lines = fences.iter().map(|f| f.lines.clone()).collect();
         // Block features own their lines (feature collectBlock runs first).
         let mut blocks: Vec<Range<usize>> = syntax.code_lines.clone();
-        blocks.extend(syntax.tables.iter().map(|t| doc.line_index(t.start)..doc.line_index(t.end) + 1));
+        blocks.extend(
+            syntax
+                .tables
+                .iter()
+                .map(|t| doc.line_index(t.start)..doc.line_index(t.end) + 1),
+        );
         blocks.sort_by_key(|r| r.start);
         lines::add_line_elements(doc, &blocks, &mut syntax.elements);
-        syntax.elements.sort_by(|a, b| a.range.start.cmp(&b.range.start).then(a.range.end.cmp(&b.range.end)).then((a.kind as u8).cmp(&(b.kind as u8))));
-        syntax.elements.dedup_by(|b, a| a.kind == b.kind && a.range == b.range);
+        syntax.elements.sort_by(|a, b| {
+            a.range
+                .start
+                .cmp(&b.range.start)
+                .then(a.range.end.cmp(&b.range.end))
+                .then((a.kind as u8).cmp(&(b.kind as u8)))
+        });
+        syntax
+            .elements
+            .dedup_by(|b, a| a.kind == b.kind && a.range == b.range);
         // A link inside a wiki link belongs to the wiki link.
         let mut wiki_end = 0;
         syntax.elements.retain(|e| {
@@ -234,8 +279,12 @@ impl Syntax {
 
     /// Elements intersecting `range` (inclusive edges).
     pub fn elements_in(&self, range: Span) -> impl Iterator<Item = &Element> {
-        let end = self.elements.partition_point(|e| e.range.start <= range.end);
-        self.elements[..end].iter().filter(move |e| e.range.end >= range.start)
+        let end = self
+            .elements
+            .partition_point(|e| e.range.start <= range.end);
+        self.elements[..end]
+            .iter()
+            .filter(move |e| e.range.end >= range.start)
     }
 
     /// The smallest revealable inline element strictly around `caret`
@@ -248,13 +297,17 @@ impl Syntax {
 
     /// The block-marker element owning the line starting at `line_start`.
     pub fn block_marker_on(&self, line: Span) -> Option<&Element> {
-        self.elements_in(line.clone())
-            .find(|e| e.kind.block_marker() && e.line.as_ref().is_some_and(|l| l.start == line.start))
+        self.elements_in(line.clone()).find(|e| {
+            e.kind.block_marker() && e.line.as_ref().is_some_and(|l| l.start == line.start)
+        })
     }
 
     /// The list item whose marker line contains `offset` (not quoted items).
     pub fn item_at_line(&self, line: Span) -> Option<&ListItem> {
-        self.items.iter().rev().find(|i| i.marker_from >= line.start && i.marker_from <= line.end)
+        self.items
+            .iter()
+            .rev()
+            .find(|i| i.marker_from >= line.start && i.marker_from <= line.end)
     }
 
     /// Whether `offset` lies inside fenced code.
@@ -272,20 +325,32 @@ impl Syntax {
         }
         let range = doc.line_range(line);
         let text = doc.line(line);
-        let lead = text.bytes().take_while(|b| *b == b' ' || *b == b'\t').count();
+        let lead = text
+            .bytes()
+            .take_while(|b| *b == b' ' || *b == b'\t')
+            .count();
         let inside = (range.start + lead + 1).min(range.end);
         self.items
             .iter()
             .enumerate()
-            .filter(|(_, i)| i.range.start <= inside && inside <= i.range.end.max(i.marker_to) && doc.line_index(i.marker_from) <= line)
+            .filter(|(_, i)| {
+                i.range.start <= inside
+                    && inside <= i.range.end.max(i.marker_to)
+                    && doc.line_index(i.marker_from) <= line
+            })
             .max_by_key(|(_, i)| i.range.start)
             .map(|(k, _)| k)
     }
 
     /// Highlight spans intersecting `range`.
     pub fn highlights_in(&self, range: Span) -> &[(Span, Hl)] {
-        let first = self.highlights.partition_point(|(r, _)| r.end <= range.start);
-        let last = self.highlights.partition_point(|(r, _)| r.start < range.end).max(first);
+        let first = self
+            .highlights
+            .partition_point(|(r, _)| r.end <= range.start);
+        let last = self
+            .highlights
+            .partition_point(|(r, _)| r.start < range.end)
+            .max(first);
         &self.highlights[first..last]
     }
 }

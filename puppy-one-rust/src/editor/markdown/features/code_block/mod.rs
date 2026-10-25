@@ -38,13 +38,30 @@ impl MarkdownFeature for CodeBlockFeature {
     /// `codeBlockPlan.ts`: every fence is a code block widget.
     fn compile_blocks(&self, cx: &CompileCx, out: &mut Vec<Plan>) {
         for fence in &cx.syntax.fences {
-            let block = CodeBlock { range: fence.range.clone(), code: fence.code.clone(), language: fence.language.clone() };
-            out.push(Plan { element: None, source: fence.range.clone(), presentation: Presentation::BlockAtom(BlockEmbed::new(ID, block)), delete_units: Vec::new() });
+            let block = CodeBlock {
+                range: fence.range.clone(),
+                code: fence.code.clone(),
+                language: fence.language.clone(),
+            };
+            out.push(Plan {
+                element: None,
+                source: fence.range.clone(),
+                presentation: Presentation::BlockAtom(BlockEmbed::new(ID, block)),
+                delete_units: Vec::new(),
+            });
         }
     }
 
-    fn block_widget(&self, embed: &BlockEmbed, cx: &WidgetFactoryCx) -> Option<Rc<dyn BlockWidget>> {
-        Some(Rc::new(CodeBlockWidget::new(embed.model::<CodeBlock>()?, &cx.theme.code_block, &cx.theme.block)))
+    fn block_widget(
+        &self,
+        embed: &BlockEmbed,
+        cx: &WidgetFactoryCx,
+    ) -> Option<Rc<dyn BlockWidget>> {
+        Some(Rc::new(CodeBlockWidget::new(
+            embed.model::<CodeBlock>()?,
+            &cx.theme.code_block,
+            &cx.theme.block,
+        )))
     }
 
     /// The fences around the code text are not caret positions.

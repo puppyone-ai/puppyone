@@ -20,8 +20,15 @@ impl DocumentEditor {
         };
         let entries = surface.pane(cx);
         // The live / source toggle is the contribution's to declare.
-        let segmented = entries.segmented.filter(|_| session.viewer.policy.source_toggle);
-        Contribution { segmented, items: entries.items, find: entries.find, open_external: true }
+        let segmented = entries
+            .segmented
+            .filter(|_| session.viewer.policy.source_toggle);
+        Contribution {
+            segmented,
+            items: entries.items,
+            find: entries.find,
+            open_external: true,
+        }
     }
 
     pub(super) fn toggle_pane_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -37,7 +44,12 @@ impl DocumentEditor {
         cx.notify();
     }
 
-    pub(super) fn close_pane_menu(&mut self, restore_focus: bool, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn close_pane_menu(
+        &mut self,
+        restore_focus: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if !self.chrome.open {
             return;
         }
@@ -48,7 +60,12 @@ impl DocumentEditor {
         cx.notify();
     }
 
-    pub(super) fn pane_menu_key(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn pane_menu_key(
+        &mut self,
+        event: &KeyDownEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let key = event.keystroke.key.as_str();
         if key == "escape" {
             cx.stop_propagation();
@@ -69,7 +86,12 @@ impl DocumentEditor {
     }
 
     /// Run a pane menu entry (`runAndClose` for commands).
-    pub(super) fn run_pane_action(&mut self, action: Action, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn run_pane_action(
+        &mut self,
+        action: Action,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let contribution = self.contribution(cx);
         if contribution.closes(&action) {
             self.close_pane_menu(false, window, cx);
@@ -82,8 +104,12 @@ impl DocumentEditor {
                 }
             }
             Action::Find => self.open_find(window, cx),
-            Action::OpenExternal => cx.emit(ClientMessage::Action { action: "open-external".into() }),
-            Action::Close => cx.emit(ClientMessage::Action { action: "close-file".into() }),
+            Action::OpenExternal => cx.emit(ClientMessage::Action {
+                action: "open-external".into(),
+            }),
+            Action::Close => cx.emit(ClientMessage::Action {
+                action: "close-file".into(),
+            }),
             Action::Item(id) => {
                 if let Some(surface) = &self.surface {
                     surface.pane_item(id, window, cx);
@@ -105,7 +131,13 @@ impl DocumentEditor {
             None => {
                 let dark = self.dark;
                 let bar = cx.new(|cx| FindBar::new(dark, window, cx));
-                let subscription = cx.subscribe_in(&bar, window, |this: &mut Self, _, event: &FindEvent, window, cx| this.find_event(event.clone(), window, cx));
+                let subscription = cx.subscribe_in(
+                    &bar,
+                    window,
+                    |this: &mut Self, _, event: &FindEvent, window, cx| {
+                        this.find_event(event.clone(), window, cx)
+                    },
+                );
                 self.find = Some(bar.clone());
                 self.find_subscription = Some(subscription);
                 bar

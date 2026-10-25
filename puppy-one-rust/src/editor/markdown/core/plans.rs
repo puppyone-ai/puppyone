@@ -36,7 +36,11 @@ impl BlockEmbed {
     pub fn new<T: Any + Hash>(feature: &'static str, model: T) -> Self {
         let mut h = DefaultHasher::new();
         (feature, &model).hash(&mut h);
-        Self { feature, key: h.finish(), model: Rc::new(model) }
+        Self {
+            feature,
+            key: h.finish(),
+            model: Rc::new(model),
+        }
     }
 
     /// The model, if it is a `T`.
@@ -65,7 +69,10 @@ impl fmt::Debug for BlockEmbed {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Presentation {
     VisibleSource,
-    InlineMark { content: Range<usize>, markers: Vec<Range<usize>> },
+    InlineMark {
+        content: Range<usize>,
+        markers: Vec<Range<usize>>,
+    },
     InlineAtom(Atom),
     BlockAtom(BlockEmbed),
 }
@@ -92,18 +99,35 @@ impl Plan {
 
 /// Core inline elements (marks, escapes); everything else is visible source.
 fn compile_element(index: usize, e: &Element) -> Plan {
-    let visible = Plan { element: Some(index), source: e.range.clone(), presentation: Presentation::VisibleSource, delete_units: Vec::new() };
+    let visible = Plan {
+        element: Some(index),
+        source: e.range.clone(),
+        presentation: Presentation::VisibleSource,
+        delete_units: Vec::new(),
+    };
     match e.kind {
-        Kind::Strong | Kind::Emphasis | Kind::Strike | Kind::InlineCode | Kind::Link | Kind::WikiLink => match &e.content {
+        Kind::Strong
+        | Kind::Emphasis
+        | Kind::Strike
+        | Kind::InlineCode
+        | Kind::Link
+        | Kind::WikiLink => match &e.content {
             Some(c) if c.start < c.end => Plan {
                 element: Some(index),
                 source: e.range.clone(),
-                presentation: Presentation::InlineMark { content: c.clone(), markers: e.markers.clone() },
+                presentation: Presentation::InlineMark {
+                    content: c.clone(),
+                    markers: e.markers.clone(),
+                },
                 delete_units: e.markers.clone(),
             },
             _ => visible,
         },
-        Kind::Escape => Plan { presentation: Presentation::InlineAtom(Atom::Escape), delete_units: e.markers.clone(), ..visible },
+        Kind::Escape => Plan {
+            presentation: Presentation::InlineAtom(Atom::Escape),
+            delete_units: e.markers.clone(),
+            ..visible
+        },
         _ => visible,
     }
 }
@@ -126,6 +150,11 @@ pub fn compile(doc: &Buffer, syntax: &Syntax, features: Features) -> Vec<Plan> {
     for feature in features {
         feature.compile_blocks(&cx, &mut plans);
     }
-    plans.sort_by(|a, b| a.source.start.cmp(&b.source.start).then(a.source.end.cmp(&b.source.end)));
+    plans.sort_by(|a, b| {
+        a.source
+            .start
+            .cmp(&b.source.start)
+            .then(a.source.end.cmp(&b.source.end))
+    });
     plans
 }

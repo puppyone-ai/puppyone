@@ -30,7 +30,10 @@ pub fn next_grapheme(text: &str, offset: usize) -> usize {
 
 /// Previous grapheme boundary before `offset` (or 0).
 pub fn previous_grapheme(text: &str, offset: usize) -> usize {
-    text[..offset].grapheme_indices(true).next_back().map_or(0, |(i, _)| i)
+    text[..offset]
+        .grapheme_indices(true)
+        .next_back()
+        .map_or(0, |(i, _)| i)
 }
 
 /// End of the group after `offset`, skipping leading whitespace first.
@@ -43,7 +46,9 @@ pub fn next_group(text: &str, offset: usize) -> usize {
         }
         end = offset + chars.next().unwrap().0 + c.len_utf8();
     }
-    let Some(&(_, first)) = chars.peek() else { return end };
+    let Some(&(_, first)) = chars.peek() else {
+        return end;
+    };
     let kind = class(first);
     for (i, c) in chars {
         if class(c) != kind {
@@ -65,7 +70,9 @@ pub fn previous_group(text: &str, offset: usize) -> usize {
         start = i;
         chars.next();
     }
-    let Some(&(_, last)) = chars.peek() else { return start };
+    let Some(&(_, last)) = chars.peek() else {
+        return start;
+    };
     let kind = class(last);
     for (i, c) in chars {
         if class(c) != kind {
@@ -81,7 +88,9 @@ pub fn group_at(text: &str, offset: usize) -> std::ops::Range<usize> {
     let after = text[offset..].chars().next();
     let before = text[..offset].chars().next_back();
     match (before, after) {
-        (_, Some(c)) if class(c) != Class::Space => previous_group(text, offset + c.len_utf8()).min(offset)..next_group(text, offset),
+        (_, Some(c)) if class(c) != Class::Space => {
+            previous_group(text, offset + c.len_utf8()).min(offset)..next_group(text, offset)
+        }
         (Some(c), _) if class(c) != Class::Space => previous_group(text, offset)..offset,
         _ => offset..offset,
     }

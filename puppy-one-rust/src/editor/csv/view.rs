@@ -32,8 +32,8 @@ use crate::{
             decoration::{Decorations, Surface},
             editor::EditorEvent,
             extension::PlainText,
-            style::{Edges, LineHeight, LineStyle, TextStyle},
             render::{RenderCx, primary_metrics},
+            style::{Edges, LineHeight, LineStyle, TextStyle},
         },
     },
     localization::t,
@@ -45,7 +45,10 @@ use std::rc::Rc;
 actions!(csv_table, [Undo, Redo]);
 
 pub fn bind_keys(cx: &mut App) {
-    cx.bind_keys([KeyBinding::new("cmd-z", Undo, Some("CsvTable")), KeyBinding::new("cmd-shift-z", Redo, Some("CsvTable"))]);
+    cx.bind_keys([
+        KeyBinding::new("cmd-z", Undo, Some("CsvTable")),
+        KeyBinding::new("cmd-shift-z", Redo, Some("CsvTable")),
+    ]);
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -115,14 +118,27 @@ impl Focusable for CsvEditor {
 }
 
 impl CsvEditor {
-    pub fn new(document_id: &str, name: &str, text: &str, dark: bool, scale: Scale, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        document_id: &str,
+        name: &str,
+        text: &str,
+        dark: bool,
+        scale: Scale,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let delimiter: Delimiter = document::infer_delimiter(name, text);
         let model = CsvModel::new(text, delimiter);
         // Stored view state wins over the defaults (`readCsv…Preference`).
         let stored = preferences::read(document_id);
-        let widths = stored.column_layout.as_ref().filter(|(d, w)| *d == delimiter && w.len() == model.column_count()).map(|(_, w)| w.as_slice());
+        let widths = stored
+            .column_layout
+            .as_ref()
+            .filter(|(d, w)| *d == delimiter && w.len() == model.column_count())
+            .map(|(_, w)| w.as_slice());
         let layout = ColumnLayout::new(&model, widths);
-        let header = stored.first_record_as_header.unwrap_or(model.content().suggested_header);
+        let header = stored
+            .first_record_as_header
+            .unwrap_or(model.content().suggested_header);
         let theme = CsvTheme::resolve(dark, scale);
         let mut this = Self {
             document_id: document_id.to_owned(),
@@ -167,7 +183,13 @@ impl CsvEditor {
     }
 
     pub fn composing(&self, cx: &App) -> bool {
-        self.cell.as_ref().is_some_and(|c| c.editor.read(cx).composing()) || self.source.as_ref().is_some_and(|(s, _)| s.read(cx).composing())
+        self.cell
+            .as_ref()
+            .is_some_and(|c| c.editor.read(cx).composing())
+            || self
+                .source
+                .as_ref()
+                .is_some_and(|(s, _)| s.read(cx).composing())
     }
 
     /// External replacement from storage (not undoable).
@@ -206,7 +228,13 @@ impl CsvEditor {
             return;
         }
         self.read_only = read_only;
-        let editors: Vec<_> = self.cell.as_ref().map(|c| c.editor.clone()).into_iter().chain(self.source.as_ref().map(|(s, _)| s.clone())).collect();
+        let editors: Vec<_> = self
+            .cell
+            .as_ref()
+            .map(|c| c.editor.clone())
+            .into_iter()
+            .chain(self.source.as_ref().map(|(s, _)| s.clone()))
+            .collect();
         for editor in editors {
             editor.update(cx, |e, cx| e.set_read_only(read_only, cx));
         }
@@ -262,7 +290,11 @@ impl CsvEditor {
         usize::from(self.header && self.rows() > 0)
     }
     fn index_width(&self) -> f32 {
-        if self.row_numbers { self.theme.index_width } else { 0. }
+        if self.row_numbers {
+            self.theme.index_width
+        } else {
+            0.
+        }
     }
     fn table_origin(&self) -> (f32, f32) {
         (self.theme.inset.left, self.theme.inset.top)
@@ -276,38 +308,56 @@ impl CsvEditor {
     }
     /// A column's track (previewed columns are `cell-min-width`).
     fn column_width(&self, column: usize) -> f32 {
-        self.layout.widths.get(column).copied().unwrap_or(ADDED_COLUMN_WIDTH)
+        self.layout
+            .widths
+            .get(column)
+            .copied()
+            .unwrap_or(ADDED_COLUMN_WIDTH)
     }
     /// Left edge of a column's cell box.
     fn column_x(&self, column: usize) -> f32 {
         let n = column.min(self.layout.widths.len());
-        self.theme.inset.left + 1. + self.index_width() + self.layout.widths[..n].iter().sum::<f32>() + (column - n) as f32 * ADDED_COLUMN_WIDTH
+        self.theme.inset.left
+            + 1.
+            + self.index_width()
+            + self.layout.widths[..n].iter().sum::<f32>()
+            + (column - n) as f32 * ADDED_COLUMN_WIDTH
     }
     fn row_y(&self, row: usize) -> f32 {
         self.theme.inset.top + 1. + row as f32 * self.theme.table.row_min_height
     }
     fn table_size(&self) -> (f32, f32) {
-        let w = 2. + self.index_width() + self.layout.widths.iter().sum::<f32>() + self.preview().columns as f32 * ADDED_COLUMN_WIDTH;
+        let w = 2.
+            + self.index_width()
+            + self.layout.widths.iter().sum::<f32>()
+            + self.preview().columns as f32 * ADDED_COLUMN_WIDTH;
         let h = 2. + self.total_rows() as f32 * self.theme.table.row_min_height;
         (w, h)
     }
     fn content_size(&self) -> (f32, f32) {
         let (w, h) = self.table_size();
         let t = &self.theme;
-        (t.inset.left + w + t.inset.right + t.table.action_gutter, t.inset.top + h + t.inset.bottom + t.table.action_gutter)
+        (
+            t.inset.left + w + t.inset.right + t.table.action_gutter,
+            t.inset.top + h + t.inset.bottom + t.table.action_gutter,
+        )
     }
     /// The sticky header record's top (`inset-block-start: 0` within the
     /// table).
     fn header_y(&self) -> f32 {
         let (_, ty) = self.table_origin();
         let (_, th) = self.table_size();
-        self.row_y(0).max(self.port.scroll.y).min(ty + th - 1. - self.theme.table.row_min_height)
+        self.row_y(0)
+            .max(self.port.scroll.y)
+            .min(ty + th - 1. - self.theme.table.row_min_height)
     }
     /// The sticky record gutter's left edge.
     fn index_x(&self) -> f32 {
         let (tx, _) = self.table_origin();
         let (tw, _) = self.table_size();
-        (tx + 1.).max(self.port.scroll.x).min(tx + tw - 1. - self.index_width())
+        (tx + 1.)
+            .max(self.port.scroll.x)
+            .min(tx + tw - 1. - self.index_width())
     }
     /// `data-inline-scrolled`: the gutter gains a leading border.
     fn inline_scrolled(&self) -> bool {
@@ -315,10 +365,18 @@ impl CsvEditor {
     }
     /// Where a row is drawn (the header record sticks).
     fn row_top(&self, row: usize) -> f32 {
-        if self.header && row == 0 { self.header_y() } else { self.row_y(row) }
+        if self.header && row == 0 {
+            self.header_y()
+        } else {
+            self.row_y(row)
+        }
     }
     fn style(&self, row: usize) -> &TextStyle {
-        if self.header && row == 0 { &self.theme.header } else { &self.theme.body }
+        if self.header && row == 0 {
+            &self.theme.header
+        } else {
+            &self.theme.body
+        }
     }
     /// A cell's border box height: every row is `row-min-height` tall, the
     /// bottom border inside it except on the last row.
@@ -326,7 +384,11 @@ impl CsvEditor {
         if row + 1 == self.total_rows() { 0. } else { 1. }
     }
     fn cell_end_border(&self, column: usize) -> f32 {
-        if column + 1 == self.total_columns() { 0. } else { 1. }
+        if column + 1 == self.total_columns() {
+            0.
+        } else {
+            1.
+        }
     }
     /// `border-*-radius: radius - 1px` on the table's four corner cells.
     fn corner_radius(&self, row: usize, first: bool, last: bool) -> Corners<f32> {
@@ -340,7 +402,11 @@ impl CsvEditor {
         }
     }
     fn cell_radius(&self, row: usize, column: usize) -> Corners<f32> {
-        self.corner_radius(row, column == 0 && !self.row_numbers, column + 1 == self.total_columns())
+        self.corner_radius(
+            row,
+            column == 0 && !self.row_numbers,
+            column + 1 == self.total_columns(),
+        )
     }
     /// The text style of a cell's `<input>` and its inner editor's top within
     /// the cell. The input is `height: 100%`, so Chromium drops the authored
@@ -352,8 +418,15 @@ impl CsvEditor {
         let (a, d) = primary_metrics(window, style);
         let normal = a.round() + d.round();
         let p = self.theme.table.cell_padding;
-        let content = self.theme.table.row_min_height - self.cell_bottom_border(row) - p.top - p.bottom;
-        (TextStyle { line_height: LineHeight::Px(normal), ..style.clone() }, p.top + (content - normal) / 2.)
+        let content =
+            self.theme.table.row_min_height - self.cell_bottom_border(row) - p.top - p.bottom;
+        (
+            TextStyle {
+                line_height: LineHeight::Px(normal),
+                ..style.clone()
+            },
+            p.top + (content - normal) / 2.,
+        )
     }
 
     // --- cell editing ---------------------------------------------------------
@@ -396,14 +469,35 @@ impl CsvEditor {
 
     /// Activate a cell (`requestFocus`): keyboard focus selects the value; a
     /// press puts the caret at `caret`.
-    fn activate(&mut self, row: usize, column: usize, caret: Option<usize>, window: &mut Window, cx: &mut Context<Self>) {
+    fn activate(
+        &mut self,
+        row: usize,
+        column: usize,
+        caret: Option<usize>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.flush_cell(cx);
-        let value = display(self.model.rows().get(row).and_then(|r| r.cells.get(column)).map_or("", String::as_str));
+        let value = display(
+            self.model
+                .rows()
+                .get(row)
+                .and_then(|r| r.cells.get(column))
+                .map_or("", String::as_str),
+        );
         let outbox = Outbox::default();
         let p = self.theme.table.cell_padding;
         let (style, top) = self.input_text(row, window);
-        let line = LineStyle { padding: Edges::new(top, self.end_padding(row, column), 0., p.left), nowrap: true, ..LineStyle::new(style) };
-        let extension = CellText { line: Rc::new(line), surface: self.surface(), outbox: outbox.clone() };
+        let line = LineStyle {
+            padding: Edges::new(top, self.end_padding(row, column), 0., p.left),
+            nowrap: true,
+            ..LineStyle::new(style)
+        };
+        let extension = CellText {
+            line: Rc::new(line),
+            surface: self.surface(),
+            outbox: outbox.clone(),
+        };
         let read_only = self.read_only;
         let selection = match caret {
             Some(c) => Selection::cursor(c.min(value.len())),
@@ -417,27 +511,40 @@ impl CsvEditor {
         });
         // The cell's value reaches the model once per edit: provisional IME
         // text is not reported, a composition is when it commits.
-        let changed = cx.subscribe(&editor, move |this: &mut Self, editor, event: &EditorEvent, cx| {
-            let EditorEvent::Changed(_) = event else { return };
-            let mut text = editor.read(cx).text().to_owned();
-            if text.contains(['\n', '\r']) {
-                // `<input>` value sanitisation: pasted line breaks are dropped.
-                let head = editor.read(cx).state().selection.head;
-                let caret = display(&text[..head]).len();
-                text = display(&text);
-                editor.update(cx, |e, cx| {
-                    e.replace_text(&text, cx);
-                    e.set_selection(Selection::cursor(caret), cx);
-                });
-            }
-            if this.model.set_cell(row, column, &text) {
-                this.find_changed();
-                cx.emit(CsvEvent::Changed);
-            }
-            cx.notify();
+        let changed = cx.subscribe(
+            &editor,
+            move |this: &mut Self, editor, event: &EditorEvent, cx| {
+                let EditorEvent::Changed(_) = event else {
+                    return;
+                };
+                let mut text = editor.read(cx).text().to_owned();
+                if text.contains(['\n', '\r']) {
+                    // `<input>` value sanitisation: pasted line breaks are dropped.
+                    let head = editor.read(cx).state().selection.head;
+                    let caret = display(&text[..head]).len();
+                    text = display(&text);
+                    editor.update(cx, |e, cx| {
+                        e.replace_text(&text, cx);
+                        e.set_selection(Selection::cursor(caret), cx);
+                    });
+                }
+                if this.model.set_cell(row, column, &text) {
+                    this.find_changed();
+                    cx.emit(CsvEvent::Changed);
+                }
+                cx.notify();
+            },
+        );
+        let requests = cx.observe_in(&editor, window, |this: &mut Self, _, window, cx| {
+            this.handle_request(window, cx)
         });
-        let requests = cx.observe_in(&editor, window, |this: &mut Self, _, window, cx| this.handle_request(window, cx));
-        self.cell = Some(CellSession { row, column, editor: editor.clone(), outbox, _subscriptions: vec![changed, requests] });
+        self.cell = Some(CellSession {
+            row,
+            column,
+            editor: editor.clone(),
+            outbox,
+            _subscriptions: vec![changed, requests],
+        });
         let handle = editor.read(cx).focus_handle(cx);
         handle.focus(window, cx);
         self.reveal(row, column);
@@ -446,7 +553,9 @@ impl CsvEditor {
 
     fn handle_request(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(cell) = &self.cell else { return };
-        let Some(request) = cell.outbox.take() else { return };
+        let Some(request) = cell.outbox.take() else {
+            return;
+        };
         let (row, column) = (cell.row, cell.column);
         match request {
             CellRequest::Next { backwards } => {
@@ -454,7 +563,11 @@ impl CsvEditor {
                 // stops at either end.
                 let columns = self.columns();
                 let linear = row * columns + column;
-                let next = if backwards { linear.checked_sub(1) } else { Some(linear + 1) };
+                let next = if backwards {
+                    linear.checked_sub(1)
+                } else {
+                    Some(linear + 1)
+                };
                 if let Some(next) = next.filter(|n| *n < self.rows() * columns) {
                     self.activate(next / columns, next % columns, None, window, cx);
                 }
@@ -504,7 +617,10 @@ impl CsvEditor {
         if x - sticky_left < scroll.x {
             scroll.x = x - sticky_left;
         }
-        self.port.scroll = point(scroll.x.clamp(0., (cw - vw).max(0.)), scroll.y.clamp(0., (ch - vh).max(0.)));
+        self.port.scroll = point(
+            scroll.x.clamp(0., (cw - vw).max(0.)),
+            scroll.y.clamp(0., (ch - vh).max(0.)),
+        );
     }
 
     fn add_row(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -533,7 +649,14 @@ impl CsvEditor {
 
     /// `applyStructureOperation`: reordering is not a request to edit a cell
     /// (the edit session ends); every other operation focuses its target.
-    fn apply_operation(&mut self, operation: Operation, row: usize, column: usize, window: &mut Window, cx: &mut Context<Self>) {
+    fn apply_operation(
+        &mut self,
+        operation: Operation,
+        row: usize,
+        column: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if self.read_only {
             return;
         }
@@ -548,7 +671,9 @@ impl CsvEditor {
             // Menu, keyboard and drop moves leave the moved row / column
             // selected at its destination.
             if change.changed {
-                self.gestures.structural = change.focus.map(|f| (axis, if axis == Axis::Row { f.row } else { f.column }));
+                self.gestures.structural = change
+                    .focus
+                    .map(|f| (axis, if axis == Axis::Row { f.row } else { f.column }));
             }
             change.focus = None;
         }
@@ -571,16 +696,36 @@ impl CsvEditor {
         }
     }
 
-    fn source_editor(&self, text: &str, cx: &mut Context<Self>) -> (Entity<EditorView>, Subscription) {
+    fn source_editor(
+        &self,
+        text: &str,
+        cx: &mut Context<Self>,
+    ) -> (Entity<EditorView>, Subscription) {
         let line = Rc::new(LineStyle::new(self.source_style()));
-        let surface = Surface { max_text_width: Some(900.), background: self.theme.surface, ..self.surface() };
+        let surface = Surface {
+            max_text_width: Some(900.),
+            background: self.theme.surface,
+            ..self.surface()
+        };
         let read_only = self.read_only;
         let editor = cx.new(|cx| {
-            let mut e = EditorView::new(text, Box::new(PlainText { line, decorations: Decorations { surface, ..Default::default() } }), cx);
+            let mut e = EditorView::new(
+                text,
+                Box::new(PlainText {
+                    line,
+                    decorations: Decorations {
+                        surface,
+                        ..Default::default()
+                    },
+                }),
+                cx,
+            );
             e.set_read_only(read_only, cx);
             e
         });
-        let sub = cx.subscribe(&editor, |_, _, _: &EditorEvent, cx| cx.emit(CsvEvent::Changed));
+        let sub = cx.subscribe(&editor, |_, _, _: &EditorEvent, cx| {
+            cx.emit(CsvEvent::Changed)
+        });
         (editor, sub)
     }
 
@@ -626,21 +771,42 @@ impl CsvEditor {
         }
         let row_h = self.theme.table.row_min_height;
         let in_header = self.header && y >= self.header_y() && y < self.header_y() + row_h;
-        let in_index = self.row_numbers && x >= self.index_x() && x < self.index_x() + self.index_width();
-        let row = if in_header { 0 } else { (((y - self.row_y(0)) / row_h).floor().max(0.) as usize).min(self.rows().saturating_sub(1)) };
+        let in_index =
+            self.row_numbers && x >= self.index_x() && x < self.index_x() + self.index_width();
+        let row = if in_header {
+            0
+        } else {
+            (((y - self.row_y(0)) / row_h).floor().max(0.) as usize)
+                .min(self.rows().saturating_sub(1))
+        };
         if in_index {
-            return Some(if in_header { Hit::Corner } else { Hit::Index(row) });
+            return Some(if in_header {
+                Hit::Corner
+            } else {
+                Hit::Index(row)
+            });
         }
-        let column = (0..self.columns()).find(|&c| x >= self.column_x(c) && x < self.column_x(c) + self.layout.widths[c])?;
+        let column = (0..self.columns())
+            .find(|&c| x >= self.column_x(c) && x < self.column_x(c) + self.layout.widths[c])?;
         Some(Hit::Cell(row, column))
     }
 
     /// A press in a cell activates it with the caret at the pointer.
-    fn press(&mut self, position: Point<Pixels>, modifiers: Modifiers, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(origin) = self.port.origin else { return };
+    fn press(
+        &mut self,
+        position: Point<Pixels>,
+        modifiers: Modifiers,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(origin) = self.port.origin else {
+            return;
+        };
         let x = f32::from(position.x - origin.x) + self.port.scroll.x;
         let y = f32::from(position.y - origin.y) + self.port.scroll.y;
-        let Some(Hit::Cell(row, column)) = self.hit(x, y) else { return };
+        let Some(Hit::Cell(row, column)) = self.hit(x, y) else {
+            return;
+        };
         // Pressing a cell ends a structural selection.
         if self.gestures.structural.take().is_some() {
             cx.notify();
@@ -648,10 +814,19 @@ impl CsvEditor {
         if self.press_reference(row, column, x, modifiers, window, cx) {
             return;
         }
-        if self.cell.as_ref().is_some_and(|c| c.row == row && c.column == column) {
+        if self
+            .cell
+            .as_ref()
+            .is_some_and(|c| c.row == row && c.column == column)
+        {
             return;
         }
-        let value = display(self.model.rows()[row].cells.get(column).map_or("", String::as_str));
+        let value = display(
+            self.model.rows()[row]
+                .cells
+                .get(column)
+                .map_or("", String::as_str),
+        );
         let local = x - self.column_x(column) - self.theme.table.cell_padding.left;
         let caret = caret_at(window, self.style(row), &value, local);
         self.activate(row, column, Some(caret), window, cx);
@@ -660,20 +835,50 @@ impl CsvEditor {
     // --- painting -----------------------------------------------------------------
 
     /// A cell box and, unless it is being edited, its value.
-    fn draw_cell(&self, row: usize, column: usize, background: Rgba, window: &Window, out: &mut Vec<Draw>) {
+    fn draw_cell(
+        &self,
+        row: usize,
+        column: usize,
+        background: Rgba,
+        window: &Window,
+        out: &mut Vec<Draw>,
+    ) {
         let t = &self.theme;
-        let (x, y, w) = (self.column_x(column), self.row_top(row), self.column_width(column));
-        let border = Sides { top: 0., right: self.cell_end_border(column), bottom: self.cell_bottom_border(row), left: 0. };
+        let (x, y, w) = (
+            self.column_x(column),
+            self.row_top(row),
+            self.column_width(column),
+        );
+        let border = Sides {
+            top: 0.,
+            right: self.cell_end_border(column),
+            bottom: self.cell_bottom_border(row),
+            left: 0.,
+        };
         // Previewed cells (`.csv-table-editor__expansion-cell`) are empty and
         // keep the table background.
         let expansion = row >= self.rows() || column >= self.columns();
-        let background = if expansion { Rgba::default() } else { background };
-        out.push(Draw::Cell { bounds: Draw::rect(x, y, w, t.table.row_min_height), background, border, border_color: t.table.cell_border, radius: self.cell_radius(row, column) });
+        let background = if expansion {
+            Rgba::default()
+        } else {
+            background
+        };
+        out.push(Draw::Cell {
+            bounds: Draw::rect(x, y, w, t.table.row_min_height),
+            background,
+            border,
+            border_color: t.table.cell_border,
+            radius: self.cell_radius(row, column),
+        });
         if expansion {
             return;
         }
         self.draw_find(row, column, out);
-        if self.cell.as_ref().is_some_and(|c| c.row == row && c.column == column) {
+        if self
+            .cell
+            .as_ref()
+            .is_some_and(|c| c.row == row && c.column == column)
+        {
             return;
         }
         // A docked column grip covers its header cell's text.
@@ -683,15 +888,32 @@ impl CsvEditor {
         if self.draw_reference(row, column, out) {
             return;
         }
-        let value = self.model.rows()[row].cells.get(column).map_or("", String::as_str);
+        let value = self.model.rows()[row]
+            .cells
+            .get(column)
+            .map_or("", String::as_str);
         if value.is_empty() {
             return;
         }
         let (style, inner) = self.input_text(row, window);
         let p = t.table.cell_padding;
         let content_w = (w - border.right - p.left - p.right).max(0.);
-        let clip = Draw::rect(x + p.left, y, content_w, t.table.row_min_height - border.bottom);
-        out.push(Draw::Text { text: display(value).into(), style, x: x + p.left, line_top: y + inner, center: None, clip, ellipsis: false, underline: None });
+        let clip = Draw::rect(
+            x + p.left,
+            y,
+            content_w,
+            t.table.row_min_height - border.bottom,
+        );
+        out.push(Draw::Text {
+            text: display(value).into(),
+            style,
+            x: x + p.left,
+            line_top: y + inner,
+            center: None,
+            clip,
+            ellipsis: false,
+            underline: None,
+        });
     }
 
     /// A record-number cell (the header record's is blank).
@@ -699,12 +921,32 @@ impl CsvEditor {
         let t = &self.theme;
         let (x, y, w) = (self.index_x(), self.row_top(row), self.index_width());
         let left = if self.inline_scrolled() { 1. } else { 0. };
-        let border = Sides { top: 0., right: 1., bottom: self.cell_bottom_border(row), left };
+        let border = Sides {
+            top: 0.,
+            right: 1.,
+            bottom: self.cell_bottom_border(row),
+            left,
+        };
         let border_color = t.table.cell_border;
-        out.push(Draw::Cell { bounds: Draw::rect(x, y, w, t.table.row_min_height), background: t.index_background, border, border_color, radius: self.corner_radius(row, true, false) });
+        out.push(Draw::Cell {
+            bounds: Draw::rect(x, y, w, t.table.row_min_height),
+            background: t.index_background,
+            border,
+            border_color,
+            radius: self.corner_radius(row, true, false),
+        });
         if left > 0. {
             // `border-inline-start: 1px solid var(--po-editable-table-border)`.
-            out.push(Draw::Cell { bounds: Draw::rect(x, y, 1., t.table.row_min_height), background: Rgba::default(), border: Sides { left: 1., ..Sides::default() }, border_color: t.table.border, radius: Corners::default() });
+            out.push(Draw::Cell {
+                bounds: Draw::rect(x, y, 1., t.table.row_min_height),
+                background: Rgba::default(),
+                border: Sides {
+                    left: 1.,
+                    ..Sides::default()
+                },
+                border_color: t.table.border,
+                radius: Corners::default(),
+            });
         }
         if self.header && row == 0 || self.grip_covered_index() == Some(row) {
             return;
@@ -713,8 +955,18 @@ impl CsvEditor {
         // flex box centred in the cell (`vertical-align: middle`), its text
         // at `line-height: 1` centred in it.
         // Previewed records number on in an accent-tinted colour.
-        let color = if row >= self.rows() { crate::theme::mix(t.table.accent, t.index.color, 0.36) } else { t.index.color };
-        let style = TextStyle { color: Rgba { a: color.a * t.index_opacity, ..color }, ..t.index.clone() };
+        let color = if row >= self.rows() {
+            crate::theme::mix(t.table.accent, t.index.color, 0.36)
+        } else {
+            t.index.color
+        };
+        let style = TextStyle {
+            color: Rgba {
+                a: color.a * t.index_opacity,
+                ..color
+            },
+            ..t.index.clone()
+        };
         let content_h = t.table.row_min_height - border.bottom;
         let label_h = t.table.row_min_height - 1.;
         let label_top = y + (content_h - label_h) / 2.;
@@ -722,14 +974,27 @@ impl CsvEditor {
         let content_w = w - left - 1.;
         let number = row + 1 - self.header_rows();
         let clip = Draw::rect(x + left, y, content_w, content_h);
-        out.push(Draw::Text { text: number.to_string().into(), style, x: x + left, line_top, center: Some(content_w), clip, ellipsis: false, underline: None });
+        out.push(Draw::Text {
+            text: number.to_string().into(),
+            style,
+            x: x + left,
+            line_top,
+            center: Some(content_w),
+            clip,
+            ellipsis: false,
+            underline: None,
+        });
     }
 
     fn visible(&self) -> (std::ops::Range<usize>, Vec<usize>) {
         let (rows, row_h) = (self.total_rows(), self.theme.table.row_min_height);
         let (vw, vh) = (self.port.size.width.max(1.), self.port.size.height.max(1.));
-        let first = (((self.port.scroll.y - self.row_y(0)) / row_h).floor().max(0.) as usize).min(rows);
-        let last = ((((self.port.scroll.y + vh - self.row_y(0)) / row_h).floor() as usize) + 1).min(rows);
+        let first = (((self.port.scroll.y - self.row_y(0)) / row_h)
+            .floor()
+            .max(0.) as usize)
+            .min(rows);
+        let last =
+            ((((self.port.scroll.y + vh - self.row_y(0)) / row_h).floor() as usize) + 1).min(rows);
         let columns = (0..self.total_columns())
             .filter(|&c| {
                 let x = self.column_x(c);
@@ -745,7 +1010,11 @@ impl CsvEditor {
         let cell = self.cell.as_ref()?;
         let t = &self.theme;
         let (row, column) = (cell.row, cell.column);
-        let (x, y, w) = (self.column_x(column), self.row_top(row), self.column_width(column));
+        let (x, y, w) = (
+            self.column_x(column),
+            self.row_top(row),
+            self.column_width(column),
+        );
         let editor = div()
             .absolute()
             .left(px(x))
@@ -759,11 +1028,26 @@ impl CsvEditor {
         let ring = self.structure_outline().is_none().then(|| Draw::Cell {
             bounds: Draw::rect(x, y, w, t.table.row_min_height),
             background: Rgba::default(),
-            border: Sides { top: s, right: s, bottom: s, left: s },
+            border: Sides {
+                top: s,
+                right: s,
+                bottom: s,
+                left: s,
+            },
             border_color: t.table.focus_ring,
             radius: self.cell_radius(row, column),
         });
-        Some((row, div().absolute().left_0().top_0().size_full().child(editor).child(layer(ring.into_iter().collect())).into_any_element()))
+        Some((
+            row,
+            div()
+                .absolute()
+                .left_0()
+                .top_0()
+                .size_full()
+                .child(editor)
+                .child(layer(ring.into_iter().collect()))
+                .into_any_element(),
+        ))
     }
 
     fn render_live(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
@@ -777,10 +1061,24 @@ impl CsvEditor {
         let mut body = vec![Draw::Cell {
             bounds: Draw::rect(tx, ty, tw, th),
             background: Rgba::default(),
-            border: Sides { top: 1., right: 1., bottom: 1., left: 1. },
+            border: Sides {
+                top: 1.,
+                right: 1.,
+                bottom: 1.,
+                left: 1.,
+            },
             // `[data-resize-preview]`: the frame takes the selection colour.
-            border_color: if self.preview() == Expansion::default() { t.table.border } else { t.table.selection_border },
-            radius: Corners { top_left: t.table.radius, top_right: t.table.radius, bottom_right: t.table.radius, bottom_left: t.table.radius },
+            border_color: if self.preview() == Expansion::default() {
+                t.table.border
+            } else {
+                t.table.selection_border
+            },
+            radius: Corners {
+                top_left: t.table.radius,
+                top_right: t.table.radius,
+                bottom_right: t.table.radius,
+                bottom_left: t.table.radius,
+            },
         }];
         for row in rows.start.max(header_rows)..rows.end {
             for &column in &columns {
@@ -821,16 +1119,25 @@ impl CsvEditor {
             .w(px(tw + t.table.action_gutter))
             .h(px(th + t.table.action_gutter))
             .on_mouse_down(MouseButton::Left, move |e: &MouseDownEvent, window, cx| {
-                let _ = weak.update(cx, |this, cx| this.press(e.position, e.modifiers, window, cx));
+                let _ = weak.update(cx, |this, cx| {
+                    this.press(e.position, e.modifiers, window, cx)
+                });
             })
-            .on_mouse_down(MouseButton::Right, cx.listener(|this, e: &MouseDownEvent, window, cx| this.context_menu(e.position, window, cx)))
+            .on_mouse_down(
+                MouseButton::Right,
+                cx.listener(|this, e: &MouseDownEvent, window, cx| {
+                    this.context_menu(e.position, window, cx)
+                }),
+            )
             .on_mouse_move(cx.listener(|this, e: &MouseMoveEvent, window, cx| {
                 this.pointer_moved(e.position, cx);
                 if let Some((x, _)) = this.to_content(e.position) {
                     this.hover_label(x, window, cx);
                 }
             }))
-            .when(self.refs.hovered_label.is_some(), |d| d.cursor(CursorStyle::PointingHand))
+            .when(self.refs.hovered_label.is_some(), |d| {
+                d.cursor(CursorStyle::PointingHand)
+            })
             .on_hover(cx.listener(|this, hovered: &bool, window, cx| {
                 // `pointerleave` of the surface; its grips overhang it, so
                 // the check waits for their hover state.
@@ -841,7 +1148,21 @@ impl CsvEditor {
             }))
             // The surface's controls overhang it; their coordinates are the
             // content's.
-            .child(div().absolute().left(px(-tx)).top(px(-ty)).w(px(cw)).h(px(ch)).children(if self.read_only || self.gestures.drag.is_some_and(|d| d.moved) { Vec::new() } else { self.structure_controls(GROUP, cx) }));
+            .child(
+                div()
+                    .absolute()
+                    .left(px(-tx))
+                    .top(px(-ty))
+                    .w(px(cw))
+                    .h(px(ch))
+                    .children(
+                        if self.read_only || self.gestures.drag.is_some_and(|d| d.moved) {
+                            Vec::new()
+                        } else {
+                            self.structure_controls(GROUP, cx)
+                        },
+                    ),
+            );
         div()
             .absolute()
             .left(px(-self.port.scroll.x))
@@ -858,15 +1179,21 @@ impl CsvEditor {
             .child(layer(corner))
             .child(layer(self.outline().into_iter().collect()))
             .children(self.drag_layer(cx))
-            .children(if self.read_only || self.gestures.drag.is_some() { None } else { self.resize_rail(cx) })
+            .children(if self.read_only || self.gestures.drag.is_some() {
+                None
+            } else {
+                self.resize_rail(cx)
+            })
             .children(self.picker_element(cx))
             .into_any_element()
     }
 
     fn scroll_by(&mut self, delta: Point<Pixels>, scale: f32, cx: &mut Context<Self>) {
         let (cw, ch) = self.content_size();
-        let x = (self.port.scroll.x - f32::from(delta.x)).clamp(0., (cw - self.port.size.width).max(0.));
-        let y = (self.port.scroll.y - f32::from(delta.y)).clamp(0., (ch - self.port.size.height).max(0.));
+        let x = (self.port.scroll.x - f32::from(delta.x))
+            .clamp(0., (cw - self.port.size.width).max(0.));
+        let y = (self.port.scroll.y - f32::from(delta.y))
+            .clamp(0., (ch - self.port.size.height).max(0.));
         let next = point((x * scale).round() / scale, (y * scale).round() / scale);
         if next != self.port.scroll {
             self.port.scroll = next;
@@ -886,21 +1213,33 @@ mod settings;
 #[cfg(test)]
 mod tests;
 
-pub use {find::FindResult, settings::ViewItem};
 use crate::editor::table::interaction::Gestures;
 use {
     expand::{ADDED_COLUMN_WIDTH, Expansion},
     handles::{Axis, Hover},
     menu::{MenuKind, OpenMenu},
 };
+pub use {find::FindResult, settings::ViewItem};
 
 /// The caret boundary of `text` nearest to `x` (shaped like the cell).
 fn caret_at(window: &Window, style: &TextStyle, text: &str, x: f32) -> usize {
     if text.is_empty() || x <= 0. {
         return 0;
     }
-    let run = TextRun { len: text.len(), font: RenderCx::font(style), color: black(), background_color: None, underline: None, strikethrough: None };
-    let line = window.text_system().shape_line(SharedString::from(text.to_owned()), px(style.size), &[run], None);
+    let run = TextRun {
+        len: text.len(),
+        font: RenderCx::font(style),
+        color: black(),
+        background_color: None,
+        underline: None,
+        strikethrough: None,
+    };
+    let line = window.text_system().shape_line(
+        SharedString::from(text.to_owned()),
+        px(style.size),
+        &[run],
+        None,
+    );
     line.closest_index_for_x(px(x))
 }
 
@@ -944,7 +1283,8 @@ impl Render for CsvEditor {
         let measure = canvas(
             move |bounds, window, cx| {
                 let _ = weak.update(cx, |this, cx| {
-                    let viewport = size(f32::from(bounds.size.width), f32::from(bounds.size.height));
+                    let viewport =
+                        size(f32::from(bounds.size.width), f32::from(bounds.size.height));
                     if this.port.size != viewport || this.port.origin != Some(bounds.origin) {
                         this.port.size = viewport;
                         this.port.origin = Some(bounds.origin);
@@ -968,7 +1308,8 @@ impl Render for CsvEditor {
                     });
                     window.on_mouse_event(move |e: &MouseUpEvent, phase, window, cx| {
                         if phase == DispatchPhase::Capture && e.button == MouseButton::Left {
-                            let _ = releasing.update(cx, |this, cx| this.end_expand(false, window, cx));
+                            let _ =
+                                releasing.update(cx, |this, cx| this.end_expand(false, window, cx));
                         }
                     });
                 }
@@ -976,12 +1317,14 @@ impl Render for CsvEditor {
                     let (moving, releasing) = (capture.clone(), capture.clone());
                     window.on_mouse_event(move |e: &MouseMoveEvent, phase, _, cx| {
                         if phase == DispatchPhase::Capture {
-                            let _ = moving.update(cx, |this, cx| this.drag_structure(e.position, cx));
+                            let _ =
+                                moving.update(cx, |this, cx| this.drag_structure(e.position, cx));
                         }
                     });
                     window.on_mouse_event(move |e: &MouseUpEvent, phase, window, cx| {
                         if phase == DispatchPhase::Capture && e.button == MouseButton::Left {
-                            let _ = releasing.update(cx, |this, cx| this.end_structure_drag(false, window, cx));
+                            let _ = releasing
+                                .update(cx, |this, cx| this.end_structure_drag(false, window, cx));
                         }
                     });
                 }
@@ -991,7 +1334,8 @@ impl Render for CsvEditor {
                 let (moving, releasing) = (capture.clone(), capture.clone());
                 window.on_mouse_event(move |e: &MouseMoveEvent, phase, _, cx| {
                     if phase == DispatchPhase::Capture {
-                        let _ = moving.update(cx, |this, cx| this.drag_resize(f32::from(e.position.x), cx));
+                        let _ = moving
+                            .update(cx, |this, cx| this.drag_resize(f32::from(e.position.x), cx));
                     }
                 });
                 window.on_mouse_event(move |e: &MouseUpEvent, phase, _, cx| {
@@ -1036,13 +1380,25 @@ impl Render for CsvEditor {
             .on_scroll_wheel(cx.listener(|this, e: &ScrollWheelEvent, window, cx| {
                 this.close_menu(false, window, cx);
                 if this.live {
-                    this.scroll_by(e.delta.pixel_delta(window.line_height()), window.scale_factor(), cx);
+                    this.scroll_by(
+                        e.delta.pixel_delta(window.line_height()),
+                        window.scale_factor(),
+                        cx,
+                    );
                 }
             }))
             .child(measure)
             .child(body)
             .children(self.expand_status())
             .child(toggle)
-            .children(self.menu.as_ref().map(|m| deferred(anchored().position(m.position).snap_to_window_with_margin(px(8.)).child(m.menu.clone())).with_priority(1)))
+            .children(self.menu.as_ref().map(|m| {
+                deferred(
+                    anchored()
+                        .position(m.position)
+                        .snap_to_window_with_margin(px(8.))
+                        .child(m.menu.clone()),
+                )
+                .with_priority(1)
+            }))
     }
 }

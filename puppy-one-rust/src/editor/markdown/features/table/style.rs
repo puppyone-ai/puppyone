@@ -71,7 +71,23 @@ impl TableStyle {
 
     /// Cell text (`th` takes the header colour and weight).
     pub fn cell_text(&self, header: bool, weight: f32) -> TextStyle {
-        let text = TextStyle { size: self.size, weight, italic: false, mono: false, color: self.body_color, tabular: false, line_height: LineHeight::Factor(self.line_height) };
-        if header { TextStyle { weight: self.header_weight, color: self.header_color, ..text } } else { text }
+        let text = TextStyle {
+            size: self.size,
+            weight,
+            italic: false,
+            mono: false,
+            color: self.body_color,
+            tabular: false,
+            line_height: LineHeight::Factor(self.line_height),
+        };
+        if header {
+            TextStyle {
+                weight: self.header_weight,
+                color: self.header_color,
+                ..text
+            }
+        } else {
+            text
+        }
     }
 }

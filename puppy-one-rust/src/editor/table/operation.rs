@@ -30,7 +30,10 @@ pub enum Operation {
     /// Markdown tables: remove the whole table.
     DeleteTable,
     /// CSV: grow to a shape (`expand-to-shape`).
-    ExpandToShape { data_rows: usize, columns: usize },
+    ExpandToShape {
+        data_rows: usize,
+        columns: usize,
+    },
 }
 
 /// Column alignment (`MarkdownTableAlignment`; `None` is the default).
@@ -54,7 +57,9 @@ impl Operation {
     pub fn move_axis(self) -> Option<Axis> {
         match self {
             Self::MoveRowUp | Self::MoveRowDown | Self::MoveRowTo(_) => Some(Axis::Row),
-            Self::MoveColumnLeft | Self::MoveColumnRight | Self::MoveColumnTo(_) => Some(Axis::Column),
+            Self::MoveColumnLeft | Self::MoveColumnRight | Self::MoveColumnTo(_) => {
+                Some(Axis::Column)
+            }
             _ => None,
         }
     }

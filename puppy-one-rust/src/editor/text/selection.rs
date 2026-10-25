@@ -15,10 +15,20 @@ pub struct Selection {
 
 impl Selection {
     pub fn cursor(pos: usize) -> Self {
-        Self { anchor: pos, head: pos, goal_x: None, upstream: false }
+        Self {
+            anchor: pos,
+            head: pos,
+            goal_x: None,
+            upstream: false,
+        }
     }
     pub fn range(anchor: usize, head: usize) -> Self {
-        Self { anchor, head, goal_x: None, upstream: false }
+        Self {
+            anchor,
+            head,
+            goal_x: None,
+            upstream: false,
+        }
     }
     pub fn is_empty(&self) -> bool {
         self.anchor == self.head

@@ -37,7 +37,10 @@ pub enum Block {
     /// One `.cm-line`: a source line laid out as a wrapped paragraph.
     Line { line: usize, style: Rc<LineStyle> },
     /// Consecutive source lines replaced by a block widget.
-    Widget { lines: Range<usize>, widget: Rc<dyn BlockWidget> },
+    Widget {
+        lines: Range<usize>,
+        widget: Rc<dyn BlockWidget>,
+    },
 }
 
 impl Block {
@@ -85,14 +88,20 @@ impl Decorations {
     /// Marks intersecting `range`.
     pub fn marks_in(&self, range: &Range<usize>) -> &[Mark] {
         let first = self.marks.partition_point(|m| m.range.end <= range.start);
-        let last = self.marks.partition_point(|m| m.range.start < range.end).max(first);
+        let last = self
+            .marks
+            .partition_point(|m| m.range.start < range.end)
+            .max(first);
         &self.marks[first..last]
     }
 
     /// Hidden ranges touching `range` (empty ranges at its edges included).
     pub fn hidden_in(&self, range: &Range<usize>) -> &[Range<usize>] {
         let first = self.hidden.partition_point(|r| r.end < range.start);
-        let last = self.hidden.partition_point(|r| r.start <= range.end).max(first);
+        let last = self
+            .hidden
+            .partition_point(|r| r.start <= range.end)
+            .max(first);
         &self.hidden[first..last]
     }
 }

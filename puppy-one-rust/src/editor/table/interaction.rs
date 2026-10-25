@@ -53,20 +53,39 @@ pub fn drop_boundary(segments: &[(f32, f32)], pointer: f32) -> Option<usize> {
     if segments.is_empty() {
         return None;
     }
-    Some(segments.iter().position(|(start, size)| pointer < start + size / 2.).unwrap_or(segments.len()))
+    Some(
+        segments
+            .iter()
+            .position(|(start, size)| pointer < start + size / 2.)
+            .unwrap_or(segments.len()),
+    )
 }
 
 impl StructureDrag {
     pub fn new(axis: Axis, source: usize, start: Point<Pixels>) -> Self {
-        Self { axis, source, start, moved: false, boundary: None }
+        Self {
+            axis,
+            source,
+            start,
+            moved: false,
+            boundary: None,
+        }
     }
 
     /// Follow the pointer (window coordinates; `content` the same point in
     /// track coordinates). Returns whether the drag changed.
-    pub fn track(&mut self, pointer: Point<Pixels>, content: (f32, f32), tracks: &impl Tracks) -> bool {
+    pub fn track(
+        &mut self,
+        pointer: Point<Pixels>,
+        content: (f32, f32),
+        tracks: &impl Tracks,
+    ) -> bool {
         let before = *self;
         if !self.moved {
-            let (dx, dy) = (f32::from(pointer.x - self.start.x), f32::from(pointer.y - self.start.y));
+            let (dx, dy) = (
+                f32::from(pointer.x - self.start.x),
+                f32::from(pointer.y - self.start.y),
+            );
             if dx.abs() <= DRAG_SLOP && dy.abs() <= DRAG_SLOP {
                 return false;
             }
@@ -74,11 +93,15 @@ impl StructureDrag {
         }
         self.boundary = match self.axis {
             Axis::Row => {
-                let segments: Vec<(f32, f32)> = (tracks.first_movable()..tracks.rows()).map(|r| tracks.row_span(r)).collect();
+                let segments: Vec<(f32, f32)> = (tracks.first_movable()..tracks.rows())
+                    .map(|r| tracks.row_span(r))
+                    .collect();
                 drop_boundary(&segments, content.1)
             }
             Axis::Column => {
-                let segments: Vec<(f32, f32)> = (0..tracks.columns()).map(|c| tracks.column_span(c)).collect();
+                let segments: Vec<(f32, f32)> = (0..tracks.columns())
+                    .map(|c| tracks.column_span(c))
+                    .collect();
                 drop_boundary(&segments, content.0)
             }
         };
@@ -89,20 +112,39 @@ impl StructureDrag {
     pub fn target(&self, tracks: &impl Tracks) -> Option<usize> {
         let boundary = self.boundary?;
         let (offset, count) = match self.axis {
-            Axis::Row => (tracks.first_movable(), tracks.rows() - tracks.first_movable()),
+            Axis::Row => (
+                tracks.first_movable(),
+                tracks.rows() - tracks.first_movable(),
+            ),
             Axis::Column => (0, tracks.columns()),
         };
         let target_boundary = offset + boundary.min(count);
-        let target = if target_boundary > self.source { target_boundary - 1 } else { target_boundary };
+        let target = if target_boundary > self.source {
+            target_boundary - 1
+        } else {
+            target_boundary
+        };
         (target != self.source).then_some(target)
     }
 
     /// The move a released drag applies, at the hovered cross position.
-    pub fn operation(&self, tracks: &impl Tracks, hover: Hover) -> Option<(Operation, usize, usize)> {
+    pub fn operation(
+        &self,
+        tracks: &impl Tracks,
+        hover: Hover,
+    ) -> Option<(Operation, usize, usize)> {
         let target = self.target(tracks)?;
         Some(match self.axis {
-            Axis::Row => (Operation::MoveRowTo(target), self.source, hover.column.unwrap_or(0)),
-            Axis::Column => (Operation::MoveColumnTo(target), hover.row.unwrap_or(tracks.first_movable()), self.source),
+            Axis::Row => (
+                Operation::MoveRowTo(target),
+                self.source,
+                hover.column.unwrap_or(0),
+            ),
+            Axis::Column => (
+                Operation::MoveColumnTo(target),
+                hover.row.unwrap_or(tracks.first_movable()),
+                self.source,
+            ),
         })
     }
 
@@ -136,13 +178,24 @@ impl StructureDrag {
                 Draw::rect(x - 1., table.origin.y, 2., table.size.height)
             }
         };
-        Some(Draw::Cell { bounds, background: style.selection_border, border: Sides::default(), border_color: Rgba::default(), radius: Corners::default() })
+        Some(Draw::Cell {
+            bounds,
+            background: style.selection_border,
+            border: Sides::default(),
+            border_color: Rgba::default(),
+            radius: Corners::default(),
+        })
     }
 }
 
 /// `.po-editable-table-selection-outline`: a perimeter around a row (the
 /// table's width) or a column (the table's height).
-pub fn outline(tracks: &impl Tracks, style: &EditableTableStyle, axis: Axis, index: usize) -> Option<Draw> {
+pub fn outline(
+    tracks: &impl Tracks,
+    style: &EditableTableStyle,
+    axis: Axis,
+    index: usize,
+) -> Option<Draw> {
     let table = tracks.table();
     let bounds = match axis {
         Axis::Row if index < tracks.rows() => {
@@ -156,7 +209,18 @@ pub fn outline(tracks: &impl Tracks, style: &EditableTableStyle, axis: Axis, ind
         _ => return None,
     };
     let s = style.selection_stroke;
-    Some(Draw::Cell { bounds, background: Rgba::default(), border: Sides { top: s, right: s, bottom: s, left: s }, border_color: style.selection_border, radius: Corners::default() })
+    Some(Draw::Cell {
+        bounds,
+        background: Rgba::default(),
+        border: Sides {
+            top: s,
+            right: s,
+            bottom: s,
+            left: s,
+        },
+        border_color: style.selection_border,
+        radius: Corners::default(),
+    })
 }
 
 /// One table's pointer gestures: what the grips follow, a grip drag, the
@@ -183,7 +247,10 @@ impl Gestures {
     /// The row / column with a perimeter: a drag source, else `menu` (a grip
     /// menu's target), else the selection a move left.
     pub fn outline(&self, menu: Option<(Axis, usize)>) -> Option<(Axis, usize)> {
-        self.drag.map(|d| (d.axis, d.source)).or(menu).or(self.structural)
+        self.drag
+            .map(|d| (d.axis, d.source))
+            .or(menu)
+            .or(self.structural)
     }
 }
 
@@ -198,7 +265,9 @@ pub struct Resizing {
 impl Resizing {
     /// The width at pointer `x`, clamped to `minimum..=maximum`.
     pub fn width(&self, x: f32, minimum: f32, maximum: f32) -> f32 {
-        (self.start_width + (x - self.start_x)).round().clamp(minimum, maximum)
+        (self.start_width + (x - self.start_x))
+            .round()
+            .clamp(minimum, maximum)
     }
 }
 
@@ -225,7 +294,10 @@ mod tests {
             (column as f32 * 100., 100.)
         }
         fn table(&self) -> Bounds<f32> {
-            Bounds { origin: point(0., 0.), size: size(300., 40.) }
+            Bounds {
+                origin: point(0., 0.),
+                size: size(300., 40.),
+            }
         }
     }
 
@@ -247,7 +319,16 @@ mod tests {
         // Below row 3's midpoint: after the last row.
         assert!(drag.track(point(px(0.), px(30.)), (0., 36.), &Grid));
         assert_eq!((drag.boundary, drag.target(&Grid)), (Some(3), Some(3)));
-        assert_eq!(drag.operation(&Grid, Hover { row: None, column: Some(2) }), Some((Operation::MoveRowTo(3), 1, 2)));
+        assert_eq!(
+            drag.operation(
+                &Grid,
+                Hover {
+                    row: None,
+                    column: Some(2)
+                }
+            ),
+            Some((Operation::MoveRowTo(3), 1, 2))
+        );
         // Onto its own boundary: no move, no indicator.
         drag.track(point(px(0.), px(12.)), (0., 12.), &Grid);
         assert_eq!(drag.target(&Grid), None);
@@ -255,6 +336,9 @@ mod tests {
     }
 
     fn style() -> EditableTableStyle {
-        EditableTableStyle::resolve(crate::editor::tokens::Tokens::csv(true, crate::typography::Scale::Medium), 13.)
+        EditableTableStyle::resolve(
+            crate::editor::tokens::Tokens::csv(true, crate::typography::Scale::Medium),
+            13.,
+        )
     }
 }

@@ -13,7 +13,10 @@ pub struct Buffer {
 impl Buffer {
     pub fn new(text: impl Into<String>) -> Self {
         let text = text.into();
-        let mut buffer = Self { text, line_starts: vec![0] };
+        let mut buffer = Self {
+            text,
+            line_starts: vec![0],
+        };
         buffer.reindex_from(0);
         buffer
     }

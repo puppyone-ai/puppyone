@@ -59,16 +59,28 @@ fn replacement(before: &Buffer, after: &Buffer) -> Option<ChangeSet> {
         prefix -= 1;
     }
     let room = a.len().min(b.len()) - prefix;
-    let mut suffix = a.bytes().rev().zip(b.bytes().rev()).take(room).take_while(|(x, y)| x == y).count();
+    let mut suffix = a
+        .bytes()
+        .rev()
+        .zip(b.bytes().rev())
+        .take(room)
+        .take_while(|(x, y)| x == y)
+        .count();
     while !(a.is_char_boundary(a.len() - suffix) && b.is_char_boundary(b.len() - suffix)) {
         suffix -= 1;
     }
-    Some(ChangeSet::replace(prefix..a.len() - suffix, &b[prefix..b.len() - suffix]))
+    Some(ChangeSet::replace(
+        prefix..a.len() - suffix,
+        &b[prefix..b.len() - suffix],
+    ))
 }
 
 impl History {
     pub fn record(&mut self, applied: &Applied, after: &EditorState, now: Instant) {
-        if matches!(applied.event, UserEvent::Undo | UserEvent::Redo | UserEvent::Select) {
+        if matches!(
+            applied.event,
+            UserEvent::Undo | UserEvent::Redo | UserEvent::Select
+        ) {
             return;
         }
         if applied.event == UserEvent::External {
@@ -121,7 +133,10 @@ impl History {
     /// `end_composition`.
     pub fn begin_composition(&mut self, state: &EditorState) {
         if self.composing.is_none() {
-            self.composing = Some(Composing { doc: state.doc.clone(), selection: state.selection });
+            self.composing = Some(Composing {
+                doc: state.doc.clone(),
+                selection: state.selection,
+            });
         }
     }
 
@@ -133,8 +148,12 @@ impl History {
     /// the document before it, none when it was cancelled. Returns whether
     /// the document changed.
     pub fn end_composition(&mut self, state: &EditorState, now: Instant) -> bool {
-        let Some(composing) = self.composing.take() else { return false };
-        let Some(forward) = replacement(&composing.doc, &state.doc) else { return false };
+        let Some(composing) = self.composing.take() else {
+            return false;
+        };
+        let Some(forward) = replacement(&composing.doc, &state.doc) else {
+            return false;
+        };
         self.redo.clear();
         let inverse = forward.invert(&composing.doc);
         self.push(Step {
@@ -162,19 +181,39 @@ impl History {
     }
     /// Apply one undo (`redo == false`) or redo step to `state`.
     pub fn step(&mut self, state: &mut EditorState, redo: bool) -> bool {
-        let Some(step) = (if redo { self.redo.pop() } else { self.undo.pop() }) else {
+        let Some(step) = (if redo {
+            self.redo.pop()
+        } else {
+            self.undo.pop()
+        }) else {
             return false;
         };
         let (sets, selection, event): (Vec<&ChangeSet>, _, _) = if redo {
-            (step.forwards.iter().collect(), step.selection_after, UserEvent::Redo)
+            (
+                step.forwards.iter().collect(),
+                step.selection_after,
+                UserEvent::Redo,
+            )
         } else {
-            (step.inverses.iter().rev().collect(), step.selection_before, UserEvent::Undo)
+            (
+                step.inverses.iter().rev().collect(),
+                step.selection_before,
+                UserEvent::Undo,
+            )
         };
         for (n, set) in sets.iter().enumerate() {
             let last = n + 1 == sets.len();
-            state.apply(Transaction::edit((*set).clone(), last.then_some(selection), event));
+            state.apply(Transaction::edit(
+                (*set).clone(),
+                last.then_some(selection),
+                event,
+            ));
         }
-        if redo { self.undo.push(step) } else { self.redo.push(step) }
+        if redo {
+            self.undo.push(step)
+        } else {
+            self.redo.push(step)
+        }
         true
     }
 }
@@ -183,8 +222,18 @@ impl History {
 mod tests {
     use super::*;
     use crate::editor::text::selection::Selection;
-    fn type_at(state: &mut EditorState, history: &mut History, pos: usize, text: &str, now: Instant) {
-        let tr = Transaction::edit(ChangeSet::replace(pos..pos, text), Some(Selection::cursor(pos + text.len())), UserEvent::Input);
+    fn type_at(
+        state: &mut EditorState,
+        history: &mut History,
+        pos: usize,
+        text: &str,
+        now: Instant,
+    ) {
+        let tr = Transaction::edit(
+            ChangeSet::replace(pos..pos, text),
+            Some(Selection::cursor(pos + text.len())),
+            UserEvent::Input,
+        );
         let applied = state.apply(tr).unwrap();
         history.record(&applied, state, now);
     }
@@ -194,8 +243,20 @@ mod tests {
         let mut history = History::default();
         let t0 = Instant::now();
         type_at(&mut state, &mut history, 0, "a", t0);
-        type_at(&mut state, &mut history, 1, "b", t0 + Duration::from_millis(100));
-        type_at(&mut state, &mut history, 2, "c", t0 + Duration::from_millis(900));
+        type_at(
+            &mut state,
+            &mut history,
+            1,
+            "b",
+            t0 + Duration::from_millis(100),
+        );
+        type_at(
+            &mut state,
+            &mut history,
+            2,
+            "c",
+            t0 + Duration::from_millis(900),
+        );
         assert_eq!(state.doc.as_str(), "abc");
         assert!(history.step(&mut state, false));
         assert_eq!(state.doc.as_str(), "ab");
@@ -206,7 +267,11 @@ mod tests {
         assert_eq!(state.doc.as_str(), "ab");
         assert_eq!(state.selection.head, 2);
         let applied = state
-            .apply(Transaction::edit(ChangeSet::replace(0..2, "**ab**"), None, UserEvent::Command))
+            .apply(Transaction::edit(
+                ChangeSet::replace(0..2, "**ab**"),
+                None,
+                UserEvent::Command,
+            ))
             .unwrap();
         history.record(&applied, &state, t0);
         assert!(!history.can_redo());
@@ -214,9 +279,18 @@ mod tests {
         assert_eq!(state.doc.as_str(), "ab");
     }
 
-    fn compose(state: &mut EditorState, history: &mut History, range: std::ops::Range<usize>, text: &str) {
+    fn compose(
+        state: &mut EditorState,
+        history: &mut History,
+        range: std::ops::Range<usize>,
+        text: &str,
+    ) {
         let caret = range.start + text.len();
-        let tr = Transaction::edit(ChangeSet::replace(range, text), Some(Selection::cursor(caret)), UserEvent::Compose);
+        let tr = Transaction::edit(
+            ChangeSet::replace(range, text),
+            Some(Selection::cursor(caret)),
+            UserEvent::Compose,
+        );
         let applied = state.apply(tr).unwrap();
         history.record(&applied, state, Instant::now());
     }
@@ -230,17 +304,32 @@ mod tests {
         type_at(&mut state, &mut history, 2, "c", t0);
         history.begin_composition(&state);
         // Pinyin preedit updates, then the commit replaces them.
-        for (from, text) in [(3..3, "n"), (3..4, "ni"), (3..5, "nih"), (3..6, "nihao"), (3..8, "你好")] {
+        for (from, text) in [
+            (3..3, "n"),
+            (3..4, "ni"),
+            (3..5, "nih"),
+            (3..6, "nihao"),
+            (3..8, "你好"),
+        ] {
             compose(&mut state, &mut history, from, text);
         }
         assert!(history.end_composition(&state, t0 + Duration::from_secs(9)));
         assert_eq!(state.doc.as_str(), "abc你好");
         // Typing right after the commit does not join the composition.
-        type_at(&mut state, &mut history, 9, "d", t0 + Duration::from_secs(9));
+        type_at(
+            &mut state,
+            &mut history,
+            9,
+            "d",
+            t0 + Duration::from_secs(9),
+        );
         assert!(history.step(&mut state, false));
         assert_eq!(state.doc.as_str(), "abc你好");
         assert!(history.step(&mut state, false));
-        assert_eq!((state.doc.as_str(), state.selection), ("abc", Selection::cursor(3)));
+        assert_eq!(
+            (state.doc.as_str(), state.selection),
+            ("abc", Selection::cursor(3))
+        );
         assert!(history.step(&mut state, true));
         assert_eq!(state.doc.as_str(), "abc你好");
     }
@@ -267,7 +356,13 @@ mod tests {
         assert_eq!(change.changes()[0].insert, "二");
         // Shared bytes inside different characters never split a character.
         let change = replacement(&Buffer::new("é"), &Buffer::new("è")).unwrap();
-        assert_eq!((change.changes()[0].range.clone(), change.changes()[0].insert.as_str()), (0..2, "è"));
+        assert_eq!(
+            (
+                change.changes()[0].range.clone(),
+                change.changes()[0].insert.as_str()
+            ),
+            (0..2, "è")
+        );
         assert!(replacement(&before, &before).is_none());
     }
 }

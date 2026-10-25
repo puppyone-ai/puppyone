@@ -26,11 +26,18 @@ impl ChangeSet {
     pub fn new(mut changes: Vec<Change>) -> Self {
         changes.retain(|c| !(c.range.is_empty() && c.insert.is_empty()));
         changes.sort_by_key(|c| (c.range.start, c.range.end));
-        debug_assert!(changes.windows(2).all(|w| w[0].range.end <= w[1].range.start));
+        debug_assert!(
+            changes
+                .windows(2)
+                .all(|w| w[0].range.end <= w[1].range.start)
+        );
         Self { changes }
     }
     pub fn replace(range: Range<usize>, insert: impl Into<String>) -> Self {
-        Self::new(vec![Change { range, insert: insert.into() }])
+        Self::new(vec![Change {
+            range,
+            insert: insert.into(),
+        }])
     }
     pub fn is_empty(&self) -> bool {
         self.changes.is_empty()
@@ -42,7 +49,9 @@ impl ChangeSet {
     pub fn map(&self, pos: usize, assoc: Assoc) -> usize {
         let mut delta: isize = 0;
         for change in &self.changes {
-            if pos < change.range.start || (pos == change.range.start && assoc == Assoc::Before && !change.range.is_empty()) {
+            if pos < change.range.start
+                || (pos == change.range.start && assoc == Assoc::Before && !change.range.is_empty())
+            {
                 break;
             }
             if pos == change.range.start && change.range.is_empty() {
@@ -95,8 +104,14 @@ mod tests {
     fn mapping_application_and_inversion_round_trip() {
         let mut buffer = Buffer::new("hello world");
         let set = ChangeSet::new(vec![
-            Change { range: 0..5, insert: "hi".into() },
-            Change { range: 6..6, insert: "big ".into() },
+            Change {
+                range: 0..5,
+                insert: "hi".into(),
+            },
+            Change {
+                range: 6..6,
+                insert: "big ".into(),
+            },
         ]);
         assert_eq!(set.map(8, Assoc::After), 9);
         assert_eq!(set.map(6, Assoc::Before), 3);

@@ -39,7 +39,12 @@ impl ParagraphCache {
             (r.start, r.end, m).hash(&mut h);
         }
         let id = h.finish();
-        let found = self.used.get(&id).or_else(|| self.entries.get(&id)).filter(|(k, _, l)| *k == key && **l == *leaf).cloned();
+        let found = self
+            .used
+            .get(&id)
+            .or_else(|| self.entries.get(&id))
+            .filter(|(k, _, l)| *k == key && **l == *leaf)
+            .cloned();
         let entry = found.unwrap_or_else(|| (key, leaf.paragraph(key), Rc::new(leaf.clone())));
         self.used.insert(id, entry.clone());
         (entry.1, entry.2)

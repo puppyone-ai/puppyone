@@ -28,7 +28,10 @@ actions!(document_editor, [OpenFind]);
 const KEY_CONTEXT: &str = "DocumentEditor";
 
 pub fn bind_keys(cx: &mut App) {
-    cx.bind_keys([KeyBinding::new("cmd-f", OpenFind, Some(KEY_CONTEXT)), KeyBinding::new("ctrl-f", OpenFind, Some(KEY_CONTEXT))]);
+    cx.bind_keys([
+        KeyBinding::new("cmd-f", OpenFind, Some(KEY_CONTEXT)),
+        KeyBinding::new("ctrl-f", OpenFind, Some(KEY_CONTEXT)),
+    ]);
 }
 
 struct Session {
@@ -91,19 +94,37 @@ impl DocumentEditor {
 
     /// A placeholder-grade local document an installed pack renders, when
     /// the host can render packs (`EditorDocumentHost`'s plugin routes).
-    fn extension_surface(&self, document: &EditorDocument, request: &SurfaceRequest, window: &mut Window, cx: &mut App) -> Option<Box<dyn ViewerSurface>> {
+    fn extension_surface(
+        &self,
+        document: &EditorDocument,
+        request: &SurfaceRequest,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Option<Box<dyn ViewerSurface>> {
         let host = self.extensions.as_ref()?;
         let render = host.surface?;
         match route::route_for_document(document, &host.snapshot) {
             Route::Plugin(pack) => Some(render(request, pack, window, cx)),
-            Route::Chooser(candidates) => Some(external::chooser(request, candidates.into_iter().cloned().collect(), render, cx)),
+            Route::Chooser(candidates) => Some(external::chooser(
+                request,
+                candidates.into_iter().cloned().collect(),
+                render,
+                cx,
+            )),
             Route::Core { .. } | Route::Unsupported(_) => None,
         }
     }
 
     /// Open the resolved viewer's surface for a document and follow its
     /// changes.
-    fn open_surface(&mut self, id: &str, name: &str, input: SurfaceInput, window: &mut Window, cx: &mut Context<Self>) -> (&'static PresetViewer, bool) {
+    fn open_surface(
+        &mut self,
+        id: &str,
+        name: &str,
+        input: SurfaceInput,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> (&'static PresetViewer, bool) {
         let document = EditorDocument::local(name);
         let resolved = registry::resolve(&document);
         let viewer = resolved.viewer;
@@ -111,7 +132,15 @@ impl DocumentEditor {
             SurfaceInput::Text(text) => viewer.editable(&resolved.view_match(&document), text),
             _ => false,
         };
-        let request = SurfaceRequest { id, name, input, format: resolved.format, resolved_extension: resolved.resolved_extension.as_deref(), dark: self.dark, scale: self.scale };
+        let request = SurfaceRequest {
+            id,
+            name,
+            input,
+            format: resolved.format,
+            resolved_extension: resolved.resolved_extension.as_deref(),
+            dark: self.dark,
+            scale: self.scale,
+        };
         let surface = match self.extension_surface(&document, &request, window, cx) {
             Some(surface) => surface,
             None => match viewer.presentation {
@@ -140,22 +169,43 @@ impl DocumentEditor {
 
     fn changed(&mut self, cx: &mut Context<Self>) {
         let Some(text) = self.text(cx) else { return };
-        let Some(session) = &mut self.session else { return };
+        let Some(session) = &mut self.session else {
+            return;
+        };
         session.revision += 1;
         let dirty = text != session.baseline;
-        cx.emit(ClientMessage::Dirty { id: session.id.clone(), revision: session.revision, dirty });
+        cx.emit(ClientMessage::Dirty {
+            id: session.id.clone(),
+            revision: session.revision,
+            dirty,
+        });
     }
 
     fn text(&self, cx: &App) -> Option<String> {
         self.surface.as_ref().and_then(|s| s.text(cx))
     }
 
-    pub fn receive(&mut self, message: &HostMessage, window: &mut Window, cx: &mut Context<Self>) -> Vec<ClientMessage> {
+    pub fn receive(
+        &mut self,
+        message: &HostMessage,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Vec<ClientMessage> {
         let mut replies = Vec::new();
         match message {
-            HostMessage::Open { id, name, text, revision, external } => {
+            HostMessage::Open {
+                id,
+                name,
+                text,
+                revision,
+                external,
+            } => {
                 let viewer = registry::resolve(&EditorDocument::local(name)).viewer.id;
-                let same = self.session.as_ref().is_some_and(|s| &s.id == id && s.viewer.id == viewer) && self.surface.is_some();
+                let same = self
+                    .session
+                    .as_ref()
+                    .is_some_and(|s| &s.id == id && s.viewer.id == viewer)
+                    && self.surface.is_some();
                 let (viewer, editable) = if same {
                     if self.text(cx).as_ref() != Some(text) || *external {
                         // External change of the open document: replace its text.
@@ -169,12 +219,29 @@ impl DocumentEditor {
                 } else {
                     self.open_surface(id, name, SurfaceInput::Text(text), window, cx)
                 };
-                self.session = Some(Session { id: id.clone(), name: label(name), baseline: text.clone(), revision: *revision, frozen: false, viewer, editable });
+                self.session = Some(Session {
+                    id: id.clone(),
+                    name: label(name),
+                    baseline: text.clone(),
+                    revision: *revision,
+                    frozen: false,
+                    viewer,
+                    editable,
+                });
                 replies.push(ClientMessage::Loaded { id: id.clone() });
             }
             HostMessage::OpenResource { id, name, path } => {
-                let (viewer, editable) = self.open_surface(id, name, SurfaceInput::Resource(path), window, cx);
-                self.session = Some(Session { id: id.clone(), name: label(name), baseline: String::new(), revision: 0, frozen: false, viewer, editable });
+                let (viewer, editable) =
+                    self.open_surface(id, name, SurfaceInput::Resource(path), window, cx);
+                self.session = Some(Session {
+                    id: id.clone(),
+                    name: label(name),
+                    baseline: String::new(),
+                    revision: 0,
+                    frozen: false,
+                    viewer,
+                    editable,
+                });
                 replies.push(ClientMessage::Loaded { id: id.clone() });
             }
             HostMessage::Clear => {
@@ -191,10 +258,18 @@ impl DocumentEditor {
                 let text = self.text(cx);
                 if let (Some(session), Some(text)) = (&mut self.session, text) {
                     if composing {
-                        replies.push(ClientMessage::Deferred { request: *request, id: session.id.clone() });
+                        replies.push(ClientMessage::Deferred {
+                            request: *request,
+                            id: session.id.clone(),
+                        });
                     } else {
                         session.frozen = *freeze;
-                        replies.push(ClientMessage::Snapshot { request: *request, id: session.id.clone(), revision: session.revision, text });
+                        replies.push(ClientMessage::Snapshot {
+                            request: *request,
+                            id: session.id.clone(),
+                            revision: session.revision,
+                            text,
+                        });
                     }
                 }
             }
@@ -234,7 +309,11 @@ impl DocumentEditor {
     }
 
     fn apply_gate(&mut self, cx: &mut Context<Self>) {
-        let read_only = self.blocked || self.session.as_ref().is_none_or(|s| s.frozen || !s.editable);
+        let read_only = self.blocked
+            || self
+                .session
+                .as_ref()
+                .is_none_or(|s| s.frozen || !s.editable);
         if let Some(surface) = &self.surface {
             surface.apply(read_only, self.dark, self.scale, cx);
         }
@@ -279,12 +358,24 @@ impl Render for DocumentEditor {
         .size_full();
         let label = self.session.as_ref().map(|s| s.name.clone());
         let chrome = label.as_ref().zip(self.bounds).map(|(name, bounds)| {
-            let handle_label = crate::localization::tf("editor.panes.actionsFor", &[("name", crate::localization::Arg::Text(name.clone()))]);
+            let handle_label = crate::localization::tf(
+                "editor.panes.actionsFor",
+                &[("name", crate::localization::Arg::Text(name.clone()))],
+            );
             let toggle = cx.entity().downgrade();
-            let handle = pane::handle(self.dark, self.chrome.revealed(), handle_label.into(), move |window, cx| {
-                let _ = toggle.update(cx, |this, cx| this.toggle_pane_menu(window, cx));
-            });
-            let (run, dismiss, keys) = (cx.entity().downgrade(), cx.entity().downgrade(), cx.entity().downgrade());
+            let handle = pane::handle(
+                self.dark,
+                self.chrome.revealed(),
+                handle_label.into(),
+                move |window, cx| {
+                    let _ = toggle.update(cx, |this, cx| this.toggle_pane_menu(window, cx));
+                },
+            );
+            let (run, dismiss, keys) = (
+                cx.entity().downgrade(),
+                cx.entity().downgrade(),
+                cx.entity().downgrade(),
+            );
             let menu = pane::menu(
                 &self.chrome,
                 &self.contribution(cx),
@@ -294,7 +385,8 @@ impl Render for DocumentEditor {
                     let _ = run.update(cx, |this, cx| this.run_pane_action(action, window, cx));
                 }),
                 Rc::new(move |restore, window, cx| {
-                    let _ = dismiss.update(cx, |this, cx| this.close_pane_menu(restore, window, cx));
+                    let _ =
+                        dismiss.update(cx, |this, cx| this.close_pane_menu(restore, window, cx));
                 }),
                 Rc::new(move |event: &KeyDownEvent, window, cx| {
                     let _ = keys.update(cx, |this, cx| this.pane_menu_key(event, window, cx));
@@ -309,11 +401,17 @@ impl Render for DocumentEditor {
             .relative()
             .size_full()
             .track_focus(&self.focus)
-            .on_action(cx.listener(|s, a: &crate::editor::actions::EditorAction, w, cx| s.command(&a.name, w, cx)))
+            .on_action(
+                cx.listener(|s, a: &crate::editor::actions::EditorAction, w, cx| {
+                    s.command(&a.name, w, cx)
+                }),
+            )
             .on_action(cx.listener(|s, _: &OpenFind, w, cx| s.open_find(w, cx)))
             // Ghostty-style reveal: the handle shows in the leading third.
             .on_mouse_move(cx.listener(|s, e: &MouseMoveEvent, _, cx| {
-                let hot = s.bounds.is_some_and(|b| pane::PaneChrome::reveal_zone(b, e.position));
+                let hot = s
+                    .bounds
+                    .is_some_and(|b| pane::PaneChrome::reveal_zone(b, e.position));
                 if hot != s.chrome.hot {
                     s.chrome.hot = hot;
                     cx.notify();

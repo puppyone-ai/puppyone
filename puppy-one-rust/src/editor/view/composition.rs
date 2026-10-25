@@ -63,7 +63,14 @@ impl EditorView {
     /// Apply an edit from the input method: replace `range` with `text`, put
     /// the selection at `selected` (byte range relative to `text`), and keep
     /// `text` marked (`compose`) or commit it.
-    pub(super) fn apply_input(&mut self, range: Range<usize>, text: &str, selected: Range<usize>, compose: bool, cx: &mut Context<Self>) {
+    pub(super) fn apply_input(
+        &mut self,
+        range: Range<usize>,
+        text: &str,
+        selected: Range<usize>,
+        compose: bool,
+        cx: &mut Context<Self>,
+    ) {
         if self.read_only {
             return;
         }
@@ -76,14 +83,28 @@ impl EditorView {
         if compose && !open {
             self.history.begin_composition(&self.state);
         }
-        let event = if self.history.composing() { UserEvent::Compose } else { UserEvent::Input };
+        let event = if self.history.composing() {
+            UserEvent::Compose
+        } else {
+            UserEvent::Input
+        };
         let selection = Selection::range(range.start + selected.start, range.start + selected.end);
         self.ime_update = true;
-        self.dispatch(Transaction::edit(ChangeSet::replace(range.clone(), text), Some(selection), event), cx);
+        self.dispatch(
+            Transaction::edit(
+                ChangeSet::replace(range.clone(), text),
+                Some(selection),
+                event,
+            ),
+            cx,
+        );
         self.ime_update = false;
         if compose && !text.is_empty() {
             let anchor = self.composition.as_ref().and_then(|c| c.anchor);
-            self.composition = Some(Composition { range: range.start..range.start + text.len(), anchor });
+            self.composition = Some(Composition {
+                range: range.start..range.start + text.len(),
+                anchor,
+            });
         } else if event == UserEvent::Compose {
             // Committed (`insertText`) or cancelled (empty marked text).
             self.composition = None;
@@ -124,13 +145,18 @@ impl EditorView {
     fn end_composition(&mut self, cx: &mut Context<Self>) {
         let changed = self.history.end_composition(&self.state, Instant::now());
         self.blink_epoch = Instant::now();
-        cx.emit(if changed { EditorEvent::Changed(UserEvent::Input) } else { EditorEvent::CompositionEnded });
+        cx.emit(if changed {
+            EditorEvent::Changed(UserEvent::Input)
+        } else {
+            EditorEvent::CompositionEnded
+        });
     }
 
     fn discard_platform_composition(&mut self, cx: &mut Context<Self>) {
         self.discard_requests += 1;
         // Outside the current update: the input method may call back into
         // the view while it discards.
-        cx.spawn(async move |_, _| crate::ui::ime::discard_marked_text()).detach();
+        cx.spawn(async move |_, _| crate::ui::ime::discard_marked_text())
+            .detach();
     }
 }

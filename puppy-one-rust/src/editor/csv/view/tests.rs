@@ -1,7 +1,9 @@
 //! The CSV table in a window (GPUI test platform): cell activation, typing,
 //! Tab order, history through the model, structure rails, source mode and
 //! sticky hit testing.
-use super::{CsvEditor, CsvEvent, Hit, MenuEvent, expand::Expansion, handles::Axis, menu::MenuKind};
+use super::{
+    CsvEditor, CsvEvent, Hit, MenuEvent, expand::Expansion, handles::Axis, menu::MenuKind,
+};
 use crate::{
     editor::view::{bind_keys, style},
     typography::Scale,
@@ -9,7 +11,14 @@ use crate::{
 use gpui::{Entity, EntityInputHandler, TestAppContext, VisualTestContext, point, px, size};
 use std::{cell::RefCell, rc::Rc};
 
-fn setup<'a>(cx: &'a mut TestAppContext, text: &str) -> (Entity<CsvEditor>, Rc<RefCell<usize>>, &'a mut VisualTestContext) {
+fn setup<'a>(
+    cx: &'a mut TestAppContext,
+    text: &str,
+) -> (
+    Entity<CsvEditor>,
+    Rc<RefCell<usize>>,
+    &'a mut VisualTestContext,
+) {
     cx.update(|cx| {
         if cx.try_global::<gpui_kit::component::Theme>().is_none() {
             gpui_kit::init(cx);
@@ -19,7 +28,8 @@ fn setup<'a>(cx: &'a mut TestAppContext, text: &str) -> (Entity<CsvEditor>, Rc<R
         super::bind_keys(cx);
     });
     let text = text.to_owned();
-    let (view, cx) = cx.add_window_view(move |_, cx| CsvEditor::new("", "t.csv", &text, true, Scale::Medium, cx));
+    let (view, cx) = cx
+        .add_window_view(move |_, cx| CsvEditor::new("", "t.csv", &text, true, Scale::Medium, cx));
     let changes = Rc::new(RefCell::new(0));
     let counter = changes.clone();
     cx.update(|_, cx| {
@@ -35,7 +45,11 @@ fn setup<'a>(cx: &'a mut TestAppContext, text: &str) -> (Entity<CsvEditor>, Rc<R
 }
 
 fn active(view: &Entity<CsvEditor>, cx: &mut VisualTestContext) -> Option<(usize, usize, String)> {
-    view.update(cx, |v, cx| v.cell.as_ref().map(|c| (c.row, c.column, c.editor.read(cx).text().to_owned())))
+    view.update(cx, |v, cx| {
+        v.cell
+            .as_ref()
+            .map(|c| (c.row, c.column, c.editor.read(cx).text().to_owned()))
+    })
 }
 
 fn text(view: &Entity<CsvEditor>, cx: &mut VisualTestContext) -> String {
@@ -135,7 +149,10 @@ fn sticky_bands_take_the_pointer_first(cx: &mut TestAppContext) {
         v.port.scroll = point(120., 400.);
         let header_y = v.header_y();
         assert_eq!(header_y, 400.);
-        assert_eq!(v.hit(v.column_x(1) + 5., header_y + 5.), Some(Hit::Cell(0, 1)));
+        assert_eq!(
+            v.hit(v.column_x(1) + 5., header_y + 5.),
+            Some(Hit::Cell(0, 1))
+        );
         assert_eq!(v.hit(v.index_x() + 3., header_y + 5.), Some(Hit::Corner));
         assert_eq!(v.index_x(), 120.);
         assert!(v.inline_scrolled());
@@ -188,8 +205,21 @@ fn column_resize_clamps_cancels_and_auto_fits(cx: &mut TestAppContext) {
 #[gpui::test]
 fn view_items_toggle_the_header_and_row_numbers_and_fit_columns(cx: &mut TestAppContext) {
     let (view, _, cx) = setup(cx, "id,name\n1,alice\n");
-    let ids = view.update(cx, |v, _| v.view_items().iter().map(|i| (i.id, i.checked)).collect::<Vec<_>>());
-    assert_eq!(ids, vec![("csv-header-row", Some(true)), ("csv-row-numbers", Some(true)), ("csv-fit-columns-to-viewport", None), ("csv-reset-column-widths", None)]);
+    let ids = view.update(cx, |v, _| {
+        v.view_items()
+            .iter()
+            .map(|i| (i.id, i.checked))
+            .collect::<Vec<_>>()
+    });
+    assert_eq!(
+        ids,
+        vec![
+            ("csv-header-row", Some(true)),
+            ("csv-row-numbers", Some(true)),
+            ("csv-fit-columns-to-viewport", None),
+            ("csv-reset-column-widths", None)
+        ]
+    );
     view.update_in(cx, |v, w, cx| {
         v.activate(0, 1, None, w, cx);
         v.view_command("csv-header-row", w, cx);
@@ -225,7 +255,10 @@ fn the_context_menu_targets_cells_columns_and_rows(cx: &mut TestAppContext) {
         let m = v.menu.as_ref().unwrap();
         assert_eq!((m.row, m.column), (1, 1));
         let sections = v.menu_sections(MenuKind::Cell, 1, 1);
-        assert_eq!(sections.iter().map(Vec::len).collect::<Vec<_>>(), vec![6, 5, 1]);
+        assert_eq!(
+            sections.iter().map(Vec::len).collect::<Vec<_>>(),
+            vec![6, 5, 1]
+        );
         // The first data row cannot move up past the header.
         assert!(sections[0][3].disabled && !sections[0][4].disabled);
         // The header record: column actions only.
@@ -245,7 +278,13 @@ fn the_context_menu_targets_cells_columns_and_rows(cx: &mut TestAppContext) {
     // Running an item applies it at the target and focuses the new cell.
     view.update_in(cx, |v, w, cx| {
         v.menu_event(MenuEvent::Run("insert-row-below"), w, cx);
-        v.menu_event(MenuEvent::Dismiss { restore_focus: false }, w, cx);
+        v.menu_event(
+            MenuEvent::Dismiss {
+                restore_focus: false,
+            },
+            w,
+            cx,
+        );
         assert!(v.menu.is_none());
         assert_eq!(v.cell.as_ref().map(|c| (c.row, c.column)), Some((3, 0)));
     });
@@ -270,7 +309,10 @@ fn grips_drag_rows_and_columns_and_leave_a_structural_selection(cx: &mut TestApp
         v.port.size = size(800., 600.);
         // Hovering a body cell shows both grips.
         v.pointer_moved(press_point(v, v.column_x(1) + 5., v.row_y(1) + 5.), cx);
-        assert_eq!((v.column_grip_shown(), v.row_grip_shown()), (Some(1), Some(1)));
+        assert_eq!(
+            (v.column_grip_shown(), v.row_grip_shown()),
+            (Some(1), Some(1))
+        );
         // Header cells have no row grip; record numbers have no column grip.
         v.pointer_moved(press_point(v, v.column_x(0) + 5., v.row_y(0) + 5.), cx);
         assert_eq!((v.column_grip_shown(), v.row_grip_shown()), (Some(0), None));
@@ -299,14 +341,25 @@ fn grips_drag_rows_and_columns_and_leave_a_structural_selection(cx: &mut TestApp
         let start = press_point(v, v.column_x(2) + 40., v.row_y(0) - 2.);
         v.start_structure_drag(Axis::Column, start, w, cx);
         v.drag_structure(press_point(v, v.column_x(2) + 60., v.row_y(0)), cx);
-        assert_eq!(v.gestures.drag.unwrap().target(&super::handles::CsvTracks(v)), None);
+        assert_eq!(
+            v.gestures
+                .drag
+                .unwrap()
+                .target(&super::handles::CsvTracks(v)),
+            None
+        );
         assert!(v.drop_indicator().is_none());
         // Column 2 to the front.
         v.drag_structure(press_point(v, v.column_x(0) + 3., v.row_y(0)), cx);
         v.end_structure_drag(false, w, cx);
         assert_eq!(v.gestures.structural, Some((Axis::Column, 0)));
         // Pressing a cell clears the selection.
-        v.press(press_point(v, v.column_x(1) + 5., v.row_y(1) + 5.), gpui::Modifiers::default(), w, cx);
+        v.press(
+            press_point(v, v.column_x(1) + 5., v.row_y(1) + 5.),
+            gpui::Modifiers::default(),
+            w,
+            cx,
+        );
         assert_eq!(v.gestures.structural, None);
     });
     assert_eq!(text(&view, cx), "h3,h1,h2\nf,d,e\ni,g,h\nc,a,b\n");
@@ -324,7 +377,10 @@ fn a_grip_click_opens_its_axis_menu_and_escape_cancels_a_drag(cx: &mut TestAppCo
         v.start_structure_drag(Axis::Column, start, w, cx);
         v.end_structure_drag(false, w, cx);
         let menu = v.menu.as_ref().unwrap();
-        assert_eq!((menu.row, menu.column, menu.source), (2, 1, Some((Axis::Column, 1))));
+        assert_eq!(
+            (menu.row, menu.column, menu.source),
+            (2, 1, Some((Axis::Column, 1)))
+        );
         assert_eq!(v.structure_outline(), Some((Axis::Column, 1)));
         // The menu holds the grips while the pointer wanders.
         v.pointer_moved(press_point(v, v.column_x(0) + 5., v.row_y(1) + 5.), cx);
@@ -382,7 +438,13 @@ fn dragging_the_corner_previews_and_grows_the_table(cx: &mut TestAppContext) {
         assert_eq!(v.preview(), Expansion::default());
         // 2 rows (≥ 1.5 × 31) and 1 column (≥ 0.5 × 96).
         v.drag_expand(point(corner.x + px(60.), corner.y + px(50.)), cx);
-        assert_eq!(v.preview(), Expansion { rows: 2, columns: 1 });
+        assert_eq!(
+            v.preview(),
+            Expansion {
+                rows: 2,
+                columns: 1
+            }
+        );
         assert_eq!(v.table_size(), (tw + 96., th + 62.));
         assert_eq!((v.total_rows(), v.total_columns()), (4, 3));
         // The real last row / column gain their borders; the preview cells close the table.
@@ -405,7 +467,13 @@ fn clicking_the_corner_opens_the_size_picker(cx: &mut TestAppContext) {
         let corner = point(px(700.), px(150.));
         v.start_expand(corner, w, cx);
         v.end_expand(false, w, cx);
-        assert_eq!(v.expansion.picker.as_ref().map(|p| p.selection), Some(Expansion { rows: 1, columns: 1 }));
+        assert_eq!(
+            v.expansion.picker.as_ref().map(|p| p.selection),
+            Some(Expansion {
+                rows: 1,
+                columns: 1
+            })
+        );
         // A cancelled drag restores the scroll and adds nothing.
         v.start_expand(corner, w, cx);
         assert!(v.expansion.picker.is_none());
@@ -425,7 +493,10 @@ fn clicking_the_corner_opens_the_size_picker(cx: &mut TestAppContext) {
 
 #[gpui::test]
 fn reference_cells_show_labels_and_open_from_their_label(cx: &mut TestAppContext) {
-    let (view, _, cx) = setup(cx, "name,link\ndocs,[Docs](https://example.com/docs)\nnote,[[Roadmap]]\nplain,see https://x.y\n");
+    let (view, _, cx) = setup(
+        cx,
+        "name,link\ndocs,[Docs](https://example.com/docs)\nnote,[[Roadmap]]\nplain,see https://x.y\n",
+    );
     view.update_in(cx, |v, w, cx| {
         v.header = true;
         v.port.origin = Some(point(px(0.), px(0.)));
@@ -465,11 +536,19 @@ fn reference_cells_show_labels_and_open_from_their_label(cx: &mut TestAppContext
     });
     view.update_in(cx, |v, w, cx| {
         let resolver: super::references::Resolver = Rc::new(|target: &str| {
-            (target == "Roadmap").then(|| crate::editor::navigation::Resolution { exists: true, ambiguous: false, path: Some("plans/Roadmap.md".into()), candidates: vec![] })
+            (target == "Roadmap").then(|| crate::editor::navigation::Resolution {
+                exists: true,
+                ambiguous: false,
+                path: Some("plans/Roadmap.md".into()),
+                candidates: vec![],
+            })
         });
         v.set_reference_resolver(Some(resolver), cx);
         let at = press_point(v, v.column_x(1) + 12., v.row_y(2) + 10.);
-        let command = gpui::Modifiers { platform: true, ..Default::default() };
+        let command = gpui::Modifiers {
+            platform: true,
+            ..Default::default()
+        };
         v.press(at, command, w, cx);
     });
     assert_eq!(*opened.borrow(), vec![vec!["plans/Roadmap.md".to_string()]]);
@@ -511,7 +590,9 @@ fn an_ime_composition_in_a_cell_reaches_the_model_once(cx: &mut TestAppContext) 
     let cell = view.update(cx, |v, _| v.cell.as_ref().unwrap().editor.clone());
     for preedit in ["n", "ni", "nihao"] {
         let end = preedit.len();
-        cell.update_in(cx, |e, w, cx| e.replace_and_mark_text_in_range(None, preedit, Some(end..end), w, cx));
+        cell.update_in(cx, |e, w, cx| {
+            e.replace_and_mark_text_in_range(None, preedit, Some(end..end), w, cx)
+        });
         cx.run_until_parked();
         // Provisional text stays in the cell editor.
         assert_eq!(text(&view, cx), "id,name\n1,alice\n");
@@ -521,7 +602,10 @@ fn an_ime_composition_in_a_cell_reaches_the_model_once(cx: &mut TestAppContext) 
     assert_eq!(*changes.borrow(), 0);
     cell.update_in(cx, |e, w, cx| e.replace_text_in_range(None, "你好", w, cx));
     cx.run_until_parked();
-    assert_eq!((text(&view, cx).as_str(), *changes.borrow()), ("id,name\n1,alice你好\n", 1));
+    assert_eq!(
+        (text(&view, cx).as_str(), *changes.borrow()),
+        ("id,name\n1,alice你好\n", 1)
+    );
     // One table history step for the whole composition.
     cx.simulate_keystrokes("cmd-z");
     cx.run_until_parked();
@@ -532,7 +616,9 @@ fn an_ime_composition_in_a_cell_reaches_the_model_once(cx: &mut TestAppContext) 
 fn compose_in_cell(view: &Entity<CsvEditor>, cx: &mut VisualTestContext, preedit: &str) {
     let cell = view.update(cx, |v, _| v.cell.as_ref().unwrap().editor.clone());
     let end = preedit.encode_utf16().count();
-    cell.update_in(cx, |e, w, cx| e.replace_and_mark_text_in_range(None, preedit, Some(end..end), w, cx));
+    cell.update_in(cx, |e, w, cx| {
+        e.replace_and_mark_text_in_range(None, preedit, Some(end..end), w, cx)
+    });
     cx.run_until_parked();
 }
 
@@ -562,13 +648,17 @@ fn a_structure_change_keeps_pending_input_in_its_own_cell(cx: &mut TestAppContex
     compose_in_cell(&view, cx, "ni");
     // A new record above the edited one: the committed value moves down with
     // its record; the new record stays empty.
-    view.update_in(cx, |v, w, cx| v.apply_operation(super::Operation::InsertRowAbove, 1, 0, w, cx));
+    view.update_in(cx, |v, w, cx| {
+        v.apply_operation(super::Operation::InsertRowAbove, 1, 0, w, cx)
+    });
     cx.run_until_parked();
     assert_eq!(text(&view, cx), "a,b\n,\n1ni,2\n3,4\n");
     assert_eq!(active(&view, cx), Some((1, 0, String::new())));
     // Typing (no composition) then the same operation.
     cx.simulate_input("x");
-    view.update_in(cx, |v, w, cx| v.apply_operation(super::Operation::InsertRowAbove, 1, 0, w, cx));
+    view.update_in(cx, |v, w, cx| {
+        v.apply_operation(super::Operation::InsertRowAbove, 1, 0, w, cx)
+    });
     cx.run_until_parked();
     assert_eq!(text(&view, cx), "a,b\n,\nx,\n1ni,2\n3,4\n");
 }

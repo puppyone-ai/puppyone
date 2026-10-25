@@ -6,15 +6,32 @@ use crate::editor::view::style::{Paint, Rect};
 
 /// The box and its hit target for a marker slot (`left`, `width`) on a row
 /// at `top` of `line_height`, at font size `em`.
-pub fn checkbox(style: &TaskStyle, checked: bool, slot: (f32, f32), top: f32, line_height: f32, em: f32) -> (Vec<Paint>, Rect) {
+pub fn checkbox(
+    style: &TaskStyle,
+    checked: bool,
+    slot: (f32, f32),
+    top: f32,
+    line_height: f32,
+    em: f32,
+) -> (Vec<Paint>, Rect) {
     let (left, width) = slot;
     let size = style.box_em * em;
     let hit_x = left + (width - style.hit) / 2.;
     let hit_y = top + line_height / 2. - style.hit / 2.;
     let bx = hit_x + (style.hit - size) / 2.;
     let by = hit_y + (style.hit - size) / 2.;
-    let (border, background) = if checked { (style.checked, Some(style.checked)) } else { (style.box_border, None) };
-    let mut paints = vec![Paint::Quad { rect: Rect::new(bx, by, size, size), background, radii: [style.radius; 4], border: style.border_width, border_color: Some(border) }];
+    let (border, background) = if checked {
+        (style.checked, Some(style.checked))
+    } else {
+        (style.box_border, None)
+    };
+    let mut paints = vec![Paint::Quad {
+        rect: Rect::new(bx, by, size, size),
+        background,
+        radii: [style.radius; 4],
+        border: style.border_width,
+        border_color: Some(border),
+    }];
     if checked {
         paints.push(check_mark(style, bx, by, size, em));
     }
@@ -40,5 +57,8 @@ fn check_mark(style: &TaskStyle, bx: f32, by: f32, size: f32, em: f32) -> Paint 
             (cx + dx * cos - dy * sin, cy + dx * sin + dy * cos)
         })
         .collect();
-    Paint::Polygon { points, color: style.check }
+    Paint::Polygon {
+        points,
+        color: style.check,
+    }
 }

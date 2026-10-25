@@ -31,13 +31,25 @@ impl HeadingStyle {
             let size = t.len(&format!("--po-md-h{n}-size"), size);
             HeadingLevel {
                 size,
-                weight: if n <= 3 { t.number(&format!("--po-md-h{n}-weight")) } else { t.number("--po-md-heading-weight") },
+                weight: if n <= 3 {
+                    t.number(&format!("--po-md-h{n}-weight"))
+                } else {
+                    t.number("--po-md-heading-weight")
+                },
                 gap_before: t.len(&format!("--po-md-h{n}-gap-before"), size),
                 gap_after: t.len(&format!("--po-md-h{n}-gap-after"), size),
-                color: if n == 6 { t.color("--po-md-h6-color") } else { t.color("--po-md-heading-color") },
+                color: if n == 6 {
+                    t.color("--po-md-h6-color")
+                } else {
+                    t.color("--po-md-heading-color")
+                },
             }
         };
-        Self { levels: [level(1), level(2), level(3), level(4), level(5), level(6)], line_height: t.number("--po-md-heading-line-height"), border: t.color("--po-md-heading-border-color") }
+        Self {
+            levels: [level(1), level(2), level(3), level(4), level(5), level(6)],
+            line_height: t.number("--po-md-heading-line-height"),
+            border: t.color("--po-md-heading-border-color"),
+        }
     }
 
     pub fn level(&self, level: usize) -> &HeadingLevel {

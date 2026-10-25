@@ -7,9 +7,13 @@ mod keymap;
 #[cfg(test)]
 mod tests;
 
-pub use keymap::{intercept, Cx};
+pub use keymap::{Cx, intercept};
 
-use crate::editor::text::{change::{Change, ChangeSet}, selection::Selection, state::{EditorState, Transaction, UserEvent}};
+use crate::editor::text::{
+    change::{Change, ChangeSet},
+    selection::Selection,
+    state::{EditorState, Transaction, UserEvent},
+};
 use std::ops::Range;
 
 /// Source line indices touched by the selection (`getSelectedLineNumbers`).
@@ -19,7 +23,11 @@ pub(super) fn selected_lines(state: &EditorState) -> Range<usize> {
 }
 
 /// A transaction from non-overlapping changes in original coordinates.
-pub(super) fn edit(changes: Vec<Change>, selection: Option<Selection>, event: UserEvent) -> Option<Transaction> {
+pub(super) fn edit(
+    changes: Vec<Change>,
+    selection: Option<Selection>,
+    event: UserEvent,
+) -> Option<Transaction> {
     let changes = ChangeSet::new(changes);
     if changes.is_empty() && selection.is_none() {
         return None;
@@ -28,7 +36,10 @@ pub(super) fn edit(changes: Vec<Change>, selection: Option<Selection>, event: Us
 }
 
 pub(super) fn change(range: Range<usize>, insert: impl Into<String>) -> Change {
-    Change { range, insert: insert.into() }
+    Change {
+        range,
+        insert: insert.into(),
+    }
 }
 
 /// A handled key that changes nothing (the format owns it).

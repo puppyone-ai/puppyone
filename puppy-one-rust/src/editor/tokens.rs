@@ -33,7 +33,10 @@ pub struct Tokens {
 
 fn load(json: &str) -> HashMap<String, Tokens> {
     let file: File = serde_json::from_str(json).expect("editor theme tokens");
-    file.variants.into_iter().map(|(k, v)| (k, Tokens { map: v.tokens })).collect()
+    file.variants
+        .into_iter()
+        .map(|(k, v)| (k, Tokens { map: v.tokens }))
+        .collect()
 }
 
 /// The Markdown viewer's contract (`--po-md-*`, …).
@@ -62,19 +65,48 @@ fn key(dark: bool, scale: Scale) -> String {
 /// tint over `var(--po-editor-bg)` in a layered `background`.
 pub fn over(top: Rgba, bottom: Rgba) -> Rgba {
     let k = |t: f32, b: f32| t * top.a + b * (1. - top.a);
-    Rgba { r: k(top.r, bottom.r), g: k(top.g, bottom.g), b: k(top.b, bottom.b), a: 1. }
+    Rgba {
+        r: k(top.r, bottom.r),
+        g: k(top.g, bottom.g),
+        b: k(top.b, bottom.b),
+        a: 1.,
+    }
 }
 
 pub fn parse_color(value: &str) -> Option<Rgba> {
     let v = value.trim();
-    let (r, g, b, a) = if let Some(inner) = v.strip_prefix("color(srgb").and_then(|s| s.strip_suffix(')')) {
-        let (rgb, alpha) = inner.split_once('/').map_or((inner, None), |(c, a)| (c, Some(a)));
-        let n: Vec<f32> = rgb.split_whitespace().filter_map(|x| x.parse().ok()).collect();
-        (*n.first()?, *n.get(1)?, *n.get(2)?, alpha.and_then(|a| a.trim().parse().ok()).unwrap_or(1.))
+    let (r, g, b, a) = if let Some(inner) = v
+        .strip_prefix("color(srgb")
+        .and_then(|s| s.strip_suffix(')'))
+    {
+        let (rgb, alpha) = inner
+            .split_once('/')
+            .map_or((inner, None), |(c, a)| (c, Some(a)));
+        let n: Vec<f32> = rgb
+            .split_whitespace()
+            .filter_map(|x| x.parse().ok())
+            .collect();
+        (
+            *n.first()?,
+            *n.get(1)?,
+            *n.get(2)?,
+            alpha.and_then(|a| a.trim().parse().ok()).unwrap_or(1.),
+        )
     } else {
-        let inner = v.strip_prefix("rgba(").or_else(|| v.strip_prefix("rgb("))?.strip_suffix(')')?;
-        let n: Vec<f32> = inner.split(',').filter_map(|x| x.trim().parse().ok()).collect();
-        (*n.first()? / 255., *n.get(1)? / 255., *n.get(2)? / 255., n.get(3).copied().unwrap_or(1.))
+        let inner = v
+            .strip_prefix("rgba(")
+            .or_else(|| v.strip_prefix("rgb("))?
+            .strip_suffix(')')?;
+        let n: Vec<f32> = inner
+            .split(',')
+            .filter_map(|x| x.trim().parse().ok())
+            .collect();
+        (
+            *n.first()? / 255.,
+            *n.get(1)? / 255.,
+            *n.get(2)? / 255.,
+            n.get(3).copied().unwrap_or(1.),
+        )
     };
     Some(Rgba { r, g, b, a })
 }
@@ -87,22 +119,37 @@ impl Tokens {
         &csv_variants()[&key(dark, scale)]
     }
     fn token(&self, name: &str) -> &Token {
-        self.map.get(name).unwrap_or_else(|| panic!("missing editor token {name}"))
+        self.map
+            .get(name)
+            .unwrap_or_else(|| panic!("missing editor token {name}"))
     }
     pub fn color(&self, name: &str) -> Rgba {
-        self.token(name).color.as_deref().and_then(parse_color).unwrap_or_else(|| panic!("{name} is not a colour"))
+        self.token(name)
+            .color
+            .as_deref()
+            .and_then(parse_color)
+            .unwrap_or_else(|| panic!("{name} is not a colour"))
     }
     /// A length in px; `em` values use `font_size` (the consuming element).
     pub fn len(&self, name: &str, font_size: f32) -> f32 {
         let t = self.token(name);
-        if let Some(em) = t.raw.trim().strip_suffix("em").filter(|s| !s.ends_with('r')).and_then(|s| s.trim().parse::<f32>().ok()) {
+        if let Some(em) = t
+            .raw
+            .trim()
+            .strip_suffix("em")
+            .filter(|s| !s.ends_with('r'))
+            .and_then(|s| s.trim().parse::<f32>().ok())
+        {
             return em * font_size;
         }
-        t.px.or(t.number).unwrap_or_else(|| panic!("{name} is not a length"))
+        t.px.or(t.number)
+            .unwrap_or_else(|| panic!("{name} is not a length"))
     }
     pub fn number(&self, name: &str) -> f32 {
         let t = self.token(name);
-        t.number.or(t.px).unwrap_or_else(|| panic!("{name} is not a number"))
+        t.number
+            .or(t.px)
+            .unwrap_or_else(|| panic!("{name} is not a number"))
     }
     pub fn edges(&self, name: &str) -> Edges {
         self.edges_at(name, 16.)
@@ -134,7 +181,13 @@ mod tests {
         assert!((c.r - 32. / 255.).abs() < 1e-4 && c.a == 1.);
         let sel = t.color("--po-md-selection-bg");
         assert!((sel.a - 0.28).abs() < 1e-4);
-        assert_eq!(t.edges("--po-md-code-block-padding"), Edges::new(12., 14., 12., 14.));
-        assert_eq!(Tokens::get(false, Scale::Large).len("--po-md-content-size", 16.), 16.);
+        assert_eq!(
+            t.edges("--po-md-code-block-padding"),
+            Edges::new(12., 14., 12., 14.)
+        );
+        assert_eq!(
+            Tokens::get(false, Scale::Large).len("--po-md-content-size", 16.),
+            16.
+        );
     }
 }

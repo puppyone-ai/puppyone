@@ -44,16 +44,34 @@ impl MarkdownFeature for TaskFeature {
     /// The checkbox atom over `[ ]`, deleted as one unit.
     fn compile_element(&self, index: usize, e: &Element, _: &CompileCx) -> Option<Plan> {
         let source = e.markers.get(1).cloned().unwrap_or(e.range.clone());
-        Some(Plan { element: Some(index), source: source.clone(), presentation: Presentation::InlineAtom(Atom::TaskCheckbox { checked: e.checked }), delete_units: vec![source] })
+        Some(Plan {
+            element: Some(index),
+            source: source.clone(),
+            presentation: Presentation::InlineAtom(Atom::TaskCheckbox { checked: e.checked }),
+            delete_units: vec![source],
+        })
     }
 
     fn decorate_line(&self, cx: &mut LineDecoration) {
         let checked = cx.plans.iter().find_map(|p| match p.presentation {
-            Presentation::InlineAtom(Atom::TaskCheckbox { checked }) if p.source.start >= cx.range.start && p.source.start <= cx.range.end => Some(checked),
+            Presentation::InlineAtom(Atom::TaskCheckbox { checked })
+                if p.source.start >= cx.range.start && p.source.start <= cx.range.end =>
+            {
+                Some(checked)
+            }
             _ => None,
         });
-        let (Some(checked), Some(slot)) = (checked, cx.context.marker) else { return };
-        let (paints, hit) = paint::checkbox(&cx.theme.task, checked, slot, cx.context.text_top, cx.context.line_height, cx.context.font_size);
+        let (Some(checked), Some(slot)) = (checked, cx.context.marker) else {
+            return;
+        };
+        let (paints, hit) = paint::checkbox(
+            &cx.theme.task,
+            checked,
+            slot,
+            cx.context.text_top,
+            cx.context.line_height,
+            cx.context.font_size,
+        );
         cx.style.overlays.extend(paints);
         cx.style.hotspots.push((hit, toggle_command(cx.line)));
     }
@@ -65,7 +83,9 @@ impl MarkdownFeature for TaskFeature {
             return None;
         }
         let range = state.doc.line_range(line);
-        let task = cx.syntax.elements.iter().find(|e| e.kind == Kind::Task && e.line.as_ref().is_some_and(|l| l.start == range.start))?;
+        let task = cx.syntax.elements.iter().find(|e| {
+            e.kind == Kind::Task && e.line.as_ref().is_some_and(|l| l.start == range.start)
+        })?;
         let start = task.markers.get(1)?.start;
         let checkbox = start..start + 3;
         let insert = match state.doc.slice(checkbox.clone()) {
@@ -73,7 +93,11 @@ impl MarkdownFeature for TaskFeature {
             "[x]" | "[X]" => "[ ]",
             _ => return None,
         };
-        let mut tr = Transaction::edit(ChangeSet::replace(checkbox, insert), None, UserEvent::Command);
+        let mut tr = Transaction::edit(
+            ChangeSet::replace(checkbox, insert),
+            None,
+            UserEvent::Command,
+        );
         tr.scroll_into_view = false;
         Some(tr)
     }

@@ -65,7 +65,13 @@ pub trait EditorExtension: std::any::Any {
     /// Called after every applied transaction (reveal tracking, plans).
     fn applied(&mut self, _applied: &Applied, _state: &EditorState, _focused: bool) {}
     /// Selection-only changes and focus changes.
-    fn selection_changed(&mut self, _state: &EditorState, _focused: bool, _pointer_selecting: bool) {}
+    fn selection_changed(
+        &mut self,
+        _state: &EditorState,
+        _focused: bool,
+        _pointer_selecting: bool,
+    ) {
+    }
     /// The document's history lives outside this view (a CSV cell edits the
     /// table model): undo / redo are handed to `history` instead.
     fn owns_history(&self) -> bool {
@@ -88,7 +94,12 @@ pub struct PlainText {
 impl EditorExtension for PlainText {
     fn decorate(&mut self, input: &DecorateInput) -> Decorations {
         let mut d = self.decorations.clone();
-        d.blocks = (0..input.state.doc.line_count()).map(|line| Block::Line { line, style: self.line.clone() }).collect();
+        d.blocks = (0..input.state.doc.line_count())
+            .map(|line| Block::Line {
+                line,
+                style: self.line.clone(),
+            })
+            .collect();
         d
     }
 }

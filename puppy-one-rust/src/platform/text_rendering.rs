@@ -12,9 +12,21 @@ pub fn match_product_font_smoothing() {
     #[link(name = "CoreFoundation", kind = "framework")]
     unsafe extern "C" {
         static kCFPreferencesCurrentApplication: *const c_void;
-        fn CFStringCreateWithCString(alloc: *const c_void, s: *const std::ffi::c_char, encoding: u32) -> *const c_void;
-        fn CFNumberCreate(alloc: *const c_void, number_type: isize, value: *const c_void) -> *const c_void;
-        fn CFPreferencesSetAppValue(key: *const c_void, value: *const c_void, application: *const c_void);
+        fn CFStringCreateWithCString(
+            alloc: *const c_void,
+            s: *const std::ffi::c_char,
+            encoding: u32,
+        ) -> *const c_void;
+        fn CFNumberCreate(
+            alloc: *const c_void,
+            number_type: isize,
+            value: *const c_void,
+        ) -> *const c_void;
+        fn CFPreferencesSetAppValue(
+            key: *const c_void,
+            value: *const c_void,
+            application: *const c_void,
+        );
         fn CFRelease(value: *const c_void);
     }
     const UTF8: u32 = 0x0800_0100;

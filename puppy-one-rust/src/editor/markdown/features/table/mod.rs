@@ -40,13 +40,27 @@ impl MarkdownFeature for TableFeature {
     fn compile_blocks(&self, cx: &CompileCx, out: &mut Vec<Plan>) {
         for range in &cx.syntax.tables {
             if let Some(table) = model::table_block(cx.doc, range) {
-                out.push(Plan { element: None, source: table.range.clone(), presentation: Presentation::BlockAtom(BlockEmbed::new(ID, table)), delete_units: Vec::new() });
+                out.push(Plan {
+                    element: None,
+                    source: table.range.clone(),
+                    presentation: Presentation::BlockAtom(BlockEmbed::new(ID, table)),
+                    delete_units: Vec::new(),
+                });
             }
         }
     }
 
-    fn block_widget(&self, embed: &BlockEmbed, cx: &WidgetFactoryCx) -> Option<Rc<dyn BlockWidget>> {
-        Some(Rc::new(TableWidget::new(embed.model::<Table>()?, &cx.theme.table, cx.theme.body.text.weight, cx.theme.dark)))
+    fn block_widget(
+        &self,
+        embed: &BlockEmbed,
+        cx: &WidgetFactoryCx,
+    ) -> Option<Rc<dyn BlockWidget>> {
+        Some(Rc::new(TableWidget::new(
+            embed.model::<Table>()?,
+            &cx.theme.table,
+            cx.theme.body.text.weight,
+            cx.theme.dark,
+        )))
     }
 
     /// Structure operations from the widget's rails, grips and menu.
@@ -58,13 +72,24 @@ impl MarkdownFeature for TableFeature {
     /// weight, `th strong { font-weight: inherit }`); the pipes, cell padding
     /// and delimiter row are not caret positions.
     fn decorate_block(&self, embed: &BlockEmbed, cx: &mut BlockDecoration) {
-        let Some(table) = embed.model::<Table>() else { return };
-        let (header_weight, body_weight) = (cx.theme().table.header_weight, cx.theme().body.text.weight);
+        let Some(table) = embed.model::<Table>() else {
+            return;
+        };
+        let (header_weight, body_weight) =
+            (cx.theme().table.header_weight, cx.theme().body.text.weight);
         for line in table.lines.clone() {
             let range = cx.doc().line_range(line);
             match table.rows.iter().find(|r| r.line == line) {
                 Some(row) => {
-                    let context = LineContext { weight: if row.header { header_weight } else { body_weight }, heading: row.header, ..Default::default() };
+                    let context = LineContext {
+                        weight: if row.header {
+                            header_weight
+                        } else {
+                            body_weight
+                        },
+                        heading: row.header,
+                        ..Default::default()
+                    };
                     cx.inline_line(line, context);
                     let mut at = range.start;
                     for cell in row.cells.iter().filter(|c| c.editable) {

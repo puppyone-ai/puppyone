@@ -21,7 +21,10 @@ pub(super) struct Find {
 
 impl Find {
     fn result(&self) -> FindResult {
-        FindResult { current: self.current.map_or(0, |c| c + 1), total: self.matches.len() }
+        FindResult {
+            current: self.current.map_or(0, |c| c + 1),
+            total: self.matches.len(),
+        }
     }
 }
 
@@ -38,7 +41,13 @@ impl CsvEditor {
             .rows()
             .iter()
             .enumerate()
-            .flat_map(|(r, row)| row.cells.iter().enumerate().filter(|(_, v)| v.to_lowercase().contains(&query)).map(move |(c, _)| (r, c)))
+            .flat_map(|(r, row)| {
+                row.cells
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, v)| v.to_lowercase().contains(&query))
+                    .map(move |(c, _)| (r, c))
+            })
             .collect();
         let current = match self.find.current {
             _ if matches.is_empty() => None,
@@ -68,7 +77,11 @@ impl CsvEditor {
             return self.find.result();
         }
         let current = self.find.current.unwrap_or(if forward { n - 1 } else { 0 });
-        let next = if forward { (current + 1) % n } else { (current + n - 1) % n };
+        let next = if forward {
+            (current + 1) % n
+        } else {
+            (current + n - 1) % n
+        };
         self.find.current = Some(next);
         let (row, column) = self.find.matches[next];
         self.reveal(row, column);
@@ -84,7 +97,11 @@ impl CsvEditor {
     /// `focusEditor`: edit the current match with its value selected (else the
     /// first cell).
     pub fn find_focus_editor(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let target = self.find.current.map(|c| self.find.matches[c]).or((self.rows() > 0 && self.columns() > 0).then_some((0, 0)));
+        let target = self
+            .find
+            .current
+            .map(|c| self.find.matches[c])
+            .or((self.rows() > 0 && self.columns() > 0).then_some((0, 0)));
         if let Some((row, column)) = target {
             self.activate(row, column, None, window, cx);
         }
@@ -107,10 +124,45 @@ impl CsvEditor {
         let text = Theme::new(self.theme.dark).text;
         let current = self.find.current.map(|c| self.find.matches[c]) == Some((row, column));
         let t = &self.theme;
-        let bounds = Draw::rect(self.column_x(column), self.row_top(row), self.column_width(column) - self.cell_end_border(column), t.table.row_min_height - self.cell_bottom_border(row));
-        let (ring, width) = if current { (crate::theme::mix(warning, text, 0.8), 2.) } else { (Rgba { a: warning.a * 0.56, ..warning }, 1.) };
+        let bounds = Draw::rect(
+            self.column_x(column),
+            self.row_top(row),
+            self.column_width(column) - self.cell_end_border(column),
+            t.table.row_min_height - self.cell_bottom_border(row),
+        );
+        let (ring, width) = if current {
+            (crate::theme::mix(warning, text, 0.8), 2.)
+        } else {
+            (
+                Rgba {
+                    a: warning.a * 0.56,
+                    ..warning
+                },
+                1.,
+            )
+        };
         // The cell's inset ring paints under the input's tint.
-        out.push(Draw::Cell { bounds, background: Rgba::default(), border: Sides { top: width, right: width, bottom: width, left: width }, border_color: ring, radius: Corners::default() });
-        out.push(Draw::Cell { bounds, background: Rgba { a: warning.a * 0.24, ..warning }, border: Sides::default(), border_color: Rgba::default(), radius: Corners::default() });
+        out.push(Draw::Cell {
+            bounds,
+            background: Rgba::default(),
+            border: Sides {
+                top: width,
+                right: width,
+                bottom: width,
+                left: width,
+            },
+            border_color: ring,
+            radius: Corners::default(),
+        });
+        out.push(Draw::Cell {
+            bounds,
+            background: Rgba {
+                a: warning.a * 0.24,
+                ..warning
+            },
+            border: Sides::default(),
+            border_color: Rgba::default(),
+            radius: Corners::default(),
+        });
     }
 }

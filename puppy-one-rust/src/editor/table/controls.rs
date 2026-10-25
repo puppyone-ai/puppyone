@@ -14,8 +14,19 @@ const RAIL: f32 = 13.;
 /// One structure rail (`.po-editable-table-structure-button`): revealed
 /// while `group` (the interaction root) is hovered; its visual lights and
 /// shows a `+` on direct hover.
-fn rail(style: &EditableTableStyle, id: SharedString, group: SharedString, bounds: Bounds<f32>, bar: Bounds<f32>, on_click: Handler) -> AnyElement {
-    let (hover_bg, hover_border, hover_color) = (style.structure_hover_background, style.structure_hover_border, style.structure_hover_color);
+fn rail(
+    style: &EditableTableStyle,
+    id: SharedString,
+    group: SharedString,
+    bounds: Bounds<f32>,
+    bar: Bounds<f32>,
+    on_click: Handler,
+) -> AnyElement {
+    let (hover_bg, hover_border, hover_color) = (
+        style.structure_hover_background,
+        style.structure_hover_border,
+        style.structure_hover_color,
+    );
     let rail_group = id.clone();
     let plus = |w: f32, h: f32| {
         let rail_group = rail_group.clone();
@@ -61,18 +72,47 @@ fn rail(style: &EditableTableStyle, id: SharedString, group: SharedString, bound
 
 /// The add-row rail below and the add-column rail after a table whose
 /// border box is `table`.
-pub fn rails(style: &EditableTableStyle, id: &str, group: SharedString, table: Bounds<f32>, add_row: Handler, add_column: Handler) -> Vec<AnyElement> {
+pub fn rails(
+    style: &EditableTableStyle,
+    id: &str,
+    group: SharedString,
+    table: Bounds<f32>,
+    add_row: Handler,
+    add_column: Handler,
+) -> Vec<AnyElement> {
     let g = style.action_gutter;
     let inset = (g - RAIL) / 2.;
-    let (x, y, w, h) = (table.origin.x, table.origin.y, table.size.width, table.size.height);
+    let (x, y, w, h) = (
+        table.origin.x,
+        table.origin.y,
+        table.size.width,
+        table.size.height,
+    );
     vec![
-        rail(style, format!("{id}-add-row").into(), group.clone(), rect(x, y + h, w, g), rect(0., inset, w, RAIL), add_row),
-        rail(style, format!("{id}-add-column").into(), group, rect(x + w, y, g, h), rect(inset, 0., RAIL, h), add_column),
+        rail(
+            style,
+            format!("{id}-add-row").into(),
+            group.clone(),
+            rect(x, y + h, w, g),
+            rect(0., inset, w, RAIL),
+            add_row,
+        ),
+        rail(
+            style,
+            format!("{id}-add-column").into(),
+            group,
+            rect(x + w, y, g, h),
+            rect(inset, 0., RAIL, h),
+            add_column,
+        ),
     ]
 }
 
 fn rect(x: f32, y: f32, w: f32, h: f32) -> Bounds<f32> {
-    Bounds { origin: point(x, y), size: size(w, h) }
+    Bounds {
+        origin: point(x, y),
+        size: size(w, h),
+    }
 }
 
 /// What a grip hands back.
@@ -97,14 +137,30 @@ pub fn grip_size(axis: Axis) -> (f32, f32) {
 /// A drag grip (`.po-editable-table-drag-handle`): the 22×14 / 14×22 face
 /// with three dots (`radial-gradient` on a 4px tile), selection-coloured
 /// while pressed, dragged or showing its menu (`active`).
-pub fn grip(style: &EditableTableStyle, axis: Axis, id: SharedString, bounds: Bounds<f32>, active: bool, dragging: bool, handlers: GripHandlers) -> AnyElement {
+pub fn grip(
+    style: &EditableTableStyle,
+    axis: Axis,
+    id: SharedString,
+    bounds: Bounds<f32>,
+    active: bool,
+    dragging: bool,
+    handlers: GripHandlers,
+) -> AnyElement {
     let (w, h) = match axis {
         Axis::Column => (22., 14.),
         Axis::Row => (14., 22.),
     };
     // `.is-menu-active` / `.is-dragging`: white dots on the selection fill.
     let white = crate::theme::on_solid();
-    let (face, dots, hover) = if active { (style.selection_border, white, white) } else { (style.handle_background, style.handle_color, style.handle_hover_color) };
+    let (face, dots, hover) = if active {
+        (style.selection_border, white, white)
+    } else {
+        (
+            style.handle_background,
+            style.handle_color,
+            style.handle_hover_color,
+        )
+    };
     let left = (bounds.size.width - w) / 2.;
     let top = (bounds.size.height - h) / 2.;
     let dot = |i: f32| {
@@ -113,9 +169,20 @@ pub fn grip(style: &EditableTableStyle, axis: Axis, id: SharedString, bounds: Bo
             Axis::Row => (7., 7. + 4. * i),
         };
         let group = id.clone();
-        div().absolute().left(px(x - 1.)).top(px(y - 1.)).size(px(2.)).rounded(px(1.)).bg(dots).group_hover(group, move |s| s.bg(hover))
+        div()
+            .absolute()
+            .left(px(x - 1.))
+            .top(px(y - 1.))
+            .size(px(2.))
+            .rounded(px(1.))
+            .bg(dots)
+            .group_hover(group, move |s| s.bg(hover))
     };
-    let GripHandlers { press, menu, hover: on_hover } = handlers;
+    let GripHandlers {
+        press,
+        menu,
+        hover: on_hover,
+    } = handlers;
     div()
         .id(id.clone())
         .group(id.clone())
@@ -124,7 +191,11 @@ pub fn grip(style: &EditableTableStyle, axis: Axis, id: SharedString, bounds: Bo
         .top(px(bounds.origin.y))
         .w(px(bounds.size.width))
         .h(px(bounds.size.height))
-        .cursor(if dragging { CursorStyle::ClosedHand } else { CursorStyle::OpenHand })
+        .cursor(if dragging {
+            CursorStyle::ClosedHand
+        } else {
+            CursorStyle::OpenHand
+        })
         .on_hover(move |hovered, window, cx| on_hover(*hovered, window, cx))
         .on_mouse_down(MouseButton::Left, move |e: &MouseDownEvent, window, cx| {
             cx.stop_propagation();
@@ -134,7 +205,19 @@ pub fn grip(style: &EditableTableStyle, axis: Axis, id: SharedString, bounds: Bo
             cx.stop_propagation();
             menu(window, cx);
         })
-        .child(div().absolute().left(px(left)).top(px(top)).w(px(w)).h(px(h)).rounded(px(2.)).bg(face).child(dot(0.)).child(dot(1.)).child(dot(2.)))
+        .child(
+            div()
+                .absolute()
+                .left(px(left))
+                .top(px(top))
+                .w(px(w))
+                .h(px(h))
+                .rounded(px(2.))
+                .bg(face)
+                .child(dot(0.))
+                .child(dot(1.))
+                .child(dot(2.)),
+        )
         .into_any_element()
 }
 
@@ -148,9 +231,27 @@ pub struct ResizeHandlers {
 /// The column resize rail (`.csv-table-editor__column-resize-handle`): 9px
 /// centred on a column's end edge (`edge`) over `top..top + height`; its 1px
 /// accent line shows on hover and while `resizing`.
-pub fn resize_rail(style: &EditableTableStyle, id: SharedString, edge: f32, top: f32, height: f32, resizing: bool, handlers: ResizeHandlers) -> AnyElement {
+pub fn resize_rail(
+    style: &EditableTableStyle,
+    id: SharedString,
+    edge: f32,
+    top: f32,
+    height: f32,
+    resizing: bool,
+    handlers: ResizeHandlers,
+) -> AnyElement {
     let accent = style.accent;
-    let ring = BoxShadow { color: Rgba { a: accent.a * 0.18, ..accent }.into(), offset: point(px(0.), px(0.)), blur_radius: px(0.), spread_radius: px(1.), inset: false };
+    let ring = BoxShadow {
+        color: Rgba {
+            a: accent.a * 0.18,
+            ..accent
+        }
+        .into(),
+        offset: point(px(0.), px(0.)),
+        blur_radius: px(0.),
+        spread_radius: px(1.),
+        inset: false,
+    };
     let line = div().absolute().left(px(4.)).top_0().w(px(1.)).h_full();
     let line = if resizing {
         line.bg(accent).shadow(vec![ring])
@@ -170,7 +271,11 @@ pub fn resize_rail(style: &EditableTableStyle, id: SharedString, edge: f32, top:
         .cursor(CursorStyle::ResizeLeftRight)
         .on_mouse_down(MouseButton::Left, move |e: &MouseDownEvent, window, cx| {
             cx.stop_propagation();
-            if e.click_count >= 2 { auto_fit(window, cx) } else { press(f32::from(e.position.x), window, cx) }
+            if e.click_count >= 2 {
+                auto_fit(window, cx)
+            } else {
+                press(f32::from(e.position.x), window, cx)
+            }
         })
         .child(line)
         .into_any_element()
