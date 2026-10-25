@@ -41,6 +41,11 @@ objc2-foundation = { version = "=0.3.2", default-features = false, features = ["
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+# Real Core Text shaping for the frame-cost benchmarks (src/bench.rs); the
+# same crate GPUI Kit's macOS platform uses, pinned with it.
+gpui-pre-apple = { version = "=0.3.9", features = ["font-kit"] }
+
 [dev-dependencies]
 gpui-kit = { version = "=0.8.0", features = ["test-support"] }
 tempfile = "3"

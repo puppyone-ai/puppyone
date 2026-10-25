@@ -3,6 +3,8 @@
 //! document state, decorations, the host boxes around the text, selection,
 //! caret, IME, pointer and keyboard. Formats plug in through
 //! `EditorExtension` and block widgets.
+#[cfg(all(test, target_os = "macos"))]
+mod bench;
 pub mod command;
 pub mod commands;
 mod composition;

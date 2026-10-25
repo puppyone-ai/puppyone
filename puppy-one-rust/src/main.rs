@@ -2,6 +2,8 @@
 extern crate gpui_kit as gpui;
 mod agent;
 mod assets;
+#[cfg(all(test, target_os = "macos"))]
+mod bench;
 mod capture;
 mod documents;
 mod editor;

@@ -12,6 +12,8 @@ use crate::{
 };
 use gpui::{prelude::*, *};
 use std::path::PathBuf;
+#[cfg(all(test, target_os = "macos"))]
+mod bench;
 #[cfg(feature = "dev-capture")]
 mod capture_scenario;
 mod command;
