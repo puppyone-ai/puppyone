@@ -30,10 +30,7 @@ use crate::editor::{
     },
 };
 use gpui::{prelude::*, *};
-use std::{
-    hash::{Hash, Hasher},
-    rc::Rc,
-};
+use std::rc::Rc;
 
 /// `.po-editable-table-interaction-root`: rails reveal while it is hovered.
 const GROUP: &str = "md-table";
@@ -347,12 +344,6 @@ impl TableWidget {
 }
 
 impl BlockWidget for TableWidget {
-    fn key(&self) -> u64 {
-        let mut h = std::collections::hash_map::DefaultHasher::new();
-        ("table", &self.table).hash(&mut h);
-        h.finish()
-    }
-
     fn render(&self, cx: &mut WidgetCx) -> (AnyElement, f32) {
         let (top, width) = (cx.top, cx.width);
         let m = &self.style.clone();
@@ -441,12 +432,10 @@ impl BlockWidget for TableWidget {
         // The outer border is an overlay so cell coordinates include it. A
         // selection sweeping over the table selects it as one block: its
         // frame takes the selection colour with a 1px ring.
-        let selected = cx.state.selected.then(|| {
-            if cx.state.editor_focused {
-                m.document_selection
-            } else {
-                m.document_selection_inactive
-            }
+        let selected = cx.state.selected.then_some(if cx.state.editor_focused {
+            m.document_selection
+        } else {
+            m.document_selection_inactive
         });
         let frame = div()
             .absolute()

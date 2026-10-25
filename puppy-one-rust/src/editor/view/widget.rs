@@ -5,13 +5,15 @@
 //! (block-selected, focused, read-only) and gives it handlers back into the
 //! editor: format commands and selecting the whole block.
 use super::{command::Command, render::RenderCx};
-use crate::editor::text::selection::Selection;
 use gpui::*;
 use std::{ops::Range, rc::Rc};
 
 /// Runs a format command through the editor, for handlers that only know
 /// their command when they fire (a drop target, a menu choice).
 pub type CommandSender = Rc<dyn Fn(Command, &mut Window, &mut App)>;
+
+/// Returns keyboard focus to the editor.
+pub type Focuser = Rc<dyn Fn(&mut Window, &mut App)>;
 
 /// What the view knows about a widget this frame.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -74,14 +76,6 @@ impl WidgetCx<'_, '_> {
         ElementId::NamedInteger(part.into(), self.source.start as u64)
     }
 
-    /// A handler running `command` through the document format.
-    pub fn on_command(&self, command: Command) -> impl Fn(&mut Window, &mut App) + 'static {
-        let view = self.render.view.clone();
-        move |window, cx| {
-            let _ = view.update(cx, |v, cx| v.run_command(&command, window, cx));
-        }
-    }
-
     pub fn sender(&self) -> CommandSender {
         let view = self.render.view.clone();
         Rc::new(move |command, window, cx| {
@@ -90,28 +84,15 @@ impl WidgetCx<'_, '_> {
     }
 
     /// A handler returning keyboard focus to the editor.
-    pub fn focuser(&self) -> Rc<dyn Fn(&mut Window, &mut App)> {
+    pub fn focuser(&self) -> Focuser {
         let view = self.render.view.clone();
         Rc::new(move |window, cx| {
             let _ = view.update(cx, |v, cx| v.focus(window, cx));
         })
     }
-
-    /// A handler selecting the widget's whole source (block selection).
-    pub fn on_select(&self) -> impl Fn(&mut Window, &mut App) + 'static {
-        let (view, source) = (self.render.view.clone(), self.source.clone());
-        move |window, cx| {
-            let _ = view.update(cx, |v, cx| {
-                v.focus(window, cx);
-                v.set_selection(Selection::range(source.start, source.end), cx);
-            });
-        }
-    }
 }
 
 pub trait BlockWidget {
-    /// Identity for caching: equal keys mean equal rendering inputs.
-    fn key(&self) -> u64;
     /// The widget's box (at `cx.top` in a column of `cx.width`), with text
     /// leaves registered through `cx.render`. Returns the element and its
     /// height.

@@ -29,6 +29,8 @@ pub(super) struct ReferenceCells {
 
 impl CsvEditor {
     /// Resolve workspace targets through the host (`resolveWorkspaceReference`).
+    /// The native host has no workspace resolver yet; tests install one.
+    #[cfg(test)]
     pub fn set_reference_resolver(&mut self, resolver: Option<Resolver>, cx: &mut Context<Self>) {
         self.refs.resolver = resolver;
         self.refs.cache.borrow_mut().clear();

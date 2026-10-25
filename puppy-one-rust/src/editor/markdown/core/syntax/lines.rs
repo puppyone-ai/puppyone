@@ -73,6 +73,7 @@ pub struct Fence {
 }
 
 impl Fence {
+    #[cfg(test)]
     pub fn code_lines(&self) -> Range<usize> {
         self.lines.start + 1..if self.closed {
             self.lines.end - 1
@@ -100,12 +101,7 @@ pub fn fences(doc: &Buffer) -> Vec<Fence> {
             continue;
         }
         let info = rest[run..].to_owned();
-        let language = info
-            .trim()
-            .split_whitespace()
-            .next()
-            .unwrap_or("")
-            .to_owned();
+        let language = info.split_whitespace().next().unwrap_or("").to_owned();
         let mut end = line + 1;
         let mut closed = false;
         while end < count {

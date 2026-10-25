@@ -204,6 +204,10 @@ impl RenderCx<'_> {
     /// A keyed Kit text leaf showing `source` with its first row at
     /// (`x`, `y`) inside the block whose document top is `block_top`.
     /// Returns the positioned container and the CSS height of its rows.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the same positional parameters as text_aligned, left-aligned"
+    )]
     pub fn text(
         &mut self,
         source: Range<usize>,

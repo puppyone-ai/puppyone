@@ -13,7 +13,6 @@ use crate::editor::{
     },
 };
 use gpui::{prelude::*, *};
-use std::hash::{Hash, Hasher};
 
 /// `.cm-md-code-textarea { min-height: 44px }`.
 const MIN_HEIGHT: f32 = 44.;
@@ -49,12 +48,6 @@ impl CodeBlockWidget {
 }
 
 impl BlockWidget for CodeBlockWidget {
-    fn key(&self) -> u64 {
-        let mut h = std::collections::hash_map::DefaultHasher::new();
-        ("code", &self.block).hash(&mut h);
-        h.finish()
-    }
-
     fn render(&self, cx: &mut WidgetCx) -> (AnyElement, f32) {
         let (top, width) = (cx.top, cx.width);
         let s = &self.style;

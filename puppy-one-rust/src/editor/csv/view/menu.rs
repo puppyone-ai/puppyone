@@ -54,6 +54,10 @@ impl CsvEditor {
         )
     }
 
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the menu target (kind, cell, position, grip) plus GPUI's window and cx"
+    )]
     pub(super) fn open_menu(
         &mut self,
         kind: MenuKind,

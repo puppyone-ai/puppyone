@@ -92,9 +92,10 @@ pub fn block_rhythm(doc: &Buffer, syntax: &Syntax, source_line: Option<usize>) -
                 .map(|b| (line_of(b.1.start), line_of(b.1.end))),
         );
         for (first, last) in spans {
-            for line in first..=last.min(doc.line_count() - 1) {
+            let end = last.min(doc.line_count() - 1);
+            for (line, rhythm) in lines.iter_mut().enumerate().take(end + 1).skip(first) {
                 // `- - text`: editing exposes both literal markers.
-                if Some(line) == source_line && lines[line].list.is_some() {
+                if Some(line) == source_line && rhythm.list.is_some() {
                     continue;
                 }
                 let start = line == marker_line;
@@ -130,7 +131,6 @@ pub fn block_rhythm(doc: &Buffer, syntax: &Syntax, source_line: Option<usize>) -
                 } else {
                     "•".to_owned()
                 };
-                let rhythm = &mut lines[line];
                 rhythm.classes |= classes;
                 rhythm.list = Some(ListRhythm {
                     depth,

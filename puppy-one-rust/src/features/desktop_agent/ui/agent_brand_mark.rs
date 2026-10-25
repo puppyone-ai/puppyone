@@ -43,19 +43,6 @@ fn asset(runtime: Runtime, dark: bool) -> &'static str {
 /// The ChatGPT mark Codex uses (`agentBrandCatalog`), drawn as an alpha mask
 /// in the surrounding colour like `AgentMonochromeBrandImage`.
 const CHATGPT_MARK: &str = "agents/chatgpt-mark.svg";
-/// `AgentBrandMark appearance="brand"`: Codex is always monochrome (in `color`);
-/// other runtimes show their official asset.
-pub fn brand(runtime: Runtime, dark: bool, size: f32, color: Rgba) -> AnyElement {
-    if runtime == Runtime::Codex {
-        return svg()
-            .path(CHATGPT_MARK)
-            .size(px(size))
-            .flex_shrink_0()
-            .text_color(color)
-            .into_any_element();
-    }
-    brand_image(runtime, dark, size).into_any_element()
-}
 pub fn brand_image(runtime: Runtime, dark: bool, size: f32) -> Img {
     img(SharedString::from(format!(
         "agents/{}",

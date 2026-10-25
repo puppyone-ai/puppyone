@@ -128,6 +128,7 @@ pub fn is_table_line(text: &str) -> bool {
 }
 
 /// `isMarkdownTableSourceLine` (the `cm-md-table-line` class).
+#[cfg(test)]
 pub fn is_table_source_line(text: &str) -> bool {
     let t = text.trim();
     if pipes(t).is_empty() {

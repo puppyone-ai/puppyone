@@ -82,11 +82,6 @@ impl ViewerRegistry {
             fallback,
         })
     }
-    // Listing and lookup serve the Viewer Pack layer and tests.
-    #[cfg_attr(not(test), allow(dead_code))]
-    pub fn contributions(&self) -> &[PresetViewer] {
-        &self.contributions
-    }
     #[cfg_attr(not(test), allow(dead_code))]
     pub fn fallback(&self) -> &PresetViewer {
         &self.fallback
@@ -96,13 +91,6 @@ impl ViewerRegistry {
             .iter()
             .find(|viewer| viewer.matches(m))
             .unwrap_or(&self.fallback)
-    }
-    #[cfg_attr(not(test), allow(dead_code))]
-    pub fn get(&self, id: &str) -> Option<&PresetViewer> {
-        self.contributions
-            .iter()
-            .chain([&self.fallback])
-            .find(|viewer| viewer.id == id)
     }
 }
 

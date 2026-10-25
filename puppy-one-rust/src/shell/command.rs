@@ -22,7 +22,11 @@ pub enum Command {
     ToggleRightSidebar,
     Settings,
     Feedback,
+    // The Header opens its menus directly; capture scenarios and tests
+    // drive them through these commands.
+    #[cfg_attr(not(feature = "dev-capture"), allow(dead_code))]
     ProjectMenu,
+    #[cfg_attr(not(feature = "dev-capture"), allow(dead_code))]
     LocationMenu,
     Home,
     Escape,

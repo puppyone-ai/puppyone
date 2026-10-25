@@ -1,7 +1,7 @@
 //! Which surface renders a document once Viewer Packs are installed: the
 //! deterministic route of `viewerCapability.ts` (`findPackCandidates`,
 //! `resolveViewerRoute`) and `viewerPackAdapter.tsx`. Pure.
-use super::manifest::{PackFormat, PackManifest, PackViewer};
+use super::manifest::{PackFormat, PackViewer};
 use crate::editor::registry::{
     contribution::{EditorDocument, SourceKind},
     manifest::Capability,
@@ -20,27 +20,6 @@ pub struct PackContribution {
     pub viewer: PackViewer,
     pub formats: Vec<PackFormat>,
 }
-impl PackContribution {
-    pub fn new(manifest: PackManifest, content_hash: String) -> Self {
-        let label = manifest
-            .formats
-            .first()
-            .map(|f| f.label.clone())
-            .filter(|l| !l.is_empty())
-            .unwrap_or_else(|| manifest.id.clone());
-        Self {
-            plugin_id: manifest.id,
-            publisher: manifest.publisher,
-            version: manifest.version,
-            label,
-            enabled: true,
-            content_hash,
-            viewer: manifest.viewer,
-            formats: manifest.formats,
-        }
-    }
-}
-
 /// `ViewerPackContributionSnapshot`: the installed, enabled packs.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Snapshot {

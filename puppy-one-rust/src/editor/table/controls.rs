@@ -7,6 +7,8 @@ use gpui::{prelude::*, *};
 use std::rc::Rc;
 
 type Handler = Rc<dyn Fn(&mut Window, &mut App)>;
+/// A handler that receives the event's value (a position, a hover state).
+type HandlerWith<T> = Rc<dyn Fn(T, &mut Window, &mut App)>;
 
 /// The 13px rail visual centred in the action gutter.
 const RAIL: f32 = 13.;
@@ -119,10 +121,10 @@ fn rect(x: f32, y: f32, w: f32, h: f32) -> Bounds<f32> {
 #[derive(Clone)]
 pub struct GripHandlers {
     /// A press (left button) at a window position: start a drag.
-    pub press: Rc<dyn Fn(Point<Pixels>, &mut Window, &mut App)>,
+    pub press: HandlerWith<Point<Pixels>>,
     /// A secondary press: open the axis menu.
     pub menu: Handler,
-    pub hover: Rc<dyn Fn(bool, &mut Window, &mut App)>,
+    pub hover: HandlerWith<bool>,
 }
 
 /// The grip's hit target (`.po-editable-table-column-handle` 32×24,
@@ -224,7 +226,7 @@ pub fn grip(
 /// What the resize rail hands back: a press at window x, or a double-click.
 #[derive(Clone)]
 pub struct ResizeHandlers {
-    pub press: Rc<dyn Fn(f32, &mut Window, &mut App)>,
+    pub press: HandlerWith<f32>,
     pub auto_fit: Handler,
 }
 

@@ -231,12 +231,12 @@ fn classify(
     }
 }
 
+/// The host's lookup of a workspace reference.
+pub type Resolve = dyn Fn(&str) -> Option<Resolution>;
+
 /// `resolveReference`: workspace intents take the host's resolution
 /// (missing without one).
-pub fn resolve(
-    raw: &str,
-    resolver: Option<&dyn Fn(&str) -> Option<Resolution>>,
-) -> Option<Reference> {
+pub fn resolve(raw: &str, resolver: Option<&Resolve>) -> Option<Reference> {
     Some(match parse_intent(raw)? {
         Intent::External {
             syntax,

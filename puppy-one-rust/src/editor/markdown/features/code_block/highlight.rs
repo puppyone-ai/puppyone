@@ -87,17 +87,16 @@ impl gpui_kit::base::input::HighlightStyleResolver for Roles {
     }
 }
 
+/// Highlight ranges over a code block's text.
+pub type Highlights = Arc<Vec<(Range<usize>, HighlightStyle)>>;
+
 thread_local! {
-    static CACHE: RefCell<HashMap<(u64, &'static str), Arc<Vec<(Range<usize>, HighlightStyle)>>>> = RefCell::default();
+    static CACHE: RefCell<HashMap<(u64, &'static str), Highlights>> = RefCell::default();
 }
 
 /// Highlight ranges for `code` (Kit `HighlightStyle` colours), cached by
 /// content; empty when the product would show plain text.
-pub fn highlight(
-    code: &str,
-    language: &str,
-    colors: &SyntaxColors,
-) -> Arc<Vec<(Range<usize>, HighlightStyle)>> {
+pub fn highlight(code: &str, language: &str, colors: &SyntaxColors) -> Highlights {
     let Some(grammar) = grammar(language).filter(|_| within_budget(code)) else {
         return Arc::default();
     };

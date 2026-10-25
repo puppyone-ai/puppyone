@@ -22,7 +22,6 @@ pub enum Kind {
     Blockquote,
     Emphasis,
     Escape,
-    Fence,
     Heading,
     InlineCode,
     Link,
@@ -30,7 +29,6 @@ pub enum Kind {
     Rule,
     Strike,
     Strong,
-    Table,
     Task,
     WikiLink,
 }
@@ -300,20 +298,6 @@ impl Syntax {
         self.elements_in(line.clone()).find(|e| {
             e.kind.block_marker() && e.line.as_ref().is_some_and(|l| l.start == line.start)
         })
-    }
-
-    /// The list item whose marker line contains `offset` (not quoted items).
-    pub fn item_at_line(&self, line: Span) -> Option<&ListItem> {
-        self.items
-            .iter()
-            .rev()
-            .find(|i| i.marker_from >= line.start && i.marker_from <= line.end)
-    }
-
-    /// Whether `offset` lies inside fenced code.
-    pub fn in_code(&self, doc: &Buffer, offset: usize) -> bool {
-        let line = doc.line_index(offset);
-        self.code_lines.iter().any(|r| r.contains(&line))
     }
 
     /// `getMarkdownListItemAt`: the innermost list item owning the line of

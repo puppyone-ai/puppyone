@@ -104,9 +104,6 @@ impl CsvModel {
     pub fn content(&self) -> &Content {
         &self.content
     }
-    pub fn revision(&self) -> u64 {
-        self.revision
-    }
     pub fn delimiter(&self) -> Delimiter {
         self.delimiter
     }
@@ -115,9 +112,6 @@ impl CsvModel {
     }
     pub fn column_count(&self) -> usize {
         self.content.columns.len()
-    }
-    pub fn can_undo(&self) -> bool {
-        !self.undo.is_empty()
     }
 
     /// The canonical file text (`readSnapshot`).

@@ -47,11 +47,6 @@ impl BlockEmbed {
     pub fn model<T: Any>(&self) -> Option<&T> {
         self.model.downcast_ref()
     }
-
-    /// Identity of the model (equal keys: equal rendering inputs).
-    pub fn key(&self) -> u64 {
-        self.key
-    }
 }
 
 impl PartialEq for BlockEmbed {

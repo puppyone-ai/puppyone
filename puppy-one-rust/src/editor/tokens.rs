@@ -151,6 +151,7 @@ impl Tokens {
             .or(t.px)
             .unwrap_or_else(|| panic!("{name} is not a number"))
     }
+    #[cfg(test)]
     pub fn edges(&self, name: &str) -> Edges {
         self.edges_at(name, 16.)
     }

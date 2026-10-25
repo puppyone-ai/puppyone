@@ -81,7 +81,6 @@ pub struct EditorView {
     pub(super) discard_requests: usize,
     blur: Option<Subscription>,
     pub(super) drag: Option<Drag>,
-    pub(super) last_click: Option<(Instant, Point<Pixels>, usize)>,
     pub(super) blink_epoch: Instant,
     pub(super) reveal_caret: bool,
     /// Scroll the caret row to the middle (`scrollIntoView(..., { y: "center" })`).
@@ -144,7 +143,6 @@ impl EditorView {
             discard_requests: 0,
             blur: None,
             drag: None,
-            last_click: None,
             blink_epoch: Instant::now(),
             reveal_caret: false,
             reveal_centered: false,
@@ -159,14 +157,8 @@ impl EditorView {
     pub fn text(&self) -> &str {
         self.state.doc.as_str()
     }
-    pub fn revision(&self) -> u64 {
-        self.state.revision
-    }
     pub fn state(&self) -> &EditorState {
         &self.state
-    }
-    pub fn set_line_style_key(&mut self) {
-        self.appearance += 1;
     }
     pub fn extension<T: 'static>(&self) -> Option<&T> {
         (self.extension.as_ref() as &dyn std::any::Any).downcast_ref::<T>()
@@ -177,6 +169,7 @@ impl EditorView {
     pub fn focus(&self, window: &mut Window, cx: &mut App) {
         self.focus.focus(window, cx);
     }
+    #[cfg(test)]
     pub fn can_undo(&self) -> bool {
         self.history.can_undo()
     }
@@ -393,7 +386,7 @@ impl EditorView {
     }
 
     pub(super) fn caret_visible(&self) -> bool {
-        (self.blink_epoch.elapsed().as_millis() / BLINK.as_millis()) % 2 == 0
+        (self.blink_epoch.elapsed().as_millis() / BLINK.as_millis()).is_multiple_of(2)
     }
 
     pub fn set_selection(&mut self, selection: Selection, cx: &mut Context<Self>) {
@@ -416,9 +409,11 @@ impl EditorView {
         );
     }
 
+    #[cfg(test)]
     pub fn layout(&self) -> Option<&Rc<DocLayout>> {
         self.layout.as_ref()
     }
+    #[cfg(test)]
     pub fn decorations(&self) -> &Decorations {
         &self.decorations
     }

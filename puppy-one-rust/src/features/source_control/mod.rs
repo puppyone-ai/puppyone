@@ -499,8 +499,8 @@ impl SourceControl {
         self.load_history();
         cx.notify();
     }
-    /// Open the `index`th History commit (capture scenarios and tests).
-    #[cfg_attr(not(any(test, feature = "dev-capture")), allow(dead_code))]
+    /// Open the `index`th History commit (capture scenarios).
+    #[cfg_attr(not(feature = "dev-capture"), allow(dead_code))]
     pub fn select_commit(&mut self, index: usize, cx: &mut Context<Self>) -> bool {
         let Some(commit) = self.history.commits.get(index).cloned() else {
             return false;
@@ -519,8 +519,8 @@ impl SourceControl {
         self.detail.as_ref().is_some_and(|d| d.files.is_none())
             || (self.history_open && !self.history_loaded)
     }
-    /// Open the change at `path` (capture scenarios and tests).
-    #[cfg_attr(not(any(test, feature = "dev-capture")), allow(dead_code))]
+    /// Open the change at `path` (capture scenarios).
+    #[cfg_attr(not(feature = "dev-capture"), allow(dead_code))]
     pub fn select_path(&mut self, path: &str, staged: bool, cx: &mut Context<Self>) -> bool {
         let Some(change) = self
             .snapshot

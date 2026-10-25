@@ -239,11 +239,6 @@ pub struct Gestures {
 }
 
 impl Gestures {
-    /// A press or drag owns the pointer.
-    pub fn busy(&self) -> bool {
-        self.drag.is_some() || self.resizing.is_some()
-    }
-
     /// The row / column with a perimeter: a drag source, else `menu` (a grip
     /// menu's target), else the selection a move left.
     pub fn outline(&self, menu: Option<(Axis, usize)>) -> Option<(Axis, usize)> {

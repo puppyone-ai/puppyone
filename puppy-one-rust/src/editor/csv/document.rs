@@ -294,6 +294,7 @@ pub fn normalize(rows: Vec<Vec<String>>) -> Vec<Vec<String>> {
 }
 
 /// `toColumnLabel`: A, B, …, Z, AA, …
+#[cfg(test)]
 pub fn column_label(index: usize) -> String {
     let mut value = index + 1;
     let mut label = String::new();

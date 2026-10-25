@@ -87,7 +87,7 @@ fn composing_prefix(text: &str) -> Option<usize> {
     if lead <= 3 {
         let rest = &text[lead..];
         // ``\s{0,3}(?:`{3,}|~{3,})[^\n`]*``
-        for fence in [b'`', b'~'] {
+        for fence in *b"`~" {
             let n = rest.bytes().take_while(|&c| c == fence).count();
             if n >= 3 {
                 let info = rest[n..].find('`').unwrap_or(rest.len() - n);
@@ -95,7 +95,7 @@ fn composing_prefix(text: &str) -> Option<usize> {
             }
         }
         // `\s{0,3}(?:-{3,}|\*{3,}|_{3,})\s*`
-        for rule in [b'-', b'*', b'_'] {
+        for rule in *b"-*_" {
             let n = rest.bytes().take_while(|&c| c == rule).count();
             if n >= 3 {
                 let tail = rest[n..]

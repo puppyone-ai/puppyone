@@ -12,8 +12,8 @@
 //!
 //! The runtime that executes pack code (an isolated surface, the range-read
 //! resource broker, the signed package store) is not part of the native
-//! build: like the product's default package, external packs are off
-//! (`enabled`), so no host is installed and routing never changes what opens.
+//! build: like the product's default package (`externalViewerPacks` off),
+//! no host is installed and routing never changes what opens.
 //! Until that runtime lands, this layer is exercised by its tests only.
 #![cfg_attr(not(test), allow(dead_code))]
 pub mod manifest;
@@ -22,15 +22,6 @@ pub mod route;
 use super::surface::{SurfaceRequest, ViewerSurface};
 use gpui::{App, Window};
 pub use route::{PackContribution, Route, Snapshot};
-
-/// `PUPPYONE_ENABLE_EXTERNAL_VIEWER_PACKS`: development builds only; the
-/// product's packaged capability (`externalViewerPacks`) is off.
-pub const DEV_ENV: &str = "PUPPYONE_ENABLE_EXTERNAL_VIEWER_PACKS";
-
-/// `resolveViewerPackFeatureProfile`.
-pub fn enabled() -> bool {
-    cfg!(debug_assertions) && std::env::var_os(DEV_ENV).is_some_and(|v| v == "1")
-}
 
 /// Opens an activated pack's surface for one document.
 pub type ExternalSurfaceFactory =

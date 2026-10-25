@@ -47,9 +47,7 @@ enum Frame {
         index: usize,
         implicit: Option<usize>,
     },
-    Paragraph {
-        index: usize,
-    },
+    Paragraph,
     Emphasis,
     Strong,
     Strike,
@@ -229,7 +227,6 @@ impl<'a> Walker<'a> {
                 let items = self.items();
                 let item_quoted = items.last().is_some_and(|&i| self.syntax.items[i].quoted);
                 let direct = matches!(self.stack.last(), Some((Frame::Item { .. }, _)));
-                let index = self.syntax.paragraphs.len();
                 self.syntax.paragraphs.push(Paragraph {
                     range: range.clone(),
                     item: items.last().copied(),
@@ -243,10 +240,7 @@ impl<'a> Walker<'a> {
                         .blocks
                         .push((BlockKind::Paragraph, range.clone()));
                 }
-                self.push(
-                    Frame::Paragraph { index },
-                    HlNode::new(range, Hl::NONE, false),
-                );
+                self.push(Frame::Paragraph, HlNode::new(range, Hl::NONE, false));
             }
             Tag::Heading { .. } => {
                 let range = trim(doc, range);
@@ -773,23 +767,22 @@ fn link_marks(doc: &str, range: &Span, image: bool, link_type: LinkType) -> Vec<
     };
     let mut marks = vec![open, close..close + 1];
     match link_type {
-        LinkType::Inline => {
+        LinkType::Inline
             if bytes.get(close + 1) == Some(&b'(')
                 && range.end > close + 2
-                && bytes[range.end - 1] == b')'
-            {
-                marks.push(close + 1..close + 2);
-                marks.push(range.end - 1..range.end);
-            }
+                && bytes[range.end - 1] == b')' =>
+        {
+            marks.push(close + 1..close + 2);
+            marks.push(range.end - 1..range.end);
         }
         LinkType::Reference
         | LinkType::Collapsed
         | LinkType::ReferenceUnknown
-        | LinkType::CollapsedUnknown => {
-            if bytes.get(close + 1) == Some(&b'[') && bytes[range.end - 1] == b']' {
-                marks.push(close + 1..close + 2);
-                marks.push(range.end - 1..range.end);
-            }
+        | LinkType::CollapsedUnknown
+            if bytes.get(close + 1) == Some(&b'[') && bytes[range.end - 1] == b']' =>
+        {
+            marks.push(close + 1..close + 2);
+            marks.push(range.end - 1..range.end);
         }
         _ => {}
     }

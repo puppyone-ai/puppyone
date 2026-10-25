@@ -126,6 +126,7 @@ impl EditorView {
         }
     }
 
+    #[cfg(test)]
     pub fn find_marks(&self) -> &FindMarks {
         &self.find
     }

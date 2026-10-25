@@ -10,10 +10,9 @@ use crate::editor::{
         menu::{self, Extras, MenuEvent, Scope, TableMenu, Target},
         operation::{Alignment, Axis, Operation},
     },
-    view::widget::CommandSender,
+    view::widget::{CommandSender, Focuser},
 };
 use gpui::{prelude::*, *};
-use std::rc::Rc;
 
 /// The rendered table's tracks, in block-local coordinates.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -89,7 +88,7 @@ pub struct Frame {
     pub alignments: Vec<Alignment>,
     pub dark: bool,
     pub sender: CommandSender,
-    pub focus_editor: Rc<dyn Fn(&mut Window, &mut App)>,
+    pub focus_editor: Focuser,
 }
 
 #[derive(Default)]
@@ -226,6 +225,10 @@ impl TableUi {
     }
 
     /// Open the table actions at a window position.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the menu target (scope, cell, position, grip) plus GPUI's window and cx"
+    )]
     pub fn open_menu(
         &mut self,
         scope: Scope,

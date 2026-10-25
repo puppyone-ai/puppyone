@@ -166,6 +166,8 @@ pub fn menu_key(selected: usize, key: &str, count: usize) -> (usize, bool, Optio
 }
 
 type OnAction = Rc<dyn Fn(Action, &mut Window, &mut App)>;
+type OnDismiss = Rc<dyn Fn(bool, &mut Window, &mut App)>;
+type OnKey = Rc<dyn Fn(&KeyDownEvent, &mut Window, &mut App)>;
 
 /// The handle (`.desktop-editor-pane-handle-shell` / `-handle`).
 pub fn handle(
@@ -230,8 +232,8 @@ pub fn menu(
     dark: bool,
     pane: Bounds<Pixels>,
     on_action: OnAction,
-    on_dismiss: Rc<dyn Fn(bool, &mut Window, &mut App)>,
-    on_key: Rc<dyn Fn(&KeyDownEvent, &mut Window, &mut App)>,
+    on_dismiss: OnDismiss,
+    on_key: OnKey,
 ) -> Option<AnyElement> {
     if !chrome.open {
         return None;

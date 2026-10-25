@@ -42,13 +42,6 @@ pub fn clickable_cursor() -> gpui::CursorStyle {
 }
 
 /// `--po-control-size` and its derived variants.
-/// Chromium lays a line out with the font's ascent and descent rounded to
-/// whole pixels (Geist: 1.005 and 0.295 em); GPUI keeps the exact metrics.
-/// The vertical offset that puts GPUI's Geist baseline at Chromium's.
-pub fn chromium_baseline(size: f32) -> f32 {
-    let (ascent, descent) = (1.005 * size, 0.295 * size);
-    (ascent.round() - descent.round() - (ascent - descent)) / 2.
-}
 pub fn control() -> f32 {
     ty().control_size
 }
@@ -132,21 +125,15 @@ pub mod metric {
     /// `--po-tree-row-icon-label-gap` to the sidebar row tokens
     /// (`data-workspace/browser.css`), not the shared-ui 8/6 defaults.
     pub const TREE_ROW_CONTENT_LEFT: f32 = SIDEBAR_ROW_CONTENT_LEFT;
-    pub const TREE_ROW_ICON_LABEL_GAP: f32 = SIDEBAR_ICON_LABEL_GAP;
     pub const TREE_ROW_ACTION_SIZE: f32 = 24.;
     /// `.tree-row-actions { right: 4px; gap: 2px }`.
     pub const TREE_ROW_ACTION_INSET: f32 = 4.;
     pub const TREE_ROW_ACTION_GAP: f32 = 2.;
-    /// `--tree-row-action-icon-size`.
-    pub const TREE_ROW_ACTION_ICON: f32 = 15.;
     pub const MENU_RADIUS: f32 = 8.;
     pub const MENU_PADDING: f32 = 4.;
     pub const MENU_ITEM_PADDING_INLINE: f32 = 8.;
     pub const MENU_ITEM_GAP: f32 = 8.;
     pub const MENU_ICON_SLOT: f32 = 18.;
-    /// `.desktop-menu-separator`: 1px plus `margin: 4px 0`
-    /// (`MENU_SEPARATOR_BLOCK_SIZE` in `nodeActions.tsx`).
-    pub const MENU_SEPARATOR_BLOCK: f32 = 9.;
     /// `--desktop-project-menu-spacing` (`.desktop-project-menu` padding).
     pub const PROJECT_MENU_SPACING: f32 = 3.;
     pub const READING_CONTENT_WIDTH: f32 = 724.;

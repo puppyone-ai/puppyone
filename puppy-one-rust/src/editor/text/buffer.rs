@@ -26,9 +26,6 @@ impl Buffer {
     pub fn len(&self) -> usize {
         self.text.len()
     }
-    pub fn is_empty(&self) -> bool {
-        self.text.is_empty()
-    }
     pub fn slice(&self, range: Range<usize>) -> &str {
         &self.text[range]
     }

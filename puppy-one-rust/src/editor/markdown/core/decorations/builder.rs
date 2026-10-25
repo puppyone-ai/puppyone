@@ -109,6 +109,10 @@ pub struct LineDecoration<'b> {
     pub range: Range<usize>,
     /// Plans whose source starts on this line.
     pub plans: &'b [&'b Plan],
+    #[expect(
+        dead_code,
+        reason = "feature context: handed to every feature; none reads it yet"
+    )]
     pub syntax: &'b Syntax,
     pub theme: &'b MarkdownTheme,
     /// The cascade's facts about the line (marker slot, text row).
@@ -119,7 +123,15 @@ pub struct LineDecoration<'b> {
 /// A feature decorating its block (around its widget).
 pub struct BlockDecoration<'b, 'a> {
     pub(super) builder: &'b mut Builder<'a>,
+    #[expect(
+        dead_code,
+        reason = "feature context: handed to every feature; none reads it yet"
+    )]
     pub source: Range<usize>,
+    #[expect(
+        dead_code,
+        reason = "feature context: handed to every feature; none reads it yet"
+    )]
     pub lines: Range<usize>,
 }
 
@@ -127,6 +139,10 @@ impl BlockDecoration<'_, '_> {
     pub fn doc(&self) -> &Buffer {
         self.builder.cx.doc
     }
+    #[expect(
+        dead_code,
+        reason = "feature context: handed to every feature; none reads it yet"
+    )]
     pub fn syntax(&self) -> &Syntax {
         self.builder.cx.syntax
     }

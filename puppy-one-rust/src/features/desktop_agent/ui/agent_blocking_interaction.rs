@@ -99,16 +99,14 @@ impl AgentChat {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Entity<crate::ui::form_input::TextInput> {
-        let input = self
-            .answers
+        self.answers
             .entry(key)
             .or_insert_with(|| {
                 cx.new(|cx| {
                     crate::ui::form_input::TextInput::new(placeholder, false, 8000, window, cx)
                 })
             })
-            .clone();
-        input
+            .clone()
     }
 
     pub(super) fn render_interaction(

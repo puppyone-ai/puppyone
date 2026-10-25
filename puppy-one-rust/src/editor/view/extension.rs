@@ -14,8 +14,16 @@ use crate::editor::text::{
 /// Inputs that decide whether decorations must be rebuilt.
 pub struct DecorateInput<'a> {
     pub state: &'a EditorState,
+    #[expect(
+        dead_code,
+        reason = "extension input; formats track focus through selection_changed today"
+    )]
     pub focused: bool,
     /// A pointer drag is in progress (keeps line boxes stable, like the product).
+    #[expect(
+        dead_code,
+        reason = "extension input; formats track the drag through selection_changed today"
+    )]
     pub pointer_selecting: bool,
     pub dark: bool,
 }

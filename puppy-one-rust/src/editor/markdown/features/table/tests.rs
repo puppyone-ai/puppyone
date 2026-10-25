@@ -12,7 +12,7 @@ use gpui::{Entity, TestAppContext, VisualTestContext};
 
 const TABLE: &str = "| Name | Qty |\n| --- | --: |\n| apple | 3 |\n| pear | 5 |\n";
 
-fn setup<'a>(cx: &'a mut TestAppContext) -> (Entity<EditorView>, &'a mut VisualTestContext) {
+fn setup(cx: &mut TestAppContext) -> (Entity<EditorView>, &mut VisualTestContext) {
     cx.update(|cx| {
         if cx.try_global::<gpui_kit::component::Theme>().is_none() {
             gpui_kit::init(cx);

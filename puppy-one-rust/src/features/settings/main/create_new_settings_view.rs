@@ -55,6 +55,10 @@ fn listed_available(
 }
 
 impl SettingsWorkspaceSurface {
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "one settings row: the entry, its placement and the page's shared inputs"
+    )]
     fn create_row(
         &self,
         entry: Entry,
