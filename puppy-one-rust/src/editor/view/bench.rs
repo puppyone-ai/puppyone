@@ -26,7 +26,7 @@ fn editor_frame_cost() {
     let lines = view.read_with(cx, |v, _| v.state.doc.line_count());
     // A trackpad-like 24px step per frame.
     let mut scroll = Samples(Vec::new());
-    for _ in 0..120 {
+    for _ in 0..bench::frames() {
         view.update(cx, |v, cx| {
             v.scroll_y += 24.;
             cx.notify();

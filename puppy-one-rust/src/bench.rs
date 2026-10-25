@@ -84,6 +84,14 @@ pub fn sections() -> usize {
         .unwrap_or(40)
 }
 
+/// Scroll frames to time (`PUPPYONE_BENCH_FRAMES`; more for profiling).
+pub fn frames() -> usize {
+    std::env::var("PUPPYONE_BENCH_FRAMES")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(120)
+}
+
 pub struct Samples(pub Vec<f64>);
 
 impl Samples {

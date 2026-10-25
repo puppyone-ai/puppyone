@@ -50,7 +50,7 @@ fn window_frame_cost() {
     // Wheel events over the editor, a trackpad-like 24px each.
     let at = point(px(760.), px(420.));
     let mut scroll = Samples(Vec::new());
-    for _ in 0..120 {
+    for _ in 0..bench::frames() {
         let t = Instant::now();
         cx.simulate_event(ScrollWheelEvent {
             position: at,
