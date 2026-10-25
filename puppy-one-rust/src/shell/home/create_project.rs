@@ -96,23 +96,31 @@ impl Shell {
         })
         .detach();
         name.read(cx).focus_handle(cx).focus(window, cx);
-        self.homepage.create = Some(CreateProject {
+        self.modals.open(Modal::CreateProject(CreateProject {
             name,
             location: default_location(),
             choosing: false,
             error: None,
-        });
+        }));
         cx.notify();
     }
-    fn close_create_project(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.homepage.create.take().is_some() {
+    pub(in crate::shell) fn close_create_project(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self
+            .modals
+            .remove(|m| matches!(m, Modal::CreateProject(_)))
+            .is_some()
+        {
             self.focus.focus(window, cx);
             cx.notify();
         }
     }
     /// Browse for another parent folder.
     fn choose_project_location(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(create) = self.homepage.create.as_mut() else {
+        let Some(create) = self.modals.create_project() else {
             return;
         };
         create.choosing = true;
@@ -126,7 +134,7 @@ impl Shell {
         cx.spawn_in(window, async move |this, cx| {
             let result = prompt.await;
             let _ = this.update(cx, |s, cx| {
-                if let Some(create) = s.homepage.create.as_mut() {
+                if let Some(create) = s.modals.create_project() {
                     create.choosing = false;
                     match result {
                         Ok(Ok(Some(paths))) => {
@@ -146,7 +154,7 @@ impl Shell {
         cx.notify();
     }
     fn submit_create_project(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(create) = self.homepage.create.as_mut() else {
+        let Some(create) = self.modals.create_project() else {
             return;
         };
         let Some(location) = create.location.clone() else {
@@ -158,7 +166,7 @@ impl Shell {
             .and_then(|name| create_folder(&location, name));
         match created {
             Ok(path) => {
-                self.homepage.create = None;
+                self.modals.remove(|m| matches!(m, Modal::CreateProject(_)));
                 self.open_project(path, window, cx);
             }
             Err(error) => {
@@ -167,8 +175,11 @@ impl Shell {
             }
         }
     }
-    pub(in crate::shell) fn create_project_dialog(&self, cx: &mut Context<Self>) -> Option<Dialog> {
-        let create = self.homepage.create.as_ref()?;
+    pub(in crate::shell) fn create_project_dialog(
+        &self,
+        create: &CreateProject,
+        cx: &mut Context<Self>,
+    ) -> Dialog {
         let t = cx.palette();
         let ty = theme::ty();
         let host = self.weak.clone();
@@ -196,112 +207,108 @@ impl Shell {
             .as_ref()
             .map(|path| path.display().to_string());
         let can_create = location.is_some() && !create.choosing;
-        Some(
-            Dialog::new("create-project")
-                .width(400.)
-                .inset(24.)
-                .body_padding(10., 22.)
-                .leading(Icon::new("folder-plus").stroke(1.8), t.accent)
-                .title(tr("onboarding.entry.create.title"))
-                .on_close(move |w, cx| {
-                    let _ = host.update(cx, |s, cx| s.close_create_project(w, cx));
-                })
-                .child(
-                    v_flex()
-                        .gap(px(18.))
-                        .child(
-                            Checkbox::new("create-project-template")
-                                .label(tr("onboarding.template.useLink"))
-                                .tooltip(tf(
-                                    "settings.sidebar.notAvailable",
-                                    &[("section", tr("onboarding.template.useLink").into())],
-                                ))
-                                .text_size(px(ty.ui.body))
-                                .line_height(px(18.))
-                                .font_weight(FontWeight::MEDIUM)
-                                .text_color(t.text),
-                        )
-                        .child(
-                            v_flex()
-                                .gap(px(8.))
-                                .child(label("onboarding.entry.create.nameLabel"))
-                                .child(field().px(px(8.)).child(
-                                    div().w_full().text_color(t.text).child(create.name.clone()),
-                                )),
-                        )
-                        .child(
-                            v_flex()
-                                .gap(px(8.))
-                                .child(label("onboarding.entry.create.locationLabel"))
-                                .child(
-                                    field()
-                                        .id("create-project-location")
-                                        .px(px(11.))
-                                        .gap(px(10.))
-                                        .when(!create.choosing, |d| {
-                                            d.cursor(theme::clickable_cursor())
-                                        })
-                                        .on_click(cx.listener(|s, _, w, cx| {
-                                            s.choose_project_location(w, cx)
-                                        }))
-                                        .child(
-                                            Icon::new("folder-open")
-                                                .with_size(px(17.))
-                                                .stroke(1.8)
-                                                .color(t.muted),
-                                        )
-                                        .child(
-                                            div()
-                                                .flex_1()
-                                                .min_w_0()
-                                                .truncate()
-                                                .text_color(if location.is_some() {
-                                                    t.text
-                                                } else {
-                                                    t.subtle
-                                                })
-                                                .child(location.unwrap_or_else(|| {
-                                                    tr("onboarding.entry.create.locationPlaceholder")
-                                                        .into()
-                                                })),
-                                        )
-                                        .child(
-                                            div()
-                                                .flex_shrink_0()
-                                                .text_size(px(ty.ui.meta))
-                                                .font_weight(FontWeight::MEDIUM)
-                                                .text_color(t.muted)
-                                                .child(tr(if create.choosing {
-                                                    "onboarding.entry.create.browsing"
-                                                } else if create.location.is_some() {
-                                                    "onboarding.entry.create.change"
-                                                } else {
-                                                    "onboarding.entry.create.browse"
-                                                })),
-                                        ),
-                                ),
-                        )
-                        .children(create.error.clone().map(|error| {
-                            div()
-                                .text_size(px(ty.ui.meta))
-                                .text_color(t.danger)
-                                .child(error)
-                        })),
-                )
-                .footer(
-                    Button::new("create-project-cancel")
-                        .variant(ButtonVariant::Secondary)
-                        .label(tr("common.action.cancel"))
-                        .on_click(cx.listener(|s, _, w, cx| s.close_create_project(w, cx))),
-                )
-                .footer(
-                    Button::new("create-project-submit")
-                        .variant(ButtonVariant::Solid)
-                        .label(tr("onboarding.entry.create.submit"))
-                        .disabled(!can_create)
-                        .on_click(cx.listener(|s, _, w, cx| s.submit_create_project(w, cx))),
-                ),
-        )
+        Dialog::new("create-project")
+            .width(400.)
+            .inset(24.)
+            .body_padding(10., 22.)
+            .leading(Icon::new("folder-plus").stroke(1.8), t.accent)
+            .title(tr("onboarding.entry.create.title"))
+            .on_close(move |w, cx| {
+                let _ = host.update(cx, |s, cx| s.close_create_project(w, cx));
+            })
+            .child(
+                v_flex()
+                    .gap(px(18.))
+                    .child(
+                        Checkbox::new("create-project-template")
+                            .label(tr("onboarding.template.useLink"))
+                            .tooltip(tf(
+                                "settings.sidebar.notAvailable",
+                                &[("section", tr("onboarding.template.useLink").into())],
+                            ))
+                            .text_size(px(ty.ui.body))
+                            .line_height(px(18.))
+                            .font_weight(FontWeight::MEDIUM)
+                            .text_color(t.text),
+                    )
+                    .child(
+                        v_flex()
+                            .gap(px(8.))
+                            .child(label("onboarding.entry.create.nameLabel"))
+                            .child(field().px(px(8.)).child(
+                                div().w_full().text_color(t.text).child(create.name.clone()),
+                            )),
+                    )
+                    .child(
+                        v_flex()
+                            .gap(px(8.))
+                            .child(label("onboarding.entry.create.locationLabel"))
+                            .child(
+                                field()
+                                    .id("create-project-location")
+                                    .px(px(11.))
+                                    .gap(px(10.))
+                                    .when(!create.choosing, |d| d.cursor(theme::clickable_cursor()))
+                                    .on_click(
+                                        cx.listener(|s, _, w, cx| s.choose_project_location(w, cx)),
+                                    )
+                                    .child(
+                                        Icon::new("folder-open")
+                                            .with_size(px(17.))
+                                            .stroke(1.8)
+                                            .color(t.muted),
+                                    )
+                                    .child(
+                                        div()
+                                            .flex_1()
+                                            .min_w_0()
+                                            .truncate()
+                                            .text_color(if location.is_some() {
+                                                t.text
+                                            } else {
+                                                t.subtle
+                                            })
+                                            .child(location.unwrap_or_else(|| {
+                                                tr("onboarding.entry.create.locationPlaceholder")
+                                                    .into()
+                                            })),
+                                    )
+                                    .child(
+                                        div()
+                                            .flex_shrink_0()
+                                            .text_size(px(ty.ui.meta))
+                                            .font_weight(FontWeight::MEDIUM)
+                                            .text_color(t.muted)
+                                            .child(tr(if create.choosing {
+                                                "onboarding.entry.create.browsing"
+                                            } else if create.location.is_some() {
+                                                "onboarding.entry.create.change"
+                                            } else {
+                                                "onboarding.entry.create.browse"
+                                            })),
+                                    ),
+                            ),
+                    )
+                    .children(create.error.clone().map(|error| {
+                        div()
+                            .text_size(px(ty.ui.meta))
+                            .text_color(t.danger)
+                            .child(error)
+                    })),
+            )
+            .footer(
+                Button::new("create-project-cancel")
+                    .variant(ButtonVariant::Secondary)
+                    .label(tr("common.action.cancel"))
+                    .on_click(cx.listener(|s, _, w, cx| s.close_create_project(w, cx))),
+            )
+            .footer(
+                Button::new("create-project-submit")
+                    .variant(ButtonVariant::Solid)
+                    .label(tr("onboarding.entry.create.submit"))
+                    .disabled(!can_create)
+                    .on_click(cx.listener(|s, _, w, cx| s.submit_create_project(w, cx))),
+            )
     }
 }
 

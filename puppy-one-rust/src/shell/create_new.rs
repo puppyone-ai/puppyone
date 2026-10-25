@@ -40,7 +40,7 @@ impl Shell {
         cx.subscribe_in(&form, window, |s, _, event, w, cx| {
             match event {
                 CreateEvent::Cancel => {
-                    s.create_entry = None;
+                    s.modals.remove(|m| matches!(m, Modal::CreateEntry(_)));
                     s.focus.focus(w, cx)
                 }
                 CreateEvent::Created {
@@ -60,15 +60,13 @@ impl Shell {
                                 s.tree.refresh_children(parent, nodes.clone())
                             }
                             Ok(nodes) => s.tree.attach_children(parent, nodes.clone()),
-                            Err(error) => {
-                                s.error = Some(crate::localization::tf(
-                                    "native.create.refreshFailed",
-                                    &[("error", error.to_string().into())],
-                                ))
-                            }
+                            Err(error) => s.show_error(crate::localization::tf(
+                                "native.create.refreshFailed",
+                                &[("error", error.to_string().into())],
+                            )),
                         }
                         s.tree.select(path, false, false);
-                        s.create_entry = None;
+                        s.modals.remove(|m| matches!(m, Modal::CreateEntry(_)));
                         if !folder && !s.files.allow_quit {
                             s.files.begin(Intent::OpenFile(path.clone()), &s.wake)
                         }
@@ -84,7 +82,7 @@ impl Shell {
             cx.notify();
         })
         .detach();
-        self.create_entry = Some(form);
+        self.modals.open(Modal::CreateEntry(form));
         cx.notify();
     }
 }

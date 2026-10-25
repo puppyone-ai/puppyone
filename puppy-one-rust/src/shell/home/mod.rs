@@ -49,8 +49,6 @@ pub(super) struct Homepage {
     shown: bool,
     /// Activity is being read.
     pub reading: bool,
-    /// The "Create a project" dialog.
-    pub create: Option<CreateProject>,
 }
 
 /// `getProjectName`: the label, else the folder's name.

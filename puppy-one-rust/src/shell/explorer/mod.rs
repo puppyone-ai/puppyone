@@ -26,6 +26,7 @@ pub use keyboard::bind_keys;
 pub(super) use menus::ExplorerMenu;
 #[cfg(any(test, feature = "dev-capture"))]
 pub(super) use menus::{MenuAt, RowTrigger};
+pub(super) use rename::Rename;
 
 /// Explorer state held by the shell.
 pub(super) struct Explorer {
@@ -40,7 +41,6 @@ pub(super) struct Explorer {
     pub queued_op: Option<FileOp>,
     /// The document to reopen at its new path once the operation lands.
     pub reopen: Option<PathBuf>,
-    pub rename: Option<rename::Rename>,
     /// The disclosure motion of the visible rows.
     pub motion: motion::TreeMotion,
 }
@@ -54,7 +54,6 @@ impl Explorer {
             op: None,
             queued_op: None,
             reopen: None,
-            rename: None,
             motion: motion::TreeMotion::default(),
         }
     }

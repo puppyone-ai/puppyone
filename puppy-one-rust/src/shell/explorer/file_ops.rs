@@ -151,14 +151,14 @@ impl Shell {
         for (folder, listing) in outcome.listings {
             match listing {
                 Ok(nodes) => self.tree.refresh_children(&folder, nodes),
-                Err(e) => self.error = Some(e),
+                Err(e) => self.show_error(e),
             }
         }
         if let Some(path) = outcome.select.clone() {
             self.tree.select(&path, false, false);
         }
         if let Some(error) = outcome.error {
-            self.error = Some(tf(
+            self.show_error(tf(
                 "workspace.node.error.operationFailedDetail",
                 &[("detail", error.into())],
             ));

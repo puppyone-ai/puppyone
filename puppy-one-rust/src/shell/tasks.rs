@@ -167,6 +167,7 @@ impl Shell {
     }
     pub(super) fn create_entry_view(
         &self,
+        form: Entity<crate::features::create_new::create_entry_dialog::CreateEntryDialog>,
         w: f32,
         h: f32,
         cx: &mut Context<Self>,
@@ -177,8 +178,7 @@ impl Shell {
             Rect::new((w - width) / 2., (h - height) / 2., width, height),
             cx,
         );
-        self.dialog_host(cx)
-            .popup(card.child(self.create_entry.clone().unwrap()))
+        self.dialog_host(cx).popup(card.child(form))
     }
     /// The Help & feedback task: message, screenshot hint and contact. A
     /// backdrop press keeps the draft; Escape and Close discard it.

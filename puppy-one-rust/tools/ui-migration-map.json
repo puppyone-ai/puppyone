@@ -700,10 +700,12 @@
         "src/ui/components/dialog.rs",
         "src/ui/components/menu.rs",
         "src/shell/tasks.rs",
+        "src/shell/modals.rs",
         "src/geometry.rs"
       ],
       "evidence": [
-        "test:kit_dialog_tab_order_keeps_focus_inside_feedback"
+        "test:kit_dialog_tab_order_keeps_focus_inside_feedback",
+        "test:escape_answers_the_topmost_dialog"
       ],
       "remaining": "Dialogs and tooltips use GPUI Kit with product tokens. Scrollbar activity fading (ScrollbarActivity) is not ported."
     },

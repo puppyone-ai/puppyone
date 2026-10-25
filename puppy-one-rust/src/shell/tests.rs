@@ -101,7 +101,7 @@ fn native_buttons_toggle_slots_and_open_settings(cx: &mut TestAppContext) {
     command(&view, cx, Command::ToggleRightSidebar);
     view.update(cx, |s, _| assert!(s.panes.right().open));
     command(&view, cx, Command::Settings);
-    view.update(cx, |s, _| assert!(s.settings));
+    view.update(cx, |s, _| assert_eq!(s.modals.task(), Some(Task::Settings)));
     let retained = view.update(cx, |s, cx| {
         s.task_ui.settings.update(cx, |s, cx| {
             s.select_page(crate::features::settings::Page::ModelConnections, cx)
@@ -157,15 +157,41 @@ fn task_shortcuts_do_not_save_or_close_the_retained_document(cx: &mut TestAppCon
     command(&view, cx, Command::Settings);
     cx.simulate_keystrokes("cmd-s");
     view.update(cx, |s, _| {
-        assert!(s.settings);
+        assert_eq!(s.modals.task(), Some(Task::Settings));
         assert!(matches!(s.files.phase, Phase::Idle));
         assert!(s.files.outgoing.is_empty());
     });
     cx.simulate_keystrokes("cmd-w");
     view.update(cx, |s, _| {
-        assert!(!s.settings);
+        assert_eq!(s.modals.task(), None);
         assert!(!s.files.allow_quit);
     });
+}
+#[gpui::test]
+fn escape_answers_the_topmost_dialog(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    command(&view, cx, Command::Settings);
+    view.update(cx, |s, cx| {
+        s.show_error("first");
+        s.show_error("second");
+        s.files.error = Some("save failed".into());
+        cx.notify();
+    });
+    draw(cx);
+    // The Documents error sits above the layer, then the newest notice
+    // (which replaced the first), then Settings.
+    command(&view, cx, Command::Escape);
+    view.update(cx, |s, _| {
+        assert!(s.files.error.is_none());
+        assert!(matches!(s.modals.top(), Some(Modal::Error(e)) if e == "second"));
+    });
+    command(&view, cx, Command::Escape);
+    view.update(cx, |s, _| {
+        assert_eq!(s.modals.task(), Some(Task::Settings));
+        assert!(matches!(s.modals.top(), Some(Modal::Task(_))));
+    });
+    command(&view, cx, Command::Escape);
+    view.update(cx, |s, _| assert!(!s.modal()));
 }
 #[gpui::test]
 fn feedback_backdrop_keeps_draft_and_escape_resets_it(cx: &mut TestAppContext) {
@@ -177,12 +203,12 @@ fn feedback_backdrop_keeps_draft_and_escape_resets_it(cx: &mut TestAppContext) {
     });
     cx.simulate_click(point(px(2.), px(100.)), Modifiers::none());
     view.update(cx, |s, cx| {
-        assert!(s.help);
+        assert_eq!(s.modals.task(), Some(Task::Feedback));
         assert_eq!(s.task_ui.message.read(cx).text(), "draft 中🐶");
     });
     cx.simulate_keystrokes("escape");
     view.update(cx, |s, cx| {
-        assert!(!s.help);
+        assert_eq!(s.modals.task(), None);
         assert!(s.task_ui.message.read(cx).text().is_empty());
         assert!(s.task_ui.email.read(cx).text().is_empty());
     });
@@ -286,10 +312,10 @@ fn rename_dialog_focuses_its_name_and_escape_cancels(cx: &mut TestAppContext) {
         s.begin_rename(path, false, w, cx);
     });
     draw(cx);
-    view.update(cx, |s, _| assert!(s.explorer.rename.is_some() && s.modal()));
+    view.update(cx, |s, _| assert!(s.modals.rename().is_some() && s.modal()));
     cx.simulate_keystrokes("escape");
     view.update_in(cx, |s, w, _| {
-        assert!(s.explorer.rename.is_none());
+        assert!(s.modals.rename().is_none());
         assert!(s.focus.is_focused(w));
     });
 }
@@ -339,7 +365,7 @@ fn opening_settings_dismisses_popup_without_document_transition(cx: &mut TestApp
     command(&view, cx, Command::ProjectMenu);
     command(&view, cx, Command::Settings);
     view.update(cx, |s, _| {
-        assert!(s.settings);
+        assert_eq!(s.modals.task(), Some(Task::Settings));
         assert!(s.popover.is_none());
         assert!(matches!(s.files.phase, Phase::Idle));
         assert!(s.files.outgoing.is_empty());

@@ -45,7 +45,7 @@ impl Shell {
                             "settings",
                             "settings-compact",
                             "shell.navigation.settings",
-                            self.settings,
+                            self.modals.task() == Some(Task::Settings),
                         )
                         .on_click(cx.listener(|s, _, w, cx| s.command(Command::Settings, w, cx))),
                     )
@@ -54,7 +54,7 @@ impl Shell {
                             "feedback",
                             "feedback-help",
                             "shell.feedback.label",
-                            self.help,
+                            self.modals.task() == Some(Task::Feedback),
                         )
                         .on_click(cx.listener(|s, _, w, cx| s.command(Command::Feedback, w, cx))),
                     ),

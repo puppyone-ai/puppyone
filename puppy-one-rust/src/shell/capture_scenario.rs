@@ -211,7 +211,7 @@ impl Shell {
             }
             Step::CreateProject(name) => {
                 self.begin_create_project(window, cx);
-                if let Some(create) = &self.homepage.create {
+                if let Some(create) = self.modals.create_project() {
                     let name = name.clone();
                     create.name.update(cx, |input, cx| input.set_text(name, cx));
                 }

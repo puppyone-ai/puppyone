@@ -20,12 +20,14 @@ mod create_new;
 mod explorer;
 mod header;
 mod home;
+mod modals;
 mod panes;
 mod project_menu;
 pub(crate) mod tasks;
 use command::on_shell_actions;
 pub use command::{Command, app_menus, bind_keys, on_global_shell_actions};
 use explorer::Explorer;
+use modals::{Modal, Modals, Task};
 use panes::{Layout, Panes, RightContent, Side, StoredPanes};
 use tasks::TaskUi;
 /// Header popovers owned by the shell.
@@ -44,11 +46,10 @@ pub struct Shell {
     /// The project rail (`ProjectSwitcherRail`) replaces the Header's project
     /// button.
     rail: bool,
-    settings: bool,
-    help: bool,
+    /// Window dialogs, bottom to top.
+    modals: Modals,
     workbench: Entity<crate::features::workbench::Workbench>,
     source_control: Entity<crate::features::source_control::SourceControl>,
-    confirm_quit: bool,
     popover: Option<Popover>,
     /// Homepage requested from the project menu (`goToHomepage`).
     home: bool,
@@ -56,11 +57,8 @@ pub struct Shell {
     weak: WeakEntity<Shell>,
     explorer: Explorer,
     homepage: home::Homepage,
-    create_entry:
-        Option<Entity<crate::features::create_new::create_entry_dialog::CreateEntryDialog>>,
     task_ui: TaskUi,
     preferences: Entity<crate::features::settings::preferences_store::PreferencesStore>,
-    error: Option<String>,
     pending: bool,
     files: Documents,
     native: Entity<crate::editor::host::DocumentEditor>,
@@ -117,7 +115,7 @@ impl Shell {
             weak.update(cx, |s, cx| {
                 if s.files.allow_quit
                     && s.preferences.read(cx).drained()
-                    && !s.create_entry.as_ref().is_some_and(|f| f.read(cx).busy())
+                    && !s.modals.create_entry().is_some_and(|f| f.read(cx).busy())
                 {
                     true
                 } else {
@@ -182,22 +180,18 @@ impl Shell {
                 },
             ),
             rail: false,
-            settings: std::env::var("PUPPYONE_CAPTURE_SURFACE").as_deref() == Ok("settings"),
-            help: std::env::var("PUPPYONE_CAPTURE_SURFACE").as_deref() == Ok("feedback"),
+            modals: Default::default(),
             workbench: cx.new(|cx| crate::features::workbench::Workbench::new(window, cx)),
             source_control: cx
                 .new(|cx| crate::features::source_control::SourceControl::new(window, cx)),
-            confirm_quit: false,
             popover: None,
             home: false,
             recent_projects: vec![],
             weak: cx.weak_entity(),
             explorer: Explorer::new(cx),
             homepage: Default::default(),
-            create_entry: None,
             task_ui: TaskUi::new(preferences.clone(), window, cx),
             preferences,
-            error: None,
             pending: false,
             files: Documents::default(),
             native: cx.new(crate::editor::host::DocumentEditor::new),
@@ -224,6 +218,12 @@ impl Shell {
             #[cfg(test)]
             frames: 0,
         };
+        // Captures can start on a task dialog.
+        match std::env::var("PUPPYONE_CAPTURE_SURFACE").as_deref() {
+            Ok("settings") => s.modals.open(Modal::Task(Task::Settings)),
+            Ok("feedback") => s.modals.open(Modal::Task(Task::Feedback)),
+            _ => {}
+        }
         cx.subscribe_in(
             &s.preferences,
             window,
@@ -348,7 +348,7 @@ impl Shell {
             } else if !arg.to_string_lossy().starts_with('-') && workspace.is_none() {
                 workspace = Some(PathBuf::from(arg));
             } else {
-                s.error = Some(crate::localization::t("native.usage").into());
+                s.show_error(crate::localization::t("native.usage"));
             }
         }
         #[cfg(feature = "dev-capture")]
@@ -440,15 +440,39 @@ impl Shell {
         }
         cx.notify();
     }
+    /// A dialog takes the window: the modal layer, or the Documents error.
     fn modal(&self) -> bool {
-        self.explorer.rename.is_some()
-            || self.homepage.create.is_some()
-            || self.create_entry.is_some()
-            || self.settings
-            || self.help
-            || self.confirm_quit
-            || self.error.is_some()
-            || self.files.error.is_some()
+        !self.modals.is_empty() || self.files.error.is_some()
+    }
+    /// A notice over everything else; a later one replaces it.
+    fn show_error(&mut self, error: impl Into<String>) {
+        self.modals.open(Modal::Error(error.into()));
+    }
+    /// Escape on the topmost dialog, each with its own cancel: the Documents
+    /// error, then the top of the modal layer. Creating an entry is not
+    /// abandoned midway.
+    fn dismiss_modal(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.files.error.take().is_some() {
+            return;
+        }
+        match self.modals.top() {
+            Some(Modal::Task(_)) => self.close_tasks(window, cx),
+            Some(Modal::CreateEntry(form)) => {
+                if !form.read(cx).busy() {
+                    self.modals.remove(|m| matches!(m, Modal::CreateEntry(_)));
+                    self.focus.focus(window, cx);
+                }
+            }
+            Some(Modal::CreateProject(_)) => self.close_create_project(window, cx),
+            Some(Modal::Rename(_)) => self.cancel_rename(window, cx),
+            Some(Modal::ConfirmQuit) => {
+                self.modals.remove(|m| matches!(m, Modal::ConfirmQuit));
+            }
+            Some(Modal::Error(_)) => {
+                self.modals.remove(|m| matches!(m, Modal::Error(_)));
+            }
+            None => {}
+        }
     }
     fn pick_workspace(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.pending || self.files.busy() {
@@ -471,8 +495,8 @@ impl Shell {
                             s.files.begin(Intent::OpenFolder(path), &s.wake);
                         }
                     }
-                    Ok(Err(e)) => s.error = Some(e.to_string()),
-                    Err(e) => s.error = Some(e.to_string()),
+                    Ok(Err(e)) => s.show_error(e.to_string()),
+                    Err(e) => s.show_error(e.to_string()),
                     _ => {}
                 }
                 s.receive(w, cx);
@@ -482,48 +506,54 @@ impl Shell {
         .detach();
     }
     pub fn command(&mut self, command: Command, window: &mut Window, cx: &mut Context<Self>) {
-        if command == Command::Quit && self.workbench.read(cx).has_running(cx) {
-            self.confirm_quit = true;
-            self.focus.focus(window, cx);
-            cx.notify();
-            return;
-        }
-        if command == Command::QuitWithProcesses {
-            self.confirm_quit = false;
-            self.files.begin(Intent::Quit, &self.wake);
-            self.receive(window, cx);
-            cx.notify();
-            return;
-        }
-        if command == Command::CancelProcessQuit {
-            self.confirm_quit = false;
-            cx.notify();
-            return;
-        }
-        if self.create_entry.is_some() && matches!(command, Command::CloseFile | Command::Escape) {
-            if self
-                .create_entry
-                .as_ref()
-                .is_some_and(|e| e.read(cx).busy())
-            {
+        match command {
+            Command::Quit if self.workbench.read(cx).has_running(cx) => {
+                self.modals.open(Modal::ConfirmQuit);
+                self.focus.focus(window, cx);
+                cx.notify();
                 return;
             }
-            self.create_entry = None;
-            self.focus.focus(window, cx);
-            cx.notify();
-            return;
+            Command::QuitWithProcesses => {
+                self.modals.remove(|m| matches!(m, Modal::ConfirmQuit));
+                self.files.begin(Intent::Quit, &self.wake);
+                self.receive(window, cx);
+                cx.notify();
+                return;
+            }
+            Command::CancelProcessQuit => {
+                self.modals.remove(|m| matches!(m, Modal::ConfirmQuit));
+                cx.notify();
+                return;
+            }
+            // Escape answers the topmost dialog; ⌘W closes a window task
+            // (Settings, Help, Create entry) on top instead of the file.
+            Command::Escape if self.modal() => {
+                self.dismiss_modal(window, cx);
+                self.receive(window, cx);
+                cx.notify();
+                return;
+            }
+            Command::CloseFile
+                if matches!(
+                    self.modals.top(),
+                    Some(Modal::Task(_) | Modal::CreateEntry(_))
+                ) =>
+            {
+                self.dismiss_modal(window, cx);
+                self.receive(window, cx);
+                cx.notify();
+                return;
+            }
+            _ => {}
         }
-        if self.settings || self.help {
+        // While a task dialog is open the shell's other commands wait;
+        // ⌘, toggles Settings (from Help, it switches and drops the draft).
+        if let Some(task) = self.modals.task() {
             match command {
-                Command::CloseFile | Command::Escape => {
-                    self.close_tasks(window, cx);
-                }
+                Command::Settings if task == Task::Settings => self.close_tasks(window, cx),
                 Command::Settings => {
-                    if self.help {
-                        self.task_ui.clear(cx);
-                    }
-                    self.help = false;
-                    self.settings = !self.settings;
+                    self.task_ui.clear(cx);
+                    self.modals.open(Modal::Task(Task::Settings));
                     self.focus.focus(window, cx);
                 }
                 Command::Quit => self.files.begin(Intent::Quit, &self.wake),
@@ -558,10 +588,10 @@ impl Shell {
                     match ws.absolute(relative) {
                         Ok(path) => {
                             if let Err(e) = crate::platform::desktop::open(&path) {
-                                self.error = Some(e);
+                                self.show_error(e);
                             }
                         }
-                        Err(e) => self.error = Some(e),
+                        Err(e) => self.show_error(e),
                     }
                 }
             }
@@ -575,13 +605,13 @@ impl Shell {
             Command::Settings => {
                 self.popover = None;
                 self.explorer.menu = None;
-                self.settings = true;
+                self.modals.open(Modal::Task(Task::Settings));
                 self.modal_focus.focus(window, cx);
             }
             Command::Feedback => {
                 self.popover = None;
                 self.explorer.menu = None;
-                self.help = true;
+                self.modals.open(Modal::Task(Task::Feedback));
                 self.task_ui.message.focus_handle(cx).focus(window, cx);
             }
             Command::ProjectMenu => {
@@ -604,22 +634,13 @@ impl Shell {
                 self.explorer.menu = None;
                 self.home = true;
             }
+            // With no dialog open, Escape closes a menu.
             Command::Escape => {
-                if self.explorer.rename.is_some() {
-                    self.cancel_rename(window, cx);
-                } else if self.homepage.create.is_some() {
-                    self.homepage.create = None;
-                    self.focus.focus(window, cx);
-                } else if self.explorer.menu.is_some() {
+                if self.explorer.menu.is_some() {
                     self.explorer.menu = None;
                 } else if self.popover.is_some() {
                     self.popover = None;
                     self.project_focus.focus(window, cx);
-                } else if self.confirm_quit {
-                    self.confirm_quit = false;
-                } else if self.error.is_some() || self.files.error.is_some() {
-                    self.error = None;
-                    self.files.error = None;
                 }
             }
             Command::ToggleMarkdownSource => {
@@ -629,7 +650,7 @@ impl Shell {
                 }
             }
             Command::ClearError => {
-                self.error = None;
+                self.modals.remove(|m| matches!(m, Modal::Error(_)));
                 self.files.error = None;
             }
             Command::Changes => {
@@ -646,12 +667,12 @@ impl Shell {
         self.receive(window, cx);
         cx.notify();
     }
+    /// Closes Settings or Help; Help's draft goes with it.
     fn close_tasks(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.help {
+        if self.modals.task() == Some(Task::Feedback) {
             self.task_ui.clear(cx);
         }
-        self.settings = false;
-        self.help = false;
+        self.modals.remove(|m| matches!(m, Modal::Task(_)));
         self.focus.focus(window, cx);
     }
     fn receive(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -681,7 +702,7 @@ impl Shell {
             self.explorer.scroll = UniformListScrollHandle::new();
             self.explorer.menu = None;
             self.fixture = false;
-            self.error = None;
+            self.modals.remove(|m| matches!(m, Modal::Error(_)));
             self.home = false;
             self.explorer.clipboard = None;
             let opened = ws.path.clone();
@@ -715,15 +736,15 @@ impl Shell {
         self.sync_editor(window, cx);
         if self.files.allow_quit
             && self
-                .create_entry
-                .as_ref()
+                .modals
+                .create_entry()
                 .is_some_and(|f| f.read(cx).busy())
         {
             return;
         }
         if self.files.allow_quit && !self.preferences.read(cx).drained() {
-            if let Some(error) = &self.preferences.read(cx).error {
-                self.error = Some(error.clone());
+            if let Some(error) = self.preferences.read(cx).error.clone() {
+                self.show_error(error);
                 self.files.allow_quit = false;
             }
             return;
@@ -1028,7 +1049,7 @@ impl Render for Shell {
             let geometry = serde_json::json!({"framework":"GPUI","header":rect(self.layout.header),"explorer":rect(self.layout.explorer),"footer":rect(self.layout.footer),"editor":rect(self.layout.editor),"auxiliary":rect(self.layout.auxiliary),"pixelsPerPoint":window.scale_factor()});
             if let Err(error) = crate::capture::schedule(window, cx, PathBuf::from(path), geometry)
             {
-                self.error = Some(error.to_string());
+                self.show_error(error.to_string());
             }
         }
         let t = cx.palette();
@@ -1101,50 +1122,66 @@ impl Render for Shell {
                 root = root.child(self.collapsed_right_edge(w, cx));
             }
         }
-        root = root.children(self.rename_dialog(cx));
-        root = root.children(self.create_project_dialog(cx));
-        if self.create_entry.is_some() {
-            root = root.child(self.create_entry_view(w, h, cx));
+        root.children(self.modal_layer(w, h, cx))
+    }
+}
+impl Shell {
+    /// The modal layer, bottom to top, with the Documents error above it.
+    fn modal_layer(&self, w: f32, h: f32, cx: &mut Context<Self>) -> Vec<AnyElement> {
+        use crate::localization::t as tr;
+        let error = |shell: &Self, message: &str, cx: &mut Context<Self>| {
+            shell
+                .simple_modal(
+                    tr("native.error.title"),
+                    message,
+                    vec![(
+                        tr("common.action.close"),
+                        Command::ClearError,
+                        ButtonVariant::Solid,
+                    )],
+                    cx,
+                )
+                .into_any_element()
+        };
+        let mut layer: Vec<AnyElement> = self
+            .modals
+            .iter()
+            .map(|modal| match modal {
+                Modal::Task(Task::Settings) => self.settings_view(w, h, cx).into_any_element(),
+                Modal::Task(Task::Feedback) => self.feedback_view(w, cx).into_any_element(),
+                Modal::CreateEntry(form) => self
+                    .create_entry_view(form.clone(), w, h, cx)
+                    .into_any_element(),
+                Modal::CreateProject(create) => {
+                    self.create_project_dialog(create, cx).into_any_element()
+                }
+                Modal::Rename(rename) => self.rename_dialog(rename, cx).into_any_element(),
+                Modal::ConfirmQuit => self
+                    .simple_modal(
+                        tr("native.quit.title"),
+                        tr("native.quit.detail"),
+                        vec![
+                            (
+                                tr("native.quit.cancel"),
+                                Command::CancelProcessQuit,
+                                ButtonVariant::Secondary,
+                            ),
+                            (
+                                tr("native.quit.confirm"),
+                                Command::QuitWithProcesses,
+                                ButtonVariant::SolidDanger,
+                            ),
+                        ],
+                        cx,
+                    )
+                    .into_any_element(),
+                Modal::Error(message) => error(self, message, cx),
+            })
+            .collect();
+        if let Some(message) = &self.files.error {
+            layer.push(error(self, message, cx));
         }
-        if self.settings {
-            root = root.child(self.settings_view(w, h, cx));
-        }
-        if self.help {
-            root = root.child(self.feedback_view(w, cx));
-        }
-        if self.confirm_quit {
-            use crate::localization::t as tr;
-            root = root.child(self.simple_modal(
-                tr("native.quit.title"),
-                tr("native.quit.detail"),
-                vec![
-                    (
-                        tr("native.quit.cancel"),
-                        Command::CancelProcessQuit,
-                        ButtonVariant::Secondary,
-                    ),
-                    (
-                        tr("native.quit.confirm"),
-                        Command::QuitWithProcesses,
-                        ButtonVariant::SolidDanger,
-                    ),
-                ],
-                cx,
-            ));
-        }
-        if let Some(error) = self.error.clone().or_else(|| self.files.error.clone()) {
-            root = root.child(self.simple_modal(
-                crate::localization::t("native.error.title"),
-                &error,
-                vec![(
-                    crate::localization::t("common.action.close"),
-                    Command::ClearError,
-                    ButtonVariant::Solid,
-                )],
-                cx,
-            ));
-        }
-        root
+        layer
     }
 }
 

@@ -424,7 +424,7 @@ impl Shell {
                     .icon("external-link")
                     .on_click(act(Box::new(move |s, _, _| {
                         if let Err(e) = crate::platform::desktop::open(&path) {
-                            s.error = Some(e)
+                            s.show_error(e)
                         }
                     }))),
             ));
@@ -436,7 +436,7 @@ impl Shell {
                     .icon("folder-open")
                     .on_click(act(Box::new(move |s, _, _| {
                         if let Err(e) = crate::platform::desktop::reveal(&reveal) {
-                            s.error = Some(e)
+                            s.show_error(e)
                         }
                     }))),
             ));
