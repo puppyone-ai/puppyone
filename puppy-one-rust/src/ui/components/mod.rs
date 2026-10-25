@@ -12,6 +12,7 @@ mod dialog;
 mod icon;
 pub(crate) mod menu;
 mod popover;
+mod resize_handle;
 mod segmented;
 mod select;
 mod settings;
@@ -25,6 +26,7 @@ pub use dialog::Dialog;
 pub use icon::{FileIcon, Icon};
 pub use menu::{Menu, MenuItem, MenuRow, MenuVariant};
 pub use popover::{AnchoredMenu, PopoverMenu};
+pub use resize_handle::ResizeHandle;
 pub use segmented::{Segment, SegmentLayout, SegmentedControl};
 pub use select::{Select, SelectOption};
 pub use settings::{

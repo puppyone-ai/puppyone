@@ -7,7 +7,7 @@ use crate::{
     ui::{
         self,
         appearance::ActiveAppearance,
-        components::{ButtonVariant, IconButton},
+        components::{ButtonVariant, IconButton, ResizeHandle},
     },
     wake::Wake,
 };
@@ -898,7 +898,8 @@ impl Shell {
     /// transparent hit lane whose only paint is the 1px divider — the
     /// Explorer's own last column, the right sidebar's first — plus the
     /// adjacent hover / active stroke (and ring while dragging).
-    fn sash(&self, left: bool, cx: &mut Context<Self>) -> Stateful<Div> {
+    fn sash(&self, left: bool, cx: &mut Context<Self>) -> ResizeHandle {
+        use gpui_kit::base::Disableable as _;
         let t = cx.palette();
         // The frames' edges, also mid-motion: the main pane follows them.
         let x = if left {
@@ -907,7 +908,6 @@ impl Shell {
             self.layout.editor.right()
         };
         let side = if left { Side::Start } else { Side::End };
-        let resizing = self.drag.is_some_and(|d| d.config.side == side);
         // A pane that is closing (or previewing closed) keeps its edge
         // painted but cannot be grabbed (`onPointerDown` while collapsed).
         let grabbable = if left {
@@ -915,86 +915,44 @@ impl Shell {
         } else {
             self.right_open
         };
-        let group = SharedString::from(if left { "left-sash" } else { "right-sash" });
-        let hover = theme::mix(t.focus, t.divider, 0.55);
-        at(Rect::new(
-            x,
-            self.layout.editor.y,
-            theme::metric::PANE_SASH,
-            self.layout.editor.h,
-        ))
-        .id(group.clone())
-        .group(group.clone())
-        .when(grabbable || resizing, |d| {
-            d.cursor(CursorStyle::ResizeLeftRight).on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |s, e: &MouseDownEvent, _, cx| {
-                    s.begin_pane_drag(side, e.position, cx)
-                }),
-            )
-        })
-        .child(
-            div()
-                .absolute()
-                .top_0()
-                .bottom_0()
-                .left_0()
-                .w(px(1.))
-                .bg(t.sidebar_divider),
+        ResizeHandle::new(
+            if left { "left-sash" } else { "right-sash" },
+            Axis::Horizontal,
         )
-        .child(
-            div()
-                .absolute()
-                .top_0()
-                .bottom_0()
-                .left(px(1.))
-                .w(px(1.))
-                .when(resizing, |d| {
-                    d.bg(t.focus).shadow(vec![BoxShadow {
-                        inset: false,
-                        color: theme::alpha(t.focus, 0.24).into(),
-                        offset: point(px(0.), px(0.)),
-                        blur_radius: px(0.),
-                        spread_radius: px(1.),
-                    }])
-                })
-                .when(!resizing && grabbable, |d| {
-                    d.group_hover(group, move |s| s.bg(hover))
-                }),
+        .divider(t.sidebar_divider)
+        .stroke_at(1.)
+        .resizing(self.drag.is_some_and(|d| d.config.side == side))
+        .disabled(!grabbable)
+        .on_drag_start(
+            cx.listener(move |s, e: &MouseDownEvent, _, cx| {
+                s.begin_pane_drag(side, e.position, cx)
+            }),
         )
-        .into_element()
+        .absolute()
+        .left(px(x))
+        .top(px(self.layout.editor.y))
+        .w(px(theme::metric::PANE_SASH))
+        .h(px(self.layout.editor.h))
     }
     /// `.po-collapsed-pane-edge-handle--inline-end`: a closed right
     /// sidebar keeps a 12px lane at the window edge to pull it back out,
     /// marked by a faint line that firms up on hover.
-    fn collapsed_right_edge(&self, w: f32, cx: &mut Context<Self>) -> Stateful<Div> {
+    fn collapsed_right_edge(&self, w: f32, cx: &mut Context<Self>) -> ResizeHandle {
         let t = cx.palette();
         let lane = theme::pane::COLLAPSED_EDGE_HIT;
-        at(Rect::new(
-            w - lane,
-            self.layout.editor.y,
-            lane,
-            self.layout.editor.h,
-        ))
-        .id("right-collapsed-edge")
-        .group("right-collapsed-edge")
-        .cursor(CursorStyle::ResizeLeft)
-        .on_mouse_down(
-            MouseButton::Left,
-            cx.listener(|s, e: &MouseDownEvent, _, cx| {
+        ResizeHandle::new("right-collapsed-edge", Axis::Horizontal)
+            .stroke_at(lane - 1.)
+            .rest(theme::alpha(t.shell_divider, 0.72))
+            .hover(t.border_strong)
+            .cursor(CursorStyle::ResizeLeft)
+            .on_drag_start(cx.listener(|s, e: &MouseDownEvent, _, cx| {
                 s.begin_pane_drag(Side::End, e.position, cx)
-            }),
-        )
-        .child(
-            div()
-                .absolute()
-                .top_0()
-                .bottom_0()
-                .right_0()
-                .w(px(1.))
-                .bg(theme::alpha(t.shell_divider, 0.72))
-                .group_hover("right-collapsed-edge", move |s| s.bg(t.border_strong)),
-        )
+            }))
+            .absolute()
+            .left(px(w - lane))
+            .top(px(self.layout.editor.y))
+            .w(px(lane))
+            .h(px(self.layout.editor.h))
     }
     /// Start dragging a pane edge (`useCollapsiblePaneResize`).
     fn begin_pane_drag(&mut self, side: Side, position: Point<Pixels>, cx: &mut Context<Self>) {

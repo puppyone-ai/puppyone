@@ -3,8 +3,9 @@
 //! `gallery-dialog-<mode>` for the dialog over its backdrop).
 use super::components::{
     Button, ButtonVariant, Dialog, Icon, IconButton, Menu, MenuItem, MenuVariant, MutedRow,
-    RowActionButton, RowVariant, SectionHeader, Segment, SegmentedControl, Select, SelectOption,
-    SettingRow, SettingsSubsection, SidebarGroup, SidebarRow, Spinner, Switch, ValueRow,
+    ResizeHandle, RowActionButton, RowVariant, SectionHeader, Segment, SegmentedControl, Select,
+    SelectOption, SettingRow, SettingsSubsection, SidebarGroup, SidebarRow, Spinner, Switch,
+    ValueRow,
 };
 use crate::ui::appearance::ActiveAppearance;
 use gpui::{prelude::*, *};
@@ -38,6 +39,47 @@ fn row() -> Div {
     div().flex().items_center().flex_wrap().gap(px(10.))
 }
 fn noop(_: &ClickEvent, _: &mut Window, _: &mut App) {}
+/// A pane edge, a workbench split, an edge being dragged and a closed
+/// pane's edge lane, each between two 48px panes.
+fn resize_handles(t: crate::theme::Theme) -> Vec<Div> {
+    let lane = crate::theme::metric::PANE_SASH;
+    let edge = |id: &'static str| {
+        ResizeHandle::new(id, Axis::Horizontal)
+            .divider(t.sidebar_divider)
+            .stroke_at(1.)
+    };
+    let collapsed = crate::theme::pane::COLLAPSED_EDGE_HIT;
+    [
+        (edge("rh-edge"), lane),
+        (
+            ResizeHandle::new("rh-split", Axis::Horizontal)
+                .stroke_at((lane - 1.) / 2.)
+                .rest(t.divider),
+            lane,
+        ),
+        (edge("rh-dragged").resizing(true), lane),
+        (
+            ResizeHandle::new("rh-collapsed", Axis::Horizontal)
+                .stroke_at(collapsed - 1.)
+                .rest(crate::theme::alpha(t.shell_divider, 0.72))
+                .hover(t.border_strong)
+                .cursor(CursorStyle::ResizeLeft),
+            collapsed,
+        ),
+    ]
+    .into_iter()
+    .map(|(handle, width)| {
+        div().relative().w(px(96.)).h(px(56.)).bg(t.sidebar).child(
+            handle
+                .absolute()
+                .top_0()
+                .left(px(48. - 1.))
+                .w(px(width))
+                .h_full(),
+        )
+    })
+    .collect()
+}
 impl Render for Gallery {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let t = cx.palette();
@@ -222,6 +264,10 @@ impl Render for Gallery {
                         ]
                     }))
                     .child(Spinner::new("spin", t.border, t.accent)),
+            ))
+            .child(section(
+                "ResizeHandle · pane edge · split · dragged · collapsed edge",
+                row().children(resize_handles(t)),
             ))
             .child(
                 div()

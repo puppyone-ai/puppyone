@@ -147,6 +147,7 @@ pub mod metric {
     pub const TASK_DIALOG_INSET: f32 = 32.;
     pub const TASK_DIALOG_RADIUS: f32 = 14.;
     pub const DIALOG_RADIUS: f32 = 12.;
+    /// `--po-pane-resizer-hit-size`: the hit lane of a pane edge or split.
     pub const PANE_SASH: f32 = 8.;
     pub const SWITCH_WIDTH: f32 = 34.;
     pub const SWITCH_HEIGHT: f32 = 20.;
@@ -351,6 +352,12 @@ pub struct Theme {
     pub focus: Rgba,
     pub focus_ring: Rgba,
     pub selection: Rgba,
+    /// `--po-pane-resizer-hover-color`: a pane edge or split under the pointer.
+    pub pane_resizer_hover: Rgba,
+    /// `--po-pane-resizer-active-color` and `--po-pane-resizer-active-ring`:
+    /// the stroke and its 1px ring while it is dragged.
+    pub pane_resizer_active: Rgba,
+    pub pane_resizer_ring: Rgba,
     // Status.
     pub accent: Rgba,
     pub accent_text: Rgba,
@@ -481,6 +488,9 @@ impl Theme {
         let header = c("header");
         let scrollbar = c("scrollbar-thumb");
         let scrollbar_hover = c("scrollbar-thumb-hover");
+        let divider = c("divider");
+        // --po-pane-resizer-blue: light-dark(#3b82f6, #60a5fa)
+        let resizer = if dark { rgb(0x60a5fa) } else { rgb(0x3b82f6) };
         let ansi_names = [
             "black", "red", "green", "yellow", "blue", "magenta", "cyan", "white",
         ];
@@ -517,7 +527,7 @@ impl Theme {
             border: c("border"),
             border_subtle: c("border-subtle"),
             border_strong: c("border-strong"),
-            divider: c("divider"),
+            divider,
             shell_divider: alpha(text, 0.10),
             sidebar_divider: alpha(text, 0.075),
             guide: c("tree-guide"),
@@ -526,10 +536,14 @@ impl Theme {
             selected: c("selected"),
             control: c("control"),
             control_hover: c("control-hover"),
-            // --po-pane-resizer-blue: light-dark(#3b82f6, #60a5fa)
-            focus: if dark { rgb(0x60a5fa) } else { rgb(0x3b82f6) },
+            focus: resizer,
             focus_ring: c("focus-ring"),
             selection: c("text-selection-bg"),
+            // color-mix(in srgb, var(--po-pane-resizer-blue) 55%, var(--po-divider))
+            pane_resizer_hover: mix(resizer, divider, 0.55),
+            pane_resizer_active: resizer,
+            // color-mix(in srgb, var(--po-pane-resizer-blue) 24%, transparent)
+            pane_resizer_ring: alpha(resizer, 0.24),
             accent: c("accent"),
             accent_text: c("accent-text"),
             success: c("success"),
@@ -683,7 +697,11 @@ pub fn resolve_pane_widths(available: f32, explorer: f32, right: f32) -> (f32, f
 /// within the Explorer's own range.
 pub fn explorer_max_width(available: f32, right_open: bool) -> f32 {
     use pane::*;
-    let right = if right_open { MIN_RIGHT_SIDEBAR_WIDTH } else { 0. };
+    let right = if right_open {
+        MIN_RIGHT_SIDEBAR_WIDTH
+    } else {
+        0.
+    };
     (available.max(pane_minimum_width(true, right_open))
         - EXPLORER_RESIZE_GUTTER_WIDTH
         - MIN_MAIN_PANE_WIDTH

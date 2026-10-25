@@ -14,7 +14,7 @@ use crate::platform::ui_state_store::{self, ResultEvent};
 use crate::theme;
 use crate::ui::{
     appearance::ActiveAppearance,
-    components::{Button, ButtonVariant},
+    components::{Button, ButtonVariant, ResizeHandle},
 };
 use crate::{
     agent::{
@@ -775,57 +775,37 @@ impl Workbench {
                 });
                 let first_size = total.map(|total| (total - layout::DIVIDER).max(0.) * ratio);
                 let resizing = self.drag_split.map(|d| d.0) == Some(id);
-                let hover = theme::mix(t.focus, t.divider, 0.55);
-                let group = SharedString::from(format!("workbench-split-{id}"));
-                // `.desktop-terminal-splitter`: a 1px painter with an 8px hit
-                // lane centred on it, above both panes.
+                // `.desktop-terminal-splitter`: the 1px painter in the flow and
+                // an 8px hit lane centred on it, above both panes, whose stroke
+                // paints the hover and drag states over the painter.
                 let painter = div()
                     .flex_shrink_0()
                     .when(horizontal, |d| d.w(px(layout::DIVIDER)).h_full())
                     .when(!horizontal, |d| d.h(px(layout::DIVIDER)).w_full())
-                    .bg(if resizing { t.focus } else { t.divider })
-                    .when(resizing, |d| {
-                        d.shadow(vec![BoxShadow {
-                            inset: false,
-                            color: theme::alpha(t.focus, 0.24).into(),
-                            offset: point(px(0.), px(0.)),
-                            blur_radius: px(0.),
-                            spread_radius: px(1.),
-                        }])
-                    })
-                    .when(!resizing, |d| {
-                        d.group_hover(group.clone(), move |s| s.bg(hover))
-                    });
-                let lane = div()
-                    .id(("split-sash", id))
-                    .group(group)
-                    .absolute()
-                    .occlude()
-                    .when(horizontal, |d| {
-                        let left = first_size.map(px).unwrap_or(px(0.));
-                        d.top_0()
-                            .bottom_0()
-                            .left(left - px(3.5))
-                            .w(px(8.))
-                            .cursor(CursorStyle::ResizeLeftRight)
-                    })
-                    .when(!horizontal, |d| {
-                        let top = first_size.map(px).unwrap_or(px(0.));
-                        d.left_0()
-                            .right_0()
-                            .top(top - px(3.5))
-                            .h(px(8.))
-                            .cursor(CursorStyle::ResizeUpDown)
-                    })
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(move |s, _, _, cx| {
-                            if let Some(bounds) = s.bounds.get(&id) {
-                                s.drag_split = Some((id, axis, *bounds));
-                            }
-                            cx.notify();
-                        }),
-                    );
+                    .bg(t.divider);
+                let hit = theme::metric::PANE_SASH;
+                let offset = (hit - layout::DIVIDER) / 2.;
+                let start = first_size.map(px).unwrap_or(px(0.)) - px(offset);
+                let lane = ResizeHandle::new(
+                    ("split-sash", id),
+                    if horizontal {
+                        gpui::Axis::Horizontal
+                    } else {
+                        gpui::Axis::Vertical
+                    },
+                )
+                .stroke_at(offset)
+                .resizing(resizing)
+                .on_drag_start(cx.listener(move |s, _, _, cx| {
+                    if let Some(bounds) = s.bounds.get(&id) {
+                        s.drag_split = Some((id, axis, *bounds));
+                    }
+                    cx.notify();
+                }))
+                .absolute()
+                .occlude()
+                .when(horizontal, |d| d.top_0().bottom_0().left(start).w(px(hit)))
+                .when(!horizontal, |d| d.left_0().right_0().top(start).h(px(hit)));
                 div()
                     .relative()
                     .flex()

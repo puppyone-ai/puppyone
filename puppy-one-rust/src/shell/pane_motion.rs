@@ -10,9 +10,9 @@
 //! Window resizes and sash drags are direct manipulation and do not animate,
 //! nor does anything when the system asks for reduced motion. A toggle
 //! during the motion starts from what is on screen, so it reverses smoothly.
-use crate::{geometry::Rect, theme::Layout};
+use crate::{geometry::Rect, theme::Layout, ui::motion::Timeline};
 use gpui_kit::base::motion::Easing;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 /// `--po-pane-motion-duration`.
 pub(super) const DURATION: Duration = Duration::from_millis(360);
@@ -47,8 +47,8 @@ pub(super) struct PaneMotion {
     open: Option<(bool, bool)>,
     /// What the last frame showed (frame geometry).
     shown: Option<Layout>,
-    /// Where the running motion started, and when.
-    running: Option<(Layout, Instant)>,
+    /// Where the running motion started, and its timeline.
+    running: Option<(Layout, Timeline)>,
 }
 impl PaneMotion {
     /// `target`: the settled layout of the panes `open` now.
@@ -57,19 +57,17 @@ impl PaneMotion {
             self.running = self
                 .shown
                 .filter(|_| animate && self.open.is_some())
-                .map(|shown| (shown, Instant::now()));
+                .map(|shown| (shown, Timeline::start(DURATION)));
             self.open = Some(open);
         }
-        let frozen = super::explorer::motion::frozen_time();
         if !animate
-            || (frozen.is_none()
-                && self
-                    .running
-                    .is_some_and(|(_, started)| started.elapsed() >= DURATION))
+            || self
+                .running
+                .is_some_and(|(_, timeline)| timeline.finished())
         {
             self.running = None;
         }
-        let Some((from, started)) = self.running else {
+        let Some((from, timeline)) = self.running else {
             self.shown = Some(target);
             return PaneFrame {
                 layout: target,
@@ -78,9 +76,7 @@ impl PaneMotion {
                 running: false,
             };
         };
-        let t = Easing::EaseInOut.sample(
-            frozen.unwrap_or_else(|| started.elapsed().as_secs_f32() / DURATION.as_secs_f32()),
-        );
+        let t = Easing::EaseInOut.sample(timeline.time());
         let shown = Layout {
             header: target.header,
             explorer: lerp_rect(from.explorer, target.explorer, t),
@@ -148,7 +144,7 @@ mod tests {
         assert!((clip.w - 320.).abs() < 1.);
         assert_eq!(frame.layout.explorer.w, 320.);
         assert!((frame.layout.editor.x - 320.).abs() < 1.);
-        motion.running.as_mut().unwrap().1 -= DURATION;
+        motion.running.as_mut().unwrap().1.advance(DURATION);
         let settled = motion.frame((false, false), closed, true);
         assert!(!settled.running && settled.left_clip.is_none());
         assert_eq!(settled.layout, closed);

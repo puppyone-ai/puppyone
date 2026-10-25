@@ -16,11 +16,11 @@
 //! constant-speed middle and a smooth stop. The first rows of a project
 //! (hydration) do not animate, and nothing animates when the system asks
 //! for reduced motion.
-use crate::model::Row;
+use crate::{model::Row, ui::motion::Timeline};
 use std::{
     collections::{HashMap, HashSet},
     path::Path,
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 /// `EXPLORER_MOTION_DURATION_MS`.
@@ -183,22 +183,6 @@ fn runs(len: usize, affected: impl Fn(usize) -> bool, reverse: bool) -> Vec<Opti
     phases
 }
 
-/// Dev-capture only: `PUPPYONE_MOTION_AT=<0..1>` holds every disclosure
-/// motion at that point of its timeline, so a capture shows one exact frame.
-#[cfg(feature = "dev-capture")]
-pub(in crate::shell) fn frozen_time() -> Option<f32> {
-    static AT: std::sync::OnceLock<Option<f32>> = std::sync::OnceLock::new();
-    *AT.get_or_init(|| {
-        std::env::var("PUPPYONE_MOTION_AT")
-            .ok()
-            .and_then(|at| at.parse().ok())
-    })
-}
-#[cfg(not(feature = "dev-capture"))]
-pub(in crate::shell) fn frozen_time() -> Option<f32> {
-    None
-}
-
 /// What one row slot paints this frame.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub(in crate::shell) struct RowFrame {
@@ -214,7 +198,7 @@ pub(in crate::shell) struct TreeMotion {
     tree: u64,
     revision: u64,
     committed: Vec<Row>,
-    running: Option<(Plan, Instant)>,
+    running: Option<(Plan, Timeline)>,
 }
 impl TreeMotion {
     /// Commits `rows` (revision `revision` of tree `tree`) and starts a plan
@@ -234,14 +218,13 @@ impl TreeMotion {
             self.running = (animate && same_tree)
                 .then(|| plan(&self.committed, rows, stride))
                 .flatten()
-                .map(|plan| (plan, Instant::now()));
+                .map(|plan| (plan, Timeline::start(DURATION)));
             self.committed = rows.to_vec();
         }
-        if frozen_time().is_none()
-            && self
-                .running
-                .as_ref()
-                .is_some_and(|(_, started)| started.elapsed() >= DURATION)
+        if self
+            .running
+            .as_ref()
+            .is_some_and(|(_, timeline)| timeline.finished())
         {
             self.running = None;
         }
@@ -249,10 +232,8 @@ impl TreeMotion {
     }
     /// Eased progress of the running plan.
     fn eased(&self) -> Option<(&Plan, f32)> {
-        let (plan, started) = self.running.as_ref()?;
-        let time = frozen_time()
-            .unwrap_or_else(|| started.elapsed().as_secs_f32() / DURATION.as_secs_f32());
-        Some((plan, progress(time)))
+        let (plan, timeline) = self.running.as_ref()?;
+        Some((plan, progress(timeline.time())))
     }
     /// Row `index` of the current projection.
     pub fn row(&self, index: usize) -> RowFrame {
@@ -429,7 +410,7 @@ mod tests {
         assert!((motion.row(2).offset + 34.).abs() < 0.01);
         assert!(motion.row(1).reveal.unwrap() < 0.001);
         assert!(motion.disclosure(0).unwrap() < 0.001);
-        motion.running.as_mut().unwrap().1 -= DURATION;
+        motion.running.as_mut().unwrap().1.advance(DURATION);
         assert!(!motion.sync(7, 2, &open, 34., true));
         assert_eq!(motion.row(2), RowFrame::default());
         // Reduced motion commits without a plan.

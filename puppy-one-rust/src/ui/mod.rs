@@ -7,6 +7,7 @@ mod fractional_text;
 pub mod gallery;
 pub mod ime;
 pub mod input;
+pub mod motion;
 pub mod pulse_grid;
 mod tracked_text;
 pub use fractional_text::fractional_text;

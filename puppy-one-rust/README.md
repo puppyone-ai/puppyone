@@ -42,8 +42,9 @@ cargo run --release --locked -- --workspace /path/to/project --file README.md
 
 - 写法与 Kit 一致：每个组件是 `#[derive(IntoElement)]` + `RenderOnce` 的结构体，用链式方法配置（`Button::new(id).variant(..).icon(..).label(..)`），状态走 Kit 的 `Selectable`（选中 / 展开）、`Disableable`、`Sizable` trait，需要微调布局时实现 `Styled`。
 - 颜色从全局外观读取（`cx.palette()` / `cx.is_dark()`，见 `ui/appearance.rs`），不再由调用方传 `Theme` 或 `dark` 参数。
-- 现有组件：`Button`（Outline / Filled / Ghost / Titlebar / 对话框等变体）、`IconButton`、`Icon` / `FileIcon`、`Switch`、`SegmentedControl`、`Select`、`Menu` / `MenuItem`、`PopoverMenu`（挂在触发按钮上）、`AnchoredMenu`（右键菜单）、`Dialog`、`SidebarRow` / `SectionHeader` / `SidebarGroup` / `RowActionButton`、设置页的 `SettingsSection` / `SettingRow` / `ValueRow` 等，以及 `Spinner`、`tooltip`。
+- 现有组件：`Button`（Outline / Filled / Ghost / Titlebar / 对话框等变体）、`IconButton`、`Icon` / `FileIcon`、`Switch`、`SegmentedControl`、`Select`、`Menu` / `MenuItem`、`PopoverMenu`（挂在触发按钮上）、`AnchoredMenu`（右键菜单）、`Dialog`、`SidebarRow` / `SectionHeader` / `SidebarGroup` / `RowActionButton`、`ResizeHandle`（面板边缘与工作台分屏共用的拖拽手柄：8px 命中带 + 1px 描边，悬停 / 拖动色来自 `--po-pane-resizer-*` token）、设置页的 `SettingsSection` / `SettingRow` / `ValueRow` 等，以及 `Spinner`、`tooltip`。
 - 弹层统一交给 Kit 的 `Popover` / `Positioner`：位置、贴边、点外部和 Esc 关闭、焦点恢复都不手写。
+- 动画统一用 `ui/motion.rs` 的 `Timeline`：各处只保留自己的曲线和计划（面板开合 ease-in-out、Explorer 展开的产品梯形曲线），计时、结束判断和截图冻结（`PUPPYONE_MOTION_AT`）只有一份。
 - 样例页：`PUPPYONE_LAB=gallery-dark`（或 `gallery-light`、`gallery-dialog-dark`）配合 `dev-capture` 构建打开，展示所有组件和状态。
 - `tools/check-ui-boundaries.py` 会拦截：功能 / Shell 代码里使用 Kit 默认外观组件（`gpui_kit::component::{button,menu,…}`、`PopupMenu` 等）、自建配色（`Theme::new`），以及已退役的旧辅助文件（`ui/primitives.rs`、`ui/menu.rs` 等）重新出现。
 
