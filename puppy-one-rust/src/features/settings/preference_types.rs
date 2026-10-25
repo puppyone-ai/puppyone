@@ -308,7 +308,11 @@ mod tests {
         assert!(p.sidebar_collapsed);
         let fresh = Preferences::from_stored(serde_json::json!({ "version": 2 })).unwrap();
         assert_eq!(
-            (fresh.explorer_width, fresh.sidebar_collapsed, fresh.right_sidebar_width),
+            (
+                fresh.explorer_width,
+                fresh.sidebar_collapsed,
+                fresh.right_sidebar_width
+            ),
             (320., false, 560.)
         );
     }
