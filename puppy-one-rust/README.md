@@ -8,7 +8,7 @@
 ## 启动
 
 ```bash
-cd puppyone-rust-spike/puppy-one-rust
+cd puppy-one-rust   # 仓库根目录下
 export PATH="$HOME/.cargo/bin:$PATH"
 cargo run --release --locked
 ```
@@ -87,7 +87,7 @@ src/editor/
 
 ## Native Git and Agent workbench
 
-- `src/features/source_control.rs`：Changes 分组、虚拟文件列表、Diff、最近 100 条提交历史、暂存/取消暂存、提交、Fetch/Pull/Push。Git CLI 后台执行，使用 literal pathspec、NUL 状态解析、超时和 workspace epoch；只在已打开的仓库根目录执行。状态在窗口激活时每 3 秒刷新，也支持手动刷新。Discard、Pull、Push 有明确的操作确认。
+- `src/features/source_control/`：Changes 分组、虚拟文件列表、Diff、最近 100 条提交历史、暂存/取消暂存、提交、Fetch/Pull/Push。Git CLI 后台执行，使用 literal pathspec、NUL 状态解析、超时和 workspace epoch；只在已打开的仓库根目录执行。状态在窗口激活时每 3 秒刷新，也支持手动刷新。Discard、Pull、Push 有明确的操作确认。
 - `src/features/workbench/`：中立的项目级标签/分组/分屏模型；每次 `+` 产生独立 New tab；拖动重排/跨组/边缘分屏、调整分屏、溢出列表、Header 左右/Home/End 导航。隐藏或切换项目保留实例；关闭最后标签显示 launcher；运行中的标签及应用退出先确认停止。
 - `src/features/desktop_agent/`：沿原产品的 domain / application / infrastructure / ui 分层；原生虚拟转录、Markdown/表格/代码复制、工具折叠、图片附件预览、拖入/选择引用、命令建议、逐会话草稿、失败草稿显式恢复、模型/模式/思考强度、历史过滤及审批/问题/MCP 表单。
 - `src/agent/`：独立 native runtime port、composition root、Codex/Claude adapters、共享 ACP 与 Pi RPC、不可变引用、会话 catalog、有界 JSONL transport。Codex 支持 fork/steer/rename/compact/archive；其他运行时按实际协商能力显示控件。每项目最多 8 个、应用最多 32 个 Agent owner，隐藏不释放租约。
@@ -113,7 +113,7 @@ python3 tools/package-workbench.py
 
 收据在 `artifacts/gpui-verification/`、`artifacts/agent-runtime-verification/`。本轮电脑控制接口返回 native pipe startup failed；Kit 版本已有独立窗口的编辑器 smoke 和 Agent 静态 port 截图；系统 IME、全部工作台交互与像素一致性仍未验收，GPUI test context 不等同 OS 实机验收。
 
-尚不能称为 Electron Agent 的全量对等：Mermaid 图形、全部活动 renderer/内联资源/高级 mention、完整安装/账户/托管 compute、持久 feed/request ledger、崩溃级 supervisor、终端鼠标/选区、完整辅助技术和视觉对齐仍有缺项。高级 Git hunk/分支/图历史也未迁入。Editor 正文继续并列保留 Web 与 Rust 内核。
+尚不能称为 Electron Agent 的全量对等：Mermaid 图形、全部活动 renderer/内联资源/高级 mention、完整安装/账户/托管 compute、持久 feed/request ledger、崩溃级 supervisor、终端鼠标/选区、完整辅助技术和视觉对齐仍有缺项。高级 Git hunk/分支/图历史也未迁入。
 
 ## Web → Rust 产品分层
 
@@ -294,4 +294,4 @@ CARGO_TARGET_DIR=../target cargo run --release --locked
 
 下一批按架构门槛推进：**字体/像素/叠层适配性 → 同源外观与原生组件 → 正式 Workspace 导航 → 保留现有 Editor 内核并适配 Rust 端口 → Right Sidebar/执行宿主**。文件操作随所属领域补齐，不顺手新增产品未接受的草稿历史或并发多视图语义。
 
-当前目录留在 `codex/rust-shell-spike` worktree，原 `main` 未改，尚未提交 / 合并。最终仍按同仓库独立目录评审和逐步迁移，不需要另开产品仓库。
+代码位于 `puppyone-ai/puppyone` 的 `puppyone-rust` 分支、`puppy-one-rust/` 目录；现有 Electron 产品、`main` 和发布入口未改。最终仍按同仓库独立目录评审和逐步迁移，不需要另开产品仓库。
