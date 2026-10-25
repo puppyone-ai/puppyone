@@ -554,3 +554,130 @@ fn changes_open_file_opens_it_in_the_editor(cx: &mut TestAppContext) {
         )
     });
 }
+
+fn drag(view: &Entity<Shell>, cx: &mut VisualTestContext, from: (f32, f32), path: &[(f32, f32)], release: bool) {
+    let at = |p: (f32, f32)| point(px(p.0), px(p.1));
+    cx.simulate_mouse_down(at(from), MouseButton::Left, Modifiers::default());
+    for p in path {
+        cx.simulate_mouse_move(at(*p), Some(MouseButton::Left), Modifiers::default());
+    }
+    if release {
+        cx.simulate_mouse_up(at(*path.last().unwrap_or(&from)), MouseButton::Left, Modifiers::default());
+    }
+    cx.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+    let _ = view;
+}
+
+#[gpui::test]
+fn dragging_the_explorer_edge_past_half_its_minimum_collapses_it(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    cx.update(|_, cx| cx.set_reduce_motion(true));
+    cx.simulate_resize(size(px(1280.), px(800.)));
+    cx.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+    let edge = view.read_with(cx, |s, _| s.layout.editor.x);
+    assert_eq!(edge, 320.);
+    // The divider is the Explorer's last column; its lane runs 8px on.
+    // Narrowing within range follows the pointer.
+    drag(&view, cx, (322., 400.), &[(280., 400.)], true);
+    view.read_with(cx, |s, _| assert_eq!((s.left_open, s.left_width), (true, 278.)));
+    // Past the 110px boundary the pane previews closed before release…
+    drag(&view, cx, (277., 400.), &[(200., 400.), (100., 400.)], false);
+    view.read_with(cx, |s, _| {
+        assert!(s.left_open, "nothing is committed mid-drag");
+        assert_eq!(s.layout.editor.x, 0., "the preview is closed");
+    });
+    // …and releasing commits it, reopening later at the minimum.
+    cx.simulate_mouse_up(point(px(100.), px(400.)), MouseButton::Left, Modifiers::default());
+    view.read_with(cx, |s, _| assert_eq!((s.left_open, s.left_width), (false, 220.)));
+    // Both commits are the stored layout.
+    view.read_with(cx, |s, cx| {
+        let p = &s.preferences.read(cx).state;
+        assert_eq!((p.sidebar_collapsed, p.explorer_width), (true, 220.));
+    });
+}
+
+#[gpui::test]
+fn the_stored_pane_layout_is_the_starting_layout(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    cx.simulate_resize(size(px(1280.), px(800.)));
+    cx.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+    // The stored layout arriving is shown at once, not as a close.
+    let store = view.read_with(cx, |s, _| s.preferences.clone());
+    store.update(cx, |store, cx| {
+        store.change(
+            |p| {
+                p.sidebar_collapsed = true;
+                p.explorer_width = 260.;
+                p.right_sidebar_width = 400.;
+            },
+            cx,
+        )
+    });
+    cx.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+    view.read_with(cx, |s, _| {
+        assert_eq!((s.left_open, s.left_width, s.right_width), (false, 260., 400.));
+        assert_eq!(s.layout.editor.x, 0.);
+        assert_eq!(s.layout.explorer.w, 0.);
+    });
+    // Reopening comes back at the stored width, and is stored.
+    command(&view, cx, Command::ToggleExplorer);
+    view.read_with(cx, |s, cx| {
+        assert_eq!((s.left_open, s.left_width), (true, 260.));
+        assert!(!s.preferences.read(cx).state.sidebar_collapsed);
+    });
+}
+
+#[gpui::test]
+fn a_collapse_preview_retreats_and_escape_rolls_back(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    cx.update(|_, cx| cx.set_reduce_motion(true));
+    cx.simulate_resize(size(px(1280.), px(800.)));
+    cx.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+    // Armed at 100, still armed at 134 (hysteresis), open again at 200.
+    drag(&view, cx, (322., 400.), &[(100., 400.), (134., 400.)], false);
+    view.read_with(cx, |s, _| assert_eq!(s.layout.editor.x, 0.));
+    cx.simulate_mouse_move(point(px(200.), px(400.)), Some(MouseButton::Left), Modifiers::default());
+    cx.simulate_mouse_up(point(px(200.), px(400.)), MouseButton::Left, Modifiers::default());
+    view.read_with(cx, |s, _| assert_eq!((s.left_open, s.left_width), (true, 220.)));
+    // Escape mid-drag (focus anywhere, before any binding) restores what was
+    // committed; the release that follows changes nothing.
+    drag(&view, cx, (221., 400.), &[(60., 400.)], false);
+    view.read_with(cx, |s, _| assert_eq!(s.layout.editor.x, 0.));
+    cx.simulate_keystrokes("escape");
+    cx.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+    view.read_with(cx, |s, _| {
+        assert!(s.drag.is_none());
+        assert_eq!(s.layout.editor.x, 220.);
+    });
+    cx.simulate_mouse_up(point(px(60.), px(400.)), MouseButton::Left, Modifiers::default());
+    view.read_with(cx, |s, _| assert_eq!((s.left_open, s.left_width), (true, 220.)));
+}
+
+#[gpui::test]
+fn a_closed_right_sidebar_is_pulled_out_from_the_window_edge(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    cx.update(|_, cx| cx.set_reduce_motion(true));
+    cx.simulate_resize(size(px(1280.), px(800.)));
+    cx.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+    view.read_with(cx, |s, _| assert!(!s.right_open));
+    // A short pull snaps back closed…
+    drag(&view, cx, (1275., 400.), &[(1200., 400.)], true);
+    view.read_with(cx, |s, _| assert!(!s.right_open));
+    // …one past the 160px threshold opens it.
+    drag(&view, cx, (1275., 400.), &[(1000., 400.), (900., 400.)], true);
+    view.read_with(cx, |s, _| assert_eq!((s.right_open, s.right_width), (true, 375.)));
+}

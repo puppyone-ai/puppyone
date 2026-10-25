@@ -159,6 +159,12 @@ pub struct Preferences {
     pub header_changes: bool,
     pub header_terminal: bool,
     pub project_switcher_rail: bool,
+    /// `explorerWidth` / `sidebarCollapsed` / `rightSidebarWidth`: the pane
+    /// layout is one preference for every window, whichever folder is open.
+    /// Widths are the expanded widths; the window's room bounds them above.
+    pub explorer_width: f32,
+    pub sidebar_collapsed: bool,
+    pub right_sidebar_width: f32,
     pub create_new: MenuSettings,
     pub files: FilesVisibility,
     pub local_agents: LocalAgents,
@@ -181,6 +187,9 @@ impl Default for Preferences {
             header_changes: true,
             header_terminal: true,
             project_switcher_rail: false,
+            explorer_width: crate::theme::pane::DEFAULT_EXPLORER_WIDTH,
+            sidebar_collapsed: false,
+            right_sidebar_width: crate::theme::pane::DEFAULT_RIGHT_SIDEBAR_WIDTH,
             create_new: MenuSettings::default(),
             files: FilesVisibility::default(),
             local_agents: LocalAgents::default(),
@@ -209,6 +218,18 @@ impl Preferences {
         }
         p.version = 2;
         p.create_new.normalize();
+        // `readInitialExplorerWidth` / `readInitialRightSidebarWidth`: whole
+        // pixels, never below the pane's minimum.
+        p.explorer_width = stored_width(
+            p.explorer_width,
+            crate::theme::pane::MIN_EXPLORER_WIDTH,
+            crate::theme::pane::DEFAULT_EXPLORER_WIDTH,
+        );
+        p.right_sidebar_width = stored_width(
+            p.right_sidebar_width,
+            crate::theme::pane::MIN_RIGHT_SIDEBAR_WIDTH,
+            crate::theme::pane::DEFAULT_RIGHT_SIDEBAR_WIDTH,
+        );
         Ok(p)
     }
     /// Remember an opened folder at the head of the history.
@@ -233,6 +254,14 @@ impl Preferences {
     }
     pub fn agent_visible(&self, id: &str) -> bool {
         !self.local_agents.hidden_agent_ids.iter().any(|h| h == id)
+    }
+}
+
+fn stored_width(width: f32, minimum: f32, default: f32) -> f32 {
+    if width.is_finite() {
+        width.round().max(minimum)
+    } else {
+        default
     }
 }
 
@@ -264,6 +293,23 @@ mod tests {
         assert_eq!(
             p.recent_projects.iter().filter(|r| r.name == "10").count(),
             1
+        );
+    }
+
+    #[test]
+    fn stored_pane_widths_are_whole_pixels_within_the_minimum() {
+        let p = Preferences::from_stored(serde_json::json!({
+            "explorer_width": 251.6,
+            "right_sidebar_width": 100.0,
+            "sidebar_collapsed": true,
+        }))
+        .unwrap();
+        assert_eq!((p.explorer_width, p.right_sidebar_width), (252., 320.));
+        assert!(p.sidebar_collapsed);
+        let fresh = Preferences::from_stored(serde_json::json!({ "version": 2 })).unwrap();
+        assert_eq!(
+            (fresh.explorer_width, fresh.sidebar_collapsed, fresh.right_sidebar_width),
+            (320., false, 560.)
         );
     }
 }

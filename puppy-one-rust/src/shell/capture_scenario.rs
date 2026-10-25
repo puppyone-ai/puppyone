@@ -11,7 +11,8 @@
 //! `forget:<absolute path>` (a recent project), `create-project:<name>`
 //! (the create dialog with a fixed name), `git-diff:<path>` /
 //! `git-diff-staged:<path>` (a change's diff in Changes), `git-history`,
-//! `git-commit:<index>` (a History commit). The capture waits
+//! `git-commit:<index>` (a History commit), `explorer-drag:<x>` (drag the
+//! Explorer's edge to `x` and release). The capture waits
 //! for the homepage's project activity and an open diff.
 use super::*;
 use explorer::{MenuAt, RowTrigger};
@@ -34,6 +35,7 @@ enum Step {
     NewMenu,
     Context(f32, f32),
     Submenu,
+    ExplorerDrag(f32),
     Command(super::Command),
 }
 fn parse(text: &str) -> VecDeque<Step> {
@@ -63,6 +65,7 @@ fn parse(text: &str) -> VecDeque<Step> {
                     Step::Context(x.trim().parse().ok()?, y.trim().parse().ok()?)
                 }
                 "submenu" => Step::Submenu,
+                "explorer-drag" => Step::ExplorerDrag(arg.trim().parse().ok()?),
                 "project-menu" => Step::Command(super::Command::ProjectMenu),
                 "location-menu" => Step::Command(super::Command::LocationMenu),
                 "changes" => Step::Command(super::Command::Changes),
@@ -191,6 +194,12 @@ impl Shell {
                 }
             }
             Step::GitHistory => self.source_control.update(cx, |s, cx| s.open_history(cx)),
+            Step::ExplorerDrag(x) => {
+                let at = |x: f32| point(px(x), px(400.));
+                self.begin_pane_drag(super::Side::Start, at(self.layout.editor.x), cx);
+                self.move_pane_drag(at(*x), cx);
+                self.end_pane_drag(true, cx);
+            }
             Step::GitCommit(index) => {
                 let index = *index;
                 if !self

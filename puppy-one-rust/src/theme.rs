@@ -613,6 +613,13 @@ pub mod pane {
     pub const MIN_RIGHT_SIDEBAR_WIDTH: f32 = 320.;
     pub const MIN_MAIN_PANE_WIDTH: f32 = 320.;
     pub const EXPLORER_RESIZE_GUTTER_WIDTH: f32 = 8.;
+    /// `EXPLORER_COLLAPSE_THRESHOLD` / `RIGHT_SIDEBAR_COLLAPSE_THRESHOLD`:
+    /// how far past its minimum a dragged pane edge goes before it collapses.
+    pub const EXPLORER_COLLAPSE_THRESHOLD: f32 = MIN_EXPLORER_WIDTH * 0.5;
+    pub const RIGHT_SIDEBAR_COLLAPSE_THRESHOLD: f32 = MIN_RIGHT_SIDEBAR_WIDTH * 0.5;
+    /// `.po-collapsed-pane-edge-handle`: the closed right sidebar's hit lane
+    /// at the window edge.
+    pub const COLLAPSED_EDGE_HIT: f32 = 12.;
     /// `window-layout-contract.mjs`: the product-level window floor.
     pub const WINDOW_MIN_WIDTH: f32 = 640.;
     pub const WINDOW_MIN_HEIGHT: f32 = 520.;
@@ -671,6 +678,18 @@ pub fn resolve_pane_widths(available: f32, explorer: f32, right: f32) -> (f32, f
     }
     (explorer_width, right_width, layout)
 }
+/// Live maximum of a dragged Explorer (`explorer.maxWidth`): what remains
+/// after its gutter, the main pane floor and an open right sidebar's minimum,
+/// within the Explorer's own range.
+pub fn explorer_max_width(available: f32, right_open: bool) -> f32 {
+    use pane::*;
+    let right = if right_open { MIN_RIGHT_SIDEBAR_WIDTH } else { 0. };
+    (available.max(pane_minimum_width(true, right_open))
+        - EXPLORER_RESIZE_GUTTER_WIDTH
+        - MIN_MAIN_PANE_WIDTH
+        - right)
+        .clamp(MIN_EXPLORER_WIDTH, MAX_EXPLORER_WIDTH)
+}
 /// Live maximum of a dragged right sidebar: what remains after the current
 /// Explorer, its gutter and the main pane floor (`rightSidebar.maxWidth`).
 pub fn right_sidebar_max_width(available: f32, explorer: f32) -> f32 {
@@ -709,16 +728,11 @@ impl Layout {
             auxiliary: Rect::new(rail + left + main, HEADER, right, h - HEADER),
         }
     }
-    /// The editor pane (`.desktop-editor-pane`) fills the area right of the
-    /// 1px shell divider; the resize sash overlays it like the product's
-    /// pane resizer instead of reserving a strip.
+    /// The editor pane (`.desktop-editor-pane`) fills the main pane: the
+    /// Explorer's divider is its own last column (`.po-pane-edge-chrome`),
+    /// and the resize sash overlays the editor instead of reserving a strip.
     pub fn content(self) -> Rect {
-        Rect::new(
-            self.editor.x + 1.,
-            self.editor.y,
-            (self.editor.w - 1.).max(0.),
-            self.editor.h,
-        )
+        self.editor
     }
 }
 #[cfg(test)]
@@ -759,6 +773,10 @@ mod tests {
         assert_eq!(resolve_pane_widths(1600., 100., 0.), (220., 0., 1600.));
         assert_eq!(resolve_pane_widths(1600., 900., 0.), (520., 0., 1600.));
         assert_eq!(right_sidebar_max_width(1280., 320.), 632.);
+        // The Explorer keeps the main floor and an open right sidebar's minimum.
+        assert_eq!(explorer_max_width(1280., false), 520.);
+        assert_eq!(explorer_max_width(1000., true), 352.);
+        assert_eq!(explorer_max_width(700., true), 220.);
     }
     #[test]
     fn the_window_minimum_follows_the_open_panes() {
