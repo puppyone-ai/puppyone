@@ -171,7 +171,7 @@ jobs:
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
       VITE_DESKTOP_CLOUD_API_URL: https://api.puppyone.ai/api/v1
-      VITE_DESKTOP_CLOUD_WEB_URL: https://app.puppyone.ai
+      VITE_DESKTOP_CLOUD_WEB_URL: https://try.puppyone.ai
 
     steps:
       - name: Checkout
