@@ -434,7 +434,11 @@ impl Shell {
         // The pane layout (`useDesktopExplorerFrame`). The Shell writes its
         // own changes first, so a difference here is the stored layout
         // arriving: it is the starting state, shown without motion.
-        let panes = (!p.sidebar_collapsed, p.explorer_width, p.right_sidebar_width);
+        let panes = (
+            !p.sidebar_collapsed,
+            p.explorer_width,
+            p.right_sidebar_width,
+        );
         if panes != (self.left_open, self.left_width, self.right_width) {
             (self.left_open, self.left_width, self.right_width) = panes;
             self.pane_motion = Default::default();
@@ -906,7 +910,11 @@ impl Shell {
         let resizing = self.drag.is_some_and(|d| d.config.side == side);
         // A pane that is closing (or previewing closed) keeps its edge
         // painted but cannot be grabbed (`onPointerDown` while collapsed).
-        let grabbable = if left { self.left_open } else { self.right_open };
+        let grabbable = if left {
+            self.left_open
+        } else {
+            self.right_open
+        };
         let group = SharedString::from(if left { "left-sash" } else { "right-sash" });
         let hover = theme::mix(t.focus, t.divider, 0.55);
         at(Rect::new(
@@ -950,7 +958,9 @@ impl Shell {
                         spread_radius: px(1.),
                     }])
                 })
-                .when(!resizing && grabbable, |d| d.group_hover(group, move |s| s.bg(hover))),
+                .when(!resizing && grabbable, |d| {
+                    d.group_hover(group, move |s| s.bg(hover))
+                }),
         )
         .into_element()
     }
@@ -960,24 +970,31 @@ impl Shell {
     fn collapsed_right_edge(&self, w: f32, cx: &mut Context<Self>) -> Stateful<Div> {
         let t = cx.palette();
         let lane = theme::pane::COLLAPSED_EDGE_HIT;
-        at(Rect::new(w - lane, self.layout.editor.y, lane, self.layout.editor.h))
-            .id("right-collapsed-edge")
-            .group("right-collapsed-edge")
-            .cursor(CursorStyle::ResizeLeft)
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|s, e: &MouseDownEvent, _, cx| s.begin_pane_drag(Side::End, e.position, cx)),
-            )
-            .child(
-                div()
-                    .absolute()
-                    .top_0()
-                    .bottom_0()
-                    .right_0()
-                    .w(px(1.))
-                    .bg(theme::alpha(t.shell_divider, 0.72))
-                    .group_hover("right-collapsed-edge", move |s| s.bg(t.border_strong)),
-            )
+        at(Rect::new(
+            w - lane,
+            self.layout.editor.y,
+            lane,
+            self.layout.editor.h,
+        ))
+        .id("right-collapsed-edge")
+        .group("right-collapsed-edge")
+        .cursor(CursorStyle::ResizeLeft)
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(|s, e: &MouseDownEvent, _, cx| {
+                s.begin_pane_drag(Side::End, e.position, cx)
+            }),
+        )
+        .child(
+            div()
+                .absolute()
+                .top_0()
+                .bottom_0()
+                .right_0()
+                .w(px(1.))
+                .bg(theme::alpha(t.shell_divider, 0.72))
+                .group_hover("right-collapsed-edge", move |s| s.bg(t.border_strong)),
+        )
     }
     /// Start dragging a pane edge (`useCollapsiblePaneResize`).
     fn begin_pane_drag(&mut self, side: Side, position: Point<Pixels>, cx: &mut Context<Self>) {
@@ -1030,7 +1047,11 @@ impl Shell {
         let Some(drag) = self.drag.take() else {
             return;
         };
-        let result = if commit { drag.gesture.finish(&drag.config) } else { None };
+        let result = if commit {
+            drag.gesture.finish(&drag.config)
+        } else {
+            None
+        };
         let (open, width) = match drag.config.side {
             Side::Start => (&mut self.left_open, &mut self.left_width),
             Side::End => (&mut self.right_open, &mut self.right_width),
@@ -1070,7 +1091,12 @@ impl Shell {
     /// The panes as the window shows them now: committed, or previewed by a
     /// drag. `(explorer open, explorer width, right open, right width)`.
     fn pane_preview(&self) -> (bool, f32, bool, f32) {
-        let mut panes = (self.left_open, self.left_width, self.right_open, self.right_width);
+        let mut panes = (
+            self.left_open,
+            self.left_width,
+            self.right_open,
+            self.right_width,
+        );
         if let Some(drag) = &self.drag {
             let open = !drag.gesture.preview_collapsed;
             let width = drag.gesture.preview_width;

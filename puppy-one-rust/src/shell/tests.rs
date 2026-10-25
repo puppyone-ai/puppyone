@@ -39,10 +39,18 @@ fn native_keyboard_autosaves_and_closes_without_prompt_and_adopts_disk(cx: &mut 
     let workspace = crate::workspace::Workspace::open(temp.path()).unwrap();
     let document = workspace.read(std::path::Path::new("native.md")).unwrap();
     let (view, cx) = setup(cx);
-    view.update_in(cx, |s,w,cx| {
-        s.files=Documents::default(); s.files.workspace=Some(workspace); s.files.document=Some(document.clone());
-        s.files.outgoing.push(crate::documents::HostMessage::Open { id: document.id.clone(), name: "native.md".into(), text: document.text.clone(), revision: 0, external: false });
-        s.sync_editor(w,cx);
+    view.update_in(cx, |s, w, cx| {
+        s.files = Documents::default();
+        s.files.workspace = Some(workspace);
+        s.files.document = Some(document.clone());
+        s.files.outgoing.push(crate::documents::HostMessage::Open {
+            id: document.id.clone(),
+            name: "native.md".into(),
+            text: document.text.clone(),
+            revision: 0,
+            external: false,
+        });
+        s.sync_editor(w, cx);
     });
     cx.update(|w, cx| {
         let _ = w.draw(cx);
@@ -555,14 +563,24 @@ fn changes_open_file_opens_it_in_the_editor(cx: &mut TestAppContext) {
     });
 }
 
-fn drag(view: &Entity<Shell>, cx: &mut VisualTestContext, from: (f32, f32), path: &[(f32, f32)], release: bool) {
+fn drag(
+    view: &Entity<Shell>,
+    cx: &mut VisualTestContext,
+    from: (f32, f32),
+    path: &[(f32, f32)],
+    release: bool,
+) {
     let at = |p: (f32, f32)| point(px(p.0), px(p.1));
     cx.simulate_mouse_down(at(from), MouseButton::Left, Modifiers::default());
     for p in path {
         cx.simulate_mouse_move(at(*p), Some(MouseButton::Left), Modifiers::default());
     }
     if release {
-        cx.simulate_mouse_up(at(*path.last().unwrap_or(&from)), MouseButton::Left, Modifiers::default());
+        cx.simulate_mouse_up(
+            at(*path.last().unwrap_or(&from)),
+            MouseButton::Left,
+            Modifiers::default(),
+        );
     }
     cx.update(|w, cx| {
         let _ = w.draw(cx);
@@ -583,16 +601,30 @@ fn dragging_the_explorer_edge_past_half_its_minimum_collapses_it(cx: &mut TestAp
     // The divider is the Explorer's last column; its lane runs 8px on.
     // Narrowing within range follows the pointer.
     drag(&view, cx, (322., 400.), &[(280., 400.)], true);
-    view.read_with(cx, |s, _| assert_eq!((s.left_open, s.left_width), (true, 278.)));
+    view.read_with(cx, |s, _| {
+        assert_eq!((s.left_open, s.left_width), (true, 278.))
+    });
     // Past the 110px boundary the pane previews closed before release…
-    drag(&view, cx, (277., 400.), &[(200., 400.), (100., 400.)], false);
+    drag(
+        &view,
+        cx,
+        (277., 400.),
+        &[(200., 400.), (100., 400.)],
+        false,
+    );
     view.read_with(cx, |s, _| {
         assert!(s.left_open, "nothing is committed mid-drag");
         assert_eq!(s.layout.editor.x, 0., "the preview is closed");
     });
     // …and releasing commits it, reopening later at the minimum.
-    cx.simulate_mouse_up(point(px(100.), px(400.)), MouseButton::Left, Modifiers::default());
-    view.read_with(cx, |s, _| assert_eq!((s.left_open, s.left_width), (false, 220.)));
+    cx.simulate_mouse_up(
+        point(px(100.), px(400.)),
+        MouseButton::Left,
+        Modifiers::default(),
+    );
+    view.read_with(cx, |s, _| {
+        assert_eq!((s.left_open, s.left_width), (false, 220.))
+    });
     // Both commits are the stored layout.
     view.read_with(cx, |s, cx| {
         let p = &s.preferences.read(cx).state;
@@ -623,7 +655,10 @@ fn the_stored_pane_layout_is_the_starting_layout(cx: &mut TestAppContext) {
         let _ = w.draw(cx);
     });
     view.read_with(cx, |s, _| {
-        assert_eq!((s.left_open, s.left_width, s.right_width), (false, 260., 400.));
+        assert_eq!(
+            (s.left_open, s.left_width, s.right_width),
+            (false, 260., 400.)
+        );
         assert_eq!(s.layout.editor.x, 0.);
         assert_eq!(s.layout.explorer.w, 0.);
     });
@@ -644,11 +679,27 @@ fn a_collapse_preview_retreats_and_escape_rolls_back(cx: &mut TestAppContext) {
         let _ = w.draw(cx);
     });
     // Armed at 100, still armed at 134 (hysteresis), open again at 200.
-    drag(&view, cx, (322., 400.), &[(100., 400.), (134., 400.)], false);
+    drag(
+        &view,
+        cx,
+        (322., 400.),
+        &[(100., 400.), (134., 400.)],
+        false,
+    );
     view.read_with(cx, |s, _| assert_eq!(s.layout.editor.x, 0.));
-    cx.simulate_mouse_move(point(px(200.), px(400.)), Some(MouseButton::Left), Modifiers::default());
-    cx.simulate_mouse_up(point(px(200.), px(400.)), MouseButton::Left, Modifiers::default());
-    view.read_with(cx, |s, _| assert_eq!((s.left_open, s.left_width), (true, 220.)));
+    cx.simulate_mouse_move(
+        point(px(200.), px(400.)),
+        Some(MouseButton::Left),
+        Modifiers::default(),
+    );
+    cx.simulate_mouse_up(
+        point(px(200.), px(400.)),
+        MouseButton::Left,
+        Modifiers::default(),
+    );
+    view.read_with(cx, |s, _| {
+        assert_eq!((s.left_open, s.left_width), (true, 220.))
+    });
     // Escape mid-drag (focus anywhere, before any binding) restores what was
     // committed; the release that follows changes nothing.
     drag(&view, cx, (221., 400.), &[(60., 400.)], false);
@@ -661,8 +712,14 @@ fn a_collapse_preview_retreats_and_escape_rolls_back(cx: &mut TestAppContext) {
         assert!(s.drag.is_none());
         assert_eq!(s.layout.editor.x, 220.);
     });
-    cx.simulate_mouse_up(point(px(60.), px(400.)), MouseButton::Left, Modifiers::default());
-    view.read_with(cx, |s, _| assert_eq!((s.left_open, s.left_width), (true, 220.)));
+    cx.simulate_mouse_up(
+        point(px(60.), px(400.)),
+        MouseButton::Left,
+        Modifiers::default(),
+    );
+    view.read_with(cx, |s, _| {
+        assert_eq!((s.left_open, s.left_width), (true, 220.))
+    });
 }
 
 #[gpui::test]
@@ -678,6 +735,14 @@ fn a_closed_right_sidebar_is_pulled_out_from_the_window_edge(cx: &mut TestAppCon
     drag(&view, cx, (1275., 400.), &[(1200., 400.)], true);
     view.read_with(cx, |s, _| assert!(!s.right_open));
     // …one past the 160px threshold opens it.
-    drag(&view, cx, (1275., 400.), &[(1000., 400.), (900., 400.)], true);
-    view.read_with(cx, |s, _| assert_eq!((s.right_open, s.right_width), (true, 375.)));
+    drag(
+        &view,
+        cx,
+        (1275., 400.),
+        &[(1000., 400.), (900., 400.)],
+        true,
+    );
+    view.read_with(cx, |s, _| {
+        assert_eq!((s.right_open, s.right_width), (true, 375.))
+    });
 }

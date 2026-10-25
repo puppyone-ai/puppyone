@@ -58,9 +58,15 @@ pub(super) struct Gesture {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) enum Commit {
     /// Close; the width it reopens at.
-    Collapse { restore_width: f32 },
-    Expand { width: f32 },
-    Resize { width: f32 },
+    Collapse {
+        restore_width: f32,
+    },
+    Expand {
+        width: f32,
+    },
+    Resize {
+        width: f32,
+    },
 }
 
 /// A pane edge drag in progress (`useCollapsiblePaneResize`): the gesture
@@ -83,7 +89,14 @@ fn clamp(v: f32, min: f32, max: f32) -> f32 {
 
 impl Config {
     /// `resolveCollapsiblePaneGestureConfig`.
-    pub fn new(min: f32, max: f32, collapsed_width: f32, threshold: f32, collapsible: bool, side: Side) -> Self {
+    pub fn new(
+        min: f32,
+        max: f32,
+        collapsed_width: f32,
+        threshold: f32,
+        collapsible: bool,
+        side: Side,
+    ) -> Self {
         let min = normalize(min);
         let max = normalize(max).max(min);
         let threshold = clamp(threshold, 0., min);
@@ -111,7 +124,11 @@ impl Gesture {
             collapse_armed: false,
             latest_expansion: 0.,
             moved: false,
-            phase: if collapsed { Phase::ExpandPreview } else { Phase::Resizing },
+            phase: if collapsed {
+                Phase::ExpandPreview
+            } else {
+                Phase::Resizing
+            },
             preview_collapsed: collapsed,
             preview_width: start_width,
             start_collapsed: collapsed,
@@ -125,8 +142,8 @@ impl Gesture {
         let side = if config.side == Side::Start { 1. } else { -1. };
         let delta = (point.0 - self.start.0) * side;
         let raw = self.start_width + delta;
-        let moved = self.moved
-            || (point.0 - self.start.0).hypot(point.1 - self.start.1) > DRAG_SLOP;
+        let moved =
+            self.moved || (point.0 - self.start.0).hypot(point.1 - self.start.1) > DRAG_SLOP;
         if !config.collapsible {
             return Self {
                 moved,
@@ -153,7 +170,11 @@ impl Gesture {
             return Self {
                 latest_expansion,
                 moved,
-                phase: if raw >= config.min { Phase::Resizing } else { Phase::ExpandPreview },
+                phase: if raw >= config.min {
+                    Phase::Resizing
+                } else {
+                    Phase::ExpandPreview
+                },
                 preview_collapsed: false,
                 preview_width: clamp(raw, config.min, config.max),
                 ..self
@@ -179,7 +200,11 @@ impl Gesture {
             collapse_armed: false,
             moved,
             // Leaving an armed preview is a transition back to the track.
-            phase: if self.collapse_armed { Phase::ExpandPreview } else { Phase::Resizing },
+            phase: if self.collapse_armed {
+                Phase::ExpandPreview
+            } else {
+                Phase::Resizing
+            },
             preview_collapsed: false,
             preview_width: clamp(raw, config.min, config.max),
             ..self
@@ -188,16 +213,25 @@ impl Gesture {
 
     /// `finishCollapsiblePaneGesture`.
     pub fn finish(&self, config: &Config) -> Option<Commit> {
-        let resize = || (self.preview_width != self.start_width).then_some(Commit::Resize { width: self.preview_width });
+        let resize = || {
+            (self.preview_width != self.start_width).then_some(Commit::Resize {
+                width: self.preview_width,
+            })
+        };
         if !config.collapsible {
             return resize();
         }
         if self.start_collapsed {
-            return (self.moved && self.latest_expansion >= config.threshold)
-                .then_some(Commit::Expand { width: self.preview_width });
+            return (self.moved && self.latest_expansion >= config.threshold).then_some(
+                Commit::Expand {
+                    width: self.preview_width,
+                },
+            );
         }
         if self.collapse_armed {
-            return Some(Commit::Collapse { restore_width: config.min });
+            return Some(Commit::Collapse {
+                restore_width: config.min,
+            });
         }
         resize()
     }
@@ -223,10 +257,21 @@ mod tests {
         let c = right_pane();
         let mut g = Gesture::begin(&c, (0., 0.), false, 700.);
         g = g.moved_to(&c, (490., 0.));
-        assert_eq!((g.phase, g.preview_collapsed, g.preview_width), (Phase::CollapsePreview, true, 0.));
+        assert_eq!(
+            (g.phase, g.preview_collapsed, g.preview_width),
+            (Phase::CollapsePreview, true, 0.)
+        );
         g = g.moved_to(&c, (480., 0.));
-        assert_eq!((g.phase, g.preview_collapsed, g.preview_width), (Phase::CollapsePreview, true, 0.));
-        assert_eq!(g.finish(&c), Some(Commit::Collapse { restore_width: 420. }));
+        assert_eq!(
+            (g.phase, g.preview_collapsed, g.preview_width),
+            (Phase::CollapsePreview, true, 0.)
+        );
+        assert_eq!(
+            g.finish(&c),
+            Some(Commit::Collapse {
+                restore_width: 420.
+            })
+        );
     }
 
     #[test]
@@ -235,7 +280,10 @@ mod tests {
         let mut g = Gesture::begin(&c, (0., 0.), false, 700.);
         g = g.moved_to(&c, (490., 0.));
         g = g.moved_to(&c, (450., 0.));
-        assert_eq!((g.phase, g.preview_collapsed, g.preview_width), (Phase::ExpandPreview, false, 420.));
+        assert_eq!(
+            (g.phase, g.preview_collapsed, g.preview_width),
+            (Phase::ExpandPreview, false, 420.)
+        );
         assert_eq!(g.finish(&c), Some(Commit::Resize { width: 420. }));
     }
 
@@ -251,20 +299,30 @@ mod tests {
 
     #[test]
     fn edge_expansion_hands_off_to_direct_resize() {
-        for (side, collapsed_width, min, sign) in [(Side::Start, 56., 160., 1.), (Side::End, 0., 320., -1.)] {
+        for (side, collapsed_width, min, sign) in
+            [(Side::Start, 56., 160., 1.), (Side::End, 0., 320., -1.)]
+        {
             let c = Config::new(min, 900., collapsed_width, min / 2., true, side);
             let mut g = Gesture::begin(&c, (400., 20.), true, collapsed_width);
-            let to = |g: Gesture, width: f32| g.moved_to(&c, (400. + (width - collapsed_width) * sign, 20.));
+            let to = |g: Gesture, width: f32| {
+                g.moved_to(&c, (400. + (width - collapsed_width) * sign, 20.))
+            };
             g = to(g, collapsed_width + 8.);
             assert_eq!((g.phase, g.preview_width), (Phase::ExpandPreview, min));
             // The held gesture follows later moves without re-snapping.
             for width in [min, min + 32., min + 96., min + 48., min] {
                 g = to(g, width);
-                assert_eq!((g.phase, g.preview_width, g.preview_collapsed), (Phase::Resizing, width, false));
+                assert_eq!(
+                    (g.phase, g.preview_width, g.preview_collapsed),
+                    (Phase::Resizing, width, false)
+                );
             }
             assert_eq!(g.finish(&c), Some(Commit::Expand { width: min }));
             g = to(g, collapsed_width);
-            assert_eq!((g.phase, g.preview_collapsed), (Phase::CollapsePreview, true));
+            assert_eq!(
+                (g.phase, g.preview_collapsed),
+                (Phase::CollapsePreview, true)
+            );
             assert_eq!(g.finish(&c), None);
         }
     }
@@ -274,7 +332,12 @@ mod tests {
         for (side, x) in [(Side::Start, -200.), (Side::End, 200.)] {
             let c = Config::new(240., 900., 0., 120., true, side);
             let g = Gesture::begin(&c, (0., 0.), false, 320.).moved_to(&c, (x, 0.));
-            assert_eq!(g.finish(&c), Some(Commit::Collapse { restore_width: 240. }));
+            assert_eq!(
+                g.finish(&c),
+                Some(Commit::Collapse {
+                    restore_width: 240.
+                })
+            );
         }
     }
 
