@@ -316,7 +316,7 @@ pub struct RowActionButton {
 impl RowActionButton {
     pub fn new(id: impl Into<ElementId>, icon: impl Into<Icon>) -> Self {
         Self {
-            button: IconButton::new(id, icon).with_size(px(24.)),
+            button: IconButton::new(id, icon).with_size(px(metric::TREE_ROW_ACTION_SIZE)),
         }
     }
     /// The "⋮" more-actions trigger (`po-overflow-dots--vertical`).

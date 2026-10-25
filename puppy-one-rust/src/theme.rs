@@ -93,6 +93,15 @@ pub mod metric {
     pub const TOOLBAR_ACTION_RADIUS: f32 = 5.;
     pub const CHROME_HEIGHT: f32 = 40.;
     pub const TITLEBAR_TOOL_ACTION_WIDTH: f32 = 34.;
+    /// `--desktop-titlebar-native-controls-inset`: room for the macOS
+    /// traffic lights before the Header's first entry.
+    pub const TITLEBAR_NATIVE_CONTROLS_INSET: f32 = 80.;
+    /// `--desktop-titlebar-content-start` and the layout's end padding.
+    pub const TITLEBAR_CONTENT_START: f32 = 6.;
+    pub const TITLEBAR_CONTENT_END: f32 = 6.;
+    /// `--desktop-titlebar-drag-min-width`: the empty space that moves the
+    /// window never closes up.
+    pub const TITLEBAR_DRAG_MIN_WIDTH: f32 = 32.;
     /// `PROJECT_SWITCHER_RAIL_COLLAPSED_WIDTH`: the compact project rail.
     pub const PROJECT_RAIL_WIDTH: f32 = 56.;
     pub const SIDEBAR_ROW_RADIUS: f32 = 6.;

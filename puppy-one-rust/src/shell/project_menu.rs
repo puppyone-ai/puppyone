@@ -7,10 +7,12 @@
 use super::*;
 use crate::{
     features::settings::preference_types::RecentProject,
-    localization::t as tr,
-    ui::components::{Button, Icon, IconButton, Menu, MenuItem, MenuVariant, PopoverMenu},
+    localization::{t as tr, tf},
+    ui::components::{
+        Button, ButtonVariant, Icon, IconButton, Menu, MenuItem, MenuVariant, PopoverMenu,
+    },
 };
-use gpui_kit::component::Sizable as _;
+use gpui_kit::{base::h_flex, component::Sizable as _};
 
 /// `preferredWidth={240}` of the project menu.
 const PROJECT_MENU_WIDTH: f32 = 240.;
@@ -26,6 +28,56 @@ const MENU_VIEWPORT_INSET: f32 = 58.;
 const COPY_BUTTON: f32 = 22.;
 
 impl Shell {
+    /// `DesktopWorkspaceSwitcher` trigger + `DesktopProjectLocationSwitcher` trigger.
+    pub(super) fn project_context(&self, cx: &mut Context<Self>) -> Div {
+        let label = tf(
+            "shell.workspaceSwitcher.openMenu",
+            &[("workspace", self.project.clone().into())],
+        );
+        let device = tr(if cfg!(target_os = "macos") {
+            "shell.workspaceSwitcher.location.thisMac"
+        } else {
+            "shell.workspaceSwitcher.location.thisComputer"
+        });
+        let name = if self.project.is_empty() {
+            tr("onboarding.action.openFolder").to_owned()
+        } else {
+            self.project.clone()
+        };
+        let ty = theme::ty().header;
+        // `.desktop-titlebar-workspace-button`.
+        let project = Button::new("project")
+            .variant(ButtonVariant::Ghost)
+            .accessibility_label(label)
+            .track_focus(&self.project_focus)
+            .icon(Icon::new("house-compact").large())
+            .label(name)
+            .flex_shrink(1.)
+            .min_w_0()
+            .px(px(6.))
+            .text_size(px(ty.content))
+            .line_height(px(ty.line_height))
+            .font_weight(FontWeight::MEDIUM);
+        // `DesktopProjectLocationSwitcher` renders only when Cloud workspaces
+        // are enabled (`projectLocation` is undefined otherwise).
+        let cloud = self.preferences.read(cx).state.experimental.cloud_workspace;
+        h_flex()
+            .min_w_0()
+            .gap(px(2.))
+            .child(self.header_popover(Popover::Project, project, cx))
+            .when(cloud, |d| {
+                let location = Button::new("project-location")
+                    .variant(ButtonVariant::Titlebar)
+                    .icon(Icon::new("laptop").large())
+                    .accessibility_label(format!(
+                        "{device}, {}",
+                        tr("shell.workspaceSwitcher.projectDetails")
+                    ))
+                    .tooltip(device)
+                    .w(px(theme::control()));
+                d.child(self.header_popover(Popover::Location, location, cx))
+            })
+    }
     /// `trigger` and the header popover it opens.
     pub(super) fn header_popover(
         &self,

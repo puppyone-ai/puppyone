@@ -953,6 +953,68 @@ impl Shell {
         .task(self.modals.task())
         .busy(busy.then(|| self.preferences.read(cx).state.loading_animation.clone()))
     }
+    /// The Header (`DesktopWindowChrome`). The homepage shows only Sign in;
+    /// a workspace shows the Explorer's expand button while it is closed, the
+    /// project switcher (unless the project rail has it), and Changes and the
+    /// Agent entry as the Header elements preference allows.
+    fn header(&self, cx: &mut Context<Self>) -> header::TitleBar {
+        use crate::localization::t as tr;
+        let home = self.home_visible();
+        let (centered, changes, agent) = {
+            let p = &self.preferences.read(cx).state;
+            (
+                p.experimental.centered_project_in_header,
+                !home && self.files.workspace.is_some() && p.header_changes,
+                !home && p.header_terminal,
+            )
+        };
+        let project = !home && !self.rail && (self.files.workspace.is_some() || self.fixture);
+        let mut bar = header::TitleBar::new();
+        if !home && !self.panes.explorer().open {
+            bar = bar.leading(
+                IconButton::new("expand-explorer", "panel-left")
+                    .label(tr("shared-ui.explorer.expandSidebar"))
+                    .w(px(theme::control()))
+                    .rounded(px(theme::metric::TOOLBAR_ACTION_RADIUS))
+                    .on_click(cx.listener(|s, _, w, cx| s.command(Command::ToggleExplorer, w, cx))),
+            );
+        }
+        if project && !centered {
+            bar = bar.leading(self.project_context(cx));
+        }
+        if changes {
+            use gpui_kit::base::Selectable as _;
+            let status = header::GitTitlebarStatus::of(self.source_control.read(cx));
+            bar = bar.action(
+                header::ChangesButton::new(status)
+                    .selected(self.panes.shows(RightContent::Changes))
+                    .on_click(cx.listener(|s, _, w, cx| s.command(Command::Changes, w, cx))),
+            );
+        }
+        if changes && agent {
+            bar = bar.divider(cx);
+        }
+        if agent {
+            bar = bar.action(
+                header::agent_entry(self.panes.shows(RightContent::Workbench)).on_click(
+                    cx.listener(|s, _, w, cx| s.command(Command::ToggleRightSidebar, w, cx)),
+                ),
+            );
+        }
+        if home {
+            // Cloud sign-in is not native yet; it opens Account, which says so.
+            bar = bar.action(header::sign_in().on_click(cx.listener(|s, _, w, cx| {
+                s.command(Command::Settings, w, cx);
+                s.task_ui.settings.update(cx, |settings, cx| {
+                    settings.select_page(crate::features::settings::Page::Account, cx)
+                });
+            })));
+        }
+        if project && centered {
+            bar = bar.centered(self.project_context(cx));
+        }
+        bar
+    }
     /// Start dragging a pane edge (`useCollapsiblePaneResize`).
     fn begin_pane_drag(&mut self, side: Side, position: Point<Pixels>, cx: &mut Context<Self>) {
         let available = self.layout.header.w - self.rail_width();
@@ -1102,7 +1164,7 @@ impl Render for Shell {
         if self.rail && !home {
             root = root.child(self.project_rail(h, cx));
         }
-        root = root.child(self.header(cx));
+        root = root.child(at(self.layout.header).child(self.header(cx)));
         // Each frame owns its edge while it is on screen; a closed right
         // sidebar keeps its lane at the window edge.
         if !home && self.layout.editor.x > rail + 0.5 {
