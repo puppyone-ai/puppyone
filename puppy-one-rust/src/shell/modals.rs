@@ -6,7 +6,7 @@
 //! The Documents error (`Documents::error`) is not a modal here: it is live
 //! save status that clears itself when a retry succeeds, so the shell shows
 //! it above this layer for as long as it is set.
-use super::{explorer::Rename, home::CreateProject};
+use super::{home::CreateProject, rename::Rename};
 use crate::features::create_new::create_entry_dialog::CreateEntryDialog;
 use gpui::Entity;
 

@@ -1,9 +1,14 @@
 //! `DesktopNodeRenameDialog`; "Change file type" opens the same dialog
-//! (`renameFocus: "type"`), where the extension is part of the name.
+//! (`renameFocus: "type"`), where the extension is part of the name. The
+//! Explorer asks for it ([`ExplorerEvent::Rename`]); it lives on the modal
+//! layer, and the Explorer runs the rename it answers with.
 use super::*;
-use crate::ui::{
-    components::{Button, ButtonVariant, Dialog},
-    form_input::{InputEvent, TextInput},
+use crate::{
+    localization::t as tr,
+    ui::{
+        components::{Button, ButtonVariant, Dialog},
+        form_input::{InputEvent, TextInput},
+    },
 };
 
 /// The rename dialog's state, held on the shell's modal layer.
@@ -66,7 +71,8 @@ impl Shell {
         } else if name == "." || name == ".." || name.contains(['/', '\\']) {
             self.show_error(tr("workspace.node.error.nameInvalid"));
         } else {
-            self.run_op(FileOp::Rename { path, name }, window, cx);
+            self.explorer
+                .update(cx, |explorer, cx| explorer.rename(path, name, cx));
         }
         self.focus.focus(window, cx);
         cx.notify();

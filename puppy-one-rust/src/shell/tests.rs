@@ -245,6 +245,10 @@ fn project_popup_toggle_outside_and_escape_restore_focus(cx: &mut TestAppContext
         assert!(s.project_focus.is_focused(w));
     });
 }
+/// The shell's Explorer entity.
+fn explorer_of(view: &Entity<Shell>, cx: &mut VisualTestContext) -> Entity<Explorer> {
+    view.read_with(cx, |s, _| s.explorer.clone())
+}
 fn draw(cx: &mut VisualTestContext) {
     cx.update(|w, cx| {
         let _ = w.draw(cx);
@@ -254,53 +258,57 @@ fn draw(cx: &mut VisualTestContext) {
 fn explorer_row_menus_light_their_trigger_and_dismiss(cx: &mut TestAppContext) {
     use explorer::{MenuAt, RowTrigger};
     let (view, cx) = setup(cx);
-    let (index, path) = view.update(cx, |s, _| {
-        let index = s.tree.rows.iter().position(|r| !r.folder).unwrap();
-        (index, s.tree.rows[index].path.clone())
+    let explorer = explorer_of(&view, cx);
+    let (index, path) = explorer.read_with(cx, |e, _| {
+        let index = e.tree().rows.iter().position(|r| !r.folder).unwrap();
+        (index, e.tree().rows[index].path.clone())
     });
     // "⋮" leaves the selection alone and lights its own trigger.
-    view.update(cx, |s, cx| {
-        let before = s.tree.selected.clone();
-        s.open_node_menu(index, MenuAt::Row(path.clone(), RowTrigger::More), cx);
-        assert_eq!(s.tree.selected, before);
-        let menu = s.explorer.menu.as_ref().unwrap();
+    explorer.update(cx, |e, cx| {
+        let before = e.tree().selected.clone();
+        e.open_node_menu(index, MenuAt::Row(path.clone(), RowTrigger::More), cx);
+        assert_eq!(e.tree().selected, before);
+        let menu = e.menu().unwrap();
         assert_eq!(menu.row_trigger(&path), Some(RowTrigger::More));
     });
     draw(cx);
     // GPUI Kit dismisses the popover on a press outside it.
     cx.simulate_click(point(px(900.), px(500.)), Modifiers::none());
-    view.update(cx, |s, _| assert!(s.explorer.menu.is_none()));
+    explorer.read_with(cx, |e, _| assert!(e.menu().is_none()));
     // A right click selects the row and pins the menu at the pointer.
-    view.update(cx, |s, cx| {
-        s.open_node_menu(index, MenuAt::Pointer(point(px(100.), px(100.))), cx);
-        assert_eq!(s.tree.selected, path);
-        assert!(s.tree.selection.contains(&path));
+    explorer.update(cx, |e, cx| {
+        e.open_node_menu(index, MenuAt::Pointer(point(px(100.), px(100.))), cx);
+        assert_eq!(e.tree().selected, path);
+        assert!(e.tree().selection.contains(&path));
     });
     draw(cx);
     cx.simulate_keystrokes("escape");
-    view.update(cx, |s, _| assert!(s.explorer.menu.is_none()));
+    explorer.read_with(cx, |e, _| assert!(e.menu().is_none()));
 }
 #[gpui::test]
 fn explorer_keys_move_the_selection_and_fill_the_clipboard(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
-    view.update_in(cx, |s, w, cx| {
-        let first = s.tree.rows[0].path.clone();
-        s.tree.select(&first, false, false);
-        s.explorer.focus.focus(w, cx);
+    let explorer = explorer_of(&view, cx);
+    explorer.update_in(cx, |e, w, cx| {
+        let first = e.tree().rows[0].path.clone();
+        e.tree_mut().select(&first, false, false);
+        e.focus_handle(cx).focus(w, cx);
     });
     draw(cx);
     cx.simulate_keystrokes("down");
-    view.update(cx, |s, _| assert_eq!(s.tree.selected, s.tree.rows[1].path));
+    explorer.read_with(cx, |e, _| {
+        assert_eq!(e.tree().selected, e.tree().rows[1].path)
+    });
     cx.simulate_keystrokes("end");
-    view.update(cx, |s, _| {
-        assert_eq!(s.tree.selected, s.tree.rows.last().unwrap().path)
+    explorer.read_with(cx, |e, _| {
+        assert_eq!(e.tree().selected, e.tree().rows.last().unwrap().path)
     });
     cx.simulate_keystrokes("secondary-x");
-    view.update(cx, |s, _| {
-        let selected = s.tree.selected.clone();
+    explorer.read_with(cx, |e, _| {
+        let selected = e.tree().selected.clone();
         assert_eq!(
-            s.explorer.clipboard,
-            Some(explorer::FileClipboard::Cut(vec![selected]))
+            e.clipboard(),
+            Some(&explorer::FileClipboard::Cut(vec![selected]))
         );
     });
 }
@@ -308,7 +316,7 @@ fn explorer_keys_move_the_selection_and_fill_the_clipboard(cx: &mut TestAppConte
 fn rename_dialog_focuses_its_name_and_escape_cancels(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     view.update_in(cx, |s, w, cx| {
-        let path = s.tree.rows[0].path.clone();
+        let path = s.explorer.read(cx).tree().rows[0].path.clone();
         s.begin_rename(path, false, w, cx);
     });
     draw(cx);
@@ -387,22 +395,82 @@ fn locale_changes_catalog_without_document_work(cx: &mut TestAppContext) {
 #[gpui::test]
 fn folder_selection_expands_tree_without_resetting_to_editor(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
-    view.update_in(cx, |s, w, cx| {
-        let index = s.tree.rows.iter().position(|r| r.folder).unwrap();
-        let path = s.tree.rows[index].path.clone();
-        let before = s.tree.rows[index].expanded;
-        s.open_row(index, w, cx);
-        assert_eq!(s.tree.selected, path);
-        assert_eq!(s.tree.find_mut(&path).unwrap().expanded, !before);
-        s.receive(w, cx);
-        assert_eq!(s.tree.selected, path);
+    let explorer = explorer_of(&view, cx);
+    let path = explorer.update(cx, |e, cx| {
+        let index = e.tree().rows.iter().position(|r| r.folder).unwrap();
+        let path = e.tree().rows[index].path.clone();
+        let before = e.tree().rows[index].expanded;
+        e.open_row(index, cx);
+        assert_eq!(e.tree().selected, path);
+        assert_eq!(e.tree_mut().find_mut(&path).unwrap().expanded, !before);
+        path
+    });
+    view.update_in(cx, |s, w, cx| s.receive(w, cx));
+    explorer.read_with(cx, |e, _| assert_eq!(e.tree().selected, path));
+}
+#[gpui::test]
+fn renaming_the_open_document_closes_it_first_and_reopens_it_renamed(cx: &mut TestAppContext) {
+    use std::path::Path;
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("notes.md"), "# Notes\n").unwrap();
+    let (view, cx) = setup(cx);
+    let explorer = explorer_of(&view, cx);
+    // Real workers answer: pump the shell (and its frames, where the
+    // Explorer hears about the documents) until `done`.
+    let settle = |cx: &mut VisualTestContext, done: &dyn Fn(&Shell, &App) -> bool| {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        loop {
+            view.update_in(cx, |s, w, cx| s.receive(w, cx));
+            draw(cx);
+            cx.run_until_parked();
+            if view.read_with(cx, |s, cx| done(s, cx)) {
+                break;
+            }
+            assert!(std::time::Instant::now() < deadline, "timed out");
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+    };
+    let root = temp.path().to_path_buf();
+    view.update(cx, |s, _| s.files.begin(Intent::OpenFolder(root), &s.wake));
+    settle(cx, &|s, cx| {
+        s.explorer
+            .read(cx)
+            .tree()
+            .index_of(Path::new("notes.md"))
+            .is_some()
+    });
+    view.update(cx, |s, _| {
+        s.files.begin(Intent::OpenFile("notes.md".into()), &s.wake)
+    });
+    let opened = |name: &'static str| {
+        move |s: &Shell, _: &App| {
+            !s.files.busy()
+                && s.files
+                    .document
+                    .as_ref()
+                    .is_some_and(|d| d.relative == Path::new(name))
+        }
+    };
+    settle(cx, &opened("notes.md"));
+    // The rename touches the open document: the Explorer has it closed,
+    // renames once nothing is open, then has it reopened at its new path.
+    explorer.update(cx, |e, cx| {
+        e.rename("notes.md".into(), "renamed.md".into(), cx)
+    });
+    settle(cx, &opened("renamed.md"));
+    assert!(temp.path().join("renamed.md").exists());
+    assert!(!temp.path().join("notes.md").exists());
+    explorer.read_with(cx, |e, _| {
+        assert_eq!(e.tree().selected, Path::new("renamed.md"));
+        assert!(!e.busy());
     });
 }
 #[gpui::test]
 fn large_tree_uses_gpui_virtual_rows(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
-    view.update(cx, |s, cx| {
-        s.tree.rows = (0..100_000)
+    let explorer = explorer_of(&view, cx);
+    explorer.update(cx, |e, cx| {
+        e.tree_mut().rows = (0..100_000)
             .map(|i| crate::model::Row {
                 path: format!("{i}.txt").into(),
                 name: format!("{i}.txt"),
@@ -419,9 +487,9 @@ fn large_tree_uses_gpui_virtual_rows(cx: &mut TestAppContext) {
     cx.update(|w, cx| {
         let _ = w.draw(cx);
     });
-    view.update(cx, |s, _| {
-        assert!(s.painted_rows > 0);
-        assert!(s.painted_rows < 1000, "painted {}", s.painted_rows);
+    explorer.read_with(cx, |e, _| {
+        assert!(e.painted_rows > 0);
+        assert!(e.painted_rows < 1000, "painted {}", e.painted_rows);
     });
 }
 #[test]
@@ -442,8 +510,9 @@ fn sidebar_tree_fade_follows_use_scroll_edge_state() {
 #[gpui::test]
 fn sidebar_tree_fades_into_the_footer_only_while_rows_remain_below(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
-    view.update(cx, |s, cx| {
-        s.tree.rows = (0..500)
+    let explorer = explorer_of(&view, cx);
+    explorer.update(cx, |e, cx| {
+        e.tree_mut().rows = (0..500)
             .map(|i| crate::model::Row {
                 path: format!("{i}.txt").into(),
                 name: format!("{i}.txt"),
@@ -460,24 +529,24 @@ fn sidebar_tree_fades_into_the_footer_only_while_rows_remain_below(cx: &mut Test
     cx.update(|w, cx| {
         let _ = w.draw(cx);
     });
-    let fade = |view: &Entity<Shell>, cx: &mut VisualTestContext| {
-        view.update(cx, |s, _| {
-            let state = s.explorer.scroll.0.borrow();
+    let fade = |explorer: &Entity<Explorer>, cx: &mut VisualTestContext| {
+        explorer.read_with(cx, |e, _| {
+            let state = e.scroll().0.borrow();
             explorer::bottom_fade(
                 f32::from(state.base_handle.offset().y),
                 f32::from(state.base_handle.max_offset().y),
             )
         })
     };
-    assert_eq!(fade(&view, cx), 1.);
-    view.update(cx, |s, cx| {
-        s.explorer.scroll.scroll_to_bottom();
+    assert_eq!(fade(&explorer, cx), 1.);
+    explorer.update(cx, |e, cx| {
+        e.scroll().scroll_to_bottom();
         cx.notify();
     });
     cx.update(|w, cx| {
         let _ = w.draw(cx);
     });
-    assert_eq!(fade(&view, cx), 0.);
+    assert_eq!(fade(&explorer, cx), 0.);
 }
 #[gpui::test]
 fn idle_shell_does_not_schedule_continuous_frames(cx: &mut TestAppContext) {
@@ -490,36 +559,37 @@ fn idle_shell_does_not_schedule_continuous_frames(cx: &mut TestAppContext) {
 #[gpui::test]
 fn opening_a_folder_animates_its_rows_unless_motion_is_reduced(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
+    let explorer = explorer_of(&view, cx);
     // A collapsed fixture folder whose children are already loaded.
-    let folder = view.update(cx, |s, _| {
-        s.tree
+    let folder = explorer.read_with(cx, |e, _| {
+        e.tree()
             .rows
             .iter()
             .position(|r| r.folder && !r.expanded)
             .unwrap()
     });
-    view.update(cx, |s, cx| {
-        let path = s.tree.rows[folder].path.clone();
-        assert!(!s.tree.toggle(&path));
+    explorer.update(cx, |e, cx| {
+        let path = e.tree().rows[folder].path.clone();
+        assert!(!e.tree_mut().toggle(&path));
         cx.notify();
     });
     draw(cx);
-    view.update(cx, |s, _| {
+    explorer.read_with(cx, |e, _| {
         // The first child starts hidden and the marker starts closed.
-        assert!(s.explorer.motion.row(folder + 1).reveal.unwrap() < 0.5);
-        assert!(s.explorer.motion.disclosure(folder).unwrap() < 0.5);
+        assert!(e.motion().row(folder + 1).reveal.unwrap() < 0.5);
+        assert!(e.motion().disclosure(folder).unwrap() < 0.5);
     });
     // With reduced motion the same disclosure lands at once.
     cx.update(|_, cx| cx.set_reduce_motion(true));
-    view.update(cx, |s, cx| {
-        let path = s.tree.rows[folder].path.clone();
-        s.tree.toggle(&path);
+    explorer.update(cx, |e, cx| {
+        let path = e.tree().rows[folder].path.clone();
+        e.tree_mut().toggle(&path);
         cx.notify();
     });
     draw(cx);
-    view.update(cx, |s, _| {
-        assert_eq!(s.explorer.motion.disclosure(folder), None);
-        assert_eq!(s.explorer.motion.row(folder + 1), Default::default());
+    explorer.read_with(cx, |e, _| {
+        assert_eq!(e.motion().disclosure(folder), None);
+        assert_eq!(e.motion().row(folder + 1), Default::default());
     });
 }
 #[gpui::test]

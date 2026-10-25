@@ -2,7 +2,6 @@ use crate::{
     documents::{ClientMessage, Documents, Intent},
     geometry::Rect,
     localization::Locale,
-    model::Tree,
     theme::{self, Theme},
     ui::{
         self,
@@ -18,15 +17,18 @@ mod capture_scenario;
 mod command;
 mod create_new;
 mod explorer;
+mod footer;
 mod header;
 mod home;
 mod modals;
 mod panes;
 mod project_menu;
+mod rename;
 pub(crate) mod tasks;
 use command::on_shell_actions;
 pub use command::{Command, app_menus, bind_keys, on_global_shell_actions};
-use explorer::Explorer;
+use explorer::{Explorer, ExplorerEvent, Host};
+use footer::SidebarFooter;
 use modals::{Modal, Modals, Task};
 use panes::{Layout, Panes, RightContent, Side, StoredPanes};
 use tasks::TaskUi;
@@ -37,7 +39,6 @@ pub enum Popover {
     Location,
 }
 pub struct Shell {
-    tree: Tree,
     project: String,
     dark: bool,
     locale: Locale,
@@ -55,7 +56,8 @@ pub struct Shell {
     home: bool,
     recent_projects: Vec<crate::features::settings::preference_types::RecentProject>,
     weak: WeakEntity<Shell>,
-    explorer: Explorer,
+    /// The workspace tree on the left.
+    explorer: Entity<Explorer>,
     homepage: home::Homepage,
     task_ui: TaskUi,
     preferences: Entity<crate::features::settings::preferences_store::PreferencesStore>,
@@ -73,8 +75,6 @@ pub struct Shell {
     layout: Layout,
     #[cfg(feature = "dev-capture")]
     capture_scenario: Option<capture_scenario::CaptureScenario>,
-    #[cfg(test)]
-    painted_rows: usize,
     #[cfg(test)]
     frames: usize,
 }
@@ -129,17 +129,9 @@ impl Shell {
             while rx.recv().await.is_ok() {
                 if this
                     .update_in(cx, |s, w, cx| {
-                        let before = (
-                            s.files.presentation_key(),
-                            s.tree.rows.len(),
-                            s.project.clone(),
-                        );
+                        let before = (s.files.presentation_key(), s.project.clone());
                         s.receive(w, cx);
-                        let after = (
-                            s.files.presentation_key(),
-                            s.tree.rows.len(),
-                            s.project.clone(),
-                        );
+                        let after = (s.files.presentation_key(), s.project.clone());
                         if before != after {
                             cx.notify();
                         }
@@ -159,11 +151,6 @@ impl Shell {
             }
         });
         let mut s = Self {
-            tree: if fixture {
-                Tree::fixture()
-            } else {
-                Tree::new()
-            },
             project: if fixture {
                 "puppyone".into()
             } else {
@@ -188,7 +175,7 @@ impl Shell {
             home: false,
             recent_projects: vec![],
             weak: cx.weak_entity(),
-            explorer: Explorer::new(cx),
+            explorer: cx.new(|cx| Explorer::new(fixture, preferences.clone(), cx)),
             homepage: Default::default(),
             task_ui: TaskUi::new(preferences.clone(), window, cx),
             preferences,
@@ -214,8 +201,6 @@ impl Shell {
                 capture_scenario::CaptureScenario::from_env()
             },
             #[cfg(test)]
-            painted_rows: 0,
-            #[cfg(test)]
             frames: 0,
         };
         // Captures can start on a task dialog.
@@ -234,6 +219,24 @@ impl Shell {
         .detach();
         cx.observe_window_appearance(window, |s, w, cx| s.apply_preferences(w, cx))
             .detach();
+        // What the Explorer asks for.
+        cx.subscribe_in(&s.explorer, window, |s, _, event, window, cx| {
+            match event {
+                ExplorerEvent::Open(path) => s.files.begin(Intent::OpenFile(path.clone()), &s.wake),
+                ExplorerEvent::LoadChildren(path) => s.files.load_children(path.clone(), &s.wake),
+                ExplorerEvent::CloseDocument => s.files.begin(Intent::CloseFile, &s.wake),
+                ExplorerEvent::Create { entry, parent } => {
+                    s.start_create(*entry, parent.clone(), window, cx)
+                }
+                ExplorerEvent::Rename { path, change_type } => {
+                    s.begin_rename(path.clone(), *change_type, window, cx)
+                }
+                ExplorerEvent::Error(error) => s.show_error(error.clone()),
+            }
+            s.receive(window, cx);
+            cx.notify();
+        })
+        .detach();
         cx.observe(&s.preferences, |s, _, cx| {
             s.wake.notify();
             cx.notify()
@@ -407,14 +410,6 @@ impl Shell {
         }
         crate::ui::appearance::Appearance::new(self.dark, &p.theme_pack, scale, p.pointer_cursors)
             .apply(Some(window), cx);
-        let visibility = crate::model::Visibility {
-            show_hidden: p.files.show_hidden_files,
-            patterns: p.files.exclude_patterns.clone(),
-        };
-        if self.tree.visibility != visibility {
-            self.tree.visibility = visibility;
-            self.tree.rebuild();
-        }
         self.recent_projects = p.recent_projects.clone();
         let hidden = p.local_agents.hidden_agent_ids.clone();
         let loading = p.loading_animation.clone();
@@ -604,13 +599,13 @@ impl Shell {
             Command::ToggleRightSidebar => self.panes.toggle_workbench(),
             Command::Settings => {
                 self.popover = None;
-                self.explorer.menu = None;
+                self.explorer.update(cx, |e, cx| e.dismiss_menu(cx));
                 self.modals.open(Modal::Task(Task::Settings));
                 self.modal_focus.focus(window, cx);
             }
             Command::Feedback => {
                 self.popover = None;
-                self.explorer.menu = None;
+                self.explorer.update(cx, |e, cx| e.dismiss_menu(cx));
                 self.modals.open(Modal::Task(Task::Feedback));
                 self.task_ui.message.focus_handle(cx).focus(window, cx);
             }
@@ -631,15 +626,13 @@ impl Shell {
             }
             Command::Home => {
                 self.popover = None;
-                self.explorer.menu = None;
+                self.explorer.update(cx, |e, cx| e.dismiss_menu(cx));
                 self.home = true;
             }
             // With no dialog open, Escape closes a menu.
             Command::Escape => {
-                if self.explorer.menu.is_some() {
-                    self.explorer.menu = None;
-                } else if self.popover.is_some() {
-                    self.popover = None;
+                let closed = self.explorer.update(cx, |e, cx| e.dismiss_menu(cx));
+                if !closed && self.popover.take().is_some() {
                     self.project_focus.focus(window, cx);
                 }
             }
@@ -678,9 +671,10 @@ impl Shell {
     fn receive(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let previous = self.files.opened().map(|(id, _)| id.to_owned());
         self.files.poll(&self.wake);
-        self.poll_file_ops(window, cx);
         if let Some(nodes) = self.files.tree_update.take() {
-            let ws = self.files.workspace.as_ref().unwrap();
+            let ws = self.files.workspace.clone().unwrap();
+            self.explorer
+                .update(cx, |e, cx| e.load_workspace(ws.clone(), nodes, cx));
             let root = ws.path.clone();
             self.workbench
                 .update(cx, |s, cx| s.set_workspace(root.clone(), cx));
@@ -692,19 +686,9 @@ impl Shell {
                 .unwrap_or_default()
                 .to_string_lossy()
                 .into_owned();
-            let visibility = self.tree.visibility.clone();
-            self.tree = Tree {
-                roots: nodes,
-                visibility,
-                ..Tree::new()
-            };
-            self.tree.rebuild();
-            self.explorer.scroll = UniformListScrollHandle::new();
-            self.explorer.menu = None;
             self.fixture = false;
             self.modals.remove(|m| matches!(m, Modal::Error(_)));
             self.home = false;
-            self.explorer.clipboard = None;
             let opened = ws.path.clone();
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -717,15 +701,14 @@ impl Shell {
             }
         }
         if let Some((path, result)) = self.files.children_update.take() {
-            match result {
-                Ok(nodes) => self.tree.attach_children(&path, nodes),
-                Err(e) => self.tree.fail_children(&path, e),
-            }
+            self.explorer
+                .update(cx, |e, cx| e.children_loaded(&path, result, cx));
         }
         if let Some((id, relative)) = self.files.opened()
             && previous.as_deref() != Some(id)
         {
-            self.tree.selected = relative.to_path_buf();
+            let relative = relative.to_path_buf();
+            self.explorer.update(cx, |e, cx| e.reveal(&relative, cx));
         }
         if self.files.workspace.is_some()
             && !self.files.busy()
@@ -783,24 +766,6 @@ impl Shell {
             self.native
                 .update(cx, |editor, cx| editor.focus_document(window, cx));
         }
-    }
-    fn open_row(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
-        if self.pending || self.files.busy() || self.files.folder_busy {
-            return;
-        }
-        let Some(item) = self.tree.rows.get(index).cloned() else {
-            return;
-        };
-        self.tree.selected = item.path.clone();
-        if item.folder {
-            if self.tree.toggle(&item.path) {
-                self.files.load_children(item.path, &self.wake);
-            }
-        } else if !self.fixture {
-            self.files.begin(Intent::OpenFile(item.path), &self.wake);
-        }
-        self.receive(window, cx);
-        cx.notify();
     }
     /// Switch to a remembered project (`onSelectProject`).
     pub(super) fn open_project(
@@ -959,6 +924,35 @@ impl Shell {
             0.
         }
     }
+    /// What the Explorer needs from the shell this frame (`Host`).
+    fn sync_explorer(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let host = Host {
+            frame: self.layout.explorer,
+            open: self.panes.explorer().open,
+            opened: self
+                .files
+                .opened()
+                .map(|(_, relative)| relative.to_path_buf()),
+            documents_busy: self.files.busy(),
+            folder_busy: self.files.folder_busy,
+            picking: self.pending,
+        };
+        self.explorer
+            .update(cx, |explorer, cx| explorer.sync(host, window, cx));
+    }
+    /// `DesktopSidebarFooterNavigation`: Settings, Help and the busy cue.
+    fn footer(&self, cx: &mut Context<Self>) -> SidebarFooter {
+        let busy = self.pending
+            || self.files.busy()
+            || self.files.folder_busy
+            || self.explorer.read(cx).busy();
+        let shell = cx.weak_entity();
+        SidebarFooter::new(move |command, window, cx| {
+            let _ = shell.update(cx, |s, cx| s.command(command, window, cx));
+        })
+        .task(self.modals.task())
+        .busy(busy.then(|| self.preferences.read(cx).state.loading_animation.clone()))
+    }
     /// Start dragging a pane edge (`useCollapsiblePaneResize`).
     fn begin_pane_drag(&mut self, side: Side, position: Point<Pixels>, cx: &mut Context<Self>) {
         let available = self.layout.header.w - self.rail_width();
@@ -1021,7 +1015,6 @@ impl Render for Shell {
         #[cfg(test)]
         {
             self.frames += 1;
-            self.painted_rows = 0;
         }
         let size = window.viewport_size();
         let w = f32::from(size.width);
@@ -1034,7 +1027,7 @@ impl Render for Shell {
             window.request_animation_frame();
         }
         self.sync_editor(window, cx);
-        self.advance_tree_motion(window, cx);
+        self.sync_explorer(window, cx);
         self.refresh_home_activity(cx);
         #[cfg(feature = "dev-capture")]
         let scenario_done = self.advance_capture_scenario(window, cx);
@@ -1090,8 +1083,8 @@ impl Render for Shell {
                 .top_0()
                 .left_0()
                 .size_full()
-                .child(self.explorer(cx))
-                .child(self.footer(cx));
+                .child(at(self.layout.explorer).child(self.explorer.clone()))
+                .child(at(self.layout.footer).child(self.footer(cx)));
             root = root.child(clipped(panes.left_clip, w, h, explorer));
         }
         if (self.panes.right().open || panes.right_clip.is_some()) && !home {

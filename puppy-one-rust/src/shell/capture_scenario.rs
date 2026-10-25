@@ -124,7 +124,7 @@ impl Shell {
         // The real workspace and its Git status must be in place first.
         let workspace_ready = self.files.workspace.is_some()
             && !self.fixture
-            && !self.tree.rows.is_empty()
+            && !self.explorer.read(cx).tree().rows.is_empty()
             && !self.files.busy()
             && !self.files.folder_busy;
         let git_ready = self.source_control.read(cx).snapshot.is_some();
@@ -157,19 +157,12 @@ impl Shell {
     ) -> bool {
         match step {
             Step::Select(path) => {
-                if self.tree.index_of(path).is_none() {
+                if !self.explorer.update(cx, |e, cx| e.capture_select(path, cx)) {
                     return false;
                 }
-                self.tree.select(path, false, false);
             }
             Step::Expand(path) => {
-                let Some(index) = self.tree.index_of(path) else {
-                    return false;
-                };
-                if !self.tree.rows[index].expanded {
-                    if self.tree.set_expanded(path, true) {
-                        self.files.load_children(path.clone(), &self.wake);
-                    }
+                if !self.explorer.update(cx, |e, cx| e.capture_expand(path, cx)) {
                     return false;
                 }
             }
@@ -217,52 +210,40 @@ impl Shell {
                 }
             }
             Step::Collapse(path) => {
-                if self.tree.index_of(path).is_none() {
+                if self.explorer.read(cx).tree().index_of(path).is_none() {
                     return false;
                 }
-                self.tree.set_expanded(path, false);
+                self.explorer
+                    .update(cx, |e, cx| e.set_expanded(path, false, cx));
             }
             Step::Open(path) => self.files.begin(Intent::OpenFile(path.clone()), &self.wake),
             Step::NodeMenu(path) => {
-                let Some(index) = self.tree.index_of(path) else {
+                let Some(index) = self.explorer.read(cx).tree().index_of(path) else {
                     return false;
                 };
                 let at = MenuAt::Row(path.clone(), RowTrigger::More);
-                self.open_node_menu(index, at, cx);
+                self.explorer
+                    .update(cx, |e, cx| e.open_node_menu(index, at, cx));
             }
             Step::CreateMenu(path) => {
                 let at = MenuAt::Row(path.clone(), RowTrigger::Create);
-                self.open_create_menu(path.clone(), at, cx);
+                self.explorer
+                    .update(cx, |e, cx| e.open_create_menu(path.clone(), at, cx));
             }
-            Step::NewMenu => self.open_create_menu(PathBuf::new(), MenuAt::NewRow, cx),
+            Step::NewMenu => self.explorer.update(cx, |e, cx| {
+                e.open_create_menu(PathBuf::new(), MenuAt::NewRow, cx)
+            }),
             Step::Context(x, y) => {
                 let position = point(px(*x), px(*y));
-                match self.explorer_row_at(*x, *y) {
-                    Some(index) => self.open_node_menu(index, MenuAt::Pointer(position), cx),
-                    None => self.open_create_menu(PathBuf::new(), MenuAt::Pointer(position), cx),
-                }
+                self.explorer.update(cx, |e, cx| match e.row_at(position) {
+                    Some(index) => e.open_node_menu(index, MenuAt::Pointer(position), cx),
+                    None => e.open_create_menu(PathBuf::new(), MenuAt::Pointer(position), cx),
+                });
             }
-            Step::Submenu => {
-                if let Some(menu) = &mut self.explorer.menu {
-                    menu.submenu_open = true;
-                }
-            }
+            Step::Submenu => self.explorer.update(cx, |e, cx| e.capture_open_submenu(cx)),
             Step::Command(command) => self.command(*command, window, cx),
         }
         self.receive(window, cx);
         true
-    }
-    /// The tree row under a window point (rows stack from the list's 12px
-    /// top padding, one stride each).
-    fn explorer_row_at(&self, x: f32, y: f32) -> Option<usize> {
-        let list = self.layout.explorer;
-        if x < list.x || x >= list.right() {
-            return None;
-        }
-        let offset = f32::from(self.explorer.scroll.0.borrow().base_handle.offset().y);
-        let row = (y - list.y - 12. - offset) / theme::sidebar_stride();
-        (row >= 0.)
-            .then_some(row as usize)
-            .filter(|index| *index < self.tree.rows.len())
     }
 }

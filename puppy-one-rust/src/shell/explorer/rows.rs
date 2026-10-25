@@ -1,6 +1,6 @@
 //! Tree rows (`.tree-row`) and the list-end "New" row
 //! (`desktop-explorer-list-end-create`).
-use super::{menus::MenuAt, menus::RowTrigger, *};
+use super::*;
 use crate::{
     localization::tf,
     ui::components::{FileIcon, Icon, RowActionButton, RowVariant, SidebarRow},
@@ -32,7 +32,7 @@ impl Render for DragNodes {
     }
 }
 
-impl Shell {
+impl Explorer {
     /// One stride of the virtual list: a row inside its 1px block margins
     /// (`uniform_list` measures items without their margins), offset or
     /// clipped while the disclosure motion runs. `ghosts`: this slot also
@@ -45,11 +45,8 @@ impl Shell {
     ) -> AnyElement {
         let stride = theme::sidebar_stride();
         let (row, frame) = match self.tree.rows.get(index).cloned() {
-            Some(item) => (
-                self.tree_row(index, item, cx),
-                self.explorer.motion.row(index),
-            ),
-            None => (self.list_end_row(cx), self.explorer.motion.list_end()),
+            Some(item) => (self.tree_row(index, item, cx), self.motion.row(index)),
+            None => (self.list_end_row(cx), self.motion.list_end()),
         };
         let ghosts = if ghosts {
             self.ghost_rows(index, cx)
@@ -78,9 +75,8 @@ impl Shell {
     /// of the viewport, each clipped to its remaining share (inert).
     fn ghost_rows(&self, anchor: usize, cx: &App) -> Vec<AnyElement> {
         let stride = theme::sidebar_stride();
-        let slots = (self.layout.explorer.h / stride).ceil() as usize + 2;
-        self.explorer
-            .motion
+        let slots = (self.host.frame.h / stride).ceil() as usize + 2;
+        self.motion
             .ghosts(anchor.saturating_sub(1)..anchor + slots)
             .into_iter()
             .map(|(ghost, visible)| {
@@ -113,8 +109,8 @@ impl Shell {
     ) -> SidebarRow {
         let t = cx.palette();
         let icon_theme = self.preferences.read(cx).state.file_icon_theme.clone();
-        let width = self.layout.explorer.w - 2. * metric::SIDEBAR_ROW_LEFT_GAP;
-        let cut = matches!(&self.explorer.clipboard, Some(FileClipboard::Cut(p)) if p.contains(&item.path));
+        let width = self.host.frame.w - 2. * metric::SIDEBAR_ROW_LEFT_GAP;
+        let cut = matches!(&self.clipboard, Some(FileClipboard::Cut(p)) if p.contains(&item.path));
         let mut row = SidebarRow::new(id)
             .dimmed(cut)
             .indent((item.depth as f32 * metric::TREE_INDENT).min((width - 64.).max(0.)));
@@ -176,11 +172,10 @@ impl Shell {
         let t = cx.palette();
         let selected = self.tree.selected == item.path || self.tree.selection.contains(&item.path);
         let lit = self
-            .explorer
             .menu
             .as_ref()
             .and_then(|menu| menu.row_trigger(&item.path));
-        let turn = self.explorer.motion.disclosure(index);
+        let turn = self.motion.disclosure(index);
         let mut row = self
             .row_body(("tree-row", index), &item, turn, cx)
             .selected(selected)
@@ -214,10 +209,7 @@ impl Shell {
                             .child(tr("common.action.retry"))
                             .on_click(cx.listener(move |s, _, _, cx| {
                                 cx.stop_propagation();
-                                if s.tree.set_expanded(&retry, true) {
-                                    s.files.load_children(retry.clone(), &s.wake);
-                                }
-                                cx.notify();
+                                s.set_expanded(&retry, true, cx);
                             })),
                     ),
             );
@@ -294,7 +286,7 @@ impl Shell {
         )
         .drag_over::<DragNodes>(move |s, _, _, _| s.bg(theme::alpha(t.accent, 0.18)))
         .drag_over::<ExternalPaths>(move |s, _, _, _| s.bg(theme::alpha(t.accent, 0.18)))
-        .on_drop(cx.listener(move |s, drag: &DragNodes, w, cx| {
+        .on_drop(cx.listener(move |s, drag: &DragNodes, _, cx| {
             let paths: Vec<PathBuf> = drag
                 .paths
                 .iter()
@@ -302,13 +294,12 @@ impl Shell {
                 .cloned()
                 .collect();
             if !paths.is_empty() {
-                s.run_op(FileOp::Move(paths, drop_target.clone()), w, cx)
+                s.run_op(FileOp::Move(paths, drop_target.clone()), cx)
             }
         }))
-        .on_drop(cx.listener(move |s, paths: &ExternalPaths, w, cx| {
+        .on_drop(cx.listener(move |s, paths: &ExternalPaths, _, cx| {
             s.run_op(
                 FileOp::Import(paths.paths().to_vec(), import_target.clone()),
-                w,
                 cx,
             )
         }))
@@ -317,7 +308,7 @@ impl Shell {
     /// The quiet "New" row after the last item; it opens the create menu for
     /// the workspace root, end aligned under the row.
     fn list_end_row(&mut self, cx: &mut Context<Self>) -> AnyElement {
-        let enabled = self.files.workspace.is_some() && self.preferences.read(cx).loaded;
+        let enabled = self.workspace.is_some() && self.preferences.read(cx).loaded;
         let row = SidebarRow::new("explorer-new")
             .variant(RowVariant::Launcher)
             .icon(Icon::new("plus").small().stroke(2.2).opacity(0.76))
@@ -346,7 +337,7 @@ impl Shell {
         let Some(row) = self.tree.rows.get(index).cloned() else {
             return;
         };
-        self.explorer.focus.focus(window, cx);
+        self.focus.focus(window, cx);
         if modifiers.platform || modifiers.shift {
             self.tree
                 .select(&row.path, modifiers.platform, modifiers.shift);
@@ -354,6 +345,6 @@ impl Shell {
             return;
         }
         self.tree.select(&row.path, false, false);
-        self.open_row(index, window, cx);
+        self.open_row(index, cx);
     }
 }

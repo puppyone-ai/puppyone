@@ -4,10 +4,9 @@
 //!
 //! GPUI Kit places, layers and dismisses them: a row's "+" / "⋮" and the
 //! list-end "New" row own a [`PopoverMenu`], a right click opens an
-//! [`AnchoredMenu`] at the pointer. The shell holds which one is open.
+//! [`AnchoredMenu`] at the pointer. The Explorer holds which one is open.
 use super::*;
 use crate::{
-    features::create_new::create_entry_menu_registry::Entry,
     localization::tf,
     ui::components::{AnchoredMenu, FileIcon, Icon, Menu, MenuItem, MenuVariant, PopoverMenu},
 };
@@ -81,8 +80,8 @@ impl ExplorerMenu {
 }
 /// Fills a menu surface with an Explorer menu's rows.
 type MenuFill = Box<dyn FnOnce(Menu) -> Menu>;
-/// A menu command against the shell.
-type ShellAction = Box<dyn Fn(&mut Shell, &mut Window, &mut Context<Shell>)>;
+/// A menu command against the Explorer.
+type Action = Box<dyn Fn(&mut Explorer, &mut Window, &mut Context<Explorer>)>;
 
 /// `getPlatformShortcut`: the primary modifier glyph on macOS.
 fn shortcut(key: &str) -> String {
@@ -93,7 +92,7 @@ fn shortcut(key: &str) -> String {
     }
 }
 
-impl Shell {
+impl Explorer {
     // ------------------------------------------------------------ open state
     /// `openCreateEntryMenu`.
     pub(in crate::shell) fn open_create_menu(
@@ -102,10 +101,10 @@ impl Shell {
         at: MenuAt,
         cx: &mut Context<Self>,
     ) {
-        if self.files.workspace.is_none() {
+        if self.workspace.is_none() {
             return;
         }
-        self.explorer.menu = Some(ExplorerMenu {
+        self.menu = Some(ExplorerMenu {
             kind: MenuKind::Create { parent },
             at,
             submenu_open: false,
@@ -134,7 +133,7 @@ impl Shell {
         } else {
             vec![row.path.clone()]
         };
-        self.explorer.menu = Some(ExplorerMenu {
+        self.menu = Some(ExplorerMenu {
             kind: MenuKind::Node {
                 paths,
                 primary: row.path,
@@ -146,8 +145,8 @@ impl Shell {
     }
     /// Closes the menu if it is still the one at `at`.
     fn close_menu_at(&mut self, at: &MenuAt, cx: &mut Context<Self>) {
-        if self.explorer.menu.as_ref().is_some_and(|m| m.at == *at) {
-            self.explorer.menu = None;
+        if self.menu.as_ref().is_some_and(|m| m.at == *at) {
+            self.menu = None;
             cx.notify();
         }
     }
@@ -160,17 +159,17 @@ impl Shell {
         id: impl Into<ElementId>,
         at: MenuAt,
         trigger: T,
-        open: impl Fn(&mut Shell, &mut Context<Shell>) + 'static,
+        open: impl Fn(&mut Explorer, &mut Context<Explorer>) + 'static,
         cx: &App,
     ) -> PopoverMenu {
-        let menu = self.explorer.menu.as_ref().filter(|m| m.at == at);
+        let menu = self.menu.as_ref().filter(|m| m.at == at);
         let (anchor, gap, width) = match &at {
             MenuAt::Row(_, RowTrigger::More) => (Anchor::TopLeft, NODE_MENU_GAP, NODE_MENU_WIDTH),
             MenuAt::NewRow => (
                 Anchor::TopRight,
                 CREATE_MENU_GAP,
                 // The sidebar launcher spans its row.
-                CREATE_MENU_WIDTH.max(self.layout.explorer.w - 2. * metric::SIDEBAR_ROW_LEFT_GAP),
+                CREATE_MENU_WIDTH.max(self.host.frame.w - 2. * metric::SIDEBAR_ROW_LEFT_GAP),
             ),
             _ => (Anchor::TopLeft, CREATE_MENU_GAP, CREATE_MENU_WIDTH),
         };
@@ -199,7 +198,7 @@ impl Shell {
     }
     /// The open context menu, pinned at the pointer.
     pub(super) fn context_menu(&self, cx: &App) -> Option<AnchoredMenu> {
-        let menu = self.explorer.menu.as_ref()?;
+        let menu = self.menu.as_ref()?;
         let MenuAt::Pointer(position) = menu.at else {
             return None;
         };
@@ -298,10 +297,14 @@ impl Shell {
             MenuItem::new(tr(entry.label_key()))
                 .icon_element(glyph)
                 .disabled(!entry.available())
-                .on_click(move |w, cx| {
+                .on_click(move |_, cx| {
                     let _ = host.update(cx, |s, cx| {
-                        s.explorer.menu = None;
-                        s.start_create(entry, Some(parent.clone()), w, cx)
+                        s.menu = None;
+                        cx.emit(ExplorerEvent::Create {
+                            entry,
+                            parent: parent.clone(),
+                        });
+                        cx.notify();
                     });
                 })
         };
@@ -335,11 +338,11 @@ impl Shell {
     // ------------------------------------------------------------- node menu
     fn node_menu(&self, paths: Vec<PathBuf>, primary: PathBuf, create_at: MenuAt) -> MenuFill {
         let host = self.weak.clone();
-        let act = move |f: ShellAction| {
+        let act = move |f: Action| {
             let host = host.clone();
             move |w: &mut Window, cx: &mut App| {
                 let _ = host.update(cx, |s, cx| {
-                    s.explorer.menu = None;
+                    s.menu = None;
                     f(s, w, cx);
                     cx.notify()
                 });
@@ -349,7 +352,6 @@ impl Shell {
         let single = count == 1;
         let folder = self.tree.is_folder(&primary);
         let absolute = self
-            .files
             .workspace
             .as_ref()
             .and_then(|ws| ws.absolute(&primary).ok())
@@ -379,9 +381,9 @@ impl Shell {
                 MenuItem::new(tr("workspace.node.pasteIntoFolder"))
                     .icon("clipboard-paste")
                     .shortcut(shortcut("V"))
-                    .disabled(self.explorer.clipboard.is_none())
-                    .on_click(act(Box::new(move |s, w, cx| {
-                        s.paste_into(target.clone(), w, cx)
+                    .disabled(self.clipboard.is_none())
+                    .on_click(act(Box::new(move |s, _, cx| {
+                        s.paste_into(target.clone(), cx)
                     }))),
             ));
             rows.push(None);
@@ -392,7 +394,7 @@ impl Shell {
                 .icon("copy")
                 .shortcut(shortcut("C"))
                 .on_click(act(Box::new(move |s, _, _| {
-                    s.explorer.clipboard = Some(FileClipboard::Copy(copy.clone()))
+                    s.clipboard = Some(FileClipboard::Copy(copy.clone()))
                 }))),
         ));
         let cut = paths.clone();
@@ -401,7 +403,7 @@ impl Shell {
                 .icon("scissors")
                 .shortcut(shortcut("X"))
                 .on_click(act(Box::new(move |s, _, _| {
-                    s.explorer.clipboard = Some(FileClipboard::Cut(cut.clone()))
+                    s.clipboard = Some(FileClipboard::Cut(cut.clone()))
                 }))),
         ));
         let duplicate = paths.clone();
@@ -412,8 +414,8 @@ impl Shell {
             ))
             .icon("copy-plus")
             .shortcut(shortcut("D"))
-            .on_click(act(Box::new(move |s, w, cx| {
-                s.duplicate(duplicate.clone(), w, cx)
+            .on_click(act(Box::new(move |s, _, cx| {
+                s.duplicate(duplicate.clone(), cx)
             }))),
         ));
         rows.push(None);
@@ -422,9 +424,9 @@ impl Shell {
             rows.push(Some(
                 MenuItem::new(tr("workspace.node.openDefaultApp"))
                     .icon("external-link")
-                    .on_click(act(Box::new(move |s, _, _| {
+                    .on_click(act(Box::new(move |_, _, cx| {
                         if let Err(e) = crate::platform::desktop::open(&path) {
-                            s.show_error(e)
+                            cx.emit(ExplorerEvent::Error(e))
                         }
                     }))),
             ));
@@ -434,9 +436,9 @@ impl Shell {
             rows.push(Some(
                 MenuItem::new(tr("workspace.node.revealInFinder"))
                     .icon("folder-open")
-                    .on_click(act(Box::new(move |s, _, _| {
+                    .on_click(act(Box::new(move |_, _, cx| {
                         if let Err(e) = crate::platform::desktop::reveal(&reveal) {
-                            s.show_error(e)
+                            cx.emit(ExplorerEvent::Error(e))
                         }
                     }))),
             ));
@@ -444,8 +446,11 @@ impl Shell {
             rows.push(Some(
                 MenuItem::new(tr("workspace.node.rename"))
                     .icon("pencil")
-                    .on_click(act(Box::new(move |s, w, cx| {
-                        s.begin_rename(path.clone(), false, w, cx)
+                    .on_click(act(Box::new(move |_, _, cx| {
+                        cx.emit(ExplorerEvent::Rename {
+                            path: path.clone(),
+                            change_type: false,
+                        })
                     }))),
             ));
         }
@@ -454,8 +459,11 @@ impl Shell {
             rows.push(Some(
                 MenuItem::new(tr("workspace.node.changeType"))
                     .icon("file-text")
-                    .on_click(act(Box::new(move |s, w, cx| {
-                        s.begin_rename(path.clone(), true, w, cx)
+                    .on_click(act(Box::new(move |_, _, cx| {
+                        cx.emit(ExplorerEvent::Rename {
+                            path: path.clone(),
+                            change_type: true,
+                        })
                     }))),
             ));
         }

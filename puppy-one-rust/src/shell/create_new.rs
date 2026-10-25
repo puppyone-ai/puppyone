@@ -5,11 +5,11 @@ use crate::features::create_new::{
     create_entry_menu_registry::Entry,
 };
 impl Shell {
-    /// Open the create form for `kind` in `parent` (defaults to the selection's folder).
+    /// Open the create form for `kind` in `parent` (the Explorer's menus).
     pub(super) fn start_create(
         &mut self,
         kind: Entry,
-        parent: Option<PathBuf>,
+        parent: PathBuf,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -19,23 +19,6 @@ impl Shell {
         if self.files.busy() || self.modal() || !kind.available() {
             return;
         }
-        let parent = parent.unwrap_or_else(|| {
-            self.tree
-                .rows
-                .iter()
-                .find(|r| r.path == self.tree.selected)
-                .map(|r| {
-                    if r.folder {
-                        r.path.clone()
-                    } else {
-                        r.path
-                            .parent()
-                            .unwrap_or(std::path::Path::new(""))
-                            .to_owned()
-                    }
-                })
-                .unwrap_or_default()
-        });
         let form = cx.new(|cx| CreateEntryDialog::new(ws, parent, kind, window, cx));
         cx.subscribe_in(&form, window, |s, _, event, w, cx| {
             match event {
@@ -55,17 +38,15 @@ impl Shell {
                         .as_ref()
                         .is_some_and(|ws| std::sync::Arc::ptr_eq(ws, workspace))
                     {
-                        match nodes {
-                            Ok(nodes) if parent.as_os_str().is_empty() => {
-                                s.tree.refresh_children(parent, nodes.clone())
-                            }
-                            Ok(nodes) => s.tree.attach_children(parent, nodes.clone()),
-                            Err(error) => s.show_error(crate::localization::tf(
+                        if let Err(error) = nodes {
+                            s.show_error(crate::localization::tf(
                                 "native.create.refreshFailed",
                                 &[("error", error.to_string().into())],
-                            )),
+                            ));
                         }
-                        s.tree.select(path, false, false);
+                        let listing = nodes.as_ref().ok().cloned();
+                        s.explorer
+                            .update(cx, |e, cx| e.entry_created(parent, listing, path, cx));
                         s.modals.remove(|m| matches!(m, Modal::CreateEntry(_)));
                         if !folder && !s.files.allow_quit {
                             s.files.begin(Intent::OpenFile(path.clone()), &s.wake)

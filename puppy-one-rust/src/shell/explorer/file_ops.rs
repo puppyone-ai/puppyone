@@ -1,8 +1,9 @@
 //! File operations: rename, delete, move, copy and import run one at a time
-//! on a worker through `workspace.rs`. The open document is closed (autosave
-//! drained) before an operation touches it, then reopened at its new path.
+//! on a worker through `workspace.rs`, and land back in the Explorer when the
+//! worker answers. The open document is closed first (the shell drains its
+//! autosave) when an operation touches it, then reopened at its new path.
 use super::*;
-use crate::{localization::tf, model::Node};
+use crate::localization::tf;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum FileClipboard {
@@ -27,7 +28,7 @@ impl FileOp {
         }
     }
 }
-pub struct OpOutcome {
+struct OpOutcome {
     /// Folder listings to refresh (`""` is the root).
     pub listings: Vec<(PathBuf, crate::workspace::Result<Vec<Node>>)>,
     /// New paths of moved/renamed entries: `(old, new)`.
@@ -35,32 +36,25 @@ pub struct OpOutcome {
     pub select: Option<PathBuf>,
     pub error: Option<String>,
 }
-impl Shell {
-    pub(in crate::shell) fn run_op(
-        &mut self,
-        op: FileOp,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let Some(ws) = self.files.workspace.clone() else {
+impl Explorer {
+    pub(super) fn run_op(&mut self, op: FileOp, cx: &mut Context<Self>) {
+        let Some(ws) = self.workspace.clone() else {
             return;
         };
-        if self.explorer.op.is_some() {
+        if self.op.is_some() {
             return;
         }
         let touched = op.touched();
-        if let Some((_, relative)) = self.files.opened()
+        if let Some(relative) = &self.host.opened
             && touched.iter().any(|p| relative.starts_with(p))
         {
-            // Drain autosave and close first; resume when the document is gone.
-            self.explorer.reopen = Some(relative.to_path_buf());
-            self.explorer.queued_op = Some(op);
-            self.files.begin(Intent::CloseFile, &self.wake);
-            self.receive(window, cx);
+            // Close first; `sync` resumes once the document is gone.
+            self.reopen = Some(relative.clone());
+            self.queued_op = Some(op);
+            cx.emit(ExplorerEvent::CloseDocument);
             return;
         }
-        let (tx, rx) = mpsc::sync_channel(1);
-        let wake = self.wake.clone();
+        let (tx, rx) = async_channel::bounded(1);
         crate::localization::spawn(move || {
             let mut out = OpOutcome {
                 listings: vec![],
@@ -129,74 +123,65 @@ impl Shell {
                 let listing = ws.list(&folder);
                 out.listings.push((folder, listing));
             }
-            let _ = tx.send(out);
-            wake.notify();
+            let _ = tx.send_blocking(out);
         });
-        self.explorer.op = Some(rx);
+        self.op = Some(cx.spawn(async move |this, cx| {
+            let outcome = rx.recv().await;
+            let _ = this.update(cx, |s, cx| {
+                s.op = None;
+                if let Ok(outcome) = outcome {
+                    s.finish_op(outcome, cx);
+                }
+                cx.notify();
+            });
+        }));
         cx.notify();
     }
-    /// Called from `receive`: resume queued operations and apply results.
-    pub(in crate::shell) fn poll_file_ops(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.explorer.op.is_none()
-            && self.files.opened().is_none()
-            && !self.files.busy()
-            && let Some(op) = self.explorer.queued_op.take()
-        {
-            self.run_op(op, window, cx);
-        }
-        let Some(outcome) = self.explorer.op.as_ref().and_then(|rx| rx.try_recv().ok()) else {
-            return;
-        };
-        self.explorer.op = None;
+    /// The worker answered: refresh the listings it touched, select the
+    /// result, and reopen the document it moved.
+    fn finish_op(&mut self, outcome: OpOutcome, cx: &mut Context<Self>) {
         for (folder, listing) in outcome.listings {
             match listing {
                 Ok(nodes) => self.tree.refresh_children(&folder, nodes),
-                Err(e) => self.show_error(e),
+                Err(e) => cx.emit(ExplorerEvent::Error(e)),
             }
         }
         if let Some(path) = outcome.select.clone() {
             self.tree.select(&path, false, false);
         }
         if let Some(error) = outcome.error {
-            self.show_error(tf(
+            cx.emit(ExplorerEvent::Error(tf(
                 "workspace.node.error.operationFailedDetail",
                 &[("detail", error.into())],
-            ));
+            )));
         }
-        if let Some(old) = self.explorer.reopen.take() {
-            let target = outcome
-                .moved
-                .iter()
-                .find_map(|(from, to)| old.strip_prefix(from).ok().map(|rest| to.join(rest)));
+        if let Some(old) = self.reopen.take() {
+            let target = outcome.moved.iter().find_map(|(from, to)| {
+                let rest = old.strip_prefix(from).ok()?;
+                // The document itself moved: joining an empty rest would
+                // leave a trailing separator that opens nothing.
+                Some(if rest.as_os_str().is_empty() {
+                    to.clone()
+                } else {
+                    to.join(rest)
+                })
+            });
             if let Some(target) = target {
-                self.files.begin(Intent::OpenFile(target), &self.wake);
+                cx.emit(ExplorerEvent::Open(target));
             }
         }
-        cx.notify();
     }
-    pub(super) fn paste_into(
-        &mut self,
-        target: PathBuf,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        match self.explorer.clipboard.clone() {
-            Some(FileClipboard::Copy(paths)) => {
-                self.run_op(FileOp::Copy(paths, target), window, cx)
-            }
+    pub(super) fn paste_into(&mut self, target: PathBuf, cx: &mut Context<Self>) {
+        match self.clipboard.clone() {
+            Some(FileClipboard::Copy(paths)) => self.run_op(FileOp::Copy(paths, target), cx),
             Some(FileClipboard::Cut(paths)) => {
-                self.explorer.clipboard = None;
-                self.run_op(FileOp::Move(paths, target), window, cx)
+                self.clipboard = None;
+                self.run_op(FileOp::Move(paths, target), cx)
             }
             None => {}
         }
     }
-    pub(super) fn duplicate(
-        &mut self,
-        paths: Vec<PathBuf>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
+    pub(super) fn duplicate(&mut self, paths: Vec<PathBuf>, cx: &mut Context<Self>) {
         // Duplicates land next to their source (`forceDuplicateName`). One file
         // operation runs at a time, so a mixed-parent selection duplicates the
         // entries that share the first entry's folder.
@@ -207,7 +192,7 @@ impl Shell {
             .into_iter()
             .filter(|p| parent_of(p) == parent)
             .collect();
-        self.run_op(FileOp::Copy(siblings, parent), window, cx);
+        self.run_op(FileOp::Copy(siblings, parent), cx);
     }
     pub(super) fn confirm_delete(
         &mut self,
@@ -249,7 +234,7 @@ impl Shell {
         );
         cx.spawn_in(window, async move |this, cx| {
             if answer.await == Ok(0) {
-                let _ = this.update_in(cx, |s, w, cx| s.run_op(FileOp::Delete(paths), w, cx));
+                let _ = this.update(cx, |s, cx| s.run_op(FileOp::Delete(paths), cx));
             }
         })
         .detach();
