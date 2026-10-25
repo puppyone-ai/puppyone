@@ -328,6 +328,40 @@ fn rename_dialog_focuses_its_name_and_escape_cancels(cx: &mut TestAppContext) {
     });
 }
 #[gpui::test]
+fn explorer_requests_open_the_shell_dialogs(cx: &mut TestAppContext) {
+    use crate::features::create_new::create_entry_menu_registry::Entry;
+    let temp = tempfile::tempdir().unwrap();
+    let (view, cx) = setup(cx);
+    view.update(cx, |s, _| {
+        s.files.workspace = Some(crate::workspace::Workspace::open(temp.path()).unwrap())
+    });
+    let explorer = explorer_of(&view, cx);
+    // A create menu item asks for the create form…
+    explorer.update(cx, |_, cx| {
+        cx.emit(ExplorerEvent::Create {
+            entry: Entry::Folder,
+            parent: PathBuf::new(),
+        })
+    });
+    draw(cx);
+    view.update(cx, |s, _| assert!(s.modals.create_entry().is_some()));
+    command(&view, cx, Command::Escape);
+    // …"Rename" for the rename dialog, and a failure for a notice.
+    explorer.update(cx, |_, cx| {
+        cx.emit(ExplorerEvent::Rename {
+            path: "a.md".into(),
+            change_type: true,
+        })
+    });
+    draw(cx);
+    view.update(cx, |s, _| assert!(s.modals.rename().is_some()));
+    explorer.update(cx, |_, cx| cx.emit(ExplorerEvent::Error("denied".into())));
+    draw(cx);
+    view.update(cx, |s, _| {
+        assert!(matches!(s.modals.top(), Some(Modal::Error(e)) if e == "denied"))
+    });
+}
+#[gpui::test]
 fn choosing_local_closes_popup_and_restores_trigger(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     // The location switcher shows only with Cloud workspaces on.

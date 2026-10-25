@@ -48,6 +48,15 @@ cargo run --release --locked -- --workspace /path/to/project --file README.md
 - 样例页：`PUPPYONE_LAB=gallery-dark`（或 `gallery-light`、`gallery-dialog-dark`）配合 `dev-capture` 构建打开，展示所有组件和状态。
 - `tools/check-ui-boundaries.py` 会拦截：功能 / Shell 代码里使用 Kit 默认外观组件（`gpui_kit::component::{button,menu,…}`、`PopupMenu` 等）、自建配色（`Theme::new`），以及已退役的旧辅助文件（`ui/primitives.rs`、`ui/menu.rs` 等）重新出现。
 
+## Shell 结构（`src/shell/`）
+
+`Shell` 是窗口的组合根：持有文档会话（`Documents`）、偏好、Git / 工作台等实体，把命令分发给各部分，并按帧布局。界面各部分有自己的 owner，Shell 不替它们保存状态：
+
+- `panes/`：左右侧栏。`Panes` 持有两侧的开合与宽度（`SidePane`）、右侧显示什么（`RightContent`：工作台 / Changes）、边缘拖拽和开合动画，每帧交出 `PaneFrame`；`layout` 是 `desktopPaneLayout.ts` 的宽度策略与窗口矩形，`gesture` 是拖拽状态机，`motion` 是开合动画。
+- `explorer/`：独立的 `Entity<Explorer>`，持有文件树、选择、剪贴板、菜单、文件操作和展开动画。Shell 每帧推送 `Host`（所在矩形、当前文档、忙碌状态），并转交目录列表；Explorer 通过 `ExplorerEvent` 请求打开文件、读取目录、先关闭文档、新建 / 重命名对话框和错误提示。
+- `modals.rs`：窗口级弹层栈（Settings / Help 共用一个槽位、新建条目、新建项目、重命名、退出确认、错误）。Esc 回答最上层；Documents 的保存错误是动态状态，显示在栈之上。
+- `header.rs`、`footer.rs`：Header（`TitleBar`、`ChangesButton` 等）和侧栏底部栏是只负责展示的组件，由 `Shell::header` / `Shell::footer` 按状态组装。
+
 ## 这一版可以做什么
 
 - 选择真实本地文件夹，展开目录，读取文件；目录扫描和读写在后台线程。
