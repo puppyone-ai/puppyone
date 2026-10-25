@@ -215,3 +215,164 @@ fn a_new_editor_lays_out_for_its_pane_on_its_first_frame(cx: &mut TestAppContext
     let (_, other) = open(cx, format!("short\n{long}\n- {long}"));
     assert_fits_pane(&other);
 }
+
+// Viewport layout: a frame lays out the blocks near the viewport only.
+
+fn long_document(lines: usize, words: usize) -> String {
+    (0..lines)
+        .map(|i| format!("Line {i}{}", " word".repeat(words)))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Draws until the passes a frame defers (anchoring, reveal) have settled.
+fn settle(cx: &mut VisualTestContext) {
+    for _ in 0..6 {
+        cx.update(|w, cx| {
+            let _ = w.draw(cx);
+        });
+        cx.run_until_parked();
+    }
+}
+
+fn caret_in_view(view: &Entity<EditorView>, cx: &mut VisualTestContext) {
+    view.read_with(cx, |v, _| {
+        let l = v.layout.as_ref().unwrap();
+        let head = v.state.selection.head;
+        assert!(l.covers(head), "the caret's block is laid out");
+        let c = l.caret(head, v.state.selection.upstream);
+        assert!(
+            c.row_top >= l.bounds.top() && c.row_top + c.row_height <= l.bounds.bottom(),
+            "caret row {:?} within {:?}",
+            c.row_top,
+            l.bounds
+        );
+    });
+}
+
+#[gpui::test]
+fn a_long_document_lays_out_only_the_blocks_near_the_viewport(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx, &long_document(5000, 0));
+    cx.simulate_resize(size(px(900.), px(600.)));
+    settle(cx);
+    view.read_with(cx, |v, _| {
+        let l = v.layout.as_ref().unwrap();
+        assert!(l.starts_document && !l.ends_document);
+        assert!(l.blocks.len() < 120, "{} blocks laid out", l.blocks.len());
+        // Every line still counts toward the document height (30px each).
+        assert!(f32::from(l.height) > 5000. * 30.);
+    });
+    view.update(cx, |v, cx| {
+        v.scroll_y = 1e9;
+        cx.notify();
+    });
+    settle(cx);
+    view.read_with(cx, |v, _| {
+        let l = v.layout.as_ref().unwrap();
+        assert!(l.ends_document && !l.starts_document);
+        assert!(l.covers(v.state.doc.len()));
+        assert_eq!(v.scroll_y, l.max_scroll());
+    });
+}
+
+#[gpui::test]
+fn the_caret_moved_far_outside_the_layout_is_revealed(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx, &long_document(5000, 12));
+    cx.simulate_keystrokes("cmd-down");
+    settle(cx);
+    view.read_with(cx, |v, _| {
+        assert_eq!(v.state.selection.head, v.state.doc.len())
+    });
+    caret_in_view(&view, cx);
+    cx.simulate_keystrokes("cmd-up");
+    settle(cx);
+    view.read_with(cx, |v, _| {
+        assert_eq!(v.state.selection.head, 0);
+        // Back at the top: the reveal margin above the first row, within
+        // the content inset.
+        assert!(v.scroll_y < 48., "scroll {}", v.scroll_y);
+    });
+    caret_in_view(&view, cx);
+    // A caret scrolled out of view moves by source lines, then comes back.
+    view.update(cx, |v, cx| {
+        v.scroll_y = 60_000.;
+        cx.notify();
+    });
+    settle(cx);
+    cx.simulate_keystrokes("down");
+    settle(cx);
+    view.read_with(cx, |v, _| {
+        assert_eq!(v.state.doc.line_index(v.state.selection.head), 1);
+    });
+    caret_in_view(&view, cx);
+}
+
+#[gpui::test]
+fn page_down_walks_a_long_document_with_the_caret_in_view(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx, &long_document(400, 12));
+    let end = view.read_with(cx, |v, _| v.state.doc.len());
+    let mut last = 0;
+    for _ in 0..80 {
+        cx.simulate_keystrokes("pagedown");
+        settle(cx);
+        caret_in_view(&view, cx);
+        let head = view.read_with(cx, |v, _| v.state.selection.head);
+        assert!(head > last || head == end, "page down moved forward");
+        last = head;
+        if head == end {
+            break;
+        }
+    }
+    assert_eq!(last, end);
+}
+
+#[gpui::test]
+fn corrected_estimates_above_the_viewport_do_not_move_what_is_shown(cx: &mut TestAppContext) {
+    // Long lines: estimated from their length, laid out on fewer rows here,
+    // so blocks coming into view above the viewport are shorter than planned.
+    let (view, cx) = setup(cx, &long_document(3000, 30));
+    view.update(cx, |v, cx| {
+        v.scroll_y = 40_000.;
+        cx.notify();
+    });
+    settle(cx);
+    let row_of = |view: &Entity<EditorView>, cx: &mut VisualTestContext, offset: usize| {
+        view.read_with(cx, |v, _| {
+            let l = v.layout.as_ref().unwrap();
+            f32::from(l.caret(offset, false).row_top - l.bounds.top())
+        })
+    };
+    // The line at the top of the viewport.
+    let line = view.read_with(cx, |v, _| {
+        let l = v.layout.as_ref().unwrap();
+        let (offset, _) = l.offset_at(point(l.bounds.left() + px(300.), l.bounds.top() + px(40.)));
+        v.state.doc.line_range(v.state.doc.line_index(offset)).start
+    });
+    let mut y = row_of(&view, cx, line);
+    let start = view.read_with(cx, |v, _| v.scroll_y);
+    let mut steps = 0.;
+    for _ in 0..40 {
+        steps += 1.;
+        view.update(cx, |v, cx| {
+            v.scroll_y -= 24.;
+            cx.notify();
+        });
+        settle(cx);
+        let next = row_of(&view, cx, line);
+        // Scroll snaps to device pixels (2x here): a correction may round
+        // by one of them.
+        assert!(
+            (next - (y + 24.)).abs() <= 0.5,
+            "moved {} instead of 24",
+            next - y
+        );
+        y = next;
+        if y > 400. {
+            break;
+        }
+    }
+    // The blocks that came into view were shorter than estimated: the
+    // scroll absorbed the difference instead of the content jumping.
+    let travelled = start - view.read_with(cx, |v, _| v.scroll_y);
+    assert!(travelled > steps * 24. + 1., "no estimate was corrected");
+}

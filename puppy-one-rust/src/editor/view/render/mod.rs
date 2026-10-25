@@ -46,6 +46,8 @@ pub struct RenderCx<'a> {
     pub view: WeakEntity<EditorView>,
     /// Device pixels per CSS pixel.
     pub scale: f32,
+    /// Leaf keys handed out this frame.
+    pub keys: std::collections::HashSet<u64>,
     pub window: &'a mut Window,
     pub app: &'a mut App,
 }
@@ -177,6 +179,19 @@ impl RenderCx<'_> {
         (key, metrics)
     }
 
+    /// The key of the leaf showing `source`. It follows the source, not the
+    /// leaf's place in the frame: a frame builds only the blocks near the
+    /// viewport, so scrolling changes which leaves come first, and a
+    /// positional key would hand every paragraph a new identity (and Kit
+    /// would shape it again).
+    fn leaf_key(&mut self, source: &Range<usize>) -> u64 {
+        let mut key = ((source.start as u64) << 32) ^ source.end as u64;
+        while !self.keys.insert(key) {
+            key = key.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        }
+        key
+    }
+
     /// Unrounded ascent and descent of the style's primary face.
     fn primary_metrics(&mut self, style: &TextStyle) -> (f32, f32) {
         primary_metrics(self.window, style)
@@ -256,7 +271,7 @@ impl RenderCx<'_> {
         );
         let wrap = wrap.map(|w| self.snap(w));
         let (measure_key, metrics) = self.measure(&leaf, style, wrap);
-        let key = self.leaves.len() as u64;
+        let key = self.leaf_key(&source);
         let (paragraph, text) = self.cache.borrow_mut().get(&leaf, key);
         let code = text.marks.iter().any(|(_, m)| m.code);
         self.leaves.push(LeafEntry {
@@ -316,6 +331,7 @@ impl RenderCx<'_> {
         width: f32,
         highlight: impl FnOnce(&str) -> std::sync::Arc<Vec<(Range<usize>, HighlightStyle)>>,
     ) -> (AnyElement, f32) {
+        let key = self.leaf_key(&source);
         let leaf = LeafText::build_with_tabs(self.doc.as_str(), source, &[], &[], false, tab_size);
         let styles = highlight(&leaf.text);
         let rows = leaf.text.split('\n').count();
@@ -325,7 +341,6 @@ impl RenderCx<'_> {
             ascent,
             descent,
         };
-        let key = self.leaves.len() as u64;
         self.leaves.push(LeafEntry {
             key,
             text: Rc::new(leaf.clone()),

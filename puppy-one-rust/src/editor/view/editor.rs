@@ -69,6 +69,8 @@ pub struct EditorView {
     pub(super) layout: Option<Rc<DocLayout>>,
     pub(super) paragraph_cache: Rc<RefCell<ParagraphCache>>,
     pub(super) measures: Rc<RefCell<MeasureCache>>,
+    /// Block heights of the document, laid out or estimated (`heights.rs`).
+    pub(super) heights: Rc<RefCell<super::heights::HeightMap>>,
     doc_snapshot: Option<(u64, Rc<Buffer>)>,
     kit: Option<(Surface, Rc<RenderContext>)>,
     pub(super) scroll_y: f32,
@@ -127,6 +129,7 @@ impl EditorView {
             layout: None,
             paragraph_cache: Rc::default(),
             measures: Rc::default(),
+            heights: Rc::default(),
             doc_snapshot: None,
             kit: None,
             scroll_y: if capture {
@@ -159,6 +162,19 @@ impl EditorView {
     }
     pub fn state(&self) -> &EditorState {
         &self.state
+    }
+    /// Document top and bottom of the block holding `offset`, as the last
+    /// frame's height plan has them (laid out or estimated).
+    pub(super) fn estimated_block_of(&self, offset: usize) -> Option<(f32, f32)> {
+        let blocks = &self.decorations.blocks;
+        let line = self.state.doc.line_index(offset);
+        let i = blocks.partition_point(|b| b.lines().end <= line);
+        let mut heights = self.heights.borrow_mut();
+        if i >= blocks.len() || !heights.planned() || heights.len() != blocks.len() {
+            return None;
+        }
+        let top = heights.top(i);
+        Some((top, top + heights.height(i)))
     }
     pub fn extension<T: 'static>(&self) -> Option<&T> {
         (self.extension.as_ref() as &dyn std::any::Any).downcast_ref::<T>()

@@ -5,7 +5,14 @@
 //! absolutely positioned host boxes around GPUI Kit text leaves), lays it out
 //! as a root at the real bounds and lets Kit place the leaves inside a
 //! `collect_leaf_geometry` scope (painting the selection as leaf
-//! decorations). When what Kit laid out disagrees with the plan (a leaf
+//! decorations).
+//!
+//! Only the blocks within a viewport above and below the visible one are
+//! built (CodeMirror's viewport): the rest of the document is height from
+//! `heights::HeightMap`, so a frame costs what is on screen, not the
+//! document. A block above the one at the top of the viewport that turns
+//! out taller or shorter than estimated moves the scroll by the difference
+//! (scroll anchoring) and the pass is rebuilt. When what Kit laid out disagrees with the plan (a leaf
 //! wrapped into another row count) or the caret reveal moves the scroll, the
 //! pass is rolled back (`Window::transact`) and rebuilt, so a frame never
 //! shows a layout for the wrong width or scroll. Paint adds what Kit does not
@@ -28,6 +35,10 @@ const SCROLL_MARGIN: f32 = 8.;
 /// corrections, then the scroll the caret reveal asks for. Whatever is left
 /// settles on the next frame.
 const MAX_PASSES: usize = 3;
+
+/// Document laid out beyond each edge of the viewport, at least: a page
+/// motion (viewport height) from a visible caret stays within the layout.
+const MIN_OVERSCAN: f32 = 400.;
 
 pub struct EditorElement {
     pub view: Entity<EditorView>,
@@ -60,11 +71,27 @@ pub struct Frame {
     column_width: f32,
     height: f32,
     scroll: f32,
+    /// How far blocks above the viewport's top block moved once laid out
+    /// (estimates corrected): the scroll that keeps that block in place.
+    correction: f32,
+    /// The built blocks start at the first block / end at the last one.
+    starts: bool,
+    ends: bool,
 }
 
 pub struct Prepainted {
     frame: Frame,
     hitbox: Hitbox,
+}
+
+/// Geometry dumps (`dev-capture`) compare every block with the product, so
+/// they lay the whole document out.
+fn render_everything() -> bool {
+    #[cfg(feature = "dev-capture")]
+    if std::env::var_os("PUPPYONE_EDITOR_GEOMETRY").is_some() {
+        return true;
+    }
+    false
 }
 
 impl EditorElement {
@@ -76,21 +103,32 @@ impl EditorElement {
         window: &mut Window,
         cx: &mut App,
     ) -> Frame {
-        let (revision, doc, decorations, cache, measures, kit, scroll, selection, read_only) =
-            self.view.update(cx, |v, _| {
-                let s = v.state.selection;
-                (
-                    v.state.revision,
-                    v.doc_snapshot(),
-                    v.decorations.clone(),
-                    v.paragraph_cache.clone(),
-                    v.measures.clone(),
-                    v.kit_context(),
-                    v.scroll_y,
-                    (s.from(), s.to()),
-                    v.read_only,
-                )
-            });
+        let (
+            revision,
+            doc,
+            decorations,
+            cache,
+            measures,
+            heights,
+            kit,
+            scroll,
+            selection,
+            read_only,
+        ) = self.view.update(cx, |v, _| {
+            let s = v.state.selection;
+            (
+                v.state.revision,
+                v.doc_snapshot(),
+                v.decorations.clone(),
+                v.paragraph_cache.clone(),
+                v.measures.clone(),
+                v.heights.clone(),
+                v.kit_context(),
+                v.scroll_y,
+                (s.from(), s.to()),
+                v.read_only,
+            )
+        });
         let width = f32::from(bounds.size.width);
         let surface = decorations.surface.clone();
         let content = surface.content;
@@ -109,26 +147,50 @@ impl EditorElement {
             kit: &kit,
             view: self.view.downgrade(),
             scale: window.scale_factor(),
+            keys: Default::default(),
             window,
             app: cx,
         };
-        let line_count = doc.line_count();
-        let mut children = Vec::with_capacity(decorations.blocks.len());
-        let mut blocks = Vec::with_capacity(decorations.blocks.len());
-        let mut next_line = 0;
-        let mut y = content.top;
-        for block in &decorations.blocks {
-            let lines = block.lines();
-            if lines.start != next_line || lines.end > line_count {
+        let mut heights = heights.borrow_mut();
+        heights.prepare(&decorations, &doc, column_width, content.top);
+        let count = heights.len();
+        // The document from a viewport above the visible one to a viewport
+        // below it (all of it for geometry dumps).
+        let viewport = f32::from(bounds.size.height);
+        let overscan = viewport.max(MIN_OVERSCAN);
+        let everything = render_everything();
+        let (first, anchor) = if everything || count == 0 {
+            (0, 0)
+        } else {
+            (
+                heights.index_at(scroll - overscan),
+                heights.index_at(scroll),
+            )
+        };
+        let mut until = scroll + viewport + overscan;
+        let mut correction = 0.;
+        let mut children = Vec::new();
+        let mut blocks = Vec::new();
+        let mut y = if count == 0 {
+            content.top
+        } else {
+            heights.top(first)
+        };
+        let mut index = first;
+        while index < count && (everything || y < until) {
+            let i = index;
+            index += 1;
+            if !heights.valid(i) {
                 continue;
             }
-            next_line = lines.end;
+            let block = &decorations.blocks[i];
+            let lines = block.lines();
             let source = doc.line_range(lines.start).start..doc.line_range(lines.end - 1).end;
             let (element, height) = match block {
                 Block::Line { line, style } => rcx.line(
                     source.clone(),
                     style,
-                    line + 1 < line_count,
+                    line + 1 < doc.line_count(),
                     y,
                     column_left,
                     column_width,
@@ -146,6 +208,12 @@ impl EditorElement {
                     })
                 }
             };
+            let delta = heights.measured(i, height);
+            if i < anchor {
+                // Content below this block moves; so does the viewport.
+                correction += delta;
+                until += delta;
+            }
             children.push(element);
             blocks.push(PlannedBlock {
                 lines,
@@ -159,7 +227,9 @@ impl EditorElement {
         let leaves = std::mem::take(&mut rcx.leaves);
         cache.borrow_mut().sweep();
         measures.borrow_mut().sweep();
-        let height = y + content.bottom;
+        let starts = first == 0;
+        let ends = index >= count;
+        let height = if count == 0 { y } else { heights.bottom() } + content.bottom;
         let document = div()
             .absolute()
             .left_0()
@@ -184,6 +254,9 @@ impl EditorElement {
             column_width,
             height,
             scroll,
+            correction,
+            starts,
+            ends,
         }
     }
 
@@ -286,19 +359,42 @@ impl EditorElement {
             height: px(frame.height),
             leaves,
             blocks,
+            starts_document: frame.starts,
+            ends_document: frame.ends,
         });
         let scale = window.scale_factor();
         self.view.update(cx, |v, _| {
             v.bounds = Some(bounds);
             v.layout = Some(layout.clone());
-            if v.reveal_caret && settled {
+            // Keep the viewport's top block in place over corrected estimates.
+            v.scroll_y += frame.correction;
+            let height = f32::from(bounds.size.height);
+            if v.reveal_caret && settled && !layout.covers(v.state.selection.head) {
+                // The caret's block is not laid out: scroll to where the
+                // plan puts it; the next pass lays it out and reveals the
+                // caret exactly.
+                if let Some((top, bottom)) = v.estimated_block_of(v.state.selection.head) {
+                    let before = v.scroll_y;
+                    if v.reveal_centered {
+                        v.scroll_y = (top + bottom) / 2. - height / 2.;
+                    } else if top - SCROLL_MARGIN < v.scroll_y {
+                        v.scroll_y = (top - SCROLL_MARGIN).max(0.);
+                    } else if bottom + SCROLL_MARGIN > v.scroll_y + height {
+                        v.scroll_y = bottom + SCROLL_MARGIN - height;
+                    }
+                    if v.scroll_y == before {
+                        v.reveal_caret = false;
+                    }
+                } else {
+                    v.reveal_caret = false;
+                }
+            } else if v.reveal_caret && settled {
                 v.reveal_caret = false;
                 let s = v.state.selection;
                 let caret = layout.caret(s.head, s.upstream);
                 // Document-relative caret row.
                 let top = f32::from(caret.row_top - bounds.top()) + frame.scroll;
                 let bottom = top + f32::from(caret.row_height);
-                let height = f32::from(bounds.size.height);
                 if std::mem::take(&mut v.reveal_centered) {
                     // A find match lands in the middle of the viewport.
                     v.scroll_y = (top + bottom) / 2. - height / 2.;
@@ -468,7 +564,11 @@ impl Element for EditorElement {
         let selection = view.state.selection;
         let composition = view.composition_range();
         let clause = view.composition_clause();
-        let show_caret = focused && selection.is_empty() && !view.read_only && view.caret_visible();
+        let show_caret = focused
+            && selection.is_empty()
+            && !view.read_only
+            && view.caret_visible()
+            && layout.covers(selection.head);
         window.handle_input(
             &focus,
             ElementInputHandler::new(bounds, self.view.clone()),

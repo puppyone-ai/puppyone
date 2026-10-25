@@ -111,11 +111,43 @@ impl EditorView {
             .unwrap_or_else(fallback)
     }
 
+    /// Up / down by source lines, for a caret or target outside the
+    /// laid-out blocks (the caret was scrolled away): the layout has no rows
+    /// there. The reveal that follows brings the caret into view.
+    fn vertical_by_lines(&self, motion: Motion, s: Selection) -> (usize, Option<f32>, bool) {
+        let doc = &self.state.doc;
+        let line = doc.line_index(s.head);
+        let column = s.head - doc.line_range(line).start;
+        let last = doc.line_count().saturating_sub(1);
+        let page = self.layout.as_ref().map_or(20, |l| {
+            (f32::from(l.bounds.size.height) / 24.).max(1.) as usize
+        });
+        let target = match motion {
+            Motion::Up => line.checked_sub(1),
+            Motion::Down => (line < last).then_some(line + 1),
+            Motion::PageUp => (line > 0).then(|| line.saturating_sub(page)),
+            _ => (line < last).then(|| (line + page).min(last)),
+        };
+        let Some(target) = target else {
+            let up = matches!(motion, Motion::Up | Motion::PageUp);
+            return (if up { 0 } else { doc.len() }, s.goal_x, false);
+        };
+        let r = doc.line_range(target);
+        let mut pos = (r.start + column).min(r.end);
+        while !doc.as_str().is_char_boundary(pos) {
+            pos -= 1;
+        }
+        (pos, s.goal_x, false)
+    }
+
     fn vertical(&self, motion: Motion, s: Selection) -> (usize, Option<f32>, bool) {
         let doc = &self.state.doc;
         let Some(layout) = &self.layout else {
             return (s.head, None, false);
         };
+        if !layout.covers(s.head) {
+            return self.vertical_by_lines(motion, s);
+        }
         let c = layout.caret(s.head, s.upstream);
         let goal = s.goal_x.unwrap_or(f32::from(c.x));
         let page = (f32::from(layout.bounds.size.height) - 40.).max(40.);
@@ -137,10 +169,18 @@ impl EditorView {
             .map_or(0., |b| f32::from(b.bounds.bottom()));
         for _ in 0..8 {
             if y < first {
-                return (0, Some(goal), false);
+                return if layout.starts_document {
+                    (0, Some(goal), false)
+                } else {
+                    self.vertical_by_lines(motion, s)
+                };
             }
             if y >= last {
-                return (doc.len(), Some(goal), false);
+                return if layout.ends_document {
+                    (doc.len(), Some(goal), false)
+                } else {
+                    self.vertical_by_lines(motion, s)
+                };
             }
             let (pos, upstream) = layout.offset_at(point(px(goal), px(y)));
             let next = layout.caret(pos, upstream);

@@ -111,6 +111,23 @@ product's default package (`externalViewerPacks: false`), packs are off
 - `element.rs`, `layout.rs`, `commands.rs`, `input.rs`, `pointer.rs`,
   `find.rs` — layout, geometry, keymap, platform text input, pointer, find
   marks.
+- `heights.rs` — the viewport (CodeMirror's viewport and HeightMap): a frame
+  builds only the blocks from a viewport above to a viewport below the
+  visible one; every other block is height, measured when it was last laid
+  out or estimated. A frame costs what is on screen, whatever the document
+  length. Rules the rest of the view relies on:
+  - `DocLayout` holds the laid-out blocks only; `covers(offset)` says
+    whether an offset's geometry is exact, `starts_document` /
+    `ends_document` whether the layout reaches the document's ends;
+  - a block above the viewport's top block that measures differently from
+    its estimate moves the scroll by the difference (scroll anchoring), so
+    what is shown does not jump;
+  - revealing a caret outside the layout scrolls to its planned block, then
+    reveals it exactly on the next pass; vertical motion from or to outside
+    the layout moves by source lines;
+  - leaf keys follow the source, so scrolling reuses Kit's shaped
+    paragraphs;
+  - geometry dumps (`PUPPYONE_EDITOR_GEOMETRY`) lay the whole document out.
 - `composition.rs` — IME composition (marked text) for every editor built on
   the view (Markdown, CSV cells, CSV source, plain text). `input.rs` only
   translates `NSTextInputClient` (UTF-16) into it. The rules formats and

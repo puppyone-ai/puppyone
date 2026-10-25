@@ -82,10 +82,23 @@ pub struct DocLayout {
     pub height: Pixels,
     /// Sorted by source start.
     pub leaves: Vec<Leaf>,
+    /// The blocks the frame laid out (those near the viewport), in order.
     pub blocks: Vec<BlockGeometry>,
+    /// The laid-out blocks begin at the document's first block / end at
+    /// its last: a point beyond them is the document's start / end.
+    pub starts_document: bool,
+    pub ends_document: bool,
 }
 
 impl DocLayout {
+    /// Whether `offset` lies in the laid-out blocks (geometry is exact).
+    pub fn covers(&self, offset: usize) -> bool {
+        match (self.blocks.first(), self.blocks.last()) {
+            (Some(first), Some(last)) => first.source.start <= offset && offset <= last.source.end,
+            _ => false,
+        }
+    }
+
     /// A window point of the current frame in this layout's coordinates.
     pub fn to_layout(&self, p: Point<Pixels>, scroll_now: f32) -> Point<Pixels> {
         point(p.x, p.y + px(scroll_now) - self.scroll)

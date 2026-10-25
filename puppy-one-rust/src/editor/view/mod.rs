@@ -13,6 +13,7 @@ pub mod editor;
 pub mod element;
 pub mod extension;
 pub mod find;
+mod heights;
 #[cfg(test)]
 mod ime_tests;
 mod input;
