@@ -20,6 +20,17 @@ struct Token {
 #[derive(Deserialize)]
 struct Variant {
     tokens: HashMap<String, Token>,
+    #[serde(default)]
+    root: RootMetrics,
+}
+
+#[derive(Default, Deserialize)]
+struct RootMetrics {
+    /// Chromium's platform scrollbar, reserved on BOTH edges by the product.
+    #[serde(default, rename = "scrollbarGutter")]
+    scrollbar_gutter: f32,
+    #[serde(default, rename = "readingWeights")]
+    reading_weights: HashMap<String, f32>,
 }
 
 #[derive(Deserialize)]
@@ -29,13 +40,24 @@ struct File {
 
 pub struct Tokens {
     map: HashMap<String, Token>,
+    pub scrollbar_gutter: f32,
+    reading_weights: HashMap<String, f32>,
 }
 
 fn load(json: &str) -> HashMap<String, Tokens> {
     let file: File = serde_json::from_str(json).expect("editor theme tokens");
     file.variants
         .into_iter()
-        .map(|(k, v)| (k, Tokens { map: v.tokens }))
+        .map(|(k, v)| {
+            (
+                k,
+                Tokens {
+                    map: v.tokens,
+                    scrollbar_gutter: v.root.scrollbar_gutter,
+                    reading_weights: v.root.reading_weights,
+                },
+            )
+        })
         .collect()
 }
 
@@ -115,6 +137,11 @@ impl Tokens {
     pub fn get(dark: bool, scale: Scale) -> &'static Tokens {
         &variants()[&key(dark, scale)]
     }
+    /// The content boundary's language, not the interface's language alone,
+    /// selects the reading weight (typography/locales.css).
+    pub fn reading_weight(&self, han: bool) -> f32 {
+        self.reading_weights[if han { "zh-Hans" } else { "en" }]
+    }
     pub fn csv(dark: bool, scale: Scale) -> &'static Tokens {
         &csv_variants()[&key(dark, scale)]
     }
@@ -176,8 +203,9 @@ mod tests {
         let t = Tokens::get(true, Scale::Medium);
         assert_eq!(t.len("--po-md-content-size", 15.), 15.);
         assert!((t.len("--po-md-source-line-gap", 15.) - 3.75).abs() < 1e-4);
-        assert!((t.len("--po-md-h2-gap-after", 23.) - 8.).abs() < 1e-4);
-        assert_eq!(t.number("--po-md-h1-weight"), 650.);
+        assert_eq!(t.len("--po-md-h2-gap-after", 19.), 2.);
+        assert_eq!(t.number("--po-md-h1-weight"), 600.);
+        assert_eq!(t.raw("--po-md-inline-code-color"), "currentColor");
         let c = t.color("--po-md-code-block-background");
         assert!((c.r - 32. / 255.).abs() < 1e-4 && c.a == 1.);
         let sel = t.color("--po-md-selection-bg");

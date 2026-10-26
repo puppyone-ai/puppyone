@@ -357,7 +357,7 @@ impl EditorView {
             .with_link(surface.link.into())
             .with_code_background(transparent)
             .with_inline_code(HighlightStyle {
-                color: Some(surface.inline_code.into()),
+                color: surface.inline_code.map(Into::into),
                 background_color: Some(transparent),
                 ..Default::default()
             })

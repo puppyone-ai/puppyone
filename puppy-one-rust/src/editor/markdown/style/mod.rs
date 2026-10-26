@@ -83,6 +83,39 @@ mod tests {
     use crate::editor::view::style::{Align, Edges};
 
     #[test]
+    fn latest_web_typography_and_selection_hold_in_every_variant() {
+        use crate::editor::tokens::{Tokens, over};
+        for dark in [false, true] {
+            for scale in [Scale::Small, Scale::Medium, Scale::Large] {
+                let theme = MarkdownTheme::resolve(dark, scale);
+                let tokens = Tokens::get(dark, scale);
+                for (index, size) in scale.metrics().editor.headings.iter().enumerate() {
+                    let h = theme.heading.level(index + 1);
+                    assert_eq!(h.size, *size);
+                    assert_eq!(h.weight, 600.);
+                    assert_eq!((h.gap_before, h.gap_after), (8., 2.));
+                }
+                assert_eq!(theme.inline.code_color, None, "currentColor must inherit");
+                let canvas = tokens.color("--po-canvas");
+                assert_eq!(
+                    theme.surface.selection,
+                    over(tokens.color("--po-md-selection-bg"), canvas)
+                );
+                assert_eq!(
+                    theme.surface.selection_inactive,
+                    over(tokens.color("--po-md-selection-inactive-bg"), canvas)
+                );
+                assert_eq!(theme.surface.selection.a, 1.);
+                assert_eq!(
+                    over(theme.surface.selection, theme.surface.selection),
+                    theme.surface.selection,
+                    "overlapping selected lines must not darken"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn resolves_the_measured_reference_geometry() {
         let t = MarkdownTheme::resolve(true, Scale::Medium);
         assert_eq!(t.body.text.size, 15.);
@@ -91,9 +124,11 @@ mod tests {
         let h1 = t.heading.level(1);
         assert_eq!(
             (h1.size, h1.weight, h1.gap_before, h1.gap_after),
-            (30., 650., 16., 10.)
+            (22., 600., 8., 2.)
         );
-        assert_eq!(t.heading.level(2).weight, 625.);
+        assert_eq!(t.heading.level(2).weight, 600.);
+        assert_eq!(t.heading.line_height, 1.4);
+        assert_eq!(t.inline.code_color, None);
         // List rail at 15px: inset .25em + slot 1.25em + gap .375em.
         assert!((t.list.inset + t.list.marker_width + t.list.marker_gap - 28.125).abs() < 1e-4);
         assert!((t.list.indent_step - 22.5).abs() < 1e-4);

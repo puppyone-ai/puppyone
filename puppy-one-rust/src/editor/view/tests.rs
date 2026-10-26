@@ -33,7 +33,7 @@ fn plain() -> Box<PlainText> {
                 caret_width: 1.,
                 background: rgba(0x161616ff),
                 link: rgba(0x60a5faff),
-                inline_code: rgba(0xb7b7bcff),
+                inline_code: Some(rgba(0xb7b7bcff)),
             },
             ..Default::default()
         },

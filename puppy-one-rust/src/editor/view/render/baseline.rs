@@ -21,6 +21,13 @@ pub fn chromium_baseline(scale: f32, style: &TextStyle, primary: (f32, f32), row
     ((row_top + above + a) * s).round() / s
 }
 
+/// Blink's LayoutUnit stores 1/64 of a layout device pixel. Fractional
+/// heading line heights (e.g. 22px × 1.4) must truncate at that precision
+/// before advancing to the next block, rather than accumulating raw floats.
+pub(super) fn chromium_line_height(scale: f32, height: f32) -> f32 {
+    (height * scale * 64.).floor() / (scale * 64.)
+}
+
 pub fn primary_metrics(window: &Window, style: &TextStyle) -> (f32, f32) {
     let ts = window.text_system();
     let id = ts.resolve_font(&RenderCx::font(style));

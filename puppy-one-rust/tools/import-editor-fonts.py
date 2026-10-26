@@ -32,14 +32,14 @@ out = root / 'assets/fonts/editor'
 # inside monospaced code, and the reading weight (`--po-content-reading-weight`,
 # 450) of chat messages and the Typography preview. Italic: emphasis at body
 # and heading/strong weights.
-SANS = {'weights': [400, 450, 500, 600, 625, 650, 700], 'oblique': [400, 500, 600, 625, 650, 700]}
-MONO = {'weights': [400, 500, 600, 700], 'oblique': [500, 600]}
+SANS = {'weights': [400, 450, 500, 600, 625, 650, 700], 'oblique': [400, 450, 500, 600, 625, 650, 700]}
+MONO = {'weights': [400, 450, 500, 600, 700], 'oblique': [450, 500, 600]}
 # Chromium (Skia) synthetic italic: horizontal skew of 1/4 em per em.
 SKEW = 0.25
 # GPUI Kit renders a bold mark as weight 700 in the line's family. Body text
 # (500) is strong at the product's `--po-md-strong-weight` (600), so the 500
 # family carries Geist 600 outlines in its Bold slot (and Bold Oblique).
-BOLD_SLOTS = {500: 600}
+BOLD_SLOTS = {450: 600, 500: 600}
 # GPUI Kit draws an inline-code mark in the theme's mono family at 0.875 of
 # the text size; the product's inline code keeps the full size
 # (`--po-md-inline-code-font-size` unset). The editor's mono family for that
@@ -131,6 +131,12 @@ def main():
             files['geist-mono-inline-oblique.ttf'] = build(source, family, 500, True, upem=INLINE_CODE_UPEM, name=inline)
             files['geist-mono-inline-bold.ttf'] = build(source, family, 600, False, slot=500, upem=INLINE_CODE_UPEM, name=inline)
             files['geist-mono-inline-bold-oblique.ttf'] = build(source, family, 600, True, slot=500, upem=INLINE_CODE_UPEM, name=inline)
+            # Latin document content inherits 450, not the CJK sample's 500.
+            reading = 'PuppyOne Geist Mono Inline Reading'
+            files['geist-mono-inline-reading.ttf'] = build(source, family, 450, False, upem=INLINE_CODE_UPEM, name=reading)
+            files['geist-mono-inline-reading-oblique.ttf'] = build(source, family, 450, True, upem=INLINE_CODE_UPEM, name=reading)
+            files['geist-mono-inline-reading-bold.ttf'] = build(source, family, 600, False, slot=450, upem=INLINE_CODE_UPEM, name=reading)
+            files['geist-mono-inline-reading-bold-oblique.ttf'] = build(source, family, 600, True, slot=450, upem=INLINE_CODE_UPEM, name=reading)
         if slug == 'sans':
             for regular, strong in BOLD_SLOTS.items():
                 files[f'geist-sans-{regular}-bold.ttf'] = build(source, family, strong, False, slot=regular)

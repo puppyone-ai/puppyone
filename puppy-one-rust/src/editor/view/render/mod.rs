@@ -291,7 +291,7 @@ impl RenderCx<'_> {
             let theme = gpui_kit::base::Theme::global_mut(self.app);
             std::mem::replace(
                 &mut theme.tokens.typography.mono,
-                SharedString::from(super::style::INLINE_CODE_FAMILY),
+                SharedString::from(super::style::inline_code_family(style.weight)),
             )
         });
         let element = block.render(key as usize, flow, self.kit, self.window, self.app);
@@ -311,7 +311,8 @@ impl RenderCx<'_> {
         container.style().text.text_align = Some(align);
         (
             container.child(element).into_any_element(),
-            metrics.rows as f32 * style.line_height_px(),
+            metrics.rows as f32
+                * baseline::chromium_line_height(self.scale, style.line_height_px()),
         )
     }
 

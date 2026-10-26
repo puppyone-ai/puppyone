@@ -441,7 +441,7 @@ impl CsvEditor {
             caret: self.theme.caret,
             caret_width: 1.,
             link: self.theme.link,
-            inline_code: self.theme.body.color,
+            inline_code: Some(self.theme.body.color),
         }
     }
 

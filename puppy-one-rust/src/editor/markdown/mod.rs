@@ -57,6 +57,7 @@ struct Parsed {
 pub struct MarkdownExtension {
     theme: MarkdownTheme,
     scale: Scale,
+    reading_language: core::content_language::ReadingLanguage,
     /// Live preview (`false`: source mode).
     pub live: bool,
     pub read_only: bool,
@@ -69,6 +70,7 @@ impl MarkdownExtension {
         Self {
             theme: MarkdownTheme::resolve(dark, scale),
             scale,
+            reading_language: Default::default(),
             live: true,
             read_only: false,
             parsed: None,
@@ -112,6 +114,11 @@ impl EditorExtension for MarkdownExtension {
             self.theme = MarkdownTheme::resolve(input.dark, self.scale);
         }
         let state = input.state;
+        let han = self
+            .reading_language
+            .resolve(state.doc.as_str(), &crate::localization::current().code);
+        self.theme.body.text.weight =
+            crate::editor::tokens::Tokens::get(input.dark, self.scale).reading_weight(han);
         let (syntax, plans) = self.parse(state);
         let composing = self.preview.composing.map(|c| state.doc.line_index(c));
         let rhythm = block_rhythm(&state.doc, &syntax, composing);
@@ -135,6 +142,7 @@ impl EditorExtension for MarkdownExtension {
             self.preview.selecting,
             self.live,
             self.scale as u8,
+            crate::localization::current().code,
         )
             .hash(&mut h);
         h.finish()

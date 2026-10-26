@@ -17,7 +17,8 @@ pub struct InlineStyle {
     /// `--po-md-markup-color`: revealed delimiters.
     pub markup_color: Rgba,
     /// `--po-md-inline-code-color` / `-background` / `-padding`.
-    pub code_color: Rgba,
+    /// `None` is CSS `currentColor`: inherit the paragraph / quote / heading.
+    pub code_color: Option<Rgba>,
     pub code_background: Rgba,
     pub code_padding: Edges,
     /// `--po-md-inline-code-font-size` (`None`: unset, inherited).
@@ -35,7 +36,8 @@ impl InlineStyle {
             strike_color: t.color("--po-md-strikethrough-color"),
             link_color: t.color("--po-md-link-color"),
             markup_color: t.color("--po-md-markup-color"),
-            code_color: t.color("--po-md-inline-code-color"),
+            code_color: (t.raw("--po-md-inline-code-color") != "currentColor")
+                .then(|| t.color("--po-md-inline-code-color")),
             code_background: t.color("--po-md-inline-code-background"),
             code_padding: t.edges_at("--po-md-inline-code-padding", code_size.unwrap_or(size)),
             code_size,

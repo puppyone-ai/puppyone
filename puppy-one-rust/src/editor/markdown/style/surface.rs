@@ -1,6 +1,9 @@
 //! The editor surface (`.markdown-codemirror-editor`, `.cm-content`): the
 //! reading rail, its gutter, selection and caret.
-use crate::editor::{tokens::Tokens, view::style::Edges};
+use crate::editor::{
+    tokens::{Tokens, over},
+    view::style::Edges,
+};
 use gpui::Rgba;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -11,7 +14,11 @@ pub struct SurfaceStyle {
     pub text_width: f32,
     /// `--po-markdown-editor-gutter-min`: the rail's minimum inset.
     pub gutter: f32,
-    /// `--po-md-selection-bg` / `--po-md-selection-inactive-bg`.
+    /// `.cm-scroller { scrollbar-gutter: stable both-edges }`, measured by
+    /// Chromium on the reference platform (not part of the block inset).
+    pub scrollbar_gutter: f32,
+    /// `text-selection.css`: the Markdown selection tints pre-composited
+    /// over `--po-canvas`, so overlapping line fragments paint no seams.
     pub selection: Rgba,
     pub selection_inactive: Rgba,
     /// `.cm-content { caret-color: var(--po-text) }`.
@@ -24,14 +31,23 @@ impl SurfaceStyle {
             background: t.color("--po-md-surface-background"),
             text_width: t.len("--po-markdown-editor-text-width", size),
             gutter: t.len("--po-markdown-editor-gutter-min", size),
-            selection: t.color("--po-md-selection-bg"),
-            selection_inactive: t.color("--po-md-selection-inactive-bg"),
+            scrollbar_gutter: t.scrollbar_gutter,
+            selection: over(t.color("--po-md-selection-bg"), t.color("--po-canvas")),
+            selection_inactive: over(
+                t.color("--po-md-selection-inactive-bg"),
+                t.color("--po-canvas"),
+            ),
             caret: t.color("--po-text"),
         }
     }
 
     /// `.cm-content` insets.
     pub fn insets(&self) -> Edges {
-        Edges::all(self.gutter)
+        Edges::new(
+            self.gutter,
+            self.gutter + self.scrollbar_gutter,
+            self.gutter,
+            self.gutter + self.scrollbar_gutter,
+        )
     }
 }

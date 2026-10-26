@@ -1,6 +1,7 @@
 //! Format-agnostic Markdown pipeline (product `editor/markdown/core`).
 pub mod classes;
 pub mod commands;
+pub mod content_language;
 pub mod decorations;
 pub mod feature;
 pub mod links;

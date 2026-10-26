@@ -66,8 +66,9 @@ pub struct Surface {
     pub caret_width: f32,
     /// Kit link colour (`--po-md-link-color`).
     pub link: Rgba,
-    /// Kit inline-code colour (`--po-md-inline-code-color`).
-    pub inline_code: Rgba,
+    /// Kit inline-code colour (`--po-md-inline-code-color`); `None` inherits
+    /// the enclosing text's colour, just like CSS `currentColor`.
+    pub inline_code: Option<Rgba>,
 }
 
 #[derive(Clone, Default)]

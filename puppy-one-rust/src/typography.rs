@@ -115,7 +115,7 @@ const SMALL: Metrics = Metrics {
         line_height: 28.,
         data: 12.,
         code: 12.,
-        headings: [28., 22., 18., 16., 15., 14.],
+        headings: [21., 18., 16., 15., 14., 14.],
     },
     right: RightType {
         content: 13.,
@@ -167,7 +167,7 @@ const MEDIUM: Metrics = Metrics {
         line_height: 30.,
         data: 13.,
         code: 13.,
-        headings: [30., 23., 19., 17., 16., 15.],
+        headings: [22., 19., 17., 16., 15., 15.],
     },
     right: RightType {
         content: 14.,
@@ -219,7 +219,7 @@ const LARGE: Metrics = Metrics {
         line_height: 32.,
         data: 14.,
         code: 14.,
-        headings: [32., 24., 20., 18., 17., 16.],
+        headings: [24., 20., 18., 17., 16., 16.],
     },
     right: RightType {
         content: 16.,

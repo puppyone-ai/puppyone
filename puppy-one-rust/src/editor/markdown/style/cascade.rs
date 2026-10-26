@@ -142,11 +142,9 @@ pub fn line(theme: &MarkdownTheme, input: &LineInput) -> (LineStyle, LineContext
     }
     if heading {
         let h = theme.heading.level(input.level as usize);
-        // (0,3,0) `.cm-md-heading-N`: size; `.cm-md-heading-6` colour.
+        // `.cm-md-heading-N`: size. The syntax-heading span inside h6
+        // has its own heading colour, overriding the line's muted h6 colour.
         text.size = h.size;
-        if input.level == 6 {
-            text.color = h.color;
-        }
         // (0,4,0) `.cm-line.cm-md-heading`: heading rhythm and line height.
         style.padding.top = h.gap_before;
         style.padding.bottom = h.gap_after;

@@ -24,7 +24,7 @@ app.setPath('userData', profile); app.on('window-all-closed', () => {});
 // Markdown binds it.
 const TOKEN = csv
   ? /^--po-(editable-table|csv|host-csv|editor-padding)-|^--csv-table-|^--po-(editor-bg|text|text-muted|text-disabled|text-subtle|accent|control|control-size-tight|panel|divider|border|selected|shadow|elevation-low|text-size-caption|text-size-hint|text-size-content|plain-text-reading-weight|text-weight-medium|control-size|control-size-compact|text-selection-bg|text-selection-inactive-bg|selection-background|selection-inactive-background|surface-editor-mode-radius|surface-editor-mode-shadow)$/
-  : /^--po-(md|markdown-editor|editor|editable-table)-|^--cm-md-block-|^--po-(text|text-inverse|text-muted|accent|control)$/;
+  : /^--po-(md|markdown-editor|editor|editable-table)-|^--cm-md-block-|^--po-(canvas|text|text-inverse|text-muted|accent|control)$/;
 const FILE = csv ? 'sample.csv' : 'sample.md';
 
 async function run() {
@@ -93,8 +93,17 @@ createRoot(document.getElementById('root')).render(<LocalizationProvider {...loc
         }
         box.remove();
         const content=document.querySelector(${JSON.stringify(csv ? '.csv-table-editor table' : '.markdown-codemirror-editor .cm-content')});
+        const readingWeights={};
+        const originalLanguage=host.getAttribute('lang');
+        for(const language of ['en','zh-Hans']) {
+          host.setAttribute('lang',language);
+          readingWeights[language]=Number(getComputedStyle(content).fontWeight);
+        }
+        if(originalLanguage===null)host.removeAttribute('lang');else host.setAttribute('lang',originalLanguage);
         const cs=getComputedStyle(content);
-        return {tokens,scaleAttribute:document.documentElement.getAttribute('data-typography-scale'),root:{fontFamily:cs.fontFamily,fontSize:cs.fontSize,fontWeight:cs.fontWeight,lineHeight:cs.lineHeight,color:cs.color,caretColor:cs.caretColor,padding:[cs.paddingTop,cs.paddingRight,cs.paddingBottom,cs.paddingLeft]}};
+        const scroller=host.querySelector('.cm-scroller');
+        const scrollbarGutter=scroller?(scroller.offsetWidth-scroller.clientWidth)/2:0;
+        return {tokens,scaleAttribute:document.documentElement.getAttribute('data-typography-scale'),root:{scrollbarGutter,readingWeights,fontFamily:cs.fontFamily,fontSize:cs.fontSize,fontWeight:cs.fontWeight,lineHeight:cs.lineHeight,color:cs.color,caretColor:cs.caretColor,padding:[cs.paddingTop,cs.paddingRight,cs.paddingBottom,cs.paddingLeft]}};
       })()`);
       console.log(`Resolved ${mode}/${scale}: ${Object.keys(variants[`${mode}/${scale}`].tokens).length} tokens`);
     } finally { win.destroy(); }

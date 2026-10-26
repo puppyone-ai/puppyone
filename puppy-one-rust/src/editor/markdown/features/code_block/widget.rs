@@ -74,7 +74,11 @@ impl BlockWidget for CodeBlockWidget {
             .w(px(width))
             .h(px(panel_height))
             .rounded(px(s.radius))
-            .bg(s.background)
+            .bg(if cx.state.focus_within() {
+                crate::editor::tokens::over(s.focus_background, s.background)
+            } else {
+                s.background
+            })
             .overflow_hidden()
             .child(code);
         // `box-shadow: 0 0 0 2px var(--cm-md-block-current-ring)`: the

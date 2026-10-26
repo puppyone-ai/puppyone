@@ -10,13 +10,19 @@ use gpui::{
 /// The family GPUI Kit's inline-code mark uses while editor text is built:
 /// Geist Mono with 875 units per em, so Kit's 0.875 code size renders the
 /// product's full-size inline code.
-pub const INLINE_CODE_FAMILY: &str = "PuppyOne Geist Mono Inline";
+pub fn inline_code_family(weight: f32) -> &'static str {
+    if weight == 450. {
+        "PuppyOne Geist Mono Inline Reading"
+    } else {
+        "PuppyOne Geist Mono Inline"
+    }
+}
 
 /// Weights generated for each editor family (assets/fonts/editor).
 const SANS_WEIGHTS: [u16; 7] = [400, 450, 500, 600, 625, 650, 700];
-const SANS_OBLIQUE: [u16; 6] = [400, 500, 600, 625, 650, 700];
-const MONO_WEIGHTS: [u16; 4] = [400, 500, 600, 700];
-const MONO_OBLIQUE: [u16; 2] = [500, 600];
+const SANS_OBLIQUE: [u16; 7] = [400, 450, 500, 600, 625, 650, 700];
+const MONO_WEIGHTS: [u16; 5] = [400, 450, 500, 600, 700];
+const MONO_OBLIQUE: [u16; 3] = [450, 500, 600];
 /// The product's CJK/emoji fallbacks after Geist (`--po-md-content-font`).
 const FALLBACKS: [&str; 4] = [
     "PingFang SC",
@@ -41,6 +47,9 @@ pub fn font_bytes() -> Vec<std::borrow::Cow<'static, [u8]>> {
         "geist-sans-650.ttf",
         "geist-sans-700.ttf",
         "geist-sans-400-oblique.ttf",
+        "geist-sans-450-oblique.ttf",
+        "geist-sans-450-bold.ttf",
+        "geist-sans-450-bold-oblique.ttf",
         "geist-sans-500-oblique.ttf",
         "geist-sans-600-oblique.ttf",
         "geist-sans-625-oblique.ttf",
@@ -49,6 +58,12 @@ pub fn font_bytes() -> Vec<std::borrow::Cow<'static, [u8]>> {
         "geist-sans-500-bold.ttf",
         "geist-sans-500-bold-oblique.ttf",
         "geist-mono-400.ttf",
+        "geist-mono-450.ttf",
+        "geist-mono-450-oblique.ttf",
+        "geist-mono-inline-reading.ttf",
+        "geist-mono-inline-reading-oblique.ttf",
+        "geist-mono-inline-reading-bold.ttf",
+        "geist-mono-inline-reading-bold-oblique.ttf",
         "geist-mono-500.ttf",
         "geist-mono-600.ttf",
         "geist-mono-700.ttf",
@@ -214,6 +229,7 @@ impl Edges {
             left,
         }
     }
+    #[cfg(test)]
     pub fn all(v: f32) -> Self {
         Self::new(v, v, v, v)
     }
