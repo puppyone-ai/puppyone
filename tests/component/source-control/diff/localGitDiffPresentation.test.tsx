@@ -35,7 +35,7 @@ describe("local Git diff presentation", () => {
     expect(loading?.getAttribute("role")).toBe("status");
     expect(loading?.textContent).toContain("Loading diff for");
     expect(loading?.textContent).toContain("notes/loading.md");
-    expect(loading?.querySelector('[data-puppy-loader="dots"]')).not.toBeNull();
+    expect(loading?.querySelector('[data-puppy-loader]')).not.toBeNull();
   });
 
   it("uses the exact same file surface in focused Changes and embedded History contexts", () => {

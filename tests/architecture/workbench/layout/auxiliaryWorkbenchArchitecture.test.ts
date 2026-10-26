@@ -42,7 +42,8 @@ describe("Project-owned auxiliary workbench architecture", () => {
     expect(app).toContain("lazy(loadAgentChatWorkbenchItem)");
     expect(app).toContain("contributions={auxiliaryWorkbenchContributions}");
     expect(app).toContain("createTerminalWorkbenchContribution(t, readAuxiliaryTerminalAppearance)");
-    expect(app.match(/className=\{`desktop-right-sidebar-surface/g)).toHaveLength(3);
+    expect(app.match(/className=\{`desktop-right-sidebar-surface/g)).toHaveLength(4);
+    expect(app).toContain('renderCloudSidebar(presentation.contentVisible && cloudWorkspaceActive)');
     expect(app).toContain('rightSidebarSurface === "chat" ? "is-active" : ""');
     expect(app).toContain('rightSidebarSurface === "changes" ? "is-active" : ""');
     expect(app).toContain('rightSidebarSurface === "history" ? "is-active" : ""');

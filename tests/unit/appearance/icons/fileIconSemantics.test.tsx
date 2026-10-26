@@ -18,6 +18,8 @@ import {
 } from "../../../../packages/shared-ui/src/core/fileFormats";
 import { FILE_ICON_THEME_REGISTRY } from "../../../../packages/shared-ui/src/file/icon-themes/registry";
 
+const INSTALLED_THEMES = FILE_ICON_THEMES.map(({ id }) => id);
+
 describe("file icon semantics", () => {
   it.each(["data.db", "data.db3", "data.sqlite", "data.sqlite3", "data.duckdb", "data.ddb", "DATA.DB"])(
     "classifies %s as a database without changing binary admission",
@@ -105,7 +107,7 @@ describe("file icon semantics", () => {
     expect(getFileVisualKind("Knowledge.contextmap")).toBe("context-map");
   });
 
-  it.each<FileIconThemeId>(["default", "lines", "semantic", "material", "minimal"])(
+  it.each<FileIconThemeId>(INSTALLED_THEMES)(
     "renders Context Map as a treasure map product mark in the %s theme",
     (theme) => {
       const markup = renderToStaticMarkup(
@@ -151,7 +153,7 @@ describe("file icon semantics", () => {
     },
   );
 
-  it.each<FileIconThemeId>(["default", "lines"])(
+  it.each<FileIconThemeId>(INSTALLED_THEMES)(
     "renders compact video files with a player glyph in the %s theme",
     (theme) => {
       const markup = renderToStaticMarkup(
@@ -182,7 +184,7 @@ describe("file icon semantics", () => {
     },
   );
 
-  it.each<FileIconThemeId>(["default", "lines", "semantic", "material", "minimal"])(
+  it.each<FileIconThemeId>(INSTALLED_THEMES)(
     "renders spreadsheet glyphs as a standalone table grid in the %s theme",
     (theme) => {
       const markup = renderToStaticMarkup(<FileGlyphIcon name="table.csv" size={18} theme={theme} />);
@@ -192,7 +194,7 @@ describe("file icon semantics", () => {
     },
   );
 
-  it.each<FileIconThemeId>(["default", "lines", "semantic", "material", "minimal"])(
+  it.each<FileIconThemeId>(INSTALLED_THEMES)(
     "renders a recognizable Word mark in the %s theme",
     (theme) => {
       const markup = renderToStaticMarkup(
@@ -204,7 +206,7 @@ describe("file icon semantics", () => {
     },
   );
 
-  it.each<FileIconThemeId>(["default", "lines", "semantic", "material", "minimal"])(
+  it.each<FileIconThemeId>(INSTALLED_THEMES)(
     "renders a recognizable Excel mark in the %s theme",
     (theme) => {
       const markup = renderToStaticMarkup(
@@ -216,7 +218,7 @@ describe("file icon semantics", () => {
     },
   );
 
-  it.each<FileIconThemeId>(["default", "lines", "semantic", "material", "minimal"])(
+  it.each<FileIconThemeId>(INSTALLED_THEMES)(
     "renders a recognizable presentation mark in the %s theme",
     (theme) => {
       const markup = renderToStaticMarkup(
@@ -250,23 +252,23 @@ describe("file icon semantics", () => {
     expect(presentationMarkup).not.toContain('data-file-icon-office="excel"');
   });
 
-  it("publishes every built-in theme in deterministic registry order", () => {
-    expect(FILE_ICON_THEMES.map(({ id }) => id)).toEqual([
-      "default",
-      "lines",
-      "semantic",
-      "material",
-      "minimal",
-    ]);
+  it("ships only the default theme", () => {
+    expect(FILE_ICON_THEMES.map(({ id }) => id)).toEqual(["default"]);
   });
 
-  it("migrates the retired branded theme ID without keeping it in the public contract", () => {
-    expect(isFileIconThemeId("vscode")).toBe(false);
-    expect(parseFileIconThemeId("vscode")).toBe("semantic");
-    expect(parseFileIconThemeId("semantic")).toBe("semantic");
+  it.each(["vscode", "lines", "semantic", "material", "minimal"])(
+    "migrates the retired %s theme ID to default without keeping it in the public contract",
+    (retired) => {
+      expect(isFileIconThemeId(retired)).toBe(false);
+      expect(parseFileIconThemeId(retired)).toBe("default");
+    },
+  );
+
+  it.each(["toString", "constructor", "unknown-theme", ""])("rejects %j as a theme ID", (value) => {
+    expect(parseFileIconThemeId(value)).toBeNull();
   });
 
-  it.each<FileIconThemeId>(["default", "lines", "semantic", "material", "minimal"])(
+  it.each<FileIconThemeId>(INSTALLED_THEMES)(
     "renders folder previews and their child count through the %s theme",
     (theme) => {
       const markup = renderToStaticMarkup(
@@ -284,11 +286,4 @@ describe("file icon semantics", () => {
     },
   );
 
-  it("keeps the lines folder treatment inherited from the default theme", () => {
-    const renderFolder = (theme: FileIconThemeId) => renderToStaticMarkup(
-      <FilePreviewIcon name="folder" type="folder" size={56} theme={theme} />,
-    );
-
-    expect(renderFolder("lines")).toBe(renderFolder("default"));
-  });
 });

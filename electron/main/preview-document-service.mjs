@@ -49,7 +49,7 @@ export function createPreviewDocumentService() {
         "Content-Type": "text/html; charset=utf-8", "Content-Length": String(entry.bytes.length),
         "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
         "Content-Security-Policy": entry.interactive
-          ? "sandbox allow-popups allow-popups-to-escape-sandbox"
+          ? "sandbox allow-scripts allow-forms allow-modals allow-downloads allow-popups"
           : "sandbox allow-scripts",
       } });
     },

@@ -290,7 +290,7 @@ export class CodexAppServerAdapter {
     const nativeStart = new Promise((resolve) => { resolveNativeStart = resolve; });
     // Codex does not support a local prompt queue, so one pending start can be
     // correlated safely with the next native turn/started notification.
-    const pendingTurnStart = { resolve: resolveNativeStart };
+    const pendingTurnStart = { resolve: resolveNativeStart, uncertain: false, clientUserMessageId };
     this.pendingTurnStart = pendingTurnStart;
     let result;
     try {
@@ -302,7 +302,11 @@ export class CodexAppServerAdapter {
         approvalPolicy: "on-request",
         ...(model ? { model } : {}),
         ...(effort ? { effort } : {}),
-      }, { closeOnTimeout: false });
+      }, { onLateResponse: (error, value) => {
+        if (this.disposed || this.pendingTurnStart !== pendingTurnStart) return;
+        if (!error && value?.turn?.id) this.#handleNotification({ method: "turn/started",
+          params: { threadId: this.threadId, turn: value.turn } });
+      } });
       const accepted = await Promise.race([
         request.then((value) => ({ source: "rpc", value })),
         nativeStart.then((turnId) => ({ source: "native", value: { turn: { id: turnId } } })),
@@ -314,7 +318,7 @@ export class CodexAppServerAdapter {
       if (accepted.source === "native") void request.catch(() => {});
     } catch (error) {
       if (error?.deliveryOutcome === "unknown") {
-        this.connection.dispose?.(error.message, { expected: false });
+        pendingTurnStart.uncertain = true;
       }
       // The request identity remains useful even when delivery is ambiguous:
       // a native user item may still arrive and confirm that exact command.
@@ -323,7 +327,7 @@ export class CodexAppServerAdapter {
       }
       throw error;
     } finally {
-      if (this.pendingTurnStart === pendingTurnStart) this.pendingTurnStart = null;
+      if (!pendingTurnStart.uncertain && this.pendingTurnStart === pendingTurnStart) this.pendingTurnStart = null;
     }
     const turnId = requireString(result?.turn?.id, "Codex turn/start did not return a turn id.");
     // A receipt confirms delivery. Notifications received while awaiting it
@@ -398,7 +402,10 @@ export class CodexAppServerAdapter {
       if (event.type.startsWith("turn.") && event.turnId) {
         if (event.type === "turn.started" && !this.terminalTurnIds.has(event.turnId)) {
           this.activeTurnId = event.turnId;
+          if (this.pendingTurnStart) event.payload = { ...event.payload,
+            clientUserMessageId: this.pendingTurnStart.clientUserMessageId };
           this.pendingTurnStart?.resolve(event.turnId);
+          this.pendingTurnStart = null;
         }
         if (["turn.completed", "turn.failed", "turn.interrupted"].includes(event.type)) {
           void this.persistenceReporter.confirm();

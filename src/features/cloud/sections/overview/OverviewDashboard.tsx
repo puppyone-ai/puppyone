@@ -1,5 +1,5 @@
 import { useLocalization } from "@puppyone/localization/react";
-import { FileGlyphIcon } from "@puppyone/shared-ui";
+import { FileGlyphIcon, PlaceholderLayer } from "@puppyone/shared-ui";
 import type {
   DesktopCloudDashboard,
   DesktopCloudTree,
@@ -38,26 +38,29 @@ export function CloudOverviewDashboard({
       <h2 className="desktop-cloud-overview-dashboard-title">{t("cloud.overview.filesLabel")}</h2>
       <section className="desktop-cloud-overview-files">
         <div
-          className="desktop-cloud-overview-file-table"
+          className={`desktop-cloud-overview-file-table${showSkeleton ? " po-placeholder-surface" : ""}`}
           role="list"
           aria-label={showSkeleton
             ? t("cloud.loading.project")
             : `${t("cloud.overview.fileListAria")} · ${t("cloud.history.fileCount", { count: storedFileCount })}`}
         >
           {showSkeleton ? (
-            Array.from({ length: 4 }, (_, index) => (
-              <div
-                className="desktop-cloud-overview-file-row skeleton"
-                aria-hidden="true"
-                key={index}
-              >
-                <span className="desktop-cloud-overview-file-primary">
-                  <span className="desktop-cloud-overview-file-skeleton-icon" />
-                  <span className="desktop-cloud-overview-file-skeleton-name" />
-                </span>
-                <span className="desktop-cloud-overview-file-skeleton-time" />
-              </div>
-            ))
+            <>
+              {Array.from({ length: 4 }, (_, index) => (
+                <div
+                  className="desktop-cloud-overview-file-row skeleton"
+                  aria-hidden="true"
+                  key={index}
+                >
+                  <span className="desktop-cloud-overview-file-primary">
+                    <span className="desktop-cloud-overview-file-skeleton-icon" data-placeholder-shape="" />
+                    <span className="desktop-cloud-overview-file-skeleton-name" data-placeholder-shape="" />
+                  </span>
+                  <span className="desktop-cloud-overview-file-skeleton-time" data-placeholder-shape="" />
+                </div>
+              ))}
+              <PlaceholderLayer halo />
+            </>
           ) : entries.length > 0 ? entries.map((entry) => {
             const updatedAt = getCloudOverviewEntryUpdatedAt(entry, history);
             return (

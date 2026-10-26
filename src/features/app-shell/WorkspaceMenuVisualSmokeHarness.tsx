@@ -3,7 +3,7 @@ import { type Workspace } from "@puppyone/shared-ui";
 import type { DesktopPlatform } from "../../types/electron";
 import { DesktopOverlayPortal } from "./DesktopOverlayPortal";
 import { DesktopTitlebarContext } from "./DesktopTitlebarContext";
-import type { DesktopProjectLocation } from "./DesktopProjectLocationSwitcher";
+import { DesktopProjectLocationControls, type DesktopProjectLocation } from "./DesktopProjectLocationSwitcher";
 import { resetDesktopPlatformCapabilitiesForTests } from "../../platform/desktopPlatformClient";
 import "./workspace-menu-visual-smoke.css";
 import { desktopPreferencesStore, initializeDesktopPreferences } from "../../preferencesStore";
@@ -19,6 +19,9 @@ desktopPreferencesStore.getState().setExperimentalSettings(s => ({
 
 const currentWorkspace = workspace("todo", "To-Do-List", "/Users/demo/Desktop/To-Do-List");
 const menuProjects = [
+  // A name no menu width can hold: the row must end in an ellipsis instead of
+  // widening the menu or scrolling it sideways.
+  workspace("payments", "puppyone-payments-experiment-sandbox", "/Users/demo/Projects/puppyone-payments-experiment-sandbox"),
   workspace("vault", "puppyone Vault", "/Users/demo/Projects/puppyone Vault"),
   workspace("issues", "puppy-issues", "/Users/demo/Projects/puppy-issues"),
   workspace("pitch", "VC pitch", "/Users/demo/Projects/VC pitch"),
@@ -114,7 +117,22 @@ export function WorkspaceMenuVisualSmokeHarness() {
             activeWorkspace={previewWorkspace}
             expanded
             recentWorkspaces={[]}
-            projectItems={[{ id: previewWorkspace.id, label: previewWorkspace.name, localPath: previewWorkspace.path }]}
+            // The three Project kinds together: only the Cloud ones carry a
+            // place mark, and only the open Project's menu carries the switch.
+            projectItems={[
+              { id: previewWorkspace.id, label: previewWorkspace.name, localPath: previewWorkspace.path },
+              { id: "local:linked", label: "puppy-issues", localPath: "/Users/demo/Projects/puppy-issues", cloudProjectId: "linked" },
+              { id: "cloud:hosted", label: "VC pitch", localPath: "", cloudProjectId: "hosted" },
+              // A name no rail width can hold: the row ends in an ellipsis
+              // instead of widening or clipping the rail.
+              { id: "local:payments", label: "puppyone-payments-experiment-sandbox",
+                localPath: "/Users/demo/Projects/puppyone-payments-experiment-sandbox" },
+            ]}
+            activeProjectLocationControls={<DesktopProjectLocationControls
+              projectLocation={{ current, localAvailable: true, cloudState }}
+              onViewLocal={() => setRequested("local")}
+              onViewCloud={() => setRequested("cloud")}
+            />}
             onCreateNew={() => undefined}
             onSelectProject={() => undefined}
             onRenameProject={async () => undefined}

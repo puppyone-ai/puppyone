@@ -1,3 +1,4 @@
+import { unwrapSessionConnection } from "../../session-transport/sessionConnection";
 import type { TerminalCreateRequest, TerminalCreateResult, TerminalExitEvent } from "../../../types/electron";
 import type { TerminalBridge, TerminalDisplayData } from "./terminalRuntime";
 import { unwrapProjectSessionResult } from "../../../../shared/project-session-contract/schema.mjs";
@@ -62,7 +63,7 @@ export function createTerminalSessionBridge(base: NonNullable<Window["puppyoneDe
       session = receipt;
       if (disposed || terminating) throw new Error("Terminal execution was closed during startup.");
       if (!request.projectContext || !receipt.instanceId) throw new Error("Terminal session identity is unavailable.");
-      const binding = await base.connectTerminalSession({ id: receipt.id, instanceId: receipt.instanceId, projectContext: request.projectContext });
+      const binding = unwrapSessionConnection(await base.connectTerminalSession({ id: receipt.id, instanceId: receipt.instanceId, projectContext: request.projectContext }));
       const received = await receiveSessionPort(binding);
       if (disposed) {
         received.close();

@@ -1,14 +1,21 @@
-.desktop-cloud-workspace-share .desktop-dialog-title-row { min-width: 0; }
-.desktop-cloud-workspace-share h2 { overflow-wrap: anywhere; }
-.desktop-cloud-workspace-share .desktop-dialog-body { gap: 16px; padding-bottom: 24px; }
-.desktop-cloud-share-link { position: relative; display: flex; align-items: center; gap: 4px; padding: 4px; border: 1px solid var(--po-border); border-radius: 7px; background: var(--po-panel); }
-.desktop-cloud-share-link input { flex: 1; width: 0; min-width: 0; padding: 5px 8px; border: 0; outline: none; background: transparent; color: var(--po-text); font: inherit; }
-.desktop-cloud-share-link:has(input:focus-visible) { outline: 2px solid var(--po-accent); outline-offset: 2px; }
-.desktop-cloud-share-link .desktop-cloud-share-copy { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border: 0; background: transparent; color: var(--po-text-muted); }
-.desktop-cloud-share-link .desktop-cloud-share-copy:hover { background: var(--po-hover); color: var(--po-text); }
-.desktop-cloud-share-copy:focus-visible { outline: 2px solid var(--po-accent); outline-offset: 1px; }
-.desktop-cloud-share-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.desktop-cloud-share-preview-window { height: 186px; overflow: hidden; border: 1px solid var(--po-border); border-radius: 8px; background: var(--po-canvas); mask-image: linear-gradient(to bottom, black 65%, transparent 100%); }
-.desktop-cloud-share-preview-canvas { width: 200%; height: 200%; transform: scale(.5); transform-origin: top left; pointer-events: none; }
-.desktop-cloud-share-preview-files { flex-shrink: 0; }
-.desktop-cloud-share-preview-document { display: flex; flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
+/* The share illustration, in the feature layer like every other feature
+   stylesheet. Left unlayered it outranked every layered rule in the app by
+   the cascade's own rule about unlayered declarations, which is how the
+   reach dialog's overrides of this window — its height, and its frame —
+   were being quietly discarded. */
+@layer features {
+  .desktop-cloud-workspace-share .desktop-dialog-title-row { min-width: 0; }
+  .desktop-cloud-workspace-share h2 { overflow-wrap: anywhere; }
+  .desktop-cloud-workspace-share .desktop-dialog-body { gap: 16px; padding-bottom: 24px; }
+  .desktop-cloud-share-link { position: relative; display: flex; align-items: center; gap: 4px; padding: 4px; border: 1px solid var(--po-border); border-radius: 7px; background: var(--po-panel); }
+  .desktop-cloud-share-link input { flex: 1; width: 0; min-width: 0; padding: 5px 8px; border: 0; outline: none; background: transparent; color: var(--po-text); font: inherit; }
+  .desktop-cloud-share-link:has(input:focus-visible) { outline: 2px solid var(--po-accent); outline-offset: 2px; }
+  .desktop-cloud-share-link .desktop-cloud-share-copy { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border: 0; background: transparent; color: var(--po-text-muted); }
+  .desktop-cloud-share-link .desktop-cloud-share-copy:hover { background: var(--po-hover); color: var(--po-text); }
+  .desktop-cloud-share-copy:focus-visible { outline: 2px solid var(--po-accent); outline-offset: 1px; }
+  .desktop-cloud-share-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .desktop-cloud-share-preview-window { height: 186px; overflow: hidden; border: 1px solid var(--po-border); border-radius: 8px; background: var(--po-canvas); mask-image: linear-gradient(to bottom, black 65%, transparent 100%); }
+  .desktop-cloud-share-preview-canvas { width: 200%; height: 200%; transform: scale(.5); transform-origin: top left; pointer-events: none; }
+  .desktop-cloud-share-preview-files { flex-shrink: 0; }
+  .desktop-cloud-share-preview-document { display: flex; flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
+}

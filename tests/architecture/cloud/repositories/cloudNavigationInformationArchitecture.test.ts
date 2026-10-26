@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { House } from "lucide-react";
+import { HomeIcon } from "../../../../packages/shared-ui/src/icons/productIcons";
 import {
   CLOUD_HUB_ENTRY_SECTION,
   CLOUD_PROJECT_SIDEBAR_ROUTES,
@@ -21,7 +21,7 @@ describe("Cloud navigation information architecture", () => {
       "cli",
       "automation",
     ]);
-    expect(getCloudRoute("contents").icon).toBe(House);
+    expect(getCloudRoute("contents").icon).toBe(HomeIcon);
     expect(getCloudRoute("share").navigationGroup).toBe("project");
     expect(getCloudRoute("share").showInSidebar).toBe(false);
     expect(getCloudRoute("mcp").icon).toBe(McpLogoIcon);

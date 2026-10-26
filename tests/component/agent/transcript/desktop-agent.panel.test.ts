@@ -60,8 +60,9 @@ describe("Project-owned Agent Chat Workbench lifecycle", () => {
     await flushEffects(); await flushEffects();
     expect(Boolean(container.querySelector(".desktop-agent-readiness"))).toBe(showRecovery);
     expect(Boolean(container.querySelector(".desktop-agent-empty-state"))).toBe(!showRecovery);
-    // Paid compute is an experiment, so a default install onboards onto its own compute.
-    expect(container.querySelector(".desktop-agent-compute-summary")?.textContent).toContain("Your API or local model");
+    // Paid compute is the default, so a default install onboards onto PuppyOne's
+    // token; the switched-off route is held in paymentsExperience.test.tsx.
+    expect(container.querySelector(".desktop-agent-compute-summary")?.textContent).toContain("Puppyone's token");
     expect((container.querySelector('button[aria-label="Send message"]') as HTMLButtonElement).disabled).toBe(true);
     expect(harness.bridge.createAgentSession).not.toHaveBeenCalled();
   });
@@ -511,7 +512,7 @@ function renderPanel(
   return container;
 }
 
-/** Only the tests that exercise the paid route turn its experiment on. */
+/** The paid route is the default; said out loud so this test never leans on that. */
 function enablePayments() {
   desktopPreferencesStore.getState().setExperimentalSettings((settings) => ({ ...settings, enablePayments: true }));
 }

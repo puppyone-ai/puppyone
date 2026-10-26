@@ -111,7 +111,12 @@ describe("lightweight Office preview experience", () => {
       /\.office-pptx-thumbnail\[aria-selected="true"\] \.office-pptx-thumbnail__number\s*\{[^}]*color:\s*var\(--po-file-accent-presentation\)/s,
     );
     expect(officePreviewCss).toContain('.office-pptx-thumbnail__frame[data-render-state="error"]');
-    expect(officePreviewCss).toContain("prefers-reduced-motion: reduce");
+    // A pending slide is a loading placeholder in the Appearance style: paper
+    // that breathes (rounded) or is lit by an ordered-dither light (dither),
+    // both stopped for reduced motion, never a highlight sweep.
+    expect(officeViewerSource).toContain("{pending ? <PlaceholderLayer /> : null}");
+    expect(officePreviewCss).toMatch(/@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.office-pptx-thumbnail__frame\[data-placeholder-shape\]\s*\{\s*animation: none;/);
+    expect(officePreviewCss).not.toContain("office-pptx-thumbnail-pending");
     // Neutral owns the fallback accents; Warm dark and Graphite light/dark
     // redeclare intentional differences. The global layer adds no duplicate.
     expect(paletteTokenSource.match(/--po-file-accent-presentation:/g)).toHaveLength(5);

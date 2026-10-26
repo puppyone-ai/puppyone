@@ -40,7 +40,7 @@ describe("desktop explorer Header expansion", () => {
     const home = header?.querySelector<HTMLButtonElement>(".desktop-titlebar-home");
     expect(home).toBe(header?.querySelector("button"));
     expect(home?.getAttribute("aria-label")).toBe("Home");
-    expect(home?.querySelector(".lucide-house")).not.toBeNull();
+    expect(home?.querySelector('[data-product-icon="home"]')).not.toBeNull();
     expect(home?.textContent).toBe("");
     expect(home?.closest(".desktop-titlebar-centered-context")).toBeNull();
     act(() => home?.click());

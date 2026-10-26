@@ -200,11 +200,8 @@ describe("Markdown embedded runtime", () => {
     const firstWidget = new CodeBlockWidget("old", "ts", 0, source.length);
     const firstDom = firstWidget.toDOM(view);
     view.dom.appendChild(firstDom);
-    const language = firstDom.querySelector<HTMLInputElement>(".cm-md-code-language")!;
     const editor = firstDom.querySelector<HTMLTextAreaElement>(".cm-md-code-textarea")!;
     expect(editor.wrap).toBe("off");
-    language.value = "tsx";
-    language.dispatchEvent(new InputEvent("input", { bubbles: true }));
     editor.value = "recover me";
     editor.dispatchEvent(new InputEvent("input", { bubbles: true }));
     const originalSession = host.editSessions.values()[0];
@@ -217,7 +214,8 @@ describe("Markdown embedded runtime", () => {
     const secondWidget = new CodeBlockWidget("old", "ts", 3, source.length + 3);
     const secondDom = secondWidget.toDOM(view);
     view.dom.appendChild(secondDom);
-    expect(secondDom.querySelector<HTMLInputElement>(".cm-md-code-language")?.value).toBe("tsx");
+    expect(secondDom.querySelector(".cm-md-code-language")).toBeNull();
+    expect(host.editSessions.values()[0]?.draft).toEqual({ code: "recover me", language: "ts" });
     expect(secondDom.querySelector<HTMLTextAreaElement>(".cm-md-code-textarea")?.value).toBe("recover me");
     expect(host.editSessions.values()[0]?.elementId).toBe(originalSession.elementId);
     secondWidget.destroy(secondDom);
@@ -272,25 +270,20 @@ describe("Markdown embedded runtime", () => {
     });
   });
 
-  it("reparses the code when its language label changes", async () => {
+  it("reparses the code when its language is changed in Markdown source", async () => {
     const source = "```txt\nconst value = 1;\n```";
-    const view = createView(source);
-    const widget = new CodeBlockWidget("const value = 1;", "txt", 0, source.length);
-    const dom = widget.toDOM(view);
-    view.dom.appendChild(dom);
-    const language = dom.querySelector<HTMLInputElement>(".cm-md-code-language")!;
-    const highlight = dom.querySelector<HTMLElement>(".cm-md-code-highlight")!;
+    const view = createProjectedView(source);
     await vi.waitFor(() => {
-      expect(highlight.dataset.language).toBe("plaintext");
+      expect(view.dom.querySelector<HTMLElement>(".cm-md-code-highlight")?.dataset.language).toBe("plaintext");
     });
-    expect(highlight.querySelector(".cm-code-keyword")).toBeNull();
+    expect(view.dom.querySelector(".cm-code-keyword")).toBeNull();
 
-    language.value = "typescript";
-    language.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    view.dispatch({ changes: { from: 3, to: 6, insert: "typescript" } });
 
     await vi.waitFor(() => {
-      expect(highlight.dataset.language).toBe("typescript");
-      expect(highlight.querySelector(".cm-code-keyword")?.textContent).toBe("const");
+      const highlight = view.dom.querySelector<HTMLElement>(".cm-md-code-highlight");
+      expect(highlight?.dataset.language).toBe("typescript");
+      expect(highlight?.querySelector(".cm-code-keyword")?.textContent).toBe("const");
     });
   });
 
@@ -501,30 +494,21 @@ describe("Markdown embedded runtime", () => {
     expect(view.state.doc.toString()).toBe("Shifted\nIntro\n\n```ts\nnew\n```");
   });
 
-  it("uses the exact code-fence slice and commits only when focus leaves the composite widget", () => {
+  it("preserves the source language when editing a code-only panel", () => {
     const source = "~~~js\nold\n~~~";
     const view = createView(source);
     const widget = new CodeBlockWidget("old", "js", 0, source.length);
     const dom = widget.toDOM(view);
     view.dom.appendChild(dom);
-    const language = dom.querySelector<HTMLInputElement>(".cm-md-code-language")!;
     const editor = dom.querySelector<HTMLTextAreaElement>(".cm-md-code-textarea")!;
-    expect(dom.querySelector(".cm-md-code-header")).toBeNull();
-    expect(language.placeholder).toBe("");
-    expect(language.closest(".cm-md-code-panel")).toBe(dom.querySelector(".cm-md-code-panel"));
-
-    language.value = "ts";
-    language.dispatchEvent(new InputEvent("input", { bubbles: true }));
-    language.dispatchEvent(new FocusEvent("blur", { relatedTarget: editor }));
-    expect(view.state.doc.toString()).toBe(source);
-
-    editor.dispatchEvent(new FocusEvent("blur", { relatedTarget: language }));
+    expect(dom.querySelector(".cm-md-code-header,.cm-md-code-language,.cm-md-code-metadata")).toBeNull();
+    expect(dom.querySelector(".cm-md-code-panel")?.children).toHaveLength(1);
     expect(view.state.doc.toString()).toBe(source);
 
     editor.value = "new";
     editor.dispatchEvent(new InputEvent("input", { bubbles: true }));
     editor.dispatchEvent(new FocusEvent("blur"));
-    expect(view.state.doc.toString()).toBe("```ts\nnew\n```");
+    expect(view.state.doc.toString()).toBe("```js\nnew\n```");
   });
 
   it("separates legacy source metadata from language and preserves it on commit", () => {
@@ -539,12 +523,10 @@ describe("Markdown embedded runtime", () => {
     );
     const dom = widget.toDOM(view);
     view.dom.appendChild(dom);
-    const language = dom.querySelector<HTMLInputElement>(".cm-md-code-language")!;
-    const reference = dom.querySelector<HTMLElement>(".cm-md-code-source-reference")!;
+    const panel = dom.querySelector<HTMLElement>(".cm-md-code-panel")!;
     const editor = dom.querySelector<HTMLTextAreaElement>(".cm-md-code-textarea")!;
 
-    expect(language.value).toBe("json");
-    expect(reference.textContent).toBe("package.json · L83–99");
+    expect(panel.getAttribute("aria-description")).toBe("package.json · L83–99");
 
     editor.value = '{"private": true}';
     editor.dispatchEvent(new InputEvent("input", { bubbles: true }));

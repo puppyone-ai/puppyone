@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { ArrowRight, ChevronDown, Folder } from "lucide-react";
+import { ArrowRight, ChevronDown } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
+import { FolderIcon } from "@puppyone/shared-ui";
 
 type DesktopShellLocationBarProps = {
   onNavigate: (path: string) => void | Promise<void>;
@@ -36,7 +37,7 @@ export function DesktopShellLocationBar({ onNavigate, path }: DesktopShellLocati
       <span className="desktop-shell-location-bar-label">{label}</span>
       <span className="desktop-shell-location-bar-field">
         <i className="desktop-shell-location-bar-icon" aria-hidden="true">
-          <Folder size={15} strokeWidth={1.8} />
+          <FolderIcon size={15} strokeWidth={1.8} />
         </i>
         <input
           className="desktop-shell-location-bar-value"

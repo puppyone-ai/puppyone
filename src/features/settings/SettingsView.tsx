@@ -4,6 +4,7 @@ import { lazy, Suspense, useState } from "react";
 import { LocalAgentsSettingsView } from "../local-agents";
 import { ModelConnectionsSettings } from "../model-connections";
 import { AccountSettingsView } from "./main/AccountSettingsView";
+import { SeatsSettingsView } from "./main/SeatsSettingsView";
 import { ExperimentalSettingsView } from "./main/ExperimentalSettingsView";
 import { FilesSettingsView } from "./main/FileSettingsViews";
 import { GeneralSettingsView } from "./main/GeneralSettingsView";
@@ -12,6 +13,7 @@ import { PrivacySettingsView } from "./main/PrivacySettingsView";
 import { CreateNewSettingsView } from "./main/CreateNewSettingsView";
 import { OtherAppImportsSettingsView } from "./main/OtherAppImportsSettingsView";
 import { CloudHostingSettingsView, GitSettingsView } from "./main/RepositorySettingsViews";
+import { usePaymentsExperience } from "../payments";
 import { isSettingsSectionAvailable } from "./sidebar/settingsSidebarModel";
 import type { SettingsViewProps } from "./types";
 import { writeClipboardText } from "./utils";
@@ -24,6 +26,7 @@ const TypographySettingsView = lazy(async () => {
 export function SettingsView({
   workspace,
   activeSection,
+  onSelectSection,
   gitStatus,
   gitStatusLoading,
   gitStatusError,
@@ -53,6 +56,9 @@ export function SettingsView({
   const [copiedRemoteKey, setCopiedRemoteKey] = useState<string | null>(null);
   const [copyError, setCopyError] = useState<string | null>(null);
   const otherAppImportsEnabled = useDesktopPreference(s => activeSection === "other-app-imports" && s.experimentalSettings.enableOtherAppImports);
+  // Settings is a render entry: it reads the payments experiment once and
+  // hands the answer down, so no payment surface reads the flag itself.
+  const paymentsEnabled = usePaymentsExperience();
 
   if (!isSettingsSectionAvailable(activeSection, {
     cloudEnabled,
@@ -114,6 +120,19 @@ export function SettingsView({
         cloudSessionRestoring={cloudSessionRestoring}
         cloudApiBaseUrl={cloudApiBaseUrl}
         onCloudSessionChange={onCloudSessionChange}
+        onOpenBilling={paymentsEnabled ? () => onSelectSection("seats") : undefined}
+      />
+    );
+  }
+
+  if (activeSection === "seats") {
+    return (
+      <SeatsSettingsView
+        cloudSession={cloudSession}
+        cloudApiBaseUrl={cloudApiBaseUrl}
+        onCloudSessionChange={onCloudSessionChange}
+        // Buying needs an account, and Account owns the one sign-in flow.
+        onSignIn={() => onSelectSection("account")}
       />
     );
   }

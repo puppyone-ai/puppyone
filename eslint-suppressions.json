@@ -393,13 +393,7 @@
     "complexity": {
       "count": 3
     },
-    "max-depth": {
-      "count": 2
-    },
     "max-lines-per-function": {
-      "count": 1
-    },
-    "no-nested-ternary": {
       "count": 1
     }
   },
@@ -1767,11 +1761,6 @@
       "count": 2
     }
   },
-  "src/features/cloud/initialization/CloudPublishProgressIndicator.tsx": {
-    "no-nested-ternary": {
-      "count": 1
-    }
-  },
   "src/features/cloud/initialization/useCloudInitialization.ts": {
     "complexity": {
       "count": 1
@@ -1883,11 +1872,6 @@
   "src/features/cloud/workbench/DesktopCloudFileWorkspace.tsx": {
     "no-nested-ternary": {
       "count": 1
-    }
-  },
-  "src/features/cloud/workbench/cloudDataPort.ts": {
-    "no-nested-ternary": {
-      "count": 5
     }
   },
   "src/features/cloud/workbench/useCloudWorkspaceSwitch.ts": {
@@ -2218,9 +2202,6 @@
   "src/features/settings/main/AccountSettingsView.tsx": {
     "complexity": {
       "count": 1
-    },
-    "no-nested-ternary": {
-      "count": 4
     }
   },
   "src/features/settings/main/RepositorySettingsViews.tsx": {

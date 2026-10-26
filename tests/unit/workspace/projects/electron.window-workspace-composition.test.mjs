@@ -42,7 +42,7 @@ describe("window Workspace composition service", () => {
     expect(persistWorkspaceComposition).not.toHaveBeenCalled();
   });
 
-  it("reveals the owning window without mutating either composition", async () => {
+  it("attaches in the requesting window even when another window has the same root", async () => {
     const window = { id: "window-a" };
     const otherWindow = { id: "window-b" };
     const state = stateWith("a");
@@ -55,9 +55,9 @@ describe("window Workspace composition service", () => {
 
     const result = await service.attach(window, "/b");
 
-    expect(result.status).toBe("focused-existing");
-    expect(revealWindow).toHaveBeenCalledWith(otherWindow, "/b");
-    expect(state.folderPaths).toEqual(["/a"]);
+    expect(result.status).toBe("attached-current");
+    expect(revealWindow).not.toHaveBeenCalled();
+    expect(state.folderPaths).toEqual(["/a", "/b"]);
   });
 
   it("leaves the old snapshot authoritative when persistence fails", async () => {
@@ -142,7 +142,6 @@ function createService({
   return createWindowWorkspaceCompositionService({
     canonicalizeWorkspacePath: async (folderPath) => folderPath,
     getWindowState: () => state,
-    getWorkspaceWindow: (folderPath) => indexedPaths.get(folderPath) ?? null,
     indexWorkspacePath: (folderPath, window) => {
       indexedPaths.set(folderPath, window);
       onIndex();
@@ -153,7 +152,6 @@ function createService({
     },
     cleanupDetachedWorkspace,
     persistWorkspaceComposition,
-    revealWindow,
     workspaceFromPath: async (folderPath) => workspace(folderPath.slice(1)),
   });
 }

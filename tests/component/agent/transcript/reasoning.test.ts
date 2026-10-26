@@ -72,7 +72,7 @@ describe("Desktop Agent renderer surfaces", () => {
 
     expect(container.querySelector(".desktop-agent-reasoning")).toBeNull();
     expect(container.querySelectorAll(".desktop-agent-working-indicator")).toHaveLength(1);
-    expect(container.querySelectorAll("[data-puppy-loader='dots']")).toHaveLength(1);
+    expect(container.querySelectorAll("[data-puppy-loader]")).toHaveLength(1);
     expect(container.textContent).not.toContain("Working through the request");
     expect(container.textContent).not.toContain("Inspecting the project structure.");
     expect(container.querySelector(".desktop-agent-run-status-toggle")).not.toBeNull();

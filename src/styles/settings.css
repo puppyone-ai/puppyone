@@ -945,3 +945,219 @@
   }
 
 }
+
+/* Plan ---------------------------------------------------------------------
+   Built from the shared label/value rows, like every other Settings page. The
+   only thing of its own is the storage bar, which sits under its row. */
+
+.desktop-plan-note {
+  margin: 10px 0 0;
+  padding-inline: 10px;
+  color: var(--po-text-subtle);
+  font-size: var(--po-text-size-caption, 12px);
+  line-height: 1.4;
+}
+
+.desktop-plan-error {
+  margin: 10px 0 0;
+  padding-inline: 10px;
+  color: var(--po-danger);
+  font-size: var(--po-text-size-caption, 12px);
+  line-height: 1.4;
+}
+
+.desktop-plan-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding-inline: 10px;
+}
+
+/* A value row that carries a bar on a line of its own beneath it. */
+.desktop-plan-meter-row {
+  flex-wrap: wrap;
+  row-gap: 7px;
+  padding-block: 9px 10px;
+}
+
+.desktop-plan-meter-track {
+  position: relative;
+  flex: 1 0 100%;
+  overflow: hidden;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--po-control);
+}
+
+.desktop-plan-meter-track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--po-accent);
+  transition: width 220ms ease;
+}
+
+.desktop-plan-meter-track.exhausted > span {
+  background: var(--po-warning);
+}
+
+/* Account ------------------------------------------------------------------
+   Identity, then spend, then price. This page intentionally does not use the
+   label/value rows the rest of Settings uses: those describe configuration,
+   and an identity is not a setting. */
+
+.desktop-account-identity {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 4px 10px 14px;
+}
+
+.desktop-account-avatar {
+  display: inline-flex;
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--po-control);
+  color: var(--po-text-muted);
+  font-size: var(--po-text-size-label, 15px);
+  font-weight: var(--po-text-weight-medium, 500);
+  line-height: 1;
+  user-select: none;
+}
+
+.desktop-account-identity-text {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.desktop-account-identity-text strong {
+  overflow: hidden;
+  color: var(--po-text);
+  font-size: var(--po-text-size-label, 14px);
+  font-weight: var(--po-text-weight-medium, 500);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-account-identity-meta {
+  color: var(--po-text-subtle);
+  font-size: var(--po-text-size-meta, 12px);
+}
+
+.desktop-account-identity-status {
+  color: var(--po-text-muted);
+  font-size: var(--po-text-size-meta, 12px);
+}
+
+.desktop-account-inline-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--po-accent);
+  font: inherit;
+  cursor: var(--po-clickable-cursor, pointer);
+}
+
+.desktop-account-inline-link:hover {
+  text-decoration: underline;
+}
+
+/* Signing out is rare and destructive. It stays reachable and quiet rather
+   than being the loudest control on the page. */
+.desktop-account-signout {
+  flex: none;
+  align-self: flex-start;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  color: var(--po-text-subtle);
+  font: inherit;
+  font-size: var(--po-text-size-meta, 12px);
+  cursor: var(--po-clickable-cursor, pointer);
+}
+
+.desktop-account-signout:hover:not(:disabled) {
+  background: var(--po-hover);
+  color: var(--po-text);
+}
+
+.desktop-account-signout:disabled {
+  color: var(--po-text-disabled);
+  cursor: default;
+}
+
+.desktop-account-usage {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 2px 10px 6px;
+}
+
+.desktop-account-meter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.desktop-account-meter-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.desktop-account-meter-label {
+  color: var(--po-text);
+  font-size: var(--po-text-size-label, 13px);
+}
+
+.desktop-account-meter-value {
+  color: var(--po-text-subtle);
+  font-size: var(--po-text-size-meta, 12px);
+  font-variant-numeric: tabular-nums;
+}
+
+.desktop-account-meter-track {
+  position: relative;
+  overflow: hidden;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--po-control);
+}
+
+.desktop-account-meter-track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--po-accent);
+  transition: width 220ms ease;
+}
+
+.desktop-account-meter-track.exhausted > span {
+  background: var(--po-warning);
+}
+
+.desktop-account-usage-note,
+.desktop-account-allowance {
+  margin: 0;
+  color: var(--po-text-subtle);
+  font-size: var(--po-text-size-meta, 12px);
+  line-height: 1.4;
+}
+
+.desktop-account-allowance {
+  color: var(--po-text-muted);
+}
+
+.desktop-account-signin {
+  padding: 2px 10px 6px;
+}

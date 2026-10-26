@@ -21,6 +21,7 @@ import { AgentPanelStatus } from '../../../../src/features/desktop-agent/ui/Agen
 import { AgentSurfaceHeader } from '../../../../src/features/desktop-agent/ui/AgentSurfaceHeader';
 import { modelConnectionsApi } from '../../../../src/features/model-connections/modelConnectionsApi';
 import { AccountAICredits } from '../../../../src/features/settings/main/AccountAICredits';
+import { AccountSettingsView } from '../../../../src/features/settings/main/AccountSettingsView';
 import { ExperimentalSettingsView } from '../../../../src/features/settings/main/ExperimentalSettingsView';
 import { LocalAgentActivationDialog } from '../../../../src/features/local-agents/activation/LocalAgentActivationDialog';
 import { LocalAgentActivationStore } from '../../../../src/features/local-agents/activation/LocalAgentActivationStore';
@@ -172,6 +173,10 @@ function surface() {
     case 'agent': return <div className="desktop-agent-boundary"><BuiltInAgentCompute models={[]} payments={variant !== 'unpaid'} selectedModel={null} disabled={false} accessPrompt
       onSelectModel={noop} onCatalogChange={noop} onOpenAccount={noop} onOpenModelConnections={noop} onReadyChange={noop} /></div>;
     case 'wallet': return <div className="desktop-settings-view"><AccountAICredits payments={variant !== 'unpaid'} signedIn onSignIn={noop} /></div>;
+    // The money, as a signed-in account sees it: what is held, what it has
+    // used, and what another machine would cost — all of it on Account.
+    case 'plan': return <AccountSettingsView cloudSession={session} cloudSessionRestoring={false}
+      cloudApiBaseUrl={session.api_base_url} onCloudSessionChange={noop} />;
     case 'experiments': return <ExperimentalSettingsView />;
     case 'diagnostics': return <div className="desktop-agent-boundary"><AgentSurfaceHeader title="Chat" statusCode="ready" statusLabel="Ready" loading={false}
       newSessionDisabled={false} onNewSession={noop} onCloseSession={noop} diagnostic={variant === 'diagnostic' ? 'Fixture transport detail' : null} />

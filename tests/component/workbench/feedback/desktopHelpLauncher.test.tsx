@@ -294,10 +294,10 @@ describe("DesktopHelpLauncher", () => {
     );
 
     expect(appSource).toMatch(
-      /sidebarUtility=\{projectSwitcherRailVisible[\s\S]*?\? undefined[\s\S]*?: feedbackLauncher\}/,
+      /sidebarUtility=\{railOwnsProject[\s\S]*?\? undefined[\s\S]*?: feedbackLauncher\}/,
     );
     expect(appSource).toContain("const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);");
-    expect(appSource).toContain("renderLeadingRail={enableProjectSwitcherRail ? ({ expanded }) => renderProjectRail(");
+    expect(appSource).toContain("renderLeadingRail={railOwnsProject ? ({ expanded }) => renderProjectRail(");
     expect(appSource).toContain("expanded={expanded}");
     expect(appSource).toContain("leftSidebarCollapsed={sidebarCollapsed}");
     expect(appSource).toContain("rightSidebarOpen={rightSidebarContentVisible}");
@@ -307,8 +307,8 @@ describe("DesktopHelpLauncher", () => {
     expect(appSource).toContain("<SettingsDialog");
     expect(appSource).not.toContain("settingsWorkspaceActive");
     expect(appSource).not.toContain("feedbackInNavigationToolbar");
-    expect(appSource).toContain("settingsNavigationVisible={!projectSwitcherRailEnabled}");
-    expect(appSource).toContain("workspaceNavigationVisible={!projectSwitcherRailEnabled}");
+    expect(appSource).toContain("settingsNavigationVisible={!railOwnsProject}");
+    expect(appSource).toContain("workspaceNavigationVisible={!railOwnsProject}");
     expect(appSource).toMatch(
       /<ProjectSwitcherRail[\s\S]*?utilitySlot=\{<DesktopHelpLauncher/,
     );

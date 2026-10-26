@@ -1,5 +1,6 @@
-import { ChevronLeft, ChevronRight, KeyRound, Plus, RefreshCw, Server } from "lucide-react";
+import { ChevronLeft, ChevronRight, KeyRound, Plus, RefreshCw } from "lucide-react";
 import { useState } from "react";
+import { LocalIcon } from "@puppyone/shared-ui";
 import { useLocalization, type MessageFormatter } from "@puppyone/localization";
 import { bidiIsolate } from "@puppyone/localization/core";
 import type { ModelConnection, ModelConnectionCandidate, ModelConnectionSourceKind } from "../../../shared/model-connections/types";
@@ -107,7 +108,7 @@ function ModelConnectionList({ state, store, navigate, run, onDiscover }: {
       </div>}
       {SOURCE_KINDS.map((sourceKind) => {
         const items = connections.filter((connection) => connection.sourceKind === sourceKind);
-        const Icon = sourceKind === "api" ? KeyRound : Server;
+        const Icon = sourceKind === "api" ? KeyRound : LocalIcon;
         return <section className="desktop-settings-category" key={sourceKind} aria-label={t(`settings.modelConnections.source.${sourceKind}`)}>
           <header className="desktop-settings-category-header model-connections-group-heading">
             <h3 className="desktop-settings-category-title">{t(`settings.modelConnections.source.${sourceKind}`)}</h3>
@@ -139,7 +140,7 @@ function ModelConnectionList({ state, store, navigate, run, onDiscover }: {
             </div>}
             {sourceKind === "local" && candidates.map((candidate) => (
               <div className="desktop-settings-row model-connections-candidate" key={`${candidate.driver}:${candidate.baseUrl}`}>
-                <Server size={18} aria-hidden="true" />
+                <LocalIcon size={18} aria-hidden="true" />
                 <span className="model-connections-identity"><strong>{candidate.name}</strong><small dir="ltr">{candidate.baseUrl}</small></span>
                 <button type="button" className="desktop-settings-row-action" onClick={() => navigate({ kind: "add", sourceKind, candidate })}>
                   {t("settings.modelConnections.connect")}

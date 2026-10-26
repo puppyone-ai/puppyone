@@ -1,7 +1,7 @@
 import { bidiIsolate } from "@puppyone/localization";
 import { useLocalization } from "@puppyone/localization/react";
-import { Tooltip } from "@puppyone/shared-ui";
-import { Check, Folder, FolderTree, Link2, LoaderCircle, Plug, Share2 } from "lucide-react";
+import { Tooltip, FolderIcon } from "@puppyone/shared-ui";
+import { Check, FolderTree, LoaderCircle, Share2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   DesktopDialogCloseButton,
@@ -24,6 +24,7 @@ import type { CloudWorkspaceShareResource } from "../cloudWorkspaceShareResource
 import {
   defaultReachScope,
   inviteReachTarget,
+  isFirstReach,
   isReachRunning,
   reachIntentForTarget,
   reachIntentTargets,
@@ -34,8 +35,10 @@ import {
 } from "./projectReach";
 import { ReachAgentChoice } from "./ReachAgentChoice";
 import { ReachHandoff } from "./ReachHandoff";
+import { ReachLinkRow } from "./ReachAddress";
+import { CloudProjectActivationFrame } from "../../components/CloudProjectActivation";
 import { ReadersList } from "../ReadersList";
-import { buildShareHandoff, normalizeApiOrigin } from "../shareHandoff";
+import { buildShareHandoff } from "../shareHandoff";
 import { isActiveShare } from "../shareStatus";
 import {
   getShareTarget,
@@ -147,15 +150,19 @@ export function ProjectReachDialog(props: ProjectReachDialogProps) {
     </div>
   ) : null;
 
+  const converting = flow.phase === "form" && isFirstReach(props.projectContext);
+
   return (
     <DesktopOverlayLayer>
       <DesktopDialogRoot className="desktop-share-dialog-backdrop" onClose={props.onClose}>
         <DesktopDialogSurface
-          className="desktop-share-dialog desktop-reach-dialog"
+          className={`desktop-share-dialog desktop-reach-dialog${converting ? " is-converting" : ""}`}
           width="min(600px, calc(100vw - 64px))"
           ariaLabel={title}
         >
-          <header className="desktop-dialog-header desktop-share-dialog-header">
+          {converting ? <div className="desktop-reach-conversion-close">
+            <DesktopDialogCloseButton label={t("common.action.close")} onClick={props.onClose} />
+          </div> : <header className="desktop-dialog-header desktop-share-dialog-header">
             <div className="desktop-dialog-title-row">
               <span className="desktop-share-dialog-leading" aria-hidden="true">
                 <Share2 size={15} strokeWidth={1.9} />
@@ -166,13 +173,18 @@ export function ProjectReachDialog(props: ProjectReachDialogProps) {
               label={t("common.action.close")}
               onClick={props.onClose}
             /></Tooltip>
-          </header>
+          </header>}
 
           {flow.phase === "form" ? (
             <ReachForm
               intent={intent}
               target={target}
               targetLabel={targetLabel}
+              project={project}
+              // A project that has never been in Cloud has a route to explain;
+              // one that is already there has none, and the screen says so by
+              // not saying it.
+              firstReach={isFirstReach(props.projectContext)}
               scope={scope}
               dialog={props}
               readers={readers}
@@ -223,6 +235,8 @@ function ReachForm({
   intent,
   target,
   targetLabel,
+  project,
+  firstReach,
   scope,
   dialog,
   readers,
@@ -234,6 +248,8 @@ function ReachForm({
   intent: ReachIntent;
   target: ShareTarget | null;
   targetLabel: string;
+  project: string;
+  firstReach: boolean;
   scope: ReachScope;
   dialog: ProjectReachDialogProps;
   readers: ReactNode;
@@ -242,13 +258,17 @@ function ReachForm({
   onScopeChange: (scope: ReachScope) => void;
   onConfirm: () => void;
 }) {
-  const shared = { scope, dialog, readers, onIntentChange, onScopeChange, onConfirm };
+  const shared = { project, firstReach, scope, dialog, readers, onIntentChange, onScopeChange, onConfirm };
   return intent === "invite"
     ? <ReachInviteForm {...shared} />
     : <ReachConnectForm {...shared} target={target} targetLabel={targetLabel} onSelect={onSelect} />;
 }
 
 type ReachFormShared = {
+  /** Already bidi-isolated, so every mention of the project reads the same. */
+  project: string;
+  /** This project has never had a copy in Cloud. */
+  firstReach: boolean;
   scope: ReachScope;
   dialog: ProjectReachDialogProps;
   readers: ReactNode;
@@ -271,26 +291,51 @@ type ReachFormShared = {
  * blurred sentence: blur reads as a rendering fault, dots read as "not yet".
  */
 function ReachInviteForm({
-  scope, dialog, readers, onIntentChange, onConfirm,
+  project, firstReach, scope, dialog, readers, onIntentChange, onConfirm,
 }: ReachFormShared) {
   const { t } = useLocalization();
-  return (
-    <>
-      <div className="desktop-dialog-body desktop-share-dialog-body desktop-reach-form">
-        <ReachLinkRow action={t("cloud.share.reach.action.invite")} onCreate={onConfirm} />
-        <p className="desktop-reach-fact">
-          {t("cloud.share.reach.invite.linkPurpose")} {t("cloud.share.reach.mechanism")}
-        </p>
-        {/* What the link covers is what the user was looking at when they
-            asked for it, and the preview shows exactly that. Offering to
-            narrow it here turns a link into a configuration, which is the
-            one thing this screen is not. */}
-        <ReachPreview scope={scope} dialog={dialog} />
-        {readers}
-        <ReachSecondaryLinks intent="invite" onIntentChange={onIntentChange} />
+  const secondary = <ReachSecondaryLinks intent="invite" onIntentChange={onIntentChange} />;
+  if (firstReach) {
+    return <ReachConversion intent="invite" project={project} onConfirm={onConfirm} onClose={dialog.onClose}>
+      <div className="desktop-reach-invite-link">
+        <ReachLinkRow />
+        <span className="desktop-cloud-project-journey-avatars" aria-hidden="true">
+          <span>A</span><span>M</span><span>J</span>
+        </span>
       </div>
-    </>
-  );
+      {secondary}
+      {readers}
+    </ReachConversion>;
+  }
+  return <div className="desktop-dialog-body desktop-share-dialog-body desktop-reach-form">
+    <ReachLinkRow action={t("cloud.share.reach.action.invite")} onCreate={onConfirm} />
+    <p className="desktop-reach-fact">{t("cloud.share.reach.invite.linkPurpose")} {t("cloud.share.reach.mechanism")}</p>
+    <ReachPreview scope={scope} dialog={dialog} />
+    {readers}
+    {secondary}
+  </div>;
+}
+
+/** One banner and frame for publishing, inviting, and connecting an agent. */
+function ReachConversion({ intent, project, children, onConfirm, onClose }: {
+  intent: ReachIntent;
+  project: string;
+  children: ReactNode;
+  onConfirm?: () => void;
+  onClose: () => void;
+}) {
+  const { t } = useLocalization();
+  return <div className="desktop-reach-conversion-scroll"><CloudProjectActivationFrame
+    projectName={project}
+    title={t(intent === "invite" ? "cloud.share.reach.invite.title" : "cloud.share.reach.connect.title", { project })}
+    lead={t(intent === "invite" ? "cloud.activation.project.teammatesDetail" : "cloud.activation.project.agentsDetail")}
+    secondary={<button type="button" className="desktop-dialog-button desktop-cloud-project-activation-dismiss"
+      onClick={onClose}>{t("cloud.activation.project.notNow")}</button>}
+    action={onConfirm && <button type="button" className="desktop-dialog-button primary"
+      data-desktop-dialog-initial-focus="true" onClick={onConfirm}>{t("cloud.activation.project.publish")}</button>}
+  >
+    <div className="desktop-reach-conversion-content">{children}</div>
+  </CloudProjectActivationFrame></div>;
 }
 
 /**
@@ -305,7 +350,8 @@ function ReachInviteForm({
  * configuration task.
  */
 function ReachConnectForm({
-  target, targetLabel, scope, dialog, readers, onIntentChange, onSelect, onScopeChange, onConfirm,
+  target, targetLabel, project, firstReach, scope, dialog, readers,
+  onIntentChange, onSelect, onScopeChange, onConfirm,
 }: ReachFormShared & {
   target: ShareTarget | null;
   targetLabel: string;
@@ -315,24 +361,23 @@ function ReachConnectForm({
   const [chosen, setChosen] = useState(() => target !== null);
   const [narrowing, setNarrowing] = useState(() => scope.path !== "");
 
-  // Naming an agent is the whole screen. A link is a different way to hand
-  // the project out, with different terms; offering it beside the names only
-  // blurs what the user is choosing between.
   if (!chosen || !target) {
-    return (
-      <div className="desktop-dialog-body desktop-share-dialog-body desktop-reach-form">
-        <ReachAgentChoice
-          selected={target?.id ?? null}
-          onSelect={(id) => { onSelect(id); setChosen(true); }}
-        />
-        {readers}
-      </div>
-    );
+    const choice = <ReachAgentChoice compact={firstReach} selected={target?.id ?? null}
+      onSelect={(id) => { onSelect(id); setChosen(true); }} />;
+    return firstReach
+      ? <ReachConversion intent="connect" project={project} onClose={dialog.onClose}>{choice}{readers}</ReachConversion>
+      : <div className="desktop-dialog-body desktop-share-dialog-body desktop-reach-form">{choice}{readers}</div>;
   }
 
   const folder = scope.path.split("/").filter(Boolean).pop() ?? "";
-  return (
-    <div className="desktop-dialog-body desktop-share-dialog-body desktop-reach-form">
+  const secondary = (
+    <ReachSecondaryLinks
+      intent="connect"
+      onIntentChange={onIntentChange}
+      narrow={narrowing ? undefined : () => setNarrowing(true)}
+    />
+  );
+  const consent = <>
       <div className="desktop-reach-chosen">
         <ShareTargetMark target={target} />
         <span className="desktop-reach-chosen-label" dir="auto">
@@ -364,14 +409,17 @@ function ReachConnectForm({
           />
         </div>
       )}
+      {/* Same rule as the invite side: while nothing of this project is in
+          Cloud, the press that puts it there is a commitment and belongs in
+          the footer, not next to the address it appears to be revealing. */}
       <ReachLinkRow
-        action={t("cloud.share.reach.action.connect", { target: targetLabel })}
+        action={firstReach ? undefined : t("cloud.share.reach.action.connect", { target: targetLabel })}
         kind={reachModeSelectable(target) ? "address" : "link"}
         apiBaseUrl={dialog.apiBaseUrl}
         onCreate={onConfirm}
       />
       <p className="desktop-reach-fact">{t("cloud.share.reach.connect.changesReturn")}</p>
-      <ReachPreview scope={scope} dialog={dialog} />
+      {!firstReach && <ReachPreview scope={scope} dialog={dialog} />}
       {narrowing && (
         <ReachScopeChoice
           scope={scope}
@@ -382,13 +430,11 @@ function ReachConnectForm({
         />
       )}
       {readers}
-      <ReachSecondaryLinks
-        intent="connect"
-        onIntentChange={onIntentChange}
-        narrow={narrowing ? undefined : () => setNarrowing(true)}
-      />
-    </div>
-  );
+      {secondary}
+    </>;
+  return firstReach
+    ? <ReachConversion intent="connect" project={project} onConfirm={onConfirm} onClose={dialog.onClose}>{consent}</ReachConversion>
+    : <div className="desktop-dialog-body desktop-share-dialog-body desktop-reach-form">{consent}</div>;
 }
 
 /**
@@ -413,76 +459,6 @@ function ReachPreview({ scope, dialog }: {
       <CloudWorkspaceSharePreview entries={preview.entries} file={preview.file} />
     </section>
   );
-}
-
-/**
- * The link, before it exists, with the verb that brings it into being.
- *
- * One row, one job: this is where the link lives, and this is how you get it.
- * The address is real and only the part that does not exist yet is masked, so
- * the row is a promise the product can keep rather than a decoration.
- */
-function ReachLinkRow({ action, kind = "link", apiBaseUrl = null, onCreate }: {
-  action: string;
-  /** A person follows a link; an MCP agent is given an address of its own. */
-  kind?: "link" | "address";
-  apiBaseUrl?: string | null;
-  onCreate?: () => void;
-}) {
-  const { t } = useLocalization();
-  const address = kind === "address";
-  return (
-    <div
-      className="desktop-reach-link-row"
-      role="group"
-      aria-label={t(address
-        ? "cloud.share.reach.connect.addressPending"
-        : "cloud.share.reach.invite.linkPending")}
-    >
-      <span className="desktop-reach-link-mark" aria-hidden="true">
-        {address ? <Plug size={15} strokeWidth={1.8} /> : <Link2 size={15} strokeWidth={1.8} />}
-      </span>
-      <code className="desktop-reach-link-value" aria-hidden="true" dir="ltr">
-        {address ? pendingAddressShape(apiBaseUrl) : pendingLinkShape()}
-      </code>
-      <button
-        type="button"
-        className="desktop-reach-link-action"
-        data-desktop-dialog-initial-focus="true"
-        onClick={onCreate}
-      >
-        {action}
-      </button>
-    </div>
-  );
-}
-
-/**
- * The address the link will have, with the part that is not decided yet shown
- * as what it is: undecided. Nothing here is copyable, because there is
- * nothing to copy.
- */
-function pendingLinkShape(): string {
-  const masked = "•".repeat(10);
-  try {
-    return `${new URL(getDesktopCloudWebUrl("/")).host}/r/${masked}`;
-  } catch {
-    return `puppyone.ai/r/${masked}`;
-  }
-}
-
-/**
- * The same promise for an agent: the address it will be given, with the key
- * that does not exist yet masked. The path is the real one, so what appears
- * when the key arrives is the row the user is already looking at.
- */
-function pendingAddressShape(apiBaseUrl: string | null): string {
-  const masked = "•".repeat(10);
-  try {
-    return `${new URL(normalizeApiOrigin(apiBaseUrl)).host}/api/v1/mcp/server/${masked}`;
-  } catch {
-    return `puppyone.ai/api/v1/mcp/server/${masked}`;
-  }
 }
 
 /**
@@ -574,7 +550,7 @@ function ReachScopeChoice({
             key={entry.path}
             checked={scope.path === entry.path}
             appearance="row"
-            icon={entry.path === "" ? <FolderTree size={14} /> : <Folder size={14} />}
+            icon={entry.path === "" ? <FolderTree size={14} /> : <FolderIcon size={14} />}
             label={entry.path === ""
               ? t("cloud.share.scope.whole")
               : <bdi>{t("cloud.share.scope.previewFolder", { folder: entry.name })}</bdi>}
@@ -744,7 +720,7 @@ function ReachProgress({
   const { t } = useLocalization();
   return (
     <>
-      <CloudPublishProgressIndicator stage={flow.stage} account={flow.account} t={t} />
+      <CloudPublishProgressIndicator stage={flow.stage} account={flow.account} transfer={flow.transfer} t={t} />
       <p className="desktop-reach-fact">{t("cloud.share.reach.progress.interrupt")}</p>
       {flow.phase === "account" && <ReachSignIn apiBaseUrl={dialog.apiBaseUrl} />}
       {flow.needsOrganization && dialog.session && (

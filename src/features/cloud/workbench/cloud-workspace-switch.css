@@ -53,6 +53,25 @@
     min-height: 0;
   }
 
+  /* With the Cloud banner on screen the banner owns scrolling: the content no
+     longer scrolls as a whole (which would carry the picture away), every
+     wrapper down to the banner passes the dialog's height limit through, and
+     only the banner's copy scrolls between its fixed picture and action row. */
+  .desktop-cloud-workspace-switch-content:has(.desktop-cloud-project-activation) {
+    overflow: hidden;
+  }
+
+  .desktop-cloud-workspace-switch-content :has(.desktop-cloud-project-activation) {
+    display: flex;
+    flex: 0 1 auto;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .desktop-cloud-workspace-switch-content .desktop-cloud-project-activation {
+    flex: 0 1 auto;
+  }
+
   .desktop-cloud-workspace-switch-recovery {
     display: flex;
     width: 100%;

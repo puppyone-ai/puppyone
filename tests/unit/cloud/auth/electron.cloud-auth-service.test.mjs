@@ -231,6 +231,23 @@ describe("main-owned Cloud Auth Broker", () => {
     fixture.service.dispose();
   });
 
+  it("reopens the same pending sign-in page instead of waiting silently", async () => {
+    const fixture = createFixture({ credential: null });
+    fixture.requestCloudApi.mockImplementation(async () => authResponse());
+    try {
+      await fixture.service.startOAuth({ apiBase: API, provider: "github" });
+      // The user closed the browser page and asks to sign in again.
+      await expect(fixture.service.startOAuth({ apiBase: API, provider: "github" }))
+        .resolves.toEqual({ ok: true, pending: true });
+      expect(fixture.openExternal).toHaveBeenCalledTimes(2);
+      expect(fixture.openExternal.mock.calls[1][0]).toBe(fixture.openExternal.mock.calls[0][0]);
+      expect(fixture.closeCallback).not.toHaveBeenCalled();
+      // The reopened page still finishes the one pending attempt.
+      expect(await fixture.service.handleCallback(nativeCallback(fixture, "provider-code")))
+        .toMatchObject({ status: "authenticated" });
+    } finally { fixture.service.dispose(); }
+  });
+
   it("expires pending native login and closes the listener", async () => {
     vi.useFakeTimers();
     const fixture = createFixture({ credential: null });

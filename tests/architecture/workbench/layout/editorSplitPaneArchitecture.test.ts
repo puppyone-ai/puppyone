@@ -6,6 +6,10 @@ const surfaceSource = readFileSync(
   new URL("../../../../src/features/app-shell/DesktopDataWorkspaceSurface.tsx", import.meta.url),
   "utf8",
 );
+const explorerFrameSource = readFileSync(
+  new URL("../../../../src/features/app-shell/layout/useDesktopExplorerFrame.ts", import.meta.url),
+  "utf8",
+);
 const splitSource = readFileSync(
   new URL("../../../../src/features/editor-workbench/layout/DesktopEditorSplitView.tsx", import.meta.url),
   "utf8",
@@ -46,10 +50,11 @@ const paneSourceLifecycle = readFileSync(
   new URL("../../../../src/features/editor-workbench/runtime/useEditorPaneSource.ts", import.meta.url),
   "utf8",
 );
-const dataWorkspaceSource = readFileSync(
-  new URL("../../../../packages/shared-ui/src/data/DataWorkspace.tsx", import.meta.url),
+// The Data workspace and the frame it shares with surfaces that have no files yet.
+const dataWorkspaceSource = ["DataWorkspace.tsx", "DataWorkspaceFrame.tsx"].map((file) => readFileSync(
+  new URL(`../../../../packages/shared-ui/src/data/${file}`, import.meta.url),
   "utf8",
-);
+)).join("\n");
 const viewerTypesSource = readFileSync(
   new URL("../../../../packages/shared-ui/src/editor/registry/viewerTypes.ts", import.meta.url),
   "utf8",
@@ -120,7 +125,7 @@ describe("editor split-pane architecture", () => {
     expect(appSource).not.toContain("DesktopEditorTabs");
     expect(appSource).not.toContain("titlebarEditorSlot");
     // The project rail may conditionally own this slot; the fallback remains sidebar chrome.
-    expect(appSource).toMatch(/titlebarSidebarSlot=\{[^}]*\btitlebarSidebarSlot\b[^}]*\}/);
+    expect(appSource).toMatch(/titlebarSidebarSlot=\{[^}]*\btitlebarContext\b[^}]*\}/);
   });
 
   it("projects the pane tree inside the Data editor region", () => {
@@ -436,8 +441,11 @@ describe("editor split-pane architecture", () => {
     expect(splitStyles).toContain(
       "z-index: calc(var(--po-pane-resizer-z-index, 35) + 1);",
     );
-    expect(surfaceSource).toContain("useNativeSurfacePointerRoutingRegion");
-    expect(surfaceSource).toContain("explorerResizeHandleRef={setExplorerResizeHandle}");
+    // The window's Explorer frame routes its sash over native surfaces; the
+    // file workbench takes the sash from that frame like every other surface.
+    expect(explorerFrameSource).toContain('useNativeSurfacePointerRoutingRegion("explorer-resize", resizeHandle)');
+    expect(explorerFrameSource).toContain("resizeHandleRef: setResizeHandle");
+    expect(surfaceSource).toContain("explorerResizeHandleRef={explorerFrame.resizeHandleRef}");
   });
 
   it("does not project the Sidebar divider through the Header", () => {

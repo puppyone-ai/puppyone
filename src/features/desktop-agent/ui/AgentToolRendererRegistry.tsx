@@ -1,3 +1,4 @@
+import { isAgentToolActivity } from "../../../../shared/agent-contract/activity-semantics.mjs";
 import type { ComponentType } from "react";
 import type { AgentPart } from "../domain/agent-projection-types";
 import { AgentCommandActivity, AgentFileChangeActivity, AgentFileQueryActivity, AgentGenericActivity } from "./activity";
@@ -22,10 +23,11 @@ export function registerAgentToolRenderer(tool: string, renderer: ComponentType<
 }
 
 export function isAgentToolPart(part: AgentPart): part is AgentToolPart {
-  return part.kind === "tool" || part.kind === "command" || part.kind === "file-change";
+  return isAgentToolActivity(part);
 }
 
 export function AgentToolRenderer({ part, onOpenFile }: ToolRendererProps) {
+  if (!isAgentToolPart(part)) return null;
   const tool = (typeof part.detail.tool === "string" ? part.detail.tool : part.kind).trim().toLowerCase();
   const Renderer = renderers.get(tool) || renderers.get(part.kind) || DefaultToolRenderer;
   return <Renderer part={part} onOpenFile={onOpenFile} />;

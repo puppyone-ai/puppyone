@@ -26,10 +26,15 @@ export class ProjectSessionRegistry {
       if (existing.projectId !== projectId) throw projectSessionError("PROJECT_STALE", "The local project identity changed.");
       return existing;
     }
-    for (const [otherOwner, other] of this.windows) {
+    for (const other of this.windows.values()) {
       for (const project of other.projects.values()) {
         if (project.projectId === projectId || project.rootPath === folder.path) {
-          if (otherOwner !== ownerId || project.rootPath !== folder.path) throw projectSessionError("PROJECT_UNAUTHORIZED", "This project is already owned by another context.");
+          // The same local instance can be displayed by several windows.
+          // Each window receives its own generation and execution sessions;
+          // require() still rejects every other window's context.
+          if (project.projectId !== projectId || project.rootPath !== folder.path) {
+            throw projectSessionError("PROJECT_UNAUTHORIZED", "The project identity conflicts with an open local instance.");
+          }
         }
       }
     }

@@ -212,7 +212,7 @@ describe("source-control visual architecture", () => {
     expect(sourceControlSidebarSectionsSource).toContain('t("source-control.status.noLocalChanges")');
     expect(sourceControlSidebarSectionsSource).toContain("showCount={false}");
     expect(emptyStateSources).not.toMatch(/desktop-git-empty-(?:remote|committed|stage|changes)/);
-    expect(sourceControlComponentsSource).toContain("<ChevronRight size={14}");
+    expect(sourceControlComponentsSource).toContain("<DisclosureIcon expanded={Boolean(expanded)} size={14} />");
     expect(sidebarBaseCss).toContain("--git-section-leading-slot-size: 14px;");
     expect(sidebarBaseCss).toContain("--git-section-title-gap: 6px;");
     expect(sidebarBaseCss).toContain("--git-section-body-top-gap: 2px;");

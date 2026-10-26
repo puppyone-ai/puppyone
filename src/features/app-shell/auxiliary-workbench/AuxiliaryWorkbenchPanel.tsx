@@ -5,7 +5,7 @@ import {
   FloatingNotice,
   FloatingNoticeAction,
   FloatingNoticeStack,
-  PulseGridLoader,
+  LoadingMark,
   useDismissibleNotice,
   type WorkbenchSplitDropEdge,
   type WorkbenchSplitMinimumSize,
@@ -105,7 +105,7 @@ export function AuxiliaryWorkbenchPanel({ store, contributions, active, renderLa
     <div className={`desktop-terminal-body ${workbench.items.length === 0 ? "is-empty" : ""}`}>
       <FloatingNoticeStack placement="top" className="desktop-auxiliary-workbench-notice-stack">
         {visibleProjectClose === "closing" && <FloatingNotice occludesNativeSurfaces
-          icon={<PulseGridLoader size="xs" ariaHidden />} onDismiss={dismissProjectClose}>
+          icon={<LoadingMark size="xs" ariaHidden />} onDismiss={dismissProjectClose}>
           {t("workspace.projectSessions.closing")}
         </FloatingNotice>}
         {/* A failed project close leaves the workbench inert; Retry is the only way forward, so it stays. */}

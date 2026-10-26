@@ -9,22 +9,11 @@ import {
   parseDarkThemePreset,
   parseDiffMarkers,
   parseExperimentalSettings,
-  parseGitSidebarLayout,
-  parseLoadingAnimationPreset,
   parseLocalAgentsSettings,
   parsePointerCursors,
   parseTitlebarActionsSettings,
   resolveVisibleCreateNewMenuItems,
 } from "../../../../src/preferences";
-
-describe("Git sidebar layout preferences", () => {
-  it("defaults to cards and accepts only the two comparison layouts", () => {
-    expect(parseGitSidebarLayout(null)).toBe("cards");
-    expect(parseGitSidebarLayout("cards")).toBe("cards");
-    expect(parseGitSidebarLayout("dividers")).toBe("dividers");
-    expect(parseGitSidebarLayout("unknown")).toBe("cards");
-  });
-});
 
 describe("create new menu preferences", () => {
   it("defaults to a complete v5 hierarchy with a first-class submenu node", () => {
@@ -156,10 +145,6 @@ describe("appearance preferences", () => {
     expect(parseDarkThemePreset("custom")).toBe("default");
     expect(parseDiffMarkers("symbols")).toBe("symbols");
     expect(parseDiffMarkers("both")).toBe("color");
-    expect(parseLoadingAnimationPreset("ikun")).toBe("ikun");
-    expect(parseLoadingAnimationPreset("ymca")).toBe("ymca");
-    expect(parseLoadingAnimationPreset("siu")).toBe("siu");
-    expect(parseLoadingAnimationPreset("sparkles")).toBe("ikun");
   });
 
   it("keeps pointer cursors off unless explicitly enabled", () => {

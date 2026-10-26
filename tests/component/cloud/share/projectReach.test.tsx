@@ -183,20 +183,81 @@ describe("one screen for inviting a person", () => {
     expect(button("Connect an agent instead", dialog()?.querySelector(".desktop-reach-links"))).toBeTruthy();
   });
 
-  it("previews the part of the project the link would cover", async () => {
-    const listPreview = vi.fn(async (path: string) => ({
-      entries: path === "" ? [{ name: "docs", type: "folder" }] : [{ name: "guide.md", type: "markdown" }],
-    }));
+  it("previews what the user asked to share, and offers no setup around it", async () => {
+    const listPreview = vi.fn(async () => ({ entries: [{ name: "guide.md", type: "markdown" }] }));
     await act(async () => root?.render(withTestLocalization(
       <ProjectReachDialog {...baseProps()} listPreview={listPreview} />,
     )));
     await flush();
-    expect(listPreview).toHaveBeenLastCalledWith("docs");
 
-    await act(async () => radio("Whole project")?.click());
+    // The link covers what was on screen when it was asked for; narrowing it
+    // here would turn a link into a configuration.
+    expect(listPreview).toHaveBeenLastCalledWith("docs");
+    expect(text()).not.toContain("Only part of it?");
+    expect(text()).not.toContain("How much of it?");
+    expect(radio("Whole project")).toBeUndefined();
+  });
+});
+
+describe("the first time a project leaves this Mac", () => {
+  const firstTime = () => ({
+    ...baseProps(),
+    projectContext: { status: "local-only" as const, projectId: null },
+  });
+  it("uses the shared Cloud banner and shows a pending link without publishing", async () => {
+    const props = firstTime();
+    await act(async () => root?.render(withTestLocalization(<ProjectReachDialog {...props} />)));
     await flush();
 
-    expect(listPreview).toHaveBeenLastCalledWith("");
+    expect(dialog()?.querySelector(".desktop-cloud-project-journey")).not.toBeNull();
+    expect(stripBidiIsolation(dialog()?.querySelector(".desktop-cloud-project-journey-folder-name")?.textContent)).toBe("Notes");
+    expect(dialog()?.querySelectorAll("h2")).toHaveLength(1);
+    expect(text()).toContain("A link to Notes");
+    const row = dialog()?.querySelector(".desktop-reach-link-row");
+    expect(row?.getAttribute("aria-label")).toBe("The link does not exist yet");
+    expect(row?.querySelector("button")).toBeNull();
+    expect(row?.querySelector(".desktop-reach-link-pending")?.textContent).toBe("•".repeat(10));
+    expect(dialog()?.querySelector(".desktop-reach-preview")).toBeNull();
+    expect(button("Upload to Cloud", dialog()?.querySelector("footer"))).toBeTruthy();
+    expect(bridge.getGitStatus).not.toHaveBeenCalled();
+    expect(props.publish.start).not.toHaveBeenCalled();
+    expect(api.createCloudMcpEndpoint).not.toHaveBeenCalled();
+    await act(async () => button("Not now")?.click());
+    expect(props.onClose).toHaveBeenCalledOnce();
+  });
+
+  it("keeps agent choice and permissions ahead of explicit publication", async () => {
+    const props = firstTime();
+    await act(async () => root?.render(withTestLocalization(<ProjectReachDialog {...props} initialIntent="connect" />)));
+    await flush();
+    expect(dialog()?.querySelector(".desktop-cloud-project-journey")).not.toBeNull();
+    expect(button("Upload to Cloud")).toBeUndefined();
+    expect([...dialog()?.querySelectorAll<HTMLElement>(".desktop-reach-agent") ?? []].map(agent => agent.dataset.shareTarget))
+      .toEqual(["viktor", "manus", "claude", "chatgpt", "mcp"]);
+    await act(async () => dialog()?.querySelector<HTMLButtonElement>("[data-share-target='claude']")?.click());
+    await flush();
+    expect(dialog()?.querySelector(".desktop-cloud-project-journey")).not.toBeNull();
+    expect(text()).toContain("Claude wants to access docs");
+    expect(radio("Read only")?.getAttribute("aria-checked")).toBe("true");
+    expect(button("Upload to Cloud")).toBeTruthy();
+    expect(props.publish.start).not.toHaveBeenCalled();
+    expect(api.createCloudMcpEndpoint).not.toHaveBeenCalled();
+    await act(async () => button("Change")?.click());
+    expect(button("Upload to Cloud")).toBeUndefined();
+    await act(async () => dialog()?.querySelector<HTMLButtonElement>("[data-share-target='claude']")?.click());
+    await act(async () => button("Upload to Cloud")?.click());
+    await flush();
+    expect(currentStep()).toBe("Account");
+    expect(props.publish.start).not.toHaveBeenCalled();
+    expect(api.createCloudMcpEndpoint).not.toHaveBeenCalled();
+  });
+
+  it("keeps existing hosted-project sharing out of the conversion frame", async () => {
+    await act(async () => root?.render(withTestLocalization(<ProjectReachDialog {...baseProps()} />)));
+    await flush();
+    expect(dialog()?.querySelector(".desktop-cloud-project-activation")).toBeNull();
+    expect(button("Create the link")).toBeTruthy();
+    expect(text()).toContain("The link is served by Puppyone Cloud");
   });
 });
 
@@ -259,7 +320,7 @@ describe("the same skeleton for connecting an agent", () => {
     // Then the address the agent will be given, masked until it exists, with
     // the verb that creates it standing where the copy button will stand.
     const row = dialog()?.querySelector<HTMLElement>(".desktop-reach-link-row");
-    expect(row?.textContent).toContain("/api/v1/mcp/server/");
+    expect(row?.textContent).toContain("/api/v1/mcp/proxy");
     expect(button("Connect Claude", row)?.disabled).toBe(false);
     expect(dialog()?.querySelector(".desktop-dialog-footer")).toBeNull();
     expect(text()).toContain("comes back as changes waiting for your review");
@@ -344,7 +405,9 @@ describe("the account as a step rather than a door", () => {
 
     await act(async () => root?.render(withTestLocalization(<ProjectReachDialog {...props} />)));
     await flush();
-    await act(async () => button("Create the link")?.click());
+    // Nothing of this project is in Cloud yet, so the press that changes
+    // that is the footer's, and it says what it is.
+    await act(async () => button("Upload to Cloud")?.click());
     await flush();
 
     expect(bridge.initGitRepository).toHaveBeenCalledWith({ rootPath: "/fixture/Notes" });
@@ -391,7 +454,7 @@ describe("the account as a step rather than a door", () => {
     expect(text()).toContain("Waiting for Claude to connect");
     const values = Array.from(dialog()?.querySelectorAll<HTMLElement>(".desktop-share-copy-value") ?? [])
       .map((node) => node.textContent);
-    expect(values[0]).toBe("https://cloud.example/api/v1/mcp/server/mcp_live_0123456789abcdef");
+    expect(values[0]).toBe("https://cloud.example/api/v1/mcp/proxy");
   });
 });
 

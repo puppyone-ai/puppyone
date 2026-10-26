@@ -16,7 +16,6 @@ DIFF_MARKERS_STORAGE_KEY,
 EXPERIMENTAL_SETTINGS_STORAGE_KEY,
 FILES_VISIBILITY_STORAGE_KEY,
 GIT_DISPLAY_MODE_STORAGE_KEY,
-GIT_SIDEBAR_LAYOUT_STORAGE_KEY,
 LOCAL_AGENTS_STORAGE_KEY,
 parseAgentFileActivityIndicatorsEnabled,
 parseAiEditAssistEnabled,
@@ -25,7 +24,6 @@ parseDiffMarkers,
 parseExperimentalSettings,
 parseFilesVisibilitySettings,
 parseGitDisplayMode,
-parseGitSidebarLayout,
 parseLocalAgentsSettings,
 parseRightSidebarToolsSettings,
 parseTitlebarActionsSettings,
@@ -36,7 +34,6 @@ type DiffMarkers,
 type ExperimentalSettings,
 type FilesVisibilitySettings,
 type GitDisplayMode,
-type GitSidebarLayout,
 type LocalAgentsSettings,
 type RightSidebarToolsSettings,
 type TitlebarActionsSettings,
@@ -64,11 +61,6 @@ export function readInitialDiffMarkers(storage: Pick<Storage, "getItem"> = defau
 export function readInitialGitDisplayMode(storage: Pick<Storage, "getItem"> = defaultPreferenceStorage()): GitDisplayMode {
   if (typeof window === "undefined") return parseGitDisplayMode(null);
   return parseGitDisplayMode(storage.getItem(GIT_DISPLAY_MODE_STORAGE_KEY));
-}
-
-export function readInitialGitSidebarLayout(storage: Pick<Storage, "getItem"> = defaultPreferenceStorage()): GitSidebarLayout {
-  if (typeof window === "undefined") return parseGitSidebarLayout(null);
-  return parseGitSidebarLayout(storage.getItem(GIT_SIDEBAR_LAYOUT_STORAGE_KEY));
 }
 
 export function readInitialFilesVisibilitySettings(storage: Pick<Storage, "getItem"> = defaultPreferenceStorage()): FilesVisibilitySettings {

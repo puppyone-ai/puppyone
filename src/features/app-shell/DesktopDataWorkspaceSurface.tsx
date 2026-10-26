@@ -14,7 +14,7 @@ import {
   FloatingNotice,
   FloatingNoticeAction,
   FloatingNoticeStack,
-  PulseGridLoader,
+  LoadingMark,
   useDismissibleNotice,
   type AiEditRequest,
   type DataNode,
@@ -36,20 +36,10 @@ import {
 } from "../data-workspace/nodeActions";
 import type { FileClipboardController, FileOperationNotice } from "../data-workspace/useFileClipboard";
 import type { GitStatusSnapshot } from "../../types/electron";
-import { useDesktopPaneLayout } from "./layout/DesktopPaneLayoutContext";
-import {
-  COLLAPSED_EXPLORER_WIDTH,
-  EXPLORER_COLLAPSE_THRESHOLD,
-  MAX_EXPLORER_WIDTH,
-  MIN_EXPLORER_WIDTH,
-} from "./layout/desktopPaneLayout";
+import { useDesktopExplorerFrame } from "./layout/useDesktopExplorerFrame";
 import { DesktopSidebarFooterNavigation } from "./navigation";
 import { WorkspaceSurfaceOutlet, type ResolvedWorkspaceSurface } from "./workspace-surfaces";
 import type { DesktopView } from "../../components/DesktopCloudShell";
-import {
-  useNativeSurfacePointerPassthroughActivity,
-  useNativeSurfacePointerRoutingRegion,
-} from "../native-surfaces";
 import { DesktopEditorSplitView } from "../editor-workbench/layout/DesktopEditorSplitView";
 import type { DesktopEditorWorkbenchController } from "../editor-workbench/controller/useDesktopEditorWorkbench";
 import {
@@ -179,18 +169,9 @@ export function DesktopDataWorkspaceSurface({
       throw error;
     }
   }, [resolveWorkspaceResource]);
-  const onExplorerResizeActiveChange = useNativeSurfacePointerPassthroughActivity(
-    "explorer-resize",
-  );
-  const [explorerResizeHandle, setExplorerResizeHandle] = useState<HTMLDivElement | null>(null);
-  useNativeSurfacePointerRoutingRegion("explorer-resize", explorerResizeHandle);
-  const explorerWidth = useDesktopPreference(s => s.explorerWidth);
+  const explorerFrame = useDesktopExplorerFrame();
   const fileIconTheme = useDesktopPreference(selectFileIconTheme);
-  const setExplorerWidth = useDesktopPreference(s => s.setExplorerWidth);
-  const setSidebarCollapsed = useDesktopPreference(s => s.setSidebarCollapsed);
-  const sidebarCollapsed = useDesktopPreference(s => s.sidebarCollapsed);
   const { t } = useLocalization();
-  const paneLayout = useDesktopPaneLayout();
   const activeWorkspaceResource = useMemo(
     () => resolveWorkspaceResource(activeExplorerPath),
     [activeExplorerPath, resolveWorkspaceResource],
@@ -205,17 +186,6 @@ export function DesktopDataWorkspaceSurface({
       : undefined,
     [workspaceFolders],
   );
-  // DataWorkspace's width input is the expanded content-plane width. The
-  // Shell's resolved width becomes zero while collapsed and must never replace
-  // that retained geometry, or the Explorer children will reflow during exit.
-  const resolvedExplorerWidth = paneLayout?.explorer.collapsed
-    ? explorerWidth
-    : paneLayout?.explorer.width ?? explorerWidth;
-  const resolvedExplorerMaxWidth = paneLayout?.explorer.maxWidth
-    ?? MAX_EXPLORER_WIDTH;
-  const resolvedExplorerMinWidth = paneLayout?.explorer.minWidth ?? MIN_EXPLORER_WIDTH;
-  const resolvedExplorerCollapsed = paneLayout?.explorer.collapsed
-    ?? sidebarCollapsed;
   const navigationCommon = {
     activeView: navigation.activeView,
     availableSurfaceIds: navigation.availableSurfaceIds,
@@ -290,17 +260,17 @@ export function DesktopDataWorkspaceSurface({
         onOpenExternalUrl={openExternalUrl}
         viewerExtensionAdapter={viewerExtensionAdapter}
         documentSourceKind={documentSourceKind}
-        resizableExplorer
-        explorerCollapsed={resolvedExplorerCollapsed}
-        explorerWidth={resolvedExplorerWidth}
-        minExplorerWidth={resolvedExplorerMinWidth}
-        maxExplorerWidth={resolvedExplorerMaxWidth}
-        collapsedExplorerWidth={COLLAPSED_EXPLORER_WIDTH}
-        explorerCollapseThreshold={EXPLORER_COLLAPSE_THRESHOLD}
-        onExplorerCollapsedChange={setSidebarCollapsed}
-        onExplorerWidthChange={setExplorerWidth}
-        onExplorerResizeActiveChange={onExplorerResizeActiveChange}
-        explorerResizeHandleRef={setExplorerResizeHandle}
+        resizableExplorer={explorerFrame.resizable}
+        explorerCollapsed={explorerFrame.collapsed}
+        explorerWidth={explorerFrame.width}
+        minExplorerWidth={explorerFrame.minWidth}
+        maxExplorerWidth={explorerFrame.maxWidth}
+        collapsedExplorerWidth={explorerFrame.collapsedWidth}
+        explorerCollapseThreshold={explorerFrame.collapseThreshold}
+        onExplorerCollapsedChange={explorerFrame.onCollapsedChange}
+        onExplorerWidthChange={explorerFrame.onWidthChange}
+        onExplorerResizeActiveChange={explorerFrame.onResizeActiveChange}
+        explorerResizeHandleRef={explorerFrame.resizeHandleRef}
         showHeader={false}
         showExplorerRoot={false}
         onExplorerRootContextMenu={canCreate ? (_state, event) => {
@@ -322,6 +292,9 @@ export function DesktopDataWorkspaceSurface({
         onPasteNodes={dataPort.moveNode || dataPort.copyNode ? fileClipboardController.pasteNodes : undefined}
         onDuplicateNodes={fileClipboardController.canDuplicate ? fileClipboardController.duplicateNodes : undefined}
         explorerLoadingPresentation="skeleton"
+        // The New command follows the last row in a short tree and pins to the
+        // sidebar's bottom edge once the tree overflows, so it stays reachable.
+        explorerListEndPlacement="sticky"
         explorerListEndSlot={(
           <div
             className="desktop-explorer-list-end-create"
@@ -486,7 +459,7 @@ function fileOperationNoticePresentation(
 ): Pick<FloatingNoticeProps, "icon" | "tone"> {
   if (notice.tone === "error") return { tone: "danger" };
   if (notice.code === "in-progress") {
-    return { tone: "neutral", icon: <PulseGridLoader size="xs" ariaHidden /> };
+    return { tone: "neutral", icon: <LoadingMark size="xs" ariaHidden /> };
   }
   if (notice.code === "completed") return { tone: "success" };
   return { tone: "neutral" };

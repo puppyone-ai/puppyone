@@ -1127,6 +1127,11 @@
   height: 100%;
 }
 
+/* A location that could not be opened takes the Header's one warning hue. */
+.desktop-titlebar-location-button .desktop-titlebar-workspace-mark[data-computer-status="failed"] {
+  color: var(--po-warning, currentColor);
+}
+
 .desktop-titlebar-location-button:hover,
 .desktop-titlebar-location-button[aria-expanded="true"] {
   background: var(--desktop-titlebar-hover);
@@ -1167,12 +1172,6 @@
 
 .desktop-titlebar-workspace-button:focus-visible {
   box-shadow: inset 0 0 0 1px var(--desktop-titlebar-focus);
-}
-
-.desktop-titlebar-workspace-label,
-.desktop-titlebar-workspace-label:hover {
-  background: transparent;
-  color: var(--desktop-titlebar-text);
 }
 
 .desktop-titlebar-workspace-button .desktop-titlebar-workspace-mark {
@@ -1243,26 +1242,6 @@
   display: inline-flex;
   min-width: 0;
   align-items: center;
-}
-
-.desktop-titlebar-branch-placeholder {
-  display: block;
-  width: 42px;
-  height: 8px;
-  border-radius: 4px;
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, currentColor 10%, transparent),
-    color-mix(in srgb, currentColor 22%, transparent),
-    color-mix(in srgb, currentColor 10%, transparent)
-  );
-  background-size: 200% 100%;
-  animation: desktop-titlebar-placeholder-shimmer 1.4s ease-in-out infinite;
-}
-
-@keyframes desktop-titlebar-placeholder-shimmer {
-  from { background-position: 100% 0; }
-  to { background-position: -100% 0; }
 }
 
 .desktop-titlebar-workspace-button:hover .desktop-titlebar-workspace-name,

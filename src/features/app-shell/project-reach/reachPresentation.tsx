@@ -1,6 +1,13 @@
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
-import { AgentBrandImage, AgentMonochromeBrandImage, isMonochromeAgentBrandId, resolveAgentBrand } from "@puppyone/shared-ui";
-import { Laptop, Server } from "lucide-react";
+import {
+  AgentBrandImage,
+  AgentMonochromeBrandImage,
+  CloudIcon,
+  isMonochromeAgentBrandId,
+  LocalIcon,
+  resolveAgentBrand,
+} from "@puppyone/shared-ui";
+import { ProjectComputerStatusGlyph, type ProjectComputerStatus } from "../DesktopProjectLocationSwitcher";
 import { useDesktopPlatformCapabilities } from "../../../platform/useDesktopPlatformCapabilities";
 import type { ReachMember, ReachPlace, ReachState } from "./projectReachHeader";
 
@@ -12,12 +19,17 @@ import type { ReachMember, ReachPlace, ReachState } from "./projectReachHeader";
  */
 
 /** The committed runtime location, using a device or hosted-server mark. */
-export function ReachPlaceMark({ place, className, size, tone = "outline", strokeWidth = 1.65 }: {
+export function ReachPlaceMark({ place, className, size, tone = "outline", strokeWidth = 1.65, status = "ready" }: {
   place: ReachPlace;
+  /** A computer that is still opening, or could not be opened, shows that in place of its drawing. */
+  status?: ProjectComputerStatus;
   /** The host's own mark slot, so the Header and the menu size it alike. */
   className: string;
   size: number;
-  /** `solid` for the machine as matter; `outline` for the machine as a label. */
+  /**
+   * `solid` for the machine as matter; `outline` for the machine as a label.
+   * The tone weights the slot only: this computer is always the hollow laptop.
+   */
   tone?: "outline" | "solid";
   strokeWidth?: number;
 }) {
@@ -26,56 +38,28 @@ export function ReachPlaceMark({ place, className, size, tone = "outline", strok
       className={`desktop-project-reach-place ${className}`}
       data-reach-place={place}
       data-reach-tone={tone}
+      data-computer-status={status === "ready" ? undefined : status}
       aria-hidden="true"
     >
-      <PlaceDrawing place={place} tone={tone} size={size} strokeWidth={strokeWidth} />
+      {status === "ready"
+        ? <PlaceDrawing place={place} size={size} strokeWidth={strokeWidth} />
+        : <ProjectComputerStatusGlyph status={status} size={size} strokeWidth={strokeWidth} />}
     </span>
   );
 }
 
-/** A server represents the hosted runtime; Cloud is the collaboration service. */
-function PlaceDrawing({ place, tone, size, strokeWidth }: {
+/**
+ * Each place is drawn with its product icon, the same mark the project rail,
+ * the location switcher and the first-push introduction use, so the place
+ * reads as one thing wherever it appears.
+ */
+function PlaceDrawing({ place, size, strokeWidth }: {
   place: ReachPlace;
-  tone: "outline" | "solid";
   size: number;
   strokeWidth: number;
 }) {
-  if (place === "cloud") return <Server size={size} strokeWidth={strokeWidth} />;
-  if (tone === "solid") return <MachineMass size={size} />;
-  return <Laptop size={size} strokeWidth={strokeWidth} />;
-}
-
-/**
- * The machine as matter: a filled deck on a filled foot, in the proportions
- * of the outline it is the heavy weight of, so the two read as one object
- * seen twice rather than as two different machines.
- *
- * The numbers are on a grid that survives the only size it is drawn at. At
- * 18px the viewBox scales by 0.75, so every edge here is an even unit and
- * lands on a whole pixel; the earlier odd-unit version rendered this shape
- * with soft grey edges on the deck and a smeared foot, which at this size
- * reads as a blurry icon rather than as a quiet one.
- *
- * There is deliberately no fill level in it. A part-filled shape is how the
- * platform draws capacity, and this card knows that the project is on this
- * machine — not how much of the machine it is using. Drawing a quantity the
- * product cannot measure is a lie that looks like a feature.
- */
-function MachineMass({ size }: { size: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      stroke="none"
-      focusable="false"
-      aria-hidden="true"
-    >
-      <rect x="4" y="4" width="16" height="12" rx="2" />
-      <rect x="2" y="18" width="20" height="2" rx="1" />
-    </svg>
-  );
+  if (place === "cloud") return <CloudIcon size={size} strokeWidth={strokeWidth} />;
+  return <LocalIcon size={size} strokeWidth={strokeWidth} />;
 }
 
 /**

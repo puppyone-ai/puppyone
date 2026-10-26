@@ -138,6 +138,13 @@
   opacity: var(--tree-edge-fade-bottom, 0);
 }
 
+/* A pinned New band already fades the rows above it; the rail's own bottom
+   fade would stack on top and dim that command. */
+.desktop-data-workspace-wrap[data-sidebar-navigation-placement="bottom"]
+  .explorer-tree-shell[data-list-end-placement="sticky"]::after {
+  content: none;
+}
+
 .desktop-sidebar-footer-bar {
   display: flex;
   align-items: center;

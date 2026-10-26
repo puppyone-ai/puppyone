@@ -226,7 +226,7 @@ function assertMonotonicJournalUpdate(current, next, canTransition, options, sta
   if (
     next.operation_id !== current.operation_id
     || (Number.isSafeInteger(current.revision) && next.revision !== current.revision + 1)
-    || !canTransition(current[stateField], next[stateField])
+    || !canTransition(current[stateField], next[stateField], current, next)
   ) {
     throw createJournalError(
       "Cloud Git operation journal update is not monotonic.",
@@ -235,7 +235,14 @@ function assertMonotonicJournalUpdate(current, next, canTransition, options, sta
   }
 }
 
-function isCloudInitializationTransitionAllowed(from, to) {
+function isCloudInitializationTransitionAllowed(from, to, current, next) {
+  // Only an explicit server refusal can cancel durable cleanup intent. A
+  // timeout or lost deletion response must remain in the cleanup workflow.
+  if (from === "cleanup-requested" && next?.cleanup_state === "none"
+    && next?.last_error?.code === "CLEANUP_NOT_ALLOWED"
+    && ["project-created", "credential-issued", "push-attempt"].includes(to)) {
+    return current?.project_id === next.project_id;
+  }
   const transitions = {
     prepared: ["prepared", "project-created", "cleanup-requested"],
     "project-created": ["project-created", "credential-issued", "cleanup-requested"],

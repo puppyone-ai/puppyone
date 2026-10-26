@@ -23,7 +23,7 @@ export function TerminalLauncherVisualSmokeHarness() {
       sidebarNavigationLayout: "bottom-horizontal", fileIconTheme: "default" }),
     typography: resolveTypography({ ...DEFAULT_TYPOGRAPHY_PREFERENCES, scale }),
     markdownPresentation: DEFAULT_MARKDOWN_PRESENTATION_SETTINGS,
-    loadingAnimationPreset: "ikun", lightThemePreset: "neutral", darkThemePreset: "default",
+    lightThemePreset: "neutral", darkThemePreset: "default",
     pointerCursors: false, diffMarkers: "color",
   }), [theme, scale]);
   // Like the real shell, resolve inherited semantic tokens at the document

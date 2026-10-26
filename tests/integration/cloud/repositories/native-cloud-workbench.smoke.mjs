@@ -123,7 +123,7 @@ async function headerPresentation(location) {
       backgroundImage:css.backgroundImage,
       icon:{ location:mark.dataset.projectLocation, name:svg.dataset.cloudIcon ?? null,
         color:rgb(getComputedStyle(mark).color),
-        paint:rgb(outline ? getComputedStyle(outline).fill : getComputedStyle(svg).stroke),
+        paint:rgb(getComputedStyle(outline ?? svg).stroke),
         accessibleLabel:button.getAttribute('aria-label') },
       labelColor:rgb(getComputedStyle(button.lastElementChild).color),
       buttonColor:rgb(getComputedStyle(button).color),
@@ -149,7 +149,7 @@ async function headerPresentation(location) {
   assert(sample.icon.location === location && JSON.stringify(sample.icon.color) === JSON.stringify(expectedIcon)
     && JSON.stringify(sample.icon.paint) === JSON.stringify(expectedIcon), 'Location icons must share readable Header ink');
   assert(JSON.stringify(sample.accent) === '[69,153,223]', 'Brand blue is the approved #4599DF in both themes, not adaptive accent/info');
-  assert(sample.icon.name === (location === 'cloud' ? 'ant-design' : null), 'Use the approved Cloud outline only for the committed Cloud provider');
+  assert(sample.icon.name === (location === 'cloud' ? 'puppyone' : null), 'Use the approved Cloud outline only for the committed Cloud provider');
   assert(JSON.stringify(sample.labelColor) === JSON.stringify(sample.buttonColor), 'Blue icon must not recolor the location label');
   assert(sample.frame.location === location && sample.frame.identity === 'retained-shell', 'Window frame must follow the same committed provider without remounting');
   assert(sample.frame.x === 0 && sample.frame.y === 0 && sample.frame.width === sample.viewport
@@ -411,7 +411,7 @@ app.whenReady().then(async () => {
       window.setSize(width, 760);
       await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
       const loadingLayout = await evaluate(`(() => {
-        const rail = document.querySelector('.desktop-cloud-preparation-rail');
+        const rail = document.querySelector('.desktop-cloud-preparation .explorer-column');
         const tree = document.querySelector('[data-workspace-location=local] .explorer-tree-shell');
         const css = getComputedStyle(tree), bounds = rail.getBoundingClientRect();
         const number = name => parseFloat(css.getPropertyValue(name));
@@ -423,8 +423,12 @@ app.whenReady().then(async () => {
         });
         return { rows, height:number('--tree-row-height'), indent:number('--tree-row-indent'),
           inset:number('--tree-row-left-gap')+number('--tree-row-content-left'),
-          top:number('--tree-no-root-top-gap'), gap:number('--tree-row-icon-label-gap') };
+          top:number('--tree-no-root-top-gap'), gap:number('--tree-row-icon-label-gap'),
+          width:bounds.width, readyWidth:document.querySelector('[data-workspace-location=local] .explorer-column').getBoundingClientRect().width,
+          resizable:Boolean(rail.querySelector('.data-explorer-resizer')) };
       })()`);
+      assert(loadingLayout.resizable && Math.abs(loadingLayout.width-loadingLayout.readyWidth) < 1,
+        `Pending Cloud Explorer must be the resizable workbench column (${theme}/${width}): ${JSON.stringify(loadingLayout)}`);
       assert(loadingLayout.rows.length === 6 && loadingLayout.rows.every((row, index) =>
         Math.abs(row.height-loadingLayout.height) < 1 && Math.abs(row.gap-loadingLayout.gap) < 1
         && Math.abs(row.y-(loadingLayout.top+index*(loadingLayout.height+2))) < 1
@@ -556,8 +560,8 @@ app.whenReady().then(async () => {
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await writeFile(path.join(artifacts, "cloud-html.png"), (await window.webContents.capturePage()).toPNG());
   await evaluate("document.querySelector('[data-cloud-native=true] .desktop-editor-pane-handle').click()");
-  await waitFor("Boolean([...document.querySelectorAll('.desktop-editor-pane-menu button')].find(button => button.textContent === 'Show code'))");
-  await evaluate("[...document.querySelectorAll('.desktop-editor-pane-menu button')].find(button => button.textContent === 'Show code').click()");
+  await waitFor("Boolean(document.querySelector('.desktop-editor-pane-menu button[aria-label=\"Source code\"]'))");
+  await evaluate("document.querySelector('.desktop-editor-pane-menu button[aria-label=\"Source code\"]').click()");
   await waitFor("Boolean(document.querySelector('[data-cloud-native=true] .document-surface-slot.is-committed:not(.is-obscured) .html-document-editor .cm-editor'))");
   await evaluate("window.__nativeCloudWorkbenchSmoke.edit('cloud', '<!doctype html><h1>Cloud HTML saved</h1>')");
   await waitFor("window.__nativeCloudWorkbenchSmoke.state().cloudWrites.some(write => write.path === 'page.html' && write.content.includes('Cloud HTML saved'))");

@@ -204,12 +204,10 @@ function readStructuredContent() {
   const quote = host.querySelector(".cm-md-blockquote");
   const blocks = [...host.querySelectorAll(".cm-md-code-widget")].map(widget => {
     const editor = widget.querySelector("textarea"), highlight = widget.querySelector("pre");
-    const language = widget.querySelector(".cm-md-code-language");
-    const metadata = widget.querySelector(".cm-md-code-metadata");
+    const metadata = widget.querySelector(".cm-md-code-language,.cm-md-code-metadata");
     const editorStyle = getComputedStyle(editor), highlightStyle = getComputedStyle(highlight);
-    return { language: language.value, placeholder: language.placeholder,
-      languageOpacity: getComputedStyle(language).opacity, metadataPosition: getComputedStyle(metadata).position,
-      widget: rect(widget), metadata: rect(metadata), panel: rect(widget.querySelector(".cm-md-code-panel")),
+    return { hasMetadata: Boolean(metadata),
+      widget: rect(widget), panel: rect(widget.querySelector(".cm-md-code-panel")),
       surface: rect(widget.querySelector(".cm-md-code-surface")), color: color(highlight),
       font: editorStyle.fontFamily, highlightFont: highlightStyle.fontFamily,
       size: editorStyle.fontSize, highlightSize: highlightStyle.fontSize,
@@ -217,7 +215,7 @@ function readStructuredContent() {
       editorPadding: editorStyle.padding, highlightPadding: highlightStyle.padding,
       editorLineHeight: editorStyle.lineHeight, highlightLineHeight: highlightStyle.lineHeight,
       editor: rect(editor), highlight: rect(highlight), scrollWidth: editor.scrollWidth, clientWidth: editor.clientWidth,
-      sourceReference: widget.querySelector(".cm-md-code-source-reference")?.textContent ?? null,
+      sourceReference: widget.querySelector(".cm-md-code-panel").getAttribute("aria-description"),
     };
   });
   const cells = [...host.querySelectorAll(".cm-md-table-widget :is(th,td), .cm-md-html-rendered-surface table :is(th,td)")]
@@ -253,16 +251,8 @@ function assertStructuredContent(metrics, scale, inlineBackground = "rgba(0, 0, 
     assert.equal(block.editorPadding, block.highlightPadding, "highlight padding drifted");
     assert.equal(block.editorLineHeight, block.highlightLineHeight, "highlight line height drifted");
     assert.deepEqual(block.editor, block.highlight, "highlight and editing geometry drifted");
-    assert.equal(block.placeholder, "", "empty language must never show a Code prompt");
-    assert.equal(block.metadataPosition, "absolute", "language metadata participates in block flow");
-    assert.equal(block.languageOpacity, "1", "known language is gated on hover");
-    assert(block.metadata.y >= block.panel.y, "language badge sits outside the code panel");
-    assert(block.metadata.x >= block.panel.x && block.metadata.x + block.metadata.width <= block.panel.x + block.panel.width, "language badge exceeds the code panel width");
-    if (block.language || block.sourceReference) {
-      assert(block.metadata.y + block.metadata.height <= block.surface.y, "language badge overlaps code text");
-    } else {
-      assert.equal(block.panel.y, block.surface.y, "unlabelled code block reserves an empty metadata row");
-    }
+    assert.equal(block.hasMetadata, false, "code language metadata still occupies the panel");
+    assert.equal(block.panel.y, block.surface.y, "code block reserves an empty header row");
   }
   assert.equal(metrics.blocks[0].sourceReference, "src/example.ts · L1–2");
   assert(metrics.blocks[1].scrollWidth > metrics.blocks[1].clientWidth, "long code lines lost horizontal scrolling");
@@ -602,7 +592,7 @@ app.whenReady().then(async () => {
       console.log(`PASS ${name}`);
     }
     // Metadata is outside the panel visually, but remains inside the same
-    // editing session. Native focus transitions must not commit half a draft.
+    // editing session. Native focus transitions preserve the code draft until blur.
     for (const mode of ["light", "dark"]) {
       await evaluate(`(async () => {
         await window.tableFixture.mode('${mode}'); await window.tableFixture.theme(null);
@@ -625,10 +615,7 @@ app.whenReady().then(async () => {
         assert.equal(selected.start, 0, "native Select All did not reach the focused input");
         assert.equal(selected.end, selected.value.length, "native Select All did not select the entire draft");
       };
-      await click("#markdown .cm-md-code-widget .cm-md-code-language"); await selectAll();
-      await browser.webContents.insertText("tsx");
       await click("#markdown .cm-md-code-widget .cm-md-code-textarea");
-      assert.equal(await evaluate("window.tableFixture.markdownSource()"), structuredSource, "language-to-code focus committed a partial draft");
       await selectAll(); const updatedCode = 'const changed = "' + "x".repeat(180) + '";';
       await browser.webContents.insertText(updatedCode);
       await evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
@@ -638,8 +625,8 @@ app.whenReady().then(async () => {
       assert(scroll.editor > 0); assert.equal(scroll.editor, scroll.highlight, "horizontal scroll desynchronized the highlight layer");
       await click("#markdown .cm-line");
       await evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
-      const expected = structuredSource.replace('```ts file=', '```tsx file=').replace('const example = "代码示例";\nconsole.log(example);', updatedCode);
-      assert.equal(await evaluate("window.tableFixture.markdownSource()"), expected, "composite blur lost code, language or source metadata");
+      const expected = structuredSource.replace('const example = "代码示例";\nconsole.log(example);', updatedCode);
+      assert.equal(await evaluate("window.tableFixture.markdownSource()"), expected, "code blur lost content, language or source metadata");
       const name = `code-edit-${mode}`; results.push({ name, metrics, scroll }); console.log(`PASS ${name}`);
       await fs.writeFile(path.join(artifacts, `${name}.png`), (await browser.webContents.capturePage()).toPNG());
     }

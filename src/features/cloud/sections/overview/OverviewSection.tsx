@@ -1,4 +1,4 @@
-import { Tooltip } from "@puppyone/shared-ui";
+import { PlaceholderLayer, Tooltip } from "@puppyone/shared-ui";
 import { RefreshCw } from "lucide-react";
 import type { Workspace } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
@@ -190,7 +190,7 @@ function CloudOverviewHeaderFact({
       <span className="desktop-cloud-overview-header-fact-label">{label}</span>
       <strong>
         {loading
-          ? <span className="desktop-cloud-overview-value-skeleton" aria-hidden="true" />
+          ? <span className="desktop-cloud-overview-value-skeleton po-placeholder-surface" data-placeholder-shape="" aria-hidden="true"><PlaceholderLayer /></span>
           : value}
       </strong>
     </button>
@@ -231,10 +231,15 @@ function CloudOverviewStorageMeter({
       className={`desktop-cloud-overview-project-storage${pending ? " is-loading" : ""}`}
       aria-busy={pending}
     >
-      <span className="desktop-cloud-overview-project-storage-track" {...progressProps}>
+      <span
+        className={`desktop-cloud-overview-project-storage-track${pending ? " po-placeholder-surface" : ""}`}
+        data-placeholder-shape={pending ? "" : undefined}
+        {...progressProps}
+      >
         {usage.percent !== null ? (
           <span style={{ width: `${usage.percent}%` }} />
         ) : null}
+        {pending ? <PlaceholderLayer /> : null}
       </span>
     </div>
   );

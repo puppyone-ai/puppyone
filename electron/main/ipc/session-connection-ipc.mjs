@@ -8,7 +8,9 @@ export function sendSessionRuntimeFailure(sender, kind, record, event) {
     kind,
     id: kind === "agent" ? record.sessionId : record.id,
     instanceId: record.instanceId,
-    message: event.message ?? "The session process exited.",
+    message: event.message ?? event.error?.message ?? "The session process exited.",
+    code: event.code ?? event.error?.code ?? (event.type === "host-exited" ? "HOST_EXITED" : "SESSION_TRANSPORT_FAILED"),
+    scope: ["host-failed", "host-exited"].includes(event.type) ? "execution" : "display",
   });
 }
 
@@ -38,6 +40,15 @@ export function registerSessionConnectionIpcHandlers({ ipcMain, MessageChannelMa
       throw error;
     }
   });
-  ipcMain.handle("agent:session-connect", (event, request) => connect(event, request, agentService));
-  ipcMain.handle("terminal:connect", (event, request) => connect(event, request, terminalService));
+  // Electron drops custom fields on thrown Errors. Return a structured envelope
+  // so the Renderer can stop retrying stale instances and preserve failure scope.
+  const reply = async (event, request, service) => {
+    try { return { ok: true, value: await connect(event, request, service) }; }
+    catch (error) { return { ok: false, error: {
+      code: typeof error?.code === "string" ? error.code : "SESSION_CONNECT_FAILED",
+      message: error instanceof Error ? error.message : "Unable to connect the session.",
+    } }; }
+  };
+  ipcMain.handle("agent:session-connect", (event, request) => reply(event, request, agentService));
+  ipcMain.handle("terminal:connect", (event, request) => reply(event, request, terminalService));
 }

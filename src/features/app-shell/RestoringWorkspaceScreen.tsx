@@ -1,6 +1,6 @@
 import type { ResolvedSurfaceAppearance } from "../appearance/AppearanceRuntime";
 import { useLocalization } from "@puppyone/localization";
-import { PulseGrid } from "../../components/loading";
+import { LoadingMark } from "@puppyone/shared-ui";
 import { DesktopWindowDragRegion } from "../../components/DesktopWindowChrome";
 
 type RestoringWorkspaceScreenProps = {
@@ -19,7 +19,7 @@ export function RestoringWorkspaceScreen({
       {...appearance.rootProps}
     >
       <DesktopWindowDragRegion className="onboarding-titlebar" />
-      <PulseGrid ariaLabel={t("workspace.restoring.ariaLabel")} size="sm" tone="neutral" />
+      <LoadingMark layout="area" ariaLabel={t("workspace.restoring.ariaLabel")} size="md" tone="neutral" />
     </main>
   );
 }

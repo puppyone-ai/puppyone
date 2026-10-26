@@ -1,8 +1,7 @@
 /** @vitest-environment happy-dom */
-import { createHash } from "node:crypto";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { CloudIcon } from "../../../../src/components/icons/CloudIcon";
+import { CLOUD_ICON_PATH, CloudIcon } from "../../../../packages/shared-ui/src/icons/productIcons";
 
 function render(props: Parameters<typeof CloudIcon>[0] = {}) {
   const host = document.createElement("div");
@@ -10,19 +9,31 @@ function render(props: Parameters<typeof CloudIcon>[0] = {}) {
   return host.querySelector("svg")!;
 }
 
-describe("approved Cloud identity mark", () => {
-  it("preserves the official Ant Design outline without a redraw or remote asset", () => {
+describe("product Cloud mark", () => {
+  it("draws PuppyOne's own stroked cloud on the shared 24px icon grid", () => {
     const icon = render();
-    expect(icon.getAttribute("viewBox")).toBe("0 0 1024 1024");
-    expect(icon.dataset.cloudIcon).toBe("ant-design");
+    expect(icon.getAttribute("viewBox")).toBe("0 0 24 24");
+    expect(icon.dataset.cloudIcon).toBe("puppyone");
+    expect(icon.dataset.productIcon).toBe("cloud");
     expect(icon.querySelectorAll("path")).toHaveLength(1);
-    const path = icon.querySelector("[data-cloud-outline]")!;
-    // Exact outline from ant-design-icons@7f2516ac, not a self-derived snapshot.
-    expect(createHash("sha256").update(path.getAttribute("d")!).digest("hex"))
-      .toBe("66e8adae39ab0601fd441b81c20946034cc14c2c8b516e2bb8676f83794187e1");
-    expect(path.getAttribute("fill")).toBe("currentColor");
-    expect(icon.getAttribute("stroke")).toBe("none");
+    expect(icon.querySelector("[data-cloud-outline]")!.getAttribute("d")).toBe(CLOUD_ICON_PATH);
+    expect(icon.getAttribute("fill")).toBe("none");
+    expect(icon.getAttribute("stroke")).toBe("currentColor");
+    expect(icon.getAttribute("stroke-linejoin")).toBe("round");
     expect(icon.querySelector("image, use, filter, animate, linearGradient")).toBeNull();
+  });
+
+  it("is symmetric: a dome on two equal shoulders over a flat base", () => {
+    const numbers = CLOUD_ICON_PATH.match(/-?\d+(?:\.\d+)?/g)!.map(Number);
+    // Start and end points of the base mirror around x=12 on the same baseline.
+    expect(numbers[0] + 17.2).toBeCloseTo(24, 6);
+    expect(CLOUD_ICON_PATH).toMatch(/^M6\.8 19A3\.8 3\.8 /);
+    expect(CLOUD_ICON_PATH).toMatch(/A3\.8 3\.8 0 1 1 17\.2 19Z$/);
+  });
+
+  it("shares the folder and laptop line weight, defaulting to 2 like them", () => {
+    expect(render().getAttribute("stroke-width")).toBe("2");
+    expect(render({ strokeWidth: 1.65 }).getAttribute("stroke-width")).toBe("1.65");
   });
 
   it.each([9, 14, 16, 24])("keeps the existing %ipx layout slot", (size) => {
@@ -31,12 +42,12 @@ describe("approved Cloud identity mark", () => {
     expect(icon.getAttribute("height")).toBe(String(size));
   });
 
-  it("occludes the folder only inside the linked badge's original cloud contour", () => {
+  it("occludes what a linked badge overlaps inside its own silhouette", () => {
     const icon = render({ backplate: true, className: "onboarding-project-cloud-badge" });
-    const outline = icon.querySelector("[data-cloud-outline]")!.getAttribute("d")!;
     const backplate = icon.querySelector("[data-cloud-backplate]")!;
-    expect(backplate.getAttribute("d")).toBe(outline.slice(0, outline.indexOf("zm")) + "z");
+    expect(backplate.getAttribute("d")).toBe(CLOUD_ICON_PATH);
     expect(backplate.getAttribute("fill")).toBe("var(--po-surface)");
+    expect(backplate.getAttribute("stroke")).toBe("none");
     expect(backplate.nextElementSibling).toBe(icon.querySelector("[data-cloud-outline]"));
     expect(icon.classList.contains("onboarding-project-cloud-badge")).toBe(true);
   });

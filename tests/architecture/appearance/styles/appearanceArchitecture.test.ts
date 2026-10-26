@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_DARK_THEME_PRESET,
   DEFAULT_LIGHT_THEME_PRESET,
-  DEFAULT_LOADING_ANIMATION_PRESET,
   DEFAULT_POINTER_CURSORS,
   DEFAULT_THEME_MODE,
   DEFAULT_TYPOGRAPHY_PREFERENCES,
@@ -39,7 +38,7 @@ describe("appearance profile architecture", () => {
       interfaceStyle: "windows-xp",
       themeMode: "dark",
       sidebarNavigationLayout: requested,
-      fileIconTheme: "material",
+      fileIconTheme: "default",
     });
 
     expect(xp.decisions.sidebarNavigationLayout).toMatchObject({
@@ -59,7 +58,7 @@ describe("appearance profile architecture", () => {
       interfaceStyle: "default",
       themeMode: "dark",
       sidebarNavigationLayout: requested,
-      fileIconTheme: "material",
+      fileIconTheme: "default",
     });
     expect(restored.sidebarNavigationLayout).toBe(requested);
     expect(restored.composition.locationBar).toBe("none");
@@ -223,7 +222,7 @@ describe("appearance profile architecture", () => {
       bySurface: {},
     }), legacySnapshot());
 
-    expect(result.preferences.shared.fileIconTheme).toBe("semantic");
+    expect(result.preferences.shared.fileIconTheme).toBe("default");
     expect(serializeAppearancePreferences(result.preferences)).not.toContain('"vscode"');
   });
 
@@ -461,7 +460,6 @@ function legacySnapshot(): LegacyAppearanceSnapshot {
     legacyTextSize: DEFAULT_LEGACY_TEXT_SIZE,
     typography: DEFAULT_TYPOGRAPHY_PREFERENCES,
     pointerCursors: DEFAULT_POINTER_CURSORS,
-    loadingAnimationPreset: DEFAULT_LOADING_ANIMATION_PRESET,
     fileIconTheme: "default",
     sidebarNavigationLayout: "bottom-horizontal",
   };

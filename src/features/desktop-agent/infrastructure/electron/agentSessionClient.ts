@@ -1,6 +1,7 @@
+import { unwrapSessionConnection } from "../../../session-transport/sessionConnection";
 import type { AgentClientPort } from "../../application/AgentClientPort";
 import type { AgentSessionFrame } from "../../domain/agent-contract";
-import type { AgentConnectionRequest, SessionConnection, SessionRuntimeFailure } from "../../../../../shared/session-transport/types";
+import type { AgentConnectionRequest, SessionConnectionResult, SessionRuntimeFailure } from "../../../../../shared/session-transport/types";
 import { createHostRpc, type HostRpc } from "../../../../../shared/item-host-contract/rpc.mjs";
 import { receiveSessionPort } from "../../../session-transport/sessionPorts";
 import type { ProjectSessionContext } from "../../../../../shared/project-session-contract/types";
@@ -9,7 +10,7 @@ import type { ProjectSessionContext } from "../../../../../shared/project-sessio
 export function createAgentSessionClient(
   base: AgentClientPort,
   projectContext: ProjectSessionContext,
-  connectSession: (request: AgentConnectionRequest) => Promise<SessionConnection>,
+  connectSession: (request: AgentConnectionRequest) => Promise<SessionConnectionResult>,
   subscribeFailure: (listener: (failure: SessionRuntimeFailure) => void) => () => void,
 ): AgentClientPort {
   const listeners = new Set<(frame: AgentSessionFrame) => void>();
@@ -24,7 +25,7 @@ export function createAgentSessionClient(
     let port: MessagePort | null = null;
     let rpc: HostRpc | null = null;
     const ready = (async () => {
-      const binding = await connectSession({ sessionId: request.sessionId, instanceId: request.instanceId!, projectContext });
+      const binding = unwrapSessionConnection(await connectSession({ sessionId: request.sessionId, instanceId: request.instanceId!, projectContext }));
       const received = await receiveSessionPort(binding);
       if (disposed) {
         received.close();
@@ -88,7 +89,7 @@ export function createAgentSessionClient(
         if (failure.kind === "agent" && connection?.key === `${failure.id}:${failure.instanceId}`) {
           connection.close();
           connection = null;
-          listener(failure.message);
+          listener(failure);
         }
       });
     },

@@ -1,4 +1,4 @@
-import { Tooltip } from "@puppyone/shared-ui";
+import { DisclosureIcon, Tooltip } from "@puppyone/shared-ui";
 import { Plus } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import { useLocalization } from "@puppyone/localization/react";
@@ -12,7 +12,7 @@ import type {
 } from "../../../../lib/cloudApi";
 import { repositoryTargetKey } from "../../repositoryTarget";
 import { cloudMessage, formatCloudMessage, type CloudMessageDescriptor } from "../../cloudPresentation";
-import { CreateAccessFolderTree, TreeDisclosureMarker } from "./CreateAccessFolderTree";
+import { CreateAccessFolderTree } from "./CreateAccessFolderTree";
 import { CreateAccessIntentPicker } from "./CreateAccessIntentPicker";
 import { CreateAccessMethodRow } from "./CreateAccessMethodRow";
 import { createDesktopCloudAccess } from "./createAccessFlow";
@@ -220,7 +220,7 @@ export function DesktopCloudCreateAccessDialog({
                 <div
                   className={`desktop-cloud-create-access-path-box ${selectedExistingScope ? "existing" : ""} ${normalizedSelected === null ? "empty" : ""}`}
                 >
-                  <TreeDisclosureMarker expanded={normalizedSelected !== null} />
+                  <DisclosureIcon expanded={normalizedSelected !== null} />
                   <span>{selectedLabel}</span>
                 </div>
                 {selectedExistingScope ? (

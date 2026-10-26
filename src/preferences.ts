@@ -16,7 +16,12 @@ import {
   type InterfaceStyle,
   type ThemeMode,
 } from "./features/appearance/interfaceStyles";
-import type { PulseGridPresetId } from "@puppyone/shared-ui";
+import {
+  DEFAULT_LOADING_PLACEHOLDER_STYLE,
+  LOADING_PLACEHOLDER_STYLES,
+  parseLoadingPlaceholderStyle,
+  type LoadingPlaceholderStyle,
+} from "@puppyone/shared-ui";
 import {
   CREATE_NEW_ITEM_IDS,
   CREATE_NEW_SUBMENU_ID,
@@ -52,8 +57,20 @@ export type LightThemePreset = "neutral" | "warm" | "graphite";
 export type DarkThemePreset = "default" | "warm" | "graphite";
 export type DiffMarkers = "color" | "symbols";
 export type GitDisplayMode = "simple" | "professional";
-export type GitSidebarLayout = "cards" | "dividers";
-export type LoadingAnimationPreset = PulseGridPresetId;
+export type { LoadingPlaceholderStyle };
+export { DEFAULT_LOADING_PLACEHOLDER_STYLE, LOADING_PLACEHOLDER_STYLES, parseLoadingPlaceholderStyle };
+
+/**
+ * Loading styles offered in Appearance. Dither stays implemented (placeholders
+ * and the loading mark) but is not offered yet; add it here to offer it.
+ * A stored style outside this list reads as the default.
+ */
+export const SELECTABLE_LOADING_STYLES: readonly LoadingPlaceholderStyle[] = Object.freeze(["rounded"]);
+
+export function parseSelectableLoadingStyle(value: unknown): LoadingPlaceholderStyle {
+  const style = parseLoadingPlaceholderStyle(value);
+  return SELECTABLE_LOADING_STYLES.includes(style) ? style : DEFAULT_LOADING_PLACEHOLDER_STYLE;
+}
 
 export type SidebarNavigationLayout = "bottom-horizontal";
 
@@ -108,6 +125,7 @@ export type CreateNewMenuSettings = {
 
 export const TYPOGRAPHY_STORAGE_KEY = "puppyone.desktop.typography";
 export const POINTER_CURSORS_STORAGE_KEY = "puppyone.desktop.pointerCursors";
+/** Retired with the ikun/ymca/siu presets; kept only so legacy storage is cleared. */
 export const LOADING_ANIMATION_STORAGE_KEY = "puppyone.desktop.loadingAnimation";
 export const DIFF_MARKERS_STORAGE_KEY = "puppyone.desktop.diffMarkers";
 export const MARKDOWN_PRESENTATION_STORAGE_KEY = "puppyone.desktop.markdownPresentation";
@@ -122,6 +140,7 @@ export const LOCAL_AGENTS_STORAGE_KEY = "puppyone.desktop.localAgents";
 export const AGENT_FILE_ACTIVITY_INDICATORS_STORAGE_KEY = "puppyone.desktop.agentFileActivityIndicators";
 export const AI_EDIT_ASSIST_STORAGE_KEY = "puppyone.desktop.aiEditAssist";
 export const GIT_DISPLAY_MODE_STORAGE_KEY = "puppyone.desktop.gitDisplayMode";
+/** Retired with the cards/dividers comparison; kept only so legacy storage is cleared. */
 export const GIT_SIDEBAR_LAYOUT_STORAGE_KEY = "puppyone.desktop.gitSidebarLayout";
 export const EXPERIMENTAL_SETTINGS_STORAGE_KEY = "puppyone.desktop.experimental";
 export const CREATE_NEW_MENU_STORAGE_KEY = "puppyone.desktop.createNewMenu";
@@ -131,10 +150,10 @@ export const DEFAULT_LIGHT_THEME_PRESET: LightThemePreset = "neutral";
 export const DEFAULT_DARK_THEME_PRESET: DarkThemePreset = "default";
 export { DEFAULT_TYPOGRAPHY_PREFERENCES };
 export const DEFAULT_POINTER_CURSORS = false;
-export const DEFAULT_LOADING_ANIMATION_PRESET: LoadingAnimationPreset = "ikun";
+/** File glyphs in explorer rows; when hidden only the folder chevrons remain. */
+export const DEFAULT_SHOW_FILE_ICONS = true;
 export const DEFAULT_DIFF_MARKERS: DiffMarkers = "color";
 export const DEFAULT_GIT_DISPLAY_MODE: GitDisplayMode = "simple";
-export const DEFAULT_GIT_SIDEBAR_LAYOUT: GitSidebarLayout = "cards";
 export const DEFAULT_SIDEBAR_NAVIGATION_LAYOUT: SidebarNavigationLayout = "bottom-horizontal";
 export const DEFAULT_EXPLORER_EXCLUDE_PATTERNS = [
   "**/.git",
@@ -192,12 +211,13 @@ export const DEFAULT_EXPERIMENTAL_SETTINGS: ExperimentalSettings = {
   enableMultiRootWorkspaces: false,
   enableOtherAppImports: false,
   /**
-   * Paid compute: PuppyOne's own token, the account balance it spends and the
-   * top-up that refills it. Off by default, so an untouched install never asks
-   * anyone for money and the Agent routes only to the user's own API keys and
-   * local models. Read it only through `usePaymentsExperience()`.
+   * What the product sells: cloud workspaces, PuppyOne's own token, the account
+   * balance it spends and the top-up that refills it. On by default, because a
+   * user who cannot find the price cannot buy. Switch it off and the Desktop
+   * asks for no money at all: the Agent routes only to the user's own API keys
+   * and local models. Read it only through `usePaymentsExperience()`.
    */
-  enablePayments: false,
+  enablePayments: true,
   enablePuppyFlowFiles: false,
   enableProjectSwitcherRail: false,
   enableViewerPlugins: false,
@@ -292,22 +312,12 @@ export function parsePointerCursors(value: string | null | undefined): boolean {
   return DEFAULT_POINTER_CURSORS;
 }
 
-export function parseLoadingAnimationPreset(
-  value: string | null | undefined,
-): LoadingAnimationPreset {
-  return value === "ymca" || value === "siu" || value === "ikun" ? value : DEFAULT_LOADING_ANIMATION_PRESET;
-}
-
 export function parseDiffMarkers(value: string | null | undefined): DiffMarkers {
   return value === "symbols" || value === "color" ? value : DEFAULT_DIFF_MARKERS;
 }
 
 export function parseGitDisplayMode(value: string | null | undefined): GitDisplayMode {
   return value === "professional" || value === "simple" ? value : DEFAULT_GIT_DISPLAY_MODE;
-}
-
-export function parseGitSidebarLayout(value: string | null | undefined): GitSidebarLayout {
-  return value === "dividers" || value === "cards" ? value : DEFAULT_GIT_SIDEBAR_LAYOUT;
 }
 
 export function parseSidebarNavigationLayout(_value: string | null | undefined): SidebarNavigationLayout {
@@ -458,7 +468,9 @@ export function parseExperimentalSettings(value: string | null | undefined): Exp
         || parsed.enableGoogleDriveImport === true
         || parsed.enableAirtableImport === true
         || parsed.enableObsidianImport === true,
-      enablePayments: parsed.enablePayments === true,
+      // On unless the user switched it off, so an install that predates the
+      // key keeps the prices rather than silently losing them.
+      enablePayments: parsed.enablePayments !== false,
       enablePuppyFlowFiles: parsed.enablePuppyFlowFiles === true,
       enableProjectSwitcherRail: parsed.enableProjectSwitcherRail === true,
       enableViewerPlugins: parsed.enableViewerPlugins === true,

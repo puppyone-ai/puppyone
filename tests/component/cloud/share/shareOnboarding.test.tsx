@@ -186,7 +186,7 @@ describe("Share dialog", () => {
     expect(api.createCloudScope).not.toHaveBeenCalled();
     const values = Array.from(dialog()?.querySelectorAll<HTMLElement>(".desktop-share-copy-value") ?? [])
       .map((node) => node.textContent);
-    expect(values[0]).toBe("https://cloud.example/api/v1/mcp/server/mcp_live_0123456789abcdef");
+    expect(values[0]).toBe("https://cloud.example/api/v1/mcp/proxy");
     expect(dialog()?.textContent).toContain("Waiting for Viktor to connect");
     expect(props.onIssued).toHaveBeenCalledWith({
       targetId: "viktor",

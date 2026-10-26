@@ -1,9 +1,4 @@
 import type { MarkdownTableAlignment, MarkdownTableRow } from "./tableModel";
-import {
-  EDITABLE_TABLE_COLUMN_INITIAL_MAX_WIDTH,
-  estimateEditableTableColumnWidth,
-  estimateEditableTableColumnWidths,
-} from "../../../table/editableTableLayout";
 
 const TABLE_VERTICAL_CHROME_PX = 50;
 const TABLE_ROW_VERTICAL_CHROME_PX = 13;
@@ -24,29 +19,6 @@ export function estimateMarkdownTableLayoutHeight(rows: readonly MarkdownTableRo
 export function estimateMarkdownTableRowHeight(row: MarkdownTableRow): number {
   const visualLines = Math.max(1, ...row.cells.map((cell) => estimateCellVisualLines(cell.text)));
   return Math.ceil(TABLE_ROW_VERTICAL_CHROME_PX + visualLines * TABLE_TEXT_LINE_HEIGHT_PX);
-}
-
-export function estimateMarkdownTableColumnWidths(
-  alignments: readonly MarkdownTableAlignment[],
-  rows: readonly MarkdownTableRow[],
-): readonly number[] {
-  return estimateEditableTableColumnWidths(
-    rows,
-    alignments.length,
-    (row) => row.cells.map((cell) => cell.text),
-  ).map((width) => Math.min(EDITABLE_TABLE_COLUMN_INITIAL_MAX_WIDTH, width));
-}
-
-/** Explicit auto-fit may use the wider readable track limit. */
-export function estimateMarkdownTableColumnWidth(
-  rows: readonly MarkdownTableRow[],
-  columnIndex: number,
-): number {
-  return estimateEditableTableColumnWidth(
-    rows,
-    columnIndex,
-    (row) => row.cells.map((cell) => cell.text),
-  );
 }
 
 /** Stable semantic identity used by WidgetType.eq without serializing a table. */

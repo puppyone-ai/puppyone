@@ -1,5 +1,5 @@
-import { Tooltip } from "@puppyone/shared-ui";
-import { FolderOpen, FolderPlus } from "lucide-react";
+import { Tooltip, FolderIcon } from "@puppyone/shared-ui";
+import { FolderPlus } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useLocalization } from "@puppyone/localization";
 import { useProjectTemplateImport } from "./useProjectTemplateImport";
@@ -174,7 +174,7 @@ export function OnboardingProjectEntryDialog({
                 aria-label={t("onboarding.entry.create.locationLabel")}
                 onClick={() => void chooseLocation()}
               >
-                <FolderOpen aria-hidden="true" />
+                <FolderIcon aria-hidden="true" />
                 <bdi
                   className={`onboarding-entry-location-path ${location ? "is-selected" : ""}`}
                   dir="ltr"

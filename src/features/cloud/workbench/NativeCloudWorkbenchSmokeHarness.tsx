@@ -295,6 +295,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
   const projectSwitcher = <DesktopTitlebarContext open={menuOpen} refObject={menuRef} titlebarLabel={localWorkspace.name}
         workspace={localWorkspace} workspaceFolders={[]} multiRootWorkspacesEnabled={false}
         projectLocation={{ current: location, requested: controller.requestedLocation, headerLocation, loading: controller.pending && !controller.error,
+          failed: controller.pending && Boolean(controller.error),
           localAvailable: true, cloudState: "available" }} cloudProject={{ id: context.projectId }}
         onClose={() => setMenuOpen(false)} onToggle={() => setMenuOpen((current) => !current)}
         onViewLocal={() => { sidebar.close(); controller.cancel(); setCloudSelected(false); }}

@@ -89,8 +89,12 @@ describe("first-run sign-in", () => {
     await render();
     auth.signingIn = true;
     await render();
-    expect(document.querySelector<HTMLButtonElement>(".first-run-sign-in-submit")?.disabled).toBe(true);
     expect(document.body.textContent).toContain("Waiting for sign-in");
+    // A closed browser page must not strand the user: asking again reopens it.
+    const submit = document.querySelector<HTMLButtonElement>(".first-run-sign-in-submit");
+    expect(submit?.disabled).toBe(false);
+    await act(async () => submit!.click());
+    expect(auth.startSignIn).toHaveBeenCalledTimes(1);
     auth.signingIn = false;
     auth.error = "Browser unavailable";
     await render();

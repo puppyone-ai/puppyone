@@ -62,14 +62,14 @@ describe("project location presentation experiment", () => {
     const controls = document.querySelector(".desktop-project-location-controls");
     const cloudButton = button("cloud");
     expect(Boolean(controls?.closest(".desktop-project-location-menu"))).toBe(!inline);
-    expect(cloudButton.getAttribute("aria-label")).toBe(inline ? "Hosted workspace" : "Open in a hosted workspace");
-    expect(cloudButton.textContent).toBe(inline ? "" : "Open in a hosted workspace");
+    expect(cloudButton.getAttribute("aria-label")).toBe(inline ? "Cloud Computer" : "Open on Cloud Computer");
+    expect(cloudButton.textContent).toBe(inline ? "" : "Open on Cloud Computer");
     expect(button("local").textContent).toBe(inline ? "Local" : "Open on This Mac");
     act(() => cloudButton.click());
     expect(button("cloud")).toBe(cloudButton);
     expect(button("cloud").getAttribute("aria-pressed")).toBe("true");
     expect(button("local").getAttribute("aria-current")).toBe("true");
-    expect(cloudButton.textContent).toBe(inline ? "Hosted workspace" : "Open in a hosted workspace");
+    expect(cloudButton.textContent).toBe(inline ? "Cloud Computer" : "Open on Cloud Computer");
     expect(button("local").textContent).toBe(inline ? "" : "Open on This Mac");
     expect(controls?.getAttribute("data-presentation")).toBe(inline ? "header-icons" : "popover");
     if (!inline) {
@@ -80,19 +80,35 @@ describe("project location presentation experiment", () => {
       expect(controls?.querySelector(".desktop-project-location-indicator")).toBeNull();
     }
     expect(document.querySelector('.desktop-project-location-tabs')?.getAttribute("aria-busy")).toBe("true");
-    expect(button("cloud").querySelector('[data-puppy-loader="pulse-grid"]')).not.toBeNull();
+    expect(button("cloud").querySelector('[data-puppy-loader]')).not.toBeNull();
     act(() => cloudButton.click());
     expect(navigate).toHaveBeenCalledTimes(1);
     act(() => finish());
     expect(button("cloud")).toBe(cloudButton);
     expect(button("cloud").getAttribute("aria-current")).toBe("true");
     expect(button("cloud").querySelector('[data-puppy-loader]')).toBeNull();
-    expect(cloudButton.textContent).toBe(inline ? "Hosted workspace" : "Open in a hosted workspace");
+    expect(cloudButton.textContent).toBe(inline ? "Cloud Computer" : "Open on Cloud Computer");
     act(() => button("local").click());
     expect(button("local").getAttribute("aria-pressed")).toBe("true");
     expect(button("local").textContent).toBe(inline ? "Local" : "Open on This Mac");
-    expect(cloudButton.textContent).toBe(inline ? "" : "Open in a hosted workspace");
+    expect(cloudButton.textContent).toBe(inline ? "" : "Open on Cloud Computer");
     expect(navigate.mock.calls).toEqual([["cloud"], ["local"]]);
+  });
+
+  it("names the location the screen moved to, with its status in the mark until it is ready", async () => {
+    const trigger = () => document.querySelector<HTMLButtonElement>(".desktop-titlebar-location-button")!;
+    const arriving = { current: "local", requested: "cloud", headerLocation: "cloud", localAvailable: true, cloudState: "available" } as const;
+    await render({ projectLocation: { ...arriving, loading: true } });
+    expect(trigger().textContent).toBe("Cloud Computer");
+    expect(trigger().getAttribute("aria-busy")).toBe("true");
+    expect(trigger().getAttribute("aria-label")).toMatch(/^Opening Cloud Computer, /);
+    expect(trigger().querySelector('[data-computer-status="opening"] .lucide-loader-circle')).not.toBeNull();
+    await render({ projectLocation: { ...arriving, failed: true } });
+    expect(trigger().textContent).toBe("Cloud Computer");
+    expect(trigger().querySelector('[data-computer-status="failed"] .lucide-triangle-alert')).not.toBeNull();
+    await render({ projectLocation: { current: "cloud", localAvailable: true, cloudState: "available" } });
+    expect(trigger().querySelector("[data-computer-status]")).toBeNull();
+    expect(trigger().querySelector(".desktop-cloud-icon")).not.toBeNull();
   });
 
   it("updates live and removes the old popup without duplicating location controls", async () => {
@@ -112,7 +128,7 @@ describe("project location presentation experiment", () => {
     icons(true);
     const create = vi.fn();
     await render({ projectLocation: { current: "local", localAvailable: true, cloudState: "unavailable" }, onViewCloud: create });
-    expect(button("cloud").getAttribute("aria-label")).toBe("Open in a hosted workspace");
+    expect(button("cloud").getAttribute("aria-label")).toBe("Open on Cloud Computer");
     expect(button("cloud").querySelector(".lucide-plus")).toBeNull();
     expect(button("cloud").querySelector("svg")).not.toBeNull();
     act(() => button("cloud").click());

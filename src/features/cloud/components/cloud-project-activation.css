@@ -1,5 +1,8 @@
 @layer features {
   .desktop-cloud-project-activation {
+    /* Shared with the entry-specific content beneath this same banner. */
+    --desktop-cloud-value-title-font: 550 var(--po-type-ui-meta, 13px) / 1.4 var(--po-font-ui, var(--po-font-sans));
+    --desktop-cloud-value-detail-font: var(--po-text-weight-regular, 400) var(--po-type-ui-caption, 12px) / 1.45 var(--po-font-ui, var(--po-font-sans));
     container: desktop-cloud-project / inline-size;
     display: flex;
     box-sizing: border-box;
@@ -261,8 +264,22 @@
 
   .desktop-cloud-project-journey-agents li.is-protocol .desktop-cloud-project-journey-agent-status { background: var(--po-border-strong); }
 
+  /* Scroll ownership: in a height-limited dialog the banner and the action
+     row stay where they are and only the copy between them scrolls. A page
+     that does not limit the frame's height never shrinks it, so there it
+     simply grows. */
+  .desktop-cloud-project-activation { min-height: 0; }
+  .desktop-cloud-project-journey,
+  .desktop-cloud-project-activation-footer { flex: none; }
+
   /* Copy */
-  .desktop-cloud-project-activation-body { padding: 22px 28px 4px; }
+  .desktop-cloud-project-activation-body {
+    flex: 0 1 auto;
+    min-height: 0;
+    padding: 22px 28px 4px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
   .desktop-cloud-project-activation-eyebrow {
     display: inline-flex;
     align-items: center;
@@ -322,15 +339,12 @@
   .desktop-cloud-project-value-copy { display: grid; min-width: 0; gap: 1px; }
   .desktop-cloud-project-value-copy strong {
     color: var(--po-text);
-    font-size: var(--po-type-ui-meta, 13px);
-    font-weight: 550;
-    line-height: 1.4;
+    font: var(--desktop-cloud-value-title-font);
   }
 
   .desktop-cloud-project-value-copy span {
     color: var(--po-text-subtle);
-    font-size: var(--po-type-ui-caption, 12px);
-    line-height: 1.45;
+    font: var(--desktop-cloud-value-detail-font);
   }
 
   .desktop-cloud-project-activation-supplemental {

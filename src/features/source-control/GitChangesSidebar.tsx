@@ -9,7 +9,7 @@ import { WorkingFileActions, WorkingFileDetail } from "./WorkingFileDetail";
 import { useGitViewNavigationFocus } from "./useGitViewNavigationFocus";
 
 export type GitChangesSidebarProps = Omit<GitSidebarProps, "repository"> & Readonly<{
-  repository: Omit<GitSidebarProps["repository"], "gitDisplayMode" | "gitSidebarLayout" | "fileIconTheme">;
+  repository: Omit<GitSidebarProps["repository"], "gitDisplayMode" | "fileIconTheme">;
   workingFileDiff: GitCommitDetail | null;
   workingFileDiffLoading: boolean;
   workingFileDiffError: string | null;
@@ -36,9 +36,8 @@ export function GitChangesSidebar({
   focusNavigation = false,
 }: GitChangesSidebarProps) {
   const gitDisplayMode = useDesktopPreference(s => s.gitDisplayMode);
-  const gitSidebarLayout = useDesktopPreference(s => s.gitSidebarLayout);
   const fileIconTheme = useDesktopPreference(selectFileIconTheme);
-  const repository = { ...repositoryState, gitDisplayMode, gitSidebarLayout, fileIconTheme };
+  const repository = { ...repositoryState, gitDisplayMode, fileIconTheme };
   const { t } = useLocalization();
   const [detailVisible, setDetailVisible] = useState(false);
   const rootRef = useGitViewNavigationFocus(focusNavigation, detailVisible);

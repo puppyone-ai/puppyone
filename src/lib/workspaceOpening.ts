@@ -26,11 +26,9 @@ export type WorkspaceOpenTarget = {
 };
 
 export async function openWorkspaceTarget(target: WorkspaceOpenTarget): Promise<WorkspaceOpenResult> {
-  if (target.placement === "current-window") {
-    return openWorkspaceInCurrentWindowBridge(target.path);
-  }
-
-  return openWorkspaceInNewWindowBridge(target.path);
+  return target.placement === "dedicated-window"
+    ? openWorkspaceInNewWindowBridge(target.path)
+    : openWorkspaceInCurrentWindowBridge(target.path);
 }
 
 export async function openDroppedWorkspaceTarget(folder: File): Promise<WorkspaceOpenResult> {

@@ -219,10 +219,10 @@ export function useWorkspaceLifecycle({
   const openFolder = useCallback(async () => {
     const request = ++navigationRequestRef.current;
     const result = await selectLocalWorkspaceFolder({
-      placement: workspace ? "dedicated-window" : "current-window",
+      placement: "current-window",
     });
     if (request === navigationRequestRef.current) handleWorkspaceOpenResult(result);
-  }, [handleWorkspaceOpenResult, workspace]);
+  }, [handleWorkspaceOpenResult]);
 
   const addProject = useCallback(async () => {
     const request = ++navigationRequestRef.current;
@@ -237,7 +237,7 @@ export function useWorkspaceLifecycle({
         onWorkspaceOpenSettled();
         return;
       }
-      if (result.status !== "focused-existing" && result.workspaces.length > 0) {
+      if (result.workspaces.length > 0) {
         await reconcileWorkspaceComposition(result.workspaces, result.workspaceId);
       } else {
         setRestoreWorkspaceError(null);
@@ -266,7 +266,7 @@ export function useWorkspaceLifecycle({
     try {
       const result = await attachWorkspaceFolder(folderPath);
       if (request !== navigationRequestRef.current) return;
-      if (result.status !== "focused-existing" && result.workspaces.length > 0) {
+      if (result.workspaces.length > 0) {
         await reconcileWorkspaceComposition(result.workspaces, result.workspaceId);
       } else {
         setRestoreWorkspaceError(null);

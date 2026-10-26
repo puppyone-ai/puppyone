@@ -99,7 +99,6 @@ function AccountCloudFixture() {
   const diffMarkers = useDesktopPreference(s => s.diffMarkers);
   const filesVisibilitySettings = useDesktopPreference(s => s.filesVisibilitySettings);
   const { lightThemePreset } = useDesktopAppearance();
-  const loadingAnimationPreset = useDesktopPreference(s => s.loadingAnimationPreset);
   const markdownPresentation = useDesktopPreference(s => s.markdownPresentation);
   const pointerCursors = useDesktopPreference(s => s.pointerCursors);
   const { resolvedAppearance } = useDesktopAppearance();
@@ -110,7 +109,7 @@ function AccountCloudFixture() {
   const catalog = useTypographyCatalog();
   const typography = useTypographyRuntime(typographyPreferences, catalog, locale);
   const appearance = resolveSurfaceAppearance({ appearance: resolvedAppearance, typography,
-    markdownPresentation: markdownPresentation, loadingAnimationPreset: loadingAnimationPreset,
+    markdownPresentation: markdownPresentation,
     lightThemePreset: lightThemePreset, darkThemePreset: darkThemePreset,
     pointerCursors: pointerCursors, diffMarkers: diffMarkers });
   const account = useAccountCloudWorkspace({ enabled: true, session, apiBaseUrl: API });

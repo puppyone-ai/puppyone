@@ -128,14 +128,23 @@ const preloadSource = read("electron/preload.cjs");
 if (!preloadSource.includes("setNativeSurfacePointerRoutingRegions")) {
   errors.push("Desktop preload does not expose native pointer-routing region publication");
 }
-const dataSurfaceSource = read("src/features/app-shell/DesktopDataWorkspaceSurface.tsx");
+// The window's Explorer frame owns the sash and its routing region; every
+// surface standing in the Explorer column takes its frame from there.
+const explorerFrameSource = read("src/features/app-shell/layout/useDesktopExplorerFrame.ts");
 for (const token of [
-  "useNativeSurfacePointerRoutingRegion",
-  'useNativeSurfacePointerRoutingRegion("explorer-resize", explorerResizeHandle)',
-  "explorerResizeHandleRef={setExplorerResizeHandle}",
+  'useNativeSurfacePointerRoutingRegion("explorer-resize", resizeHandle)',
+  "resizeHandleRef: setResizeHandle",
 ]) {
-  if (!dataSurfaceSource.includes(token)) {
+  if (!explorerFrameSource.includes(token)) {
     errors.push(`Desktop explorer does not register its overlay sash with native pointer routing (${token})`);
+  }
+}
+for (const [file, token] of [
+  ["src/features/app-shell/DesktopDataWorkspaceSurface.tsx", "explorerResizeHandleRef={explorerFrame.resizeHandleRef}"],
+  ["src/features/cloud/workbench/CloudWorkspacePreparation.tsx", "<DataWorkspaceFrame {...explorerFrame}"],
+]) {
+  if (!read(file).includes("useDesktopExplorerFrame()") || !read(file).includes(token)) {
+    errors.push(`Desktop Explorer surface does not stand in the window's Explorer frame (${file})`);
   }
 }
 const auxiliaryPanelSource = read("src/features/app-shell/auxiliary/AuxiliaryPanelHost.tsx");

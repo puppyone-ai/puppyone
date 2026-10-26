@@ -1,9 +1,9 @@
 import { useDesktopPreference } from "../../../preferencesStore";
 import { useDesktopAppearance } from "../useDesktopAppearance";
 import { followThemeContentFont, isFollowingThemeContentFont } from "../../typography";
-import { Tooltip } from "@puppyone/shared-ui";
+import { Tooltip, FolderIcon } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
-import { FolderOpen, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import {
   listSelectableSubThemes,
 } from "../../themes/builtinSubThemes";
@@ -75,7 +75,7 @@ export function SubThemeSettingsSection({ catalog }: { catalog: SubThemeCatalogC
               aria-label={t("settings.appearance.themes.openFolder")}
               onClick={() => void catalog.openDirectory()}
             >
-              <FolderOpen size={14} strokeWidth={1.8} aria-hidden="true" />
+              <FolderIcon size={14} strokeWidth={1.8} aria-hidden="true" />
             </button></Tooltip>
             <Tooltip content={t("settings.appearance.themes.add")}><button
               className="desktop-theme-pack-icon-action"

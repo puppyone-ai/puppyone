@@ -1,0 +1,13 @@
+.desktop-agent-provider-activities {
+  max-height: 160px;
+  overflow-y: auto;
+  padding: 0 8px;
+  color: var(--po-text-subtle);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.desktop-agent-provider-activities p { margin: 4px 0; white-space: pre-wrap; }
+.desktop-agent-provider-activities .is-failed { color: var(--po-danger); }
+.desktop-agent-provider-activities summary { cursor: pointer; padding: 4px 0; }
+.desktop-agent-provider-activities summary:focus-visible { outline: 1px solid currentColor; outline-offset: 2px; }
+.desktop-agent-provider-notices { padding: 4px 0; }

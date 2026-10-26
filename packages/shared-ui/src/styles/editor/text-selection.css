@@ -19,29 +19,50 @@
 }
 
 /* Browser selection is a product primitive. Each originating element resolves
-   currentColor and its content-domain variables (including direct text nodes). */
+   currentColor and its content-domain variables (including direct text nodes).
+   State rules choose a theme tint; one declaration turns it into paint.
+
+   Native highlights are one rectangle per line fragment, each rounded outward
+   to device pixels. Wherever a line edge is fractional (26.25px body lines,
+   1.25x/1.5x scaling, em spacing, an image above), neighbours share a device
+   row and a translucent tint paints it twice: a darker seam. Native paint is
+   therefore the tint composited over the canvas. It looks the same but is
+   opaque, so overlap is inert at any geometry. Tokens remain tints: drawn
+   layers and the terminal paint each pixel once and use them unchanged.
+
+   source-over(S at alpha a, B) is color-mix(S re-alphaed to a / (999(1 - a))
+   at 99.9%, B), made opaque: exact up to a = 99.9%, and an opaque S stays
+   within 0.1% of itself. To suppress native paint, set --po-selection-paint
+   to transparent in an unlayered ::selection rule. */
 @layer primitives {
   :where([data-po-appearance-root])::selection,
   :where([data-po-appearance-root]) ::selection {
+    --po-selection-tint: var(--po-selection-background, var(--po-text-selection-bg));
+    --po-selection-paint: color(from color-mix(in srgb, color(from var(--po-selection-tint) srgb r g b / calc(alpha / (999 * (1 - alpha)))) 99.9%, var(--po-canvas, Canvas)) srgb r g b / 1);
     color: currentColor;
-    background-color: var(--po-selection-background, var(--po-text-selection-bg));
+    background-color: var(--po-selection-paint);
+  }
+
+  /* Replaced content is tinted rather than covered. */
+  :where([data-po-appearance-root]) :is(img, svg, video, canvas)::selection {
+    background-color: var(--po-selection-tint);
   }
 
   [data-po-native-selection="inactive"]::selection,
   [data-po-native-selection="inactive"] ::selection,
   :where([data-po-appearance-root]) :is(input, textarea, [contenteditable="true"]):not(:focus-within)::selection,
   :where([data-po-appearance-root]) [contenteditable="true"]:not(:focus-within) ::selection {
-    background-color: var(--po-selection-inactive-background, var(--po-text-selection-inactive-bg));
+    --po-selection-tint: var(--po-selection-inactive-background, var(--po-text-selection-inactive-bg));
   }
 
   :where([data-po-appearance-root]) :is(input, textarea, [contenteditable="true"]):focus::selection,
   :where([data-po-appearance-root]) [contenteditable="true"]:focus ::selection {
-    background-color: var(--po-selection-background, var(--po-text-selection-bg));
+    --po-selection-tint: var(--po-selection-background, var(--po-text-selection-bg));
   }
 
   :root[data-po-window-active="false"] :where([data-po-appearance-root])::selection,
   :root[data-po-window-active="false"] :where([data-po-appearance-root]) ::selection {
-    background-color: var(--po-selection-inactive-background, var(--po-text-selection-inactive-bg));
+    --po-selection-tint: var(--po-selection-inactive-background, var(--po-text-selection-inactive-bg));
   }
 }
 
@@ -49,13 +70,19 @@
    two drawing paths, independently of theme IDs and editor behavior. */
 [data-po-selection-renderer="native"] .cm-content::selection,
 [data-po-selection-renderer="native"] .cm-content ::selection {
+  --po-selection-tint: var(--po-selection-background, var(--po-text-selection-bg));
   color: currentColor;
-  background-color: var(--po-selection-background, var(--po-text-selection-bg));
 }
 
 [data-po-selection-renderer="native"] .cm-content:not(:focus-within)::selection,
 [data-po-selection-renderer="native"] .cm-content:not(:focus-within) ::selection,
-[data-po-selection-renderer="drawn"] > .cm-scroller > .cm-selectionLayer .cm-selectionBackground {
+:root[data-po-window-active="false"] [data-po-selection-renderer="native"] .cm-content::selection,
+:root[data-po-window-active="false"] [data-po-selection-renderer="native"] .cm-content ::selection {
+  --po-selection-tint: var(--po-selection-inactive-background, var(--po-text-selection-inactive-bg));
+}
+
+[data-po-selection-renderer="drawn"] > .cm-scroller > .cm-selectionLayer .cm-selectionBackground,
+:root[data-po-window-active="false"] [data-po-selection-renderer="drawn"] > .cm-scroller > .cm-selectionLayer .cm-selectionBackground {
   background-color: var(--po-selection-inactive-background, var(--po-text-selection-inactive-bg));
 }
 
@@ -67,19 +94,14 @@
    inputs. Only those independently editable descendants may override it. */
 [data-po-selection-renderer] .cm-content :is(input, textarea, [contenteditable="true"]):focus::selection,
 [data-po-selection-renderer] .cm-content [contenteditable="true"]:focus ::selection {
+  --po-selection-tint: var(--po-selection-background, var(--po-text-selection-bg));
   color: currentColor;
-  background-color: var(--po-selection-background, var(--po-text-selection-bg)) !important;
-}
-
-:root[data-po-window-active="false"] [data-po-selection-renderer="native"] .cm-content::selection,
-:root[data-po-window-active="false"] [data-po-selection-renderer="native"] .cm-content ::selection,
-:root[data-po-window-active="false"] [data-po-selection-renderer="drawn"] > .cm-scroller > .cm-selectionLayer .cm-selectionBackground {
-  background-color: var(--po-selection-inactive-background, var(--po-text-selection-inactive-bg));
+  background-color: var(--po-selection-paint) !important;
 }
 
 :root[data-po-window-active="false"] [data-po-selection-renderer] .cm-content :is(input, textarea, [contenteditable="true"]):focus::selection,
 :root[data-po-window-active="false"] [data-po-selection-renderer] .cm-content [contenteditable="true"]:focus ::selection {
-  background-color: var(--po-selection-inactive-background, var(--po-text-selection-inactive-bg)) !important;
+  --po-selection-tint: var(--po-selection-inactive-background, var(--po-text-selection-inactive-bg));
 }
 
 @layer accessibility {

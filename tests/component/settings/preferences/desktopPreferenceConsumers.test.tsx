@@ -2,7 +2,7 @@
 import { act, Profiler, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
-import { DataWorkspace, PULSE_GRID_PRESET_IDS, type Workspace } from "@puppyone/shared-ui";
+import { DataWorkspace, type Workspace } from "@puppyone/shared-ui";
 import { initializeDesktopPreferences, desktopPreferencesStore as store, useDesktopPreference } from "../../../../src/preferencesStore";
 import { createSettingsWorkspaceSurface, type SettingsWorkspaceSurfaceProps } from "../../../../src/features/settings/SettingsWorkspaceSurface";
 import { BUILTIN_SUB_THEME_CATALOG } from "../../../../src/features/settings/appearanceSlice";
@@ -13,6 +13,14 @@ import { resolveDesktopPaneLayout } from "../../../../src/features/app-shell/lay
 import { resolveWorkspaceSurface } from "../../../../src/features/app-shell/workspace-surfaces/workspaceSurfaceRegistry";
 import { useDesktopEditorWorkbench } from "../../../../src/features/editor-workbench/controller/useDesktopEditorWorkbench";
 import { withTestLocalization } from "../../../support/react/localization";
+import { PLUGIN_FILE_ICON_THEME_ID } from "../../../support/appearance/pluginFileIconTheme";
+
+// Only the default theme ships; installing a test plug-in theme brings back the
+// File icons choice so its ordering and persistence stay covered.
+vi.mock("../../../../packages/shared-ui/src/file/icon-themes/registry", async (original) => {
+  const { withPluginFileIconTheme } = await import("../../../support/appearance/pluginFileIconTheme");
+  return withPluginFileIconTheme(await original());
+});
 
 vi.mock("@puppyone/shared-ui", async (original) => ({
   ...await original<typeof import("@puppyone/shared-ui")>(),
@@ -84,7 +92,7 @@ describe("mounted desktop preference consumers", () => {
     const mountedCommits = commits.mock.calls.length;
     act(() => store.getState().setPointerCursors(true));
     expect(commits).toHaveBeenCalledTimes(mountedCommits);
-    act(() => store.getState().setGitSidebarLayout("dividers"));
+    act(() => store.getState().setGitDisplayMode("professional"));
     expect(commits).toHaveBeenCalledTimes(mountedCommits);
     act(() => {
       store.getState().setLocalAgentsSettings(current => ({ ...current, chatHistoryDiscoveryEnabled: true }));
@@ -107,30 +115,48 @@ describe("mounted desktop preference consumers", () => {
     expect(counts).toEqual({ ...before, pointer: before.pointer + 1 });
     expect(host.querySelector<HTMLInputElement>('input[aria-labelledby="desktop-pointer-cursors-label"]')?.checked).toBe(true);
   });
-  it("keeps the production appearance controls ordered and persists each loading preset and Git layout", () => {
+  it("hides file icons from the real setting without notifying unrelated layout/editor/agent selectors", () => {
+    const counts = { fileIcons: 0, layout: 0, editor: 0, agent: 0 };
+    function FileIcons() { useDesktopPreference(s => s.showFileIcons); counts.fileIcons++; return null; }
+    function Layout() { useDesktopPreference(s => s.explorerWidth); counts.layout++; return null; }
+    function Editor() { useDesktopPreference(s => s.aiEditAssistEnabled); counts.editor++; return null; }
+    function Agent() { useDesktopPreference(s => s.localAgentsSettings); counts.agent++; return null; }
+    const { main } = createSettingsWorkspaceSurface(settings);
+    act(() => root.render(withTestLocalization(<>{main}<FileIcons /><Layout /><Editor /><Agent /></>)));
+    const before = { ...counts };
+    const selector = 'input[aria-labelledby="desktop-show-file-icons-label"]';
+    expect(host.querySelector<HTMLInputElement>(selector)?.checked).toBe(true);
+    click(selector);
+    expect(store.getState().showFileIcons).toBe(false);
+    expect(counts).toEqual({ ...before, fileIcons: before.fileIcons + 1 });
+    expect(host.querySelector<HTMLInputElement>(selector)?.checked).toBe(false);
+  });
+  it("keeps the production appearance controls ordered", () => {
     renderSettings("appearance");
     const list = host.querySelector(".desktop-settings-lead-list")!;
     expect(list.children[0].classList.contains("desktop-theme-mode-row")).toBe(true);
     expect(list.children[1].classList.contains("desktop-theme-settings-section")).toBe(true);
     expect(list.lastElementChild?.querySelector(".desktop-interface-style-segment")).not.toBeNull();
     expect(list.lastElementChild?.previousElementSibling?.querySelector("#desktop-pointer-cursors-label")).not.toBeNull();
-    expect(list.querySelectorAll(".desktop-theme-segment.desktop-appearance-option-segment")).toHaveLength(3);
-    expect(list.querySelectorAll(".desktop-appearance-hug-segment")).toHaveLength(2);
-    const git = list.children[3];
-    const loading = list.children[4];
-    const presets = [...loading.querySelectorAll<HTMLButtonElement>("button")];
-    expect(presets).toHaveLength(PULSE_GRID_PRESET_IDS.length);
-    for (const [index, preset] of PULSE_GRID_PRESET_IDS.entries()) {
-      expect(presets[index].querySelectorAll("[data-pulse-grid-point]")).toHaveLength(9);
-      act(() => presets[index].click());
-      expect(presets[index].getAttribute("aria-pressed")).toBe("true");
-      expect(store.getState().loadingAnimationPreset).toBe(preset);
-      expect(JSON.parse(localStorage.getItem("puppyone.desktop.appearance")!).shared.loadingAnimationPreset).toBe(preset);
-    }
-    act(() => git.querySelectorAll<HTMLButtonElement>("button")[1].click());
-    expect(store.getState().gitSidebarLayout).toBe("dividers");
-    expect(localStorage.getItem("puppyone.desktop.gitSidebarLayout")).toBe("dividers");
-    expect(git.querySelectorAll("button")[1].getAttribute("aria-pressed")).toBe("true");
+    expect(list.querySelectorAll(".desktop-theme-segment.desktop-appearance-option-segment")).toHaveLength(1);
+    expect(list.querySelectorAll(".desktop-appearance-hug-segment")).toHaveLength(0);
+    // The retired animation presets have no control of their own.
+    expect(list.querySelector("[data-pulse-grid-point]")).toBeNull();
+    // The retired Git sidebar layout comparison has no control either.
+    expect(list.querySelector('[aria-label="Git sidebar layout"]')).toBeNull();
+  });
+  it("offers no loading style choice while only the rounded style is offered", () => {
+    const appearance = JSON.parse(localStorage.getItem("puppyone.desktop.appearance") ?? "null");
+    act(() => root.unmount());
+    root = createRoot(host);
+    // A stored dither choice from before dither was withdrawn reads as rounded.
+    localStorage.setItem("puppyone.desktop.appearance", JSON.stringify({
+      ...appearance, shared: { ...appearance?.shared, loadingPlaceholderStyle: "dither" },
+    }));
+    initializeDesktopPreferences();
+    renderSettings("appearance");
+    expect(host.querySelector('[aria-label="Loading style"]')).toBeNull();
+    expect(store.getState().loadingPlaceholderStyle).toBe("rounded");
   });
   it("preserves icon selection when switching root themes and hides fixed color-mode controls", () => {
     renderSettings("appearance");
@@ -195,8 +221,8 @@ describe("mounted desktop preference consumers", () => {
     click("[data-width] button");
     expect(store.getState().explorerWidth).toBe(410);
     expect(host.querySelector("[data-width]")?.getAttribute("data-width")).toBe("410");
-    act(() => store.getState().setFileIconTheme("semantic"));
-    expect(host.querySelector("[data-icons]")?.getAttribute("data-icons")).toBe("semantic");
+    act(() => store.getState().setFileIconTheme(PLUGIN_FILE_ICON_THEME_ID));
+    expect(host.querySelector("[data-icons]")?.getAttribute("data-icons")).toBe(PLUGIN_FILE_ICON_THEME_ID);
     act(() => store.getState().setExperimentalSettings(s => ({ ...s, enableMarkdownBlockDrag: true, enableMarkdownHeadingOutline: true })));
     expect(host.querySelector("[data-block-drag]")?.getAttribute("data-block-drag")).toBe("true");
     expect(host.querySelector("[data-heading-outline]")?.getAttribute("data-heading-outline")).toBe("true");

@@ -8,7 +8,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
-import { STANDARD_CONTROL_SIZE, useCssPixelCustomProperty } from "@puppyone/shared-ui";
+import { DisclosureIcon, STANDARD_CONTROL_SIZE, useCssPixelCustomProperty } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
 import { PageLoading } from "../../../../components/loading";
 import type {
@@ -101,31 +101,12 @@ export function CreateAccessFolderTree({
   );
 }
 
-export function TreeDisclosureMarker({ expanded = false, size = 12 }: { expanded?: boolean; size?: number }) {
-  return (
-    <svg
-      className={`desktop-cloud-create-access-disclosure ${expanded ? "expanded" : ""}`}
-      width={size}
-      height={size}
-      viewBox="0 0 12 12"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M4 2.5 7.5 6 4 9.5" />
-    </svg>
-  );
-}
-
 function TreeRootRow() {
   const { t } = useLocalization();
   return (
     <div className="desktop-cloud-create-access-tree-row root">
       <span className="desktop-cloud-create-access-tree-marker">
-        <TreeDisclosureMarker expanded />
+        <DisclosureIcon expanded />
       </span>
       <span className="desktop-cloud-create-access-tree-name">{t("cloud.common.root")}</span>
       <AccessStatusText />
@@ -270,7 +251,7 @@ function FolderRow({
           onClick={onToggle}
         >
           <span className="desktop-cloud-create-access-tree-marker">
-            <TreeDisclosureMarker expanded={expanded} />
+            <DisclosureIcon expanded={expanded} />
           </span>
           <span className="desktop-cloud-create-access-tree-name" dir="auto">{entry.name}</span>
         </button>

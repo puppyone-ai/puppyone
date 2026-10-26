@@ -2,20 +2,18 @@
 
 exports[`Cloud initialization render contract captured before extraction > locks branch missing 1`] = `
 {
-  "alerts": [
-    "Check out a branch before pushing to Cloud.",
-  ],
+  "alerts": [],
   "buttons": [
     {
       "busy": "true",
       "disabled": true,
-      "text": "Initialize and Push",
+      "text": "Get Started",
     },
   ],
-  "hero": true,
+  "hero": false,
   "progress": false,
   "select": undefined,
-  "text": "Notestopic2 commits3 local changesNew Cloud projectNot initializedmainOneCheck out a branch before pushing to Cloud.Initialize and Push",
+  "text": "Connect another AgentShare this Cloud project with ChatGPT, Claude, and other Agents.Get StartedChatGPTClaudeCursorManusHermesGrok",
 }
 `;
 
@@ -26,32 +24,30 @@ exports[`Cloud initialization render contract captured before extraction > locks
     {
       "busy": null,
       "disabled": false,
-      "text": "Use current branch",
+      "text": "Retry",
     },
   ],
-  "hero": true,
-  "progress": false,
+  "hero": false,
+  "progress": true,
   "select": undefined,
-  "text": "Notestopic2 commits3 local changesNew Cloud projectCloud project ready · Push not acceptedmainOneCloud project ready · Push not acceptedNotes exists in Cloud but has not accepted a commit yet. Retry the Push or explicitly delete the empty project.Uncommitted changes stay local and are not included in this Push.Use current branch",
+  "text": "NotesThis MacManusViktorGrok BotAny MCP clientAMJTeammatespuppyone.ai/…Puppyone CloudSend ⁨Notes⁩ to the cloudSending was interrupted. Retry to check the result and send again if needed. Your files on this Mac stay as they are.ProjectAccessRemoteUploadStopped hereFinishYour local files stay on this MacRetry",
 }
 `;
 
 exports[`Cloud initialization render contract captured before extraction > locks commit missing 1`] = `
 {
-  "alerts": [
-    "Create the first commit before pushing to Cloud.",
-  ],
+  "alerts": [],
   "buttons": [
     {
       "busy": "true",
       "disabled": true,
-      "text": "Initialize and Push",
+      "text": "Get Started",
     },
   ],
-  "hero": true,
+  "hero": false,
   "progress": false,
   "select": undefined,
-  "text": "Notestopic2 commits3 local changesNew Cloud projectNot initializedmainOneCreate the first commit before pushing to Cloud.Initialize and Push",
+  "text": "Connect another AgentShare this Cloud project with ChatGPT, Claude, and other Agents.Get StartedChatGPTClaudeCursorManusHermesGrok",
 }
 `;
 
@@ -64,26 +60,24 @@ exports[`Cloud initialization render contract captured before extraction > locks
   "hero": false,
   "progress": true,
   "select": undefined,
-  "text": "1ProjectChecking repository…2Access3Remote4Upload5FinishKeep PuppyOne open during the first upload.",
+  "text": "NotesThis MacManusViktorGrok BotAny MCP clientAMJTeammatespuppyone.ai/…Puppyone CloudSending ⁨Notes⁩ to the cloudYou can close this window — it keeps going while PuppyOne is open. Progress stays in the top bar; click it to come back here.ProjectChecking repository…AccessRemoteUploadFinishYour local files stay on this Mac",
 }
 `;
 
 exports[`Cloud initialization render contract captured before extraction > locks explicit readiness 1`] = `
 {
-  "alerts": [
-    "Create the first commit before pushing to Cloud.",
-  ],
+  "alerts": [],
   "buttons": [
     {
       "busy": "true",
       "disabled": true,
-      "text": "Initialize and Push",
+      "text": "Get Started",
     },
   ],
-  "hero": true,
+  "hero": false,
   "progress": false,
   "select": undefined,
-  "text": "Notestopic2 commits3 local changesNew Cloud projectNot initializedmainOneCreate the first commit before pushing to Cloud.Initialize and Push",
+  "text": "Connect another AgentShare this Cloud project with ChatGPT, Claude, and other Agents.Get StartedChatGPTClaudeCursorManusHermesGrok",
 }
 `;
 
@@ -94,13 +88,13 @@ exports[`Cloud initialization render contract captured before extraction > locks
     {
       "busy": null,
       "disabled": false,
-      "text": "Finish cleanup",
+      "text": "Discard",
     },
   ],
-  "hero": true,
-  "progress": false,
+  "hero": false,
+  "progress": true,
   "select": undefined,
-  "text": "Notestopic2 commits3 local changesNew Cloud projectCleanup pendingmainOneCleanup pendingDeletion of Notes was requested. Finish cleanup; changing branches or commits is not required.Uncommitted changes stay local and are not included in this Push.Finish cleanup",
+  "text": "NotesThis MacManusViktorGrok BotAny MCP clientAMJTeammatespuppyone.ai/…Puppyone CloudDiscard didn’t finishThe empty cloud project Notes wasn’t fully deleted. Discard again to finish.Your local files stay on this MacDiscard",
 }
 `;
 
@@ -111,18 +105,18 @@ exports[`Cloud initialization render contract captured before extraction > locks
     {
       "busy": null,
       "disabled": false,
-      "text": "Retry Push",
+      "text": "Discard",
     },
     {
       "busy": null,
       "disabled": false,
-      "text": "Delete empty Cloud project",
+      "text": "Retry",
     },
   ],
-  "hero": true,
-  "progress": false,
+  "hero": false,
+  "progress": true,
   "select": undefined,
-  "text": "Notestopic2 commitsAt least 3 local changesNew Cloud projectCloud project ready · Push not acceptedmainOneCloud project ready · Push not acceptedNotes exists in Cloud but has not accepted a commit yet. Retry the Push or explicitly delete the empty project.Uncommitted changes stay local and are not included in this Push.Retry PushDelete empty Cloud project",
+  "text": "NotesThis MacManusViktorGrok BotAny MCP clientAMJTeammatespuppyone.ai/…Puppyone CloudSend ⁨Notes⁩ to the cloudSending was interrupted. Retry to check the result and send again if needed. Your files on this Mac stay as they are.ProjectAccessRemoteUploadStopped hereFinishYour local files stay on this MacDiscardRetry",
 }
 `;
 
@@ -133,30 +127,24 @@ exports[`Cloud initialization render contract captured before extraction > locks
     {
       "busy": "true",
       "disabled": true,
-      "text": "Initialize and Push",
+      "text": "Get Started",
     },
   ],
-  "hero": true,
+  "hero": false,
   "progress": false,
-  "select": "<select aria-label="Organization"><option value="" disabled="">Select an organization</option><option value="org-1">One</option><option value="org-2">Two</option></select>",
-  "text": "Notestopic2 commits3 local changesNew Cloud projectNot initializedmainOrganizationSelect an organizationOneTwoInitialize and Push",
+  "select": undefined,
+  "text": "Connect another AgentShare this Cloud project with ChatGPT, Claude, and other Agents.Get StartedChatGPTClaudeCursorManusHermesGrok",
 }
 `;
 
 exports[`Cloud initialization render contract captured before extraction > locks no actions 1`] = `
 {
   "alerts": [],
-  "buttons": [
-    {
-      "busy": null,
-      "disabled": true,
-      "text": "Initialize and Push",
-    },
-  ],
-  "hero": true,
-  "progress": false,
+  "buttons": [],
+  "hero": false,
+  "progress": true,
   "select": undefined,
-  "text": "Notestopic2 commits3 local changesNew Cloud projectCloud branch conflictmainOneCloud branch conflictCloud main contains a different commit. Nothing was overwritten; fetch and compare before continuing.Uncommitted changes stay local and are not included in this Push.Initialize and Push",
+  "text": "NotesThis MacManusViktorGrok BotAny MCP clientAMJTeammatespuppyone.ai/…Puppyone CloudSend ⁨Notes⁩ to the cloudCloud main contains a different commit. Nothing was overwritten; fetch and compare before continuing.ProjectAccessRemoteUploadStopped hereFinishYour local files stay on this Mac",
 }
 `;
 
@@ -165,20 +153,15 @@ exports[`Cloud initialization render contract captured before extraction > locks
   "alerts": [],
   "buttons": [
     {
-      "busy": null,
-      "disabled": false,
-      "text": "Retry",
-    },
-    {
       "busy": "true",
       "disabled": true,
-      "text": "Initialize and Push",
+      "text": "Get Started",
     },
   ],
-  "hero": true,
+  "hero": false,
   "progress": false,
   "select": undefined,
-  "text": "Notestopic2 commits3 local changesNew Cloud projectNot initializedmainRetryofflineInitialize and Push",
+  "text": "Connect another AgentShare this Cloud project with ChatGPT, Claude, and other Agents.offlineGet StartedChatGPTClaudeCursorManusHermesGrok",
 }
 `;
 
@@ -189,13 +172,13 @@ exports[`Cloud initialization render contract captured before extraction > locks
     {
       "busy": "true",
       "disabled": true,
-      "text": "Initialize and Push",
+      "text": "Get Started",
     },
   ],
-  "hero": true,
+  "hero": false,
   "progress": false,
   "select": undefined,
-  "text": "Notestopic2 commits3 local changesNew Cloud projectNot initializedmainLoading…Initialize and Push",
+  "text": "Connect another AgentShare this Cloud project with ChatGPT, Claude, and other Agents.Get StartedChatGPTClaudeCursorManusHermesGrok",
 }
 `;
 
@@ -206,13 +189,13 @@ exports[`Cloud initialization render contract captured before extraction > locks
     {
       "busy": "true",
       "disabled": true,
-      "text": "Initialize and Push",
+      "text": "Get Started",
     },
   ],
-  "hero": true,
+  "hero": false,
   "progress": false,
   "select": undefined,
-  "text": "Notestopic2 commits3 local changesNew Cloud projectNot initializedmainNo organization is available for this account.Initialize and Push",
+  "text": "Connect another AgentShare this Cloud project with ChatGPT, Claude, and other Agents.No organization is available for this account.Get StartedChatGPTClaudeCursorManusHermesGrok",
 }
 `;
 
@@ -223,13 +206,13 @@ exports[`Cloud initialization render contract captured before extraction > locks
     {
       "busy": "true",
       "disabled": true,
-      "text": "Initialize and Push",
+      "text": "Get Started",
     },
   ],
-  "hero": true,
+  "hero": false,
   "progress": false,
   "select": undefined,
-  "text": "Notestopic2 commits3 local changesNew Cloud projectNot initializedmainOneInitialize and Push",
+  "text": "Connect another AgentShare this Cloud project with ChatGPT, Claude, and other Agents.Get StartedChatGPTClaudeCursorManusHermesGrok",
 }
 `;
 
@@ -240,13 +223,13 @@ exports[`Cloud initialization render contract captured before extraction > locks
     {
       "busy": "true",
       "disabled": true,
-      "text": "Initialize and Push",
+      "text": "Get Started",
     },
   ],
-  "hero": true,
+  "hero": false,
   "progress": false,
   "select": undefined,
-  "text": "Notestopic2 commits3 local changesNew Cloud projectNot initializedmainOneSelect the organization that will own this Cloud project.Initialize and Push",
+  "text": "Connect another AgentShare this Cloud project with ChatGPT, Claude, and other Agents.Get StartedChatGPTClaudeCursorManusHermesGrok",
 }
 `;
 
@@ -257,13 +240,13 @@ exports[`Cloud initialization render contract captured before extraction > locks
     {
       "busy": "true",
       "disabled": true,
-      "text": "Initialize and Push",
+      "text": "Get Started",
     },
   ],
-  "hero": true,
+  "hero": false,
   "progress": false,
   "select": undefined,
-  "text": "Notestopic2 commits3 local changesNew Cloud projectNot initializedmainInitialize and Push",
+  "text": "Connect another AgentShare this Cloud project with ChatGPT, Claude, and other Agents.Get StartedChatGPTClaudeCursorManusHermesGrok",
 }
 `;
 
@@ -291,13 +274,13 @@ exports[`Cloud initialization render contract captured before extraction > locks
     {
       "busy": null,
       "disabled": false,
-      "text": "Push latest commit",
+      "text": "Retry",
     },
   ],
-  "hero": true,
-  "progress": false,
+  "hero": false,
+  "progress": true,
   "select": undefined,
-  "text": "Notestopic2 commits3 local changesNew Cloud projectCloud project ready · Push not acceptedmainOneCloud project ready · Push not acceptedNotes exists in Cloud but has not accepted a commit yet. Retry the Push or explicitly delete the empty project.Uncommitted changes stay local and are not included in this Push.Push latest commit",
+  "text": "NotesThis MacManusViktorGrok BotAny MCP clientAMJTeammatespuppyone.ai/…Puppyone CloudSend ⁨Notes⁩ to the cloudSending was interrupted. Retry to check the result and send again if needed. Your files on this Mac stay as they are.ProjectAccessRemoteUploadStopped hereFinishYour local files stay on this MacRetry",
 }
 `;
 
@@ -308,32 +291,30 @@ exports[`Cloud initialization render contract captured before extraction > locks
     {
       "busy": null,
       "disabled": false,
-      "text": "Check Cloud status",
+      "text": "Retry",
     },
   ],
-  "hero": true,
-  "progress": false,
+  "hero": false,
+  "progress": true,
   "select": undefined,
-  "text": "Notestopic2 commits3 local changesNew Cloud projectPush status needs confirmationmainOnePush status needs confirmationThe Push response was lost. Check Cloud status before creating another attempt.Uncommitted changes stay local and are not included in this Push.Check Cloud status",
+  "text": "NotesThis MacManusViktorGrok BotAny MCP clientAMJTeammatespuppyone.ai/…Puppyone CloudSend ⁨Notes⁩ to the cloudSending was interrupted. Retry to check the result and send again if needed. Your files on this Mac stay as they are.ProjectAccessRemoteUploadStopped hereFinishYour local files stay on this MacRetry",
 }
 `;
 
 exports[`Cloud initialization render contract captured before extraction > locks repository missing 1`] = `
 {
-  "alerts": [
-    "This folder is not a Git repository. Initialize Git and create a commit first.",
-  ],
+  "alerts": [],
   "buttons": [
     {
       "busy": "true",
       "disabled": true,
-      "text": "Initialize and Push",
+      "text": "Get Started",
     },
   ],
-  "hero": true,
+  "hero": false,
   "progress": false,
   "select": undefined,
-  "text": "Notestopic2 commits3 local changesNew Cloud projectNot initializedmainOneThis folder is not a Git repository. Initialize Git and create a commit first.Initialize and Push",
+  "text": "Connect another AgentShare this Cloud project with ChatGPT, Claude, and other Agents.Get StartedChatGPTClaudeCursorManusHermesGrok",
 }
 `;
 
@@ -344,37 +325,59 @@ exports[`Cloud initialization render contract captured before extraction > locks
     {
       "busy": null,
       "disabled": false,
-      "text": "Retry Push",
+      "text": "Discard",
     },
     {
       "busy": null,
       "disabled": false,
-      "text": "Delete empty Cloud project",
+      "text": "Retry",
     },
   ],
-  "hero": true,
-  "progress": false,
+  "hero": false,
+  "progress": true,
   "select": undefined,
-  "text": "Notestopic2 commits3 local changesNew Cloud projectCloud project ready · Push not acceptedmainOneCloud project ready · Push not acceptedNotes exists in Cloud but has not accepted a commit yet. Retry the Push or explicitly delete the empty project.Uncommitted changes stay local and are not included in this Push.Retry PushDelete empty Cloud project",
+  "text": "NotesThis MacManusViktorGrok BotAny MCP clientAMJTeammatespuppyone.ai/…Puppyone CloudSend ⁨Notes⁩ to the cloudSending was interrupted. Retry to check the result and send again if needed. Your files on this Mac stay as they are.ProjectAccessRemoteUploadStopped hereFinishYour local files stay on this MacDiscardRetry",
+}
+`;
+
+exports[`Cloud initialization render contract captured before extraction > locks size limit rejected 1`] = `
+{
+  "alerts": [
+    "The content being sent exceeds a size limit. You can send at most 2 GiB at a time. Reduce the content before trying again. Your files on this Mac stay as they are.",
+  ],
+  "buttons": [
+    {
+      "busy": null,
+      "disabled": false,
+      "text": "Discard",
+    },
+    {
+      "busy": null,
+      "disabled": false,
+      "text": "Retry",
+    },
+  ],
+  "hero": false,
+  "progress": true,
+  "select": undefined,
+  "text": "NotesThis MacManusViktorGrok BotAny MCP clientAMJTeammatespuppyone.ai/…Puppyone CloudSend ⁨Notes⁩ to the cloudSending was interrupted. Retry to check the result and send again if needed. Your files on this Mac stay as they are.ProjectAccessRemoteUploadStopped hereFinishThe content being sent exceeds a size limit. You can send at most 2 GiB at a time. Reduce the content before trying again. Your files on this Mac stay as they are.Your local files stay on this MacDiscardRetry",
 }
 `;
 
 exports[`Cloud initialization render contract captured before extraction > locks state loading sign in pending 1`] = `
 {
-  "alerts": [
-    "Finish signing in in your browser to continue publishing.",
-  ],
+  "alerts": [],
   "buttons": [
     {
       "busy": "true",
       "disabled": true,
-      "text": "Waiting for sign-in…",
+      "text": "Get Started",
     },
   ],
-  "hero": true,
+  "hero": false,
   "progress": false,
   "select": undefined,
-  "text": "Finish signing in in your browser to continue publishing.Notestopic2 commits3 local changesNew Cloud projectWaiting for sign-in…mainOneWaiting for sign-in…",
+  "text": "Connect another AgentShare this Cloud project with ChatGPT, Claude, and other Agents.Get StartedChatGPTClaudeCursorManusHermesGrok",
 }
 `;
 
@@ -385,27 +388,27 @@ exports[`Cloud initialization render contract captured before extraction > locks
     {
       "busy": "true",
       "disabled": true,
-      "text": "Sign in to Puppyone Cloud",
+      "text": "Get Started",
     },
   ],
-  "hero": true,
+  "hero": false,
   "progress": false,
   "select": undefined,
-  "text": "Notestopic2 commits3 local changesNew Cloud projectNot initializedmainSign in to Puppyone Cloud",
+  "text": "Connect another AgentShare this Cloud project with ChatGPT, Claude, and other Agents.Get StartedChatGPTClaudeCursorManusHermesGrok",
 }
 `;
 
 exports[`Cloud initialization render contract captured before extraction > locks uploading with error 1`] = `
 {
   "alerts": [
-    "Your Cloud project and remote are ready, but the initial push did not finish. Review changes, then choose Resume.",
     "Uploading and publishing files…",
+    "Sending failed. Your project is ready. Choose Retry to try again.",
   ],
   "buttons": [],
   "hero": false,
   "progress": true,
   "select": undefined,
-  "text": "Your Cloud project and remote are ready, but the initial push did not finish. Review changes, then choose Resume.1Project2Access3Remote4UploadUploading and publishing files…5FinishKeep PuppyOne open during the first upload.",
+  "text": "NotesThis MacManusViktorGrok BotAny MCP clientAMJTeammatespuppyone.ai/…Puppyone CloudSending ⁨Notes⁩ to the cloudYou can close this window — it keeps going while PuppyOne is open. Progress stays in the top bar; click it to come back here.ProjectAccessRemoteUploadUploading and publishing files…FinishSending failed. Your project is ready. Choose Retry to try again.Your local files stay on this Mac",
 }
 `;
 
@@ -426,4 +429,4 @@ exports[`Cloud initialization render contract captured before extraction > locks
 }
 `;
 
-exports[`Cloud initialization render contract captured before extraction > requires confirmation to delete an empty project and supports cancel 1`] = `"Delete this empty Cloud project?This permanently deletes Notes. Your local repository and files are not changed.CancelDelete empty Cloud project"`;
+exports[`Cloud initialization render contract captured before extraction > requires confirmation to give up and supports cancel 1`] = `"Discard this attempt?The unfinished, empty cloud project ⁨Notes⁩ is deleted. Your files on this Mac stay as they are.CancelDiscard"`;

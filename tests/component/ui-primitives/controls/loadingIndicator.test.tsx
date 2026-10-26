@@ -1,28 +1,19 @@
 /**
  * @vitest-environment happy-dom
  */
-import React from "react";
-import { act } from "react";
+import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
-  PULSE_GRID_DEFAULT_FRAMES,
-  PULSE_GRID_IKUN_FRAMES,
-  PULSE_GRID_ORBIT_FRAMES,
-  PULSE_GRID_POINTS,
-  PULSE_GRID_PRESET_FRAMES,
-  PULSE_GRID_PRESET_IDS,
-  PULSE_GRID_SIU_FRAMES,
-  PULSE_GRID_YMCA_FRAMES,
-  PulseGridLoader,
-  getPulseGridPointAppearance,
-  pulseGridFrame,
-  type PulseGridFrames,
+  InlineLoading,
+  LOADING_MARK_DITHER_LIGHT,
+  LoadingMark,
+  LoadingPlaceholderStyleProvider,
+  type LoadingPlaceholderStyle,
 } from "@puppyone/shared-ui";
-import {
-  LoadingAnimationProvider,
-  PulseGrid as DesktopPulseGrid,
-} from "../../../../src/components/loading";
+import { ORDERED_DITHER_LIGHT } from "../../../../packages/shared-ui/src/primitives/orderedDitherField";
+import { InlineLoading as DesktopInlineLoading, PageLoading } from "../../../../src/components/loading";
+import { SourceControlDots } from "../../../../src/features/source-control/sidebar/GitSidebarPrimitives";
 import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -32,172 +23,129 @@ let root: Root | null = null;
 afterEach(() => {
   act(() => root?.unmount());
   root = null;
-  vi.useRealTimers();
   document.body.innerHTML = "";
 });
 
-describe("PulseGridLoader frame sequencing", () => {
-  it("keeps the simple clockwise orbit available as an alternate preset", () => {
-    expect(PULSE_GRID_ORBIT_FRAMES).toEqual([
-      [PULSE_GRID_POINTS.topLeft],
-      [PULSE_GRID_POINTS.topCenter],
-      [PULSE_GRID_POINTS.topRight],
-      [PULSE_GRID_POINTS.middleRight],
-      [PULSE_GRID_POINTS.bottomRight],
-      [PULSE_GRID_POINTS.bottomCenter],
-      [PULSE_GRID_POINTS.bottomLeft],
-      [PULSE_GRID_POINTS.middleLeft],
-    ]);
+function render(node: ReactNode, style: LoadingPlaceholderStyle = "rounded") {
+  const host = document.createElement("div");
+  document.body.append(host);
+  root = createRoot(host);
+  const paint = (next: LoadingPlaceholderStyle) => act(() => root!.render(withTestLocalization(
+    <LoadingPlaceholderStyleProvider style={next}>{node}</LoadingPlaceholderStyleProvider>,
+  )));
+  paint(style);
+  return { host, restyle: paint };
+}
+
+const mark = (host: Element) => host.querySelector<HTMLElement>("[data-puppy-loader]")!;
+const units = (host: Element) => [...mark(host).querySelectorAll<HTMLElement>("[data-loading-mark-unit]")];
+
+describe("LoadingMark", () => {
+  it("relays a capsule along three dots inside a strip in the rounded style", () => {
+    const { host } = render(<LoadingMark ariaHidden />, "rounded");
+    expect(mark(host).dataset.puppyLoader).toBe("mark");
+    expect(mark(host).dataset.loadingStyle).toBe("rounded");
+    expect(mark(host).dataset.loadingLayout).toBe("inline");
+    expect(mark(host).dataset.loadingFigure).toBe("relay");
+    expect(units(host)).toHaveLength(3);
+    expect(mark(host).querySelectorAll("[data-loading-mark-baton]")).toHaveLength(1);
+    expect(units(host).some((unit) => unit.hasAttribute("data-placeholder-shape"))).toBe(false);
+    expect(mark(host).querySelector("canvas")).toBeNull();
   });
 
-  it("maps readable 3 by 3 sprites to dark, medium, and bright lights", () => {
-    const frame = pulseGridFrame(
-      ".oO",
-      "oo.",
-      "o.o",
-    );
-
-    expect(getPulseGridPointAppearance(frame, PULSE_GRID_POINTS.topLeft)).toEqual({
-      brightness: 0,
-    });
-    expect(getPulseGridPointAppearance(frame, PULSE_GRID_POINTS.topCenter)).toEqual({
-      brightness: 0.52,
-    });
-    expect(getPulseGridPointAppearance(frame, PULSE_GRID_POINTS.middleLeft)).toEqual({
-      brightness: 0.52,
-    });
-    expect(getPulseGridPointAppearance(frame, PULSE_GRID_POINTS.topRight)).toEqual({
-      brightness: 1,
-    });
+  it("gathers three dots in a region in the rounded style", () => {
+    const { host } = render(<LoadingMark layout="area" size="md" ariaHidden />, "rounded");
+    expect(mark(host).dataset.loadingLayout).toBe("area");
+    expect(mark(host).dataset.loadingFigure).toBe("gather");
+    expect(units(host)).toHaveLength(3);
+    expect(mark(host).querySelector("[data-loading-mark-baton]")).toBeNull();
+    expect(mark(host).style.getPropertyValue("--po-loading-mark-box")).toBe("24px");
   });
 
-  it("registers ikun, ymca, and siu as three-level animation presets", () => {
-    expect(PULSE_GRID_PRESET_IDS).toEqual(["ikun", "ymca", "siu"]);
-    expect(PULSE_GRID_PRESET_FRAMES).toEqual({
-      ikun: PULSE_GRID_IKUN_FRAMES,
-      ymca: PULSE_GRID_YMCA_FRAMES,
-      siu: PULSE_GRID_SIU_FRAMES,
-    });
-
-    for (const frames of Object.values(PULSE_GRID_PRESET_FRAMES)) {
-      expect(frames.length).toBeGreaterThanOrEqual(12);
-      for (const frame of frames) {
-        for (const entry of frame) {
-          if (typeof entry === "number") continue;
-          expect([0.52, 1]).toContain(entry.brightness);
-        }
-      }
-    }
+  it("draws three pixel blocks on the placeholder dither layer in the dither loading style", () => {
+    const { host } = render(<LoadingMark ariaHidden />, "dither");
+    expect(mark(host).dataset.loadingStyle).toBe("dither");
+    expect(mark(host).dataset.loadingFigure).toBe("blocks");
+    expect(mark(host).classList.contains("po-placeholder-surface")).toBe(true);
+    expect(units(host).every((unit) => unit.hasAttribute("data-placeholder-shape"))).toBe(true);
+    expect(mark(host).querySelector("canvas.po-dither-canvas")).not.toBeNull();
   });
 
-  it("gives YMCA raised-arm poses and SIU a run-up plus wide landing pose", () => {
-    expect(brightPointsInFrame(PULSE_GRID_YMCA_FRAMES[0])).toEqual([
-      PULSE_GRID_POINTS.topLeft,
-      PULSE_GRID_POINTS.topRight,
-    ]);
-    expect(brightPointsInFrame(PULSE_GRID_YMCA_FRAMES[3])).toEqual([
-      PULSE_GRID_POINTS.bottomLeft,
-    ]);
-    expect(brightPointsInFrame(PULSE_GRID_SIU_FRAMES[0])).toEqual([
-      PULSE_GRID_POINTS.middleLeft,
-    ]);
-    expect(brightPointsInFrame(PULSE_GRID_SIU_FRAMES[9])).toEqual([
-      PULSE_GRID_POINTS.middleLeft,
-      PULSE_GRID_POINTS.middleRight,
-    ]);
+  it("switches material as soon as the Appearance loading style changes", () => {
+    const { host, restyle } = render(<LoadingMark ariaHidden />, "rounded");
+    restyle("dither");
+    expect(mark(host).dataset.loadingStyle).toBe("dither");
+    restyle("rounded");
+    expect(mark(host).dataset.loadingStyle).toBe("rounded");
+    expect(mark(host).querySelector("canvas")).toBeNull();
   });
 
-  it("uses the ikun choreography by default and moves its bright point", () => {
-    vi.useFakeTimers();
-    expect(PULSE_GRID_DEFAULT_FRAMES).toBe(PULSE_GRID_IKUN_FRAMES);
-    const container = document.createElement("div");
-    document.body.append(container);
-    root = createRoot(container);
-
-    act(() => root?.render(withTestLocalization(
-      <PulseGridLoader frameDurationMs={50} ariaLabel="Working" />,
-    )));
-
-    expect(brightPoint(container)).toBe(PULSE_GRID_POINTS.topRight);
-    act(() => vi.advanceTimersByTime(100));
-    expect(brightPoint(container)).toBe(PULSE_GRID_POINTS.middleRight);
-    act(() => vi.advanceTimersByTime(100));
-    expect(brightPoint(container)).toBe(PULSE_GRID_POINTS.bottomCenter);
-    act(() => vi.advanceTimersByTime(150));
-    expect(brightPoint(container)).toBe(PULSE_GRID_POINTS.topLeft);
+  it("lets a preview pin its own style regardless of the Appearance style", () => {
+    const { host } = render(<LoadingMark loadingStyle="dither" ariaHidden />, "rounded");
+    expect(mark(host).dataset.loadingStyle).toBe("dither");
   });
 
-  it("plays caller-defined frames, including frames with more than one active point", () => {
-    vi.useFakeTimers();
-    const frames: PulseGridFrames = [
-      [PULSE_GRID_POINTS.topLeft],
-      [PULSE_GRID_POINTS.topCenter, PULSE_GRID_POINTS.center],
-      [PULSE_GRID_POINTS.bottomRight],
-    ];
-    const container = document.createElement("div");
-    document.body.append(container);
-    root = createRoot(container);
-
-    act(() => root?.render(withTestLocalization(
-      <PulseGridLoader frames={frames} frameDurationMs={50} ariaLabel="Working" />,
-    )));
-
-    expect(activePoints(container)).toEqual([PULSE_GRID_POINTS.topLeft]);
-    expect(container.querySelector("[data-puppy-loader]")?.getAttribute("data-pulse-grid-frame")).toBe("0");
-
-    act(() => vi.advanceTimersByTime(50));
-    expect(activePoints(container)).toEqual([PULSE_GRID_POINTS.topCenter, PULSE_GRID_POINTS.center]);
-    expect(container.querySelector("[data-puppy-loader]")?.getAttribute("data-pulse-grid-frame")).toBe("1");
-
-    act(() => vi.advanceTimersByTime(100));
-    expect(activePoints(container)).toEqual([PULSE_GRID_POINTS.topLeft]);
-    expect(container.querySelector("[data-puppy-loader]")?.getAttribute("data-pulse-grid-frame")).toBe("0");
+  it.each([
+    ["rounded", "xs", "3px", "2px"],
+    ["rounded", "sm", "4px", "3px"],
+    ["rounded", "md", "5px", "4px"],
+    ["dither", "xs", "4px", "2px"],
+    ["dither", "sm", "5px", "2px"],
+    ["dither", "md", "6px", "3px"],
+  ] as const)("sizes %s %s units at %s with a %s gap", (style, size, unit, gap) => {
+    const { host } = render(<LoadingMark size={size} ariaHidden />, style);
+    expect(mark(host).style.getPropertyValue("--po-loading-mark-unit")).toBe(unit);
+    expect(mark(host).style.getPropertyValue("--po-loading-mark-gap")).toBe(gap);
   });
 
-  it("switches the desktop loader immediately when the resolved Appearance changes", () => {
-    vi.useFakeTimers();
-    const container = document.createElement("div");
-    document.body.append(container);
-    root = createRoot(container);
+  it("inks the mark in its tone", () => {
+    const { host } = render(<><LoadingMark tone="info" ariaHidden /><LoadingMark tone="danger" ariaHidden /></>);
+    const [info, danger] = [...host.querySelectorAll<HTMLElement>("[data-puppy-loader]")];
+    expect(info.style.getPropertyValue("--po-loading-mark-ink")).toBe("var(--po-info, var(--po-accent))");
+    expect(danger.style.getPropertyValue("--po-loading-mark-ink")).toBe("var(--po-danger)");
+  });
 
-    act(() => root?.render(
-      <LoadingAnimationProvider preset="ymca">
-        <DesktopPulseGrid frameDurationMs={1000} ariaLabel="Working" />
-      </LoadingAnimationProvider>,
-    ));
-    expect(brightPoints(container)).toEqual([
-      PULSE_GRID_POINTS.topLeft,
-      PULSE_GRID_POINTS.topRight,
-    ]);
+  it("announces loading unless the host already does", () => {
+    const { host } = render(<><LoadingMark ariaLabel="Opening project" /><LoadingMark ariaHidden /></>);
+    const [announced, hidden] = [...host.querySelectorAll<HTMLElement>("[data-puppy-loader]")];
+    expect(announced.getAttribute("role")).toBe("status");
+    expect(announced.getAttribute("aria-label")).toBe("Opening project");
+    expect(hidden.getAttribute("role")).toBeNull();
+    expect(hidden.getAttribute("aria-hidden")).toBe("true");
+  });
 
-    act(() => {
-      root?.render(
-        <LoadingAnimationProvider preset="siu">
-          <DesktopPulseGrid frameDurationMs={1000} ariaLabel="Working" />
-        </LoadingAnimationProvider>,
-      );
-    });
-    expect(brightPoints(container)).toEqual([PULSE_GRID_POINTS.middleLeft]);
+  it("scales the placeholder light down to a narrow, fast band for the mark", () => {
+    expect(LOADING_MARK_DITHER_LIGHT.width).toBeLessThan(ORDERED_DITHER_LIGHT.width);
+    expect(LOADING_MARK_DITHER_LIGHT.period).toBeLessThan(ORDERED_DITHER_LIGHT.period);
+    expect(LOADING_MARK_DITHER_LIGHT.halo).toBe(0);
+    expect(LOADING_MARK_DITHER_LIGHT.base + LOADING_MARK_DITHER_LIGHT.peak).toBeGreaterThanOrEqual(1);
   });
 });
 
-function activePoints(container: HTMLElement): number[] {
-  return Array.from(container.querySelectorAll<HTMLElement>('[data-active="true"]'))
-    .map((point) => Number(point.dataset.pulseGridPoint));
-}
+describe("loading surfaces share the one mark", () => {
+  it.each([["xs", "12px"], ["sm", "16px"], ["md", "24px"]] as const)("sizes the %s gather from a %s box", (size, box) => {
+    const { host } = render(<LoadingMark layout="area" size={size} ariaHidden />);
+    expect(mark(host).style.getPropertyValue("--po-loading-mark-box")).toBe(box);
+  });
 
-function brightPoint(container: HTMLElement): number | null {
-  const point = container.querySelector<HTMLElement>('[data-level="bright"]');
-  return point ? Number(point.dataset.pulseGridPoint) : null;
-}
+  it("gathers on a loading page and relays beside loading text", () => {
+    const { host } = render(<><PageLoading label="Loading" variant="fill" /><DesktopInlineLoading label="Loading" />
+      <InlineLoading label="Loading" /><SourceControlDots /></>, "rounded");
+    expect([...host.querySelectorAll<HTMLElement>("[data-puppy-loader]")].map((node) => node.dataset.loadingFigure))
+      .toEqual(["gather", "relay", "relay", "relay"]);
+  });
 
-function brightPoints(container: HTMLElement): number[] {
-  return Array.from(container.querySelectorAll<HTMLElement>('[data-level="bright"]'))
-    .map((point) => Number(point.dataset.pulseGridPoint));
-}
-
-function brightPointsInFrame(frame: (typeof PULSE_GRID_YMCA_FRAMES)[number]): number[] {
-  return Object.values(PULSE_GRID_POINTS).filter((point) => (
-    getPulseGridPointAppearance(frame, point).brightness === 1
-  ));
-}
+  it.each(["rounded", "dither"] as const)("draws page, inline and Git loading with the %s mark", (style) => {
+    const { host } = render(<>
+      <PageLoading label="Loading" variant="fill" />
+      <DesktopInlineLoading label="Loading" />
+      <InlineLoading label="Loading" />
+      <SourceControlDots />
+    </>, style);
+    const marks = [...host.querySelectorAll<HTMLElement>("[data-puppy-loader]")];
+    expect(marks).toHaveLength(4);
+    expect(marks.every((node) => node.dataset.puppyLoader === "mark" && node.dataset.loadingStyle === style)).toBe(true);
+    expect(marks[3].classList.contains("desktop-git-loading-dots")).toBe(true);
+    expect(marks[3].style.getPropertyValue("--po-loading-mark-ink")).toBe("var(--po-info, var(--po-accent))");
+  });
+});

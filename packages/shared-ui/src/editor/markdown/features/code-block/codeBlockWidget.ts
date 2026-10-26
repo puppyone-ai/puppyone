@@ -94,35 +94,7 @@ export class CodeBlockWidget extends WidgetType {
     let committed = false;
     let skipBlurCommit = false;
 
-    const metadata = document.createElement("div");
-    metadata.className = "cm-md-code-metadata";
-
-    const languageInput = document.createElement("input");
-    languageInput.className = "cm-md-code-language";
-    languageInput.value = recoveredDraft.language;
-    const syncLanguagePresentation = () => {
-      languageInput.size = Math.max(3, Math.min(24, languageInput.value.trim().length));
-      panel.toggleAttribute("data-has-metadata", Boolean(languageInput.value.trim() || this.sourceReference));
-    };
-    syncLanguagePresentation();
-    languageInput.setAttribute("aria-label", t("editor.markdown.code.language"));
-    languageInput.readOnly = readOnly;
-    languageInput.spellcheck = false;
-    languageInput.dir = "ltr";
-
-    if (this.sourceReference) {
-      const sourceReference = document.createElement("span");
-      const sourceReferenceText = formatMarkdownCodeSourceReference(this.sourceReference);
-      sourceReference.className = "cm-md-code-source-reference";
-      sourceReference.textContent = sourceReferenceText;
-      sourceReference.setAttribute(
-        "aria-label",
-        t("editor.markdown.code.source", { source: bidiIsolate(sourceReferenceText) }),
-      );
-      metadata.append(sourceReference, languageInput);
-    } else {
-      metadata.appendChild(languageInput);
-    }
+    let draftLanguage = recoveredDraft.language;
 
     const codeSurface = document.createElement("div");
     codeSurface.className = "cm-md-code-surface";
@@ -139,6 +111,13 @@ export class CodeBlockWidget extends WidgetType {
     codeEditor.wrap = "off";
     codeEditor.dir = "ltr";
     codeEditor.rows = Math.max(1, recoveredDraft.code.split("\n").length);
+    if (this.sourceReference) {
+      const sourceReferenceText = formatMarkdownCodeSourceReference(this.sourceReference);
+      panel.setAttribute("aria-description", sourceReferenceText);
+      codeEditor.setAttribute("aria-label", t("editor.markdown.code.source", {
+        source: bidiIsolate(sourceReferenceText),
+      }));
+    }
 
     let highlightRequest = 0;
     let highlightFrame: number | null = null;
@@ -159,7 +138,7 @@ export class CodeBlockWidget extends WidgetType {
     };
     const refreshHighlight = (request: number) => {
       const code = normalizeLineEndings(codeEditor.value);
-      const languageLabel = languageInput.value.trim().toLowerCase();
+      const languageLabel = draftLanguage.trim().toLowerCase();
       codeHighlight.textContent = code;
       codeSurface.classList.remove("is-highlighted");
       if (
@@ -171,7 +150,7 @@ export class CodeBlockWidget extends WidgetType {
         return;
       }
       highlightSuppression = null;
-      void this.highlighter(code, languageInput.value, {
+      void this.highlighter(code, draftLanguage, {
         isCurrent: () => !highlightDisposed && request === highlightRequest,
       }).then((result) => {
         if (!result || highlightDisposed || request !== highlightRequest) return;
@@ -234,7 +213,7 @@ export class CodeBlockWidget extends WidgetType {
         baseRevision: getDocRevision(view.state.doc),
         draft: {
           code: normalizeLineEndings(codeEditor.value),
-          language: languageInput.value,
+          language: draftLanguage,
         },
         mode: "editing",
       });
@@ -248,7 +227,7 @@ export class CodeBlockWidget extends WidgetType {
       host.editSessions.update(session.elementId, {
         draft: {
           code: normalizeLineEndings(codeEditor.value),
-          language: languageInput.value,
+          language: draftLanguage,
         },
         mode: "editing",
         lifecycle: "mounted",
@@ -260,7 +239,7 @@ export class CodeBlockWidget extends WidgetType {
       const session = ensureSession();
       if (!session) return null;
       committed = true;
-      const language = sanitizeCodeLanguage(languageInput.value);
+      const language = sanitizeCodeLanguage(draftLanguage);
       const code = normalizeLineEndings(codeEditor.value);
       const nextSource = serializeMarkdownCodeBlock(language, code, {
         sourceReference: this.sourceReference,
@@ -303,8 +282,7 @@ export class CodeBlockWidget extends WidgetType {
     const cancelDraft = () => {
       if (elementId) host.editSessions.cancel(elementId);
       elementId = null;
-      languageInput.value = this.language;
-      syncLanguagePresentation();
+      draftLanguage = this.language;
       codeEditor.value = this.code;
       codeEditor.rows = Math.max(1, this.code.split("\n").length);
       scheduleHighlightRefresh(true);
@@ -312,18 +290,6 @@ export class CodeBlockWidget extends WidgetType {
       skipBlurCommit = true;
     };
 
-    const onLanguageKeyDown = (event: KeyboardEvent) => {
-      event.stopPropagation();
-      if (event.key === "Enter") {
-        event.preventDefault();
-        languageInput.blur();
-      }
-      if (event.key === "Escape") {
-        event.preventDefault();
-        cancelDraft();
-        languageInput.blur();
-      }
-    };
     const onCodeKeyDown = (event: KeyboardEvent) => {
       event.stopPropagation();
       if (event.key === "ArrowUp" && codeEditor.selectionStart === 0 && codeEditor.selectionEnd === 0) {
@@ -380,12 +346,6 @@ export class CodeBlockWidget extends WidgetType {
       }
     };
 
-    const onLanguageInput = () => {
-      syncLanguagePresentation();
-      committed = false;
-      syncDraft();
-      scheduleHighlightRefresh();
-    };
     const onCodeInput = () => {
       codeEditor.rows = Math.max(1, codeEditor.value.split("\n").length);
       committed = false;
@@ -405,11 +365,6 @@ export class CodeBlockWidget extends WidgetType {
       if (!readOnly) commit();
     };
 
-    languageInput.addEventListener("mousedown", stopCodeMirrorEvent);
-    languageInput.addEventListener("click", stopCodeMirrorEvent);
-    languageInput.addEventListener("keydown", onLanguageKeyDown);
-    languageInput.addEventListener("input", onLanguageInput);
-    languageInput.addEventListener("blur", onBlur);
     codeEditor.addEventListener("mousedown", stopCodeMirrorEvent);
     codeEditor.addEventListener("click", stopCodeMirrorEvent);
     codeEditor.addEventListener("keydown", onCodeKeyDown);
@@ -418,7 +373,7 @@ export class CodeBlockWidget extends WidgetType {
     codeEditor.addEventListener("blur", onBlur);
 
     codeSurface.append(codeHighlight, codeEditor);
-    panel.append(metadata, codeSurface);
+    panel.appendChild(codeSurface);
     wrapper.appendChild(panel);
 
     host.sessions.mount(wrapper, () => ({
@@ -429,9 +384,6 @@ export class CodeBlockWidget extends WidgetType {
           codeSurface.ownerDocument.defaultView?.cancelAnimationFrame(highlightFrame);
           highlightFrame = null;
         }
-        languageInput.removeEventListener("keydown", onLanguageKeyDown);
-        languageInput.removeEventListener("input", onLanguageInput);
-        languageInput.removeEventListener("blur", onBlur);
         codeEditor.removeEventListener("keydown", onCodeKeyDown);
         codeEditor.removeEventListener("input", onCodeInput);
         codeEditor.removeEventListener("scroll", onCodeScroll);

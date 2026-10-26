@@ -292,15 +292,15 @@
 }
 
 .office-document-page h1 {
-  font-size: var(--po-type-editor-heading-1, 30px);
+  font-size: var(--po-type-editor-heading-1, 22px);
 }
 
 .office-document-page h2 {
-  font-size: var(--po-type-editor-heading-2, 23px);
+  font-size: var(--po-type-editor-heading-2, 19px);
 }
 
 .office-document-page h3 {
-  font-size: var(--po-type-editor-heading-3, 19px);
+  font-size: var(--po-type-editor-heading-3, 17px);
 }
 
 .office-document-page p,
@@ -429,7 +429,7 @@
 .office-spreadsheet-formula-bar__fx {
   color: var(--po-text-subtle);
   font-family: Georgia, "Times New Roman", serif;
-  font-size: var(--po-type-editor-heading-3, 19px);
+  font-size: var(--po-type-editor-heading-3, 17px);
   font-style: italic;
 }
 
@@ -753,12 +753,40 @@
     0 2px 7px color-mix(in srgb, var(--po-shadow) 12%, transparent);
 }
 
-.office-pptx-thumbnail__frame[data-render-state="waiting"],
-.office-pptx-thumbnail__frame[data-render-state="rendering"] {
-  background:
-    linear-gradient(110deg, #f4f5f7 24%, #fafafa 42%, #f4f5f7 60%)
-    0 0 / 220% 100%;
-  animation: office-pptx-thumbnail-pending 1.4s ease-in-out infinite;
+/* Holds the frame and, while the slide is pending, its placeholder layer. */
+.office-pptx-thumbnail__paper {
+  display: block;
+  min-width: 0;
+}
+
+/*
+ * A pending slide is a loading placeholder (loading-placeholder.css), but
+ * paper stays paper in every theme. Rounded: pale paper whose tone breathes,
+ * leaving the frame's border and shadow still. Dither: white paper inked in
+ * the paper's own rule grey, the one the error state draws its lines in.
+ */
+.office-pptx-thumbnail__frame[data-placeholder-shape] {
+  background: #f4f5f7;
+  animation: office-pptx-paper-breathe var(--po-placeholder-period) ease-in-out infinite;
+}
+
+.office-pptx-thumbnail__paper:has(> .po-dither-canvas[data-ready]) > .office-pptx-thumbnail__frame {
+  background: #fff;
+  animation: none;
+}
+
+.office-pptx-thumbnail__paper > .po-dither-canvas {
+  color: #d8dde5;
+}
+
+@keyframes office-pptx-paper-breathe {
+  50% { background-color: #fafbfc; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .office-pptx-thumbnail__frame[data-placeholder-shape] {
+    animation: none;
+  }
 }
 
 .office-pptx-thumbnail__frame[data-render-state="error"]::before,
@@ -836,23 +864,6 @@
   inset-block-start: 14px;
   inset-inline-end: 14px;
   max-width: min(360px, calc(100% - 28px));
-}
-
-@keyframes office-pptx-thumbnail-pending {
-  from {
-    background-position: 100% 0;
-  }
-
-  to {
-    background-position: -100% 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .office-pptx-thumbnail__frame[data-render-state="waiting"],
-  .office-pptx-thumbnail__frame[data-render-state="rendering"] {
-    animation: none;
-  }
 }
 
 .office-pptx-navigation {
@@ -974,7 +985,7 @@
 .office-pptx-text-slide h2 {
   margin: 0 0 8px;
   color: inherit;
-  font-size: var(--po-type-editor-heading-1, 30px);
+  font-size: var(--po-type-editor-heading-1, 22px);
   font-weight: 600;
   line-height: 1.35;
 }

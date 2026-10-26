@@ -26,9 +26,10 @@ describe("Sub Theme CSS compiler", () => {
     expect(result.css).toContain("--po-host-md-content-size-small: 14px");
     expect(result.css).toContain("--po-host-md-content-size-medium: 19px");
     expect(result.css).toContain("--po-host-md-content-size-large: 25px");
-    expect(result.css).toContain("--po-host-md-h1-size-small: 28px");
-    expect(result.css).toContain("--po-host-md-h1-size-medium: 30px");
-    expect(result.css).not.toContain("21px");
+    expect(result.css).toContain("--po-host-md-h1-size-small: 21px");
+    expect(result.css).toContain("--po-host-md-h1-size-medium: 22px");
+    // The direct value is not a size preset and never reaches the registered theme.
+    expect(result.css).not.toMatch(/--po-host-md-content-size(?:-[a-z]+)?:\s*21px/);
   });
 
   it("preserves base presets through partial Dark and conditional overrides", async () => {

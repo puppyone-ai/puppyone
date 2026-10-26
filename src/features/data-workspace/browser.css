@@ -278,9 +278,8 @@
   cursor: var(--po-clickable-cursor, default);
 }
 
-/* Ready file trees and the Cloud preparation tree share Desktop geometry. */
-.desktop-data-workspace-wrap,
-.desktop-cloud-preparation {
+/* Every Desktop file tree, including one still opening, sits in this wrap. */
+.desktop-data-workspace-wrap {
   --po-tree-row-left-gap: var(--desktop-sidebar-row-left-gap);
   --po-tree-row-right-gap: var(--desktop-sidebar-row-right-gap);
   --po-tree-scrollbar-width: var(--desktop-sidebar-scrollbar-width);

@@ -663,11 +663,36 @@
   }
 }
 
-.desktop-loading-animation-preview {
-  display: inline-grid;
-  width: 17px;
-  flex: 0 0 17px;
-  place-items: center;
+/* The loading mark beside a file row in miniature, both in the style previewed. */
+.desktop-loading-style-preview {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+}
+
+/* A file row in miniature, drawn in the placeholder style it previews. */
+.desktop-loading-placeholder-preview {
+  display: inline-flex;
+  width: 34px;
+  height: 14px;
+  flex: 0 0 34px;
+  align-items: center;
+  gap: 4px;
+}
+
+.desktop-loading-placeholder-preview > span {
+  display: block;
+  height: 6px;
+  flex: 1 1 auto;
+  border-radius: 999px;
+}
+
+.desktop-loading-placeholder-preview > span:first-child {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 10px;
+  border-radius: 3px;
 }
 
 .desktop-markdown-presentation-layout {

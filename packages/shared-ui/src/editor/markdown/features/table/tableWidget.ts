@@ -6,9 +6,12 @@ import type { MarkdownTableAlignment, MarkdownTableRow } from "./tableModel";
 import {
   createMarkdownTableRenderKey,
   createMarkdownTableViewportKey,
-  estimateMarkdownTableColumnWidths,
   estimateMarkdownTableLayoutHeight,
 } from "./tableLayout";
+import {
+  DEFAULT_MARKDOWN_TABLE_LAYOUT_METRICS,
+  estimateMarkdownTableColumnWidths,
+} from "./markdownTableColumnLayout";
 import { createTableCellEditor, disposeTableCellEditor } from "./tableCellEditor";
 import { dispatchMarkdownTableStructureOperation, getActiveMarkdownTableCellDraft } from "./tableCommands";
 import { createMarkdownTableDragLayer } from "./tableDragLayer";
@@ -92,10 +95,20 @@ export class MarkdownTableWidget extends WidgetType {
     // The semantic table model normalizes every row to the alignment width.
     // Do not rescan an oversized immutable row collection during DOM mount.
     const columnCount = Math.max(1, this.alignments.length);
-    const estimatedColumnWidths = estimateMarkdownTableColumnWidths(this.alignments, this.rows);
+    // Lay out against the last measured reading column so the first paint is
+    // already fitted; the column layout controller reflows automatic tracks
+    // once the real width is known and whenever it changes.
+    const layoutMetrics = host.tableColumnLayouts.getAutoLayoutMetrics()
+      ?? DEFAULT_MARKDOWN_TABLE_LAYOUT_METRICS;
+    const estimatedColumnWidths = estimateMarkdownTableColumnWidths(
+      this.alignments,
+      this.rows,
+      layoutMetrics,
+    );
     const columnLayoutSession = host.tableColumnLayouts.acquire({
       featureId: "markdown-table",
       initialWidths: estimatedColumnWidths,
+      initialLayoutWidth: layoutMetrics.availableWidth,
       mappedRange: { from: this.from, to: this.to },
       persistenceNamespace: this.documentPath,
       sourceIdentity: this.viewportKey,

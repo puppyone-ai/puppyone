@@ -81,7 +81,7 @@ export async function createAgentWorkbenchLifecycleHarness({ holdCreation = fals
       generation: crypto.randomUUID(), ready: Promise.resolve(), exit: exited.promise,
       pid: 90000 + hosts.length, attachPort: vi.fn(() => {}),
       diagnostics: () => ({ pid: host.pid, generation: host.generation, exited: host.exited,
-        closing: host.close.mock.calls.length > 0, failure: null, nativeProcesses: [],
+        closing: host.close.mock.calls.length > 0, failure: null, health: { state: "responsive", lastSeen: 0, probeSent: false }, nativeProcesses: [],
         pending: 0, pendingBytes: 0, incoming: 0, incomingBytes: 0, closed: host.exited }),
       call: vi.fn(async (method: string, args: unknown[] = []) => {
         const request = args[0] as Record<string, unknown>;

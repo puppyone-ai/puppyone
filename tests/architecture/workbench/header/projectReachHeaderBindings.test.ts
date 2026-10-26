@@ -69,9 +69,13 @@ describe("Header project reach bindings", () => {
       .toContain("projectReachEnabled && shareOnboardingEnabled && cloudEnabled");
   });
 
-  it("makes the reach control the only Cloud entry on the Header", () => {
+  it("makes the reach control the only Cloud entry while the Header states the Project", () => {
+    // The reach control stands on the Header only while the Header is the
+    // Project surface. Once the Project rail owns the Project the control is
+    // gone, so the established share entry has to come back with it.
+    expect(declaration("reachStatedInHeader")).toBe("Boolean(projectReach) && !railOwnsProject");
     expect(attribute("DesktopTitlebarActions", "shareEnabled"))
-      .toBe("!cloudHeaderActive && shareOnboardingEnabled && !projectReachEnabled");
+      .toBe("!cloudHeaderActive && shareOnboardingEnabled && !reachStatedInHeader");
     expect(attribute("DesktopWorkspaceContent", "cloudLocationControls"))
       .toContain("!projectReachEnabled");
   });

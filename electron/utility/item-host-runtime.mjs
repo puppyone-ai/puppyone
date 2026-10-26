@@ -50,7 +50,9 @@ export function runItemHost({ createService, methods, onDisplay = () => {} }) {
   parent.on("message", (event) => {
     const message = event.data;
     if (message?.generation !== generation) { event.ports?.forEach((port) => port.close()); return; }
-    if (message.type === "terminate") {
+    if (message.type === "health-probe") {
+      heartbeat();
+    } else if (message.type === "terminate") {
       // Reserved management path is independent of ordinary RPC capacity.
       void shutdown().catch(() => {});
     } else if (message.type === "terminate-exit" && shuttingDown) {

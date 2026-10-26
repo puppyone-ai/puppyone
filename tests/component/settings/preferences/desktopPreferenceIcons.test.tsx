@@ -6,10 +6,17 @@ import { EMPTY_MARKDOWN_WORKSPACE_ENVIRONMENT, FilePreview } from "@puppyone/sha
 import { desktopPreferencesStore as store, initializeDesktopPreferences } from "../../../../src/preferencesStore";
 import { EditorPaneDocumentRuntime } from "../../../../src/features/editor-workbench/runtime/EditorPaneDocumentRuntime";
 import { GitHistorySidebar } from "../../../../src/features/source-control/GitHistorySidebar";
-import { DesktopCreateEntryDialog, DesktopCreateEntryMenu, DesktopNodeActionMenu, type DesktopCreateEntryDraft } from "../../../../src/features/data-workspace/nodeActions";
+import { DesktopCreateEntryMenu, DesktopNodeActionMenu, type DesktopCreateEntryDraft } from "../../../../src/features/data-workspace/nodeActions";
 import { gitStatus } from "../../../support/source-control/gitFixtures";
 import { unavailableDocumentNavigation } from "../../../support/editor/documentFixtures";
 import { withTestLocalization } from "../../../support/react/localization";
+import { PLUGIN_FILE_ICON_THEME_ID } from "../../../support/appearance/pluginFileIconTheme";
+
+// Only the default theme ships; a test plug-in theme proves live icon updates.
+vi.mock("../../../../packages/shared-ui/src/file/icon-themes/registry", async (original) => {
+  const { withPluginFileIconTheme } = await import("../../../support/appearance/pluginFileIconTheme");
+  return withPluginFileIconTheme(await original());
+});
 
 // Observe the existing application-to-shared-UI boundary; desktop leaves and glyphs stay real.
 vi.mock("@puppyone/shared-ui", async (original) => ({
@@ -21,7 +28,7 @@ let root: Root;
 let host: HTMLDivElement;
 const noop = () => {};
 const draft: DesktopCreateEntryDraft = { parentPath: null, anchor: { left: 20, top: 20, right: 44, bottom: 44, width: 24, height: 24 },
-  error: null, creatingKind: null, selectedKind: null, name: "" };
+  error: null, creatingKind: null };
 beforeEach(() => {
   localStorage.clear(); initializeDesktopPreferences();
   host = document.createElement("div"); document.body.append(host); root = createRoot(host);
@@ -46,21 +53,16 @@ describe("desktop icon preference consumers", () => {
         historyLoading={false} initializing={false} onInitialize={async () => true} onSelectCommit={noop} onBack={noop} />
     </>)));
     const history = icon(".desktop-history-row-file-icon");
-    act(() => store.getState().setFileIconTheme("semantic"));
+    act(() => store.getState().setFileIconTheme(PLUGIN_FILE_ICON_THEME_ID));
     expect(icon(".desktop-history-row-file-icon")).not.toBe(history);
-    expect(JSON.parse(localStorage.getItem("puppyone.desktop.appearance")!).shared.fileIconTheme).toBe("semantic");
+    expect(JSON.parse(localStorage.getItem("puppyone.desktop.appearance")!).shared.fileIconTheme).toBe(PLUGIN_FILE_ICON_THEME_ID);
   });
-  it("updates the create menu and dialog glyphs from their own subscriptions", () => {
+  it("updates the create menu glyphs from their own subscription", () => {
     act(() => root.render(withTestLocalization(<DesktopCreateEntryMenu draft={draft} mainEntries={["markdown"]}
       submenuItemKinds={[]} onCancel={noop} onSelectKind={noop} />)));
     const menu = icon('.desktop-menu-item-icon');
-    act(() => store.getState().setFileIconTheme("semantic"));
+    act(() => store.getState().setFileIconTheme(PLUGIN_FILE_ICON_THEME_ID));
     expect(icon('.desktop-menu-item-icon')).not.toBe(menu);
-    act(() => root.render(withTestLocalization(<DesktopCreateEntryDialog draft={{ ...draft, selectedKind: "markdown" }}
-      onChange={noop} onCancel={noop} onCreate={noop} />)));
-    const dialog = icon('.desktop-dialog-title-row');
-    act(() => store.getState().setFileIconTheme("default"));
-    expect(icon('.desktop-dialog-title-row')).not.toBe(dialog);
   });
   it("updates the real rename dialog's experimental file types without parent preference props", () => {
     const node = { id: "note.txt", name: "note.txt", path: "note.txt", type: "text" as const };
@@ -78,7 +80,7 @@ describe("desktop icon preference consumers", () => {
       markdownEnvironment={EMPTY_MARKDOWN_WORKSPACE_ENVIRONMENT} documentNavigation={unavailableDocumentNavigation}
       treeNode={null} workspaceId="fixture" workspaceRoot="/fixture" markdownDialect="puppy-gfm" />)));
     expect(host.querySelector("output")?.dataset.previewIcons).toBe("default");
-    act(() => store.getState().setFileIconTheme("semantic"));
-    expect(host.querySelector("output")?.dataset.previewIcons).toBe("semantic");
+    act(() => store.getState().setFileIconTheme(PLUGIN_FILE_ICON_THEME_ID));
+    expect(host.querySelector("output")?.dataset.previewIcons).toBe(PLUGIN_FILE_ICON_THEME_ID);
   });
 });

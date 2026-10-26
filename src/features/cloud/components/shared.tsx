@@ -1,11 +1,12 @@
-import { Check, ChevronRight, Copy, ExternalLink, FileText, FolderOpen, GitBranch, RefreshCw, type LucideIcon } from "lucide-react";
-import { CloudIcon as Cloud } from "../../../components/icons/CloudIcon";
+import { Check, ChevronRight, Copy, ExternalLink, FileText, GitBranch, RefreshCw, type LucideIcon } from "lucide-react";
 import {
   Tooltip,
   FilePreviewIcon,
   RENDERER_ASSET_PATHS,
   resolveRendererPublicAssetUrl,
   type Workspace,
+  FolderIcon,
+  CloudIcon as Cloud,
 } from "@puppyone/shared-ui";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
@@ -130,7 +131,7 @@ export function CloudAssetGrid({
   }
 
   if (entries.length === 0) {
-    return <CloudInlineEmpty icon={FolderOpen} title={emptyLabel} detail={emptyDetail} />;
+    return <CloudInlineEmpty icon={FolderIcon} title={emptyLabel} detail={emptyDetail} />;
   }
 
   return (

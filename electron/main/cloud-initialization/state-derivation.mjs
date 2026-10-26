@@ -1,4 +1,5 @@
 import { CLOUD_DESTINATION_BRANCH } from "./contract.mjs";
+import { requiresSameCommitRetry } from "./attempts/retry-policy.mjs";
 
 export const CLOUD_INITIALIZATION_ACTIONS = Object.freeze([
   "retry-push",
@@ -83,7 +84,7 @@ function deriveAvailableActions({ record, project, push, cleanup, local, facts }
   if (["uploading", "confirming"].includes(push)) return [];
 
   const actions = [];
-  if (push === "uncertain") actions.push("reconcile");
+  if (requiresSameCommitRetry(record) && local !== "remote-conflict") actions.push("retry-push");
   else if (local === "source-missing") actions.push("choose-source");
   else if (push !== "conflict" && local !== "remote-conflict") {
     actions.push(
@@ -92,7 +93,7 @@ function deriveAvailableActions({ record, project, push, cleanup, local, facts }
         : "retry-push",
     );
   }
-  if (project === "empty") actions.push("delete-empty-project");
+  if (project === "empty" && record.last_error?.code !== "CLEANUP_NOT_ALLOWED") actions.push("delete-empty-project");
   return actions;
 }
 

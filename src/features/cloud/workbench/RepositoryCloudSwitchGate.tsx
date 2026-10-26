@@ -1,4 +1,5 @@
 import { useLocalization } from "@puppyone/localization";
+import { DisclosureIcon } from "@puppyone/shared-ui";
 import { getCloudAuthSession, type CloudAuthState } from "../auth";
 import { CloudSignedOutRoute } from "../auth/CloudSignedOutRoute";
 import { CloudWorkspaceLoadingState } from "../components/shared";
@@ -7,7 +8,6 @@ import type { ProjectCloudContext } from "../project/context/projectCloudContext
 import { CloudWorkspaceRecovery } from "./CloudWorkspaceRecovery";
 import type { ReactNode } from "react";
 import { CloudProjectActivation } from "../components/CloudProjectActivation";
-import { ChevronRight } from "lucide-react";
 
 /** Header recovery stays with the current repository, never a project picker. */
 export function RepositoryCloudSwitchGate({ context, authState, apiBaseUrl, onRetry, onOpenAccount, onPublishLocal, publishEntry, missingProjectRecovery, initializationPending = false }: {
@@ -36,7 +36,7 @@ export function RepositoryCloudSwitchGate({ context, authState, apiBaseUrl, onRe
     supplemental={<div className="desktop-cloud-project-connection-error">
       <p role="alert">{t("cloud.recovery.title")}</p>
       <details>
-        <summary><ChevronRight size={12} aria-hidden="true" />{t("cloud.activation.project.errorDetails")}</summary>
+        <summary><DisclosureIcon size={12} />{t("cloud.activation.project.errorDetails")}</summary>
         <p>{formatCloudMessage(context.message, t)}</p>
       </details>
     </div>}

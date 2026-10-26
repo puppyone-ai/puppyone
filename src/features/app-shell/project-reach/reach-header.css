@@ -73,6 +73,13 @@
     color: inherit;
   }
 
+  /* A computer that could not be opened takes the Header's one warning hue,
+     the same as an unfinished publish beside it. A computer that is still
+     opening keeps the place's own foreground: it is not an alert. */
+  .desktop-project-reach-place[data-computer-status="failed"] {
+    color: var(--po-warning, currentColor);
+  }
+
   /* The place is the Header's visible answer, so it is set exactly like the
      project name beside it — same family, size, weight and color. */
   .desktop-project-reach-place-label {
@@ -210,57 +217,72 @@
     padding: var(--desktop-project-menu-spacing, 3px);
   }
 
-  .desktop-project-runtime {
+  /* The computers panel sizes to its rows; this cap is where a sentence
+     (a first-use note, a reader's address) wraps instead of widening it. */
+  .desktop-project-reach-panel[data-reach-entry="computers"] {
+    max-width: 304px;
+  }
+
+  /* The two computers the project runs on: the project menu's own rows in one
+     framed group, so where the project runs reads as one thing, apart from
+     who can reach it below. */
+  .desktop-project-computers {
     display: grid;
-    grid-template-columns: 20px minmax(0, 1fr);
-    align-items: start;
-    gap: 10px;
+    min-width: 0;
+    gap: 2px;
     margin-bottom: 4px;
-    padding: 10px var(--desktop-project-reach-column);
+    padding: var(--desktop-project-menu-spacing, 3px);
     border: 1px solid var(--po-border);
     border-radius: calc(var(--po-menu-radius, 8px) - var(--desktop-project-menu-spacing, 3px));
   }
 
-  .desktop-project-runtime-mark {
+  .desktop-project-computer .desktop-menu-item-icon {
+    opacity: 1;
+  }
+
+  .desktop-project-computer-mark {
     display: grid;
-    margin-top: 1px;
+    place-items: center;
+    color: inherit;
+  }
+
+  /* The current computer is a fact, not an action: it keeps the selected
+     look without inviting a click. */
+  .desktop-project-computer[aria-current="true"] {
+    cursor: default;
+  }
+
+  .desktop-project-computer[aria-current="true"] .desktop-menu-item-trailing {
+    display: grid;
     color: var(--po-text-muted);
   }
 
-  .desktop-project-runtime-body {
-    min-width: 0;
-  }
-
-  .desktop-project-runtime-title {
-    margin: 0;
-    color: var(--po-text);
-    font-size: var(--po-menu-item-font-size);
-    font-weight: var(--po-text-weight-medium, 500);
-    line-height: 1.45;
-    text-wrap: pretty;
-  }
-
-  .desktop-project-runtime .desktop-project-location-controls {
-    margin-top: 4px;
-  }
-
-  .desktop-project-runtime .desktop-project-location-controls .desktop-menu-item {
-    padding-inline: 0;
+  /* The action word sits where the check sits on the current row, and comes
+     forward on hover like the row does. */
+  .desktop-project-computer:is(:hover, :focus-visible):not([aria-disabled="true"]) .desktop-menu-item-trailing {
     color: var(--po-text-muted);
-    background: transparent;
   }
 
-  .desktop-project-runtime .desktop-project-location-controls .desktop-menu-item:is(:hover, :focus-visible):not(:disabled) {
-    color: var(--po-text);
-    background: var(--po-hover);
+  /* A row with a second line (the one-time hint before the Cloud Computer is
+     set up, or a computer the project is not on yet) stacks it under the
+     name instead of squeezing both onto one line. */
+  .desktop-project-computer:has(.desktop-menu-item-detail) {
+    height: auto;
+    min-height: var(--po-menu-item-height);
+    align-items: flex-start;
+    padding-block: 6px;
   }
 
-  .desktop-project-runtime .desktop-menu-item-icon {
-    display: none;
+  .desktop-project-computer:has(.desktop-menu-item-detail) .desktop-menu-item-body {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
   }
 
-  .desktop-project-runtime .desktop-menu-item-label {
+  .desktop-project-computer .desktop-menu-item-detail {
+    line-height: var(--po-menu-meta-line-height, 16px);
     white-space: normal;
+    text-wrap: pretty;
   }
 
   /* The sharing-only panel keeps its compact access summary. */
