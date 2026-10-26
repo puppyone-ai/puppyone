@@ -119,7 +119,8 @@ describe("changes made elsewhere arrive as a receipt", () => {
         + " Settle them in the Changes list below, then continue.",
       );
     expect(applyButton(surface)?.disabled).toBe(true);
-    expect(applyButton(surface)?.getAttribute("title"))
+    // The disabled action still explains itself, without a browser-native title bubble.
+    expect(applyButton(surface)?.getAttribute("aria-description"))
       .toBe("Settle the files that need a decision first.");
     expect(surface.querySelector(".desktop-git-resizable-section-merge")?.textContent)
       .toContain("Merge Changes");

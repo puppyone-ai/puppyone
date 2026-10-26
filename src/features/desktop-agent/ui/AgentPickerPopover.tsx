@@ -12,8 +12,8 @@ import {
   type ReactNode,
 } from "react";
 import { DesktopMenuItem, DesktopMenuSection, DesktopMenuSurface } from "../../../components/DesktopMenu";
-import { DesktopOverlayLayer } from "../../app-shell/DesktopOverlayPortal";
-import { useAnchoredOverlayPosition } from "../../app-shell/useAnchoredOverlayPosition";
+import { DesktopOverlayLayer } from "../../../components/DesktopOverlayPortal";
+import { useAnchoredOverlayPosition } from "../../../components/useAnchoredOverlayPosition";
 import { agentPickerLimits } from "./agent-picker-limits";
 import {
   agentPickerMaxHeightPixels,

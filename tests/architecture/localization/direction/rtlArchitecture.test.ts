@@ -58,9 +58,10 @@ describe("RTL architecture", () => {
     expect(read("../../../../src/features/cloud/history/CloudHistorySidebar.tsx"))
       .toMatch(/aria-hidden="true"\s+dir="ltr"/);
     expect(read("../../../../src/features/settings/main/RepositorySettingsViews.tsx"))
-      .toMatch(/<Tooltip content=\{copyUrl[^>]+overflowOnly><code\s+dir="ltr"/s);
+      // The remote URL is an LTR island; tooltips are reserved for icon-only controls.
+      .toMatch(/<code\s+dir="ltr"[^>]*>\s*\{copyUrl \? maskRemoteUrl\(copyUrl\)/s);
     expect(read("../../../../src/features/settings/main/LocalProjectSettingsView.tsx"))
-      .toMatch(/<Tooltip content=\{workspace\.path\} overflowOnly><span className="desktop-settings-row-value" dir="ltr"/);
+      .toMatch(/<span className="desktop-settings-row-value" dir="ltr">\{workspace\.path\}/);
   });
 });
 

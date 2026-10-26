@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import type { ResolvedDesktopPaneLayout } from "./desktopPaneLayout";
+import type { ResolvedDesktopPaneLayout } from "../../../lib/desktopPaneLayout";
 
 const DesktopPaneLayoutContext = createContext<ResolvedDesktopPaneLayout | null>(null);
 

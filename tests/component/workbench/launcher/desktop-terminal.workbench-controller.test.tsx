@@ -4,7 +4,7 @@
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it } from "vitest";
-import { ProjectWorkbenchStore } from "../../../../src/features/app-shell/auxiliary-workbench/ProjectWorkbenchStore";
+import { ProjectWorkbenchStore } from "../../../../src/lib/workbench/ProjectWorkbenchStore";
 import { useAuxiliaryWorkbench } from "../../../../src/features/app-shell/auxiliary-workbench/useAuxiliaryWorkbench";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })

@@ -2,7 +2,7 @@ import type {
   AuxiliaryWorkbenchCreationRecipe,
   AuxiliaryWorkbenchHistoryContribution,
   AuxiliaryWorkbenchHistoryTarget,
-} from "../../app-shell/auxiliary-workbench/types";
+} from "../../../lib/workbench/types";
 import type { LocalAgentInstallationId } from "../../../../shared/local-agent-installation/types";
 import type { LocalAgentInstallationDiscoveryPhase } from "../../local-agents";
 import type { DesktopTerminalLauncherId } from "../model/terminalLaunchers";

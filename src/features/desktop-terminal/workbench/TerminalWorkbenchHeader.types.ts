@@ -1,4 +1,4 @@
-import type { AuxiliaryWorkbenchItemSnapshot } from "../../app-shell/auxiliary-workbench/types";
+import type { AuxiliaryWorkbenchItemSnapshot } from "../../../lib/workbench/types";
 import type { DesktopTerminalSessionSummary } from "../model/terminalSessions";
 import type { TerminalRuntimeHandle } from "../runtime/terminalRuntime";
 

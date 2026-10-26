@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ProjectWorkbenchStore } from "../../../../src/features/app-shell/auxiliary-workbench/ProjectWorkbenchStore";
+import { ProjectWorkbenchStore } from "../../../../src/lib/workbench/ProjectWorkbenchStore";
 import { ProjectSessionManager } from "../../../../src/features/app-shell/project-sessions/ProjectSessionManager";
-import type { AuxiliaryWorkbenchContribution } from "../../../../src/features/app-shell/auxiliary-workbench/types";
+import type { AuxiliaryWorkbenchContribution } from "../../../../src/lib/workbench/types";
 import type { ProjectSessionSnapshot } from "../../../../shared/project-session-contract/types";
 
 const deferred = <T = void>() => { let resolve!: (value: T) => void; const promise = new Promise<T>((done) => { resolve = done; }); return { promise, resolve }; };

@@ -1,15 +1,20 @@
 import { useMemo } from "react";
 import { useLocalization } from "@puppyone/localization/react";
-import { AuxiliaryWorkbenchPanel } from "../../app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel";
-import type { AuxiliaryWorkbenchContribution } from "../../app-shell/auxiliary-workbench/types";
+import type { AuxiliaryWorkbenchContribution } from "../../../lib/workbench/types";
 import { CloudAgentConversation } from "./CloudAgentConversation";
 import { CloudAgentHistory } from "./CloudAgentHistory";
 import { CloudAgentLauncher } from "./CloudAgentLauncher";
 import { CLOUD_AGENT_KIND, CLOUD_AGENT_LABEL, type CloudAgentWorkbench } from "./CloudAgentWorkbench";
 import type { CloudAgentSession } from "./cloudAgentClient";
+import type { WorkbenchPanelComponent } from "../../../lib/workbench/panelContract";
 
 /** Cloud is a contribution to the native workbench, not a second sidebar design. */
-export function CloudAgentSidebar({ workbench, active }: { workbench: CloudAgentWorkbench; active: boolean }) {
+/** `Panel` is the shell's workbench panel, supplied by the composition root. */
+export function CloudAgentSidebar({ workbench, active, Panel }: {
+  workbench: CloudAgentWorkbench;
+  active: boolean;
+  Panel: WorkbenchPanelComponent;
+}) {
   const { t } = useLocalization();
   const contributions = useMemo<readonly AuxiliaryWorkbenchContribution[]>(() => [{
     kind: CLOUD_AGENT_KIND, label: CLOUD_AGENT_LABEL, createLabel: t("agent.header.newChat"),
@@ -30,6 +35,6 @@ export function CloudAgentSidebar({ workbench, active }: { workbench: CloudAgent
       commit: ({ item }) => workbench.release(item.id),
     },
   }], [workbench, t]);
-  return <AuxiliaryWorkbenchPanel store={workbench.store} contributions={contributions} active={active}
+  return <Panel store={workbench.store} contributions={contributions} active={active}
     renderLauncher={context => <CloudAgentLauncher workbench={workbench} contribution={contributions[0]} {...context} />} />;
 }

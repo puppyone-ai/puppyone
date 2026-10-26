@@ -48,7 +48,7 @@ import { HomepageCloudStatus } from "./features/cloud/workbench/HomepageCloudSta
 import {
   AccountCloudWorkspaceSurface,
   useAccountCloudWorkspacePresentation,
-} from "./features/cloud/workbench/AccountCloudWorkspaceSurface";
+} from "./app/AccountCloudWorkspaceSurface";
 import { getCloudAuthSession, resolveCloudAuthState } from "./features/cloud/auth";
 import { FirstRunSignInScreen } from "./features/cloud/auth/FirstRunSignInScreen";
 import { useFirstRunSignIn } from "./features/cloud/auth/useFirstRunSignIn";
@@ -93,7 +93,7 @@ import type { GitRemoteSummary, PuppyoneWorkspaceConfig } from "./types/electron
 import {
   mergePuppyoneWorkspaceConfig,
 } from "./features/app-shell/preferences";
-import { DesktopProjectLocationControls, type DesktopProjectLocation } from "./features/app-shell/DesktopProjectLocationSwitcher";
+import { DesktopProjectLocationControls, type DesktopProjectLocation } from "./components/DesktopProjectLocationSwitcher";
 import { DesktopTitlebarContext } from "./features/app-shell/DesktopTitlebarContext";
 import { DesktopWorkspaceContent } from "./features/app-shell/DesktopWorkspaceContent";
 import { DesktopWorkspaceLocationSurface } from "./features/app-shell/DesktopWorkspaceLocationSurface";
@@ -104,7 +104,7 @@ import {
   resolveDesktopShellLocationPath,
   resolveDesktopShellWorkspaceEntryPath,
 } from "./features/app-shell/DesktopShellLocationBar";
-import { DesktopOverlayPortal } from "./features/app-shell/DesktopOverlayPortal";
+import { DesktopOverlayPortal } from "./components/DesktopOverlayPortal";
 import { DesktopHelpLauncher } from "./features/app-shell/DesktopHelpLauncher";
 import { RestoringWorkspaceScreen } from "./features/app-shell/RestoringWorkspaceScreen";
 import { useDesktopPreference, useDesktopAppearance, useDesktopPreferenceEffects } from "./features/settings";
@@ -179,7 +179,7 @@ import { useDesktopEditorWorkbench } from "./features/editor-workbench/controlle
 import type {
   AuxiliaryWorkbenchContribution,
   AuxiliaryWorkbenchHistoryBrowserContext,
-} from "./features/app-shell/auxiliary-workbench/types";
+} from "./lib/workbench/types";
 import {
   AGENT_CHAT_CREATION_RECIPES,
   resolveAgentChatRuntimeVisibility,
@@ -1860,7 +1860,8 @@ function AppContent() {
   const renderCloudSidebar = (active: boolean) => <CloudWorkspaceSidebar sidebar={cloudSidebar}
     agent={cloudAgent} context={accountCloud.context} session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl}
     active={active} title={nativeCloudWorkbench.service?.workspace.name ?? ""}
-    revisionKey={String(nativeCloudWorkbench.refreshToken.sequence)} onSessionChange={updateCloudSession} />;
+    revisionKey={String(nativeCloudWorkbench.refreshToken.sequence)} onSessionChange={updateCloudSession}
+    workbenchPanel={AuxiliaryWorkbenchPanel} />;
   const editorTabsInHeaderEnabled = enableEditorTabsInHeader;
   const titlebarEditorTabs = editorTabsInHeaderEnabled ? (
     <EditorHeaderTabs

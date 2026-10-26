@@ -131,11 +131,11 @@ const smokeSurfaces = new Map<string, () => Promise<React.ReactNode>>([
     return <AppearanceVisualSmokeHarness />;
   }],
   ["#account-cloud-workbench-smoke", async () => {
-    const { AccountCloudWorkbenchSmokeHarness } = await import("./features/cloud/workbench/AccountCloudWorkbenchSmokeHarness");
+    const { AccountCloudWorkbenchSmokeHarness } = await import("./app/smoke/AccountCloudWorkbenchSmokeHarness");
     return <AccountCloudWorkbenchSmokeHarness />;
   }],
   ["#native-cloud-workbench-smoke", async () => {
-    const { NativeCloudWorkbenchSmokeHarness } = await import("./features/cloud/workbench/NativeCloudWorkbenchSmokeHarness");
+    const { NativeCloudWorkbenchSmokeHarness } = await import("./app/smoke/NativeCloudWorkbenchSmokeHarness");
     return <NativeCloudWorkbenchSmokeHarness />;
   }],
   ["#workspace-menu-visual-smoke", async () => {

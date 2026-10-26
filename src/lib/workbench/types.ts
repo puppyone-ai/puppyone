@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import type { ProjectSessionContext } from "../../../../shared/project-session-contract/types";
-import type { ItemCloseResult, ItemExecutionTarget } from "../../../../shared/item-host-contract/lifecycle";
+import type { ProjectSessionContext } from "../../../shared/project-session-contract/types";
+import type { ItemCloseResult, ItemExecutionTarget } from "../../../shared/item-host-contract/lifecycle";
 
 export interface AuxiliaryWorkbenchProject {
   readonly context: ProjectSessionContext;
@@ -154,3 +154,6 @@ export type AuxiliaryWorkbenchContribution = Readonly<{
   renderStatus?: (context: AuxiliaryWorkbenchCloseContext) => ReactNode;
   close: AuxiliaryWorkbenchCloseAdapter;
 }>;
+
+/** Where a launcher is shown inside the workbench. */
+export type WorkbenchLauncherContext = { groupId: string | null; itemId: string | null; presented: boolean };

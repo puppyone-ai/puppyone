@@ -2,10 +2,10 @@ import { useEffect, useRef, useState, type ButtonHTMLAttributes } from "react";
 import { Tooltip } from "@puppyone/shared-ui";
 import { Check, Laptop, Server } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
-import { PulseGrid } from "../../components/loading";
-import { DesktopMenuItem } from "../../components/DesktopMenu";
-import { useDesktopPreference } from "../../preferencesStore";
-import { useDesktopPlatformCapabilities } from "../../platform/useDesktopPlatformCapabilities";
+import { PulseGrid } from "./loading";
+import { DesktopMenuItem } from "./DesktopMenu";
+import { useDesktopPreference } from "../preferencesStore";
+import { useDesktopPlatformCapabilities } from "../platform";
 import { DesktopTitlebarMenuLayer } from "./DesktopTitlebarMenuLayer";
 
 export type DesktopProjectLocation = Readonly<{

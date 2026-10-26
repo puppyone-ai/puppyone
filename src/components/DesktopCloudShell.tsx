@@ -36,7 +36,7 @@ import {
   MIN_RIGHT_SIDEBAR_WIDTH,
   RIGHT_SIDEBAR_COLLAPSE_THRESHOLD,
   resolveDesktopPaneLayout,
-} from "../features/app-shell/layout/desktopPaneLayout";
+} from "../lib/desktopPaneLayout";
 import { DesktopWindowChrome } from "./DesktopWindowChrome";
 
 import type { WorkspaceSurfaceId } from "../features/app-shell/workspace-surfaces";

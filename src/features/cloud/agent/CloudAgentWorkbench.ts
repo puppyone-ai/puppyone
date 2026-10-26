@@ -1,6 +1,6 @@
-import { ProjectWorkbenchStore } from "../../app-shell/auxiliary-workbench/ProjectWorkbenchStore";
+import { ProjectWorkbenchStore } from "../../../lib/workbench/ProjectWorkbenchStore";
 import { CloudAgentController } from "./CloudAgentController";
-import type { AuxiliaryWorkbenchItemSnapshot } from "../../app-shell/auxiliary-workbench/types";
+import type { AuxiliaryWorkbenchItemSnapshot } from "../../../lib/workbench/types";
 import { CloudAgentClient, cloudRunActive, type CloudAgentSession } from "./cloudAgentClient";
 
 export const CLOUD_AGENT_KIND = "agent-chat";

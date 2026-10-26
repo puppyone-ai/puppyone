@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import { useWorkspaceFolderDrop } from "../features/app-shell/useWorkspaceFolderDrop";
 import type { MinimalOnboardingProps } from "./MinimalOnboarding";
-import { projectOpeningLocation, type ProjectHomeItem } from "../features/app-shell/workspaceHomeModel";
+import { projectOpeningLocation, type ProjectHomeItem } from "../lib/workspaceHomeModel";
 import { ProjectOpenMenu, useProjectOpenCaption } from "./onboarding/ProjectOpenMenu";
 import { HomeProjectIcon } from "./onboarding/HomeProjectIcon";
 import { DesktopWindowChrome } from "./DesktopWindowChrome";

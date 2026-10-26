@@ -5,7 +5,7 @@ import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import { DesktopMenuIconButton, DesktopMenuItem } from "../../components/DesktopMenu";
 import { HomeProjectIcon } from "../../components/onboarding/HomeProjectIcon";
 import { writeClipboardText } from "../../lib/clipboard";
-import { getProjectName, type ProjectHomeItem } from "./workspaceHomeModel";
+import { getProjectName, type ProjectHomeItem } from "../../lib/workspaceHomeModel";
 
 export function DesktopProjectMenuItem({ project, selected, onSelect }: {
   project: ProjectHomeItem;

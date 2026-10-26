@@ -12,8 +12,8 @@ import {
   DesktopMenuItem,
   DesktopMenuSurface,
 } from "../../../../components/DesktopMenu";
-import { DesktopOverlayLayer } from "../../../app-shell/DesktopOverlayPortal";
-import { useAnchoredOverlayPosition } from "../../../app-shell/useAnchoredOverlayPosition";
+import { DesktopOverlayLayer } from "../../../../components/DesktopOverlayPortal";
+import { useAnchoredOverlayPosition } from "../../../../components/useAnchoredOverlayPosition";
 import { TerminalSessionHeaderStatus } from "./TerminalSessionHeaderStatus";
 import type { TerminalSessionHeaderItem } from "./types";
 

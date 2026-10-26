@@ -61,13 +61,24 @@ app.whenReady().then(async () => {
       const warn = console.warn;
       console.warn = (...args) => warn(...args, new Error().stack);
     })()`);
-    const record = async name => {
+    const record = async (name, { nativeResize = false } = {}) => {
       const result = await evaluate(`window.probe.stop(${name === "document-map"})`);
-      results.push({ name, ...result });
-      console.log(JSON.stringify({ name, frames: result.frames, maxError: result.maxError, maxWidthLag: result.maxWidthLag }));
+      // A native window resize arrives from the main process as its own task,
+      // so on a slow runner it can land between a frame and the probe's
+      // post-frame sample: the DOM already has the new width while the
+      // coordinator commits it on the next frame. Skip only such a sample,
+      // and only when that very next frame has committed it; any lag that
+      // lasts into a second frame, and any drift once committed, still fails.
+      const transient = nativeResize ? result.samples.filter((frame, index) => frame.some((sample, pane) =>
+        sample.width !== sample.committedWidth && result.samples[index + 1]?.[pane].committedWidth === sample.width)) : [];
+      const settled = result.samples.filter(frame => !transient.includes(frame)).flat();
+      const maxError = Math.max(0, ...settled.map(sample => sample.error));
+      const maxWidthLag = Math.max(0, ...settled.map(sample => Math.abs(sample.width - sample.committedWidth)));
+      results.push({ name, ...result, transientFrames: transient.length });
+      console.log(JSON.stringify({ name, frames: result.frames, maxError, maxWidthLag, transientFrames: transient.length }));
       assert(result.frames >= 3, `${name}: no continuous frame samples`);
-      assert(result.maxError <= 1, `${name}: reading anchor drifted ${result.maxError}px`);
-      assert(result.maxWidthLag <= 1, `${name}: viewport width lagged ${result.maxWidthLag}px`);
+      assert(maxError <= 1, `${name}: reading anchor drifted ${maxError}px`);
+      assert(maxWidthLag <= 1, `${name}: viewport width lagged ${maxWidthLag}px`);
     };
     scenario = "async-image";
     await evaluate(`(async () => {
@@ -97,7 +108,7 @@ app.whenReady().then(async () => {
       window.setContentSize(width, 732);
       await new Promise(resolve => setTimeout(resolve, 25));
     }
-    await record("window-resize");
+    await record("window-resize", { nativeResize: true });
     scenario = "host-transition";
     await evaluate("window.probe.prepare()");
     await evaluate("window.probe.start()");

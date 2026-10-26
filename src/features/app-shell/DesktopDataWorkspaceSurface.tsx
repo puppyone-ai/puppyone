@@ -19,6 +19,7 @@ import {
   type AiEditRequest,
   type DataNode,
   type DocumentSourceKind,
+  type ExplorerTreeProps,
   type FloatingNoticeProps,
   type Workspace,
   type WorkspaceContentChange,
@@ -42,7 +43,7 @@ import {
   EXPLORER_COLLAPSE_THRESHOLD,
   MAX_EXPLORER_WIDTH,
   MIN_EXPLORER_WIDTH,
-} from "./layout/desktopPaneLayout";
+} from "../../lib/desktopPaneLayout";
 import { DesktopSidebarFooterNavigation } from "./navigation";
 import { WorkspaceSurfaceOutlet, type ResolvedWorkspaceSurface } from "./workspace-surfaces";
 import type { DesktopView } from "../../components/DesktopCloudShell";
@@ -405,11 +406,7 @@ export function DesktopDataWorkspaceSurface({
             </>
           );
         }}
-        explorerOpenActionMenu={openNodeActionPath !== null
-          ? { path: openNodeActionPath, trigger: "more" }
-          : openCreateEntryParentPath !== undefined
-            ? { path: openCreateEntryParentPath, trigger: "create" }
-            : null}
+        explorerOpenActionMenu={resolveExplorerOpenActionMenu(openNodeActionPath, openCreateEntryParentPath)}
         explorerSlot={resolvedSurface.id === "data" || resolvedSurface.content.sidebar == null
           ? undefined
           : <WorkspaceSurfaceOutlet region="sidebar" surface={resolvedSurface} />}
@@ -479,6 +476,16 @@ export function DesktopDataWorkspaceSurface({
       )}
     </div>
   );
+}
+
+/** The row whose action menu is open: a node's More menu wins over a Create menu. */
+function resolveExplorerOpenActionMenu(
+  nodePath: string | null,
+  createParentPath: string | null | undefined,
+): ExplorerTreeProps["openActionMenu"] {
+  if (nodePath !== null) return { path: nodePath, trigger: "more" };
+  if (createParentPath !== undefined) return { path: createParentPath, trigger: "create" };
+  return null;
 }
 
 function fileOperationNoticePresentation(

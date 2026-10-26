@@ -1,5 +1,5 @@
 import type { Workspace } from "@puppyone/shared-ui";
-import type { getRecentWorkspaces } from "../../lib/localFiles";
+import type { getRecentWorkspaces } from "./localFiles";
 
 export type RecentWorkspaceHomeItem = {
   workspace: Workspace;

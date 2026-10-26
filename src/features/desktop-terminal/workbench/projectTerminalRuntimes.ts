@@ -1,5 +1,5 @@
 import type { MessageFormatter } from "@puppyone/localization/core";
-import type { AuxiliaryWorkbenchProject } from "../../app-shell/auxiliary-workbench/types";
+import type { AuxiliaryWorkbenchProject } from "../../../lib/workbench/types";
 import { TerminalRuntimePool } from "../runtime/TerminalRuntimePool";
 import { createTerminalSessionBridge } from "../runtime/terminalSessionBridge";
 

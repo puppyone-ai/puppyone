@@ -6,13 +6,14 @@ type FixtureRequest = { path: string; method?: string; body?: string };
 export function createCloudAgentSmokeFixture(publish: (project: string) => void) {
   const runs: CloudAgentRun[] = [];
   const requests: string[] = [];
+  function workbench(input: FixtureRequest) {
+    const project = input.path.split("/")[2];
+    const workspace = { id: `workbench-${project}`, project_id: project,
+      generation: "11111111-1111-4111-8111-111111111111", state: "running", target_ref: "refs/heads/workspace" };
+    return input.method === "POST" ? workspace : { workspace };
+  }
   async function request(input: FixtureRequest) {
-    if (/^\/projects\/[^/]+\/workbench$/.test(input.path)) {
-      const project = input.path.split("/")[2];
-      const workspace = { id: `workbench-${project}`, project_id: project,
-        generation: "11111111-1111-4111-8111-111111111111", state: "running", target_ref: "refs/heads/workspace" };
-      return input.method === "POST" ? workspace : { workspace };
-    }
+    if (/^\/projects\/[^/]+\/workbench$/.test(input.path)) return workbench(input);
     if (!input.path.startsWith("/agents/")) return undefined;
     requests.push(`${input.method ?? "GET"} ${input.path}`);
     const body = JSON.parse(input.body || "{}");

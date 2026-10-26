@@ -193,10 +193,10 @@ describe("one screen for inviting a person", () => {
     await flush();
     expect(listPreview).toHaveBeenLastCalledWith("docs");
 
-    await act(async () => radio("Whole project")?.click());
-    await flush();
-
-    expect(listPreview).toHaveBeenLastCalledWith("");
+    // The link covers what the user was looking at; narrowing or widening it is
+    // not offered on the link screen (2b347d52), so the preview stays on it.
+    expect(radio("Whole project")).toBeUndefined();
+    expect(listPreview.mock.calls.every(([path]) => path === "docs")).toBe(true);
   });
 });
 

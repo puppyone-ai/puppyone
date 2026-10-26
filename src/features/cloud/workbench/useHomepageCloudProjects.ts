@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { listCloudProjects, type DesktopCloudProject, type DesktopCloudSession } from "../../../lib/cloudApi";
-import type { RecentWorkspaceHomeItem } from "../../app-shell/workspaceHomeModel";
+import type { RecentWorkspaceHomeItem } from "../../../lib/workspaceHomeModel";
 import { buildHomepageProjects } from "./homepageCloudProjects";
 import { loadCloudProjectActivity } from "./homepageCloudActivity";
-import { useProjectOpenHistory } from "../../app-shell/useProjectOpenHistory";
+import { useProjectOpenHistory } from "../../../lib/useProjectOpenHistory";
 
 type Catalog = { authority: string; projects: DesktopCloudProject[]; status: "loading" | "ready" | "error";
   activity?: ReadonlyMap<string, string> };

@@ -153,7 +153,8 @@ describe("Sidebar architecture", () => {
     expect(collapsiblePaneResizeSource).toContain("PendingPaneCommit");
     expect(collapsiblePaneResizeSource).toContain("baselineKey");
     expect(desktopShellSource).toContain("renderLeadingRail");
-    expect(appSource).toContain("renderLeadingRail={projectSwitcherRailVisible");
+    // The shell owns the gestures; App only supplies the rail while the experiment is on.
+    expect(appSource).toMatch(/renderLeadingRail=\{\w+ \? \(\{ expanded \}\) => renderProjectRail\(/);
   });
 
   it("keeps direct resize canonical while visibility transitions preserve content width", () => {

@@ -3,8 +3,8 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, it } from "vitest";
 import { AuxiliaryWorkbenchPanel } from "../../../../src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel";
-import { ProjectWorkbenchStore } from "../../../../src/features/app-shell/auxiliary-workbench/ProjectWorkbenchStore";
-import type { AuxiliaryWorkbenchContribution, AuxiliaryWorkbenchItemRenderContext } from "../../../../src/features/app-shell/auxiliary-workbench/types";
+import { ProjectWorkbenchStore } from "../../../../src/lib/workbench/ProjectWorkbenchStore";
+import type { AuxiliaryWorkbenchContribution, AuxiliaryWorkbenchItemRenderContext } from "../../../../src/lib/workbench/types";
 import { withTestLocalization } from "../../../support/react/localization";
 
 let root: Root | null = null;

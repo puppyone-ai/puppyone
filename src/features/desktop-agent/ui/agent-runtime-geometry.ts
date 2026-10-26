@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import type { AnchoredOverlayPosition } from "../../app-shell/useAnchoredOverlayPosition";
+import type { AnchoredOverlayPosition } from "../../../components/useAnchoredOverlayPosition";
 
 type AgentRuntimeGeometryVariables = CSSProperties & Record<`--agent-${string}`, string | number>;
 

@@ -5,11 +5,14 @@ import { CloudAgentSidebarHost } from "../agent/lazy";
 import type { useCloudAgentWorkspace } from "../agent/useCloudAgentWorkspace";
 import type { ProjectCloudContext } from "../project/context";
 import type { CloudWorkspaceSidebarController } from "./useCloudWorkspaceSidebar";
+import type { WorkbenchPanelComponent } from "../../../lib/workbench/panelContract";
 
 const HistorySidebar = lazy(() => import("../history/CloudWorkspaceHistorySidebar").then(module => ({ default: module.CloudWorkspaceHistorySidebar })));
 
-export function CloudWorkspaceSidebar({ sidebar, agent, context, session, apiBaseUrl, active, revisionKey, onSessionChange }: {
+export function CloudWorkspaceSidebar({ sidebar, agent, context, session, apiBaseUrl, active, revisionKey, onSessionChange, workbenchPanel }: {
   sidebar: CloudWorkspaceSidebarController;
+  /** The shell's workbench panel; the Cloud agent contributes to it without importing the shell. */
+  workbenchPanel: WorkbenchPanelComponent;
   agent: ReturnType<typeof useCloudAgentWorkspace>;
   context: ProjectCloudContext | null;
   session: DesktopCloudSession | null;
@@ -24,5 +27,5 @@ export function CloudWorkspaceSidebar({ sidebar, agent, context, session, apiBas
     <HistorySidebar key={sidebar.scope} session={session} projectId={context.projectId} apiBaseUrl={apiBaseUrl}
       active={active} revisionKey={revisionKey} onSessionChange={onSessionChange} onClose={sidebar.close} />
   </Suspense>;
-  return <CloudAgentSidebarHost key={sidebar.scope} workbench={agent.workbench} open={agent.open} active={active} />;
+  return <CloudAgentSidebarHost key={sidebar.scope} workbench={agent.workbench} open={agent.open} active={active} Panel={workbenchPanel} />;
 }

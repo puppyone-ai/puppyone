@@ -42,10 +42,13 @@ describe("Project-owned auxiliary workbench architecture", () => {
     expect(app).toContain("lazy(loadAgentChatWorkbenchItem)");
     expect(app).toContain("contributions={auxiliaryWorkbenchContributions}");
     expect(app).toContain("createTerminalWorkbenchContribution(t, readAuxiliaryTerminalAppearance)");
-    expect(app.match(/className=\{`desktop-right-sidebar-surface/g)).toHaveLength(3);
-    expect(app).toContain('rightSidebarSurface === "chat" ? "is-active" : ""');
-    expect(app).toContain('rightSidebarSurface === "changes" ? "is-active" : ""');
-    expect(app).toContain('rightSidebarSurface === "history" ? "is-active" : ""');
+    // Surfaces are mutually exclusive: each local surface needs the local sidebar
+    // (false over a Cloud workspace) and its own selection; Cloud owns its own surface.
+    for (const surface of ["chat", "changes", "history"]) {
+      expect(app).toContain(`localRightSidebarActive && rightSidebarSurface === "${surface}" ? "is-active" : ""`);
+    }
+    expect(app).toMatch(/const localRightSidebarActive = !cloudWorkspaceActive\b/);
+    expect(app).toContain('className={`desktop-right-sidebar-surface ${cloudWorkspaceActive ? "is-active" : ""}`}');
     expect(app).not.toContain("<RightAgentPanel");
     expect(app).not.toContain('key={focusedWorkspace?.path ?? workspace.path}');
     expect(lazyEntry).toContain('import("./workbench/AgentChatWorkbenchItem")');
@@ -54,7 +57,7 @@ describe("Project-owned auxiliary workbench architecture", () => {
 
   it("preserves Item views across Tab reorder and keeps close feature-authoritative", () => {
     const panel = source("src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel.tsx");
-    const closeContract = source("src/features/app-shell/auxiliary-workbench/types.ts");
+    const closeContract = source("src/lib/workbench/types.ts");
     const closeCoordinator = source(
       "src/features/app-shell/auxiliary-workbench/useAuxiliaryWorkbenchCloseCoordinator.ts",
     );
@@ -80,7 +83,7 @@ describe("Project-owned auxiliary workbench architecture", () => {
   });
 
   it("separates presentation from command selection and leaves focus in the DOM", () => {
-    const contract = source("src/features/app-shell/auxiliary-workbench/types.ts");
+    const contract = source("src/lib/workbench/types.ts");
     const panel = source("src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel.tsx");
     expect(contract).toContain("sidebarVisible: boolean");
     expect(contract).toContain("presented: boolean");
@@ -91,7 +94,7 @@ describe("Project-owned auxiliary workbench architecture", () => {
   });
 
   it("keeps feature branding in the generic Item snapshot and Workbench chrome", () => {
-    const contract = source("src/features/app-shell/auxiliary-workbench/types.ts");
+    const contract = source("src/lib/workbench/types.ts");
     const status = source(
       "src/features/app-shell/auxiliary-workbench/layout/AuxiliaryWorkbenchStatus.tsx",
     );

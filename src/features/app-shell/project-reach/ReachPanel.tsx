@@ -2,11 +2,11 @@ import { type ComponentProps, type ReactNode, type RefObject } from "react";
 import { useLocalization } from "@puppyone/localization";
 import { UserPlus, Plug, HardDriveDownload } from "lucide-react";
 import { DesktopMenuItem } from "../../../components/DesktopMenu";
-import { DesktopProjectLocationControls } from "../DesktopProjectLocationSwitcher";
-import { DesktopTitlebarMenuLayer } from "../DesktopTitlebarMenuLayer";
+import { DesktopProjectLocationControls } from "../../../components/DesktopProjectLocationSwitcher";
+import { DesktopTitlebarMenuLayer } from "../../../components/DesktopTitlebarMenuLayer";
 import type { ReachPlace, ReachState } from "./projectReachHeader";
 import { ReachPlaceMark, useReachSummary } from "./reachPresentation";
-import { useDesktopPlatformCapabilities } from "../../../platform/useDesktopPlatformCapabilities";
+import { useDesktopPlatformCapabilities } from "../../../platform";
 
 /**
  * What the Header offers about reach, wherever it is opened from.

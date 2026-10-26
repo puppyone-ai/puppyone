@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { DesktopCloudShell } from "../../../../src/components/DesktopCloudShell";
 import { DesktopTitlebarContext } from "../../../../src/features/app-shell/DesktopTitlebarContext";
 import { DesktopWorkspaceLocationSurface } from "../../../../src/features/app-shell/DesktopWorkspaceLocationSurface";
-import type { DesktopProjectLocation } from "../../../../src/features/app-shell/DesktopProjectLocationSwitcher";
+import type { DesktopProjectLocation } from "../../../../src/components/DesktopProjectLocationSwitcher";
 import { withTestLocalization } from "../../../support/react/localization";
 
 vi.mock("../../../../src/platform/useDesktopPlatformCapabilities", () => ({

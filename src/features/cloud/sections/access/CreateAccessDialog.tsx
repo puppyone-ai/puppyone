@@ -3,7 +3,7 @@ import { Plus } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import { DesktopDialogCloseButton, DesktopDialogRoot, DesktopDialogSurface } from "../../../../components/DesktopDialog";
-import { DesktopOverlayLayer } from "../../../app-shell/DesktopOverlayPortal";
+import { DesktopOverlayLayer } from "../../../../components/DesktopOverlayPortal";
 import type {
   DesktopCloudAccessSurface,
   DesktopCloudMcpEndpoint,

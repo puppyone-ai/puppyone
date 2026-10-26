@@ -19,3 +19,6 @@ export {
   maskRemoteUrl,
   parsePuppyoneRemote,
 } from "./remotes";
+export { GitHistoryTimeline } from "./GitHistoryTimeline";
+export { useGitViewNavigationFocus } from "./useGitViewNavigationFocus";
+export { resolveCanonicalPuppyoneRemotes } from "./remotes";

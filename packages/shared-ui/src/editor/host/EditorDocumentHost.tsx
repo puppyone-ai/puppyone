@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { ipcErrorMessage } from "../../core/ipcErrorMessage";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
 import { preloadPresetViewer, PresetViewerRenderer } from "./PresetViewerRenderer";
@@ -334,7 +335,7 @@ function EditorUnavailableState({
   return (
     <div className="editor-state editor-state--stacked danger">
       <strong>{title}</strong>
-      <span dir="auto">{message}</span>
+      <span dir="auto">{ipcErrorMessage(message)}</span>
       {onRetry && <button type="button" data-po-interaction="navigation" onClick={onRetry}>
         {t("common.action.retry")}
       </button>}

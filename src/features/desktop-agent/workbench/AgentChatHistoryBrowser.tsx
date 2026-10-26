@@ -2,7 +2,7 @@ import { useDesktopPreference } from "../../../preferencesStore";
 import { Tooltip } from "@puppyone/shared-ui";
 import { useMemo } from "react";
 import { ArrowLeft } from "lucide-react";
-import type { AuxiliaryWorkbenchHistoryBrowserContext } from "../../app-shell/auxiliary-workbench/types";
+import type { AuxiliaryWorkbenchHistoryBrowserContext } from "../../../lib/workbench/types";
 import { useLocalization } from "@puppyone/localization/react";
 import { ConversationHistoryController } from "../application/ConversationHistoryController";
 import { createAgentChatHistoryTarget } from "../domain/agent-chat-history-target";

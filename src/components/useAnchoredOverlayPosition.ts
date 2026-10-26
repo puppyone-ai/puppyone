@@ -57,11 +57,7 @@ export function resolveAnchoredOverlayPosition({
   const safeBottom = Math.min(viewportHeight - margin, boundaryBottom - margin);
   const availableWidth = Math.max(1, safeRight - safeLeft);
   const width = Math.min(preferredWidth, availableWidth);
-  const preferredLeft = alignment === "center"
-    ? anchor.left + (anchor.width - width) / 2
-    : alignment === "end"
-      ? anchor.right - width
-      : anchor.left;
+  const preferredLeft = resolvePreferredLeft(anchor, width, alignment);
   const left = clamp(preferredLeft, safeLeft, Math.max(safeLeft, safeRight - width));
   const spaceAbove = Math.max(0, anchor.top - gap - safeTop);
   const spaceBelow = Math.max(0, safeBottom - anchor.bottom - gap);
@@ -75,11 +71,10 @@ export function resolveAnchoredOverlayPosition({
   const availableHeight = placement === "above" ? spaceAbove : spaceBelow;
   const maxHeight = Math.max(1, Math.min(preferredMaxHeight, availableHeight));
   const renderedHeight = Math.min(measuredHeight, maxHeight);
-  const top = placement === "above"
-    ? Math.max(safeTop, anchor.top - gap - renderedHeight)
-    : placementPreference === "below"
-      ? anchor.bottom + gap
-      : Math.min(anchor.bottom + gap, safeBottom - renderedHeight);
+  const below = placementPreference === "below"
+    ? anchor.bottom + gap
+    : Math.min(anchor.bottom + gap, safeBottom - renderedHeight);
+  const top = placement === "above" ? Math.max(safeTop, anchor.top - gap - renderedHeight) : below;
 
   return { left, top, width, maxWidth: availableWidth, maxHeight, placement };
 }
@@ -113,6 +108,9 @@ export function useAnchoredOverlayPosition({
   const [overlayElement, setOverlayElement] = useState<HTMLDivElement | null>(null);
   const [position, setPosition] = useState<AnchoredOverlayPosition | null>(null);
   const setOverlayRef = useCallback((node: HTMLDivElement | null) => {
+    // Marks inline-placed geometry for animations.css: Reduce Motion must not
+    // animate the overlay from its hidden measuring origin to its anchor.
+    node?.setAttribute("data-anchored-overlay", "");
     overlayRef.current = node;
     setOverlayElement((current) => current === node ? current : node);
   }, []);
@@ -181,6 +179,12 @@ export function useAnchoredOverlayPosition({
 
 function viewportRect(width: number, height: number): Rect {
   return { top: 0, right: width, bottom: height, left: 0, width, height };
+}
+
+function resolvePreferredLeft(anchor: Rect, width: number, alignment: "start" | "center" | "end") {
+  if (alignment === "center") return anchor.left + (anchor.width - width) / 2;
+  if (alignment === "end") return anchor.right - width;
+  return anchor.left;
 }
 
 function clamp(value: number, minimum: number, maximum: number) {

@@ -26,8 +26,8 @@ import {
   DesktopMenuSection,
   DesktopMenuSurface,
 } from "../../../components/DesktopMenu";
-import { DesktopOverlayLayer } from "../../app-shell/DesktopOverlayPortal";
-import { useAnchoredOverlayPosition } from "../../app-shell/useAnchoredOverlayPosition";
+import { DesktopOverlayLayer } from "../../../components/DesktopOverlayPortal";
+import { useAnchoredOverlayPosition } from "../../../components/useAnchoredOverlayPosition";
 
 const PANE_ACTIONS_MENU_MAX_HEIGHT = 360;
 

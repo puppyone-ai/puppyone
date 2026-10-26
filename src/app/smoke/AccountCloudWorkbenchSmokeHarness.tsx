@@ -1,20 +1,20 @@
-import { cloudHistorySmokeFixture } from "./cloudRepositorySmokeFixture";
+import { cloudHistorySmokeFixture } from "../../features/cloud/workbench/cloudRepositorySmokeFixture";
 import { useEffect, useState } from "react";
 import { EditorView } from "@codemirror/view";
 import { useLocalization } from "@puppyone/localization";
-import { TypographyCatalogProvider, useTypographyCatalog, useTypographyRuntime } from "../../typography";
-import { resolveSurfaceAppearance, SurfaceAppearanceProvider } from "../../appearance/AppearanceRuntime";
-import { useDesktopPreference, useDesktopAppearance, useDesktopPreferenceEffects, initializeDesktopPreferences, desktopPreferencesStore } from "../../settings";
-import { AssetLibraryHome } from "../../../components/AssetLibraryHome";
-import { MinimalOnboarding } from "../../../components/MinimalOnboarding";
-import { useHomepageCloudProjects } from "./useHomepageCloudProjects";
-import { HomepageCloudStatus } from "./HomepageCloudStatus";
-import type { DesktopCloudSession } from "../../../lib/cloudApi";
-import { useAccountCloudWorkspace } from "./useAccountCloudWorkspace";
-import { useNativeCloudWorkbench } from "./useNativeCloudWorkbench";
-import { DesktopHelpLauncher } from "../../app-shell/DesktopHelpLauncher";
-import { AccountCloudWorkspaceSurface, useAccountCloudWorkspacePresentation } from "./AccountCloudWorkspaceSurface";
-import { createCloudAgentSmokeFixture, editCloudAgentPrompt } from "../agent/CloudAgentSmokeFixture";
+import { TypographyCatalogProvider, useTypographyCatalog, useTypographyRuntime } from "../../features/typography";
+import { resolveSurfaceAppearance, SurfaceAppearanceProvider } from "../../features/appearance/AppearanceRuntime";
+import { useDesktopPreference, useDesktopAppearance, useDesktopPreferenceEffects, initializeDesktopPreferences, desktopPreferencesStore } from "../../features/settings";
+import { AssetLibraryHome } from "../../components/AssetLibraryHome";
+import { MinimalOnboarding } from "../../components/MinimalOnboarding";
+import { useHomepageCloudProjects } from "../../features/cloud/workbench/useHomepageCloudProjects";
+import { HomepageCloudStatus } from "../../features/cloud/workbench/HomepageCloudStatus";
+import type { DesktopCloudSession } from "../../lib/cloudApi";
+import { useAccountCloudWorkspace } from "../../features/cloud/workbench/useAccountCloudWorkspace";
+import { useNativeCloudWorkbench } from "../../features/cloud/workbench/useNativeCloudWorkbench";
+import { DesktopHelpLauncher } from "../../features/app-shell/DesktopHelpLauncher";
+import { AccountCloudWorkspaceSurface, useAccountCloudWorkspacePresentation } from "../AccountCloudWorkspaceSurface";
+import { createCloudAgentSmokeFixture, editCloudAgentPrompt } from "../../features/cloud/agent/CloudAgentSmokeFixture";
 
 initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeItem: () => {} });
 // The geometry acceptance below exercises the optional centered Header layout.

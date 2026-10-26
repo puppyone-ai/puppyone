@@ -225,9 +225,8 @@
 
 .markdown-codemirror-editor .cm-md-html-rendered-surface pre code {
   color: inherit;
-  font-family: inherit;
-  font-size: inherit;
-  line-height: inherit;
+  /* Inherit the block's face, size and leading; UA monospace sizing would shrink it. */
+  font: inherit;
 }
 
 /* One file-owned table profile across the editable adapter and Safe HTML. */

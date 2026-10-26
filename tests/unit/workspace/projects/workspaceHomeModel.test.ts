@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getWorkspaceParentPathForDisplay, getWorkspacePathForDisplay } from "../../../../src/features/app-shell/workspaceHomeModel";
+import { getWorkspaceParentPathForDisplay, getWorkspacePathForDisplay } from "../../../../src/lib/workspaceHomeModel";
 
 describe("desktop workspace display path", () => {
   it("abbreviates Mac home paths without removing the project or abbreviating external locations", () => {

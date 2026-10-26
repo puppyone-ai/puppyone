@@ -337,8 +337,8 @@ describe("Desktop Terminal architecture boundaries", () => {
     expect(header).toContain("onClick={onCreate}");
     expect(header).not.toContain("TerminalWorkbenchCreateMenu");
     expect(header).not.toContain("aria-haspopup");
-    expect(panel).toContain("workbench.items.length === 0 ? renderLauncher");
-    expect(panel).toContain(": workbench.root && <AuxiliaryWorkbenchViewport");
+    // An empty workbench shows only the launcher (inside its render boundary); otherwise the viewport.
+    expect(panel).toMatch(/workbench\.items\.length === 0 \?[\s\S]{0,240}?renderLauncher=\{renderLauncher\}[\s\S]{0,240}?:\s*workbench\.root && <AuxiliaryWorkbenchViewport/);
     expect(panel).not.toContain("sessionLayout");
     expect(settings).not.toContain("terminalLayout");
     expect(preferences).not.toContain("TerminalSessionLayout");

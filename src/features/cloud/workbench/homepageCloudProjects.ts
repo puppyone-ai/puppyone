@@ -1,4 +1,4 @@
-import type { ProjectHomeItem, RecentWorkspaceHomeItem } from "../../app-shell/workspaceHomeModel";
+import type { ProjectHomeItem, RecentWorkspaceHomeItem } from "../../../lib/workspaceHomeModel";
 import type { DesktopCloudProject } from "../../../lib/cloudApi";
 import { isTrustedCloudGitOrigin } from "../workspace/workspaceGitRemote";
 import { latestProjectModifiedAt } from "./homepageCloudActivity";

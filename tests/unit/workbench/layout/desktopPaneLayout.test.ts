@@ -6,7 +6,7 @@ import {
   MIN_MAIN_PANE_WIDTH,
   MIN_RIGHT_SIDEBAR_WIDTH,
   resolveDesktopPaneLayout,
-} from "../../../../src/features/app-shell/layout/desktopPaneLayout";
+} from "../../../../src/lib/desktopPaneLayout";
 
 describe("desktop three-pane layout", () => {
   it("uses the compact 220px product floor for the left explorer", () => {

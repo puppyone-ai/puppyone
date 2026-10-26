@@ -2,7 +2,7 @@ import {
   auxiliaryWorkbenchReducer, createAuxiliaryWorkbenchState,
   type AuxiliaryWorkbenchAction, type AuxiliaryWorkbenchItem, type AuxiliaryWorkbenchState,
 } from "@puppyone/shared-ui";
-import type { ProjectSessionContext } from "../../../../shared/project-session-contract/types";
+import type { ProjectSessionContext } from "../../../shared/project-session-contract/types";
 import type {
   AuxiliaryWorkbenchContribution, AuxiliaryWorkbenchCreationRecipe, AuxiliaryWorkbenchHistoryTarget, AuxiliaryWorkbenchCreationFailure,
   AuxiliaryWorkbenchItemSnapshot, AuxiliaryWorkbenchPreparationContext, AuxiliaryWorkbenchProject,
@@ -119,7 +119,7 @@ export class ProjectWorkbenchStore implements AuxiliaryWorkbenchProject {
     const contribution = this.contributions.get(kind);
     if (!contribution || !this.canCreate(kind)) return null;
     if (launcherId && (!this.hasLauncher(launcherId) || this.preparingLaunchers.has(launcherId))) return null;
-    if (history ? !contribution.history || recipe : recipe ? !contribution.creationRecipes?.some((entry) => entry.id === recipe.id && entry.status === "available") : contribution.creationRecipes !== undefined) return null;
+    if (!isCreationRequestValid(contribution, recipe, history)) return null;
     const intent = { kind, group, recipe, history, launcherId };
     if (launcherId) this.preparingLaunchers.add(launcherId);
     this.failedIntent = null;
@@ -130,33 +130,37 @@ export class ProjectWorkbenchStore implements AuxiliaryWorkbenchProject {
       await contribution.prepare?.(preparation);
       this.assertOpen();
       if (!this.contributions.has(kind)) return null;
-      if (!this.snapshot.snapshots.has(preparation.item.id)) this.updateSnapshot(preparation.item.id, {
-        ...contribution.initialSnapshot,
-        title: history?.title ?? contribution.initialSnapshot.title,
-        iconKey: history?.iconKey ?? recipe?.iconKey ?? contribution.initialSnapshot.iconKey,
-        resourceId: history?.id ?? contribution.initialSnapshot.resourceId,
-      });
+      if (!this.snapshot.snapshots.has(preparation.item.id)) {
+        this.updateSnapshot(preparation.item.id, initialItemSnapshot(contribution, recipe, history));
+      }
       const id = this.commit(preparation.item, group, launcherId);
       committed = id !== null;
       return id;
     } catch (error) {
       if (this.disposed || (launcherId && !this.hasLauncher(launcherId))) return null;
-      const value = error as { message?: string; code?: string; retryable?: boolean };
-      this.failedIntent = intent;
-      this.patch({ creationFailure: { kind, label: contribution.label, code: value.code ?? null, detail: value.message ?? String(error), retryable: value.retryable === true } });
+      this.recordCreationFailure(intent, contribution, error);
       return null;
     } finally {
-      if (!committed) {
-        const snapshots = new Map(this.snapshot.snapshots);
-        snapshots.delete(preparation.item.id);
-        this.patch({ snapshots });
-        try { await contribution.discardPreparedItem?.(preparation); }
-        catch (error) { console.error("Unable to release prepared workbench item:", error); }
-      }
-      if (launcherId) this.preparingLaunchers.delete(launcherId);
-      this.patch({ preparingKinds: new Set([...this.snapshot.preparingKinds].filter((entry) => entry !== kind)) });
+      await this.settleCreation(intent, contribution, preparation, committed);
     }
   };
+  private recordCreationFailure(intent: CreationIntent, contribution: AuxiliaryWorkbenchContribution, error: unknown) {
+    const value = error as { message?: string; code?: string; retryable?: boolean };
+    this.failedIntent = intent;
+    this.patch({ creationFailure: { kind: intent.kind, label: contribution.label, code: value.code ?? null, detail: value.message ?? String(error), retryable: value.retryable === true } });
+  }
+  /** Release an uncommitted reservation, then end the preparation whatever happened. */
+  private async settleCreation(intent: CreationIntent, contribution: AuxiliaryWorkbenchContribution, preparation: AuxiliaryWorkbenchPreparationContext, committed: boolean) {
+    if (!committed) {
+      const snapshots = new Map(this.snapshot.snapshots);
+      snapshots.delete(preparation.item.id);
+      this.patch({ snapshots });
+      try { await contribution.discardPreparedItem?.(preparation); }
+      catch (error) { console.error("Unable to release prepared workbench item:", error); }
+    }
+    if (intent.launcherId) this.preparingLaunchers.delete(intent.launcherId);
+    this.patch({ preparingKinds: new Set([...this.snapshot.preparingKinds].filter((entry) => entry !== intent.kind)) });
+  }
   retryCreation = () => {
     const intent = this.failedIntent;
     return intent && this.snapshot.creationFailure?.retryable ? this.create(intent.kind, intent.group, intent.recipe, intent.history, intent.launcherId) : Promise.resolve(null);
@@ -173,4 +177,28 @@ export class ProjectWorkbenchStore implements AuxiliaryWorkbenchProject {
     this.preparingLaunchers.clear();
     this.listeners.clear();
   }
+}
+
+/** A history reopen needs a history browser and no recipe; a recipe must be available; otherwise none may be required. */
+function isCreationRequestValid(
+  contribution: AuxiliaryWorkbenchContribution,
+  recipe: AuxiliaryWorkbenchCreationRecipe | null,
+  history: AuxiliaryWorkbenchHistoryTarget | null,
+): boolean {
+  if (history) return Boolean(contribution.history) && !recipe;
+  if (recipe) return Boolean(contribution.creationRecipes?.some((entry) => entry.id === recipe.id && entry.status === "available"));
+  return contribution.creationRecipes === undefined;
+}
+
+function initialItemSnapshot(
+  contribution: AuxiliaryWorkbenchContribution,
+  recipe: AuxiliaryWorkbenchCreationRecipe | null,
+  history: AuxiliaryWorkbenchHistoryTarget | null,
+): AuxiliaryWorkbenchItemSnapshot {
+  return {
+    ...contribution.initialSnapshot,
+    title: history?.title ?? contribution.initialSnapshot.title,
+    iconKey: history?.iconKey ?? recipe?.iconKey ?? contribution.initialSnapshot.iconKey,
+    resourceId: history?.id ?? contribution.initialSnapshot.resourceId,
+  };
 }

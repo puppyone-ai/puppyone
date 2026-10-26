@@ -511,9 +511,14 @@ app.whenReady().then(async () => {
     const port = reservation.address().port;
     await new Promise(resolve => reservation.close(resolve));
     vite = await createServer({ root, cacheDir: path.join(temporary, "vite"), logLevel: "error",
+      // Pre-bundle the fixture's whole graph: with HMR off, a dependency found
+      // mid-run re-optimizes and later page loads get outdated (504) chunks.
+      optimizeDeps: { entries: ["tests/fixtures/editor/tables/table-interaction.html"] },
       server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null } });
     await vite.listen();
-    browser = new BrowserWindow({ width: 1080, height: 1500, show: false,
+    // Shown like table-interaction: on Linux a hidden window stops CodeMirror
+    // measurement (and frames), leaving height-map estimates that never settle.
+    browser = new BrowserWindow({ width: 1080, height: 1500, show: process.env.PUPPYONE_MARKDOWN_QUOTE_COLORS_HIDDEN === "1" ? false : true,
       webPreferences: { contextIsolation: true, sandbox: true, backgroundThrottling: false } });
     browser.webContents.on("console-message", details => {
       if (details.level === "error" && !details.message.includes("Electron Security Warning")) errors.push(details.message);
@@ -524,7 +529,7 @@ app.whenReady().then(async () => {
     await browser.webContents.debugger.sendCommand("Emulation.setFocusEmulationEnabled", { enabled: true });
     // The desktop content-surface host supplies this boundary in the app;
     // this fixture mounts the lower-level editor directly.
-    await evaluate("(async () => { for(let i=0;i<500&&!window.tableFixture;i++) await new Promise(r=>setTimeout(r,10)); await window.tableFixture.ready(); const section=document.querySelector('#markdown'); section.style.height='1300px'; section.dataset.poThemeSurface='markdown'; })()");
+    await evaluate("(async () => { for(let i=0;i<3000&&!window.tableFixture;i++) await new Promise(r=>setTimeout(r,10)); if(!window.tableFixture) throw new Error('Table fixture did not load within 30s'); await window.tableFixture.ready(); const section=document.querySelector('#markdown'); section.style.height='1300px'; section.dataset.poThemeSurface='markdown'; })()");
     await evaluate(`window.tableFixture.setMarkdownSource(${JSON.stringify(source)})`);
     for (const mode of ["light", "dark"]) for (const theme of [null, "default.newspaper"]) for (const override of [false, true]) {
       await evaluate(`(async () => {
@@ -654,7 +659,12 @@ app.whenReady().then(async () => {
         document.querySelector('#markdown .markdown-codemirror-editor').removeAttribute('style');
         document.querySelector('#markdown').style.height='4800px';
         await window.tableFixture.setMarkdownSource(${JSON.stringify(headings+"\n\n"+html+"\n\nEnd")});
-        await document.fonts.ready; await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+        // Bounded so a stuck font load or a stalled frame names itself instead of timing out the check.
+        const settle = Promise.all([document.fonts.ready, new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))]);
+        const stuck = await Promise.race([settle.then(() => null), new Promise(resolve => setTimeout(() => resolve(
+          JSON.stringify({ fonts: document.fonts.status, loading: [...document.fonts].filter(face => face.status !== 'loaded').map(face => face.family + ':' + face.status).slice(0, 12), visibility: document.visibilityState })
+        ), 15000))]);
+        if (stuck) throw new Error('Heading rhythm setup stalled: ' + stuck);
       })()`);
       // Hidden Chromium still uses the native viewport for virtualization.
       await browser.webContents.debugger.sendCommand("Emulation.setDeviceMetricsOverride", { width:1080, height:5200, deviceScaleFactor:1, mobile:false });

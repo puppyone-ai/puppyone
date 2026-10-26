@@ -109,6 +109,14 @@
     animation-iteration-count: 1 !important;
   }
 
+  /* The near-zero duration above turns every untransitioned property change
+   * into a transition. Anchored overlays are placed with inline geometry
+   * after a hidden measuring pass, so they would flash at the window edge for
+   * one frame before reaching their anchor. */
+  [data-anchored-overlay] {
+    transition-property: none !important;
+  }
+
   [data-puppy-loader],
   [data-puppy-loader] * {
     animation: none !important;

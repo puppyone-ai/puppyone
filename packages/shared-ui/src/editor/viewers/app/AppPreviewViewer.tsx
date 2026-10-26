@@ -1,5 +1,6 @@
 "use client";
 import { Tooltip } from "../../../primitives/Tooltip";
+import { ipcErrorMessage } from "../../../core/ipcErrorMessage";
 
 import {
   Code2,
@@ -274,8 +275,7 @@ function ToolbarButton({
 }
 
 function sanitizeDiagnostic(value: string): string {
-  return value
-    .replace(/Error invoking remote method[^:]*:\s*/gi, "")
+  return ipcErrorMessage(value)
     .replace(/\b(?:ipc|rpc)[\w:-]*\b/gi, "preview service")
     .slice(0, 360);
 }
