@@ -42,8 +42,12 @@ const assert = (value, message) => { if (!value) throw new Error(message); };
 // PUPPYONE_SMOKE_TRACE=1 prints each renderer step, so a hang names its step.
 const trace = process.env.PUPPYONE_SMOKE_TRACE === '1';
 const evaluate = async (code) => { if (trace) console.error('[step]', String(code).replace(/\s+/g, ' ').slice(0, 200)); try { return await window.webContents.executeJavaScript(code, true); } catch (error) { throw new Error(`Renderer step failed: ${code}: ${error.message}; ${errors.join("; ")}`); } };
-const presentation = (location) => evaluate(`(() => {
+const presentation = (location) => evaluate(`(async () => {
   const surface = document.querySelector('[data-workspace-location="${location}"]');
+  // Compare settled styles: a slower runner may still be mid-transition.
+  await Promise.all(surface.getAnimations({ subtree: true })
+    .filter(animation => Number.isFinite(animation.effect?.getComputedTiming().endTime))
+    .map(animation => animation.finished.catch(() => {})));
   const sample = (selector) => {
     const node = surface.querySelector(selector); if (!node) throw new Error("Missing native surface " + selector);
     const rect = node.getBoundingClientRect(), css = getComputedStyle(node);
@@ -476,12 +480,18 @@ app.whenReady().then(async () => {
   assert(await evaluate("!document.querySelector('.desktop-cloud-preparation, .desktop-cloud-entry-light, .desktop-cloud-entry-sweep') && !document.querySelector('[data-workspace-location=cloud]').hidden"),
     'Ready Cloud content must appear immediately even while the Header animation is paused');
   await evaluate("document.querySelector('.desktop-cloud-header-reveal')?.getAnimations({subtree:true})[0]?.finish()");
-  const readyMenu = await evaluate(`(() => {
-    const menu = document.querySelector('.desktop-project-location-menu');
-    const r = menu.getBoundingClientRect();
-    const button = document.querySelector('.desktop-titlebar-location-button').getBoundingClientRect();
-    return {identity:menu.dataset.fixtureIdentity,x:r.x,y:r.y,width:r.width,height:r.height,buttonX:button.x};
-  })()`);
+  // The bar re-anchors a frame or two after the button relabels; give a slower runner time.
+  const readyMenu = await evaluate(`new Promise(resolve => {
+    let frames = 0;
+    const read = () => {
+      const menu = document.querySelector('.desktop-project-location-menu');
+      const r = menu.getBoundingClientRect();
+      const button = document.querySelector('.desktop-titlebar-location-button').getBoundingClientRect();
+      const value = {identity:menu.dataset.fixtureIdentity,x:r.x,y:r.y,width:r.width,height:r.height,buttonX:button.x};
+      if (Math.abs(value.x - value.buttonX) < 1 || ++frames > 120) resolve(value); else requestAnimationFrame(read);
+    };
+    read();
+  })`);
   // The button now names where the project runs, so its label (and the bar
   // anchored to it) may move when Cloud commits; the open bar must be the same
   // instance, stay attached to its button and keep its rows.
