@@ -233,13 +233,13 @@ impl SourceControl {
             .cursor(theme::clickable_cursor())
             .text_color(t.muted)
             .child(
-                Icon::new("chevron-down")
+                Icon::product(crate::ui::components::ProductIcon::Disclosure)
                     .with_size(px(13.))
                     .color(t.muted)
                     .rotate(if collapsed {
-                        -std::f32::consts::FRAC_PI_2
-                    } else {
                         0.
+                    } else {
+                        std::f32::consts::FRAC_PI_2
                     }),
             )
             .child(

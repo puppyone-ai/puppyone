@@ -1,0 +1,6508 @@
+{
+ "sourceCommit": "d2ddc4b903636442ea81b3fb454a24c6f96696f4",
+ "classification": [
+  {
+   "name": "sample.contextmap",
+   "kind": "context-map"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/vnd.puppyone.context-map+json",
+   "kind": "context-map"
+  },
+  {
+   "name": "sample.puppyflow",
+   "kind": "workflow"
+  },
+  {
+   "name": "sample.puppyflow.json",
+   "kind": "workflow"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/vnd.puppyone.puppyflow+json",
+   "kind": "workflow"
+  },
+  {
+   "name": "copilot-instructions.md",
+   "kind": "markdown"
+  },
+  {
+   "name": "SKILL.md",
+   "kind": "markdown"
+  },
+  {
+   "name": "sample.agent.md",
+   "kind": "markdown"
+  },
+  {
+   "name": "sample.chatmode.md",
+   "kind": "markdown"
+  },
+  {
+   "name": "sample.copilotmd",
+   "kind": "markdown"
+  },
+  {
+   "name": "sample.instructions.md",
+   "kind": "markdown"
+  },
+  {
+   "name": "sample.jmd",
+   "kind": "markdown"
+  },
+  {
+   "name": "sample.litcoffee",
+   "kind": "markdown"
+  },
+  {
+   "name": "sample.markdn",
+   "kind": "markdown"
+  },
+  {
+   "name": "sample.markdown",
+   "kind": "markdown"
+  },
+  {
+   "name": "sample.md",
+   "kind": "markdown"
+  },
+  {
+   "name": "sample.mdown",
+   "kind": "markdown"
+  },
+  {
+   "name": "sample.mdtext",
+   "kind": "markdown"
+  },
+  {
+   "name": "sample.mdtxt",
+   "kind": "markdown"
+  },
+  {
+   "name": "sample.mdwn",
+   "kind": "markdown"
+  },
+  {
+   "name": "sample.mdx",
+   "kind": "markdown"
+  },
+  {
+   "name": "sample.mkd",
+   "kind": "markdown"
+  },
+  {
+   "name": "sample.mkdn",
+   "kind": "markdown"
+  },
+  {
+   "name": "sample.prompt.md",
+   "kind": "markdown"
+  },
+  {
+   "name": "sample.ron",
+   "kind": "markdown"
+  },
+  {
+   "name": "sample.ronn",
+   "kind": "markdown"
+  },
+  {
+   "name": "sample.workbook",
+   "kind": "markdown"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/markdown",
+   "kind": "markdown"
+  },
+  {
+   "name": ".babelrc.json",
+   "kind": "json"
+  },
+  {
+   "name": ".devcontainer.json",
+   "kind": "json"
+  },
+  {
+   "name": ".ember-cli",
+   "kind": "json"
+  },
+  {
+   "name": ".watchmanconfig",
+   "kind": "json"
+  },
+  {
+   "name": "argv.json",
+   "kind": "json"
+  },
+  {
+   "name": "babel.config.json",
+   "kind": "json"
+  },
+  {
+   "name": "bun.lock",
+   "kind": "json"
+  },
+  {
+   "name": "color-theme.json",
+   "kind": "json"
+  },
+  {
+   "name": "composer.lock",
+   "kind": "json"
+  },
+  {
+   "name": "devcontainer.json",
+   "kind": "json"
+  },
+  {
+   "name": "extensions.json",
+   "kind": "json"
+  },
+  {
+   "name": "icon-theme.json",
+   "kind": "json"
+  },
+  {
+   "name": "jsconfig.json",
+   "kind": "json"
+  },
+  {
+   "name": "keybindings.json",
+   "kind": "json"
+  },
+  {
+   "name": "language-configuration.json",
+   "kind": "json"
+  },
+  {
+   "name": "launch.json",
+   "kind": "json"
+  },
+  {
+   "name": "mcp.json",
+   "kind": "json"
+  },
+  {
+   "name": "profiles.json",
+   "kind": "json"
+  },
+  {
+   "name": "settings.json",
+   "kind": "json"
+  },
+  {
+   "name": "tasks.json",
+   "kind": "json"
+  },
+  {
+   "name": "tsconfig.json",
+   "kind": "json"
+  },
+  {
+   "name": "typedoc.json",
+   "kind": "json"
+  },
+  {
+   "name": "sample.babelrc",
+   "kind": "json"
+  },
+  {
+   "name": "sample.bowerrc",
+   "kind": "json"
+  },
+  {
+   "name": "sample.code-profile",
+   "kind": "json"
+  },
+  {
+   "name": "sample.code-snippets",
+   "kind": "json"
+  },
+  {
+   "name": "sample.code-workspace",
+   "kind": "json"
+  },
+  {
+   "name": "sample.css.map",
+   "kind": "json"
+  },
+  {
+   "name": "sample.eslintrc",
+   "kind": "json"
+  },
+  {
+   "name": "sample.eslintrc.json",
+   "kind": "json"
+  },
+  {
+   "name": "sample.geojson",
+   "kind": "json"
+  },
+  {
+   "name": "sample.har",
+   "kind": "json"
+  },
+  {
+   "name": "sample.hintrc",
+   "kind": "json"
+  },
+  {
+   "name": "sample.js.map",
+   "kind": "json"
+  },
+  {
+   "name": "sample.jscsrc",
+   "kind": "json"
+  },
+  {
+   "name": "sample.jsfmtrc",
+   "kind": "json"
+  },
+  {
+   "name": "sample.jshintrc",
+   "kind": "json"
+  },
+  {
+   "name": "sample.jslintrc",
+   "kind": "json"
+  },
+  {
+   "name": "sample.json",
+   "kind": "json"
+  },
+  {
+   "name": "sample.json5",
+   "kind": "json"
+  },
+  {
+   "name": "sample.jsonc",
+   "kind": "json"
+  },
+  {
+   "name": "sample.jsonld",
+   "kind": "json"
+  },
+  {
+   "name": "sample.swcrc",
+   "kind": "json"
+  },
+  {
+   "name": "sample.toolset.jsonc",
+   "kind": "json"
+  },
+  {
+   "name": "sample.ts.map",
+   "kind": "json"
+  },
+  {
+   "name": "sample.tsbuildinfo",
+   "kind": "json"
+  },
+  {
+   "name": "sample.vuerc",
+   "kind": "json"
+  },
+  {
+   "name": "sample.webmanifest",
+   "kind": "json"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/json",
+   "kind": "json"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/manifest+json",
+   "kind": "json"
+  },
+  {
+   "name": "sample.jsonl",
+   "kind": "json"
+  },
+  {
+   "name": "sample.ndjson",
+   "kind": "json"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/jsonl",
+   "kind": "json"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/x-ndjson",
+   "kind": "json"
+  },
+  {
+   "name": "sample.cff",
+   "kind": "code"
+  },
+  {
+   "name": "sample.eyaml",
+   "kind": "code"
+  },
+  {
+   "name": "sample.eyml",
+   "kind": "code"
+  },
+  {
+   "name": "sample.winget",
+   "kind": "code"
+  },
+  {
+   "name": "sample.yaml",
+   "kind": "code"
+  },
+  {
+   "name": "sample.yaml-tmlanguage",
+   "kind": "code"
+  },
+  {
+   "name": "sample.yaml-tmpreferences",
+   "kind": "code"
+  },
+  {
+   "name": "sample.yaml-tmtheme",
+   "kind": "code"
+  },
+  {
+   "name": "sample.yml",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/yaml",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-yaml",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/yaml",
+   "kind": "code"
+  },
+  {
+   "name": "sample.toml",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/toml",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/toml",
+   "kind": "code"
+  },
+  {
+   "name": "sample.ascx",
+   "kind": "code"
+  },
+  {
+   "name": "sample.atom",
+   "kind": "code"
+  },
+  {
+   "name": "sample.axaml",
+   "kind": "code"
+  },
+  {
+   "name": "sample.axml",
+   "kind": "code"
+  },
+  {
+   "name": "sample.bpmn",
+   "kind": "code"
+  },
+  {
+   "name": "sample.cpt",
+   "kind": "code"
+  },
+  {
+   "name": "sample.csl",
+   "kind": "code"
+  },
+  {
+   "name": "sample.csproj",
+   "kind": "code"
+  },
+  {
+   "name": "sample.csproj.user",
+   "kind": "code"
+  },
+  {
+   "name": "sample.dita",
+   "kind": "code"
+  },
+  {
+   "name": "sample.ditamap",
+   "kind": "code"
+  },
+  {
+   "name": "sample.dtd",
+   "kind": "code"
+  },
+  {
+   "name": "sample.dtml",
+   "kind": "code"
+  },
+  {
+   "name": "sample.ent",
+   "kind": "code"
+  },
+  {
+   "name": "sample.fsproj",
+   "kind": "code"
+  },
+  {
+   "name": "sample.fxml",
+   "kind": "code"
+  },
+  {
+   "name": "sample.iml",
+   "kind": "code"
+  },
+  {
+   "name": "sample.isml",
+   "kind": "code"
+  },
+  {
+   "name": "sample.jmx",
+   "kind": "code"
+  },
+  {
+   "name": "sample.launch",
+   "kind": "code"
+  },
+  {
+   "name": "sample.menu",
+   "kind": "code"
+  },
+  {
+   "name": "sample.mod",
+   "kind": "code"
+  },
+  {
+   "name": "sample.mxml",
+   "kind": "code"
+  },
+  {
+   "name": "sample.nuspec",
+   "kind": "code"
+  },
+  {
+   "name": "sample.opml",
+   "kind": "code"
+  },
+  {
+   "name": "sample.owl",
+   "kind": "code"
+  },
+  {
+   "name": "sample.plist",
+   "kind": "code"
+  },
+  {
+   "name": "sample.proj",
+   "kind": "code"
+  },
+  {
+   "name": "sample.props",
+   "kind": "code"
+  },
+  {
+   "name": "sample.pt",
+   "kind": "code"
+  },
+  {
+   "name": "sample.publishsettings",
+   "kind": "code"
+  },
+  {
+   "name": "sample.pubxml",
+   "kind": "code"
+  },
+  {
+   "name": "sample.pubxml.user",
+   "kind": "code"
+  },
+  {
+   "name": "sample.rbxlx",
+   "kind": "code"
+  },
+  {
+   "name": "sample.rbxmx",
+   "kind": "code"
+  },
+  {
+   "name": "sample.rdf",
+   "kind": "code"
+  },
+  {
+   "name": "sample.rng",
+   "kind": "code"
+  },
+  {
+   "name": "sample.rss",
+   "kind": "code"
+  },
+  {
+   "name": "sample.shproj",
+   "kind": "code"
+  },
+  {
+   "name": "sample.slnx",
+   "kind": "code"
+  },
+  {
+   "name": "sample.storyboard",
+   "kind": "code"
+  },
+  {
+   "name": "sample.svg-xml",
+   "kind": "code"
+  },
+  {
+   "name": "sample.targets",
+   "kind": "code"
+  },
+  {
+   "name": "sample.tld",
+   "kind": "code"
+  },
+  {
+   "name": "sample.tmx",
+   "kind": "code"
+  },
+  {
+   "name": "sample.vbproj",
+   "kind": "code"
+  },
+  {
+   "name": "sample.vbproj.user",
+   "kind": "code"
+  },
+  {
+   "name": "sample.vcxproj",
+   "kind": "code"
+  },
+  {
+   "name": "sample.vcxproj.filters",
+   "kind": "code"
+  },
+  {
+   "name": "sample.wixproj",
+   "kind": "code"
+  },
+  {
+   "name": "sample.wsdl",
+   "kind": "code"
+  },
+  {
+   "name": "sample.wxi",
+   "kind": "code"
+  },
+  {
+   "name": "sample.wxl",
+   "kind": "code"
+  },
+  {
+   "name": "sample.wxs",
+   "kind": "code"
+  },
+  {
+   "name": "sample.xaml",
+   "kind": "code"
+  },
+  {
+   "name": "sample.xbl",
+   "kind": "code"
+  },
+  {
+   "name": "sample.xib",
+   "kind": "code"
+  },
+  {
+   "name": "sample.xlf",
+   "kind": "code"
+  },
+  {
+   "name": "sample.xliff",
+   "kind": "code"
+  },
+  {
+   "name": "sample.xml",
+   "kind": "code"
+  },
+  {
+   "name": "sample.xoml",
+   "kind": "code"
+  },
+  {
+   "name": "sample.xpdl",
+   "kind": "code"
+  },
+  {
+   "name": "sample.xsd",
+   "kind": "code"
+  },
+  {
+   "name": "sample.xsl",
+   "kind": "code"
+  },
+  {
+   "name": "sample.xslt",
+   "kind": "code"
+  },
+  {
+   "name": "sample.xul",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/xml",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/xml",
+   "kind": "code"
+  },
+  {
+   "name": "sample.csv",
+   "kind": "spreadsheet"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/csv",
+   "kind": "spreadsheet"
+  },
+  {
+   "name": "sample.tsv",
+   "kind": "spreadsheet"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/tab-separated-values",
+   "kind": "spreadsheet"
+  },
+  {
+   "name": "sample.proto",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-protobuf",
+   "kind": "code"
+  },
+  {
+   "name": "sample.cfg",
+   "kind": "code"
+  },
+  {
+   "name": "sample.conf",
+   "kind": "code"
+  },
+  {
+   "name": "sample.config",
+   "kind": "code"
+  },
+  {
+   "name": "sample.editorconfig",
+   "kind": "code"
+  },
+  {
+   "name": "sample.gitconfig",
+   "kind": "code"
+  },
+  {
+   "name": "sample.ini",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/plain",
+   "kind": "text"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-ini",
+   "kind": "code"
+  },
+  {
+   "name": "gitconfig",
+   "kind": "code"
+  },
+  {
+   "name": "sample.directory",
+   "kind": "code"
+  },
+  {
+   "name": "sample.gitattributes",
+   "kind": "code"
+  },
+  {
+   "name": "sample.gitmodules",
+   "kind": "code"
+  },
+  {
+   "name": "sample.npmrc",
+   "kind": "code"
+  },
+  {
+   "name": "sample.properties",
+   "kind": "code"
+  },
+  {
+   "name": "sample.repo",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-properties",
+   "kind": "code"
+  },
+  {
+   "name": "sample.hcl",
+   "kind": "code"
+  },
+  {
+   "name": "sample.tf",
+   "kind": "code"
+  },
+  {
+   "name": "sample.tfvars",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-hcl",
+   "kind": "code"
+  },
+  {
+   "name": "sample.cts",
+   "kind": "code"
+  },
+  {
+   "name": "sample.mts",
+   "kind": "code"
+  },
+  {
+   "name": "sample.ts",
+   "kind": "code"
+  },
+  {
+   "name": "sample.tsx",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/typescript",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/typescript",
+   "kind": "code"
+  },
+  {
+   "name": "jakefile",
+   "kind": "code"
+  },
+  {
+   "name": "sample.cjs",
+   "kind": "code"
+  },
+  {
+   "name": "sample.es6",
+   "kind": "code"
+  },
+  {
+   "name": "sample.js",
+   "kind": "code"
+  },
+  {
+   "name": "sample.jsx",
+   "kind": "code"
+  },
+  {
+   "name": "sample.mjs",
+   "kind": "code"
+  },
+  {
+   "name": "sample.pac",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/javascript",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/javascript",
+   "kind": "code"
+  },
+  {
+   "name": "sample.coffee",
+   "kind": "code"
+  },
+  {
+   "name": "sample.cson",
+   "kind": "code"
+  },
+  {
+   "name": "sample.iced",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/vnd.coffeescript",
+   "kind": "code"
+  },
+  {
+   "name": "sample.puppyoneapp",
+   "kind": "app"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/vnd.puppyone.app+json",
+   "kind": "app"
+  },
+  {
+   "name": "sample.asp",
+   "kind": "html"
+  },
+  {
+   "name": "sample.aspx",
+   "kind": "html"
+  },
+  {
+   "name": "sample.ejs",
+   "kind": "html"
+  },
+  {
+   "name": "sample.htm",
+   "kind": "html"
+  },
+  {
+   "name": "sample.html",
+   "kind": "html"
+  },
+  {
+   "name": "sample.jshtm",
+   "kind": "html"
+  },
+  {
+   "name": "sample.jsp",
+   "kind": "html"
+  },
+  {
+   "name": "sample.mdoc",
+   "kind": "html"
+  },
+  {
+   "name": "sample.rhtml",
+   "kind": "html"
+  },
+  {
+   "name": "sample.shtml",
+   "kind": "html"
+  },
+  {
+   "name": "sample.volt",
+   "kind": "html"
+  },
+  {
+   "name": "sample.xht",
+   "kind": "html"
+  },
+  {
+   "name": "sample.xhtml",
+   "kind": "html"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/xhtml+xml",
+   "kind": "html"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/html",
+   "kind": "html"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/ng-template",
+   "kind": "html"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/template",
+   "kind": "html"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-jshtm",
+   "kind": "html"
+  },
+  {
+   "name": "sample.css",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/css",
+   "kind": "code"
+  },
+  {
+   "name": "sample.sass",
+   "kind": "code"
+  },
+  {
+   "name": "sample.scss",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/scss",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-sass",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-scss",
+   "kind": "code"
+  },
+  {
+   "name": "sample.less",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/less",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-less",
+   "kind": "code"
+  },
+  {
+   "name": "sample.jade",
+   "kind": "code"
+  },
+  {
+   "name": "sample.pug",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-pug",
+   "kind": "code"
+  },
+  {
+   "name": "sample.handlebars",
+   "kind": "code"
+  },
+  {
+   "name": "sample.hbs",
+   "kind": "code"
+  },
+  {
+   "name": "sample.hjs",
+   "kind": "code"
+  },
+  {
+   "name": "sample.mustache",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-handlebars-template",
+   "kind": "code"
+  },
+  {
+   "name": "sample.cshtml",
+   "kind": "code"
+  },
+  {
+   "name": "sample.razor",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-cshtml",
+   "kind": "code"
+  },
+  {
+   "name": "sample.twig",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-twig",
+   "kind": "code"
+  },
+  {
+   "name": "sample.liquid",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-liquid",
+   "kind": "code"
+  },
+  {
+   "name": "SConscript",
+   "kind": "code"
+  },
+  {
+   "name": "SConstruct",
+   "kind": "code"
+  },
+  {
+   "name": "sample.cpy",
+   "kind": "code"
+  },
+  {
+   "name": "sample.gyp",
+   "kind": "code"
+  },
+  {
+   "name": "sample.gypi",
+   "kind": "code"
+  },
+  {
+   "name": "sample.ipy",
+   "kind": "code"
+  },
+  {
+   "name": "sample.py",
+   "kind": "code"
+  },
+  {
+   "name": "sample.pyi",
+   "kind": "code"
+  },
+  {
+   "name": "sample.pyt",
+   "kind": "code"
+  },
+  {
+   "name": "sample.pyw",
+   "kind": "code"
+  },
+  {
+   "name": "sample.pyx",
+   "kind": "code"
+  },
+  {
+   "name": "sample.rpy",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/x-python",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-python",
+   "kind": "code"
+  },
+  {
+   "name": "Appfile",
+   "kind": "code"
+  },
+  {
+   "name": "appraisals",
+   "kind": "code"
+  },
+  {
+   "name": "Berksfile",
+   "kind": "code"
+  },
+  {
+   "name": "berksfile.lock",
+   "kind": "code"
+  },
+  {
+   "name": "Brewfile",
+   "kind": "code"
+  },
+  {
+   "name": "Capfile",
+   "kind": "code"
+  },
+  {
+   "name": "Cheffile",
+   "kind": "code"
+  },
+  {
+   "name": "dangerfile",
+   "kind": "code"
+  },
+  {
+   "name": "Deliverfile",
+   "kind": "code"
+  },
+  {
+   "name": "Fastfile",
+   "kind": "code"
+  },
+  {
+   "name": "Gemfile",
+   "kind": "code"
+  },
+  {
+   "name": "Guardfile",
+   "kind": "code"
+  },
+  {
+   "name": "gymfile",
+   "kind": "code"
+  },
+  {
+   "name": "hobofile",
+   "kind": "code"
+  },
+  {
+   "name": "Matchfile",
+   "kind": "code"
+  },
+  {
+   "name": "Podfile",
+   "kind": "code"
+  },
+  {
+   "name": "Procfile",
+   "kind": "code"
+  },
+  {
+   "name": "puppetfile",
+   "kind": "code"
+  },
+  {
+   "name": "Rakefile",
+   "kind": "code"
+  },
+  {
+   "name": "rantfile",
+   "kind": "code"
+  },
+  {
+   "name": "scanfile",
+   "kind": "code"
+  },
+  {
+   "name": "Snapfile",
+   "kind": "code"
+  },
+  {
+   "name": "thorfile",
+   "kind": "code"
+  },
+  {
+   "name": "Vagrantfile",
+   "kind": "code"
+  },
+  {
+   "name": "sample.erb",
+   "kind": "code"
+  },
+  {
+   "name": "sample.gemspec",
+   "kind": "code"
+  },
+  {
+   "name": "sample.podspec",
+   "kind": "code"
+  },
+  {
+   "name": "sample.rake",
+   "kind": "code"
+  },
+  {
+   "name": "sample.rb",
+   "kind": "code"
+  },
+  {
+   "name": "sample.rbi",
+   "kind": "code"
+  },
+  {
+   "name": "sample.rbx",
+   "kind": "code"
+  },
+  {
+   "name": "sample.rjs",
+   "kind": "code"
+  },
+  {
+   "name": "sample.ru",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/x-ruby",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-ruby",
+   "kind": "code"
+  },
+  {
+   "name": "sample.rs",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-rust",
+   "kind": "code"
+  },
+  {
+   "name": "sample.go",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-go",
+   "kind": "code"
+  },
+  {
+   "name": "sample.jav",
+   "kind": "code"
+  },
+  {
+   "name": "sample.java",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-java",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-java-source",
+   "kind": "code"
+  },
+  {
+   "name": "sample.kt",
+   "kind": "code"
+  },
+  {
+   "name": "sample.kts",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-kotlin",
+   "kind": "code"
+  },
+  {
+   "name": "sample.swift",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-swift",
+   "kind": "code"
+  },
+  {
+   "name": "sample.m",
+   "kind": "code"
+  },
+  {
+   "name": "sample.mm",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-objectivec",
+   "kind": "code"
+  },
+  {
+   "name": "sample.c",
+   "kind": "code"
+  },
+  {
+   "name": "sample.h",
+   "kind": "code"
+  },
+  {
+   "name": "sample.i",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-c",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-csrc",
+   "kind": "code"
+  },
+  {
+   "name": "sample.c++",
+   "kind": "code"
+  },
+  {
+   "name": "sample.c++m",
+   "kind": "code"
+  },
+  {
+   "name": "sample.cc",
+   "kind": "code"
+  },
+  {
+   "name": "sample.ccm",
+   "kind": "code"
+  },
+  {
+   "name": "sample.cpp",
+   "kind": "code"
+  },
+  {
+   "name": "sample.cppm",
+   "kind": "code"
+  },
+  {
+   "name": "sample.cu",
+   "kind": "code"
+  },
+  {
+   "name": "sample.cuh",
+   "kind": "code"
+  },
+  {
+   "name": "sample.cxx",
+   "kind": "code"
+  },
+  {
+   "name": "sample.cxxm",
+   "kind": "code"
+  },
+  {
+   "name": "sample.h.in",
+   "kind": "code"
+  },
+  {
+   "name": "sample.h++",
+   "kind": "code"
+  },
+  {
+   "name": "sample.hh",
+   "kind": "code"
+  },
+  {
+   "name": "sample.hpp",
+   "kind": "code"
+  },
+  {
+   "name": "sample.hpp.in",
+   "kind": "code"
+  },
+  {
+   "name": "sample.hxx",
+   "kind": "code"
+  },
+  {
+   "name": "sample.ii",
+   "kind": "code"
+  },
+  {
+   "name": "sample.inl",
+   "kind": "code"
+  },
+  {
+   "name": "sample.ino",
+   "kind": "code"
+  },
+  {
+   "name": "sample.ipp",
+   "kind": "code"
+  },
+  {
+   "name": "sample.ixx",
+   "kind": "code"
+  },
+  {
+   "name": "sample.tpp",
+   "kind": "code"
+  },
+  {
+   "name": "sample.txx",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-c++",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-c++src",
+   "kind": "code"
+  },
+  {
+   "name": "sample.cake",
+   "kind": "code"
+  },
+  {
+   "name": "sample.cs",
+   "kind": "code"
+  },
+  {
+   "name": "sample.csx",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-csharp",
+   "kind": "code"
+  },
+  {
+   "name": "sample.fs",
+   "kind": "code"
+  },
+  {
+   "name": "sample.fsi",
+   "kind": "code"
+  },
+  {
+   "name": "sample.fsscript",
+   "kind": "code"
+  },
+  {
+   "name": "sample.fsx",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-fsharp",
+   "kind": "code"
+  },
+  {
+   "name": "sample.bas",
+   "kind": "code"
+  },
+  {
+   "name": "sample.brs",
+   "kind": "code"
+  },
+  {
+   "name": "sample.vb",
+   "kind": "code"
+  },
+  {
+   "name": "sample.vba",
+   "kind": "code"
+  },
+  {
+   "name": "sample.vbs",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-vb",
+   "kind": "code"
+  },
+  {
+   "name": "sample.dpr",
+   "kind": "code"
+  },
+  {
+   "name": "sample.pas",
+   "kind": "code"
+  },
+  {
+   "name": "sample.pp",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-pascal",
+   "kind": "code"
+  },
+  {
+   "name": "sample.hs",
+   "kind": "code"
+  },
+  {
+   "name": "sample.lhs",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-haskell",
+   "kind": "code"
+  },
+  {
+   "name": "sample.erl",
+   "kind": "code"
+  },
+  {
+   "name": "sample.hrl",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-erlang",
+   "kind": "code"
+  },
+  {
+   "name": "sample.eex",
+   "kind": "code"
+  },
+  {
+   "name": "sample.ex",
+   "kind": "code"
+  },
+  {
+   "name": "sample.exs",
+   "kind": "code"
+  },
+  {
+   "name": "sample.heex",
+   "kind": "code"
+  },
+  {
+   "name": "sample.leex",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-elixir",
+   "kind": "code"
+  },
+  {
+   "name": "sample.clj",
+   "kind": "code"
+  },
+  {
+   "name": "sample.cljc",
+   "kind": "code"
+  },
+  {
+   "name": "sample.cljs",
+   "kind": "code"
+  },
+  {
+   "name": "sample.cljx",
+   "kind": "code"
+  },
+  {
+   "name": "sample.clojure",
+   "kind": "code"
+  },
+  {
+   "name": "sample.edn",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-clojure",
+   "kind": "code"
+  },
+  {
+   "name": "sample.sc",
+   "kind": "code"
+  },
+  {
+   "name": "sample.scala",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-scala",
+   "kind": "code"
+  },
+  {
+   "name": "sample.dart",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/dart",
+   "kind": "code"
+  },
+  {
+   "name": "sample.jl",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-julia",
+   "kind": "code"
+  },
+  {
+   "name": "sample.r",
+   "kind": "code"
+  },
+  {
+   "name": "sample.rhistory",
+   "kind": "code"
+  },
+  {
+   "name": "sample.rmd",
+   "kind": "code"
+  },
+  {
+   "name": "sample.rprofile",
+   "kind": "code"
+  },
+  {
+   "name": "sample.rt",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-r",
+   "kind": "code"
+  },
+  {
+   "name": "sample.lua",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/x-lua",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-lua",
+   "kind": "code"
+  },
+  {
+   "name": "sample.pl",
+   "kind": "code"
+  },
+  {
+   "name": "sample.pm",
+   "kind": "code"
+  },
+  {
+   "name": "sample.pod",
+   "kind": "code"
+  },
+  {
+   "name": "sample.psgi",
+   "kind": "code"
+  },
+  {
+   "name": "sample.t",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-perl",
+   "kind": "code"
+  },
+  {
+   "name": "sample.ctp",
+   "kind": "code"
+  },
+  {
+   "name": "sample.phar",
+   "kind": "code"
+  },
+  {
+   "name": "sample.php",
+   "kind": "code"
+  },
+  {
+   "name": "sample.php4",
+   "kind": "code"
+  },
+  {
+   "name": "sample.php5",
+   "kind": "code"
+  },
+  {
+   "name": "sample.phtml",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/x-php",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-php",
+   "kind": "code"
+  },
+  {
+   "name": ".envrc",
+   "kind": "code"
+  },
+  {
+   "name": ".hushlogin",
+   "kind": "code"
+  },
+  {
+   "name": "APKBUILD",
+   "kind": "code"
+  },
+  {
+   "name": "bashrc_Apple_Terminal",
+   "kind": "code"
+  },
+  {
+   "name": "PKGBUILD",
+   "kind": "code"
+  },
+  {
+   "name": "zlogin",
+   "kind": "code"
+  },
+  {
+   "name": "zlogout",
+   "kind": "code"
+  },
+  {
+   "name": "zprofile",
+   "kind": "code"
+  },
+  {
+   "name": "zshenv",
+   "kind": "code"
+  },
+  {
+   "name": "zshrc",
+   "kind": "code"
+  },
+  {
+   "name": "zshrc_Apple_Terminal",
+   "kind": "code"
+  },
+  {
+   "name": "sample.ash",
+   "kind": "code"
+  },
+  {
+   "name": "sample.bash",
+   "kind": "code"
+  },
+  {
+   "name": "sample.bash_aliases",
+   "kind": "code"
+  },
+  {
+   "name": "sample.bash_login",
+   "kind": "code"
+  },
+  {
+   "name": "sample.bash_logout",
+   "kind": "code"
+  },
+  {
+   "name": "sample.bash_profile",
+   "kind": "code"
+  },
+  {
+   "name": "sample.bashrc",
+   "kind": "code"
+  },
+  {
+   "name": "sample.csh",
+   "kind": "code"
+  },
+  {
+   "name": "sample.cshrc",
+   "kind": "code"
+  },
+  {
+   "name": "sample.ebuild",
+   "kind": "code"
+  },
+  {
+   "name": "sample.eclass",
+   "kind": "code"
+  },
+  {
+   "name": "sample.fish",
+   "kind": "code"
+  },
+  {
+   "name": "sample.ksh",
+   "kind": "code"
+  },
+  {
+   "name": "sample.profile",
+   "kind": "code"
+  },
+  {
+   "name": "sample.sh",
+   "kind": "code"
+  },
+  {
+   "name": "sample.tcshrc",
+   "kind": "code"
+  },
+  {
+   "name": "sample.xprofile",
+   "kind": "code"
+  },
+  {
+   "name": "sample.xsession",
+   "kind": "code"
+  },
+  {
+   "name": "sample.xsessionrc",
+   "kind": "code"
+  },
+  {
+   "name": "sample.yash_profile",
+   "kind": "code"
+  },
+  {
+   "name": "sample.yashrc",
+   "kind": "code"
+  },
+  {
+   "name": "sample.zlogin",
+   "kind": "code"
+  },
+  {
+   "name": "sample.zlogout",
+   "kind": "code"
+  },
+  {
+   "name": "sample.zprofile",
+   "kind": "code"
+  },
+  {
+   "name": "sample.zsh",
+   "kind": "code"
+  },
+  {
+   "name": "sample.zsh-theme",
+   "kind": "code"
+  },
+  {
+   "name": "sample.zshenv",
+   "kind": "code"
+  },
+  {
+   "name": "sample.zshrc",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/x-sh",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-shellscript",
+   "kind": "code"
+  },
+  {
+   "name": "sample.ps1",
+   "kind": "code"
+  },
+  {
+   "name": "sample.psd1",
+   "kind": "code"
+  },
+  {
+   "name": "sample.psm1",
+   "kind": "code"
+  },
+  {
+   "name": "sample.psrc",
+   "kind": "code"
+  },
+  {
+   "name": "sample.pssc",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/x-powershell",
+   "kind": "code"
+  },
+  {
+   "name": "sample.bat",
+   "kind": "code"
+  },
+  {
+   "name": "sample.cmd",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/x-bat",
+   "kind": "code"
+  },
+  {
+   "name": "sample.tcl",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/x-tcl",
+   "kind": "code"
+  },
+  {
+   "name": "sample.dsql",
+   "kind": "code"
+  },
+  {
+   "name": "sample.mysql",
+   "kind": "code"
+  },
+  {
+   "name": "sample.psql",
+   "kind": "code"
+  },
+  {
+   "name": "sample.sql",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/sql",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-sql",
+   "kind": "code"
+  },
+  {
+   "name": "sample.gql",
+   "kind": "code"
+  },
+  {
+   "name": "sample.graphql",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/graphql",
+   "kind": "code"
+  },
+  {
+   "name": "sample.sol",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-solidity",
+   "kind": "code"
+  },
+  {
+   "name": "sample.sv",
+   "kind": "code"
+  },
+  {
+   "name": "sample.svh",
+   "kind": "code"
+  },
+  {
+   "name": "sample.v",
+   "kind": "code"
+  },
+  {
+   "name": "sample.vh",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-systemverilog",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-verilog",
+   "kind": "code"
+  },
+  {
+   "name": "Containerfile",
+   "kind": "code"
+  },
+  {
+   "name": "Dockerfile",
+   "kind": "code"
+  },
+  {
+   "name": "sample.containerfile",
+   "kind": "code"
+  },
+  {
+   "name": "sample.dockerfile",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-dockerfile",
+   "kind": "code"
+  },
+  {
+   "name": "GNUmakefile",
+   "kind": "code"
+  },
+  {
+   "name": "makefile",
+   "kind": "code"
+  },
+  {
+   "name": "Makefile",
+   "kind": "code"
+  },
+  {
+   "name": "OCamlMakefile",
+   "kind": "code"
+  },
+  {
+   "name": "sample.mak",
+   "kind": "code"
+  },
+  {
+   "name": "sample.mk",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-makefile",
+   "kind": "code"
+  },
+  {
+   "name": "CMakeLists.txt",
+   "kind": "code"
+  },
+  {
+   "name": "sample.cmake",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-cmake",
+   "kind": "code"
+  },
+  {
+   "name": "sample.bbx",
+   "kind": "code"
+  },
+  {
+   "name": "sample.bib",
+   "kind": "code"
+  },
+  {
+   "name": "sample.cbx",
+   "kind": "code"
+  },
+  {
+   "name": "sample.cls",
+   "kind": "code"
+  },
+  {
+   "name": "sample.ctx",
+   "kind": "code"
+  },
+  {
+   "name": "sample.latex",
+   "kind": "code"
+  },
+  {
+   "name": "sample.ltx",
+   "kind": "code"
+  },
+  {
+   "name": "sample.sty",
+   "kind": "code"
+  },
+  {
+   "name": "sample.tex",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/x-latex",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/x-tex",
+   "kind": "code"
+  },
+  {
+   "name": "sample.rst",
+   "kind": "text"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-rst",
+   "kind": "text"
+  },
+  {
+   "name": "sample.diff",
+   "kind": "text"
+  },
+  {
+   "name": "sample.patch",
+   "kind": "text"
+  },
+  {
+   "name": "sample.rej",
+   "kind": "text"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-diff",
+   "kind": "text"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-patch",
+   "kind": "text"
+  },
+  {
+   "name": ".env",
+   "kind": "text"
+  },
+  {
+   "name": ".flaskenv",
+   "kind": "text"
+  },
+  {
+   "name": "AUTHORS",
+   "kind": "text"
+  },
+  {
+   "name": "CHANGELOG",
+   "kind": "text"
+  },
+  {
+   "name": "CHANGES",
+   "kind": "text"
+  },
+  {
+   "name": "CONTRIBUTORS",
+   "kind": "text"
+  },
+  {
+   "name": "COPYING",
+   "kind": "text"
+  },
+  {
+   "name": "CREDITS",
+   "kind": "text"
+  },
+  {
+   "name": "HISTORY",
+   "kind": "text"
+  },
+  {
+   "name": "INSTALL",
+   "kind": "text"
+  },
+  {
+   "name": "LICENSE",
+   "kind": "text"
+  },
+  {
+   "name": "MAINTAINERS",
+   "kind": "text"
+  },
+  {
+   "name": "NEWS",
+   "kind": "text"
+  },
+  {
+   "name": "NOTICE",
+   "kind": "text"
+  },
+  {
+   "name": "README",
+   "kind": "text"
+  },
+  {
+   "name": "TODO",
+   "kind": "text"
+  },
+  {
+   "name": "user-dirs.dirs",
+   "kind": "text"
+  },
+  {
+   "name": "VERSION",
+   "kind": "text"
+  },
+  {
+   "name": "sample.env",
+   "kind": "text"
+  },
+  {
+   "name": "sample.log",
+   "kind": "text"
+  },
+  {
+   "name": "sample.text",
+   "kind": "text"
+  },
+  {
+   "name": "sample.txt",
+   "kind": "text"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/plain",
+   "kind": "text"
+  },
+  {
+   "name": "sample.srt",
+   "kind": "text"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/x-subrip",
+   "kind": "text"
+  },
+  {
+   "name": "sample.vtt",
+   "kind": "text"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/vtt",
+   "kind": "text"
+  },
+  {
+   "name": "sample.ass",
+   "kind": "text"
+  },
+  {
+   "name": "sample.ssa",
+   "kind": "text"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/x-ass",
+   "kind": "text"
+  },
+  {
+   "name": ".vscodeignore",
+   "kind": "code"
+  },
+  {
+   "name": "sample.git-blame-ignore-revs",
+   "kind": "code"
+  },
+  {
+   "name": "sample.gitignore",
+   "kind": "code"
+  },
+  {
+   "name": "sample.gitignore_global",
+   "kind": "code"
+  },
+  {
+   "name": "sample.npmignore",
+   "kind": "code"
+  },
+  {
+   "name": "COMMIT_EDITMSG",
+   "kind": "text"
+  },
+  {
+   "name": "MERGE_MSG",
+   "kind": "text"
+  },
+  {
+   "name": "git-rebase-todo",
+   "kind": "text"
+  },
+  {
+   "name": "Jenkinsfile",
+   "kind": "code"
+  },
+  {
+   "name": "sample.gradle",
+   "kind": "code"
+  },
+  {
+   "name": "sample.groovy",
+   "kind": "code"
+  },
+  {
+   "name": "sample.gvy",
+   "kind": "code"
+  },
+  {
+   "name": "sample.jenkinsfile",
+   "kind": "code"
+  },
+  {
+   "name": "sample.nf",
+   "kind": "code"
+  },
+  {
+   "name": "sample.cginc",
+   "kind": "code"
+  },
+  {
+   "name": "sample.compute",
+   "kind": "code"
+  },
+  {
+   "name": "sample.fx",
+   "kind": "code"
+  },
+  {
+   "name": "sample.fxh",
+   "kind": "code"
+  },
+  {
+   "name": "sample.hlsl",
+   "kind": "code"
+  },
+  {
+   "name": "sample.hlsli",
+   "kind": "code"
+  },
+  {
+   "name": "sample.psh",
+   "kind": "code"
+  },
+  {
+   "name": "sample.vsh",
+   "kind": "code"
+  },
+  {
+   "name": "sample.nqp",
+   "kind": "code"
+  },
+  {
+   "name": "sample.p6",
+   "kind": "code"
+  },
+  {
+   "name": "sample.pl6",
+   "kind": "code"
+  },
+  {
+   "name": "sample.pm6",
+   "kind": "code"
+  },
+  {
+   "name": "sample.raku",
+   "kind": "code"
+  },
+  {
+   "name": "sample.rakudoc",
+   "kind": "code"
+  },
+  {
+   "name": "sample.rakumod",
+   "kind": "code"
+  },
+  {
+   "name": "sample.rakutest",
+   "kind": "code"
+  },
+  {
+   "name": "sample.code-search",
+   "kind": "text"
+  },
+  {
+   "name": "sample.shader",
+   "kind": "code"
+  },
+  {
+   "name": "sample.apng",
+   "kind": "image"
+  },
+  {
+   "name": "sample.png",
+   "kind": "image"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "image/apng",
+   "kind": "image"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "image/png",
+   "kind": "image"
+  },
+  {
+   "name": "sample.jfif",
+   "kind": "image"
+  },
+  {
+   "name": "sample.jpe",
+   "kind": "image"
+  },
+  {
+   "name": "sample.jpeg",
+   "kind": "image"
+  },
+  {
+   "name": "sample.jpg",
+   "kind": "image"
+  },
+  {
+   "name": "sample.pjp",
+   "kind": "image"
+  },
+  {
+   "name": "sample.pjpeg",
+   "kind": "image"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "image/jpeg",
+   "kind": "image"
+  },
+  {
+   "name": "sample.gif",
+   "kind": "image"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "image/gif",
+   "kind": "image"
+  },
+  {
+   "name": "sample.webp",
+   "kind": "image"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "image/webp",
+   "kind": "image"
+  },
+  {
+   "name": "sample.avif",
+   "kind": "image"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "image/avif",
+   "kind": "image"
+  },
+  {
+   "name": "sample.svg",
+   "kind": "image"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "image/svg+xml",
+   "kind": "image"
+  },
+  {
+   "name": "sample.bmp",
+   "kind": "image"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "image/bmp",
+   "kind": "image"
+  },
+  {
+   "name": "sample.ico",
+   "kind": "image"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "image/vnd.microsoft.icon",
+   "kind": "image"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "image/x-icon",
+   "kind": "image"
+  },
+  {
+   "name": "sample.tif",
+   "kind": "image"
+  },
+  {
+   "name": "sample.tiff",
+   "kind": "image"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "image/tiff",
+   "kind": "image"
+  },
+  {
+   "name": "sample.heic",
+   "kind": "image"
+  },
+  {
+   "name": "sample.heif",
+   "kind": "image"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "image/heic",
+   "kind": "image"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "image/heif",
+   "kind": "image"
+  },
+  {
+   "name": "sample.arw",
+   "kind": "image"
+  },
+  {
+   "name": "sample.cr2",
+   "kind": "image"
+  },
+  {
+   "name": "sample.cr3",
+   "kind": "image"
+  },
+  {
+   "name": "sample.dng",
+   "kind": "image"
+  },
+  {
+   "name": "sample.nef",
+   "kind": "image"
+  },
+  {
+   "name": "sample.orf",
+   "kind": "image"
+  },
+  {
+   "name": "sample.raw",
+   "kind": "image"
+  },
+  {
+   "name": "sample.rw2",
+   "kind": "image"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "image/x-canon-cr2",
+   "kind": "image"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "image/x-nikon-nef",
+   "kind": "image"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "image/x-raw",
+   "kind": "image"
+  },
+  {
+   "name": "sample.psd",
+   "kind": "image"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "image/vnd.adobe.photoshop",
+   "kind": "image"
+  },
+  {
+   "name": "sample.mp3",
+   "kind": "audio"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "audio/mp3",
+   "kind": "audio"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "audio/mpeg",
+   "kind": "audio"
+  },
+  {
+   "name": "sample.wav",
+   "kind": "audio"
+  },
+  {
+   "name": "sample.wave",
+   "kind": "audio"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "audio/wav",
+   "kind": "audio"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "audio/x-wav",
+   "kind": "audio"
+  },
+  {
+   "name": "sample.oga",
+   "kind": "audio"
+  },
+  {
+   "name": "sample.ogg",
+   "kind": "audio"
+  },
+  {
+   "name": "sample.opus",
+   "kind": "audio"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "audio/ogg",
+   "kind": "audio"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "audio/opus",
+   "kind": "audio"
+  },
+  {
+   "name": "sample.m4a",
+   "kind": "audio"
+  },
+  {
+   "name": "sample.m4b",
+   "kind": "audio"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "audio/mp4",
+   "kind": "audio"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "audio/x-m4a",
+   "kind": "audio"
+  },
+  {
+   "name": "sample.flac",
+   "kind": "audio"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "audio/flac",
+   "kind": "audio"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "audio/x-flac",
+   "kind": "audio"
+  },
+  {
+   "name": "sample.aac",
+   "kind": "audio"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "audio/aac",
+   "kind": "audio"
+  },
+  {
+   "name": "sample.weba",
+   "kind": "audio"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "audio/webm",
+   "kind": "audio"
+  },
+  {
+   "name": "sample.aif",
+   "kind": "audio"
+  },
+  {
+   "name": "sample.aifc",
+   "kind": "audio"
+  },
+  {
+   "name": "sample.aiff",
+   "kind": "audio"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "audio/aiff",
+   "kind": "audio"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "audio/x-aiff",
+   "kind": "audio"
+  },
+  {
+   "name": "sample.wma",
+   "kind": "audio"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "audio/x-ms-wma",
+   "kind": "audio"
+  },
+  {
+   "name": "sample.mid",
+   "kind": "audio"
+  },
+  {
+   "name": "sample.midi",
+   "kind": "audio"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "audio/midi",
+   "kind": "audio"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "audio/x-midi",
+   "kind": "audio"
+  },
+  {
+   "name": "sample.m4v",
+   "kind": "video"
+  },
+  {
+   "name": "sample.mp4",
+   "kind": "video"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "video/mp4",
+   "kind": "video"
+  },
+  {
+   "name": "sample.webm",
+   "kind": "video"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "video/webm",
+   "kind": "video"
+  },
+  {
+   "name": "sample.ogv",
+   "kind": "video"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "video/ogg",
+   "kind": "video"
+  },
+  {
+   "name": "sample.mov",
+   "kind": "video"
+  },
+  {
+   "name": "sample.qt",
+   "kind": "video"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "video/quicktime",
+   "kind": "video"
+  },
+  {
+   "name": "sample.avi",
+   "kind": "video"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "video/x-msvideo",
+   "kind": "video"
+  },
+  {
+   "name": "sample.mkv",
+   "kind": "video"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "video/x-matroska",
+   "kind": "video"
+  },
+  {
+   "name": "sample.wmv",
+   "kind": "video"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "video/x-ms-wmv",
+   "kind": "video"
+  },
+  {
+   "name": "sample.flv",
+   "kind": "video"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "video/x-flv",
+   "kind": "video"
+  },
+  {
+   "name": "sample.m2v",
+   "kind": "video"
+  },
+  {
+   "name": "sample.mpe",
+   "kind": "video"
+  },
+  {
+   "name": "sample.mpeg",
+   "kind": "video"
+  },
+  {
+   "name": "sample.mpg",
+   "kind": "video"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "video/mpeg",
+   "kind": "video"
+  },
+  {
+   "name": "sample.3g2",
+   "kind": "video"
+  },
+  {
+   "name": "sample.3gp",
+   "kind": "video"
+  },
+  {
+   "name": "sample.3gpp",
+   "kind": "video"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "video/3gpp",
+   "kind": "video"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "video/3gpp2",
+   "kind": "video"
+  },
+  {
+   "name": "sample.pdf",
+   "kind": "pdf"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/pdf",
+   "kind": "pdf"
+  },
+  {
+   "name": "sample.doc",
+   "kind": "word"
+  },
+  {
+   "name": "sample.docx",
+   "kind": "word"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/msword",
+   "kind": "word"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+   "kind": "word"
+  },
+  {
+   "name": "sample.xls",
+   "kind": "excel"
+  },
+  {
+   "name": "sample.xlsb",
+   "kind": "excel"
+  },
+  {
+   "name": "sample.xlsm",
+   "kind": "excel"
+  },
+  {
+   "name": "sample.xlsx",
+   "kind": "excel"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/vnd.ms-excel",
+   "kind": "excel"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/vnd.ms-excel.sheet.binary.macroEnabled.12",
+   "kind": "excel"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/vnd.ms-excel.sheet.macroEnabled.12",
+   "kind": "excel"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+   "kind": "excel"
+  },
+  {
+   "name": "sample.pps",
+   "kind": "presentation"
+  },
+  {
+   "name": "sample.ppsx",
+   "kind": "presentation"
+  },
+  {
+   "name": "sample.ppt",
+   "kind": "presentation"
+  },
+  {
+   "name": "sample.pptx",
+   "kind": "presentation"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/vnd.ms-powerpoint",
+   "kind": "presentation"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+   "kind": "presentation"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/vnd.openxmlformats-officedocument.presentationml.slideshow",
+   "kind": "presentation"
+  },
+  {
+   "name": "sample.odt",
+   "kind": "document"
+  },
+  {
+   "name": "sample.ott",
+   "kind": "document"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/vnd.oasis.opendocument.text",
+   "kind": "document"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/vnd.oasis.opendocument.text-template",
+   "kind": "document"
+  },
+  {
+   "name": "sample.ods",
+   "kind": "spreadsheet"
+  },
+  {
+   "name": "sample.ots",
+   "kind": "spreadsheet"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/vnd.oasis.opendocument.spreadsheet",
+   "kind": "spreadsheet"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/vnd.oasis.opendocument.spreadsheet-template",
+   "kind": "spreadsheet"
+  },
+  {
+   "name": "sample.odp",
+   "kind": "presentation"
+  },
+  {
+   "name": "sample.otp",
+   "kind": "presentation"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/vnd.oasis.opendocument.presentation",
+   "kind": "presentation"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/vnd.oasis.opendocument.presentation-template",
+   "kind": "presentation"
+  },
+  {
+   "name": "sample.pages",
+   "kind": "document"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/x-iwork-pages-sffpages",
+   "kind": "document"
+  },
+  {
+   "name": "sample.numbers",
+   "kind": "document"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/x-iwork-numbers-sffnumbers",
+   "kind": "document"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/x-iwork-keynote-sffkey",
+   "kind": "document"
+  },
+  {
+   "name": "sample.rtf",
+   "kind": "document"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/rtf",
+   "kind": "document"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "text/rtf",
+   "kind": "document"
+  },
+  {
+   "name": "sample.epub",
+   "kind": "document"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/epub+zip",
+   "kind": "document"
+  },
+  {
+   "name": "sample.azw",
+   "kind": "document"
+  },
+  {
+   "name": "sample.azw3",
+   "kind": "document"
+  },
+  {
+   "name": "sample.mobi",
+   "kind": "document"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/x-mobipocket-ebook",
+   "kind": "document"
+  },
+  {
+   "name": "sample.ipynb",
+   "kind": "code"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/x-ipynb+json",
+   "kind": "code"
+  },
+  {
+   "name": "sample.zip",
+   "kind": "archive"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/x-zip-compressed",
+   "kind": "archive"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/zip",
+   "kind": "archive"
+  },
+  {
+   "name": "sample.tar",
+   "kind": "archive"
+  },
+  {
+   "name": "sample.tar.bz2",
+   "kind": "archive"
+  },
+  {
+   "name": "sample.tar.gz",
+   "kind": "archive"
+  },
+  {
+   "name": "sample.tar.xz",
+   "kind": "archive"
+  },
+  {
+   "name": "sample.tbz",
+   "kind": "archive"
+  },
+  {
+   "name": "sample.tbz2",
+   "kind": "archive"
+  },
+  {
+   "name": "sample.tgz",
+   "kind": "archive"
+  },
+  {
+   "name": "sample.txz",
+   "kind": "archive"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/gzip",
+   "kind": "archive"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/x-tar",
+   "kind": "archive"
+  },
+  {
+   "name": "sample.gz",
+   "kind": "archive"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/gzip",
+   "kind": "archive"
+  },
+  {
+   "name": "sample.bz",
+   "kind": "archive"
+  },
+  {
+   "name": "sample.bz2",
+   "kind": "archive"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/x-bzip2",
+   "kind": "archive"
+  },
+  {
+   "name": "sample.lzma",
+   "kind": "archive"
+  },
+  {
+   "name": "sample.xz",
+   "kind": "archive"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/x-lzma",
+   "kind": "archive"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/x-xz",
+   "kind": "archive"
+  },
+  {
+   "name": "sample.7z",
+   "kind": "archive"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/x-7z-compressed",
+   "kind": "archive"
+  },
+  {
+   "name": "sample.rar",
+   "kind": "archive"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/vnd.rar",
+   "kind": "archive"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/x-rar-compressed",
+   "kind": "archive"
+  },
+  {
+   "name": "sample.dmg",
+   "kind": "archive"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/x-apple-diskimage",
+   "kind": "archive"
+  },
+  {
+   "name": "sample.img",
+   "kind": "archive"
+  },
+  {
+   "name": "sample.iso",
+   "kind": "archive"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/x-iso9660-image",
+   "kind": "archive"
+  },
+  {
+   "name": "sample.ttc",
+   "kind": "binary"
+  },
+  {
+   "name": "sample.ttf",
+   "kind": "binary"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/x-font-ttf",
+   "kind": "binary"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "font/ttf",
+   "kind": "binary"
+  },
+  {
+   "name": "sample.otf",
+   "kind": "binary"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/x-font-otf",
+   "kind": "binary"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "font/otf",
+   "kind": "binary"
+  },
+  {
+   "name": "sample.woff",
+   "kind": "binary"
+  },
+  {
+   "name": "sample.woff2",
+   "kind": "binary"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "font/woff",
+   "kind": "binary"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "font/woff2",
+   "kind": "binary"
+  },
+  {
+   "name": "sample.eot",
+   "kind": "binary"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/vnd.ms-fontobject",
+   "kind": "binary"
+  },
+  {
+   "name": "sample.db",
+   "kind": "database"
+  },
+  {
+   "name": "sample.db3",
+   "kind": "database"
+  },
+  {
+   "name": "sample.sqlite",
+   "kind": "database"
+  },
+  {
+   "name": "sample.sqlite3",
+   "kind": "database"
+  },
+  {
+   "name": "sample.duckdb",
+   "kind": "database"
+  },
+  {
+   "name": "sample.ddb",
+   "kind": "database"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/vnd.sqlite3",
+   "kind": "database"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/x-sqlite3",
+   "kind": "database"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/vnd.duckdb",
+   "kind": "database"
+  },
+  {
+   "name": "sample.dae",
+   "kind": "binary"
+  },
+  {
+   "name": "sample.fbx",
+   "kind": "binary"
+  },
+  {
+   "name": "sample.glb",
+   "kind": "binary"
+  },
+  {
+   "name": "sample.gltf",
+   "kind": "binary"
+  },
+  {
+   "name": "sample.obj",
+   "kind": "binary"
+  },
+  {
+   "name": "sample.ply",
+   "kind": "binary"
+  },
+  {
+   "name": "sample.stl",
+   "kind": "binary"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "model/gltf-binary",
+   "kind": "binary"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "model/gltf+json",
+   "kind": "binary"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "model/obj",
+   "kind": "binary"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "model/stl",
+   "kind": "binary"
+  },
+  {
+   "name": "sample.cer",
+   "kind": "binary"
+  },
+  {
+   "name": "sample.crt",
+   "kind": "binary"
+  },
+  {
+   "name": "sample.csr",
+   "kind": "binary"
+  },
+  {
+   "name": "sample.der",
+   "kind": "binary"
+  },
+  {
+   "name": "sample.key",
+   "kind": "binary"
+  },
+  {
+   "name": "sample.p12",
+   "kind": "binary"
+  },
+  {
+   "name": "sample.pem",
+   "kind": "binary"
+  },
+  {
+   "name": "sample.pfx",
+   "kind": "binary"
+  },
+  {
+   "name": "sample.pub",
+   "kind": "binary"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/pkix-cert",
+   "kind": "binary"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/x-pem-file",
+   "kind": "binary"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/x-x509-ca-cert",
+   "kind": "binary"
+  },
+  {
+   "name": "sample.apk",
+   "kind": "binary"
+  },
+  {
+   "name": "sample.app",
+   "kind": "binary"
+  },
+  {
+   "name": "sample.deb",
+   "kind": "binary"
+  },
+  {
+   "name": "sample.dll",
+   "kind": "binary"
+  },
+  {
+   "name": "sample.dylib",
+   "kind": "binary"
+  },
+  {
+   "name": "sample.exe",
+   "kind": "binary"
+  },
+  {
+   "name": "sample.ipa",
+   "kind": "binary"
+  },
+  {
+   "name": "sample.msi",
+   "kind": "binary"
+  },
+  {
+   "name": "sample.pkg",
+   "kind": "binary"
+  },
+  {
+   "name": "sample.rpm",
+   "kind": "binary"
+  },
+  {
+   "name": "sample.so",
+   "kind": "binary"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/vnd.android.package-archive",
+   "kind": "binary"
+  },
+  {
+   "name": "x.unknown",
+   "mime": "application/x-msdownload",
+   "kind": "binary"
+  },
+  {
+   "name": "unknown.zzz",
+   "kind": "file"
+  },
+  {
+   "name": "unknown.zzz",
+   "type": "folder",
+   "kind": "folder"
+  },
+  {
+   "name": "unknown.zzz",
+   "type": "app",
+   "kind": "app"
+  },
+  {
+   "name": "unknown.zzz",
+   "type": "context-map",
+   "kind": "context-map"
+  },
+  {
+   "name": "unknown.zzz",
+   "type": "workflow",
+   "kind": "workflow"
+  },
+  {
+   "name": "unknown.zzz",
+   "type": "markdown",
+   "kind": "markdown"
+  },
+  {
+   "name": "unknown.zzz",
+   "type": "json",
+   "kind": "json"
+  },
+  {
+   "name": "unknown.zzz",
+   "type": "html",
+   "kind": "html"
+  },
+  {
+   "name": "unknown.zzz",
+   "type": "image",
+   "kind": "image"
+  },
+  {
+   "name": "unknown.zzz",
+   "type": "audio",
+   "kind": "audio"
+  },
+  {
+   "name": "unknown.zzz",
+   "type": "pdf",
+   "kind": "pdf"
+  },
+  {
+   "name": "unknown.zzz",
+   "type": "video",
+   "kind": "video"
+  },
+  {
+   "name": "unknown.zzz",
+   "type": "word",
+   "kind": "word"
+  },
+  {
+   "name": "unknown.zzz",
+   "type": "excel",
+   "kind": "excel"
+  },
+  {
+   "name": "unknown.zzz",
+   "type": "spreadsheet",
+   "kind": "spreadsheet"
+  },
+  {
+   "name": "unknown.zzz",
+   "type": "database",
+   "kind": "database"
+  },
+  {
+   "name": "unknown.zzz",
+   "type": "presentation",
+   "kind": "presentation"
+  },
+  {
+   "name": "unknown.zzz",
+   "type": "archive",
+   "kind": "archive"
+  },
+  {
+   "name": "unknown.zzz",
+   "type": "document",
+   "kind": "document"
+  },
+  {
+   "name": "unknown.zzz",
+   "type": "binary",
+   "kind": "binary"
+  },
+  {
+   "name": "unknown.zzz",
+   "type": "code",
+   "kind": "code"
+  },
+  {
+   "name": "unknown.zzz",
+   "type": "text",
+   "kind": "text"
+  },
+  {
+   "name": "unknown.zzz",
+   "type": "file",
+   "kind": "file"
+  },
+  {
+   "name": "README.md",
+   "type": "image",
+   "kind": "markdown"
+  },
+  {
+   "name": "data.csv",
+   "type": "excel",
+   "kind": "spreadsheet"
+  }
+ ],
+ "cases": [
+  {
+   "theme": "default",
+   "kind": "folder",
+   "size": 1,
+   "strokes": [
+    30,
+    30
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "folder",
+   "size": 9,
+   "strokes": [
+    3.333,
+    3.333
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "folder",
+   "size": 10,
+   "strokes": [
+    3,
+    3
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "folder",
+   "size": 12,
+   "strokes": [
+    2.5,
+    2.5
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "folder",
+   "size": 13,
+   "strokes": [
+    2.308,
+    2.308
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "folder",
+   "size": 14,
+   "strokes": [
+    2.143,
+    2.143
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "folder",
+   "size": 15,
+   "strokes": [
+    2,
+    2
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "folder",
+   "size": 16,
+   "strokes": [
+    1.875,
+    1.875
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "folder",
+   "size": 17,
+   "strokes": [
+    1.765,
+    1.765
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "folder",
+   "size": 18,
+   "strokes": [
+    1.667,
+    1.667
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "folder",
+   "size": 20,
+   "strokes": [
+    1.667,
+    1.667
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "folder",
+   "size": 24,
+   "strokes": [
+    1.667,
+    1.667
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "folder",
+   "size": 32,
+   "strokes": [
+    1.667,
+    1.667
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "folder",
+   "size": 56,
+   "strokes": [
+    1.667,
+    1.667
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "app",
+   "size": 1,
+   "strokes": [
+    18,
+    18,
+    18
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "app",
+   "size": 9,
+   "strokes": [
+    2,
+    2,
+    2
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "app",
+   "size": 10,
+   "strokes": [
+    1.8,
+    1.8,
+    1.8
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "app",
+   "size": 12,
+   "strokes": [
+    1.5,
+    1.5,
+    1.5
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "app",
+   "size": 13,
+   "strokes": [
+    1.385,
+    1.385,
+    1.385
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "app",
+   "size": 14,
+   "strokes": [
+    1.286,
+    1.286,
+    1.286
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "app",
+   "size": 15,
+   "strokes": [
+    1.2,
+    1.2,
+    1.2
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "app",
+   "size": 16,
+   "strokes": [
+    1.125,
+    1.125,
+    1.125
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "app",
+   "size": 17,
+   "strokes": [
+    1.059,
+    1.059,
+    1.059
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "app",
+   "size": 18,
+   "strokes": [
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "app",
+   "size": 20,
+   "strokes": [
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "app",
+   "size": 24,
+   "strokes": [
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "app",
+   "size": 32,
+   "strokes": [
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "app",
+   "size": 56,
+   "strokes": [
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "context-map",
+   "size": 1,
+   "strokes": [
+    18,
+    15.3,
+    18
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "context-map",
+   "size": 9,
+   "strokes": [
+    2,
+    1.7,
+    2
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "context-map",
+   "size": 10,
+   "strokes": [
+    1.8,
+    1.53,
+    1.8
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "context-map",
+   "size": 12,
+   "strokes": [
+    1.5,
+    1.275,
+    1.5
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "context-map",
+   "size": 13,
+   "strokes": [
+    1.385,
+    1.177,
+    1.385
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "context-map",
+   "size": 14,
+   "strokes": [
+    1.286,
+    1.093,
+    1.286
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "context-map",
+   "size": 15,
+   "strokes": [
+    1.2,
+    1.02,
+    1.2
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "context-map",
+   "size": 16,
+   "strokes": [
+    1.125,
+    0.956,
+    1.125
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "context-map",
+   "size": 17,
+   "strokes": [
+    1.059,
+    0.9,
+    1.059
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "context-map",
+   "size": 18,
+   "strokes": [
+    1,
+    0.85,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "context-map",
+   "size": 20,
+   "strokes": [
+    1,
+    0.85,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "context-map",
+   "size": 24,
+   "strokes": [
+    1,
+    0.85,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "context-map",
+   "size": 32,
+   "strokes": [
+    1,
+    0.85,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "context-map",
+   "size": 56,
+   "strokes": [
+    1,
+    0.85,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "workflow",
+   "size": 1,
+   "strokes": [
+    24
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "workflow",
+   "size": 9,
+   "strokes": [
+    2.667
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "workflow",
+   "size": 10,
+   "strokes": [
+    2.4
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "workflow",
+   "size": 12,
+   "strokes": [
+    2
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "workflow",
+   "size": 13,
+   "strokes": [
+    1.846
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "workflow",
+   "size": 14,
+   "strokes": [
+    1.714
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "workflow",
+   "size": 15,
+   "strokes": [
+    1.6
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "workflow",
+   "size": 16,
+   "strokes": [
+    1.5
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "workflow",
+   "size": 17,
+   "strokes": [
+    1.412
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "workflow",
+   "size": 18,
+   "strokes": [
+    1.333
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "workflow",
+   "size": 20,
+   "strokes": [
+    1.333
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "workflow",
+   "size": 24,
+   "strokes": [
+    1.333
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "workflow",
+   "size": 32,
+   "strokes": [
+    1.333
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "workflow",
+   "size": 56,
+   "strokes": [
+    1.333
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "markdown",
+   "size": 1,
+   "strokes": [
+    18,
+    18,
+    18
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "markdown",
+   "size": 9,
+   "strokes": [
+    2,
+    2,
+    2
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "markdown",
+   "size": 10,
+   "strokes": [
+    1.8,
+    1.8,
+    1.8
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "markdown",
+   "size": 12,
+   "strokes": [
+    1.5,
+    1.5,
+    1.5
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "markdown",
+   "size": 13,
+   "strokes": [
+    1.385,
+    1.385,
+    1.385
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "markdown",
+   "size": 14,
+   "strokes": [
+    1.286,
+    1.286,
+    1.286
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "markdown",
+   "size": 15,
+   "strokes": [
+    1.2,
+    1.2,
+    1.2
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "markdown",
+   "size": 16,
+   "strokes": [
+    1.125,
+    1.125,
+    1.125
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "markdown",
+   "size": 17,
+   "strokes": [
+    1.059,
+    1.059,
+    1.059
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "markdown",
+   "size": 18,
+   "strokes": [
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "markdown",
+   "size": 20,
+   "strokes": [
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "markdown",
+   "size": 24,
+   "strokes": [
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "markdown",
+   "size": 32,
+   "strokes": [
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "markdown",
+   "size": 56,
+   "strokes": [
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "json",
+   "size": 1,
+   "strokes": []
+  },
+  {
+   "theme": "default",
+   "kind": "json",
+   "size": 9,
+   "strokes": []
+  },
+  {
+   "theme": "default",
+   "kind": "json",
+   "size": 10,
+   "strokes": []
+  },
+  {
+   "theme": "default",
+   "kind": "json",
+   "size": 12,
+   "strokes": []
+  },
+  {
+   "theme": "default",
+   "kind": "json",
+   "size": 13,
+   "strokes": []
+  },
+  {
+   "theme": "default",
+   "kind": "json",
+   "size": 14,
+   "strokes": []
+  },
+  {
+   "theme": "default",
+   "kind": "json",
+   "size": 15,
+   "strokes": []
+  },
+  {
+   "theme": "default",
+   "kind": "json",
+   "size": 16,
+   "strokes": []
+  },
+  {
+   "theme": "default",
+   "kind": "json",
+   "size": 17,
+   "strokes": []
+  },
+  {
+   "theme": "default",
+   "kind": "json",
+   "size": 18,
+   "strokes": []
+  },
+  {
+   "theme": "default",
+   "kind": "json",
+   "size": 20,
+   "strokes": []
+  },
+  {
+   "theme": "default",
+   "kind": "json",
+   "size": 24,
+   "strokes": []
+  },
+  {
+   "theme": "default",
+   "kind": "json",
+   "size": 32,
+   "strokes": []
+  },
+  {
+   "theme": "default",
+   "kind": "json",
+   "size": 56,
+   "strokes": []
+  },
+  {
+   "theme": "default",
+   "kind": "html",
+   "size": 1,
+   "strokes": [
+    18,
+    15.3
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "html",
+   "size": 9,
+   "strokes": [
+    2,
+    1.7
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "html",
+   "size": 10,
+   "strokes": [
+    1.8,
+    1.53
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "html",
+   "size": 12,
+   "strokes": [
+    1.5,
+    1.275
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "html",
+   "size": 13,
+   "strokes": [
+    1.385,
+    1.177
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "html",
+   "size": 14,
+   "strokes": [
+    1.286,
+    1.093
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "html",
+   "size": 15,
+   "strokes": [
+    1.2,
+    1.02
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "html",
+   "size": 16,
+   "strokes": [
+    1.125,
+    0.956
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "html",
+   "size": 17,
+   "strokes": [
+    1.059,
+    0.9
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "html",
+   "size": 18,
+   "strokes": [
+    1,
+    0.85
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "html",
+   "size": 20,
+   "strokes": [
+    1,
+    0.85
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "html",
+   "size": 24,
+   "strokes": [
+    1,
+    0.85
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "html",
+   "size": 32,
+   "strokes": [
+    1,
+    0.85
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "html",
+   "size": 56,
+   "strokes": [
+    1,
+    0.85
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "image",
+   "size": 1,
+   "strokes": [
+    18,
+    18
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "image",
+   "size": 9,
+   "strokes": [
+    2,
+    2
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "image",
+   "size": 10,
+   "strokes": [
+    1.8,
+    1.8
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "image",
+   "size": 12,
+   "strokes": [
+    1.5,
+    1.5
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "image",
+   "size": 13,
+   "strokes": [
+    1.385,
+    1.385
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "image",
+   "size": 14,
+   "strokes": [
+    1.286,
+    1.286
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "image",
+   "size": 15,
+   "strokes": [
+    1.2,
+    1.2
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "image",
+   "size": 16,
+   "strokes": [
+    1.125,
+    1.125
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "image",
+   "size": 17,
+   "strokes": [
+    1.059,
+    1.059
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "image",
+   "size": 18,
+   "strokes": [
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "image",
+   "size": 20,
+   "strokes": [
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "image",
+   "size": 24,
+   "strokes": [
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "image",
+   "size": 32,
+   "strokes": [
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "image",
+   "size": 56,
+   "strokes": [
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "audio",
+   "size": 1,
+   "strokes": [
+    18,
+    18
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "audio",
+   "size": 9,
+   "strokes": [
+    2,
+    2
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "audio",
+   "size": 10,
+   "strokes": [
+    1.8,
+    1.8
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "audio",
+   "size": 12,
+   "strokes": [
+    1.5,
+    1.5
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "audio",
+   "size": 13,
+   "strokes": [
+    1.385,
+    1.385
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "audio",
+   "size": 14,
+   "strokes": [
+    1.286,
+    1.286
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "audio",
+   "size": 15,
+   "strokes": [
+    1.2,
+    1.2
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "audio",
+   "size": 16,
+   "strokes": [
+    1.125,
+    1.125
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "audio",
+   "size": 17,
+   "strokes": [
+    1.059,
+    1.059
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "audio",
+   "size": 18,
+   "strokes": [
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "audio",
+   "size": 20,
+   "strokes": [
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "audio",
+   "size": 24,
+   "strokes": [
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "audio",
+   "size": 32,
+   "strokes": [
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "audio",
+   "size": 56,
+   "strokes": [
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "pdf",
+   "size": 1,
+   "strokes": [
+    18,
+    18,
+    18
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "pdf",
+   "size": 9,
+   "strokes": [
+    2,
+    2,
+    2
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "pdf",
+   "size": 10,
+   "strokes": [
+    1.8,
+    1.8,
+    1.8
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "pdf",
+   "size": 12,
+   "strokes": [
+    1.5,
+    1.5,
+    1.5
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "pdf",
+   "size": 13,
+   "strokes": [
+    1.385,
+    1.385,
+    1.385
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "pdf",
+   "size": 14,
+   "strokes": [
+    1.286,
+    1.286,
+    1.286
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "pdf",
+   "size": 15,
+   "strokes": [
+    1.2,
+    1.2,
+    1.2
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "pdf",
+   "size": 16,
+   "strokes": [
+    1.125,
+    1.125,
+    1.125
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "pdf",
+   "size": 17,
+   "strokes": [
+    1.059,
+    1.059,
+    1.059
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "pdf",
+   "size": 18,
+   "strokes": [
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "pdf",
+   "size": 20,
+   "strokes": [
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "pdf",
+   "size": 24,
+   "strokes": [
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "pdf",
+   "size": 32,
+   "strokes": [
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "pdf",
+   "size": 56,
+   "strokes": [
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "video",
+   "size": 1,
+   "strokes": [
+    18
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "video",
+   "size": 9,
+   "strokes": [
+    2
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "video",
+   "size": 10,
+   "strokes": [
+    1.8
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "video",
+   "size": 12,
+   "strokes": [
+    1.5
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "video",
+   "size": 13,
+   "strokes": [
+    1.385
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "video",
+   "size": 14,
+   "strokes": [
+    1.286
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "video",
+   "size": 15,
+   "strokes": [
+    1.2
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "video",
+   "size": 16,
+   "strokes": [
+    1.125
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "video",
+   "size": 17,
+   "strokes": [
+    1.059
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "video",
+   "size": 18,
+   "strokes": [
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "video",
+   "size": 20,
+   "strokes": [
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "video",
+   "size": 24,
+   "strokes": [
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "video",
+   "size": 32,
+   "strokes": [
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "video",
+   "size": 56,
+   "strokes": [
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "word",
+   "size": 1,
+   "strokes": [
+    18,
+    14.76,
+    15.12,
+    0.78
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "word",
+   "size": 9,
+   "strokes": [
+    2,
+    1.64,
+    1.68,
+    0.78
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "word",
+   "size": 10,
+   "strokes": [
+    1.8,
+    1.476,
+    1.512,
+    0.78
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "word",
+   "size": 12,
+   "strokes": [
+    1.5,
+    1.23,
+    1.26,
+    0.78
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "word",
+   "size": 13,
+   "strokes": [
+    1.385,
+    1.1357,
+    1.1634,
+    0.78
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "word",
+   "size": 14,
+   "strokes": [
+    1.286,
+    1.05452,
+    1.08024,
+    0.78
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "word",
+   "size": 15,
+   "strokes": [
+    1.2,
+    0.9839999999999999,
+    1.008,
+    0.78
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "word",
+   "size": 16,
+   "strokes": [
+    1.125,
+    0.9225,
+    0.945,
+    0.78
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "word",
+   "size": 17,
+   "strokes": [
+    1.059,
+    0.8683799999999999,
+    0.8895599999999999,
+    0.78
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "word",
+   "size": 18,
+   "strokes": [
+    1,
+    0.82,
+    0.84,
+    0.78
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "word",
+   "size": 20,
+   "strokes": [
+    1,
+    0.82,
+    0.84,
+    0.78
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "word",
+   "size": 24,
+   "strokes": [
+    1,
+    0.82,
+    0.84,
+    0.78
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "word",
+   "size": 32,
+   "strokes": [
+    1,
+    0.82,
+    0.84,
+    0.78
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "word",
+   "size": 56,
+   "strokes": [
+    1,
+    0.82,
+    0.84,
+    0.78
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "excel",
+   "size": 1,
+   "strokes": [
+    18,
+    12.24,
+    0.88
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "excel",
+   "size": 9,
+   "strokes": [
+    2,
+    1.36,
+    0.88
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "excel",
+   "size": 10,
+   "strokes": [
+    1.8,
+    1.2240000000000002,
+    0.88
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "excel",
+   "size": 12,
+   "strokes": [
+    1.5,
+    1.02,
+    0.88
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "excel",
+   "size": 13,
+   "strokes": [
+    1.385,
+    0.9418000000000001,
+    0.88
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "excel",
+   "size": 14,
+   "strokes": [
+    1.286,
+    0.87448,
+    0.88
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "excel",
+   "size": 15,
+   "strokes": [
+    1.2,
+    0.8160000000000001,
+    0.88
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "excel",
+   "size": 16,
+   "strokes": [
+    1.125,
+    0.765,
+    0.88
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "excel",
+   "size": 17,
+   "strokes": [
+    1.059,
+    0.72012,
+    0.88
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "excel",
+   "size": 18,
+   "strokes": [
+    1,
+    0.68,
+    0.88
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "excel",
+   "size": 20,
+   "strokes": [
+    1,
+    0.68,
+    0.88
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "excel",
+   "size": 24,
+   "strokes": [
+    1,
+    0.68,
+    0.88
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "excel",
+   "size": 32,
+   "strokes": [
+    1,
+    0.68,
+    0.88
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "excel",
+   "size": 56,
+   "strokes": [
+    1,
+    0.68,
+    0.88
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "spreadsheet",
+   "size": 1,
+   "strokes": [
+    18,
+    14.040000000000001
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "spreadsheet",
+   "size": 9,
+   "strokes": [
+    2,
+    1.56
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "spreadsheet",
+   "size": 10,
+   "strokes": [
+    1.8,
+    1.4040000000000001
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "spreadsheet",
+   "size": 12,
+   "strokes": [
+    1.5,
+    1.17
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "spreadsheet",
+   "size": 13,
+   "strokes": [
+    1.385,
+    1.0803
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "spreadsheet",
+   "size": 14,
+   "strokes": [
+    1.286,
+    1.00308
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "spreadsheet",
+   "size": 15,
+   "strokes": [
+    1.2,
+    0.9359999999999999
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "spreadsheet",
+   "size": 16,
+   "strokes": [
+    1.125,
+    0.8775000000000001
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "spreadsheet",
+   "size": 17,
+   "strokes": [
+    1.059,
+    0.82602
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "spreadsheet",
+   "size": 18,
+   "strokes": [
+    1,
+    0.78
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "spreadsheet",
+   "size": 20,
+   "strokes": [
+    1,
+    0.78
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "spreadsheet",
+   "size": 24,
+   "strokes": [
+    1,
+    0.78
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "spreadsheet",
+   "size": 32,
+   "strokes": [
+    1,
+    0.78
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "spreadsheet",
+   "size": 56,
+   "strokes": [
+    1,
+    0.78
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "database",
+   "size": 1,
+   "strokes": [
+    30
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "database",
+   "size": 9,
+   "strokes": [
+    3.333
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "database",
+   "size": 10,
+   "strokes": [
+    3
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "database",
+   "size": 12,
+   "strokes": [
+    2.5
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "database",
+   "size": 13,
+   "strokes": [
+    2.308
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "database",
+   "size": 14,
+   "strokes": [
+    2.143
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "database",
+   "size": 15,
+   "strokes": [
+    2
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "database",
+   "size": 16,
+   "strokes": [
+    1.875
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "database",
+   "size": 17,
+   "strokes": [
+    1.765
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "database",
+   "size": 18,
+   "strokes": [
+    1.667
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "database",
+   "size": 20,
+   "strokes": [
+    1.667
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "database",
+   "size": 24,
+   "strokes": [
+    1.667
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "database",
+   "size": 32,
+   "strokes": [
+    1.667
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "database",
+   "size": 56,
+   "strokes": [
+    1.667
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "presentation",
+   "size": 1,
+   "strokes": [
+    18,
+    12.959999999999999,
+    12.959999999999999,
+    15.48,
+    0.82
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "presentation",
+   "size": 9,
+   "strokes": [
+    2,
+    1.44,
+    1.44,
+    1.72,
+    0.82
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "presentation",
+   "size": 10,
+   "strokes": [
+    1.8,
+    1.296,
+    1.296,
+    1.548,
+    0.82
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "presentation",
+   "size": 12,
+   "strokes": [
+    1.5,
+    1.08,
+    1.08,
+    1.29,
+    0.82
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "presentation",
+   "size": 13,
+   "strokes": [
+    1.385,
+    0.9972,
+    0.9972,
+    1.1911,
+    0.82
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "presentation",
+   "size": 14,
+   "strokes": [
+    1.286,
+    0.92592,
+    0.92592,
+    1.10596,
+    0.82
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "presentation",
+   "size": 15,
+   "strokes": [
+    1.2,
+    0.864,
+    0.864,
+    1.032,
+    0.82
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "presentation",
+   "size": 16,
+   "strokes": [
+    1.125,
+    0.8099999999999999,
+    0.8099999999999999,
+    0.9675,
+    0.82
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "presentation",
+   "size": 17,
+   "strokes": [
+    1.059,
+    0.7624799999999999,
+    0.7624799999999999,
+    0.9107399999999999,
+    0.82
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "presentation",
+   "size": 18,
+   "strokes": [
+    1,
+    0.72,
+    0.72,
+    0.86,
+    0.82
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "presentation",
+   "size": 20,
+   "strokes": [
+    1,
+    0.72,
+    0.72,
+    0.86,
+    0.82
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "presentation",
+   "size": 24,
+   "strokes": [
+    1,
+    0.72,
+    0.72,
+    0.86,
+    0.82
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "presentation",
+   "size": 32,
+   "strokes": [
+    1,
+    0.72,
+    0.72,
+    0.86,
+    0.82
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "presentation",
+   "size": 56,
+   "strokes": [
+    1,
+    0.72,
+    0.72,
+    0.86,
+    0.82
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "archive",
+   "size": 1,
+   "strokes": [
+    18,
+    18,
+    18
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "archive",
+   "size": 9,
+   "strokes": [
+    2,
+    2,
+    2
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "archive",
+   "size": 10,
+   "strokes": [
+    1.8,
+    1.8,
+    1.8
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "archive",
+   "size": 12,
+   "strokes": [
+    1.5,
+    1.5,
+    1.5
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "archive",
+   "size": 13,
+   "strokes": [
+    1.385,
+    1.385,
+    1.385
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "archive",
+   "size": 14,
+   "strokes": [
+    1.286,
+    1.286,
+    1.286
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "archive",
+   "size": 15,
+   "strokes": [
+    1.2,
+    1.2,
+    1.2
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "archive",
+   "size": 16,
+   "strokes": [
+    1.125,
+    1.125,
+    1.125
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "archive",
+   "size": 17,
+   "strokes": [
+    1.059,
+    1.059,
+    1.059
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "archive",
+   "size": 18,
+   "strokes": [
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "archive",
+   "size": 20,
+   "strokes": [
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "archive",
+   "size": 24,
+   "strokes": [
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "archive",
+   "size": 32,
+   "strokes": [
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "archive",
+   "size": 56,
+   "strokes": [
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "document",
+   "size": 1,
+   "strokes": [
+    18,
+    18,
+    18
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "document",
+   "size": 9,
+   "strokes": [
+    2,
+    2,
+    2
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "document",
+   "size": 10,
+   "strokes": [
+    1.8,
+    1.8,
+    1.8
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "document",
+   "size": 12,
+   "strokes": [
+    1.5,
+    1.5,
+    1.5
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "document",
+   "size": 13,
+   "strokes": [
+    1.385,
+    1.385,
+    1.385
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "document",
+   "size": 14,
+   "strokes": [
+    1.286,
+    1.286,
+    1.286
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "document",
+   "size": 15,
+   "strokes": [
+    1.2,
+    1.2,
+    1.2
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "document",
+   "size": 16,
+   "strokes": [
+    1.125,
+    1.125,
+    1.125
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "document",
+   "size": 17,
+   "strokes": [
+    1.059,
+    1.059,
+    1.059
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "document",
+   "size": 18,
+   "strokes": [
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "document",
+   "size": 20,
+   "strokes": [
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "document",
+   "size": 24,
+   "strokes": [
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "document",
+   "size": 32,
+   "strokes": [
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "document",
+   "size": 56,
+   "strokes": [
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "binary",
+   "size": 1,
+   "strokes": [
+    18,
+    18
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "binary",
+   "size": 9,
+   "strokes": [
+    2,
+    2
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "binary",
+   "size": 10,
+   "strokes": [
+    1.8,
+    1.8
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "binary",
+   "size": 12,
+   "strokes": [
+    1.5,
+    1.5
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "binary",
+   "size": 13,
+   "strokes": [
+    1.385,
+    1.385
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "binary",
+   "size": 14,
+   "strokes": [
+    1.286,
+    1.286
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "binary",
+   "size": 15,
+   "strokes": [
+    1.2,
+    1.2
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "binary",
+   "size": 16,
+   "strokes": [
+    1.125,
+    1.125
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "binary",
+   "size": 17,
+   "strokes": [
+    1.059,
+    1.059
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "binary",
+   "size": 18,
+   "strokes": [
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "binary",
+   "size": 20,
+   "strokes": [
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "binary",
+   "size": 24,
+   "strokes": [
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "binary",
+   "size": 32,
+   "strokes": [
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "binary",
+   "size": 56,
+   "strokes": [
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "code",
+   "size": 1,
+   "strokes": [
+    18,
+    18
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "code",
+   "size": 9,
+   "strokes": [
+    2,
+    2
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "code",
+   "size": 10,
+   "strokes": [
+    1.8,
+    1.8
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "code",
+   "size": 12,
+   "strokes": [
+    1.5,
+    1.5
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "code",
+   "size": 13,
+   "strokes": [
+    1.385,
+    1.385
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "code",
+   "size": 14,
+   "strokes": [
+    1.286,
+    1.286
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "code",
+   "size": 15,
+   "strokes": [
+    1.2,
+    1.2
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "code",
+   "size": 16,
+   "strokes": [
+    1.125,
+    1.125
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "code",
+   "size": 17,
+   "strokes": [
+    1.059,
+    1.059
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "code",
+   "size": 18,
+   "strokes": [
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "code",
+   "size": 20,
+   "strokes": [
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "code",
+   "size": 24,
+   "strokes": [
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "code",
+   "size": 32,
+   "strokes": [
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "code",
+   "size": 56,
+   "strokes": [
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "text",
+   "size": 1,
+   "strokes": [
+    18,
+    18,
+    18
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "text",
+   "size": 9,
+   "strokes": [
+    2,
+    2,
+    2
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "text",
+   "size": 10,
+   "strokes": [
+    1.8,
+    1.8,
+    1.8
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "text",
+   "size": 12,
+   "strokes": [
+    1.5,
+    1.5,
+    1.5
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "text",
+   "size": 13,
+   "strokes": [
+    1.385,
+    1.385,
+    1.385
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "text",
+   "size": 14,
+   "strokes": [
+    1.286,
+    1.286,
+    1.286
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "text",
+   "size": 15,
+   "strokes": [
+    1.2,
+    1.2,
+    1.2
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "text",
+   "size": 16,
+   "strokes": [
+    1.125,
+    1.125,
+    1.125
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "text",
+   "size": 17,
+   "strokes": [
+    1.059,
+    1.059,
+    1.059
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "text",
+   "size": 18,
+   "strokes": [
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "text",
+   "size": 20,
+   "strokes": [
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "text",
+   "size": 24,
+   "strokes": [
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "text",
+   "size": 32,
+   "strokes": [
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "text",
+   "size": 56,
+   "strokes": [
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "file",
+   "size": 1,
+   "strokes": [
+    18,
+    18
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "file",
+   "size": 9,
+   "strokes": [
+    2,
+    2
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "file",
+   "size": 10,
+   "strokes": [
+    1.8,
+    1.8
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "file",
+   "size": 12,
+   "strokes": [
+    1.5,
+    1.5
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "file",
+   "size": 13,
+   "strokes": [
+    1.385,
+    1.385
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "file",
+   "size": 14,
+   "strokes": [
+    1.286,
+    1.286
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "file",
+   "size": 15,
+   "strokes": [
+    1.2,
+    1.2
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "file",
+   "size": 16,
+   "strokes": [
+    1.125,
+    1.125
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "file",
+   "size": 17,
+   "strokes": [
+    1.059,
+    1.059
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "file",
+   "size": 18,
+   "strokes": [
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "file",
+   "size": 20,
+   "strokes": [
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "file",
+   "size": 24,
+   "strokes": [
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "file",
+   "size": 32,
+   "strokes": [
+    1,
+    1
+   ]
+  },
+  {
+   "theme": "default",
+   "kind": "file",
+   "size": 56,
+   "strokes": [
+    1,
+    1
+   ]
+  }
+ ]
+}

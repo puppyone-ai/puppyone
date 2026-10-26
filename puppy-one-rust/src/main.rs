@@ -1,6 +1,7 @@
 // Use Kit as the single public UI dependency, including GPUI macros.
 extern crate gpui_kit as gpui;
 mod agent;
+mod asset_catalog;
 mod assets;
 #[cfg(all(test, target_os = "macos"))]
 mod bench;
@@ -50,6 +51,7 @@ fn main() {
                 .add_fonts(editor::view::style::font_bytes())
                 .expect("load editor faces");
             // Before any input: tells swallowed function keys from delivered ones.
+            cx.set_reduce_motion(platform::accessibility::reduce_motion());
             ui::ime::init(cx);
             ui::input::bind_keys(cx);
             ui::form_input::bind_keys(cx);

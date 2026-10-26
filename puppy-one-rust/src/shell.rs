@@ -293,6 +293,8 @@ impl Shell {
         cx.observe_window_activation(window, |s, window, cx| {
             if !window.is_window_active() {
                 s.end_pane_drag(false, cx);
+            } else {
+                cx.set_reduce_motion(crate::platform::accessibility::reduce_motion());
             }
         })
         .detach();
@@ -419,12 +421,12 @@ impl Shell {
             }
         }
         crate::ui::appearance::Appearance::new(self.dark, &p.theme_pack, scale, p.pointer_cursors)
+            .with_loading(p.loading_style)
             .apply(Some(window), cx);
         self.recent_projects = p.recent_projects.clone();
         let hidden = p.local_agents.hidden_agent_ids.clone();
-        let loading = p.loading_animation.clone();
         self.workbench
-            .update(cx, |w, cx| w.set_preferences(hidden, loading, cx));
+            .update(cx, |w, cx| w.set_preferences(hidden, cx));
         let (layout, icons) = (p.git_sidebar_layout, p.file_icon_theme.clone());
         self.source_control
             .update(cx, |s, cx| s.set_presentation(layout, icons, cx));
@@ -483,7 +485,7 @@ impl Shell {
         }
     }
     fn pick_workspace(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.pending || self.files.busy() {
+        if self.pending || self.files.busy() || self.files.folder_busy {
             return;
         }
         self.pending = true;
@@ -970,7 +972,7 @@ impl Shell {
             let _ = shell.update(cx, |s, cx| s.command(command, window, cx));
         })
         .task(self.modals.task())
-        .busy(busy.then(|| self.preferences.read(cx).state.loading_animation.clone()))
+        .busy(busy)
     }
     /// The Header (`DesktopWindowChrome`). The homepage shows only Sign in;
     /// a workspace shows the Explorer's expand button while it is closed, the

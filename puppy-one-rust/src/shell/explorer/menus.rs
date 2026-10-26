@@ -435,7 +435,7 @@ impl Explorer {
             let reveal = absolute.clone();
             rows.push(Some(
                 MenuItem::new(tr("workspace.node.revealInFinder"))
-                    .icon("folder-open")
+                    .product_icon(crate::ui::components::ProductIcon::Folder)
                     .on_click(act(Box::new(move |_, _, cx| {
                         if let Err(e) = crate::platform::desktop::reveal(&reveal) {
                             cx.emit(ExplorerEvent::Error(e))

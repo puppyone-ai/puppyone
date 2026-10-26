@@ -119,7 +119,11 @@ impl Render for Gallery {
                         .disabled(true),
                 )
                 .item(MenuItem::new("Copy item").icon("copy").shortcut("⌘C"))
-                .item(MenuItem::new("Selected").icon("folder").checked(true))
+                .item(
+                    MenuItem::new("Selected")
+                        .product_icon(super::components::ProductIcon::Folder)
+                        .checked(true),
+                )
                 .item(
                     MenuItem::new("Custom files")
                         .icon("workflow")
@@ -136,20 +140,20 @@ impl Render for Gallery {
                 .child(
                     SidebarRow::new((id, 0usize))
                         .variant(variant)
-                        .icon("folder")
+                        .icon(super::components::ProductIcon::Folder)
                         .label("Resting"),
                 )
                 .child(
                     SidebarRow::new((id, 1usize))
                         .variant(variant)
-                        .icon("folder")
+                        .icon(super::components::ProductIcon::Folder)
                         .label("Selected")
                         .selected(true),
                 )
                 .child(
                     SidebarRow::new((id, 2usize))
                         .variant(variant)
-                        .icon("folder")
+                        .icon(super::components::ProductIcon::Folder)
                         .label("Menu open")
                         .open(true)
                         .action(RowActionButton::new((id, 20usize), "plus").label("Create"))
@@ -162,14 +166,14 @@ impl Render for Gallery {
                 .child(
                     SidebarRow::new((id, 3usize))
                         .variant(variant)
-                        .icon("folder")
+                        .icon(super::components::ProductIcon::Folder)
                         .label("Cut")
                         .dimmed(true),
                 )
                 .child(
                     SidebarRow::new((id, 4usize))
                         .variant(variant)
-                        .icon("folder")
+                        .icon(super::components::ProductIcon::Folder)
                         .label("Disabled")
                         .disabled(true),
                 )
@@ -199,7 +203,11 @@ impl Render for Gallery {
                     .child(
                         Button::new("state-0")
                             .variant(ButtonVariant::Ghost)
-                            .icon(Icon::new("house-compact").large())
+                            .icon(
+                                Icon::product(super::components::ProductIcon::Home)
+                                    .stroke(1.65)
+                                    .large(),
+                            )
                             .label("Ghost open")
                             .open(true),
                     )
@@ -213,7 +221,7 @@ impl Render for Gallery {
                     .child(
                         Button::new("state-2")
                             .variant(ButtonVariant::Titlebar)
-                            .icon("laptop")
+                            .icon(super::components::ProductIcon::Local)
                             .accessibility_label("Titlebar open")
                             .open(true),
                     )

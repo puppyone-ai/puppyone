@@ -161,7 +161,7 @@ impl Shell {
     pub(super) fn home_view(&self, cx: &mut Context<Self>) -> Div {
         let t = cx.palette();
         let has_projects = !self.recent_projects.is_empty();
-        let busy = self.pending || self.files.busy();
+        let busy = self.pending || self.files.busy() || self.files.folder_busy;
         // `OnboardingBrandLockup`: the 28px mark and the prompt in
         // `--po-text-muted`. On dark the product applies
         // `grayscale(1) brightness(0.7)` to the mark; GPUI images have no
@@ -231,7 +231,7 @@ impl Shell {
             .child(
                 Button::new("home-open-folder")
                     .variant(ButtonVariant::Entry)
-                    .icon("folder-open")
+                    .icon(crate::ui::components::ProductIcon::Folder)
                     .label(tr("onboarding.action.openFolder"))
                     .disabled(busy)
                     .on_click(cx.listener(|s, _, w, cx| s.command(Command::OpenFolder, w, cx))),
@@ -267,6 +267,42 @@ impl Shell {
         .pb(px(bottom))
         .px(px(metric::UTILITY_PADDING_INLINE))
         .child(launcher)
+        .when(self.files.folder_busy, |d| {
+            // OnboardingProjectLoading: the chosen project's request is
+            // pending, not the native folder picker. Shared area figure.
+            d.child(
+                div()
+                    .absolute()
+                    .top(px(metric::CHROME_HEIGHT))
+                    .bottom_0()
+                    .left_0()
+                    .right_0()
+                    .occlude()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .p(px(32.))
+                    .bg(theme::alpha(t.canvas, 0.84))
+                    .child(
+                        v_flex()
+                            .items_center()
+                            .gap(px(16.))
+                            .child(
+                                crate::ui::loading::LoadingMark::new("project-opening")
+                                    .area()
+                                    .size(crate::ui::loading::LoaderSize::Md)
+                                    .tone(crate::ui::loading::Tone::Neutral),
+                            )
+                            .child(
+                                div()
+                                    .text_size(px(theme::ty().ui.body))
+                                    .text_color(t.text)
+                                    .font_weight(FontWeight::MEDIUM)
+                                    .child(tr("onboarding.status.loadingProject")),
+                            ),
+                    ),
+            )
+        })
     }
     /// `OnboardingProjectList`: one menu row per project, its folder and
     /// last change; hovering a row trades the time for Remove.
@@ -286,7 +322,11 @@ impl Shell {
                         &[("project", name.clone().into())],
                     );
                     let mut item = MenuItem::new(name.clone())
-                        .icon_sized(Icon::new("folder").small().stroke(1.85))
+                        .icon_sized(
+                            Icon::product(crate::ui::components::ProductIcon::Folder)
+                                .small()
+                                .stroke(1.85),
+                        )
                         .detail(parent_for_display(&project.path))
                         .disabled(busy)
                         .hover_trailing(

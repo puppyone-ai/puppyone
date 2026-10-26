@@ -1,5 +1,6 @@
 //! Product icons: Lucide glyphs from `assets/icons` and file-type glyphs from
 //! the active file icon theme.
+pub use crate::asset_catalog::ProductIcon;
 use crate::ui::appearance::ActiveAppearance;
 use gpui::{prelude::*, *};
 use gpui_kit::{
@@ -38,6 +39,9 @@ impl Icon {
             rotation: 0.,
             style: StyleRefinement::default(),
         }
+    }
+    pub fn product(meaning: ProductIcon) -> Self {
+        Self::new(SharedString::from(format!("product-{}", meaning.id())))
     }
     /// Turned clockwise by `radians` about its centre.
     pub fn rotate(mut self, radians: f32) -> Self {
@@ -98,9 +102,11 @@ impl Styled for Icon {
 impl RenderOnce for Icon {
     fn render(self, window: &mut Window, _: &mut App) -> impl IntoElement {
         let color = self.color.unwrap_or(window.text_style().color);
+        let pixels = self.pixels();
+        let disclosure = crate::asset_catalog::is_disclosure(&self.name);
         let icon = svg()
             .path(self.path())
-            .size(self.pixels())
+            .size(if disclosure { px(12.) } else { pixels })
             .flex_shrink_0()
             .text_color(color)
             .when(self.rotation != 0., |svg| {
@@ -110,7 +116,7 @@ impl RenderOnce for Icon {
                 svg.group_hover(group, move |s| s.text_color(color))
             })
             .refine_style(&self.style);
-        match self.spin {
+        let icon = match self.spin {
             Some(id) => icon
                 .with_animation(
                     id,
@@ -119,7 +125,24 @@ impl RenderOnce for Icon {
                 )
                 .into_any_element(),
             None => icon.into_any_element(),
+        };
+        if disclosure {
+            div()
+                .size(pixels)
+                .flex()
+                .flex_shrink_0()
+                .items_center()
+                .justify_center()
+                .child(icon)
+                .into_any_element()
+        } else {
+            icon
         }
+    }
+}
+impl From<ProductIcon> for Icon {
+    fn from(meaning: ProductIcon) -> Self {
+        Self::product(meaning)
     }
 }
 impl From<&'static str> for Icon {
@@ -133,30 +156,42 @@ impl From<&'static str> for Icon {
 #[derive(IntoElement, Clone)]
 pub struct FileIcon {
     name: SharedString,
-    folder: bool,
+    node_type: Option<SharedString>,
+    mime: Option<SharedString>,
     icon_theme: SharedString,
     size: Pixels,
     style: StyleRefinement,
 }
 impl FileIcon {
-    /// The glyph of a file called `name` (only its extension matters).
+    /// The format registry resolves names, extensions and optional MIME/type.
+    /// The active icon theme selects a renderer, never reclassifies the file.
     pub fn file(name: impl Into<SharedString>, icon_theme: impl Into<SharedString>) -> Self {
+        Self::for_node(name, None, None, icon_theme)
+    }
+    pub fn for_node(
+        name: impl Into<SharedString>,
+        node_type: Option<SharedString>,
+        mime: Option<SharedString>,
+        icon_theme: impl Into<SharedString>,
+    ) -> Self {
         Self {
             name: name.into(),
-            folder: false,
+            node_type,
+            mime,
             icon_theme: icon_theme.into(),
             size: px(18.),
             style: StyleRefinement::default(),
         }
     }
     pub fn folder(icon_theme: impl Into<SharedString>) -> Self {
-        Self {
-            folder: true,
-            ..Self::file("folder", icon_theme)
-        }
+        Self::for_node("folder", Some("folder".into()), None, icon_theme)
     }
     pub fn size_px(mut self, size: f32) -> Self {
-        self.size = px(size);
+        self.size = px(if size.is_finite() {
+            size.clamp(1., 512.)
+        } else {
+            18.
+        });
         self
     }
 }
@@ -165,16 +200,44 @@ impl Styled for FileIcon {
         &mut self.style
     }
 }
+impl FileIcon {
+    pub(crate) fn resource(
+        &self,
+        scale: f32,
+        palette: crate::theme::Theme,
+        foreground: Rgba,
+    ) -> Resource {
+        let context = crate::file_kind::RenderContext {
+            name: &self.name,
+            node_type: self.node_type.as_deref(),
+            mime: self.mime.as_deref(),
+            size: f32::from(self.size),
+        };
+        let resolved = crate::file_kind::resolve(&self.icon_theme, context);
+        let colors: Vec<_> = resolved
+            .glyph()
+            .bindings
+            .iter()
+            .map(|b| {
+                let c = palette.file_ink(&b.token, foreground);
+                [c.r, c.g, c.b, c.a].map(|c| (c.clamp(0., 1.) * 255.).round() as u8)
+            })
+            .collect();
+        let physical = (f32::from(self.size) * scale).ceil().clamp(1., 4096.) as u32;
+        Resource::Embedded(SharedString::from(resolved.asset_path(physical, &colors)))
+    }
+}
 impl RenderOnce for FileIcon {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
-        img(SharedString::from(crate::file_kind::asset_path(
-            &self.icon_theme,
-            &self.name,
-            self.folder,
-            cx.is_dark(),
-        )))
-        .size(self.size)
-        .flex_shrink_0()
-        .refine_style(&self.style)
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let resource = self.resource(
+            window.scale_factor(),
+            cx.palette(),
+            window.text_style().color.into(),
+        );
+        img(ImageSource::Resource(resource))
+            .size(self.size)
+            .object_fit(ObjectFit::Contain)
+            .flex_shrink_0()
+            .refine_style(&self.style)
     }
 }

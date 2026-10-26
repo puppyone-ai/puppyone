@@ -13,7 +13,7 @@ use crate::{
             FileIcon, Icon, Segment, SegmentLayout, SegmentedControl, Select, SelectOption,
             SettingRow, SettingsList, SettingsSection, Switch, tooltip,
         },
-        pulse_grid,
+        loading::{self, LoadingMark, LoadingStyle, model::Shape},
     },
 };
 use gpui::{prelude::*, *};
@@ -271,32 +271,52 @@ impl SettingsWorkspaceSurface {
             })
             .collect::<Vec<_>>();
 
-        // Loading animation.
-        let loading_options =
-            pulse_grid::presets()
-                .map(|id| {
-                    let prefs = prefs.clone();
-                    Segment::new(tr(&format!(
-                        "settings.appearance.loadingAnimation.{id}.label"
-                    )))
-                    // `.desktop-loading-animation-preview`: the 13px grid
-                    // centred in a 17px cell.
-                    .leading(div().w(px(17.)).flex().justify_center().child(
-                        pulse_grid::pulse_grid(
-                            SharedString::from(format!("loading-preview-{id}")),
-                            id,
-                            pulse_grid::PulseSize::Sm,
-                            t.subtle,
-                        ),
-                    ))
-                    .selected(state.loading_animation == id)
+        // One loading material; each option previews the actual mark and
+        // placeholder primitives (`desktop-loading-style-preview`).
+        let loading_options = LoadingStyle::ALL
+            .into_iter()
+            .map(|style| {
+                let prefs = prefs.clone();
+                let id = style.id();
+                Segment::new(tr(&format!("settings.appearance.loadingStyle.{id}.label")))
+                    .leading(
+                        h_flex()
+                            .gap(px(7.))
+                            .child(
+                                LoadingMark::new(SharedString::from(format!(
+                                    "loading-preview-{id}"
+                                )))
+                                .loading_style(style),
+                            )
+                            .child(loading::placeholder(
+                                SharedString::from(format!("placeholder-preview-{id}")),
+                                34.,
+                                14.,
+                                vec![
+                                    Shape {
+                                        x: 0.,
+                                        y: 2.,
+                                        width: 10.,
+                                        height: 10.,
+                                        radius: 3.,
+                                    },
+                                    Shape {
+                                        x: 14.,
+                                        y: 4.,
+                                        width: 20.,
+                                        height: 6.,
+                                        radius: 3.,
+                                    },
+                                ],
+                                style,
+                            )),
+                    )
+                    .selected(state.loading_style == style)
                     .on_select(move |_, cx| {
-                        prefs.update(cx, |p, cx| {
-                            p.change(|p| p.loading_animation = id.into(), cx)
-                        })
+                        prefs.update(cx, |p, cx| p.change(|p| p.loading_style = style, cx))
                     })
-                })
-                .collect::<Vec<_>>();
+            })
+            .collect::<Vec<_>>();
 
         // Header elements (`HeaderElementsSetting`, `.desktop-settings-tool-list`):
         // 32px items, 8px start padding, a 14px subtle glyph 7px before the
@@ -369,13 +389,15 @@ impl SettingsWorkspaceSurface {
                             .control(pack_control)
                             .mt(px(20.)),
                     )
-                    .child(
-                        SettingRow::new(tr("settings.appearance.fileIcons.title")).control(
-                            SegmentedControl::new("file-icons")
-                                .layout(SegmentLayout::Equal(360.))
-                                .segments(icon_options),
-                        ),
-                    )
+                    .when(icon_options.len() > 1, |list| {
+                        list.child(
+                            SettingRow::new(tr("settings.appearance.fileIcons.title")).control(
+                                SegmentedControl::new("file-icons")
+                                    .layout(SegmentLayout::Equal(360.))
+                                    .segments(icon_options),
+                            ),
+                        )
+                    })
                     .child(
                         SettingRow::new(tr("settings.appearance.gitSidebarLayout.title")).control(
                             SegmentedControl::new("git-layout")
@@ -384,8 +406,8 @@ impl SettingsWorkspaceSurface {
                         ),
                     )
                     .child(
-                        SettingRow::new(tr("settings.appearance.loadingAnimation.title")).control(
-                            SegmentedControl::new("loading-animation")
+                        SettingRow::new(tr("settings.appearance.loadingStyle.title")).control(
+                            SegmentedControl::new("loading-style")
                                 .layout(SegmentLayout::Hug)
                                 .segments(loading_options),
                         ),

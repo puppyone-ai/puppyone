@@ -118,11 +118,13 @@ impl Explorer {
         // disclosure, or the file glyph.
         row = if item.folder {
             let marker = match turn {
-                Some(turn) => {
-                    Icon::new("tree-disclosure").rotate(turn * std::f32::consts::FRAC_PI_2)
+                Some(turn) => Icon::product(crate::ui::components::ProductIcon::Disclosure)
+                    .rotate(turn * std::f32::consts::FRAC_PI_2),
+                None if item.expanded => {
+                    Icon::product(crate::ui::components::ProductIcon::Disclosure)
+                        .rotate(std::f32::consts::FRAC_PI_2)
                 }
-                None if item.expanded => Icon::new("tree-disclosure-open"),
-                None => Icon::new("tree-disclosure"),
+                None => Icon::product(crate::ui::components::ProductIcon::Disclosure),
             };
             row.icon(marker.xsmall().opacity(0.82))
         } else {

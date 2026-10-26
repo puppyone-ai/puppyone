@@ -238,9 +238,10 @@
       ],
       "targets": [
         "src/features/settings/main/appearance_settings_view.rs",
-        "src/ui/pulse_grid.rs",
-        "assets/pulse-grid.json",
-        "tools/import-pulse-grid.mjs"
+        "src/ui/loading/mod.rs",
+        "src/ui/loading/model.rs",
+        "assets/ui-assets.json",
+        "tools/import-ui-assets.mjs"
       ],
       "remaining": "Theme mode cards, theme pack, file icons, Git layout, loading animation, Header elements and pointer cursors are live. Theme-pack folder/add actions, palette overrides and interface styles are shown disabled (no native theme directory service)."
     },

@@ -297,6 +297,7 @@ pub struct FileAccents {
     pub html: Rgba,
     pub pdf: Rgba,
     pub image: Rgba,
+    pub audio: Rgba,
     pub video: Rgba,
     pub code: Rgba,
     pub word: Rgba,
@@ -343,6 +344,8 @@ pub struct Theme {
     pub divider: Rgba,
     /// Application skeleton lines (`--po-shell-divider`).
     pub shell_divider: Rgba,
+    /// `--po-skeleton-base`, shared by loading placeholder materials.
+    pub skeleton: Rgba,
     pub sidebar_divider: Rgba,
     pub guide: Rgba,
     // Interaction.
@@ -477,6 +480,27 @@ fn parse_color(value: &str) -> Rgba {
 }
 
 impl Theme {
+    /// Compiled icon bindings name semantic tokens, never a theme id or RGB.
+    pub fn file_ink(&self, token: &str, foreground: Rgba) -> Rgba {
+        match token {
+            "currentColor" => foreground,
+            "accent" => self.accent,
+            "file-icon-body" => self.file_icon_body,
+            "file-accent-default" => self.file.default,
+            "file-accent-markdown" => self.file.markdown,
+            "file-accent-json" => self.file.json,
+            "file-accent-html" => self.file.html,
+            "file-accent-pdf" => self.file.pdf,
+            "file-accent-image" => self.file.image,
+            "file-accent-audio" => self.file.audio,
+            "file-accent-video" => self.file.video,
+            "file-accent-code" => self.file.code,
+            "file-accent-word" => self.file.word,
+            "file-accent-sheet" => self.file.sheet,
+            "file-accent-presentation" => self.file.presentation,
+            _ => panic!("Unmapped file-icon semantic ink {token}"),
+        }
+    }
     pub fn new(dark: bool) -> Self {
         let pack = &packs()[PACK.with(|p| p.get())];
         if dark { pack.dark } else { pack.light }
@@ -531,6 +555,7 @@ impl Theme {
             border_strong: c("border-strong"),
             divider,
             shell_divider: alpha(text, 0.10),
+            skeleton: c("skeleton-base"),
             sidebar_divider: alpha(text, 0.075),
             guide: c("tree-guide"),
             hover: c("hover"),
@@ -568,6 +593,7 @@ impl Theme {
                 html: c("file-accent-html"),
                 pdf: c("file-accent-pdf"),
                 image: c("file-accent-image"),
+                audio: c("file-accent-audio"),
                 video: c("file-accent-video"),
                 code: c("file-accent-code"),
                 word: c("file-accent-word"),

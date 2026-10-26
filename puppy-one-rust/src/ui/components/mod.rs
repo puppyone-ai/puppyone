@@ -23,7 +23,7 @@ mod switch;
 pub use button::{Button, ButtonVariant, IconButton};
 pub use checkbox::Checkbox;
 pub use dialog::Dialog;
-pub use icon::{FileIcon, Icon};
+pub use icon::{FileIcon, Icon, ProductIcon};
 pub use menu::{Menu, MenuItem, MenuRow, MenuVariant};
 pub use popover::{AnchoredMenu, PopoverMenu};
 pub use resize_handle::ResizeHandle;

@@ -100,7 +100,12 @@ fn preview(t: Theme) -> Div {
                 .gap(px(6.))
                 .p(px(6.))
                 .child(icon("chevron-down", 14.))
-                .child(icon("folder", 15.))
+                .child(
+                    Icon::product(crate::ui::components::ProductIcon::Folder)
+                        .with_size(px(15.))
+                        .stroke(2.)
+                        .color(t.muted),
+                )
                 .child("PuppyOne"),
         )
         .child(file("Notes.md", true))
@@ -245,7 +250,12 @@ fn preview(t: Theme) -> Div {
                 .line_height(px(m.header.line_height))
                 .font_weight(FontWeight::MEDIUM)
                 .text_color(t.text)
-                .child(icon("folder", 15.))
+                .child(
+                    Icon::product(crate::ui::components::ProductIcon::Folder)
+                        .with_size(px(15.))
+                        .stroke(2.)
+                        .color(t.muted),
+                )
                 .child("PuppyOne"),
         )
         .child(

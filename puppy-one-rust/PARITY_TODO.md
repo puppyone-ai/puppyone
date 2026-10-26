@@ -31,10 +31,10 @@
 ## 1. 基础设施
 
 - [x] S1 样式 token：`theme.rs` 从 5 个内置主题包（`assets/themes.json`，`tools/import-themes.mjs`）+ `tokens.css` 语义层公式构建；控件几何、UI 字号角色随三档尺度变化。证据：`semantic_tokens_follow_the_web_formulas`、`medium_literals_follow_the_product_role_table`
-- [x] S2 样式原语：组件库 `src/ui/components/`（SidebarRow/SidebarGroup、Settings 行/开关/分段/下拉/按钮、IconButton + tooltip、Menu/PopoverMenu、Dialog）与 `src/ui/pulse_grid.rs`
+- [x] S2 样式原语：组件库 `src/ui/components/`（SidebarRow/SidebarGroup、Settings 行/开关/分段/下拉/按钮、IconButton + tooltip、Menu/PopoverMenu、Dialog）与 `src/ui/loading/`（rounded / dither mark、placeholder）
 - [x] S3 本地化：加入 `source-control` 命名空间；ICU 子集覆盖目录实际用到的 `{arg}`、`number`、`plural`（含 `=N`、`#`），`select` 目录未使用故未实现；全局当前语言 + `localization::spawn` 让工作线程继承语言。证据：`icu_subset_matches_product_catalog_usage`、`workers_inherit_the_spawning_locale`
-- [x] S4 图标：Lucide 0.562 导入清单扩充；Agent 入口图标；`tools/generate-assets-rs.py` 生成资产表。证据：`referenced_icons_exist`
-- [x] S5 文件类型图标：5 套图标主题生成 light/dark SVG（`tools/import-file-icons.mjs`）；扩展名 → 语义类型与 Web 注册表一致。证据：`classification_and_display_follow_the_product_registry`
+- [x] S4 图标：七种产品语义从真实 `PRODUCT_ICONS` 注册表导入；`Icon::product(ProductIcon)` 是视图入口，兼容名称仅在素材层归并；通用 Lucide 保留。证据：`product_registry_is_exhaustive_and_preserves_geometry`、`referenced_icons_exist` 与 UI 边界审计
+- [x] S5 文件类型图标：按当前 TS 注册表仅保留 `default`，完整覆盖格式层的 22 种语义类型；导入参数化 glyph、尺寸/线宽策略及颜色绑定，不再固定 18px / 默认主题颜色。852 个 TS 分类与 308 个尺寸/线宽 oracle；继承行文字颜色、当前主题、DPR 均进入渲染/缓存。证据：`classification_and_display_follow_the_product_registry`、`every_kind_has_late_bound_ink_and_valid_geometry_at_each_size`、`every_theme_binding_uses_the_active_palette_and_inherited_ink`。大型文件卡片预览与严格像素一致仍未验收
 - [x] S6 映射清单 `tools/ui-migration-map.json` + `tools/audit-ui-migration.py`（29 组；ported 必须引用存在的测试或产物；接入 `tools/verify.py`）
 - [x] S7 边界守护：`check-ui-boundaries.py` 拒绝 `theme.rs` 以外的颜色字面量；终端 ANSI/256 色改由 `Theme::ansi_index` 提供
 
@@ -60,7 +60,7 @@
 - [x] P1-5 键盘：↑↓←→ Home End Enter；多选（⌘ 加选、⇧ 范围）
 - [x] P1-6 拖拽：树内移动到文件夹；从系统拖入文件导入
 - [~] P1-7 "New" 是列表末尾的一行；加载/空状态行已做。文件夹读取失败时，错误和"重试"显示在该文件夹行尾（Web 是文件夹下方单独一行）。证据：`failed_folder_read_stays_on_its_row_until_a_retry_succeeds`
-- [~] P1-8 最新 macOS 产品不显示底部栏：原生高度归零、Explorer 延伸到底部、去掉 footer 渐隐；Settings 留在应用菜单 / `⌘,`。证据：`macos_has_no_sidebar_footer_and_settings_stays_in_the_app_menu`。非 macOS 保留 Settings + Help（产品 `useWorkspaceSurfaceContent` 把 `git` 从底部导航过滤掉，Changes 在 Header）；无分割线，树在仍有下方行时以 18px 渐隐过渡到底部栏（`useScrollEdgeState`）；高度 = control + 16 随文字尺度变化，按钮 control−4、图标 14px / 描边 1.65、utility 色（`mix(muted 80%, sidebar)`），Help 用产品自有 `FeedbackHelpIcon`。证据：`sidebar_footer_follows_the_navigation_height_formula`、`sidebar_tree_fade_follows_use_scroll_edge_state`、`sidebar_tree_fades_into_the_footer_only_while_rows_remain_below`。已知差异：忙碌时右侧的 pulse grid 是原生临时进度提示（产品用 `FloatingNoticeStack`，尚未移植）；Project Rail 打开时产品隐藏底部栏、把工具按钮移入 Rail，原生未移植
+- [~] P1-8 最新 macOS 产品不显示底部栏：原生高度归零、Explorer 延伸到底部、去掉 footer 渐隐；Settings 留在应用菜单 / `⌘,`。证据：`macos_has_no_sidebar_footer_and_settings_stays_in_the_app_menu`。非 macOS 保留 Settings + Help（产品 `useWorkspaceSurfaceContent` 把 `git` 从底部导航过滤掉，Changes 在 Header）；无分割线，树在仍有下方行时以 18px 渐隐过渡到底部栏（`useScrollEdgeState`）；高度 = control + 16 随文字尺度变化，按钮 control−4、图标 14px / 描边 1.65、utility 色（`mix(muted 80%, sidebar)`），Help 用产品自有 `FeedbackHelpIcon`。证据：`sidebar_footer_follows_the_navigation_height_formula`、`sidebar_tree_fade_follows_use_scroll_edge_state`、`sidebar_tree_fades_into_the_footer_only_while_rows_remain_below`。已知差异：忙碌时右侧的共享 LoadingMark 是原生临时进度提示（产品用 `FloatingNoticeStack`，尚未移植）；Project Rail 打开时产品隐藏底部栏、把工具按钮移入 Rail，原生未移植
 - [~] P1-9 最近项目持久化；项目菜单（项目列表、打开文件夹、首页、移除）；Project Rail 列出项目。缺：Rail 上的重命名/取消关联（`ProjectRowActions`）。证据：`project_history_is_most_recent_first_and_bounded`
 - [x] P1-10 首页（`MinimalOnboarding` / `OnboardingHomeLayout` / `OnboardingProjectEntryDialog`，`src/shell/home/`）：
   - 品牌标记 28px + 标题（`text-muted`，−0.035em 字距由 `ui::tracked_text` 逐字形绘制）；深色下标记按产品 `grayscale(1) brightness(0.7)` 预烘焙（`brand/puppy-dark-onboarding.svg`）。有项目时标题为「Which project…」，无项目时为「Start with your files…」且 New empty project 为主按钮
@@ -237,6 +237,16 @@ python3 tools/audit-ui-migration.py
   - 已知差异：当前匹配被选中时，选区由 Kit 绘制在匹配底色之上（产品为底色在选区之上），颜色叠加顺序略有不同
 - [~] N11 路由：MD / CSV / 纯文本只走原生编辑器；WebView 编辑器、其产品代码打包（`editor/`）和 GUI 冒烟驱动已删除，不存在回退路径。缺：代码 / JSON 语法高亮，HTML / PDF / 媒体查看器；原型 `native_editor` 已删除（其自绘输入框无人使用，一并删除；共享编辑动作在 `src/ui/input.rs`，文档格式动作在 `src/editor/actions.rs`）
 
-## 8. 明确不在本轮范围
+## 8. 图标注册与共享 Loading 验证（2026-10-27）
+
+- 范围是 `fileFormats → FileSemanticKind → file-icon theme → FileIcon` 与七种 `ProductIcon`；不是 SaaS Logo / 营销素材迁移。那些试验新增文件已移出工作树，本轮不交付。
+- 双配置测试各 **351 passed / 9 ignored**；fmt、双配置 Clippy、release、导入物 / 分层 / UI 边界检查、编辑器帧预算通过。整套 `verify.py` 的既有本地化快照与 retired native-probe 问题未在本轮解决。
+- `tools/verify-ui-assets.py` 同时渲染真实 TS 和原生共享 fixture：21 个产品图标样本、132 个文件图标（22 类型 × 四种尺寸及两种继承色）、60 个 LoadingMark、2 个 placeholder；深浅色 × 5 时间点，共 10 张组件板，另有 4 张 reduced-motion 板。
+- 原生截图先等全部 glyph 解码，再取 OS 图；Web 等字体、组件与冻结动画就绪。保留原图、ICC 归一化后的对比、逐组件分数和差分；不会屏蔽不同像素。
+- 全板 exact **96.89–98.46%**；文件图标槽平均 exact **93.97%**、容差 8 **97.16%**。这些都包含背景，**严格 `--strict` 仍失败**，不作像素验收通过声明。不同光栅器的抗锯齿、色阶、alpha 量化和窗口圆角仍有差异。
+- 深浅色下，reduced-motion 的 0s / 2.1s 原生图各自完全相同，Web 图也各自相同；dither 的 27 个 TS alpha oracle 逐字节匹配。并未测得 GPU 提交或真实输入延迟保证。
+- 大型 `FilePreviewIcon` 卡片预览不在已移植范围；不改 GPUI Kit、不牺牲既有可见区渲染 / 面板缓存。
+
+## 9. 明确不在本轮范围
 
 需要 Cloud 服务或平台服务、当前没有原生实现的功能保持如实提示，不伪造：Account 登录、Plan 计费、Host Server、自动更新下载、Feedback 上传、Share/Reach、子主题包安装、Windows XP 界面风格。

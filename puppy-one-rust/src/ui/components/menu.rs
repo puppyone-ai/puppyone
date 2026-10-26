@@ -200,6 +200,9 @@ impl MenuItem {
     pub fn icon(self, name: impl Into<SharedString>) -> Self {
         self.icon_sized(Icon::new(name).small().stroke(2.))
     }
+    pub fn product_icon(self, meaning: super::ProductIcon) -> Self {
+        self.icon_sized(Icon::product(meaning).small().stroke(2.))
+    }
     /// An icon drawn at its own size and stroke; it follows the row's hover.
     pub fn icon_sized(mut self, icon: Icon) -> Self {
         self.icon = Some(icon);

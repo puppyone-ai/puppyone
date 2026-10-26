@@ -923,31 +923,12 @@ pub(super) fn context_divider(label: SharedString, a: &AgentTheme) -> AnyElement
         .into_any_element()
 }
 
-/// `DotsLoader size="xs"`: three 3px dots bouncing 2px, staggered 160ms.
+/// The same `LoadingMark size="xs"` as AgentRunFeedback in the product.
 pub(super) fn dots(id: impl Into<SharedString>, color: Rgba) -> AnyElement {
-    let id: SharedString = id.into();
-    let mut row = h_flex().gap(px(3.)).flex_shrink_0();
-    for index in 0..3u32 {
-        row = row.child(div().size(px(3.)).rounded_full().bg(color).with_animation(
-            ElementId::Name(format!("{id}-dot-{index}").into()),
-            Animation::new(std::time::Duration::from_millis(1_200)).repeat(),
-            move |dot, delta| {
-                // `puppy-dot-bounce`: 0/80/100% rest at 35%, 40% peak, offset by the stagger.
-                let phase = (delta - index as f32 * 0.16 / 1.2).rem_euclid(1.);
-                let (_, y, opacity) = keyframes(
-                    phase,
-                    &[
-                        (0., 0., 0., 0.35),
-                        (0.4, 0., -2., 1.),
-                        (0.8, 0., 0., 0.35),
-                        (1., 0., 0., 0.35),
-                    ],
-                );
-                dot.opacity(opacity).mt(px(y)).mb(px(-y))
-            },
-        ));
-    }
-    row.into_any_element()
+    crate::ui::loading::LoadingMark::new(ElementId::Name(id.into()))
+        .size(crate::ui::loading::LoaderSize::Xs)
+        .color(color)
+        .into_any_element()
 }
 
 /// `AgentRunFeedback`: meta label (and dots while busy) at the content inset.

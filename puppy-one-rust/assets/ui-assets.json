@@ -1,0 +1,228 @@
+{
+  "sourceCommit": "d2ddc4b903636442ea81b3fb454a24c6f96696f4",
+  "inputs": {
+    "packages/shared-ui/src/icons/productIcons.tsx": "5d7091884cb5840c491a24e5ac4a3a4e923366374ad3f2c73e68b9ed5a946a05",
+    "node_modules/lucide-react/package.json": "fc04d9363ba3f8403287b181f66fd6a276c9cc9e2a0b3836ac46d64f6807079c",
+    "node_modules/lucide-react/dist/esm/icons/folder-closed.js": "fa08aa5aceb89e4e02eb57873d6eb8ba4f7bce8ca4cf7695d6e3bd7710b832c7",
+    "node_modules/lucide-react/dist/esm/icons/laptop.js": "3a44ac8f585c2b79a278f938d2cebba83cece3b38897bd58d532899924179a7d",
+    "packages/shared-ui/src/styles/product-icons.css": "174e204c79b0a25e64062bacb7296c40c4f27a9e1232f3bd541d8981335242ba",
+    "packages/shared-ui/src/primitives/LoadingMark.tsx": "a5233717bcc0404525c057195ba6df65bb1656e84496bb00e02e983be5a3160e",
+    "packages/shared-ui/src/primitives/LoadingPlaceholder.tsx": "c8f9dde6889c8b8b3eb425a99ea8aad4046fe54354294333fcb2770cc4e5ee8f",
+    "packages/shared-ui/src/primitives/orderedDitherField.ts": "239290461cda787a12ee74b3087a23263f6d8d796a5cbd747c91f055fa1c56c6",
+    "packages/shared-ui/src/primitives/OrderedDither.tsx": "1075370dd74f0c1f70dacc780f8a2cda35d82e0866a3f16e34f32ea78146232b",
+    "packages/shared-ui/src/styles/loading-mark.css": "733f198e5b1bf3cc347fa325d8d0b44a26031b9a6c4ab6525383063c9218fb50",
+    "packages/shared-ui/src/styles/loading-placeholder.css": "5bcd91ef6774350439c70d427abc50c37af9f5cd769db124e37a4c00a4005c4f",
+    "src/components/loading/index.tsx": "52928c939b4704294ee1e11513bca7dc41359bc6b929a7d112000248c9f62b32",
+    "locales/renderer/en/settings.json": "f1c5ca3ce375e9cfd7666b10445fb774e02d01392ef081384da11ef3e9ab800b",
+    "locales/renderer/zh-Hans/settings.json": "d8407a36e779b800e4d41d8c4926de1a64da2ef2a348c9f6d65d4b17de44302f",
+    "locales/renderer/ja/settings.json": "2d75c99808935613cc6b5bfb1968987f1e174b8043c54cc74b23ede02b9b804a",
+    "locales/renderer/ko/settings.json": "a3dc75d0d19638e4b26876ed9bf119e2bbc145090e27470e023b4edf8323c08d",
+    "locales/renderer/de/settings.json": "9c7f82b56778473b8ce1719e4f57f5241a0c772d9baa598c6a81dc09408f0d04",
+    "locales/renderer/fr/settings.json": "fae0c49a3c7d779566a288fc9720f49a9bb84a6a6ec769e678d18bba47c4956c",
+    "locales/renderer/es/settings.json": "ba78050ed07e11193ca8b197ddbe88749105ca59a73caaa5422ce8aa1c8cf780",
+    "locales/renderer/pt-BR/settings.json": "eba7b99636afb7636d9cfff194ec111ba0042d6a803c719f7b3ae8e337286f26"
+  },
+  "icons": {
+    "home": {
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"white\" stroke-width=\"{stroke}\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-puppyone-home\" aria-hidden=\"true\" data-product-icon=\"home\"><path d=\"M15 21h4a2 2 0 0 0 2-2v-9a2 2 0 0 0-.709-1.528l-7-6a2 2 0 0 0-2.582 0l-7 6A2 2 0 0 0 3 10v9a2 2 0 0 0 2 2h4v-8a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1z\"></path></svg>",
+      "strokeScale": 1.1
+    },
+    "folder": {
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"white\" stroke-width=\"{stroke}\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-folder-closed\" aria-hidden=\"true\" data-product-icon=\"folder\"><path d=\"M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z\"></path><path d=\"M2 10h20\"></path></svg>",
+      "strokeScale": 1
+    },
+    "local": {
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"white\" stroke-width=\"{stroke}\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-laptop\" aria-hidden=\"true\" data-product-icon=\"local\"><path d=\"M18 5a2 2 0 0 1 2 2v8.526a2 2 0 0 0 .212.897l1.068 2.127a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45l1.068-2.127A2 2 0 0 0 4 15.526V7a2 2 0 0 1 2-2z\"></path><path d=\"M20.054 15.987H3.946\"></path></svg>",
+      "strokeScale": 1
+    },
+    "cloud": {
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" class=\"desktop-cloud-icon\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"white\" stroke-width=\"{stroke}\" stroke-linecap=\"round\" stroke-linejoin=\"round\" focusable=\"false\" aria-hidden=\"true\" data-cloud-icon=\"puppyone\" data-product-icon=\"cloud\"><g fill=\"none\"><path d=\"M6.8 19A3.8 3.8 0 1 1 5.927 11.502A1.4 1.4 0 0 0 7.004 10.196A5 5 0 1 1 16.996 10.196A1.4 1.4 0 0 0 18.073 11.502A3.8 3.8 0 1 1 17.2 19Z\" data-cloud-outline=\"true\"></path></g></svg>",
+      "strokeScale": 1
+    },
+    "cloud-upload": {
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" class=\"desktop-cloud-icon\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"white\" stroke-width=\"{stroke}\" stroke-linecap=\"round\" stroke-linejoin=\"round\" focusable=\"false\" aria-hidden=\"true\" data-cloud-icon=\"puppyone\" data-product-icon=\"cloud-upload\"><g fill=\"none\"><path d=\"M6.8 19A3.8 3.8 0 1 1 5.927 11.502A1.4 1.4 0 0 0 7.004 10.196A5 5 0 1 1 16.996 10.196A1.4 1.4 0 0 0 18.073 11.502A3.8 3.8 0 1 1 17.2 19Z\" data-cloud-outline=\"true\"></path><path d=\"M12 16v-5.25M9.75 13 12 10.75 14.25 13\" data-cloud-mark=\"upload\"></path></g></svg>",
+      "strokeScale": 1
+    },
+    "cloud-off": {
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" class=\"desktop-cloud-icon\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"white\" stroke-width=\"{stroke}\" stroke-linecap=\"round\" stroke-linejoin=\"round\" focusable=\"false\" aria-hidden=\"true\" data-cloud-icon=\"puppyone\" data-product-icon=\"cloud-off\"><g fill=\"none\"><mask id=\"po-cloud-off-R0\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"24\" height=\"24\"><rect width=\"24\" height=\"24\" fill=\"white\" stroke=\"none\"></rect><path d=\"M3 3l18 18\" stroke=\"black\" stroke-width=\"{cutout}\"></path></mask><path d=\"M6.8 19A3.8 3.8 0 1 1 5.927 11.502A1.4 1.4 0 0 0 7.004 10.196A5 5 0 1 1 16.996 10.196A1.4 1.4 0 0 0 18.073 11.502A3.8 3.8 0 1 1 17.2 19Z\" mask=\"url(#po-cloud-off-R0)\" data-cloud-outline=\"true\"></path><path d=\"M3 3l18 18\" data-cloud-mark=\"off\"></path></g></svg>",
+      "strokeScale": 1
+    },
+    "disclosure": {
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" stroke-width=\"2.5\" class=\"po-disclosure-icon\" width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"white\" stroke-linecap=\"round\" stroke-linejoin=\"round\" focusable=\"false\" aria-hidden=\"true\" data-product-icon=\"disclosure\"><path d=\"M8.5 5L15.5 12L8.5 19\"></path></svg>",
+      "strokeScale": 1
+    }
+  },
+  "loading": {
+    "geometry": {
+      "xs": {
+        "relay": {
+          "unit": 3,
+          "gap": 2
+        },
+        "dither": {
+          "unit": 4,
+          "gap": 2
+        },
+        "box": 12
+      },
+      "sm": {
+        "relay": {
+          "unit": 4,
+          "gap": 3
+        },
+        "dither": {
+          "unit": 5,
+          "gap": 2
+        },
+        "box": 16
+      },
+      "md": {
+        "relay": {
+          "unit": 5,
+          "gap": 4
+        },
+        "dither": {
+          "unit": 6,
+          "gap": 3
+        },
+        "box": 24
+      }
+    },
+    "markLight": {
+      "base": 0.2,
+      "peak": 0.85,
+      "halo": 0,
+      "haloInk": 0,
+      "width": 5,
+      "angle": 0,
+      "period": 1.2
+    },
+    "placeholderLight": {
+      "base": 0.3,
+      "peak": 0.46,
+      "halo": 0.34,
+      "haloInk": 0.4,
+      "width": 36,
+      "angle": 62,
+      "period": 2.8
+    },
+    "thresholds": [
+      0.0078125,
+      0.5078125,
+      0.1328125,
+      0.6328125,
+      0.0390625,
+      0.5390625,
+      0.1640625,
+      0.6640625,
+      0.7578125,
+      0.2578125,
+      0.8828125,
+      0.3828125,
+      0.7890625,
+      0.2890625,
+      0.9140625,
+      0.4140625,
+      0.1953125,
+      0.6953125,
+      0.0703125,
+      0.5703125,
+      0.2265625,
+      0.7265625,
+      0.1015625,
+      0.6015625,
+      0.9453125,
+      0.4453125,
+      0.8203125,
+      0.3203125,
+      0.9765625,
+      0.4765625,
+      0.8515625,
+      0.3515625,
+      0.0546875,
+      0.5546875,
+      0.1796875,
+      0.6796875,
+      0.0234375,
+      0.5234375,
+      0.1484375,
+      0.6484375,
+      0.8046875,
+      0.3046875,
+      0.9296875,
+      0.4296875,
+      0.7734375,
+      0.2734375,
+      0.8984375,
+      0.3984375,
+      0.2421875,
+      0.7421875,
+      0.1171875,
+      0.6171875,
+      0.2109375,
+      0.7109375,
+      0.0859375,
+      0.5859375,
+      0.9921875,
+      0.4921875,
+      0.8671875,
+      0.3671875,
+      0.9609375,
+      0.4609375,
+      0.8359375,
+      0.3359375
+    ],
+    "fps": 30,
+    "cell": 2
+  },
+  "locales": {
+    "en": {
+      "settings.appearance.loadingStyle.title": "Loading style",
+      "settings.appearance.loadingStyle.ariaLabel": "Loading style",
+      "settings.appearance.loadingStyle.rounded.label": "Rounded",
+      "settings.appearance.loadingStyle.dither.label": "Dither"
+    },
+    "zh-Hans": {
+      "settings.appearance.loadingStyle.title": "加载样式",
+      "settings.appearance.loadingStyle.ariaLabel": "加载样式",
+      "settings.appearance.loadingStyle.rounded.label": "圆角",
+      "settings.appearance.loadingStyle.dither.label": "点阵"
+    },
+    "ja": {
+      "settings.appearance.loadingStyle.title": "読み込みスタイル",
+      "settings.appearance.loadingStyle.ariaLabel": "読み込みスタイル",
+      "settings.appearance.loadingStyle.rounded.label": "角丸",
+      "settings.appearance.loadingStyle.dither.label": "ディザ"
+    },
+    "ko": {
+      "settings.appearance.loadingStyle.title": "로딩 스타일",
+      "settings.appearance.loadingStyle.ariaLabel": "로딩 스타일",
+      "settings.appearance.loadingStyle.rounded.label": "둥근 모서리",
+      "settings.appearance.loadingStyle.dither.label": "디더"
+    },
+    "de": {
+      "settings.appearance.loadingStyle.title": "Ladestil",
+      "settings.appearance.loadingStyle.ariaLabel": "Ladestil",
+      "settings.appearance.loadingStyle.rounded.label": "Abgerundet",
+      "settings.appearance.loadingStyle.dither.label": "Dither"
+    },
+    "fr": {
+      "settings.appearance.loadingStyle.title": "Style de chargement",
+      "settings.appearance.loadingStyle.ariaLabel": "Style de chargement",
+      "settings.appearance.loadingStyle.rounded.label": "Arrondi",
+      "settings.appearance.loadingStyle.dither.label": "Tramé"
+    },
+    "es": {
+      "settings.appearance.loadingStyle.title": "Estilo de carga",
+      "settings.appearance.loadingStyle.ariaLabel": "Estilo de carga",
+      "settings.appearance.loadingStyle.rounded.label": "Redondeado",
+      "settings.appearance.loadingStyle.dither.label": "Tramado"
+    },
+    "pt-BR": {
+      "settings.appearance.loadingStyle.title": "Estilo de carregamento",
+      "settings.appearance.loadingStyle.ariaLabel": "Estilo de carregamento",
+      "settings.appearance.loadingStyle.rounded.label": "Arredondado",
+      "settings.appearance.loadingStyle.dither.label": "Pontilhado"
+    }
+  }
+}

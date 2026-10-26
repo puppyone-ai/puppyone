@@ -154,7 +154,9 @@ pub struct Preferences {
     pub text_scale: crate::typography::Scale,
     pub file_icon_theme: String,
     pub git_sidebar_layout: GitSidebarLayout,
-    pub loading_animation: String,
+    /// Shared material for every loading mark and placeholder. Old PulseGrid
+    /// preferences are ignored; absent / unknown styles default to rounded.
+    pub loading_style: crate::ui::loading::LoadingStyle,
     pub pointer_cursors: bool,
     pub header_changes: bool,
     pub header_terminal: bool,
@@ -182,7 +184,7 @@ impl Default for Preferences {
             text_scale: crate::typography::Scale::Medium,
             file_icon_theme: "default".into(),
             git_sidebar_layout: GitSidebarLayout::Cards,
-            loading_animation: "ikun".into(),
+            loading_style: Default::default(),
             pointer_cursors: false,
             header_changes: true,
             header_terminal: true,
@@ -218,6 +220,9 @@ impl Preferences {
         }
         p.version = 2;
         p.create_new.normalize();
+        p.file_icon_theme = crate::file_kind::parse_theme(Some(&p.file_icon_theme))
+            .unwrap_or(crate::file_kind::default_theme())
+            .into();
         // `readInitialExplorerWidth` / `readInitialRightSidebarWidth`: whole
         // pixels, never below the pane's minimum.
         p.explorer_width = stored_width(
@@ -267,6 +272,24 @@ fn stored_width(width: f32, minimum: f32, default: f32) -> f32 {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn loading_material_migrates_without_discarding_other_preferences() {
+        use crate::ui::loading::LoadingStyle;
+        for value in [
+            serde_json::json!({"loading_animation":"ikun", "locale":"ja", "file_icon_theme":"classic"}),
+            serde_json::json!({"loading_style":"retired", "locale":"ja", "file_icon_theme":"classic"}),
+        ] {
+            let p = super::Preferences::from_stored(value).unwrap();
+            assert_eq!(p.loading_style, LoadingStyle::Rounded);
+            assert_eq!(p.locale, "ja");
+            assert_eq!(p.file_icon_theme, "default");
+        }
+        let p =
+            super::Preferences::from_stored(serde_json::json!({"loading_style":"dither"})).unwrap();
+        assert_eq!(p.loading_style, LoadingStyle::Dither);
+        let restored = super::Preferences::from_stored(serde_json::to_value(p).unwrap()).unwrap();
+        assert_eq!(restored.loading_style, LoadingStyle::Dither);
+    }
     use super::*;
     #[test]
     fn legacy_theme_flag_becomes_an_explicit_mode_and_new_fields_default() {

@@ -106,7 +106,6 @@ pub struct Workbench {
     /// Local agent ids hidden in Settings → Local Agents.
     hidden_agents: Vec<String>,
     /// Appearance → Loading animation preset.
-    loading_animation: String,
     scanning: bool,
     /// When the running discovery began (`useDelayedDiscoveryFeedback`).
     scan_started: Option<std::time::Instant>,
@@ -183,7 +182,6 @@ impl Workbench {
             root: None,
             installations: vec![],
             hidden_agents: vec![],
-            loading_animation: "ikun".into(),
             scanning: true,
             scan_started: Some(std::time::Instant::now()),
             scan_rx,
@@ -224,15 +222,9 @@ impl Workbench {
         self.root = Some(root);
         cx.notify();
     }
-    pub fn set_preferences(
-        &mut self,
-        hidden: Vec<String>,
-        loading_animation: String,
-        cx: &mut Context<Self>,
-    ) {
-        if self.hidden_agents != hidden || self.loading_animation != loading_animation {
+    pub fn set_preferences(&mut self, hidden: Vec<String>, cx: &mut Context<Self>) {
+        if self.hidden_agents != hidden {
             self.hidden_agents = hidden;
-            self.loading_animation = loading_animation;
             cx.notify();
         }
     }

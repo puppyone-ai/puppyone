@@ -14,13 +14,27 @@ for path in primitives:
     for pattern, message in [
         (r"\b(?:wry|rfd|cap_std|muda|tokio)\s*::", "native authority/runtime imported by a UI primitive"),
         (r"\bstd\s*::\s*(?:fs|process|thread|net)\b", "I/O or worker ownership inside a UI primitive"),
-        # The string catalog and the file-glyph table are leaf modules UI may read.
-        (r"crate\s*::\s*(?!ui\b|theme\b|localization\b|file_kind\b)\w+",
+        # String, file-glyph and product-asset catalogs are leaf data modules UI may read.
+        (r"crate\s*::\s*(?!ui\b|theme\b|localization\b|file_kind\b|asset_catalog\b)\w+",
          "reverse dependency from UI into composition/features"),
         (r"\b(?:rgb|rgba|hsla)\s*\(", "local palette instead of semantic theme input"),
     ]:
         if re.search(pattern, source):
             errors.append(f"{path.relative_to(root)}: {message}")
+
+# Asset data must not grow an application/renderer dependency. Tests may
+# verify that the separate GPUI asset adapter embeds each catalog entry.
+asset_model = (root / 'src/asset_catalog.rs').read_text().split('#[cfg(test)]')[0]
+if re.search(r'\bgpui\s*::|crate::(?:assets|features|shell)|\bstd::(?:fs|process|thread)', asset_model):
+    errors.append('src/asset_catalog.rs: catalog data depends on composition/rendering')
+
+# Product meanings have one typed registry entry. Views must not select an
+# old concrete drawing (the asset adapter retains aliases for compatibility).
+product_drawing = re.compile(r'(?:Icon::new|\.icon|\.path)\(\s*"(?:icons/)?(?:house(?:-compact)?|folder(?:-closed|-open)?|laptop|cloud(?:-off|-upload)?|tree-disclosure(?:-open)?|disclosure)(?:\.svg)?"')
+for base in ['src/shell','src/features','src/ui']:
+    for path in (root/base).rglob('*.rs'):
+        if product_drawing.search(path.read_text()):
+            errors.append(f'{path.relative_to(root)}: use ProductIcon registry, not a concrete product drawing')
 
 # The retired Markdown prototype must not come back.
 if (root / "src/native_editor").exists():

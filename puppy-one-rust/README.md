@@ -44,9 +44,27 @@ cargo run --release --locked -- --workspace /path/to/project --file README.md
 - 颜色从全局外观读取（`cx.palette()` / `cx.is_dark()`，见 `ui/appearance.rs`），不再由调用方传 `Theme` 或 `dark` 参数。
 - 现有组件：`Button`（Outline / Filled / Ghost / Titlebar / 对话框等变体）、`IconButton`、`Icon` / `FileIcon`、`Switch`、`SegmentedControl`、`Select`、`Menu` / `MenuItem`、`PopoverMenu`（挂在触发按钮上）、`AnchoredMenu`（右键菜单）、`Dialog`、`SidebarRow` / `SectionHeader` / `SidebarGroup` / `RowActionButton`、`ResizeHandle`（面板边缘与工作台分屏共用的拖拽手柄：8px 命中带 + 1px 描边，悬停 / 拖动色来自 `--po-pane-resizer-*` token）、设置页的 `SettingsSection` / `SettingRow` / `ValueRow` 等，以及 `Spinner`、`tooltip`。
 - 弹层统一交给 Kit 的 `Popover` / `Positioner`：位置、贴边、点外部和 Esc 关闭、焦点恢复都不手写。
-- 动画统一用 `ui/motion.rs` 的 `Timeline`：各处只保留自己的曲线和计划（面板开合 ease-in-out、Explorer 展开的产品梯形曲线），计时、结束判断和截图冻结（`PUPPYONE_MOTION_AT`）只有一份。
+- 有限动画统一用 `ui/motion.rs` 的 `Timeline`（面板开合、Explorer 展开）；持续 Loading 由 `ui/loading/` 的共享调度器管理，不能每个页面再造一套计时器。
 - 样例页：`PUPPYONE_LAB=gallery-dark`（或 `gallery-light`、`gallery-dialog-dark`）配合 `dev-capture` 构建打开，展示所有组件和状态。
 - `tools/check-ui-boundaries.py` 会拦截：功能 / Shell 代码里使用 Kit 默认外观组件（`gpui_kit::component::{button,menu,…}`、`PopupMenu` 等）、自建配色（`Theme::new`），以及已退役的旧辅助文件（`ui/primitives.rs`、`ui/menu.rs` 等）重新出现。
+
+## 文件与产品图标注册表
+
+- `formats/` 是文件分类的唯一 owner；`file_kind.rs` 的主题注册表必须完整覆盖其 22 种语义类型，未知文件才走 `file`，不能用通用图标掩盖缺失的已知类型。
+- `FileIcon` 消费名称、可选类型/MIME、主题和尺寸。生成物保存参数化 SVG、线宽策略与语义颜色绑定；渲染时读取当前 palette 和所在行的文字颜色，按实际 DPR 栅格化。14px 与 18px 图标都保持产品规定的 1px 主线宽。JSON 的 `{}` 使用产品 Geist 600 轮廓，不依赖系统 SVG 字体替代。
+- `Icon::product(ProductIcon::Cloud)` 等通过 `asset_catalog.rs` 的七种产品语义统一选图；Sidebar、Header 和菜单不再直接挑同义 Lucide 图形。`tools/check-ui-boundaries.py` 守护这一边界。
+- 当前 TS 只注册 `default` 文件图标主题；旧主题偏好按导入的迁移表归并，单主题时不显示无意义的设置选择器。
+- `ui/loading/` 提供 rounded / dither mark 与 placeholder，保留真实 TS 中仍使用环形 Spinner 的特例；macOS reduced motion 在启动和窗口重新激活时读取。
+
+```bash
+node tools/import-file-icons.mjs --check  # 注册表、852 个分类样本、308 个尺寸/线宽样本
+node tools/import-ui-assets.mjs --check   # 产品语义图标与 Loading，不导入 SaaS Logo
+python3 tools/generate-assets-rs.py --check
+# dev-capture binary；实际 TS 组件 vs native，原图/分项收据留在 artifacts/ui-assets/
+python3 tools/verify-ui-assets.py --binary /path/to/dev-capture/puppy-one-rust --strict
+```
+
+严格逐像素比对仍有光栅、色阶等差异，不能把登记覆盖或含背景的高分当作像素验收。当前范围是紧凑文件 glyph、产品语义图标与 Loading；大型 `FilePreviewIcon` 卡片预览不是已完成项。权威契约见 [Native Appearance and Components](https://github.com/puppyone-ai/puppy-issues/blob/main/document/puppyone-desktop/platform/rust-native-frontend/appearance-and-components.md)。
 
 ## Shell 结构（`src/shell/`）
 

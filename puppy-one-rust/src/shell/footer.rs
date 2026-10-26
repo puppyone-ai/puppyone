@@ -23,7 +23,7 @@ type OnCommand = Rc<dyn Fn(Command, &mut Window, &mut App)>;
 #[derive(IntoElement)]
 pub(super) struct SidebarFooter {
     task: Option<Task>,
-    busy: Option<SharedString>,
+    busy: bool,
     on_command: OnCommand,
 }
 impl SidebarFooter {
@@ -31,7 +31,7 @@ impl SidebarFooter {
     pub fn new(on_command: impl Fn(Command, &mut Window, &mut App) + 'static) -> Self {
         Self {
             task: None,
-            busy: None,
+            busy: false,
             on_command: Rc::new(on_command),
         }
     }
@@ -40,11 +40,10 @@ impl SidebarFooter {
         self.task = task;
         self
     }
-    /// Work is running: a pulse grid in the loading animation `preset`.
-    /// Native-only cue until file-operation notices are ported (the product
-    /// shows them in `FloatingNoticeStack`).
-    pub fn busy(mut self, preset: Option<impl Into<SharedString>>) -> Self {
-        self.busy = preset.map(Into::into);
+    /// Native-only cue until file-operation notices are ported; its mark
+    /// shares the global loading material, not a separate animation preset.
+    pub fn busy(mut self, busy: bool) -> Self {
+        self.busy = busy;
         self
     }
 }
@@ -97,13 +96,8 @@ impl RenderOnce for SidebarFooter {
                         Task::Feedback,
                     )),
             )
-            .when_some(self.busy, |d, preset| {
-                d.child(ui::pulse_grid::pulse_grid(
-                    "footer-busy",
-                    &preset,
-                    ui::pulse_grid::PulseSize::Sm,
-                    t.subtle,
-                ))
+            .when(self.busy, |d| {
+                d.child(ui::loading::LoadingMark::new("footer-busy").color(t.subtle))
             })
     }
 }

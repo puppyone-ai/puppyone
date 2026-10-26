@@ -19,6 +19,7 @@ pub struct Appearance {
     pub pack: SharedString,
     pub scale: Scale,
     pub pointer_cursors: bool,
+    pub loading_style: crate::ui::loading::LoadingStyle,
     /// The pack's palette in this colour mode.
     pub palette: Theme,
 }
@@ -35,12 +36,18 @@ impl Appearance {
             pack: SharedString::from(pack.to_owned()),
             scale,
             pointer_cursors,
+            loading_style: Default::default(),
             palette: theme::pack_theme(pack, dark),
         }
+    }
+    pub fn with_loading(mut self, style: crate::ui::loading::LoadingStyle) -> Self {
+        self.loading_style = style;
+        self
     }
     /// The same appearance in another colour mode.
     pub fn with_dark(&self, dark: bool) -> Self {
         Self::new(dark, &self.pack, self.scale, self.pointer_cursors)
+            .with_loading(self.loading_style)
     }
     /// Install as the active appearance. Returns whether anything changed;
     /// windows refresh on their next frame.
@@ -51,7 +58,14 @@ impl Appearance {
                 &current.pack,
                 current.scale,
                 current.pointer_cursors,
-            ) != (self.dark, &self.pack, self.scale, self.pointer_cursors)
+                current.loading_style,
+            ) != (
+                self.dark,
+                &self.pack,
+                self.scale,
+                self.pointer_cursors,
+                self.loading_style,
+            )
         });
         theme::set_scale(self.scale);
         theme::set_pack(&self.pack);

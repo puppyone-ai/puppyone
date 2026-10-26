@@ -51,6 +51,7 @@
     "file-accent-html": "#b8662c",
     "file-accent-pdf": "#c44b55",
     "file-accent-image": "#8465a5",
+    "file-accent-audio": "#8465a5",
     "file-accent-video": "#397c8f",
     "file-accent-code": "#397c8f",
     "file-accent-word": "#3f70a8",
@@ -78,7 +79,8 @@
     "terminal-bright-cyan": "#789799",
     "terminal-bright-white": "#766f65",
     "scrollbar-thumb": "rgba(45, 43, 38, 0.13)",
-    "scrollbar-thumb-hover": "rgba(45, 43, 38, 0.22)"
+    "scrollbar-thumb-hover": "rgba(45, 43, 38, 0.22)",
+    "skeleton-base": "rgba(45, 43, 38, 0.055)"
    },
    "dark": {
     "surface-canvas": "#161616",
@@ -126,6 +128,7 @@
     "file-accent-html": "#e37933",
     "file-accent-pdf": "#d85a62",
     "file-accent-image": "#a879c9",
+    "file-accent-audio": "#a879c9",
     "file-accent-video": "#5aa2c0",
     "file-accent-code": "#5aa2c0",
     "file-accent-word": "#69a5e8",
@@ -153,7 +156,8 @@
     "terminal-bright-cyan": "#9fc1bc",
     "terminal-bright-white": "#d2cec5",
     "scrollbar-thumb": "rgba(255, 255, 255, 0.08)",
-    "scrollbar-thumb-hover": "rgba(255, 255, 255, 0.16)"
+    "scrollbar-thumb-hover": "rgba(255, 255, 255, 0.16)",
+    "skeleton-base": "rgba(255, 255, 255, 0.055)"
    }
   },
   {
@@ -206,6 +210,7 @@
     "file-accent-html": "#b8662c",
     "file-accent-pdf": "#c44b55",
     "file-accent-image": "#8465a5",
+    "file-accent-audio": "#8465a5",
     "file-accent-video": "#397c8f",
     "file-accent-code": "#397c8f",
     "file-accent-word": "#3f70a8",
@@ -233,7 +238,8 @@
     "terminal-bright-cyan": "#789799",
     "terminal-bright-white": "#766f65",
     "scrollbar-thumb": "rgba(45, 43, 38, 0.13)",
-    "scrollbar-thumb-hover": "rgba(45, 43, 38, 0.22)"
+    "scrollbar-thumb-hover": "rgba(45, 43, 38, 0.22)",
+    "skeleton-base": "rgba(45, 43, 38, 0.055)"
    },
    "dark": {
     "surface-canvas": "#18130f",
@@ -281,6 +287,7 @@
     "file-accent-html": "#e39a63",
     "file-accent-pdf": "#df7a7f",
     "file-accent-image": "#bd91d0",
+    "file-accent-audio": "#bd91d0",
     "file-accent-video": "#83b5c5",
     "file-accent-code": "#83b5c5",
     "file-accent-word": "#79a8d8",
@@ -308,7 +315,8 @@
     "terminal-bright-cyan": "#9fc1bc",
     "terminal-bright-white": "#d2cec5",
     "scrollbar-thumb": "rgba(255, 226, 191, 0.10)",
-    "scrollbar-thumb-hover": "rgba(255, 226, 191, 0.18)"
+    "scrollbar-thumb-hover": "rgba(255, 226, 191, 0.18)",
+    "skeleton-base": "rgba(255, 255, 255, 0.055)"
    }
   },
   {
@@ -361,6 +369,7 @@
     "file-accent-html": "#b7602e",
     "file-accent-pdf": "#c44b55",
     "file-accent-image": "#7c65a8",
+    "file-accent-audio": "#7c65a8",
     "file-accent-video": "#327b8a",
     "file-accent-code": "#327b8a",
     "file-accent-word": "#376da8",
@@ -388,7 +397,8 @@
     "terminal-bright-cyan": "#789799",
     "terminal-bright-white": "#766f65",
     "scrollbar-thumb": "rgba(31, 41, 55, 0.13)",
-    "scrollbar-thumb-hover": "rgba(31, 41, 55, 0.22)"
+    "scrollbar-thumb-hover": "rgba(31, 41, 55, 0.22)",
+    "skeleton-base": "rgba(31, 41, 55, 0.052)"
    },
    "dark": {
     "surface-canvas": "#17181c",
@@ -436,6 +446,7 @@
     "file-accent-html": "#e37933",
     "file-accent-pdf": "#d85a62",
     "file-accent-image": "#a879c9",
+    "file-accent-audio": "#a879c9",
     "file-accent-video": "#5aa2c0",
     "file-accent-code": "#5aa2c0",
     "file-accent-word": "#69a5e8",
@@ -463,7 +474,8 @@
     "terminal-bright-cyan": "#9fc1bc",
     "terminal-bright-white": "#d2cec5",
     "scrollbar-thumb": "rgba(255, 255, 255, 0.08)",
-    "scrollbar-thumb-hover": "rgba(255, 255, 255, 0.16)"
+    "scrollbar-thumb-hover": "rgba(255, 255, 255, 0.16)",
+    "skeleton-base": "rgba(255, 255, 255, 0.055)"
    }
   },
   {
@@ -516,6 +528,7 @@
     "file-accent-html": "#b8662c",
     "file-accent-pdf": "#c44b55",
     "file-accent-image": "#8465a5",
+    "file-accent-audio": "#8465a5",
     "file-accent-video": "#397c8f",
     "file-accent-code": "#397c8f",
     "file-accent-word": "#3f70a8",
@@ -543,7 +556,8 @@
     "terminal-bright-cyan": "#789799",
     "terminal-bright-white": "#766f65",
     "scrollbar-thumb": "rgba(45, 43, 38, 0.13)",
-    "scrollbar-thumb-hover": "rgba(45, 43, 38, 0.22)"
+    "scrollbar-thumb-hover": "rgba(45, 43, 38, 0.22)",
+    "skeleton-base": "rgba(45, 43, 38, 0.055)"
    },
    "dark": {
     "surface-canvas": "#0d1117",
@@ -591,6 +605,7 @@
     "file-accent-html": "#e37933",
     "file-accent-pdf": "#d85a62",
     "file-accent-image": "#a879c9",
+    "file-accent-audio": "#a879c9",
     "file-accent-video": "#5aa2c0",
     "file-accent-code": "#5aa2c0",
     "file-accent-word": "#69a5e8",
@@ -618,7 +633,8 @@
     "terminal-bright-cyan": "#9fc1bc",
     "terminal-bright-white": "#d2cec5",
     "scrollbar-thumb": "rgba(255, 255, 255, 0.08)",
-    "scrollbar-thumb-hover": "rgba(255, 255, 255, 0.16)"
+    "scrollbar-thumb-hover": "rgba(255, 255, 255, 0.16)",
+    "skeleton-base": "rgba(255, 255, 255, 0.055)"
    }
   },
   {
@@ -671,6 +687,7 @@
     "file-accent-html": "#b8662c",
     "file-accent-pdf": "#c44b55",
     "file-accent-image": "#8465a5",
+    "file-accent-audio": "#8465a5",
     "file-accent-video": "#397c8f",
     "file-accent-code": "#397c8f",
     "file-accent-word": "#3f70a8",
@@ -698,7 +715,8 @@
     "terminal-bright-cyan": "#789799",
     "terminal-bright-white": "#766f65",
     "scrollbar-thumb": "rgba(45, 43, 38, 0.13)",
-    "scrollbar-thumb-hover": "rgba(45, 43, 38, 0.22)"
+    "scrollbar-thumb-hover": "rgba(45, 43, 38, 0.22)",
+    "skeleton-base": "rgba(45, 43, 38, 0.055)"
    },
    "dark": {
     "surface-canvas": "#24221e",
@@ -746,6 +764,7 @@
     "file-accent-html": "#e37933",
     "file-accent-pdf": "#d85a62",
     "file-accent-image": "#a879c9",
+    "file-accent-audio": "#a879c9",
     "file-accent-video": "#5aa2c0",
     "file-accent-code": "#5aa2c0",
     "file-accent-word": "#69a5e8",
@@ -773,7 +792,8 @@
     "terminal-bright-cyan": "#9fc1bc",
     "terminal-bright-white": "#d2cec5",
     "scrollbar-thumb": "rgba(255, 255, 255, 0.08)",
-    "scrollbar-thumb-hover": "rgba(255, 255, 255, 0.16)"
+    "scrollbar-thumb-hover": "rgba(255, 255, 255, 0.16)",
+    "skeleton-base": "rgba(255, 255, 255, 0.055)"
    }
   }
  ]

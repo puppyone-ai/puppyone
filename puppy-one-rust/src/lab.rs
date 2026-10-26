@@ -18,6 +18,7 @@ use gpui::{prelude::*, *};
 use std::path::PathBuf;
 
 enum Surface {
+    Assets(Entity<crate::ui::asset_gallery::AssetGallery>),
     Gallery(Entity<crate::ui::gallery::Gallery>),
     Workbench(Entity<Workbench>),
     Settings(Entity<SettingsWorkspaceSurface>),
@@ -71,8 +72,11 @@ impl Lab {
         crate::ui::appearance::Appearance::default()
             .with_dark(dark)
             .apply(Some(window), cx);
+        cx.set_reduce_motion(std::env::var("PUPPYONE_REDUCE_MOTION").as_deref() == Ok("1"));
         let gallery = scenario.strip_prefix("gallery");
-        let surface = if let Some(rest) = gallery {
+        let surface = if scenario == "assets" {
+            Surface::Assets(cx.new(|_| crate::ui::asset_gallery::AssetGallery))
+        } else if let Some(rest) = gallery {
             let dialog = rest == "-dialog";
             Surface::Gallery(cx.new(|_| crate::ui::gallery::Gallery::new(dialog)))
         } else {
@@ -120,7 +124,9 @@ impl Render for Lab {
         if self.frames == 1 {
             self.focus.focus(window, cx);
         }
-        if self.frames < 3 {
+        let assets_ready = !matches!(self.surface, Surface::Assets(_))
+            || crate::ui::asset_gallery::AssetGallery::ready(window, cx);
+        if self.frames < 3 || !assets_ready {
             window.request_animation_frame();
         } else if !self.captured
             && let Some(path) = std::env::var_os("PUPPYONE_SCREENSHOT")
@@ -131,6 +137,7 @@ impl Render for Lab {
                 "framework": "GPUI",
                 "viewport": [f32::from(size.width), f32::from(size.height)],
                 "pixelsPerPoint": window.scale_factor(),
+                "assetsReady": assets_ready,
             });
             if let Err(error) = crate::capture::schedule(window, cx, PathBuf::from(path), geometry)
             {
@@ -148,6 +155,7 @@ impl Render for Lab {
             .relative();
         let root = match &self.surface {
             Surface::Gallery(gallery) => root.child(gallery.clone()),
+            Surface::Assets(gallery) => root.child(gallery.clone()),
             Surface::Workbench(workbench) => root.bg(t.auxiliary()).child(workbench.clone()),
             Surface::Settings(settings) => {
                 // The product page body is `--po-canvas`; the task backdrop

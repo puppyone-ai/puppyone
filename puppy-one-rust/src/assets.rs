@@ -12,7 +12,6 @@ macro_rules! embedded {
             }
         }
         /// Every embedded path, for tests that guard references against missing files.
-        #[cfg(test)]
         pub const EMBEDDED: &[&str] = &[$(concat!($dir, "/", $name)),*];
     };
 }
@@ -188,6 +187,9 @@ embedded! {
 pub struct Assets;
 impl AssetSource for Assets {
     fn load(&self, path: &str) -> anyhow::Result<Option<Cow<'static, [u8]>>> {
+        if let Some(svg) = crate::asset_catalog::icon_svg(path) {
+            return Ok(Some(Cow::Owned(svg)));
+        }
         if path.starts_with("file-icons/") {
             return Ok(crate::file_kind::glyph_svg(path).map(Cow::Owned));
         }
@@ -200,7 +202,16 @@ impl AssetSource for Assets {
         }
     }
     fn list(&self, path: &str) -> anyhow::Result<Vec<SharedString>> {
-        gpui_kit::assets::Assets.list(path)
+        let mut paths = gpui_kit::assets::Assets.list(path)?;
+        paths.extend(
+            EMBEDDED
+                .iter()
+                .filter(|p| p.starts_with(path))
+                .map(|p| SharedString::from(*p)),
+        );
+        paths.sort();
+        paths.dedup();
+        Ok(paths)
     }
 }
 /// `icons/<name>@<stroke>.svg`: the embedded Lucide icon redrawn at the
@@ -223,7 +234,9 @@ fn stroke_variant(path: &str) -> Option<Vec<u8>> {
 #[cfg(test)]
 pub fn has_icon(name: &str) -> bool {
     let path = format!("icons/{name}.svg");
-    embedded(&path).is_some() || matches!(gpui_kit::assets::Assets.load(&path), Ok(Some(_)))
+    crate::asset_catalog::icon_svg(&path).is_some()
+        || embedded(&path).is_some()
+        || matches!(gpui_kit::assets::Assets.load(&path), Ok(Some(_)))
 }
 #[cfg(test)]
 mod tests {

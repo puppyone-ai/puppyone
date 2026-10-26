@@ -253,7 +253,7 @@ impl Shell {
                                         cx.listener(|s, _, w, cx| s.choose_project_location(w, cx)),
                                     )
                                     .child(
-                                        Icon::new("folder-open")
+                                        Icon::product(crate::ui::components::ProductIcon::Folder)
                                             .with_size(px(17.))
                                             .stroke(1.8)
                                             .color(t.muted),

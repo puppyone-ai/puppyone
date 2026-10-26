@@ -164,7 +164,7 @@ impl AgentChat {
                 )
                 .item(
                     MenuItem::new(tr("agent.reference.addFromWorkspace"))
-                        .icon("folder")
+                        .product_icon(crate::ui::components::ProductIcon::Folder)
                         .on_click(move |w, cx| {
                             let _ = workspace_host.update(cx, |s, cx| s.attach(true, w, cx));
                         }),

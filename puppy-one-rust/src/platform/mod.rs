@@ -1,3 +1,4 @@
+pub mod accessibility;
 pub mod desktop;
 pub mod environment;
 pub mod git;

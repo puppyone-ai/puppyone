@@ -31,6 +31,8 @@ commands = [
     ('localization', ['python3', 'tools/import-localization.py', '--check']),
     ('assets', ['python3', 'tools/generate-assets-rs.py', '--check']),
     ('agent-marks', ['python3', 'tools/import-agent-marks.py', '--check']),
+    ('ui-assets', ['node', 'tools/import-ui-assets.mjs', '--check']),
+    ('file-icons', ['node', 'tools/import-file-icons.mjs', '--check']),
     ('ui-migration', ['python3', 'tools/audit-ui-migration.py']),
     ('test', [cargo, 'test', '--locked', '--features', 'dev-capture']),
     ('clippy', [cargo, 'clippy', '--locked', '--all-targets', '--features', 'dev-capture', '--', '-D', 'warnings']),

@@ -50,7 +50,11 @@ impl Shell {
             .variant(ButtonVariant::Ghost)
             .accessibility_label(label)
             .track_focus(&self.project_focus)
-            .icon(Icon::new("house-compact").large())
+            .icon(
+                Icon::product(crate::ui::components::ProductIcon::Home)
+                    .stroke(1.65)
+                    .large(),
+            )
             .label(name)
             .flex_shrink(1.)
             .min_w_0()
@@ -68,7 +72,7 @@ impl Shell {
             .when(cloud, |d| {
                 let location = Button::new("project-location")
                     .variant(ButtonVariant::Titlebar)
-                    .icon(Icon::new("laptop").large())
+                    .icon(Icon::product(crate::ui::components::ProductIcon::Local).large())
                     .accessibility_label(format!(
                         "{device}, {}",
                         tr("shell.workspaceSwitcher.projectDetails")
@@ -199,7 +203,11 @@ impl Shell {
             });
         });
         MenuItem::new(project.name.clone())
-            .icon_sized(Icon::new("folder").small().stroke(1.85))
+            .icon_sized(
+                Icon::product(crate::ui::components::ProductIcon::Folder)
+                    .small()
+                    .stroke(1.85),
+            )
             .selected(current)
             .trailing(
                 div()
@@ -223,7 +231,7 @@ impl Shell {
         });
         let host = self.weak.clone();
         let local = MenuItem::new(device)
-            .icon("laptop")
+            .product_icon(crate::ui::components::ProductIcon::Local)
             .selected(true)
             .on_click(move |w, cx| {
                 let _ = host.update(cx, |s, cx| {
@@ -233,7 +241,7 @@ impl Shell {
                 });
             });
         let cloud = MenuItem::new(tr("shell.projectOpen.inCloud"))
-            .icon("cloud")
+            .product_icon(crate::ui::components::ProductIcon::Cloud)
             .detail(tr("shell.workspaceSwitcher.location.signInToAccess"))
             .disabled(true);
         move |menu| {
