@@ -1,5 +1,4 @@
-//! The Markdown table model (features/table/tableModel.ts) and the shared
-//! column-width estimate (editor/table/editableTableLayout.ts). The parser
+//! The Markdown table model (features/table/tableModel.ts). The parser
 //! recognises the table start; the editable block is narrowed to the
 //! consecutive pipe-delimited rows, and every cell keeps its exact source
 //! range so cells edit the one canonical document.
@@ -257,17 +256,6 @@ pub fn table_block(doc: &Buffer, syntax: &Range<usize>) -> Option<Table> {
     })
 }
 
-/// `estimateMarkdownTableColumnWidths`: the shared estimate, capped at the
-/// compact initial width.
-pub fn column_widths(table: &Table) -> Vec<f32> {
-    crate::editor::table::estimate_widths(&table.rows, table.alignments.len(), |r, c| {
-        r.cells.get(c).map(|cell| cell.text.as_str())
-    })
-    .into_iter()
-    .map(|w| w.min(crate::editor::table::COLUMN_INITIAL_MAX_WIDTH))
-    .collect()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -281,7 +269,6 @@ mod tests {
         assert_eq!(t.rows[0].cells[1].text, "Value | x");
         assert_eq!(doc.slice(t.rows[0].cells[0].range.clone()), "Name");
         assert!(!t.rows[2].cells[1].editable);
-        assert_eq!(column_widths(&t), vec![96., 96.]);
         assert!(is_table_source_line("| a | b |") && !is_table_source_line("a | b"));
     }
 }

@@ -4,6 +4,7 @@
 //! table widget.
 mod commands;
 mod interaction;
+mod layout;
 pub mod model;
 mod operation;
 pub mod style;

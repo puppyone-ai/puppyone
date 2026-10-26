@@ -12,7 +12,8 @@
 use super::{
     commands,
     interaction::{Frame, Geometry, TableUi},
-    model::{self, Alignment, Table},
+    layout,
+    model::{Alignment, Table},
     style::TableStyle,
 };
 use crate::editor::{
@@ -35,16 +36,14 @@ use std::rc::Rc;
 /// `.po-editable-table-interaction-root`: rails reveal while it is hovered.
 const GROUP: &str = "md-table";
 
-/// Column tracks: each width plus its end border (none after the last).
+/// Column tracks include the end border (CSS `box-sizing: border-box`).
 fn column_spans(widths: &[f32]) -> Vec<(f32, f32)> {
     let mut x = 1.;
     widths
         .iter()
-        .enumerate()
-        .map(|(c, w)| {
-            let border = if c + 1 < widths.len() { 1. } else { 0. };
-            let span = (x, w + border);
-            x += w + 1.;
+        .map(|w| {
+            let span = (x, *w);
+            x += w;
             span
         })
         .collect()
@@ -347,11 +346,16 @@ impl BlockWidget for TableWidget {
     fn render(&self, cx: &mut WidgetCx) -> (AnyElement, f32) {
         let (top, width) = (cx.top, cx.width);
         let m = &self.style.clone();
-        let widths = model::column_widths(&self.table);
+        let widths = layout::column_widths(
+            &self.table,
+            width,
+            m.size,
+            m.cell_padding.left + m.cell_padding.right + 1.,
+        );
         let columns = widths.len();
         // `border: 1px` around a `border-collapse: separate` grid whose cells
         // draw right / bottom borders except on the last column / row.
-        let table_width = 2. + widths.iter().sum::<f32>() + columns.saturating_sub(1) as f32;
+        let table_width = 2. + widths.iter().sum::<f32>();
         let table_top = top + m.handle_gutter;
         let p = m.cell_padding;
         let mut cells = Vec::new();
@@ -366,7 +370,8 @@ impl BlockWidget for TableWidget {
             let mut row_cells = Vec::new();
             for (c, cell) in row.cells.iter().enumerate() {
                 let w = widths[c];
-                let wrap = (w - p.left - p.right).max(0.);
+                let border = if c + 1 < columns { 1. } else { 0. };
+                let wrap = (w - border - p.left - p.right).max(0.);
                 let (element, text_height) = cx.render.text_aligned(
                     cell.range.clone(),
                     style,
@@ -380,7 +385,7 @@ impl BlockWidget for TableWidget {
                 );
                 height = height.max(p.top + text_height + p.bottom);
                 row_cells.push(element);
-                x += w + 1.;
+                x += w;
             }
             if row.header {
                 cells.push(
@@ -403,14 +408,13 @@ impl BlockWidget for TableWidget {
                 cells.push(
                     div()
                         .absolute()
-                        .left(px(bx))
+                        .left(px(bx - 1.))
                         .top(px(row_top))
                         .w(px(1.))
                         .h(px(height))
                         .bg(m.cell_border)
                         .into_any_element(),
                 );
-                bx += 1.;
             }
             row_spans.push((row_top, height + if r + 1 < rows { 1. } else { 0. }));
             y += height;
