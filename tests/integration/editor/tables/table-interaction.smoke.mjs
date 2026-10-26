@@ -38,7 +38,7 @@ function readFocusedCell(kind) {
 }
 // Inspect real Chromium paint, including antialiased edge pixels. A DOM box or
 // computed 2px stroke alone cannot detect the previous 1px inset-shadow gap.
-async function readStrokePixels(dataURL, crop, rect, color) {
+async function readStrokePixels(dataURL, crop, rect, color, inset = 2.5) {
   const bitmap = new Image(); bitmap.src = dataURL; await bitmap.decode();
   const canvas = document.createElement("canvas"); canvas.width = bitmap.width; canvas.height = bitmap.height;
   const context = canvas.getContext("2d", { willReadFrequently: true }); context.drawImage(bitmap, 0, 0);
@@ -58,9 +58,11 @@ async function readStrokePixels(dataURL, crop, rect, color) {
   };
   const scaleX = canvas.width / crop.width, scaleY = canvas.height / crop.height;
   // Grips deliberately overlap the middle of a perimeter. Probe just inside
-  // its top/left corner so those controls cannot hide or impersonate an edge.
-  const probeY = Math.floor((rect.y - crop.y + 2.5) * scaleY);
-  const probeX = Math.floor((rect.x - crop.x + 2.5) * scaleX);
+  // its top/left corner so those controls cannot hide or impersonate an edge,
+  // and past the table's corner radius so a rounded corner cell is measured on
+  // its straight edges (f7a63c51).
+  const probeY = Math.floor((rect.y - crop.y + inset) * scaleY);
+  const probeX = Math.floor((rect.x - crop.x + inset) * scaleX);
   const horizontal = Array.from({ length: canvas.width }, (_, x) => x).filter(x => isStroke(x, probeY));
   const vertical = Array.from({ length: canvas.height }, (_, y) => y).filter(y => isStroke(probeX, y));
   return { left: horizontal.length ? crop.x + horizontal[0] / scaleX : null,
@@ -93,13 +95,13 @@ app.whenReady().then(async () => {
     });
     const evaluate = code => window.webContents.executeJavaScript(code);
     const screenshot = async name => fs.writeFile(path.join(artifacts, `${name}.png`), (await window.webContents.capturePage()).toPNG());
-    const captureStroke = async (rect, color, name) => {
+    const captureStroke = async (rect, color, name, inset = 2.5) => {
       const crop = { x: Math.floor(rect.x) - 3, y: Math.floor(rect.y) - 3,
         width: Math.ceil(rect.x + rect.width) - Math.floor(rect.x) + 6,
         height: Math.ceil(rect.y + rect.height) - Math.floor(rect.y) + 6 };
       const bitmap = await window.webContents.capturePage(crop);
       await fs.writeFile(path.join(artifacts, `${name}-stroke.png`), bitmap.toPNG());
-      return evaluate(`(${readStrokePixels.toString()})(${JSON.stringify(bitmap.toDataURL())}, ${JSON.stringify(crop)}, ${JSON.stringify(rect)}, ${JSON.stringify(color)})`);
+      return evaluate(`(${readStrokePixels.toString()})(${JSON.stringify(bitmap.toDataURL())}, ${JSON.stringify(crop)}, ${JSON.stringify(rect)}, ${JSON.stringify(color)}, ${inset})`);
     };
     const click = async point => {
       window.webContents.sendInputEvent({ type: "mouseMove", ...point });
@@ -116,10 +118,14 @@ app.whenReady().then(async () => {
     for (const mode of ["light", "dark"]) {
       await evaluate(`window.tableFixture.mode('${mode}')`);
       await screenshot(`${mode}-rest`);
+      let sharedRadius = null;
       for (const kind of ["markdown", "csv"]) {
         const metrics = () => evaluate(`window.tableFixture.metrics('${kind}')`);
         const baseline = await metrics();
-        assert.equal(baseline.radius, "0px", `${kind} must have square corners`);
+        // Tables share the editor's rounded content-block corners (f7a63c51).
+        assert.notEqual(baseline.radius, "0px", `${kind} uses the content block radius`);
+        sharedRadius ??= baseline.radius;
+        assert.equal(baseline.radius, sharedRadius, `${kind} shares one table radius`);
         assert.equal(baseline.border, "1px", `${kind} outer stroke`);
         assert.equal(baseline.cellBorder, "1px", `${kind} cell stroke`);
         near(baseline.grip.width, 22, "compact grip width"); near(baseline.grip.height, 14, "compact grip height");
@@ -202,7 +208,10 @@ app.whenReady().then(async () => {
           }
           const cell = await evaluate(`(${readFocusedCell.toString()})('${kind}')`);
           assert.equal(cell.width, "2px"); assert.equal(cell.offset, "-2px"); assert.equal(cell.shadow, "none");
-          const ink = await captureStroke(cell.rect, cell.color, `${mode}-${kind}-${target}`);
+          // Only the header row meets the table's rounded corners; body rows keep
+          // the default probe so their row grips cannot cover it.
+          const inset = target.startsWith("header") ? 2.5 + (parseFloat(baseline.radius) || 0) : 2.5;
+          const ink = await captureStroke(cell.rect, cell.color, `${mode}-${kind}-${target}`, inset);
           for (const [edge, expected] of Object.entries({ left: cell.rect.x, right: cell.rect.x + cell.rect.width,
             top: cell.rect.y, bottom: cell.rect.y + cell.rect.height })) {
             samePaintEdge(ink[edge], expected, `${mode} ${kind} ${target} ${edge} stroke must reach the border box`);

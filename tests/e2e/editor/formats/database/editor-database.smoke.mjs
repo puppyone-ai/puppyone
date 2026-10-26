@@ -103,7 +103,8 @@ async function idleRecovery(engine) {
   const openedHosts = hosts.length;
   console.log(`${engine}: waiting for the real ${DATABASE_BUDGET.idleMs}ms idle deadline`);
   await wait(DATABASE_BUDGET.idleMs + 500);
-  assert(await evaluate("window.__retainedDatabaseCell===document.querySelector('.database-preview td')&&!document.querySelector('.database-preview [role=alert]')"), `${engine}: retained DOM page`);
+  const retained = await evaluate("({ cell: window.__retainedDatabaseCell===document.querySelector('.database-preview td'), alert: document.querySelector('.database-preview [role=alert]')?.textContent ?? null })");
+  assert(retained.cell && retained.alert === null, `${engine}: retained DOM page ${JSON.stringify(retained)}`);
   await until(() => hosts.every(host => host.exited), `${engine}: idle native host exited`);
   assert.equal(hosts.length, openedHosts, `${engine}: no background reconnect loop`);
   await click('.database-preview button[aria-label="Next page"]');
@@ -113,7 +114,11 @@ async function idleRecovery(engine) {
   steps.push(`${engine}: idle native exit retains the page; next-page intent safely reconnects at page one`);
 }
 async function project(name) {
-  await evaluate(`(() => { const b=[...document.querySelectorAll('.desktop-project-switcher-rail-project')].find(e=>e.getAttribute('aria-label')?.includes(${JSON.stringify(name)}));if(!b)throw Error('Missing project');b.click();})()`);
+  // Rail selection opens a dedicated window since d9518fec; switching inside this
+  // window uses Main's current-window open request, as project-sessions does.
+  const root = roots.find(candidate => path.basename(candidate) === name);
+  if (!root) throw new Error(`Unknown project fixture: ${name}`);
+  window.webContents.send("workspace:open-requested", { rootPath: root });
   await until(() => evaluate(`[...document.querySelectorAll('.desktop-project-switcher-rail-project')].some(e=>e.getAttribute('aria-label')?.includes(${JSON.stringify(name)})&&e.getAttribute('aria-current')==='page')`), name);
 }
 const deadline = setTimeout(() => { console.error("Database acceptance timed out"); app.exit(1); }, 220_000);

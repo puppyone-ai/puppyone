@@ -95,11 +95,11 @@ async function pdfReady() {
   assert.equal(window.contentView.children.length, 0, "PDF must not allocate a native sibling");
 }
 async function selectProject(name) {
-  await evaluate(`(() => {
-    const button=[...document.querySelectorAll('.desktop-project-switcher-rail-project')]
-      .find(element=>element.getAttribute('aria-label')?.includes(${JSON.stringify(name)}));
-    if(!button) throw new Error('Missing project button'); button.click();
-  })()`);
+  // Rail selection opens a dedicated window since d9518fec; switching inside this
+  // window uses Main's current-window open request, as project-sessions does.
+  const root = roots.find(candidate => path.basename(candidate) === name);
+  if (!root) throw new Error(`Unknown project fixture: ${name}`);
+  window.webContents.send("workspace:open-requested", { rootPath: root });
   await until(() => evaluate(`[...document.querySelectorAll('.desktop-project-switcher-rail-project')].some(element=>element.getAttribute('aria-label')?.includes(${JSON.stringify(name)})&&element.getAttribute('aria-current')==='page')`), name);
 }
 async function noPdf(label) {
@@ -217,7 +217,8 @@ app.whenReady().then(async () => {
       await selectProject("PDF Project B"); await noPdf(`repeat-switch-${cycle}`);
     }
     await selectProject("PDF Project A"); await openFile("invalid.pdf");
-    await until(() => evaluate("Boolean(document.querySelector('.pdf-preview-shell .editor-state'))"), "invalid resource error");
+    // Rejected before the PDF viewer mounts, so the document surface owns the error state.
+    await until(() => evaluate("Boolean(document.querySelector('[data-surface-key$=\"/invalid.pdf\"] .editor-state.danger'))"), "invalid resource error");
     await noPdf("invalid-resource-never-attaches");
     await openFile("corrupt.pdf");
     await until(async () => {
