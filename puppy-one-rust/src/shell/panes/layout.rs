@@ -134,7 +134,8 @@ mod tests {
                 assert_eq!(l.editor.right(), l.auxiliary.x);
                 assert!(l.editor.w >= pane::MIN_MAIN_PANE_WIDTH);
                 assert_eq!(l.header.h, 40.);
-                assert_eq!(l.footer.h, 48.);
+                assert_eq!(l.footer.h, footer());
+                assert_eq!(l.footer.bottom(), 800.);
             }
         }
     }
@@ -181,6 +182,11 @@ mod tests {
             (Scale::Large, 50.),
         ] {
             set_scale(preset);
+            let height = if cfg!(target_os = "macos") {
+                0.
+            } else {
+                height
+            };
             assert_eq!(footer(), height);
             let l = Layout::new(1280., 800., 320., 0., 0.);
             assert_eq!(l.footer.h, height);

@@ -236,7 +236,18 @@ GUI 冒烟脚本随 WebView 一起移除。真实系统输入法、焦点、全�
 python3 tools/compare-native-geometry.py native.json artifacts/probe/sample-dark.json
 ```
 
-当前结果（块位置、字符偏移、像素一致率）见 PARITY_TODO §7.2。
+当前结果（块位置、字符偏移、像素一致率）见 PARITY_TODO §7.2。最新 Web 样式可复现比较：
+
+```bash
+cargo build --locked --features dev-capture
+python3 tools/verify-editor-style.py --binary target/debug/puppy-one-rust
+# 严格验收：任何像素不同都返回非零；当前仍未通过，不是容差放宽后的“通过”
+python3 tools/verify-editor-style.py --binary target/debug/puppy-one-rust --check
+# Markdown 自动列宽的真实 TypeScript oracle（84 个案例）
+node tools/reference-markdown-layout.mjs --check
+```
+
+`artifacts/style-sync/` 保存原图、ICC 归一化 sRGB 比较图、差分、几何和源码哈希；包括深浅色、三档字号、宽窄表格、段落/代码选区。非选区场景不聚焦，选区场景验证参考确有焦点；不会把未绘制的选区当成通过。macOS 左下角 footer 已跟随 Web 移除，Settings 保留在应用菜单 / `⌘,`；其他平台保留原 footer。
 
 ### 真实产品组件参考
 

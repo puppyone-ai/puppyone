@@ -582,6 +582,23 @@ fn sidebar_tree_fades_into_the_footer_only_while_rows_remain_below(cx: &mut Test
     });
     assert_eq!(fade(&explorer, cx), 0.);
 }
+#[cfg(target_os = "macos")]
+#[gpui::test]
+fn macos_has_no_sidebar_footer_and_settings_stays_in_the_app_menu(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    view.read_with(cx, |s, _| {
+        assert_eq!(s.layout.footer.h, 0.);
+        assert_eq!(s.layout.explorer.bottom(), s.layout.editor.bottom());
+    });
+    let menus = app_menus();
+    assert_eq!(menus[0].name.as_ref(), "PuppyOne");
+    cx.simulate_keystrokes("cmd-,");
+    draw(cx);
+    view.read_with(cx, |s, _| assert_eq!(s.modals.task(), Some(Task::Settings)));
+    cx.simulate_keystrokes("escape");
+    view.read_with(cx, |s, _| assert_eq!(s.modals.task(), None));
+}
+
 #[gpui::test]
 fn idle_shell_does_not_schedule_continuous_frames(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);

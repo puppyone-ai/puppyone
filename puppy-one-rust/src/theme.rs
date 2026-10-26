@@ -74,10 +74,17 @@ pub fn control_tight() -> f32 {
 pub fn sidebar_stride() -> f32 {
     control() + 2.
 }
-/// `--desktop-sidebar-navigation-height`: the sidebar control plus the outer
-/// and inner navigation padding. The footer follows the text-size preset.
+/// App.tsx's `sidebarFooterVisible`: macOS uses the application menu and
+/// reserves no footer space. Elsewhere `--desktop-sidebar-navigation-height`
+/// follows the text-size preset (control + outer and inner padding).
 pub fn footer() -> f32 {
-    control() + metric::SIDEBAR_NAVIGATION_PADDING_OUTER + metric::SIDEBAR_NAVIGATION_PADDING_INNER
+    if cfg!(target_os = "macos") {
+        0.
+    } else {
+        control()
+            + metric::SIDEBAR_NAVIGATION_PADDING_OUTER
+            + metric::SIDEBAR_NAVIGATION_PADDING_INNER
+    }
 }
 
 /// Fixed geometry from `tokens.css`; these do not follow the text-size preset.

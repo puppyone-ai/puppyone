@@ -60,7 +60,7 @@
 - [x] P1-5 键盘：↑↓←→ Home End Enter；多选（⌘ 加选、⇧ 范围）
 - [x] P1-6 拖拽：树内移动到文件夹；从系统拖入文件导入
 - [~] P1-7 "New" 是列表末尾的一行；加载/空状态行已做。文件夹读取失败时，错误和"重试"显示在该文件夹行尾（Web 是文件夹下方单独一行）。证据：`failed_folder_read_stays_on_its_row_until_a_retry_succeeds`
-- [x] P1-8 底部栏与产品一致：只有 Settings + Help（产品 `useWorkspaceSurfaceContent` 把 `git` 从底部导航过滤掉，Changes 在 Header）；无分割线，树在仍有下方行时以 18px 渐隐过渡到底部栏（`useScrollEdgeState`）；高度 = control + 16 随文字尺度变化，按钮 control−4、图标 14px / 描边 1.65、utility 色（`mix(muted 80%, sidebar)`），Help 用产品自有 `FeedbackHelpIcon`。证据：`sidebar_footer_follows_the_navigation_height_formula`、`sidebar_tree_fade_follows_use_scroll_edge_state`、`sidebar_tree_fades_into_the_footer_only_while_rows_remain_below`。已知差异：忙碌时右侧的 pulse grid 是原生临时进度提示（产品用 `FloatingNoticeStack`，尚未移植）；Project Rail 打开时产品隐藏底部栏、把工具按钮移入 Rail，原生未移植
+- [~] P1-8 最新 macOS 产品不显示底部栏：原生高度归零、Explorer 延伸到底部、去掉 footer 渐隐；Settings 留在应用菜单 / `⌘,`。证据：`macos_has_no_sidebar_footer_and_settings_stays_in_the_app_menu`。非 macOS 保留 Settings + Help（产品 `useWorkspaceSurfaceContent` 把 `git` 从底部导航过滤掉，Changes 在 Header）；无分割线，树在仍有下方行时以 18px 渐隐过渡到底部栏（`useScrollEdgeState`）；高度 = control + 16 随文字尺度变化，按钮 control−4、图标 14px / 描边 1.65、utility 色（`mix(muted 80%, sidebar)`），Help 用产品自有 `FeedbackHelpIcon`。证据：`sidebar_footer_follows_the_navigation_height_formula`、`sidebar_tree_fade_follows_use_scroll_edge_state`、`sidebar_tree_fades_into_the_footer_only_while_rows_remain_below`。已知差异：忙碌时右侧的 pulse grid 是原生临时进度提示（产品用 `FloatingNoticeStack`，尚未移植）；Project Rail 打开时产品隐藏底部栏、把工具按钮移入 Rail，原生未移植
 - [~] P1-9 最近项目持久化；项目菜单（项目列表、打开文件夹、首页、移除）；Project Rail 列出项目。缺：Rail 上的重命名/取消关联（`ProjectRowActions`）。证据：`project_history_is_most_recent_first_and_bounded`
 - [x] P1-10 首页（`MinimalOnboarding` / `OnboardingHomeLayout` / `OnboardingProjectEntryDialog`，`src/shell/home/`）：
   - 品牌标记 28px + 标题（`text-muted`，−0.035em 字距由 `ui::tracked_text` 逐字形绘制）；深色下标记按产品 `grayscale(1) brightness(0.7)` 预烘焙（`brand/puppy-dark-onboarding.svg`）。有项目时标题为「Which project…」，无项目时为「Start with your files…」且 New empty project 为主按钮
@@ -174,24 +174,32 @@ python3 tools/audit-ui-migration.py
 像素对齐手段（均不改 Kit）：
 - 块几何由宿主按产品 CSS 精确计算并绝对定位（GPUI 会把盒子和行高取整到像素，逐块累计会漂移）；行数用 GPUI `shape_text` 以与 Kit 相同的 run 预测，Kit 实际行数不同则下一帧校正。
 - 每个 Kit 文字叶子按 Chromium 的规则放置，使首行基线落在同一设备像素（Chromium：上下 metrics 取整到设备像素、上半 leading 向下取整；GPUI：整数行高、按实际 metrics 居中、基线取整）。
-- 字体：`tools/import-editor-fonts.py` 生成 Geist 各字重静态实例与合成斜体；500 族的 Bold 槽放 Geist 600（Kit 粗体 = 产品 strong 600）；“PuppyOne Geist Mono Inline” 为 875 units/em，Kit 行内代码按 0.875 缩放后正好是产品的满字号 Geist Mono（只在编辑器构建段落时替换 Kit 主题等宽字体，不影响 Agent 等其他 Kit 文本）。
+- 字体：`tools/import-editor-fonts.py` 生成 Geist 各字重静态实例与合成斜体；450 / 500 族的 Bold 槽放 Geist 600（Kit 粗体 = 产品 strong 600）；“PuppyOne Geist Mono Inline” 为 875 units/em，Kit 行内代码按 0.875 缩放后正好是产品的满字号 Geist Mono（只在编辑器构建段落时替换 Kit 主题等宽字体，不影响 Agent 等其他 Kit 文本）。
 - 字体平滑：产品全局 `-webkit-font-smoothing: antialiased`；进程启动时把本应用的 `AppleFontSmoothing` 设为 0，GPUI 不再加粗浅色字形（`platform/text_rendering.rs`）。
 
 ### 7.2 验收（`tools/compare-native-geometry.py` + 截图像素对比）
 
 - 产品参照：`electron tools/probe-editor.mjs artifacts/probe/sample*.json`（字符矩形、行盒、组件盒、截图）。
 - 原生：`dev-capture` 构建，`PUPPYONE_EDITOR_GEOMETRY=out.json`（字符矩形，坐标同参照）；`PUPPYONE_EDITOR_SCROLL` 用于截取下半部分。
-- 当前 `fixtures/editor/sample.md`（深色 / 中号）：
+- 历史 `fixtures/editor/sample.md`（旧 Web 样式，深色 / 中号；不是本次最新样式的验收结果）：
   - 所有块的位置和高度与参照完全一致（H1 48/71、H2 56.5、H3 47.5、代码块 114、表格 147、分隔线 37）。
   - 字符位置：标题 0.00–0.09px，列表 / 任务 / 引用 ≤0.13px（垂直 0.25px），表格单元格 ≤0.05px，代码块 ≤0.05px。
   - 像素一致率（逐像素差 ≤8）：首屏 99.0%，滚动后的下半部分 99.84%（代码块 100%、表格 99.98%）。
 
-### 7.3 已知差异（GPUI Kit 公开接口做不到，按决定暂不处理）
+本次最新 Web 样式回归（`tools/verify-editor-style.py`，14 场景，ICC 归一化至 sRGB）：
+- 深浅色 × 三档字号的标题、正文、行内代码继承色；正文按内容语言选择 450 / 500；Blink 小数行盒截断与两侧 scrollbar gutter；独立 Markdown 自动列宽（84 个真实 TS oracle 案例）；不改 CSV 列宽策略。
+- 所有场景的顶层块边界最大差异 **0.000px**。这不表示块内每个字符或选区像素都一致。
+- 样式 / 表格逐像素完全相同约 **97.34–98.78%**，RGB 容差 8 约 **97.77–99.69%**；聚焦选区完全相同约 **90.75–97.87%**（浅色选区大面积相差约一个色阶）。背景像素也计入分母，不能把这个数等同于功能完成率。
+- `--check` 明确失败，**尚未达到像素级验收**；没有忽略滚动条、选区或字体差异。保留官方 GPUI Kit，没有 fork / patch。
+- 345 个应用测试通过（两种 features），9 ignored；Clippy / release / 帧预算通过。继承的 localization 与 native-editor-probe 全验证问题仍未解决。
+
+### 7.3 已知差异（未改 Kit，严格像素验收仍未通过）
 
 - Kit 文本标记无法单独设颜色：粗体颜色（#fafafa vs 正文 #e8e8ea）、斜体灰色、删除线颜色、光标进入时显示的 `**` / `[` / `](url)` 灰色，均按正文色绘制。
 - 链接：Kit 固定加 1px、40% 链接色的下划线。
 - 行内代码：Kit 固定两侧各 4px 内边距（`INLINE_CODE_PADDING`），其后文字右移 8px；字体与字号已一致。
 - GPUI 行高取整到整像素：多行换行段落第 2 行起每行有 ±0.25px 的行距差（块边界已精确）。
+- Web 原生滚动条、代码内部换行的选区尾格，以及两个渲染器的字形/颜色量化仍有差异。代码块的聚焦底色和悬停描边已同步；比图会等待 Web 的 140ms 焦点描边过渡完成。
 
 ### 7.4 进度
 

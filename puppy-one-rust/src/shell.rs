@@ -775,6 +775,12 @@ impl Shell {
         self.native.update(cx, |s, cx| {
             s.gate(modal || home || self.files.busy(), self.dark, cx)
         });
+        #[cfg(feature = "dev-capture")]
+        if std::env::var_os("PUPPYONE_SCREENSHOT").is_some()
+            && std::env::var("PUPPYONE_EDITOR_FOCUS").as_deref() == Ok("0")
+        {
+            focus_native = false;
+        }
         if focus_native && !modal && !self.files.busy() {
             self.native
                 .update(cx, |editor, cx| editor.focus_document(window, cx));
@@ -1159,7 +1165,9 @@ impl Render for Shell {
                 .left_0()
                 .size_full()
                 .child(at(self.layout.explorer).child(self.explorer.clone().cached(fill())))
-                .child(at(self.layout.footer).child(self.footer(cx)));
+                .when(self.layout.footer.h > 0., |d| {
+                    d.child(at(self.layout.footer).child(self.footer(cx)))
+                });
             root = root.child(clipped(panes.left_clip, w, h, explorer));
         }
         if (self.panes.right().open || panes.right_clip.is_some()) && !home {
