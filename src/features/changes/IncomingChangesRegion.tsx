@@ -61,7 +61,7 @@ export function IncomingChangesRegion({ review, disabled, onReview }: IncomingCh
           type="button"
           aria-busy={review.applying || undefined}
           disabled={disabled || review.applying || !receipt.canApply}
-          title={t(receipt.blocked
+          aria-description={t(receipt.blocked
             ? "source-control.reach.incoming.applyBlocked"
             : "source-control.reach.incoming.applyTitle")}
           onClick={review.apply}
@@ -74,7 +74,7 @@ export function IncomingChangesRegion({ review, disabled, onReview }: IncomingCh
           className="desktop-incoming-changes-set-aside"
           type="button"
           disabled={review.applying}
-          title={t("source-control.reach.incoming.setAsideTitle")}
+          aria-description={t("source-control.reach.incoming.setAsideTitle")}
           onClick={review.setAside}
         >
           {t("source-control.reach.incoming.setAside")}
@@ -145,7 +145,7 @@ function IncomingChangeFiles({ receipt, onReview }: Readonly<{
           <button
             className="desktop-incoming-changes-file"
             type="button"
-            title={t("source-control.reach.incoming.reviewFile", { path: file.path })}
+            aria-label={t("source-control.reach.incoming.reviewFile", { path: file.path })}
             onClick={() => onReview(file)}
           >
             <span className="desktop-incoming-changes-file-letter" aria-hidden="true">{file.letter}</span>

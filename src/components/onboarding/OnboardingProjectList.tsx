@@ -79,7 +79,7 @@ export function OnboardingProjectList({
               onLocal={item.localPath ? () => onOpen(item.localPath) : undefined}
               onCloud={() => onOpenCloudProject(item.cloudProjectId!)} />}
             {onRemove && item.localPath && (
-              <Tooltip content={t("onboarding.projects.removeFor", { project: bidiIsolate(name) })}><DesktopMenuIconButton
+              <Tooltip content={t("onboarding.projects.removeHint")}><DesktopMenuIconButton
                 className="onboarding-project-remove"
                 disabled={busy && !removing}
                 aria-busy={removing || undefined}

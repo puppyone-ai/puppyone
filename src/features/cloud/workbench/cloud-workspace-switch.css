@@ -104,7 +104,7 @@
     gap: 4px;
     padding-block: 4px;
     list-style: none;
-    cursor: pointer;
+    cursor: var(--po-clickable-cursor, default);
   }
 
   .desktop-cloud-recovery-details summary::-webkit-details-marker { display: none; }
