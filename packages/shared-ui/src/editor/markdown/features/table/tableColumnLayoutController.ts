@@ -30,6 +30,8 @@ type MarkdownTableColumnLayoutContext = Readonly<{
   rows: readonly MarkdownTableRow[];
   scrollport: HTMLElement;
   session: EmbeddedTableColumnLayoutSession;
+  /** Settles horizontal overflow after the table changes its own tracks. */
+  settleOverflow?: () => void;
   surface: HTMLElement;
   table: HTMLTableElement;
   wrapper: HTMLElement;
@@ -133,6 +135,7 @@ export function createMarkdownTableColumnLayoutController(
     if (nextWidths.length === widths.length && nextWidths.every((width, index) => width === widths[index])) return;
     widths = nextWidths;
     applyWidths(widths);
+    context.settleOverflow?.();
     context.host.requestMeasure();
     positionHandle();
   };

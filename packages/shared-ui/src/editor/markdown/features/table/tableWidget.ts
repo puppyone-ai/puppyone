@@ -318,6 +318,7 @@ export class MarkdownTableWidget extends WidgetType {
           rows: this.rows,
           scrollport,
           session: columnLayoutSession,
+          settleOverflow: () => inlineViewport.settleOverflow(),
           surface,
           table,
           wrapper,

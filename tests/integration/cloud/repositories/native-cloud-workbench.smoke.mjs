@@ -201,6 +201,8 @@ async function headerPresentation(location) {
 }
 async function windowFramePixels(sample) {
   const width = sample.viewport, height = sample.viewportHeight;
+  // headerPresentation settles transitions in script; capture a frame painted after that.
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   const image = await window.webContents.capturePage();
   const bitmap = image.toBitmap();
   const scale = Math.sqrt(bitmap.length / (width * height * 4));
@@ -620,6 +622,10 @@ app.whenReady().then(async () => {
   await evaluate("document.querySelector('[data-cloud-native=true] .desktop-editor-pane-handle').click()");
   await waitFor("Boolean(document.querySelector('.desktop-editor-pane-menu button[aria-label=\"Source code\"]'))");
   await evaluate("document.querySelector('.desktop-editor-pane-menu button[aria-label=\"Source code\"]').click()");
+  // View modes are a toggle that keeps the menu open. Dismiss it as a person
+  // would, or it stays open over later steps once its pane is hidden.
+  await evaluate("document.activeElement.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true}))");
+  await waitFor("!document.querySelector('.desktop-editor-pane-menu')");
   await waitFor("Boolean(document.querySelector('[data-cloud-native=true] .document-surface-slot.is-committed:not(.is-obscured) .html-document-editor .cm-editor'))");
   await editDocument('cloud', '<!doctype html><h1>Cloud HTML saved</h1>');
   await waitFor("window.__nativeCloudWorkbenchSmoke.state().cloudWrites.some(write => write.path === 'page.html' && write.content.includes('Cloud HTML saved'))");

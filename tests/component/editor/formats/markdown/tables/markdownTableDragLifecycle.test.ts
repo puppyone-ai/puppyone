@@ -43,6 +43,7 @@ describe("Markdown table drag lifecycle", () => {
       inlineViewport: {
         dispose: vi.fn(),
         revealColumn: vi.fn(),
+        settleOverflow: vi.fn(),
         stopDragAutoScroll,
         updateDragAutoScroll: vi.fn(),
       },
