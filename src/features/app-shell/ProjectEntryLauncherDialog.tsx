@@ -1,5 +1,5 @@
-import { Tooltip } from "@puppyone/shared-ui";
-import { Download, FilePlus2, FolderOpen, Plus } from "lucide-react";
+import { Tooltip, FolderIcon } from "@puppyone/shared-ui";
+import { Download, FilePlus2, Plus } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import type { ReactNode } from "react";
 import {
@@ -74,7 +74,7 @@ export function ProjectEntryLauncherDialog({
               onClick={onCreateProject}
             />
             <ProjectEntryOption
-              icon={<FolderOpen />}
+              icon={<FolderIcon />}
               label={t("onboarding.action.openFolder")}
               initialFocus={!canCreateProject}
               onClick={onOpenFolder}

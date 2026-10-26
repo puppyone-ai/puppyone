@@ -1,7 +1,8 @@
 import { useDesktopPreference } from "../../../preferencesStore";
 import { resolveDesktopAppearance } from "../appearanceSlice";
 import { useLocalization } from "@puppyone/localization";
-import { ChevronDown, FileText, Folder, MessageSquare } from "lucide-react";
+import { FileText, MessageSquare } from "lucide-react";
+import { DisclosureIcon, FolderIcon } from "@puppyone/shared-ui";
 
 const previewProject = "PuppyOne";
 const previewFiles = ["Notes.md", "Ideas.md"];
@@ -15,14 +16,14 @@ export function TypographyPreview() {
     <section className="desktop-typography-preview" aria-label={t("settings.typography.preview.ariaLabel")}>
       <div className="desktop-typography-preview-workspace">
         <div className="desktop-typography-preview-header">
-          <Folder size={15} aria-hidden="true" />
+          <FolderIcon size={15} aria-hidden="true" />
           <span>{previewProject}</span>
         </div>
         <aside className="desktop-typography-preview-sidebar desktop-typography-preview-left" aria-label={t("settings.typography.preview.leftSidebar")}>
           <div className="desktop-typography-preview-pane-title">{t("shell.navigation.files")}</div>
           <div className="desktop-typography-preview-file">
-            <ChevronDown size={14} aria-hidden="true" />
-            <Folder size={15} aria-hidden="true" />
+            <DisclosureIcon expanded size={14} />
+            <FolderIcon size={15} aria-hidden="true" />
             <span>{previewProject}</span>
           </div>
           {previewFiles.map((file, index) => (

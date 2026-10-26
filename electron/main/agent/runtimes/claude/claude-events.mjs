@@ -72,9 +72,11 @@ export function normalizeClaudeMessage(message, state = createClaudeEventState()
     return [event("assistant.completed", sessionId, turnId, safeId(message.uuid), { text: message.content })];
   }
   if (message.type === "auth_status") {
-    return [event(message.error ? "provider.error" : "provider.activity", sessionId, turnId, null, {
+    const status = message.error ? "failed" : "completed";
+    return [event("provider.activity", sessionId, null, "claude:authentication", {
+      category: "authentication",
       message: redactSecretText(message.error || asArray(message.output).join("\n") || "Claude Code authentication is in progress."),
-      status: message.isAuthenticating ? "running" : "completed",
+      status: !message.error && message.isAuthenticating ? "running" : status,
     })];
   }
   return [];

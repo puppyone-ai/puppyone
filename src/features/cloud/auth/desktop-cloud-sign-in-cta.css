@@ -8,6 +8,37 @@
     flex: 0 0 auto;
   }
 
+  .desktop-cloud-sign-in-reopen {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 6px;
+    margin: 0;
+    color: var(--po-text-subtle);
+    font-size: var(--po-type-ui-meta, 13px);
+    line-height: 1.5;
+  }
+
+  .desktop-cloud-sign-in-reopen-action {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--po-accent-text, var(--po-accent));
+    font: inherit;
+    font-weight: var(--po-text-weight-medium, 500);
+    cursor: var(--po-clickable-cursor, default);
+  }
+
+  .desktop-cloud-sign-in-reopen-action:hover {
+    text-decoration: underline;
+  }
+
+  .desktop-cloud-sign-in-reopen-action:focus-visible {
+    border-radius: 3px;
+    outline: 1px solid var(--po-focus-ring);
+    outline-offset: 2px;
+  }
+
   .desktop-cloud-sign-in-error {
     margin: 0;
     color: var(--po-danger);

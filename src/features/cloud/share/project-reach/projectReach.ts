@@ -1,6 +1,7 @@
 import type { CloudPublishAccountStep } from "../../initialization/CloudPublishProgressIndicator";
 import type { PublishPreparationStage } from "../../initialization/publishPreparation";
 import type { CloudPublishProgressStage } from "../../../../types/electron";
+import type { ProjectCloudContext } from "../../project/context/projectCloudContext";
 import { SHARE_TARGETS, getShareTarget, type ShareTarget, type ShareTargetId } from "../shareTargets";
 
 /**
@@ -106,6 +107,23 @@ export function resolveReachStage({
   if (phase === "preparing" || phase === "account") return localStage ?? "validating";
   if (phase === "publishing") return publishStage ?? "creating-project";
   return "completed";
+}
+
+/**
+ * Whether this folder has never been in Cloud at all.
+ *
+ * It is the one moment where the screen has to say what the thing it offers
+ * actually does, because the user has never seen the consequence: a copy of
+ * their own project existing somewhere that is not their Mac. Afterwards the
+ * answer is visible in the project itself and repeating it would be noise, so
+ * the explanation appears exactly once per project and then never again.
+ *
+ * `local-only` is the only honest "never": while the association is still
+ * resolving the answer is unknown, and a recovery state means a Cloud copy
+ * exists but cannot be read from here.
+ */
+export function isFirstReach(context: ProjectCloudContext): boolean {
+  return context.status === "local-only";
 }
 
 /** True while the screen is working rather than being filled in. */

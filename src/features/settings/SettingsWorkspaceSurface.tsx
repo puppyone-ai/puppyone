@@ -74,6 +74,7 @@ export function createSettingsWorkspaceSurface({
       <SettingsView
         workspace={workspace}
         activeSection={activeSection}
+        onSelectSection={onSelectSection}
         gitStatus={git.status}
         gitStatusLoading={git.loading}
         gitStatusError={git.error}

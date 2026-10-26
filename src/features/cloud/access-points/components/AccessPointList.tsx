@@ -1,3 +1,4 @@
+import { PlaceholderLayer } from "@puppyone/shared-ui";
 import type { AccessPointRow as AccessPointRowModel } from "../model";
 import type { AccessPointCatalogDefinition } from "../presentation";
 import { AccessPointEmptyState } from "./AccessPointEmptyState";
@@ -25,14 +26,15 @@ export function AccessPointList({
 }) {
   if (loading && totalRowCount === 0) {
     return (
-      <div className="desktop-cloud-access-point-list" aria-hidden="true">
+      <div className="desktop-cloud-access-point-list po-placeholder-surface" aria-hidden="true">
         {Array.from({ length: 4 }, (_, index) => (
           <div className="desktop-cloud-access-point-row skeleton" key={index}>
-            <span />
-            <span />
-            <span />
+            <span data-placeholder-shape="" />
+            <span data-placeholder-shape="" />
+            <span data-placeholder-shape="" />
           </div>
         ))}
+        <PlaceholderLayer />
       </div>
     );
   }

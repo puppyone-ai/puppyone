@@ -4,25 +4,19 @@ import type {
 } from "../fileIconTypes";
 import { defaultTheme } from "./default";
 import type { FileIconThemeDefinition } from "./iconThemeTypes";
-import { linesTheme } from "./lines";
-import { materialTheme } from "./material";
-import { minimalTheme } from "./minimal";
-import { semanticTheme } from "./semantic";
 
+/**
+ * The plug-in point for file-icon themes. To add a theme: build it in its own
+ * folder with `createIconTheme`, `createCustomPreviewIconTheme` or
+ * `createThemeVariant`, add its id to `FileIconThemeId`, and list it here.
+ * Appearance settings offer a choice only once more than one theme exists.
+ */
 const FILE_ICON_THEME_ORDER: readonly FileIconThemeId[] = [
   "default",
-  "lines",
-  "semantic",
-  "material",
-  "minimal",
 ];
 
 export const FILE_ICON_THEME_REGISTRY = {
   default: defaultTheme,
-  lines: linesTheme,
-  semantic: semanticTheme,
-  material: materialTheme,
-  minimal: minimalTheme,
 } satisfies Record<FileIconThemeId, FileIconThemeDefinition>;
 
 export const FILE_ICON_THEMES = FILE_ICON_THEME_ORDER.map(
@@ -30,8 +24,17 @@ export const FILE_ICON_THEMES = FILE_ICON_THEME_ORDER.map(
 ) as readonly FileIconThemeMetadata[];
 
 const FILE_ICON_THEME_IDS = new Set<string>(FILE_ICON_THEME_ORDER);
-const LEGACY_FILE_ICON_THEME_ALIASES: Readonly<Record<string, FileIconThemeId>> = Object.freeze({
-  vscode: "semantic",
+
+/**
+ * Ids that were once installed. Saved preferences naming them migrate here
+ * instead of failing, so retiring a theme never strands a user's setting.
+ */
+const RETIRED_FILE_ICON_THEME_IDS: Readonly<Record<string, FileIconThemeId>> = Object.freeze({
+  vscode: "default",
+  lines: "default",
+  semantic: "default",
+  material: "default",
+  minimal: "default",
 });
 
 export function isFileIconThemeId(
@@ -44,8 +47,8 @@ export function parseFileIconThemeId(
   value: string | null | undefined,
 ): FileIconThemeId | null {
   if (isFileIconThemeId(value)) return value;
-  return typeof value === "string"
-    ? LEGACY_FILE_ICON_THEME_ALIASES[value] ?? null
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(RETIRED_FILE_ICON_THEME_IDS, value)
+    ? RETIRED_FILE_ICON_THEME_IDS[value]
     : null;
 }
 

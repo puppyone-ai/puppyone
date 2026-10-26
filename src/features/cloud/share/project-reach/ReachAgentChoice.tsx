@@ -34,7 +34,9 @@ const REACH_AGENT_KINDS: readonly ShareAgentKind[] = ["cloud-native", "assistant
 export function ReachAgentChoice({
   selected,
   onSelect,
+  compact = false,
 }: {
+  compact?: boolean;
   selected: ShareTargetId | null;
   onSelect: (id: ShareTargetId) => void;
 }) {
@@ -43,7 +45,7 @@ export function ReachAgentChoice({
 
   return (
     <div
-      className="desktop-reach-agent-groups"
+      className={`desktop-reach-agent-groups${compact ? " is-compact" : ""}`}
       role="radiogroup"
       aria-label={t("cloud.share.reach.connect.question")}
     >

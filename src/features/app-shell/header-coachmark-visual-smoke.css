@@ -77,12 +77,12 @@
 
 .header-coachmark-visual-editor h1 {
   margin: 0 0 14px;
-  font-size: var(--po-type-editor-heading-1, 30px);
+  font-size: var(--po-type-editor-heading-1, 22px);
 }
 
 .header-coachmark-visual-editor h2 {
   margin: 34px 0 10px;
-  font-size: var(--po-type-editor-heading-3, 19px);
+  font-size: var(--po-type-editor-heading-3, 17px);
 }
 
 .header-coachmark-visual-editor p {

@@ -10,6 +10,7 @@ import { getWorkspaceGitStatus } from "../../../../lib/localFiles";
 import type {
   CloudInitializationErrorCode,
   CloudPublishProgressStage,
+  CloudPublishTransfer,
 } from "../../../../types/electron";
 import type { CloudMessageDescriptor } from "../../cloudPresentation";
 import type { CloudPublishAccountStep } from "../../initialization/CloudPublishProgressIndicator";
@@ -50,6 +51,8 @@ export type ReachFailure =
 export type ProjectReachFlow = Readonly<{
   phase: ReachPhase;
   stage: CloudPublishProgressStage;
+  /** How far the send has got, while it is uploading. */
+  transfer: CloudPublishTransfer | null;
   account: CloudPublishAccountStep;
   issue: ReachIssue | null;
   failure: ReachFailure | null;
@@ -106,6 +109,11 @@ export function useProjectReachFlow({
   latest.current = { session, apiBaseUrl, shares, onSessionChange, publish, projectContext, onIssued };
 
   const signedIn = session !== null;
+  const sessionIdentity = session ? JSON.stringify([session.user_id, session.session_generation]) : null;
+  const authority = JSON.stringify([workspacePath, apiBaseUrl]);
+  const previousAuthority = useRef({ authority, sessionIdentity });
+  const authorityChanged = previousAuthority.current.authority !== authority
+    || (previousAuthority.current.sessionIdentity !== null && previousAuthority.current.sessionIdentity !== sessionIdentity);
   const contextStatus = projectContext.status;
   const projectId = projectContext.status === "resolved" ? projectContext.projectId : null;
   const sharesSettled = shares.loaded || shares.error;
@@ -114,6 +122,16 @@ export function useProjectReachFlow({
     setFailure(next);
     setPhase("failed");
   }, []);
+
+  useEffect(() => {
+    previousAuthority.current = { authority, sessionIdentity };
+    if (!authorityChanged) return;
+    publishRequested.current = false;
+    setPhase("form");
+    setIssue(null);
+    setFailure(null);
+    setOrganizationId(null);
+  }, [authority, authorityChanged, sessionIdentity]);
 
   const start = useCallback(() => {
     setFailure(null);
@@ -131,7 +149,7 @@ export function useProjectReachFlow({
   // branch to send. A missing identity is not a failure here; the publish will
   // supply one after the account step.
   useEffect(() => {
-    if (phase !== "preparing") return undefined;
+    if (phase !== "preparing" || authorityChanged) return undefined;
     let cancelled = false;
     const run = async () => {
       const status = workspacePath ? await getWorkspaceGitStatus(workspacePath).catch(() => null) : null;
@@ -156,7 +174,7 @@ export function useProjectReachFlow({
     return () => {
       cancelled = true;
     };
-  }, [fail, phase, workspacePath]);
+  }, [authorityChanged, fail, phase, workspacePath]);
 
   useEffect(() => {
     if (phase === "account" && signedIn) setPhase("publishing");
@@ -165,7 +183,21 @@ export function useProjectReachFlow({
   // The project's own Cloud state decides what is left: nothing, a publish, or
   // a reason the screen cannot continue.
   useEffect(() => {
-    if (phase !== "publishing") return;
+    if (phase !== "publishing" || authorityChanged) return;
+    if (publish.loading) return;
+    if (publish.error && publishRequested.current) {
+      fail({ kind: "publish", failure: publish.error });
+      return;
+    }
+    // A remote locator can resolve while its durable first-push journal is
+    // still pending. Access is issued only after that publication completes.
+    if (publish.pending) {
+      if (!publishRequested.current) {
+        publishRequested.current = true;
+        void latest.current.publish.start(undefined, { navigateToCloud: false });
+      }
+      return;
+    }
     if (contextStatus === "resolved") {
       setPhase("issuing");
       return;
@@ -178,17 +210,12 @@ export function useProjectReachFlow({
       return;
     }
     fail({ kind: "blocked", message: getCloudContextWarning(latest.current.projectContext) });
-  }, [contextStatus, fail, organizationId, phase]);
-
-  useEffect(() => {
-    if (phase !== "publishing" || !publish.error || !publishRequested.current) return;
-    fail({ kind: "publish", failure: publish.error });
-  }, [fail, phase, publish.error]);
+  }, [authorityChanged, contextStatus, fail, organizationId, phase, publish.error, publish.loading, publish.pending]);
 
   // Reuse the destination's existing reach when it is identical; a second key
   // for the same thing would leave the user unable to tell which is live.
   useEffect(() => {
-    if (phase !== "issuing" || !projectId) return undefined;
+    if (phase !== "issuing" || !projectId || authorityChanged) return undefined;
     if (!target) return undefined;
     if (target.channel === "mcp" && !sharesSettled) return undefined;
     let cancelled = false;
@@ -204,7 +231,8 @@ export function useProjectReachFlow({
         return;
       }
       const existing = latest.current.shares.shares.find((share) => (
-        share.path === scope.path && share.readonly === (scope.mode === "r") && share.status !== "disabled"
+        share.path === scope.path && share.readonly === (scope.mode === "r") && share.status === "active"
+        && share.name === targetLabel && Boolean(share.endpoint.api_key)
       ));
       if (existing) {
         settle({ endpoint: existing.endpoint, issuedAt: existing.createdAt ?? new Date().toISOString(), reused: true });
@@ -215,6 +243,7 @@ export function useProjectReachFlow({
           session: latest.current.session,
           apiBaseUrl: latest.current.apiBaseUrl,
           onSessionChange: latest.current.onSessionChange,
+          isCurrent: () => !cancelled,
           request: { projectId, scope, name: targetLabel },
         });
         if (cancelled) return;
@@ -228,11 +257,12 @@ export function useProjectReachFlow({
     return () => {
       cancelled = true;
     };
-  }, [fail, phase, projectId, scope, sharesSettled, target, targetLabel]);
+  }, [authority, authorityChanged, fail, phase, projectId, scope, sessionIdentity, sharesSettled, target, targetLabel]);
 
   return {
     phase,
     stage: resolveReachStage({ phase, localStage, publishStage: publish.progress?.stage ?? null }),
+    transfer: publish.progress?.transfer ?? null,
     account: resolveReachAccountStep(phase),
     issue,
     failure,
@@ -252,17 +282,20 @@ async function issueProjectReach({
   session,
   apiBaseUrl,
   onSessionChange,
+  isCurrent,
   request,
 }: {
   session: DesktopCloudSession | null;
   apiBaseUrl: string | null;
   onSessionChange: (session: DesktopCloudSession | null) => void;
+  isCurrent: () => boolean;
   request: Readonly<{ projectId: string; scope: ReachScope; name: string }>;
 }): Promise<DesktopCloudMcpEndpoint> {
   if (!session) throw new Error("An account is required before a destination can reach a project.");
   const { projectId, scope, name } = request;
   if (scope.path) {
     const scopes = await listCloudScopes(session, projectId, onSessionChange, apiBaseUrl);
+    if (!isCurrent()) throw new Error("Project access request cancelled.");
     if (!scopes.some((candidate) => candidate.path === scope.path)) {
       await createCloudScope(session, projectId, {
         name: scope.path.split("/").filter(Boolean).pop() ?? scope.path,
@@ -272,6 +305,7 @@ async function issueProjectReach({
       }, onSessionChange, apiBaseUrl);
     }
   }
+  if (!isCurrent()) throw new Error("Project access request cancelled.");
   return createCloudMcpEndpoint(session, {
     project_id: projectId,
     path: scope.path,

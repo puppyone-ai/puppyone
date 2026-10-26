@@ -294,10 +294,10 @@ describe("DesktopHelpLauncher", () => {
     );
 
     expect(appSource).toMatch(
-      /sidebarUtility=\{projectSwitcherRailVisible[\s\S]*?\? undefined[\s\S]*?: feedbackLauncher\}/,
+      /sidebarUtility=\{railOwnsProject[\s\S]*?\? undefined[\s\S]*?: feedbackLauncher\}/,
     );
     expect(appSource).toContain("const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);");
-    expect(appSource).toContain("renderLeadingRail={enableProjectSwitcherRail ? ({ expanded }) => renderProjectRail(");
+    expect(appSource).toContain("renderLeadingRail={railOwnsProject ? ({ expanded }) => renderProjectRail(");
     expect(appSource).toContain("expanded={expanded}");
     expect(appSource).toContain("leftSidebarCollapsed={sidebarCollapsed}");
     // Local right-sidebar content never shows over a Cloud workspace.
@@ -309,10 +309,12 @@ describe("DesktopHelpLauncher", () => {
     expect(appSource).toContain("<SettingsDialog");
     expect(appSource).not.toContain("settingsWorkspaceActive");
     expect(appSource).not.toContain("feedbackInNavigationToolbar");
-    expect(appSource).toContain("settingsNavigationVisible={!projectSwitcherRailEnabled}");
-    expect(appSource).toContain("workspaceNavigationVisible={!projectSwitcherRailEnabled}");
+    expect(appSource).toContain("settingsNavigationVisible={!railOwnsProject && sidebarFooterVisible}");
+    expect(appSource).toContain("workspaceNavigationVisible={!railOwnsProject && sidebarFooterVisible}");
     expect(appSource).toMatch(
-      /<ProjectSwitcherRail[\s\S]*?utilitySlot=\{<DesktopHelpLauncher/,
+      // macOS carries Settings and Help in the app menu, so the footer and its
+      // launcher render only where there is no application menu.
+      /<ProjectSwitcherRail[\s\S]*?utilitySlot=\{sidebarFooterVisible \? <DesktopHelpLauncher/,
     );
     expect(launcherCss).toMatch(
       /\.desktop-feedback\s*\{[^}]*display:\s*flex[^}]*pointer-events:\s*auto/s,

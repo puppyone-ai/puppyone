@@ -261,10 +261,13 @@
 .po-editable-table-interaction-root:has(.po-editable-table-selection-outline:not([hidden])),
 .markdown-codemirror-editor .cm-md-table-widget-wrap.is-doc-selected {
   --po-editable-table-cell-focus-outline: none;
-  /* Structural selection owns the perimeter. Keep the native range for
-     clipboard semantics, but do not also paint its text runs inside a block. */
-  --po-selection-background: transparent;
-  --po-selection-inactive-background: transparent;
+}
+
+/* Structural selection owns the perimeter. Keep the native range for
+   clipboard semantics, but do not also paint its text runs inside a block. */
+.po-editable-table-interaction-root:has(.po-editable-table-selection-outline:not([hidden])) ::selection,
+.markdown-codemirror-editor .cm-md-table-widget-wrap.is-doc-selected ::selection {
+  --po-selection-paint: transparent;
 }
 
 .po-editable-table-structure-button {

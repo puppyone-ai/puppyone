@@ -48,6 +48,6 @@ describe("Git main preview", () => {
     expect(container.querySelector(".empty-preview")).not.toBeNull();
     expect(container.textContent).toContain("Select a change to preview");
     expect(container.textContent).not.toContain("Reading Git");
-    expect(container.querySelector('[data-puppy-loader="dots"]')).toBeNull();
+    expect(container.querySelector('[data-puppy-loader]')).toBeNull();
   });
 });

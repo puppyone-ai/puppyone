@@ -311,7 +311,7 @@ describe("titlebar typography architecture", () => {
     expect(titlebarContextSource).not.toContain("GitBranch");
     expect(titlebarContextSource).toContain("<DesktopProjectLocationSwitcher");
     expect(workspaceSwitcherSource).toContain('className="desktop-titlebar-workspace-mark"');
-    expect(workspaceSwitcherSource).toContain("<House");
+    expect(workspaceSwitcherSource).toContain("<HomeIcon");
     expect(titlebarContextSource).not.toContain("desktop-titlebar-cloud-button");
     expect(titlebarContextSource).not.toContain("desktop-titlebar-context-divider");
     expect(titlebarContextSource).not.toContain("VersionControlIcon");

@@ -68,7 +68,7 @@ app.whenReady().then(async () => {
       && getComputedStyle(header).backgroundImage === 'none'
       && frame.content === 'none'
       && getComputedStyle(header.querySelector('.desktop-titlebar-workspace-mark[data-project-location=cloud]')).color === ink
-      && getComputedStyle(header.querySelector('[data-cloud-icon=ant-design] [data-cloud-outline]')).fill === ink
+      && getComputedStyle(header.querySelector('[data-product-icon=cloud] [data-cloud-outline]')).stroke === ink
       && shell.getBoundingClientRect().height === innerHeight
       && header.getBoundingClientRect().width === innerWidth;
   })()`), "Hosted-only projects use the theme-blue Header, matching icon/text and no outer frame");
@@ -163,12 +163,12 @@ app.whenReady().then(async () => {
       return { marks:selectors.map(selector => {
         const node = home.querySelector(selector), svg = node.matches('svg') ? node : node.querySelector('svg');
         return { selector, name:svg.dataset.cloudIcon, color:getComputedStyle(node).color,
-          fill:getComputedStyle(svg.querySelector('[data-cloud-outline]')).fill,
+          paint:getComputedStyle(svg.querySelector('[data-cloud-outline]')).stroke,
           backplate:svg.querySelector('[data-cloud-backplate]')?.getAttribute('fill') ?? null };
       }), localColor:getComputedStyle(home.querySelector('.onboarding-project-icon.is-local')).color,
         folderIsNotCloud:!home.querySelector('.onboarding-project-icon.is-local [data-cloud-icon]') };
     })()`);
-    assert(marks.marks.every(mark => mark.name === 'ant-design' && mark.color === 'rgb(69, 153, 223)' && mark.fill === mark.color), 'Cloud-only and linked badge must use the approved mark and exact product blue in both themes');
+    assert(marks.marks.every(mark => mark.name === 'puppyone' && mark.color === 'rgb(69, 153, 223)' && mark.paint === mark.color), 'Cloud-only and linked badge must use the approved mark and exact product blue in both themes');
     assert(marks.marks[1].backplate === 'var(--po-surface)' && marks.folderIsNotCloud && marks.localColor !== 'rgb(69, 153, 223)', 'Linked badge keeps its surface backplate; Local folder keeps ordinary styling');
     homepageMarks.push({ theme, ...marks });
     await writeFile(path.join(artifacts, `cloud-marks-${theme}.png`), (await window.webContents.capturePage()).toPNG());

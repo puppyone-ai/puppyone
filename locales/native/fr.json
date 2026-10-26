@@ -22,6 +22,7 @@
   "native.menu.theme.pack": "Variante visuelle",
   "native.menu.theme.openFolder": "Ouvrir le dossier des thèmes",
   "native.menu.checkForUpdates": "Rechercher les mises à jour…",
+  "native.menu.settings": "Paramètres…",
   "native.update.manual.ok": "OK",
   "native.update.manual.notNow": "Plus tard",
   "native.update.manual.updateNow": "Mettre à jour",

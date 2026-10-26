@@ -14,6 +14,7 @@ import { useWorkspaceFolderDrop } from "../features/app-shell/useWorkspaceFolder
 import {
   ProjectEntryFlow,
   useProjectEntryFlow,
+  type ProjectEntryFlowController,
 } from "../features/app-shell/ProjectEntryFlow";
 import {
   getProjectName,
@@ -51,6 +52,8 @@ export type OnboardingOperationStatus = {
 };
 
 export type MinimalOnboardingProps = {
+  /** App owns the flow when the retained Homepage shares a Cloud shell. */
+  projectEntryController?: ProjectEntryFlowController;
   onChooseWorkspace: () => Promise<void>;
   onChooseProjectLocation?: () => Promise<WorkspaceProjectLocationGrant | null>;
   onDefaultProjectLocation?: () => Promise<WorkspaceProjectLocationGrant | null>;
@@ -76,6 +79,7 @@ export type MinimalOnboardingProps = {
 
 /** Homepage project list. Cloud catalog/auth is supplied by the host, not discovered by the view. */
 export function MinimalOnboarding({
+  projectEntryController,
   onChooseWorkspace,
   onChooseProjectLocation,
   onDefaultProjectLocation,
@@ -102,7 +106,8 @@ export function MinimalOnboarding({
   const [openingPath, setOpeningPath] = useState<string | null>(null);
   const [removingPath, setRemovingPath] = useState<string | null>(null);
   const [draggingPath, setDraggingPath] = useState<string | null>(null);
-  const projectEntryFlow = useProjectEntryFlow();
+  const ownProjectEntryFlow = useProjectEntryFlow();
+  const projectEntryFlow = projectEntryController ?? ownProjectEntryFlow;
   const enableOtherAppImports = useDesktopPreference(s => s.experimentalSettings.enableOtherAppImports);
   const importPreviewBrands = resolveImportPreviewBrands({ enableOtherAppImports });
   const items = useMemo(
@@ -174,7 +179,7 @@ export function MinimalOnboarding({
     }
   };
 
-  const busy = Boolean(openingPath) || Boolean(removingPath) || cloudOpening;
+  const busy = [openingPath, removingPath, cloudOpening].some(Boolean);
   const openingProject = isHomepageProjectOpening(openingPath, cloudOpening);
   const startProjectDrag = (event: ReactDragEvent<HTMLButtonElement>, item: ProjectHomeItem) => {
     const absolutePath = item.localPath.trim();
@@ -295,7 +300,7 @@ export function MinimalOnboarding({
       {onboardingState === "empty" && (
         <OnboardingTelemetryDisclosure ready={!showEmptyStateIntro} />
       )}
-      <ProjectEntryFlow
+      {!projectEntryController && <ProjectEntryFlow
         controller={projectEntryFlow}
         onDefaultLocation={onDefaultProjectLocation}
         onChooseLocation={onChooseProjectLocation}
@@ -306,7 +311,7 @@ export function MinimalOnboarding({
         onCancelImport={onCancelImportSource}
         onImportProgress={onImportSourceProgress}
         onOpenFolder={() => void chooseFolder()}
-      />
+      />}
       {showEmptyStateIntro && (
         <OnboardingEmptyStateIntro onComplete={completeEmptyStateIntro} />
       )}

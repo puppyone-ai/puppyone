@@ -14,21 +14,23 @@ import {
   isSimulatedCrash,
 } from "./cloud-publish-contract.mjs";
 import { resolveSourceBranchCommit } from "./cloud-initialization/attempts/source-ref.mjs";
+import { initialAttemptArgs, readInitialPushReceipt } from "./cloud-publish-receipt.mjs";
+import { createGitPushProgressReader, stripGitProgressOutput } from "./cloud-publish-transfer.mjs";
 import {
   CLOUD_INITIAL_PUSH_TIMEOUT_MS,
-  CLOUD_PUSH_RECONCILE_DELAYS_MS,
+  CLOUD_PUSH_STATUS_TIMEOUT_MS,
   isUncertainPushFailure,
+  isPushLimitFailure,
+  pushLimitFailureMessage,
   pushFailureMessage,
-  reconcileExpectedRemoteHead,
   remoteConfigFailureMessage,
   reportCloudPublishProgress,
-  waitForCloudPublishReconciliation,
 } from "./cloud-publish-git-reconciliation.mjs";
 
 const LFS_POINTER_PREAMBLE = "version https://git-lfs.github.com/spec/v1";
 const LFS_POINTER_MAX_BYTES = 512;
 
-export { CLOUD_INITIAL_PUSH_TIMEOUT_MS, CLOUD_PUSH_RECONCILE_DELAYS_MS };
+export { CLOUD_INITIAL_PUSH_TIMEOUT_MS };
 
 export function createCloudPublishGitService({
   execGitCommand = execGit,
@@ -36,7 +38,7 @@ export function createCloudPublishGitService({
   getGitStatus = getWorkspaceGitStatus,
   gitCredentialManager,
   injectFault = async () => undefined,
-  wait = waitForCloudPublishReconciliation,
+  fetchImpl = globalThis.fetch,
 } = {}) {
   if (
     !gitCredentialManager?.prepare
@@ -129,11 +131,11 @@ export function createCloudPublishGitService({
       // Use the journaled URL literal for every network side effect. Another
       // Git process can mutate the remote name after our verification.
       failureStage = "verifying Cloud Git access";
-      await execGitCommand(rootPath, secureArgs(record, [
-        "ls-remote", "--refs", record.canonical_remote_url,
-      ]), {
-        timeout: GIT_NETWORK_TIMEOUT_MS,
-      });
+      if (!verifyExpectedIdentity) {
+        await execGitCommand(rootPath, secureArgs(record, [
+          "ls-remote", "--refs", record.canonical_remote_url,
+        ]), { timeout: GIT_NETWORK_TIMEOUT_MS });
+      }
       failureStage = "verifying the managed credential configuration";
       await assertManagedCredentialConfig(rootPath, record);
       return created;
@@ -178,60 +180,68 @@ export function createCloudPublishGitService({
         record.credential_config_snapshot,
       );
       reportCloudPublishProgress(onProgress, "checking-remote");
-      let remoteHead = await readRemoteMain(rootPath, record, execGitCommand, secureArgs);
-      if (remoteHead && remoteHead !== attemptCommitOid) {
-        throw createPublishError(
-          "REMOTE_REF_CONFLICT",
-          "The Cloud Project main branch already points to a different commit.",
-          false,
-        );
-      }
-      if (!remoteHead) {
-        try {
-          await injectFault("after-push-remote-verified", record);
-          reportCloudPublishProgress(onProgress, "uploading");
-          await execGitCommand(rootPath, secureArgs(record, [
-            "push",
-            `--force-with-lease=${CLOUD_DESTINATION_REF}:`,
-            record.canonical_remote_url,
-            `${attemptCommitOid}:${CLOUD_DESTINATION_REF}`,
-          ]), { timeout: CLOUD_INITIAL_PUSH_TIMEOUT_MS });
-          await injectFault("after-push-side-effect", record);
-          reportCloudPublishProgress(onProgress, "confirming");
-        } catch (error) {
-          if (isSimulatedCrash(error)) throw error;
-          remoteHead = await readRemoteMain(rootPath, record, execGitCommand, secureArgs).catch(() => null);
-          if (
-            remoteHead !== attemptCommitOid
-            && isUncertainPushFailure(error)
-          ) {
-            reportCloudPublishProgress(onProgress, "confirming");
-            remoteHead = await reconcileExpectedRemoteHead({
-              expectedHeadCommitId: attemptCommitOid,
-              readRemoteHead: () => readRemoteMain(rootPath, record, execGitCommand, secureArgs),
-              wait,
-            });
-          }
-          if (remoteHead && remoteHead !== attemptCommitOid) {
-            throw createPublishError(
-              "REMOTE_REF_CONFLICT",
-              "Cloud main changed while the initial push was in flight.",
-              false,
-              error,
-            );
-          }
-          if (remoteHead !== attemptCommitOid && isUncertainPushFailure(error)) {
-            throw createPublishError(
-              "PUSH_UNCERTAIN",
-              "The initial push result is uncertain. Reconcile Cloud main before retrying.",
-              true,
-              error,
-            );
-          }
-          if (remoteHead !== attemptCommitOid) throw error;
+      // Git's own discovery and force-with-lease enforce an absent destination.
+      // Successful receive-pack status is the authoritative acknowledgement.
+      let remoteHead = null;
+      try {
+        await injectFault("after-push-remote-verified", record);
+        reportCloudPublishProgress(onProgress, "uploading");
+        // Git writes progress to stderr only when asked to without a terminal.
+        // The reader turns it into how much is sent and how fast, nothing more.
+        const transfer = createGitPushProgressReader((detail) => (
+          reportCloudPublishProgress(onProgress, "uploading", detail)
+        ));
+        await execGitCommand(rootPath, secureArgs(record, [
+          ...initialAttemptArgs(record),
+          "push",
+          "--progress",
+          `--force-with-lease=${CLOUD_DESTINATION_REF}:`,
+          record.canonical_remote_url,
+          `${attemptCommitOid}:${CLOUD_DESTINATION_REF}`,
+        ]), { timeout: CLOUD_INITIAL_PUSH_TIMEOUT_MS, onStderr: transfer.write });
+        remoteHead = attemptCommitOid;
+        await injectFault("after-push-side-effect", record);
+        reportCloudPublishProgress(onProgress, "confirming");
+      } catch (error) {
+        if (isSimulatedCrash(error)) throw error;
+        // Every diagnostic below reads stderr; it must hold Git's error, not
+        // the progress redraws that preceded it.
+        if (error && typeof error === "object" && "stderr" in error) {
+          error.stderr = stripGitProgressOutput(error.stderr);
         }
+        reportCloudPublishProgress(onProgress, "confirming");
+        let rejection = null;
+        const receipt = await readInitialPushReceipt(record, secret, fetchImpl).catch((failure) => {
+          if (failure?.publishCode === "PUSH_FAILED") rejection = failure;
+          return null;
+        });
+        // One bounded check, then return control to the user. A rejected retry
+        // can race an earlier successful push of the same immutable commit.
+        remoteHead = receipt ?? await readRemoteMain(rootPath, record, execGitCommand, secureArgs)
+          .catch(() => undefined);
+        if (remoteHead && remoteHead !== attemptCommitOid) {
+          throw createPublishError(
+            "REMOTE_REF_CONFLICT",
+            "Cloud main changed while the initial push was in flight.",
+            false,
+            error,
+          );
+        }
+        // Explicit rejection wins over the generic disconnect Git may append,
+        // even when the status check is unavailable. Confirmed success above
+        // still wins if an earlier send of this immutable attempt landed.
+        if (remoteHead !== attemptCommitOid && isPushLimitFailure(error)) throw error;
+        if (remoteHead !== attemptCommitOid && rejection) throw rejection;
+        if (remoteHead !== attemptCommitOid && (remoteHead === undefined || isUncertainPushFailure(error))) {
+          throw createPublishError(
+            "PUSH_UNCERTAIN",
+            "The connection was interrupted. Retry to check the result and send again if needed.",
+            true,
+            error,
+          );
+        }
+        if (remoteHead !== attemptCommitOid) throw error;
       }
-      remoteHead = remoteHead ?? await readRemoteMain(rootPath, record, execGitCommand, secureArgs);
       if (remoteHead !== attemptCommitOid) {
         throw createPublishError(
           "PUSH_FAILED",
@@ -247,6 +257,14 @@ export function createCloudPublishGitService({
       if (isSimulatedCrash(error)) throw error;
       await approval?.rollback?.().catch(() => undefined);
       if (error?.publishCode) throw error;
+      if (isPushLimitFailure(error)) {
+        throw createPublishError(
+          "PUSH_LIMIT_EXCEEDED",
+          pushLimitFailureMessage(error),
+          true,
+          error,
+        );
+      }
       throw createPublishError(
         "PUSH_FAILED",
         pushFailureMessage(error),
@@ -260,7 +278,9 @@ export function createCloudPublishGitService({
     await assertManagedCredentialConfig(rootPath, record);
     await assertAttemptCommit(rootPath, record);
     await assertExactRemote(rootPath, record.canonical_remote_url);
-    const remoteHead = await readRemoteMain(rootPath, record, execGitCommand, secureArgs);
+    const remoteHead = record.push_state === "accepted" && record.attempt?.state === "accepted"
+      ? record.attempt.commit_oid
+      : await readRemoteMain(rootPath, record, execGitCommand, secureArgs);
     if (remoteHead !== record.attempt?.commit_oid) {
       throw createPublishError("PUSH_FAILED", "The Cloud main branch no longer matches the expected commit.", false);
     }
@@ -305,7 +325,7 @@ export function createCloudPublishGitService({
     }
   }
 
-  async function inspectRemoteHead(rootPath, record, secret, requireExactLocalRemote) {
+  async function inspectPushOutcome(rootPath, record, secret, requireExactLocalRemote) {
     assertCredentialRecordComplete(record);
     if (requireExactLocalRemote) await assertExactRemote(rootPath, record.canonical_remote_url);
     const approval = await gitCredentialManager.approve(
@@ -317,7 +337,16 @@ export function createCloudPublishGitService({
       record.credential_config_snapshot,
     );
     try {
-      return await readRemoteMain(rootPath, record, execGitCommand, secureArgs);
+      let rejected = false;
+      const receipt = await readInitialPushReceipt(record, secret, fetchImpl).catch((error) => {
+        // A rejection belongs to this physical attempt only. Another attempt
+        // may already have published the exact candidate; inspect the ref.
+        rejected = error?.publishCode === "PUSH_FAILED";
+        return null;
+      });
+      if (receipt) return { remoteHead: receipt, rejected: false };
+      const remoteHead = await readRemoteMain(rootPath, record, execGitCommand, secureArgs);
+      return { remoteHead, rejected };
     } catch (error) {
       await approval?.rollback?.().catch(() => undefined);
       throw error;
@@ -358,11 +387,11 @@ export function createCloudPublishGitService({
     }),
     configureCanonicalRemote: (rootPath, record, secret) => configureRemote(rootPath, record, secret, true),
     configureExistingProjectRemote: (rootPath, record, secret) => configureRemote(rootPath, record, secret, false),
-    inspectCanonicalRemoteHead: (rootPath, record, secret) => (
-      inspectRemoteHead(rootPath, record, secret, true)
+    inspectCanonicalPushOutcome: (rootPath, record, secret) => (
+      inspectPushOutcome(rootPath, record, secret, true)
     ),
-    inspectJournaledRemoteHead: (rootPath, record, secret) => (
-      inspectRemoteHead(rootPath, record, secret, false)
+    inspectJournaledPushOutcome: (rootPath, record, secret) => (
+      inspectPushOutcome(rootPath, record, secret, false)
     ),
     resolveSourceCommit: (rootPath, sourceBranch) => resolveSourceBranchCommit(
       rootPath,
@@ -471,7 +500,7 @@ async function readRemoteMain(rootPath, record, execGitCommand, secureArgs) {
     "--refs",
     record.canonical_remote_url,
     `refs/heads/${CLOUD_DESTINATION_BRANCH}`,
-  ]), { timeout: GIT_NETWORK_TIMEOUT_MS });
+  ]), { timeout: CLOUD_PUSH_STATUS_TIMEOUT_MS });
   const lines = stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   if (lines.length === 0) return null;
   if (lines.length !== 1) throw createPublishError("PUSH_FAILED", "Cloud main ref response is ambiguous.", false);

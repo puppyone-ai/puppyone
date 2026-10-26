@@ -13,6 +13,7 @@ import type { DesktopCloudSession } from "../lib/cloudApi";
 import { CloudWorkspaceHeaderTools } from "../features/cloud/workbench/CloudWorkspaceHeaderTools";
 import { captureCloudWorkspaceShareResource } from "../features/cloud/share/cloudWorkspaceShareResource";
 import type { ProjectCloudContext } from "../features/cloud/project/context";
+import type { ProjectNavigationTarget } from "../features/app-shell/projectNavigation";
 import type { ProjectHomeItem } from "../lib/workspaceHomeModel";
 import { useCloudAgentWorkspace } from "../features/cloud/agent/useCloudAgentWorkspace";
 import { CloudWorkspaceSidebar } from "../features/cloud/workbench/CloudWorkspaceSidebar";
@@ -60,7 +61,7 @@ export function useAccountCloudWorkspacePresentation({ workbench, onOpenSettings
 
 /** Hosted-only surface used when no local repository is open. Repository-linked
  * switching embeds the presentation above in the retained local shell instead. */
-export function AccountCloudWorkspaceSurface({ workbench, presentation, active, appearance, onHome, context, session, apiBaseUrl, onSessionChange, projectItems, onSelectProject, onSelectCloudProject, onCreateProject, projectRail, agent: suppliedAgent, sidebar: suppliedSidebar }: {
+export function AccountCloudWorkspaceSurface({ workbench, presentation, active, appearance, onHome, context, session, apiBaseUrl, onSessionChange, projectItems, pendingProject, onSelectProject, onSelectCloudProject, onCreateProject, projectRail, agent: suppliedAgent, sidebar: suppliedSidebar }: {
   workbench: NativeCloudWorkbench;
   presentation: AccountCloudWorkspacePresentation;
   active: boolean;
@@ -70,6 +71,7 @@ export function AccountCloudWorkspaceSurface({ workbench, presentation, active, 
   onLocal: () => void;
   onHome: () => void;
   projectItems: readonly ProjectHomeItem[];
+  pendingProject?: ProjectNavigationTarget | null;
   projectRail?: Pick<ComponentProps<typeof DesktopCloudShell>, "renderLeadingRail"
     | "leadingRailWidth" | "leadingRailMinWidth" | "leadingRailMaxWidth"
     | "leadingRailCollapsed" | "leadingRailCollapsedWidth" | "leadingRailCollapseThreshold"
@@ -99,14 +101,15 @@ export function AccountCloudWorkspaceSurface({ workbench, presentation, active, 
   const { service } = workbench;
   if (!service || !workbench.visited) return null;
   const localProject = projectItems.find(item => item.cloudProjectId === service.workspace.projectId && item.localPath);
-  const projectContext = !active ? null : <DesktopTitlebarContext open={menuOpen} refObject={menuRef}
-        projectMenuEnabled={!projectRail}
+  // The rail states the Project it is switching between, so the hosted Header
+  // repeats neither the name nor the place while the rail is present.
+  const projectContext = !active || projectRail ? null : <DesktopTitlebarContext open={menuOpen} refObject={menuRef}
         titlebarLabel={service.workspace.name} workspace={service.workspace} workspaceFolders={[service.folder]}
         multiRootWorkspacesEnabled={false} projectLocation={{ current: "cloud", localAvailable: Boolean(localProject), cloudState: "available" }}
         cloudProject={{ id: service.workspace.projectId!, name: service.workspace.name }}
         onClose={() => setMenuOpen(false)} onToggle={() => setMenuOpen((current) => !current)}
         onViewLocal={localProject ? () => { setMenuOpen(false); onSelectProject(localProject.localPath); } : undefined}
-        projectItems={projectItems} onSelectProject={onSelectProject} onSelectCloudProject={onSelectCloudProject}
+        projectItems={projectItems} pendingProject={pendingProject} onSelectProject={onSelectProject} onSelectCloudProject={onSelectCloudProject}
         onCreateProject={onCreateProject} onHome={onHome}
         menuAlignment={centered ? "center" : "start"} />;
   return <div className={`app-shell cloud-runtime desktop-account-cloud-workspace ${appearance.appearance.effectiveColorMode === "dark" ? "dark" : ""}`} hidden={!active}

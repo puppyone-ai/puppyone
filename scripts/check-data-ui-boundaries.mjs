@@ -205,12 +205,6 @@ function findFileIconThemeArchitectureErrors() {
     "default/index.ts",
     "default/glyphs.tsx",
     "default/previews.tsx",
-    "lines/index.tsx",
-    "semantic/index.ts",
-    "semantic/glyphs.tsx",
-    "material/index.ts",
-    "material/glyphs.tsx",
-    "minimal/index.tsx",
   ];
 
   for (const relativePath of requiredThemePaths) {
@@ -248,28 +242,25 @@ function findFileIconThemeArchitectureErrors() {
     }
   }
 
-  const requiredThemeFactories = new Map([
-    ["default/index.ts", "createCustomPreviewIconTheme"],
-    ["lines/index.tsx", "createThemeVariant"],
-    ["semantic/index.ts", "createIconTheme"],
-    ["material/index.ts", "createIconTheme"],
-    ["minimal/index.tsx", "createIconTheme"],
-  ]);
-  for (const [relativePath, factoryName] of requiredThemeFactories) {
-    const filePath = path.join(fileIconThemeRoot, relativePath);
-    if (!existsSync(filePath)) continue;
-    const source = readFileSync(filePath, "utf8");
-    const factoryCallPattern = new RegExp(`\\b${factoryName}\\s*\\(`);
-    if (!factoryCallPattern.test(source)) {
+  // Every folder beside `shared` is an installed theme, so a theme added later
+  // gets the same checks without editing this script.
+  const themeNames = readdirSync(fileIconThemeRoot)
+    .filter((name) => name !== "shared" && statSync(path.join(fileIconThemeRoot, name)).isDirectory());
+  const themeFactoryPattern = /\b(?:createIconTheme|createCustomPreviewIconTheme|createThemeVariant)\s*\(/;
+  for (const themeName of themeNames) {
+    const entry = ["index.ts", "index.tsx"]
+      .map((name) => path.join(fileIconThemeRoot, themeName, name))
+      .find((filePath) => existsSync(filePath));
+    if (!entry || !themeFactoryPattern.test(readFileSync(entry, "utf8"))) {
       architectureErrors.push({
-        filePath,
-        specifier: factoryName,
+        filePath: entry ?? path.join(fileIconThemeRoot, themeName, "index.ts"),
+        specifier: "theme factory",
         reason: "theme definitions must use the coverage-enforcing theme factory",
       });
     }
   }
 
-  for (const themeName of ["default", "lines", "semantic", "material", "minimal"]) {
+  for (const themeName of themeNames) {
     const themeDirectory = path.join(fileIconThemeRoot, themeName);
     if (!existsSync(themeDirectory)) continue;
     for (const filePath of walk(themeDirectory)) {
@@ -291,13 +282,10 @@ function findFileIconThemeArchitectureErrors() {
     }
   }
 
-  const semanticRendererFiles = [
-    "default/glyphs.tsx",
-    "default/previews.tsx",
-    "material/glyphs.tsx",
-    "semantic/glyphs.tsx",
-    "minimal/index.tsx",
-  ];
+  const semanticRendererFiles = themeNames.flatMap((themeName) => [
+    ...walk(path.join(fileIconThemeRoot, themeName)),
+  ].filter((filePath) => /\.(?:ts|tsx)$/.test(filePath))
+    .map((filePath) => path.relative(fileIconThemeRoot, filePath)));
   const hiddenSemanticFallbackPatterns = [
     {
       pattern: /Partial\s*<\s*Record\s*<\s*FileVisualKind\s*,\s*FileIconRenderer/,

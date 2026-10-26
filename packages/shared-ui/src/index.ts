@@ -141,6 +141,8 @@ export {
 } from "./core/fileFormats";
 
 export { DataWorkspace } from "./data/DataWorkspace";
+export { DataWorkspaceFrame } from "./data/DataWorkspaceFrame";
+export type { DataWorkspaceExplorerFrame, DataWorkspaceFrameProps } from "./data/DataWorkspaceFrame";
 export { resolveMarkdownAssetPath } from "./editor/markdown";
 export {
   createDocumentNavigationPort,
@@ -174,7 +176,7 @@ export type {
   DataWorkspaceState,
 } from "./data/DataWorkspace";
 export { ExplorerTree, ExplorerTreeSkeleton } from "./data/ExplorerTree";
-export type { ExplorerSelectionIntent, ExplorerTreeProps } from "./data/ExplorerTree";
+export type { ExplorerListEndPlacement, ExplorerSelectionIntent, ExplorerTreeProps } from "./data/ExplorerTree";
 export {
   EXPLORER_REFERENCE_DRAG_TYPE,
   EXPLORER_REFERENCE_DRAG_VERSION,
@@ -621,6 +623,18 @@ export {
 } from "./file/fileIcons";
 export type { FileIconThemeId, FileVisualKind } from "./file/fileIcons";
 
+export {
+  CloudIcon,
+  CloudOffIcon,
+  CloudUploadIcon,
+  DisclosureIcon,
+  FolderIcon,
+  HomeIcon,
+  LocalIcon,
+  PRODUCT_ICONS,
+} from "./icons/productIcons";
+export type { ProductIconMeaning } from "./icons/productIcons";
+
 export { Button } from "./primitives/Button";
 export type { ButtonProps } from "./primitives/Button";
 export { IconButton } from "./primitives/IconButton";
@@ -642,34 +656,17 @@ export type {
   FloatingNoticeTone,
 } from "./primitives/FloatingNotice";
 export type { StatusBadgeProps } from "./primitives/StatusBadge";
-export { DotsLoader, InlineLoading, PulseGridLoader } from "./primitives/LoadingIndicator";
-export type { LoaderSize, LoaderTone } from "./primitives/LoadingIndicator";
+export { InlineLoading, LOADING_MARK_DITHER_LIGHT, LoadingMark } from "./primitives/LoadingMark";
+export type { LoaderSize, LoaderTone, LoadingMarkLayout, LoadingMarkProps } from "./primitives/LoadingMark";
 export {
-  DEFAULT_PULSE_GRID_FRAME_DURATION_MS,
-  DEFAULT_PULSE_GRID_PRESET_ID,
-  PULSE_GRID_DEFAULT_FRAMES,
-  PULSE_GRID_IKUN_FRAMES,
-  PULSE_GRID_ORBIT_FRAMES,
-  PULSE_GRID_POINTS,
-  PULSE_GRID_PRESET_FRAMES,
-  PULSE_GRID_PRESET_IDS,
-  PULSE_GRID_SIU_FRAMES,
-  PULSE_GRID_YMCA_FRAMES,
-  getPulseGridPointAppearance,
-  pulseGridFrame,
-  usePulseGridPlayback,
-} from "./primitives/pulseGridSequence";
-export type {
-  PulseGridFrame,
-  PulseGridFrameEntry,
-  PulseGridFrames,
-  PulseGridPoint,
-  PulseGridPointAppearance,
-  PulseGridPointState,
-  PulseGridPresetId,
-  PulseGridSpriteCell,
-  PulseGridSpriteRow,
-} from "./primitives/pulseGridSequence";
+  DEFAULT_LOADING_PLACEHOLDER_STYLE,
+  LOADING_PLACEHOLDER_STYLES,
+  LoadingPlaceholderStyleProvider,
+  PlaceholderLayer,
+  parseLoadingPlaceholderStyle,
+  useLoadingPlaceholderStyle,
+} from "./primitives/LoadingPlaceholder";
+export type { LoadingPlaceholderStyle, PlaceholderLayerProps } from "./primitives/LoadingPlaceholder";
 export * from "./sidebar";
 
 export { useDocumentInput } from "./editor/resource/useDocumentInput";

@@ -20,6 +20,129 @@ afterEach(async () => {
 });
 
 describe("Cloud publish coordinator", () => {
+  it.each(["missing", "pending", "rejected"])("retry of a %s receipt uses a fresh attempt and only retargets after definitive rejection", async (outcome) => {
+    const fixture = await createFixture("main");
+    const crash = Object.assign(new Error("pause before push"), { simulateCrash: true });
+    await expect(createCoordinator(fixture, {
+      faultInjector: async (point) => { if (point === "after-push-remote-verified") throw crash; },
+    }).startOrResume(fixture.request)).rejects.toBe(crash);
+    const gitDir = await git(fixture.root, "rev-parse", "--absolute-git-dir");
+    const journalPath = path.join(gitDir, "puppyone", "pending-cloud-publish.v1.json");
+    const record = JSON.parse(await readFile(journalPath, "utf8"));
+    record.push_state = record.attempt.state = "uncertain";
+    await writeFile(journalPath, `${JSON.stringify(record)}\n`, { mode: 0o600 });
+    await writeFile(path.join(fixture.root, "later.md"), "later local changes\n");
+    await git(fixture.root, "add", "later.md");
+    await git(fixture.root, "commit", "-qm", "keep working after interruption");
+    const later = await git(fixture.root, "rev-parse", "HEAD");
+    const pending = await createCoordinator(fixture).getState(fixture.request);
+    expect(pending.state.availableActions).toContain("retry-push");
+    const pushed = [];
+    const result = await createCoordinator(fixture, {
+      onExecGitCommand: (args) => { if (args.includes("push")) pushed.push(args); },
+      fetchImpl: async () => ({ ok: outcome !== "missing", json: async () => ({ data: {
+        project_id: record.project_id, request_key: record.attempt.attempt_id, status: outcome,
+        result: outcome === "pending" ? null : {
+          project_id: record.project_id, status: "rejected", refs: [{
+            name_b64: Buffer.from("refs/heads/main").toString("base64"),
+            observed: { kind: "absent" }, new: { kind: "oid", oid: record.attempt.commit_oid },
+          }],
+        },
+      } }) }),
+    }).startOrResume({ ...fixture.request, action: "reconcile" });
+    const candidate = outcome === "rejected" ? later : record.attempt.commit_oid;
+    expect(result).toMatchObject({ ok: true, state: {
+      push: "accepted", attemptCount: record.attempt_count + 1,
+      attemptCommitOid: candidate,
+    } });
+    expect(pushed).toHaveLength(1);
+    expect(pushed[0]).toContain(`${candidate}:refs/heads/main`);
+    expect(pushed[0].join(" ")).not.toContain(record.attempt.attempt_id);
+    expect(await git(fixture.bare, "rev-parse", "refs/heads/main")).toBe(candidate);
+    expect(await git(fixture.root, "rev-parse", "HEAD")).toBe(later);
+    expect(fixture.cloud.requests.filter((entry) => entry.path === "/projects/")).toHaveLength(1);
+    expect(fixture.cloud.requests.filter((entry) => entry.path.endsWith("/git-credentials"))).toHaveLength(1);
+  });
+  it.each(["uploading", "confirming"])("a restart during %s offers Retry without retargeting", async (state) => {
+    const fixture = await createFixture("main");
+    const crash = Object.assign(new Error("process stopped before push"), { simulateCrash: true });
+    await expect(createCoordinator(fixture, {
+      faultInjector: async (point) => { if (point === "after-push-remote-verified") throw crash; },
+    }).startOrResume(fixture.request)).rejects.toBe(crash);
+    const gitDir = await git(fixture.root, "rev-parse", "--absolute-git-dir");
+    const journalPath = path.join(gitDir, "puppyone", "pending-cloud-publish.v1.json");
+    const record = JSON.parse(await readFile(journalPath, "utf8"));
+    record.push_state = record.attempt.state = state;
+    await writeFile(journalPath, `${JSON.stringify(record)}\n`, { mode: 0o600 });
+    const pending = await createCoordinator(fixture).getState(fixture.request);
+    expect(pending).toMatchObject({ ok: true, state: {
+      push: "uncertain", availableActions: expect.arrayContaining(["retry-push"]),
+    } });
+    const retried = await createCoordinator(fixture).startOrResume({ ...fixture.request, action: "retry-push" });
+    expect(retried).toMatchObject({ ok: true, state: {
+      push: "accepted", attemptCount: 2, attemptCommitOid: fixture.head,
+    } });
+  });
+
+  it("an old upload completing just before Retry does not cause a false failure", async () => {
+    const fixture = await createFixture("main");
+    const crash = Object.assign(new Error("response lost"), { simulateCrash: true });
+    await expect(createCoordinator(fixture, {
+      faultInjector: async (point) => { if (point === "after-push-remote-verified") throw crash; },
+    }).startOrResume(fixture.request)).rejects.toBe(crash);
+    const result = await createCoordinator(fixture, {
+      onExecGitCommand: async (args) => {
+        if (args.includes("push")) {
+          await git(fixture.root, "push", fixture.bare, `${fixture.head}:refs/heads/main`);
+        }
+      },
+    }).startOrResume({ ...fixture.request, action: "retry-push" });
+    expect(result).toMatchObject({ ok: true, state: { push: "accepted", attemptCount: 2 } });
+    expect(await git(fixture.bare, "rev-list", "--count", "main")).toBe("1");
+  });
+
+  it("a second failure preserves unresolved intent across later local commits", async () => {
+    const fixture = await createFixture("main");
+    const crash = Object.assign(new Error("process stopped"), { simulateCrash: true });
+    await expect(createCoordinator(fixture, {
+      faultInjector: async (point) => { if (point === "after-push-remote-verified") throw crash; },
+    }).startOrResume(fixture.request)).rejects.toBe(crash);
+    const failed = await createCoordinator(fixture, {
+      onExecGitCommand: (args) => { if (args.includes("push")) throw new Error("receive rejected"); },
+    }).startOrResume({ ...fixture.request, action: "retry-push" });
+    expect(failed).toMatchObject({ ok: false, state: {
+      push: "uncertain", attemptCount: 2, availableActions: expect.arrayContaining(["retry-push"]),
+    } });
+    await writeFile(path.join(fixture.root, "later.md"), "new work\n");
+    await git(fixture.root, "add", "later.md");
+    await git(fixture.root, "commit", "-qm", "later local work");
+    const result = await createCoordinator(fixture).startOrResume({ ...fixture.request, action: "push-latest" });
+    expect(result).toMatchObject({ ok: true, state: {
+      push: "accepted", attemptCount: 3, attemptCommitOid: fixture.head,
+    } });
+    expect(await git(fixture.bare, "rev-parse", "main")).toBe(fixture.head);
+  });
+
+  it("a concurrent different commit wins without being overwritten by Retry", async () => {
+    const fixture = await createFixture("main");
+    const crash = Object.assign(new Error("response lost"), { simulateCrash: true });
+    await expect(createCoordinator(fixture, {
+      faultInjector: async (point) => { if (point === "after-push-remote-verified") throw crash; },
+    }).startOrResume(fixture.request)).rejects.toBe(crash);
+    await writeFile(path.join(fixture.root, "other.md"), "another writer\n");
+    await git(fixture.root, "add", "other.md");
+    await git(fixture.root, "commit", "-qm", "other writer");
+    const other = await git(fixture.root, "rev-parse", "HEAD");
+    const result = await createCoordinator(fixture, {
+      onExecGitCommand: async (args) => {
+        if (args.includes("push")) await git(fixture.root, "push", fixture.bare, `${other}:refs/heads/main`);
+      },
+    }).startOrResume({ ...fixture.request, action: "retry-push" });
+    expect(result).toMatchObject({ ok: false, error: { code: "REMOTE_REF_CONFLICT" } });
+    expect(await git(fixture.bare, "rev-parse", "main")).toBe(other);
+    expect(await git(fixture.root, "rev-parse", "HEAD")).toBe(other);
+  });
+
   it("rejects an unborn branch before creating any Cloud resources", async () => {
     const fixture = await createFixture("main");
     await git(fixture.root, "update-ref", "-d", "refs/heads/main");
@@ -747,6 +870,48 @@ describe("Cloud publish coordinator", () => {
     expect(await git(fixture.bare, "rev-parse", "refs/heads/main")).toBe(fixture.head);
   });
 
+  it.each(["after-project-created", "after-remote-configured"])(
+    "keeps sending available after a definitive discard refusal at %s, including restart",
+    async (pointToStop) => {
+      const fixture = await createFixture("main");
+      const pause = Object.assign(new Error("interrupted initialization"), { simulateCrash: true });
+      await expect(createCoordinator(fixture, {
+        faultInjector: async (point) => { if (point === pointToStop) throw pause; },
+      }).startOrResume(fixture.request)).rejects.toBe(pause);
+      const pending = await createCoordinator(fixture).getState(fixture.request);
+      const originalRequest = fixture.cloud.requestSessionApi;
+      fixture.cloud.requestSessionApi = async (apiBase, requestPath, init) => {
+        if (requestPath.endsWith("/initialization/abandon")) {
+          fixture.cloud.requests.push({ path: requestPath, init, body: JSON.parse(init.body) });
+          throw Object.assign(new Error("Project has an independent resource"), {
+            status: 409, code: "initialization_not_abandonable",
+          });
+        }
+        return originalRequest(apiBase, requestPath, init);
+      };
+      await writeFile(path.join(fixture.root, "keep-local.txt"), "local work survives\n");
+      const refused = await createCoordinator(fixture).cleanup({
+        ...fixture.request, operationId: pending.state.operationId,
+      });
+      expect(refused).toMatchObject({
+        ok: false, error: { code: "CLEANUP_NOT_ALLOWED", retryable: false },
+        state: { cleanup: "none", availableActions: ["retry-push"] },
+      });
+      const restarted = await createCoordinator(fixture).getState(fixture.request);
+      expect(restarted.state).toMatchObject({
+        cleanup: "none", lastError: { code: "CLEANUP_NOT_ALLOWED" },
+        availableActions: ["retry-push"],
+      });
+      const retried = await createCoordinator(fixture).startOrResume({
+        ...fixture.request, operationId: pending.state.operationId, action: "retry-push",
+      });
+      expect(retried).toMatchObject({ ok: true, state: { push: "accepted" } });
+      expect(await readFile(path.join(fixture.root, "keep-local.txt"), "utf8")).toBe("local work survives\n");
+      expect(fixture.cloud.requests.filter((entry) => entry.path.endsWith("/initialization/abandon"))).toHaveLength(1);
+      expect(fixture.cloud.requests.filter((entry) => entry.path === "/projects/")).toHaveLength(1);
+    },
+  );
+
   it("migrates v1 pre-push state by authoritative absent, accepted, and divergent remote refs", async () => {
     for (const remoteState of ["absent", "accepted", "divergent"]) {
       const fixture = await createFixture("main");
@@ -955,6 +1120,7 @@ function createCoordinator(fixture, options = {}) {
   };
   return createCloudPublishCoordinator({
     cloudAuthService: fixture.cloud,
+    fetchImpl: options.fetchImpl ?? (async () => ({ ok: false, status: 404 })),
     secretVault: options.secretVault ?? fixture.secretVault,
     gitCredentialManager: {
       prepare: async () => credentialConfigSnapshot,
@@ -969,7 +1135,7 @@ function createCoordinator(fixture, options = {}) {
       ],
     },
     execGitCommand: async (rootPath, args, commandOptions) => {
-      options.onExecGitCommand?.(args);
+      await options.onExecGitCommand?.(args);
       const mapped = args.some((arg) => ["ls-remote", "push"].includes(arg))
         ? args.map((arg) => arg === fixture.remoteUrl ? fixture.bare : arg)
         : args;

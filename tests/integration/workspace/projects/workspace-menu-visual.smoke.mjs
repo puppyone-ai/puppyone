@@ -113,7 +113,7 @@ async function runSmoke() {
       devicePlatform: document.querySelector('[data-device-platform]')?.dataset.devicePlatform,
       controlsFit: buttons.every(button => button.getBoundingClientRect().right <= track.getBoundingClientRect().right + 1)
         && (!github || github.getBoundingClientRect().right <= menu.getBoundingClientRect().right - 6),
-      createIcon: !!create?.querySelector('[data-cloud-icon="ant-design"]'),
+      createIcon: !!create?.querySelector('[data-product-icon="cloud"]'),
       separatorSpacing,
       createColor: create ? getComputedStyle(create).color : null,
       accentColor,
@@ -313,7 +313,7 @@ async function checkInlinePresentation(window, url, scene, catalog) {
           padding: parseFloat(getComputedStyle(track).paddingLeft),
           border: getComputedStyle(track).borderTopWidth, radius: getComputedStyle(track).borderRadius },
         buttonBackgrounds: buttons.map(button => getComputedStyle(button).backgroundColor),
-        loading: !!buttons[1].querySelector('[data-puppy-loader="pulse-grid"]'),
+        loading: !!buttons[1].querySelector('[data-puppy-loader]'),
         create: buttons[1].dataset.cloudAction === 'create',
         plus: !!buttons[1].querySelector('.lucide-plus'),
       };
@@ -445,7 +445,7 @@ async function checkPopoverSelection(window) {
         selected: selected?.dataset.projectLocation, current: local?.getAttribute('aria-current'),
         check: !!selected?.querySelector('.lucide-check'),
         busy: menu?.querySelector('.desktop-project-location-tabs').getAttribute('aria-busy'),
-        spinner: !!cloud.querySelector('[data-puppy-loader="pulse-grid"]'),
+        spinner: !!cloud.querySelector('[data-puppy-loader]'),
         stacked: local && cloud.getBoundingClientRect().top >= local.getBoundingClientRect().bottom + 2 });
       if (frames.length < 8) requestAnimationFrame(sample); else resolve(frames);
     };

@@ -1,6 +1,7 @@
-import { File, Folder, Image, Paperclip } from "lucide-react";
+import { File, Image, Paperclip } from "lucide-react";
 import type { AgentReferenceDisplay } from "../domain/agent-contract";
 import { isAgentMediaReference } from "../domain/agent-prompt-mentions";
+import { FolderIcon } from "@puppyone/shared-ui";
 
 export function AgentReferenceDisplayList({ references }: { references: AgentReferenceDisplay[] }) {
   if (references.length === 0) return null;
@@ -9,7 +10,7 @@ export function AgentReferenceDisplayList({ references }: { references: AgentRef
       {references.map((reference) => (
         <span key={reference.id} dir="auto" role="listitem">
           {reference.kind === "workspace-directory"
-            ? <Folder size={12} aria-hidden="true" />
+            ? <FolderIcon size={12} aria-hidden="true" />
             : reference.kind === "workspace-file"
               ? <File size={12} aria-hidden="true" />
               : isAgentMediaReference(reference)

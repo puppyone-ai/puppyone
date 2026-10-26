@@ -1,3 +1,4 @@
+import { NativeRequestLedger } from "./native-request-ledger.mjs";
 import { createJsonlFramer, writeJsonlFrame } from "./jsonl-stream.mjs";
 import { EventEmitter } from "node:events";
 import { spawn as nodeSpawn } from "node:child_process";
@@ -74,9 +75,11 @@ export class JsonlRpcConnection extends EventEmitter {
     this.maxPending = maxPending;
     this.forceKillTimeoutMs = forceKillTimeoutMs;
     this.nextRequestId = 1;
-    this.pending = new Map();
-    this.seenResponseIds = new Set();
-    this.ignoredResponseIds = new Set();
+    this.requests = new NativeRequestLedger({ wasIssued: (id) => {
+      const serial = /^[1-9][0-9]*$/u.test(id) ? id : null;
+      return serial !== null && Number.isSafeInteger(Number(serial)) && Number(serial) < this.nextRequestId;
+    } });
+    this.pending = this.requests.pending;
     this.receiveStdout = createJsonlFramer({
       maxLineBytes,
       onLine: (line) => this.#receiveLine(line),
@@ -112,42 +115,18 @@ export class JsonlRpcConnection extends EventEmitter {
     this.child.once("close", (code, signal) => this.#handleExit(code, signal, null));
   }
 
-  request(method, params, { timeoutMs = 20_000, signal, closeOnTimeout = true } = {}) {
+  request(method, params, { timeoutMs = 20_000, signal, onLateResponse } = {}) {
     if (signal?.aborted) return Promise.reject(signal.reason ?? new Error("Native RPC request aborted before dispatch."));
     if (this.closed) return Promise.reject(new Error("The JSONL-RPC process is not connected."));
     if (this.pending.size >= this.maxPending) {
       return Promise.reject(new Error("Too many pending JSONL-RPC requests."));
     }
     const id = this.nextRequestId++;
-    return new Promise((resolve, reject) => {
-      const timer = timeoutMs > 0
-        ? setTimeout(() => {
-          this.pending.get(String(id))?.cleanup();
-          this.pending.delete(String(id));
-          const error = new JsonlRpcRequestTimeoutError(method);
-          reject(error);
-          // A timed-out JSON-RPC request has an ambiguous result, especially for
-          // mutating methods such as turn/start. Retrying on the same connection
-          // could submit the mutation twice, so retire the provider immediately.
-          if (closeOnTimeout) this.dispose(error.message, { expected: false });
-          else {
-            this.ignoredResponseIds.add(String(id));
-            if (this.ignoredResponseIds.size > 512) this.ignoredResponseIds.delete(this.ignoredResponseIds.values().next().value);
-          }
-        }, timeoutMs)
-        : null;
-      timer?.unref?.();
-      const onAbort = () => this.dispose("Native RPC request aborted after dispatch.", { expected: false });
-      signal?.addEventListener("abort", onAbort, { once: true });
-      const cleanup = () => { if (timer) clearTimeout(timer); signal?.removeEventListener("abort", onAbort); };
-      this.pending.set(String(id), { method, resolve, reject, timer, cleanup });
-      try {
-        this.#write({ method, id, params });
-      } catch (error) {
-        cleanup();
-        this.pending.delete(String(id));
-        reject(error);
-      }
+    return this.requests.request({
+      id: String(id), method: method, timeoutMs, signal, onLateResponse,
+      timeoutError: () => new JsonlRpcRequestTimeoutError(method),
+      abortError: () => new JsonlRpcDeliveryUnknownError(method, "Native RPC request aborted after dispatch."),
+      write: () => this.#write({ method, id, params }),
     });
   }
 
@@ -271,26 +250,12 @@ export class JsonlRpcConnection extends EventEmitter {
       return;
     }
     const id = String(message.id);
-    if (this.ignoredResponseIds.delete(id)) {
-      this.seenResponseIds.add(id);
-      if (this.seenResponseIds.size > 512) this.seenResponseIds.delete(this.seenResponseIds.values().next().value);
+    const { request: pending, failure } = this.requests.take(id);
+    if (failure) {
+      this.#protocolFailure(`Native RPC emitted an ${failure} response id.`);
       return;
     }
-    if (this.seenResponseIds.has(id)) {
-      this.#protocolFailure(`The JSONL-RPC process emitted a duplicate response id: ${id}`);
-      return;
-    }
-    const pending = this.pending.get(id);
-    if (!pending) {
-      this.#protocolFailure(`The JSONL-RPC process emitted an unknown response id: ${id}`);
-      return;
-    }
-    this.pending.delete(id);
-    pending.cleanup();
-    this.seenResponseIds.add(id);
-    if (this.seenResponseIds.size > 512) {
-      this.seenResponseIds.delete(this.seenResponseIds.values().next().value);
-    }
+    if (!pending) return; // An issued request whose late-receipt window expired.
     if (message.error) {
       const detail = typeof message.error.message === "string"
         ? redactSecretText(message.error.message)
@@ -343,12 +308,8 @@ export class JsonlRpcConnection extends EventEmitter {
   }
 
   #rejectPending(error) {
-    for (const pending of this.pending.values()) {
-      pending.cleanup();
-      pending.reject(error?.deliveryOutcome === "unknown"
-        ? error
-        : new JsonlRpcDeliveryUnknownError(pending.method, error?.message || String(error)));
-    }
-    this.pending.clear();
+    this.requests.close((method) => error?.deliveryOutcome === "unknown"
+      ? error
+      : new JsonlRpcDeliveryUnknownError(method, error?.message || String(error)));
   }
 }

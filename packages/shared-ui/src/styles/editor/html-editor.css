@@ -1,9 +1,16 @@
-.html-document-editor { --html-editor-accent: var(--po-accent, #2563eb); position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.html-document-editor { --html-editor-accent: var(--po-accent, #2563eb); position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; contain: inline-size; }
 .html-document-editor > .native-preview, .html-document-editor > .code-codemirror-editor { flex: 1; min-height: 0; }
+.html-document-editor > .native-preview { padding: 0; }
+.html-document-editor .native-preview-frame { border: 0; border-radius: 0; }
+.html-empty-page { flex: 1; min-height: 0; padding: 24px; text-align: center; }
+.html-empty-page > span { max-width: 360px; color: var(--po-text-muted); }
 .html-editor-options { position: absolute; right: 12px; top: 8px; z-index: 5; color: var(--po-text, #202124); }
 .html-editor-options summary { display: grid; place-items: center; width: 28px; height: 24px; border-radius: 6px; list-style: none; cursor: var(--po-clickable-cursor, default); background: var(--po-panel, #ffffff); }
 .html-editor-options summary::-webkit-details-marker { display: none; }
-.html-editor-options > button { position: absolute; right: 0; top: 28px; white-space: nowrap; padding: 8px 14px; border: 1px solid var(--po-divider, #e1e3e6); border-radius: 8px; background: var(--po-menu-bg, var(--po-header, #ebebeb)); color: inherit; font: inherit; cursor: var(--po-clickable-cursor, default); }
+.html-editor-options > [role="menu"] { position: absolute; right: 0; top: 28px; min-width: 140px; padding: 4px; border: 1px solid var(--po-divider, #e1e3e6); border-radius: 8px; background: var(--po-menu-bg, var(--po-header, #ebebeb)); font-family: var(--po-font-ui, system-ui); }
+.html-editor-options [role="menuitemradio"] { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; border: 0; border-radius: 4px; background: transparent; color: inherit; font: inherit; white-space: nowrap; cursor: var(--po-clickable-cursor, default); }
+.html-editor-options [role="menuitemradio"][aria-checked="true"], .html-editor-options [role="menuitemradio"]:hover { background: var(--po-control-hover, #f1f3f5); }
+.html-editor-options [role="menuitemradio"]:focus-visible { outline: 2px solid var(--html-editor-accent); outline-offset: -2px; }
 .html-visual-editor { position: relative; display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; }
 /* HTML editor notices float top-end, below the options control when it is shown. */
 .po-floating-notice-stack.html-editor-notice-stack { --po-floating-notice-z: 4; }

@@ -3,7 +3,6 @@ import {
   ChevronRight,
   CircleAlert,
   FileCode2,
-  FolderOpen,
   FolderSearch,
   Globe2,
   Link2,
@@ -20,6 +19,7 @@ import type {
   AppPreviewProjectCandidate,
   AppPreviewSetup,
 } from "../../../core/types";
+import { FolderIcon } from "../../../icons/productIcons";
 
 type SetupScreen = "detecting" | "detected" | "projects" | "methods" | "html" | "url" | "advanced";
 type DetectionStatus = "detecting" | "ready" | "failed" | "unavailable";
@@ -211,7 +211,7 @@ export function AppPreviewSetupView({
             ) : null}
             <div className="app-setup-methods">
               <MethodButton
-                icon={<FolderOpen size={18} />}
+                icon={<FolderIcon size={18} />}
                 title={t("editor.app.setup.methodProject")}
                 onClick={() => setScreen(detection.projects.length ? "projects" : "advanced")}
               />

@@ -15,7 +15,7 @@ describe("Sub Theme settings", () => {
     expect(section).toContain("listSelectableSubThemes");
     expect(section).toContain("listSelectableSubThemes(");
     expect(section).not.toContain("desktop-sub-theme-mode-badge");
-    expect(section).toContain("FolderOpen");
+    expect(section).toContain("FolderIcon");
     expect(section).toContain("<Plus");
     expect(section).toContain("settings.appearance.themes.add");
     expect(section).toContain("catalog.createTheme");

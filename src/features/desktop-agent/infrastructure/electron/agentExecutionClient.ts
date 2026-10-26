@@ -1,7 +1,7 @@
 import type { AgentClientPort } from "../../application/AgentClientPort";
 import type { ProjectSessionContext } from "../../../../../shared/project-session-contract/types";
 import type { ItemLifecyclePort } from "../../../../../shared/item-host-contract/lifecycle";
-import { handOffItemExecution } from "../../../session-transport/itemLifecycleClient";
+import { handOffItemExecution } from "../../../session-transport";
 
 /** Binds a tab to Main's execution scope before any native create/open can yield. */
 export function createManagedAgentClient(base: AgentClientPort, management: ItemLifecyclePort,

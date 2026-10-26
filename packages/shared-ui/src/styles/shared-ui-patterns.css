@@ -1,6 +1,10 @@
+@import "./loading-placeholder.css";
+@import "./loading-mark.css";
 @import "./data-workspace.css";
 @import "./overflow-dots.css";
 @import "./floating-notice.css";
+@import "./product-icons.css";
+@import "./file-icons.css";
 @import "./sidebar-primitives.css";
 @import "../sidebar/collapsible-pane.css";
 

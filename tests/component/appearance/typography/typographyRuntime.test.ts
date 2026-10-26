@@ -91,11 +91,11 @@ describe("typography runtime boundary", () => {
     expect(element.style.getPropertyValue("--po-user-editor-line-height")).toBe("32px");
     expect(element.style.getPropertyValue("--po-user-text-size-data")).toBe("14px");
     expect(element.style.getPropertyValue("--po-user-code-font-size")).toBe("14px");
-    expect(element.style.getPropertyValue("--po-user-editor-heading-1-font-size")).toBe("32px");
-    expect(element.style.getPropertyValue("--po-user-editor-heading-2-font-size")).toBe("24px");
-    expect(element.style.getPropertyValue("--po-user-editor-heading-3-font-size")).toBe("20px");
-    expect(element.style.getPropertyValue("--po-user-editor-heading-4-font-size")).toBe("18px");
-    expect(element.style.getPropertyValue("--po-user-editor-heading-5-font-size")).toBe("17px");
+    expect(element.style.getPropertyValue("--po-user-editor-heading-1-font-size")).toBe("24px");
+    expect(element.style.getPropertyValue("--po-user-editor-heading-2-font-size")).toBe("20px");
+    expect(element.style.getPropertyValue("--po-user-editor-heading-3-font-size")).toBe("18px");
+    expect(element.style.getPropertyValue("--po-user-editor-heading-4-font-size")).toBe("17px");
+    expect(element.style.getPropertyValue("--po-user-editor-heading-5-font-size")).toBe("16px");
     expect(element.style.getPropertyValue("--po-user-editor-heading-6-font-size")).toBe("16px");
     expect(element.dataset.typographyScale).toBe("large");
     expect(element.dataset.typographyEditorScale).toBeUndefined();

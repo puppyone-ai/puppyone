@@ -298,19 +298,11 @@
   border-top: 1px solid var(--po-border-subtle);
 }
 
+/* Loading placeholder shapes (loading-placeholder.css); the style paints them. */
 .desktop-cloud-team-loading span,
 .desktop-cloud-team-loading i {
   display: block;
   border-radius: 999px;
-  background:
-    linear-gradient(
-      90deg,
-      var(--po-skeleton-base),
-      var(--po-skeleton-shimmer),
-      var(--po-skeleton-base)
-    );
-  background-size: 180% 100%;
-  animation: desktop-project-folder-skeleton 1.4s ease-in-out infinite;
 }
 
 .desktop-cloud-team-loading span {

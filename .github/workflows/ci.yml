@@ -147,9 +147,13 @@ jobs:
 
       - name: Prepare Linux display and multilingual fonts
         if: runner.os == 'Linux'
+        # A stalled mirror once held one download for 19 minutes and spent the
+        # whole job budget. Give up on a silent connection and retry instead.
+        timeout-minutes: 8
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes xvfb fonts-noto-cjk
+          apt_options=(-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30)
+          sudo apt-get "${apt_options[@]}" update
+          sudo apt-get "${apt_options[@]}" install --yes xvfb fonts-noto-cjk
 
       - name: Pre-release Checks — app
         run: npm run check:release -- --group app

@@ -13,7 +13,7 @@ import { DesktopWorkspaceLocationSurface } from "../../features/app-shell/Deskto
 import { useDesktopPreference, useDesktopPreferenceEffects, initializeDesktopPreferences } from "../../features/settings";
 import { useCloudWorkspaceSwitch } from "../../features/cloud/workbench/useCloudWorkspaceSwitch";
 import { CloudWorkspaceSwitchDialog } from "../../features/cloud/workbench/CloudWorkspaceSwitchDialog";
-import { CloudWorkspacePreparation } from "../../features/cloud/workbench/CloudWorkspacePreparation";
+import { DesktopCloudWorkspacePreparation } from "../DesktopCloudWorkspacePreparation";
 import { RepositoryCloudSwitchGate } from "../../features/cloud/workbench/RepositoryCloudSwitchGate";
 import { MissingCloudProjectRecovery } from "../../features/cloud/workbench/MissingCloudProjectRecovery";
 import { CloudLocalOnlyWorkspace } from "../../features/cloud/initialization/CloudInitializationView";
@@ -296,6 +296,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
   const projectSwitcher = <DesktopTitlebarContext open={menuOpen} refObject={menuRef} titlebarLabel={localWorkspace.name}
         workspace={localWorkspace} workspaceFolders={[]} multiRootWorkspacesEnabled={false}
         projectLocation={{ current: location, requested: controller.requestedLocation, headerLocation, loading: controller.pending && !controller.error,
+          failed: controller.pending && Boolean(controller.error),
           localAvailable: true, cloudState: "available" }} cloudProject={{ id: context.projectId }}
         onClose={() => setMenuOpen(false)} onToggle={() => setMenuOpen((current) => !current)}
         onViewLocal={() => { sidebar.close(); controller.cancel(); setCloudSelected(false); }}
@@ -322,7 +323,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
       </>}
       >
       <DesktopWorkspaceLocationSurface location={location}
-        preparation={controller.pending && preparingInPlace ? <CloudWorkspacePreparation controller={controller} /> : undefined}
+        preparation={controller.pending && preparingInPlace ? <DesktopCloudWorkspacePreparation controller={controller} /> : undefined}
         local={<DesktopDataWorkspaceSurface {...commonSurfaceProps} />}
         cloud={<DesktopCloudFileWorkspace workbench={workbench} surfaceProps={commonSurfaceProps}
           providerStateContent={null} />} />

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { FileIconThemeId } from "@puppyone/shared-ui";
-import type { GitDisplayMode, GitSidebarLayout } from "../../../preferences";
+import type { GitDisplayMode } from "../../../preferences";
 import type { GitStatusSnapshot, PuppyoneWorkspaceConfig } from "../../../types/electron";
 import type { GitWorkingSelection } from "../types";
 import type { GitSidebarPanelId } from "./useGitSidebarPanelLayout";
@@ -9,7 +9,6 @@ export type GitSidebarRepositoryState = {
   status: GitStatusSnapshot | null;
   puppyoneConfig: PuppyoneWorkspaceConfig | null;
   gitDisplayMode: GitDisplayMode;
-  gitSidebarLayout: GitSidebarLayout;
   fileIconTheme: FileIconThemeId;
 };
 

@@ -1,5 +1,6 @@
-import { ChevronRight, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
+import { DisclosureIcon } from "@puppyone/shared-ui";
 import type { ReactNode } from "react";
 import { formatCloudMessage, type CloudMessageDescriptor } from "../cloudPresentation";
 import { cloudFailureTitle } from "../cloudOpeningFailure";
@@ -22,7 +23,7 @@ export function CloudWorkspaceRecovery({ title, message, onRetry, actions, showL
       <strong>{titleKey ? t(titleKey) : title ?? t("cloud.recovery.title")}</strong>
       <p>{descriptor ? formatCloudMessage({ ...descriptor, detail: undefined }, t) : message as string}</p>
       {(diagnostic || showLocalState) && <details className="desktop-cloud-recovery-details">
-        <summary><ChevronRight size={12} aria-hidden="true" />{t("cloud.common.details")}</summary>
+        <summary><DisclosureIcon size={12} />{t("cloud.common.details")}</summary>
         {diagnostic && <dl>
           {diagnostic.status && <><dt>{t("cloud.recovery.responseStatus")}</dt><dd>{t("cloud.recovery.httpStatus", { status: diagnostic.status })}</dd></>}
           {diagnostic.code && <><dt>{t("cloud.recovery.errorCode")}</dt><dd>{diagnostic.code}</dd></>}

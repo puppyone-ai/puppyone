@@ -97,7 +97,7 @@ describe("DesktopEditorSplitView", () => {
       />,
     )));
 
-    expect(container.querySelector('[data-puppy-loader="pulse-grid"]')).not.toBeNull();
+    expect(container.querySelector('[data-puppy-loader]')).not.toBeNull();
     expect(container.textContent).not.toContain("Loading file");
     expect(container.querySelector(".document-surface-pending")?.getAttribute("aria-busy"))
       .toBe("true");

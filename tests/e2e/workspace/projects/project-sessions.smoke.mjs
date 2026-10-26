@@ -14,6 +14,8 @@ import { verifySidebarBoundaries } from "../../../support/electron/sidebar-bound
 import { verifySidebarLiveResize } from "../../../support/electron/sidebar-live-resize.mjs";
 
 process.env.SHELL = "/bin/sh";
+process.env.VITE_DESKTOP_CLOUD_API_URL = "http://127.0.0.1:9/api/v1";
+process.env.VITE_DESKTOP_CLOUD_WEB_URL = "http://127.0.0.1:9";
 const resizeObservations = [];
 const temp = await fs.mkdtemp(path.join(os.tmpdir(), "puppyone-project-sessions-"));
 app.setAppPath(path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../.."));
@@ -248,12 +250,16 @@ try {
   await untilRenderer("document.querySelector('[data-terminal-tab-session-id]')?.dataset.status === 'running'", "D running");
   const otherProjects = await evaluate("window.puppyoneDesktop.readProjectSessions()");
   assert(otherProjects.projects.length === 1 && otherProjects.projects[0].rootPath === roots[3], "Second window acquired another window's Project");
-  const focused = await evaluate(`window.puppyoneDesktop.openWorkspaceInCurrentWindow(${JSON.stringify(roots[0])})`);
-  assert(focused.status === "focused-existing", "Background A was not routed to its owning window");
+  await selectProject("Project A");
+  const secondA = (await evaluate("window.puppyoneDesktop.readProjectSessions()")).projects.find(project => project.rootPath === roots[0]);
+  const firstA = (await firstWindow.webContents.executeJavaScript("window.puppyoneDesktop.readProjectSessions()")).projects.find(project => project.rootPath === roots[0]);
+  assert(secondA && firstA && secondA.generation !== firstA.generation, "A must have independent window contexts");
+  assert(await firstWindow.webContents.executeJavaScript("[...document.querySelectorAll('.desktop-project-switcher-rail-project')].some(button => button.getAttribute('aria-label')?.includes('Project C') && button.getAttribute('aria-current') === 'page')"), "second window selection changed the first window");
+  await untilRenderer("document.querySelectorAll('[data-terminal-tab-session-id]').length === 0", "A has no copied sessions in second window");
+  assert(!a.exited && !d.exited && terminals.length === 3, "selecting A copied or stopped existing execution");
   window = firstWindow;
-  await untilRenderer("[...document.querySelectorAll('.desktop-project-switcher-rail-project')].some(button => button.getAttribute('aria-label')?.includes('Project A') && button.getAttribute('aria-current') === 'page')", "foreign request reveals A");
-  await untilRenderer(`[...document.querySelectorAll('[data-terminal-tab-session-id]')].some(x => x.dataset.terminalTabSessionId === ${JSON.stringify(aTabs[0])})`, "foreign request restores A tabs");
-  assert(!d.exited, "Focusing A stopped D");
+  await selectProject("Project A");
+  await untilRenderer(`[...document.querySelectorAll('[data-terminal-tab-session-id]')].some(x => x.dataset.terminalTabSessionId === ${JSON.stringify(aTabs[0])})`, "first window retains its own A tabs");
   await fs.writeFile(path.join(temp, "separate-window-d.png"), (await secondWindow.webContents.capturePage()).toPNG());
   window.close();
   await until(() => a.exited && window.isDestroyed(), "window close");
@@ -309,8 +315,9 @@ async function click(selector) {
   await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
 }
 async function selectProject(name) {
-  // Session retention exercises Main's existing current-window open request.
-  // Sidebar selection itself now opens a dedicated window, covered separately.
+  // Session retention exercises Main's current-window open request, which is
+  // the same route Sidebar selection takes; the Sidebar's own click path is
+  // covered by the project sidebar stability smoke.
   const target = workspaces.find(workspace => workspace.name === name);
   if (!target) throw new Error(`Unknown session fixture project: ${name}`);
   window.webContents.send("workspace:open-requested", { rootPath: target.path });

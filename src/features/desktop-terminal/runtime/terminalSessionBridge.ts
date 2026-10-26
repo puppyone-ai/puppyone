@@ -1,10 +1,9 @@
+import { unwrapSessionConnection, receiveSessionPort, handOffItemExecution } from "../../session-transport";
 import type { TerminalCreateRequest, TerminalCreateResult, TerminalExitEvent } from "../../../types/electron";
 import type { TerminalBridge, TerminalDisplayData } from "./terminalRuntime";
 import { unwrapProjectSessionResult } from "../../../../shared/project-session-contract/schema.mjs";
-import { receiveSessionPort } from "../../session-transport/sessionPorts";
 import { createHostRpc, type HostRpc } from "../../../../shared/item-host-contract/rpc.mjs";
 import { TerminalControlQueue } from "./TerminalControlQueue";
-import { handOffItemExecution } from "../../session-transport/itemLifecycleClient";
 
 /** A terminal screen consumes its utility's canonical output through one port. */
 export function createTerminalSessionBridge(base: NonNullable<Window["puppyoneDesktop"]>): TerminalBridge {
@@ -62,7 +61,7 @@ export function createTerminalSessionBridge(base: NonNullable<Window["puppyoneDe
       session = receipt;
       if (disposed || terminating) throw new Error("Terminal execution was closed during startup.");
       if (!request.projectContext || !receipt.instanceId) throw new Error("Terminal session identity is unavailable.");
-      const binding = await base.connectTerminalSession({ id: receipt.id, instanceId: receipt.instanceId, projectContext: request.projectContext });
+      const binding = unwrapSessionConnection(await base.connectTerminalSession({ id: receipt.id, instanceId: receipt.instanceId, projectContext: request.projectContext }));
       const received = await receiveSessionPort(binding);
       if (disposed) {
         received.close();

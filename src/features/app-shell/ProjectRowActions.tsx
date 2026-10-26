@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type ReactNode,
 } from "react";
 import type { Workspace } from "@puppyone/shared-ui";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
@@ -28,9 +29,17 @@ export type ProjectActionSurface = "menu" | "rename" | "unlink" | null;
 
 const PROJECT_ACTION_MENU_WIDTH = 288;
 const PROJECT_ACTION_MENU_ESTIMATED_HEIGHT = 180;
+/** Two place rows and their divider, so the first frame lands where it stays. */
+const PROJECT_ACTION_LOCATION_ESTIMATED_HEIGHT = 82;
 
 export type ProjectRowActionsProps = Readonly<{
   workspace: Workspace;
+  /**
+   * The Local / Cloud switch, present only on the open Project's row. The
+   * place a Project is worked on is a fact about that Project, so it is
+   * chosen where the Project is, not in the Header.
+   */
+  locationControls?: ReactNode;
   surface: ProjectActionSurface;
   onSurfaceChange: (surface: ProjectActionSurface) => void;
   onRenameProject?: (path: string, name: string) => Promise<void>;
@@ -39,6 +48,7 @@ export type ProjectRowActionsProps = Readonly<{
 
 export function ProjectRowActions({
   workspace,
+  locationControls,
   surface,
   onSurfaceChange,
   onRenameProject,
@@ -116,7 +126,8 @@ export function ProjectRowActions({
       anchor.getBoundingClientRect(),
       {
         menuWidth: PROJECT_ACTION_MENU_WIDTH,
-        estimatedHeight: PROJECT_ACTION_MENU_ESTIMATED_HEIGHT,
+        estimatedHeight: PROJECT_ACTION_MENU_ESTIMATED_HEIGHT
+          + (locationControls ? PROJECT_ACTION_LOCATION_ESTIMATED_HEIGHT : 0),
       },
     ));
     onSurfaceChange(surface === "menu" ? null : "menu");
@@ -184,6 +195,19 @@ export function ProjectRowActions({
             onPointerDown={(event) => event.stopPropagation()}
           >
             <ProjectMenuHeader key={workspace.path} name={workspace.name} path={workspace.path} />
+            {locationControls && (
+              <>
+                {/* Choosing a place acts on the open Project, so the session
+                    ends with the choice instead of outliving it. */}
+                <div
+                  className="desktop-project-row-actions-location"
+                  onClick={() => onSurfaceChange(null)}
+                >
+                  {locationControls}
+                </div>
+                <DesktopMenuSeparator />
+              </>
+            )}
             {onRenameProject && (
               <DesktopMenuItem
                 icon={<Pencil size={14} />}
@@ -212,132 +236,166 @@ export function ProjectRowActions({
       )}
 
       {surface === "rename" && (
-        <DesktopOverlayLayer>
-          <DesktopDialogRoot
-            dismissOnBackdrop={pending === null}
-            onClose={pending ? undefined : () => onSurfaceChange(null)}
-          >
-            <form
-              className="desktop-dialog-surface desktop-project-row-dialog"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="desktop-project-rename-title"
-              onSubmit={(event) => void renameProject(event)}
+        <ProjectRowDialog
+          labelledBy="desktop-project-rename-title"
+          pending={pending !== null}
+          onClose={() => onSurfaceChange(null)}
+          onSubmit={(event) => void renameProject(event)}
+        >
+          <ProjectRowDialogHeader
+            titleId="desktop-project-rename-title"
+            title={t("shell.workspaceSwitcher.renameProjectTitle")}
+            pending={pending !== null}
+            onClose={() => onSurfaceChange(null)}
+          />
+          <div className="desktop-dialog-body">
+            <label className="desktop-dialog-field">
+              <span>{t("shell.workspaceSwitcher.projectName")}</span>
+              <input
+                ref={inputRef}
+                value={name}
+                maxLength={120}
+                disabled={pending !== null}
+                data-desktop-dialog-initial-focus="true"
+                onChange={(event) => {
+                  setName(event.target.value);
+                  setError(null);
+                }}
+              />
+            </label>
+            <p className="desktop-dialog-note">
+              {t("shell.workspaceSwitcher.renameProjectDescription")}
+            </p>
+            {error && <p className="desktop-dialog-error" role="alert">{error}</p>}
+          </div>
+          <footer className="desktop-dialog-footer">
+            <button
+              className="desktop-dialog-button"
+              type="button"
+              disabled={pending !== null}
+              onClick={() => onSurfaceChange(null)}
             >
-              <header className="desktop-dialog-header">
-                <div className="desktop-dialog-title-row">
-                  <h2 id="desktop-project-rename-title">
-                    {t("shell.workspaceSwitcher.renameProjectTitle")}
-                  </h2>
-                </div>
-                <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton
-                  label={t("common.action.close")}
-                  disabled={pending !== null}
-                  onClick={() => onSurfaceChange(null)}
-                /></Tooltip>
-              </header>
-              <div className="desktop-dialog-body">
-                <label className="desktop-dialog-field">
-                  <span>{t("shell.workspaceSwitcher.projectName")}</span>
-                  <input
-                    ref={inputRef}
-                    value={name}
-                    maxLength={120}
-                    disabled={pending !== null}
-                    data-desktop-dialog-initial-focus="true"
-                    onChange={(event) => {
-                      setName(event.target.value);
-                      setError(null);
-                    }}
-                  />
-                </label>
-                <p className="desktop-dialog-note">
-                  {t("shell.workspaceSwitcher.renameProjectDescription")}
-                </p>
-                {error && <p className="desktop-dialog-error" role="alert">{error}</p>}
-              </div>
-              <footer className="desktop-dialog-footer">
-                <button
-                  className="desktop-dialog-button"
-                  type="button"
-                  disabled={pending !== null}
-                  onClick={() => onSurfaceChange(null)}
-                >
-                  {t("common.action.cancel")}
-                </button>
-                <button
-                  className="desktop-dialog-button primary"
-                  type="submit"
-                  disabled={pending !== null || !name.trim() || name.trim() === workspace.name}
-                >
-                  {pending === "rename"
-                    ? t("shell.workspaceSwitcher.renameProjectProgress")
-                    : t("common.action.save")}
-                </button>
-              </footer>
-            </form>
-          </DesktopDialogRoot>
-        </DesktopOverlayLayer>
+              {t("common.action.cancel")}
+            </button>
+            <button
+              className="desktop-dialog-button primary"
+              type="submit"
+              disabled={pending !== null || !name.trim() || name.trim() === workspace.name}
+            >
+              {pending === "rename"
+                ? t("shell.workspaceSwitcher.renameProjectProgress")
+                : t("common.action.save")}
+            </button>
+          </footer>
+        </ProjectRowDialog>
       )}
 
       {surface === "unlink" && (
-        <DesktopOverlayLayer>
-          <DesktopDialogRoot
-            dismissOnBackdrop={pending === null}
-            onClose={pending ? undefined : () => onSurfaceChange(null)}
-          >
-            <div
-              className="desktop-dialog-surface desktop-project-row-dialog"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="desktop-project-unlink-title"
-              tabIndex={-1}
+        <ProjectRowDialog
+          labelledBy="desktop-project-unlink-title"
+          pending={pending !== null}
+          onClose={() => onSurfaceChange(null)}
+        >
+          <ProjectRowDialogHeader
+            titleId="desktop-project-unlink-title"
+            title={t("shell.workspaceSwitcher.unlinkProjectTitle")}
+            pending={pending !== null}
+            onClose={() => onSurfaceChange(null)}
+          />
+          <div className="desktop-dialog-body">
+            <p>
+              {t("shell.workspaceSwitcher.unlinkProjectDescription", {
+                project: bidiIsolate(workspace.name),
+              })}
+            </p>
+            {error && <p className="desktop-dialog-error" role="alert">{error}</p>}
+          </div>
+          <footer className="desktop-dialog-footer">
+            <button
+              className="desktop-dialog-button"
+              type="button"
+              disabled={pending !== null}
+              data-desktop-dialog-initial-focus="true"
+              onClick={() => onSurfaceChange(null)}
             >
-              <header className="desktop-dialog-header">
-                <div className="desktop-dialog-title-row">
-                  <h2 id="desktop-project-unlink-title">
-                    {t("shell.workspaceSwitcher.unlinkProjectTitle")}
-                  </h2>
-                </div>
-                <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton
-                  label={t("common.action.close")}
-                  disabled={pending !== null}
-                  onClick={() => onSurfaceChange(null)}
-                /></Tooltip>
-              </header>
-              <div className="desktop-dialog-body">
-                <p>
-                  {t("shell.workspaceSwitcher.unlinkProjectDescription", {
-                    project: bidiIsolate(workspace.name),
-                  })}
-                </p>
-                {error && <p className="desktop-dialog-error" role="alert">{error}</p>}
-              </div>
-              <footer className="desktop-dialog-footer">
-                <button
-                  className="desktop-dialog-button"
-                  type="button"
-                  disabled={pending !== null}
-                  data-desktop-dialog-initial-focus="true"
-                  onClick={() => onSurfaceChange(null)}
-                >
-                  {t("common.action.cancel")}
-                </button>
-                <button
-                  className="desktop-dialog-button destructive"
-                  type="button"
-                  disabled={pending !== null}
-                  onClick={() => void unlinkProject()}
-                >
-                  {pending === "unlink"
-                    ? t("shell.workspaceSwitcher.unlinkProjectProgress")
-                    : t("shell.workspaceSwitcher.unlinkProjectAction")}
-                </button>
-              </footer>
-            </div>
-          </DesktopDialogRoot>
-        </DesktopOverlayLayer>
+              {t("common.action.cancel")}
+            </button>
+            <button
+              className="desktop-dialog-button destructive"
+              type="button"
+              disabled={pending !== null}
+              onClick={() => void unlinkProject()}
+            >
+              {pending === "unlink"
+                ? t("shell.workspaceSwitcher.unlinkProjectProgress")
+                : t("shell.workspaceSwitcher.unlinkProjectAction")}
+            </button>
+          </footer>
+        </ProjectRowDialog>
       )}
     </>
+  );
+}
+
+/**
+ * The confirmation surfaces a Project row can raise. They share one frame so
+ * renaming and unlinking cannot drift apart in focus, dismissal or elevation.
+ */
+function ProjectRowDialog({
+  children,
+  labelledBy,
+  pending,
+  onClose,
+  onSubmit,
+}: Readonly<{
+  children: ReactNode;
+  labelledBy: string;
+  pending: boolean;
+  onClose: () => void;
+  onSubmit?: (event: FormEvent) => void;
+}>) {
+  const surfaceProps = {
+    className: "desktop-dialog-surface desktop-project-row-dialog",
+    role: "dialog",
+    "aria-modal": true,
+    "aria-labelledby": labelledBy,
+  } as const;
+  return (
+    <DesktopOverlayLayer>
+      <DesktopDialogRoot
+        dismissOnBackdrop={!pending}
+        onClose={pending ? undefined : onClose}
+      >
+        {onSubmit
+          ? <form {...surfaceProps} onSubmit={onSubmit}>{children}</form>
+          : <div {...surfaceProps} tabIndex={-1}>{children}</div>}
+      </DesktopDialogRoot>
+    </DesktopOverlayLayer>
+  );
+}
+
+function ProjectRowDialogHeader({
+  title,
+  titleId,
+  pending,
+  onClose,
+}: Readonly<{
+  title: string;
+  titleId: string;
+  pending: boolean;
+  onClose: () => void;
+}>) {
+  const { t } = useLocalization();
+  return (
+    <header className="desktop-dialog-header">
+      <div className="desktop-dialog-title-row">
+        <h2 id={titleId}>{title}</h2>
+      </div>
+      <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton
+        label={t("common.action.close")}
+        disabled={pending}
+        onClick={onClose}
+      /></Tooltip>
+    </header>
   );
 }

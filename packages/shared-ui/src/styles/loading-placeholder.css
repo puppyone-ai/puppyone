@@ -1,0 +1,73 @@
+/*
+ * Loading placeholders, in the style chosen in Appearance (LoadingPlaceholder.tsx).
+ *
+ * A placeholder surface carries `po-placeholder-surface`; its shapes carry
+ * `data-placeholder-shape` and keep their own size and radius.
+ *
+ * - Rounded: shapes paint the theme's skeleton tone and breathe in place.
+ * - Dither: the surface's canvas builds the same shapes on a lattice of
+ *   --po-dither-cell squares lit by one ordered-dither light; once it has
+ *   painted, the shapes give up their fill and hold still. Pseudo-element
+ *   surfaces use the nested CSS lattices below under
+ *   [data-loading-placeholder-style="dither"].
+ *
+ * Both styles share one rhythm: one breath, or one crossing of the light,
+ * every --po-placeholder-period (ORDERED_DITHER_LIGHT.period).
+ */
+:root {
+  --po-placeholder-period: 2.8s;
+  --po-dither-cell: 2px;
+  --po-dither-tile: calc(var(--po-dither-cell) * 4);
+  /* 4x4 Bayer levels (thresholds 0 8 2 10 / 12 4 14 6 / 3 11 1 9 / 15 7 13 5);
+     level n inks the cells below n, so level 4 is inside level 8. */
+  --po-dither-4: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 4' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h1v1H0zM2 0h1v1H2zM0 2h1v1H0zM2 2h1v1H2z'/%3E%3C/svg%3E");
+  --po-dither-8: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 4' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h1v1H0zM2 0h1v1H2zM1 1h1v1H1zM3 1h1v1H3zM0 2h1v1H0zM2 2h1v1H2zM1 3h1v1H1zM3 3h1v1H3z'/%3E%3C/svg%3E");
+}
+
+.po-placeholder-surface {
+  position: relative;
+}
+
+/* Rounded, and the dither style until its first frame. Shapes that own a
+   background read --po-placeholder-fill the same way. */
+[data-placeholder-shape] {
+  background-color: var(--po-placeholder-fill, var(--po-skeleton-base));
+  animation: po-placeholder-breathe var(--po-placeholder-period) ease-in-out infinite;
+}
+
+@keyframes po-placeholder-breathe {
+  0%,
+  100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+/* Dither: the canvas draws the shapes. */
+.po-placeholder-surface:has(> .po-dither-canvas[data-ready]) {
+  --po-placeholder-fill: transparent;
+}
+
+.po-placeholder-surface:has(> .po-dither-canvas[data-ready])[data-placeholder-shape],
+.po-placeholder-surface:has(> .po-dither-canvas[data-ready]) [data-placeholder-shape] {
+  animation: none;
+}
+
+.po-dither-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  /* Ink: the theme's skeleton tone, concentrated into the inked cells. */
+  color: rgb(from var(--po-skeleton-base, rgb(128 128 128 / 0.06)) r g b / calc(alpha * 5.5));
+}
+
+/* Light ink on a dark surface reads stronger at the same alpha. */
+:where([data-po-appearance-root].dark) .po-dither-canvas {
+  color: rgb(from var(--po-skeleton-base, rgb(128 128 128 / 0.06)) r g b / calc(alpha * 4.4));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-placeholder-shape] {
+    animation: none;
+  }
+}

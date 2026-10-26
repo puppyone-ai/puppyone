@@ -28,6 +28,12 @@
   padding-inline-end: 8px;
 }
 
+/* The Project rail can own the Project outright, leaving this column with
+ * nothing to state. An empty column keeps none of the room its content had. */
+.desktop-titlebar-sidebar-context:empty {
+  padding-inline-end: 0;
+}
+
 .desktop-titlebar-sidebar-context[data-sidebar-state="expanded"] .desktop-titlebar-context {
   width: fit-content;
   max-width: 100%;

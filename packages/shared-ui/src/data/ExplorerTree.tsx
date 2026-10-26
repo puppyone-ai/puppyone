@@ -20,7 +20,9 @@ import {
   getFileVisualKind,
   type FileIconThemeId,
 } from "../file/fileIcons";
-import { DotsLoader, InlineLoading } from "../primitives/LoadingIndicator";
+import { InlineLoading, LoadingMark } from "../primitives/LoadingMark";
+import { DisclosureIcon } from "../icons/productIcons";
+import { PlaceholderLayer } from "../primitives/LoadingPlaceholder";
 import { useScrollEdgeState } from "../primitives/useScrollableClass";
 import {
   buildExplorerNodeIndex,
@@ -43,6 +45,7 @@ import {
   EXPLORER_MOTION_DURATION_MS,
   EXPLORER_MOTION_EASING,
 } from "./explorer/explorerMotionAnimation";
+import { useStickyListEnd } from "./explorer/useStickyListEnd";
 import type {
   ExplorerRevealPhase,
   ExplorerRowMotionInstruction,
@@ -61,6 +64,10 @@ import {
 } from "./explorer/useExplorerVirtualWindow";
 
 export type ExplorerLoadingPresentation = "dots" | "skeleton" | "none";
+/** `flow` keeps the list-end slot after the last row. `sticky` also keeps it
+ * pinned to the bottom of the scroll viewport once the rows overflow, so a
+ * long tree can never push its list-end action out of reach. */
+export type ExplorerListEndPlacement = "flow" | "sticky";
 
 export type ExplorerTreeProps = {
   nodes: readonly DataNode[];
@@ -105,6 +112,7 @@ export type ExplorerTreeProps = {
   renderRootContent?: () => ReactNode;
   renderListStart?: () => ReactNode;
   renderListEnd?: () => ReactNode;
+  listEndPlacement?: ExplorerListEndPlacement;
   renderRootActions?: () => ReactNode;
   renderFolderActions?: (node: DataNode) => ReactNode;
   renderNodeActions?: (node: DataNode) => ReactNode;
@@ -180,6 +188,7 @@ export function ExplorerTree({
   renderRootContent,
   renderListStart,
   renderListEnd,
+  listEndPlacement = "flow",
   renderRootActions,
   renderFolderActions,
   renderNodeActions,
@@ -188,6 +197,7 @@ export function ExplorerTree({
   const resolvedRootLabel = rootLabel ?? t("shared-ui.explorer.root");
   const resolvedLoadingLabel = loadingLabel ?? t("shared-ui.loading");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const stickyListEnd = Boolean(renderListEnd) && listEndPlacement === "sticky";
   // Native dragenter/dragleave events fire for descendants too. The target is
   // outside this tree only when the balanced depth returns to zero.
   const dragEnterDepthRef = useRef(0);
@@ -619,6 +629,7 @@ export function ExplorerTree({
       data-workspace-grouping={softWorkspaceGrouping ? "soft" : undefined}
       data-scroll-at-bottom={scrollEdgeState.atBottom ? "true" : "false"}
       data-scroll-at-top={scrollEdgeState.atTop ? "true" : "false"}
+      data-list-end-placement={stickyListEnd ? "sticky" : undefined}
       style={{
         "--tree-motion-duration": `${EXPLORER_MOTION_DURATION_MS}ms`,
         "--tree-motion-easing": EXPLORER_MOTION_EASING,
@@ -790,8 +801,10 @@ export function ExplorerTree({
           )}
           {!initialLoading && renderListEnd && (
             <ExplorerListEndMotionShell
+              scrollRef={scrollRef}
               generation={motionPlan?.generation ?? 0}
               offsetY={motionPlan?.listEndOffsetY ?? 0}
+              placement={stickyListEnd ? "sticky" : "flow"}
             >
               {renderListEnd()}
             </ExplorerListEndMotionShell>
@@ -976,7 +989,7 @@ const TreeNodeRow = memo(function TreeNodeRow({
           <span className={`tree-status ${node.status}`}>{shortStatus(node.status)}</span>
         )}
         {interaction.loading && loadingPresentation === "dots" && (
-          <DotsLoader
+          <LoadingMark
             size="sm"
             className="tree-loading-indicator"
             ariaHidden
@@ -1040,28 +1053,54 @@ function ExplorerVirtualMotionShell({
 
 function ExplorerListEndMotionShell({
   generation,
+  scrollRef,
   offsetY,
+  placement,
   children,
 }: {
   generation: number;
+  scrollRef: RefObject<HTMLDivElement>;
   offsetY: number;
+  placement: ExplorerListEndPlacement;
   children: ReactNode;
 }) {
   const elementRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const sticky = placement === "sticky";
+  // A flow list end travels exactly with the rows. A sticky one resolves its
+  // offset from committed layout instead, because the pin may clamp either
+  // its previous or its next position.
   const instruction = useMemo<ExplorerRowMotionInstruction | undefined>(
-    () => offsetY === 0 ? undefined : { kind: "move", offsetY },
-    [offsetY],
+    () => sticky || offsetY === 0 ? undefined : { kind: "move", offsetY },
+    [offsetY, sticky],
   );
   useExplorerElementMotion({ elementRef, generation, instruction });
+  useStickyListEnd({
+    enabled: sticky,
+    bandRef: elementRef,
+    sentinelRef,
+    scrollRef,
+    generation,
+    flowOffsetY: sticky ? offsetY : 0,
+  });
 
   return (
-    <div
-      ref={elementRef}
-      className="explorer-tree-list-end-motion"
-      data-explorer-motion={instruction?.kind}
-    >
-      {children}
-    </div>
+    <>
+      <div
+        ref={elementRef}
+        className="explorer-tree-list-end-motion"
+        data-explorer-motion={instruction?.kind}
+        data-placement={sticky ? "sticky" : undefined}
+        // Present only while a disclosure moves the list end, so the fade eases
+        // with the rows then but follows user scrolling without lag.
+        data-disclosure-motion={sticky && generation !== 0 && offsetY !== 0 ? "true" : undefined}
+      >
+        {children}
+      </div>
+      {sticky && (
+        <div ref={sentinelRef} className="explorer-tree-list-end-sentinel" aria-hidden="true" />
+      )}
+    </>
   );
 }
 
@@ -1160,6 +1199,7 @@ function ExplorerExitGhostRow({
   );
 }
 
+/** The product disclosure chevron, named for the tree's own and interface-style CSS. */
 function TreeDisclosureMarker({
   expanded = false,
   size = 12,
@@ -1167,29 +1207,7 @@ function TreeDisclosureMarker({
   expanded?: boolean;
   size?: number;
 }) {
-  const { direction } = useLocalization();
-  const closedTransform = direction === "rtl" ? "scaleX(-1)" : "rotate(0deg)";
-  const openTransform = direction === "rtl" ? "rotate(-90deg)" : "rotate(90deg)";
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 12 12"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className="tree-disclosure-marker"
-      data-expanded={expanded ? "true" : "false"}
-      style={{
-        transform: expanded ? openTransform : closedTransform,
-      }}
-    >
-      <path d="M4 2.5 7.5 6 4 9.5" />
-    </svg>
-  );
+  return <DisclosureIcon className="tree-disclosure-marker" expanded={expanded} size={size} />;
 }
 
 function ExplorerInitialLoading({ presentation, label }: { presentation: ExplorerLoadingPresentation; label: string }) {
@@ -1226,7 +1244,6 @@ function ExplorerTreeMetaRow({
           label={null}
           ariaLabel={typeof children === "string" ? children : undefined}
           size="sm"
-          indicator="dots"
           className="tree-meta-loading"
         />
       ) : (
@@ -1254,11 +1271,12 @@ function ExplorerTreeLoadingRow({
   }
   return (
     <div
-      className="explorer-tree-skeleton explorer-tree-branch-skeleton"
+      className="explorer-tree-skeleton explorer-tree-branch-skeleton po-placeholder-surface"
       role="status"
       aria-label={label}
     >
       <ExplorerTreeSkeletonRow />
+      <PlaceholderLayer halo />
     </div>
   );
 }
@@ -1266,7 +1284,7 @@ function ExplorerTreeLoadingRow({
 export function ExplorerTreeSkeleton({ loadingLabel }: { loadingLabel: string }) {
   return (
     <div
-      className="explorer-tree-skeleton"
+      className="explorer-tree-skeleton po-placeholder-surface"
       role="status"
       aria-label={loadingLabel}
       data-testid="explorer-tree-skeleton"
@@ -1274,6 +1292,7 @@ export function ExplorerTreeSkeleton({ loadingLabel }: { loadingLabel: string })
       {[0, 1, 1, 0, 1, 1].map((depth, index) => (
         <ExplorerTreeSkeletonRow depth={depth} key={`${depth}-${index}`} />
       ))}
+      <PlaceholderLayer halo />
     </div>
   );
 }
@@ -1285,8 +1304,8 @@ function ExplorerTreeSkeletonRow({ depth }: { depth?: number }) {
       data-depth={depth}
       aria-hidden="true"
     >
-      <span className="explorer-tree-skeleton-icon" />
-      <span className="explorer-tree-skeleton-label" />
+      <span className="explorer-tree-skeleton-icon" data-placeholder-shape="" />
+      <span className="explorer-tree-skeleton-label" data-placeholder-shape="" />
     </div>
   );
 }

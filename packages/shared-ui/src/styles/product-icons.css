@@ -1,0 +1,22 @@
+/*
+ * Product icons (packages/shared-ui/src/icons/productIcons.tsx).
+ *
+ * DisclosureIcon rotates itself to point down when a controlled row expands.
+ * A collapsed controlled row points along the reading direction, so it mirrors
+ * in right-to-left layouts. Native <details> rows carry no data-expanded and
+ * keep their own [open] rotation.
+ */
+.po-disclosure-icon {
+  flex: 0 0 auto;
+  transition: transform 120ms ease;
+}
+
+[dir="rtl"] .po-disclosure-icon[data-expanded="false"] {
+  transform: scaleX(-1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .po-disclosure-icon {
+    transition: none;
+  }
+}

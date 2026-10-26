@@ -103,6 +103,42 @@ describe("ExplorerTree interactive semantics", () => {
     expect(list?.children[2]?.classList.contains("explorer-tree-list-end-motion")).toBe(true);
   });
 
+  it("marks a sticky list end so it can pin to the viewport bottom, and keeps flow as the default", () => {
+    const node: DataNode = { id: "readme", name: "README.md", path: "README.md", type: "markdown" };
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    const renderTree = (listEndPlacement?: "flow" | "sticky") => act(() => renderWithTestLocalization(root,
+      <ExplorerTree
+        nodes={[node]}
+        activePath={null}
+        expandedPaths={new Set()}
+        showRoot={false}
+        onSelectNode={vi.fn()}
+        renderListEnd={() => <button type="button">Create New</button>}
+        listEndPlacement={listEndPlacement}
+      />,
+    ));
+
+    renderTree();
+    expect(container.querySelector(".explorer-tree-shell")?.hasAttribute("data-list-end-placement")).toBe(false);
+    expect(container.querySelector(".explorer-tree-list-end-motion")?.hasAttribute("data-placement")).toBe(false);
+    expect(container.querySelector(".explorer-tree-list-end-sentinel")).toBeNull();
+
+    renderTree("sticky");
+    expect(container.querySelector(".explorer-tree-shell")?.getAttribute("data-list-end-placement")).toBe("sticky");
+    const listEnd = container.querySelector(".explorer-tree-list-end-motion");
+    expect(listEnd?.getAttribute("data-placement")).toBe("sticky");
+    // No disclosure is in flight, so the fade follows scrolling without easing.
+    expect(listEnd?.hasAttribute("data-disclosure-motion")).toBe(false);
+    // The band stays after every row so it still follows a short tree, and its
+    // geometry sentinel directly follows it, hidden from assistive technology.
+    const sentinel = listEnd?.nextElementSibling;
+    expect(sentinel?.classList.contains("explorer-tree-list-end-sentinel")).toBe(true);
+    expect(sentinel?.getAttribute("aria-hidden")).toBe("true");
+    expect(container.querySelector(".explorer-tree-list")?.lastElementChild).toBe(sentinel);
+  });
+
   it("keeps an empty folder expanded without inserting a child placeholder row", () => {
     const folder: DataNode = {
       id: "empty-folder",

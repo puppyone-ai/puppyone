@@ -6,7 +6,8 @@ import { buildHtmlEditingProjection } from "../../../../../packages/shared-ui/sr
 import { decodeHtmlBridgeMessage } from "../../../../../packages/shared-ui/src/editor/viewers/html/htmlBridgeProtocol";
 import { imageSourceReference } from "../../../../../packages/shared-ui/src/editor/viewers/html/htmlImageReference";
 import { compileHtmlEdit } from "../../../../../packages/shared-ui/src/editor/viewers/html/htmlEditCompiler";
-import { buildHtmlPreviewDocument } from "../../../../../packages/shared-ui/src/editor/viewers/html/HtmlPreviewFrame";
+import { buildHtmlPreviewDocument, getHtmlPreviewPolicy } from "../../../../../packages/shared-ui/src/editor/viewers/html/HtmlPreviewFrame";
+import { readHtmlPageViewport } from "../../../../../packages/shared-ui/src/editor/viewers/html/htmlPageViewport";
 
 function setup(content: string) {
   const model = new CodeMirrorDocumentModel(content, undefined, true);
@@ -152,6 +153,25 @@ describe("HTML source-based visual editing", () => {
 });
 
 describe("HTML projection and resource boundaries", () => {
+  it("allows original page scripts only in interaction mode while retaining sandbox boundaries", () => {
+    const source = '<button onclick="this.textContent=\'Clicked\'">Click</button><script>window.pageReady=true</script>';
+    const interactive = getHtmlPreviewPolicy("safe", true);
+    const projected = buildHtmlPreviewDocument(source, "puppyone-local://workspace/page.html", interactive);
+    expect(interactive.sandbox).toContain("allow-scripts");
+    expect(interactive.sandbox).not.toContain("allow-same-origin");
+    expect(interactive.sandbox).not.toContain("allow-top-navigation");
+    expect(projected).toContain("window.pageReady=true");
+    expect(projected).toContain("script-src 'unsafe-inline' https: puppyone-local:");
+    expect(projected).toContain('target="_self"');
+    expect(getHtmlPreviewPolicy("safe").csp).toContain("script-src 'none'");
+    expect(getHtmlPreviewPolicy("safe").sandbox).not.toContain("allow-scripts");
+  });
+  it("accepts only finite, bounded scroll state from the interactive page", () => {
+    expect(readHtmlPageViewport({ x: 10, y: 200 })).toEqual({ x: 10, y: 200 });
+    for (const value of [null, { x: NaN, y: 0 }, { x: 0, y: Infinity }, { x: -1, y: 0 }, { x: 0, y: 1e8 }, { x: "1", y: 2 }]) {
+      expect(readHtmlPageViewport(value)).toBeNull();
+    }
+  });
   it("builds preview headers structurally and honors the original relative base", () => {
     const source = '<!doctype html><html><head data-note=">"><base href="assets/"><style>p:after{content:"</body>"}</style></head><body><p>Hi</p></body></html>';
     const projected = buildHtmlPreviewDocument(source, "puppyone-local://workspace/pages/index.html", { sandbox: "", csp: "script-src 'none'" });

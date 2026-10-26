@@ -1,12 +1,13 @@
 import { type ComponentProps, type ReactNode, type RefObject } from "react";
 import { useLocalization } from "@puppyone/localization";
-import { UserPlus, Plug, HardDriveDownload } from "lucide-react";
+import { UserPlus, Plug } from "lucide-react";
 import { DesktopMenuItem } from "../../../components/DesktopMenu";
-import { DesktopProjectLocationControls } from "../../../components/DesktopProjectLocationSwitcher";
+import type { DesktopProjectLocationControls } from "../../../components/DesktopProjectLocationSwitcher";
 import { DesktopTitlebarMenuLayer } from "../../../components/DesktopTitlebarMenuLayer";
-import type { ReachPlace, ReachState } from "./projectReachHeader";
+import type { ReachState } from "./projectReachHeader";
+import { ProjectComputers } from "./ProjectComputers";
 import { ReachPlaceMark, useReachSummary } from "./reachPresentation";
-import { useDesktopPlatformCapabilities } from "../../../platform";
+import { LocalIcon } from "@puppyone/shared-ui";
 
 /**
  * What the Header offers about reach, wherever it is opened from.
@@ -44,16 +45,18 @@ export function ReachPanel({ anchor, open, onDismiss, context }: {
       dismissOnFocusExit={false}
       className="desktop-project-reach-menu"
       gap={2}
-      preferredWidth={opening ? 320 : 252}
+      // With the computers on top the panel fits its rows, so a short label
+      // does not leave a wide empty gutter; the CSS cap wraps any sentence.
+      preferredWidth={opening ? 216 : 252}
       preferredMaxHeight={420}
-      widthMode="fixed"
+      widthMode={opening ? "content" : "fixed"}
       alignment="start"
       role="dialog"
       ariaLabel={t(opening ? "shell.projectRuntime.panelLabel" : "shell.projectReach.panelLabel")}
     >
-      <div className="desktop-project-reach-panel">
+      <div className="desktop-project-reach-panel" data-reach-entry={opening ? "computers" : "reach"}>
         {opening
-          ? <ProjectRuntimeSummary place={state.place} opening={opening} onDismiss={onDismiss} />
+          ? <ProjectComputers {...opening} onDismiss={onDismiss} />
           : <ReachPlaceCard state={state} summary={summary} />}
         {state.kind === "not-on-this-device" ? null : readers}
         {state.kind === "not-on-this-device" && <ReachDeviceDetail />}
@@ -63,27 +66,6 @@ export function ReachPanel({ anchor, open, onDismiss, context }: {
       </div>
     </DesktopTitlebarMenuLayer>
   );
-}
-
-/** Committed execution location comes first; access remains a separate fact. */
-function ProjectRuntimeSummary({ place, opening, onDismiss }: {
-  place: ReachPlace;
-  opening: NonNullable<ReachPanelContext["opening"]>;
-  onDismiss: () => void;
-}) {
-  const { t } = useLocalization();
-  const capabilities = useDesktopPlatformCapabilities();
-  const device = capabilities?.platform === "macos" ? "mac" : "computer";
-  const title = place === "cloud" ? "hosted" : device;
-  return <section className="desktop-project-runtime" aria-label={t("shell.projectRuntime.panelLabel")}>
-    <ReachPlaceMark place={place} className="desktop-project-runtime-mark" size={20} />
-    <div className="desktop-project-runtime-body">
-      <p className="desktop-project-runtime-title">{t(`shell.projectRuntime.title.${title}`)}</p>
-      <DesktopProjectLocationControls {...opening} presentation="destination"
-        onViewLocal={opening.onViewLocal && (() => { onDismiss(); opening.onViewLocal?.(); })}
-        onViewCloud={opening.onViewCloud && (() => { onDismiss(); opening.onViewCloud?.(); })} />
-    </div>
-  </section>;
 }
 
 /** Sharing-only entries retain the existing compact access summary. */
@@ -163,7 +145,7 @@ function ReachDeviceCopy({ onGetCopy }: { onGetCopy?: () => void }) {
       <DesktopMenuItem
         className="desktop-project-reach-action"
         role="button"
-        icon={<HardDriveDownload size={15} strokeWidth={1.8} />}
+        icon={<LocalIcon size={15} strokeWidth={1.8} />}
         label={t("shell.projectReach.deviceCopy.action")}
         disabled={!onGetCopy}
         onClick={onGetCopy}

@@ -5,7 +5,6 @@ import { useLocalization } from "@puppyone/localization/react";
 import { bidiIsolate, type MessageFormatter } from "@puppyone/localization/core";
 import {
   Copy,
-  Folder,
   GripVertical,
   Play,
   Plus,
@@ -28,6 +27,7 @@ import type { PresetViewerRenderContext } from "../../registry/viewerTypes";
 import { AgentBrandImage } from "../../../brand/AgentBrandImage";
 import { AgentMonochromeBrandImage } from "../../../brand/AgentMonochromeBrandImage";
 import { resolveAgentBrand } from "../../../core/agentBrandCatalog";
+import { FolderIcon } from "../../../icons/productIcons";
 
 type PuppyFlowViewerProps = Pick<
   PresetViewerRenderContext,
@@ -374,7 +374,7 @@ function PuppyFlowStepRow({
           </label>
           <span className="puppyflow-step-meta">{agent.provider} · {getAgentModelLabel(agent.id, t)}</span>
           <span className="puppyflow-step-meta workdir">
-            <Folder size={13} />
+            <FolderIcon size={13} />
             <span dir={workdirIsPath ? "ltr" : "auto"}>{workdirLabel}</span>
           </span>
         </div>

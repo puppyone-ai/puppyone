@@ -261,7 +261,6 @@ function renderSidebar(options: Partial<{
         status: options.status ?? incomingStatus(),
         puppyoneConfig: null,
         gitDisplayMode: "professional",
-        gitSidebarLayout: "cards",
         fileIconTheme: "default",
       }}
       view={{

@@ -2,6 +2,20 @@ import { describe, expect, it } from "vitest";
 import { createItemHostBudget } from "../../../../electron/main/item-hosts/resource-budget.mjs";
 
 describe("instance process admission", () => {
+  it("does not count a suspended supervisor as sustained CPU pressure", () => {
+    let time = 0;
+    const failures = [];
+    const budget = createItemHostBudget({}, { now: () => time });
+    const lease = budget.reserve({ key: "a", ownerId: 1, projectId: "p", kind: "agent" });
+    lease.bindProcess(11, "utility", error => failures.push(error.code));
+    const sample = () => budget.sample([{ pid: 11, cpu: { percentCPUUsage: 100 } }]);
+    sample();
+    time = 60000; sample();
+    expect(failures).toEqual([]);
+    for (let index = 0; index < 15; index++) { time += 2000; sample(); }
+    expect(failures).toEqual(["HOST_CPU_BUDGET"]);
+    lease.release();
+  });
   it("reserves before startup, and retains failed/hidden leases until explicit exit", () => {
     const budget = createItemHostBudget({ application: 2, concurrentStarts: 1 });
     const a = budget.reserve({ key: "a", ownerId: 1, projectId: "p", kind: "terminal" });

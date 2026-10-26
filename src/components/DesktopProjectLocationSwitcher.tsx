@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState, type ButtonHTMLAttributes } from "react";
-import { Tooltip } from "@puppyone/shared-ui";
-import { Check, Laptop, Server } from "lucide-react";
+import { Tooltip, LocalIcon, CloudIcon, LoadingMark } from "@puppyone/shared-ui";
+import { Check, LoaderCircle, TriangleAlert } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
-import { PulseGrid } from "./loading";
 import { DesktopMenuItem } from "./DesktopMenu";
 import { useDesktopPreference } from "../preferencesStore";
 import { useDesktopPlatformCapabilities } from "../platform";
@@ -16,11 +15,50 @@ export type DesktopProjectLocation = Readonly<{
   /** Header destination after entry gates, which may precede the provider commit. */
   headerLocation?: "local" | "cloud";
   loading?: boolean;
+  /** The requested computer could not be opened; the workspace surface owns recovery. */
+  failed?: boolean;
   localAvailable: boolean;
   cloudState: "unavailable" | "available" | "signed-out" | "resolving" | "attention";
 }>;
 
 export type DesktopProjectCloudCopy = Readonly<{ id: string; name?: string | null }>;
+
+/** A computer that is not ready yet says so in its icon slot. */
+export type ProjectComputerStatus = "ready" | "opening" | "failed";
+
+/**
+ * The computer whose screen is in front of the user, and whether it is ready.
+ *
+ * The screen, and the Header's tint with it, moves the moment the user
+ * chooses a computer, before that computer can show files. The name moves
+ * with the screen: naming the computer the user just left while its tint and
+ * its loading surface are on screen would contradict everything around it.
+ * Readiness is a status on the name (a spinner while it opens, a warning when
+ * it could not), never a reason to keep the old name.
+ *
+ * A destination that has not moved the screen yet (sign-in or setup in a
+ * dialog first) leaves the user where they are, so the name stays too.
+ */
+export function resolveProjectComputerPresence(location: DesktopProjectLocation): Readonly<{
+  at: "local" | "cloud";
+  status: ProjectComputerStatus;
+}> {
+  const at = location.headerLocation ?? location.current;
+  const arriving = at !== location.current || (at === "cloud" && location.requested === "cloud");
+  if (!arriving) return { at, status: "ready" };
+  return { at, status: location.failed ? "failed" : "opening" };
+}
+
+/** What stands in a computer's icon slot while it is not ready, at the slot's own size and weight. */
+export function ProjectComputerStatusGlyph({ status, size, strokeWidth }: {
+  status: Exclude<ProjectComputerStatus, "ready">;
+  size: number;
+  strokeWidth: number;
+}) {
+  return status === "opening"
+    ? <LoaderCircle className="desktop-project-computer-spinner animate-spin" size={size} strokeWidth={strokeWidth} />
+    : <TriangleAlert className="desktop-project-computer-warning" size={size} strokeWidth={strokeWidth} />;
+}
 
 /** Owns location presentation only; the caller owns provider switching. */
 export function DesktopProjectLocationSwitcher({ projectLocation, cloudProject, onViewLocal, onViewCloud, projectMenuOpen = false, onOpen }: {
@@ -38,16 +76,19 @@ export function DesktopProjectLocationSwitcher({ projectLocation, cloudProject, 
   const available = Boolean(projectLocation);
   useEffect(() => { if (inline || !available || projectMenuOpen) setOpen(false); }, [inline, available, projectMenuOpen]);
   if (!projectLocation) return null;
-  const location = projectLocation.current;
+  const { at: location, status } = resolveProjectComputerPresence(projectLocation);
   const locationLabel = t(location === "local" ? "shell.workspaceSwitcher.location.local" : "shell.projectRuntime.label");
+  const statedLabel = status === "ready" ? locationLabel
+    : t(`shell.projectComputers.status.${status}`, { computer: locationLabel });
   const controls = <DesktopProjectLocationControls presentation={inline ? "header-icons" : "popover"}
     projectLocation={projectLocation} cloudProject={cloudProject} onViewLocal={onViewLocal} onViewCloud={onViewCloud} />;
   return <div className="desktop-titlebar-location-wrap" data-location-presentation={inline ? "header-icons" : "popover"}>
     {inline ? controls : <>
       <button ref={anchor} type="button" className="desktop-titlebar-location-button"
-        aria-haspopup="dialog" aria-expanded={open} aria-label={`${locationLabel}, ${t("shell.workspaceSwitcher.projectDetails")}`}
+        aria-haspopup="dialog" aria-expanded={open} aria-busy={status === "opening" || undefined}
+        aria-label={`${statedLabel}, ${t("shell.workspaceSwitcher.projectDetails")}`}
         onClick={() => { if (!open) onOpen?.(); setOpen(value => !value); }}>
-        <ProjectLocationMark className="desktop-titlebar-workspace-mark" kind={location} size={16} />
+        <ProjectLocationMark className="desktop-titlebar-workspace-mark" kind={location} status={status} size={16} />
         <span>{locationLabel}</span>
       </button>
       <DesktopTitlebarMenuLayer anchorRef={anchor} open={open} onDismiss={() => setOpen(false)}
@@ -68,7 +109,7 @@ export function DesktopProjectLocationControls({
   onViewLocal,
   onViewCloud,
 }: {
-  presentation?: "popover" | "header-icons" | "destination";
+  presentation?: "popover" | "header-icons";
   projectLocation?: DesktopProjectLocation;
   cloudProject?: DesktopProjectCloudCopy;
   onViewLocal?: () => void;
@@ -81,7 +122,7 @@ export function DesktopProjectLocationControls({
   const createCloud = shouldCreateCloud(projectLocation, cloudProject, Boolean(onViewCloud));
   return (
     <div className="desktop-project-location-controls"
-      data-presentation={presentation === "destination" ? "popover" : presentation}
+      data-presentation={presentation}
       data-cloud-entry={createCloud ? "create" : "switch"}>
       <div className="desktop-project-location-tabs" role="group"
         data-location={selection}
@@ -92,9 +133,7 @@ export function DesktopProjectLocationControls({
           <span>{t("shell.workspaceSwitcher.location.local")}</span>
           <span>{t("shell.projectRuntime.label")}</span>
         </span>}
-        {(["local", "cloud"] as const)
-          .filter(location => presentation !== "destination" || location !== selection)
-          .map(location =>
+        {(["local", "cloud"] as const).map(location =>
           <ProjectLocationTab
             key={location}
             location={location} current={current} selection={selection} createCloud={createCloud}
@@ -107,7 +146,8 @@ export function DesktopProjectLocationControls({
   );
 }
 
-function shouldCreateCloud(location: DesktopProjectLocation | undefined, cloudProject: DesktopProjectCloudCopy | undefined, canNavigate: boolean) {
+/** The project has never been opened on the Cloud Computer, so opening it there sets it up first. */
+export function shouldCreateCloud(location: DesktopProjectLocation | undefined, cloudProject: DesktopProjectCloudCopy | undefined, canNavigate: boolean) {
   const linked = location?.current === "cloud" || Boolean(cloudProject?.id)
     || location?.cloudState === "available" || location?.cloudState === "signed-out";
   return !linked && canNavigate && (!location || location.cloudState === "unavailable");
@@ -119,14 +159,13 @@ type LocationTabProps = Pick<Parameters<typeof DesktopProjectLocationControls>[0
   selection: "local" | "cloud" | undefined;
   createCloud: boolean;
   localDeviceLabel: string;
-  presentation: "popover" | "header-icons" | "destination";
+  presentation: "popover" | "header-icons";
 };
 
 function ProjectLocationTab(props: LocationTabProps) {
   const { t } = useLocalization();
   const { location, current, selection, createCloud, projectLocation, onViewLocal, onViewCloud, presentation } = props;
   const inHeader = presentation === "header-icons";
-  const destinationOnly = presentation === "destination";
   const creating = location === "cloud" && createCloud;
   const loading = location === "cloud" && Boolean(projectLocation?.loading || projectLocation?.cloudState === "resolving");
   const selected = location === selection;
@@ -142,7 +181,7 @@ function ProjectLocationTab(props: LocationTabProps) {
     "data-project-location": location, "data-cloud-action": creating ? "create" : undefined,
     "data-cloud-pending": loading || undefined,
   };
-  const selectedRow = !destinationOnly && location === current && !creating;
+  const selectedRow = location === current && !creating;
   if (!inHeader) return <DesktopMenuItem className="desktop-project-location-option" role="button"
     icon={mark} label={visibleLabel} selected={selectedRow}
     trailing={selectedRow ? <Check size={14} aria-hidden="true" /> : undefined}
@@ -154,8 +193,7 @@ function ProjectLocationTab(props: LocationTabProps) {
   </button></Tooltip>;
 }
 
-function getLocationSelectionAttributes({ presentation, location, current, selection }: LocationTabProps, creating: boolean): ButtonHTMLAttributes<HTMLButtonElement> {
-  if (presentation === "destination") return {};
+function getLocationSelectionAttributes({ location, current, selection }: LocationTabProps, creating: boolean): ButtonHTMLAttributes<HTMLButtonElement> {
   return {
     "aria-pressed": creating ? undefined : location === selection,
     "aria-current": location === current ? "true" : undefined,
@@ -165,7 +203,7 @@ function getLocationSelectionAttributes({ presentation, location, current, selec
 function ProjectLocationTabMark({ location, loading, inHeader }: {
   location: DesktopProjectLocation["current"]; loading: boolean; inHeader: boolean;
 }) {
-  if (loading) return <span className="desktop-project-location-tab-mark" aria-hidden="true"><PulseGrid size="xs" ariaHidden /></span>;
+  if (loading) return <span className="desktop-project-location-tab-mark" aria-hidden="true"><LoadingMark size="xs" ariaHidden /></span>;
   return <ProjectLocationMark className={inHeader ? "desktop-project-location-tab-mark" : "desktop-project-location-option-mark"}
     kind={location} size={inHeader ? 16 : 15} />;
 }
@@ -205,22 +243,26 @@ function useProjectDeviceLabel() {
 function ProjectLocationMark({
   className,
   kind,
+  status = "ready",
   size = 15,
   strokeWidth = 1.75,
 }: {
   className: string;
   kind: DesktopProjectLocation["current"];
+  status?: ProjectComputerStatus;
   size?: number;
   strokeWidth?: number;
 }) {
-  const Icon = kind === "cloud" ? Server : Laptop;
+  let glyph = kind === "cloud" ? <CloudIcon size={size} strokeWidth={strokeWidth} /> : <LocalIcon size={size} strokeWidth={strokeWidth} />;
+  if (status !== "ready") glyph = <ProjectComputerStatusGlyph status={status} size={size} strokeWidth={strokeWidth} />;
   return (
     <span
       className={`desktop-project-location-mark ${className}`}
       data-project-location={kind}
+      data-computer-status={status === "ready" ? undefined : status}
       aria-hidden="true"
     >
-      <Icon size={size} strokeWidth={strokeWidth} />
+      {glyph}
     </span>
   );
 }

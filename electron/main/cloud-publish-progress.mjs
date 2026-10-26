@@ -11,13 +11,15 @@ export function createCloudPublishProgressChannel({ rootPath, now, onProgress = 
     if (lastProgress) safelyReport(listener, lastProgress);
   }
 
-  function report(stage, record = null) {
+  /** `transfer`: bytes sent and rate while uploading; see `cloud-publish-transfer.mjs`. */
+  function report(stage, record = null, transfer = null) {
     const progress = {
       rootPath,
       operationId: record?.operation_id ?? null,
       stage,
       state: record ? deriveCloudInitializationState(record) : null,
       updatedAt: new Date(now()).toISOString(),
+      ...(transfer ? { transfer } : {}),
     };
     lastProgress = progress;
     for (const listener of listeners) safelyReport(listener, progress);

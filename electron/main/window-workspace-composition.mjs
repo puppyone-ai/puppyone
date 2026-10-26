@@ -11,10 +11,8 @@ export function createWindowWorkspaceCompositionService({
   cleanupDetachedWorkspace = async () => undefined,
   openProject = () => undefined,
   getWindowState,
-  getWorkspaceWindow,
   indexWorkspacePath,
   persistWorkspaceComposition,
-  revealWindow,
   unindexWorkspacePath = () => undefined,
   workspaceFromPath,
 }) {
@@ -25,23 +23,10 @@ export function createWindowWorkspaceCompositionService({
       const canonicalPath = await canonicalizeWorkspacePath(workspace.path);
       const state = getWindowState(window);
       const currentWorkspaces = () => state.folders.map((folder) => folder.workspace);
-      const existingWindow = getWorkspaceWindow(canonicalPath);
 
-      if (existingWindow === window && state.folderPaths.includes(canonicalPath)) {
+      if (state.folderPaths.includes(canonicalPath)) {
         return createResult("already-attached", canonicalPath, workspace, currentWorkspaces(), state.workspaceId);
       }
-      if (existingWindow && existingWindow !== window) {
-        revealWindow(existingWindow, canonicalPath);
-        const existingState = getWindowState(existingWindow);
-        return createResult(
-          "focused-existing",
-          canonicalPath,
-          workspace,
-          existingState.folders.map((folder) => folder.workspace),
-          existingState.workspaceId,
-        );
-      }
-
       const nextFolders = [...state.folders, { path: canonicalPath, workspace }];
       // Validate path and stable Folder identity before durable state changes.
       const validationState = new WindowWorkspaceState();

@@ -88,7 +88,7 @@ describe("inline Homepage Cloud projects", () => {
     await act(async () => account.useLocal());
     const rows = document.querySelectorAll('[data-cloud-project-id="a"]');
     expect(rows).toHaveLength(1);
-    expect(rows[0]?.textContent).toContain("Last opened in a hosted workspace");
+    expect(rows[0]?.textContent).toContain("Last opened on Cloud Computer");
     await click('[data-cloud-project-id="a"] .onboarding-project-row');
     expect(account.active).toBe(true);
     expect(openLocal).not.toHaveBeenCalled();
@@ -194,7 +194,7 @@ describe("inline Homepage Cloud projects", () => {
     await act(async () => home.refresh());
     await click('[data-cloud-project-id="b"] .onboarding-project-row');
     await act(async () => pending.resolve([project("a"), project("b")]));
-    expect(document.querySelector('[role="alert"]')?.textContent).toContain("This project could not be opened");
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain("Unable to open the Cloud project");
     expect(account.active).toBe(false); expect(openLocal).not.toHaveBeenCalled();
     fail = false; await click('[role="alert"] button'); expect(account.context.projectId).toBe("b");
   });
@@ -249,7 +249,7 @@ describe("inline Homepage Cloud projects", () => {
     await act(async () => pending.reject(new Error("No access")));
     expect(document.querySelector(".onboarding-project-loading")).toBeNull();
     expect(account.active).toBe(false);
-    expect(document.querySelector('[role="alert"]')?.textContent).toContain("This project could not be opened");
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain("Unable to open the Cloud project");
     expect(buttons().find(button => button.textContent === "Retry")?.disabled).toBe(false);
   });
 

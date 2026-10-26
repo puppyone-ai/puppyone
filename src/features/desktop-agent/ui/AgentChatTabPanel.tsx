@@ -9,6 +9,7 @@ import type { AgentRoutePreference } from "../domain/agent-route-preference";
 import { AgentApprovalDock } from "./AgentApprovalDock";
 import { AgentComposer } from "./AgentComposer";
 import { AgentEmptyState } from "./AgentEmptyState";
+import { AgentProviderActivities } from "./AgentProviderActivities";
 import { AgentPanelLayout } from "./AgentPanelLayout";
 import { AgentPanelStatus } from "./AgentPanelStatus";
 import { BuiltInAgentCompute, type ComputeAccessRequired } from "./built-in-agent/BuiltInAgentCompute";
@@ -135,7 +136,7 @@ export function AgentChatTabPanel({
     phase={state.phase} announcement={referenceIngestion.announcement}
     onDragOver={referenceIngestion.onDragOver} onDrop={referenceIngestion.onDrop}
     status={view.showStatus ? <AgentPanelStatus
-      unavailable={view.unavailable} failed={view.failed} error={view.panelError}
+      unavailable={view.unavailable} failed={view.failed} runtimeExited={state.phase === "runtime-exited"} error={view.panelError}
       runtimeLabel={runtimeLabel} readiness={view.readiness}
       onRetry={() => void controller.initialize(true)}
       recovery={state.displayRecovery} stopRequest={state.stopRequest}
@@ -190,6 +191,7 @@ export function AgentChatTabPanel({
           t("agent.recovery.degraded.prompt"),
         )}
       />}
+      <AgentProviderActivities activities={state.projection.activities} />
       <AgentComposer
         focusRequest={focusRequest}
         draft={state.draft} draftMentions={state.draftMentions} onDraftChange={handleDraftChange}

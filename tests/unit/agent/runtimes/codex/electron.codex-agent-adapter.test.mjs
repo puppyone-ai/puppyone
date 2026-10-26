@@ -394,6 +394,12 @@ describe("Codex app-server normalization", () => {
       deliveryOutcome: "unknown",
       clientUserMessageId: expect.stringMatching(/^[A-Fa-f0-9-]{36}$/),
     });
+    expect(connection.closed).not.toBe(true);
+    await expect(adapter.startTurn({ prompt: "do not resend" })).rejects.toThrow(/already starting/);
+    connection.emit("notification", { method: "turn/started",
+      params: { threadId: "thread-1", turn: { id: "late-turn", status: "inProgress" } } });
+    expect(adapter.activeTurnId).toBe("late-turn");
+    expect(adapter.pendingTurnStart).toBeNull();
     adapter.dispose();
   });
 

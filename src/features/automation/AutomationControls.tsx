@@ -1,5 +1,5 @@
-import { Tooltip } from "@puppyone/shared-ui";
-import { ChevronDown, ChevronRight, Folder, Search } from "lucide-react";
+import { DisclosureIcon, Tooltip, FolderIcon } from "@puppyone/shared-ui";
+import { Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
@@ -464,9 +464,9 @@ export function CloudAutomationDestinationEditor({
         aria-expanded={pickerOpen}
         onClick={() => setPickerOpen((current) => !current)}
       >
-        <Folder size={14} />
+        <FolderIcon size={14} />
         {pickerOpen ? t("automation.destination.hideFolders") : t("automation.destination.chooseFolders")}
-        {pickerOpen ? <ChevronDown size={13} /> : <ChevronRight className="po-directional-icon" size={13} />}
+        <DisclosureIcon expanded={pickerOpen} size={13} />
       </button>
       {pickerOpen && (
         <CloudAutomationFolderBranch
@@ -562,10 +562,10 @@ function CloudAutomationFolderBranch({
                   return next;
                 })}
                     >
-                {isExpanded ? <ChevronDown size={13} /> : <ChevronRight className="po-directional-icon" size={13} />}
+                <DisclosureIcon expanded={isExpanded} size={13} />
               </button></Tooltip>
               <button type="button" aria-pressed={selected} onClick={() => onSelect(folder.path)}>
-                <Folder size={14} />
+                <FolderIcon size={14} />
                 <span dir="auto">{folder.name}</span>
               </button>
             </div>

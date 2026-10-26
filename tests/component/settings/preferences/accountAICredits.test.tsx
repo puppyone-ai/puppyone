@@ -25,7 +25,7 @@ beforeEach(async () => {
 let root: Root | null = null;
 afterEach(() => { act(() => root?.unmount()); root = null; document.body.replaceChildren(); });
 
-it("shows only the available balance, top-up and refresh actions", async () => {
+it("shows only the available balance, and sells only where selling happens", async () => {
   const snapshot: ModelConnectionSnapshot = {
     schemaVersion: 1, revision: 1, connections: [], catalogs: [],
     managed: { available: true, reason: "ready", signedIn: true, sandbox: true,
@@ -49,7 +49,7 @@ it("shows only the available balance, top-up and refresh actions", async () => {
   };
   Object.assign(modelConnectionsApi, client);
   const host = document.createElement("div"); document.body.append(host); root = createRoot(host);
-  await act(async () => root?.render(withTestLocalization(<AccountAICredits payments signedIn />)));
+  await act(async () => root?.render(withTestLocalization(<AccountAICredits payments signedIn topUp />)));
   expect(host.textContent).toContain(money(0.75));
   for (const amount of [1, 0.25, 0.000047]) expect(host.textContent).not.toContain(money(amount));
   expect(host.textContent).not.toMatch(/Sandbox|Trial|Pending|Latest usage|Input:|Model prices|Example Model|example-model/);
@@ -68,6 +68,12 @@ it("shows only the available balance, top-up and refresh actions", async () => {
   expect(managed.mock.calls.filter(([request]) => request.action === "checkout")).toEqual([[{ action: "checkout", packId: "starter" }]]);
   await act(async () => completeCheckout?.(snapshot));
   expect(topUp.disabled).toBe(false);
+
+  // Account states the balance and offers nothing to click: buying is Billing's
+  // job, and the balance is polled rather than refreshed by hand.
+  await act(async () => root?.render(withTestLocalization(<AccountAICredits payments signedIn />)));
+  expect(host.textContent).toContain(money(0.75));
+  expect(host.querySelectorAll("button")).toHaveLength(0);
 });
 
 it.each([false, true])("hides billing after logout even if the managed snapshot is still signed in: %s", async (managedSignedIn) => {
@@ -93,22 +99,13 @@ it.each([false, true])("hides billing after logout even if the managed snapshot 
   await act(async () => root?.render(withTestLocalization(<AccountAICredits payments signedIn={managedSignedIn} onSignIn={onSignIn} />)));
   if (managedSignedIn) expect(host.textContent).toContain(money(0.75));
   await act(async () => root?.render(withTestLocalization(<AccountAICredits payments signedIn={false} onSignIn={onSignIn} />)));
-  expect(host.textContent).not.toContain("Trial credit");
-  expect(host.textContent).not.toContain(money(0.75));
-  expect(host.textContent).not.toContain(money(1));
-  expect(host.textContent).not.toContain(money(5));
-  expect(host.textContent).not.toContain(money(0));
-  expect(host.textContent).not.toContain("Latest usage");
-  expect(host.textContent).not.toContain("Model prices per million tokens");
-  expect(host.textContent).not.toContain("Example Model");
-  expect(host.querySelector(".desktop-settings-subsection-detail")).toBeNull();
+  // Signing out empties the wallet surface completely. Sign-in is the Account
+  // page's one call to action, so this leaf renders nothing rather than
+  // offering a second one beside it.
+  expect(host.textContent).toBe("");
+  expect(host.querySelector("button")).toBeNull();
   expect(host.querySelector('[role="alert"]')).toBeNull();
-  expect(host.textContent).not.toMatch(/Cloud hosting|Pro|Team|\$15|\$30/);
-  const signIn = [...host.querySelectorAll("button")].find((button) => button.textContent === "Sign in")!;
   expect(store.getSnapshot().pending.managed).toBe(true);
-  expect(signIn.disabled).toBe(false);
-  await act(async () => signIn.click());
-  expect(onSignIn).toHaveBeenCalledOnce();
   expect(managed).not.toHaveBeenCalledWith(expect.objectContaining({ action: "checkout" }));
   await act(async () => finishRefresh!(snapshot));
   expect(host.textContent).not.toContain(money(0.75));

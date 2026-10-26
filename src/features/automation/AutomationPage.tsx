@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
 import {
+  PlaceholderLayer,
   Tooltip,
   RENDERER_ASSET_PATHS,
   resolveRendererPublicAssetUrl,
@@ -185,10 +186,11 @@ export function CloudAutomationPage({
         aria-label={t("automation.page.categoryTemplates", { category: formatAutomationCategory(activeCategory, t) })}
       >
         {providerSpecsLoading ? Array.from({ length: 4 }, (_, index) => (
-          <div className="desktop-cloud-automation-template-card skeleton" aria-hidden="true" key={index}>
-            <span />
-            <span />
-            <span />
+          <div className="desktop-cloud-automation-template-card skeleton po-placeholder-surface" aria-hidden="true" key={index}>
+            <span data-placeholder-shape="" />
+            <span data-placeholder-shape="" />
+            <span data-placeholder-shape="" />
+            <PlaceholderLayer phase={index * -0.11} />
           </div>
         )) : visibleTemplates.map((template) => (
           <AutomationTemplateCard key={template.id} template={template} onAdd={() => openNewAutomation(template)} />

@@ -10,9 +10,16 @@ const projectSwitcherRailCss = read("../../../../src/features/app-shell/project-
 const patternCss = read("../../../../src/styles/sidebar/patterns.css");
 const layoutCss = read("../../../../src/styles/layout.css");
 const dataSurfaceSource = read("../../../../src/features/app-shell/DesktopDataWorkspaceSurface.tsx");
-const dataWorkspaceSource = read("../../../../packages/shared-ui/src/data/DataWorkspace.tsx");
+// The Data workspace and the frame it shares with surfaces that have no files yet.
+const dataWorkspaceSource = read("../../../../packages/shared-ui/src/data/DataWorkspace.tsx")
+  + read("../../../../packages/shared-ui/src/data/DataWorkspaceFrame.tsx");
 const desktopShellSource = read("../../../../src/components/DesktopCloudShell.tsx");
 const appSource = read("../../../../src/App.tsx");
+const projectSwitcherSurfaceSource = read("../../../../src/features/app-shell/useProjectSwitcherSurface.ts");
+const railSource = read("../../../../src/features/app-shell/ProjectSwitcherRail.tsx");
+const titlebarContextSource = read("../../../../src/features/app-shell/DesktopTitlebarContext.tsx");
+const workspaceSwitcherSource = read("../../../../src/features/app-shell/DesktopWorkspaceSwitcher.tsx");
+const hostedCloudSurfaceSource = read("../../../../src/app/AccountCloudWorkspaceSurface.tsx");
 const workspaceContentSource = read("../../../../src/features/app-shell/DesktopWorkspaceContent.tsx");
 const registrySource = read("../../../../src/features/app-shell/workspace-surfaces/workspaceSurfaceRegistry.ts");
 const auxiliaryHostSource = read("../../../../src/features/app-shell/auxiliary/AuxiliaryPanelHost.tsx");
@@ -69,7 +76,7 @@ describe("Sidebar architecture", () => {
   });
 
   it("removes legacy File Sidebar navigation when the Project rail owns navigation", () => {
-    expect(appSource).toContain("workspaceNavigationVisible={!projectSwitcherRailEnabled}");
+    expect(appSource).toContain("workspaceNavigationVisible={!railOwnsProject && sidebarFooterVisible}");
     expect(dataSurfaceSource).toMatch(
       /data-sidebar-navigation-placement=\{navigation\.showWorkspaceNavigation[\s\S]*?\? "bottom"[\s\S]*?: undefined\}/,
     );
@@ -153,8 +160,39 @@ describe("Sidebar architecture", () => {
     expect(collapsiblePaneResizeSource).toContain("PendingPaneCommit");
     expect(collapsiblePaneResizeSource).toContain("baselineKey");
     expect(desktopShellSource).toContain("renderLeadingRail");
-    // The shell owns the gestures; App only supplies the rail while the experiment is on.
-    expect(appSource).toMatch(/renderLeadingRail=\{\w+ \? \(\{ expanded \}\) => renderProjectRail\(/);
+    expect(appSource).toContain("renderLeadingRail={railOwnsProject");
+  });
+
+  it("gives the Project one surface: the rail states name, place and switching", () => {
+    // One reader of the experiment, one name for the decision it makes.
+    expect(projectSwitcherSurfaceSource).toContain("experimentalSettings.enableProjectSwitcherRail");
+    expect(appSource).toContain('const railOwnsProject = useProjectSwitcherSurface() === "rail"');
+    expect(appSource.match(/enableProjectSwitcherRail/g)).toBeNull();
+
+    // The Header states nothing about a Project the rail owns, in either shell.
+    expect(appSource).toContain("const titlebarContext = railOwnsProject ? null : (");
+    expect(hostedCloudSurfaceSource).toContain("const projectContext = !active || projectRail ? null : <DesktopTitlebarContext");
+    for (const source of [titlebarContextSource, workspaceSwitcherSource, hostedCloudSurfaceSource, appSource]) {
+      expect(source).not.toContain("projectMenuEnabled");
+    }
+
+    // Place belongs to the row, and the switch to that row's own menu.
+    expect(projectSwitcherRailCss).toContain(".desktop-project-switcher-rail-place");
+    expect(appSource).toContain("activeProjectLocationControls={projectLocation && (");
+
+    // The rail is the Project list, so it offers no way back to Homepage.
+    expect(railSource).not.toContain("onHome");
+    expect(railSource).not.toContain("workspaceSwitcher.home");
+    const railElement = appSource.slice(appSource.indexOf("<ProjectSwitcherRail"));
+    expect(railElement.slice(0, railElement.indexOf("\n    />"))).not.toContain("onHome");
+
+    // The rail is this window's navigation, so selection never spawns a window.
+    // Every entry selects through the one in-window project navigation queue.
+    expect(railElement.slice(0, railElement.indexOf("\n    />"))).toContain("onSelectProject={selectProject}");
+    expect(railElement.slice(0, railElement.indexOf("\n    />"))).toContain("onSelectCloudProject={selectCloudProject}");
+    expect(appSource).toMatch(/const selectProject = useCallback\(\(path: string\) => \{[\s\S]*?selectProjectTarget\(\{ kind: "local", path \}\)/);
+    expect(appSource).toContain("const selectProjectTarget = projectNavigation.select;");
+    expect(appSource).not.toMatch(/onSelectProject=\{openProjectFromHeader\}[\s\S]{0,400}utilitySlot/);
   });
 
   it("keeps direct resize canonical while visibility transitions preserve content width", () => {

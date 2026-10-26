@@ -12,7 +12,7 @@ import {
 } from "../../../src/features/typography";
 import type {
   DiffMarkers,
-  LoadingAnimationPreset,
+  LoadingPlaceholderStyle,
   ThemeMode,
 } from "../../../src/preferences";
 
@@ -20,7 +20,7 @@ export function createTestSurfaceAppearance(input: Readonly<{
   themeMode?: ThemeMode;
   subThemeId?: string;
   typography?: ResolvedTypography;
-  loadingAnimationPreset?: LoadingAnimationPreset;
+  loadingPlaceholderStyle?: LoadingPlaceholderStyle;
   pointerCursors?: boolean;
   diffMarkers?: DiffMarkers;
   fileIconTheme?: FileIconThemeId;
@@ -39,7 +39,7 @@ export function createTestSurfaceAppearance(input: Readonly<{
     appearance,
     typography: input.typography ?? resolveTypography(DEFAULT_TYPOGRAPHY_PREFERENCES),
     markdownPresentation: DEFAULT_MARKDOWN_PRESENTATION_SETTINGS,
-    loadingAnimationPreset: input.loadingAnimationPreset ?? "ikun",
+    loadingPlaceholderStyle: input.loadingPlaceholderStyle,
     lightThemePreset: "neutral",
     darkThemePreset: "default",
     pointerCursors: input.pointerCursors ?? false,

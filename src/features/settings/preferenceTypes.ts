@@ -1,6 +1,6 @@
 import type { FileIconThemeId } from "@puppyone/shared-ui";
 import type { AgentRoutePreference, AgentRoutingPreferences } from "../../agentRoutingPreferences";
-import type { CreateNewMenuSettings, DiffMarkers, ExperimentalSettings, FilesVisibilitySettings, GitDisplayMode, GitSidebarLayout, InterfaceStyle, LoadingAnimationPreset, LocalAgentsSettings, RightSidebarToolsSettings, ThemeMode, TitlebarActionsSettings, TypographyPreferences } from "../../preferences";
+import type { CreateNewMenuSettings, DiffMarkers, ExperimentalSettings, FilesVisibilitySettings, GitDisplayMode, InterfaceStyle, LoadingPlaceholderStyle, LocalAgentsSettings, RightSidebarToolsSettings, ThemeMode, TitlebarActionsSettings, TypographyPreferences } from "../../preferences";
 import type { RightSidebarSurface } from "../../preferenceStorage";
 import type { RootThemeAppearancePreferences } from "../appearance";
 import type { MarkdownPresentationSettings } from "../markdown";
@@ -13,7 +13,8 @@ export type AppearanceSlice = {
   byRootTheme: Readonly<Record<string, RootThemeAppearancePreferences>>;
   typographyPreferences: TypographyPreferences;
   pointerCursors: boolean;
-  loadingAnimationPreset: LoadingAnimationPreset;
+  showFileIcons: boolean;
+  loadingPlaceholderStyle: LoadingPlaceholderStyle;
   fileIconTheme: FileIconThemeId;
   // Runtime inputs are intentionally excluded from persistence.
   systemDark: boolean;
@@ -22,7 +23,8 @@ export type AppearanceSlice = {
   setInterfaceStyle: PreferenceAction<InterfaceStyle>;
   setTypographyPreferences: PreferenceAction<TypographyPreferences>;
   setPointerCursors: PreferenceAction<boolean>;
-  setLoadingAnimationPreset: PreferenceAction<LoadingAnimationPreset>;
+  setShowFileIcons: PreferenceAction<boolean>;
+  setLoadingPlaceholderStyle: PreferenceAction<LoadingPlaceholderStyle>;
   setFileIconTheme: PreferenceAction<FileIconThemeId>;
   setThemeMode: (mode: ThemeMode) => void;
   setSubThemeId: (id: string) => void;
@@ -54,8 +56,6 @@ export type GitDisplaySlice = {
   setDiffMarkers: PreferenceAction<DiffMarkers>;
   gitDisplayMode: GitDisplayMode;
   setGitDisplayMode: PreferenceAction<GitDisplayMode>;
-  gitSidebarLayout: GitSidebarLayout;
-  setGitSidebarLayout: PreferenceAction<GitSidebarLayout>;
 };
 
 export type EditorSlice = {
