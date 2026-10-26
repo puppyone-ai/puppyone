@@ -1,5 +1,8 @@
 @layer features {
-  .desktop-cloud-workspace-switch-dialog {
+  /* Qualified with the shared surface class: this lazily loaded rule shares a
+     layer and specificity with .desktop-dialog-surface, so bundle order would
+     otherwise restore the generic 16px inset instead of the task-dialog inset. */
+  .desktop-dialog-surface.desktop-cloud-workspace-switch-dialog {
     position: relative;
     display: flex;
     width: min(var(--desktop-dialog-width, 560px), calc(100vw - 2 * var(--desktop-task-dialog-inset)));
