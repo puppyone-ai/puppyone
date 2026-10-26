@@ -39,7 +39,9 @@ const handledResourceErrors = [];
 let expectedResourceFailure = false;
 let window;
 const assert = (value, message) => { if (!value) throw new Error(message); };
-const evaluate = async (code) => { try { return await window.webContents.executeJavaScript(code, true); } catch (error) { throw new Error(`Renderer step failed: ${code}: ${error.message}; ${errors.join("; ")}`); } };
+// PUPPYONE_SMOKE_TRACE=1 prints each renderer step, so a hang names its step.
+const trace = process.env.PUPPYONE_SMOKE_TRACE === '1';
+const evaluate = async (code) => { if (trace) console.error('[step]', String(code).replace(/\s+/g, ' ').slice(0, 200)); try { return await window.webContents.executeJavaScript(code, true); } catch (error) { throw new Error(`Renderer step failed: ${code}: ${error.message}; ${errors.join("; ")}`); } };
 const presentation = (location) => evaluate(`(() => {
   const surface = document.querySelector('[data-workspace-location="${location}"]');
   const sample = (selector) => {
@@ -122,6 +124,7 @@ async function headerPresentation(location) {
       cloudBackground:rgb(cloudBackground), themeText:rgb(themeText),
       backgroundImage:css.backgroundImage,
       icon:{ location:mark.dataset.projectLocation, name:svg.dataset.cloudIcon ?? null,
+        glyph:[...svg.classList].find(name => name.startsWith('lucide-')) ?? null,
         color:rgb(getComputedStyle(mark).color),
         paint:rgb(outline ? getComputedStyle(outline).fill : getComputedStyle(svg).stroke),
         accessibleLabel:button.getAttribute('aria-label') },
@@ -149,7 +152,11 @@ async function headerPresentation(location) {
   assert(sample.icon.location === location && JSON.stringify(sample.icon.color) === JSON.stringify(expectedIcon)
     && JSON.stringify(sample.icon.paint) === JSON.stringify(expectedIcon), 'Location icons must share readable Header ink');
   assert(JSON.stringify(sample.accent) === '[69,153,223]', 'Brand blue is the approved #4599DF in both themes, not adaptive accent/info');
-  assert(sample.icon.name === (location === 'cloud' ? 'ant-design' : null), 'Use the approved Cloud outline only for the committed Cloud provider');
+  // The location control names where the project runs (cd3649b7): a laptop on
+  // this computer, a server for the hosted workspace. The approved Cloud
+  // outline is reserved for Cloud collaboration, not the runtime mark.
+  assert(sample.icon.name === null && sample.icon.glyph === (location === 'cloud' ? 'lucide-server' : 'lucide-laptop'),
+    `The runtime mark must be a laptop or a server, never the Cloud outline: ${JSON.stringify(sample.icon)}`);
   assert(JSON.stringify(sample.labelColor) === JSON.stringify(sample.buttonColor), 'Blue icon must not recolor the location label');
   assert(sample.frame.location === location && sample.frame.identity === 'retained-shell', 'Window frame must follow the same committed provider without remounting');
   assert(sample.frame.x === 0 && sample.frame.y === 0 && sample.frame.width === sample.viewport
@@ -169,8 +176,9 @@ async function headerPresentation(location) {
   const iconInk = luminance(sample.icon.color), iconPaper = luminance(sample.contrastSamples[0].paper);
   sample.iconContrast = (Math.max(iconInk,iconPaper)+0.05)/(Math.min(iconInk,iconPaper)+0.05);
   assert(sample.iconContrast >= 3, `Location icon needs 3:1 contrast: ${sample.iconContrast}`);
-  if (location === 'cloud') assert(sample.icon.accessibleLabel.includes('Cloud'), 'Location needs a textual accessible name, not just the brand color');
-  else assert(sample.iconContrast >= 3, `Local location icon needs 3:1 contrast: ${sample.iconContrast}`);
+  // The runtime is named in words ("Hosted workspace" / "Local", cd3649b7), not by color alone.
+  assert(sample.icon.accessibleLabel.includes(location === 'cloud' ? 'Hosted workspace' : 'Local'),
+    `Location needs a textual accessible name, not just the brand color: ${sample.icon.accessibleLabel}`);
   return sample;
 }
 async function windowFramePixels(sample) {
@@ -219,42 +227,39 @@ async function captureNativeCorners(scene, sample) {
 async function openProjectMenu() {
   const opening = !await evaluate("Boolean(document.querySelector('.desktop-project-location-menu'))");
   if (opening) {
-    const frames = await evaluate(`new Promise(resolve => {
+    // Locations are menu rows in the popover (93ca6498); the sliding plate only
+    // exists in the header-icons presentation. Either way, opening must not
+    // move or resize the bar, and a missing element fails instead of hanging.
+    const frames = await evaluate(`new Promise((resolve, reject) => {
       const samples = [];
       document.querySelector('.desktop-titlebar-location-button').click();
       const sample = () => {
-        const menu = document.querySelector('.desktop-project-location-menu');
-        if (menu && getComputedStyle(menu).visibility !== 'hidden') {
-          const track = menu.querySelector('.desktop-project-location-tabs');
-          const plate = track.querySelector('.desktop-project-location-indicator');
-          const selected = track.querySelector('button[aria-pressed=true]');
-          const a = plate.getBoundingClientRect(), b = selected.getBoundingClientRect(), m = menu.getBoundingClientRect();
-          samples.push({x:m.x,y:m.y,width:m.width,height:m.height,offset:Math.abs(a.x-b.x),plateWidth:Math.abs(a.width-b.width),animations:plate.getAnimations().length});
-        }
-        if (samples.length < 24) requestAnimationFrame(sample); else resolve(samples);
+        try {
+          const menu = document.querySelector('.desktop-project-location-menu');
+          if (menu && getComputedStyle(menu).visibility !== 'hidden') {
+            const m = menu.getBoundingClientRect();
+            const plate = menu.querySelector('.desktop-project-location-indicator');
+            const selected = menu.querySelector('.desktop-project-location-tabs button[aria-pressed=true]');
+            const slider = plate && selected
+              ? { offset: Math.abs(plate.getBoundingClientRect().x - selected.getBoundingClientRect().x),
+                plateWidth: Math.abs(plate.getBoundingClientRect().width - selected.getBoundingClientRect().width),
+                animations: plate.getAnimations().length }
+              : null;
+            samples.push({ x: m.x, y: m.y, width: m.width, height: m.height, slider });
+          }
+          if (samples.length < 24) requestAnimationFrame(sample); else resolve(samples);
+        } catch (error) { reject(error); }
       };
       requestAnimationFrame(sample);
     })`);
-    assert(frames.every(frame => frame.offset < 1 && frame.plateWidth < 1 && frame.animations === 0),
-      `Opening must keep the slider aligned on every visible frame: ${JSON.stringify(frames)}`);
+    assert(frames.every(frame => !frame.slider || (frame.slider.offset < 1 && frame.slider.plateWidth < 1 && frame.slider.animations === 0)),
+      `Opening must keep any location slider aligned on every visible frame: ${JSON.stringify(frames)}`);
     assert(frames.every(frame => ['x','y','width','height'].every(key => Math.abs(frame[key]-frames[0][key]) < 1)),
       `Opening must not expand or collapse the project bar: ${JSON.stringify(frames)}`);
   }
   await waitFor("Boolean(document.querySelector('.desktop-project-location-menu'))");
   assert(await evaluate("getComputedStyle(document.querySelector('.desktop-project-location-menu')).outlineStyle === 'none' && !document.querySelector('.desktop-project-repository-link')"),
     'The project popover must have no outer focus outline or GitHub shortcut');
-  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
-  if (opening) {
-    const plate = await evaluate(`(() => {
-      const track = document.querySelector('.desktop-project-location-tabs');
-      const plate = track.querySelector('.desktop-project-location-indicator');
-      const selected = track.querySelector('button[aria-pressed=true]');
-      const a = plate.getBoundingClientRect(), b = selected.getBoundingClientRect();
-      return {animations:plate.getAnimations().length, offset:Math.abs(a.x-b.x), width:Math.abs(a.width-b.width)};
-    })()`);
-    assert(plate.animations === 0 && plate.offset < 1 && plate.width < 1,
-      `Opening the project bar must place the slider at its current selection without sliding: ${JSON.stringify(plate)}`);
-  }
 }
 async function selectLocation(location) {
   if (filesOnly) {
@@ -269,20 +274,26 @@ async function selectLocation(location) {
   assert(await evaluate("Boolean(document.querySelector('[data-titlebar-context-menu]'))"), "Project switch bar must remain open after switching");
 }
 async function checkProjectBarRelayout(setup) {
-  const frames = await evaluate(`new Promise(resolve => {
+  // The plate only exists in the header-icons presentation; popover rows have
+  // none. A missing element rejects instead of leaving the step pending.
+  const frames = await evaluate(`new Promise((resolve, reject) => {
     const menu = document.querySelector('.desktop-project-location-menu');
     ${setup}
     const frames = [];
     const sample = () => {
-      const plate = menu.querySelector('.desktop-project-location-indicator');
-      const button = menu.querySelector('button[aria-pressed=true]');
-      const a = plate.getBoundingClientRect(), b = button.getBoundingClientRect();
-      frames.push({offset:Math.abs(a.x-b.x),width:Math.abs(a.width-b.width),animations:plate.getAnimations().length});
-      if (frames.length < 24) requestAnimationFrame(sample); else resolve(frames);
+      try {
+        const plate = menu.querySelector('.desktop-project-location-indicator');
+        const button = menu.querySelector('.desktop-project-location-tabs button[aria-pressed=true]');
+        if (plate && button) {
+          const a = plate.getBoundingClientRect(), b = button.getBoundingClientRect();
+          frames.push({offset:Math.abs(a.x-b.x),width:Math.abs(a.width-b.width),animations:plate.getAnimations().length});
+        } else frames.push(null);
+        if (frames.length < 24) requestAnimationFrame(sample); else resolve(frames);
+      } catch (error) { reject(error); }
     };
     requestAnimationFrame(sample);
   })`);
-  assert(frames.every(frame => frame.offset < 1 && frame.width < 1 && frame.animations === 0),
+  assert(frames.every(frame => !frame || (frame.offset < 1 && frame.width < 1 && frame.animations === 0)),
     `Font/layout changes must not stretch or slide the selection plate: ${JSON.stringify(frames)}`);
 }
 app.whenReady().then(async () => {
@@ -374,9 +385,22 @@ app.whenReady().then(async () => {
     const r = menu.getBoundingClientRect();
     return {x:r.x,y:r.y,width:r.width,height:r.height};
   })()`);
-  await evaluate("document.querySelector('button[data-project-location=cloud]').click()");
+  // Freeze the 260ms Header reveal on the first frame it exists, inside the
+  // click's own step, so slower runners sample it instead of racing its end.
+  await evaluate(`new Promise((resolve, reject) => {
+    document.querySelector('button[data-project-location=cloud]').click();
+    let frames = 0;
+    const freeze = () => {
+      const animation = document.querySelector('.desktop-titlebar .desktop-cloud-header-reveal')?.getAnimations({subtree:true})[0];
+      if (animation) { animation.pause(); resolve(); return; }
+      if (++frames > 120) { reject(new Error('The Header reveal never started after choosing Cloud')); return; }
+      requestAnimationFrame(freeze);
+    };
+    freeze();
+  })`);
   await waitFor("document.querySelector('.desktop-project-location-tabs').getAttribute('aria-busy') === 'true'");
-  await waitFor("document.querySelector('.desktop-project-location-indicator').getAnimations().some(animation => animation.transitionProperty === 'transform')");
+  // Header-icons slide a plate to the new selection; popover rows have no plate.
+  await waitFor("!document.querySelector('.desktop-project-location-indicator') || document.querySelector('.desktop-project-location-indicator').getAnimations().some(animation => animation.transitionProperty === 'transform')");
   assert(await evaluate("window.__nativeCloudWorkbenchSmoke.state().location === 'local' && document.querySelector('button[data-project-location=cloud]').getAttribute('aria-pressed') === 'true' && Boolean(document.querySelector('.desktop-cloud-preparation'))"),
     "Selection must move immediately while provider preparation continues in the background");
   assert(await evaluate(`(() => {
@@ -384,6 +408,7 @@ app.whenReady().then(async () => {
     const reveal = header.querySelector('.desktop-cloud-header-reveal');
     reveal.dataset.fixtureIdentity = 'requested-header-reveal';
     const animation = reveal.getAnimations({subtree:true})[0];
+    if (!animation) throw new Error('The Header reveal animation was not running when Cloud was chosen');
     animation.pause(); animation.currentTime = 35;
     const firstCircle = getComputedStyle(reveal, '::after').clipPath;
     animation.currentTime = 70;
@@ -396,13 +421,16 @@ app.whenReady().then(async () => {
       && animation.effect.getTiming().duration === 260
       && animation.animationName === 'desktop-cloud-header-expand';
   })()`), 'Header blue must expand from its lower-right center over 260ms while Cloud prepares');
-  assert(await evaluate("Boolean(document.querySelector('.desktop-titlebar-workspace-mark[data-project-location=cloud]')) && !document.querySelector('.desktop-titlebar-terminal:not([data-cloud-workspace-tool]), .desktop-titlebar-changes')"),
-    'Cloud intent must change the Header mark and remove local actions before provider commit');
+  // Since 3b3355db/cd3649b7 the location button states where the project runs,
+  // so it stays Local until the provider commits; the rest of the Header
+  // follows the intent at once.
+  assert(await evaluate("document.querySelector('.desktop-titlebar')?.dataset.workspaceKind === 'cloud' && Boolean(document.querySelector('.desktop-titlebar-location-button .desktop-titlebar-workspace-mark[data-project-location=local]')) && !document.querySelector('.desktop-titlebar-terminal:not([data-cloud-workspace-tool]), .desktop-titlebar-changes')"),
+    'Cloud intent must switch the Header and remove local actions before provider commit, while the runtime mark stays Local');
   assert(await evaluate("document.querySelectorAll('[data-cloud-workspace-tool]').length === 3 && [...document.querySelectorAll('[data-cloud-workspace-tool]')].every(button => button.disabled)"),
     'All three Cloud tools must appear immediately and await the authorized provider commit');
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await writeFile(path.join(artifacts, 'cloud-header-switch.png'), (await window.webContents.capturePage()).toPNG());
-  await evaluate("Promise.all(document.querySelector('.desktop-project-location-indicator').getAnimations().map(animation => animation.finished.catch(() => {})))");
+  await evaluate("Promise.all((document.querySelector('.desktop-project-location-indicator')?.getAnimations() ?? []).map(animation => animation.finished.catch(() => {})))");
   await new Promise(resolve => setTimeout(resolve, 100));
   await writeFile(path.join(artifacts, 'cloud-switch-loading.png'), (await window.webContents.capturePage()).toPNG());
   for (const theme of ['light', 'dark']) {
@@ -443,10 +471,15 @@ app.whenReady().then(async () => {
   const readyMenu = await evaluate(`(() => {
     const menu = document.querySelector('.desktop-project-location-menu');
     const r = menu.getBoundingClientRect();
-    return {identity:menu.dataset.fixtureIdentity,x:r.x,y:r.y,width:r.width,height:r.height};
+    const button = document.querySelector('.desktop-titlebar-location-button').getBoundingClientRect();
+    return {identity:menu.dataset.fixtureIdentity,x:r.x,y:r.y,width:r.width,height:r.height,buttonX:button.x};
   })()`);
-  assert(readyMenu.identity === 'retained-switch-bar' && ['x','y','width','height'].every(key => Math.abs(readyMenu[key]-pendingMenu[key])<1),
-    'The same switch bar must keep its position and dimensions after Cloud loads');
+  // The button now names where the project runs, so its label (and the bar
+  // anchored to it) may move when Cloud commits; the open bar must be the same
+  // instance, stay attached to its button and keep its rows.
+  assert(readyMenu.identity === 'retained-switch-bar' && Math.abs(readyMenu.x - readyMenu.buttonX) < 1
+    && Math.abs(readyMenu.y - pendingMenu.y) < 1 && Math.abs(readyMenu.height - pendingMenu.height) < 1,
+    `The same switch bar must stay open, attached to its button, after Cloud loads: ${JSON.stringify({ pendingMenu, readyMenu })}`);
   }
   await waitFor("Boolean(document.querySelector('[data-cloud-native=true]')?.textContent.includes('cloud-only'))");
   const initialCloudRequests = (await state()).requests;
@@ -597,8 +630,10 @@ app.whenReady().then(async () => {
   const beforeSharing = (await state()).requests.length;
   await evaluate("document.querySelector('[data-cloud-workspace-tool=share]').click()");
   await waitFor("Boolean(document.querySelector('.desktop-cloud-workspace-share input'))");
-  assert(await evaluate("document.querySelector('.desktop-cloud-workspace-share input').value.endsWith('/11111111-1111-4111-8111-111111111111/')"),
-    'Workspace sharing must expose its canonical human URL');
+  // The link covers what the user is looking at (2b347d52): the canonical
+  // project URL, narrowed to the open file when one is open.
+  assert(await evaluate("/\\/11111111-1111-4111-8111-111111111111\\/(?:readme\\.txt)?$/.test(document.querySelector('.desktop-cloud-workspace-share input').value)"),
+    'Workspace sharing must expose its canonical human URL for what is being viewed');
   assert((await state()).requests.length === beforeSharing, 'Sharing a URL must not issue Cloud API requests');
   await captureSettledDialog('cloud-share', '.desktop-cloud-workspace-share');
   await evaluate("document.querySelector('.desktop-cloud-workspace-share .desktop-dialog-icon-button').click()");
@@ -654,13 +689,15 @@ app.whenReady().then(async () => {
       if (location === "cloud") {
         await openProjectMenu();
         await waitFor("Boolean(document.querySelector('button[data-project-location=cloud]'))");
-        await evaluate("Promise.all(document.querySelector('.desktop-project-location-indicator').getAnimations().map(animation => animation.finished.catch(() => {})))");
+        await evaluate("Promise.all((document.querySelector('.desktop-project-location-indicator')?.getAnimations() ?? []).map(animation => animation.finished.catch(() => {})))");
         assert(await evaluate(`(() => {
           const track = document.querySelector('.desktop-project-location-tabs');
-          const indicator = track.querySelector('.desktop-project-location-indicator').getBoundingClientRect();
+          const plate = track.querySelector('.desktop-project-location-indicator');
+          if (!plate) return Boolean(track.querySelector('button[aria-pressed=true]'));
+          const indicator = plate.getBoundingClientRect();
           const selected = track.querySelector('button[aria-pressed=true]').getBoundingClientRect();
           return Math.abs(indicator.x-selected.x)<1 && Math.abs(indicator.width-selected.width)<1;
-        })()`), 'Sliding indicator must align with the selected translated button');
+        })()`), 'The selected location must be marked, and any sliding plate aligned with it');
         headerPresentations.push({ theme, width, expanded:true, ...await headerPresentation(location) });
         await evaluate("document.querySelector('button[data-project-location=cloud]').click()");
         assert(await evaluate("Boolean(document.querySelector('.desktop-project-location-menu'))"), "Selecting the current location must keep the bar open");
@@ -754,6 +791,10 @@ app.whenReady().then(async () => {
       const button = cta.querySelector('[data-cloud-sign-in-action]');
       const box = (node) => { const r = node.getBoundingClientRect(); return { x:r.x, y:r.y, width:r.width, height:r.height }; };
       return { dialog:box(dialog), cta:box(cta), button:box(button),
+        scrollport:(() => {
+          const port = cta.closest('.desktop-cloud-workspace-switch-content') ?? dialog;
+          return { x:port.getBoundingClientRect().x + port.clientLeft, width:port.clientWidth };
+        })(),
         centered:box(cta).x + box(cta).width / 2,
         actionInset:(box(cta).x + box(cta).width) - (box(button).x + box(button).width),
         overflow:button.scrollWidth > button.clientWidth || cta.scrollWidth > cta.clientWidth,
@@ -763,13 +804,14 @@ app.whenReady().then(async () => {
         alert:cta.querySelector('[role=alert]')?.textContent ?? null,
         oldPageLayout:Boolean(dialog.querySelector('.desktop-cloud-main-view, .desktop-cloud-auth-page-shell')) };
     })()`);
-    const middle = sample.dialog.x + sample.dialog.width / 2;
+    // Center within the visible scrollport: a short window may need a scrollbar.
+    const middle = sample.scrollport.x + sample.scrollport.width / 2;
     assert(Math.abs(sample.centered-middle) < 1, `Sign-in content is off-center: ${scene}`);
     assert(sample.actionInset >= 0 && sample.actionInset <= 29, `Sign-in action must end the activation footer: ${scene}`);
     assert(Math.abs(sample.dialog.x*2 + sample.dialog.width - window.getContentSize()[0]) < 2, `Dialog is off-center: ${scene}`);
     assert(Math.abs(sample.dialog.y*2 + sample.dialog.height - window.getContentSize()[1]) < 2, `Dialog is not vertically centered: ${scene}`);
     assert(!sample.overflow && !sample.oldPageLayout, `Sign-in content is clipped or uses full-page layout: ${scene}`);
-    assert(sample.dialog.width <= 642 && sample.dialog.height < window.getContentSize()[1]-32, `Sign-in is oversized: ${scene}`);
+    assert(sample.dialog.width <= 642 && sample.dialog.height <= window.getContentSize()[1]-32, `Sign-in is oversized: ${scene}`);
     loginPresentations.push({ scene, ...sample });
     return sample;
   };
@@ -780,7 +822,8 @@ app.whenReady().then(async () => {
   await evaluate("document.querySelector('[data-cloud-sign-in-action]').click()");
   await waitFor("document.querySelector('.desktop-cloud-project-activation')?.getAttribute('aria-busy') === 'true'");
   let login = await verifyLogin("waiting-en");
-  assert(login.disabled && login.text.includes("Finish signing in in your browser"), "Pending login needs clear browser guidance");
+  // The pending action itself says it is waiting (copy trimmed in 7d1f4b77).
+  assert(login.disabled && login.text.includes("Waiting for sign-in"), "Pending login must be disabled and say it is waiting for sign-in");
   await writeFile(path.join(artifacts, "login-waiting.png"), (await window.webContents.capturePage()).toPNG());
   await evaluate("window.__nativeCloudWorkbenchSmoke.failLogin()");
   await waitFor("Boolean(document.querySelector('.desktop-cloud-project-activation [role=alert]'))");
@@ -824,11 +867,20 @@ app.whenReady().then(async () => {
   await openProjectMenu();
   await evaluate("document.querySelector('button[data-project-location=cloud]').click()");
   await waitFor("Boolean(document.querySelector('[data-cloud-sign-in-action]'))");
-  const activationTitle = await evaluate("document.querySelector('.desktop-cloud-project-activation h2').textContent");
+  // Same value surface before and after sign-in: the same values, and the
+  // headline only gains the project name once the account knows it.
+  const valueSurface = `(() => {
+    const surface = document.querySelector('.desktop-cloud-project-activation');
+    return { title: surface.querySelector('.desktop-cloud-project-activation-title').textContent,
+      values: [...surface.querySelectorAll('.desktop-cloud-project-values > li')].map(item => item.textContent) };
+  })()`;
+  const signedOutSurface = await evaluate(valueSurface);
   await evaluate("window.__nativeCloudWorkbenchSmoke.setCloudSessionAvailable(true)");
   await waitFor("Boolean(document.querySelector('[data-cloud-publish-action]:not(:disabled)'))");
-  assert(await evaluate(`document.querySelector('.desktop-cloud-project-activation h2').textContent === ${JSON.stringify(activationTitle)}`),
-    "Signing in to an unhosted repository must retain the same value surface");
+  const signedInSurface = await evaluate(valueSurface);
+  assert(JSON.stringify(signedInSurface.values) === JSON.stringify(signedOutSurface.values)
+    && /^Put .+ in the cloud$/.test(signedInSurface.title) && /^Put .+ in the cloud$/.test(signedOutSurface.title),
+    `Signing in to an unhosted repository must retain the same value surface: ${JSON.stringify({ signedOutSurface, signedInSurface })}`);
   const publishPresentations = [];
   for (const [width, height] of [[1100,760], [720,640], [640,640], [480,640]]) {
     window.setContentSize(width, height);

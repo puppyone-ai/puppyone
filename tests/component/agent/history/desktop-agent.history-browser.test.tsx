@@ -6,7 +6,7 @@ import type { AgentRuntimeInspection, AgentSessionListItem, AgentSessionsListRes
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
-import type { AuxiliaryWorkbenchHistoryTarget } from "../../../../src/features/app-shell/auxiliary-workbench/types";
+import type { AuxiliaryWorkbenchHistoryTarget } from "../../../../src/lib/workbench/types";
 import {
   AGENT_HISTORY_CATALOG_TIMEOUT_MS,
   AGENT_HISTORY_RUNTIME_TIMEOUT_MS,

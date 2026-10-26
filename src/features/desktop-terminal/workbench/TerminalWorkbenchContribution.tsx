@@ -2,7 +2,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import type { MessageFormatter } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
 import { useSurfaceAppearance } from "../../appearance/AppearanceRuntime";
-import type { AuxiliaryWorkbenchContribution, AuxiliaryWorkbenchItemRenderContext } from "../../app-shell/auxiliary-workbench/types";
+import type { AuxiliaryWorkbenchContribution, AuxiliaryWorkbenchItemRenderContext } from "../../../lib/workbench/types";
 import { DESKTOP_TERMINAL_LAUNCHERS } from "../model/terminalLaunchers";
 import { presentTerminalSessionHeader } from "../model/terminalSessionHeader";
 import { TerminalSessionHeaderStatus } from "../ui/session-header/TerminalSessionHeaderStatus";

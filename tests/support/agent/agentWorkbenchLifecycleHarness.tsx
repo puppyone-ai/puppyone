@@ -8,8 +8,8 @@ import { createItemLifecycleSupervisor } from "../../../electron/main/item-hosts
 import { registerItemLifecycleIpc } from "../../../electron/main/ipc/item-lifecycle-ipc.mjs";
 import type { ItemExecutionRequest, ItemLifecyclePort } from "../../../shared/item-host-contract/lifecycle";
 import { AuxiliaryWorkbenchPanel } from "../../../src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel";
-import { ProjectWorkbenchStore } from "../../../src/features/app-shell/auxiliary-workbench/ProjectWorkbenchStore";
-import type { AuxiliaryWorkbenchContribution } from "../../../src/features/app-shell/auxiliary-workbench/types";
+import { ProjectWorkbenchStore } from "../../../src/lib/workbench/ProjectWorkbenchStore";
+import type { AuxiliaryWorkbenchContribution } from "../../../src/lib/workbench/types";
 import type { AgentClientPort } from "../../../src/features/desktop-agent/application/AgentClientPort";
 import { createManagedAgentClient } from "../../../src/features/desktop-agent/infrastructure/electron/agentExecutionClient";
 import { createProjectAgentClientProvider } from "../../../src/features/desktop-agent/infrastructure/electron/electronAgentClient";

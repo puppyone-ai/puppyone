@@ -1,14 +1,14 @@
 import { useDesktopPreference } from "../../../preferencesStore";
 import { useLayoutEffect, useMemo, useSyncExternalStore } from "react";
 import { useLocalization } from "@puppyone/localization/react";
-import type { AuxiliaryWorkbenchContribution, AuxiliaryWorkbenchCreationRecipe, AuxiliaryWorkbenchHistoryTarget } from "./types";
+import type { AuxiliaryWorkbenchContribution, AuxiliaryWorkbenchCreationRecipe, AuxiliaryWorkbenchHistoryTarget } from "../../../lib/workbench/types";
 import type { WorkbenchLauncherContext } from "./AuxiliaryWorkbenchPanel";
-import type { ProjectWorkbenchStore } from "./ProjectWorkbenchStore";
+import type { ProjectWorkbenchStore } from "../../../lib/workbench/ProjectWorkbenchStore";
 import { AGENT_CHAT_LOCAL_AGENT_IDS, filterAgentChatCreationRecipesByLocalAgentIds } from "./agentChatCreationRecipes";
 import { LocalAgentSetupSection, useLocalAgentInstallations } from "../../local-agents";
 import { DESKTOP_TERMINAL_LAUNCHERS } from "../../desktop-terminal/model/terminalLaunchers";
 import { TerminalLauncher } from "../../desktop-terminal/ui/TerminalLauncher";
-import { WorkbenchLauncherState } from "./WorkbenchLauncherState";
+import { WorkbenchLauncherState } from "../../../lib/workbench/WorkbenchLauncherState";
 
 /** Product composition: generic workbench admission plus feature-owned launchers. */
 export function AuxiliaryWorkbenchLauncher({ store, contributions, groupId, itemId, presented }: WorkbenchLauncherContext & {

@@ -2,7 +2,7 @@
 import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DesktopProjectLocationSwitcher, type DesktopProjectLocation } from "../../../../src/features/app-shell/DesktopProjectLocationSwitcher";
+import { DesktopProjectLocationSwitcher, type DesktopProjectLocation } from "../../../../src/components/DesktopProjectLocationSwitcher";
 import { desktopPreferencesStore as store, initializeDesktopPreferences } from "../../../../src/preferencesStore";
 import { withTestLocalization } from "../../../support/react/localization";
 

@@ -3,7 +3,7 @@ DEFAULT_EXPLORER_WIDTH,
 DEFAULT_RIGHT_SIDEBAR_WIDTH,
 MIN_EXPLORER_WIDTH,
 MIN_RIGHT_SIDEBAR_WIDTH,
-} from "./features/app-shell/layout/desktopPaneLayout";
+} from "./lib/desktopPaneLayout";
 import {
 clampProjectSwitcherExpandedWidth,
 DEFAULT_PROJECT_SWITCHER_EXPANDED_WIDTH,

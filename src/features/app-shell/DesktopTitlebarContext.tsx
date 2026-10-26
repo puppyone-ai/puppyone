@@ -1,5 +1,5 @@
-import type { DesktopProjectCloudCopy, DesktopProjectLocation } from "./DesktopProjectLocationSwitcher";
-import { DesktopProjectLocationSwitcher } from "./DesktopProjectLocationSwitcher";
+import type { DesktopProjectCloudCopy, DesktopProjectLocation } from "../../components/DesktopProjectLocationSwitcher";
+import { DesktopProjectLocationSwitcher } from "../../components/DesktopProjectLocationSwitcher";
 import { DesktopWorkspaceSwitcher, type DesktopWorkspaceSwitcherProps } from "./DesktopWorkspaceSwitcher";
 import { ProjectReachControl, type ProjectReachControlProps } from "./project-reach";
 

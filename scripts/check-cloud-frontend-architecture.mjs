@@ -81,7 +81,8 @@ const cloudWindowOwners = new Set([
 ]);
 
 for (const { filePath, source } of productionCode) {
-  const relativePath = path.relative(repoRoot, filePath);
+  // Compare and report repository paths with "/" on every platform (Windows CI).
+  const relativePath = path.relative(repoRoot, filePath).split(path.sep).join("/");
   if (/\b(?:from\s+|import\s*\()["'][^"']*archive\/desktop-cloud-catalog/.test(source)) {
     errors.push(`${relativePath} imports retired code from archive/desktop-cloud-catalog`);
   }
@@ -411,7 +412,7 @@ if (!dataPort.includes('from "./cloudWorkspaceClient"') || /cloudApiRequest|requ
   errors.push("Cloud DataPort must adapt the file client, not assemble HTTP operations.");
 }
 for (const { filePath, source } of productionCode) {
-  const relativePath = path.relative(repoRoot, filePath);
+  const relativePath = path.relative(repoRoot, filePath).split(path.sep).join("/");
   if (relativePath.startsWith(cloudFiles) && /from\s+["'][^"']*workbench\/|import\(["'][^"']*workbench\//.test(source)) {
     errors.push(`${relativePath} must not depend on Cloud workbench presentation`);
   }

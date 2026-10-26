@@ -1,9 +1,9 @@
 import { useRef, useState } from "react";
 import { useLocalization } from "@puppyone/localization";
 import { ChevronDown } from "lucide-react";
-import { DesktopTitlebarMenuLayer } from "../../features/app-shell/DesktopTitlebarMenuLayer";
-import { DesktopProjectLocationControls } from "../../features/app-shell/DesktopProjectLocationSwitcher";
-import { projectOpeningLocation, type ProjectHomeItem } from "../../features/app-shell/workspaceHomeModel";
+import { DesktopTitlebarMenuLayer } from "../DesktopTitlebarMenuLayer";
+import { DesktopProjectLocationControls } from "../DesktopProjectLocationSwitcher";
+import { projectOpeningLocation, type ProjectHomeItem } from "../../lib/workspaceHomeModel";
 import { useDesktopPlatformCapabilities } from "../../platform/useDesktopPlatformCapabilities";
 
 /** The same two opening actions in both Homepage layouts; no second project identity. */

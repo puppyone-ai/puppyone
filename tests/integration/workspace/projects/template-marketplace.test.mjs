@@ -46,9 +46,9 @@ describe("published template interoperability", () => {
   it("rejects traversing paths, extra root entries and symlink entries even with a matching ZIP digest", async () => {
     const original = Buffer.from(first.zip, "base64");
     const renamed = (from, to) => {
-      const bytes = Buffer.from(original); let offset = 0;
+      const bytes = Buffer.from(original);
       expect(Buffer.byteLength(from)).toBe(Buffer.byteLength(to));
-      while ((offset = bytes.indexOf(from, offset)) !== -1) { bytes.write(to, offset); offset += from.length; }
+      for (let offset = bytes.indexOf(from); offset !== -1; offset = bytes.indexOf(from, offset + from.length)) bytes.write(to, offset);
       return bytes;
     };
     const symlink = Buffer.from(original);

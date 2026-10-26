@@ -1,4 +1,4 @@
-import { ProjectWorkbenchStore } from "../../../../src/features/app-shell/auxiliary-workbench/ProjectWorkbenchStore";
+import { ProjectWorkbenchStore } from "../../../../src/lib/workbench/ProjectWorkbenchStore";
 /**
  * @vitest-environment happy-dom
  */
@@ -13,7 +13,7 @@ import type { ItemExecutionRequest, ItemExecutionSummary } from "../../../../sha
 import type {
   AuxiliaryWorkbenchCloseAdapter,
   AuxiliaryWorkbenchItemSnapshot,
-} from "../../../../src/features/app-shell/auxiliary-workbench/types";
+} from "../../../../src/lib/workbench/types";
 import {
   useAuxiliaryWorkbenchCloseCoordinator,
   type AuxiliaryWorkbenchCloseTarget,

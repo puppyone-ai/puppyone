@@ -79,7 +79,6 @@
     min-width: 0;
     overflow: hidden;
     color: inherit;
-    font-size: inherit;
     line-height: inherit;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -143,7 +142,7 @@
     border: 1px solid transparent;
     background: var(--po-control, color-mix(in srgb, currentColor 12%, transparent));
     color: inherit;
-    font-size: 10px;
+    font-size: var(--po-type-ui-micro);
     line-height: 1;
     font-weight: var(--po-text-weight-medium, 500);
     /* Quiet by default: present, not here. */
@@ -174,7 +173,6 @@
 
   .desktop-project-reach-count {
     color: inherit;
-    font-size: inherit;
     line-height: inherit;
     font-variant-numeric: tabular-nums;
   }

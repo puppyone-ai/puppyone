@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import { AgentConversationHistory, type AgentSessionListItem } from "../../desktop-agent";
-import type { AuxiliaryWorkbenchHistoryBrowserContext } from "../../app-shell/auxiliary-workbench/types";
+import type { AuxiliaryWorkbenchHistoryBrowserContext } from "../../../lib/workbench/types";
 import { CLOUD_AGENT_LABEL, type CloudAgentWorkbench } from "./CloudAgentWorkbench";
 
 /** Adapt server locators only; the native history component owns all presentation. */

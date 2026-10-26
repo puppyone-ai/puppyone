@@ -65,11 +65,14 @@ describe("repository-context architecture", () => {
     const source = (path: string) => readFileSync(new URL(`../../../../src/${path}`, import.meta.url), "utf8");
     const app = source("App.tsx");
     const header = source("features/cloud/workbench/useRepositoryCloudWorkspaceSwitch.ts");
-    const surface = source("features/cloud/workbench/AccountCloudWorkspaceSurface.tsx");
+    const surface = source("app/AccountCloudWorkspaceSurface.tsx");
     const gate = source("features/cloud/workbench/RepositoryCloudSwitchGate.tsx");
     expect(app).toContain("const requestCloudWorkspace = repositoryCloudSwitch.request");
-    expect(app).toContain("projectItems={homepageCloud.items}");
-    expect(app).toContain("visible: !workspace && !restoringWorkspace && !cloudWorkspaceActive");
+    // Header and Homepage list the same account catalog (3a81b077).
+    expect(app).toContain("const projectCatalog = useHomepageCloudProjects(");
+    expect(app).toContain("projectItems={projectCatalog.items}");
+    // The shared catalog also feeds the Header, so it waits only for workspace restoration.
+    expect(app).toMatch(/useHomepageCloudProjects\(\{\s*visible: !restoringWorkspace,/);
     expect(app).not.toMatch(/browseAccountCloudProjects|cloud\.catalog\.browse/);
     expect(app).toContain("onPrepared: accountCloud.activatePrepared");
     expect(app).toContain("{repositoryCloudDialog}</DesktopOverlayPortal>");

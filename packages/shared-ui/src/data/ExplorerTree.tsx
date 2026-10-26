@@ -1205,7 +1205,7 @@ function ExplorerVisibleMetaRowContent({ row, depth, presentation, onRetry }: {
   const { t } = useLocalization();
   if (!row.retryPath) return <ExplorerTreeLoadingRow depth={depth} label={row.label} loading={row.loading} presentation={presentation} />;
   return <ExplorerTreeMetaRow depth={depth}>
-    <span role="alert" className="tree-folder-error" title={row.label}>{row.label}</span>
+    <span role="alert" className="tree-folder-error">{row.label}</span>
     {onRetry && <button type="button" onClick={() => onRetry(row.retryPath!)}>{t("common.action.retry")}</button>}
   </ExplorerTreeMetaRow>;
 }

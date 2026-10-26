@@ -8,13 +8,13 @@ import {
 } from "lucide-react";
 import { DesktopMenuItem, DesktopMenuSeparator } from "../../components/DesktopMenu";
 import { HomeProjectIcon } from "../../components/onboarding/HomeProjectIcon";
-import { DesktopTitlebarMenuLayer } from "./DesktopTitlebarMenuLayer";
+import { DesktopTitlebarMenuLayer } from "../../components/DesktopTitlebarMenuLayer";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import {
   ProjectContextAssetMark,
   resolveProjectContextAssetKind,
 } from "./ProjectContextAssetMark";
-import { getWorkspaceParentPathForDisplay, type ProjectHomeItem } from "./workspaceHomeModel";
+import { getWorkspaceParentPathForDisplay, type ProjectHomeItem } from "../../lib/workspaceHomeModel";
 import { DesktopProjectMenuItem } from "./DesktopProjectMenuItem";
 
 export type DesktopWorkspaceSwitcherProps = {

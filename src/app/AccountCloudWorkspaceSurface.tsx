@@ -1,21 +1,22 @@
-import { useDesktopPreference, useDesktopAppearance } from "../../settings";
+import { useDesktopPreference, useDesktopAppearance } from "../features/settings";
 import { useRef, useState, type ComponentProps, type ReactNode } from "react";
 import { createWorkspaceResourceUri } from "@puppyone/shared-ui";
-import { DesktopCloudShell } from "../../../components/DesktopCloudShell";
-import type { ResolvedSurfaceAppearance } from "../../appearance/AppearanceRuntime";
-import { DesktopTitlebarContext } from "../../app-shell/DesktopTitlebarContext";
-import { DesktopShellLocationBar } from "../../app-shell/DesktopShellLocationBar";
-import { EditorHeaderTabs } from "../../editor-workbench/header/EditorHeaderTabs";
-import { DesktopCloudFileWorkspace, type CloudFileSurfaceProps } from "./DesktopCloudFileWorkspace";
-import type { NativeCloudWorkbench } from "./useNativeCloudWorkbench";
-import type { DesktopCloudSession } from "../../../lib/cloudApi";
-import { CloudWorkspaceHeaderTools } from "./CloudWorkspaceHeaderTools";
-import { captureCloudWorkspaceShareResource } from "../share/cloudWorkspaceShareResource";
-import type { ProjectCloudContext } from "../project/context";
-import type { ProjectHomeItem } from "../../app-shell/workspaceHomeModel";
-import { useCloudAgentWorkspace } from "../agent/useCloudAgentWorkspace";
-import { CloudWorkspaceSidebar } from "./CloudWorkspaceSidebar";
-import { useCloudWorkspaceSidebar, type CloudWorkspaceSidebarController } from "./useCloudWorkspaceSidebar";
+import { DesktopCloudShell } from "../components/DesktopCloudShell";
+import type { ResolvedSurfaceAppearance } from "../features/appearance/AppearanceRuntime";
+import { DesktopTitlebarContext } from "../features/app-shell/DesktopTitlebarContext";
+import { DesktopShellLocationBar } from "../features/app-shell/DesktopShellLocationBar";
+import { AuxiliaryWorkbenchPanel } from "../features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel";
+import { EditorHeaderTabs } from "../features/editor-workbench/header/EditorHeaderTabs";
+import { DesktopCloudFileWorkspace, type CloudFileSurfaceProps } from "../features/cloud/workbench/DesktopCloudFileWorkspace";
+import type { NativeCloudWorkbench } from "../features/cloud/workbench/useNativeCloudWorkbench";
+import type { DesktopCloudSession } from "../lib/cloudApi";
+import { CloudWorkspaceHeaderTools } from "../features/cloud/workbench/CloudWorkspaceHeaderTools";
+import { captureCloudWorkspaceShareResource } from "../features/cloud/share/cloudWorkspaceShareResource";
+import type { ProjectCloudContext } from "../features/cloud/project/context";
+import type { ProjectHomeItem } from "../lib/workspaceHomeModel";
+import { useCloudAgentWorkspace } from "../features/cloud/agent/useCloudAgentWorkspace";
+import { CloudWorkspaceSidebar } from "../features/cloud/workbench/CloudWorkspaceSidebar";
+import { useCloudWorkspaceSidebar, type CloudWorkspaceSidebarController } from "../features/cloud/workbench/useCloudWorkspaceSidebar";
 
 const noop = () => undefined;
 
@@ -127,7 +128,8 @@ export function AccountCloudWorkspaceSurface({ workbench, presentation, active, 
       onRightSidebarOpenChange={sidebar.setOpen} onRightSidebarWidthChange={setRightSidebarWidth}
       rightSidebar={pane => <CloudWorkspaceSidebar sidebar={sidebar} agent={agent} context={context}
         session={session} apiBaseUrl={apiBaseUrl} active={active && pane.contentVisible} title={service.workspace.name}
-        revisionKey={String(workbench.refreshToken.sequence)} onSessionChange={onSessionChange} />}>
+        revisionKey={String(workbench.refreshToken.sequence)} onSessionChange={onSessionChange}
+        workbenchPanel={AuxiliaryWorkbenchPanel} />}>
       {presentation.content}
     </DesktopCloudShell>
   </div>;

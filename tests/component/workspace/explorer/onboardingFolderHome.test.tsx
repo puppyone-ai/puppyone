@@ -301,10 +301,11 @@ describe("project folder home", () => {
   });
 
   it("preserves the upper rhythm and reclaims space only below the project list", () => {
-    expect(onboardingCss).toContain("padding-block-start: max(91px, calc(50vh - 281px));");
-    expect(onboardingCss).toContain("padding-block-start: max(87px, calc(50vh - 255px));");
-    expect(onboardingCss).toContain("padding-block-start: 91px;");
-    expect(onboardingCss).toContain("padding-block-end: 16px;");
+    // The projects page hangs from the shared Header and keeps a small bottom edge;
+    // only the list below absorbs extra height.
+    expect(onboardingCss).toMatch(
+      /\.onboarding-homepage-shell\[data-onboarding-state="projects"\]\s*\{[^}]*padding-block-start:\s*calc\(var\(--desktop-chrome-height\) \+ \d+px\);[^}]*padding-block-end:\s*16px;/s,
+    );
     expect(onboardingCss).toMatch(/\.onboarding-shell\[data-onboarding-state="projects"\] \.onboarding-homepage\s*\{[^}]*--onboarding-primary-inset-end:\s*10px;[^}]*--onboarding-primary-actions-gap:\s*12px;/s);
     expect(onboardingCss).toMatch(/\.onboarding-shell\[data-onboarding-state="projects"\] \.onboarding-entry-actions\s*\{[^}]*padding-block-end:\s*0;/s);
   });
@@ -559,9 +560,8 @@ describe("project folder home", () => {
     const dialog = container.querySelector<HTMLElement>("[role='dialog']");
     expect(dialog?.getAttribute("aria-label")).toBe("Import");
     expect(dialog?.classList.contains("is-import")).toBe(true);
-    expect(container.querySelector(".onboarding-import-intro")?.textContent).toBe(
-      "Bring content from these apps into a local project.",
-    );
+    // The intro sentence was redundant with the dialog title and removed (7d1f4b77).
+    expect(container.querySelector(".onboarding-import-intro")).toBeNull();
     const sources = [...container.querySelectorAll<HTMLButtonElement>(".onboarding-import-source")];
     expect(sources.map((source) => source.dataset.importSource)).toEqual([
       "github",
@@ -576,9 +576,10 @@ describe("project folder home", () => {
       "repository",
     ]);
     expect(container.querySelector(".onboarding-entry-dialog input")).toBeNull();
-    expect(dialog?.querySelectorAll("p")).toHaveLength(1);
+    // The picker is just its labelled list of sources: no prose, nothing to describe.
+    expect(dialog?.querySelectorAll("p")).toHaveLength(0);
     expect(dialog?.querySelector(".desktop-dialog-leading, .onboarding-import-source-chevron, .onboarding-import-source-copy")).toBeNull();
-    expect(dialog?.getAttribute("aria-describedby")).toBe(dialog?.querySelector(".onboarding-import-intro")?.id);
+    expect(dialog?.hasAttribute("aria-describedby")).toBe(false);
     expect(dialog?.querySelectorAll(".onboarding-import-sources > li > button")).toHaveLength(2);
     expect(sources.every((source) => source.getAttribute("role") === null)).toBe(true);
     expect(sources.every((source) => source.children.length === 2)).toBe(true);
@@ -755,9 +756,8 @@ describe("project folder home", () => {
     );
     expect(providerMarks.map((mark) => mark.dataset.repositoryProvider)).toEqual(["github"]);
     expect(providerMarks.every((mark) => mark.getAttribute("fill") === "currentColor")).toBe(true);
-    expect(container.querySelector(".onboarding-clone-hint")?.textContent).toBe(
-      "The GitHub repository will be copied to this computer.",
-    );
+    // No standing copy hint (7d1f4b77); a hint appears only for an unsupported URL.
+    expect(container.querySelector(".onboarding-clone-hint")).toBeNull();
     expect(onDefaultProjectLocation).toHaveBeenCalledOnce();
     expect(container.querySelector(".onboarding-entry-location-path")?.textContent).toBe("/Users/example/Documents/PuppyOne");
     const repositoryUrl = container.querySelector<HTMLInputElement>(".onboarding-entry-dialog input");

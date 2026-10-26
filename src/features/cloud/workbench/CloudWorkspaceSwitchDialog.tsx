@@ -2,7 +2,7 @@ import { Tooltip } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
 import { useEffect, type ReactNode } from "react";
 import { DesktopDialogCloseButton, DesktopDialogRoot, DesktopDialogSurface } from "../../../components/DesktopDialog";
-import { DesktopOverlayLayer } from "../../app-shell/DesktopOverlayPortal";
+import { DesktopOverlayLayer } from "../../../components/DesktopOverlayPortal";
 import { CloudWorkspaceLoadingState } from "../components/shared";
 import { CloudProjectActivationScope } from "../components/CloudProjectActivation";
 import type { CloudWorkspaceSwitch } from "./useCloudWorkspaceSwitch";

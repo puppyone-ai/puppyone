@@ -20,7 +20,6 @@ import type {
   CloudInitializationState,
   GitStatusSnapshot,
 } from "../../../types/electron";
-import type { DesktopView } from "../../../components/DesktopCloudShell";
 import type { CloudWorkspaceSection } from "../types";
 import { createRepositoryRefreshReason } from "../../source-control/repositoryRefreshPolicy";
 import type { GitRefreshReason, GitRepositoryContext } from "../../source-control/gitRefreshScheduler";
@@ -65,7 +64,8 @@ export function useCloudInitialization({
   isGitRepositoryContextCurrent: (context: GitRepositoryContext) => boolean;
   refreshWorkspaceContent: () => void;
   setActiveCloudSection: (section: CloudWorkspaceSection) => void;
-  setActiveView: (view: DesktopView) => void;
+  /** Initialization only ever moves the window to the Cloud view. */
+  setActiveView: (view: "cloud") => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   setSwitcherOpen: (open: boolean) => void;
   workspace: Workspace | null;

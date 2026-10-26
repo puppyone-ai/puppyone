@@ -1,7 +1,7 @@
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import { AgentBrandImage, AgentMonochromeBrandImage, isMonochromeAgentBrandId, resolveAgentBrand } from "@puppyone/shared-ui";
 import { Laptop, Server } from "lucide-react";
-import { useDesktopPlatformCapabilities } from "../../../platform/useDesktopPlatformCapabilities";
+import { useDesktopPlatformCapabilities } from "../../../platform";
 import type { ReachMember, ReachPlace, ReachState } from "./projectReachHeader";
 
 /**

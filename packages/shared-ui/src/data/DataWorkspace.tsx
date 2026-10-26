@@ -339,6 +339,9 @@ export function DataWorkspace({
     ...collectAncestorFolderPaths(defaultActivePath),
   ]));
   const [loadError, setLoadError] = useState<string | null>(null);
+  // A failed user operation (import, move) is shown above the tree; folder load
+  // failures stay on their own folder rows.
+  const [operationError, setOperationError] = useState<string | null>(null);
   const [documentNavigationError, setDocumentNavigationError] = useState<string | null>(null);
   const dismissDocumentNavigationError = useCallback(() => setDocumentNavigationError(null), []);
   const [unavailableActivePath, setUnavailableActivePath] = useState<string | null>(null);
@@ -1123,6 +1126,7 @@ export function DataWorkspace({
       const requestGeneration = loadGenerationRef.current;
       setFolderLoading(targetFolderPath, true);
       setLoadError(null);
+      setOperationError(null);
 
       try {
         const result = await dataPort.importFiles(files, targetFolderPath);
@@ -1150,7 +1154,9 @@ export function DataWorkspace({
         }
       } catch (error) {
         if (requestGeneration === loadGenerationRef.current) {
-          setLoadError(error instanceof Error ? error.message : String(error));
+          const message = error instanceof Error ? error.message : String(error);
+          setLoadError(message);
+          setOperationError(message);
         }
       } finally {
         if (requestGeneration === loadGenerationRef.current) {
@@ -1185,6 +1191,7 @@ export function DataWorkspace({
       if (operations.length === 0) return;
 
       setLoadError(null);
+      setOperationError(null);
 
       const completed: typeof operations = [];
       setDocumentNavigationError(null);
@@ -1194,7 +1201,9 @@ export function DataWorkspace({
           completed.push(operation);
           await onResourceMove?.(operation.previousPath, operation.nextPath);
         } catch (error) {
-          setLoadError(error instanceof Error ? error.message : String(error));
+          const message = error instanceof Error ? error.message : String(error);
+          setLoadError(message);
+          setOperationError(message);
           break;
         }
       }
@@ -1419,9 +1428,12 @@ export function DataWorkspace({
                       loadingPaths={loadingFolderPaths}
                       rootLoading={explorerPresentationPending || rootLoading}
                       loadingPresentation={explorerLoadingPresentation}
-                      rootError={folderErrors.get(ROOT_FOLDER_KEY)}
+                      rootError={operationError ?? folderErrors.get(ROOT_FOLDER_KEY)}
                       folderErrors={folderErrors}
-                      onRetryFolder={(path) => { void loadFolder(path, true); }}
+                      onRetryFolder={(path) => {
+                        if (path === null) setOperationError(null);
+                        void loadFolder(path, true);
+                      }}
                       rootLabel={labels?.root ?? t("shared-ui.explorer.root")}
                       showRoot={showExplorerRoot}
                       loadingLabel={labels?.loadingWorkspace ?? t("shared-ui.explorer.loadingWorkspace")}

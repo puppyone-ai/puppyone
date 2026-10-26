@@ -8,7 +8,7 @@ import {
   DesktopDialogRoot,
   DesktopDialogSurface,
 } from "../../../../components/DesktopDialog";
-import { DesktopOverlayLayer } from "../../../app-shell/DesktopOverlayPortal";
+import { DesktopOverlayLayer } from "../../../../components/DesktopOverlayPortal";
 import { getDesktopCloudWebUrl, type DesktopCloudSession } from "../../../../lib/cloudApi";
 import { desktopPreferencesStore, selectReachLastAgentId, useDesktopPreference } from "../../../../preferencesStore";
 import { CloudAuthCard } from "../../auth/CloudAuthCard";

@@ -26,7 +26,7 @@ import {
 import {
   DesktopOverlayPortal,
   type DesktopOverlayPortalProps,
-} from "./DesktopOverlayPortal";
+} from "../../components/DesktopOverlayPortal";
 import "./desktop-help-launcher.css";
 
 type SubmissionState = "idle" | "sending" | "sent" | "error";

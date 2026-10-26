@@ -5,7 +5,7 @@ import type {
   AuxiliaryWorkbenchItemRenderContext,
   AuxiliaryWorkbenchItemSnapshot,
   AuxiliaryWorkbenchProject,
-} from "../../app-shell/auxiliary-workbench/types";
+} from "../../../lib/workbench/types";
 import type { AgentChatTabPresentation } from "../domain/agent-chat-presentation";
 import { projectAgentControllers } from "./projectAgentControllers";
 import { openExternalAgentUrl } from "../infrastructure/electron/electronAgentClient";

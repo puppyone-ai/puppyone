@@ -16,9 +16,6 @@
     },
     "max-lines-per-function": {
       "count": 1
-    },
-    "no-nested-ternary": {
-      "count": 1
     }
   },
   "electron/main.mjs": {
@@ -1498,11 +1495,6 @@
       "count": 2
     }
   },
-  "src/components/AssetLibraryHome.tsx": {
-    "no-nested-ternary": {
-      "count": 1
-    }
-  },
   "src/components/DesktopCloudShell.tsx": {
     "complexity": {
       "count": 1
@@ -1544,11 +1536,6 @@
       "count": 1
     }
   },
-  "src/components/onboarding/OnboardingProjectList.tsx": {
-    "no-nested-ternary": {
-      "count": 2
-    }
-  },
   "src/features/app-shell/DesktopDataWorkspaceSurface.tsx": {
     "complexity": {
       "count": 1
@@ -1571,19 +1558,9 @@
       "count": 4
     }
   },
-  "src/features/app-shell/DesktopOverlayPortal.tsx": {
-    "max-params": {
-      "count": 1
-    }
-  },
   "src/features/app-shell/DesktopTitlebarActions.tsx": {
     "complexity": {
       "count": 1
-    }
-  },
-  "src/features/app-shell/DesktopTitlebarContext.tsx": {
-    "no-nested-ternary": {
-      "count": 3
     }
   },
   "src/features/app-shell/ProjectSwitcherRail.tsx": {
@@ -1592,14 +1569,6 @@
     }
   },
   "src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchLauncher.tsx": {
-    "no-nested-ternary": {
-      "count": 1
-    }
-  },
-  "src/features/app-shell/auxiliary-workbench/ProjectWorkbenchStore.ts": {
-    "complexity": {
-      "count": 1
-    },
     "no-nested-ternary": {
       "count": 1
     }
@@ -1648,11 +1617,6 @@
     },
     "no-nested-ternary": {
       "count": 9
-    }
-  },
-  "src/features/app-shell/useAnchoredOverlayPosition.ts": {
-    "no-nested-ternary": {
-      "count": 2
     }
   },
   "src/features/app-shell/useWorkspaceLifecycle.ts": {
@@ -1805,17 +1769,12 @@
   },
   "src/features/cloud/sections/access/AccessMethodPermissions.tsx": {
     "no-nested-ternary": {
-      "count": 4
+      "count": 3
     }
   },
   "src/features/cloud/sections/access/CreateAccessDialog.tsx": {
     "no-nested-ternary": {
       "count": 2
-    }
-  },
-  "src/features/cloud/sections/access/CreateAccessMethodRow.tsx": {
-    "no-nested-ternary": {
-      "count": 1
     }
   },
   "src/features/cloud/sections/access/ScopeAccessDetail.tsx": {
@@ -1883,16 +1842,6 @@
   "src/features/cloud/workbench/DesktopCloudFileWorkspace.tsx": {
     "no-nested-ternary": {
       "count": 1
-    }
-  },
-  "src/features/cloud/workbench/cloudDataPort.ts": {
-    "no-nested-ternary": {
-      "count": 5
-    }
-  },
-  "src/features/cloud/workbench/useCloudWorkspaceSwitch.ts": {
-    "no-nested-ternary": {
-      "count": 2
     }
   },
   "src/features/cloud/workbench/useNativeCloudWorkbench.ts": {

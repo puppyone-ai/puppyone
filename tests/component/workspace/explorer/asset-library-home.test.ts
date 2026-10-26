@@ -39,7 +39,7 @@ describe("local project library", () => {
     const onOpenWorkspacePath = vi.fn(async () => undefined);
     const container = renderLibrary({ onOpenWorkspacePath });
     const button = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
-      .find((candidate) => stripBidiIsolation(candidate.getAttribute("aria-label")) === "Open Local Notes");
+      .find((candidate) => stripBidiIsolation(candidate.getAttribute("aria-label")) === "Open Local Notes locally");
     if (!button) throw new Error("Local project button is missing.");
 
     await act(async () => button.click());

@@ -50,10 +50,12 @@ vi.mock("../../../../src/features/app-shell/useWorkspaceLifecycle", () => ({
 vi.mock("../../../../src/features/app-shell/project-sessions/useProjectSession", () => ({ useProjectSession: () => state.project }));
 vi.mock("../../../../src/features/cloud/workbench/useAccountCloudWorkspace", () => ({
   useAccountCloudWorkspace: () => ({ active: state.cloudActive, cancel: state.noop,
+    // The real hook always reports a context; local-only is its inactive value.
+    context: { status: "local-only", projectId: null },
     useLocal: () => { state.cloudActive = false; } }),
 }));
 vi.mock("../../../../src/features/cloud/workbench/useNativeCloudWorkbench", () => ({ useNativeCloudWorkbench: () => ({ refreshToken: { sequence: 0, entries: [] } }) }));
-vi.mock("../../../../src/features/cloud/workbench/AccountCloudWorkspaceSurface", () => ({
+vi.mock("../../../../src/app/AccountCloudWorkspaceSurface", () => ({
   AccountCloudWorkspaceSurface: () => null,
   useAccountCloudWorkspacePresentation: () => ({}),
 }));
@@ -113,7 +115,7 @@ vi.mock("../../../../src/features/data-workspace/useDataNodeActions", () => ({
 vi.mock("../../../../src/features/editor-workbench/controller/useDesktopEditorWorkbench", () => ({
   useDesktopEditorWorkbench: () => ({ state: { editors: [] }, activePath: null }),
 }));
-vi.mock("../../../../src/features/app-shell/DesktopOverlayPortal", () => ({ DesktopOverlayPortal: () => null }));
+vi.mock("../../../../src/components/DesktopOverlayPortal", () => ({ DesktopOverlayPortal: () => null }));
 vi.mock("../../../../src/features/updates", () => ({ useDesktopUpdates: () => ({}) }));
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

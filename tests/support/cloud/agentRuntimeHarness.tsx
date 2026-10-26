@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { LocalizationProvider } from "@puppyone/localization/react";
 import { bootstrapRendererLocalization } from "../../../src/localization";
 import { CloudAgentSidebar } from "../../../src/features/cloud/agent/CloudAgentSidebar";
+import { AuxiliaryWorkbenchPanel } from "../../../src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel";
 import { useCloudAgentWorkspace } from "../../../src/features/cloud/agent/useCloudAgentWorkspace";
 import "../../../src/styles/cascade.css";
 import "../../../src/styles.css";
@@ -21,7 +22,7 @@ function Harness() {
     <nav><button data-test-location="local" onClick={() => setActive(false)}>Local</button>
       <button data-test-location="cloud" onClick={() => setActive(true)}>Cloud</button>
       <button data-test-open-agent onClick={() => agent.toggle?.()}>Puppyone Agent</button></nav>
-    {active && agent.open && agent.workbench && <CloudAgentSidebar workbench={agent.workbench} active />}
+    {active && agent.open && agent.workbench && <CloudAgentSidebar workbench={agent.workbench} active Panel={AuxiliaryWorkbenchPanel} />}
   </main>;
 }
 createRoot(document.getElementById("root")!).render(<LocalizationProvider initialState={localization.state}

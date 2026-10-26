@@ -3,3 +3,4 @@ export type { AppearancePreferencesV6,RootThemeAppearancePreferences } from "./a
 export { getDefaultSubThemeId, getInterfaceStyleFirstPaint, supportsThemePreset } from "./interfaceStyles";
 export { readLegacyAppearanceDocument, readLegacyAppearanceSnapshot, removeLegacyAppearancePreferences } from "./legacyAppearancePreferences";
 export { resolveAppearance, isAppearanceDecisionLocked, isAppearanceValueAllowed } from "./resolveAppearance";
+export type { ResolvedSurfaceAppearance } from "./AppearanceRuntime";

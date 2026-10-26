@@ -30,7 +30,8 @@ function Harness(props: Parameters<typeof useWorkspaceEntryBootstrap>[0]) { useW
 function mount() { const host = document.createElement("div"); document.body.append(host); root = createRoot(host); return host; }
 async function flush() { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); }
 function setName(host: HTMLElement, name: string) {
-  const input = host.querySelector("input")!;
+  // The project name field, not the optional template-link checkbox above it.
+  const input = host.querySelector<HTMLInputElement>('input[type="text"]')!;
   act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, name); input.dispatchEvent(new Event("input", { bubbles: true })); });
 }
 

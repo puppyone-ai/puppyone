@@ -417,12 +417,15 @@ describe("source-control visual architecture", () => {
   });
 
   it("keeps the no-version-control state to one calm enable action", () => {
-    expect(titlebarContextSource).toContain('t("shell.branch.noGit")');
+    // The Header carries project and location only since d9518fec; version control
+    // state lives in the Changes surface, never as a Header control.
+    expect(titlebarContextSource).not.toMatch(/GitBranch|shell\.branch\./);
     expect(titlebarContextSource).not.toContain('"No Version Control"');
     expect(viewSource).toContain("<VersionControlSetupState");
     expect(versionControlSetupSource).toContain('"source-control.setup.enable"');
     expect(versionControlSetupSource).toContain('"source-control.setup.enabling"');
-    expect(versionControlSetupSource).toContain('t("source-control.setup.description")');
+    // One title and one action; the redundant description was removed in 7d1f4b77.
+    expect(versionControlSetupSource).toContain('t("source-control.setup.title")');
     expect(versionControlSetupSource).toContain('ariaLabel={t("source-control.setup.ariaLabel")}');
     expect(versionControlSetupSource.match(/<button/g)).toHaveLength(1);
     expect(versionControlSetupSource).not.toContain("getElectron");
@@ -524,7 +527,6 @@ describe("source-control visual architecture", () => {
     expect(navigationSource).toContain(
       '{ view: "git", labelId: "shell.navigation.changes", icon: VersionControlIcon, iconSize: 18 }',
     );
-    expect(titlebarContextSource).toContain("<GitBranch size={13}");
     expect(titlebarContextSource).not.toContain("VersionControlIcon");
     expect(operationDialogsSource).toContain("<VersionControlIcon size={13} />");
     expect(navigationSource).not.toContain("PuppyGitIcon");

@@ -63,10 +63,10 @@ describe("project reach experiment gate", () => {
 
   it("rejects a surface that reads the stored flag instead of the consumption point", () => {
     const root = compliantRoot();
-    write(root, "src/features/app-shell/DesktopProjectLocationSwitcher.tsx",
+    write(root, "src/components/DesktopProjectLocationSwitcher.tsx",
       `export const enabled = settings.${PROJECT_REACH_FLAG};\n`);
     expect(projectReachGateErrors({ root })).toEqual([
-      `src/features/app-shell/DesktopProjectLocationSwitcher.tsx reads ${PROJECT_REACH_FLAG} directly;`
+      `src/components/DesktopProjectLocationSwitcher.tsx reads ${PROJECT_REACH_FLAG} directly;`
       + ` consume ${PROJECT_REACH_HOOK}() instead`,
     ]);
   });

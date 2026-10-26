@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { resolveAnchoredOverlayPosition } from "../../../../src/features/app-shell/useAnchoredOverlayPosition";
+import { resolveAnchoredOverlayPosition } from "../../../../src/components/useAnchoredOverlayPosition";
 
 describe("Desktop Agent renderer surfaces", () => {
 

@@ -191,7 +191,7 @@
     place-items: center;
     border: 2px solid var(--po-panel-raised, var(--po-overlay));
     border-radius: 50%;
-    font-size: 10px;
+    font-size: var(--po-type-ui-micro);
     font-weight: 600;
     line-height: 1;
   }
@@ -208,7 +208,7 @@
     gap: 3px;
     color: var(--po-accent-text);
     font-family: var(--po-font-mono, ui-monospace, monospace);
-    font-size: 11px;
+    font-size: var(--po-type-ui-micro);
     white-space: nowrap;
   }
 
@@ -447,7 +447,7 @@
 
     .desktop-cloud-project-journey-agent-status { display: none; }
     .desktop-cloud-project-activation-body { padding: 20px 20px 4px; }
-    .desktop-cloud-project-activation-title { font-size: 18px; }
+    .desktop-cloud-project-activation-title { font-size: var(--po-type-ui-heading); }
     .desktop-cloud-project-activation-footer { padding: 18px 20px 20px; }
   }
 

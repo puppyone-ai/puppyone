@@ -7,7 +7,7 @@ import {
   DesktopDialogRoot,
   DesktopDialogSurface,
 } from "../../../components/DesktopDialog";
-import { DesktopOverlayLayer } from "../DesktopOverlayPortal";
+import { DesktopOverlayLayer } from "../../../components/DesktopOverlayPortal";
 import type { AuxiliaryWorkbenchPendingClose } from "./useAuxiliaryWorkbenchCloseCoordinator";
 import "./auxiliary-workbench-close-dialog.css";
 

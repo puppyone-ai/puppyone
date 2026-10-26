@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ComponentType } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import {
   listCloudAutomationProviderSpecs,
@@ -13,9 +13,11 @@ import {
   cloudAutomationRowMatchesProvider,
   getCloudAutomationWebPath,
 } from "./automationDomain";
-import { CloudServiceUnavailable } from "../cloud/components/CloudServiceUnavailable";
 import { PageLoading } from "../../components/loading";
 import "./automation.css";
+
+/** The host's failed-service surface; Cloud supplies it so Automation never imports Cloud. */
+export type AutomationUnavailableView = ComponentType<{ title: string; onRetry: () => void }>;
 
 /** Automation for the single Project authorized by the current Git remote. */
 export function CloudProjectAutomationView({
@@ -23,11 +25,13 @@ export function CloudProjectAutomationView({
   cloudSession,
   activeProvider = null,
   onCloudSessionChange,
+  Unavailable,
 }: {
   projectId: string;
   cloudSession: DesktopCloudSession;
   activeProvider?: string | null;
   onCloudSessionChange: (session: DesktopCloudSession | null) => void;
+  Unavailable: AutomationUnavailableView;
 }) {
   const { t } = useLocalization();
   const data = useSynchronizeBindings(projectId, cloudSession, onCloudSessionChange);
@@ -81,7 +85,7 @@ export function CloudProjectAutomationView({
   }, [detailRowId, visibleRows]);
 
   if (data.loading || providerSpecsLoading) return <PageLoading variant="fill" label={t("cloud.loading.automation")} />;
-  if (data.error || providerSpecsError) return <CloudServiceUnavailable title={t("cloud.workspaceTools.automations")}
+  if (data.error || providerSpecsError) return <Unavailable title={t("cloud.workspaceTools.automations")}
     onRetry={() => { setProviderReload(value => value + 1); void data.reload().catch(() => undefined); }} />;
 
   return (

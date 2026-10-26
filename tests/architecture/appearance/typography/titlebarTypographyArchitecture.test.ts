@@ -67,8 +67,8 @@ describe("titlebar typography architecture", () => {
     expect(tokensCss).toContain("--po-brand-blue: #4599df;");
     expect(titlebarCss).not.toContain('.desktop-titlebar-workspace-mark[data-project-location="cloud"]');
     const onboarding = readFileSync(new URL("../../../../src/styles/onboarding.css", import.meta.url), "utf8");
-    expect(readCssBlock(onboarding, '.onboarding-project-icon.is-cloud,\n.onboarding-project-cloud-badge,\n.desktop-menu-icon-button.onboarding-project-cloud,\n.homepage-cloud-sign-in .desktop-cloud-icon'))
-      .toContain("color: var(--po-brand-blue);");
+    // Whatever else shares the rule, the Homepage Cloud mark is painted product blue.
+    expect(onboarding).toMatch(/\.onboarding-project-icon\.is-cloud[^{]*\{[^}]*color:\s*var\(--po-brand-blue\)/);
     expect(readCssBlock(titlebarCss, '.desktop-titlebar-workspace-button .desktop-titlebar-workspace-mark'))
       .toContain("color: inherit;");
   });

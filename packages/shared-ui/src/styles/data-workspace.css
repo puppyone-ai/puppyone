@@ -269,7 +269,7 @@ body.data-sidebar-resizing .data-preview-accessory {
   flex-shrink: 0;
   color: var(--po-text);
   font: inherit;
-  cursor: pointer;
+  cursor: var(--po-clickable-cursor, default);
 }
 
 .explorer-tree-error-banner button {

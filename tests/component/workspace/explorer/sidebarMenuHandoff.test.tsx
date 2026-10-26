@@ -82,7 +82,8 @@ describe("Sidebar menu handoff", () => {
     expect(document.activeElement).toBe(firstItem);
     const before = commits.length;
     const next = trigger("notes", "more");
-    press(next.querySelector("svg")!);
+    // Press the trigger's icon, whatever element renders it.
+    press(next.firstElementChild!);
     expect(menu()).toBe(originalMenu);
     expect(trigger("docs", "more").getAttribute("aria-expanded")).toBe("true");
     expect(commits).toHaveLength(before);

@@ -12,7 +12,7 @@ import { HomepageCloudStatus } from "../../../../src/features/cloud/workbench/Ho
 import { buildHomepageProjects } from "../../../../src/features/cloud/workbench/homepageCloudProjects";
 import { latestProjectModifiedAt } from "../../../../src/features/cloud/workbench/homepageCloudActivity";
 import type { DesktopCloudSession } from "../../../../src/lib/cloudApi";
-import type { RecentWorkspaceHomeItem } from "../../../../src/features/app-shell/workspaceHomeModel";
+import type { RecentWorkspaceHomeItem } from "../../../../src/lib/workspaceHomeModel";
 import { withTestLocalization } from "../../../support/react/localization";
 import { createTestSurfaceAppearance } from "../../../support/react/surfaceAppearance";
 

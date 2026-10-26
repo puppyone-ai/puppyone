@@ -4,7 +4,7 @@ import { useLocalization } from "@puppyone/localization/react";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import { DesktopDialogCloseButton, DesktopDialogRoot, DesktopDialogSurface } from "../../../components/DesktopDialog";
 import { PageLoading } from "../../../components/loading";
-import { DesktopOverlayLayer } from "../../app-shell/DesktopOverlayPortal";
+import { DesktopOverlayLayer } from "../../../components/DesktopOverlayPortal";
 import type { ProjectCloudContext } from "../project/context";
 import { CloudAutomationRouteSection } from "../sections/AutomationRouteSection";
 import { CloudSurfaceFrame } from "../shell/CloudSurfaceFrame";
