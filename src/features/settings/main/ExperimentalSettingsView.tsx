@@ -1,6 +1,5 @@
 import { useDesktopPreference } from "../../../preferencesStore";
-import { useFeatureFlag } from "../../flags";
-import { useCloudEnabled } from "../../cloud/useCloudEnabled";
+import { useCloudEnabled, useFeatureFlag } from "../../flags";
 import { useLocalization } from "@puppyone/localization";
 import type { ExperimentalSettings } from "../../../preferences";
 import { SettingsSectionHeader, SettingsSubsection, SettingsToggle } from "../components";

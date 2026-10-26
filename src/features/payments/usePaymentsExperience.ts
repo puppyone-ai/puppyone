@@ -1,5 +1,5 @@
 import { useDesktopPreference } from "../../preferencesStore";
-import { useCloudEnabled } from "../cloud/useCloudEnabled";
+import { useCloudEnabled } from "../flags";
 
 /**
  * The single decision point for asking anyone for money.

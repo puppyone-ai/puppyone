@@ -1,5 +1,5 @@
 import { useDesktopPreference } from "../../preferencesStore";
-import { useCloudEnabled } from "../cloud/useCloudEnabled";
+import { useCloudEnabled } from "../flags";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { OnboardingImportDialog } from "../../components/OnboardingImportDialog";
 import { OnboardingProjectEntryDialog } from "../../components/OnboardingProjectEntryDialog";

@@ -106,7 +106,7 @@ for (const { filePath, source } of productionCode) {
 // Cloud is on only when the build ships it and the user turns on the Cloud
 // experiment. Reading the build flag alone would show sign-in on a local-first
 // Desktop, so only the combined decision may read it.
-const cloudDecisionOwner = "src/features/cloud/useCloudEnabled.ts";
+const cloudDecisionOwner = "src/features/flags/index.tsx";
 for (const { filePath, source } of productionCode) {
   const relativePath = path.relative(repoRoot, filePath).split(path.sep).join("/");
   if (relativePath !== cloudDecisionOwner && /useFeatureFlag\(\s*["']cloudWorkspace["']\s*\)/.test(source)) {

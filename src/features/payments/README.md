@@ -5,7 +5,8 @@ untouched Desktop install never shows a price, a balance, a trial credit or a
 top-up, and the Agent routes only to the user's own API keys and local models.
 
 Paid compute needs a PuppyOne account, so it rides on Cloud:
-`usePaymentsExperience()` is true only while Cloud is on (`useCloudEnabled()`)
+`usePaymentsExperience()` is true only while Cloud is on (`useCloudEnabled()` in
+`src/features/flags`)
 *and* `enablePayments` is on. With Cloud off, the Payments switch is not
 offered and a stored `true` has no effect.
 

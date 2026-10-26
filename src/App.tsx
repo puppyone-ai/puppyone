@@ -32,7 +32,6 @@ import {
   type SettingsSection,
 } from "./features/settings";
 import { CLOUD_HUB_ENTRY_SECTION, type CloudWorkspaceSection } from "./features/cloud";
-import { useCloudEnabled } from "./features/cloud/useCloudEnabled";
 import { useAccountCloudWorkspace } from "./features/cloud/workbench/useAccountCloudWorkspace";
 import { CloudWorkspaceHeaderTools } from "./features/cloud/workbench/CloudWorkspaceHeaderTools";
 import { captureCloudWorkspaceShareResource } from "./features/cloud/share/cloudWorkspaceShareResource";
@@ -120,7 +119,7 @@ import {
   resolveCloudHubSectionAfterContextChange,
   useCurrentRepositoryCloudContext,
 } from "./features/cloud/project/context";
-import { useFeatureFlag } from "./features/flags";
+import { useCloudEnabled, useFeatureFlag } from "./features/flags";
 import {
   DesktopCreateEntryDialog,
   DesktopCreateEntryMenu,
