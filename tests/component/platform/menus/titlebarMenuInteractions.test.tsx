@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createWorkspaceFolder } from "../../../../packages/shared-ui/src/core/workbenchWorkspace";
 import { DesktopTitlebarContext } from "../../../../src/features/app-shell/DesktopTitlebarContext";
 import { DesktopWorkspaceSwitcher } from "../../../../src/features/app-shell/DesktopWorkspaceSwitcher";
-import { DesktopProjectLocationSwitcher } from "../../../../src/features/app-shell/DesktopProjectLocationSwitcher";
+import { DesktopProjectLocationSwitcher } from "../../../../src/components/DesktopProjectLocationSwitcher";
 import { initializeDesktopPreferences } from "../../../../src/preferencesStore";
 import { withTestLocalization } from "../../../support/react/localization";
 import { writeClipboardText } from "../../../../src/lib/clipboard";

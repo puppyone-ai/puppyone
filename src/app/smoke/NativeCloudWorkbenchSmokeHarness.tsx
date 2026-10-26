@@ -1,38 +1,39 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { AuxiliaryWorkbenchPanel } from "../../features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel";
 import { EditorView } from "@codemirror/view";
 import { createWorkspaceRootUri, createWorkspaceResourceUri, getWorkspaceResourcePath, canonicalizeResourceUri, isDocumentDataNode, withEditorDocumentOperations, type DataPort, type Workspace, type WorkspaceFolder } from "@puppyone/shared-ui";
-import { DesktopCloudShell } from "../../../components/DesktopCloudShell";
-import { resetDesktopPlatformCapabilitiesForTests } from "../../../platform/desktopPlatformClient";
-import { DesktopOverlayPortal } from "../../app-shell/DesktopOverlayPortal";
-import { DesktopTitlebarContext } from "../../app-shell/DesktopTitlebarContext";
-import { DesktopTitlebarActions } from "../../app-shell/DesktopTitlebarActions";
-import { CloudWorkspaceHeaderTools } from "./CloudWorkspaceHeaderTools";
-import { captureCloudWorkspaceShareResource } from "../share/cloudWorkspaceShareResource";
-import { DesktopWorkspaceLocationSurface } from "../../app-shell/DesktopWorkspaceLocationSurface";
-import { useDesktopPreference, useDesktopPreferenceEffects, initializeDesktopPreferences } from "../../settings";
-import { useCloudWorkspaceSwitch } from "./useCloudWorkspaceSwitch";
-import { CloudWorkspaceSwitchDialog } from "./CloudWorkspaceSwitchDialog";
-import { CloudWorkspacePreparation } from "./CloudWorkspacePreparation";
-import { RepositoryCloudSwitchGate } from "./RepositoryCloudSwitchGate";
-import { MissingCloudProjectRecovery } from "./MissingCloudProjectRecovery";
-import { CloudLocalOnlyWorkspace } from "../initialization/CloudInitializationView";
-import { cloudMessage } from "../cloudPresentation";
-import type { ProjectCloudContext } from "../project/context/projectCloudContext";
+import { DesktopCloudShell } from "../../components/DesktopCloudShell";
+import { resetDesktopPlatformCapabilitiesForTests } from "../../platform";
+import { DesktopOverlayPortal } from "../../components/DesktopOverlayPortal";
+import { DesktopTitlebarContext } from "../../features/app-shell/DesktopTitlebarContext";
+import { DesktopTitlebarActions } from "../../features/app-shell/DesktopTitlebarActions";
+import { CloudWorkspaceHeaderTools } from "../../features/cloud/workbench/CloudWorkspaceHeaderTools";
+import { captureCloudWorkspaceShareResource } from "../../features/cloud/share/cloudWorkspaceShareResource";
+import { DesktopWorkspaceLocationSurface } from "../../features/app-shell/DesktopWorkspaceLocationSurface";
+import { useDesktopPreference, useDesktopPreferenceEffects, initializeDesktopPreferences } from "../../features/settings";
+import { useCloudWorkspaceSwitch } from "../../features/cloud/workbench/useCloudWorkspaceSwitch";
+import { CloudWorkspaceSwitchDialog } from "../../features/cloud/workbench/CloudWorkspaceSwitchDialog";
+import { CloudWorkspacePreparation } from "../../features/cloud/workbench/CloudWorkspacePreparation";
+import { RepositoryCloudSwitchGate } from "../../features/cloud/workbench/RepositoryCloudSwitchGate";
+import { MissingCloudProjectRecovery } from "../../features/cloud/workbench/MissingCloudProjectRecovery";
+import { CloudLocalOnlyWorkspace } from "../../features/cloud/initialization/CloudInitializationView";
+import { cloudMessage } from "../../features/cloud/cloudPresentation";
+import type { ProjectCloudContext } from "../../features/cloud/project/context/projectCloudContext";
 import { useLocalization } from "@puppyone/localization/react";
 import type { AppLanguagePreference } from "@puppyone/localization/core";
-import type { DesktopCloudAuthState } from "../../../lib/cloudSession";
-import { useNativeCloudWorkbench } from "./useNativeCloudWorkbench";
-import { DesktopCloudFileWorkspace } from "./DesktopCloudFileWorkspace";
-import { DesktopDataWorkspaceSurface, type DesktopDataWorkspaceSurfaceProps } from "../../app-shell/DesktopDataWorkspaceSurface";
-import { resolveWorkspaceSurface } from "../../app-shell/workspace-surfaces/workspaceSurfaceRegistry";
-import { useDesktopEditorWorkbench } from "../../editor-workbench/controller/useDesktopEditorWorkbench";
-import { useDataNodeActions } from "../../data-workspace/useDataNodeActions";
-import type { DesktopCloudSession } from "../../../lib/cloudApi";
-import { createCloudAgentSmokeFixture, editCloudAgentPrompt } from "../agent/CloudAgentSmokeFixture";
-import { useCloudAgentWorkspace } from "../agent/useCloudAgentWorkspace";
-import { CloudWorkspaceSidebar } from "./CloudWorkspaceSidebar";
-import { useCloudWorkspaceSidebar, type CloudWorkspaceSidebarController } from "./useCloudWorkspaceSidebar";
-import { cloudHistorySmokeFixture } from "./cloudRepositorySmokeFixture";
+import type { DesktopCloudAuthState } from "../../lib/cloudSession";
+import { useNativeCloudWorkbench } from "../../features/cloud/workbench/useNativeCloudWorkbench";
+import { DesktopCloudFileWorkspace } from "../../features/cloud/workbench/DesktopCloudFileWorkspace";
+import { DesktopDataWorkspaceSurface, type DesktopDataWorkspaceSurfaceProps } from "../../features/app-shell/DesktopDataWorkspaceSurface";
+import { resolveWorkspaceSurface } from "../../features/app-shell/workspace-surfaces/workspaceSurfaceRegistry";
+import { useDesktopEditorWorkbench } from "../../features/editor-workbench/controller/useDesktopEditorWorkbench";
+import { useDataNodeActions } from "../../features/data-workspace/useDataNodeActions";
+import type { DesktopCloudSession } from "../../lib/cloudApi";
+import { createCloudAgentSmokeFixture, editCloudAgentPrompt } from "../../features/cloud/agent/CloudAgentSmokeFixture";
+import { useCloudAgentWorkspace } from "../../features/cloud/agent/useCloudAgentWorkspace";
+import { CloudWorkspaceSidebar } from "../../features/cloud/workbench/CloudWorkspaceSidebar";
+import { useCloudWorkspaceSidebar, type CloudWorkspaceSidebarController } from "../../features/cloud/workbench/useCloudWorkspaceSidebar";
+import { cloudHistorySmokeFixture } from "../../features/cloud/workbench/cloudRepositorySmokeFixture";
 
 initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeItem: () => {} });
 
@@ -375,7 +376,7 @@ function SmokeAgentSidebar({ location, pending, agent, cloudSidebar, revisionKey
     <div className={`desktop-right-sidebar-surface ${location === "cloud" ? "is-active" : ""}`} aria-hidden={location !== "cloud"}>
       <CloudWorkspaceSidebar sidebar={cloudSidebar} agent={agent} context={context} session={session} apiBaseUrl={API}
         active={location === "cloud" && contentVisible} title={t("cloud.home.location.cloud")}
-        revisionKey={revisionKey} onSessionChange={noop} />
+        revisionKey={revisionKey} onSessionChange={noop} workbenchPanel={AuxiliaryWorkbenchPanel} />
     </div>
     <div className={`desktop-right-sidebar-surface ${localActive ? "is-active" : ""}`}
       aria-hidden={!localActive} data-native-local-agent="true">{t("agent.panel.chat", { agent: t("shell.navigation.local") })}</div>

@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CloudAgentWorkbench } from "../../../../src/features/cloud/agent/CloudAgentWorkbench";
 import { CloudAgentSidebar } from "../../../../src/features/cloud/agent/CloudAgentSidebar";
+import { AuxiliaryWorkbenchPanel } from "../../../../src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel";
 import { CloudAgentClient } from "../../../../src/features/cloud/agent/cloudAgentClient";
 import { createCloudAgentSmokeFixture } from "../../../../src/features/cloud/agent/CloudAgentSmokeFixture";
 import type { DesktopCloudSession } from "../../../../src/lib/cloudApi";
@@ -28,7 +29,7 @@ async function click(label: string) {
 async function render() {
   if (!root) { const host = document.createElement("div"); document.body.append(host); root = createRoot(host); }
   await act(async () => {
-    root!.render(withTestLocalization(<CloudAgentSidebar workbench={workbench} active />));
+    root!.render(withTestLocalization(<CloudAgentSidebar workbench={workbench} active Panel={AuxiliaryWorkbenchPanel} />));
   });
 }
 async function newChat() {

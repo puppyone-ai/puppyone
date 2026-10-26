@@ -10,8 +10,8 @@ import {
   type WorkbenchSplitDropEdge,
   type WorkbenchSplitMinimumSize,
 } from "@puppyone/shared-ui";
-import type { AuxiliaryWorkbenchCloseContext, AuxiliaryWorkbenchContribution, AuxiliaryWorkbenchItemRenderContext, AuxiliaryWorkbenchItemSnapshot } from "./types";
-import { LAUNCHER_ITEM_KIND, type ProjectWorkbenchStore } from "./ProjectWorkbenchStore";
+import type { AuxiliaryWorkbenchCloseContext, AuxiliaryWorkbenchContribution, AuxiliaryWorkbenchItemRenderContext, AuxiliaryWorkbenchItemSnapshot, WorkbenchLauncherContext } from "../../../lib/workbench/types";
+import { LAUNCHER_ITEM_KIND, type ProjectWorkbenchStore } from "../../../lib/workbench/ProjectWorkbenchStore";
 import { useAuxiliaryWorkbench } from "./useAuxiliaryWorkbench";
 import { useAuxiliaryWorkbenchCloseCoordinator } from "./useAuxiliaryWorkbenchCloseCoordinator";
 import { AuxiliaryWorkbenchCloseDialog } from "./AuxiliaryWorkbenchCloseDialog";
@@ -22,7 +22,7 @@ import { usePersistentWorkbenchItemHosts } from "./layout/usePersistentWorkbench
 import { useWorkbenchTabMoveDrag } from "./layout/interactions/useWorkbenchTabMoveDrag";
 import { canPlaceWorkbenchSplit } from "./layout/workbenchSplitConstraints";
 
-export type WorkbenchLauncherContext = { groupId: string | null; itemId: string | null; presented: boolean };
+export type { WorkbenchLauncherContext };
 export function AuxiliaryWorkbenchPanel({ store, contributions, active, renderLauncher, onRetryProjectClose, titlebarTabHost, onReveal }: {
   store: ProjectWorkbenchStore;
   contributions: readonly AuxiliaryWorkbenchContribution[];

@@ -7,8 +7,8 @@ import {
   DesktopMenuItem,
   DesktopMenuSurface,
 } from "../../../../components/DesktopMenu";
-import { DesktopOverlayLayer } from "../../DesktopOverlayPortal";
-import { useAnchoredOverlayPosition } from "../../useAnchoredOverlayPosition";
+import { DesktopOverlayLayer } from "../../../../components/DesktopOverlayPortal";
+import { useAnchoredOverlayPosition } from "../../../../components/useAnchoredOverlayPosition";
 import type { AuxiliaryWorkbenchHeaderItem } from "./AuxiliaryWorkbenchHeader.types";
 import { AuxiliaryWorkbenchStatus } from "./AuxiliaryWorkbenchStatus";
 

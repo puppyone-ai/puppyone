@@ -54,7 +54,7 @@ describe("Project-owned auxiliary workbench architecture", () => {
 
   it("preserves Item views across Tab reorder and keeps close feature-authoritative", () => {
     const panel = source("src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel.tsx");
-    const closeContract = source("src/features/app-shell/auxiliary-workbench/types.ts");
+    const closeContract = source("src/lib/workbench/types.ts");
     const closeCoordinator = source(
       "src/features/app-shell/auxiliary-workbench/useAuxiliaryWorkbenchCloseCoordinator.ts",
     );
@@ -80,7 +80,7 @@ describe("Project-owned auxiliary workbench architecture", () => {
   });
 
   it("separates presentation from command selection and leaves focus in the DOM", () => {
-    const contract = source("src/features/app-shell/auxiliary-workbench/types.ts");
+    const contract = source("src/lib/workbench/types.ts");
     const panel = source("src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel.tsx");
     expect(contract).toContain("sidebarVisible: boolean");
     expect(contract).toContain("presented: boolean");
@@ -91,7 +91,7 @@ describe("Project-owned auxiliary workbench architecture", () => {
   });
 
   it("keeps feature branding in the generic Item snapshot and Workbench chrome", () => {
-    const contract = source("src/features/app-shell/auxiliary-workbench/types.ts");
+    const contract = source("src/lib/workbench/types.ts");
     const status = source(
       "src/features/app-shell/auxiliary-workbench/layout/AuxiliaryWorkbenchStatus.tsx",
     );

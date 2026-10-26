@@ -19,7 +19,7 @@ import {
   getProjectName,
   type ProjectHomeItem,
   type RecentWorkspaceHomeItem,
-} from "../features/app-shell/workspaceHomeModel";
+} from "../lib/workspaceHomeModel";
 import { writeClipboardText } from "../features/settings/utils";
 import { resolveImportPreviewBrands } from "../features/project-import/importSourceRegistry";
 import type {
@@ -43,7 +43,7 @@ import { isHomepageProjectOpening, OnboardingProjectLoading } from "./onboarding
 import { OnboardingTelemetryDisclosure } from "./onboarding/OnboardingTelemetryDisclosure";
 import type { OnboardingHomeState } from "./onboarding/types";
 
-export type { ProjectHomeItem, RecentWorkspaceHomeItem } from "../features/app-shell/workspaceHomeModel";
+export type { ProjectHomeItem, RecentWorkspaceHomeItem } from "../lib/workspaceHomeModel";
 
 export type OnboardingOperationStatus = {
   title: string;

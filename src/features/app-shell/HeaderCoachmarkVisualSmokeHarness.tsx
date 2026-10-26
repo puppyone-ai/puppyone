@@ -3,7 +3,7 @@ import { FileText, Folder, GitBranch } from "lucide-react";
 import { useLocalization } from "@puppyone/localization/react";
 import { DesktopWindowChrome } from "../../components/DesktopWindowChrome";
 import { initializeDesktopPreferences } from "../../preferencesStore";
-import { DesktopOverlayPortal } from "./DesktopOverlayPortal";
+import { DesktopOverlayPortal } from "../../components/DesktopOverlayPortal";
 import { DesktopTitlebarActions } from "./DesktopTitlebarActions";
 import type { HeaderCoachmarkId } from "./headerCoachmarks";
 import "./header-coachmark-visual-smoke.css";

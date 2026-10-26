@@ -5,8 +5,8 @@ import type { CloudEntry } from "./contracts";
 import { createCloudWorkspaceOpeningProgress } from "./cloudWorkspaceOpening";
 import { cloudWorkspaceIdentity, inspectCloudWorkspaceHandoff, takeCloudWorkspaceHandoff, type CloudWorkspaceHandoff } from "./cloudWorkspaceHandoff";
 
-export type CloudWorkbench = { id: string; project_id: string; generation: string; state: string; target_ref: string;
-  operation?: { pending: boolean; phase: string | null; deadline: string | null; error: string | null; retryable: boolean } };
+import type { CloudWorkbench } from "./contracts";
+export type { CloudWorkbench } from "./contracts";
 export type WorkspaceEntry = { name: string; kind: string; size: number; modified_ns: string };
 type FileReply = WorkspaceEntry & { content_base64: string; revision: string };
 export type WorkspaceVersion = { workspace: string; generation: string; revision: string };

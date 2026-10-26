@@ -31,7 +31,7 @@ import {
   DesktopDialogRoot,
   DesktopDialogSurface,
 } from "../../components/DesktopDialog";
-import { DesktopOverlayLayer } from "../app-shell/DesktopOverlayPortal";
+import { DesktopOverlayLayer } from "../../components/DesktopOverlayPortal";
 import {
   getCloudProviderIconUrl,
   providerIcon,

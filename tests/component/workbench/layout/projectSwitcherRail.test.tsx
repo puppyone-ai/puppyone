@@ -5,7 +5,7 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Workspace } from "@puppyone/shared-ui";
-import type { ProjectHomeItem, RecentWorkspaceHomeItem } from "../../../../src/features/app-shell/workspaceHomeModel";
+import type { ProjectHomeItem, RecentWorkspaceHomeItem } from "../../../../src/lib/workspaceHomeModel";
 import { buildHomepageProjects } from "../../../../src/features/cloud/workbench/homepageCloudProjects";
 import type { ProjectAppearance } from "../../../../src/types/electron";
 import {

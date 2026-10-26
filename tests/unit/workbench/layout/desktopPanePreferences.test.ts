@@ -13,7 +13,7 @@ import {
   DEFAULT_RIGHT_SIDEBAR_WIDTH,
   MIN_EXPLORER_WIDTH,
   MIN_RIGHT_SIDEBAR_WIDTH,
-} from "../../../../src/features/app-shell/layout/desktopPaneLayout";
+} from "../../../../src/lib/desktopPaneLayout";
 
 afterEach(() => window.localStorage.clear());
 

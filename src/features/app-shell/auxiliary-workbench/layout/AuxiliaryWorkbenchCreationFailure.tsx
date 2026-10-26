@@ -1,6 +1,6 @@
 import { FloatingNotice, FloatingNoticeAction } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
-import type { AuxiliaryWorkbenchCreationFailure } from "../types";
+import type { AuxiliaryWorkbenchCreationFailure } from "../../../../lib/workbench/types";
 
 export function AuxiliaryWorkbenchCreationFailure({
   failure,

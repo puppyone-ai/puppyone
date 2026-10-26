@@ -83,7 +83,7 @@ describe("Header project reach bindings", () => {
 
   it("leaves the established Header components free of the experiment", () => {
     for (const file of [
-      "src/features/app-shell/DesktopProjectLocationSwitcher.tsx",
+      "src/components/DesktopProjectLocationSwitcher.tsx",
       "src/features/app-shell/DesktopTitlebarActions.tsx",
       "src/features/app-shell/headerElements.tsx",
       "src/features/source-control/gitTitlebarStatus.ts",

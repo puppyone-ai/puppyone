@@ -1,6 +1,6 @@
 import { LOCAL_AGENT_CHAT_RECIPES, localAgentIdForAgentChatRuntime } from "../../local-agents";
 export { localAgentIdForAgentChatRuntime } from "../../local-agents";
-import type { AuxiliaryWorkbenchCreationRecipe } from "./types";
+import type { AuxiliaryWorkbenchCreationRecipe } from "../../../lib/workbench/types";
 
 const AGENT_CHAT_RECIPE_LABEL_COLLATOR = new Intl.Collator("en", {
   sensitivity: "base",

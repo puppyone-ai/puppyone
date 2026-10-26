@@ -18,7 +18,7 @@ import {
 import { type DesktopCloudSession } from "../../../lib/cloudApi";
 import { resolveCloudApiBaseUrl } from "../../../../shared/cloudEndpoint.js";
 import type { ProjectCloudContext } from "../project/context/projectCloudContext";
-import type { ResolvedWorkbenchDataResource } from "../../data-workspace/workbenchDataPort";
+import type { ResolvedWorkbenchDataResource } from "../../data-workspace";
 import { createCloudNativePreviewPorts } from "../../../platform";
 import { waitForCloudRead } from "./cloudFileReads";
 import { createCloudWorkspaceClient, encodeWorkspaceBytes } from "./cloudWorkspaceClient";

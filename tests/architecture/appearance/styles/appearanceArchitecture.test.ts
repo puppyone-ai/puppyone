@@ -359,7 +359,7 @@ describe("appearance profile architecture", () => {
       "src/features/appearance/resolveAppearance.ts",
       "src/features/appearance/AppearanceRuntime.tsx",
       "src/features/appearance/interface-style-manifest.json",
-      "src/features/app-shell/DesktopOverlayPortal.tsx",
+      "src/components/DesktopOverlayPortal.tsx",
       "src/features/settings/types.ts",
       "src/features/settings/SettingsWorkspaceSurface.tsx",
     ]) {

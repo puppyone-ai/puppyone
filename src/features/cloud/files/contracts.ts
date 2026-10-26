@@ -87,3 +87,7 @@ function validateRevision(value: RepositoryRevision): RepositoryRevision {
 export function statusOf(error: unknown): number {
   return error && typeof error === "object" && "status" in error ? Number(error.status) : 0;
 }
+
+/** A Cloud workspace row as the workbench API reports it. */
+export type CloudWorkbench = { id: string; project_id: string; generation: string; state: string; target_ref: string;
+  operation?: { pending: boolean; phase: string | null; deadline: string | null; error: string | null; retryable: boolean } };

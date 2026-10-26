@@ -1,7 +1,7 @@
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import type { ProjectCloudContext } from "../project/context/projectCloudContext";
 import type { CloudEntry } from "./contracts";
-import type { CloudWorkbench } from "./cloudWorkspaceClient";
+import type { CloudWorkbench } from "./contracts";
 
 /** A one-use read result, never a cached authorization grant. */
 export type CloudWorkspaceHandoff = Readonly<{

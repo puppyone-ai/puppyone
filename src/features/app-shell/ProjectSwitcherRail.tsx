@@ -32,7 +32,8 @@ export {
   resolveProjectSwitcherCompactWidth,
   resolveProjectSwitcherRailWidth,
 } from "./projectSwitcherRailGeometry";
-import { getProjectName, type ProjectHomeItem, type RecentWorkspaceHomeItem } from "./workspaceHomeModel";
+import { getProjectName, type ProjectHomeItem, type RecentWorkspaceHomeItem } from "../../lib/workspaceHomeModel";
+import type { ProjectAppearance } from "../../types/electron";
 
 export type ProjectSwitcherRailItem = Readonly<{
   item: ProjectHomeItem;
@@ -149,6 +150,8 @@ export function ProjectSwitcherRail({
     });
   };
 
+  // Rename/unlink belong to the expanded rail as a whole, not to any one row.
+  const projectActionsAvailable = expanded && Boolean(onRenameProject || onUnlinkProject);
   const currentCloudProjectId = activeCloudProjectId
     ?? (activeWorkspace.path.startsWith("puppyone-cloud:") ? activeWorkspace.projectId : null);
   const isActiveProject = (project: ProjectHomeItem) => currentCloudProjectId
@@ -203,28 +206,29 @@ export function ProjectSwitcherRail({
         {projects.map(({ item, workspace, initial, appearanceIdentity }) => {
           const active = activeView !== "settings" && isActiveProject(item);
           const name = getProjectName(item, t("onboarding.projects.untitled"));
-          const contextAssetKind = item.localPath ? item.cloudProjectId ? "linked" : "local" : "cloud";
-          const contextAssetLabel = [
-            ...(item.localPath ? [t("shell.workspaceSwitcher.contextAssetLocal")] : []),
-            ...(item.cloudProjectId ? [t("shell.workspaceSwitcher.contextAssetCloud")] : []),
-          ].join(" + ");
-          const appearance = appearanceIdentity
-            ? appearanceCatalog.appearances.get(appearanceIdentity)
-            : null;
-          const assetUrl = appearance?.icon?.kind === "asset" ? appearance.icon.url : null;
-          const imageUrl = assetUrl && !failedAvatarUrls.has(assetUrl) ? assetUrl : null;
-          const emoji = appearance?.icon?.kind === "emoji" ? appearance.icon.value : null;
+          const contextAssetKind = getProjectContextAssetKind(item);
+          const contextAssetLabel = getProjectContextAssetLabels(item, {
+            local: t("shell.workspaceSwitcher.contextAssetLocal"),
+            cloud: t("shell.workspaceSwitcher.contextAssetCloud"),
+          }).join(" + ");
+          const { assetUrl, imageUrl, emoji, iconKind } = resolveProjectRailAvatar(
+            appearanceCatalog.appearances,
+            appearanceIdentity,
+            failedAvatarUrls,
+          );
           const avatarHasText = !imageUrl && !emoji;
           const label = `${t("shell.workspaceSwitcher.projectTitle", {
             project: bidiIsolate(name),
           })} · ${contextAssetLabel}`;
+          // Workspaces are keyed by path, so a local row's workspace path is its localPath.
+          const actionSurface = projectActionSession?.projectPath === item.localPath
+            ? projectActionSession.surface
+            : null;
+          const pending = pendingId === item.id;
           return (
             <div
               className="desktop-project-switcher-rail-project-row"
-              data-menu-open={projectActionSession?.projectPath === item.localPath
-                && projectActionSession.surface === "menu"
-                ? "true"
-                : undefined}
+              data-menu-open={actionSurface === "menu" ? "true" : undefined}
               key={item.id}
             >
               <Tooltip content={!expanded && !avatarHasText ? name : undefined} placement="right"><button
@@ -232,12 +236,10 @@ export function ProjectSwitcherRail({
                 type="button"
                 aria-current={active ? "page" : undefined}
                 aria-label={label}
-                aria-busy={pendingId === item.id || undefined}
-                data-avatar-kind={expanded
-                  ? `context-${contextAssetKind}`
-                  : appearance?.icon?.kind ?? "initial"}
+                aria-busy={pending || undefined}
+                data-avatar-kind={expanded ? `context-${contextAssetKind}` : iconKind}
                 data-context-asset-kind={contextAssetKind}
-                data-pending={pendingId === item.id ? "true" : undefined}
+                data-pending={pending ? "true" : undefined}
                 data-po-interaction="navigation"
                 draggable={Boolean(item.localPath.trim())}
                 onClick={() => void selectProject(item)}
@@ -259,12 +261,10 @@ export function ProjectSwitcherRail({
                   </span>
                 )}
               </button></Tooltip>
-              {expanded && item.localPath && workspace && (onRenameProject || onUnlinkProject) && (
+              {projectActionsAvailable && item.localPath && workspace && (
                 <ProjectRowActions
                   workspace={workspace}
-                  surface={projectActionSession?.projectPath === workspace.path
-                    ? projectActionSession.surface
-                    : null}
+                  surface={actionSurface}
                   onSurfaceChange={(surface) => changeProjectActionSurface(workspace.path, surface)}
                   onRenameProject={onRenameProject}
                   onUnlinkProject={onUnlinkProject}
@@ -401,12 +401,55 @@ export function resolveProjectSwitcherRailItems(
       ...(hosted && activeWorkspace.projectId ? { cloudProjectId: activeWorkspace.projectId } : {}) });
   }
   return items.map(item => {
-    const workspace = item.localPath ? workspaces.get(item.localPath) ?? null
-      : hosted && item.cloudProjectId === activeWorkspace.projectId ? activeWorkspace : null;
+    const workspace = resolveRailWorkspace(item, workspaces, hosted ? activeWorkspace : null);
     return Object.freeze({ item, workspace,
       initial: getProjectSwitcherInitial(item.label, item.localPath),
       appearanceIdentity: workspace ? getProjectAppearanceIdentity(workspace) : null });
   });
+}
+
+/** A local row owns its registered workspace; a hosted row only the open hosted one. */
+function resolveRailWorkspace(
+  item: ProjectHomeItem,
+  workspaces: ReadonlyMap<string, Workspace>,
+  activeHostedWorkspace: Workspace | null,
+): Workspace | null {
+  if (item.localPath) return workspaces.get(item.localPath) ?? null;
+  return item.cloudProjectId && item.cloudProjectId === activeHostedWorkspace?.projectId
+    ? activeHostedWorkspace
+    : null;
+}
+
+/** Where the project's content lives: only here, only in Cloud, or both. */
+function getProjectContextAssetKind(item: ProjectHomeItem): "linked" | "local" | "cloud" {
+  if (!item.localPath) return "cloud";
+  return item.cloudProjectId ? "linked" : "local";
+}
+
+function getProjectContextAssetLabels(
+  item: ProjectHomeItem,
+  labels: Readonly<{ local: string; cloud: string }>,
+): string[] {
+  const parts: string[] = [];
+  if (item.localPath) parts.push(labels.local);
+  if (item.cloudProjectId) parts.push(labels.cloud);
+  return parts;
+}
+
+/** A failed asset falls back to the emoji or initial instead of a broken image. */
+function resolveProjectRailAvatar(
+  appearances: ReadonlyMap<string, ProjectAppearance>,
+  appearanceIdentity: string | null,
+  failedAvatarUrls: ReadonlySet<string>,
+) {
+  const icon = appearanceIdentity ? appearances.get(appearanceIdentity)?.icon : undefined;
+  const assetUrl = icon?.kind === "asset" ? icon.url : null;
+  return {
+    assetUrl,
+    imageUrl: assetUrl && !failedAvatarUrls.has(assetUrl) ? assetUrl : null,
+    emoji: icon?.kind === "emoji" ? icon.value : null,
+    iconKind: icon?.kind ?? "initial",
+  };
 }
 
 export function mergeProjectSwitcherRailOrder(

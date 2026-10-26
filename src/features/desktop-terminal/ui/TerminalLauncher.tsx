@@ -1,13 +1,13 @@
 import { Tooltip } from "@puppyone/shared-ui";
 import { AlertCircle, History, RefreshCw } from "lucide-react";
 import { useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { WorkbenchLauncherState } from "../../app-shell/auxiliary-workbench/WorkbenchLauncherState";
+import { WorkbenchLauncherState } from "../../../lib/workbench/WorkbenchLauncherState";
 import { useLocalization } from "@puppyone/localization/react";
 import type {
   AuxiliaryWorkbenchCreationRecipe,
   AuxiliaryWorkbenchHistoryContribution,
   AuxiliaryWorkbenchHistoryTarget,
-} from "../../app-shell/auxiliary-workbench/types";
+} from "../../../lib/workbench/types";
 import type { LocalAgentInstallationId } from "../../../../shared/local-agent-installation/types";
 import type { LocalAgentInstallationDiscoveryPhase } from "../../local-agents";
 import {

@@ -1,5 +1,5 @@
 import { initializeDesktopPreferences, desktopPreferencesStore as preferences } from "../../../../src/preferencesStore";
-import type { AuxiliaryWorkbenchHistoryBrowserContext } from "../../../../src/features/app-shell/auxiliary-workbench/types";
+import type { AuxiliaryWorkbenchHistoryBrowserContext } from "../../../../src/lib/workbench/types";
 /**
  * @vitest-environment happy-dom
  */
@@ -10,11 +10,11 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AuxiliaryWorkbenchLauncher } from "../../../../src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchLauncher";
 import { AuxiliaryWorkbenchPanel } from "../../../../src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel";
-import { ProjectWorkbenchStore } from "../../../../src/features/app-shell/auxiliary-workbench/ProjectWorkbenchStore";
+import { ProjectWorkbenchStore } from "../../../../src/lib/workbench/ProjectWorkbenchStore";
 import type {
   AuxiliaryWorkbenchContribution,
   AuxiliaryWorkbenchPreparationContext,
-} from "../../../../src/features/app-shell/auxiliary-workbench/types";
+} from "../../../../src/lib/workbench/types";
 import { createTerminalWorkbenchContribution } from "../../../../src/features/desktop-terminal/workbench/TerminalWorkbenchContribution";
 import { withTestLocalization } from "../../../support/react/localization";
 

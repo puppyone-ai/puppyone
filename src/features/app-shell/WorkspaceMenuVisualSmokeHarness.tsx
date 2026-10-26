@@ -1,9 +1,9 @@
 import { useRef, useState } from "react";
 import { type Workspace } from "@puppyone/shared-ui";
 import type { DesktopPlatform } from "../../types/electron";
-import { DesktopOverlayPortal } from "./DesktopOverlayPortal";
+import { DesktopOverlayPortal } from "../../components/DesktopOverlayPortal";
 import { DesktopTitlebarContext } from "./DesktopTitlebarContext";
-import type { DesktopProjectLocation } from "./DesktopProjectLocationSwitcher";
+import type { DesktopProjectLocation } from "../../components/DesktopProjectLocationSwitcher";
 import { resetDesktopPlatformCapabilitiesForTests } from "../../platform/desktopPlatformClient";
 import "./workspace-menu-visual-smoke.css";
 import { desktopPreferencesStore, initializeDesktopPreferences } from "../../preferencesStore";
@@ -45,25 +45,38 @@ window.puppyoneDesktop = {
 // Bootstrap reads capabilities before loading this isolated visual fixture.
 resetDesktopPlatformCapabilitiesForTests();
 
+/** The fixture scenario requested by the visual smoke URL. */
+function readWorkspaceMenuScenario(search: string) {
+  const params = new URLSearchParams(search);
+  const state = params.get("project-state") ?? "local-only";
+  const linked = ["local-cloud", "cloud-only", "local-cloud-no-github", "signed-out"].includes(state);
+  let cloudState: DesktopProjectLocation["cloudState"] = linked ? "available" : "unavailable";
+  if (state === "signed-out") cloudState = "signed-out";
+  if (state === "resolving") cloudState = "resolving";
+  const menu = params.get("menu");
+  return {
+    state,
+    linked,
+    cloudState,
+    current: state === "cloud-only" ? "cloud" as const : "local" as const,
+    theme: params.get("theme") === "light" ? "light" as const : "dark" as const,
+    projectActions: menu === "project-actions",
+    projectList: menu === "project-list",
+    reach: menu === "reach",
+    previewPath: params.get("path") === "long"
+      ? "/Users/demo/Projects/Research and development/Interface experiments/puppyone-qubits"
+      : "/Users/demo/Projects/puppyone-qubits",
+  };
+}
+
 /** Deterministic browser fixture for reviewing the Workspace menu hierarchy. */
 export function WorkspaceMenuVisualSmokeHarness() {
   const anchorRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [requested, setRequested] = useState<DesktopProjectLocation["requested"]>();
-  const state = new URLSearchParams(window.location.search).get("project-state") ?? "local-only";
-  const linked = state === "local-cloud" || state === "cloud-only" || state === "local-cloud-no-github" || state === "signed-out";
-  const current = state === "cloud-only" ? "cloud" : "local";
-  let cloudState: DesktopProjectLocation["cloudState"] = linked ? "available" : "unavailable";
-  if (state === "signed-out") cloudState = "signed-out";
-  if (state === "resolving") cloudState = "resolving";
-  const theme = new URLSearchParams(window.location.search).get("theme") === "light" ? "light" : "dark";
-  const projectActions = new URLSearchParams(window.location.search).get("menu") === "project-actions";
-  const projectList = new URLSearchParams(window.location.search).get("menu") === "project-list";
-  const reach = new URLSearchParams(window.location.search).get("menu") === "reach";
-  const previewWorkspace = workspace("desktop", "puppyone-qubits",
-    new URLSearchParams(window.location.search).get("path") === "long"
-      ? "/Users/demo/Projects/Research and development/Interface experiments/puppyone-qubits"
-      : "/Users/demo/Projects/puppyone-qubits");
+  const { state, linked, cloudState, current, theme, projectActions, projectList, reach, previewPath } =
+    readWorkspaceMenuScenario(window.location.search);
+  const previewWorkspace = workspace("desktop", "puppyone-qubits", previewPath);
 
   return (
     <main className={`app-shell ${theme} workspace-menu-visual-smoke`}

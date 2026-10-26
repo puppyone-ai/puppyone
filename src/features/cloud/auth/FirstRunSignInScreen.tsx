@@ -1,5 +1,5 @@
 import { useLocalization } from "@puppyone/localization";
-import type { ResolvedSurfaceAppearance } from "../../appearance/AppearanceRuntime";
+import type { ResolvedSurfaceAppearance } from "../../appearance";
 import { DesktopWindowChrome } from "../../../components/DesktopWindowChrome";
 import { PuppyBrandMark } from "../../../components/brand/PuppyBrandMark";
 import { OnboardingTelemetryDisclosure } from "../../../components/onboarding/OnboardingTelemetryDisclosure";

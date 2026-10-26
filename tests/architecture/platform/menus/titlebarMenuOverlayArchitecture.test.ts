@@ -1,11 +1,11 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { resolveAnchoredOverlayPosition } from "../../../../src/features/app-shell/useAnchoredOverlayPosition";
+import { resolveAnchoredOverlayPosition } from "../../../../src/components/useAnchoredOverlayPosition";
 
 const appSource = source("src/App.tsx");
-const layerSource = source("src/features/app-shell/DesktopTitlebarMenuLayer.tsx");
+const layerSource = source("src/components/DesktopTitlebarMenuLayer.tsx");
 const projectSource = source("src/features/app-shell/DesktopWorkspaceSwitcher.tsx");
-const locationSource = source("src/features/app-shell/DesktopProjectLocationSwitcher.tsx");
+const locationSource = source("src/components/DesktopProjectLocationSwitcher.tsx");
 const titlebarCss = source("src/styles/titlebar.css");
 const dialogCss = source("src/styles/dialogs.css");
 

@@ -1,9 +1,8 @@
 import { useLayoutEffect, useSyncExternalStore } from "react";
 import { useLocalization } from "@puppyone/localization/react";
-import { TerminalLauncher } from "../../desktop-terminal/ui/TerminalLauncher";
-import { WorkbenchLauncherState } from "../../app-shell/auxiliary-workbench/WorkbenchLauncherState";
-import type { WorkbenchLauncherContext } from "../../app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel";
-import type { AuxiliaryWorkbenchContribution, AuxiliaryWorkbenchCreationRecipe, AuxiliaryWorkbenchHistoryTarget } from "../../app-shell/auxiliary-workbench/types";
+import { TerminalLauncher } from "../../desktop-terminal";
+import { WorkbenchLauncherState } from "../../../lib/workbench/WorkbenchLauncherState";
+import type { AuxiliaryWorkbenchContribution, AuxiliaryWorkbenchCreationRecipe, AuxiliaryWorkbenchHistoryTarget, WorkbenchLauncherContext } from "../../../lib/workbench/types";
 import { type CloudAgentWorkbench, CLOUD_AGENT_KIND } from "./CloudAgentWorkbench";
 
 export function CloudAgentLauncher({ workbench, contribution, groupId, itemId, presented }: WorkbenchLauncherContext & {

@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import { ExplorerTree, ExplorerTreeSkeleton, FilePreview, createResourceUri, getFileSemanticKind, type DataNode, type DocumentDataNode } from "@puppyone/shared-ui";
 import { selectFileIconTheme, useDesktopPreference } from "../../../preferencesStore";
-import { DEFAULT_EXPLORER_WIDTH } from "../../app-shell/layout/desktopPaneLayout";
+import { DEFAULT_EXPLORER_WIDTH } from "../../../lib/desktopPaneLayout";
 import type { CloudWorkspaceShareResource } from "./cloudWorkspaceShareResource";
 // The illustration carries its own styles: both share screens render it, and
 // neither of them should have to know which stylesheet it needs.

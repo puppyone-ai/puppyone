@@ -40,8 +40,8 @@ import type {
 import {
   getRecentWorkspaceItems,
   mergeWorkspaceLists,
-} from "./workspaceHomeModel";
-import type { RecentWorkspaceHomeItem } from "./workspaceHomeModel";
+} from "../../lib/workspaceHomeModel";
+import type { RecentWorkspaceHomeItem } from "../../lib/workspaceHomeModel";
 import type { WorkspaceEntryIntent, WorkspaceEntryKind } from "./workspaceEntryBootstrap";
 
 export type { WorkspaceEntryKind } from "./workspaceEntryBootstrap";

@@ -7,7 +7,7 @@ import {
   getWorkspaceParentPathForDisplay,
   projectOpeningLocation,
   type ProjectHomeItem,
-} from "../../features/app-shell/workspaceHomeModel";
+} from "../../lib/workspaceHomeModel";
 import { DesktopMenuIconButton, DesktopMenuItem } from "../DesktopMenu";
 import { InlineLoading } from "../loading";
 import { HomeProjectIcon } from "./HomeProjectIcon";

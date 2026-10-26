@@ -10,15 +10,6 @@
   },
   {
     "type": "dependency",
-    "from": "src/components/AssetLibraryHome.tsx",
-    "to": "src/features/app-shell/workspaceHomeModel.ts",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/components/DesktopCloudShell.tsx",
     "to": "src/features/app-shell/auxiliary/index.ts",
     "rule": {
@@ -30,15 +21,6 @@
     "type": "dependency",
     "from": "src/components/DesktopCloudShell.tsx",
     "to": "src/features/app-shell/DesktopShellAccessoryContext.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/components/DesktopCloudShell.tsx",
-    "to": "src/features/app-shell/layout/desktopPaneLayout.ts",
     "rule": {
       "severity": "error",
       "name": "composition-root-only"
@@ -75,33 +57,6 @@
     "type": "dependency",
     "from": "src/components/MinimalOnboarding.tsx",
     "to": "src/features/app-shell/useWorkspaceFolderDrop.ts",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/components/MinimalOnboarding.tsx",
-    "to": "src/features/app-shell/workspaceHomeModel.ts",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/components/onboarding/HomeProjectIcon.tsx",
-    "to": "src/features/app-shell/workspaceHomeModel.ts",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/components/onboarding/OnboardingProjectList.tsx",
-    "to": "src/features/app-shell/workspaceHomeModel.ts",
     "rule": {
       "severity": "error",
       "name": "composition-root-only"
@@ -154,123 +109,6 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/appearance/AuxiliaryAppearanceSmokeHarness.tsx",
-    "to": "src/features/app-shell/auxiliary-workbench/ProjectWorkbenchStore.ts",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/appearance/AuxiliaryAppearanceSmokeHarness.tsx",
-    "to": "src/features/app-shell/auxiliary-workbench/types.ts",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/appearance/AuxiliaryAppearanceSmokeHarness.tsx",
-    "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/automation/AutomationCreateDialog.tsx",
-    "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/automation/AutomationManageDialog.tsx",
-    "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/access-points/components/AccessPointManageDialog.tsx",
-    "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/CloudDialog.tsx",
-    "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/initialization/CloudPublishConfirmationDialog.tsx",
-    "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/sections/access/CreateAccessDialog.tsx",
-    "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/share/ShareWizardDialog.tsx",
-    "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/AccountCloudWorkspaceSurface.tsx",
-    "to": "src/features/app-shell/DesktopShellLocationBar.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/AccountCloudWorkspaceSurface.tsx",
-    "to": "src/features/app-shell/DesktopWorkspaceSwitcher.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/CloudWorkspaceSwitchDialog.tsx",
-    "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/features/cloud/workbench/DesktopCloudFileWorkspace.tsx",
     "to": "src/features/app-shell/DesktopDataWorkspaceSurface.tsx",
     "rule": {
@@ -282,159 +120,6 @@
     "type": "dependency",
     "from": "src/features/cloud/workbench/DesktopCloudFileWorkspace.tsx",
     "to": "src/features/app-shell/workspace-surfaces/workspaceSurfaceRegistry.ts",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/homepageCloudProjects.ts",
-    "to": "src/features/app-shell/workspaceHomeModel.ts",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/NativeCloudWorkbenchSmokeHarness.tsx",
-    "to": "src/features/app-shell/DesktopDataWorkspaceSurface.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/NativeCloudWorkbenchSmokeHarness.tsx",
-    "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/NativeCloudWorkbenchSmokeHarness.tsx",
-    "to": "src/features/app-shell/DesktopWorkspaceLocationSurface.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/NativeCloudWorkbenchSmokeHarness.tsx",
-    "to": "src/features/app-shell/DesktopWorkspaceSwitcher.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/NativeCloudWorkbenchSmokeHarness.tsx",
-    "to": "src/features/app-shell/workspace-surfaces/workspaceSurfaceRegistry.ts",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/useHomepageCloudProjects.ts",
-    "to": "src/features/app-shell/workspaceHomeModel.ts",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-agent/domain/agent-chat-history-target.ts",
-    "to": "src/features/app-shell/auxiliary-workbench/types.ts",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-agent/lazy.ts",
-    "to": "src/features/app-shell/auxiliary-workbench/types.ts",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-agent/ui/agent-runtime-geometry.ts",
-    "to": "src/features/app-shell/useAnchoredOverlayPosition.ts",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-agent/ui/AgentPickerPopover.tsx",
-    "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-agent/ui/AgentPickerPopover.tsx",
-    "to": "src/features/app-shell/useAnchoredOverlayPosition.ts",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-agent/ui/AgentVisualSmokeHarness.tsx",
-    "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-agent/workbench/agentChatCloseAdapter.ts",
-    "to": "src/features/app-shell/auxiliary-workbench/types.ts",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-agent/workbench/AgentChatHistoryBrowser.tsx",
-    "to": "src/features/app-shell/auxiliary-workbench/types.ts",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-agent/workbench/AgentChatWorkbenchItem.tsx",
-    "to": "src/features/app-shell/auxiliary-workbench/types.ts",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-agent/workbench/projectAgentControllers.ts",
-    "to": "src/features/app-shell/auxiliary-workbench/types.ts",
     "rule": {
       "severity": "error",
       "name": "composition-root-only"
@@ -559,15 +244,6 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/desktop-terminal/runtime/TerminalRuntimePool.ts",
-    "to": "src/features/app-shell/auxiliary-workbench/types.ts",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/features/desktop-terminal/ui/session-header/TerminalSessionHeader.tsx",
     "to": "src/features/app-shell/auxiliary-workbench/layout/auxiliary-workbench-header.css",
     "rule": {
@@ -588,24 +264,6 @@
     "type": "dependency",
     "from": "src/features/desktop-terminal/ui/session-header/terminalSessionHeaderIds.ts",
     "to": "src/features/app-shell/auxiliary-workbench/layout/workbenchSessionHeaderIds.ts",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-terminal/ui/session-header/TerminalSessionOverflowMenu.tsx",
-    "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-terminal/ui/session-header/TerminalSessionOverflowMenu.tsx",
-    "to": "src/features/app-shell/useAnchoredOverlayPosition.ts",
     "rule": {
       "severity": "error",
       "name": "composition-root-only"
@@ -649,62 +307,8 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/desktop-terminal/ui/TerminalLauncher.tsx",
-    "to": "src/features/app-shell/auxiliary-workbench/types.ts",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-terminal/ui/TerminalLauncher.tsx",
-    "to": "src/features/app-shell/auxiliary-workbench/WorkbenchLauncherState.ts",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/features/desktop-terminal/ui/TerminalLauncherVisualSmokeHarness.tsx",
     "to": "src/features/app-shell/auxiliary-workbench/agentChatCreationRecipes.ts",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-terminal/ui/TerminalLauncherVisualSmokeHarness.tsx",
-    "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-terminal/ui/TerminalSessionHost.tsx",
-    "to": "src/features/app-shell/auxiliary-workbench/types.ts",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-terminal/workbench/projectTerminalRuntimes.ts",
-    "to": "src/features/app-shell/auxiliary-workbench/types.ts",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-terminal/workbench/TerminalWorkbenchContribution.tsx",
-    "to": "src/features/app-shell/auxiliary-workbench/types.ts",
     "rule": {
       "severity": "error",
       "name": "composition-root-only"
@@ -723,15 +327,6 @@
     "type": "dependency",
     "from": "src/features/desktop-terminal/workbench/TerminalWorkbenchHeader.tsx",
     "to": "src/features/app-shell/auxiliary-workbench/layout/AuxiliaryWorkbenchHeader.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-terminal/workbench/TerminalWorkbenchHeader.types.ts",
-    "to": "src/features/app-shell/auxiliary-workbench/types.ts",
     "rule": {
       "severity": "error",
       "name": "composition-root-only"
@@ -768,33 +363,6 @@
     "type": "dependency",
     "from": "src/features/desktop-terminal/workbench/TerminalWorkbenchViewport.tsx",
     "to": "src/features/app-shell/auxiliary-workbench/layout/AuxiliaryWorkbenchViewport.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/editor-workbench/layout/EditorPaneActionsMenu.tsx",
-    "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/editor-workbench/layout/EditorPaneActionsMenu.tsx",
-    "to": "src/features/app-shell/useAnchoredOverlayPosition.ts",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/plugins/PluginsDialog.tsx",
-    "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
     "rule": {
       "severity": "error",
       "name": "composition-root-only"
@@ -6990,76 +6558,6 @@
   },
   {
     "type": "cycle",
-    "from": "src/features/app-shell/workspace-surfaces/useWorkspaceSurfaceContent.tsx",
-    "to": "src/features/cloud/index.ts",
-    "rule": {
-      "severity": "error",
-      "name": "no-circular"
-    },
-    "cycle": [
-      {
-        "name": "src/features/cloud/index.ts",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      },
-      {
-        "name": "src/features/cloud/CloudServiceMainView.tsx",
-        "dependencyTypes": [
-          "local",
-          "export"
-        ]
-      },
-      {
-        "name": "src/features/cloud/share/index.ts",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      },
-      {
-        "name": "src/features/cloud/share/ShareWizardDialog.tsx",
-        "dependencyTypes": [
-          "local",
-          "export"
-        ]
-      },
-      {
-        "name": "src/features/cloud/initialization/useCloudInitialization.ts",
-        "dependencyTypes": [
-          "local",
-          "type-only",
-          "import"
-        ]
-      },
-      {
-        "name": "src/components/DesktopCloudShell.tsx",
-        "dependencyTypes": [
-          "local",
-          "type-only",
-          "import"
-        ]
-      },
-      {
-        "name": "src/features/app-shell/workspace-surfaces/index.ts",
-        "dependencyTypes": [
-          "local",
-          "type-only",
-          "import"
-        ]
-      },
-      {
-        "name": "src/features/app-shell/workspace-surfaces/useWorkspaceSurfaceContent.tsx",
-        "dependencyTypes": [
-          "local",
-          "export"
-        ]
-      }
-    ]
-  },
-  {
-    "type": "cycle",
     "from": "src/features/appearance/interfaceStyles.ts",
     "to": "src/features/themes/themeTypes.ts",
     "rule": {
@@ -7545,26 +7043,8 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/app-shell/DesktopOverlayPortal.tsx",
-    "to": "src/features/appearance/AppearanceRuntime.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-app-shell"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/features/app-shell/DesktopTitlebarActions.tsx",
     "to": "src/features/source-control/gitTitlebarStatus.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-app-shell"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/app-shell/DesktopTitlebarContext.tsx",
-    "to": "src/features/source-control/operationDialogs.tsx",
     "rule": {
       "severity": "error",
       "name": "public-domain-entry-src-features-app-shell"
@@ -7664,15 +7144,6 @@
     "type": "dependency",
     "from": "src/features/app-shell/DesktopWorkspaceContent.tsx",
     "to": "src/features/viewer-packs/host.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-app-shell"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/app-shell/DesktopWorkspaceSwitcher.tsx",
-    "to": "src/platform/useDesktopPlatformCapabilities.ts",
     "rule": {
       "severity": "error",
       "name": "public-domain-entry-src-features-app-shell"
@@ -7870,33 +7341,6 @@
   {
     "type": "dependency",
     "from": "src/features/appearance/AuxiliaryAppearanceSmokeHarness.tsx",
-    "to": "src/features/app-shell/auxiliary-workbench/ProjectWorkbenchStore.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-appearance"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/appearance/AuxiliaryAppearanceSmokeHarness.tsx",
-    "to": "src/features/app-shell/auxiliary-workbench/types.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-appearance"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/appearance/AuxiliaryAppearanceSmokeHarness.tsx",
-    "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-appearance"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/appearance/AuxiliaryAppearanceSmokeHarness.tsx",
     "to": "src/features/desktop-agent/ui/AgentComposer.tsx",
     "rule": {
       "severity": "error",
@@ -8059,25 +7503,7 @@
   {
     "type": "dependency",
     "from": "src/features/automation/AutomationCreateDialog.tsx",
-    "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-automation"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/automation/AutomationCreateDialog.tsx",
     "to": "src/features/cloud/utils.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-automation"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/automation/AutomationManageDialog.tsx",
-    "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
     "rule": {
       "severity": "error",
       "name": "public-domain-entry-src-features-automation"
@@ -8112,24 +7538,6 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/cloud/access-points/components/AccessPointManageDialog.tsx",
-    "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-cloud"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/CloudDialog.tsx",
-    "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-cloud"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/features/cloud/environment/resolveCloudEnvironment.ts",
     "to": "src/features/source-control/remotes.ts",
     "rule": {
@@ -8141,15 +7549,6 @@
     "type": "dependency",
     "from": "src/features/cloud/history/CloudCommitDetail.tsx",
     "to": "src/features/source-control/diff/GitFileDiffSurface.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-cloud"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/initialization/CloudPublishConfirmationDialog.tsx",
-    "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
     "rule": {
       "severity": "error",
       "name": "public-domain-entry-src-features-cloud"
@@ -8202,89 +7601,8 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/cloud/sections/access/CreateAccessDialog.tsx",
-    "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-cloud"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/features/cloud/sections/AutomationRouteSection.tsx",
     "to": "src/features/automation/CloudProjectAutomationView.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-cloud"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/share/ShareWizardDialog.tsx",
-    "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-cloud"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/AccountCloudWorkbenchSmokeHarness.tsx",
-    "to": "src/features/appearance/AppearanceRuntime.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-cloud"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/AccountCloudWorkspaceSurface.tsx",
-    "to": "src/features/app-shell/DesktopShellLocationBar.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-cloud"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/AccountCloudWorkspaceSurface.tsx",
-    "to": "src/features/app-shell/DesktopWorkspaceSwitcher.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-cloud"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/AccountCloudWorkspaceSurface.tsx",
-    "to": "src/features/appearance/AppearanceRuntime.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-cloud"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/AccountCloudWorkspaceSurface.tsx",
-    "to": "src/features/editor-workbench/header/EditorHeaderTabs.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-cloud"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/cloudDataPort.ts",
-    "to": "src/features/data-workspace/workbenchDataPort.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-cloud"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/CloudWorkspaceSwitchDialog.tsx",
-    "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
     "rule": {
       "severity": "error",
       "name": "public-domain-entry-src-features-cloud"
@@ -8321,96 +7639,6 @@
     "type": "dependency",
     "from": "src/features/cloud/workbench/DesktopCloudFileWorkspace.tsx",
     "to": "src/features/data-workspace/useFileClipboard.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-cloud"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/homepageCloudProjects.ts",
-    "to": "src/features/app-shell/workspaceHomeModel.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-cloud"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/NativeCloudWorkbenchSmokeHarness.tsx",
-    "to": "src/features/app-shell/DesktopDataWorkspaceSurface.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-cloud"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/NativeCloudWorkbenchSmokeHarness.tsx",
-    "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-cloud"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/NativeCloudWorkbenchSmokeHarness.tsx",
-    "to": "src/features/app-shell/DesktopWorkspaceLocationSurface.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-cloud"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/NativeCloudWorkbenchSmokeHarness.tsx",
-    "to": "src/features/app-shell/DesktopWorkspaceSwitcher.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-cloud"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/NativeCloudWorkbenchSmokeHarness.tsx",
-    "to": "src/features/app-shell/workspace-surfaces/workspaceSurfaceRegistry.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-cloud"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/NativeCloudWorkbenchSmokeHarness.tsx",
-    "to": "src/features/data-workspace/useDataNodeActions.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-cloud"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/NativeCloudWorkbenchSmokeHarness.tsx",
-    "to": "src/features/editor-workbench/controller/useDesktopEditorWorkbench.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-cloud"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/NativeCloudWorkbenchSmokeHarness.tsx",
-    "to": "src/features/editor-workbench/header/EditorHeaderTabs.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-cloud"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/workbench/useHomepageCloudProjects.ts",
-    "to": "src/features/app-shell/workspaceHomeModel.ts",
     "rule": {
       "severity": "error",
       "name": "public-domain-entry-src-features-cloud"
@@ -8499,15 +7727,6 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/desktop-agent/domain/agent-chat-history-target.ts",
-    "to": "src/features/app-shell/auxiliary-workbench/types.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-desktop-agent"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/features/desktop-agent/infrastructure/electron/agentExecutionClient.ts",
     "to": "src/features/session-transport/itemLifecycleClient.ts",
     "rule": {
@@ -8526,42 +7745,6 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/desktop-agent/lazy.ts",
-    "to": "src/features/app-shell/auxiliary-workbench/types.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-desktop-agent"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-agent/ui/agent-runtime-geometry.ts",
-    "to": "src/features/app-shell/useAnchoredOverlayPosition.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-desktop-agent"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-agent/ui/AgentPickerPopover.tsx",
-    "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-desktop-agent"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-agent/ui/AgentPickerPopover.tsx",
-    "to": "src/features/app-shell/useAnchoredOverlayPosition.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-desktop-agent"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/features/desktop-agent/ui/AgentRenderStabilitySmokeHarness.tsx",
     "to": "src/features/markdown/markdownPresentation.ts",
     "rule": {
@@ -8609,15 +7792,6 @@
     "type": "dependency",
     "from": "src/features/desktop-agent/ui/AgentToolStabilitySmokeHarness.tsx",
     "to": "src/features/themes/SubThemeStyleHost.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-desktop-agent"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-agent/ui/AgentVisualSmokeHarness.tsx",
-    "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
     "rule": {
       "severity": "error",
       "name": "public-domain-entry-src-features-desktop-agent"
@@ -8663,42 +7837,6 @@
     "type": "dependency",
     "from": "src/features/desktop-agent/ui/useAgentReferenceIngestion.ts",
     "to": "src/platform/useResourceDragPreview.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-desktop-agent"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-agent/workbench/agentChatCloseAdapter.ts",
-    "to": "src/features/app-shell/auxiliary-workbench/types.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-desktop-agent"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-agent/workbench/AgentChatHistoryBrowser.tsx",
-    "to": "src/features/app-shell/auxiliary-workbench/types.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-desktop-agent"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-agent/workbench/AgentChatWorkbenchItem.tsx",
-    "to": "src/features/app-shell/auxiliary-workbench/types.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-desktop-agent"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-agent/workbench/projectAgentControllers.ts",
-    "to": "src/features/app-shell/auxiliary-workbench/types.ts",
     "rule": {
       "severity": "error",
       "name": "public-domain-entry-src-features-desktop-agent"
@@ -8832,15 +7970,6 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/desktop-terminal/runtime/TerminalRuntimePool.ts",
-    "to": "src/features/app-shell/auxiliary-workbench/types.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-desktop-terminal"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/features/desktop-terminal/runtime/terminalSessionBridge.ts",
     "to": "src/features/session-transport/itemLifecycleClient.ts",
     "rule": {
@@ -8886,24 +8015,6 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/desktop-terminal/ui/session-header/TerminalSessionOverflowMenu.tsx",
-    "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-desktop-terminal"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-terminal/ui/session-header/TerminalSessionOverflowMenu.tsx",
-    "to": "src/features/app-shell/useAnchoredOverlayPosition.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-desktop-terminal"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/features/desktop-terminal/ui/session-header/useTerminalSessionHeaderController.ts",
     "to": "src/features/app-shell/auxiliary-workbench/layout/useWorkbenchSessionHeaderController.ts",
     "rule": {
@@ -8940,35 +8051,8 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/desktop-terminal/ui/TerminalLauncher.tsx",
-    "to": "src/features/app-shell/auxiliary-workbench/types.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-desktop-terminal"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-terminal/ui/TerminalLauncher.tsx",
-    "to": "src/features/app-shell/auxiliary-workbench/WorkbenchLauncherState.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-desktop-terminal"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/features/desktop-terminal/ui/TerminalLauncherVisualSmokeHarness.tsx",
     "to": "src/features/app-shell/auxiliary-workbench/agentChatCreationRecipes.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-desktop-terminal"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-terminal/ui/TerminalLauncherVisualSmokeHarness.tsx",
-    "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
     "rule": {
       "severity": "error",
       "name": "public-domain-entry-src-features-desktop-terminal"
@@ -9003,33 +8087,6 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/desktop-terminal/ui/TerminalSessionHost.tsx",
-    "to": "src/features/app-shell/auxiliary-workbench/types.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-desktop-terminal"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-terminal/workbench/projectTerminalRuntimes.ts",
-    "to": "src/features/app-shell/auxiliary-workbench/types.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-desktop-terminal"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-terminal/workbench/TerminalWorkbenchContribution.tsx",
-    "to": "src/features/app-shell/auxiliary-workbench/types.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-desktop-terminal"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/features/desktop-terminal/workbench/TerminalWorkbenchContribution.tsx",
     "to": "src/features/appearance/AppearanceRuntime.tsx",
     "rule": {
@@ -9050,15 +8107,6 @@
     "type": "dependency",
     "from": "src/features/desktop-terminal/workbench/TerminalWorkbenchHeader.tsx",
     "to": "src/features/app-shell/auxiliary-workbench/layout/AuxiliaryWorkbenchHeader.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-desktop-terminal"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-terminal/workbench/TerminalWorkbenchHeader.types.ts",
-    "to": "src/features/app-shell/auxiliary-workbench/types.ts",
     "rule": {
       "severity": "error",
       "name": "public-domain-entry-src-features-desktop-terminal"
@@ -9125,33 +8173,6 @@
     "rule": {
       "severity": "error",
       "name": "public-domain-entry-src-features-editor-workbench"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/editor-workbench/layout/EditorPaneActionsMenu.tsx",
-    "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-editor-workbench"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/editor-workbench/layout/EditorPaneActionsMenu.tsx",
-    "to": "src/features/app-shell/useAnchoredOverlayPosition.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-editor-workbench"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/plugins/PluginsDialog.tsx",
-    "to": "src/features/app-shell/DesktopOverlayPortal.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-plugins"
     }
   },
   {

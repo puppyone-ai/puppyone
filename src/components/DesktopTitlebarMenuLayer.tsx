@@ -1,5 +1,5 @@
 import { useEffect, useRef, type CSSProperties, type ReactNode, type RefObject } from "react";
-import { DesktopMenuSurface } from "../../components/DesktopMenu";
+import { DesktopMenuSurface } from "./DesktopMenu";
 import { DesktopOverlayLayer } from "./DesktopOverlayPortal";
 import { useAnchoredOverlayPosition } from "./useAnchoredOverlayPosition";
 

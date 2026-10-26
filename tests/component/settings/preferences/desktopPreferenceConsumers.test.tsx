@@ -9,7 +9,7 @@ import { BUILTIN_SUB_THEME_CATALOG } from "../../../../src/features/settings/app
 import { DesktopTitlebarActions } from "../../../../src/features/app-shell/DesktopTitlebarActions";
 import { DesktopDataWorkspaceSurface } from "../../../../src/features/app-shell/DesktopDataWorkspaceSurface";
 import { DesktopPaneLayoutProvider } from "../../../../src/features/app-shell/layout/DesktopPaneLayoutContext";
-import { resolveDesktopPaneLayout } from "../../../../src/features/app-shell/layout/desktopPaneLayout";
+import { resolveDesktopPaneLayout } from "../../../../src/lib/desktopPaneLayout";
 import { resolveWorkspaceSurface } from "../../../../src/features/app-shell/workspace-surfaces/workspaceSurfaceRegistry";
 import { useDesktopEditorWorkbench } from "../../../../src/features/editor-workbench/controller/useDesktopEditorWorkbench";
 import { withTestLocalization } from "../../../support/react/localization";

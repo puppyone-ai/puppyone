@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import { getCloudRepositoryContext, type DesktopCloudSession } from "../../../lib/cloudApi";
 import type { GitRemoteSummary, GitStatusSnapshot } from "../../../types/electron";
-import { resolveCanonicalPuppyoneRemotes } from "../../source-control/remotes";
+import { resolveCanonicalPuppyoneRemotes } from "../../source-control";
 import { CloudProjectActivation } from "../components/CloudProjectActivation";
 import { CloudPublishConfirmationDialog } from "../initialization/CloudPublishConfirmationDialog";
 import { isTrustedCloudProjectLocator } from "../workspace/workspaceGitRemote";

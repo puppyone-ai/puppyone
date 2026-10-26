@@ -1,6 +1,6 @@
 import { Folder } from "lucide-react";
 import { CloudIcon as Cloud } from "../icons/CloudIcon";
-import type { ProjectHomeItem } from "../../features/app-shell/workspaceHomeModel";
+import type { ProjectHomeItem } from "../../lib/workspaceHomeModel";
 
 export function HomeProjectIcon({ item }: { item: ProjectHomeItem }) {
   const location = item.localPath ? item.cloudProjectId ? "linked" : "local" : "cloud";

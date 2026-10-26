@@ -4,7 +4,7 @@ import { AGENT_CHAT_CREATION_RECIPES, filterAgentChatCreationRecipesByLocalAgent
 import type { LocalAgentInstallationId } from "../../../../shared/local-agent-installation/types";
 import { TerminalLauncher } from "./TerminalLauncher";
 import { LocalAgentSetupSection, type LocalAgentInstallationDiscoveryPhase } from "../../local-agents";
-import { DesktopOverlayPortal } from "../../app-shell/DesktopOverlayPortal";
+import { DesktopOverlayPortal } from "../../../components/DesktopOverlayPortal";
 import { resolveAppearance } from "../../appearance/resolveAppearance";
 import { applySurfaceAppearanceToElement, resolveSurfaceAppearance, SurfaceAppearanceProvider } from "../../appearance/AppearanceRuntime";
 import { DEFAULT_TYPOGRAPHY_PREFERENCES, resolveTypography } from "../../typography";

@@ -53,7 +53,7 @@ vi.mock("../../../../src/features/cloud/workbench/useAccountCloudWorkspace", () 
     useLocal: () => { state.cloudActive = false; } }),
 }));
 vi.mock("../../../../src/features/cloud/workbench/useNativeCloudWorkbench", () => ({ useNativeCloudWorkbench: () => ({ refreshToken: { sequence: 0, entries: [] } }) }));
-vi.mock("../../../../src/features/cloud/workbench/AccountCloudWorkspaceSurface", () => ({
+vi.mock("../../../../src/app/AccountCloudWorkspaceSurface", () => ({
   AccountCloudWorkspaceSurface: () => null,
   useAccountCloudWorkspacePresentation: () => ({}),
 }));
@@ -113,7 +113,7 @@ vi.mock("../../../../src/features/data-workspace/useDataNodeActions", () => ({
 vi.mock("../../../../src/features/editor-workbench/controller/useDesktopEditorWorkbench", () => ({
   useDesktopEditorWorkbench: () => ({ state: { editors: [] }, activePath: null }),
 }));
-vi.mock("../../../../src/features/app-shell/DesktopOverlayPortal", () => ({ DesktopOverlayPortal: () => null }));
+vi.mock("../../../../src/components/DesktopOverlayPortal", () => ({ DesktopOverlayPortal: () => null }));
 vi.mock("../../../../src/features/updates", () => ({ useDesktopUpdates: () => ({}) }));
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

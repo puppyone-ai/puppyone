@@ -1,20 +1,20 @@
 import { useLayoutEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import type { DarkThemePreset, DiffMarkers, LightThemePreset } from "../../preferences";
+import type { DarkThemePreset, DiffMarkers, LightThemePreset } from "../preferences";
 import {
   applyTypographyToElement,
   type ResolvedTypography,
-} from "../typography";
+} from "../features/typography";
 import {
   applySurfaceAppearanceToElement,
   type ResolvedSurfaceAppearance,
-} from "../appearance/AppearanceRuntime";
+} from "../features/appearance/AppearanceRuntime";
 import {
   useNativeSurfaceOcclusionObserver,
-} from "../native-surfaces";
+} from "../features/native-surfaces";
 
-import { useDesktopOverlayRoot } from "../../components/DesktopOverlayLayer";
-export { DesktopOverlayLayer } from "../../components/DesktopOverlayLayer";
+import { useDesktopOverlayRoot } from "./DesktopOverlayLayer";
+export { DesktopOverlayLayer } from "./DesktopOverlayLayer";
 
 export type DesktopOverlayTheme = "light" | "dark";
 
@@ -51,8 +51,7 @@ export function DesktopOverlayPortal({
       return;
     }
     if (!theme) return;
-    applyDesktopOverlayTheme(
-      root,
+    applyDesktopOverlayTheme(root, {
       theme,
       subThemeId,
       lightThemePreset,
@@ -60,23 +59,30 @@ export function DesktopOverlayPortal({
       typography,
       pointerCursors,
       diffMarkers,
-    );
+    });
   }, [appearance, root, theme, subThemeId, lightThemePreset, darkThemePreset, typography, pointerCursors, diffMarkers]);
 
   if (!root) return null;
   return createPortal(children, root);
 }
 
-function applyDesktopOverlayTheme(
-  root: HTMLElement,
-  theme: DesktopOverlayTheme,
-  subThemeId?: string,
-  lightThemePreset?: LightThemePreset,
-  darkThemePreset?: DarkThemePreset,
-  typography?: ResolvedTypography,
-  pointerCursors?: boolean,
-  diffMarkers?: DiffMarkers,
-) {
+function applyDesktopOverlayTheme(root: HTMLElement, {
+  theme,
+  subThemeId,
+  lightThemePreset,
+  darkThemePreset,
+  typography,
+  pointerCursors,
+  diffMarkers,
+}: Readonly<{
+  theme: DesktopOverlayTheme;
+  subThemeId?: string;
+  lightThemePreset?: LightThemePreset;
+  darkThemePreset?: DarkThemePreset;
+  typography?: ResolvedTypography;
+  pointerCursors?: boolean;
+  diffMarkers?: DiffMarkers;
+}>) {
   root.className = `desktop-overlay-root ${theme === "dark" ? "dark" : ""}`.trim();
   root.dataset.themeMode = theme;
   root.dataset.poAppearanceRoot = "true";

@@ -1086,6 +1086,10 @@ export async function getWorkspaceGitStatus(rootPath, options = {}) {
   return first;
 }
 
+function readPorcelainHeader(headers, key) {
+  return typeof headers[key] === "string" ? headers[key].trim() : "";
+}
+
 async function readFastWorkspaceGitStatus(root, options = {}) {
   const signal = options.signal;
   const statusLimit = options.statusLimit ?? GIT_STATUS_ENTRY_LIMIT;
@@ -1116,12 +1120,8 @@ async function readFastWorkspaceGitStatus(root, options = {}) {
   const didHitStatusLimit = statusResult.didHitLimit
     || parsedStatus.entries.length > statusLimit;
   const statusEntries = parsedStatus.entries.slice(0, statusLimit);
-  const headerOid = typeof parsedStatus.headers["branch.oid"] === "string"
-    ? parsedStatus.headers["branch.oid"].trim()
-    : "";
-  const headerHead = typeof parsedStatus.headers["branch.head"] === "string"
-    ? parsedStatus.headers["branch.head"].trim()
-    : "";
+  const headerOid = readPorcelainHeader(parsedStatus.headers, "branch.oid");
+  const headerHead = readPorcelainHeader(parsedStatus.headers, "branch.head");
 
   let branchName = "";
   let headCommitId = normalizeGitHeadCommitId(headerOid);
