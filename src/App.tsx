@@ -32,6 +32,7 @@ import {
   type SettingsSection,
 } from "./features/settings";
 import { CLOUD_HUB_ENTRY_SECTION, type CloudWorkspaceSection } from "./features/cloud";
+import { useCloudEnabled } from "./features/cloud/useCloudEnabled";
 import { useAccountCloudWorkspace } from "./features/cloud/workbench/useAccountCloudWorkspace";
 import { CloudWorkspaceHeaderTools } from "./features/cloud/workbench/CloudWorkspaceHeaderTools";
 import { captureCloudWorkspaceShareResource } from "./features/cloud/share/cloudWorkspaceShareResource";
@@ -218,7 +219,6 @@ function AppContent() {
   const createNewMenuSettings = useDesktopPreference(s => s.createNewMenuSettings);
   const explorerWidth = useDesktopPreference(s => s.explorerWidth);
   const enableMultiRootWorkspaces = useDesktopPreference(s => s.experimentalSettings.enableMultiRootWorkspaces);
-  const enableCloudWorkspace = useDesktopPreference(s => s.experimentalSettings.enableCloudWorkspace);
   const enableShareOnboarding = useDesktopPreference(s => s.experimentalSettings.enableShareOnboarding);
   const enableAssetLibraryHome = useDesktopPreference(s => s.experimentalSettings.enableAssetLibraryHome);
   const enableViewerPlugins = useDesktopPreference(s => s.experimentalSettings.enableViewerPlugins);
@@ -276,10 +276,9 @@ function AppContent() {
     (collapsed: boolean) => setProjectSwitcherExpanded(!collapsed),
     [setProjectSwitcherExpanded],
   );
-  const cloudAvailable = useFeatureFlag("cloudWorkspace");
-  // The build flag only marks availability; PuppyOne Cloud stays hidden until
-  // the user opts into the experiment in Settings.
-  const cloudEnabled = cloudAvailable && enableCloudWorkspace;
+  // The build flag only marks availability; PuppyOne Cloud, including every
+  // sign-in surface, stays hidden until the user opts into the experiment.
+  const cloudEnabled = useCloudEnabled();
   // Share onboarding rides on top of Cloud: the Header cloud icon becomes the
   // project's Local/Cloud indicator and the only entry into sharing.
   const shareOnboardingEnabled = cloudEnabled && enableShareOnboarding;
@@ -292,7 +291,7 @@ function AppContent() {
     cloudAuthStatus,
     cloudSessionRestoring,
     handleCloudSessionChange: updateCloudSession,
-  } = useDesktopCloudSession();
+  } = useDesktopCloudSession(cloudEnabled);
   const desktopCloudApiBaseUrl = useMemo(() => getDesktopCloudApiBaseUrl(), []);
   const activeCloudSession = useMemo(() => getCloudAuthSession(resolveCloudAuthState({
     cloudSession: cloudAuthStatus === "authenticated" || cloudAuthStatus === "refreshing"
@@ -1615,7 +1614,7 @@ function AppContent() {
       onPublishLocal={workspace ? () => { cancelRepositoryCloudSwitch(); openCloudDialogAt("initialize"); } : undefined} />} />;
   const settingsWorkspace = focusedWorkspace ?? workspace ?? null;
   const firstRunSignIn = useFirstRunSignIn({
-    available: cloudAvailable && Boolean(desktopCloudApiBaseUrl),
+    available: cloudEnabled && Boolean(desktopCloudApiBaseUrl),
     restoring: cloudSessionRestoring || restoringWorkspace,
     signedIn: Boolean(activeCloudSession),
     hasProjects: Boolean(workspace || initialCloudProject || recentWorkspaceItems.length || workspaces.length),
@@ -1716,7 +1715,7 @@ function AppContent() {
         onOpenCloudProject={(projectId) => { cancelRepositoryCloudSwitch(); void accountCloud.openTarget({ kind: "project_root", project_id: projectId }); }}
         cloudOpening={accountCloud.opening}
         onCancelCloudOpening={accountCloud.cancel}
-        cloudAccountStatus={cloudAvailable ? <HomepageCloudStatus status={projectCatalog.status} restoring={cloudSessionRestoring} empty={cloudEnabled && projectCatalog.items.length === 0}
+        cloudAccountStatus={cloudEnabled ? <HomepageCloudStatus status={projectCatalog.status} restoring={cloudSessionRestoring} empty={projectCatalog.items.length === 0}
           session={activeCloudSession} onOpenAccount={() => openSettingsDialog("account")}
           apiBaseUrl={desktopCloudApiBaseUrl} controller={accountCloud} onRetry={projectCatalog.refresh} /> : undefined}
         initialError={restoreWorkspaceError}

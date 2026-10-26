@@ -14,16 +14,20 @@ import {
  * Project initialization dialog. The location is prefilled with the built-in
  * projects folder and the project name is prefilled, so the default path is a
  * single Create action. Browse and name editing remain available as escape
- * hatches. Users may also choose a published marketplace template.
+ * hatches. With `templateLinks`, users may also choose a published
+ * marketplace template, which needs a PuppyOne account.
  */
 export function OnboardingProjectEntryDialog({
   onClose,
+  templateLinks,
   initialTemplateUrl = null,
   onDefaultLocation,
   onChooseLocation,
   onSubmit,
 }: {
   onClose: () => void;
+  /** Required: every entry states whether marketplace links (a Cloud account) are offered. */
+  templateLinks: boolean;
   initialTemplateUrl?: string | null;
   onDefaultLocation?: () => Promise<WorkspaceProjectLocationGrant | null>;
   onChooseLocation?: () => Promise<WorkspaceProjectLocationGrant | null>;
@@ -43,7 +47,7 @@ export function OnboardingProjectEntryDialog({
   const marketplace = useProjectTemplateImport(initialTemplateUrl, locale, (detail) => {
     setValue(`${detail.name} ${crypto.randomUUID().slice(0, 4).toUpperCase()}`);
     requestRef.current = null;
-  });
+  }, templateLinks);
   const busy = submitting || choosingLocation || marketplace.resolving;
   const fieldsDisabled = busy || created !== null;
   const title = t(marketplace.mode ? "onboarding.template.title" : "onboarding.entry.create.title");

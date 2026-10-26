@@ -4,7 +4,12 @@ import { getDesktopCloudApiBaseUrl } from "../lib/cloudApi";
 import { readDesktopCloudAuthState, onDesktopCloudAuthStateChanged } from "../lib/cloudSession";
 import type { MarketplaceTemplateDetail, WorkspaceCreateProjectRequest } from "../types/electron";
 
-export function useProjectTemplateImport(initialUrl: string | null, locale: string, onResolved: (detail: MarketplaceTemplateDetail) => void) {
+/**
+ * `enabled` false keeps the flow on the built-in template: it ignores any
+ * template link and never reads the Cloud account.
+ */
+export function useProjectTemplateImport(requestedUrl: string | null, locale: string, onResolved: (detail: MarketplaceTemplateDetail) => void, enabled = true) {
+  const initialUrl = enabled ? requestedUrl : null;
   const [mode, setMode] = useState(Boolean(initialUrl));
   const [url, setUrl] = useState(initialUrl || "");
   const [template, setTemplate] = useState<MarketplaceTemplateDetail | null>(null);
@@ -17,6 +22,7 @@ export function useProjectTemplateImport(initialUrl: string | null, locale: stri
   const auth = useCloudAuthController({ cloudApiBaseUrl: optionalCloudApiBaseUrl() });
 
   useEffect(() => {
+    if (!enabled) return undefined;
     let active = true;
     const sync = (state: Awaited<ReturnType<typeof readDesktopCloudAuthState>>) => {
       if (active) setSignedIn(Boolean(state.session && ["authenticated", "offline-authenticated", "refreshing"].includes(state.status)));
@@ -24,7 +30,7 @@ export function useProjectTemplateImport(initialUrl: string | null, locale: stri
     void readDesktopCloudAuthState().then(sync).catch(() => {});
     const unsubscribe = onDesktopCloudAuthStateChanged(sync);
     return () => { active = false; unsubscribe(); };
-  }, []);
+  }, [enabled]);
 
   const resolve = useCallback(async (value: string) => {
     const current = ++generation.current;
@@ -43,10 +49,10 @@ export function useProjectTemplateImport(initialUrl: string | null, locale: stri
     return () => { requestGeneration.current++; };
   }, [initialUrl, resolve]);
 
-  const source: WorkspaceCreateProjectRequest["source"] = mode && template
+  const source: WorkspaceCreateProjectRequest["source"] = enabled && mode && template
     ? { kind: "template", ref: { sourceId: "marketplace", id: template.id, releaseId: template.releaseId } }
     : { kind: "template", ref: { sourceId: "builtin", id: "puppyone.project.getting-started", version: 1 } };
-  return { mode, setMode, url, setUrl, template, setTemplate, resolving, signedIn, error, setError, resolve, auth, source, canCreate: !mode || Boolean(template && signedIn) };
+  return { enabled, mode, setMode, url, setUrl, template, setTemplate, resolving, signedIn, error, setError, resolve, auth, source, canCreate: !enabled || !mode || Boolean(template && signedIn) };
 }
 
 export type ProjectTemplateImportController = ReturnType<typeof useProjectTemplateImport>;

@@ -1,4 +1,5 @@
 import { useDesktopPreference } from "../../preferencesStore";
+import { useCloudEnabled } from "../cloud/useCloudEnabled";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { OnboardingImportDialog } from "../../components/OnboardingImportDialog";
 import { OnboardingProjectEntryDialog } from "../../components/OnboardingProjectEntryDialog";
@@ -80,8 +81,11 @@ export function ProjectEntryFlow({
   onCancelImport,
   onImportProgress,
 }: ProjectEntryFlowProps) {
+  // Marketplace templates download through a PuppyOne account. While Cloud is
+  // off, links from the store stay pending in main and are not consumed.
+  const templateLinksEnabled = useCloudEnabled();
   useEffect(() => {
-    if (controller.step !== null || !onCreateProject) return;
+    if (!templateLinksEnabled || controller.step !== null || !onCreateProject) return;
     const bridge = window.puppyoneDesktop;
     if (!bridge?.readTemplateImportIntent) return;
     let active = true;
@@ -95,7 +99,7 @@ export function ProjectEntryFlow({
     const stop = bridge.onTemplateImportRequested(() => { void consume().catch(() => {}); });
     void consume().catch(() => {});
     return () => { active = false; stop(); };
-  }, [controller, onCreateProject]);
+  }, [controller, onCreateProject, templateLinksEnabled]);
   const enableOtherAppImports = useDesktopPreference(s => s.experimentalSettings.enableOtherAppImports);
   const visibleImportSources = resolveVisibleImportSources({ enableOtherAppImports });
   const importPreviewBrands = resolveImportPreviewBrands({ enableOtherAppImports });
@@ -120,6 +124,7 @@ export function ProjectEntryFlow({
   if (controller.step === "create" && onCreateProject && onChooseLocation) {
     return (
       <OnboardingProjectEntryDialog
+        templateLinks={templateLinksEnabled}
         initialTemplateUrl={controller.templateUrl}
         onClose={controller.close}
         onDefaultLocation={onDefaultLocation}

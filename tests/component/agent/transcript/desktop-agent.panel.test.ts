@@ -511,9 +511,11 @@ function renderPanel(
   return container;
 }
 
-/** Only the tests that exercise the paid route turn its experiment on. */
+/** Only the tests that exercise the paid route turn its experiment on; paid compute rides on Cloud. */
 function enablePayments() {
-  desktopPreferencesStore.getState().setExperimentalSettings((settings) => ({ ...settings, enablePayments: true }));
+  desktopPreferencesStore.getState().setExperimentalSettings((settings) => ({
+    ...settings, enableCloudWorkspace: true, enablePayments: true,
+  }));
 }
 
 function renderPanelContent(preferredRuntimeId: string | null = null) {

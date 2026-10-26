@@ -145,7 +145,8 @@ export function useWorkspaceSurfaceContent({
   const cloudAuthState = useCloudSessionForEnvironment({
     cloudSession: cloud.storedCloudSession,
     sessionRestoring: cloud.sessionRestoring,
-    restoreEnabled: !localOnlyWorkspaceContext,
+    // A published project must not restore a Cloud session while Cloud is off.
+    restoreEnabled: cloud.enabled && !localOnlyWorkspaceContext,
     environment: cloudEnvironment,
     onCloudSessionChange: cloud.onCloudSessionChange,
   });
