@@ -44,16 +44,31 @@ export function useFeatureFlag(key: FeatureFlagKey): boolean {
 }
 
 /**
+ * Whether this build offers a PuppyOne account: the Account page in Settings,
+ * session restore, and PuppyOne's own model compute (balance, trial credit and
+ * top-up, when payments are on).
+ *
+ * An account is not Cloud. Many people hold one only for the compute they buy
+ * on the website and use in the Desktop, so the account never waits for the
+ * Cloud experiment. What waits is everything about the Cloud Computer: see
+ * useCloudEnabled().
+ */
+export function useAccountAvailable(): boolean {
+  return useFeatureFlag("cloudWorkspace");
+}
+
+/**
  * Whether PuppyOne Cloud is on in this window: the build ships it and the user
  * has turned on the Cloud experiment in Settings.
  *
- * Everything that needs a PuppyOne account follows this one decision: sign-in,
- * the Account page, marketplace template links, paid compute and session
- * restore. While it is off the Desktop is local-first: it shows no sign-in and
- * never contacts PuppyOne Cloud.
+ * Cloud projects, the Cloud Computer and its Plan, sharing, the first-run
+ * sign-in screen, the Homepage Cloud status and marketplace template links
+ * follow this decision. While it is off the Desktop is local-first about
+ * projects, but the PuppyOne account and its compute stay available
+ * (useAccountAvailable()).
  */
 export function useCloudEnabled(): boolean {
-  const available = useFeatureFlag("cloudWorkspace");
+  const available = useAccountAvailable();
   const enabled = useDesktopPreference((state) => state.experimentalSettings.enableCloudWorkspace);
   return available && enabled;
 }

@@ -8,11 +8,13 @@ survives as an opt-out — turn it off and the Desktop shows no price, balance,
 trial credit or top-up anywhere, and the Agent routes only to the user's own
 API keys and local models.
 
-Paid compute needs a PuppyOne account, so it rides on Cloud:
-`usePaymentsExperience()` is true only while Cloud is on (`useCloudEnabled()` in
-`src/features/flags`)
-*and* `enablePayments` is on. With Cloud off, the Payments switch is not
-offered and a stored `true` has no effect.
+Paid compute needs a PuppyOne account, not Cloud. Many people buy compute on
+the website and use it in the Desktop without ever turning on the Cloud
+experiment, so `usePaymentsExperience()` is true whenever the build offers
+accounts (`useAccountAvailable()` in `src/features/flags`) *and*
+`enablePayments` is on. The Cloud experiment does not move it. What Cloud does
+gate is the Plan (storage and the Cloud Computer): the Plan page, and the plan
+and usage lines on Account, appear only with Cloud on.
 
 ## Fork convention
 
@@ -33,12 +35,12 @@ offered and a stored `true` has no effect.
 
 | Surface | On (default) | Off |
 | --- | --- | --- |
-| Settings nav | `Billing` under Cloud | no such page, and the section is not routable |
+| Settings nav | `Plan` under Cloud, while Cloud is on | no such page, and the section is not routable |
 | Settings → Account | what the account runs, what it costs a month, usage meters and the available balance | identity and sign-in only |
 | Settings → Billing | the machines and their prices, the purchase, top-up and refresh | nothing: the page renders null |
 | Agent compute summary | PuppyOne's token, with the account balance behind it | the user's own API and local models only |
 | Agent send attempt without a route | sign-in, the one-time trial credit, or `Add credit to use this model.` | points at the user's own connection |
-| Settings → Account (shown only with Cloud on) | available balance, top-up and refresh | account sign-in only |
+| Settings → Account (shown whenever the build has accounts) | available balance, top-up and refresh | account sign-in only |
 | Wallet, catalog and usage reads | polled while signed in | never requested |
 
 Off is not only a hidden surface: with the experiment off the renderer issues

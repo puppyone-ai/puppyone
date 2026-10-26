@@ -1,5 +1,5 @@
 import { useDesktopPreference } from "../../../preferencesStore";
-import { useCloudEnabled, useFeatureFlag } from "../../flags";
+import { useAccountAvailable, useFeatureFlag } from "../../flags";
 import { useLocalization } from "@puppyone/localization";
 import type { ExperimentalSettings } from "../../../preferences";
 import { SettingsSectionHeader, SettingsSubsection, SettingsToggle } from "../components";
@@ -8,7 +8,7 @@ export function ExperimentalSettingsView() {
   const settings = useDesktopPreference(s => s.experimentalSettings);
   const onChange = useDesktopPreference(s => s.setExperimentalSettings);
   const assetLibraryHomeAvailable = useFeatureFlag("assetLibraryHome");
-  const cloudEnabled = useCloudEnabled();
+  const accountAvailable = useAccountAvailable();
   const { t } = useLocalization();
   const groups: Array<{
     id: string;
@@ -58,8 +58,8 @@ export function ExperimentalSettingsView() {
         { messageKey: "cloudWorkspace", settingKey: "enableCloudWorkspace" },
         { messageKey: "cloudAutomation", settingKey: "enableCloudAutomation" },
         // The only switch that lets the Desktop ask for money: src/features/payments/README.md.
-        // Paid compute needs a PuppyOne account, so it is offered only with Cloud on.
-        ...(cloudEnabled ? [{ messageKey: "payments", settingKey: "enablePayments" as const }] : []),
+        // Paid compute needs a PuppyOne account, not Cloud, so it is offered whenever accounts are.
+        ...(accountAvailable ? [{ messageKey: "payments", settingKey: "enablePayments" as const }] : []),
         { messageKey: "flowFiles", settingKey: "enablePuppyFlowFiles" },
         ...(window.puppyoneDesktop?.getGitAutoCommitSettings
           ? [{ messageKey: "gitAutoCommit", settingKey: "enableGitAutoCommit" as const }]

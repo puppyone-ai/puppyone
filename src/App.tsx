@@ -123,7 +123,7 @@ import {
   resolveCloudHubSectionAfterContextChange,
   useCurrentRepositoryCloudContext,
 } from "./features/cloud/project/context";
-import { useCloudEnabled, useFeatureFlag } from "./features/flags";
+import { useAccountAvailable, useCloudEnabled, useFeatureFlag } from "./features/flags";
 import {
   DesktopCreateEntryMenu,
   DesktopNodeActionMenu,
@@ -290,8 +290,10 @@ function AppContent() {
     (collapsed: boolean) => setProjectSwitcherExpanded(!collapsed),
     [setProjectSwitcherExpanded],
   );
-  // The build flag only marks availability; PuppyOne Cloud, including every
-  // sign-in surface, stays hidden until the user opts into the experiment.
+  // An account is not Cloud: the PuppyOne account, its session and the compute
+  // it pays for are available whenever the build has accounts. Cloud projects
+  // and the Cloud Computer stay hidden until the user opts into the experiment.
+  const accountAvailable = useAccountAvailable();
   const cloudEnabled = useCloudEnabled();
   // Share onboarding rides on top of Cloud: the Header cloud icon becomes the
   // project's Local/Cloud indicator and the only entry into sharing.
@@ -305,7 +307,7 @@ function AppContent() {
     cloudAuthStatus,
     cloudSessionRestoring,
     handleCloudSessionChange: updateCloudSession,
-  } = useDesktopCloudSession(cloudEnabled);
+  } = useDesktopCloudSession(accountAvailable);
   const desktopCloudApiBaseUrl = useMemo(() => getDesktopCloudApiBaseUrl(), []);
   const activeCloudSession = useMemo(() => getCloudAuthSession(resolveCloudAuthState({
     cloudSession: cloudAuthStatus === "authenticated" || cloudAuthStatus === "refreshing"
@@ -737,11 +739,12 @@ function AppContent() {
   useEffect(() => {
     if (!isSettingsSectionAvailable(activeSettingsSection, {
       cloudEnabled,
+      accountAvailable,
       otherAppImportsEnabled: enableOtherAppImports,
     })) {
-      setActiveSettingsSection("account");
+      setActiveSettingsSection(accountAvailable ? "account" : "general");
     }
-  }, [activeSettingsSection, cloudEnabled, enableOtherAppImports]);
+  }, [accountAvailable, activeSettingsSection, cloudEnabled, enableOtherAppImports]);
 
   useEffect(() => {
     const preventFileDropNavigation = (event: DragEvent) => {
@@ -1312,7 +1315,7 @@ function AppContent() {
   });
 
   const handleCloudSessionChange = useCallback((session: DesktopCloudSession | null) => {
-    if (!cloudEnabled) return;
+    if (!accountAvailable) return;
 
     updateCloudSession(session);
     if (!session) {
@@ -1320,12 +1323,14 @@ function AppContent() {
         setActiveSettingsSection("account");
         return;
       }
+      // Signing out with Cloud off leaves the user where they are.
+      if (!cloudEnabled) return;
       setActiveCloudSection("initialize");
       setActiveView("data");
       setSidebarCollapsed(false);
       setSwitcherOpen(false);
     }
-  }, [cloudEnabled, setSidebarCollapsed, settingsDialogOpen, updateCloudSession]);
+  }, [accountAvailable, cloudEnabled, setSidebarCollapsed, settingsDialogOpen, updateCloudSession]);
 
   const handleRemoveCloudRemote = useCallback(async (expectedRemotes?: readonly GitRemoteSummary[]) => {
     if (!focusedWorkspace) return;

@@ -1,4 +1,5 @@
 import { useDesktopPreference } from "../../../preferencesStore";
+import { useAccountAvailable } from "../../flags";
 import { SidebarRoot, SidebarRow, SidebarScrollArea } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
 import { SidebarGroup } from "../../../components/sidebar";
@@ -8,7 +9,8 @@ import { resolveSettingsSidebarGroups } from "./settingsSidebarModel";
 export function SettingsSidebar({ activeSection, cloudEnabled, localWorkspaceAvailable = true, onSelectSection }: SettingsSidebarProps) {
   const otherAppImportsEnabled = useDesktopPreference(s => s.experimentalSettings.enableOtherAppImports);
   const { t } = useLocalization();
-  const groups = resolveSettingsSidebarGroups({ cloudEnabled, otherAppImportsEnabled, localWorkspaceAvailable });
+  const accountAvailable = useAccountAvailable();
+  const groups = resolveSettingsSidebarGroups({ cloudEnabled, accountAvailable, otherAppImportsEnabled, localWorkspaceAvailable });
 
   return (
     <SidebarRoot className="desktop-settings-sidebar" aria-label={t("settings.sidebar.desktopApp")}>

@@ -96,21 +96,25 @@ const rowsOf = (host: HTMLElement) => [...host.querySelectorAll(".desktop-settin
  */
 
 it("keeps the price reachable without a local project, and only with Cloud on", () => {
-  const context = { cloudEnabled: true, localWorkspaceAvailable: false };
+  const context = { cloudEnabled: true, accountAvailable: true, localWorkspaceAvailable: false };
   const ids = resolveSettingsSidebarGroups(context).flatMap((g) => g.items.map((i) => i.id));
   expect(ids).toContain("account");
   expect(ids).toContain("seats");
   // Hosting describes a project, so it needs one; the money never does.
   expect(ids).not.toContain("cloud");
   expect(isSettingsSectionAvailable("account", context)).toBe(true);
-  // A local-first Desktop has no account and nothing to buy.
-  const localFirst = { cloudEnabled: false, localWorkspaceAvailable: false };
-  expect(isSettingsSectionAvailable("account", localFirst)).toBe(false);
+  // With Cloud off the account and its compute stay; the Plan sells storage
+  // and the Cloud Computer, so it waits for Cloud.
+  const localFirst = { cloudEnabled: false, accountAvailable: true, localWorkspaceAvailable: false };
+  expect(isSettingsSectionAvailable("account", localFirst)).toBe(true);
   expect(isSettingsSectionAvailable("seats", localFirst)).toBe(false);
+  // Only a build without accounts has no Account page.
+  const noAccounts = { cloudEnabled: false, accountAvailable: false, localWorkspaceAvailable: false };
+  expect(isSettingsSectionAvailable("account", noAccounts)).toBe(false);
 });
 
 it("splits state from purchase, and puts every price on Plan", () => {
-  const context = { cloudEnabled: true };
+  const context = { cloudEnabled: true, accountAvailable: true };
   const cloud = resolveSettingsSidebarGroups(context).find((group) => group.id === "cloud");
   expect(cloud?.items.map((item) => item.id)).toEqual(["account", "seats"]);
   expect(isSettingsSectionAvailable("seats", context)).toBe(true);
@@ -299,7 +303,7 @@ it("prices nothing while the payments experiment is off", () => {
   for (const file of ["AccountSettingsView", "SeatsSettingsView"]) {
     const source = readFileSync(`src/features/settings/main/${file}.tsx`, "utf8");
     expect(source).toContain("usePaymentsExperience();");
-    expect(source).toMatch(/if \(!payments\) return null;|\{payments && /);
+    expect(source).toMatch(/if \(!payments\) return null;|const cloudPlan = payments && cloudEnabled;/);
   }
   // Nothing below them may render a price by reading the experiment itself.
   const purchase = readFileSync("src/features/settings/main/PersonalPlan.tsx", "utf8");
