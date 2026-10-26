@@ -300,8 +300,10 @@ describe("DesktopHelpLauncher", () => {
     expect(appSource).toContain("renderLeadingRail={enableProjectSwitcherRail ? ({ expanded }) => renderProjectRail(");
     expect(appSource).toContain("expanded={expanded}");
     expect(appSource).toContain("leftSidebarCollapsed={sidebarCollapsed}");
-    expect(appSource).toContain("rightSidebarOpen={rightSidebarContentVisible}");
-    expect(appSource).toContain("const rightSidebarContentVisible = gitPresentation.effectiveSidebarOpen && !cloudWorkspaceActive;");
+    // Local right-sidebar content never shows over a Cloud workspace.
+    expect(appSource).toMatch(/rightSidebarOpen=\{[^}]*\brightSidebarContentVisible\b[^}]*\}/);
+    expect(appSource).toMatch(/const localRightSidebarActive = !cloudWorkspaceActive\b/);
+    expect(appSource).toMatch(/const rightSidebarContentVisible = \w+ && localRightSidebarActive;/);
     expect(appSource).toContain("settingsOpen={settingsDialogOpen}");
     expect(appSource).toContain("{settingsDialogOpen && (");
     expect(appSource).toContain("<SettingsDialog");

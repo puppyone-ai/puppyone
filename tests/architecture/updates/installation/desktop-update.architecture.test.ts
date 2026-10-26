@@ -57,12 +57,9 @@ describe("Desktop update interaction boundaries", () => {
     expect(updateModel).not.toMatch(/if \(state\.status === "(?:disabled|idle|checking|not-available|downloading|error)"\)/);
     expect(updatePreview).toContain("if (!isDevelopment");
     expect(updateController).toContain("isDevelopment: import.meta.env.DEV");
-    expect(app).toContain(
-      "automaticDownloadPreferenceAvailable:\n                  desktopUpdates.automaticDownloadPreferenceAvailable",
-    );
-    expect(app).toContain(
-      "setAutomaticallyDownloadUpdates:\n                  desktopUpdates.setAutomaticallyDownloadUpdates",
-    );
+    // Settings owns the automatic-download preference; formatting is not part of the contract.
+    expect(app).toMatch(/automaticDownloadPreferenceAvailable:\s*desktopUpdates\.automaticDownloadPreferenceAvailable/);
+    expect(app).toMatch(/setAutomaticallyDownloadUpdates:\s*desktopUpdates\.setAutomaticallyDownloadUpdates/);
   });
 });
 

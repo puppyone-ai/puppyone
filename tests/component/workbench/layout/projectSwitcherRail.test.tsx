@@ -455,9 +455,10 @@ describe("Project switcher rail", () => {
     expect(rows[1]?.querySelector('[data-project-location="linked"] .onboarding-project-cloud-badge')).not.toBeNull();
     expect(rows[2]?.querySelector('[data-project-location="cloud"] .desktop-cloud-icon')).not.toBeNull();
     expect(rows[1]?.getAttribute("aria-label")).toContain("Local folder + Cloud project");
-    expect(rows[2]?.draggable).toBe(false);
+    // Read the rendered attribute: the DOM test environment does not reflect `draggable`.
+    expect(rows[2]?.getAttribute("draggable")).toBe("false");
     expect(rows[2]?.closest(".desktop-project-switcher-rail-project-row")?.querySelector(".desktop-project-switcher-row-action")).toBeNull();
-    expect(rows[1]?.draggable).toBe(true);
+    expect(rows[1]?.getAttribute("draggable")).toBe("true");
     await act(async () => rows[1]?.click());
     expect(selectLocal).toHaveBeenCalledExactlyOnceWith(linked.path);
     await act(async () => rows[2]?.click());
