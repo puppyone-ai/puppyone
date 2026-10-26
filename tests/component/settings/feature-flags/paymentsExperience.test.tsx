@@ -63,15 +63,16 @@ function PaymentProbe() {
 }
 
 describe("payments experiment", () => {
-  it("rides on Cloud: no Payments switch and no paid route while Cloud is off", () => {
-    store.getState().setExperimentalSettings((settings) => ({ ...settings, enablePayments: true }));
+  it("needs an account, not Cloud: the Payments switch and paid route stay with Cloud off", () => {
     const host = render(<><ExperimentalSettingsView /><PaymentProbe /></>);
     const path = () => host.querySelector('[data-testid="path"]')?.textContent;
 
-    // The Cloud switch itself is always offered; only Payments waits for it.
+    // People buy PuppyOne compute on the website and use it here without the
+    // Cloud experiment, so turning Cloud on or off never moves this route.
+    expect(store.getState().experimentalSettings.enableCloudWorkspace).toBe(false);
     expect(host.querySelector(`input[aria-label="${cloudLabel}"]`)).not.toBeNull();
-    expect(host.querySelector(`input[aria-label="${label}"]`)).toBeNull();
-    expect(path()).toBe("own compute");
+    expect(host.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)?.checked).toBe(true);
+    expect(path()).toBe("paid");
 
     act(() => host.querySelector<HTMLInputElement>(`input[aria-label="${cloudLabel}"]`)!.click());
     expect(host.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)?.checked).toBe(true);

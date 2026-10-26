@@ -62,11 +62,17 @@ export function AccountSettingsView({
   cloudApiBaseUrl,
   onCloudSessionChange,
   onOpenBilling,
+  cloudEnabled,
 }: {
   cloudSession: DesktopCloudSession | null;
   cloudSessionRestoring: boolean;
   cloudApiBaseUrl: string | null;
   onCloudSessionChange: (session: DesktopCloudSession | null) => void;
+  /**
+   * The Plan line and storage usage describe the Cloud Computer plan, so they
+   * appear only with Cloud on. Identity and compute credit never wait for it.
+   */
+  cloudEnabled: boolean;
   /** Opens Billing. Absent while the payments experiment is off. */
   onOpenBilling?: () => void;
 }) {
@@ -84,11 +90,12 @@ export function AccountSettingsView({
   const desktopOAuthAvailable = supportsDesktopCloudOAuth();
   const busy = Boolean(operation) || cloudSessionRestoring;
 
+  const cloudPlan = payments && cloudEnabled;
   const snapshot = useAccountPlan({
     session: sessionMatchesService ? cloudSession : null,
     apiBaseUrl: resolvedApiBaseUrl,
     onSessionChange: onCloudSessionChange,
-    enabled: payments,
+    enabled: cloudPlan,
   });
   const holding = resolvePlanHolding(snapshot.summary, snapshot.catalog);
 
@@ -160,6 +167,7 @@ export function AccountSettingsView({
             statusNote={statusNote}
             busy={operation === "signout" || cloudSessionRestoring}
             onSignOut={() => void signOut()}
+            cloudEnabled={cloudEnabled}
           />
 
           {!signedIn && (
@@ -200,7 +208,7 @@ export function AccountSettingsView({
             </SettingsSubsection>
           )}
 
-          {payments && sessionMatchesService && (
+          {cloudPlan && sessionMatchesService && (
             <>
               <SettingsSubsection leading>
                 {/* What you run and what it costs, in one line. The only way to
@@ -236,6 +244,8 @@ export function AccountSettingsView({
             <AccountAICredits
               key={cloudSession?.user_id ?? "signed-out"}
               payments={payments}
+              // Without Cloud there is no Plan page, so Account is where compute is bought.
+              topUp={!cloudEnabled}
               signedIn={signedIn
                 && !cloudSessionRestoring
                 && cloudSession?.status !== "signing-out"

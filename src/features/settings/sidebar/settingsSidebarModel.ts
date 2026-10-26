@@ -25,12 +25,15 @@ export type SettingsSidebarItem = {
   disabled: boolean;
   requiresLocalWorkspace?: boolean;
   requiresCloud?: boolean;
+  requiresAccount?: boolean;
   requiresOtherAppImports?: boolean;
 };
 
 export type SettingsSidebarGroupModel = {
   id: string;
   labelId: string;
+  /** The heading while Cloud is off, when the group holds the account alone. */
+  labelWithoutCloudId?: string;
   items: readonly SettingsSidebarItem[];
   requiresLocalWorkspace?: boolean;
   requiresCloud?: boolean;
@@ -38,6 +41,8 @@ export type SettingsSidebarGroupModel = {
 
 export type SettingsVisibilityContext = {
   cloudEnabled: boolean;
+  /** The build offers a PuppyOne account, with or without Cloud. */
+  accountAvailable: boolean;
   otherAppImportsEnabled?: boolean;
   localWorkspaceAvailable?: boolean;
 };
@@ -58,10 +63,12 @@ export const SETTINGS_SIDEBAR_GROUPS: readonly SettingsSidebarGroupModel[] = [
   {
     id: "cloud",
     labelId: "settings.sidebar.cloud",
+    labelWithoutCloudId: "settings.sidebar.puppyone",
     items: [
-      // Signing in only serves Cloud, so a local-first Desktop shows neither
-      // page: with Cloud off there is no account to show and nothing to buy.
-      // Who you are, then what you pay. Account reports identity and nothing
+      // An account is not Cloud: people buy PuppyOne compute on the website and
+      // use it here with Cloud off, so Account is always offered where the
+      // build has accounts. Plan sells storage and the Cloud Computer, so it
+      // waits for Cloud. Who you are, then what you pay. Account reports identity and nothing
       // that costs money; Plan (section id "seats": the product is priced per
       // person) is the only place a price appears or a charge begins. The split that failed before was "Account / Plan", where both
       // pages answered what you hold.
@@ -69,7 +76,7 @@ export const SETTINGS_SIDEBAR_GROUPS: readonly SettingsSidebarGroupModel[] = [
       // Invoices are deliberately absent: they are documents, card forms and
       // tax fields, which belong in a browser rather than a settings pane, so
       // Plan links out to them instead of hosting a third entry here.
-      { id: "account", labelId: "settings.sidebar.account", icon: UserRound, disabled: false, requiresCloud: true },
+      { id: "account", labelId: "settings.sidebar.account", icon: UserRound, disabled: false, requiresAccount: true },
       { id: "seats", labelId: "settings.sidebar.seats", icon: CreditCard, disabled: false, requiresCloud: true },
     ],
   },
@@ -113,6 +120,7 @@ export const SETTINGS_SIDEBAR_GROUPS: readonly SettingsSidebarGroupModel[] = [
 
 export function resolveSettingsSidebarGroups({
   cloudEnabled,
+  accountAvailable,
   otherAppImportsEnabled = false,
   localWorkspaceAvailable = true,
 }: SettingsVisibilityContext): readonly SettingsSidebarGroupModel[] {
@@ -121,8 +129,10 @@ export function resolveSettingsSidebarGroups({
       && (!group.requiresLocalWorkspace || localWorkspaceAvailable))
     .map((group) => ({
       ...group,
+      labelId: !cloudEnabled && group.labelWithoutCloudId ? group.labelWithoutCloudId : group.labelId,
       items: group.items.filter((item) => (
         (!item.requiresCloud || cloudEnabled)
+        && (!item.requiresAccount || accountAvailable)
         && (!item.requiresLocalWorkspace || localWorkspaceAvailable)
         && (!item.requiresOtherAppImports || otherAppImportsEnabled)
       )),

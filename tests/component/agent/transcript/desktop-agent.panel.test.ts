@@ -60,10 +60,10 @@ describe("Project-owned Agent Chat Workbench lifecycle", () => {
     await flushEffects(); await flushEffects();
     expect(Boolean(container.querySelector(".desktop-agent-readiness"))).toBe(showRecovery);
     expect(Boolean(container.querySelector(".desktop-agent-empty-state"))).toBe(!showRecovery);
-    // Paid compute rides on Cloud, which a default install leaves off, so it
-    // onboards onto the user's own route; the paid route is held in
+    // Paid compute needs an account, not Cloud, so a default install (Cloud
+    // off) onboards onto PuppyOne's own compute; the opt-out is held in
     // paymentsExperience.test.tsx.
-    expect(container.querySelector(".desktop-agent-compute-summary")?.textContent).toContain("Your API or local model");
+    expect(container.querySelector(".desktop-agent-compute-summary")?.textContent).toContain("Puppyone's token");
     expect((container.querySelector('button[aria-label="Send message"]') as HTMLButtonElement).disabled).toBe(true);
     expect(harness.bridge.createAgentSession).not.toHaveBeenCalled();
   });

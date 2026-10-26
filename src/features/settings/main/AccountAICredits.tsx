@@ -61,7 +61,10 @@ function WalletRow({ credit, pending, store, topUp }: {
 export function AccountAICredits({ payments, signedIn, topUp = false, title, detail }: {
   payments: boolean;
   signedIn: boolean;
-  /** Only the seats page may sell: elsewhere the balance is a statement. */
+  /**
+   * Sell beside the balance. Plan sells when Cloud is on; without Cloud there is
+   * no Plan, so Account sells. Elsewhere the balance is a statement.
+   */
   topUp?: boolean;
   /** Set where the balance needs framing as the user's own compute. */
   title?: string;
