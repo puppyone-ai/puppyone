@@ -1,5 +1,6 @@
 export * from "./core/types";
 export { STANDARD_CONTROL_SIZE } from "./core/controlGeometry";
+export { ipcErrorMessage } from "./core/ipcErrorMessage";
 export { OverflowDots } from "./primitives/OverflowDots";
 export { Tooltip, disableTooltipHints, isTooltipSuppressed } from "./primitives/Tooltip";
 export type { TooltipPlacement, TooltipProps } from "./primitives/Tooltip";
