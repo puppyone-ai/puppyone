@@ -194,8 +194,8 @@ async function headerPresentation(location) {
   const iconInk = luminance(sample.icon.color), iconPaper = luminance(sample.contrastSamples[0].paper);
   sample.iconContrast = (Math.max(iconInk,iconPaper)+0.05)/(Math.min(iconInk,iconPaper)+0.05);
   assert(sample.iconContrast >= 3, `Location icon needs 3:1 contrast: ${sample.iconContrast}`);
-  // The runtime is named in words ("Hosted workspace" / "Local", cd3649b7), not by color alone.
-  assert(sample.icon.accessibleLabel.includes(location === 'cloud' ? 'Hosted workspace' : 'Local'),
+  // The computer is named in words ("Cloud Computer" / "Local"), not by color alone.
+  assert(sample.icon.accessibleLabel.includes(location === 'cloud' ? 'Cloud Computer' : 'Local'),
     `Location needs a textual accessible name, not just the brand color: ${sample.icon.accessibleLabel}`);
   return sample;
 }
@@ -441,11 +441,10 @@ app.whenReady().then(async () => {
       && animation.effect.getTiming().duration === 260
       && animation.animationName === 'desktop-cloud-header-expand';
   })()`), 'Header blue must expand from its lower-right center over 260ms while Cloud prepares');
-  // Since 3b3355db/cd3649b7 the location button states where the project runs,
-  // so it stays Local until the provider commits; the rest of the Header
-  // follows the intent at once.
-  assert(await evaluate("document.querySelector('.desktop-titlebar')?.dataset.workspaceKind === 'cloud' && Boolean(document.querySelector('.desktop-titlebar-location-button .desktop-titlebar-workspace-mark[data-project-location=local]')) && !document.querySelector('.desktop-titlebar-terminal:not([data-cloud-workspace-tool]), .desktop-titlebar-changes')"),
-    'Cloud intent must switch the Header and remove local actions before provider commit, while the runtime mark stays Local');
+  // The location button names the computer being opened and states that it
+  // is still opening; the rest of the Header follows the intent at once.
+  assert(await evaluate("document.querySelector('.desktop-titlebar')?.dataset.workspaceKind === 'cloud' && Boolean(document.querySelector('.desktop-titlebar-location-button[aria-busy=true] .desktop-titlebar-workspace-mark[data-project-location=cloud][data-computer-status=opening]')) && !document.querySelector('.desktop-titlebar-terminal:not([data-cloud-workspace-tool]), .desktop-titlebar-changes')"),
+    'Cloud intent must switch the Header and remove local actions before provider commit, while the location mark states Cloud is opening');
   assert(await evaluate("document.querySelectorAll('[data-cloud-workspace-tool]').length === 3 && [...document.querySelectorAll('[data-cloud-workspace-tool]')].every(button => button.disabled)"),
     'All three Cloud tools must appear immediately and await the authorized provider commit');
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");

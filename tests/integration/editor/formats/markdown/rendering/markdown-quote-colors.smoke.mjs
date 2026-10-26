@@ -153,7 +153,9 @@ function assertColors(metrics, override) {
     assert.deepEqual(metrics.ordinaryStrongColor, [217, 0, 113, 255], "ordinary strong user override was lost");
     assert.deepEqual(metrics.ordinaryCodeColor, [20, 122, 150, 255], "ordinary code host override was lost");
   } else {
-    assert.notDeepEqual(metrics.ordinaryCodeColor, metrics.bodyColor, "inline code lost its softer foreground");
+    // Inline code reads in its surrounding text color; the monospace face and
+    // the quiet frame mark it, not a second ink.
+    assert.deepEqual(metrics.ordinaryCodeColor, metrics.bodyColor, "inline code must follow its surrounding text color");
     assert.notDeepEqual(metrics.ordinaryCodeColor, metrics.quoteColor, "inline code must stay readable above supporting quote text");
     for (let channel = 0; channel < 3; channel++) {
       assert(metrics.ordinaryCodeColor[channel] >= Math.min(metrics.bodyColor[channel], metrics.quoteColor[channel]) - 1
@@ -285,21 +287,30 @@ function readHeadingRhythm() {
       nextTextTop: (() => { const next = element.nextElementSibling, range = document.createRange(); range.selectNodeContents(next); return range.getBoundingClientRect().top; })(),
     };
   };
+  // The theme's own rhythm roles, resolved for this host: what both renderers must honor.
+  const role = name => parseFloat(getComputedStyle(host).getPropertyValue(name));
+  const levels = [1, 2, 3, 4, 5, 6];
   return { native: [...host.querySelectorAll(".cm-line.cm-md-heading")].map(read),
     html: [...host.querySelectorAll(".cm-md-html-rendered-surface :is(h1,h2,h3,h4,h5,h6)")].map(read),
+    rhythm: { before: levels.map(level => role(`--po-md-h${level}-gap-before`)),
+      after: levels.map(level => role(`--po-md-h${level}-gap-after`)),
+      lineHeight: role("--po-md-heading-line-height") },
     geometry: window.tableFixture.markdownLineGeometry() };
 }
 
 function assertHeadingRhythm(metrics, newspaper, wrapped = false) {
-  const before = newspaper ? [20,17.5,15,12.5,10,10] : [16,14,12,10,8,8];
-  const after = newspaper ? [12,9.6,8.4,7.2,6,6] : [10,8,7,6,5,5];
+  // The theme owns the numbers; both renderers must honor them exactly.
+  const { before, after, lineHeight } = metrics.rhythm;
+  for (const value of [...before, ...after, lineHeight]) assert(Number.isFinite(value) && value >= 0, `heading rhythm role unresolved: ${JSON.stringify(metrics.rhythm)}`);
+  for (let index=1;index<6;index++) assert(before[index] <= before[index-1] + .01, "a deeper heading may not open with more space than its parent");
+  if (newspaper) assert(before[0] > 8, "the newspaper theme keeps its generous heading rhythm");
   const near = (actual, expected, label) => assert(Math.abs(actual-expected) < .6, `${label}: ${actual} vs ${expected}`);
   assert.equal(metrics.native.length, 6); assert.equal(metrics.html.length, 6);
   for (let index=0;index<6;index++) {
     const native=metrics.native[index], html=metrics.html[index];
     near(native.before, before[index], `H${index+1} before`); near(native.after, after[index], `H${index+1} after`);
     near(html.marginBefore, before[index], `HTML H${index+1} before`); near(html.marginAfter, after[index], `HTML H${index+1} after`);
-    near(native.size, html.size, "shared heading size"); near(native.lineHeight, native.size*1.5, "heading line height");
+    near(native.size, html.size, "shared heading size"); near(native.lineHeight, native.size*lineHeight, "heading line height");
     near(native.lineHeight, html.lineHeight, "shared heading line height");
     assert(native.nextTextTop-native.textBottom >= after[index], "following paragraph touched heading text");
     assert(html.nextTextTop-html.textBottom >= after[index]-.6, "following HTML paragraph touched heading text");
@@ -850,7 +861,8 @@ app.whenReady().then(async () => {
       assert.equal(metrics.listIndent,revision ? "55px" : "45px");
       assert.equal(metrics.listMarkerInset,revision ? "15px" : "9px");
       assert.deepEqual(metrics.orderedMarker,{weight:revision?'450':'350',numeric:revision?'tabular-nums':'proportional-nums',align:revision?'end':'start'},'registered marker styles were not applied');
-      assert.equal(metrics.subheadingBefore, revision ? "38.5px" : "31.5px", "per-level gap lost its file-owned base reference");
+      // Levels without their own gap share the file's base heading gap.
+      assert.equal(metrics.subheadingBefore, revision ? "44px" : "36px", "per-level gap lost its file-owned base reference");
       assert(Math.abs(parseFloat(metrics.headingLineHeight)-(revision ? 42*1.6 : 38*1.4)) < .01, "file heading line-height was lost");
       assert(metrics.bodyFont.includes("Georgia"));
       assert.equal(metrics.bodyColor, mode === "dark" ? revision ? "#ecd2e3" : "#d0e0f1" : revision ? "#643354" : "#253b52");

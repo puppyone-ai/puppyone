@@ -32,6 +32,12 @@ const coordinators = new WeakMap<Document, DocumentEditorLayout>();
 /** One scheduler/ResizeObserver per DOM Document, no document-model data.
  * View state remains in the participant. Gestures, passive resize and async
  * content all share this queue. */
+/**
+ * Recent batch durations kept for diagnostics. Sized for a sustained resize
+ * of eight split panes, where Markdown tables re-fit on every width change.
+ */
+const RECENT_BATCH_SAMPLES = 256;
+
 class DocumentEditorLayout {
   readonly entries = new Map<HTMLElement, Entry>();
   private pending = new Set<Entry>();
@@ -130,7 +136,7 @@ class DocumentEditorLayout {
       this.batches += 1;
       this.maxPasses = Math.max(this.maxPasses, passes);
       this.recentBatchMs.push(performance.now() - start);
-      if (this.recentBatchMs.length > 128) this.recentBatchMs.shift();
+      if (this.recentBatchMs.length > RECENT_BATCH_SAMPLES) this.recentBatchMs.shift();
     }
   }
 

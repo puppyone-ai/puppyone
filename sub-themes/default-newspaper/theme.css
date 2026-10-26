@@ -259,7 +259,7 @@
     --po-md-link-color: #cdb58e;
     --po-md-blockquote-color: color-mix(in srgb, #bdb4a6 85%, var(--po-md-content-color));
     --po-md-blockquote-border-color: #887d6e;
-    --po-md-inline-code-color: color-mix(in srgb, var(--po-md-content-color) 45%, var(--po-md-blockquote-color));
+    --po-md-inline-code-color: currentColor;
     --po-md-syntax-keyword: #e0a28f;
     --po-md-syntax-string: #b8ca91;
     --po-md-syntax-comment: #958b7d;

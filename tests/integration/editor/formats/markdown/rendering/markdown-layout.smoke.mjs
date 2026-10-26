@@ -182,7 +182,7 @@ app.whenReady().then(async () => {
       window.setContentSize(1600, 1000);
       const result = await evaluate(`window.markdownLayoutFixture.mdi.resize(${count})`);
       results.push({ name: scenario, budget, ...result });
-      console.log(JSON.stringify({ name: scenario, maxError: result.maxError, p95BatchMs: result.p95BatchMs, maxBatchMs: result.maxBatchMs }));
+      console.log(JSON.stringify({ name: scenario, maxError: result.maxError, p95BatchMs: result.p95BatchMs, maxBatchMs: result.maxBatchMs, batches: result.batches, commits: result.engineCommits }));
       assert(result.frames >= 3 && result.widths.every(widths => widths.length > 3), `${scenario}: panes did not actually resize`);
       assert(result.maxError <= 1 && result.maxWidthLag <= 1, `${scenario}: geometry drifted`);
       assert(result.p95BatchMs <= budget.p95BatchMs && result.maxBatchMs <= budget.maxBatchMs, `${scenario}: document layout exceeded budget`);
