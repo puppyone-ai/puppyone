@@ -108,6 +108,9 @@ export function useAnchoredOverlayPosition({
   const [overlayElement, setOverlayElement] = useState<HTMLDivElement | null>(null);
   const [position, setPosition] = useState<AnchoredOverlayPosition | null>(null);
   const setOverlayRef = useCallback((node: HTMLDivElement | null) => {
+    // Marks inline-placed geometry for animations.css: Reduce Motion must not
+    // animate the overlay from its hidden measuring origin to its anchor.
+    node?.setAttribute("data-anchored-overlay", "");
     overlayRef.current = node;
     setOverlayElement((current) => current === node ? current : node);
   }, []);
