@@ -85,6 +85,9 @@ app.whenReady().then(async () => {
     const port = reservation.address().port;
     await new Promise(resolve => reservation.close(resolve));
     vite = await createServer({ root, cacheDir: path.join(temporary, "vite"), logLevel: "error",
+      // Pre-bundle the fixture's whole graph: with HMR off, a dependency found
+      // mid-run re-optimizes and later page loads get outdated (504) chunks.
+      optimizeDeps: { entries: ["tests/fixtures/editor/tables/table-interaction.html"] },
       server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null } });
     await vite.listen();
     window = new BrowserWindow({ width: 1100, height: 970,
@@ -110,7 +113,7 @@ app.whenReady().then(async () => {
     };
     const escape = async () => { window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Escape" }); window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Escape" }); await wait(); };
     await window.loadURL(`http://127.0.0.1:${port}/tests/fixtures/editor/tables/table-interaction.html`);
-    await evaluate(`(async () => { for (let i=0; i<500 && !window.tableFixture; i++) await new Promise(r=>setTimeout(r,10)); await window.tableFixture.ready(); })()`);
+    await evaluate(`(async () => { for (let i=0; i<3000 && !window.tableFixture; i++) await new Promise(r=>setTimeout(r,10)); if (!window.tableFixture) throw new Error('Table fixture did not load within 30s'); await window.tableFixture.ready(); })()`);
     window.webContents.debugger.attach("1.3");
     const reducedMotion = value => window.webContents.debugger.sendCommand("Emulation.setEmulatedMedia", {
       features: [{ name: "prefers-reduced-motion", value: value ? "reduce" : "no-preference" }],

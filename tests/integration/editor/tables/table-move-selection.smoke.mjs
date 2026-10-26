@@ -63,13 +63,26 @@ app.whenReady().then(async () => {
     const port = reservation.address().port;
     await new Promise(resolve => reservation.close(resolve));
     vite = await createServer({ root, cacheDir: path.join(temporary, "vite"), logLevel: "error",
+      // Pre-bundle the fixture's whole graph: with HMR off, a dependency found
+      // mid-run re-optimizes and later page loads get outdated (504) chunks.
+      optimizeDeps: { entries: ["tests/fixtures/editor/tables/table-interaction.html"] },
       server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null } });
     await vite.listen();
-    browser = new BrowserWindow({ width: 1150, height: 1100, show: false,
-      webPreferences: { contextIsolation: true, sandbox: true, backgroundThrottling: false } });
-    browser.webContents.on("console-message", details => {
-      if (details.level === "error" && !details.message.includes("Electron Security Warning")) errors.push(details.message);
-    });
+    const url = `http://127.0.0.1:${port}/tests/fixtures/editor/tables/table-interaction.html`;
+    // Each case gets a fresh renderer. Reloading one renderer with ~1,500
+    // unbundled dev modules exhausts Chromium's per-process request budget on
+    // Linux (net::ERR_INSUFFICIENT_RESOURCES), and the fixture never loads.
+    const openFixtureWindow = async () => {
+      if (browser && !browser.isDestroyed()) browser.destroy();
+      browser = new BrowserWindow({ width: 1150, height: 1100, show: false,
+        webPreferences: { contextIsolation: true, sandbox: true, backgroundThrottling: false } });
+      browser.webContents.on("console-message", details => {
+        if (details.level === "error" && !details.message.includes("Electron Security Warning")) errors.push(details.message);
+      });
+      await browser.loadURL(url);
+      browser.webContents.debugger.attach("1.3");
+      await browser.webContents.debugger.sendCommand("Emulation.setFocusEmulationEnabled", { enabled: true });
+    };
     const evaluate = code => browser.webContents.executeJavaScript(code);
     let leftButtonDown = false;
     const mouse = (type, point) => {
@@ -86,13 +99,10 @@ app.whenReady().then(async () => {
       browser.webContents.sendInputEvent({ type: "keyUp", keyCode });
       await wait(30);
     };
-    const url = `http://127.0.0.1:${port}/tests/fixtures/editor/tables/table-interaction.html`;
-    await browser.loadURL(url);
-    browser.webContents.debugger.attach("1.3");
-    await browser.webContents.debugger.sendCommand("Emulation.setFocusEmulationEnabled", { enabled: true });
     for (const theme of ["light", "dark"]) for (const kind of ["csv", "markdown"]) for (const test of cases) {
-      await browser.loadURL(url);
-      await evaluate("(async () => { for(let i=0;i<500&&!window.tableFixture;i++) await new Promise(r=>setTimeout(r,10)); await window.tableFixture.ready(); })()");
+      await openFixtureWindow();
+      // A cold Vite compile on a CI runner can take longer than five seconds.
+      await evaluate("(async () => { for(let i=0;i<3000&&!window.tableFixture;i++) await new Promise(r=>setTimeout(r,10)); if(!window.tableFixture) throw new Error('Table fixture did not load within 30s'); await window.tableFixture.ready(); })()");
       await evaluate(`window.tableFixture.mode('${theme}')`);
       const metrics = () => evaluate(`window.tableFixture.metrics('${kind}')`);
       const before = await metrics();
@@ -125,14 +135,20 @@ app.whenReady().then(async () => {
         assert.equal(await evaluate(`!!document.querySelector('${selector}')`), false);
       }
       await wait(700);
-      const after = await metrics();
+      // The move settles over a few frames; a loaded runner may need longer than 700ms.
+      let after = await metrics();
+      for (let attempt = 0; attempt < 40; attempt++) {
+        try { assertSelection(after, test.axis, test.text); break; }
+        catch (error) { if (attempt === 39) throw error; await wait(50); after = await metrics(); }
+      }
       assert.notEqual(kind === "csv" ? after.csvSource : after.markdown, kind === "csv" ? before.csvSource : before.markdown);
-      assertSelection(after, test.axis, test.text);
       const name = `${theme}-${kind}-${test.entry}-${test.label ?? test.axis}`.replaceAll(" ", "-");
       await fs.writeFile(path.join(artifacts, `${name}.png`), (await browser.webContents.capturePage()).toPNG());
       // Escape clears a completed structural selection without a source edit.
       await key("Escape");
-      const cleared = await metrics();
+      // Escape is applied on the renderer's next frames; wait for it rather than racing a slow runner.
+      let cleared = await metrics();
+      for (let attempt = 0; attempt < 40 && cleared.outline !== null; attempt++) { await wait(50); cleared = await metrics(); }
       assert.equal(cleared.outline, null);
       assert.equal(kind === "csv" ? cleared.csvSource : cleared.markdown, kind === "csv" ? after.csvSource : after.markdown);
       results.push({ theme, kind, ...test, structuralTarget: after.structuralTarget, outline: after.outline,

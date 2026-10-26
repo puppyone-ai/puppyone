@@ -385,7 +385,12 @@ app.whenReady().then(async () => {
     const r = menu.getBoundingClientRect();
     return {x:r.x,y:r.y,width:r.width,height:r.height};
   })()`);
-  await evaluate("document.querySelector('button[data-project-location=cloud]').click()");
+  // Freeze the 260ms Header reveal in the same task as the click, so the
+  // checks below sample it on any runner speed instead of racing its end.
+  await evaluate(`(() => {
+    document.querySelector('button[data-project-location=cloud]').click();
+    document.querySelector('.desktop-titlebar .desktop-cloud-header-reveal')?.getAnimations({subtree:true})[0]?.pause();
+  })()`);
   await waitFor("document.querySelector('.desktop-project-location-tabs').getAttribute('aria-busy') === 'true'");
   // Header-icons slide a plate to the new selection; popover rows have no plate.
   await waitFor("!document.querySelector('.desktop-project-location-indicator') || document.querySelector('.desktop-project-location-indicator').getAnimations().some(animation => animation.transitionProperty === 'transform')");
@@ -396,6 +401,7 @@ app.whenReady().then(async () => {
     const reveal = header.querySelector('.desktop-cloud-header-reveal');
     reveal.dataset.fixtureIdentity = 'requested-header-reveal';
     const animation = reveal.getAnimations({subtree:true})[0];
+    if (!animation) throw new Error('The Header reveal animation was not running when Cloud was chosen');
     animation.pause(); animation.currentTime = 35;
     const firstCircle = getComputedStyle(reveal, '::after').clipPath;
     animation.currentTime = 70;
