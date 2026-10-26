@@ -98,6 +98,10 @@ async function headerPresentation(location) {
   await evaluate("Promise.all([...document.querySelectorAll('.desktop-titlebar-workspace-button, .desktop-titlebar-location-button')].flatMap(button => button.getAnimations()).map(animation => animation.finished.catch(() => {})))");
   await evaluate("Promise.all((document.querySelector('.desktop-cloud-header-reveal')?.getAnimations({subtree:true}) ?? []).map(animation => animation.finished.catch(() => {})))");
   const sample = await evaluate(`(() => {
+    // Under Reduce Motion the app gives every property a 0.01ms transition, so
+    // a style read right after a provider switch returns the old color. Settle
+    // in-flight transitions so the sample is the committed presentation.
+    document.getAnimations().filter(animation => animation instanceof CSSTransition).forEach(animation => animation.finish());
     const header = document.querySelector('.desktop-titlebar');
     const context = header.querySelector('.desktop-titlebar-centered-context');
     const button = context.querySelector('.desktop-titlebar-location-button');
@@ -107,21 +111,23 @@ async function headerPresentation(location) {
     const css = getComputedStyle(header);
     const shell = header.closest('.desktop-shell'), s = shell.getBoundingClientRect();
     const frame = getComputedStyle(shell, '::after');
-    const probe = document.createElement('span');
-    header.append(probe);
-    probe.style.color = 'var(--po-header)';
-    const expected = getComputedStyle(probe).color;
-    probe.style.color = 'var(--po-brand-blue)';
-    const accent = getComputedStyle(probe).color;
-    probe.style.color = 'var(--po-cloud-header-bg)';
-    const cloudBackground = getComputedStyle(probe).color;
-    probe.style.color = 'var(--po-text)';
-    const themeText = getComputedStyle(probe).color;
-    probe.style.color = 'var(--desktop-titlebar-text)';
-    const activeInk = getComputedStyle(probe).color;
-    probe.style.color = 'var(--desktop-titlebar-text-muted)';
-    const restingInk = getComputedStyle(probe).color;
-    probe.remove();
+    // Resolve each token on a fresh element: a reused probe would transition
+    // between tokens and report the first color for all of them.
+    const token = (value) => {
+      const probe = document.createElement('span');
+      probe.style.setProperty('transition', 'none', 'important');
+      probe.style.color = value;
+      header.append(probe);
+      const color = getComputedStyle(probe).color;
+      probe.remove();
+      return color;
+    };
+    const expected = token('var(--po-header)');
+    const accent = token('var(--po-brand-blue)');
+    const cloudBackground = token('var(--po-cloud-header-bg)');
+    const themeText = token('var(--po-text)');
+    const activeInk = token('var(--desktop-titlebar-text)');
+    const restingInk = token('var(--desktop-titlebar-text-muted)');
     const canvas = document.createElement('canvas').getContext('2d');
     const rgb = (...colors) => {
       canvas.clearRect(0,0,1,1);
