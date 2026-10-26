@@ -250,6 +250,19 @@ async function openProjectMenu() {
     // Locations are menu rows in the popover (93ca6498); the sliding plate only
     // exists in the header-icons presentation. Either way, opening must not
     // move or resize the bar, and a missing element fails instead of hanging.
+    // Let the Header finish the previous step (sidebar, centering) first, so the
+    // frames below measure opening alone, not an anchor that is still settling.
+    await evaluate(`new Promise(resolve => {
+      let previous = null, stable = 0, frames = 0;
+      const check = () => {
+        const r = document.querySelector('.desktop-titlebar-location-button')?.getBoundingClientRect();
+        const now = r ? [r.x, r.y, r.width, r.height].join() : null;
+        stable = now && now === previous ? stable + 1 : 0;
+        previous = now;
+        if (stable >= 2 || ++frames > 60) resolve(); else requestAnimationFrame(check);
+      };
+      requestAnimationFrame(check);
+    })`);
     const frames = await evaluate(`new Promise((resolve, reject) => {
       const samples = [];
       document.querySelector('.desktop-titlebar-location-button').click();
@@ -265,7 +278,8 @@ async function openProjectMenu() {
                 plateWidth: Math.abs(plate.getBoundingClientRect().width - selected.getBoundingClientRect().width),
                 animations: plate.getAnimations().length }
               : null;
-            samples.push({ x: m.x, y: m.y, width: m.width, height: m.height, slider });
+            const anchor = document.querySelector('.desktop-titlebar-location-button')?.getBoundingClientRect();
+            samples.push({ x: m.x, y: m.y, width: m.width, height: m.height, slider, anchorX: anchor?.x });
           }
           if (samples.length < 24) requestAnimationFrame(sample); else resolve(samples);
         } catch (error) { reject(error); }
