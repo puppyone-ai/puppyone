@@ -257,6 +257,8 @@ describe("sidebar spacing architecture", () => {
     );
     expect(bottomPlacement).toContain("--data-explorer-footer-divider-width: 0px;");
     expect(dataShellCss).not.toContain(".data-explorer-footer:has(");
+    expect(sharedFadeGeometry).toContain("inset-inline: 0;");
+    expect(sharedFadeGeometry).toContain("pointer-events: none;");
     expect(sharedFadeGeometry).toContain(
       "height: calc(var(--desktop-sidebar-navigation-fade-size) * var(--tree-edge-fade-top, 0));",
     );
@@ -320,7 +322,8 @@ describe("sidebar spacing architecture", () => {
     expect(projectRailList).toContain("justify-items: stretch;");
     expect(projectRailList).toContain("var(--desktop-sidebar-row-left-gap)");
     expect(projectRailList).toContain("var(--desktop-sidebar-scroll-right-gap);");
-    expect(projectSwitcherCss).not.toContain("clip-path:");
+    // The rail surfaces are never clipped; visually-hidden status text may still use clip-path.
+    for (const block of [projectRail, projectRailButton, projectRailList]) expect(block).not.toContain("clip-path:");
     expect(projectSwitcherCss).toMatch(
       /\.desktop-project-switcher-rail:not\(\[data-expanded="true"\]\)[^{]+\.desktop-project-switcher-rail-list\s*\{[^}]*grid-template-columns:\s*var\(--desktop-project-switcher-button-size\);[^}]*padding-inline:\s*var\(--desktop-project-switcher-compact-inline-padding\);[^}]*scrollbar-gutter:\s*auto;/s,
     );
@@ -342,9 +345,8 @@ describe("sidebar spacing architecture", () => {
     expect(projectSwitcherCss).toMatch(
       /\.desktop-project-switcher-rail-identity-badge\s*\{[^}]*position:\s*absolute;[^}]*width:\s*14px;[^}]*height:\s*14px;[^}]*font-size:\s*var\(--po-type-ui-micro, 11px\);/s,
     );
-    expect(projectSwitcherSource).toContain(
-      "Tooltip content={expanded ? undefined : workspace.name}",
-    );
+    // Only a collapsed, icon-only row names its project in a tooltip (448cdada).
+    expect(projectSwitcherSource).toMatch(/Tooltip content=\{!expanded\b[^}]*\? name : undefined\}/);
     expect(projectSwitcherCss).not.toContain(".desktop-project-switcher-rail-tooltip");
     expect(projectSwitcherCss).toMatch(
       /\.desktop-project-switcher-rail-context-avatar,[^{]+\{[^}]*border-radius:\s*0;[^}]*overflow:\s*visible;[^}]*background:\s*transparent;/s,
@@ -414,13 +416,13 @@ describe("sidebar spacing architecture", () => {
 
   it("reveals low-frequency tree actions on hover, keyboard focus, or an open menu", () => {
     expect(dataTreeCss).toContain(
-      ".tree-row:hover .tree-row-actions,\n.tree-row:focus-visible .tree-row-actions,\n.tree-row:has(.tree-row-action-button:focus-visible) .tree-row-actions,\n.tree-row:has(.tree-row-action-button[aria-expanded=\"true\"]) .tree-row-actions",
+      ".tree-row:hover .tree-row-actions,\n.tree-row:focus-visible .tree-row-actions,\n.tree-row:has(.tree-row-action-button:focus-visible) .tree-row-actions,\n.tree-row[data-action-menu-open=\"true\"] .tree-row-actions",
     );
     expect(dataTreeCss).toContain(
       ".tree-row:has(.tree-row-action-button:focus-visible) .tree-row-content",
     );
     expect(dataTreeCss).toContain(
-      '.tree-row:has(.tree-row-action-button[aria-expanded="true"])',
+      '.tree-row[data-action-menu-open="true"]',
     );
     expect(dataTreeCss).not.toContain(".tree-row.active .tree-row-actions");
     expect(dataTreeCss).not.toContain(".tree-row:focus-within .tree-row-actions");
@@ -529,17 +531,56 @@ function readCss(relativePath: string): string {
   return readFileSync(new URL(relativePath, import.meta.url), "utf8").replace(/\r\n?/g, "\n");
 }
 
+/**
+ * The own declarations of every rule whose selector list names every selector
+ * in `selector` (one selector or a list), so
+ * grouping selectors (`.a, .b { ... }`) never breaks the contract. Nested child
+ * rules are excluded; matching rules are concatenated in source order.
+ */
 function readCssBlock(css: string, selector: string): string {
-  const match = new RegExp(`(?:^|\\n)\\s*${escapeRegExp(selector)}\\s*\\{`).exec(css);
-  if (!match) throw new Error(`Missing CSS block for ${selector}`);
-  const bodyStart = match.index + match[0].length;
-  const close = /\n\s*}/.exec(css.slice(bodyStart));
-  if (!close) throw new Error(`Unclosed CSS block for ${selector}`);
-  return css.slice(bodyStart, bodyStart + close.index);
+  const wanted = splitSelectorList(selector).map(normalizeSelector);
+  const source = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const bodies: string[] = [];
+  for (let open = source.indexOf("{"); open !== -1; open = source.indexOf("{", open + 1)) {
+    const head = source.slice(Math.max(source.lastIndexOf("}", open), source.lastIndexOf("{", open - 1), source.lastIndexOf(";", open)) + 1, open);
+    const listed = splitSelectorList(head).map(normalizeSelector);
+    if (!wanted.every((entry) => listed.includes(entry))) continue;
+    let depth = 0;
+    let body = "";
+    for (let index = open + 1; index < source.length; index += 1) {
+      const character = source[index];
+      if (character === "{") depth += 1;
+      else if (character === "}") {
+        if (depth === 0) break;
+        depth -= 1;
+        continue;
+      }
+      if (depth === 0) body += character;
+    }
+    bodies.push(body);
+  }
+  if (!bodies.length) throw new Error(`Missing CSS block for ${selector}`);
+  return bodies.join("\n");
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function normalizeSelector(selector: string): string {
+  return selector.trim().replace(/\s+/g, " ");
+}
+
+/** Split a selector list on top-level commas only (`:is(a, b)` stays whole). */
+function splitSelectorList(list: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let current = "";
+  for (const character of list) {
+    if (character === "(") depth += 1;
+    if (character === ")") depth -= 1;
+    if (character === "," && depth === 0) {
+      parts.push(current);
+      current = "";
+    } else current += character;
+  }
+  return [...parts, current];
 }
 
 function compact(value: string): string {

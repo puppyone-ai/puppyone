@@ -1,9 +1,10 @@
+import { initializeDesktopPreferences, desktopPreferencesStore as preferences } from "../../../../src/preferencesStore";
 /**
  * @vitest-environment happy-dom
  */
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   GitHistorySidebar,
   type GitHistorySidebarProps,
@@ -20,6 +21,8 @@ afterEach(() => {
   act(() => roots.splice(0).forEach((root) => root.unmount()));
   document.body.innerHTML = "";
 });
+
+beforeEach(() => { localStorage.clear(); initializeDesktopPreferences(); });
 
 describe("Git History right-sidebar surface", () => {
   it("offers one version-history action before Git is initialized", async () => {
@@ -287,7 +290,6 @@ function model(): GitHistorySidebarProps {
     commitDetailLoading: false,
     commitDetailError: null,
     historyLoading: false,
-    fileIconTheme: "default",
     initializing: false,
     onInitialize: vi.fn(),
     onSelectCommit: vi.fn(),

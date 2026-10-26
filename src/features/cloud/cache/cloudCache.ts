@@ -22,6 +22,13 @@ type CacheEntry = {
   path: string;
 };
 
+type PendingRead = {
+  promise: Promise<unknown>;
+  projectId: string;
+  path: string;
+  valid: boolean;
+};
+
 export function createCloudCache({
   maxEntries = DEFAULT_MAX_ENTRIES,
   maxBytes = DEFAULT_MAX_BYTES,
@@ -32,7 +39,7 @@ export function createCloudCache({
   now?: () => number;
 } = {}) {
   const entries = new Map<string, CacheEntry>();
-  const requests = new Map<string, Promise<unknown>>();
+  const requests = new Map<string, PendingRead>();
   let activeNamespace: string | null = null;
   let totalBytes = 0;
   let cacheEpoch = 0;
@@ -45,15 +52,16 @@ export function createCloudCache({
     clear();
   }
 
-  function read<T>(context: CloudCacheContext): T | undefined {
+  function read<T>(context: CloudCacheContext, { allowStale = false } = {}): T | undefined {
     const key = cacheKey(context);
     const entry = entries.get(key);
     if (!entry) {
       stats.misses += 1;
       return undefined;
     }
-    if (entry.namespace !== activeNamespace || entry.expiresAt <= now()) {
-      deleteEntry(key, entry);
+    if (entry.namespace !== activeNamespace || (!allowStale && entry.expiresAt <= now())) {
+      // Keep expired snapshots within the same LRU budget so views can paint
+      // them while load() coalesces a fresh read in the background.
       stats.misses += 1;
       return undefined;
     }
@@ -67,19 +75,24 @@ export function createCloudCache({
   function load<T>(
     context: CloudCacheContext,
     loader: () => Promise<T>,
-    { ttlMs }: { ttlMs: number },
+    { ttlMs, refresh = false }: { ttlMs: number; refresh?: boolean },
   ): Promise<T> {
     activateSession(context.session);
     const cached = read<T>(context);
-    if (cached !== undefined) return Promise.resolve(cached);
+    if (!refresh && cached !== undefined) return Promise.resolve(cached);
     const key = cacheKey(context);
     const existing = requests.get(key);
-    if (existing) return existing as Promise<T>;
+    if (existing) return existing.promise as Promise<T>;
     const capturedNamespace = sessionNamespace(context.session);
     const capturedEpoch = cacheEpoch;
+    const pending: PendingRead = { projectId: context.projectId, path: normalizePath(context.path),
+      valid: true, promise: undefined as unknown as Promise<T> };
     const request = loader()
       .then((value) => {
-        if (activeNamespace !== capturedNamespace || cacheEpoch !== capturedEpoch) return value;
+        if (!pending.valid || activeNamespace !== capturedNamespace || cacheEpoch !== capturedEpoch) return value;
+        // Some reads need in-flight deduplication, but no reusable snapshot
+        // (notably document bodies and their optimistic-write baselines).
+        if (ttlMs <= 0) return value;
         const entry: CacheEntry = {
           value,
           expiresAt: now() + Math.max(0, ttlMs),
@@ -96,9 +109,10 @@ export function createCloudCache({
         return value;
       })
       .finally(() => {
-        if (requests.get(key) === request) requests.delete(key);
+        if (requests.get(key) === pending) requests.delete(key);
       });
-    requests.set(key, request);
+    pending.promise = request;
+    requests.set(key, pending);
     return request;
   }
 
@@ -111,16 +125,28 @@ export function createCloudCache({
   } = {}) {
     // A read that began before a successful mutation must never become the
     // source for a read that begins afterwards or refill the cache late.
-    cacheEpoch += 1;
-    requests.clear();
     const normalizedChangedPath = normalizePath(changedPath);
+    const matches = (entry: { projectId: string; path: string }) =>
+      (!projectId || entry.projectId === projectId)
+      && (!normalizedChangedPath || !entry.path || pathsOverlap(entry.path, normalizedChangedPath));
+    for (const [key, pending] of requests) {
+      if (!matches(pending)) continue;
+      pending.valid = false;
+      requests.delete(key);
+    }
     for (const [key, entry] of entries) {
-      if (projectId && entry.projectId !== projectId) continue;
-      if (normalizedChangedPath
-        && entry.path
-        && !pathsOverlap(entry.path, normalizedChangedPath)) continue;
+      if (!matches(entry)) continue;
       deleteEntry(key, entry);
     }
+  }
+
+  function discard(context: CloudCacheContext) {
+    const key = cacheKey(context);
+    const pending = requests.get(key);
+    if (pending) pending.valid = false;
+    requests.delete(key);
+    const entry = entries.get(key);
+    if (entry) deleteEntry(key, entry);
   }
 
   function clear() {
@@ -149,6 +175,8 @@ export function createCloudCache({
     read,
     load,
     invalidate,
+    discard,
+    isPending: (context: CloudCacheContext, promise: Promise<unknown>) => requests.get(cacheKey(context))?.promise === promise,
     clear,
     snapshot: () => ({
       activeNamespace,
@@ -174,7 +202,7 @@ export function readCloudCache<T>(context: CloudCacheContext): T | undefined {
 export function loadCloudCache<T>(
   context: CloudCacheContext,
   loader: () => Promise<T>,
-  options: { ttlMs: number },
+  options: { ttlMs: number; refresh?: boolean },
 ): Promise<T> {
   return cloudCache.load(context, loader, options);
 }

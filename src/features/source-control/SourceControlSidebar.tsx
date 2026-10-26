@@ -18,6 +18,12 @@ import {
 } from "./sidebar/GitSidebarPrimitives";
 import { GitIncomingUpdateNotice } from "./sidebar/GitIncomingUpdateNotice";
 import { GitRemotePrompt } from "./sidebar/GitRemoteSections";
+import { IncomingChangesRegion, useIncomingChangeReview } from "../changes";
+import { useProjectReachExperience } from "../project-reach";
+import {
+  getReachSidebarModelWording,
+  getReachSyncWording,
+} from "./reach/reachSidebarWording";
 import { GitRepositorySetupAction } from "./GitRepositorySetupAction";
 import type {
   GitSidebarProps,
@@ -45,24 +51,36 @@ export function GitSidebar({ repository, view, actions, cloudBackup }: GitSideba
   const { expanded, toggle } = useGitSidebarExpansionState();
   const sourceControl = status?.sourceControl ?? null;
   const currentBranch = status?.branches.find((branch) => branch.current) ?? null;
-  const syncState = getGitSyncState(status, currentBranch, puppyoneConfig, t);
+  const projectReach = useProjectReachExperience();
+  const establishedSyncState = getGitSyncState(status, currentBranch, puppyoneConfig, t);
+  const syncState = projectReach ? getReachSyncWording(establishedSyncState, t) : establishedSyncState;
+  const incomingReview = useIncomingChangeReview({
+    status,
+    active: projectReach,
+    onApply: actions.pull,
+  });
   const hostingMode = getGitHostingMode(status, puppyoneConfig);
   const professionalDisplayMode = hostingMode === "github" || hostingMode === "puppyone-cloud";
   const disabled = Boolean(operationLoading) || loading || !status?.isRepo;
-  const sidebarModel = buildSourceControlSidebarModel({
+  const establishedModel = buildSourceControlSidebarModel({
     status,
     syncState,
     displayMode: professionalDisplayMode ? "professional" : gitDisplayMode,
     canCommit: sourceControl?.actions.canCommit === true,
     t,
   });
+  const sidebarModel = projectReach
+    ? getReachSidebarModelWording(establishedModel, t)
+    : establishedModel;
   const primaryActionSlot = getSourceControlPrimaryActionSlot({
     hasConflicts: sidebarModel.hasConflicts,
     hasOperationAction: Boolean(sidebarModel.operationPrimaryAction),
     hasStagedAction: Boolean(
       sidebarModel.stagedPrimaryAction && !sidebarModel.stagedPrimaryAction.disabled,
     ),
-    hasSyncAction: syncState.behind > 0 && !syncState.pullDisabled,
+    hasSyncAction: projectReach
+      ? incomingReview.state === "pending"
+      : syncState.behind > 0 && !syncState.pullDisabled,
     hasCommittedAction: Boolean(
       sidebarModel.committedPrimaryAction && !sidebarModel.committedPrimaryAction.disabled,
     ),
@@ -120,7 +138,13 @@ export function GitSidebar({ repository, view, actions, cloudBackup }: GitSideba
           />
         ) : (
           <div className="desktop-git-changes-pane">
-              {syncState.behind > 0 && (
+              {projectReach ? (
+                <IncomingChangesRegion
+                  review={incomingReview}
+                  disabled={disabled}
+                  onReview={actions.selectWorkingFile}
+                />
+              ) : syncState.behind > 0 && (
                 <div className="desktop-git-sync-priority-region">
                   <GitIncomingUpdateNotice
                     count={syncState.behind}

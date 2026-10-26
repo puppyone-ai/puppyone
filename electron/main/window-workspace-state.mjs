@@ -8,6 +8,7 @@ import path from "node:path";
  */
 export class WindowWorkspaceState {
   #initialWorkspacePaths;
+  #initialCloudProject;
   #workspaceId;
   #workspaceFolders = Object.freeze([]);
   #compositions = new Map();
@@ -16,6 +17,7 @@ export class WindowWorkspaceState {
     initialWorkspaceId = null,
     initialWorkspacePath = null,
     initialWorkspacePaths = null,
+    initialCloudProject = null,
     focusedAt = Date.now(),
   } = {}) {
     const requestedPaths = Array.isArray(initialWorkspacePaths)
@@ -27,11 +29,16 @@ export class WindowWorkspaceState {
         .map((folderPath) => folderPath.trim()),
     );
     this.#workspaceId = normalizeWorkspaceId(initialWorkspaceId) ?? createWorkbenchWorkspaceId();
+    this.#initialCloudProject = initialCloudProject ? Object.freeze({ ...initialCloudProject }) : null;
     this.lastFocusedAt = focusedAt;
   }
 
   get workspaceId() {
     return this.#workspaceId;
+  }
+
+  get initialCloudProject() {
+    return this.#initialCloudProject;
   }
 
   get initialRestorePath() {
@@ -94,6 +101,7 @@ export class WindowWorkspaceState {
       retainedPaths: Object.freeze([...nextPaths].filter((folderPath) => previousPaths.has(folderPath))),
     });
     this.#workspaceFolders = nextFolders;
+    this.#initialCloudProject = null;
     this.#initialWorkspacePaths = Object.freeze(nextFolders.map((folder) => folder.path));
     if (nextFolders.length) {
       const key = compositionKey(nextFolders);
@@ -107,6 +115,7 @@ export class WindowWorkspaceState {
     const released = this.#workspaceFolders;
     this.#workspaceFolders = Object.freeze([]);
     this.#initialWorkspacePaths = Object.freeze([]);
+    this.#initialCloudProject = null;
     return released;
   }
 }

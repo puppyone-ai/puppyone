@@ -7,6 +7,35 @@ import {
 import { CsvDocumentModel } from "../../../../../packages/shared-ui/src/editor/viewers/csv/CsvDocumentModel";
 
 describe("CSV column layout view state", () => {
+  it("connects only for mounted consumers and catches up after a subscription replay", () => {
+    const document = new CsvDocumentModel("lifecycle.csv", "Name,Score\nAda,1", ",");
+    const subscribe = vi.spyOn(document, "subscribe");
+    const layout = new CsvColumnLayoutModel(document, { read: () => undefined, write: vi.fn() });
+    expect(subscribe).not.toHaveBeenCalled();
+    const first = vi.fn();
+    const stopFirst = layout.subscribe(first);
+    const stopSecond = layout.subscribe(vi.fn());
+    expect(subscribe).toHaveBeenCalledTimes(1);
+    layout.setColumnWidth(0, 240);
+    stopFirst();
+    document.appendColumn(true);
+    expect(layout.getSnapshot().widths).toEqual([240, 96, 96]);
+    stopSecond();
+    document.appendColumn(true);
+    expect(layout.getSnapshot().columnIds).toHaveLength(3);
+
+    const reconnected = vi.fn();
+    const stopReconnected = layout.subscribe(reconnected);
+    expect(subscribe).toHaveBeenCalledTimes(2);
+    expect(layout.getSnapshot().widths).toEqual([240, 96, 96, 96]);
+    expect(reconnected).toHaveBeenCalledTimes(1);
+    document.undo();
+    expect(layout.getSnapshot().widths).toEqual([240, 96, 96]);
+    stopReconnected();
+    document.appendColumn(true);
+    expect(reconnected).toHaveBeenCalledTimes(2);
+  });
+
   it("does not resize a column when cell content changes", () => {
     const document = new CsvDocumentModel("stable.csv", "Name,Score\nAda,1", ",");
     const layout = createLayout(document);
@@ -78,8 +107,10 @@ function createLayout(
   restored?: readonly number[],
   write = vi.fn(),
 ) {
-  return new CsvColumnLayoutModel(document, {
+  const layout = new CsvColumnLayoutModel(document, {
     read: () => restored,
     write,
   });
+  layout.subscribe(() => {});
+  return layout;
 }

@@ -1,5 +1,6 @@
 import type { Workspace } from "@puppyone/shared-ui";
-import { Cloud, FolderClosed } from "lucide-react";
+import { FolderClosed } from "lucide-react";
+import { CloudIcon as Cloud } from "../../components/icons/CloudIcon";
 
 export type ProjectContextAssetKind = "cloud" | "local";
 

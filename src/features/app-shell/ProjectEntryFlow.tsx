@@ -1,4 +1,6 @@
-import { useCallback, useMemo, useState } from "react";
+import { useDesktopPreference } from "../../preferencesStore";
+import { useCloudEnabled } from "../flags";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { OnboardingImportDialog } from "../../components/OnboardingImportDialog";
 import { OnboardingProjectEntryDialog } from "../../components/OnboardingProjectEntryDialog";
 import type {
@@ -11,10 +13,6 @@ import type {
 } from "../../types/electron";
 import { ProjectEntryLauncherDialog } from "./ProjectEntryLauncherDialog";
 import {
-  DEFAULT_EXPERIMENTAL_SETTINGS,
-  type ExperimentalSettings,
-} from "../../preferences";
-import {
   resolveImportPreviewBrands,
   resolveVisibleImportSources,
 } from "../project-import/importSourceRegistry";
@@ -25,6 +23,8 @@ export type ProjectEntryFlowController = Readonly<{
   step: ProjectEntryFlowStep;
   openLauncher: () => void;
   openCreate: () => void;
+  openTemplate: (url: string) => void;
+  templateUrl: string | null;
   openImport: () => void;
   close: () => void;
 }>;
@@ -36,8 +36,10 @@ export type ProjectEntryFlowController = Readonly<{
  */
 export function useProjectEntryFlow(): ProjectEntryFlowController {
   const [step, setStep] = useState<ProjectEntryFlowStep>(null);
+  const [templateUrl, setTemplateUrl] = useState<string | null>(null);
+  const openTemplate = useCallback((url: string) => { setTemplateUrl(url); setStep("create"); }, []);
   const openLauncher = useCallback(() => setStep("launcher"), []);
-  const openCreate = useCallback(() => setStep("create"), []);
+  const openCreate = useCallback(() => { setTemplateUrl(null); setStep("create"); }, []);
   const openImport = useCallback(() => setStep("import"), []);
   const close = useCallback(() => setStep(null), []);
 
@@ -45,9 +47,11 @@ export function useProjectEntryFlow(): ProjectEntryFlowController {
     step,
     openLauncher,
     openCreate,
+    openTemplate,
+    templateUrl,
     openImport,
     close,
-  }), [close, openCreate, openImport, openLauncher, step]);
+  }), [close, openCreate, openImport, openLauncher, openTemplate, step, templateUrl]);
 }
 
 export type ProjectEntryFlowProps = Readonly<{
@@ -63,7 +67,6 @@ export type ProjectEntryFlowProps = Readonly<{
   onListResources?: (request: { provider: string; connectionId: string; parentId?: string | null; cursor?: string | null }) => Promise<WorkspaceImportResourcePage>;
   onCancelImport?: (taskId: string) => Promise<{ cancelled: boolean }>;
   onImportProgress?: (listener: (progress: WorkspaceImportProgress) => void) => () => void;
-  experimentalSettings?: ExperimentalSettings;
 }>;
 
 export function ProjectEntryFlow({
@@ -77,10 +80,29 @@ export function ProjectEntryFlow({
   onListResources,
   onCancelImport,
   onImportProgress,
-  experimentalSettings = DEFAULT_EXPERIMENTAL_SETTINGS,
 }: ProjectEntryFlowProps) {
-  const visibleImportSources = resolveVisibleImportSources(experimentalSettings);
-  const importPreviewBrands = resolveImportPreviewBrands(experimentalSettings);
+  // Marketplace templates download through a PuppyOne account. While Cloud is
+  // off, links from the store stay pending in main and are not consumed.
+  const templateLinksEnabled = useCloudEnabled();
+  useEffect(() => {
+    if (!templateLinksEnabled || controller.step !== null || !onCreateProject) return;
+    const bridge = window.puppyoneDesktop;
+    if (!bridge?.readTemplateImportIntent) return;
+    let active = true;
+    const consume = async () => {
+      const intent = await bridge.readTemplateImportIntent();
+      if (active && intent) {
+        controller.openTemplate(intent.url);
+        await bridge.acknowledgeTemplateImportIntent(intent.id);
+      }
+    };
+    const stop = bridge.onTemplateImportRequested(() => { void consume().catch(() => {}); });
+    void consume().catch(() => {});
+    return () => { active = false; stop(); };
+  }, [controller, onCreateProject, templateLinksEnabled]);
+  const enableOtherAppImports = useDesktopPreference(s => s.experimentalSettings.enableOtherAppImports);
+  const visibleImportSources = resolveVisibleImportSources({ enableOtherAppImports });
+  const importPreviewBrands = resolveImportPreviewBrands({ enableOtherAppImports });
 
   if (controller.step === "launcher") {
     return (
@@ -102,6 +124,8 @@ export function ProjectEntryFlow({
   if (controller.step === "create" && onCreateProject && onChooseLocation) {
     return (
       <OnboardingProjectEntryDialog
+        templateLinks={templateLinksEnabled}
+        initialTemplateUrl={controller.templateUrl}
         onClose={controller.close}
         onDefaultLocation={onDefaultLocation}
         onChooseLocation={onChooseLocation}

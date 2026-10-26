@@ -1,5 +1,5 @@
 import type {
-  DesktopCloudConnector,
+  DesktopCloudAccessSurface,
   DesktopCloudDashboard,
   DesktopCloudMcpEndpoint,
   DesktopCloudRepoIdentity,
@@ -8,7 +8,6 @@ import type {
   DesktopCloudTreeEntry,
 } from "../../../../lib/cloudApi";
 import type { DesktopCloudHistory } from "../../../../lib/cloudHistoryApi";
-import { buildCloudAutomationRows } from "../../../automation/automationDomain";
 import {
   buildAccessPointRows,
   isAccessPointNavigationResource,
@@ -20,8 +19,8 @@ export const CLOUD_OVERVIEW_ACTIVITY_WINDOW_DAYS = 7;
 const DAY_IN_MS = 86_400_000;
 
 /**
- * Derive Overview totals from the same domain rows rendered by Access and
- * Automation. Project-list summary fields can be stale and must not override
+ * Derive Access totals from the same domain rows rendered by Access.
+ * Synchronize inventory is loaded separately. Summary fields must not override
  * the detail resources already loaded for this route.
  */
 export function getCloudOverviewMetrics({
@@ -31,28 +30,23 @@ export function getCloudOverviewMetrics({
   identity,
 }: {
   scopes: DesktopCloudScope[];
-  connectors: DesktopCloudConnector[];
+  connectors: DesktopCloudAccessSurface[];
   mcpEndpoints: DesktopCloudMcpEndpoint[];
   identity: DesktopCloudRepoIdentity | null;
 }) {
-  const scopeRows = getCloudScopeRows(scopes, identity);
+  const scopeRows = getCloudScopeRows(scopes, identity, connectors[0]?.project_id);
   const accessRows = buildAccessPointRows({
     scopeRows,
     connectors,
     mcpEndpoints,
     identity,
     apiBaseUrl: null,
-  }).filter(isAccessPointNavigationResource);
-  const automationRows = buildCloudAutomationRows({
-    scopes: scopeRows,
-    connectors,
-  });
+  }).filter((row) => !row.accessPoint.placeholder && isAccessPointNavigationResource(row));
 
   return {
     accessPointCount: accessRows.length,
     activeAccessPointCount: accessRows.filter((row) => isAccessPointReady(row.accessPoint)).length,
     accessRows,
-    automationRows,
   };
 }
 

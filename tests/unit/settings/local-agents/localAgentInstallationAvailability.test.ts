@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   normalizeLocalAgentInstallationProgress,
   normalizeLocalAgentInstallationSnapshot,
-} from "../../../../src/features/local-agents/model/localAgentInstallationAvailability";
+} from "../../../../src/features/local-agents/installation/localAgentInstallationAvailability";
 
 describe("Local Agent installation availability", () => {
   it("restores stable registry order while preserving per-product outcomes", () => {

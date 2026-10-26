@@ -1,18 +1,20 @@
+import { initializeDesktopPreferences, desktopPreferencesStore as preferences } from "../../../../src/preferencesStore";
 /**
  * @vitest-environment happy-dom
  */
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DesktopTitlebarActions } from "../../../../src/features/app-shell/DesktopTitlebarActions";
 import { AuxiliaryWorkbenchCloseDialog } from "../../../../src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchCloseDialog";
 import type { TerminalTabMoveDragController } from "../../../../src/features/desktop-terminal/interactions/useTerminalTabMoveDrag";
 import type { TerminalRuntimeHandle } from "../../../../src/features/desktop-terminal/runtime/terminalRuntime";
 import { TerminalSessionHeader } from "../../../../src/features/desktop-terminal/ui/session-header/TerminalSessionHeader";
-import { DEFAULT_TITLEBAR_ACTIONS_SETTINGS } from "../../../../src/preferences";
 import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+beforeEach(() => { localStorage.clear(); initializeDesktopPreferences(); });
 
 let root: Root | null = null;
 
@@ -25,40 +27,59 @@ afterEach(() => {
 });
 
 describe("Desktop Terminal tab session manager", () => {
-  it("shows Cloud normally and the standalone Share action during Share onboarding", () => {
+  it.each([[false, false], [false, true], [true, false], [true, true]])(
+    "shows the Share button only with cloudEnabled=%s and shareEnabled=%s",
+    (cloudEnabled, shareEnabled) => {
+      const container = document.createElement("div");
+      document.body.appendChild(container);
+      root = createRoot(container);
+      act(() => root?.render(withTestLocalization(
+        <DesktopTitlebarActions
+          terminalSidebarOpen={false} terminalToolEnabled gitChangesAvailable
+          cloudEnabled={cloudEnabled} shareEnabled={shareEnabled}
+          onToggleTerminal={vi.fn()} />,
+      )));
+      expect(Boolean(container.querySelector(".desktop-titlebar-share"))).toBe(cloudEnabled && shareEnabled);
+      expect(container.querySelector(".desktop-titlebar-cloud")).toBeNull();
+      expect(container.querySelector(".desktop-titlebar-changes")).not.toBeNull();
+      expect(container.querySelector('.desktop-titlebar-action[aria-label="Show Agent"]')).not.toBeNull();
+      if (!cloudEnabled || !shareEnabled) {
+        expect(container.querySelectorAll(".desktop-titlebar-action-divider")).toHaveLength(1);
+        expect(container.firstElementChild?.classList.contains("desktop-titlebar-action-divider")).toBe(false);
+      }
+    },
+  );
+
+  it("removes the entire Share button when switched off and restores its callback when on", () => {
     const container = document.createElement("div");
-    const onOpenCloud = vi.fn();
     const onShare = vi.fn();
     document.body.appendChild(container);
     root = createRoot(container);
-    const render = (cloudEnabled: boolean, shareEnabled = false) => act(() => root?.render(withTestLocalization(
-      <DesktopTitlebarActions titlebarActionsSettings={DEFAULT_TITLEBAR_ACTIONS_SETTINGS}
-        terminalSidebarOpen={false} terminalToolEnabled gitChangesAvailable cloudEnabled={cloudEnabled}
-        shareEnabled={shareEnabled} onOpenCloud={onOpenCloud} onShare={onShare}
-        onToggleTerminal={vi.fn()} />,
+    const render = (shareEnabled: boolean) => act(() => root?.render(withTestLocalization(
+      <DesktopTitlebarActions
+        terminalSidebarOpen={false} terminalToolEnabled cloudEnabled
+        visibleGroups={["app-status", "header", "right-sidebar"]}
+        shareEnabled={shareEnabled} onShare={onShare} onToggleTerminal={vi.fn()} />,
     )));
-    render(false);
-    expect(container.querySelector(".desktop-titlebar-cloud")).toBeNull();
     render(true);
-    const cloud = container.querySelector<HTMLButtonElement>(".desktop-titlebar-cloud");
-    expect(cloud?.textContent).toBe("");
-    expect(cloud?.getAttribute("aria-label")).toBe("PuppyOne Cloud");
-    expect(cloud?.querySelector(".lucide-cloud")).not.toBeNull();
-    expect(cloud?.nextElementSibling?.classList.contains("desktop-titlebar-action-divider")).toBe(true);
-    expect(cloud?.nextElementSibling?.nextElementSibling?.querySelector(".desktop-titlebar-changes"))
-      .not.toBeNull();
-    act(() => cloud?.click());
-    expect(onOpenCloud).toHaveBeenCalledOnce();
-
-    render(true, true);
-    expect(container.querySelector(".desktop-titlebar-cloud")).toBeNull();
     const share = container.querySelector<HTMLButtonElement>(".desktop-titlebar-share");
     expect(share?.textContent).toBe("Share");
     expect(share?.getAttribute("aria-label")).toBe("Share");
     expect(share?.querySelector(".lucide-forward")).not.toBeNull();
-    expect(share?.nextElementSibling?.classList.contains("desktop-titlebar-action-divider")).toBe(true);
     act(() => share?.click());
     expect(onShare).toHaveBeenCalledOnce();
+
+    render(false);
+    expect(container.querySelectorAll(".desktop-titlebar-action")).toHaveLength(1);
+    expect(container.querySelector(".desktop-titlebar-share")).toBeNull();
+    expect(container.querySelector(".desktop-titlebar-cloud")).toBeNull();
+    expect(container.querySelector(".desktop-titlebar-action-divider")).toBeNull();
+    expect(onShare).toHaveBeenCalledOnce();
+
+    render(true);
+    expect(container.querySelectorAll(".desktop-titlebar-share")).toHaveLength(1);
+    act(() => container.querySelector<HTMLButtonElement>(".desktop-titlebar-share")?.click());
+    expect(onShare).toHaveBeenCalledTimes(2);
   });
   it("presents one unified Agent Workbench toggle in the workspace toolbar", () => {
     const container = document.createElement("div");
@@ -67,7 +88,7 @@ describe("Desktop Terminal tab session manager", () => {
 
     act(() => root?.render(withTestLocalization(
       <DesktopTitlebarActions
-        titlebarActionsSettings={DEFAULT_TITLEBAR_ACTIONS_SETTINGS}
+
         terminalSidebarOpen={false}
         terminalToolEnabled
         placement="toolbar"
@@ -86,6 +107,16 @@ describe("Desktop Terminal tab session manager", () => {
     expect(Array.from(container.querySelectorAll("[data-toolbar-action]"), (item) => item.textContent))
       .toEqual(["Agent"]);
     expect(container.querySelector('[aria-label="Terminal actions"]')).toBeNull();
+  });
+
+  it.each(["titlebar", "toolbar"] as const)("hides local execution controls in the Cloud %s", (placement) => {
+    const container = document.createElement("div"); document.body.appendChild(container); root = createRoot(container);
+    act(() => root?.render(withTestLocalization(
+      <DesktopTitlebarActions
+        terminalSidebarOpen={false} terminalToolEnabled={false} gitChangesAvailable={false}
+        placement={placement} cloudEnabled shareEnabled onShare={vi.fn()} onToggleTerminal={vi.fn()} />,
+    )));
+    expect(container.querySelector('[data-toolbar-action="terminal"], [aria-label="Show Agent"], [aria-label="Hide Agent"]')).toBeNull();
   });
 
   it("manages sessions from the Terminal tab bar", () => {

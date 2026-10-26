@@ -23,7 +23,7 @@ async function runSmoke() {
     // Real-frame and native-input checks need a mapped window. CI presents it
     // inside Xvfb; a never-shown Linux window can advance rAF at a reduced rate.
     show: true,
-    width: 960,
+    width: 1200,
     height: 800,
     webPreferences: {
       backgroundThrottling: false,

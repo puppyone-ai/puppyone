@@ -2,6 +2,8 @@ import {
   cloudApiBaseUrlFromRemote,
   normalizeCloudApiBaseUrl,
 } from "../../shared/cloudEndpoint.js";
+import { readCloudWorkspaceEvents } from "./cloud-workspace-events.mjs";
+import { readCloudAgentEventBatch } from "./cloud-agent-event-reader.mjs";
 
 export function buildCloudApiBaseCandidates(remoteUrl, apiBaseUrl) {
   const candidates = [];
@@ -77,20 +79,29 @@ export async function requestCloudApi(apiBase, apiPath, init) {
   const responseType = init?.responseType;
   const fetchInit = { ...init };
   delete fetchInit.responseType;
+  delete fetchInit.onWorkspaceEvent;
   let response;
   try {
     response = await fetch(`${apiBase}${apiPath}`, fetchInit);
   } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-    throw new Error(`Unable to reach Cloud API at ${apiBase}. ${reason}`);
+    throw cloudTransportError(error, apiBase, fetchInit.signal);
   }
 
   if (response.ok && responseType === "bytes") {
     return new Uint8Array(await response.arrayBuffer());
   }
+  if (response.ok && responseType === "workspace-events") return readCloudWorkspaceEvents(response, init.onWorkspaceEvent);
+  if (response.ok && responseType === "agent-events") {
+    return readCloudAgentEventBatch(response);
+  }
 
   let payload = null;
-  const raw = await response.text();
+  let raw;
+  try {
+    raw = await response.text();
+  } catch (error) {
+    throw cloudTransportError(error, apiBase, fetchInit.signal);
+  }
   if (raw) {
     try {
       payload = JSON.parse(raw);
@@ -112,6 +123,15 @@ export async function requestCloudApi(apiBase, apiPath, init) {
   }
 
   return payload && Object.prototype.hasOwnProperty.call(payload, "data") ? payload.data : payload;
+}
+
+function cloudTransportError(cause, apiBase, signal) {
+  const reason = cause instanceof Error ? cause.message : String(cause);
+  const error = new Error(`Unable to reach Cloud API at ${apiBase}. ${reason}`);
+  error.code = "CLOUD_TRANSPORT_UNAVAILABLE";
+  if (cause?.name === "AbortError") error.code = "CLOUD_REQUEST_CANCELLED";
+  if (cause?.name === "TimeoutError" || signal?.reason?.name === "TimeoutError") error.code = "CLOUD_REQUEST_TIMEOUT";
+  return error;
 }
 
 export function getCloudApiBusinessErrorCode(payload) {

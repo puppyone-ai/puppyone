@@ -1,9 +1,12 @@
-import { useMemo } from "react";
+import { useDesktopPreference } from "../../settings";
+import { useMemo, type ReactNode } from "react";
+import { getCloudAuthSession } from "../../cloud/auth";
+import { CloudFileWorkspaceGate } from "../../cloud/workbench/CloudFileWorkspaceGate";
+import type { CloudServiceMainViewProps } from "../../cloud/types";
 import { type Workspace } from "@puppyone/shared-ui";
 import type { DesktopView } from "../../../components/DesktopCloudShell";
 import type { DesktopUpdatesController } from "../../updates";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
-import type { FilesVisibilitySettings } from "../../../preferences";
 import type {
   CloudPublishErrorCode,
   CloudPublishProgress,
@@ -22,7 +25,6 @@ import {
 } from "../../cloud";
 import { getGitHostingMode, type DesktopGitController } from "../../source-control";
 import { createSettingsWorkspaceSurface, type SettingsSection } from "../../settings";
-import type { DesktopPreferencesController } from "../useDesktopPreferences";
 import type { SubThemeCatalogController } from "../../themes/useSubThemeCatalog";
 import {
   getAvailableWorkspaceSurfaces,
@@ -57,11 +59,15 @@ export type DesktopWorkspaceCloudSurfaceController = {
   onOpenGitSettings: () => void;
   onSelectSection: (section: CloudWorkspaceSection) => void;
   onStartPuppyoneBackup: (organizationId?: string) => void;
+  onCreateCloudVersion?: (organizationId?: string) => void;
 };
 
 export type WorkspaceSurfaceContentResult = {
   availableSurfaceIds: readonly WorkspaceSurfaceId[];
   cloudSurface: WorkspaceSurfaceContent;
+  cloudFileState: ReactNode;
+  cloudSwitchGate: ReactNode;
+  cloudSwitchAuthenticationRequired: boolean;
   gitEnabled: boolean;
   resolvedActiveView: WorkspaceSurfaceId;
   resolvedSurface: ResolvedWorkspaceSurface;
@@ -73,13 +79,12 @@ export function useWorkspaceSurfaceContent({
   cloud,
   desktopUpdates,
   git,
-  onFilesVisibilitySettingsChange,
+  onFilesVisibilityChange,
   onOpenGitChanges,
   onOpenImport,
   onPuppyoneConfigChange,
   onSelectSettingsSection,
   onUnlinkWorkspace,
-  preferences,
   puppyoneConfig,
   puppyoneConfigError,
   puppyoneConfigLoading,
@@ -92,13 +97,12 @@ export function useWorkspaceSurfaceContent({
   cloud: DesktopWorkspaceCloudSurfaceController;
   desktopUpdates: DesktopUpdatesController;
   git: DesktopGitController;
-  onFilesVisibilitySettingsChange: (settings: FilesVisibilitySettings) => void;
+  onFilesVisibilityChange: () => void;
   onOpenGitChanges: () => void;
   onOpenImport: () => void;
   onPuppyoneConfigChange: (config: PuppyoneWorkspaceConfig) => Promise<PuppyoneWorkspaceConfig | null>;
   onSelectSettingsSection: (section: SettingsSection) => void;
   onUnlinkWorkspace: () => Promise<void>;
-  preferences: DesktopPreferencesController;
   puppyoneConfig: PuppyoneWorkspaceConfig | null;
   puppyoneConfigError: string | null;
   puppyoneConfigLoading: boolean;
@@ -107,6 +111,7 @@ export function useWorkspaceSurfaceContent({
   subThemeCatalog: SubThemeCatalogController;
   workspace: Workspace;
 }): WorkspaceSurfaceContentResult {
+  const automationEnabled = useDesktopPreference(s => s.experimentalSettings.enableCloudAutomation);
   const surfaceCapabilities = useMemo<WorkspaceSurfaceCapabilities>(() => ({
     cloudEnabled: cloud.enabled,
   }), [cloud.enabled]);
@@ -140,7 +145,8 @@ export function useWorkspaceSurfaceContent({
   const cloudAuthState = useCloudSessionForEnvironment({
     cloudSession: cloud.storedCloudSession,
     sessionRestoring: cloud.sessionRestoring,
-    restoreEnabled: !localOnlyWorkspaceContext,
+    // A published project must not restore a Cloud session while Cloud is off.
+    restoreEnabled: cloud.enabled && !localOnlyWorkspaceContext,
     environment: cloudEnvironment,
     onCloudSessionChange: cloud.onCloudSessionChange,
   });
@@ -149,9 +155,8 @@ export function useWorkspaceSurfaceContent({
     activeSection: settingsSection,
     onSelectSection: onSelectSettingsSection,
     onOpenImport,
-    preferences,
     subThemeCatalog,
-    onFilesVisibilitySettingsChange,
+    onFilesVisibilityChange,
     git: {
       status: git.activeGitStatus,
       loading: git.gitStatusLoading,
@@ -183,12 +188,38 @@ export function useWorkspaceSurfaceContent({
       setAutomaticallyDownloadUpdates: desktopUpdates.setAutomaticallyDownloadUpdates,
     },
   });
+  const cloudViewProps: CloudServiceMainViewProps = {
+    workspace,
+    status: git.activeGitStatus,
+    cloudEnvironment,
+    cloudAuthState,
+    projectContext,
+    onCloudSessionChange: cloud.onCloudSessionChange,
+    activeSection: cloud.activeSection,
+    automationEnabled: automationEnabled,
+    loading: git.gitStatusLoading,
+    error: git.gitStatusError,
+    cloudBackupLoading: cloud.backupLoading,
+    cloudBackupPending: cloud.backupPending,
+    cloudPublishError: cloud.publishError,
+    cloudPublishNotice: cloud.publishNotice,
+    cloudPublishProgress: cloud.publishProgress,
+    cloudPublishState: cloud.publishState,
+    cloudPublishStateLoading: cloud.publishStateLoading,
+    onAbandonPuppyoneBackup: cloud.onAbandonPuppyoneBackup,
+    onStartPuppyoneBackup: cloud.onStartPuppyoneBackup,
+    onRemoveCloudRemote: cloud.onRemoveCloudRemote,
+    onSelectSection: cloud.onSelectSection,
+    onRefresh: git.refreshGitStatus,
+    onOpenGitSettings: cloud.onOpenGitSettings,
+    onOpenSourceControl: onOpenGitChanges,
+  };
   const cloudServiceSurface = {
     sidebar: (
       <CloudServiceSidebar
         cloudAuthState={cloudAuthState}
         activeSection={cloud.activeSection}
-        automationEnabled={preferences.experimentalSettings.enableCloudAutomation}
+        automationEnabled={automationEnabled}
         projectAvailable={cloudContextHasProject(projectContext)}
         projectCapabilities={projectContext.status === "resolved"
           ? projectContext.capabilities ?? []
@@ -197,32 +228,7 @@ export function useWorkspaceSurfaceContent({
       />
     ),
     main: (
-      <CloudServiceMainView
-        workspace={workspace}
-        status={git.activeGitStatus}
-        cloudEnvironment={cloudEnvironment}
-        cloudAuthState={cloudAuthState}
-        projectContext={projectContext}
-        onCloudSessionChange={cloud.onCloudSessionChange}
-        activeSection={cloud.activeSection}
-        automationEnabled={preferences.experimentalSettings.enableCloudAutomation}
-        loading={git.gitStatusLoading}
-        error={git.gitStatusError}
-        cloudBackupLoading={cloud.backupLoading}
-        cloudBackupPending={cloud.backupPending}
-        cloudPublishError={cloud.publishError}
-        cloudPublishNotice={cloud.publishNotice}
-        cloudPublishProgress={cloud.publishProgress}
-        cloudPublishState={cloud.publishState}
-        cloudPublishStateLoading={cloud.publishStateLoading}
-        onAbandonPuppyoneBackup={cloud.onAbandonPuppyoneBackup}
-        onStartPuppyoneBackup={cloud.onStartPuppyoneBackup}
-        onRemoveCloudRemote={cloud.onRemoveCloudRemote}
-        onSelectSection={cloud.onSelectSection}
-        onRefresh={git.refreshGitStatus}
-        onOpenGitSettings={cloud.onOpenGitSettings}
-        onOpenSourceControl={onOpenGitChanges}
-      />
+      <CloudServiceMainView {...cloudViewProps} />
     ),
   };
   const adapters: WorkspaceSurfaceAdapters = {
@@ -236,6 +242,10 @@ export function useWorkspaceSurfaceContent({
   return {
     availableSurfaceIds,
     cloudSurface: cloudServiceSurface,
+    cloudSwitchAuthenticationRequired: getCloudAuthSession(cloudAuthState) === null,
+    cloudFileState: <CloudFileWorkspaceGate {...cloudViewProps} />,
+    cloudSwitchGate: <CloudFileWorkspaceGate {...cloudViewProps} compactSignIn
+      onStartPuppyoneBackup={cloud.onCreateCloudVersion ?? cloud.onStartPuppyoneBackup} />,
     gitEnabled,
     resolvedActiveView,
     resolvedSurface: resolveWorkspaceSurface({ capabilities: surfaceCapabilities, adapters, requestedId: requestedSurfaceId }),

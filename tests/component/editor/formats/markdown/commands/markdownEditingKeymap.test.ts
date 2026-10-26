@@ -2,9 +2,10 @@
  * @vitest-environment happy-dom
  */
 import { EditorSelection, EditorState } from "@codemirror/state";
-import { EditorView } from "@codemirror/view";
+import { EditorView, runScopeHandlers } from "@codemirror/view";
 import { afterEach, describe, expect, it } from "vitest";
 import { markdownEditingKeymap } from "../../../../../../packages/shared-ui/src/editor/markdown/core/commands/markdownEditingKeymap";
+import { markdownCodeMirrorBaseExtensions, markdownLivePreviewExtension } from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
 
 const views: EditorView[] = [];
 
@@ -38,14 +39,32 @@ describe("Markdown editing shortcuts", () => {
     expect(underlineBinding.run(view)).toBe(true);
     expect(view.state.doc.toString()).toBe("hello");
   });
+
+  it.each([
+    { doc: "- parent\n    - [ ] first child", shiftKey: false },
+    { doc: "- root", shiftKey: true },
+  ])("owns an unavailable list indent before the generic Tab fallback: $doc", ({ doc, shiftKey }) => {
+    const view = createView(doc, true);
+    view.dispatch({ selection: EditorSelection.cursor(doc.length) });
+    expect(runScopeHandlers(view, new KeyboardEvent("keydown", { key: "Tab", shiftKey }), "editor")).toBe(true);
+    expect(view.state.doc.toString()).toBe(doc);
+  });
+
+  it("keeps generic Tab indentation available outside lists", () => {
+    const view = createView("ordinary text", true);
+    expect(runScopeHandlers(view, new KeyboardEvent("keydown", { key: "Tab" }), "editor")).toBe(true);
+    expect(view.state.doc.toString()).toMatch(/^\s+ordinary text$/);
+  });
 });
 
-function createView(content: string): EditorView {
+function createView(content: string, markdown = false): EditorView {
   const parent = document.createElement("div");
   document.body.appendChild(parent);
   const view = new EditorView({
     parent,
-    state: EditorState.create({ doc: content }),
+    state: EditorState.create({ doc: content,
+      extensions: markdown ? [markdownCodeMirrorBaseExtensions(false), markdownLivePreviewExtension()] : [],
+    }),
   });
   views.push(view);
   return view;

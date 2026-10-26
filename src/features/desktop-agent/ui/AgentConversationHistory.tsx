@@ -184,9 +184,7 @@ export function AgentConversationHistory({
                     label={runtimeLabel}
                   />
                   <span className="desktop-agent-history-copy">
-                    <Tooltip content={session.title} overflowOnly>
-                      <span className="desktop-agent-history-title">{session.title}</span>
-                    </Tooltip>
+                    <span className="desktop-agent-history-title">{session.title}</span>
                   </span>
                   <time className="desktop-agent-history-time" dateTime={session.updatedAt}>
                     {session.updatedAtKnown === false ? "" : formatHistoryDate(session.updatedAt)}

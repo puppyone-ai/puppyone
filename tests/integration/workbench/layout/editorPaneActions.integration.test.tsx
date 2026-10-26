@@ -1,9 +1,10 @@
+import { initializeDesktopPreferences } from "../../../../src/preferencesStore";
 /** @vitest-environment happy-dom */
 import { undo, redo } from "@codemirror/commands";
 import { EMPTY_MARKDOWN_WORKSPACE_ENVIRONMENT, getEditorPanes, type DataPort, type DocumentDataNode, type EditorSplitDirection, type FileContent } from "@puppyone/shared-ui";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { closeAllDocumentWorkingCopies } from "../../../../packages/shared-ui/src/editor/document-session/documentWorkingCopies";
 import { useDesktopEditorWorkbench } from "../../../../src/features/editor-workbench/controller/useDesktopEditorWorkbench";
 import { DesktopEditorSplitView } from "../../../../src/features/editor-workbench/layout/DesktopEditorSplitView";
@@ -44,7 +45,7 @@ async function harness(direction: EditorSplitDirection, deferredPath?: string) {
     editor = useDesktopEditorWorkbench(workspace, null);
     return <DesktopEditorSplitView aiEditRequest={null} dataPort={port} editorGroup={editor.state} layout={editor.paneLayout}
       editorInteractionPreferences={{ showSaveStatus: false, markdownBlockDragEnabled: false }} editorTree={nodes}
-      fileIconTheme="default" markdownEnvironment={EMPTY_MARKDOWN_WORKSPACE_ENVIRONMENT} documentNavigation={unavailableDocumentNavigation}
+       markdownEnvironment={EMPTY_MARKDOWN_WORKSPACE_ENVIRONMENT} documentNavigation={unavailableDocumentNavigation}
       workspace={workspace} onClosePane={editor.closePane} onFocusPane={editor.focusPane} onResizeSplit={editor.resizeSplit}
       onMovePane={editor.movePane} onOpenAtPaneEdge={editor.openDocumentAtPaneEdge} onSplitPane={editor.splitPane} />;
   }
@@ -126,3 +127,5 @@ describe.each(["horizontal", "vertical"] as const)("%s pane menu to controller i
     expect(h.editor.activePath).toBe(nodes[0]!.path);
   });
 });
+
+beforeEach(() => initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeItem: () => {} }));

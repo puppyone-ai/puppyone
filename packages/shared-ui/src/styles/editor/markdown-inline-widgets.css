@@ -11,7 +11,7 @@
   height: auto;
   max-width: 100%;
   max-height: 320px;
-  border-radius: 6px;
+  border-radius: var(--po-md-block-radius);
   -webkit-user-drag: none;
 }
 
@@ -44,7 +44,7 @@
   align-items: center;
   padding: 0 8px;
   border: 1px solid var(--po-border-subtle);
-  border-radius: 4px;
+  border-radius: var(--po-md-block-radius);
   background: color-mix(in srgb, var(--po-control) 26%, transparent);
   color: var(--po-text-muted);
   font-size: var(--po-type-ui-meta, 13px);
@@ -110,22 +110,9 @@
 }
 
 .markdown-codemirror-editor [data-md-link-interaction="navigate"] {
+  --po-md-inline-foreground: var(--po-md-link-color);
   color: var(--po-md-link-color);
   cursor: pointer;
-}
-
-/* Inline code keeps its chip treatment inside a link, but the text still
-   inherits the link affordance. Interaction state—not Markdown syntax—is the
-   visual authority for whether the destination is actionable. */
-.markdown-codemirror-editor [data-md-link-interaction="navigate"]:is(
-  .cm-md-inline-code,
-  .cm-md-syntax-monospace
-),
-.markdown-codemirror-editor [data-md-link-interaction="navigate"] :is(
-  .cm-md-inline-code,
-  .cm-md-syntax-monospace
-) {
-  color: var(--po-md-link-color);
 }
 
 .markdown-codemirror-editor [data-md-link-interaction="navigate"]:focus-visible {
@@ -156,10 +143,6 @@
 }
 
 .markdown-codemirror-editor .cm-md-inline-code {
-  padding: 1px 4px;
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--po-control) 46%, transparent);
-  color: color-mix(in srgb, var(--po-text) 82%, var(--po-text-muted));
-  font-family: var(--po-font-mono);
-  font-size: var(--po-type-editor-code, var(--po-code-font-size, 13px));
+  font-family: var(--po-md-code-font);
+  font-size: var(--po-md-inline-code-font-size);
 }

@@ -5,6 +5,12 @@ import type { EditorPreviewServices } from "../preview-services/types";
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
+import {
+  FloatingNotice,
+  FloatingNoticeAction,
+  FloatingNoticeStack,
+  useDismissibleNotice,
+} from "../../primitives/FloatingNotice";
 import type {
   AppPreviewController,
   DocumentDataNode,
@@ -46,6 +52,7 @@ export type FilePreviewProps = {
   loading?: boolean;
   loadingIndicator?: ReactNode;
   error?: string | null;
+  onRetry?: () => void;
   aiEditFile?: AiEditFile | null;
   showHeader?: boolean;
   emptySlot?: ReactNode;
@@ -83,6 +90,7 @@ export function FilePreview({
   loading = false,
   loadingIndicator,
   error = null,
+  onRetry,
   aiEditFile = null,
   showHeader = true,
   emptySlot,
@@ -108,6 +116,11 @@ export function FilePreview({
   documentSourceKind = "local",
 }: FilePreviewProps) {
   const { t } = useLocalization();
+  // Stale content stays readable behind a refresh failure, so the notice is only
+  // shown over existing content and can be put away.
+  const [visibleInputError, dismissInputError] = useDismissibleNotice(
+    (fileContent || fileUrl) ? error || fileUrlError || null : null,
+  );
   const surfaceKey = node?.path ?? "file-preview:empty";
   const actions = node
     ? typeof actionSlot === "function" ? actionSlot(node) : actionSlot
@@ -128,6 +141,7 @@ export function FilePreview({
       surfaceKey={surfaceKey}
       surfacePreparation={surfacePreparation}
       pendingIndicator={loadingIndicator}
+      transitionPresentation={documentSourceKind === "cloud" ? "loading" : "retain-content"}
     >
       {({ onSurfaceReady }) => node ? (
         <div className={`file-preview-shell ${showHeader ? "" : "without-header"}`}>
@@ -159,6 +173,20 @@ export function FilePreview({
           )}
 
           <div className="file-preview-body">
+            {visibleInputError && (
+              <FloatingNoticeStack className="editor-notice-stack">
+                <FloatingNotice
+                  className="file-preview-input-error"
+                  tone="danger"
+                  actions={onRetry && (
+                    <FloatingNoticeAction onClick={onRetry}>{t("common.action.retry")}</FloatingNoticeAction>
+                  )}
+                  onDismiss={dismissInputError}
+                >
+                  {visibleInputError}
+                </FloatingNotice>
+              </FloatingNoticeStack>
+            )}
             <EditorPreviewBoundary
               key={node.path}
               failureTitle={t("shared-ui.preview.crashed")}
@@ -177,6 +205,7 @@ export function FilePreview({
                 loadingIndicator={loadingIndicator}
                 surfacePreparation={surfacePreparation}
                 error={error}
+                onRetry={onRetry}
                 aiEditFile={aiEditFile}
                 documentPersistence={documentPersistence}
                 onDocumentPersisted={onDocumentPersisted}

@@ -1,3 +1,4 @@
+import { initializeDesktopPreferences } from "../../../../src/preferencesStore";
 import { createEditorInput } from "@puppyone/shared-ui";
 import { unavailableDocumentNavigation } from "../../../support/editor/documentFixtures";
 import { requireEditorView } from "../../../support/editor/editorView";
@@ -16,7 +17,7 @@ import {
 } from "@puppyone/shared-ui";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { closeDocumentWorkingCopy } from "../../../../packages/shared-ui/src/editor/document-session/documentWorkingCopies";
 import { EditorPaneDocumentRuntime } from "../../../../src/features/editor-workbench/runtime/EditorPaneDocumentRuntime";
 import { withTestLocalization } from "../../../support/react/localization";
@@ -37,6 +38,8 @@ afterEach(async () => {
   }).catch(() => undefined);
   document.body.innerHTML = "";
 });
+
+beforeEach(() => initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeItem: () => {} }));
 
 describe("split-pane external document change", () => {
   it("adopts a Terminal or Agent filesystem edit while the Markdown pane stays open", async () => {
@@ -78,7 +81,7 @@ describe("split-pane external document change", () => {
             showSaveStatus: false,
             markdownBlockDragEnabled: false,
           }}
-          fileIconTheme="default"
+
           markdownEnvironment={EMPTY_MARKDOWN_WORKSPACE_ENVIRONMENT}
           refreshKey={refreshKey}
           treeNode={node}

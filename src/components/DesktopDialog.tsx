@@ -1,5 +1,4 @@
-import { Tooltip } from "@puppyone/shared-ui";
-import { useEffect, useRef, type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode } from "react";
+import { useEffect, useRef, type ButtonHTMLAttributes, type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import { useNativeSurfaceOcclusionLease } from "../features/native-surfaces";
 
 const DIALOG_FOCUSABLE_SELECTOR = [
@@ -168,14 +167,16 @@ export function DesktopDialogCloseButton({
   className = "",
   disabled,
   onClick,
-}: {
+  ...buttonProps
+}: Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children" | "title" | "onClick"> & {
   label?: string;
   className?: string;
   disabled?: boolean;
   onClick: () => void;
 }) {
   return (
-    <Tooltip content={label}><button
+    <button
+      {...buttonProps}
       className={`desktop-dialog-icon-button ${className}`.trim()}
       type="button"
       disabled={disabled}
@@ -190,6 +191,6 @@ export function DesktopDialogCloseButton({
           strokeLinecap="round"
         />
       </svg>
-    </button></Tooltip>
+    </button>
   );
 }

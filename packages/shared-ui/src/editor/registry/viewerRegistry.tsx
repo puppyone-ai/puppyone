@@ -5,6 +5,8 @@ import {
   getResolvedFileExtension,
   resolveFileFormat,
 } from "../../core/fileFormats";
+import { isDataResourceUri } from "../../core/dataResourcePath";
+import { parseResourceUri } from "../../core/resourceUri";
 import type {
   EditorDocument,
   EditorSourceRequirement,
@@ -89,7 +91,11 @@ export function resolveEditorViewer(document: EditorDocument): {
   format: EditorViewerMatch["format"];
   resolvedExtension: string | null;
 } {
-  const format = resolveFileFormat({ name: document.name, mimeType: document.mimeType });
+  // Directory-qualified filename patterns are part of format identity (Git
+  // rebase state, agent instructions, etc.). Cloud/Local logical URIs must
+  // preserve those paths instead of classifying only the basename.
+  const formatPath = isDataResourceUri(document.path) ? parseResourceUri(document.path).path : document.path;
+  const format = resolveFileFormat({ name: formatPath || document.name, mimeType: document.mimeType });
   const resolvedExtension = getResolvedFileExtension(
     { name: document.name, mimeType: document.mimeType },
     format,

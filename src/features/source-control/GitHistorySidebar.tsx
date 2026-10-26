@@ -2,7 +2,6 @@ import { Tooltip } from "@puppyone/shared-ui";
 import { ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocalization } from "@puppyone/localization";
-import type { FileIconThemeId } from "@puppyone/shared-ui";
 import type {
   GitCommitDetail as GitCommitDetailModel,
   GitStatusSnapshot,
@@ -10,6 +9,7 @@ import type {
 import { GitCommitDetail } from "./GitCommitDetail";
 import { GitHistoryTimeline } from "./GitHistoryTimeline";
 import { GitRepositorySetupAction } from "./GitRepositorySetupAction";
+import { useGitViewNavigationFocus } from "./useGitViewNavigationFocus";
 
 export type GitHistorySidebarProps = Readonly<{
   status: GitStatusSnapshot | null;
@@ -20,11 +20,11 @@ export type GitHistorySidebarProps = Readonly<{
   commitDetailLoading: boolean;
   commitDetailError: string | null;
   historyLoading: boolean;
-  fileIconTheme: FileIconThemeId;
   initializing: boolean;
   onInitialize: () => Promise<boolean>;
   onSelectCommit: (commitId: string) => void;
   onBack: () => void;
+  focusNavigation?: boolean;
 }>;
 
 export function GitHistorySidebar({
@@ -36,14 +36,15 @@ export function GitHistorySidebar({
   commitDetailLoading,
   commitDetailError,
   historyLoading,
-  fileIconTheme,
   initializing,
   onInitialize,
   onSelectCommit,
   onBack,
+  focusNavigation = false,
 }: GitHistorySidebarProps) {
   const { t } = useLocalization();
   const [detailVisible, setDetailVisible] = useState(false);
+  const rootRef = useGitViewNavigationFocus(focusNavigation, detailVisible);
   const commits = status?.allCommits ?? status?.commits ?? [];
   const selectedCommit = commits.find(
     (commit) => commit.commit_id === selectedCommitId,
@@ -61,6 +62,7 @@ export function GitHistorySidebar({
 
   return (
     <section
+      ref={rootRef}
       className="desktop-git-history-sidebar"
       aria-label={t("source-control.history.ariaLabel")}
       onKeyDown={(event) => {
@@ -111,7 +113,6 @@ export function GitHistorySidebar({
             selectedCommitId={selectedCommitId}
             status={status}
             loading={historyLoading || (statusLoading && !status)}
-            fileIconTheme={fileIconTheme}
             onSelectCommit={(commitId) => {
               onSelectCommit(commitId);
               setDetailVisible(true);

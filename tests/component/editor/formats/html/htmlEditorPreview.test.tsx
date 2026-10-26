@@ -29,6 +29,29 @@ afterEach(() => {
 });
 
 describe("HTML editor and safe preview", () => {
+  it("opens Cloud HTML as a safe page and keeps source editing available without a native projection service", async () => {
+    const container = document.createElement("div"); document.body.append(container); root = createRoot(container);
+    await act(async () => root?.render(withTestLocalization(
+      <EditorPaneMenuContributionProvider onContributionChange={publish}><HtmlViewer
+        document={{ path: "puppyone-cloud://cloud.example/account/project/page.html", name: "page.html", type: "html", version: "v1", sourceKind: "cloud" }}
+        content="<!doctype html><h1>Cloud page</h1>" fileUrl="blob:cloud-version" fileUrlLoading={false}
+        fileUrlError={null} loading={false} error={null} htmlTrustMode="safe" canEdit hideSourceView={false}
+      /></EditorPaneMenuContributionProvider>,
+    )));
+    for (let i = 0; i < 100 && !container.querySelector("iframe"); i++) await act(async () => new Promise((resolve) => setTimeout(resolve, 5)));
+    expect(container.querySelector(".html-visual-editor")).toBeNull();
+    expect(container.querySelector("iframe")?.getAttribute("sandbox")).not.toContain("allow-scripts");
+    expect(container.querySelector("iframe")?.getAttribute("srcdoc")).not.toContain('href="blob:');
+    expect(contribution?.viewItems[0]?.label).toBe("Show code");
+    await toggleMode();
+    const view = requireEditorView(container.querySelector<HTMLElement>(".cm-editor")!);
+    expect(view.state.doc.toString()).toContain("Cloud page");
+    act(() => view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: "<h1>Edited Cloud page</h1>" } }));
+    await toggleMode();
+    for (let i = 0; i < 100 && !container.querySelector("iframe"); i++) await act(async () => new Promise((resolve) => setTimeout(resolve, 5)));
+    expect(container.querySelector("iframe")?.getAttribute("srcdoc")).toContain("Edited Cloud page");
+    expect(container.querySelector(".html-visual-editor")).toBeNull();
+  });
   it("opens directly editable and exposes source only through the pane menu", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);

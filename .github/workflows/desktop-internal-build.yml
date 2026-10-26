@@ -28,8 +28,9 @@ jobs:
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
       PUBLIC_DOWNLOAD_ORIGIN: https://downloads.puppyone.ai
-      VITE_DESKTOP_CLOUD_API_URL: https://api.puppyone.ai/api/v1
-      VITE_DESKTOP_CLOUD_WEB_URL: https://app.puppyone.ai
+      # Internal builds pair with the Qubits staging Cloud; Stable pairs with production.
+      VITE_DESKTOP_CLOUD_API_URL: https://qubits-api.puppyone.ai/api/v1
+      VITE_DESKTOP_CLOUD_WEB_URL: https://qubits-try.puppyone.ai
 
     steps:
       - name: Checkout source

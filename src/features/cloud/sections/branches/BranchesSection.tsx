@@ -1,11 +1,6 @@
 import { Fragment, useRef, type CSSProperties } from "react";
 import { ExternalLink, GitBranch, RefreshCw } from "lucide-react";
-import {
-  Tooltip,
-  STANDARD_CONTROL_SIZE,
-  useCssPixelCustomProperty,
-  type Workspace,
-} from "@puppyone/shared-ui";
+import { STANDARD_CONTROL_SIZE, useCssPixelCustomProperty, type Workspace } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
 import "./branches.css";
 import type { DesktopCloudSession } from "../../../../lib/cloudApi";
@@ -122,9 +117,9 @@ export function CloudBranchesSection({
         </div>
         <div className="desktop-cloud-branches-toolbar" data-po-scrollbar="hidden">
           {currentBranchName && (
-            <Tooltip content={currentBranchName} overflowOnly><span className="desktop-cloud-branches-token current">
+            <span className="desktop-cloud-branches-token current">
               {currentBranchName}
-            </span></Tooltip>
+            </span>
           )}
           <span className="desktop-cloud-branches-token">{t("cloud.branches.commitCount", { count: commitCount })}</span>
           {localBranchCount > 0 && <span className="desktop-cloud-branches-token local">{t("cloud.branches.localCount", { count: localBranchCount })}</span>}
@@ -161,7 +156,6 @@ export function CloudBranchesSection({
           <CloudWebEmpty
             icon={GitBranch}
             title={t("cloud.branches.none")}
-            detail={t("cloud.branches.noneDetail")}
           />
         ) : (
           <>
@@ -227,7 +221,7 @@ function BranchGraphRow({
       </span>
 
       <span className="desktop-cloud-branch-graph-message">
-        <Tooltip content={message} overflowOnly><strong dir="auto">{message}</strong></Tooltip>
+        <strong dir="auto">{message}</strong>
         {row.kind === "commit" && (
           <code className="desktop-cloud-branch-graph-sha" dir="ltr">{shortCommit(row.id)}</code>
         )}
@@ -240,7 +234,7 @@ function BranchGraphRow({
           </span>
         ))}
         {row.stats && <BranchGraphStats stats={row.stats} />}
-        <Tooltip content={author} overflowOnly><span className="desktop-cloud-branch-graph-author" dir="auto">{author}</span></Tooltip>
+        <span className="desktop-cloud-branch-graph-author" dir="auto">{author}</span>
         <time className="desktop-cloud-branch-graph-date">{row.createdAt ? formatRelativeTime(row.createdAt, localization) : t("cloud.status.unknown")}</time>
       </span>
     </>

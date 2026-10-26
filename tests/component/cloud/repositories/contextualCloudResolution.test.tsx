@@ -58,20 +58,25 @@ function ContextHarness({
   activeCloudSession = session,
   activeWorkspace = workspace,
   status,
+  apiBaseUrl = session.api_base_url,
+  refreshKey = 0,
 }: {
   activeCloudSession?: DesktopCloudSession | null;
   activeWorkspace?: Workspace | null;
   status: GitStatusSnapshot;
+  apiBaseUrl?: string;
+  refreshKey?: number;
 }) {
   const updateCloudSession = React.useCallback(() => undefined, []);
   const context = useCurrentRepositoryCloudContext({
     activeCloudSession,
     activeGitStatus: status,
     cloudEnabled: true,
-    desktopCloudApiBaseUrl: session.api_base_url,
+    desktopCloudApiBaseUrl: apiBaseUrl,
     resolutionInputsLoading: false,
     updateCloudSession,
     workspace: activeWorkspace,
+    refreshKey,
   });
   return <output data-context={JSON.stringify(context)} />;
 }
@@ -80,6 +85,7 @@ let container: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
+  vi.stubEnv("VITE_DESKTOP_CLOUD_GIT_ORIGIN", "");
   cloudApi.getCloudRepositoryContext.mockReset();
   container = document.createElement("div");
   document.body.appendChild(container);
@@ -89,6 +95,7 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount());
   container.remove();
+  vi.unstubAllEnvs();
 });
 
 function readContext(): ProjectCloudContext {
@@ -113,6 +120,44 @@ async function renderUntil(
 }
 
 describe("current-repository Cloud context", () => {
+  it("clears a transient dependency error after a fresh successful authorization read", async () => {
+    vi.useFakeTimers();
+    try {
+      cloudApi.getCloudRepositoryContext.mockRejectedValueOnce(Object.assign(new Error("Unavailable"), { status: 503 }))
+        .mockResolvedValue({ project: { id: "project-1" }, target: { kind: "project_root", project_id: "project-1" } });
+      await act(async () => root.render(<ContextHarness status={gitStatus({ fetch: "https://cloud.example/git/project-1.git" })} />));
+      expect(readContext().status).toBe("temporarily-unavailable");
+      await act(async () => { await vi.advanceTimersByTimeAsync(1_500); });
+      expect(readContext()).toMatchObject({ status: "resolved", projectId: "project-1" });
+      expect(cloudApi.getCloudRepositoryContext).toHaveBeenCalledTimes(2);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("cancels the old retry when a different repository becomes current", async () => {
+    vi.useFakeTimers();
+    try {
+      cloudApi.getCloudRepositoryContext.mockRejectedValueOnce(Object.assign(new Error("Unavailable"), { status: 503 }))
+        .mockResolvedValue({ project: { id: "project-2" }, target: { kind: "project_root", project_id: "project-2" } });
+      await act(async () => root.render(<ContextHarness status={gitStatus({ fetch: "https://cloud.example/git/project-1.git" })} />));
+      await act(async () => root.render(<ContextHarness status={gitStatus({ fetch: "https://cloud.example/git/project-2.git" })} />));
+      await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+      expect(readContext()).toMatchObject({ status: "resolved", projectId: "project-2" });
+      expect(cloudApi.getCloudRepositoryContext.mock.calls.map((call) => call[1])).toEqual(["project-1", "project-2"]);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("ignores a late authorization success after the account changes", async () => {
+    let finish!: (value: unknown) => void;
+    cloudApi.getCloudRepositoryContext.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }))
+      .mockRejectedValue(Object.assign(new Error("Denied"), { status: 403 }));
+    const status = gitStatus({ fetch: "https://cloud.example/git/project-1.git" });
+    await act(async () => root.render(<ContextHarness status={status} />));
+    await act(async () => root.render(<ContextHarness status={status} activeCloudSession={{ ...session, user_id: "user-2", session_generation: "generation-2" }} />));
+    await act(async () => finish({ project: { id: "project-1" }, target: { kind: "project_root", project_id: "project-1" } }));
+    expect(readContext().status).toBe("not-authorized");
+    expect(cloudApi.getCloudRepositoryContext).toHaveBeenCalledTimes(2);
+  });
+
   it("keeps a repository without a canonical PuppyOne remote local-only", async () => {
     const context = await renderUntil(
       <ContextHarness status={gitStatus()} />,
@@ -135,6 +180,7 @@ describe("current-repository Cloud context", () => {
     expect(context).toEqual({
       status: "resolved",
       projectId: "project-1",
+      projectName: "Notes",
       target: { kind: "project_root", project_id: "project-1" },
       capabilities: ["content.read"],
     });
@@ -166,6 +212,70 @@ describe("current-repository Cloud context", () => {
       target: { kind: "scope", project_id: "project-1", scope_id: "scope-docs" },
       scopePath: "docs",
     });
+  });
+
+  it("verifies a legacy official HTTP locator via the configured HTTPS API", async () => {
+    const apiBaseUrl = "https://api.puppyone.ai/api/v1";
+    const secureSession = { ...session, api_base_url: apiBaseUrl };
+    cloudApi.getCloudRepositoryContext.mockResolvedValue({
+      target: { kind: "project_root", project_id: "project-1" },
+      project: { id: "project-1", name: "Notes" },
+    });
+    const context = await renderUntil(<ContextHarness activeCloudSession={secureSession} apiBaseUrl={apiBaseUrl}
+      status={gitStatus({ fetch: "http://api.puppyone.ai/git/project-1.git" })} />, ["resolved"]);
+    expect(context).toMatchObject({ status: "resolved", projectId: "project-1" });
+    expect(cloudApi.getCloudRepositoryContext).toHaveBeenCalledWith(secureSession, "project-1",
+      { kind: "project_root", project_id: "project-1" }, expect.any(Function), apiBaseUrl);
+  });
+
+  it("resolves a legacy hosted Git locator using the explicitly configured development API after sign-in", async () => {
+    vi.stubEnv("VITE_DESKTOP_CLOUD_GIT_ORIGIN", "https://api.puppyone.ai");
+    const apiBaseUrl = "http://localhost:9090/api/v1";
+    const localSession = { ...session, api_base_url: apiBaseUrl };
+    const status = gitStatus({ fetch: "http://api.puppyone.ai/git/project-1.git" });
+    const signedOut = await renderUntil(
+      <ContextHarness activeCloudSession={null} apiBaseUrl={apiBaseUrl} status={status} />,
+      ["wrong-account", "wrong-host"],
+    );
+    expect(signedOut.status).toBe("wrong-account");
+    expect(cloudApi.getCloudRepositoryContext).not.toHaveBeenCalled();
+
+    cloudApi.getCloudRepositoryContext.mockResolvedValue({
+      target: { kind: "project_root", project_id: "project-1" },
+      project: { id: "project-1", name: "Notes" },
+    });
+    const signedIn = await renderUntil(
+      <ContextHarness activeCloudSession={localSession} apiBaseUrl={apiBaseUrl} status={status} />,
+      ["resolved", "wrong-host"],
+    );
+    expect(signedIn).toMatchObject({ status: "resolved", projectId: "project-1" });
+    expect(cloudApi.getCloudRepositoryContext).toHaveBeenCalledTimes(1);
+    expect(cloudApi.getCloudRepositoryContext).toHaveBeenCalledWith(localSession, "project-1",
+      { kind: "project_root", project_id: "project-1" }, expect.any(Function), apiBaseUrl);
+  });
+
+  it("keeps a legacy hosted Git locator blocked without an explicit development Git origin", async () => {
+    const apiBaseUrl = "http://localhost:9090/api/v1";
+    const context = await renderUntil(
+      <ContextHarness activeCloudSession={{ ...session, api_base_url: apiBaseUrl }} apiBaseUrl={apiBaseUrl}
+        status={gitStatus({ fetch: "http://api.puppyone.ai/git/project-1.git" })} />,
+      ["wrong-host"],
+    );
+    expect(context.status).toBe("wrong-host");
+    expect(cloudApi.getCloudRepositoryContext).not.toHaveBeenCalled();
+  });
+
+  it("retains a missing legacy association after the development API returns 404", async () => {
+    vi.stubEnv("VITE_DESKTOP_CLOUD_GIT_ORIGIN", "https://api.puppyone.ai");
+    const apiBaseUrl = "http://localhost:9090/api/v1";
+    cloudApi.getCloudRepositoryContext.mockRejectedValue(Object.assign(new Error("Project not found"), { status: 404 }));
+    const context = await renderUntil(
+      <ContextHarness activeCloudSession={{ ...session, api_base_url: apiBaseUrl }} apiBaseUrl={apiBaseUrl}
+        status={gitStatus({ fetch: "http://api.puppyone.ai/git/project-1.git" })} />,
+      ["not-found"],
+    );
+    expect(context).toMatchObject({ status: "not-found", projectId: "project-1" });
+    expect(cloudApi.getCloudRepositoryContext).toHaveBeenCalledTimes(1);
   });
 
   it("requires a session for a canonical remote without calling the API", async () => {
@@ -221,6 +331,20 @@ describe("current-repository Cloud context", () => {
       [expectedStatus],
     );
     expect(context.status).toBe(expectedStatus);
+  });
+
+  it("preserves the server reason while keeping SDK details out of the recovery model", async () => {
+    cloudApi.getCloudRepositoryContext.mockRejectedValue(Object.assign(new Error("secret private endpoint"), {
+      status: 503, code: "project_authorization_unreachable",
+    }));
+    const context = await renderUntil(
+      <ContextHarness status={gitStatus({ fetch: "https://cloud.example/git/project-1.git" })} />,
+      ["temporarily-unavailable"],
+    );
+    expect(context).toMatchObject({ status: "temporarily-unavailable", message: {
+      code: "access-check-unreachable", diagnostic: { status: 503, code: "project_authorization_unreachable" },
+    } });
+    expect(JSON.stringify(context)).not.toMatch(/secret|private endpoint/);
   });
 
   it("keeps SESSION_CHANGED in resolving until a new session key arrives", async () => {

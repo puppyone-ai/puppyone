@@ -62,7 +62,6 @@ describe("Automation creation flow", () => {
     expect(request).toMatchObject({
       project_id: "project-1",
       provider: "google_docs",
-      target_folder_path: "Research/Docs",
       target_path: "Research/Docs",
       sync_mode: "scheduled",
       trigger: {

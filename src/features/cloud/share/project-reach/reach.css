@@ -1,0 +1,282 @@
+@layer features {
+  /* The one screen for inviting a person or connecting an agent. Both share
+     this skeleton; only the verb, the object and one sentence differ.
+
+     Two type sizes only: the dialog's body size for anything the user reads
+     to decide, and the meta size for consequences. Earlier revisions grew a
+     third and a fourth, which is what made the screen look assembled rather
+     than designed. */
+  .desktop-reach-dialog .desktop-dialog-body {
+    gap: 14px;
+  }
+
+  .desktop-reach-section {
+    display: grid;
+    gap: 6px;
+  }
+
+  .desktop-reach-switch:hover,
+  .desktop-reach-links .desktop-share-inline-link:hover {
+    text-decoration: underline;
+  }
+
+  /* The product's own Explorer and Viewer, reduced and inert — the same
+     illustration the Cloud workspace share screen uses. The counts annotate
+     it from inside its own fade, so the screen keeps one block where there
+     used to be a frame, a caption and a sentence. */
+  .desktop-reach-preview {
+    display: grid;
+  }
+
+  .desktop-reach-preview .desktop-cloud-share-preview-window {
+    height: 190px;
+  }
+
+  /* The link and the verb that makes it, in one row. The row is the same
+     shape the Cloud workspace share screen uses for a finished link, so the
+     button that fills it stands exactly where the copy button will. */
+  .desktop-reach-link-row {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 4px 4px 10px;
+    border: 1px solid var(--po-border);
+    border-radius: 9px;
+    background: var(--po-panel);
+    user-select: none;
+  }
+
+  .desktop-reach-link-mark {
+    display: grid;
+    flex: 0 0 auto;
+    place-items: center;
+    color: var(--po-text-muted);
+  }
+
+  /* Masked, not blurred: dots say "not decided yet", blur says "your screen
+     is broken". The host is real, because it is already true. */
+  .desktop-reach-link-value {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    color: var(--po-text-muted);
+    font-family: var(--po-font-ui);
+    font-size: var(--po-type-ui-body, 13px);
+    letter-spacing: 0.01em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .desktop-reach-link-action {
+    display: inline-flex;
+    height: var(--po-control-size-small, 28px);
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 7px;
+    background: var(--po-accent);
+    color: var(--po-accent-contrast, #fff);
+    font-size: var(--po-type-ui-body, 13px);
+    font-weight: var(--po-text-weight-medium, 500);
+    white-space: nowrap;
+  }
+
+  .desktop-reach-link-action:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--po-accent) 88%, var(--po-text));
+  }
+
+  .desktop-reach-link-action:focus-visible {
+    outline: 2px solid var(--po-focus-ring, var(--po-accent));
+    outline-offset: 2px;
+  }
+
+  .desktop-reach-link-action:disabled {
+    opacity: 0.5;
+  }
+
+  /* Ways out of the default, together, under everything they are an
+     alternative to — and at the same size as every other secondary line on
+     this screen. */
+  .desktop-reach-links {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding-top: 2px;
+  }
+
+  .desktop-reach-links .desktop-share-inline-link {
+    font-size: var(--po-type-ui-meta, 12px);
+    line-height: 1.5;
+  }
+
+  /* Which agent: names packed in reading order, each one a mark and a word,
+     under the one heading that tells the kinds apart. A four-column grid of
+     cards left a hole where the last row ran out of candidates and sized
+     every card by the longest sentence in any of them. Names are short and of
+     unequal length, so they wrap like words instead of being poured into
+     columns that do not fit them. */
+  .desktop-reach-agent-groups {
+    display: grid;
+    gap: 10px;
+  }
+
+  .desktop-reach-agent-group {
+    display: grid;
+    gap: 5px;
+  }
+
+  /* Where the agents under it are. With no question above them, these are
+     the only words on the screen that organise it, so they carry the weight
+     of a heading at the size of an annotation. */
+  .desktop-reach-agent-kind {
+    margin: 0;
+    color: var(--po-text-muted);
+    font-size: var(--po-type-ui-meta, 12px);
+    font-weight: var(--po-text-weight-medium, 500);
+    line-height: 1.4;
+  }
+
+  .desktop-reach-agents {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .desktop-reach-agent {
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+    height: var(--po-control-size-roomy);
+    padding: 0 12px 0 8px;
+    border: 1px solid var(--po-border);
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--po-surface) 72%, var(--po-canvas));
+    color: var(--po-text);
+    font: inherit;
+    font-size: var(--po-type-ui-body, 13px);
+    text-align: start;
+  }
+
+  .desktop-reach-agent:hover {
+    background: var(--po-hover);
+  }
+
+  .desktop-reach-agent.is-selected {
+    border-color: var(--po-text);
+  }
+
+  /* The answer the user already gave leads its own group and carries the
+     reason it leads; it is not promoted out of the kind it belongs to. */
+  .desktop-reach-agent.is-remembered {
+    border-color: var(--po-border-strong, var(--po-border));
+  }
+
+  .desktop-reach-agent-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .desktop-reach-agent-note {
+    margin-inline-start: auto;
+    color: var(--po-text-muted);
+    font-size: var(--po-type-ui-meta, 12px);
+    white-space: nowrap;
+  }
+
+  /* A brand mark identifies the destination; it does not grade it. One
+     neutral plate carries every mark, including the ones whose artwork is a
+     white glyph, so the marks read as one column of marks instead of as some
+     destinations having been given an accent and others not. */
+  .desktop-reach-dialog .desktop-share-target-mark {
+    width: 20px;
+    height: 20px;
+    flex: 0 0 20px;
+    border-radius: 5px;
+    background: var(--po-hover);
+    color: var(--po-text-muted);
+  }
+
+  /* An agent the screen is stating rather than offering is shown at the size
+     of the thing being stated. */
+  .desktop-reach-agent.is-remembered .desktop-share-target-mark,
+  .desktop-reach-chosen .desktop-share-target-mark {
+    width: 24px;
+    height: 24px;
+    flex-basis: 24px;
+    border-radius: 6px;
+  }
+
+  /* The agent the user named, kept visible while they answer the question
+     that is about it. Changing it is a link, not a second grid. */
+  .desktop-reach-chosen {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--po-text);
+    font-size: var(--po-type-ui-body, 13px);
+  }
+
+  .desktop-reach-chosen-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    font-weight: var(--po-text-weight-medium, 500);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Facts: stated once, never competing with the action. */
+  .desktop-reach-fact {
+    margin: 0;
+    color: var(--po-text-muted);
+    font-size: var(--po-type-ui-meta, 12px);
+    line-height: 1.5;
+  }
+
+  .desktop-reach-scope {
+    display: grid;
+    gap: 2px;
+  }
+
+  .desktop-reach-readers {
+    display: grid;
+    gap: 8px;
+    padding-top: 14px;
+    border-top: 1px solid var(--po-divider);
+  }
+
+  .desktop-reach-readers h3 {
+    margin: 0;
+    color: var(--po-text);
+    font-size: var(--po-type-ui-body, 13px);
+    font-weight: 600;
+  }
+
+  .desktop-reach-handoff {
+    display: grid;
+    gap: 8px;
+  }
+
+  .desktop-reach-handoff h3 {
+    margin: 0;
+    color: var(--po-text);
+    font-size: var(--po-type-ui-body, 13px);
+    font-weight: 600;
+  }
+
+  .desktop-reach-handoff ol {
+    display: grid;
+    gap: 4px;
+    margin: 0;
+    padding-inline-start: 18px;
+    color: var(--po-text-muted);
+    font-size: var(--po-type-ui-meta, 12px);
+    line-height: 1.5;
+  }
+
+}

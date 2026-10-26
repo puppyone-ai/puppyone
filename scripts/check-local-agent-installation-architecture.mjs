@@ -31,7 +31,7 @@ for (const file of [
   "electron/main/platform/windows/registered-applications.mjs",
   "shared/local-agent-installation/schema.mjs",
   "shared/local-agent-installation/types.ts",
-  "src/features/local-agents/application/LocalAgentInstallationStore.ts",
+  "src/features/local-agents/installation/LocalAgentInstallationStore.ts",
   "electron/main/local-agent-installation/setup/setup-registry.mjs",
   "electron/main/local-agent-installation/setup/setup-advisor.mjs",
   "electron/main/local-agent-installation/setup/setup-service.mjs",

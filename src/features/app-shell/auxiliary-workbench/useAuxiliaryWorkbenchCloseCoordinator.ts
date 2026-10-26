@@ -3,7 +3,7 @@ import type {
   AuxiliaryWorkbenchCloseAdapter,
   AuxiliaryWorkbenchCloseContext,
   AuxiliaryWorkbenchCloseDecision,
-} from "./types";
+} from "../../../lib/workbench/types";
 
 type PresentedCloseDecision = Exclude<AuxiliaryWorkbenchCloseDecision, { kind: "close" }>;
 
@@ -43,9 +43,10 @@ export function useAuxiliaryWorkbenchCloseCoordinator({
     try {
       const result = await target.adapter.commit(target.context);
       if (typeof result === "object" && result.kind === "handed-off"
-        && (result.receipt.itemId !== itemId || result.receipt.kind !== target.context.item.kind
+        && (result.receipt.itemId !== itemId || result.receipt.kind !== target.adapter.executionKind
           || result.receipt.projectContext.projectId !== target.context.project.context.projectId
-          || result.receipt.projectContext.generation !== target.context.project.context.generation)) {
+          || result.receipt.projectContext.generation !== target.context.project.context.generation
+          || result.receipt.projectContext.rootPath !== target.context.project.context.rootPath)) {
         throw new Error("The cleanup handoff belongs to another item or project generation.");
       }
       const closed = result === true || (typeof result === "object" && (result.kind === "released"

@@ -40,21 +40,22 @@ describe("appearance surface boundary", () => {
   });
 
   it("projects product styles through public host tokens consumed by editor-owned CSS", () => {
-    const markdownCss = source("packages/shared-ui/src/styles/editor/markdown-content.css");
+    const markdownCss = source("packages/shared-ui/src/styles/editor/markdown-theme-tokens.generated.css");
     const csvCss = source("packages/shared-ui/src/styles/editor/csv-table-editor.css");
     const compiler = source("electron/main/themes/theme-css-compiler.mjs");
 
     expect(markdownCss).toContain("--po-host-md-content-color");
     expect(markdownCss).toContain("--po-user-md-h1-size");
     expect(csvCss).toContain("--po-host-csv-surface-background");
-    expect(compiler).toContain('["--po-md-content-color", "--po-host-md-content-color"]');
+    expect(compiler).toContain("shared/markdown-theme-contract.json");
+    expect(compiler).toContain('name.replace("--po-md-", "--po-host-md-")');
     expect(compiler).toContain('["--po-csv-surface-background", "--po-host-csv-surface-background"]');
     expect(compiler).toContain("may only declare root-level public tokens");
   });
 
   it("projects the complete Markdown syntax palette through public host tokens", () => {
-    const markdownCss = source("packages/shared-ui/src/styles/editor/markdown-content.css");
-    const compiler = source("electron/main/themes/theme-css-compiler.mjs");
+    const markdownCss = source("packages/shared-ui/src/styles/editor/markdown-theme-tokens.generated.css");
+    const contract = source("shared/markdown-theme-contract.json");
     const semanticTokens = [
       "constant",
       "special",
@@ -66,11 +67,20 @@ describe("appearance surface boundary", () => {
     ];
 
     for (const token of semanticTokens) {
-      expect(compiler).toContain(
-        `["--po-md-syntax-${token}", "--po-host-md-syntax-${token}"]`,
-      );
+      expect(contract).toContain(`"--po-md-syntax-${token}"`);
       expect(markdownCss).toContain(`--po-host-md-syntax-${token}`);
     }
+  });
+
+  it("keeps renderer adapters free of a competing Markdown palette or font defaults", () => {
+    const content = source("packages/shared-ui/src/styles/editor/markdown-content.css");
+    const mermaid = source("packages/shared-ui/src/editor/markdown/features/mermaid/mermaidRenderer.ts");
+    expect(content).not.toMatch(/--po-md-(?:content|code|inline|h[1-6]|syntax)[a-z-]*:\s*(?:#[0-9a-f]|color-mix|[0-9]+px)/);
+    expect(content).not.toMatch(/font-family:[^;]*!important/);
+    expect(content).toContain("background: var(--po-md-inline-code-background);");
+    expect(mermaid).toContain("--po-md-mermaid-${role}");
+    expect(mermaid).not.toMatch(/read\([^\n]+"#[0-9a-f]{3,8}"/);
+    expect(source("scripts/generate-builtin-sub-themes.mjs")).toContain("renderMarkdownProjection(fallbackSource)");
   });
 
   it("loads built-in Sub Theme CSS through the runtime host without private editor selectors", () => {

@@ -157,7 +157,9 @@ describe("DesktopHelpLauncher", () => {
       email: "person@example.com",
       locale: "en",
     });
-    expect(document.querySelector(".desktop-feedback-status")?.textContent).toContain("Sent");
+    expect(submitButton?.textContent).toContain("Sent");
+    expect(submitButton?.querySelector('[role="status"]')).not.toBeNull();
+    expect(document.querySelector(".desktop-feedback-status")?.textContent).toBe("");
   });
 
   it("can only be dismissed with its close button", () => {
@@ -295,10 +297,13 @@ describe("DesktopHelpLauncher", () => {
       /sidebarUtility=\{projectSwitcherRailVisible[\s\S]*?\? undefined[\s\S]*?: feedbackLauncher\}/,
     );
     expect(appSource).toContain("const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);");
-    expect(appSource).toContain("renderLeadingRail={projectSwitcherRailVisible ? ({ expanded }) => (");
+    expect(appSource).toContain("renderLeadingRail={enableProjectSwitcherRail ? ({ expanded }) => renderProjectRail(");
     expect(appSource).toContain("expanded={expanded}");
     expect(appSource).toContain("leftSidebarCollapsed={sidebarCollapsed}");
-    expect(appSource).toContain("rightSidebarOpen={rightSidebarOpen}");
+    // Local right-sidebar content never shows over a Cloud workspace.
+    expect(appSource).toMatch(/rightSidebarOpen=\{[^}]*\brightSidebarContentVisible\b[^}]*\}/);
+    expect(appSource).toMatch(/const localRightSidebarActive = !cloudWorkspaceActive\b/);
+    expect(appSource).toMatch(/const rightSidebarContentVisible = \w+ && localRightSidebarActive;/);
     expect(appSource).toContain("settingsOpen={settingsDialogOpen}");
     expect(appSource).toContain("{settingsDialogOpen && (");
     expect(appSource).toContain("<SettingsDialog");
@@ -307,7 +312,7 @@ describe("DesktopHelpLauncher", () => {
     expect(appSource).toContain("settingsNavigationVisible={!projectSwitcherRailEnabled}");
     expect(appSource).toContain("workspaceNavigationVisible={!projectSwitcherRailEnabled}");
     expect(appSource).toMatch(
-      /<ProjectSwitcherRail[\s\S]*?utilitySlot=\{\([\s\S]*?<DesktopHelpLauncher/,
+      /<ProjectSwitcherRail[\s\S]*?utilitySlot=\{<DesktopHelpLauncher/,
     );
     expect(launcherCss).toMatch(
       /\.desktop-feedback\s*\{[^}]*display:\s*flex[^}]*pointer-events:\s*auto/s,
@@ -349,11 +354,11 @@ describe("DesktopHelpLauncher", () => {
     );
     expect(launcherCss).not.toContain("desktop-feedback-popover");
     const launcherRule = launcherCss.match(/\.desktop-help-launcher\s*\{[^}]*\}/s)?.[0] ?? "";
-    expect(launcherRule).toContain("width: var(--desktop-sidebar-control-size)");
-    expect(launcherRule).toContain("height: var(--desktop-sidebar-control-size)");
+    expect(launcherRule).toContain("width: var(--desktop-sidebar-utility-control-size, var(--desktop-sidebar-control-size))");
+    expect(launcherRule).toContain("height: var(--desktop-sidebar-utility-control-size, var(--desktop-sidebar-control-size))");
     expect(launcherRule).toContain("border: 0");
     expect(launcherRule).toContain("background: transparent");
-    expect(launcherRule).toContain("color: var(--po-text-muted)");
+    expect(launcherRule).toContain("color: var(--desktop-sidebar-utility-icon-color, var(--po-text-muted))");
     expect(launcherRule).toContain("padding: 0");
     expect(launcherRule).not.toContain("backdrop-filter");
     expect(launcherCss).toMatch(

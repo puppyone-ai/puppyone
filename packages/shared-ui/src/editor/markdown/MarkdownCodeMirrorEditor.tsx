@@ -5,6 +5,11 @@ import { EditorView } from "@codemirror/view";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import {
+  FloatingNotice,
+  FloatingNoticeStack,
+  useDismissibleNotice,
+} from "../../primitives/FloatingNotice";
+import {
   markdownCodeMirrorLanguageExtension,
   markdownCodeMirrorUrgentExtensions,
   markdownLivePreviewCoreExtension,
@@ -609,6 +614,10 @@ export function MarkdownCodeMirrorEditor({
     : previewState === "pending" && showPendingMessage
       ? t("editor.markdown.preparingPreview")
       : null;
+  // The source stays editable when Live Preview fails, so its notice can be put away.
+  const [previewFailureNotice, dismissPreviewFailure] = useDismissibleNotice(
+    previewState === "error" ? previewMessage : null,
+  );
 
   return (
     <>
@@ -634,6 +643,13 @@ export function MarkdownCodeMirrorEditor({
       >
         {previewMessage ?? ""}
       </span>
+      {previewFailureNotice && (
+        <FloatingNoticeStack className="editor-notice-stack markdown-preview-notice-stack">
+          <FloatingNotice tone="warning" role="status" onDismiss={dismissPreviewFailure}>
+            {previewFailureNotice}
+          </FloatingNotice>
+        </FloatingNoticeStack>
+      )}
     </>
   );
 }

@@ -1,6 +1,6 @@
 export function estimateCodeBlockLayoutHeight(code: string): number {
   const lineCount = Math.max(1, code.split("\n").length);
-  return clampLayoutHeight(42 + lineCount * 20, 80, 1600);
+  return clampLayoutHeight(54 + lineCount * 20, 74, 1600);
 }
 
 export function estimateMermaidLayoutHeight(code: string): number {

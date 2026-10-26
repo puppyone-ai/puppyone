@@ -1,13 +1,15 @@
+import { initializeDesktopPreferences, desktopPreferencesStore as store } from "../../../../src/preferencesStore";
 /** @vitest-environment happy-dom */
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { TypographySettingsView } from "../../../../src/features/settings/main/TypographySettingsView";
 import { TypographyScaleSetting } from "../../../../src/features/settings/TypographyScaleSetting";
-import { DEFAULT_TYPOGRAPHY_PREFERENCES } from "../../../../src/features/typography";
 import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+beforeEach(() => { localStorage.clear(); initializeDesktopPreferences(); });
 
 let root: Root | null = null;
 afterEach(() => {
@@ -24,11 +26,7 @@ describe("Typography settings", () => {
     root = createRoot(host);
 
     act(() => root?.render(withTestLocalization(
-      <TypographySettingsView
-        typographyPreferences={DEFAULT_TYPOGRAPHY_PREFERENCES}
-        markdownThemeId="default-neutral"
-        onTypographyPreferencesChange={vi.fn()}
-      />,
+      <TypographySettingsView />,
     )));
 
     const scale = host.querySelector('[aria-label="Application text size"]');
@@ -55,18 +53,14 @@ describe("Typography settings", () => {
     root = createRoot(host);
 
     act(() => root?.render(withTestLocalization(
-      <TypographySettingsView
-        typographyPreferences={DEFAULT_TYPOGRAPHY_PREFERENCES}
-        markdownThemeId="default-neutral"
-        onTypographyPreferencesChange={vi.fn()}
-      />,
+      <TypographySettingsView />,
     )));
 
     const preview = host.querySelector<HTMLElement>('[aria-label="Typography preview"]');
     expect(preview).not.toBeNull();
     const editor = preview?.querySelector<HTMLElement>('[aria-label="Editor"]');
     expect(editor?.dataset.poThemeSurface).toBe("markdown");
-    expect(editor?.dataset.poThemeId).toBe("default-neutral");
+    expect(editor?.dataset.poThemeId).toBe("default.neutral");
     expect(editor?.dataset.poTypographyRole).toBe("content");
     expect(preview?.hasAttribute("data-po-theme-surface")).toBe(false);
     expect(preview?.querySelector('[aria-label="Left sidebar"]')?.textContent).toContain("Notes.md");
@@ -84,27 +78,23 @@ describe("Typography settings", () => {
   });
 
   it("updates the single application scale without exposing custom values", () => {
-    const onChange = vi.fn();
     const host = document.createElement("div");
     host.dataset.poAppearanceRoot = "true";
     document.body.append(host);
     root = createRoot(host);
 
     act(() => root?.render(withTestLocalization(
-      <TypographyScaleSetting
-        preferences={DEFAULT_TYPOGRAPHY_PREFERENCES}
-        onChange={onChange}
-      />,
+      <TypographyScaleSetting />,
     )));
 
     const largeButton = host.querySelector<HTMLButtonElement>(
       '[aria-label="Use Large text throughout PuppyOne"]',
     );
     act(() => largeButton?.click());
-    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
+    expect(store.getState().typographyPreferences).toEqual(expect.objectContaining({
       scale: "large",
     }));
-    expect(onChange.mock.calls[0]?.[0]).not.toHaveProperty("scales");
+    expect(store.getState().typographyPreferences).not.toHaveProperty("scales");
     expect(host.querySelector('input[type="number"]')).toBeNull();
   });
 });

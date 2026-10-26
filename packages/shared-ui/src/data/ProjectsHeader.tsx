@@ -48,14 +48,14 @@ export function ProjectsHeader({ pathSegments, onBack, actionSlot }: ProjectsHea
             return (
               <div key={index} style={{ display: "flex", alignItems: "center", minWidth: 0 }}>
                 {index > 0 && <span style={{ marginInline: 8, color: "var(--po-text-disabled)" }}>/</span>}
-                <Tooltip content={typeof segment.label === "string" ? segment.label : undefined} overflowOnly><span
+                <span
                   style={{
                     ...pathStyle,
                     color: isLast ? "var(--po-text)" : "var(--po-text-muted)",
                   }}
                 >
                   {segment.label}
-                </span></Tooltip>
+                </span>
               </div>
             );
           })}

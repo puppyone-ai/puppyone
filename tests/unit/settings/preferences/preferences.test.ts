@@ -227,13 +227,32 @@ describe("experimental preferences", () => {
     expect(settings).not.toHaveProperty("enableAgentCompanion");
   });
 
-  it("keeps PuppyOne Cloud off unless the user explicitly opts in", () => {
+  it.each([null, "not-json", "{}", '{"enableProjectLocationIconsInHeader":"true"}'])("keeps existing installations on the project popup (%s)", (stored) => {
+    expect(parseExperimentalSettings(stored).enableProjectLocationIconsInHeader).toBe(false);
+  });
+
+  it.each([null, "not-json", "{}", '{"enableProjectReach":"true"}', '{"enableProjectReach":1}'])(
+    "keeps the project reach experience off for existing installations (%s)",
+    (stored) => {
+      expect(parseExperimentalSettings(stored).enableProjectReach).toBe(false);
+    },
+  );
+
+  it("restores explicit project reach consent without moving another experiment", () => {
+    expect(DEFAULT_EXPERIMENTAL_SETTINGS.enableProjectReach).toBe(false);
+    expect(parseExperimentalSettings(JSON.stringify({ enableProjectReach: true })))
+      .toEqual({ ...DEFAULT_EXPERIMENTAL_SETTINGS, enableProjectReach: true });
+  });
+
+  it("restores explicit Header location icon consent", () => {
+    expect(parseExperimentalSettings(JSON.stringify({ enableProjectLocationIconsInHeader: true })).enableProjectLocationIconsInHeader).toBe(true);
+  });
+
+  it("keeps Puppyone Cloud off unless the user explicitly opts in", () => {
     expect(parseExperimentalSettings(null).enableCloudWorkspace).toBe(false);
     expect(parseExperimentalSettings("not-json").enableCloudWorkspace).toBe(false);
     expect(parseExperimentalSettings(JSON.stringify({ enableCloudWorkspace: false })).enableCloudWorkspace).toBe(false);
     expect(parseExperimentalSettings(JSON.stringify({ enableCloudWorkspace: true })).enableCloudWorkspace).toBe(true);
-    expect(parseExperimentalSettings(null).enableWorkbenchTabsInHeader).toBe(false);
-    expect(parseExperimentalSettings(JSON.stringify({ enableWorkbenchTabsInHeader: true })).enableWorkbenchTabsInHeader).toBe(true);
   });
 
   it("keeps Share from the Header on unless the user explicitly opts out", () => {
@@ -242,6 +261,16 @@ describe("experimental preferences", () => {
     expect(parseExperimentalSettings(JSON.stringify({})).enableShareOnboarding).toBe(true);
     expect(parseExperimentalSettings(JSON.stringify({ enableShareOnboarding: false })).enableShareOnboarding).toBe(false);
     expect(parseExperimentalSettings(JSON.stringify({ enableShareOnboarding: true })).enableShareOnboarding).toBe(true);
+  });
+
+  it("restores project alignment independently of Cloud and ignores the retired Git card", () => {
+    const settings = parseExperimentalSettings(JSON.stringify({
+      enableCenteredProjectInHeader: true,
+      enableGitCardInHeader: true,
+    }));
+    expect(settings).toEqual({ ...DEFAULT_EXPERIMENTAL_SETTINGS, enableCenteredProjectInHeader: true });
+    expect(settings.enableCenteredProjectInHeader).toBe(true);
+    expect(settings).not.toHaveProperty("enableGitCardInHeader");
   });
 
   it("keeps onboarding coachmark replay off unless the user explicitly opts in", () => {

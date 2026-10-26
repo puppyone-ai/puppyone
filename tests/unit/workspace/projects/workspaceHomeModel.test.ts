@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { getWorkspaceParentPathForDisplay } from "../../../../src/features/app-shell/workspaceHomeModel";
+import { getWorkspaceParentPathForDisplay, getWorkspacePathForDisplay } from "../../../../src/lib/workspaceHomeModel";
 
 describe("desktop workspace display path", () => {
+  it("abbreviates Mac home paths without removing the project or abbreviating external locations", () => {
+    expect(getWorkspacePathForDisplay("/Users/example/project/demo")).toBe("~/project/demo");
+    expect(getWorkspacePathForDisplay("/Users/example")).toBe("~");
+    expect(getWorkspacePathForDisplay("/Volumes/Projects/demo")).toBe("/Volumes/Projects/demo");
+    expect(getWorkspacePathForDisplay("C:\\Projects\\demo")).toBe("C:\\Projects\\demo");
+  });
+
   it("shows the home-relative parent without repeating the project name", () => {
     expect(getWorkspaceParentPathForDisplay("/Users/example/Desktop/puppyone desktop"))
       .toBe("~/Desktop");

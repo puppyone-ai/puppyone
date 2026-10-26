@@ -122,13 +122,13 @@ export function shareStatusBadge(status: CloudShareStatus, t: MessageFormatter):
 function shareStatusHint(status: CloudShareStatus, t: MessageFormatter): string | null {
   switch (status.kind) {
     case "local":
-      return t("cloud.share.status.localHint");
+      return null;
     case "signed-out":
-      return t("cloud.share.status.signedOutHint");
+      return null;
     case "published":
-      return t("cloud.share.status.publishedHint");
+      return null;
     case "shared":
-      return t("cloud.share.status.sharedHint");
+      return null;
     case "waiting":
       return t("cloud.share.status.waitingHint", { target: pendingTargetLabel(status, t) });
     case "attention":

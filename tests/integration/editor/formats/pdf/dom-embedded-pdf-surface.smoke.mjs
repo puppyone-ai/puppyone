@@ -162,6 +162,7 @@ async function captureEditor(contents) {
 
 async function run() {
   let exitCode = 0;
+  const nativeDiagnostics = [];
   try {
     const capabilities = createLocalFileCapabilityStore({
       createToken: (() => {
@@ -193,6 +194,11 @@ async function run() {
         plugins: true,
         backgroundThrottling: false,
       },
+    });
+    ownerWindow.webContents.on("console-message", (event) => {
+      if (event.level === 'error' || event.level === 3) nativeDiagnostics.push({
+        message: event.message, frame: event.frame?.url, source: event.sourceId, line: event.lineNumber,
+      });
     });
     await ownerWindow.loadURL(hostUrl);
     const tokenA = capabilities.issue({
@@ -269,6 +275,8 @@ async function run() {
       passed: true,
       surface: "Editor DOM iframe",
       compute: "Chromium PDF Viewer/PDFium",
+      electronVersion: process.versions.electron,
+      nativeDiagnostics,
       checks: [
         "controlled capability protocol",
         "painted frame",

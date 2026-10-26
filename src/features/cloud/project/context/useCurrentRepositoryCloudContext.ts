@@ -14,8 +14,10 @@ import { cloudMessage } from "../../cloudPresentation";
 import { repositoryTargetMatchesRemote } from "../../repositoryTarget";
 import { isRetryableCloudFailure } from "../../workspace/cloudProjectResolution";
 import { createWorkspaceCloudResolutionKey } from "../../workspace/workspaceCloudResolutionKey";
-import { isTrustedCloudGitOrigin } from "../../workspace/workspaceGitRemote";
+import { isTrustedCloudProjectLocator } from "../../workspace/workspaceGitRemote";
 import type { ProjectCloudContext } from "./projectCloudContext";
+import { startRepositoryContextRecovery } from "./repositoryContextRecovery";
+import { describeCloudConnectionFailure } from "../../cloudOpeningFailure";
 
 type UniqueRemote = Extract<PuppyoneRemoteResolution, { status: "unique" }>;
 
@@ -66,6 +68,7 @@ export function useCurrentRepositoryCloudContext({
   cloudEnabled,
   desktopCloudApiBaseUrl,
   resolutionInputsLoading,
+  refreshKey = 0,
   updateCloudSession,
   workspace,
 }: {
@@ -74,6 +77,7 @@ export function useCurrentRepositoryCloudContext({
   cloudEnabled: boolean;
   desktopCloudApiBaseUrl: string | null;
   resolutionInputsLoading: boolean;
+  refreshKey?: number;
   updateCloudSession: (session: DesktopCloudSession | null) => void;
   workspace: Workspace | null;
 }): ProjectCloudContext {
@@ -151,7 +155,7 @@ export function useCurrentRepositoryCloudContext({
 
     const cloudRemote = remoteResolution;
     const candidateProjectId = cloudRemote.info.projectId ?? null;
-    if (!isTrustedCloudGitOrigin(cloudRemote.rawUrl, apiBaseUrl)) {
+    if (!isTrustedCloudProjectLocator(cloudRemote.rawUrl, apiBaseUrl)) {
       apply({
         status: "wrong-host",
         projectId: candidateProjectId,
@@ -181,7 +185,7 @@ export function useCurrentRepositoryCloudContext({
       }
 
       const statusCode = errorStatus(error);
-      const detail = error instanceof Error ? error.message : String(error);
+      const connectionFailure = describeCloudConnectionFailure(error);
       if (statusCode === 401) {
         apply({
           status: "wrong-account",
@@ -204,13 +208,13 @@ export function useCurrentRepositoryCloudContext({
         apply({
           status: "temporarily-unavailable",
           projectId: candidateProjectId,
-          message: cloudMessage("remote-network-failed", undefined, detail),
+          message: connectionFailure ?? cloudMessage("remote-network-failed"),
         });
       } else {
         apply({
           status: "unresolvable",
           projectId: null,
-          message: cloudMessage("remote-unresolvable", undefined, detail),
+          message: connectionFailure ?? cloudMessage("remote-unresolvable"),
         });
       }
     };
@@ -244,6 +248,7 @@ export function useCurrentRepositoryCloudContext({
       apply({
         status: "resolved",
         projectId: context.project.id,
+        ...(context.project.name?.trim() ? { projectName: context.project.name.trim() } : {}),
         target: context.target,
         ...(context.scope_path ? { scopePath: context.scope_path } : {}),
         ...(context.project.capabilities?.length
@@ -252,9 +257,9 @@ export function useCurrentRepositoryCloudContext({
       });
     };
 
-    void resolveCanonical().catch(onFailure);
-    return () => { cancelled = true; };
-  }, [cloudEnabled, resolutionInputsLoading, snapshot, updateCloudSession]);
+    const stopRecovery = startRepositoryContextRecovery(resolveCanonical, onFailure);
+    return () => { cancelled = true; stopRecovery(); };
+  }, [cloudEnabled, refreshKey, resolutionInputsLoading, snapshot, updateCloudSession]);
 
   if (!workspace || !cloudEnabled) {
     return { status: "local-only", projectId: null };

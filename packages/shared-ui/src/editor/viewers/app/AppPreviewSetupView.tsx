@@ -147,16 +147,13 @@ export function AppPreviewSetupView({
         {screen === "detecting" ? (
           <SetupHero
             icon={<LoaderCircle className="app-setup-spinner" size={22} aria-hidden="true" />}
-            title={t("editor.app.setup.title")}
-            detail={t("editor.app.setup.detail")}
+            title={t("editor.app.setup.detecting")}
           >
-            <div className="app-setup-detecting" role="status">{t("editor.app.setup.detecting")}</div>
           </SetupHero>
         ) : screen === "detected" && selectedProject ? (
           <SetupHero
             icon={<Globe2 size={22} aria-hidden="true" />}
             title={t("editor.app.setup.detectedTitle")}
-            detail={t("editor.app.setup.detectedDetail")}
           >
             <ProjectCard candidate={selectedProject} recommended />
             <button className="app-setup-primary" type="button" disabled={busy} onClick={() => startProject(selectedProject)}>
@@ -171,7 +168,6 @@ export function AppPreviewSetupView({
           <SetupHero
             icon={<Globe2 size={22} aria-hidden="true" />}
             title={t("editor.app.setup.projectsTitle")}
-            detail={t("editor.app.setup.projectsDetail")}
           >
             <div className="app-setup-project-list" role="radiogroup" aria-label={t("editor.app.setup.detectedProjects")}>
               {detection.projects.map((candidate) => (
@@ -208,13 +204,7 @@ export function AppPreviewSetupView({
                 : detectionUnavailable
                   ? t("editor.app.setup.detectionUnavailableTitle")
                   : t("editor.app.setup.methodsTitle")}
-            detail={settings
-              ? t("editor.app.setup.settingsDetail")
-              : noDetectedProject
-                ? t("editor.app.setup.noProjectDetail")
-                : detectionUnavailable
-                  ? t("editor.app.setup.detectionUnavailableDetail")
-                  : t("editor.app.setup.methodsDetail")}
+            detail={detectionUnavailable ? t("editor.app.setup.detectionUnavailableDetail") : undefined}
           >
             {showMethodSuggestions ? (
               <span className="app-setup-suggestions-label">{t("editor.app.setup.suggestionsTitle")}</span>
@@ -223,7 +213,6 @@ export function AppPreviewSetupView({
               <MethodButton
                 icon={<FolderOpen size={18} />}
                 title={t("editor.app.setup.methodProject")}
-                detail={t("editor.app.setup.methodProjectDetail")}
                 onClick={() => setScreen(detection.projects.length ? "projects" : "advanced")}
               />
               <MethodButton
@@ -251,7 +240,7 @@ export function AppPreviewSetupView({
             ) : null}
           </SetupHero>
         ) : screen === "html" ? (
-          <SetupForm title={t("editor.app.setup.htmlTitle")} detail={t("editor.app.setup.htmlDetail")}>
+          <SetupForm title={t("editor.app.setup.htmlTitle")}>
             {detection.htmlFiles.length ? (
               <label className="app-setup-field">
                 <span>{t("editor.app.setup.htmlFile")}</span>
@@ -281,7 +270,7 @@ export function AppPreviewSetupView({
             }} />
           </SetupForm>
         ) : (
-          <SetupForm title={t("editor.app.setup.advancedTitle")} detail={t("editor.app.setup.advancedDetail")}>
+          <SetupForm title={t("editor.app.setup.advancedTitle")}>
             <label className="app-setup-field">
               <span>{t("editor.app.setup.workingFolder")}</span>
               <input value={cwd} placeholder={t("editor.app.setup.workingFolderPlaceholder")} spellCheck={false} onChange={(event) => setCwd(event.target.value)} />
@@ -317,12 +306,12 @@ export function AppPreviewSetupView({
   );
 }
 
-function SetupHero({ icon, title, detail, children }: { icon: React.ReactNode; title: string; detail: string; children: React.ReactNode }) {
+function SetupHero({ icon, title, detail, children }: { icon: React.ReactNode; title: string; detail?: string; children?: React.ReactNode }) {
   return (
     <div className="app-setup-hero">
       <span className="app-setup-hero-icon">{icon}</span>
-      <h2>{title}</h2>
-      <p>{detail}</p>
+      <h2 role="status">{title}</h2>
+      {detail && <p>{detail}</p>}
       {children}
     </div>
   );
@@ -342,18 +331,18 @@ function ProjectCard({ candidate, recommended = false }: { candidate: AppPreview
   );
 }
 
-function MethodButton({ icon, title, detail, onClick }: { icon: React.ReactNode; title: string; detail: string; onClick: () => void }) {
+function MethodButton({ icon, title, detail, onClick }: { icon: React.ReactNode; title: string; detail?: string; onClick: () => void }) {
   return (
     <button className="app-setup-method" type="button" data-po-interaction="navigation" onClick={onClick}>
       <span className="app-setup-method-icon">{icon}</span>
-      <span><strong>{title}</strong><small>{detail}</small></span>
+      <span><strong>{title}</strong>{detail && <small>{detail}</small>}</span>
       <ChevronRight size={16} aria-hidden="true" />
     </button>
   );
 }
 
-function SetupForm({ title, detail, children }: { title: string; detail: string; children: React.ReactNode }) {
-  return <div className="app-setup-form"><h2>{title}</h2><p>{detail}</p>{children}</div>;
+function SetupForm({ title, detail, children }: { title: string; detail?: string; children?: React.ReactNode }) {
+  return <div className="app-setup-form"><h2>{title}</h2>{detail && <p>{detail}</p>}{children}</div>;
 }
 
 function SetupActions({ busy, disabled, onBack, onSubmit }: { busy: boolean; disabled: boolean; onBack: () => void; onSubmit: () => void }) {

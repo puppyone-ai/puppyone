@@ -1,5 +1,6 @@
 {
   "loading": "Chargement…",
+  "explorer.dropToAddFiles": "Déposez pour ajouter des fichiers",
   "explorer.root": "Racine",
   "explorer.emptyFolder": "Dossier vide",
   "explorer.loadingWorkspace": "Chargement de l’espace de travail…",
@@ -16,5 +17,10 @@
   "status.modified": "Modifié",
   "status.created": "Créé",
   "status.deleted": "Supprimé",
-  "status.moved": "Déplacé"
+  "status.moved": "Déplacé",
+  "scrollbar.up": "Faire défiler vers le haut",
+  "scrollbar.down": "Faire défiler vers le bas",
+  "scrollbar.left": "Faire défiler vers la gauche",
+  "scrollbar.right": "Faire défiler vers la droite",
+  "notice.dismiss": "Ignorer"
 }

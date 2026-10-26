@@ -1,4 +1,7 @@
 {
+  "node.copyLink": "Copier le lien",
+  "workbench.renderFailure": "Impossible d’afficher cet onglet.",
+  "workbench.reloadView": "Recharger la vue",
   "workbench.newTab": "Nouvel onglet",
   "projectSessions.sessionCloseFailed": "Impossible de fermer cette session. Réessayez.",
   "projectSessions.closing": "Fermeture du projet…",
@@ -61,6 +64,7 @@
   "node.creating": "Création…",
   "node.create": "Créer",
   "node.actionsFor": "Actions pour {name}",
+  "node.copyPath": "Copier le chemin",
   "node.newFileOrFolder": "Nouveau fichier ou dossier",
   "node.pasteIntoFolder": "Coller dans le dossier",
   "node.copyItems": "{count, plural, one {Copier # élément} other {Copier # éléments}}",

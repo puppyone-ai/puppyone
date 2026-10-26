@@ -1,0 +1,18 @@
+@layer features {
+  .desktop-cloud-sign-in-gate {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .desktop-cloud-sign-in-button svg {
+    flex: 0 0 auto;
+  }
+
+  .desktop-cloud-sign-in-error {
+    margin: 0;
+    color: var(--po-danger);
+    font-size: var(--po-type-ui-body, 14px);
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+}

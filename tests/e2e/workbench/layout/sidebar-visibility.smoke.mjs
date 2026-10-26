@@ -150,12 +150,11 @@ async function opened(id, label) {
   assert(pixels > 100, "Capture omitted the visible contribution; absence checks would be invalid");
 }
 async function selectProject(name) {
-  await evaluate(`(() => {
-    const button=[...document.querySelectorAll('.desktop-project-switcher-rail-project')]
-      .find(x=>x.getAttribute('aria-label')?.includes(${JSON.stringify(name)}));
-    if(!button)throw new Error(${JSON.stringify("Project rail button is unavailable: ")}+${JSON.stringify(name)});
-    button.click();
-  })()`);
+  // Rail selection opens a dedicated window since d9518fec; switching inside this
+  // window uses Main's current-window open request, as project-sessions does.
+  const root = roots.find(candidate => path.basename(candidate) === name);
+  if (!root) throw new Error(`Unknown project fixture: ${name}`);
+  window.webContents.send("workspace:open-requested", { rootPath: root });
   await until(() => evaluate(`[...document.querySelectorAll('.desktop-project-switcher-rail-project')].some(x=>x.getAttribute('aria-label')?.includes(${JSON.stringify(name)})&&x.getAttribute('aria-current')==='page')`), name);
 }
 async function launch(kind) {

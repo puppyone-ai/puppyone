@@ -1,3 +1,4 @@
+import { initializeDesktopPreferences } from "../../../../src/preferencesStore";
 import { redo, undo } from "@codemirror/commands";
 import type { DataNode } from "@puppyone/shared-ui";
 import { createEditorInput } from "@puppyone/shared-ui";
@@ -18,7 +19,7 @@ import {
 } from "@puppyone/shared-ui";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { closeAllDocumentWorkingCopies } from "../../../../packages/shared-ui/src/editor/document-session/documentWorkingCopies";
 import { EditorDocumentHost } from "../../../../packages/shared-ui/src/editor/host/EditorDocumentHost";
 import { preloadPresetViewer } from "../../../../packages/shared-ui/src/editor/host/PresetViewerRenderer";
@@ -167,6 +168,8 @@ afterEach(async () => {
   document.body.innerHTML = "";
   vi.restoreAllMocks();
 });
+
+beforeEach(() => initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeItem: () => {} }));
 
 describe("P0 editor external-consistency matrix", () => {
   it("requires every editable preset Viewer family to have a P0 consistency fixture", () => {
@@ -541,7 +544,7 @@ function runtimeElement(
         showSaveStatus: false,
         markdownBlockDragEnabled: false,
       }}
-      fileIconTheme="default"
+
       markdownEnvironment={EMPTY_MARKDOWN_WORKSPACE_ENVIRONMENT}
       refreshKey={refreshKey}
       treeNode={node}

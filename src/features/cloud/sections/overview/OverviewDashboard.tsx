@@ -1,14 +1,11 @@
 import { useLocalization } from "@puppyone/localization/react";
-import { Tooltip, FileGlyphIcon } from "@puppyone/shared-ui";
+import { FileGlyphIcon } from "@puppyone/shared-ui";
 import type {
   DesktopCloudDashboard,
   DesktopCloudTree,
 } from "../../../../lib/cloudApi";
 import type { DesktopCloudHistory } from "../../../../lib/cloudHistoryApi";
-import {
-  formatFullTime,
-  formatRelativeTime,
-} from "../../utils";
+import { formatRelativeTime } from "../../utils";
 import {
   getCloudOverviewEntryUpdatedAt,
   getCloudOverviewRootEntries,
@@ -73,17 +70,15 @@ export function CloudOverviewDashboard({
                   <span className="desktop-cloud-overview-file-icon" aria-hidden="true">
                     <FileGlyphIcon name={entry.name} type={entry.type} size={15} />
                   </span>
-                  <Tooltip content={entry.path} overflowOnly>
-                    <strong className="desktop-cloud-overview-file-name" dir="auto">{entry.name}</strong>
-                  </Tooltip>
+                  <strong className="desktop-cloud-overview-file-name" dir="auto">{entry.name}</strong>
                 </span>
                 <span className="desktop-cloud-overview-file-modified">
                   {updatedAt ? (
-                    <Tooltip content={formatFullTime(updatedAt, localization.formatDate)}><time
+                    <time
                       dateTime={updatedAt}
                     >
                       {formatRelativeTime(updatedAt, localization)}
-                    </time></Tooltip>
+                    </time>
                   ) : "—"}
                 </span>
               </div>

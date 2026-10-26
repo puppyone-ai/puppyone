@@ -1,4 +1,5 @@
-import { Cloud } from "lucide-react";
+import { Tooltip } from "@puppyone/shared-ui";
+import { CloudIcon as Cloud } from "../../components/icons/CloudIcon";
 import { useLocalization } from "@puppyone/localization";
 import type { ReactNode } from "react";
 import {
@@ -6,12 +7,13 @@ import {
   DesktopDialogRoot,
   DesktopDialogSurface,
 } from "../../components/DesktopDialog";
-import { DesktopOverlayLayer } from "../app-shell/DesktopOverlayPortal";
+import { DesktopOverlayLayer } from "../../components/DesktopOverlayPortal";
 
 export type CloudDialogProps = {
   sidebar: ReactNode;
   main: ReactNode;
   onClose: () => void;
+  locationControls?: ReactNode;
 };
 
 /**
@@ -19,7 +21,7 @@ export type CloudDialogProps = {
  * content, while the Explorer, editors, and auxiliary sidebar remain mounted
  * underneath the shared desktop overlay layer.
  */
-export function CloudDialog({ sidebar, main, onClose }: CloudDialogProps) {
+export function CloudDialog({ sidebar, main, onClose, locationControls }: CloudDialogProps) {
   const { t } = useLocalization();
   const title = t("cloud.productName");
 
@@ -28,17 +30,20 @@ export function CloudDialog({ sidebar, main, onClose }: CloudDialogProps) {
       <DesktopDialogRoot className="desktop-cloud-dialog-backdrop" onClose={onClose}>
         <DesktopDialogSurface
           className="desktop-cloud-dialog"
-          width="min(960px, calc(100vw - 80px))"
+          width={960}
           ariaLabel={title}
         >
           <header className="desktop-dialog-header desktop-cloud-dialog-header">
             <div className="desktop-dialog-title-row desktop-cloud-dialog-title-row">
               <span className="desktop-cloud-dialog-leading" aria-hidden="true">
-                <Cloud size={15} strokeWidth={1.9} />
+                <Cloud size={15} />
               </span>
               <h2>{title}</h2>
             </div>
-            <DesktopDialogCloseButton label={t("common.action.close")} onClick={onClose} />
+            {locationControls && <div className="desktop-cloud-dialog-location-controls">
+              {locationControls}
+            </div>}
+            <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton label={t("common.action.close")} onClick={onClose} /></Tooltip>
           </header>
 
           <div className="desktop-cloud-dialog-layout">

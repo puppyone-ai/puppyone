@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FEATURE_FLAG_DEFAULTS } from "../../../../src/features/flags/registry";
-import { resolveFeatureFlags } from "../../../../src/features/flags/resolveFlags";
+import { resolveFeatureFlags } from "../../../../src/features/flags";
 import {
   cloudContextHasProject,
   getResolvedCloudProjectId,
@@ -12,8 +11,7 @@ import { cloudMessage } from "../../../../src/features/cloud/cloudPresentation";
 
 describe("local repository application shell", () => {
   it("has one Cloud feature flag and no Cloud-only workspace mode", () => {
-    expect(FEATURE_FLAG_DEFAULTS.cloudWorkspace).toBe(true);
-    expect(FEATURE_FLAG_DEFAULTS).not.toHaveProperty("cloudOnlyWorkspace");
+    expect(resolveFeatureFlags({})).toEqual({ cloudWorkspace: true, cloudBilling: false, assetLibraryHome: false });
     expect(resolveFeatureFlags({})).not.toHaveProperty("cloudOnlyWorkspace");
   });
 });

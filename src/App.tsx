@@ -1,5 +1,6 @@
 import { useWorkspaceEntryBootstrap } from "./features/app-shell/useWorkspaceEntryBootstrap";
 import { useHeaderCoachmarks } from "./features/app-shell/headerCoachmarks";
+import { useGitPresentation } from "./features/app-shell/useGitPresentation";
 import {
   lazy,
   Suspense,
@@ -19,6 +20,7 @@ import {
   isDocumentDataNode,
   qualifyDataResourcePath,
   type DataNode,
+  type Workspace,
   type WorkspaceContentChange,
   type WorkspaceFolder,
 } from "@puppyone/shared-ui";
@@ -30,12 +32,34 @@ import {
   type SettingsSection,
 } from "./features/settings";
 import { CLOUD_HUB_ENTRY_SECTION, type CloudWorkspaceSection } from "./features/cloud";
+import { useAccountCloudWorkspace } from "./features/cloud/workbench/useAccountCloudWorkspace";
+import { CloudWorkspaceHeaderTools } from "./features/cloud/workbench/CloudWorkspaceHeaderTools";
+import { captureCloudWorkspaceShareResource } from "./features/cloud/share/cloudWorkspaceShareResource";
+import { useCloudAgentWorkspace } from "./features/cloud/agent/useCloudAgentWorkspace";
+import { CloudWorkspaceSidebar } from "./features/cloud/workbench/CloudWorkspaceSidebar";
+import { useCloudWorkspaceSidebar } from "./features/cloud/workbench/useCloudWorkspaceSidebar";
+import { useRepositoryCloudWorkspaceSwitch } from "./features/cloud/workbench/useRepositoryCloudWorkspaceSwitch";
+import { CloudWorkspaceSwitchDialog } from "./features/cloud/workbench/CloudWorkspaceSwitchDialog";
+import { RepositoryCloudSwitchGate } from "./features/cloud/workbench/RepositoryCloudSwitchGate";
+import { MissingCloudProjectRecovery } from "./features/cloud/workbench/MissingCloudProjectRecovery";
+import { CloudInitializationRoute } from "./features/cloud/initialization/CloudInitializationRoute";
+import { useHomepageCloudProjects } from "./features/cloud/workbench/useHomepageCloudProjects";
+import { HomepageCloudStatus } from "./features/cloud/workbench/HomepageCloudStatus";
+import {
+  AccountCloudWorkspaceSurface,
+  useAccountCloudWorkspacePresentation,
+} from "./app/AccountCloudWorkspaceSurface";
+import { getCloudAuthSession, resolveCloudAuthState } from "./features/cloud/auth";
+import { FirstRunSignInScreen } from "./features/cloud/auth/FirstRunSignInScreen";
+import { useFirstRunSignIn } from "./features/cloud/auth/useFirstRunSignIn";
+import { useNativeCloudWorkbench } from "./features/cloud/workbench/useNativeCloudWorkbench";
 import {
   MinimalOnboarding,
 } from "./components/MinimalOnboarding";
 import { AssetLibraryHome } from "./components/AssetLibraryHome";
 import {
   closeAgentChatWorkbenchItem,
+  createAgentChatCloseAdapter,
   discardPreparedAgentChatWorkbenchItem,
   loadAgentChatHistoryBrowser,
   loadAgentChatWorkbenchItem,
@@ -56,34 +80,34 @@ import { useDesktopUpdates } from "./features/updates";
 import {
   readPuppyoneWorkspaceConfig,
   removeWorkspaceGitRemote,
+  openCloudProjectInNewWindow,
   showHomepage,
 } from "./lib/localFiles";
 import { openWorkspaceTarget } from "./lib/workspaceOpening";
 import {
   getDesktopCloudApiBaseUrl,
-  isCloudSessionForApiBase,
   type DesktopCloudSession,
 } from "./lib/cloudApi";
-import {
-  resolveVisibleCreateNewMenuItems,
-  type FilesVisibilitySettings,
-} from "./preferences";
-import type { PuppyoneWorkspaceConfig } from "./types/electron";
+import { resolveVisibleCreateNewMenuItems } from "./preferences";
+import type { GitRemoteSummary, PuppyoneWorkspaceConfig } from "./types/electron";
 import {
   mergePuppyoneWorkspaceConfig,
 } from "./features/app-shell/preferences";
+import { DesktopProjectLocationControls, type DesktopProjectLocation } from "./components/DesktopProjectLocationSwitcher";
 import { DesktopTitlebarContext } from "./features/app-shell/DesktopTitlebarContext";
 import { DesktopWorkspaceContent } from "./features/app-shell/DesktopWorkspaceContent";
+import { DesktopWorkspaceLocationSurface } from "./features/app-shell/DesktopWorkspaceLocationSurface";
+import { CloudWorkspacePreparation } from "./features/cloud/workbench/CloudWorkspacePreparation";
 import { DesktopTitlebarActions } from "./features/app-shell/DesktopTitlebarActions";
 import {
   DesktopShellLocationBar,
   resolveDesktopShellLocationPath,
   resolveDesktopShellWorkspaceEntryPath,
 } from "./features/app-shell/DesktopShellLocationBar";
-import { DesktopOverlayPortal } from "./features/app-shell/DesktopOverlayPortal";
+import { DesktopOverlayPortal } from "./components/DesktopOverlayPortal";
 import { DesktopHelpLauncher } from "./features/app-shell/DesktopHelpLauncher";
 import { RestoringWorkspaceScreen } from "./features/app-shell/RestoringWorkspaceScreen";
-import { useDesktopPreferences } from "./features/app-shell/useDesktopPreferences";
+import { useDesktopPreference, useDesktopAppearance, useDesktopPreferenceEffects } from "./features/settings";
 import { isAssetLibraryHomeEnabled } from "./features/app-shell/homeFeatureGate";
 import { useWorkspaceLifecycle } from "./features/app-shell/useWorkspaceLifecycle";
 import { usePuppyoneConfig } from "./features/app-shell/usePuppyoneConfig";
@@ -91,10 +115,11 @@ import { useExternalFileOpen } from "./features/external-apps/useExternalFileOpe
 import { useDesktopCloudSession } from "./features/cloud/hooks/useDesktopCloudSession";
 import {
   getResolvedCloudProjectId,
+  getProjectCloudLocationState,
   resolveCloudHubSectionAfterContextChange,
   useCurrentRepositoryCloudContext,
 } from "./features/cloud/project/context";
-import { useFeatureFlag } from "./features/flags";
+import { useCloudEnabled, useFeatureFlag } from "./features/flags";
 import {
   DesktopCreateEntryDialog,
   DesktopCreateEntryMenu,
@@ -104,6 +129,7 @@ import { createExplorerDataPort } from "./features/data-workspace/explorer";
 import { createWorkbenchDataService } from "./features/data-workspace/workbenchDataPort";
 import { useProjectExplorerSelection } from "./features/data-workspace/useProjectExplorerSession";
 import { useDataNodeActions } from "./features/data-workspace/useDataNodeActions";
+import { EditorHeaderTabs } from "./features/editor-workbench/header/EditorHeaderTabs";
 import { useAiEditReviewRequest } from "./features/data-workspace/useAiEditReviewRequest";
 import { useWorkbenchWorkspaceContentWatch } from "./features/data-workspace/useWorkbenchWorkspaceContentWatch";
 import { appendWorkbenchWorkspaceContentChange } from "./features/data-workspace/workbenchWorkspaceContentChange";
@@ -120,13 +146,26 @@ import { shouldBlockWorkspaceCloudResolution } from "./features/cloud/workspace/
 import { useCloudInitialization } from "./features/cloud/initialization/useCloudInitialization";
 import {
   CloudShareProvider,
-  resolveProjectLocationStatus,
+  ProjectReachDialog,
+  ReadersList,
+  SHARE_TARGETS,
   ShareWizardDialog,
+  resolveCloudShareStatus,
+  shareTargetLabelKey,
   useProjectShareActivity,
+  useProjectShareRevoke,
   type CloudShareActions,
+  type ReachPreviewData,
   type ShareTargetId,
   type ShareWizardFolderEntry,
 } from "./features/cloud/share";
+import { useProjectReachExperience } from "./features/project-reach";
+import {
+  ProjectReachPeople,
+  reachHeaderChangesStatus,
+  resolveProjectReachState,
+  type ProjectReachControlProps,
+} from "./features/app-shell/project-reach";
 import {
   TYPOGRAPHY_SCALE_METRICS,
   useTypographyCatalog,
@@ -138,10 +177,9 @@ import {
 } from "./features/appearance/AppearanceRuntime";
 import { useDesktopEditorWorkbench } from "./features/editor-workbench/controller/useDesktopEditorWorkbench";
 import type {
-  AuxiliaryWorkbenchCloseAdapter,
   AuxiliaryWorkbenchContribution,
   AuxiliaryWorkbenchHistoryBrowserContext,
-} from "./features/app-shell/auxiliary-workbench/types";
+} from "./lib/workbench/types";
 import {
   AGENT_CHAT_CREATION_RECIPES,
   resolveAgentChatRuntimeVisibility,
@@ -174,19 +212,55 @@ function AppContent() {
   const [activeView, setActiveView] = useState<DesktopView>("data");
   const lastProjectViewRef = useRef<ProjectDesktopView>("data");
   const subThemeCatalog = useSubThemeCatalog();
-  const preferences = useDesktopPreferences(subThemeCatalog.snapshot);
-  const multiRootWorkspacesEnabled = preferences.experimentalSettings.enableMultiRootWorkspaces;
+  useDesktopPreferenceEffects(subThemeCatalog.snapshot);
+  const { resolvedAppearance, resolvedTheme, darkThemePreset, lightThemePreset } = useDesktopAppearance();
+  const aiEditAssistEnabled = useDesktopPreference(s => s.aiEditAssistEnabled);
+  const createNewMenuSettings = useDesktopPreference(s => s.createNewMenuSettings);
+  const explorerWidth = useDesktopPreference(s => s.explorerWidth);
+  const enableMultiRootWorkspaces = useDesktopPreference(s => s.experimentalSettings.enableMultiRootWorkspaces);
+  const enableShareOnboarding = useDesktopPreference(s => s.experimentalSettings.enableShareOnboarding);
+  const enableAssetLibraryHome = useDesktopPreference(s => s.experimentalSettings.enableAssetLibraryHome);
+  const enableViewerPlugins = useDesktopPreference(s => s.experimentalSettings.enableViewerPlugins);
+  const enableOtherAppImports = useDesktopPreference(s => s.experimentalSettings.enableOtherAppImports);
+  const enableAlwaysShowOnboardingCoachmarks = useDesktopPreference(s => s.experimentalSettings.enableAlwaysShowOnboardingCoachmarks);
+  const centerProjectInHeader = useDesktopPreference(s => s.experimentalSettings.enableCenteredProjectInHeader);
+  const enableEditorTabsInHeader = useDesktopPreference(s => s.experimentalSettings.enableEditorTabsInHeader);
+  const enableProjectSwitcherRail = useDesktopPreference(s => s.experimentalSettings.enableProjectSwitcherRail);
+  const enableWorkbenchTabsInHeader = useDesktopPreference(s => s.experimentalSettings.enableWorkbenchTabsInHeader);
+  const enablePuppyFlowFiles = useDesktopPreference(s => s.experimentalSettings.enablePuppyFlowFiles);
+  const filesVisibilitySettings = useDesktopPreference(s => s.filesVisibilitySettings);
+  const interfaceStyle = useDesktopPreference(s => s.interfaceStyle);
+  const rightSidebarOpen = useDesktopPreference(s => s.rightSidebarOpen);
+  const terminalToolEnabled = useDesktopPreference(s => s.rightSidebarToolsSettings.enabled.terminal);
+  const rightSidebarWidth = useDesktopPreference(s => s.rightSidebarWidth);
+  const rightSidebarSurface = useDesktopPreference(s => s.rightSidebarSurface);
+  const hiddenTerminalAgentIds = useDesktopPreference(s => s.localAgentsSettings.hiddenTerminalAgentIds);
+  const sidebarCollapsed = useDesktopPreference(s => s.sidebarCollapsed);
+  const diffMarkers = useDesktopPreference(s => s.diffMarkers);
+  const markdownPresentation = useDesktopPreference(s => s.markdownPresentation);
+  const pointerCursors = useDesktopPreference(s => s.pointerCursors);
+  const setRightSidebarWidth = useDesktopPreference(s => s.setRightSidebarWidth);
+  const setRightSidebarSurface = useDesktopPreference(s => s.setRightSidebarSurface);
+  const setSidebarCollapsed = useDesktopPreference(s => s.setSidebarCollapsed);
+  const setRightSidebarOpen = useDesktopPreference(s => s.setRightSidebarOpen);
+  const setProjectSwitcherExpanded = useDesktopPreference(s => s.setProjectSwitcherExpanded);
+  const typographyPreferences = useDesktopPreference(s => s.typographyPreferences);
+  const projectSwitcherWidth = useDesktopPreference(s => s.projectSwitcherWidth);
+  const setSubThemeId = useDesktopPreference(s => s.setSubThemeId);
+  const loadingAnimationPreset = useDesktopPreference(s => s.loadingAnimationPreset);
+  const projectSwitcherExpanded = useDesktopPreference(s => s.projectSwitcherExpanded);
+  const setProjectSwitcherWidth = useDesktopPreference(s => s.setProjectSwitcherWidth);
+  const multiRootWorkspacesEnabled = enableMultiRootWorkspaces;
   useSubThemeNativeMenu({
     snapshot: subThemeCatalog.snapshot,
-    rootThemeId: preferences.interfaceStyle,
-    colorMode: preferences.resolvedAppearance.effectiveColorMode,
-    selectedSubThemeId: preferences.resolvedAppearance.subThemeId,
-    onSubThemeChange: preferences.setSubThemeId,
+    rootThemeId: interfaceStyle,
+    colorMode: resolvedAppearance.effectiveColorMode,
+    selectedSubThemeId: resolvedAppearance.subThemeId,
+    onSubThemeChange: setSubThemeId,
   });
-  const { setRightSidebarOpen, setProjectSwitcherExpanded } = preferences;
   const fontCatalog = useTypographyCatalog();
   const typography = useTypographyRuntime(
-    preferences.typographyPreferences,
+    typographyPreferences,
     fontCatalog,
     locale,
   );
@@ -195,25 +269,38 @@ function AppContent() {
   );
   const projectSwitcherExpandedWidth = resolveProjectSwitcherRailWidth(
     true,
-    preferences.projectSwitcherWidth,
+    projectSwitcherWidth,
   );
   const setProjectSwitcherCollapsed = useCallback(
     (collapsed: boolean) => setProjectSwitcherExpanded(!collapsed),
     [setProjectSwitcherExpanded],
   );
-  const cloudAvailable = useFeatureFlag("cloudWorkspace");
-  // The build flag only marks availability; PuppyOne Cloud stays hidden until
-  // the user opts into the experiment in Settings.
-  const cloudEnabled = cloudAvailable && preferences.experimentalSettings.enableCloudWorkspace;
+  // The build flag only marks availability; PuppyOne Cloud, including every
+  // sign-in surface, stays hidden until the user opts into the experiment.
+  const cloudEnabled = useCloudEnabled();
   // Share onboarding rides on top of Cloud: the Header cloud icon becomes the
   // project's Local/Cloud indicator and the only entry into sharing.
-  const shareOnboardingEnabled = cloudEnabled && preferences.experimentalSettings.enableShareOnboarding;
+  const shareOnboardingEnabled = cloudEnabled && enableShareOnboarding;
+  // The share entry's fork: one screen for inviting a person or connecting an
+  // agent, or the existing step wizard. Declared in the project-reach contract.
+  const projectReachEnabled = useProjectReachExperience();
   const assetLibraryHomeAvailable = useFeatureFlag("assetLibraryHome");
   const {
     cloudSession,
+    cloudAuthStatus,
     cloudSessionRestoring,
     handleCloudSessionChange: updateCloudSession,
-  } = useDesktopCloudSession();
+  } = useDesktopCloudSession(cloudEnabled);
+  const desktopCloudApiBaseUrl = useMemo(() => getDesktopCloudApiBaseUrl(), []);
+  const activeCloudSession = useMemo(() => getCloudAuthSession(resolveCloudAuthState({
+    cloudSession: cloudAuthStatus === "authenticated" || cloudAuthStatus === "refreshing"
+      || cloudAuthStatus === "offline-authenticated" ? cloudSession : null,
+    sessionRestoring: cloudSessionRestoring,
+    environment: { apiBaseUrl: desktopCloudApiBaseUrl, source: "default", cloudRemote: null },
+  })), [cloudAuthStatus, cloudSession, cloudSessionRestoring, desktopCloudApiBaseUrl]);
+  const accountCloud = useAccountCloudWorkspace({ enabled: cloudEnabled, session: activeCloudSession, apiBaseUrl: desktopCloudApiBaseUrl });
+  const cloudWorkspaceActive = accountCloud.active;
+  const { useLocal: returnToLocalWorkspace } = accountCloud;
   const [activeCloudSection, setActiveCloudSection] = useState<CloudWorkspaceSection>("initialize");
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const projectEntryFlow = useProjectEntryFlow();
@@ -243,6 +330,7 @@ function AppContent() {
     refreshRecentWorkspaceList,
     restoreWorkspaceError,
     restoringWorkspace,
+    initialCloudProject,
     setRestoreWorkspaceError,
     setWorkspaces,
     workbenchWorkspace,
@@ -251,8 +339,9 @@ function AppContent() {
   } = useWorkspaceLifecycle({
     multiRootWorkspacesEnabled,
     onWorkspaceActivated: useCallback(() => {
+      returnToLocalWorkspace();
       setSwitcherOpen(false);
-    }, []),
+    }, [returnToLocalWorkspace]),
     onWorkspaceCleared: useCallback(() => {
       setActiveView("data");
       setSwitcherOpen(false);
@@ -261,51 +350,26 @@ function AppContent() {
       setSwitcherOpen(false);
     }, []),
   });
-  const {
-    aiEditAssistEnabled,
-    createNewMenuSettings,
-    explorerWidth,
-    experimentalSettings,
-    fileIconTheme,
-    filesVisibilitySettings,
-    interfaceStyle,
-    resolvedAppearance,
-    resolvedTheme,
-    rightSidebarOpen,
-    rightSidebarToolsSettings,
-    rightSidebarWidth,
-    rightSidebarSurface,
-    agentPreferredRuntime,
-    agentPreferredRoute,
-    agentPreferredModel,
-    localAgentsSettings,
-    sidebarCollapsed,
-    terminalToolEnabled,
-    titlebarActionsSettings,
-    darkThemePreset,
-    diffMarkers,
-    lightThemePreset,
-    markdownPresentation,
-    pointerCursors,
-    setAiEditAssistEnabled,
-    setExplorerWidth,
-    setFileIconTheme,
-    setFilesVisibilitySettings,
-    setRightSidebarToolsSettings,
-    setRightSidebarWidth,
-    setRightSidebarSurface,
-    setAgentPreferredRuntime,
-    setAgentPreferredRoute,
-    setAgentPreferredModel,
-    setLocalAgentsSettings,
-    setSidebarCollapsed,
-    setThemeMode,
-  } = preferences;
+  const projectCatalog = useHomepageCloudProjects({
+    visible: !restoringWorkspace,
+    enabled: cloudEnabled, session: activeCloudSession, apiBaseUrl: desktopCloudApiBaseUrl,
+    local: recentWorkspaceItems,
+    activeLocalPath: !cloudWorkspaceActive ? workspace?.path : undefined,
+    activeCloudProjectId: cloudWorkspaceActive && accountCloud.context.status === "resolved"
+      ? accountCloud.context.projectId : undefined,
+  });
+  const initialCloudProjectOpened = useRef(false);
+  useEffect(() => {
+    if (initialCloudProjectOpened.current || restoringWorkspace || !initialCloudProject
+      || !cloudEnabled || !activeCloudSession || activeCloudSession.user_id !== initialCloudProject.userId) return;
+    initialCloudProjectOpened.current = true;
+    void accountCloud.openTarget({ kind: "project_root", project_id: initialCloudProject.projectId });
+  }, [accountCloud.openTarget, activeCloudSession, cloudEnabled, initialCloudProject, restoringWorkspace]);
   const surfaceAppearance = useMemo(() => resolveSurfaceAppearance({
     appearance: resolvedAppearance,
     typography,
     markdownPresentation,
-    loadingAnimationPreset: preferences.loadingAnimationPreset,
+    loadingAnimationPreset,
     lightThemePreset,
     darkThemePreset,
     pointerCursors,
@@ -316,22 +380,22 @@ function AppContent() {
     lightThemePreset,
     markdownPresentation,
     pointerCursors,
-    preferences.loadingAnimationPreset,
+    loadingAnimationPreset,
     resolvedAppearance,
     typography,
   ]);
   const createNewItems = useMemo(
-    () => resolveVisibleCreateNewMenuItems(createNewMenuSettings, experimentalSettings),
-    [createNewMenuSettings, experimentalSettings],
+    () => resolveVisibleCreateNewMenuItems(createNewMenuSettings, { enablePuppyFlowFiles }),
+    [createNewMenuSettings, enablePuppyFlowFiles],
   );
   const agentChatRuntimeVisibility = useMemo(() => {
     return resolveAgentChatRuntimeVisibility(AGENT_CHAT_CREATION_RECIPES, {
-      hiddenLocalAgentIds: localAgentsSettings.hiddenTerminalAgentIds,
+      hiddenLocalAgentIds: hiddenTerminalAgentIds,
     });
-  }, [localAgentsSettings.hiddenTerminalAgentIds]);
+  }, [hiddenTerminalAgentIds]);
   const assetLibraryHomeEnabled = isAssetLibraryHomeEnabled({
     available: assetLibraryHomeAvailable,
-    optedIn: experimentalSettings.enableAssetLibraryHome,
+    optedIn: enableAssetLibraryHome,
   });
   const Homepage = assetLibraryHomeEnabled ? AssetLibraryHome : MinimalOnboarding;
   const [activeSettingsSection, setActiveSettingsSection] = useState<SettingsSection>("general");
@@ -420,14 +484,26 @@ function AppContent() {
     ?? workbenchWorkspace?.folders[0]
     ?? null;
   const focusedWorkspace = focusedWorkspaceFolder?.workspace ?? workspace;
-  const rightSidebarContentVisible = rightSidebarOpen;
-  const gitHistorySidebarOpen = rightSidebarContentVisible
-    && rightSidebarSurface === "history";
-  const gitChangesSidebarOpen = rightSidebarContentVisible
-    && rightSidebarSurface === "changes";
-  const gitSidebarOpen = gitChangesSidebarOpen || gitHistorySidebarOpen;
-  const agentSidebarOpen = rightSidebarContentVisible
-    && rightSidebarSurface === "chat";
+  const auxiliarySurfaceRef = useRef<HTMLDivElement>(null);
+  const blurAuxiliarySurfaceFocus = useCallback(() => {
+    const activeElement = document.activeElement;
+    if (
+      activeElement instanceof HTMLElement
+      && auxiliarySurfaceRef.current?.contains(activeElement)
+    ) {
+      activeElement.blur();
+    }
+  }, []);
+  const closeProjectMenu = useCallback(() => setSwitcherOpen(false), []);
+  const gitPresentation = useGitPresentation({
+    workspaceScope: focusedWorkspace?.path ?? null,
+    sidebarOpen: rightSidebarOpen,
+    sidebarSurface: rightSidebarSurface,
+    setSidebarOpen: setRightSidebarOpen,
+    setSidebarSurface: setRightSidebarSurface,
+    onReveal: closeProjectMenu,
+    beforeOpenSidebar: blurAuxiliarySurfaceFocus,
+  });
   const handleRemoveProject = useCallback(async (folder: WorkspaceFolder) => {
     if (documentStorageIdentity) {
       await closeDocumentWorkingCopiesUnderResource(documentStorageIdentity, folder.uri);
@@ -473,8 +549,8 @@ function AppContent() {
   }, [refreshWorkspaceContent]);
   const git = useDesktopGitController({
     workspace: focusedWorkspace,
-    gitChangesActive: gitChangesSidebarOpen,
-    gitHistoryActive: gitHistorySidebarOpen,
+    gitChangesActive: gitPresentation.changesActive,
+    gitHistoryActive: gitPresentation.historyActive,
     onWorkspaceContentChanged: refreshWorkspaceContentFromGit,
   });
   const invalidateGitStatus = git.invalidateGitStatus;
@@ -491,8 +567,6 @@ function AppContent() {
   });
   const {
     activeGitStatus,
-    branchSwitcherOpen,
-    branchSwitcherRef,
     gitCommitDetail,
     gitCommitDetailError,
     gitCommitDetailLoading,
@@ -506,9 +580,7 @@ function AppContent() {
     gitWorkingFileDiff,
     gitWorkingFileDiffError,
     gitWorkingFileDiffLoading,
-    localBranches,
     pendingBranchSwitch,
-    remoteBranches,
     selectedGitCommitId,
     selectedGitWorkingFile,
     applyGitStatus,
@@ -516,7 +588,6 @@ function AppContent() {
     clearGitSelection,
     dismissGitOperationError,
     handleAbortGitOperation,
-    handleCheckoutGitBranch,
     handleCommitAndCheckoutBranch,
     handleCommitAndPushGit,
     handleCommitGit,
@@ -551,14 +622,14 @@ function AppContent() {
   }, [setBranchSwitcherOpen]);
   const closeSettingsDialog = useCallback(() => setSettingsDialogOpen(false), []);
   const openPluginsDialog = useCallback(() => {
-    if (!experimentalSettings.enableViewerPlugins) return;
+    if (!enableViewerPlugins) return;
     setActiveView("data");
     setPluginsDialogOpen(true);
     setSettingsDialogOpen(false);
     setCloudDialogOpen(false);
     setSwitcherOpen(false);
     setBranchSwitcherOpen(false);
-  }, [experimentalSettings.enableViewerPlugins, setBranchSwitcherOpen]);
+  }, [enableViewerPlugins, setBranchSwitcherOpen]);
   const closePluginsDialog = useCallback(() => setPluginsDialogOpen(false), []);
   const openCloudDialogAt = useCallback((section: CloudWorkspaceSection) => {
     if (!cloudEnabled) return;
@@ -602,11 +673,6 @@ function AppContent() {
     () => workbenchWorkspace?.id ?? "no-workspace",
     [workbenchWorkspace?.id],
   );
-  const desktopCloudApiBaseUrl = useMemo(() => getDesktopCloudApiBaseUrl(), []);
-  const activeCloudSession = useMemo(
-    () => isCloudSessionForApiBase(cloudSession, desktopCloudApiBaseUrl) ? cloudSession : null,
-    [cloudSession, desktopCloudApiBaseUrl],
-  );
   const latestAiEditRequest = useAiEditReviewRequest({
     aiEditAssistEnabled,
     onWorkspaceContentChanged: refreshWorkspaceContent,
@@ -633,10 +699,12 @@ function AppContent() {
     createEntryFromMenu,
     renameNodeFromMenu,
     deleteNodeFromMenu,
+    copyNodePathFromMenu,
     revealNodeInFinderFromMenu,
     openNodeInDefaultAppFromMenu,
   } = useDataNodeActions({
     dataPort,
+    getPathForCopy: workbenchDataService?.getPathForCopy,
     onEnterDataView: enterDataView,
     onLocalWorkspaceContentChanged: refreshGitStatus,
     onWorkspaceContentChanged: refreshWorkspaceContent,
@@ -648,31 +716,17 @@ function AppContent() {
   });
 
   useEffect(() => {
-    if (activeView === "cloud") {
-      setActiveView("data");
-      setCloudDialogOpen(cloudEnabled);
-      if (!cloudEnabled) setActiveCloudSection("initialize");
-      return;
-    }
-    if (!cloudEnabled) setCloudDialogOpen(false);
-    if (activeView === "git") {
-      setActiveView("data");
-      setActiveCloudSection("initialize");
-    }
-  }, [activeView, cloudEnabled]);
-
-  useEffect(() => {
-    if (!experimentalSettings.enableViewerPlugins) setPluginsDialogOpen(false);
-  }, [experimentalSettings.enableViewerPlugins]);
+    if (!enableViewerPlugins) setPluginsDialogOpen(false);
+  }, [enableViewerPlugins]);
 
   useEffect(() => {
     if (!isSettingsSectionAvailable(activeSettingsSection, {
       cloudEnabled,
-      otherAppImportsEnabled: experimentalSettings.enableOtherAppImports,
+      otherAppImportsEnabled: enableOtherAppImports,
     })) {
       setActiveSettingsSection("general");
     }
-  }, [activeSettingsSection, cloudEnabled, experimentalSettings.enableOtherAppImports]);
+  }, [activeSettingsSection, cloudEnabled, enableOtherAppImports]);
 
   useEffect(() => {
     const preventFileDropNavigation = (event: DragEvent) => {
@@ -700,6 +754,35 @@ function AppContent() {
     workspacePath: focusedWorkspace?.path ?? null,
   });
 
+  const {
+    cloudInitializationLoading: cloudBackupLoading,
+    cloudInitializationError: cloudPublishError,
+    cloudInitializationNotice: cloudPublishNotice,
+    cloudInitializationProgress: cloudPublishProgress,
+    cloudInitializationState: cloudPublishState,
+    cloudInitializationStateLoading: cloudPublishStateLoading,
+    handleCleanupCloudInitialization: handleAbandonPuppyoneBackup,
+    handleStartCloudInitialization: handleStartPuppyoneBackup,
+    cloudInitializationPending: pendingCloudBackupSetup,
+  } = useCloudInitialization({
+    activeCloudSession,
+    applyGitStatus,
+    captureGitRepositoryContext,
+    clearGitSelection,
+    cloudEnabled,
+    desktopCloudApiBaseUrl,
+    isGitRepositoryContextCurrent,
+    refreshWorkspaceContent,
+    setActiveCloudSection,
+    setActiveView,
+    setSidebarCollapsed,
+    setSwitcherOpen,
+    workspace,
+  });
+
+
+  const [cloudResolutionRefreshKey, setCloudResolutionRefreshKey] = useState(0);
+  const revalidateRepositoryContext = useCallback(() => setCloudResolutionRefreshKey((value) => value + 1), []);
   const projectCloudContext = useCurrentRepositoryCloudContext({
     workspace: focusedWorkspace,
     activeGitStatus,
@@ -707,10 +790,93 @@ function AppContent() {
     cloudEnabled,
     desktopCloudApiBaseUrl,
     resolutionInputsLoading: cloudResolutionInputsLoading,
+    refreshKey: cloudResolutionRefreshKey,
     updateCloudSession,
   });
   const resolvedCloudProjectId = getResolvedCloudProjectId(projectCloudContext);
-  const [shareWizard, setShareWizard] = useState<{ targetId: ShareTargetId | null; path: string } | null>(null);
+  const nativeCloudWorkbench = useNativeCloudWorkbench({
+    context: accountCloud.context,
+    prepared: accountCloud.prepared,
+    session: activeCloudSession,
+    apiBaseUrl: desktopCloudApiBaseUrl,
+    active: cloudWorkspaceActive,
+    filesVisibilitySettings,
+  });
+  const accountCloudPresentation = useAccountCloudWorkspacePresentation({
+    workbench: nativeCloudWorkbench,
+    onOpenSettings: openSettingsDialog, settingsOpen: settingsDialogOpen,
+    showWorkspaceNavigation: !enableProjectSwitcherRail,
+    sidebarUtility: enableProjectSwitcherRail ? undefined : <DesktopHelpLauncher appearance={surfaceAppearance} />,
+  });
+  const cloudAgent = useCloudAgentWorkspace({ context: accountCloud.context, session: activeCloudSession,
+    apiBaseUrl: desktopCloudApiBaseUrl, active: cloudWorkspaceActive, onPublication: nativeCloudWorkbench.refresh });
+  const cloudSidebar = useCloudWorkspaceSidebar({ context: accountCloud.context, session: activeCloudSession,
+    apiBaseUrl: desktopCloudApiBaseUrl, active: cloudWorkspaceActive, agent: cloudAgent });
+  const closeCloudSidebar = cloudSidebar.close;
+  const closeWorkspaceSidebars = useCallback(() => {
+    blurAuxiliarySurfaceFocus();
+    setRightSidebarOpen(false);
+    closeCloudSidebar();
+  }, [blurAuxiliarySurfaceFocus, closeCloudSidebar, setRightSidebarOpen]);
+  const repositoryCloudInitializationPending = cloudBackupLoading || cloudPublishStateLoading || Boolean(cloudPublishState);
+  const repositoryCloudSwitch = useRepositoryCloudWorkspaceSwitch({
+    enabled: cloudEnabled && Boolean(focusedWorkspace),
+    scope: JSON.stringify([focusedWorkspace?.id, focusedWorkspace?.path]),
+    context: projectCloudContext, session: activeCloudSession, apiBaseUrl: desktopCloudApiBaseUrl,
+    onPrepared: accountCloud.activatePrepared,
+    onRevalidate: revalidateRepositoryContext,
+    initializationPending: repositoryCloudInitializationPending,
+  });
+  const requestCloudWorkspace = repositoryCloudSwitch.request;
+  const cancelRepositoryCloudSwitch = repositoryCloudSwitch.cancel;
+  const cancelAccountCloudOpen = accountCloud.cancel;
+  const cancelCloudWorkspaceSwitch = useCallback(() => {
+    closeWorkspaceSidebars();
+    cancelRepositoryCloudSwitch(); cancelAccountCloudOpen();
+  }, [cancelAccountCloudOpen, cancelRepositoryCloudSwitch, closeWorkspaceSidebars]);
+  const openCloudWorkspace = useCallback(() => {
+    if (!cloudEnabled) return;
+    closeWorkspaceSidebars();
+    cancelAccountCloudOpen();
+    requestCloudWorkspace();
+    setActiveCloudSection(CLOUD_HUB_ENTRY_SECTION);
+    setCloudDialogOpen(false);
+    setSettingsDialogOpen(false);
+    setPluginsDialogOpen(false);
+    setBranchSwitcherOpen(false);
+  }, [cancelAccountCloudOpen, closeWorkspaceSidebars, cloudEnabled, requestCloudWorkspace, setBranchSwitcherOpen]);
+  const openLocalWorkspace = useCallback(() => {
+    closeWorkspaceSidebars();
+    cancelRepositoryCloudSwitch();
+    returnToLocalWorkspace();
+    setCloudDialogOpen(false);
+    setBranchSwitcherOpen(false);
+  }, [cancelRepositoryCloudSwitch, closeWorkspaceSidebars, returnToLocalWorkspace, setBranchSwitcherOpen]);
+
+  useEffect(() => {
+    if (cloudWorkspaceActive) resetDataNodeActions();
+  }, [cloudWorkspaceActive, resetDataNodeActions]);
+  useEffect(() => {
+    if (activeView === "cloud") {
+      setActiveView("data");
+      if (cloudEnabled) openCloudWorkspace();
+      if (!cloudEnabled) setActiveCloudSection("initialize");
+      return;
+    }
+    if (!cloudEnabled) setCloudDialogOpen(false);
+    if (activeView === "git") {
+      setActiveView("data");
+      setActiveCloudSection("initialize");
+    }
+  }, [activeView, cloudEnabled, openCloudWorkspace]);
+
+
+  const [shareWizard, setShareWizard] = useState<{
+    targetId: ShareTargetId | null;
+    path: string;
+    /** Set when the Header asked for one of the two verbs by name. */
+    intent?: "invite" | "connect";
+  } | null>(null);
   const {
     shares: projectShares,
     pending: pendingShare,
@@ -723,29 +889,45 @@ function AppContent() {
     onSessionChange: updateCloudSession,
   });
   const cloudSignedIn = activeCloudSession !== null;
-  const projectLocationStatus = resolveProjectLocationStatus(projectCloudContext, cloudSignedIn);
-  const projectLocation = shareOnboardingEnabled
-    ? {
-        current: "local" as const,
-        localAvailable: true,
-        cloudState: projectLocationStatus.kind === "local"
-          || (projectLocationStatus.kind === "resolving" && !focusedWorkspace?.puppyoneGitRemote?.projectId)
-          ? "unavailable" as const
-          : projectLocationStatus.kind === "local-cloud"
-            ? cloudSignedIn ? "available" as const : "signed-out" as const
-            : projectLocationStatus.kind,
-      }
+  const projectCloudLocationState = getProjectCloudLocationState(projectCloudContext, cloudSignedIn);
+  const prepareCloudInPlace = Boolean(activeCloudSession && !repositoryCloudInitializationPending && (projectCloudContext.status === "resolved"
+    || projectCloudContext.status === "resolving" || repositoryCloudSwitch.error));
+  const headerWorkspaceLocation = cloudWorkspaceActive ? "cloud"
+    : (prepareCloudInPlace && repositoryCloudSwitch.requestedLocation) || "local";
+  const cloudHeaderActive = headerWorkspaceLocation === "cloud";
+  const localRightSidebarActive = !cloudWorkspaceActive && !repositoryCloudSwitch.pending;
+  const rightSidebarContentVisible = rightSidebarOpen && localRightSidebarActive;
+  const agentSidebarOpen = rightSidebarContentVisible && rightSidebarSurface === "chat";
+  const handleLocalRightSidebarOpenChange = useCallback((open: boolean) => {
+    if (!open || localRightSidebarActive) setRightSidebarOpen(open);
+  }, [localRightSidebarActive, setRightSidebarOpen]);
+  // Header selection follows intent immediately; the provider remains local
+  // until authorization and root-file access complete.
+  const projectLocation: DesktopProjectLocation | undefined = cloudEnabled
+    ? { current: cloudWorkspaceActive ? "cloud" : "local", requested: repositoryCloudSwitch.requestedLocation,
+      headerLocation: headerWorkspaceLocation,
+      loading: repositoryCloudSwitch.pending && !repositoryCloudSwitch.error,
+      localAvailable: true, cloudState: projectCloudLocationState }
     : undefined;
   // The wizard stacks above the Cloud dialog so the Homepage is still there when it closes.
-  const openShareWizard = useCallback((targetId: ShareTargetId | null, path = "") => {
+  const openShareWizard = useCallback((
+    targetId: ShareTargetId | null,
+    path = "",
+    intent?: "invite" | "connect",
+  ) => {
     if (!shareOnboardingEnabled) return;
-    setShareWizard({ targetId, path });
+    setShareWizard({ targetId, path, intent });
     setSettingsDialogOpen(false);
     setPluginsDialogOpen(false);
     setSwitcherOpen(false);
     setBranchSwitcherOpen(false);
   }, [setBranchSwitcherOpen, shareOnboardingEnabled]);
   const closeShareWizard = useCallback(() => setShareWizard(null), []);
+  useEffect(() => {
+    if ((accountCloud.opening || repositoryCloudSwitch.pending) && (cloudDialogOpen || settingsDialogOpen || pluginsDialogOpen || shareWizard)) {
+      cancelCloudWorkspaceSwitch();
+    }
+  }, [cancelCloudWorkspaceSwitch, cloudDialogOpen, accountCloud.opening, repositoryCloudSwitch.pending, pluginsDialogOpen, settingsDialogOpen, shareWizard]);
   useEffect(() => {
     if (shareOnboardingEnabled) return;
     setShareWizard(null);
@@ -756,6 +938,55 @@ function AppContent() {
       ? { shares: projectShares, signedIn: cloudSignedIn, pending: pendingShare, openShare: openShareWizard }
       : null
   ), [cloudSignedIn, openShareWizard, pendingShare, projectShares, shareOnboardingEnabled]);
+  // Who can reach this project, for the Header. The share domain owns the
+  // status, the rows and stopping a reach; the Header only states them.
+  const reachDestinations = useMemo(() => SHARE_TARGETS.map((target) => ({
+    id: target.id,
+    brand: target.brand,
+    label: t(shareTargetLabelKey(target.id)),
+  })), [t]);
+  const projectReachShareStatus = resolveCloudShareStatus({
+    context: projectCloudContext,
+    shares: projectShares.shares,
+    sharesLoaded: projectShares.loaded,
+    signedIn: cloudSignedIn,
+    pending: pendingShare,
+  });
+  const projectShareRevoke = useProjectShareRevoke({
+    session: activeCloudSession,
+    apiBaseUrl: desktopCloudApiBaseUrl,
+    shares: projectShares,
+    onSessionChange: updateCloudSession,
+  });
+  const projectReachState = resolveProjectReachState({
+    share: projectReachShareStatus.kind,
+    shares: projectReachShareStatus.readers,
+    destinations: reachDestinations,
+    deviceCopyAvailable: projectLocation?.localAvailable !== false,
+    // Where the project is, taken from the surface the user is working on —
+    // stated by the Header, never offered as a choice.
+    place: (projectLocation?.headerLocation ?? projectLocation?.current) === "cloud" ? "cloud" : "this-device",
+    waitingFor: pendingShare ? t(shareTargetLabelKey(pendingShare.targetId)) : null,
+  });
+  // Without Puppyone Cloud there is nobody to reach, so the Header states
+  // nothing — exactly like the established control, which only exists while
+  // Cloud does. Capability differences inside the entry never become a prompt.
+  const projectReach = useMemo<ProjectReachControlProps | null>(() => (
+    projectReachEnabled && shareOnboardingEnabled && cloudEnabled
+      ? {
+        state: projectReachState,
+        // No rows when nobody is there: the Header already states "only you",
+        // and an empty list would say the same thing a second time.
+        readers: projectReachState.members.length > 0
+          ? <ReadersList readers={projectReachShareStatus.readers} revoke={projectShareRevoke} />
+          : undefined,
+        onInvitePerson: () => openShareWizard("person", "", "invite"),
+        onConnectAgent: () => openShareWizard(null, "", "connect"),
+        onGetCopy: cloudEnabled ? openCloudWorkspace : undefined,
+      }
+      : null
+  ), [cloudEnabled, openCloudWorkspace, openShareWizard, projectReachEnabled, projectReachShareStatus,
+    projectReachState, projectShareRevoke, shareOnboardingEnabled]);
   const listShareFolders = useCallback(async (): Promise<ShareWizardFolderEntry[]> => {
     if (!dataPort) return [];
     const children = await dataPort.listChildren(focusedWorkspaceFolder?.uri ?? null);
@@ -766,6 +997,28 @@ function AppContent() {
         path: resolveWorkspaceResource(node.path)?.providerPath ?? node.name,
       }))
       .filter((entry) => entry.path.length > 0);
+  }, [dataPort, focusedWorkspaceFolder?.uri, resolveWorkspaceResource]);
+  // What is inside the folder a share would cover, for the share screen's
+  // preview: the entries, and one file shown open beside them. The Cloud
+  // workspace share screen illustrates a share exactly this way, so the two
+  // screens show one thing rather than two ideas of a preview.
+  const listSharePreview = useCallback(async (path: string): Promise<ReachPreviewData> => {
+    if (!dataPort) return { entries: [] };
+    const root = await dataPort.listChildren(focusedWorkspaceFolder?.uri ?? null);
+    const chosen = path
+      ? root.find((node) => (resolveWorkspaceResource(node.path)?.providerPath ?? node.name) === path)
+      : null;
+    if (path && !chosen) return { entries: [] };
+    const nodes = chosen ? await dataPort.listChildren(chosen.path) : root;
+    const entries = nodes.map((node) => ({ name: node.name, type: node.type }));
+    const opened = pickSharePreviewFile(nodes);
+    if (!opened) return { entries };
+    try {
+      const content = await dataPort.readFile?.(opened.path);
+      return { entries, file: { name: opened.name, type: opened.type, content: content ?? undefined } };
+    } catch {
+      return { entries, file: { name: opened.name, type: opened.type } };
+    }
   }, [dataPort, focusedWorkspaceFolder?.uri, resolveWorkspaceResource]);
 
   const workspacePath = focusedWorkspace?.path ?? null;
@@ -788,6 +1041,8 @@ function AppContent() {
     try {
       if (!await drainWorkspaceNavigation()) return;
       await showHomepage();
+      cancelCloudWorkspaceSwitch();
+      returnToLocalWorkspace();
       clearWorkspace();
       setSwitcherOpen(false);
       setBranchSwitcherOpen(false);
@@ -799,6 +1054,8 @@ function AppContent() {
       setRestoreWorkspaceError(error instanceof Error ? error.message : String(error));
     }
   }, [
+    cancelCloudWorkspaceSwitch,
+    returnToLocalWorkspace,
     clearWorkspace,
     drainWorkspaceNavigation,
     refreshRecentWorkspaceList,
@@ -822,7 +1079,7 @@ function AppContent() {
       }
 
       if (view === "cloud") {
-        openCloudDialog();
+        openCloudWorkspace();
         return;
       }
 
@@ -834,13 +1091,33 @@ function AppContent() {
     void commitNavigation();
   }, [
     cloudEnabled,
-    openCloudDialog,
+    openCloudWorkspace,
     setSidebarCollapsed,
   ]);
 
   useEffect(() => {
     if (activeView !== "settings" && activeView !== "cloud") lastProjectViewRef.current = activeView;
   }, [activeView]);
+
+  const openProjectFromHeader = useCallback(async (path: string) => {
+    setSwitcherOpen(false);
+    try {
+      await openWorkspaceTarget({ kind: "local", path, placement: "dedicated-window" });
+      await refreshRecentWorkspaceList();
+    } catch (error) {
+      setRestoreWorkspaceError(error instanceof Error ? error.message : String(error));
+    }
+  }, [refreshRecentWorkspaceList, setRestoreWorkspaceError]);
+
+  const openCloudProjectFromHeader = useCallback(async (projectId: string) => {
+    if (!activeCloudSession) return;
+    setSwitcherOpen(false);
+    try {
+      await openCloudProjectInNewWindow({ projectId, userId: activeCloudSession.user_id });
+    } catch (error) {
+      setRestoreWorkspaceError(error instanceof Error ? error.message : String(error));
+    }
+  }, [activeCloudSession, setRestoreWorkspaceError]);
 
   const switchProjectFromRail = useCallback(async (path: string) => {
     const projectView = lastProjectViewRef.current;
@@ -910,9 +1187,14 @@ function AppContent() {
       setDocumentNavigationError(error instanceof Error ? error.message : String(error));
     }
   }, [documentStorageIdentity, editorWorkbench]);
+  const handleEditorTabActivate = useCallback((editorId: string) => {
+    editorWorkbench.activate(editorId);
+    setActiveView("data");
+    setDocumentNavigationError(null);
+  }, [editorWorkbench]);
   useEffect(() => {
     const handleEditorShortcut = (event: KeyboardEvent) => {
-      if (event.isComposing || activeView !== "data" || editorWorkbench.state.editors.length === 0) return;
+      if (event.isComposing || cloudWorkspaceActive || activeView !== "data" || editorWorkbench.state.editors.length === 0) return;
       const platformModifier = event.metaKey || event.ctrlKey;
       if (platformModifier && !event.altKey && event.key.toLowerCase() === "w") {
         if (!editorWorkbench.activeEditorId) return;
@@ -933,17 +1215,12 @@ function AppContent() {
     };
     window.addEventListener("keydown", handleEditorShortcut, true);
     return () => window.removeEventListener("keydown", handleEditorShortcut, true);
-  }, [activeView, editorWorkbench, handleEditorClose]);
+  }, [activeView, cloudWorkspaceActive, editorWorkbench, handleEditorClose]);
   const handleActiveDataNodeChange = useCallback((node: DataNode | null) => {
     setActiveExplorerNode((current) => (
       hasSameActiveDataNodeIdentity(current, node) ? current : node
     ));
   }, [setActiveExplorerNode]);
-
-  const handleFilesVisibilitySettingsChange = useCallback((nextSettings: FilesVisibilitySettings) => {
-    setFilesVisibilitySettings(nextSettings);
-    refreshWorkspaceContent();
-  }, [refreshWorkspaceContent, setFilesVisibilitySettings]);
 
   const handlePuppyoneConfigChange = useCallback(async (nextConfig: PuppyoneWorkspaceConfig) => {
     const savedConfig = await savePuppyoneConfig(nextConfig);
@@ -988,17 +1265,20 @@ function AppContent() {
       }
       setActiveCloudSection("initialize");
       setActiveView("data");
-      setCloudDialogOpen(true);
       setSidebarCollapsed(false);
       setSwitcherOpen(false);
     }
   }, [cloudEnabled, setSidebarCollapsed, settingsDialogOpen, updateCloudSession]);
 
-  const handleRemoveCloudRemote = useCallback(async () => {
+  const handleRemoveCloudRemote = useCallback(async (expectedRemotes?: readonly GitRemoteSummary[]) => {
     if (!focusedWorkspace) return;
-    const refreshedStatus = await removeWorkspaceGitRemote(focusedWorkspace.path, "puppyone");
+    const context = captureGitRepositoryContext(focusedWorkspace.path);
+    if (!context) throw new Error("The current repository is unavailable.");
+    const refreshedStatus = await removeWorkspaceGitRemote(focusedWorkspace.path, "puppyone", expectedRemotes);
+    if (!isGitRepositoryContextCurrent(context)) return;
     const currentConfig = puppyoneConfig
       ?? await readPuppyoneWorkspaceConfig(focusedWorkspace.path);
+    if (!isGitRepositoryContextCurrent(context)) return;
     const configReferencesPuppyone = currentConfig.sync.sourceOfTruth.service === "puppyone"
       || currentConfig.sync.sourceOfTruth.remote === "puppyone"
       || currentConfig.backup.service === "puppyone"
@@ -1028,7 +1308,6 @@ function AppContent() {
         throw new Error("The PuppyOne Git remote was removed, but Desktop could not update the local sync settings.");
       }
     }
-    const context = captureGitRepositoryContext(focusedWorkspace.path);
     if (context && applyGitStatus(
       refreshedStatus,
       context,
@@ -1040,37 +1319,13 @@ function AppContent() {
   }, [
     applyGitStatus,
     captureGitRepositoryContext,
+    isGitRepositoryContextCurrent,
     handlePuppyoneConfigChange,
     puppyoneConfig,
     refreshWorkspaceContent,
     focusedWorkspace,
   ]);
 
-  const {
-    cloudInitializationLoading: cloudBackupLoading,
-    cloudInitializationError: cloudPublishError,
-    cloudInitializationNotice: cloudPublishNotice,
-    cloudInitializationProgress: cloudPublishProgress,
-    cloudInitializationState: cloudPublishState,
-    cloudInitializationStateLoading: cloudPublishStateLoading,
-    handleCleanupCloudInitialization: handleAbandonPuppyoneBackup,
-    handleStartCloudInitialization: handleStartPuppyoneBackup,
-    cloudInitializationPending: pendingCloudBackupSetup,
-  } = useCloudInitialization({
-    activeCloudSession,
-    applyGitStatus,
-    captureGitRepositoryContext,
-    clearGitSelection,
-    cloudEnabled,
-    desktopCloudApiBaseUrl,
-    isGitRepositoryContextCurrent,
-    refreshWorkspaceContent,
-    setActiveCloudSection,
-    setActiveView,
-    setSidebarCollapsed,
-    setSwitcherOpen,
-    workspace,
-  });
 
   const unlinkCurrentWorkspace = useCallback(async () => {
     // Forgetting a project actually retires its authorization and editors.
@@ -1111,15 +1366,6 @@ function AppContent() {
     setSwitcherOpen(nextOpen);
     setBranchSwitcherOpen(false);
   }, [setBranchSwitcherOpen, switcherOpen]);
-
-  const toggleBranchSwitcher = useCallback(() => {
-    setBranchSwitcherOpen((open) => !open);
-    setSwitcherOpen(false);
-  }, [setBranchSwitcherOpen]);
-
-  const closeBranchSwitcher = useCallback(() => {
-    setBranchSwitcherOpen(false);
-  }, [setBranchSwitcherOpen]);
 
   const closeWorkspaceSwitcher = useCallback(() => {
     setSwitcherOpen(false);
@@ -1206,11 +1452,6 @@ function AppContent() {
           <Suspense fallback={null}>
             <AgentChatHistoryBrowser
               {...context}
-              historyDiscoveryEnabled={localAgentsSettings.chatHistoryDiscoveryEnabled}
-              onHistoryDiscoveryEnabledChange={(enabled) => setLocalAgentsSettings({
-                ...localAgentsSettings,
-                chatHistoryDiscoveryEnabled: enabled,
-              })}
             />
           </Suspense>
         ),
@@ -1222,15 +1463,6 @@ function AppContent() {
           <AgentChatWorkbenchItem
             {...context}
             hiddenRuntimeIds={agentChatRuntimeVisibility.hiddenRuntimeIds}
-            preferredRuntimeId={agentPreferredRuntime
-              && !agentChatRuntimeVisibility.hiddenRuntimeIds.includes(agentPreferredRuntime)
-              ? agentPreferredRuntime
-              : null}
-            onPreferredRuntimeChange={setAgentPreferredRuntime}
-            preferredRoute={agentPreferredRoute}
-            onPreferredRouteChange={setAgentPreferredRoute}
-            preferredModel={agentPreferredModel}
-            onPreferredModelChange={setAgentPreferredModel}
             onOpenFile={(path) => handleAgentOpenFile(context.item.rootId, path)}
             onOpenAccount={() => openSettingsDialog("account")}
             onOpenModelConnections={() => openSettingsDialog("model-connections")}
@@ -1238,46 +1470,15 @@ function AppContent() {
           />
         </Suspense>
       ),
-      close: Object.freeze<AuxiliaryWorkbenchCloseAdapter>({
-        decide: ({ snapshot }) => snapshot.running
-          ? Object.freeze({
-              kind: "confirm" as const,
-              tone: "danger" as const,
-              dialog: Object.freeze({
-                title: t("agent.closeDialog.activeTitle", { title: snapshot.title }),
-                detail: t("agent.closeDialog.activeDetail"),
-                actionLabel: t("common.action.close"),
-              }),
-            })
-          : Object.freeze({ kind: "close" as const }),
-        commit: ({ item, project }) => closeAgentChatWorkbenchItem(project, item.id),
-      }),
+      close: createAgentChatCloseAdapter(t, ({ item, project }) => closeAgentChatWorkbenchItem(project, item.id)),
     });
   }, [
-    agentPreferredModel,
-    agentPreferredRoute,
-    agentPreferredRuntime,
     agentChatRuntimeVisibility,
     handleAgentOpenFile,
-    localAgentsSettings,
     openSettingsDialog,
     resolveAgentWorkspaceReference,
-    setAgentPreferredModel,
-    setAgentPreferredRoute,
-    setAgentPreferredRuntime,
-    setLocalAgentsSettings,
     t,
   ]);
-  const auxiliarySurfaceRef = useRef<HTMLDivElement>(null);
-  const blurAuxiliarySurfaceFocus = useCallback(() => {
-    const activeElement = document.activeElement;
-    if (
-      activeElement instanceof HTMLElement
-      && auxiliarySurfaceRef.current?.contains(activeElement)
-    ) {
-      activeElement.blur();
-    }
-  }, []);
   const readAuxiliaryTerminalAppearance = useCallback(() => {
     const surface = auxiliarySurfaceRef.current;
     if (!surface) throw new Error("The auxiliary appearance surface is not mounted.");
@@ -1306,49 +1507,25 @@ function AppContent() {
     projectSessions,
     (focusedWorkspace ?? workspace)?.path ?? null,
   );
-  const handleOpenGitHistory = useCallback(() => {
-    blurAuxiliarySurfaceFocus();
-    setRightSidebarSurface("history");
-    setRightSidebarOpen(true);
-    setSwitcherOpen(false);
-  }, [
-    blurAuxiliarySurfaceFocus,
-    setRightSidebarOpen,
-    setRightSidebarSurface,
-  ]);
-  const handleBackToGitChanges = useCallback(() => {
-    blurAuxiliarySurfaceFocus();
-    setRightSidebarSurface("changes");
-    setRightSidebarOpen(true);
-  }, [blurAuxiliarySurfaceFocus, setRightSidebarOpen, setRightSidebarSurface]);
+  const handleOpenGitHistory = gitPresentation.openHistory;
+  const handleBackToGitChanges = gitPresentation.backToChanges;
   const gitTitlebarStatus = getGitTitlebarStatus(activeGitStatus);
   const headerCoachmarks = useHeaderCoachmarks({
     agentOpen: agentSidebarOpen,
-    alwaysShow: experimentalSettings.enableAlwaysShowOnboardingCoachmarks,
-    changesOpen: gitSidebarOpen,
+    alwaysShow: enableAlwaysShowOnboardingCoachmarks,
+    changesOpen: gitPresentation.open,
     localChangeCount: activeGitStatus?.isRepo ? gitTitlebarStatus.localChanges : null,
     workspaceEntryId: workspaceEntryIntent?.id ?? null,
     workspaceScopeId: focusedWorkspace?.id ?? null,
   });
-  const handleToggleGitChanges = useCallback(() => {
-    if (gitSidebarOpen) {
-      setRightSidebarOpen(false);
-      return;
-    }
-    setRightSidebarSurface("changes");
-    setRightSidebarOpen(true);
-    setSwitcherOpen(false);
-  }, [
-    gitSidebarOpen,
-    setRightSidebarOpen,
-    setRightSidebarSurface,
-  ]);
+  const handleToggleGitChanges = gitPresentation.toggle;
   const handleOpenGitWorkingFile = useCallback((path: string) => {
     const rootUri = focusedWorkspaceFolder?.uri;
     if (!rootUri) return;
     void handleActiveDataPathChange(qualifyDataResourcePath(rootUri, path));
   }, [focusedWorkspaceFolder?.uri, handleActiveDataPathChange]);
   const handleToggleAgentWorkbench = useCallback(() => {
+    if (!localRightSidebarActive) return;
     if (agentSidebarOpen) {
       setRightSidebarOpen(false);
       return;
@@ -1358,21 +1535,155 @@ function AppContent() {
     setSwitcherOpen(false);
   }, [
     agentSidebarOpen,
+    localRightSidebarActive,
     setRightSidebarOpen,
     setRightSidebarSurface,
   ]);
+  const projectRailLayout = {
+    leadingRailWidth: projectSwitcherExpandedWidth,
+    leadingRailMinWidth: MIN_PROJECT_SWITCHER_EXPANDED_WIDTH,
+    leadingRailMaxWidth: MAX_PROJECT_SWITCHER_EXPANDED_WIDTH,
+    leadingRailCollapsed: !projectSwitcherExpanded,
+    leadingRailCollapsedWidth: projectSwitcherCompactWidth,
+    leadingRailCollapseThreshold: MIN_PROJECT_SWITCHER_EXPANDED_WIDTH / 2,
+    resizableLeadingRail: true,
+    onLeadingRailCollapsedChange: setProjectSwitcherCollapsed,
+    onLeadingRailWidthChange: setProjectSwitcherWidth,
+  };
+  const renderProjectRail = (activeWorkspace: Workspace, expanded: boolean, activeCloudProjectId?: string | null) => (
+    <ProjectSwitcherRail
+      activeView={activeView}
+      activeWorkspace={activeWorkspace}
+      activeCloudProjectId={activeCloudProjectId}
+      expanded={expanded}
+      recentWorkspaces={recentWorkspaceItems}
+      projectItems={projectCatalog.items}
+      onHome={() => void goToHomepage()}
+      onAddProject={workspace && multiRootWorkspacesEnabled ? () => void addProject() : undefined}
+      onCreateNew={projectEntryFlow.openLauncher}
+      pluginsOpen={pluginsDialogOpen}
+      onOpenPlugins={enableViewerPlugins ? openPluginsDialog : undefined}
+      settingsOpen={settingsDialogOpen}
+      onOpenSettings={openSettingsDialog}
+      onRenameProject={renameProject}
+      onSelectProject={openProjectFromHeader}
+      onSelectCloudProject={openCloudProjectFromHeader}
+      onUnlinkProject={unlinkProjectFromRail}
+      utilitySlot={<DesktopHelpLauncher appearance={surfaceAppearance} />}
+    />
+  );
+  const hostedWorkspace = nativeCloudWorkbench.service?.workspace;
+  const accountCloudSurface = !workspace ? <AccountCloudWorkspaceSurface workbench={nativeCloudWorkbench}
+    agent={cloudAgent} sidebar={cloudSidebar}
+    presentation={accountCloudPresentation} active={cloudWorkspaceActive}
+    context={accountCloud.context} session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl} onSessionChange={updateCloudSession}
+    appearance={surfaceAppearance} onLocal={openLocalWorkspace} onHome={() => void goToHomepage()}
+    projectItems={projectCatalog.items} onSelectProject={openProjectFromHeader} onSelectCloudProject={openCloudProjectFromHeader}
+    projectRail={enableProjectSwitcherRail && hostedWorkspace ? { ...projectRailLayout,
+      renderLeadingRail: ({ expanded }) => renderProjectRail(hostedWorkspace, expanded) } : undefined}
+    onCreateProject={projectEntryFlow.openCreate} /> : null;
+  const repositoryCloudDialog = <CloudWorkspaceSwitchDialog controller={repositoryCloudSwitch}
+    projectName={workspace?.name}
+    preparingInPlace={prepareCloudInPlace}
+    authenticationRequired={!activeCloudSession}
+    gate={<RepositoryCloudSwitchGate context={projectCloudContext} apiBaseUrl={desktopCloudApiBaseUrl}
+      onOpenAccount={() => { repositoryCloudSwitch.cancel(); openSettingsDialog("account"); }}
+      authState={resolveCloudAuthState({ cloudSession: activeCloudSession, sessionRestoring: cloudSessionRestoring,
+        environment: { apiBaseUrl: desktopCloudApiBaseUrl, source: "default", cloudRemote: null } })}
+      onRetry={() => { setCloudResolutionRefreshKey((value) => value + 1); repositoryCloudSwitch.retry(); }}
+      initializationPending={repositoryCloudInitializationPending}
+      missingProjectRecovery={workspace && activeCloudSession && focusedWorkspace?.path === workspace.path
+        && projectCloudContext.status === "not-found" ? <MissingCloudProjectRecovery
+          key={JSON.stringify([workspace.path, desktopCloudApiBaseUrl, activeCloudSession.user_id,
+            activeCloudSession.session_generation, projectCloudContext.projectId])}
+          context={projectCloudContext} status={activeGitStatus} session={activeCloudSession}
+          apiBaseUrl={desktopCloudApiBaseUrl} onRemoveCloudRemote={handleRemoveCloudRemote}
+          onRetry={() => { setCloudResolutionRefreshKey(value => value + 1); repositoryCloudSwitch.retry(); }} /> : undefined}
+      publishEntry={workspace && activeCloudSession && focusedWorkspace?.path === workspace.path ? <CloudInitializationRoute
+        activeSection="contents" workspace={workspace} status={activeGitStatus}
+        session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl} accountEmail={activeCloudSession.user_email}
+        loading={gitStatusLoading} error={gitStatusError} cloudActionNotice={null}
+        cloudBackupLoading={cloudBackupLoading} cloudBackupPending={pendingCloudBackupSetup}
+        cloudPublishError={cloudPublishError} cloudPublishNotice={cloudPublishNotice}
+        cloudPublishProgress={cloudPublishProgress} cloudPublishState={cloudPublishState}
+        cloudPublishStateLoading={cloudPublishStateLoading} onSessionChange={updateCloudSession}
+        onAbandonPublish={handleAbandonPuppyoneBackup} onRefresh={() => void refreshGitStatus("configuration")}
+        onPublishWorkspace={(organizationId) => void handleStartPuppyoneBackup(organizationId, { navigateToCloud: false })}
+      /> : undefined}
+      onPublishLocal={workspace ? () => { cancelRepositoryCloudSwitch(); openCloudDialogAt("initialize"); } : undefined} />} />;
+  const settingsWorkspace = focusedWorkspace ?? workspace ?? null;
+  const firstRunSignIn = useFirstRunSignIn({
+    available: cloudEnabled && Boolean(desktopCloudApiBaseUrl),
+    restoring: cloudSessionRestoring || restoringWorkspace,
+    signedIn: Boolean(activeCloudSession),
+    hasProjects: Boolean(workspace || initialCloudProject || recentWorkspaceItems.length || workspaces.length),
+  });
+  const settingsOverlay = <DesktopOverlayPortal appearance={surfaceAppearance}>
+    {settingsDialogOpen && (
+      <SettingsDialog
+        workspace={settingsWorkspace}
+        activeSection={activeSettingsSection}
+        onSelectSection={setActiveSettingsSection}
+        onOpenImport={() => {
+          setSettingsDialogOpen(false);
+          projectEntryFlow.openImport();
+        }}
+        subThemeCatalog={subThemeCatalog}
+        onFilesVisibilityChange={refreshWorkspaceContent}
+        git={{
+          status: activeGitStatus,
+          loading: gitStatusLoading,
+          error: gitStatusError,
+          refresh: refreshGitStatus,
+        }}
+        cloud={{
+          enabled: cloudEnabled,
+          session: cloudSession,
+          sessionRestoring: cloudSessionRestoring,
+          apiBaseUrl: desktopCloudApiBaseUrl,
+          onSessionChange: handleCloudSessionChange,
+        }}
+        workspaceConfig={{
+          value: puppyoneConfig,
+          loading: puppyoneConfigLoading,
+          saving: puppyoneConfigSaving,
+          error: puppyoneConfigError,
+          change: handlePuppyoneConfigChange,
+          unlink: unlinkCurrentWorkspace,
+        }}
+        updates={{
+          state: desktopUpdates.state,
+          check: desktopUpdates.checkForUpdates,
+          install: desktopUpdates.updateNow,
+          automaticDownloadPreferenceAvailable:
+            desktopUpdates.automaticDownloadPreferenceAvailable,
+          automaticDownloadPreferenceSaving:
+            desktopUpdates.automaticDownloadPreferenceSaving,
+          automaticDownloadPreferenceError:
+            desktopUpdates.automaticDownloadPreferenceError,
+          setAutomaticallyDownloadUpdates:
+            desktopUpdates.setAutomaticallyDownloadUpdates,
+        }}
+        onClose={closeSettingsDialog}
+      />
+    )}
+  </DesktopOverlayPortal>;
   const themeRuntime = (content: ReactNode) => (
     <SurfaceAppearanceProvider value={surfaceAppearance}>
       <div
         className={`desktop-theme-bootstrap-surface ${resolvedTheme === "dark" ? "dark" : ""}`}
         {...surfaceAppearance.rootProps}
       >
-        {content}
+        <div hidden={cloudWorkspaceActive} style={{ display: cloudWorkspaceActive ? "none" : "contents" }}>
+          {content}
+        </div>
+        {accountCloudSurface}
+        {settingsOverlay}
       </div>
     </SurfaceAppearanceProvider>
   );
 
-  if (restoringWorkspace && !workspace) {
+  if (!workspace && (restoringWorkspace || firstRunSignIn.pending)) {
     return themeRuntime(
       <RestoringWorkspaceScreen
         appearance={surfaceAppearance}
@@ -1381,6 +1692,10 @@ function AppContent() {
   }
 
   if (!workspace) {
+    if (firstRunSignIn.required) return themeRuntime(
+      <FirstRunSignInScreen appearance={surfaceAppearance} apiBaseUrl={desktopCloudApiBaseUrl}
+        onContinueLocally={firstRunSignIn.complete} />,
+    );
     return themeRuntime(
       <Homepage
         onChooseWorkspace={openFolder}
@@ -1395,40 +1710,121 @@ function AppContent() {
         onOpenDroppedWorkspace={openDroppedWorkspace}
         onOpenWorkspacePath={openWorkspacePath}
         onRemoveProject={removeWorkspaceFromRecents}
-        recentWorkspaces={recentWorkspaceItems}
+        projectItems={projectCatalog.items}
+        onOpenCloudProject={(projectId) => { cancelRepositoryCloudSwitch(); void accountCloud.openTarget({ kind: "project_root", project_id: projectId }); }}
+        cloudOpening={accountCloud.opening}
+        onCancelCloudOpening={accountCloud.cancel}
+        cloudAccountStatus={cloudEnabled ? <HomepageCloudStatus status={projectCatalog.status} restoring={cloudSessionRestoring} empty={projectCatalog.items.length === 0}
+          session={activeCloudSession} onOpenAccount={() => openSettingsDialog("account")}
+          apiBaseUrl={desktopCloudApiBaseUrl} controller={accountCloud} onRetry={projectCatalog.refresh} /> : undefined}
         initialError={restoreWorkspaceError}
         appearance={surfaceAppearance}
-        experimentalSettings={experimentalSettings}
       />,
     );
   }
 
-  const titlebarSidebarSlot = (
+  const gitChangesView = (
+    <GitChangesSidebar
+      repository={{
+        status: activeGitStatus,
+        puppyoneConfig,
+      }}
+      view={{
+        selectedWorkingFile: selectedGitWorkingFile,
+        operationLoading: gitOperationLoading,
+        operationError: null,
+        loading: gitStatusLoading,
+        error: gitStatusError,
+      }}
+      actions={{
+        initialize: handleInitializeGitRepository,
+        selectWorkingFile: selectGitWorkingFile,
+        stagePaths: handleStageGitPaths,
+        stageAll: handleStageAllGitChanges,
+        unstagePaths: handleUnstageGitPaths,
+        discardPaths: handleDiscardGitPaths,
+        stageAndCommit: handleStageAndCommitGit,
+        commit: handleCommitGit,
+        commitAndPush: handleCommitAndPushGit,
+        continueOperation: handleContinueGitOperation,
+        abortOperation: handleAbortGitOperation,
+        pull: handlePullGit,
+        push: handlePushGit,
+        publish: handlePublishGitBranch,
+      }}
+      workingFileDiff={gitWorkingFileDiff}
+      workingFileDiffLoading={gitWorkingFileDiffLoading}
+      workingFileDiffError={gitWorkingFileDiffError}
+      onOpenFile={handleOpenGitWorkingFile}
+      onOpenHistory={handleOpenGitHistory}
+      cloudBackup={{
+        loading: cloudBackupLoading || pendingCloudBackupSetup,
+        error: null,
+        enabled: cloudEnabled,
+        start: handleStartPuppyoneBackup,
+      }}
+    />
+  );
+  const gitHistoryView = (
+    <GitHistorySidebar
+      status={activeGitStatus}
+      statusLoading={gitStatusLoading}
+      statusError={gitStatusError}
+      selectedCommitId={selectedGitCommitId}
+      commitDetail={gitCommitDetail}
+      commitDetailLoading={gitCommitDetailLoading}
+      commitDetailError={gitCommitDetailError}
+      historyLoading={gitHistoryLoading}
+      initializing={gitOperationLoading === "init"}
+      onInitialize={handleInitializeGitRepository}
+      onSelectCommit={selectGitCommit}
+      onBack={handleBackToGitChanges}
+    />
+  );
+  const chromeActionProps = {
+    desktopUpdateState: desktopUpdates.state,
+    terminalSidebarOpen: agentSidebarOpen,
+    terminalToolEnabled: !cloudHeaderActive,
+    gitChangesAvailable: Boolean(focusedWorkspace) && !cloudHeaderActive,
+    gitChangesOpen: gitPresentation.open,
+    // The Header states this device's own work; the receipt for changes made
+    // elsewhere belongs to the sidebar on the project reach path.
+    gitChangesStatus: projectReachEnabled ? reachHeaderChangesStatus(gitTitlebarStatus) : gitTitlebarStatus,
+    activeCoachmark: headerCoachmarks.active,
+    onAcknowledgeCoachmark: headerCoachmarks.acknowledge,
+    onUpdateNow: () => void desktopUpdates.updateNow(),
+    onToggleTerminal: handleToggleAgentWorkbench,
+    onToggleGitChanges: handleToggleGitChanges,
+    cloudEnabled,
+    shareEnabled: shareOnboardingEnabled,
+    onShare: openCloudShare,
+  };
+  const titlebarContext = (
     <DesktopTitlebarContext
-      activeGitStatus={activeGitStatus}
-      branchSwitcherOpen={branchSwitcherOpen}
-      branchSwitcherRef={branchSwitcherRef}
-      gitStatusLoading={gitStatusLoading}
-      gitOperationLoading={gitOperationLoading}
-      localBranches={localBranches}
-      remoteBranches={remoteBranches}
+      titlebarLabel={workspace.name}
+      projectMenuEnabled={!enableProjectSwitcherRail}
+      menuAlignment={centerProjectInHeader ? "center" : "start"}
       projectLocation={projectLocation}
+      projectReach={projectReach}
+      cloudProject={focusedWorkspace?.path === workspace.path && projectCloudContext.status === "resolved"
+        ? { id: projectCloudContext.projectId, name: projectCloudContext.projectName } : undefined}
       workspace={workspace}
       workspaceFolders={workbenchWorkspace?.folders ?? []}
       multiRootWorkspacesEnabled={multiRootWorkspacesEnabled}
       availableProjects={recentWorkspaceItems.map((item) => item.workspace)}
-      workspaceSwitcherOpen={switcherOpen}
-      workspaceSwitcherRef={switcherRef}
-      onCheckoutBranch={handleCheckoutGitBranch}
-      onAddProject={() => void addProject()}
+      projectItems={projectCatalog.items}
+      open={switcherOpen}
+      refObject={switcherRef}
+      onOpenFolder={() => void addProject()}
       onAddExistingProject={(folderPath) => void addExistingProject(folderPath)}
-      onGoHome={() => void goToHomepage()}
-      onSetupCloud={openCloudShare}
-      onSwitchToCloud={openCloudDialog}
-      onCloseWorkspaceSwitcher={closeWorkspaceSwitcher}
-      onCloseBranchSwitcher={closeBranchSwitcher}
-      onToggleBranchSwitcher={toggleBranchSwitcher}
-      onToggleWorkspaceSwitcher={toggleWorkspaceSwitcher}
+      onViewLocal={openLocalWorkspace}
+      onViewCloud={cloudEnabled ? openCloudWorkspace : undefined}
+      onClose={closeWorkspaceSwitcher}
+      onToggle={toggleWorkspaceSwitcher}
+      onHome={() => void goToHomepage()}
+      onCreateProject={projectEntryFlow.openCreate}
+      onSelectProject={openProjectFromHeader}
+      onSelectCloudProject={openCloudProjectFromHeader}
     />
   );
 
@@ -1441,37 +1837,48 @@ function AppContent() {
     dataViewActive: activeView === "data",
     workspacePath: locationResource?.folder.workspace.path ?? workspace.path,
   });
-  const chromeActionProps = {
-    desktopUpdateState: desktopUpdates.state,
-    titlebarActionsSettings,
-    terminalSidebarOpen: agentSidebarOpen,
-    terminalToolEnabled: true,
-    gitChangesAvailable: Boolean(focusedWorkspace),
-    gitChangesOpen: gitSidebarOpen,
-    gitChangesStatus: gitTitlebarStatus,
-    activeCoachmark: headerCoachmarks.active,
-    onAcknowledgeCoachmark: headerCoachmarks.acknowledge,
-    onUpdateNow: () => void desktopUpdates.updateNow(),
-    onToggleTerminal: handleToggleAgentWorkbench,
-    onToggleGitChanges: handleToggleGitChanges,
-    cloudEnabled,
-    onOpenCloud: openCloudDialog,
-    shareEnabled: shareOnboardingEnabled,
-    onShare: openCloudShare,
-  };
   const titlebarActions = (
-    <DesktopTitlebarActions
-      {...chromeActionProps}
-    />
+    <>
+      {cloudHeaderActive && <CloudWorkspaceHeaderTools context={cloudWorkspaceActive ? accountCloud.context : null}
+        getShareResource={() => captureCloudWorkspaceShareResource(nativeCloudWorkbench)}
+        session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl} onSessionChange={updateCloudSession}
+        historyOpen={cloudSidebar.historyOpen} onToggleHistory={cloudSidebar.toggleHistory}
+        agentOpen={cloudAgent.open} onToggleAgent={cloudWorkspaceActive ? cloudSidebar.toggleAgent : undefined} />}
+      {/* Who can reach the project sits where every application puts the
+          people in a document: the right of the Header, ahead of the tools.
+          It opens the same panel as the place control, so it is one entry
+          seen from both halves of the subject rather than a second one. */}
+      {projectReach && !cloudHeaderActive && <ProjectReachPeople {...projectReach} />}
+      {/* On the project reach path the Header's project control is the only
+          Cloud entry, so the right side adds no second share action. */}
+      <DesktopTitlebarActions {...chromeActionProps}
+        shareEnabled={!cloudHeaderActive && shareOnboardingEnabled && !projectReachEnabled} />
+    </>
   );
+  const renderCloudSidebar = (active: boolean) => <CloudWorkspaceSidebar sidebar={cloudSidebar}
+    agent={cloudAgent} context={accountCloud.context} session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl}
+    active={active} title={nativeCloudWorkbench.service?.workspace.name ?? ""}
+    revisionKey={String(nativeCloudWorkbench.refreshToken.sequence)} onSessionChange={updateCloudSession}
+    workbenchPanel={AuxiliaryWorkbenchPanel} />;
+  const editorTabsInHeaderEnabled = enableEditorTabsInHeader;
+  const titlebarEditorTabs = editorTabsInHeaderEnabled ? (
+    <EditorHeaderTabs
+      activeEditorId={editorWorkbench.activeEditorId}
+      editors={editorWorkbench.state.editors}
+      storageIdentity={documentStorageIdentity}
+      onActivate={handleEditorTabActivate}
+      onClose={handleEditorClose}
+      onCreate={(anchor) => openCreateEntryMenu(null, anchor)}
+      onMove={editorWorkbench.moveTab}
+    />
+  ) : undefined;
   const feedbackLauncher = (
     <DesktopHelpLauncher
       appearance={surfaceAppearance}
     />
   );
-  const projectSwitcherRailEnabled = experimentalSettings.enableProjectSwitcherRail;
+  const projectSwitcherRailEnabled = enableProjectSwitcherRail;
   const projectSwitcherRailVisible = projectSwitcherRailEnabled;
-
   return (
     <SurfaceAppearanceProvider value={surfaceAppearance}>
       <CloudShareProvider value={cloudShareActions}>
@@ -1480,70 +1887,56 @@ function AppContent() {
         {...surfaceAppearance.rootProps}
       >
         <DesktopCloudShell
-          renderLeadingRail={projectSwitcherRailVisible ? ({ expanded }) => (
-            <ProjectSwitcherRail
-              activeView={activeView}
-              activeWorkspace={workspace}
-              expanded={expanded}
-              recentWorkspaces={recentWorkspaceItems}
-              onCreateNew={projectEntryFlow.openLauncher}
-              pluginsOpen={pluginsDialogOpen}
-              onOpenPlugins={experimentalSettings.enableViewerPlugins
-                ? openPluginsDialog
-                : undefined}
-              settingsOpen={settingsDialogOpen}
-              onOpenSettings={openSettingsDialog}
-              onRenameProject={renameProject}
-              onSelectProject={switchProjectFromRail}
-              onUnlinkProject={unlinkProjectFromRail}
-              utilitySlot={(
-                <DesktopHelpLauncher
-                  appearance={surfaceAppearance}
-                />
-              )}
-            />
-          ) : undefined}
-          leadingRailWidth={projectSwitcherExpandedWidth}
-          leadingRailMinWidth={MIN_PROJECT_SWITCHER_EXPANDED_WIDTH}
-          leadingRailMaxWidth={MAX_PROJECT_SWITCHER_EXPANDED_WIDTH}
-          leadingRailCollapsed={!preferences.projectSwitcherExpanded}
-          leadingRailCollapsedWidth={projectSwitcherCompactWidth}
-          leadingRailCollapseThreshold={MIN_PROJECT_SWITCHER_EXPANDED_WIDTH / 2}
-          resizableLeadingRail
-          onLeadingRailCollapsedChange={setProjectSwitcherCollapsed}
-          onLeadingRailWidthChange={preferences.setProjectSwitcherWidth}
+          active
+          workspaceLocation={projectLocation?.current ?? "local"}
+          requestedWorkspaceLocation={headerWorkspaceLocation}
+          renderLeadingRail={enableProjectSwitcherRail ? ({ expanded }) => renderProjectRail(workspace, expanded,
+            cloudWorkspaceActive && accountCloud.context.status === "resolved" ? accountCloud.context.projectId : undefined) : undefined}
+          {...projectRailLayout}
           leftSidebarCollapsed={sidebarCollapsed}
           leftSidebarPresent={Boolean(dataPort)}
           leftSidebarWidth={explorerWidth}
-          titlebarSidebarSlot={projectSwitcherRailEnabled
-            ? undefined
-            : titlebarSidebarSlot}
+          titlebarSidebarSlot={centerProjectInHeader ? undefined : titlebarContext}
+          titlebarCenteredSlot={centerProjectInHeader ? titlebarContext : undefined}
           titlebarActions={titlebarActions}
-          titlebarTabsHostRef={experimentalSettings.enableWorkbenchTabsInHeader ? setTitlebarTabHost : undefined}
-          locationBar={locationBarVisible ? (
+          titlebarTabs={cloudWorkspaceActive
+            ? editorTabsInHeaderEnabled && accountCloudPresentation.titlebarTabs
+            : titlebarEditorTabs}
+          alignTitlebarTabsToExplorer={editorTabsInHeaderEnabled}
+          titlebarTabsHostRef={enableWorkbenchTabsInHeader && !editorTabsInHeaderEnabled
+            ? setTitlebarTabHost
+            : undefined}
+          locationBar={cloudWorkspaceActive ? accountCloudPresentation.locationBar : locationBarVisible && (
             <DesktopShellLocationBar
               path={locationBarPath}
               onNavigate={handleLocationBarNavigate}
             />
-          ) : undefined}
-          rightSidebarOpen={rightSidebarOpen}
+          )}
+          rightSidebarOpen={cloudWorkspaceActive ? cloudSidebar.open : rightSidebarContentVisible}
           resizableRightSidebar
           rightSidebarWidth={rightSidebarWidth}
           onLeftSidebarExpand={() => setSidebarCollapsed(false)}
-          onRightSidebarOpenChange={setRightSidebarOpen}
+          onRightSidebarOpenChange={cloudWorkspaceActive ? cloudSidebar.setOpen : handleLocalRightSidebarOpenChange}
           onRightSidebarWidthChange={setRightSidebarWidth}
           rightSidebar={(presentation) => (
             <div ref={auxiliarySurfaceRef} className="desktop-right-sidebar-stack">
+              <div className={`desktop-right-sidebar-surface ${cloudWorkspaceActive ? "is-active" : ""}`}
+                aria-hidden={!cloudWorkspaceActive}>
+                {renderCloudSidebar(presentation.contentVisible && cloudWorkspaceActive)}
+              </div>
               <div
-                className={`desktop-right-sidebar-surface ${rightSidebarSurface === "chat" ? "is-active" : ""}`}
-                aria-hidden={rightSidebarSurface !== "chat"}
+                className={`desktop-right-sidebar-surface ${localRightSidebarActive && rightSidebarSurface === "chat" ? "is-active" : ""}`}
+                aria-hidden={!localRightSidebarActive || rightSidebarSurface !== "chat"}
               >
                 {projectWorkbench && <AuxiliaryWorkbenchPanel
                   key={projectWorkbench.context.generation}
                   store={projectWorkbench}
-                  active={presentation.contentVisible && rightSidebarSurface === "chat"}
-                  titlebarTabHost={experimentalSettings.enableWorkbenchTabsInHeader ? titlebarTabHost : null}
+                  active={presentation.contentVisible && localRightSidebarActive && rightSidebarSurface === "chat"}
+                  titlebarTabHost={enableWorkbenchTabsInHeader && !editorTabsInHeaderEnabled
+                    ? titlebarTabHost
+                    : null}
                   onReveal={() => {
+                    if (!localRightSidebarActive) return;
                     setRightSidebarSurface("chat");
                     setRightSidebarOpen(true);
                   }}
@@ -1552,82 +1945,28 @@ function AppContent() {
                     const folder = workbenchWorkspace?.folders.find((entry) => entry.workspace.path === projectWorkbench.context.rootPath);
                     if (folder) void handleRemoveProject(folder);
                   }}
-                  renderLauncher={(context) => <AuxiliaryWorkbenchLauncher {...context} store={projectWorkbench} contributions={auxiliaryWorkbenchContributions} hiddenAgentIds={localAgentsSettings.hiddenTerminalAgentIds}
-                    setupPreferences={localAgentsSettings.setupSuggestions}
-                    onSetupPreferencesChange={(setupSuggestions) => setLocalAgentsSettings({ ...localAgentsSettings, setupSuggestions })} />}
+                  renderLauncher={(context) => <AuxiliaryWorkbenchLauncher {...context} store={projectWorkbench} contributions={auxiliaryWorkbenchContributions} />}
                 />}
               </div>
               <div
-                className={`desktop-right-sidebar-surface ${rightSidebarSurface === "changes" ? "is-active" : ""}`}
-                aria-hidden={rightSidebarSurface !== "changes"}
+                className={`desktop-right-sidebar-surface ${localRightSidebarActive && rightSidebarSurface === "changes" ? "is-active" : ""}`}
+                aria-hidden={!localRightSidebarActive || rightSidebarSurface !== "changes"}
               >
-                <GitChangesSidebar
-                  repository={{
-                    status: activeGitStatus,
-                    puppyoneConfig,
-                    gitDisplayMode: preferences.gitDisplayMode,
-                    gitSidebarLayout: preferences.gitSidebarLayout,
-                    fileIconTheme,
-                  }}
-                  view={{
-                    selectedWorkingFile: selectedGitWorkingFile,
-                    operationLoading: gitOperationLoading,
-                    operationError: null,
-                    loading: gitStatusLoading,
-                    error: gitStatusError,
-                  }}
-                  actions={{
-                    initialize: handleInitializeGitRepository,
-                    selectWorkingFile: selectGitWorkingFile,
-                    stagePaths: handleStageGitPaths,
-                    stageAll: handleStageAllGitChanges,
-                    unstagePaths: handleUnstageGitPaths,
-                    discardPaths: handleDiscardGitPaths,
-                    stageAndCommit: handleStageAndCommitGit,
-                    commit: handleCommitGit,
-                    commitAndPush: handleCommitAndPushGit,
-                    continueOperation: handleContinueGitOperation,
-                    abortOperation: handleAbortGitOperation,
-                    pull: handlePullGit,
-                    push: handlePushGit,
-                    publish: handlePublishGitBranch,
-                  }}
-                  workingFileDiff={gitWorkingFileDiff}
-                  workingFileDiffLoading={gitWorkingFileDiffLoading}
-                  workingFileDiffError={gitWorkingFileDiffError}
-                  onOpenFile={handleOpenGitWorkingFile}
-                  onOpenHistory={handleOpenGitHistory}
-                  cloudBackup={{
-                    loading: cloudBackupLoading || pendingCloudBackupSetup,
-                    error: null,
-                    enabled: cloudEnabled,
-                    start: handleStartPuppyoneBackup,
-                  }}
-                />
+                {gitChangesView}
               </div>
               <div
-                className={`desktop-right-sidebar-surface ${rightSidebarSurface === "history" ? "is-active" : ""}`}
-                aria-hidden={rightSidebarSurface !== "history"}
+                className={`desktop-right-sidebar-surface ${localRightSidebarActive && rightSidebarSurface === "history" ? "is-active" : ""}`}
+                aria-hidden={!localRightSidebarActive || rightSidebarSurface !== "history"}
               >
-                <GitHistorySidebar
-                  status={activeGitStatus}
-                  statusLoading={gitStatusLoading}
-                  statusError={gitStatusError}
-                  selectedCommitId={selectedGitCommitId}
-                  commitDetail={gitCommitDetail}
-                  commitDetailLoading={gitCommitDetailLoading}
-                  commitDetailError={gitCommitDetailError}
-                  historyLoading={gitHistoryLoading}
-                  fileIconTheme={fileIconTheme}
-                  initializing={gitOperationLoading === "init"}
-                  onInitialize={handleInitializeGitRepository}
-                  onSelectCommit={selectGitCommit}
-                  onBack={handleBackToGitChanges}
-                />
+                {gitHistoryView}
               </div>
             </div>
           )}
         >
+          <DesktopWorkspaceLocationSurface location={projectLocation?.current ?? "local"}
+            preparation={repositoryCloudSwitch.pending && prepareCloudInPlace
+              ? <CloudWorkspacePreparation controller={repositoryCloudSwitch} /> : undefined}
+            local={<>
           <DesktopWorkspaceContent
             activeAiEditRequest={activeAiEditRequest}
             activeDocumentPath={activeDocumentPath}
@@ -1655,8 +1994,16 @@ function AppContent() {
               },
               onSelectSection: setActiveCloudSection,
               onStartPuppyoneBackup: handleStartPuppyoneBackup,
+              onCreateCloudVersion: (organizationId) => handleStartPuppyoneBackup(organizationId, { navigateToCloud: false }),
             }}
             cloudOpen={cloudDialogOpen}
+            cloudLocationControls={focusedWorkspace?.path === workspace.path && !projectReachEnabled ? (
+              <DesktopProjectLocationControls
+                projectLocation={projectLocation}
+                onViewLocal={openLocalWorkspace}
+                onViewCloud={openCloudWorkspace}
+              />
+            ) : undefined}
             dataPort={dataPort}
             editorWorkbench={editorWorkbench}
             externalOpen={externalFileOpen}
@@ -1670,11 +2017,13 @@ function AppContent() {
               && createEntryDraft.anchor.placement !== "auto-end"
               ? createEntryDraft.parentPath
               : undefined}
-            openNodeActionPath={nodeActionMenu?.mode === "actions" ? nodeActionMenu.node.path : null}
+            openNodeActionPath={nodeActionMenu?.mode === "actions"
+              ? nodeActionMenu.launcherPath ?? nodeActionMenu.node.path
+              : null}
             onCreateEntryMenu={openCreateEntryMenu}
             onDismissCreateEntryMenu={() => setCreateEntryDraft(null)}
             fileClipboardController={fileClipboardController}
-            onFilesVisibilitySettingsChange={handleFilesVisibilitySettingsChange}
+            onFilesVisibilityChange={refreshWorkspaceContent}
             onNavigate={navigateDesktopView}
             onCloseCloud={closeCloudDialog}
             onClosePlugins={closePluginsDialog}
@@ -1686,7 +2035,6 @@ function AppContent() {
             onPuppyoneConfigChange={handlePuppyoneConfigChange}
             onSelectSettingsSection={setActiveSettingsSection}
             onUnlinkWorkspace={unlinkCurrentWorkspace}
-            preferences={preferences}
             puppyoneConfig={puppyoneConfig}
             puppyoneConfigError={puppyoneConfigError}
             puppyoneConfigLoading={puppyoneConfigLoading}
@@ -1713,60 +2061,14 @@ function AppContent() {
               ? undefined
               : feedbackLauncher}
           />
+            </>}
+            cloud={accountCloudPresentation.content}
+          />
         </DesktopCloudShell>
         <DesktopOverlayPortal
           appearance={surfaceAppearance}
         >
           <>
-          {settingsDialogOpen && (
-            <SettingsDialog
-              workspace={focusedWorkspace ?? workspace}
-              activeSection={activeSettingsSection}
-              onSelectSection={setActiveSettingsSection}
-              onOpenImport={() => {
-                setSettingsDialogOpen(false);
-                projectEntryFlow.openImport();
-              }}
-              preferences={preferences}
-              subThemeCatalog={subThemeCatalog}
-              onFilesVisibilitySettingsChange={handleFilesVisibilitySettingsChange}
-              git={{
-                status: activeGitStatus,
-                loading: gitStatusLoading,
-                error: gitStatusError,
-                refresh: refreshGitStatus,
-              }}
-              cloud={{
-                enabled: cloudEnabled,
-                session: cloudSession,
-                sessionRestoring: cloudSessionRestoring,
-                apiBaseUrl: desktopCloudApiBaseUrl,
-                onSessionChange: handleCloudSessionChange,
-              }}
-              workspaceConfig={{
-                value: puppyoneConfig,
-                loading: puppyoneConfigLoading,
-                saving: puppyoneConfigSaving,
-                error: puppyoneConfigError,
-                change: handlePuppyoneConfigChange,
-                unlink: unlinkCurrentWorkspace,
-              }}
-              updates={{
-                state: desktopUpdates.state,
-                check: desktopUpdates.checkForUpdates,
-                install: desktopUpdates.updateNow,
-                automaticDownloadPreferenceAvailable:
-                  desktopUpdates.automaticDownloadPreferenceAvailable,
-                automaticDownloadPreferenceSaving:
-                  desktopUpdates.automaticDownloadPreferenceSaving,
-                automaticDownloadPreferenceError:
-                  desktopUpdates.automaticDownloadPreferenceError,
-                setAutomaticallyDownloadUpdates:
-                  desktopUpdates.setAutomaticallyDownloadUpdates,
-              }}
-              onClose={closeSettingsDialog}
-            />
-          )}
           {pendingBranchSwitch && (
             <BranchSwitchConflictDialog
               branchName={pendingBranchSwitch.branchName}
@@ -1790,7 +2092,6 @@ function AppContent() {
             onCancelImport={cancelImportSource}
             onImportProgress={onImportSourceProgress}
             onOpenFolder={() => void openFolder()}
-            experimentalSettings={experimentalSettings}
           />
           {gitOperationError && !pendingBranchSwitch && (
             <GitOperationErrorDialog
@@ -1806,7 +2107,6 @@ function AppContent() {
             createEntryDraft.selectedKind ? (
               <DesktopCreateEntryDialog
                 draft={createEntryDraft}
-                fileIconTheme={fileIconTheme}
                 onChange={setCreateEntryDraft}
                 onCancel={() => setCreateEntryDraft(null)}
                 onCreate={createEntryFromMenu}
@@ -1816,7 +2116,6 @@ function AppContent() {
                 draft={createEntryDraft}
                 mainEntries={createNewItems.main}
                 submenuItemKinds={createNewItems.submenu}
-                fileIconTheme={fileIconTheme}
                 onCancel={() => setCreateEntryDraft(null)}
                 onSelectKind={selectCreateEntryKind}
               />
@@ -1825,7 +2124,6 @@ function AppContent() {
           {nodeActionMenu && (
             <DesktopNodeActionMenu
               draft={nodeActionMenu}
-              experimentalSettings={preferences.experimentalSettings}
               showRevealInFinder
               showOpenInDefaultApp
               canPaste={nodeActionMenu.node.type === "folder" && fileClipboardController.canPasteInto(nodeActionMenu.node.path)}
@@ -1834,6 +2132,7 @@ function AppContent() {
               canDuplicate={fileClipboardController.canDuplicate}
               onChange={setNodeActionMenu}
               onCancel={() => setNodeActionMenu(null)}
+              onCopyPath={copyNodePathFromMenu}
               onCopy={() => {
                 fileClipboardController.copyNodes(nodeActionMenu.nodes);
                 setNodeActionMenu(null);
@@ -1864,7 +2163,34 @@ function AppContent() {
                 : undefined}
             />
           )}
-          {shareWizard && shareOnboardingEnabled && (
+          {shareWizard && shareOnboardingEnabled && (projectReachEnabled ? (
+            <ProjectReachDialog
+              workspaceName={(focusedWorkspace ?? workspace).name}
+              workspacePath={(focusedWorkspace ?? workspace).path}
+              initialTargetId={shareWizard.targetId}
+              initialIntent={shareWizard.intent}
+              initialPath={shareWizard.path}
+              session={activeCloudSession}
+              apiBaseUrl={desktopCloudApiBaseUrl}
+              projectContext={projectCloudContext}
+              publish={{
+                loading: cloudBackupLoading,
+                progress: cloudPublishProgress,
+                error: cloudPublishError,
+                start: handleStartPuppyoneBackup,
+              }}
+              shares={projectShares}
+              listTopLevelFolders={listShareFolders}
+              listPreview={listSharePreview}
+              onSessionChange={updateCloudSession}
+              onIssued={setPendingShare}
+              onOpenCloud={() => {
+                closeShareWizard();
+                openCloudDialog();
+              }}
+              onClose={closeShareWizard}
+            />
+          ) : (
             <ShareWizardDialog
               workspaceName={(focusedWorkspace ?? workspace).name}
               initialTargetId={shareWizard.targetId}
@@ -1888,17 +2214,31 @@ function AppContent() {
               }}
               onClose={closeShareWizard}
             />
-          )}
+          ))}
           </>
         </DesktopOverlayPortal>
       </div>
+      {settingsOverlay}
       </CloudShareProvider>
+      {accountCloudSurface}
+      <DesktopOverlayPortal appearance={surfaceAppearance}>{repositoryCloudDialog}</DesktopOverlayPortal>
     </SurfaceAppearanceProvider>
   );
 }
 
 function isPreviewableAgentImagePath(path: string) {
   return /\.(?:png|jpe?g|gif|webp|avif)$/i.test(path);
+}
+
+/**
+ * Which file to show open in a share preview: the one a person opens first
+ * when they want to know what a folder is. A readme is that file when there
+ * is one; otherwise the first document in the folder stands for it.
+ */
+function pickSharePreviewFile(nodes: readonly DataNode[]): DataNode | null {
+  const documents = nodes.filter((node) => node.type !== "folder" && !node.name.startsWith("."));
+  const readme = documents.find((node) => /^readme\b/i.test(node.name));
+  return readme ?? documents[0] ?? null;
 }
 
 function hasSameActiveDataNodeIdentity(left: DataNode | null, right: DataNode | null): boolean {

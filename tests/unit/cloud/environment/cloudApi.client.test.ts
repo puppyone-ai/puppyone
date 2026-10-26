@@ -14,14 +14,14 @@ import {
   getCloudBillingCatalog,
   getCloudOrganizationSeatUsage,
   getCloudProject,
-  listCloudAutomationConnectionRuns,
+  listSynchronizeRuns,
   listCloudAutomationProviderResources,
   openCloudBillingExternalUrl,
   quoteCloudBillingPlan,
   supportsCloudAutomationOauth,
   updateCloudProject,
-  updateCloudAutomationConnection,
-  updateCloudAutomationTrigger,
+  updateSynchronizeBinding,
+  updateSynchronizeTrigger,
   validateDesktopBillingCatalog,
   validateDesktopBillingOperation,
   validateDesktopBillingQuote,
@@ -29,6 +29,7 @@ import {
   validateDesktopCloudOrganizationSeatUsage,
 } from "../../../../src/lib/cloudApi";
 import { getCloudHistory, normalizeCloudHistory } from "../../../../src/lib/cloudHistoryApi";
+import { cloudCache } from "../../../../src/features/cloud/cache/cloudCache";
 
 const API = "https://api.puppyone.ai/api/v1";
 const session = {
@@ -56,6 +57,17 @@ afterEach(() => {
 });
 
 describe("cloud API client delegation", () => {
+  it("does not invalidate file reads when resolving a repository context through POST", async () => {
+    cloudCache.clear();
+    const context = { session, projectId: "project-1", revision: "one", resource: "directory" };
+    await cloudCache.load(context, async () => ["cached"], { ttlMs: 30_000 });
+    bridge.mockResolvedValue({});
+    await cloudApiRequest("/projects/project-1/repository-context", session, undefined,
+      { method: "POST", body: JSON.stringify({ target: { kind: "project_root", project_id: "project-1" } }) }, API);
+    expect(cloudCache.read(context)).toEqual(["cached"]);
+    await cloudApiRequest("/content/project-1/mv", session, undefined, { method: "POST", body: "{}" }, API);
+    expect(cloudCache.read(context)).toBeUndefined();
+  });
   it("reads capability-derived seat usage without trusting or mis-encoding organization ids", async () => {
     bridge.mockResolvedValueOnce({ billable_seat_quantity: 2 });
 
@@ -352,36 +364,38 @@ describe("cloud API client delegation", () => {
       undefined,
       API,
     );
-    await updateCloudAutomationConnection(
+    bridge.mockResolvedValueOnce({ id: "connection/1", project_id: "project-1", path: "Research/Docs" });
+    await updateSynchronizeBinding(
       session,
       "connection/1",
       { target_path: "Research/Docs", config: { source: { resource_id: "doc-1" } } },
       undefined,
       API,
     );
-    await updateCloudAutomationTrigger(
+    await updateSynchronizeTrigger(
       session,
       "connection/1",
       { sync_mode: "scheduled", trigger: { type: "schedule", schedule: "0 9 * * *", timezone: "UTC" } },
       undefined,
       API,
     );
-    await listCloudAutomationConnectionRuns(session, "connection/1", 10, undefined, API);
+    bridge.mockResolvedValueOnce([]);
+    await listSynchronizeRuns(session, "connection/1", 10, undefined, API);
 
     expect(bridge).toHaveBeenNthCalledWith(1, expect.objectContaining({
-      path: "/integrations/providers/google_docs/resources?q=product+brief&cursor=page%2F2&resource_type=document",
+      path: "/synchronize/providers/google_docs/resources?q=product+brief&cursor=page%2F2&resource_type=document",
       method: "GET",
     }));
     expect(bridge).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      path: "/integrations/connections/connection%2F1",
+      path: "/synchronize/bindings/connection%2F1",
       method: "PATCH",
     }));
     expect(bridge).toHaveBeenNthCalledWith(3, expect.objectContaining({
-      path: "/integrations/connections/connection%2F1/trigger",
+      path: "/synchronize/bindings/connection%2F1/trigger",
       method: "PATCH",
     }));
     expect(bridge).toHaveBeenNthCalledWith(4, expect.objectContaining({
-      path: "/integrations/connections/connection%2F1/runs?limit=10",
+      path: "/synchronize/bindings/connection%2F1/runs?limit=10",
       method: "GET",
     }));
   });

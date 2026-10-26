@@ -1,43 +1,51 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ComponentType } from "react";
+import { useLocalization } from "@puppyone/localization/react";
 import {
   listCloudAutomationProviderSpecs,
   openCloudApp,
   type DesktopCloudAutomationProviderSpec,
   type DesktopCloudSession,
 } from "../../lib/cloudApi";
-import type { CloudProjectAccessData } from "../cloud/project/cloudProjectAccessData";
+import { useSynchronizeBindings } from "./useSynchronizeBindings";
 import { CloudAutomationPage } from "./AutomationPage";
 import {
   buildCloudAutomationRows,
   cloudAutomationRowMatchesProvider,
   getCloudAutomationWebPath,
 } from "./automationDomain";
+import { PageLoading } from "../../components/loading";
 import "./automation.css";
+
+/** The host's failed-service surface; Cloud supplies it so Automation never imports Cloud. */
+export type AutomationUnavailableView = ComponentType<{ title: string; onRetry: () => void }>;
 
 /** Automation for the single Project authorized by the current Git remote. */
 export function CloudProjectAutomationView({
   projectId,
   cloudSession,
-  accessData,
   activeProvider = null,
   onCloudSessionChange,
+  Unavailable,
 }: {
   projectId: string;
   cloudSession: DesktopCloudSession;
-  accessData: CloudProjectAccessData;
   activeProvider?: string | null;
   onCloudSessionChange: (session: DesktopCloudSession | null) => void;
+  Unavailable: AutomationUnavailableView;
 }) {
+  const { t } = useLocalization();
+  const data = useSynchronizeBindings(projectId, cloudSession, onCloudSessionChange);
   const [detailRowId, setDetailRowId] = useState<string | null>(null);
   const [providerSpecs, setProviderSpecs] = useState<DesktopCloudAutomationProviderSpec[]>([]);
   const [providerSpecsLoading, setProviderSpecsLoading] = useState(true);
+  const [providerReload, setProviderReload] = useState(0);
   const [providerSpecsError, setProviderSpecsError] = useState<string | null>(null);
   const automationRows = useMemo(
     () => buildCloudAutomationRows({
-      scopes: accessData.scopeRows,
-      connectors: accessData.connectors,
+      projectId,
+      bindings: data.bindings,
     }),
-    [accessData.connectors, accessData.scopeRows],
+    [projectId, data.bindings],
   );
   const visibleRows = useMemo(
     () => automationRows.filter((row) => cloudAutomationRowMatchesProvider(row, activeProvider)),
@@ -68,7 +76,7 @@ export function CloudProjectAutomationView({
     return () => {
       cancelled = true;
     };
-  }, [cloudSession, onCloudSessionChange]);
+  }, [cloudSession, onCloudSessionChange, providerReload]);
 
   useEffect(() => {
     if (detailRowId && !visibleRows.some((row) => row.id === detailRowId)) {
@@ -76,25 +84,32 @@ export function CloudProjectAutomationView({
     }
   }, [detailRowId, visibleRows]);
 
+  if (data.loading || providerSpecsLoading) return <PageLoading variant="fill" label={t("cloud.loading.automation")} />;
+  if (data.error || providerSpecsError) return <Unavailable title={t("cloud.workspaceTools.automations")}
+    onRetry={() => { setProviderReload(value => value + 1); void data.reload().catch(() => undefined); }} />;
+
   return (
-    <CloudAutomationPage
-      projectId={projectId}
-      cloudSession={cloudSession}
-      apiBaseUrl={cloudSession.api_base_url ?? null}
-      rows={visibleRows}
-      totalCount={automationRows.length}
-      hasAnyAutomation={automationRows.length > 0}
-      loading={accessData.loading}
-      providerSpecs={providerSpecs}
-      providerSpecsLoading={providerSpecsLoading}
-      providerSpecsError={providerSpecsError}
-      detailRow={detailRow}
-      onOpenRow={setDetailRowId}
-      onCloseDetail={() => setDetailRowId(null)}
-      onCloudSessionChange={onCloudSessionChange}
-      onRefresh={accessData.reload}
-      onOpenAutomation={() => openCloudApp(getCloudAutomationWebPath(projectId))}
-    />
+    <>
+      <CloudAutomationPage
+        key={JSON.stringify([cloudSession.api_base_url, cloudSession.user_id, cloudSession.session_generation, projectId])}
+        projectId={projectId}
+        cloudSession={cloudSession}
+        apiBaseUrl={cloudSession.api_base_url ?? null}
+        rows={visibleRows}
+        totalCount={automationRows.length}
+        hasAnyAutomation={automationRows.length > 0}
+        loading={data.loading}
+        providerSpecs={providerSpecs}
+        providerSpecsLoading={providerSpecsLoading}
+        providerSpecsError={providerSpecsError}
+        detailRow={detailRow}
+        onOpenRow={setDetailRowId}
+        onCloseDetail={() => setDetailRowId(null)}
+        onCloudSessionChange={onCloudSessionChange}
+        onRefresh={data.reload}
+        onOpenAutomation={() => openCloudApp(getCloudAutomationWebPath(projectId))}
+      />
+    </>
   );
 }
 

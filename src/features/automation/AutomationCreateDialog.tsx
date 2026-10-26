@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import {
   ArrowRight,
   Check,
@@ -15,11 +16,11 @@ import {
 import type {
   DesktopCloudAutomationOauthStatus,
   DesktopCloudAutomationProviderSpec,
-  DesktopCloudCreateAutomationResult,
+  DesktopCloudCreateSynchronizeBindingResult,
   DesktopCloudSession,
 } from "../../lib/cloudApi";
 import {
-  createCloudAutomation,
+  createSynchronizeBinding,
   getCloudAutomationOauthAuthorizeUrl,
   getCloudAutomationOauthStatus,
   openCloudAutomationAuthorizationUrl,
@@ -30,7 +31,7 @@ import {
   DesktopDialogRoot,
   DesktopDialogSurface,
 } from "../../components/DesktopDialog";
-import { DesktopOverlayLayer } from "../app-shell/DesktopOverlayPortal";
+import { DesktopOverlayLayer } from "../../components/DesktopOverlayPortal";
 import {
   getCloudProviderIconUrl,
   providerIcon,
@@ -76,8 +77,8 @@ type OauthConnectFailure = Readonly<{
 }>;
 
 export type CloudAutomationCreationEcho = {
-  connectionId: string;
-  runId: string | null;
+  synchronizeBindingId: string;
+  synchronizeRunId: string | null;
   provider: string;
   targetPath: string;
   status: string;
@@ -85,19 +86,7 @@ export type CloudAutomationCreationEcho = {
   error: string | null;
 };
 
-export function CloudNewAutomationDialog({
-  projectId,
-  cloudSession,
-  apiBaseUrl,
-  providers,
-  providersLoading,
-  providersError,
-  template,
-  onCloudSessionChange,
-  onRefresh,
-  onCreated,
-  onClose,
-}: {
+type CloudNewAutomationDialogProps = {
   projectId: string;
   cloudSession: DesktopCloudSession;
   apiBaseUrl: string | null;
@@ -109,8 +98,50 @@ export function CloudNewAutomationDialog({
   onRefresh: () => Promise<void>;
   onCreated: (echo: CloudAutomationCreationEcho) => void;
   onClose: () => void;
-}) {
+};
+
+export function CloudNewAutomationDialog(props: CloudNewAutomationDialogProps) {
   const { t } = useLocalization();
+  const wizard = useAutomationCreateWizard(props);
+  const { step, provider, activeTemplate, saving } = wizard;
+  const { onClose } = props;
+  const title = getWizardTitle(step, provider, activeTemplate, t);
+  return (
+    <DesktopOverlayLayer>
+      <DesktopDialogRoot onClose={saving ? undefined : onClose}>
+        <DesktopDialogSurface width={920} className="desktop-cloud-automation-dialog" ariaLabel={title}>
+          <header className="desktop-dialog-header desktop-cloud-automation-dialog-header">
+            <div className="desktop-dialog-title-row">
+              <div>
+                <h2>{title}</h2>
+                {step === "configure" && activeTemplate && <p>{formatAutomationTemplateDescription(activeTemplate, t)}</p>}
+              </div>
+            </div>
+            <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton label={t("common.action.close")} disabled={saving} onClick={onClose} /></Tooltip>
+          </header>
+          <div
+            className="desktop-dialog-body desktop-cloud-automation-dialog-body"
+            data-po-scrollbar="content"
+          >
+            <AutomationWizardBody props={props} wizard={wizard} />
+          </div>
+        </DesktopDialogSurface>
+      </DesktopDialogRoot>
+    </DesktopOverlayLayer>
+  );
+}
+
+function useAutomationCreateWizard({
+  projectId,
+  cloudSession,
+  apiBaseUrl,
+  providers,
+  template,
+  onCloudSessionChange,
+  onRefresh,
+  onCreated,
+  onClose,
+}: CloudNewAutomationDialogProps) {
   const datasourceProviders = useMemo(
     () => providers.filter((provider) => provider.category === "datasource"),
     [providers],
@@ -244,13 +275,8 @@ export function CloudNewAutomationDialog({
     };
   }, [apiBaseUrl, cloudSession, connectAttempt, onCloudSessionChange, provider, step]);
 
-  const fields = getCloudAutomationUserConfigFields(provider);
-  const missingRequired = fields.some((field) => field.required && !configValues[field.key]?.trim());
-  const sourceMissing = Boolean(provider && provider.provider !== "url" && providerNeedsOauth(provider) && !source?.resourceId.trim());
-  const normalizedTargetPath = normalizeAutomationTargetPath(targetPath);
-  const targetPathError = getAutomationTargetPathValidationError(targetPath);
-  const triggerError = getAutomationTriggerValidationError(trigger);
-  const canCreate = Boolean(provider && !missingRequired && !sourceMissing && !targetPathError && !triggerError && !saving);
+  const validation = deriveAutomationValidation({ provider, configValues, source, targetPath, trigger, saving });
+  const { canCreate, normalizedTargetPath } = validation;
 
   const continueWithProvider = () => {
     if (!provider) return;
@@ -269,7 +295,7 @@ export function CloudNewAutomationDialog({
     setSaving(true);
     setFeedback(null);
     try {
-      const result = await createCloudAutomation(
+      const result = await createSynchronizeBinding(
         cloudSession,
         buildDesktopCreateAutomationRequest({
           projectId,
@@ -291,181 +317,200 @@ export function CloudNewAutomationDialog({
     }
   };
 
-  const title = step === "choose"
-    ? t("automation.create.chooseTitle")
-    : step === "connect"
-      ? t("automation.create.connectTitle", {
-          provider: bidiIsolate(provider?.display_name ?? t("automation.source.generic")),
-        })
-      : activeTemplate
-        ? formatAutomationTemplateTitle(activeTemplate, t)
-        : t("automation.create.configureTitle", {
-            provider: bidiIsolate(provider?.display_name ?? t("automation.source.generic")),
-          });
-  const feedbackMessage = formatAutomationCreateFailure(feedback, t);
+  return {
+    datasourceProviders, templates, selectedProviderId, setSelectedProviderId, step, setStep,
+    oauthLookups, setOauthReloadVersion, connectPhase, setConnectPhase, connectError, setConnectError, setConnectAttempt,
+    provider, activeTemplate, targetPath, setTargetPath, configValues, setConfigValues, source, setSource, trigger, setTrigger,
+    saving, feedback, validation, continueWithProvider, handleCreate,
+  };
+}
 
+type AutomationWizard = ReturnType<typeof useAutomationCreateWizard>;
+type WizardContentProps = { props: CloudNewAutomationDialogProps; wizard: AutomationWizard };
+
+function AutomationWizardBody({ props, wizard }: WizardContentProps) {
+  const { t } = useLocalization();
+  const { providersLoading, providersError } = props;
+  const { datasourceProviders, step, provider, oauthLookups, setStep, setOauthReloadVersion,
+    connectPhase, connectError, setConnectPhase, setConnectError, setConnectAttempt } = wizard;
+  if (providersLoading) return <div className="desktop-cloud-automation-state">{t("automation.create.loadingSources")}</div>;
+  if (providersError) return <div className="desktop-dialog-error" dir="auto">
+    {t("automation.create.sourcesError", { detail: bidiIsolate(providersError) })}
+  </div>;
+  if (datasourceProviders.length === 0) return <div className="desktop-cloud-automation-state">{t("automation.create.noSources")}</div>;
+  if (step === "choose") return <AutomationChooseStep props={props} wizard={wizard} />;
+  if (!provider) return <div className="desktop-cloud-automation-state">
+    <span>{t("automation.create.sourceUnavailable")}</span>
+    <button className="desktop-dialog-button" type="button" onClick={() => setStep("choose")}>
+      {t("automation.create.chooseAnotherSource")}
+    </button>
+  </div>;
+  if (step === "resolving") return <ConnectionResolvingState
+    provider={provider} lookup={oauthLookups[provider.provider]}
+    onBack={() => setStep("choose")} onRetry={() => setOauthReloadVersion(current => current + 1)}
+  />;
+  if (step === "connect") return <ConnectionWaitingState
+    provider={provider} phase={connectPhase} error={connectError}
+    onCancel={() => { setStep("choose"); setOauthReloadVersion(current => current + 1); }}
+    onRetry={() => { setConnectPhase("starting"); setConnectError(null); setConnectAttempt(current => current + 1); }}
+  />;
+  return <AutomationConfigureStep props={props} wizard={wizard} provider={provider} />;
+}
+
+function AutomationChooseStep({ props, wizard }: WizardContentProps) {
+  const { t } = useLocalization();
+  const { onClose } = props;
+  const { templates, datasourceProviders, oauthLookups, selectedProviderId, setSelectedProviderId, provider, continueWithProvider } = wizard;
   return (
-    <DesktopOverlayLayer>
-      <DesktopDialogRoot onClose={saving ? undefined : onClose}>
-        <DesktopDialogSurface width={920} className="desktop-cloud-automation-dialog" ariaLabel={title}>
-        <header className="desktop-dialog-header desktop-cloud-automation-dialog-header">
-          <div className="desktop-dialog-title-row">
-            <div>
-              <h2>{title}</h2>
-              <p>{getWizardDescription(step, provider, activeTemplate, t)}</p>
-            </div>
-          </div>
-          <DesktopDialogCloseButton disabled={saving} onClick={onClose} />
-        </header>
-        <div
-          className="desktop-dialog-body desktop-cloud-automation-dialog-body"
-          data-po-scrollbar="content"
-        >
-          {providersLoading ? (
-            <div className="desktop-cloud-automation-state">{t("automation.create.loadingSources")}</div>
-          ) : providersError ? (
-            <div className="desktop-dialog-error" dir="auto">
-              {t("automation.create.sourcesError", { detail: bidiIsolate(providersError) })}
-            </div>
-          ) : datasourceProviders.length === 0 ? (
-            <div className="desktop-cloud-automation-state">{t("automation.create.noSources")}</div>
-          ) : step === "choose" ? (
-            <>
-              <div className="desktop-cloud-automation-chooser-grid">
-                {templates.map((item) => {
-                  const itemProvider = datasourceProviders.find((candidate) => candidate.provider === item.provider);
-                  const status = getProviderConnectionBadge(itemProvider, oauthLookups[item.provider], t);
-                  return (
-                    <AutomationTemplateCard
-                      key={item.id}
-                      template={item}
-                      selected={selectedProviderId === item.provider}
-                      actionLabel={t("automation.action.choose")}
-                      status={status.label}
-                      statusTone={status.tone}
-                      onAdd={() => setSelectedProviderId(item.provider)}
-                    />
-                  );
-                })}
-              </div>
-              <div className="desktop-cloud-automation-dialog-footer-row">
-                <span className="muted">{t("automation.create.chooseSourceHint")}</span>
-                <div className="desktop-cloud-automation-actions">
-                  <button className="desktop-dialog-button" type="button" onClick={onClose}>{t("common.action.cancel")}</button>
-                  <button className="desktop-dialog-button primary" type="button" disabled={!provider} onClick={continueWithProvider}>
-                    {t("automation.action.continue")}
-                    <ArrowRight className="po-directional-icon" size={14} />
-                  </button>
-                </div>
-              </div>
-            </>
-          ) : !provider ? (
-            <div className="desktop-cloud-automation-state">
-              <span>{t("automation.create.sourceUnavailable")}</span>
-              <button className="desktop-dialog-button" type="button" onClick={() => setStep("choose")}>
-                {t("automation.create.chooseAnotherSource")}
-              </button>
-            </div>
-          ) : step === "resolving" ? (
-            <ConnectionResolvingState
-              provider={provider}
-              lookup={provider ? oauthLookups[provider.provider] : undefined}
-              onBack={() => setStep("choose")}
-              onRetry={() => setOauthReloadVersion((current) => current + 1)}
+    <>
+      <div className="desktop-cloud-automation-chooser-grid">
+        {templates.map((item) => {
+          const itemProvider = datasourceProviders.find((candidate) => candidate.provider === item.provider);
+          const status = getProviderConnectionBadge(itemProvider, oauthLookups[item.provider], t);
+          return (
+            <AutomationTemplateCard
+              key={item.id}
+              template={item}
+              selected={selectedProviderId === item.provider}
+              actionLabel={t("automation.action.choose")}
+              status={status.label}
+              statusTone={status.tone}
+              onAdd={() => setSelectedProviderId(item.provider)}
             />
-          ) : step === "connect" ? (
-            <ConnectionWaitingState
-              provider={provider}
-              phase={connectPhase}
-              error={connectError}
-              onCancel={() => {
-                setStep("choose");
-                setOauthReloadVersion((current) => current + 1);
-              }}
-              onRetry={() => {
-                setConnectPhase("starting");
-                setConnectError(null);
-                setConnectAttempt((current) => current + 1);
-              }}
-            />
-          ) : (
-            <>
-              <div className="desktop-cloud-automation-builder">
-                <section className="desktop-cloud-automation-node">
-                  <div className="desktop-cloud-automation-node-header">
-                    <span className="desktop-cloud-automation-node-icon">
-                      <CloudAutomationProviderMark provider={provider.provider} iconUrl={provider.icon_url} />
-                    </span>
-                    <span dir="auto">{provider.display_name}</span>
-                  </div>
-                  <div className="desktop-cloud-automation-node-body">
-                    <CloudAutomationSourceEditor
-                      provider={provider}
-                      cloudSession={cloudSession}
-                      apiBaseUrl={apiBaseUrl}
-                      configValues={configValues}
-                      source={source}
-                      onCloudSessionChange={onCloudSessionChange}
-                      onConfigValueChange={(key, value) => setConfigValues((current) => ({ ...current, [key]: value }))}
-                      onSourceChange={setSource}
-                    />
-                  </div>
-                </section>
-                <div className="desktop-cloud-automation-trigger-bridge">
-                  <CloudAutomationTriggerEditor provider={provider} draft={trigger} onChange={setTrigger} />
-                  <ArrowRight className="po-directional-icon" size={16} aria-hidden="true" />
-                </div>
-                <section className="desktop-cloud-automation-node">
-                  <div className="desktop-cloud-automation-node-header">
-                    <span className="desktop-cloud-automation-node-icon"><img src={resolveRendererPublicAssetUrl(RENDERER_ASSET_PATHS.icons.ui.folder)} alt="" /></span>
-                    <span dir="auto">/{normalizedTargetPath}</span>
-                  </div>
-                  <div className="desktop-cloud-automation-node-body">
-                    <CloudAutomationDestinationEditor
-                      projectId={projectId}
-                      cloudSession={cloudSession}
-                      apiBaseUrl={apiBaseUrl}
-                      targetPath={targetPath}
-                      onCloudSessionChange={onCloudSessionChange}
-                      onChange={setTargetPath}
-                    />
-                  </div>
-                </section>
-              </div>
-              {feedbackMessage && (
-                <div className="desktop-dialog-error desktop-cloud-automation-action-error" role="alert" dir="auto">
-                  {feedbackMessage}
-                </div>
-              )}
-              <div className="desktop-cloud-automation-dialog-footer-row">
-                <span className={canCreate ? "ready" : "muted"}>
-                  {missingRequired
-                    ? t("automation.create.missingRequired")
-                    : sourceMissing
-                      ? t("automation.create.sourceMissing")
-                      : targetPathError
-                        ? formatAutomationValidationError(targetPathError, t)
-                        : triggerError
-                        ? formatAutomationValidationError(triggerError, t)
-                        : t("automation.create.ready")}
-                </span>
-                <div className="desktop-cloud-automation-actions">
-                  <button className="desktop-dialog-button" type="button" disabled={saving} onClick={() => setStep("choose")}>
-                    {t("automation.action.back")}
-                  </button>
-                  <button className="desktop-dialog-button primary" type="button" disabled={!canCreate} onClick={handleCreate}>
-                    <Check size={14} />
-                    {saving ? t("automation.create.creating") : t("automation.create.submit")}
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
+          );
+        })}
+      </div>
+      <div className="desktop-cloud-automation-dialog-footer-row">
+        <span className="muted">{t("automation.create.chooseSourceHint")}</span>
+        <div className="desktop-cloud-automation-actions">
+          <button className="desktop-dialog-button" type="button" onClick={onClose}>{t("common.action.cancel")}</button>
+          <button className="desktop-dialog-button primary" type="button" disabled={!provider} onClick={continueWithProvider}>
+            {t("automation.action.continue")}
+            <ArrowRight className="po-directional-icon" size={14} />
+          </button>
         </div>
-        </DesktopDialogSurface>
-      </DesktopDialogRoot>
-    </DesktopOverlayLayer>
+      </div>
+    </>
   );
+}
+
+function AutomationConfigureStep({ props, wizard, provider }: WizardContentProps & { provider: DesktopCloudAutomationProviderSpec }) {
+  const { t } = useLocalization();
+  const { projectId, cloudSession, apiBaseUrl, onCloudSessionChange } = props;
+  const { configValues, source, setConfigValues, setSource, trigger, setTrigger, targetPath, setTargetPath, saving, setStep, handleCreate } = wizard;
+  const { canCreate } = wizard.validation;
+  const feedbackMessage = formatAutomationCreateFailure(wizard.feedback, t);
+  return (
+    <>
+      <div className="desktop-cloud-automation-builder">
+        <section className="desktop-cloud-automation-node">
+          <div className="desktop-cloud-automation-node-header">
+            <span className="desktop-cloud-automation-node-icon">
+              <CloudAutomationProviderMark provider={provider.provider} iconUrl={provider.icon_url} />
+            </span>
+            <span dir="auto">{provider.display_name}</span>
+          </div>
+          <div className="desktop-cloud-automation-node-body">
+            <CloudAutomationSourceEditor
+              provider={provider}
+              cloudSession={cloudSession}
+              apiBaseUrl={apiBaseUrl}
+              configValues={configValues}
+              source={source}
+              onCloudSessionChange={onCloudSessionChange}
+              onConfigValueChange={(key, value) => setConfigValues((current) => ({ ...current, [key]: value }))}
+              onSourceChange={setSource}
+            />
+          </div>
+        </section>
+        <div className="desktop-cloud-automation-trigger-bridge">
+          <CloudAutomationTriggerEditor provider={provider} draft={trigger} onChange={setTrigger} />
+          <ArrowRight className="po-directional-icon" size={16} aria-hidden="true" />
+        </div>
+        <section className="desktop-cloud-automation-node">
+          <div className="desktop-cloud-automation-node-header">
+            <span className="desktop-cloud-automation-node-icon"><img src={resolveRendererPublicAssetUrl(RENDERER_ASSET_PATHS.icons.ui.folder)} alt="" /></span>
+            <span>{t("automation.destination.projectFolder")}</span>
+          </div>
+          <div className="desktop-cloud-automation-node-body">
+            <CloudAutomationDestinationEditor
+              projectId={projectId}
+              cloudSession={cloudSession}
+              apiBaseUrl={apiBaseUrl}
+              targetPath={targetPath}
+              onCloudSessionChange={onCloudSessionChange}
+              onChange={setTargetPath}
+            />
+          </div>
+        </section>
+      </div>
+      {feedbackMessage && (
+        <div className="desktop-dialog-error desktop-cloud-automation-action-error" role="alert" dir="auto">
+          {feedbackMessage}
+        </div>
+      )}
+      <div className="desktop-cloud-automation-dialog-footer-row">
+        <span className="muted">
+          {getAutomationValidationMessage(wizard.validation, t)}
+        </span>
+        <div className="desktop-cloud-automation-actions">
+          <button className="desktop-dialog-button" type="button" disabled={saving} onClick={() => setStep("choose")}>
+            {t("automation.action.back")}
+          </button>
+          <button className="desktop-dialog-button primary" type="button" disabled={!canCreate} onClick={handleCreate}>
+            <Check size={14} />
+            {saving ? t("automation.create.creating") : t("automation.create.submit")}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function deriveAutomationValidation({ provider, configValues, source, targetPath, trigger, saving }: {
+  provider: DesktopCloudAutomationProviderSpec | null;
+  configValues: Record<string, string>;
+  source: AutomationSourceSelection | null;
+  targetPath: string;
+  trigger: Parameters<typeof getAutomationTriggerValidationError>[0];
+  saving: boolean;
+}) {
+  const fields = getCloudAutomationUserConfigFields(provider);
+  const missingRequired = fields.some((field) => field.required && !configValues[field.key]?.trim());
+  const sourceMissing = Boolean(provider && provider.provider !== "url" && providerNeedsOauth(provider) && !source?.resourceId.trim());
+  const normalizedTargetPath = normalizeAutomationTargetPath(targetPath);
+  const targetPathError = getAutomationTargetPathValidationError(targetPath);
+  const triggerError = getAutomationTriggerValidationError(trigger);
+  const canCreate = Boolean(provider && !missingRequired && !sourceMissing && !targetPathError && !triggerError && !saving);
+  return { missingRequired, sourceMissing, normalizedTargetPath, targetPathError, triggerError, canCreate };
+}
+
+function getAutomationValidationMessage(validation: ReturnType<typeof deriveAutomationValidation>, t: MessageFormatter) {
+  if (validation.missingRequired) return t("automation.create.missingRequired");
+  if (validation.sourceMissing) return t("automation.create.sourceMissing");
+  if (validation.targetPathError) return formatAutomationValidationError(validation.targetPathError, t);
+  if (validation.triggerError) return formatAutomationValidationError(validation.triggerError, t);
+  return null;
+}
+
+function getWizardTitle(step: WizardStep, provider: DesktopCloudAutomationProviderSpec | null, template: AutomationTemplate | null, t: MessageFormatter) {
+  if (step === "choose") return t("automation.create.chooseTitle");
+  const providerLabel = bidiIsolate(provider?.display_name ?? t("automation.source.generic"));
+  if (step === "connect") return t("automation.create.connectTitle", { provider: providerLabel });
+  if (template) return formatAutomationTemplateTitle(template, t);
+  return t("automation.create.configureTitle", { provider: providerLabel });
+}
+
+function getConnectionHeading(phase: "starting" | "waiting" | "error", providerUnavailable: boolean, provider: string, t: MessageFormatter) {
+  if (phase === "starting") return t("automation.connection.openingAuthorization");
+  if (phase === "waiting") return t("automation.connection.waiting");
+  if (providerUnavailable) return t("automation.connection.providerUnavailable", { provider: bidiIsolate(provider) });
+  return t("automation.connection.authorizationAttention");
+}
+
+function getConnectionDescription(providerUnavailable: boolean, provider: string, error: OauthConnectFailure | null, t: MessageFormatter) {
+  if (providerUnavailable) return t("automation.connection.providerUnavailableDetail", { provider: bidiIsolate(provider) });
+  return t("automation.error.detail", { detail: bidiIsolate(error?.detail) });
 }
 
 function ConnectionResolvingState({
@@ -484,12 +529,10 @@ function ConnectionResolvingState({
   return (
     <div className="desktop-cloud-automation-connect-state">
       {lookup?.state === "error" ? <ShieldCheck size={28} /> : <LoaderCircle className="desktop-dialog-spinner" size={28} />}
-      <h3>{lookup?.state === "error"
+      <h3 role="status">{lookup?.state === "error"
         ? t("automation.connection.statusUnavailable")
         : t("automation.connection.checkingProvider", { provider: bidiIsolate(providerLabel) })}</h3>
-      <p dir="auto">{lookup?.error
-        ? t("automation.error.detail", { detail: bidiIsolate(lookup.error) })
-        : t("automation.connection.readingAccount")}</p>
+      {lookup?.error && <p role="alert" dir="auto">{t("automation.error.detail", { detail: bidiIsolate(lookup.error) })}</p>}
       <div className="desktop-cloud-automation-actions">
         <button className="desktop-dialog-button" type="button" onClick={onBack}>{t("automation.action.back")}</button>
         {lookup?.state === "error" && (
@@ -518,20 +561,8 @@ function ConnectionWaitingState({
   return (
     <div className="desktop-cloud-automation-connect-state">
       {phase === "error" ? <ExternalLink size={28} /> : <LoaderCircle className="desktop-dialog-spinner" size={28} />}
-      <h3>{phase === "starting"
-        ? t("automation.connection.openingAuthorization")
-        : phase === "waiting"
-          ? t("automation.connection.waiting")
-          : providerUnavailable
-            ? t("automation.connection.providerUnavailable", { provider: bidiIsolate(provider.display_name) })
-            : t("automation.connection.authorizationAttention")}</h3>
-      <p dir="auto">
-        {phase === "error"
-          ? providerUnavailable
-            ? t("automation.connection.providerUnavailableDetail", { provider: bidiIsolate(provider.display_name) })
-            : t("automation.error.detail", { detail: bidiIsolate(error?.detail) })
-          : t("automation.connection.finishInBrowser", { provider: bidiIsolate(provider.display_name) })}
-      </p>
+      <h3 role="status">{getConnectionHeading(phase, providerUnavailable, provider.display_name, t)}</h3>
+      {phase === "error" && <p role="alert" dir="auto">{getConnectionDescription(providerUnavailable, provider.display_name, error, t)}</p>}
       <div className="desktop-cloud-automation-actions">
         <button className={`desktop-dialog-button${providerUnavailable ? " primary" : ""}`} type="button" onClick={onCancel}>
           {providerUnavailable ? t("automation.create.chooseAnotherSource") : t("common.action.cancel")}
@@ -579,32 +610,17 @@ function getProviderConnectionBadge(
   return { label: t("automation.connection.required"), tone: "required" };
 }
 
-function getWizardDescription(
-  step: WizardStep,
-  provider: DesktopCloudAutomationProviderSpec | null,
-  template: AutomationTemplate | null,
-  t: MessageFormatter,
-) {
-  if (step === "choose") return t("automation.create.description.choose");
-  if (step === "connect") return t("automation.create.description.connect");
-  if (step === "resolving") return t("automation.create.description.resolving");
-  if (template) return formatAutomationTemplateDescription(template, t);
-  return t("automation.create.description.configure", {
-    provider: bidiIsolate(provider?.display_name ?? t("automation.source.generic")),
-  });
-}
-
 function createAutomationEcho(
-  result: DesktopCloudCreateAutomationResult,
+  result: DesktopCloudCreateSynchronizeBindingResult,
   provider: string,
   targetPath: string,
 ): CloudAutomationCreationEcho {
-  const execution = isRecord(result.execution_result) ? result.execution_result : {};
-  const status = readString(execution.status) || result.sync.status || "queued";
-  const error = readString(execution.error) || result.sync.error_message || null;
+  const execution: Record<string, unknown> = isRecord(result.execution_result) ? result.execution_result : {};
+  const status = readString(execution.status) || result.binding.status || "queued";
+  const error = readString(execution.error) || result.binding.error_message || null;
   return {
-    connectionId: result.sync.id,
-    runId: readString(execution.run_id) || null,
+    synchronizeBindingId: result.binding.id,
+    synchronizeRunId: readString(execution.synchronize_run_id) || null,
     provider,
     targetPath,
     status,

@@ -1,8 +1,5 @@
-// Lean ESLint gate (ISSUE-023). Deliberately NOT the full recommended set — on a
-// large existing codebase that would flood warnings without adding a real gate.
-// Instead: ERROR only on genuine bug-classes (so CI fails on real defects), and
-// leave stylistic/legacy debt to tsc + SonarLint. Keeps `npm run lint` green and
-// meaningful.
+// Bug-class rules remain unsuppressed. Readability debt is recorded in ESLint's
+// native bulk-suppression file; CI rejects new violations and baseline growth.
 import globals from "globals";
 import tsParser from "@typescript-eslint/parser";
 import reactHooks from "eslint-plugin-react-hooks";
@@ -40,8 +37,8 @@ export default [
   },
   {
     files: [
-      "src/**/*.{ts,tsx}",
-      "shared/agent-contract/**/*.ts",
+      "{src,packages,electron,local-api,shared}/**/*.{ts,tsx,mts,cts}",
+      // Keep the package's explicit contract visible to the layout check.
       "packages/shared-ui/src/**/*.{ts,tsx}",
     ],
     languageOptions: {
@@ -55,6 +52,21 @@ export default [
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "warn", // legacy debt — visible, non-blocking
     },
+  },
+  {
+    files: ["{src,packages,electron,local-api,shared}/**/*.{js,mjs,cjs,ts,tsx,mts,cts}"],
+    rules: {
+      complexity: ["error", 20],
+      "max-depth": ["error", 4],
+      "max-params": ["error", 5],
+      "no-nested-ternary": "error",
+      "max-lines": ["error", { max: 800, skipBlankLines: true, skipComments: true }],
+      "max-lines-per-function": ["error", { max: 300, skipBlankLines: true, skipComments: true }],
+    },
+  },
+  {
+    files: ["{electron,local-api,shared}/**/*.{ts,tsx,mts,cts}"],
+    languageOptions: { globals: globals.node },
   },
   {
     files: ["src/features/desktop-agent/ui/**/*.{ts,tsx}"],
@@ -97,7 +109,7 @@ export default [
     },
   },
   {
-    files: ["cloudflare/**/*.mjs", "electron/**/*.mjs", "local-api/**/*.mjs", "shared/**/*.{js,mjs}", "scripts/**/*.mjs", "tests/**/*.mjs"],
+    files: ["cloudflare/**/*.mjs", "{src,packages,electron,local-api,shared}/**/*.{js,mjs}", "scripts/**/*.mjs", "tests/**/*.mjs"],
     languageOptions: { ecmaVersion: 2023, sourceType: "module", globals: { ...globals.node } },
     rules: coreBugRules,
   },

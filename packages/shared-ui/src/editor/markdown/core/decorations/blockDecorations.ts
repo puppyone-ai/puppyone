@@ -1,3 +1,4 @@
+import { getMarkdownBlockRhythm, type MarkdownLineRhythm } from "../presentation/markdownBlockRhythm";
 import type { EditorState } from "@codemirror/state";
 import { Decoration } from "@codemirror/view";
 import type { MarkdownAssetUrlResolver, MarkdownHtmlTrustMode, MarkdownLinkGraph } from "../../../registry/viewerTypes";
@@ -6,11 +7,8 @@ import {
   type MarkdownFeatureComposition,
 } from "../features/markdownFeatureContract";
 import { getMarkdownPlansInRange, type IndexedMarkdownPlan } from "../plans/markdownPlanIndex";
-import type {
-  MarkdownBlockAtomPlan,
-  MarkdownInlineAtomPlan,
-} from "../plans/markdownPlanTypes";
-import { getMarkdownTaskLine, type MarkdownTaskLine } from "../rendering/taskModel";
+import type { MarkdownBlockAtomPlan } from "../plans/markdownPlanTypes";
+import type { MarkdownTaskLine } from "../syntax/markdownListStructure";
 import type { ComposingBlockLine } from "../state/composingBlockLine";
 import type { MarkdownRevealedSourceRange } from "../state/revealedSource";
 import { HorizontalRuleWidget, TaskCheckboxWidget } from "../widgets/inlineWidgets";
@@ -21,8 +19,6 @@ import {
   type MarkdownDecorationBuilders,
 } from "./decorationPrimitives";
 import { addInlineMarkdownDecorations } from "./inlineDecorations";
-
-type TaskCheckboxPlan = MarkdownInlineAtomPlan<"taskCheckbox">;
 
 const markdownDecorationDiagnostics = {
   rangeBuilds: 0,
@@ -49,6 +45,7 @@ export function addMarkdownBlockAndLineDecorations(
   const lastLine = state.doc.lineAt(rangeTo);
   const plans = getMarkdownPlansInRange(state, firstLine.from, lastLine.to);
   const planLookup = createLinePlanLookup(state, plans);
+  const rhythm = getMarkdownBlockRhythm(state, firstLine.from, lastLine.to, composingLine?.from);
   const featureComposition = state.facet(markdownFeatureCompositionFacet);
   markdownDecorationDiagnostics.rangeBuilds += 1;
   markdownDecorationDiagnostics.linesScanned += lastLine.number - firstLine.number + 1;
@@ -64,11 +61,7 @@ export function addMarkdownBlockAndLineDecorations(
       && line.to >= revealedSourceRange.from
     );
     if (composingLine?.from === line.from || explicitlyRevealedBlockLine) {
-      builders.decorations.push(
-        Decoration.line({
-          class: "cm-md-source-line",
-        }).range(line.from),
-      );
+      addMarkdownSourceLineDecorations(line.from, rhythm.get(line.from), builders);
       lineNumber += 1;
       continue;
     }
@@ -115,8 +108,28 @@ export function addMarkdownBlockAndLineDecorations(
       documentPath,
       markdownAssetUrlResolver,
       planLookup.plansByLineFrom.get(line.from) ?? EMPTY_INDEXED_PLANS,
+      rhythm.get(line.from),
     );
     lineNumber += 1;
+  }
+}
+
+function addMarkdownSourceLineDecorations(
+  lineFrom: number,
+  lineRhythm: MarkdownLineRhythm | undefined,
+  builders: MarkdownDecorationBuilders,
+) {
+  // Source visibility changes the representation, not list ownership.
+  // Keep the parent rail and expose one literal marker while typing.
+  const list = lineRhythm?.list;
+  builders.decorations.push(
+    Decoration.line({
+      class: list ? [...lineRhythm.classes].filter(name => !name.startsWith("cm-md-task-")).concat("cm-md-source-line", "cm-md-list-source-line").join(" ") : "cm-md-source-line",
+      attributes: getMarkdownLineAttributes(lineRhythm),
+    }).range(lineFrom),
+  );
+  if (list && list.sourceIndentTo > lineFrom) {
+    addSourceSyntaxDecoration(builders, lineFrom, list.sourceIndentTo, "list", false);
   }
 }
 
@@ -157,22 +170,19 @@ function decorateMarkdownLine(
   documentPath: string,
   markdownAssetUrlResolver: MarkdownAssetUrlResolver | null,
   plans: readonly IndexedMarkdownPlan[],
+  rhythm?: MarkdownLineRhythm,
 ) {
-  const taskPlan = findTaskCheckboxPlan(plans, lineFrom, lineTo);
-  const parsedTaskLine = taskPlan ? getMarkdownTaskLine({ from: lineFrom, to: lineTo, text }) : null;
-  const taskLine = parsedTaskLine
-    ? { ...parsedTaskLine, checked: taskPlan?.atom.checked ?? parsedTaskLine.checked }
-    : null;
-  const listMatch = taskLine ? null : /^(\s*)([-*+]|\d+[.)])\s+/.exec(text);
+  const taskLine = findTaskCheckboxLine(plans, lineFrom, lineTo);
   const lineClasses = getMarkdownLineClasses(
     text,
     state.facet(markdownFeatureCompositionFacet),
   );
-  if (lineClasses) {
+  const classes = [...new Set([...lineClasses.split(" ").filter(Boolean), ...(rhythm?.classes ?? [])])].join(" ");
+  if (classes) {
     builders.decorations.push(
       Decoration.line({
-        class: lineClasses,
-        attributes: getMarkdownLineAttributes(taskLine, listMatch),
+        class: classes,
+        attributes: getMarkdownLineAttributes(rhythm),
       }).range(lineFrom),
     );
   }
@@ -212,8 +222,8 @@ function decorateMarkdownLine(
     return;
   }
 
-  if (listMatch) {
-    addSourceSyntaxDecoration(builders, lineFrom, lineFrom + listMatch[0].length, "list", false);
+  if (rhythm?.list && rhythm.list.prefixTo > lineFrom) {
+    addSourceSyntaxDecoration(builders, lineFrom, rhythm.list.prefixTo, "list", false);
   }
 
   addInlineMarkdownDecorations(
@@ -231,16 +241,16 @@ function decorateMarkdownLine(
   );
 }
 
-function findTaskCheckboxPlan(
+function findTaskCheckboxLine(
   plans: readonly IndexedMarkdownPlan[],
   lineFrom: number,
   lineTo: number,
-): TaskCheckboxPlan | null {
+): MarkdownTaskLine | null {
   for (const { element, plan } of plans) {
     if (plan.sourceRange.from >= lineTo || plan.sourceRange.to <= lineFrom) continue;
     if (element.kind !== "task") continue;
     if (plan.presentation !== "inlineAtom" || plan.atom.kind !== "taskCheckbox") continue;
-    return plan as TaskCheckboxPlan;
+    return element.blockData.task;
   }
   return null;
 }
@@ -256,15 +266,18 @@ export function getMarkdownDecorationDiagnostics() {
 }
 
 function getMarkdownLineAttributes(
-  taskLine: MarkdownTaskLine | null,
-  listMatch: RegExpExecArray | null,
+  rhythm?: MarkdownLineRhythm,
 ): Record<string, string> | undefined {
-  if (taskLine) return { style: `--md-list-depth:${taskLine.depth};` };
-  if (!listMatch) return undefined;
-
-  const marker = cssString(getListMarkerText(listMatch[2]));
-  const depth = getListDepth(listMatch[1]);
-  return { style: `--md-list-depth:${depth};--md-list-marker:${marker};` };
+  if (rhythm?.list) {
+    const { depth, marker, columns, parentColumns } = rhythm.list;
+    const width = (count: number) => count === 0
+      ? "var(--po-md-list-marker-width)"
+      : `max(var(--po-md-list-marker-width), calc(${count - 1} * 1ch + var(--po-md-ordered-marker-suffix-width)))`;
+    // Source-derived ancestor widths; every spacing value remains file-owned.
+    const parentPrefix = parentColumns.length ? `--md-list-parent-prefix-width:calc(var(--po-md-list-inset) + ${width(parentColumns[0])} + var(--po-md-list-marker-gap)${parentColumns.slice(1).map(count => ` + max(var(--po-md-list-indent-step), calc(${width(count)} + var(--po-md-list-marker-gap)))`).join("")});` : "";
+    return { style: `--md-list-depth:${depth};--md-list-marker:${cssString(marker)};--md-list-marker-columns:${columns};${parentPrefix}` };
+  }
+  return undefined;
 }
 
 function cssString(value: string): string {
@@ -283,21 +296,9 @@ function getMarkdownLineClasses(
   }
 
   if (/^\s*>/.test(text)) classes.push("cm-md-blockquote");
-  if (/^\s*(?:[-*+]|\d+[.)])\s+/.test(text)) classes.push("cm-md-list-line");
-  if (/^\s*(?:[-*+]|\d+[.)])\s+\[[ xX]\]/.test(text)) classes.push("cm-md-task-line");
-  if (/^\s*(?:[-*+]|\d+[.)])\s+\[[xX]\]/.test(text)) classes.push("cm-md-task-checked");
   if (/^\s*(`{3,}|~{3,})/.test(text)) classes.push("cm-md-code-fence");
   if (/^\s{0,3}(?:-{3,}|\*{3,}|_{3,})\s*$/.test(text)) classes.push("cm-md-hr");
   if (featureComposition) classes.push(...featureComposition.getLineClasses(text));
 
   return classes.join(" ");
-}
-
-function getListMarkerText(marker: string): string {
-  if (/^\d+[.)]$/.test(marker)) return marker;
-  return "\u2022";
-}
-
-function getListDepth(leadingWhitespace: string): number {
-  return Math.floor(leadingWhitespace.replace(/\t/g, "    ").length / 2);
 }

@@ -1,4 +1,7 @@
 {
+  "node.copyLink": "复制链接",
+  "workbench.renderFailure": "无法显示此标签页。",
+  "workbench.reloadView": "重新显示",
   "workbench.newTab": "新标签页",
   "projectSessions.sessionCloseFailed": "会话还未关闭，请重试。",
   "projectSessions.closing": "正在关闭此项目…",
@@ -61,6 +64,7 @@
   "node.creating": "正在创建…",
   "node.create": "创建",
   "node.actionsFor": "{name} 的操作",
+  "node.copyPath": "复制路径",
   "node.newFileOrFolder": "新建文件或文件夹",
   "node.pasteIntoFolder": "粘贴到文件夹",
   "node.copyItems": "复制 {count} 个项目",

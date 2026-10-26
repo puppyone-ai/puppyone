@@ -1,4 +1,4 @@
-import { normalizeSetupPreferences } from "./features/local-agents/model/localAgentSetupPreferences";
+import { normalizeSetupPreferences, type LocalAgentsSettings } from "./localAgentPreferences";
 import {
   DEFAULT_TYPOGRAPHY_PREFERENCES,
   parseTypographyPreferences,
@@ -75,16 +75,16 @@ export type TitlebarActionsSettings = {
   enabled: Record<TitlebarActionId, boolean>;
   order: TitlebarActionId[];
 };
-export type LocalAgentsSettings = {
-  hiddenTerminalAgentIds: string[];
-  chatHistoryDiscoveryEnabled: boolean;
-  setupSuggestions?: import("../shared/local-agent-installation/setup-types").LocalAgentSetupPreferences;
-};
+export type { LocalAgentsSettings } from "./localAgentPreferences";
 export type ExperimentalSettings = {
   enableAssetLibraryHome: boolean;
   enableAlwaysShowOnboardingCoachmarks: boolean;
   enableCloudAutomation: boolean;
   enableCloudWorkspace: boolean;
+  enableEditorTabsInHeader: boolean;
+  enableCenteredProjectInHeader: boolean;
+  enableProjectLocationIconsInHeader: boolean;
+  enableProjectReach: boolean;
   enableShareOnboarding: boolean;
   enableWorkbenchTabsInHeader: boolean;
   enableGitAutoCommit: boolean;
@@ -92,6 +92,7 @@ export type ExperimentalSettings = {
   enableMarkdownHeadingOutline: boolean;
   enableMultiRootWorkspaces: boolean;
   enableOtherAppImports: boolean;
+  enablePayments: boolean;
   enablePuppyFlowFiles: boolean;
   enableProjectSwitcherRail: boolean;
   enableViewerPlugins: boolean;
@@ -171,6 +172,17 @@ export const DEFAULT_EXPERIMENTAL_SETTINGS: ExperimentalSettings = {
   enableAlwaysShowOnboardingCoachmarks: false,
   enableCloudAutomation: false,
   enableCloudWorkspace: false,
+  enableEditorTabsInHeader: false,
+  enableCenteredProjectInHeader: false,
+  enableProjectLocationIconsInHeader: false,
+  /**
+   * Second path for "who can reach this project": the Header reach entry, the
+   * single-screen invite/connect form and review-first incoming changes. Off by
+   * default while the existing path stays byte-identical for comparison. Read it
+   * only through `useProjectReachExperience()`; the retirement plan lives in
+   * puppy-issues `document/puppyone-desktop/platform/experimental-path-forks.md`.
+   */
+  enableProjectReach: false,
   /** Share-first Cloud Homepage and Header entry. On by default; switch off for the classic layout. */
   enableShareOnboarding: true,
   enableWorkbenchTabsInHeader: false,
@@ -179,6 +191,13 @@ export const DEFAULT_EXPERIMENTAL_SETTINGS: ExperimentalSettings = {
   enableMarkdownHeadingOutline: false,
   enableMultiRootWorkspaces: false,
   enableOtherAppImports: false,
+  /**
+   * Paid compute: PuppyOne's own token, the account balance it spends and the
+   * top-up that refills it. Off by default, so an untouched install never asks
+   * anyone for money and the Agent routes only to the user's own API keys and
+   * local models. Read it only through `usePaymentsExperience()`.
+   */
+  enablePayments: false,
   enablePuppyFlowFiles: false,
   enableProjectSwitcherRail: false,
   enableViewerPlugins: false,
@@ -422,6 +441,10 @@ export function parseExperimentalSettings(value: string | null | undefined): Exp
       enableAlwaysShowOnboardingCoachmarks: parsed.enableAlwaysShowOnboardingCoachmarks === true,
       enableCloudAutomation: parsed.enableCloudAutomation === true,
       enableCloudWorkspace: parsed.enableCloudWorkspace === true,
+      enableEditorTabsInHeader: parsed.enableEditorTabsInHeader === true,
+      enableCenteredProjectInHeader: parsed.enableCenteredProjectInHeader === true,
+      enableProjectLocationIconsInHeader: parsed.enableProjectLocationIconsInHeader === true,
+      enableProjectReach: parsed.enableProjectReach === true,
       enableShareOnboarding: parsed.enableShareOnboarding !== false,
       enableWorkbenchTabsInHeader: parsed.enableWorkbenchTabsInHeader === true,
       // Main-owned Git Auto Commit consent is intentionally never restored
@@ -435,6 +458,7 @@ export function parseExperimentalSettings(value: string | null | undefined): Exp
         || parsed.enableGoogleDriveImport === true
         || parsed.enableAirtableImport === true
         || parsed.enableObsidianImport === true,
+      enablePayments: parsed.enablePayments === true,
       enablePuppyFlowFiles: parsed.enablePuppyFlowFiles === true,
       enableProjectSwitcherRail: parsed.enableProjectSwitcherRail === true,
       enableViewerPlugins: parsed.enableViewerPlugins === true,
@@ -530,7 +554,7 @@ export function isCreateNewMenuPlacement(value: unknown): value is CreateNewMenu
 
 export function isCreateNewItemAvailable(
   kind: CreateNewItemId,
-  experimentalSettings: ExperimentalSettings,
+  experimentalSettings: Pick<ExperimentalSettings, "enablePuppyFlowFiles">,
 ): boolean {
   const experimentalSetting = getCreateEntryMenuItem(kind).experimentalSetting;
   return !experimentalSetting || experimentalSettings[experimentalSetting];
@@ -595,7 +619,7 @@ function isLegacyCreateNewDefault(items: readonly {
 
 export function resolveVisibleCreateNewMenuItems(
   settings: CreateNewMenuSettings,
-  experimentalSettings: ExperimentalSettings,
+  experimentalSettings: Pick<ExperimentalSettings, "enablePuppyFlowFiles">,
 ): Readonly<{ main: CreateNewMainMenuEntry[]; submenu: CreateNewItemId[] }> {
   const submenu = settings.submenu.filter((kind) => (
     isCreateNewItemAvailable(kind, experimentalSettings)

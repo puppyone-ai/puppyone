@@ -1,11 +1,6 @@
+import { useDesktopPreference, selectFileIconTheme } from "../../preferencesStore";
 import { ChevronDown, GitBranch } from "lucide-react";
-import {
-  Tooltip,
-  FileGlyphIcon,
-  VirtualSidebarList,
-  useCssPixelCustomProperty,
-  type FileIconThemeId,
-} from "@puppyone/shared-ui";
+import { FileGlyphIcon, VirtualSidebarList, useCssPixelCustomProperty } from "@puppyone/shared-ui";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import { useCallback, useRef, useState } from "react";
 import type {
@@ -26,14 +21,12 @@ export function GitHistoryTimeline({
   selectedCommitId,
   status,
   loading,
-  fileIconTheme,
   onSelectCommit,
 }: {
   commits: GitCommitSummary[];
   selectedCommitId: string | null;
   status: GitStatusSnapshot | null;
   loading: boolean;
-  fileIconTheme: FileIconThemeId;
   onSelectCommit: (commitId: string) => void;
 }) {
   const { t, formatDate, formatRelativeTime } = useLocalization();
@@ -102,7 +95,6 @@ export function GitHistoryTimeline({
           <GitHistoryRow
             commit={row.commit}
             isSelected={row.commit.commit_id === selectedCommitId}
-            fileIconTheme={fileIconTheme}
             onClick={() => onSelectCommit(row.commit.commit_id)}
           />
         )}
@@ -125,12 +117,10 @@ export function GitHistoryTimeline({
 function GitHistoryRow({
   commit,
   isSelected,
-  fileIconTheme,
   onClick,
 }: {
   commit: GitCommitSummary;
   isSelected: boolean;
-  fileIconTheme: FileIconThemeId;
   onClick: () => void;
 }) {
   const { t, formatNumber } = useLocalization();
@@ -157,16 +147,14 @@ function GitHistoryRow({
     >
       <span className="desktop-history-row-main">
         <span className="desktop-history-row-title">
-          <Tooltip content={commit.message} overflowOnly>
-            <bdi className="desktop-history-row-message">
-              {commit.message || t("source-control.commit.noMessage")}
-            </bdi>
-          </Tooltip>
+          <bdi className="desktop-history-row-message">
+            {commit.message || t("source-control.commit.noMessage")}
+          </bdi>
           {(hasAdditions || hasDeletions) && (
-            <Tooltip content={exactStats}><span className="desktop-history-row-stat" aria-label={exactStats}>
+            <span className="desktop-history-row-stat" aria-label={exactStats}>
               {hasAdditions && <span className="added">+{compactNumber(totals.additions)}</span>}
               {hasDeletions && <span className="deleted">-{compactNumber(totals.deletions)}</span>}
-            </span></Tooltip>
+            </span>
           )}
         </span>
         {visibleChanges.length > 0 && (
@@ -174,7 +162,6 @@ function GitHistoryRow({
             {visibleChanges.map((change) => (
               <GitHistoryFilePreview
                 change={change}
-                fileIconTheme={fileIconTheme}
                 key={`${change.status}:${change.oldPath ?? ""}:${change.path}`}
               />
             ))}
@@ -192,11 +179,10 @@ function GitHistoryRow({
 
 function GitHistoryFilePreview({
   change,
-  fileIconTheme,
 }: {
   change: GitCommitChange;
-  fileIconTheme: FileIconThemeId;
 }) {
+  const fileIconTheme = useDesktopPreference(selectFileIconTheme);
   const { t } = useLocalization();
   const displayPath = change.status === "renamed" && change.oldPath
     ? `${change.oldPath} → ${change.path}`
@@ -212,12 +198,13 @@ function GitHistoryFilePreview({
     <span
       className="desktop-history-row-file"
       data-status={change.status}
+      aria-description={statusLabel}
     >
       <span className="desktop-history-row-file-icon" aria-hidden="true">
         <FileGlyphIcon name={change.path} size={14} theme={fileIconTheme} />
       </span>
       {marker && <span className="desktop-history-row-file-marker" aria-hidden="true">{marker}</span>}
-      <Tooltip content={`${statusLabel}: ${displayPath}`} overflowOnly><bdi>{displayPath}</bdi></Tooltip>
+      <bdi>{displayPath}</bdi>
     </span>
   );
 }

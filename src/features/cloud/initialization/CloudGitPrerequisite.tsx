@@ -8,11 +8,13 @@ import type {
 import { formatCloudPublishFailure } from "../cloudPresentation";
 import type { CloudWorkspaceSection } from "../types";
 import { CloudActivationHero } from "../components/CloudActivationHero";
+import { CloudProjectActivation } from "../components/CloudProjectActivation";
 import { CloudPublishConfirmationDialog } from "./CloudPublishConfirmationDialog";
 import { getCloudPublishProgressLabel } from "./CloudPublishProgressIndicator";
 
 export function CloudGitPrerequisite({
   activeSection,
+  projectName,
   publishBusy,
   publishEnabled,
   publishError,
@@ -26,6 +28,7 @@ export function CloudGitPrerequisite({
   onPublishWorkspace,
 }: {
   activeSection: CloudWorkspaceSection;
+  projectName?: string | null;
   publishBusy: boolean;
   publishEnabled: boolean;
   publishError: { code: CloudPublishErrorCode; retryable: boolean } | null;
@@ -39,6 +42,7 @@ export function CloudGitPrerequisite({
   onPublishWorkspace: (organizationId?: string) => void;
 }) {
   const { t } = useLocalization();
+  const projectActivation = ["contents", "initialize", "project"].includes(activeSection);
   const [confirmationOpen, setConfirmationOpen] = useState(false);
 
   const showOrganizationSupplemental = [
@@ -87,33 +91,39 @@ export function CloudGitPrerequisite({
     </>
   ) : undefined;
 
+  const action = (
+    <button
+      className="desktop-cloud-row-action primary desktop-cloud-publish-primary"
+      type="button"
+      aria-busy={publishBusy || undefined}
+      aria-haspopup="dialog"
+      data-cloud-publish-action="true"
+      data-desktop-dialog-initial-focus="true"
+      disabled={publishBusy || !publishEnabled}
+      onClick={() => setConfirmationOpen(true)}
+    >
+      {publishBusy && <RefreshCw size={14} className="animate-spin" aria-hidden="true" />}
+      <span>
+        {progressStage
+          ? getCloudPublishProgressLabel(progressStage, t)
+          : t(projectActivation ? "cloud.activation.project.publish" : "cloud.initialize.enableGitAndPublish")}
+      </span>
+    </button>
+  );
+
   return (
     <>
       <div className="desktop-cloud-publish-container">
-        <CloudActivationHero
-          activeSection={activeSection}
-          className="desktop-cloud-git-prerequisite"
-          ariaLabel={t("cloud.initialize.publishFolderTitle")}
-          titleId="desktop-cloud-git-prerequisite-title"
-          supplemental={supplemental}
-          action={(
-            <button
-              className="desktop-cloud-row-action primary desktop-cloud-publish-primary"
-              type="button"
-              aria-busy={publishBusy || undefined}
-              aria-haspopup="dialog"
-              disabled={publishBusy || !publishEnabled}
-              onClick={() => setConfirmationOpen(true)}
-            >
-              {publishBusy && <RefreshCw size={14} className="animate-spin" aria-hidden="true" />}
-              <span>
-                {progressStage
-                  ? getCloudPublishProgressLabel(progressStage, t)
-                  : t("cloud.initialize.enableGitAndPublish")}
-              </span>
-            </button>
-          )}
-        />
+        {projectActivation
+          ? <CloudProjectActivation projectName={projectName} supplemental={supplemental} action={action} />
+          : <CloudActivationHero
+            activeSection={activeSection}
+            className="desktop-cloud-git-prerequisite"
+            ariaLabel={t("cloud.initialize.publishFolderTitle")}
+            titleId="desktop-cloud-git-prerequisite-title"
+            supplemental={supplemental}
+            action={action}
+          />}
       </div>
 
       {confirmationOpen && (

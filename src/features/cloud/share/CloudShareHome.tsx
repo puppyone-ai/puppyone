@@ -1,6 +1,6 @@
 import { bidiIsolate } from "@puppyone/localization";
 import { useLocalization } from "@puppyone/localization/react";
-import { AgentBrandImage, type AgentBrandId } from "@puppyone/shared-ui";
+import { AgentBrandImage, AgentMonochromeBrandImage, isMonochromeAgentBrandId, type AgentBrandId } from "@puppyone/shared-ui";
 import { ArrowRight, MessageCircle, Share2, Sparkles, UserRound } from "lucide-react";
 import { McpLogoIcon } from "../components/McpLogoIcon";
 import type { ProjectCloudContext } from "../project/context/projectCloudContext";
@@ -18,6 +18,7 @@ import "./share.css";
 
 const SHARE_TARGET_BRANDS: Partial<Record<ShareTargetId, AgentBrandId>> = {
   viktor: "viktor",
+  manus: "manus",
   claude: "claude",
   chatgpt: "chatgpt",
 };
@@ -93,8 +94,14 @@ export function CloudShareHome({
 
 export function ShareTargetMark({ target }: { target: ShareTarget }) {
   const brand = SHARE_TARGET_BRANDS[target.id];
+  // The ChatGPT artwork exists only in white, so it is legible only on a dark
+  // plate. Drawn as the monochrome mark it takes the surface's own text colour
+  // and stays visible wherever the mark is shown — the same rule the Agent
+  // launcher icon already follows.
   const mark = brand
-    ? <AgentBrandImage brandId={brand} />
+    ? brand === "chatgpt" && isMonochromeAgentBrandId(brand)
+      ? <AgentMonochromeBrandImage brandId={brand} />
+      : <AgentBrandImage brandId={brand} />
     : target.id === "mcp"
       ? <McpLogoIcon size={16} />
       : target.id === "person"

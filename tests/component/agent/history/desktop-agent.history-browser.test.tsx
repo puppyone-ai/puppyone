@@ -1,11 +1,12 @@
+import { initializeDesktopPreferences, desktopPreferencesStore } from "../../../../src/preferencesStore";
 import type { AgentRuntimeInspection, AgentSessionListItem, AgentSessionsListResponse } from "../../../../shared/agent-contract/types";
 /**
  * @vitest-environment happy-dom
  */
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import type { AuxiliaryWorkbenchHistoryTarget } from "../../../../src/features/app-shell/auxiliary-workbench/types";
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
+import type { AuxiliaryWorkbenchHistoryTarget } from "../../../../src/lib/workbench/types";
 import {
   AGENT_HISTORY_CATALOG_TIMEOUT_MS,
   AGENT_HISTORY_RUNTIME_TIMEOUT_MS,
@@ -81,10 +82,8 @@ describe("Agent Chat global history browser", () => {
         onAgentSessionExit: vi.fn(() => () => undefined),
       },
     });
-    const onHistoryDiscoveryEnabledChange = vi.fn();
     const container = mountHistoryBrowser({
       historyDiscoveryEnabled: false,
-      onHistoryDiscoveryEnabledChange,
     });
 
     expect(container.textContent).toContain("Allow PuppyOne to discover chat history from local Agents?");
@@ -95,7 +94,7 @@ describe("Agent Chat global history browser", () => {
     expect(listAgentSessions).not.toHaveBeenCalled();
 
     act(() => container.querySelector<HTMLButtonElement>(".desktop-agent-history-permission-button")?.click());
-    expect(onHistoryDiscoveryEnabledChange).toHaveBeenCalledWith(true);
+    expect(desktopPreferencesStore.getState().localAgentsSettings.chatHistoryDiscoveryEnabled).toBe(true);
   });
 
   it("keeps the empty catalog loading until runtime inspection has settled", async () => {
@@ -305,8 +304,6 @@ describe("Agent Chat global history browser", () => {
           rootPath="/workspace/a"
           excludedResourceIds={[]}
           openingTargetId={null}
-          historyDiscoveryEnabled
-          onHistoryDiscoveryEnabledChange={() => {}}
           onBack={onBack}
           onOpen={onOpen}
         />,
@@ -425,13 +422,12 @@ function mountHistoryBrowser({
   onOpen = () => {},
   excludedResourceIds = [],
   historyDiscoveryEnabled = true,
-  onHistoryDiscoveryEnabledChange = () => {},
 }: {
   onOpen?: (target: AuxiliaryWorkbenchHistoryTarget) => void;
   excludedResourceIds?: readonly string[];
   historyDiscoveryEnabled?: boolean;
-  onHistoryDiscoveryEnabledChange?: (enabled: boolean) => void;
 } = {}) {
+  desktopPreferencesStore.getState().setLocalAgentsSettings(s => ({ ...s, chatHistoryDiscoveryEnabled: historyDiscoveryEnabled }));
   const container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -443,8 +439,6 @@ function mountHistoryBrowser({
         rootPath="/workspace/a"
         excludedResourceIds={excludedResourceIds}
         openingTargetId={null}
-        historyDiscoveryEnabled={historyDiscoveryEnabled}
-        onHistoryDiscoveryEnabledChange={onHistoryDiscoveryEnabledChange}
         onBack={() => {}}
         onOpen={onOpen}
       />,
@@ -533,3 +527,8 @@ function session(
     origin: "native-discovery",
   };
 }
+
+beforeEach(() => {
+  initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeItem: () => {} });
+  desktopPreferencesStore.getState().setLocalAgentsSettings(s => ({ ...s, chatHistoryDiscoveryEnabled: true }));
+});

@@ -8,6 +8,7 @@
   --desktop-titlebar-active: var(--po-selected);
   --desktop-titlebar-focus: var(--po-focus-ring);
   --desktop-titlebar-divider: var(--po-header-divider);
+  --desktop-titlebar-tab-bg: var(--po-canvas);
   --desktop-titlebar-context-font-family: var(--po-font-ui);
   --desktop-titlebar-context-font-size: var(--po-font-size-chrome, 13px);
   --desktop-titlebar-context-font-weight:
@@ -34,6 +35,42 @@
   background: var(--desktop-titlebar-bg);
   box-shadow: none;
   color: var(--desktop-titlebar-text);
+}
+
+/* Cloud identity belongs to the existing Header, without framing the workspace. */
+.desktop-titlebar[data-workspace-kind="cloud"] {
+  --desktop-titlebar-bg: var(--po-cloud-header-bg);
+  --desktop-titlebar-tab-bg: var(--desktop-titlebar-active);
+}
+
+/* Reveal the requested Cloud color under stationary text and controls. The
+ * layer mounts once on entry and survives the subsequent provider commit. */
+.desktop-cloud-header-reveal {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: var(--po-header);
+  pointer-events: none;
+}
+
+/* Expand the Cloud color from just right of center near the Header's bottom.
+ * The circle stays clipped to the Header under stationary text and controls. */
+.desktop-cloud-header-reveal::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--po-cloud-header-bg);
+  animation: desktop-cloud-header-expand 260ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+@keyframes desktop-cloud-header-expand {
+  from { clip-path: circle(4px at 60% 85%); }
+  to { clip-path: circle(100% at 60% 85%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .desktop-cloud-header-reveal { display: none; }
+  .desktop-cloud-header-reveal::after { animation: none; }
 }
 
 /* Native system chrome already owns its caption buttons. Only overlay chrome
@@ -114,6 +151,88 @@
   padding: 0 6px 0 var(--desktop-titlebar-content-start);
 }
 
+.desktop-titlebar-leading {
+  display: contents;
+}
+
+/* File tabs belong to the editor plane. While the Explorer is visible, size
+ * the leading Header track from the same resolved pane widths so the first
+ * tab starts on the Explorer's exact visual boundary. The subtraction
+ * accounts for the native-controls inset, content padding, and grid gap that
+ * precede the middle track. */
+.desktop-shell[data-titlebar-tabs-align-explorer="true"][data-titlebar-sidebar-state="expanded"]
+  .desktop-titlebar-layout {
+  --desktop-titlebar-leading-track: max(
+    0px,
+    calc(
+      var(--desktop-shell-leading-rail-width)
+      + var(--desktop-shell-explorer-width)
+      - var(--desktop-titlebar-safe-area-x)
+      - var(--desktop-titlebar-content-start)
+      - 6px
+    )
+  );
+
+  grid-template-columns:
+    minmax(0, var(--desktop-titlebar-leading-track))
+    minmax(var(--desktop-titlebar-drag-min-width), 1fr)
+    max-content;
+}
+
+.desktop-shell[data-titlebar-tabs-align-explorer="true"][data-titlebar-sidebar-state="expanded"]
+  .desktop-titlebar-left,
+.desktop-shell[data-titlebar-tabs-align-explorer="true"][data-titlebar-sidebar-state="expanded"]
+  .desktop-titlebar-context {
+  width: 100%;
+  overflow: hidden;
+}
+
+.desktop-shell[data-titlebar-tabs-align-explorer="true"][data-titlebar-sidebar-state="expanded"]
+  .desktop-titlebar-workspace-wrap {
+  flex: 1 1 auto;
+}
+
+/* The opt-in centered project has its own grid track, so its menu never
+ * overlays tabs or actions. Equal outer tracks center it on the full window;
+ * platform caption insets are reserved inside those tracks. */
+.desktop-shell .desktop-titlebar[data-centered-project="true"] .desktop-titlebar-layout {
+  grid-template-columns: minmax(0, 1fr) minmax(0, max-content) minmax(0, 1fr);
+  gap: 0;
+  width: 100%;
+  margin-left: 0;
+  padding: 0;
+}
+
+.desktop-titlebar[data-centered-project="true"] .desktop-titlebar-leading {
+  display: grid;
+  box-sizing: border-box;
+  min-width: 0;
+  overflow: hidden;
+  height: 100%;
+  grid-template-columns: minmax(0, max-content) minmax(var(--desktop-titlebar-drag-min-width), 1fr);
+  align-items: center;
+  gap: 6px;
+  padding-inline: calc(var(--desktop-titlebar-safe-area-x) + var(--desktop-titlebar-content-start)) 6px;
+}
+
+.desktop-titlebar-centered-context {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  max-width: min(440px, 40vw);
+  height: 100%;
+}
+
+.desktop-titlebar[data-centered-project="true"] .desktop-titlebar-trailing {
+  min-width: 0;
+  justify-content: flex-end;
+  padding-inline-end: 6px;
+}
+
+.desktop-titlebar[data-centered-project="true"][data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-trailing {
+  padding-inline-end: calc(var(--desktop-titlebar-windows-controls-width) + 6px);
+}
+
 .desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-layout {
   position: relative;
   padding-right: 0;
@@ -143,17 +262,6 @@
   background: var(--desktop-titlebar-divider);
   content: "";
   pointer-events: none;
-}
-
-.desktop-titlebar[data-workspace-kind="cloud"] {
-  --desktop-titlebar-bg: var(--po-cloud-titlebar-bg);
-  --desktop-titlebar-text: var(--po-cloud-titlebar-text);
-  --desktop-titlebar-text-muted: var(--po-cloud-titlebar-text-muted);
-  --desktop-titlebar-text-disabled: var(--po-cloud-titlebar-text-disabled);
-  --desktop-titlebar-hover: var(--po-cloud-titlebar-hover);
-  --desktop-titlebar-active: var(--po-cloud-titlebar-active);
-  --desktop-titlebar-focus: var(--po-cloud-titlebar-focus);
-  --desktop-titlebar-divider: var(--po-cloud-titlebar-divider);
 }
 
 .desktop-titlebar-left {
@@ -228,18 +336,187 @@
 
 .desktop-titlebar-session-tabs-host {
   display: flex;
+  box-sizing: border-box;
   min-width: 0;
   width: 100%;
   height: 100%;
+  /* Tabs may fill the track; native window dragging must still have a target. */
+  padding-inline-end: var(--desktop-titlebar-drag-min-width);
   align-items: center;
   overflow: hidden;
 }
 
 .desktop-titlebar-session-tabs-host > .desktop-terminal-subheader,
-.desktop-titlebar-session-tabs-host > .desktop-titlebar-workbench-tabs {
+.desktop-titlebar-session-tabs-host > .desktop-titlebar-workbench-tabs,
+.desktop-titlebar-session-tabs-host > .desktop-titlebar-editor-tabs {
   width: 100%;
   min-width: 0;
   height: 100%;
+}
+
+.desktop-titlebar-editor-tabs {
+  display: flex;
+  min-width: 0;
+  align-items: stretch;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+}
+
+.desktop-titlebar-editor-tab {
+  position: relative;
+  display: flex;
+  box-sizing: border-box;
+  min-width: 76px;
+  max-width: 220px;
+  flex: 1 1 168px;
+  align-items: center;
+  overflow: hidden;
+  border-inline-start: 1px solid var(--desktop-titlebar-divider);
+  background: transparent;
+  color: var(--desktop-titlebar-text-muted);
+}
+
+.desktop-titlebar-editor-tab:last-of-type {
+  border-inline-end: 1px solid var(--desktop-titlebar-divider);
+}
+
+.desktop-titlebar-editor-tab:hover {
+  background: var(--desktop-titlebar-hover);
+  color: var(--desktop-titlebar-text);
+}
+
+.desktop-titlebar-editor-tab[data-active="true"] {
+  background: var(--desktop-titlebar-tab-bg);
+  color: var(--desktop-titlebar-text);
+}
+
+.desktop-titlebar-editor-tab[data-active="true"]::after {
+  position: absolute;
+  z-index: 1;
+  inset-inline: 0;
+  inset-block-end: 0;
+  height: 1px;
+  background: var(--desktop-titlebar-tab-bg);
+  content: "";
+  pointer-events: none;
+}
+
+.desktop-titlebar-editor-tab-select {
+  appearance: none;
+  display: flex;
+  min-width: 0;
+  height: 100%;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 7px;
+  padding: 0 4px 0 10px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  outline: 0;
+  text-align: start;
+}
+
+.desktop-titlebar-editor-tab-select:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--desktop-titlebar-focus);
+}
+
+.desktop-titlebar-editor-tab-icon {
+  display: grid;
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+  place-items: center;
+  line-height: 0;
+}
+
+.desktop-titlebar-editor-tab-label {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--desktop-titlebar-context-font-family);
+  font-size: var(--desktop-titlebar-context-font-size);
+  font-weight: var(--desktop-titlebar-context-font-weight);
+  line-height: var(--desktop-titlebar-context-line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-titlebar-editor-tab-state,
+.desktop-titlebar-editor-tab-close {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  place-items: center;
+}
+
+.desktop-titlebar-editor-tab-state {
+  color: var(--desktop-titlebar-text-muted);
+  pointer-events: none;
+}
+
+.desktop-titlebar-editor-tab[data-status="error"] .desktop-titlebar-editor-tab-state {
+  color: var(--po-danger);
+}
+
+.desktop-titlebar-editor-tab-dirty {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.desktop-titlebar-editor-tab-close,
+.desktop-titlebar-editor-tab-new {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  outline: 0;
+}
+
+.desktop-titlebar-editor-tab-close {
+  display: none;
+  margin-inline-end: 3px;
+  border-radius: var(--desktop-toolbar-action-radius);
+}
+
+.desktop-titlebar-editor-tab:hover .desktop-titlebar-editor-tab-state,
+.desktop-titlebar-editor-tab[data-active="true"] .desktop-titlebar-editor-tab-state {
+  display: none;
+}
+
+.desktop-titlebar-editor-tab:hover .desktop-titlebar-editor-tab-close,
+.desktop-titlebar-editor-tab[data-active="true"] .desktop-titlebar-editor-tab-close {
+  display: grid;
+}
+
+.desktop-titlebar-editor-tab-close:hover,
+.desktop-titlebar-editor-tab-close:focus-visible,
+.desktop-titlebar-editor-tab-new:hover,
+.desktop-titlebar-editor-tab-new:focus-visible {
+  background: var(--desktop-titlebar-hover);
+  color: var(--desktop-titlebar-text);
+  box-shadow: inset 0 0 0 1px var(--desktop-titlebar-focus);
+}
+
+.desktop-titlebar-editor-tab-close:disabled {
+  opacity: 0.62;
+}
+
+.desktop-titlebar-editor-tab-new {
+  display: grid;
+  width: 34px;
+  min-width: 34px;
+  height: 100%;
+  flex: 0 0 34px;
+  place-items: center;
+  color: var(--desktop-titlebar-text-muted);
+}
+
+.desktop-titlebar-editor-tab .is-spinning {
+  animation: spin 900ms linear infinite;
 }
 
 .desktop-titlebar-session-tabs-host > .desktop-terminal-subheader {
@@ -423,6 +700,17 @@
   display: block;
 }
 
+.desktop-titlebar-cloud-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--desktop-titlebar-button-gap);
+}
+
+.desktop-titlebar-cloud-tool > svg {
+  display: block;
+  flex: 0 0 auto;
+}
+
 .desktop-header-coachmark-anchor {
   position: relative;
   display: inline-flex;
@@ -557,11 +845,11 @@
   width: var(--desktop-titlebar-tool-action-width);
 }
 
-.desktop-titlebar-actions .desktop-titlebar-changes {
+.desktop-titlebar-action.desktop-titlebar-changes {
   width: auto;
   min-width: var(--desktop-chrome-control-size);
   gap: 4px;
-  padding-inline: 7px 6px;
+  padding-inline: 7px;
 }
 
 .desktop-titlebar-git-status {
@@ -635,7 +923,8 @@
 }
 
 .desktop-titlebar-action.active,
-.desktop-titlebar-action[aria-pressed="true"] {
+.desktop-titlebar-action[aria-pressed="true"],
+.desktop-titlebar-action[aria-haspopup="dialog"][aria-expanded="true"] {
   background: var(--desktop-titlebar-active);
   color: var(--desktop-titlebar-text);
 }
@@ -707,7 +996,7 @@
   padding: 0;
 }
 
-.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-actions .desktop-titlebar-changes {
+.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-action.desktop-titlebar-changes {
   width: auto;
   min-width: var(--desktop-titlebar-windows-control-width);
   height: 100%;
@@ -775,7 +1064,8 @@
 }
 
 .desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-action.active,
-.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-action[aria-pressed="true"] {
+.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-action[aria-pressed="true"],
+.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-action[aria-haspopup="dialog"][aria-expanded="true"] {
   background: var(--desktop-titlebar-windows-hover-background);
   color: var(--desktop-titlebar-windows-symbol-color);
 }
@@ -790,9 +1080,62 @@
   width: max-content;
   max-width: var(--desktop-titlebar-workspace-max-width);
   min-width: 0;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   height: 100%;
   align-items: center;
+  gap: var(--desktop-titlebar-button-gap);
+}
+
+.desktop-titlebar-location-wrap {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  height: 100%;
+}
+
+.desktop-titlebar-location-button {
+  display: inline-flex;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  gap: var(--desktop-titlebar-workspace-icon-label-gap);
+  height: var(--desktop-titlebar-control-height);
+  padding: 0 var(--desktop-titlebar-workspace-inline-padding);
+  border: 0;
+  border-radius: var(--desktop-toolbar-action-radius);
+  background: transparent;
+  color: var(--desktop-titlebar-text-muted);
+  font-family: var(--desktop-titlebar-context-font-family);
+  font-size: var(--desktop-titlebar-context-font-size);
+  font-weight: var(--desktop-titlebar-context-font-weight);
+  line-height: var(--desktop-titlebar-context-line-height);
+  white-space: nowrap;
+}
+
+.desktop-titlebar-location-button .desktop-titlebar-workspace-mark {
+  display: grid;
+  width: var(--desktop-titlebar-workspace-icon-slot-size);
+  height: var(--desktop-titlebar-workspace-icon-slot-size);
+  flex: 0 0 var(--desktop-titlebar-workspace-icon-slot-size);
+  place-items: center;
+  color: inherit;
+}
+
+.desktop-titlebar-location-button .desktop-titlebar-workspace-mark > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.desktop-titlebar-location-button:hover,
+.desktop-titlebar-location-button[aria-expanded="true"] {
+  background: var(--desktop-titlebar-hover);
+  color: var(--desktop-titlebar-text);
+}
+
+.desktop-titlebar-location-button:focus-visible {
+  outline: 1px solid var(--desktop-titlebar-focus);
+  outline-offset: -1px;
 }
 
 .desktop-titlebar-workspace-button {
@@ -804,6 +1147,7 @@
   max-width: 100%;
   height: var(--desktop-titlebar-control-height);
   min-width: 0;
+  flex: 0 1 auto;
   padding: 0 var(--desktop-titlebar-workspace-inline-padding);
   border: 0;
   border-radius: var(--desktop-toolbar-action-radius);
@@ -825,6 +1169,12 @@
   box-shadow: inset 0 0 0 1px var(--desktop-titlebar-focus);
 }
 
+.desktop-titlebar-workspace-label,
+.desktop-titlebar-workspace-label:hover {
+  background: transparent;
+  color: var(--desktop-titlebar-text);
+}
+
 .desktop-titlebar-workspace-button .desktop-titlebar-workspace-mark {
   display: inline-flex;
   width: var(--desktop-titlebar-workspace-icon-slot-size);
@@ -832,7 +1182,7 @@
   flex: 0 0 var(--desktop-titlebar-workspace-icon-slot-size);
   align-items: center;
   justify-content: center;
-  color: var(--desktop-titlebar-text-subtle, var(--desktop-titlebar-text-muted));
+  color: inherit;
 }
 
 .desktop-titlebar-workspace-button .desktop-titlebar-workspace-mark > svg {
@@ -872,11 +1222,15 @@
   flex: 0 0 var(--desktop-titlebar-tool-action-width);
 }
 
+.desktop-titlebar-home {
+  flex: 0 0 var(--desktop-chrome-control-size);
+}
+
 .desktop-titlebar-workspace-name {
   max-width: none;
   min-width: 0;
   overflow: hidden;
-  color: var(--desktop-titlebar-text-muted);
+  color: inherit;
   font-family: var(--desktop-titlebar-context-font-family);
   font-size: var(--desktop-titlebar-context-font-size);
   font-weight: var(--desktop-titlebar-context-font-weight);
@@ -922,7 +1276,7 @@
   top: calc(100% + 4px);
   inset-inline-start: 0;
   width: min(300px, calc(100vw - 16px));
-  padding: 8px;
+  padding: var(--po-menu-padding);
   border: 1px solid var(--po-menu-border);
   border-radius: var(--po-menu-radius);
   background: var(--po-menu-bg);

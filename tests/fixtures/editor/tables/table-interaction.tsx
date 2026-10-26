@@ -10,10 +10,16 @@ import { MarkdownCodeMirrorEditor } from "../../../../packages/shared-ui/src/edi
 import { CsvTableEditor } from "../../../../packages/shared-ui/src/editor/viewers/csv/CsvTableEditor";
 import { resolveAppearance } from "../../../../src/features/appearance/resolveAppearance";
 import { applySurfaceAppearanceToElement, resolveSurfaceAppearance, SurfaceAppearanceProvider } from "../../../../src/features/appearance/AppearanceRuntime";
-import { BUILTIN_SUB_THEMES } from "../../../../src/features/themes/builtinSubThemes";
+import { createSubThemeCatalogSnapshot } from "../../../../src/features/themes/builtinSubThemes";
+import type { DesktopThemeSnapshot } from "../../../../src/types/electron";
+import { getMermaidThemeSnapshot } from "../../../../packages/shared-ui/src/editor/markdown/features/mermaid/mermaidRenderer";
 import { DEFAULT_TYPOGRAPHY_PREFERENCES, resolveTypography } from "../../../../src/features/typography";
 import { DEFAULT_MARKDOWN_PRESENTATION_SETTINGS } from "../../../../src/features/markdown/markdownPresentation";
 import englishCatalog from "../../../../src/localization/catalog-loaders/en";
+import { DesktopTooltipLayer } from "../../../../src/components/DesktopTooltipLayer";
+import { installNativeTitleSuppression } from "../../../../src/lib/nativeTitleSuppression";
+
+installNativeTitleSuppression();
 
 const rows = [
   ["Order", "Area", "English copy", "中文释义"],
@@ -25,32 +31,54 @@ const rows = [
 ];
 const initialMarkdown = "Before the table\n\n" + [rows[0], rows[0].map(() => "---"), ...rows.slice(1)].map(row => `| ${row.join(" | ")} |`).join("\n") + "\n\nAfter the table";
 const csv = rows.map(row => row.join(",")).join("\n");
+let setPreview: (enabled: boolean) => void;
 let setMode: (mode: "light" | "dark") => void;
+let setTheme: (theme: string | null, interfaceStyle?: "default" | "windows-xp") => void;
+let registerThemes: (snapshot: DesktopThemeSnapshot) => void;
+let setPeerTheme: (theme: string | null) => void;
 let markdown = initialMarkdown;
 let csvPort: EditorSourceSnapshotPort | null = null;
 const onMarkdown = (value: string) => { markdown = value; };
 const onCsvSnapshot = (port: EditorSourceSnapshotPort | null) => { csvPort = port; };
 function Harness() {
+  const [livePreview, updatePreview] = useState(true);
+  setPreview = enabled => flushSync(() => updatePreview(enabled));
   const [mode, updateMode] = useState<"light" | "dark">("light");
+  const [theme, updateTheme] = useState<string | null>(null);
+  const [interfaceStyle, updateInterfaceStyle] = useState<"default" | "windows-xp">("default");
+  const [catalog, updateCatalog] = useState(() => createSubThemeCatalogSnapshot({ themes: [], diagnostics: [] }));
+  const [peerTheme, updatePeerTheme] = useState<string | null>(null);
+  registerThemes = snapshot => flushSync(() => updateCatalog(createSubThemeCatalogSnapshot(snapshot)));
+  setPeerTheme = theme => flushSync(() => updatePeerTheme(theme));
   setMode = mode => flushSync(() => updateMode(mode));
-  const appearance = resolveAppearance({ interfaceStyle: "default", themeMode: mode,
-    requestedSubThemeIds: { light: "default.neutral", dark: "default.dark" },
-    subThemeCatalog: { subThemes: [...BUILTIN_SUB_THEMES], diagnostics: [] },
+  setTheme = (theme, style = "default") => flushSync(() => { updateTheme(theme); updateInterfaceStyle(style); });
+  const appearance = resolveAppearance({ interfaceStyle, themeMode: mode,
+    requestedSubThemeIds: { light: theme ?? "default.neutral", dark: theme ?? "default.dark" },
+    subThemeCatalog: catalog,
     sidebarNavigationLayout: "bottom-horizontal", fileIconTheme: "default" });
   const surface = resolveSurfaceAppearance({ appearance, typography: resolveTypography(DEFAULT_TYPOGRAPHY_PREFERENCES),
     markdownPresentation: DEFAULT_MARKDOWN_PRESENTATION_SETTINGS, loadingAnimationPreset: "ikun",
     lightThemePreset: "neutral", darkThemePreset: "default", pointerCursors: false, diffMarkers: "color" });
+  const peer = resolveSurfaceAppearance({ appearance: resolveAppearance({ interfaceStyle: "default", themeMode: mode,
+    requestedSubThemeIds: { light: peerTheme ?? "default.neutral", dark: peerTheme ?? "default.neutral" },
+    subThemeCatalog: catalog, sidebarNavigationLayout: "bottom-horizontal", fileIconTheme: "default" }),
+    typography: resolveTypography(DEFAULT_TYPOGRAPHY_PREFERENCES), markdownPresentation: DEFAULT_MARKDOWN_PRESENTATION_SETTINGS,
+    loadingAnimationPreset: "ikun", lightThemePreset: "neutral", darkThemePreset: "default", pointerCursors: false, diffMarkers: "color" });
   useLayoutEffect(() => applySurfaceAppearanceToElement(document.documentElement, surface), [surface]);
   return <TestLocalizationProvider messages={englishCatalog}><SurfaceAppearanceProvider value={surface}>
     <div {...surface.rootProps} id="surface" className={mode === "dark" ? "dark" : ""}
       style={{ ...surface.rootProps.style, background: "var(--po-editor-bg)", color: "var(--po-text)", padding: 24, width: "100%", flexShrink: 0, minHeight: "100vh" }}>
       <h2 style={{ margin: 0, font: "600 16px system-ui" }}>Markdown</h2>
-      <section id="markdown" style={{ height: 400 }}><MarkdownCodeMirrorEditor value={initialMarkdown} livePreview readOnly={false} onChange={onMarkdown} /></section>
+      <section id="markdown" style={{ height: 400 }}><MarkdownCodeMirrorEditor value={initialMarkdown} livePreview={livePreview} readOnly={false} onChange={onMarkdown} /></section>
+      {peerTheme && <SurfaceAppearanceProvider value={peer}><section {...peer.rootProps} id="peer" className={mode === "dark" ? "dark" : ""} style={{ ...peer.rootProps.style, height: 400 }}>
+        <MarkdownCodeMirrorEditor value={"Peer **bold** and `code`."} livePreview readOnly />
+      </section></SurfaceAppearanceProvider>}
       <h2 style={{ margin: 0, font: "600 16px system-ui" }}>CSV</h2>
       <section id="csv" style={{ height: 340 }}><CsvTableEditor content={csv} documentId="table-style-fixture" readOnly={false}
         onSnapshotPortChange={onCsvSnapshot}
         onSourceRevisionChange={() => {}} /></section>
     </div>
+    <DesktopTooltipLayer />
   </SurfaceAppearanceProvider></TestLocalizationProvider>;
 }
 createRoot(document.getElementById("root")!).render(<Harness />);
@@ -60,6 +88,16 @@ const cell = (kind: string) => table(kind).querySelector<HTMLElement>(kind === "
 const input = (kind: string) => cell(kind).querySelector<HTMLElement>(kind === "markdown" ? "[contenteditable]" : "input")!;
 const boxes = (element: Element) => { const { x, y, width, height } = element.getBoundingClientRect(); return { x, y, width, height }; };
 const wait = () => new Promise(resolve => setTimeout(resolve, 150));
+const colorCanvas = document.createElement("canvas");
+colorCanvas.width = colorCanvas.height = 1;
+const colorContext = colorCanvas.getContext("2d", { willReadFrequently: true })!;
+const colorAlpha = (color: string) => {
+  colorContext.clearRect(0, 0, 1, 1);
+  colorContext.fillStyle = color;
+  colorContext.fillRect(0, 0, 1, 1);
+  return colorContext.getImageData(0, 0, 1, 1).data[3];
+};
+let retainedSession: { view: EditorView; source: string; selection: string; scroll: number; scrollAnchor: number } | null = null;
 const api = {
   async ready() {
     for (let i = 0; i < 300 && (!table("markdown") || !table("csv")); i++) await new Promise(resolve => setTimeout(resolve, 20));
@@ -67,7 +105,48 @@ const api = {
     await document.fonts.ready; await wait();
     if (!CSS.supports("anchor-scope", "--table")) throw new Error("Runtime lacks scoped CSS anchor positioning");
   },
+  async preview(enabled: boolean) { setPreview(enabled); await wait(); },
   async mode(mode: "light" | "dark") { setMode(mode); await wait(); },
+  async theme(theme: string | null, interfaceStyle?: "default" | "windows-xp") { setTheme(theme, interfaceStyle); await wait(); },
+  async registerThemes(snapshot: DesktopThemeSnapshot) { registerThemes(snapshot); await wait(); },
+  async peerTheme(theme: string | null) { setPeerTheme(theme); await wait(); },
+  mermaidTheme() { return getMermaidThemeSnapshot(document.querySelector("#markdown .cm-editor")!).config; },
+  checkpointMarkdownSession() {
+    const view = EditorView.findFromDOM(document.querySelector("#markdown .cm-editor")!)!;
+    view.dispatch({ selection: { anchor: 3, head: 8 } });
+    view.scrollDOM.scrollTop = 27;
+    retainedSession = { view, source: view.state.doc.toString(), selection: JSON.stringify(view.state.selection.toJSON()), scroll: view.scrollDOM.scrollTop,
+      scrollAnchor: view.lineBlockAtHeight(view.scrollDOM.scrollTop).from };
+  },
+  markdownSessionRetained() {
+    const view = EditorView.findFromDOM(document.querySelector("#markdown .cm-editor")!)!;
+    return { viewRetained: retainedSession?.view === view, sourceRetained: retainedSession?.source === view.state.doc.toString(),
+      selectionRetained: retainedSession?.selection === JSON.stringify(view.state.selection.toJSON()),
+      // A font-size change reflows pixels. Preserve the source anchor and a
+      // nonzero scroll position rather than requiring identical CSS pixels.
+      scrollRetained: retainedSession?.scrollAnchor === view.lineBlockAtHeight(view.scrollDOM.scrollTop).from
+        && (retainedSession.scroll === 0 || view.scrollDOM.scrollTop > 0),
+      scrollBefore: retainedSession?.scroll, scrollAfter: view.scrollDOM.scrollTop };
+  },
+  async setMarkdownSource(source: string) {
+    (document.activeElement as HTMLElement | null)?.blur();
+    const view = EditorView.findFromDOM(document.querySelector("#markdown .cm-editor")!)!;
+    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: source },
+      selection: { anchor: source.length } });
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  },
+  markdownLineGeometry() {
+    const view = EditorView.findFromDOM(document.querySelector("#markdown .cm-editor")!)!;
+    return { selectedLine: view.state.doc.lineAt(view.state.selection.main.head).number,
+      lines: Array.from({ length: view.state.doc.lines }, (_, index) => {
+        const line = view.state.doc.line(index + 1), block = view.lineBlockAt(line.from);
+        return { number: line.number, text: line.text, top: block.top, height: block.height };
+      }) };
+  },
+  markdownSource() {
+    const view = EditorView.findFromDOM(document.querySelector("#markdown .cm-editor")!)!;
+    return view.state.doc.toString();
+  },
   point(kind: string, selector = "cell") {
     const target = selector === "cell" ? input(kind) : document.querySelector<HTMLElement>(`#${kind} ${selector}`)!;
     const rect = target.getBoundingClientRect(); return { x: Math.round(rect.x + rect.width / 2), y: Math.round(rect.y + rect.height / 2) };
@@ -76,6 +155,48 @@ const api = {
     const cells = table(kind).tBodies[0].rows[row].querySelectorAll<HTMLElement>(kind === "markdown" ? "td" : "td[data-csv-column]");
     const rect = cells[column].getBoundingClientRect();
     return { x: Math.round(rect.x + rect.width / 2), y: Math.round(rect.y + rect.height / 2) };
+  },
+  async drag(kind: string, axis: "column" | "row", targetRow: number, targetColumn: number) {
+    const sourceCell = table(kind).tBodies[0].rows[0].querySelectorAll<HTMLElement>(
+      kind === "markdown" ? "td" : "td[data-csv-column]",
+    )[0];
+    sourceCell.dispatchEvent(new PointerEvent("pointerover", { bubbles: true, pointerId: 71 }));
+    await new Promise(requestAnimationFrame);
+    const handle = document.querySelector<HTMLElement>(`#${kind} .po-editable-table-${axis}-handle`)!;
+    const grip = handle.querySelector<HTMLElement>(".po-editable-table-drag-handle-visual")!;
+    const start = grip.getBoundingClientRect();
+    const targetCells = table(kind).tBodies[0].rows[targetRow].querySelectorAll<HTMLElement>(
+      kind === "markdown" ? "td" : "td[data-csv-column]",
+    );
+    const target = targetCells[targetColumn].getBoundingClientRect();
+    let capturedPointer: number | null = null;
+    Object.defineProperties(handle, {
+      setPointerCapture: { configurable: true, value: (pointerId: number) => { capturedPointer = pointerId; } },
+      hasPointerCapture: { configurable: true, value: (pointerId: number) => capturedPointer === pointerId },
+      releasePointerCapture: { configurable: true, value: (pointerId: number) => {
+        if (capturedPointer === pointerId) capturedPointer = null;
+      } },
+    });
+    try {
+      handle.dispatchEvent(new PointerEvent("pointerdown", {
+        bubbles: true, button: 0, clientX: start.x + start.width / 2,
+        clientY: start.y + start.height / 2, pointerId: 71,
+      }));
+      handle.dispatchEvent(new PointerEvent("pointermove", {
+        bubbles: true, button: 0, clientX: target.x + target.width / 2,
+        clientY: target.y + target.height / 2, pointerId: 71,
+      }));
+      handle.dispatchEvent(new PointerEvent("pointerup", {
+        bubbles: true, button: 0, clientX: target.x + target.width / 2,
+        clientY: target.y + target.height / 2, pointerId: 71,
+      }));
+      await wait();
+    } finally {
+      delete (handle as { setPointerCapture?: unknown }).setPointerCapture;
+      delete (handle as { hasPointerCapture?: unknown }).hasPointerCapture;
+      delete (handle as { releasePointerCapture?: unknown }).releasePointerCapture;
+    }
+    return api.metrics(kind);
   },
   async captureHandleMotion(kind: string, hold = false) {
     await new Promise(requestAnimationFrame);
@@ -99,16 +220,78 @@ const api = {
     const grip = document.querySelector<HTMLElement>(`#${kind} .po-editable-table-column-handle .po-editable-table-drag-handle-visual`)!;
     const outline = document.querySelector<HTMLElement>(`#${kind} .po-editable-table-selection-outline`)!;
     const target = element.querySelector<HTMLElement>(".po-editable-table-selection-target");
-    return { table: boxes(element), radius: style.borderRadius, border: style.borderTopWidth, borderColor: style.borderTopColor,
+    const targetInputs = target?.querySelectorAll<HTMLInputElement>("input") ?? [];
+    const activeElement = document.activeElement;
+    const activeTableCell = activeElement instanceof Element && element.contains(activeElement)
+      ? activeElement.closest("th, td")
+      : null;
+    return { table: boxes(element), subThemeId: element.closest("[data-po-appearance-root]")?.getAttribute("data-sub-theme-id"),
+      dark: element.closest(".dark") !== null,
+      radius: style.borderRadius, border: style.borderTopWidth, borderColor: style.borderTopColor,
       backgrounds: [...element.querySelectorAll("th, td")].map(item => { const css = getComputedStyle(item); return [css.backgroundColor, css.backgroundImage]; }),
       textSelectionBackground: getComputedStyle(input(kind), "::selection").backgroundColor,
-      cell: boxes(c), cellBorder: focus.borderRightWidth, cellFocus: focus.boxShadow,
+      cell: boxes(c), cellBorder: focus.borderRightWidth, cellFocus: focus.outline,
+      cellFocusOffset: focus.outlineOffset, cellFocusShadow: focus.boxShadow,
       dots: { width: getComputedStyle(grip, "::before").width, height: getComputedStyle(grip, "::before").height },
       grip: boxes(grip), gripShadow: getComputedStyle(grip).boxShadow, gripColor: getComputedStyle(grip).backgroundColor,
-      outline: outline.hidden ? null : boxes(outline), outlineBorder: getComputedStyle(outline).borderTopWidth, blockSelected: element.closest(".cm-md-table-widget-wrap")?.classList.contains("is-doc-selected") ?? false,
+      gripStyles: [...document.querySelectorAll(`#${kind} .po-editable-table-drag-handle-visual`)].map(handle => {
+        const css = getComputedStyle(handle);
+        return { radius: css.borderRadius, border: css.borderTopWidth, borderColor: css.borderTopColor,
+          backgroundColor: css.backgroundColor, backgroundImage: css.backgroundImage,
+          backgroundAlpha: colorAlpha(css.backgroundColor), backgroundClip: css.backgroundClip };
+      }),
+      handleStates: [...document.querySelectorAll<HTMLElement>(`#${kind} .po-editable-table-drag-handle`)].map(handle => {
+        const css = getComputedStyle(handle.querySelector(".po-editable-table-drag-handle-visual")!);
+        return { axis: handle.classList.contains("po-editable-table-column-handle") ? "column" : "row",
+          pressed: handle.classList.contains("is-pressed"), dragging: handle.classList.contains("is-dragging"),
+          menuActive: handle.classList.contains("is-menu-active"), background: css.backgroundColor,
+          border: css.borderTopColor, color: css.color, backgroundAlpha: colorAlpha(css.backgroundColor),
+          transitionDuration: css.transitionDuration };
+      }),
+      outline: outline.hidden ? null : boxes(outline), outlineBorder: getComputedStyle(outline).borderTopWidth,
+      outlineColor: getComputedStyle(outline).borderTopColor, blockSelected: element.closest(".cm-md-table-widget-wrap")?.classList.contains("is-doc-selected") ?? false,
       tableShadow: style.boxShadow,
       editorSelection: kind === "markdown" ? { focused: EditorView.findFromDOM(document.querySelector("#markdown .cm-editor")!)!.hasFocus, selection: EditorView.findFromDOM(document.querySelector("#markdown .cm-editor")!)!.state.selection.toJSON(), active: document.activeElement?.className } : null,
-      target: target ? boxes(target) : null, axis: outline.dataset.axis, markdown, csvSource: csvPort?.readSnapshot().content };
+      target: target ? boxes(target) : null,
+      structuralTarget: target ? {
+        column: target.dataset.csvColumn ?? target.getAttribute("aria-colindex"),
+        row: target.dataset.csvRow ?? target.dataset.mdTableRow,
+        text: targetInputs.length > 0
+          ? [...targetInputs].map(item => item.value).join("|")
+          : target.textContent,
+      } : null,
+      activeTableCell: activeTableCell ? boxes(activeTableCell) : null,
+      focusedTableCellCount: element.querySelectorAll("th:focus-within, td:focus-within").length,
+      axis: outline.dataset.axis, markdown, csvSource: csvPort?.readSnapshot().content };
+  },
+  menuPlacement(kind: string, axis: string) {
+    const menu = document.querySelector<HTMLElement>(kind === "markdown"
+      ? ".cm-md-table-context-menu"
+      : ".csv-table-editor__context-menu")!;
+    const grip = document.querySelector<HTMLElement>(`#${kind} .po-editable-table-${axis}-handle .po-editable-table-drag-handle-visual`)!;
+    return { menu: boxes(menu), grip: boxes(grip) };
+  },
+  menuMetrics() {
+    const menu = document.querySelector<HTMLElement>(".cm-md-table-context-menu")!;
+    const css = getComputedStyle(menu);
+    const rowWidths = [...menu.querySelectorAll(".desktop-menu-section-list")].map(row => {
+      const buttons = row.querySelectorAll("button");
+      return buttons[buttons.length - 1].getBoundingClientRect().right - buttons[0].getBoundingClientRect().left;
+    });
+    return { bounds: boxes(menu), viewport: { width: innerWidth, height: innerHeight },
+      requiredWidth: Math.max(...rowWidths) + parseFloat(css.paddingLeft) + parseFloat(css.paddingRight)
+        + parseFloat(css.borderLeftWidth) + parseFloat(css.borderRightWidth),
+      headings: menu.querySelectorAll(".desktop-menu-section-label").length,
+      buttons: menu.querySelectorAll("button").length,
+      groups: [...menu.querySelectorAll('[role="group"]')].map(group => group.getAttribute("aria-label")),
+      radios: [...menu.querySelectorAll('[role="menuitemradio"]')].map(button => ({
+        label: button.getAttribute("aria-label"), checked: button.getAttribute("aria-checked"),
+      })) };
+  },
+  openMenuAtEdge() {
+    input("markdown").dispatchEvent(new MouseEvent("contextmenu", {
+      bubbles: true, cancelable: true, clientX: innerWidth - 1, clientY: innerHeight - 1,
+    }));
   },
   selectText(kind: string) {
     const element = input(kind); element.focus();

@@ -10,11 +10,43 @@ describe("Sub Theme CSS compiler", () => {
     });
 
     const host = '[data-po-appearance-root][data-sub-theme-id="com.example.newsprint"]';
-    expect(result.css).toContain(`${host} {`);
+    expect(result.css).toContain(`@scope (${host}) to ([data-po-appearance-root])`);
+    expect(result.css).toContain(".markdown-codemirror-editor {");
     expect(result.css).toContain("--po-host-md-content-color: #332f2a");
-    expect(result.css).toContain("--po-host-md-h1-size: 32px");
+    expect(result.css).toContain("--po-host-md-h1-size-medium: 32px");
     expect(result.css).toContain("--po-host-md-h1-weight: 700");
     expect(result.css).not.toContain("--po-md-content-color:");
+  });
+
+  it("resolves explicit size presets and fills missing fields before registration", async () => {
+    const result = await compileThemeCss({
+      themeId: "com.example.custom-sizes", target: "markdown",
+      css: ":root { --po-md-content-size: 21px; --po-md-content-size-small: ; --po-md-content-size-medium: 19px; --po-md-content-size-large: 25px }",
+    });
+    expect(result.css).toContain("--po-host-md-content-size-small: 14px");
+    expect(result.css).toContain("--po-host-md-content-size-medium: 19px");
+    expect(result.css).toContain("--po-host-md-content-size-large: 25px");
+    expect(result.css).toContain("--po-host-md-h1-size-small: 28px");
+    expect(result.css).toContain("--po-host-md-h1-size-medium: 30px");
+    expect(result.css).not.toContain("21px");
+  });
+
+  it("preserves base presets through partial Dark and conditional overrides", async () => {
+    const result = await compileThemeCss({
+      themeId: "com.example.scoped-sizes", target: "markdown",
+      css: ":root { --po-md-content-size-small: 18px; --po-md-content-size-medium: 20px; --po-md-content-size-large: 24px } .dark :root { --po-md-content-color: #eee } @media (min-width: 900px) { :root { --po-md-content-size: 22px } }",
+    });
+    expect(result.css.match(/--po-host-md-content-size-small:/g)).toHaveLength(1);
+    expect(result.css).toContain("--po-host-md-content-size-small: 18px");
+    expect(result.css).toContain("--po-host-md-content-size-medium: 20px");
+    expect(result.css).toContain("--po-host-md-content-size-medium: 22px");
+  });
+
+  it("validates authored preset values rather than silently falling back", async () => {
+    await expect(compileThemeCss({
+      themeId: "com.example.invalid-preset", target: "markdown",
+      css: ":root { --po-md-content-size-large: 1.5em }",
+    })).rejects.toThrow("plain integer pixel value");
   });
 
   it("maps public CSV tokens without exposing editor selectors", async () => {
@@ -27,6 +59,18 @@ describe("Sub Theme CSS compiler", () => {
     expect(result.css).toContain("--po-host-csv-surface-background: #fff");
     expect(result.css).toContain("--po-host-csv-table-border: #ddd");
     expect(result.css).not.toMatch(/\.csv-table-editor|\.editable-table/);
+  });
+
+  it("resolves Markdown references at a scoped document boundary in each mode", async () => {
+    const result = await compileThemeCss({ themeId: "com.example.authority", target: "markdown",
+      css: ":root { --po-md-table-font-size: 12px; --po-md-code-block-font-size: var(--po-md-table-font-size); --po-md-code-font: Example Mono } .dark .theme-root { --po-md-inline-code-background: #243344 }",
+    });
+    expect(result.css).toContain("--po-host-md-code-block-font-size-medium: var(--po-host-md-table-font-size)");
+    expect(result.css).toContain('@scope ([data-po-appearance-root][data-sub-theme-id="com.example.authority"]:where(.dark)) to ([data-po-appearance-root])');
+    expect(result.css).not.toMatch(/\.markdown-codemirror-editor\s+\./);
+    await expect(compileThemeCss({ themeId: "com.example.authority", target: "markdown",
+      css: ".markdown-codemirror-editor code { color: red }",
+    })).rejects.toThrow();
   });
 
   it("maps bounded typography defaults onto a private theme layer", async () => {

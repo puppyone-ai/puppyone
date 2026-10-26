@@ -50,6 +50,26 @@ function provider(name: string): DataPort {
 }
 
 describe("WorkbenchDataService", () => {
+  it("copies readable absolute paths from the owning root, preserving decoded file names", () => {
+    const workbench = createWorkbenchWorkspace([
+      workspace("a", "Alpha", "/alpha"), workspace("b", "Beta", "/beta"),
+    ]);
+    const service = createWorkbenchDataService(workbench, { createProvider: () => ({ listChildren: async () => [] }) });
+    const root = workbench.folders[1]!.uri;
+    expect(service.getPathForCopy(createWorkspaceResourceUri(root, "docs/笔记 #1.md"))).toBe("/beta/docs/笔记 #1.md");
+    expect(service.getPathForCopy(createWorkspaceResourceUri(root, "docs"))).toBe("/beta/docs");
+    expect(service.getPathForCopy(root)).toBe("/beta");
+    expect(() => service.getPathForCopy("docs/readme.md")).toThrow(/ambiguous/);
+    expect(() => service.getPathForCopy("puppyone-local://workspace/missing/readme.md")).toThrow(/outside/);
+  });
+
+  it.each(["C:\\Projects\\Beta", "\\\\server\\share\\Beta"])("uses native separators for the root %s", (rootPath) => {
+    const workbench = createWorkbenchWorkspace([workspace("win", "Beta", rootPath)]);
+    const service = createWorkbenchDataService(workbench, { createProvider: () => ({ listChildren: async () => [] }) });
+    expect(service.getPathForCopy(createWorkspaceResourceUri(workbench.folders[0]!.uri, "docs/note.md")))
+      .toBe(`${rootPath}\\docs\\note.md`);
+  });
+
   it("routes projection leases and image imports through the document's owning Folder", async () => {
     const workbench = createWorkbenchWorkspace([workspace("a", "Alpha", "/alpha"), workspace("b", "Beta", "/beta")]);
     const providers = new Map<string, DataPort>();

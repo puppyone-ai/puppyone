@@ -20,6 +20,51 @@ afterEach(() => {
 });
 
 describe("desktop explorer Header expansion", () => {
+  it.each([
+    { collapsed: false, centered: false },
+    { collapsed: true, centered: false },
+    { collapsed: false, centered: true },
+    { collapsed: true, centered: true },
+  ])("keeps Home first and independently clickable with sidebar collapsed=$collapsed and centered project=$centered", ({ collapsed, centered }) => {
+    const onGoHome = vi.fn();
+    const onLeftSidebarExpand = vi.fn();
+    const onProject = vi.fn();
+    const container = renderShell({
+      leftSidebarCollapsed: collapsed,
+      onGoHome,
+      onLeftSidebarExpand,
+      titlebarCenteredSlot: centered ? <button onClick={onProject}>Project menu</button> : undefined,
+      titlebarTabs: <div role="tablist">Files</div>,
+    });
+    const header = container.querySelector("header");
+    const home = header?.querySelector<HTMLButtonElement>(".desktop-titlebar-home");
+    expect(home).toBe(header?.querySelector("button"));
+    expect(home?.getAttribute("aria-label")).toBe("Home");
+    expect(home?.querySelector(".lucide-house")).not.toBeNull();
+    expect(home?.textContent).toBe("");
+    expect(home?.closest(".desktop-titlebar-centered-context")).toBeNull();
+    act(() => home?.click());
+    expect(onGoHome).toHaveBeenCalledOnce();
+    expect(onLeftSidebarExpand).not.toHaveBeenCalled();
+    expect(onProject).not.toHaveBeenCalled();
+  });
+
+  it("keeps a centered project menu interactive beside file tabs in the same Header", () => {
+    const onProject = vi.fn();
+    const container = renderShell({
+      leftSidebarCollapsed: false,
+      titlebarCenteredSlot: <button onClick={onProject}>Project menu</button>,
+      titlebarTabs: <div role="tablist">Files</div>,
+    });
+    const header = container.querySelector("header");
+    expect(header?.getAttribute("data-centered-project")).toBe("true");
+    expect(header?.querySelector('[role="tablist"]')?.textContent).toBe("Files");
+    const project = header?.querySelector<HTMLButtonElement>(".desktop-titlebar-centered-context button");
+    act(() => project?.click());
+    expect(onProject).toHaveBeenCalledOnce();
+    expect(container.querySelectorAll("header")).toHaveLength(1);
+  });
+
   it("shows the expansion action without hiding workspace or Git context", () => {
     const collapsed = renderShell({ leftSidebarCollapsed: true });
     expect(collapsed.querySelector(".desktop-titlebar-sidebar-expand")).not.toBeNull();
@@ -114,18 +159,24 @@ function renderShell({
   leftSidebarCollapsed,
   leadingRail,
   leadingRailWidth,
+  onGoHome,
   onLeftSidebarExpand = vi.fn(),
   rightSidebar,
   rightSidebarOpen = false,
   titlebarEditorSlot = <div>Editors</div>,
+  titlebarCenteredSlot,
+  titlebarTabs,
 }: {
   leftSidebarCollapsed: boolean;
   leadingRail?: React.ReactNode;
   leadingRailWidth?: number;
+  onGoHome?: () => void;
   onLeftSidebarExpand?: () => void;
   rightSidebar?: React.ReactNode;
   rightSidebarOpen?: boolean;
   titlebarEditorSlot?: React.ReactNode;
+  titlebarCenteredSlot?: React.ReactNode;
+  titlebarTabs?: React.ReactNode;
 }) {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -133,6 +184,7 @@ function renderShell({
   act(() => {
     root?.render(withTestLocalization(
       <DesktopCloudShell
+        onGoHome={onGoHome}
         leadingRail={leadingRail}
         leadingRailWidth={leadingRailWidth}
         leftSidebarCollapsed={leftSidebarCollapsed}
@@ -141,6 +193,8 @@ function renderShell({
         rightSidebarOpen={rightSidebarOpen}
         titlebarSidebarSlot={<div>Workspace · main</div>}
         titlebarEditorSlot={titlebarEditorSlot}
+        titlebarCenteredSlot={titlebarCenteredSlot}
+        titlebarTabs={titlebarTabs}
       >
         <div>Editor</div>
       </DesktopCloudShell>,

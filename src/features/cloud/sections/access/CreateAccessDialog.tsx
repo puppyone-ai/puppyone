@@ -3,14 +3,13 @@ import { Plus } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import { DesktopDialogCloseButton, DesktopDialogRoot, DesktopDialogSurface } from "../../../../components/DesktopDialog";
-import { DesktopOverlayLayer } from "../../../app-shell/DesktopOverlayPortal";
+import { DesktopOverlayLayer } from "../../../../components/DesktopOverlayPortal";
 import type {
-  DesktopCloudConnector,
+  DesktopCloudAccessSurface,
   DesktopCloudMcpEndpoint,
   DesktopCloudRepositoryView,
   DesktopCloudSession,
 } from "../../../../lib/cloudApi";
-import { scopeMatchesMcpEndpoint } from "../../utils";
 import { repositoryTargetKey } from "../../repositoryTarget";
 import { cloudMessage, formatCloudMessage, type CloudMessageDescriptor } from "../../cloudPresentation";
 import { CreateAccessFolderTree, TreeDisclosureMarker } from "./CreateAccessFolderTree";
@@ -49,7 +48,7 @@ export function DesktopCloudCreateAccessDialog({
   cloudSession: DesktopCloudSession;
   apiBaseUrl: string | null;
   scopes: DesktopCloudRepositoryView[];
-  connectorsByTarget: Map<string, DesktopCloudConnector[]>;
+  connectorsByTarget: Map<string, DesktopCloudAccessSurface[]>;
   mcpEndpointsByTarget: Map<string, DesktopCloudMcpEndpoint[]>;
   initialPath?: string | null;
   initialIntent?: CreateAccessIntent;
@@ -90,9 +89,9 @@ export function DesktopCloudCreateAccessDialog({
     if (!selectedExistingScope) return new Set<string>();
     const providers = new Set(
       (connectorsByTarget.get(repositoryTargetKey(selectedExistingScope.target)) ?? [])
-        .map((connector) => normalizeAccessProviderKey(connector.provider)),
+        .map((connector) => normalizeAccessProviderKey(connector.kind)),
     );
-    if (selectedMcpEndpoints.some((endpoint) => scopeMatchesMcpEndpoint(selectedExistingScope, endpoint))) {
+    if (selectedMcpEndpoints.length > 0) {
       providers.add("mcp");
     }
     return providers;
@@ -182,10 +181,9 @@ export function DesktopCloudCreateAccessDialog({
           <div className="desktop-dialog-title-row">
             <div>
               <h2>{t("cloud.access.create.title")}</h2>
-              <p>{t("cloud.access.create.description")}</p>
             </div>
           </div>
-          <DesktopDialogCloseButton disabled={saving} onClick={onClose} />
+          <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton label={t("common.action.close")} disabled={saving} onClick={onClose} /></Tooltip>
         </header>
         <div
           className="desktop-dialog-body desktop-cloud-create-access-body"
@@ -219,12 +217,12 @@ export function DesktopCloudCreateAccessDialog({
               </FieldLabel>
 
               <FieldLabel label={t("cloud.common.path")} required>
-                <Tooltip content={selectedLabel} overflowOnly><div
+                <div
                   className={`desktop-cloud-create-access-path-box ${selectedExistingScope ? "existing" : ""} ${normalizedSelected === null ? "empty" : ""}`}
                 >
                   <TreeDisclosureMarker expanded={normalizedSelected !== null} />
                   <span>{selectedLabel}</span>
-                </div></Tooltip>
+                </div>
                 {selectedExistingScope ? (
                   <div className="desktop-cloud-create-access-field-note">
                     {t("cloud.access.create.pathAlreadyHasAccess")}

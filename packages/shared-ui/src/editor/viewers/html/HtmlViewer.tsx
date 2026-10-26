@@ -2,6 +2,7 @@
 
 import { lazy, Suspense, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { MoreHorizontal } from "lucide-react";
+import { FloatingNotice, FloatingNoticeStack } from "../../../primitives/FloatingNotice";
 import { useEditorPaneMenuContributionPublisher } from "../../editorPaneMenuContribution";
 import { useLocalization } from "@puppyone/localization/react";
 import { CodeMirrorCodeEditor } from "../code/CodeMirrorCodeEditor";
@@ -10,6 +11,7 @@ import type { PresetViewerRenderContext } from "../../registry/viewerTypes";
 import { CodeMirrorDocumentModel, externalDocumentUpdate } from "../../document-session/CodeMirrorDocumentModel";
 import { useDocumentModelOwner } from "../../document-session/DocumentModelOwner";
 import { useEditableDocumentSource } from "../../document-session/EditableDocumentSourceContext";
+import { useEditorPreviewServices } from "../../preview-services/EditorPreviewServices";
 const HtmlPreviewFrame = lazy(() => import("./HtmlPreviewFrame").then((module) => ({ default: module.HtmlPreviewFrame })));
 const HtmlVisualSurface = lazy(() => import("./HtmlVisualSurface").then((module) => ({ default: module.HtmlVisualSurface })));
 
@@ -29,11 +31,16 @@ function HtmlDocumentEditor({ document, content, fileUrl, htmlTrustMode, canEdit
   const owner = useDocumentModelOwner();
   const publishMenu = useEditorPaneMenuContributionPublisher();
   const editingSource = useEditableDocumentSource();
+  const projection = useEditorPreviewServices().services?.documentProjection;
+  // Cloud can read/write HTML text without a native interactive projection
+  // service. Present the safe page and source editor instead of starting an
+  // editing bridge the provider cannot support.
+  const canVisualEdit = canEdit && (document.sourceKind !== "cloud" || Boolean(projection));
   const initialContent = useRef(content);
   initialContent.current = content;
   const model = useMemo(() => owner?.getOrCreate("html-text", () => new CodeMirrorDocumentModel(initialContent.current, undefined, true))
     ?? new CodeMirrorDocumentModel(initialContent.current, undefined, true), [owner]);
-  const [mode, setMode] = useState<Mode>(canEdit ? "edit" : "preview");
+  const [mode, setMode] = useState<Mode>(canVisualEdit ? "edit" : "preview");
   const [preview, setPreview] = useState(() => model.readSnapshot().content);
   const [error, setError] = useState<string | null>(null);
   const prepare = useRef<(() => void | Promise<void>) | null>(null);
@@ -76,8 +83,8 @@ function HtmlDocumentEditor({ document, content, fileUrl, htmlTrustMode, canEdit
   }, [content, model, editingSource]);
   useLayoutEffect(() => {
     model.setInputEnabled(canEdit && workingCopyEnabled.current);
-    if (!canEdit && currentMode.current === "edit") { setPreview(model.readSnapshot().content); setMode("preview"); }
-  }, [canEdit, model]);
+    if (!canVisualEdit && currentMode.current === "edit") { setPreview(model.readSnapshot().content); setMode("preview"); }
+  }, [canEdit, canVisualEdit, model]);
 
   const switchMode = useCallback(async (next: Mode) => {
     if (next === mode) return;
@@ -88,7 +95,7 @@ function HtmlDocumentEditor({ document, content, fileUrl, htmlTrustMode, canEdit
       setError(null); setMode(next);
     } catch { setError(t("editor.html.finishComposition")); }
   }, [mode, model, t]);
-  const showPage = canEdit ? "edit" : "preview";
+  const showPage = canVisualEdit ? "edit" : "preview";
   const toggleLabel = t(mode === "source" ? "editor.html.showPage" : "editor.html.showCode");
   useLayoutEffect(() => {
     if (hideSourceView || !publishMenu) return;
@@ -107,7 +114,10 @@ function HtmlDocumentEditor({ document, content, fileUrl, htmlTrustMode, canEdit
         void switchMode(mode === "source" ? showPage : "source");
       }}>{toggleLabel}</button>
     </details>}
-    {error && <div className="html-visual-editor__status" role="alert">{error}</div>}
+    {error && <FloatingNoticeStack
+      className={!publishMenu && !hideSourceView ? "html-editor-notice-stack is-below-options" : "html-editor-notice-stack"}>
+      <FloatingNotice className="html-visual-editor__status" tone="danger" onDismiss={() => setError(null)}>{error}</FloatingNotice>
+    </FloatingNoticeStack>}
     {mode === "source" ? <CodeMirrorCodeEditor model={model} content={content} nodeName={document.name} language="html" readOnly={!canEdit} />
       : mode === "edit" ? <Suspense fallback={<DocumentSurfacePending label={t("editor.html.preparing")} />}><HtmlVisualSurface model={model} path={document.path} title={document.name} fileUrl={fileUrl} canEdit={canEdit} registerPrepare={registerPrepare} onUnavailable={unavailable} /></Suspense>
         : <div className="native-preview native-preview-framed"><Suspense fallback={<DocumentSurfacePending label={t("editor.html.loading")} />}><HtmlPreviewFrame path={document.path} title={document.name} content={preview} fileUrl={fileUrl} htmlTrustMode={htmlTrustMode} /></Suspense></div>}

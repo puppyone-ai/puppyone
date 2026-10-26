@@ -1,0 +1,491 @@
+@layer features {
+  .desktop-cloud-project-activation {
+    container: desktop-cloud-project / inline-size;
+    display: flex;
+    box-sizing: border-box;
+    width: min(100%, 600px);
+    min-width: 0;
+    flex-shrink: 0;
+    flex-direction: column;
+    margin-inline: auto;
+    /* Clip without becoming a scroll container, so the dialog footer can stick. */
+    overflow: clip;
+    border: 1px solid var(--po-border);
+    border-radius: 14px;
+    background: var(--po-canvas);
+    color: var(--po-text);
+    font-family: var(--po-font-ui, var(--po-font-sans));
+    font-size: var(--po-type-ui-body, 14px);
+    font-weight: var(--po-text-weight-regular, 400);
+    line-height: 1.5;
+    text-align: start;
+  }
+
+  /* The switch dialog already provides the surface edge. */
+  .desktop-cloud-workspace-switch-content .desktop-cloud-project-activation {
+    width: 100%;
+    border: 0;
+    border-radius: 0;
+  }
+
+  /* Short windows scroll the values under a persistent action row. */
+  .desktop-cloud-workspace-switch-content .desktop-cloud-project-activation-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    background: var(--po-canvas);
+  }
+
+  /* Local folder → Cloud → Agents. Decorative except the named Agent list. */
+  /* The band borrows the committed Cloud Header tint so it reads as "the Cloud side". */
+  .desktop-cloud-project-journey {
+    --desktop-cloud-journey-bg: color-mix(in srgb, var(--po-cloud-titlebar-bg, var(--po-header)) 62%, var(--po-canvas));
+    --desktop-cloud-journey-dot: color-mix(in srgb, var(--po-cloud-titlebar-text-muted, var(--po-text-muted)) 30%, transparent);
+    position: relative;
+    display: flex;
+    min-height: 200px;
+    align-items: center;
+    justify-content: center;
+    padding: 26px 24px 34px;
+    border-bottom: 1px solid color-mix(in srgb, var(--po-cloud-titlebar-text-muted, var(--po-text-muted)) 22%, var(--po-border));
+    background:
+      radial-gradient(circle at 1px 1px, var(--desktop-cloud-journey-dot) 1px, transparent 0) 8px 8px / 16px 16px,
+      var(--desktop-cloud-journey-bg);
+  }
+
+  .desktop-cloud-project-journey::after {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, transparent 40%, var(--desktop-cloud-journey-bg) 88%);
+    content: "";
+    pointer-events: none;
+  }
+
+  .desktop-cloud-project-journey > * { position: relative; z-index: 1; }
+
+  .desktop-cloud-project-journey-card {
+    box-sizing: border-box;
+    border: 1px solid var(--po-border-strong);
+    border-radius: 12px;
+    background: var(--po-panel-raised, var(--po-overlay));
+    box-shadow: 0 6px 18px color-mix(in srgb, var(--po-shadow) 55%, transparent);
+  }
+
+  .desktop-cloud-project-journey-folder {
+    display: grid;
+    width: 148px;
+    min-width: 0;
+    flex: 0 0 auto;
+    justify-items: center;
+    gap: 2px;
+    padding: 6px 12px 10px;
+  }
+
+  .desktop-cloud-project-journey-folder-mark { display: block; width: 64px; height: 58px; margin-block: -2px -4px; }
+  .desktop-cloud-project-journey-folder-name {
+    max-width: 100%;
+    overflow: hidden;
+    font-size: var(--po-type-ui-meta, 13px);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .desktop-cloud-project-journey-folder-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--po-text-subtle);
+    font-size: var(--po-type-ui-caption, 12px);
+    line-height: 1.3;
+    white-space: nowrap;
+  }
+
+  .desktop-cloud-project-journey-wire {
+    position: relative;
+    width: 40px;
+    height: 2px;
+    flex: 0 1 40px;
+    min-width: 16px;
+    background: repeating-linear-gradient(90deg, var(--po-border-strong) 0 4px, transparent 4px 8px);
+  }
+
+  .desktop-cloud-project-journey-wire.is-active::after {
+    position: absolute;
+    top: -2px;
+    left: calc(50% - 3px);
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--po-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--po-accent) 22%, transparent);
+    content: "";
+  }
+
+  .desktop-cloud-project-journey-cloud { display: grid; flex: 0 0 auto; justify-items: center; }
+  .desktop-cloud-project-journey-cloud-mark {
+    display: grid;
+    width: 60px;
+    height: 60px;
+    place-items: center;
+    border-radius: 17px;
+    color: var(--po-text);
+  }
+
+  /* One Cloud copy, two audiences: a dashed fork joins the Agent list and teammates. */
+  .desktop-cloud-project-journey-audiences {
+    position: relative;
+    display: grid;
+    flex: 0 0 auto;
+    gap: 10px;
+  }
+
+  .desktop-cloud-project-journey-audiences > .desktop-cloud-project-journey-card {
+    position: relative;
+    width: auto;
+    margin: 0 0 0 16px;
+  }
+  .desktop-cloud-project-journey-audiences > *::before,
+  .desktop-cloud-project-journey-audiences > *::after {
+    position: absolute;
+    content: "";
+    pointer-events: none;
+  }
+
+  .desktop-cloud-project-journey-audiences > *::before {
+    top: calc(50% - 1px);
+    right: calc(100% + 1px);
+    width: 16px;
+    height: 2px;
+    background: repeating-linear-gradient(90deg, var(--po-border-strong) 0 4px, transparent 4px 8px);
+  }
+
+  .desktop-cloud-project-journey-audiences > *::after {
+    left: -18px;
+    width: 2px;
+    background: repeating-linear-gradient(180deg, var(--po-border-strong) 0 4px, transparent 4px 8px);
+  }
+
+  .desktop-cloud-project-journey-audiences > :first-child::after { top: 50%; bottom: -6px; }
+  .desktop-cloud-project-journey-audiences > :last-child::after { top: -6px; bottom: 50%; }
+
+  .desktop-cloud-project-journey-people {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 12px 7px 9px;
+    font-size: var(--po-type-ui-caption, 12px);
+    line-height: 1.25;
+  }
+
+  .desktop-cloud-project-journey-people-copy { display: grid; min-width: 0; gap: 1px; }
+
+  .desktop-cloud-project-journey-avatars { display: flex; flex: 0 0 auto; }
+  .desktop-cloud-project-journey-avatars > span {
+    display: grid;
+    width: 22px;
+    height: 22px;
+    place-items: center;
+    border: 2px solid var(--po-panel-raised, var(--po-overlay));
+    border-radius: 50%;
+    font-size: var(--po-type-ui-micro);
+    font-weight: 600;
+    line-height: 1;
+  }
+
+  .desktop-cloud-project-journey-avatars > span + span { margin-inline-start: -7px; }
+  .desktop-cloud-project-journey-avatars > span:nth-child(1) { background: color-mix(in srgb, var(--po-accent) 24%, var(--po-panel-raised, var(--po-overlay))); color: var(--po-accent-text); }
+  .desktop-cloud-project-journey-avatars > span:nth-child(2) { background: color-mix(in srgb, var(--po-success) 24%, var(--po-panel-raised, var(--po-overlay))); color: color-mix(in srgb, var(--po-success) 70%, var(--po-text)); }
+  .desktop-cloud-project-journey-avatars > span:nth-child(3) { background: color-mix(in srgb, var(--po-purple, var(--po-warning)) 24%, var(--po-panel-raised, var(--po-overlay))); color: color-mix(in srgb, var(--po-purple, var(--po-warning)) 70%, var(--po-text)); }
+  .desktop-cloud-project-journey-people-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .desktop-cloud-project-journey-people-link {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 3px;
+    color: var(--po-accent-text);
+    font-family: var(--po-font-mono, ui-monospace, monospace);
+    font-size: var(--po-type-ui-micro);
+    white-space: nowrap;
+  }
+
+  .desktop-cloud-project-journey-people-link svg { flex: 0 0 auto; color: var(--po-text-muted); }
+
+  .desktop-cloud-project-journey-agents {
+    display: grid;
+    width: max-content;
+    min-width: 160px;
+    max-width: 200px;
+    gap: 1px;
+    margin: 0;
+    padding: 5px 6px;
+    list-style: none;
+  }
+
+  .desktop-cloud-project-journey-agents li {
+    display: flex;
+    height: 26px;
+    min-width: 0;
+    align-items: center;
+    gap: 8px;
+    padding: 0 6px;
+    font-size: var(--po-type-ui-caption, 12px);
+    line-height: 1.2;
+  }
+
+  .desktop-cloud-project-journey-agents li.is-protocol { color: var(--po-text-muted); }
+  .desktop-cloud-project-journey-agent-mark {
+    display: grid;
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+    place-items: center;
+    overflow: hidden;
+    border-radius: 5px;
+    color: var(--po-text-muted);
+  }
+
+  .desktop-cloud-project-journey-agent-mark .po-agent-brand-image { width: 100%; height: 100%; object-fit: contain; }
+  .desktop-cloud-project-journey-agent-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .desktop-cloud-project-journey-agent-status {
+    width: 6px;
+    height: 6px;
+    flex: 0 0 auto;
+    margin-inline-start: auto;
+    border-radius: 50%;
+    background: var(--po-success);
+  }
+
+  .desktop-cloud-project-journey-agents li.is-protocol .desktop-cloud-project-journey-agent-status { background: var(--po-border-strong); }
+
+  /* Copy */
+  .desktop-cloud-project-activation-body { padding: 22px 28px 4px; }
+  .desktop-cloud-project-activation-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    color: var(--po-text-muted);
+    font-size: var(--po-type-ui-caption, 12px);
+    font-weight: var(--po-text-weight-medium, 500);
+    line-height: 1.4;
+  }
+
+  .desktop-cloud-project-activation-title {
+    margin: 8px 0 6px;
+    color: var(--po-text);
+    font-size: var(--po-text-size-page-title, 20px);
+    font-weight: 600;
+    letter-spacing: -0.022em;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+    text-wrap: balance;
+  }
+
+  .desktop-cloud-project-activation-lead {
+    margin: 0;
+    color: var(--po-text-muted);
+    font-size: var(--po-type-ui-body, 14px);
+    line-height: 1.55;
+    text-wrap: pretty;
+  }
+
+  .desktop-cloud-project-values {
+    display: grid;
+    gap: 12px;
+    margin: 18px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .desktop-cloud-project-value {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr);
+    align-items: start;
+    column-gap: 10px;
+  }
+
+  .desktop-cloud-project-value-icon {
+    display: grid;
+    width: 28px;
+    height: 28px;
+    place-items: center;
+    border: 1px solid var(--po-border-subtle);
+    border-radius: 8px;
+    background: var(--po-hover);
+    color: var(--po-text-muted);
+  }
+
+  .desktop-cloud-project-value-copy { display: grid; min-width: 0; gap: 1px; }
+  .desktop-cloud-project-value-copy strong {
+    color: var(--po-text);
+    font-size: var(--po-type-ui-meta, 13px);
+    font-weight: 550;
+    line-height: 1.4;
+  }
+
+  .desktop-cloud-project-value-copy span {
+    color: var(--po-text-subtle);
+    font-size: var(--po-type-ui-caption, 12px);
+    line-height: 1.45;
+  }
+
+  .desktop-cloud-project-activation-supplemental {
+    margin-top: 16px;
+    color: var(--po-text-muted);
+    font-size: var(--po-type-ui-meta, 13px);
+    overflow-wrap: anywhere;
+  }
+
+  /* Footer */
+  .desktop-cloud-project-activation-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 12px;
+    padding: 20px 28px 22px;
+  }
+
+  .desktop-cloud-project-activation-note {
+    display: inline-flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    color: var(--po-text-subtle);
+    font-size: var(--po-type-ui-caption, 12px);
+    line-height: 1.4;
+  }
+
+  .desktop-cloud-project-activation-note svg { flex: 0 0 auto; }
+  .desktop-cloud-project-activation-actions {
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-inline-start: auto;
+  }
+
+  .desktop-cloud-project-activation-actions > button {
+    display: inline-flex;
+    height: var(--po-control-size);
+    min-height: var(--po-control-size);
+    max-width: 100%;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 0 14px;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: var(--po-text-size-interface, 13px);
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .desktop-cloud-project-activation-actions > button.primary {
+    border: 1px solid transparent;
+    font-weight: 600;
+  }
+
+  .desktop-cloud-project-activation-actions > button.primary:not(:disabled) {
+    border-color: transparent;
+    background: var(--po-text);
+    color: var(--po-text-inverse);
+  }
+
+  .desktop-cloud-project-activation-actions > button.primary:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--po-text) 88%, var(--po-canvas));
+    color: var(--po-text-inverse);
+  }
+
+  .desktop-cloud-project-activation-actions > button.primary:disabled {
+    border-color: transparent;
+    background: var(--po-control);
+    color: var(--po-text-disabled);
+  }
+
+  .desktop-cloud-project-activation-actions > button.desktop-cloud-project-activation-dismiss {
+    border-color: transparent;
+    color: var(--po-text-muted);
+  }
+
+  .desktop-cloud-project-activation-actions > button.desktop-cloud-project-activation-dismiss:hover:not(:disabled) {
+    background: var(--po-hover);
+    color: var(--po-text);
+  }
+
+  .desktop-cloud-project-activation-actions > button svg { flex: 0 0 auto; }
+
+  /* Narrow dialogs keep every value and action; the diagram compacts first. */
+  @container desktop-cloud-project (max-width: 540px) {
+    .desktop-cloud-project-journey { min-height: 164px; padding: 22px 16px 30px; }
+    .desktop-cloud-project-journey-folder { width: 136px; }
+    .desktop-cloud-project-journey-folder-mark { width: 54px; height: 48px; }
+    .desktop-cloud-project-journey-wire { flex-basis: 28px; }
+    .desktop-cloud-project-journey-cloud-mark { width: 52px; height: 52px; border-radius: 15px; }
+    .desktop-cloud-project-journey-agents { width: auto; min-width: 0; }
+    .desktop-cloud-project-journey-people { padding: 6px; }
+    .desktop-cloud-project-journey-people-copy { display: none; }
+    .desktop-cloud-project-journey-avatars > span { width: 20px; height: 20px; }
+    .desktop-cloud-project-journey-avatars > span:nth-child(3) { display: none; }
+    .desktop-cloud-project-journey-agents li { gap: 0; }
+    .desktop-cloud-project-journey-agent-name {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+
+    .desktop-cloud-project-journey-agent-status { display: none; }
+    .desktop-cloud-project-activation-body { padding: 20px 20px 4px; }
+    .desktop-cloud-project-activation-title { font-size: var(--po-type-ui-heading); }
+    .desktop-cloud-project-activation-footer { padding: 18px 20px 20px; }
+  }
+
+  @media (max-height: 640px) {
+    .desktop-cloud-project-journey { min-height: 0; padding-block: 18px 30px; }
+    .desktop-cloud-project-activation-body { padding-top: 18px; }
+  }
+
+  .desktop-cloud-project-connection-error {
+    display: grid;
+    gap: 4px;
+    padding: 10px 12px;
+    border: 1px solid color-mix(in srgb, var(--po-warning) 28%, var(--po-border));
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--po-warning) 7%, transparent);
+    color: var(--po-text-muted);
+    font: inherit;
+  }
+
+  .desktop-cloud-project-connection-error p { margin: 0; }
+  .desktop-cloud-project-connection-error > p:first-child { color: var(--po-text); font-weight: var(--po-text-weight-medium, 500); }
+  .desktop-cloud-project-connection-error summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: inherit;
+    list-style: none;
+  }
+
+  .desktop-cloud-project-connection-error summary::-webkit-details-marker { display: none; }
+  .desktop-cloud-project-connection-error summary:hover { color: var(--po-text); }
+  .desktop-cloud-project-connection-error summary:focus-visible {
+    border-radius: var(--desktop-control-radius);
+    outline: 2px solid var(--po-focus-ring);
+    outline-offset: 3px;
+  }
+
+  .desktop-cloud-project-connection-error summary svg { flex: 0 0 auto; }
+  .desktop-cloud-project-connection-error details[open] summary svg { transform: rotate(90deg); }
+  .desktop-cloud-project-connection-error details p { margin-top: 8px; }
+}

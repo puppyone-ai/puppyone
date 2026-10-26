@@ -404,7 +404,7 @@ export async function assertVersionEnginePreflight(rootPath, expectedCommitId, {
   if (parentLine.split(/\s+/).filter(Boolean).length > 2) {
     throw createPublishError(
       "MERGE_TIP_UNSUPPORTED",
-      "The current merge commit cannot be the initial PuppyOne Cloud tip. Publish a linearized tip.",
+      "The current merge commit cannot be the initial Puppyone Cloud tip. Publish a linearized tip.",
       false,
     );
   }
@@ -439,7 +439,7 @@ export async function assertVersionEnginePreflight(rootPath, expectedCommitId, {
     ) {
       throw createPublishError(
         "LFS_UNSUPPORTED",
-        "Git LFS pointer files are not supported by the PuppyOne Cloud repository engine.",
+        "Git LFS pointer files are not supported by the Puppyone Cloud repository engine.",
         false,
       );
     }

@@ -44,6 +44,12 @@ export async function runNativeAgentRoundtrip({
     });
     if (!firstAnswer.includes(firstToken)) throw new NativeAgentRoundtripError(runtimeId, stage);
 
+    // Native persistence confirmation is asynchronous. Keep the execution alive
+    // until its real catalog evidence arrives, then test closure and exact resume.
+    stage = "locator";
+    await waitForNativeLocator({ service, sender, workspaceRoot, runtimeId,
+      sessionId: activeSessionId, providerSessionId, timeoutMs });
+
     stage = "close-before-resume";
     await feed.detach();
     feed = null;
@@ -113,6 +119,20 @@ export async function runNativeAgentRoundtrip({
         removePersistence: false,
       }, workspaceRoot)).catch(() => {});
     }
+  }
+}
+
+async function waitForNativeLocator({ service, sender, workspaceRoot, runtimeId,
+  sessionId, providerSessionId, timeoutMs }) {
+  const deadline = Date.now() + Math.min(timeoutMs, 10_000);
+  while (true) {
+    const listed = await service.listSessions(sender, {
+      runtimeId, discoverNative: false, includeArchived: false,
+    }, workspaceRoot);
+    if (listed?.sessions?.some((session) => session.id === sessionId
+      && session.runtimeId === runtimeId && session.providerSessionId === providerSessionId)) return;
+    if (Date.now() >= deadline) throw new NativeAgentRoundtripError(runtimeId, "locator", "timeout");
+    await new Promise(resolve => setTimeout(resolve, 100));
   }
 }
 

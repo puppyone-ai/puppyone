@@ -1,0 +1,334 @@
+@layer features {
+  /* The Header states a place and then reach: a device or cloud mark, identity
+     marks, a count, and the words "only you" when nobody else is there.
+
+     Every value here comes from the Header's own control tokens, the same ones
+     `.desktop-titlebar-location-button` and `.desktop-titlebar-workspace-button`
+     use. This control sits between those two, so it has to share their height,
+     type scale, icon slot and hover color exactly; anything it invents reads as
+     a foreign widget dropped into the Header. */
+  .desktop-titlebar-reach-wrap {
+    display: flex;
+    flex: 0 0 auto;
+    min-width: 0;
+    align-items: center;
+    height: 100%;
+  }
+
+  .desktop-titlebar-reach-button {
+    display: inline-flex;
+    box-sizing: border-box;
+    align-items: center;
+    justify-content: center;
+    gap: var(--desktop-titlebar-workspace-icon-label-gap);
+    height: var(--desktop-titlebar-control-height);
+    padding: 0 var(--desktop-titlebar-workspace-inline-padding);
+    border: 0;
+    border-radius: var(--desktop-toolbar-action-radius);
+    background: transparent;
+    color: var(--desktop-titlebar-text-muted);
+    font-family: var(--desktop-titlebar-context-font-family);
+    font-size: var(--desktop-titlebar-context-font-size);
+    font-weight: var(--desktop-titlebar-context-font-weight);
+    line-height: var(--desktop-titlebar-context-line-height);
+    white-space: nowrap;
+  }
+
+  .desktop-titlebar-reach-button:hover,
+  .desktop-titlebar-reach-button[aria-expanded="true"] {
+    background: var(--desktop-titlebar-hover);
+    color: var(--desktop-titlebar-text);
+  }
+
+  .desktop-titlebar-reach-button:focus-visible {
+    outline: 1px solid var(--desktop-titlebar-focus);
+    outline-offset: -1px;
+  }
+
+  /* The product's warning colour is `--po-warning`; `--po-status-warning` was
+     never a token, so the one state meant to stand out has been falling back
+     to the ordinary text colour and standing out not at all. */
+  .desktop-titlebar-reach-button[data-reach-emphasis="true"] {
+    color: var(--po-warning, var(--desktop-titlebar-text));
+  }
+
+  /* The place mark occupies the Header's shared icon slot, so the laptop here
+     is the same size and weight as the house on the project button. */
+  .desktop-titlebar-reach-button .desktop-titlebar-workspace-mark {
+    display: grid;
+    width: var(--desktop-titlebar-workspace-icon-slot-size);
+    height: var(--desktop-titlebar-workspace-icon-slot-size);
+    flex: 0 0 var(--desktop-titlebar-workspace-icon-slot-size);
+    place-items: center;
+    color: inherit;
+  }
+
+  .desktop-titlebar-reach-button .desktop-titlebar-workspace-mark > svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .desktop-project-reach-place {
+    color: inherit;
+  }
+
+  /* The place is the Header's visible answer, so it is set exactly like the
+     project name beside it — same family, size, weight and color. */
+  .desktop-project-reach-place-label {
+    min-width: 0;
+    overflow: hidden;
+    color: inherit;
+    line-height: inherit;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .desktop-project-reach-marks {
+    display: grid;
+    width: var(--desktop-titlebar-workspace-icon-slot-size);
+    height: var(--desktop-titlebar-workspace-icon-slot-size);
+    place-items: center;
+    color: inherit;
+  }
+
+  /* Who can reach the project, on the right of the Header. It keeps the
+     Header's own control geometry so it sits in the same row as the tools
+     beside it, and stacks its marks the way a room of people reads: the one
+     who is working first. */
+  .desktop-titlebar-reach-people-wrap {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    height: 100%;
+  }
+
+  .desktop-titlebar-reach-people {
+    display: inline-flex;
+    box-sizing: border-box;
+    align-items: center;
+    gap: 4px;
+    height: var(--desktop-titlebar-control-height);
+    padding: 0 6px;
+    border: 0;
+    border-radius: var(--desktop-toolbar-action-radius);
+    background: transparent;
+    color: var(--desktop-titlebar-text-muted);
+    font-family: var(--desktop-titlebar-context-font-family);
+    font-size: var(--desktop-titlebar-context-font-size);
+    line-height: var(--desktop-titlebar-context-line-height);
+  }
+
+  .desktop-titlebar-reach-people:hover,
+  .desktop-titlebar-reach-people[aria-expanded="true"] {
+    background: var(--desktop-titlebar-hover);
+    color: var(--desktop-titlebar-text);
+  }
+
+  .desktop-titlebar-reach-people:focus-visible {
+    outline: 1px solid var(--desktop-titlebar-focus);
+    outline-offset: -1px;
+  }
+
+  /* People are round, machines are square. An agent carries its own brand, so
+     the shape is what still separates a person from a program; colour never
+     has to. */
+  .desktop-project-reach-mark {
+    display: grid;
+    box-sizing: border-box;
+    flex: 0 0 auto;
+    place-items: center;
+    overflow: hidden;
+    border: 1px solid transparent;
+    background: var(--po-control, color-mix(in srgb, currentColor 12%, transparent));
+    color: inherit;
+    font-size: var(--po-type-ui-micro);
+    line-height: 1;
+    font-weight: var(--po-text-weight-medium, 500);
+    /* Quiet by default: present, not here. */
+    opacity: 0.55;
+  }
+
+  .desktop-project-reach-mark > img,
+  .desktop-project-reach-mark > svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  .desktop-project-reach-mark[data-reach-audience="person"] {
+    border-color: currentColor;
+    border-radius: 50%;
+    background: transparent;
+  }
+
+  .desktop-project-reach-mark[data-reach-audience="machine"] {
+    border-radius: 5px;
+  }
+
+  /* Lit means working in the project right now, and nothing else does. */
+  .desktop-project-reach-mark[data-reach-activity] {
+    opacity: 1;
+    box-shadow: 0 0 0 1.5px var(--po-accent);
+  }
+
+  .desktop-project-reach-count {
+    color: inherit;
+    line-height: inherit;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* The panel is the project menu, not a dialog of its own: same surface
+     tokens, same caption, same rows. */
+  .desktop-project-reach-menu {
+    --desktop-project-menu-spacing: 3px;
+    --po-menu-padding: var(--desktop-project-menu-spacing);
+    --po-menu-bg: var(--po-header);
+    --po-menu-border: var(--po-shell-divider);
+    --interface-menu-background: var(--po-header);
+    --po-menu-shadow-compact:
+      0 2px 4px color-mix(in srgb, var(--po-shadow) 45%, transparent),
+      0 6px 16px -4px color-mix(in srgb, var(--po-shadow) 65%, transparent);
+    display: flex;
+    max-height: min(420px, calc(100vh - 58px));
+    flex-direction: column;
+    /* This container receives initial dialog focus; rows own the focus ring. */
+    outline: none;
+  }
+
+  .desktop-project-reach-panel {
+    /* The one column everything in this panel starts on: the rows' own inline
+       padding, which is where their icon slot begins. The caption and the
+       note are plain text with no slot of their own, so they simply start
+       there too and the panel reads down one margin. */
+    --desktop-project-reach-column: var(--po-menu-item-padding-inline);
+
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    padding: var(--desktop-project-menu-spacing, 3px);
+  }
+
+  .desktop-project-runtime {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr);
+    align-items: start;
+    gap: 10px;
+    margin-bottom: 4px;
+    padding: 10px var(--desktop-project-reach-column);
+    border: 1px solid var(--po-border);
+    border-radius: calc(var(--po-menu-radius, 8px) - var(--desktop-project-menu-spacing, 3px));
+  }
+
+  .desktop-project-runtime-mark {
+    display: grid;
+    margin-top: 1px;
+    color: var(--po-text-muted);
+  }
+
+  .desktop-project-runtime-body {
+    min-width: 0;
+  }
+
+  .desktop-project-runtime-title {
+    margin: 0;
+    color: var(--po-text);
+    font-size: var(--po-menu-item-font-size);
+    font-weight: var(--po-text-weight-medium, 500);
+    line-height: 1.45;
+    text-wrap: pretty;
+  }
+
+  .desktop-project-runtime .desktop-project-location-controls {
+    margin-top: 4px;
+  }
+
+  .desktop-project-runtime .desktop-project-location-controls .desktop-menu-item {
+    padding-inline: 0;
+    color: var(--po-text-muted);
+    background: transparent;
+  }
+
+  .desktop-project-runtime .desktop-project-location-controls .desktop-menu-item:is(:hover, :focus-visible):not(:disabled) {
+    color: var(--po-text);
+    background: var(--po-hover);
+  }
+
+  .desktop-project-runtime .desktop-menu-item-icon {
+    display: none;
+  }
+
+  .desktop-project-runtime .desktop-menu-item-label {
+    white-space: normal;
+  }
+
+  /* The sharing-only panel keeps its compact access summary. */
+  .desktop-project-reach-card {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+    /* The shared column, less this card's own frame — nothing else in the
+       menu is framed, so nothing else has to pay that pixel back. */
+    padding: 8px calc(var(--desktop-project-reach-column) - 1px);
+    border: 1px solid var(--po-border);
+    border-radius: calc(var(--po-menu-radius, 8px) - var(--desktop-project-menu-spacing, 3px));
+    background: var(--po-inset, color-mix(in srgb, var(--po-text) 4%, transparent));
+    color: var(--po-text);
+  }
+
+  /* Drawn, not slotted. Giving it the rows' icon slot is exactly what made it
+     read as an action glyph the first time; it keeps its own box, and because
+     both places are now solid shapes that reach their own edges, that box
+     lands on the rows' column with no bearing correction and no per-place
+     exception — the outline laptop needed both. */
+  .desktop-project-reach-card-mark {
+    display: grid;
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+    place-items: center;
+    color: var(--po-text-muted);
+  }
+
+  /* The statement, at the meta size and the body colour: small enough to
+     share a line with the drawing at any content setting, bright enough to
+     still be the thing the user opened the panel to read. */
+  .desktop-project-reach-card-reach,
+  .desktop-project-reach-detail {
+    margin: 0;
+    min-width: 0;
+    font-size: var(--po-menu-meta-font-size, var(--po-type-ui-meta, 12px));
+    font-weight: var(--po-text-weight-regular, 400);
+    line-height: var(--po-menu-meta-line-height, 16px);
+    text-wrap: pretty;
+  }
+
+  .desktop-project-reach-card-reach {
+    color: inherit;
+  }
+
+  .desktop-project-reach-card[data-reach-state="attention"] {
+    color: var(--po-warning, var(--po-text));
+  }
+
+  /* Why the row under it exists. It is outside the card because the card is
+     one statement in every state, and a consequence that exists only because
+     of an obstacle belongs beside the way out of it. Same column, same size,
+     same voice — a third type size here is what made the panel look
+     assembled rather than designed. */
+  .desktop-project-reach-detail {
+    padding: 4px var(--desktop-project-reach-column) 7px;
+    color: var(--po-text-subtle);
+  }
+
+  .desktop-project-reach-actions {
+    display: grid;
+    min-width: 0;
+    gap: 2px;
+  }
+
+  .desktop-project-reach-menu .desktop-menu-item-icon {
+    opacity: 1;
+  }
+}

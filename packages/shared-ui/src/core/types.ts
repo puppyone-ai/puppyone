@@ -22,6 +22,8 @@ export type Workspace = {
   path: string;
   status: "protected" | "recording" | "paused";
   commitCount?: number;
+  /** Best available content/activity time; never the time this folder was opened. */
+  lastModifiedAt?: string | null;
   cloudState?: "local" | "syncing" | "synced";
   /** Secret-free canonical PuppyOne Git locator cached for recent-workspace UI. */
   puppyoneGitRemote?: {
@@ -297,6 +299,8 @@ export type DataPort = {
   previewServices?: import("../editor/preview-services/types").EditorPreviewServices;
   editorAssets?: import("../editor/resource/DocumentAssetImport").DocumentAssetImportPort;
   listChildren: (folderPath: string | null) => Promise<DataNode[]>;
+  /** Same-identity snapshot, possibly stale. listChildren revalidates it without clearing the view. */
+  getCachedChildren?: (folderPath: string | null) => DataNode[] | undefined;
   /** Resolve one workspace-relative entry without enumerating or previewing its siblings. */
   resolveNode?: (path: string) => Promise<DataNode | null>;
   readFile?: (path: string, options?: DataReadOptions) => Promise<FileContent>;

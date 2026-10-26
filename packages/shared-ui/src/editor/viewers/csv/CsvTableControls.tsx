@@ -1,8 +1,8 @@
 "use client";
-import { Tooltip } from "../../../primitives/Tooltip";
 
 import { showEditableTableHandle } from "../../table/editableTableHandle";
 import { createEditableTableSelection } from "../../table/editableTableSelection";
+import { getEditableTableMoveAxis } from "../../table/editableTableStructureInteraction";
 import type { MessageFormatter } from "@puppyone/localization/core";
 import {
   type PointerEvent as ReactPointerEvent,
@@ -18,7 +18,7 @@ import {
   getEditableTableDropBoundary,
 } from "../../table/editableTableDrag";
 import { CsvTableMenu, type CsvTableMenuTarget } from "./CsvTableMenu";
-import type { CsvTableStructureOperation } from "./csvTableOperations";
+import type { CsvTableFocusTarget, CsvTableStructureOperation } from "./csvTableOperations";
 
 type CsvTableControlsProps = Readonly<{
   columnCount: number;
@@ -26,7 +26,9 @@ type CsvTableControlsProps = Readonly<{
   headerEnabled: boolean;
   locale: string;
   onAutoFitColumn: (columnIndex: number) => void;
-  onOperation: (operation: CsvTableStructureOperation) => void;
+  onOperation: (
+    operation: CsvTableStructureOperation,
+  ) => CsvTableFocusTarget | undefined;
   rowCount: number;
   rowNumbersVisible: boolean;
   surfaceRef: RefObject<HTMLDivElement>;
@@ -35,6 +37,10 @@ type CsvTableControlsProps = Readonly<{
 }>;
 
 type CsvTableDragKind = "column" | "row";
+type CsvTableStructuralSelection = Readonly<{
+  index: number;
+  kind: CsvTableDragKind;
+}>;
 
 // Table grips straddle their outside edge by roughly nine pixels. Once the
 // remaining scroll-padding gap is narrower than that, dock the grip inside its
@@ -63,7 +69,9 @@ export function CsvTableControls({
   const activeDragCleanupRef = useRef<(() => void) | null>(null);
   const menuSequenceRef = useRef(0);
   const menuTargetRef = useRef<CsvTableMenuTarget | null>(null);
+  const structuralSelectionRef = useRef<CsvTableStructuralSelection | null>(null);
   const onOperationRef = useRef(onOperation);
+  const dispatchOperationRef = useRef<(operation: CsvTableStructureOperation) => void>(() => undefined);
   const positionHandlesRef = useRef<() => void>(() => undefined);
   const openMenuRef = useRef<(kind: CsvTableDragKind, sourceIndex: number, handle: HTMLButtonElement) => void>(
     () => undefined,
@@ -129,6 +137,43 @@ export function CsvTableControls({
     };
     const getColumnCell = (columnIndex: number) => getColumnCells()
       .find((cell) => Number(cell.dataset.csvColumn) === columnIndex) ?? null;
+    const clearPersistentStructuralSelection = () => {
+      const current = structuralSelectionRef.current;
+      if (!current) return;
+      structuralSelectionRef.current = null;
+      setCsvTableSourceHighlight(table, current.kind, current.index, false, selection);
+    };
+    const persistStructuralSelection = (kind: CsvTableDragKind, index: number) => {
+      const next = { kind, index } as const;
+      structuralSelectionRef.current = next;
+      queueMicrotask(() => {
+        if (disposed || structuralSelectionRef.current !== next) return;
+        if (kind === "row") hoverRef.current.rowIndex = index;
+        else hoverRef.current.columnIndex = index;
+        setCsvTableSourceHighlight(table, kind, index, true, selection);
+        positionHandles();
+      });
+    };
+    // Menu clicks, keyboard activation and pointer drops share the same
+    // post-transaction selection. Never infer the destination from DOM order.
+    const dispatchOperation = (operation: CsvTableStructureOperation) => {
+      const axis = getEditableTableMoveAxis(operation);
+      const destination = onOperationRef.current(operation);
+      if (axis && destination) {
+        persistStructuralSelection(axis, axis === "row" ? destination.rowIndex : destination.columnIndex);
+      }
+    };
+    dispatchOperationRef.current = dispatchOperation;
+    const restoredSelection = structuralSelectionRef.current;
+    if (restoredSelection) {
+      setCsvTableSourceHighlight(
+        table,
+        restoredSelection.kind,
+        restoredSelection.index,
+        true,
+        selection,
+      );
+    }
     const setHandleVisible = (handle: HTMLElement, visible: boolean) => {
       handle.classList.toggle("is-visible", visible);
     };
@@ -250,6 +295,7 @@ export function CsvTableControls({
 
     const openMenu = (kind: CsvTableDragKind, sourceIndex: number, handle: HTMLButtonElement) => {
       closeMenu(false);
+      clearPersistentStructuralSelection();
       positionHandles();
       const crossRow = hoverRef.current.rowIndex ?? Math.min(firstMovableRow, rowCount - 1);
       const crossColumn = hoverRef.current.columnIndex ?? 0;
@@ -261,10 +307,12 @@ export function CsvTableControls({
         ? getColumnCell(sourceIndex)?.getBoundingClientRect()
         : null;
       const nextTarget: CsvTableMenuTarget = {
-        clientX: kind === "row"
-          ? direction === "rtl" ? rect.left - 4 : rect.right + 4
-          : rect.left,
-        clientY: kind === "row" ? rect.top : (dockedColumnCellRect?.bottom ?? rect.bottom) + 4,
+        // Keep horizontal action rows below the visible grip instead of
+        // covering the row whose structure they describe.
+        clientX: rect.left,
+        clientY: kind === "column"
+          ? (dockedColumnCellRect?.bottom ?? rect.bottom) + 4
+          : rect.bottom + 4,
         columnIndex: kind === "column" ? sourceIndex : crossColumn,
         kind,
         menuId: `csv-table-menu-${++menuSequenceRef.current}`,
@@ -385,6 +433,7 @@ export function CsvTableControls({
       event.stopPropagation();
       closeMenu(false);
       activeDragCleanupRef.current?.();
+      clearPersistentStructuralSelection();
 
       const handle = kind === "column" ? columnHandle : rowHandle;
       const otherHandle = kind === "column" ? rowHandle : columnHandle;
@@ -396,6 +445,7 @@ export function CsvTableControls({
       hoverRef.current.dragging = true;
       positionHandles();
       handle.setPointerCapture?.(pointerId);
+      handle.classList.add("is-pressed");
       setCsvTableSourceHighlight(table, kind, sourceIndex, true, selection);
 
       const beginVisualDrag = () => {
@@ -404,6 +454,7 @@ export function CsvTableControls({
         surface.classList.add("is-table-dragging");
       };
       const onPointerMove = (moveEvent: PointerEvent) => {
+        if (moveEvent.pointerId !== pointerId) return;
         moveEvent.preventDefault();
         moveEvent.stopPropagation();
         if (!moved) {
@@ -427,8 +478,8 @@ export function CsvTableControls({
             ? Number(columnCells[dropBoundary]?.dataset.csvColumn)
             : Number(columnCells[columnCells.length - 1]?.dataset.csvColumn) + 1;
           const targetColumnIndex = targetBoundary > sourceIndex ? targetBoundary - 1 : targetBoundary;
-          if (targetColumnIndex === sourceIndex) return;
-          onOperationRef.current({
+          if (!Number.isInteger(targetColumnIndex)) return;
+          dispatchOperation({
             type: "move-column-to",
             rowIndex: hoverRef.current.rowIndex ?? firstMovableRow,
             columnIndex: sourceIndex,
@@ -443,8 +494,8 @@ export function CsvTableControls({
           ? Number(bodyRows[dropBoundary]?.dataset.csvRow)
           : Number(bodyRows[bodyRows.length - 1]?.dataset.csvRow) + 1;
         const targetRowIndex = targetBoundary > sourceIndex ? targetBoundary - 1 : targetBoundary;
-        if (!Number.isInteger(targetRowIndex) || targetRowIndex === sourceIndex) return;
-        onOperationRef.current({
+        if (!Number.isInteger(targetRowIndex)) return;
+        dispatchOperation({
           type: "move-row-to",
           rowIndex: sourceIndex,
           columnIndex: hoverRef.current.columnIndex ?? 0,
@@ -455,26 +506,31 @@ export function CsvTableControls({
         if (activeDragCleanupRef.current !== cleanup) return;
         activeDragCleanupRef.current = null;
         hoverRef.current.dragging = false;
-        handle.classList.remove("is-dragging");
+        handle.classList.remove("is-pressed", "is-dragging");
         surface.classList.remove("is-table-dragging");
         dropIndicator.hidden = true;
         if (!preserveSourceHighlight) setCsvTableSourceHighlight(table, kind, sourceIndex, false, selection);
-        if (handle.hasPointerCapture?.(pointerId)) handle.releasePointerCapture?.(pointerId);
         handle.removeEventListener("pointermove", onPointerMove);
         handle.removeEventListener("pointerup", onPointerUp);
         handle.removeEventListener("pointercancel", onPointerCancel);
+        handle.removeEventListener("lostpointercapture", onLostPointerCapture);
         table.ownerDocument.removeEventListener("keydown", onKeyDown, true);
+        table.ownerDocument.defaultView?.removeEventListener("blur", onBlur);
+        if (handle.hasPointerCapture?.(pointerId)) handle.releasePointerCapture?.(pointerId);
         if (!disposed) positionHandles();
       };
       const onPointerUp = (upEvent: PointerEvent) => {
+        if (upEvent.pointerId !== pointerId) return;
         upEvent.preventDefault();
         upEvent.stopPropagation();
         const shouldApply = moved;
         cleanup(!shouldApply);
-        if (shouldApply) applyMove();
-        else openMenu(kind, sourceIndex, handle);
+        if (shouldApply) {
+          applyMove();
+        } else openMenu(kind, sourceIndex, handle);
       };
       const onPointerCancel = (cancelEvent: PointerEvent) => {
+        if (cancelEvent.pointerId !== pointerId) return;
         cancelEvent.preventDefault();
         cancelEvent.stopPropagation();
         cleanup();
@@ -486,11 +542,18 @@ export function CsvTableControls({
         cleanup();
       };
 
+      const onLostPointerCapture = (captureEvent: PointerEvent) => {
+        if (captureEvent.pointerId === pointerId) cleanup();
+      };
+      const onBlur = () => cleanup();
+
       activeDragCleanupRef.current = cleanup;
       handle.addEventListener("pointermove", onPointerMove);
       handle.addEventListener("pointerup", onPointerUp);
       handle.addEventListener("pointercancel", onPointerCancel);
+      handle.addEventListener("lostpointercapture", onLostPointerCapture);
       table.ownerDocument.addEventListener("keydown", onKeyDown, true);
+      table.ownerDocument.defaultView?.addEventListener("blur", onBlur);
     };
     startDragRef.current = startDrag;
 
@@ -524,8 +587,21 @@ export function CsvTableControls({
       hoverRef.current.columnIndex = null;
       positionHandles();
     };
+    const onTableCellPointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element) || !target.closest("th, td")) return;
+      clearPersistentStructuralSelection();
+    };
+    const onStructuralSelectionKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || !structuralSelectionRef.current) return;
+      event.preventDefault();
+      event.stopPropagation();
+      clearPersistentStructuralSelection();
+    };
     table.addEventListener("pointerover", updateHoverFromEvent);
+    table.addEventListener("pointerdown", onTableCellPointerDown);
     table.addEventListener("contextmenu", openCellMenu);
+    table.ownerDocument.addEventListener("keydown", onStructuralSelectionKeyDown, true);
     surface.addEventListener("pointerleave", clearHover);
     // No layout is read when no handle is active; an active handle stays
     // pixel-synchronous with the existing sticky interaction contract.
@@ -540,12 +616,24 @@ export function CsvTableControls({
       activeDragCleanupRef.current?.();
       activeDragCleanupRef.current = null;
       table.removeEventListener("pointerover", updateHoverFromEvent);
+      table.removeEventListener("pointerdown", onTableCellPointerDown);
       table.removeEventListener("contextmenu", openCellMenu);
+      table.ownerDocument.removeEventListener("keydown", onStructuralSelectionKeyDown, true);
       surface.removeEventListener("pointerleave", clearHover);
       scrollContainer?.removeEventListener("scroll", onScroll);
       if (positionFrame !== null) cancelAnimationFrame(positionFrame);
       positionFrame = null;
       resizeObserver?.disconnect();
+      const persistedSelection = structuralSelectionRef.current;
+      if (persistedSelection) {
+        setCsvTableSourceHighlight(
+          table,
+          persistedSelection.kind,
+          persistedSelection.index,
+          false,
+          selection,
+        );
+      }
       selection.dispose();
       if (selectionRef.current === selection) selectionRef.current = null;
       setColumnHandleDocked(null, false);
@@ -554,6 +642,7 @@ export function CsvTableControls({
       setCsvTableSourceHighlight(table, "column", menuTargetRef.current?.columnIndex ?? -1, false);
       positionHandlesRef.current = () => undefined;
       openMenuRef.current = () => undefined;
+      dispatchOperationRef.current = () => undefined;
       startDragRef.current = () => undefined;
     };
   }, [closeMenu, direction, headerEnabled, rowCount, rowNumbersVisible, surfaceRef, t, tableRef]);
@@ -572,7 +661,7 @@ export function CsvTableControls({
   return (
     <>
       <div className="po-editable-table-drag-layer csv-table-editor__drag-layer">
-        <Tooltip content={t("editor.table.columnHandleHint")}><button
+        <button
           ref={columnHandleRef}
           type="button"
           className="po-editable-table-drag-handle po-editable-table-column-handle csv-table-editor__column-handle"
@@ -592,8 +681,8 @@ export function CsvTableControls({
           }}
         >
           <span className="po-editable-table-drag-handle-visual" aria-hidden="true" />
-        </button></Tooltip>
-        <Tooltip content={t("editor.table.rowHandleHint")}><button
+        </button>
+        <button
           ref={rowHandleRef}
           type="button"
           className="po-editable-table-drag-handle po-editable-table-row-handle csv-table-editor__row-handle"
@@ -613,7 +702,7 @@ export function CsvTableControls({
           }}
         >
           <span className="po-editable-table-drag-handle-visual" aria-hidden="true" />
-        </button></Tooltip>
+        </button>
         <div
           ref={dropIndicatorRef}
           className="po-editable-table-drop-indicator csv-table-editor__drop-indicator"
@@ -629,7 +718,7 @@ export function CsvTableControls({
           locale={locale}
           onAutoFitColumn={onAutoFitColumn}
           onClose={closeMenu}
-          onOperation={onOperation}
+          onOperation={(operation) => dispatchOperationRef.current(operation)}
           rowCount={rowCount}
           t={t}
           target={menuTarget}

@@ -6,13 +6,14 @@ import { publishDirectory } from "../../local-api/templates/publish-directory.mj
 import { resolveProjectTemplate } from "../../local-api/templates/project-catalog.mjs";
 
 /** The caller must authorize the parent for this sender before every call. */
-export function createProjectInitializationService({ journalDirectory = null, materialize = materializeTemplate } = {}) {
+export function createProjectInitializationService({ journalDirectory = null, materialize = materializeTemplate, resolveTemplate = resolveProjectTemplate, validateSource = async () => {} } = {}) {
   const pending = new Map();
   const completed = new Map();
 
   async function initialize({ parentPath, name, source, locale, operationId = randomUUID() }) {
     if (typeof operationId !== "string" || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(operationId)) throw new Error("Invalid initialization operation ID.");
-    const plan = await resolveProjectTemplate(source, locale);
+    const plan = await resolveTemplate(source, locale);
+    await validateSource(plan);
     const validated = validateTemplatePlan(plan);
     const fingerprint = createHash("sha256").update(JSON.stringify({ parentPath, name, source, locale: plan.template?.resolvedLocale, digest: validated.digest })).digest("hex");
     const known = completed.get(operationId) ?? pending.get(operationId);
@@ -74,6 +75,7 @@ export function createProjectInitializationService({ journalDirectory = null, ma
     let publishing = null;
     try {
       await materialize({ parentPath, name, plan, beforePublish: async ({ stagingPath, identity }) => {
+        await validateSource(plan);
         publishing = { state: "publishing", fingerprint, receipt, stagingPath, identity };
         await save(publishing, journalPath);
       } });

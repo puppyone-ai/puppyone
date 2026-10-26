@@ -20,6 +20,7 @@ import type {
   GitBranchGraphSnapshot,
   GitRepositoryInvalidatedEvent,
   GitRepositoryWatchResult,
+  GitRemoteSummary,
   GitStatusSnapshot,
   GitWorkingDiffScope,
   LastWorkspaceResult,
@@ -37,7 +38,9 @@ import type {
   WorkspaceImportEntriesResult,
   WorkspaceAttachResult,
   WorkspaceDetachResult,
+  WorkspacePublishScope,
   WorkspaceOpenResult,
+  CloudProjectWindowTarget,
   WorkspaceProjectLocationGrant,
 } from "../types/electron";
 import {
@@ -330,6 +333,10 @@ export async function openWorkspaceInNewWindow(folderPath: string): Promise<Work
   return getDesktopBridge().openWorkspaceInNewWindow(folderPath);
 }
 
+export async function openCloudProjectInNewWindow(target: CloudProjectWindowTarget): Promise<void> {
+  await getDesktopBridge().openCloudProjectInNewWindow(target);
+}
+
 export async function openDroppedWorkspaceInCurrentWindow(folder: File): Promise<WorkspaceOpenResult> {
   return getDesktopBridge().openDroppedWorkspaceInCurrentWindow(folder);
 }
@@ -477,6 +484,20 @@ export async function getWorkspaceGitStatus(
   }
 }
 
+/**
+ * How many files and bytes a folder would make reachable, with ignore rules
+ * already applied. Hosts that predate the query return null so the surface can
+ * state nothing instead of stating a guess.
+ */
+export async function getWorkspacePublishScope(
+  rootPath: string,
+  path = "",
+): Promise<WorkspacePublishScope | null> {
+  const bridge = getDesktopBridge();
+  if (typeof bridge.getPublishScope !== "function") return null;
+  return bridge.getPublishScope({ rootPath, path });
+}
+
 export async function getWorkspaceCloudInitializationState(
   request: CloudInitializationIdentityRequest,
 ): Promise<CloudInitializationResult> {
@@ -585,8 +606,10 @@ export async function initializeWorkspaceGitRepository(rootPath: string): Promis
 export async function removeWorkspaceGitRemote(
   rootPath: string,
   remoteName = "puppyone",
+  expectedRemotes?: readonly GitRemoteSummary[],
 ): Promise<GitStatusSnapshot> {
-  return getDesktopBridge().removeGitRemote({ rootPath, remoteName });
+  return getDesktopBridge().removeGitRemote({ rootPath, remoteName,
+    ...(expectedRemotes ? { expectedRemotes: [...expectedRemotes] } : {}) });
 }
 
 export async function readPuppyoneWorkspaceConfig(rootPath: string): Promise<PuppyoneWorkspaceConfig> {

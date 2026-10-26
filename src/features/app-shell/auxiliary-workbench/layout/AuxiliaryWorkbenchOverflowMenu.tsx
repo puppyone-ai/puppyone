@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { MoreHorizontal, X } from "lucide-react";
 import { useLocalization } from "@puppyone/localization/react";
@@ -6,8 +7,8 @@ import {
   DesktopMenuItem,
   DesktopMenuSurface,
 } from "../../../../components/DesktopMenu";
-import { DesktopOverlayLayer } from "../../DesktopOverlayPortal";
-import { useAnchoredOverlayPosition } from "../../useAnchoredOverlayPosition";
+import { DesktopOverlayLayer } from "../../../../components/DesktopOverlayPortal";
+import { useAnchoredOverlayPosition } from "../../../../components/useAnchoredOverlayPosition";
 import type { AuxiliaryWorkbenchHeaderItem } from "./AuxiliaryWorkbenchHeader.types";
 import { AuxiliaryWorkbenchStatus } from "./AuxiliaryWorkbenchStatus";
 
@@ -85,14 +86,14 @@ export function AuxiliaryWorkbenchOverflowMenu({
   return (
     <>
       <div className="desktop-terminal-tab-overflow-wrap" ref={triggerRef}>
-        <DesktopMenuIconButton
+        <Tooltip content={label}><DesktopMenuIconButton
           className="desktop-terminal-tab-overflow-trigger"
           label={label}
           icon={<MoreHorizontal size={14} strokeWidth={1.9} aria-hidden="true" />}
           aria-haspopup="menu"
           aria-expanded={open}
           onClick={() => setOpen((current) => !current)}
-        />
+        /></Tooltip>
       </div>
       {open && (
         <DesktopOverlayLayer>
@@ -119,7 +120,7 @@ export function AuxiliaryWorkbenchOverflowMenu({
                     onActivate(item.id);
                   }}
                 />
-                <DesktopMenuIconButton
+                <Tooltip content={t("terminal.closeSession", { title: item.snapshot.title })}><DesktopMenuIconButton
                   className="desktop-terminal-tab-overflow-close"
                   role="menuitem"
                   label={t("terminal.closeSession", { title: item.snapshot.title })}
@@ -128,7 +129,7 @@ export function AuxiliaryWorkbenchOverflowMenu({
                     setOpen(false);
                     onClose(item.id);
                   }}
-                />
+                /></Tooltip>
               </div>
             ))}
           </DesktopMenuSurface>

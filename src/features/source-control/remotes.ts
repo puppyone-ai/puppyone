@@ -84,13 +84,13 @@ export function resolvePuppyoneRemotes(
  * a Cloud Project for Desktop.
  */
 export function resolveCanonicalPuppyoneRemotes(
-  status: GitStatusSnapshot | null,
+  status: Pick<GitStatusSnapshot, "remotes"> | null,
 ): PuppyoneRemoteResolution {
   return resolvePuppyoneRemoteSet(status, (info) => info.kind !== "access-point");
 }
 
 function resolvePuppyoneRemoteSet(
-  status: GitStatusSnapshot | null,
+  status: Pick<GitStatusSnapshot, "remotes"> | null,
   include: (info: PuppyoneRemoteInfo) => boolean,
 ): PuppyoneRemoteResolution {
   const candidates: PuppyoneRemoteCandidate[] = [];

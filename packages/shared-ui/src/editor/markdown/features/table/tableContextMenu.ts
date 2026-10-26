@@ -1,4 +1,3 @@
-import { activateTooltip } from "../../../../primitives/Tooltip";
 import type { MarkdownTableAlignment, MarkdownTableStructureOperation } from "./tableModel";
 import {
   dispatchMarkdownTableStructureOperation,
@@ -22,11 +21,6 @@ type MarkdownTableMenuTarget = {
   clientY: number;
   columnCount: number;
   columnIndex: number;
-  layoutActions?: Readonly<{
-    autoFitColumn: () => void;
-    fitToViewport: () => void;
-    resetColumnWidths: () => void;
-  }>;
   onClose?: (context: { restoreFocus: boolean }) => void;
   restoreFocus?: HTMLElement | null;
   rowCount: number;
@@ -69,15 +63,14 @@ type MarkdownTableMenuItem = {
   disabled?: boolean;
   icon: EditableTableMenuIconName;
   label: string;
-  operation?: MarkdownTableStructureOperation;
+  operation: MarkdownTableStructureOperation;
   radio?: boolean;
-  run?: () => void;
   selected?: boolean;
   trailing?: string;
 };
 
 type MarkdownTableMenuSection = {
-  id: "rows" | "columns" | "layout" | "alignment" | "table";
+  id: "rows" | "columns" | "alignment" | "table";
   label?: string;
   items: MarkdownTableMenuItem[];
   toolbar: true;
@@ -183,20 +176,20 @@ export function showMarkdownTableContextMenu(
     });
   };
   let cleaned = false;
-  const cleanup = () => {
+  const cleanup = (restoreLauncherFocus = true) => {
     if (cleaned) return;
     cleaned = true;
     const activeElement = document.activeElement;
-    const shouldRestoreFocus = activeElement === menu || (
+    const shouldRestoreFocus = restoreLauncherFocus && (activeElement === menu || (
       activeElement instanceof Node && menu.contains(activeElement)
-    );
+    ));
     menu.removeEventListener("keydown", onMenuKeyDown);
     menu.removeEventListener("focusout", onFocusOut);
     menu.remove();
     document.removeEventListener("pointerdown", onPointerDown, true);
     document.removeEventListener("keydown", onKeyDown, true);
-    win?.removeEventListener("resize", closeActiveMarkdownTableMenu);
-    win?.removeEventListener("scroll", closeActiveMarkdownTableMenu, true);
+    win?.removeEventListener("resize", closeWithoutOptions);
+    win?.removeEventListener("scroll", closeWithoutOptions, true);
     target.onClose?.({ restoreFocus: shouldRestoreFocus });
     if (shouldRestoreFocus) {
       if (restoreFocus?.isConnected) {
@@ -206,6 +199,7 @@ export function showMarkdownTableContextMenu(
       }
     }
   };
+  const closeWithoutOptions = () => closeActiveMarkdownTableMenu();
   setActiveMarkdownTableMenu({ cleanup, element: menu });
   menu.addEventListener("keydown", onMenuKeyDown);
   menu.addEventListener("focusout", onFocusOut);
@@ -222,8 +216,8 @@ export function showMarkdownTableContextMenu(
     if (!isActiveMarkdownTableMenu(menu)) return;
     document.addEventListener("pointerdown", onPointerDown, true);
     document.addEventListener("keydown", onKeyDown, true);
-    win.addEventListener("resize", closeActiveMarkdownTableMenu);
-    win.addEventListener("scroll", closeActiveMarkdownTableMenu, true);
+    win.addEventListener("resize", closeWithoutOptions);
+    win.addEventListener("scroll", closeWithoutOptions, true);
   }, 0);
   return menu;
 }
@@ -236,9 +230,10 @@ function getMarkdownTableMenuSections(
   const { direction, t } = localization;
   const { columnCount, columnIndex, rowCount, rowIndex } = target;
   const scope = target.scope ?? "cell";
-  const currentAlignment = context.alignments[columnIndex] ?? null;
-  const alignmentItems: Array<{ alignment: MarkdownTableAlignment; label: string }> = [
-    { alignment: null, label: t("editor.table.defaultAlignment") },
+  // An unmarked Markdown delimiter renders left-aligned; reflect that in
+  // the three visible choices without rewriting the document on menu open.
+  const currentAlignment = context.alignments[columnIndex] ?? "left";
+  const alignmentItems: Array<{ alignment: Exclude<MarkdownTableAlignment, null>; label: string }> = [
     { alignment: "left", label: t("editor.table.alignLeft") },
     { alignment: "center", label: t("editor.table.alignCenter") },
     { alignment: "right", label: t("editor.table.alignRight") },
@@ -335,7 +330,7 @@ function getMarkdownTableMenuSections(
       id: "alignment",
       label: t("editor.table.alignment"),
       items: alignmentItems.map(({ alignment, label }) => ({
-        icon: alignment === null ? "align-default" : `align-${alignment}` as EditableTableMenuIconName,
+        icon: `align-${alignment}`,
         label,
         operation: {
           type: "set-column-alignment",
@@ -360,36 +355,12 @@ function getMarkdownTableMenuSections(
     },
   ];
 
-  if (target.layoutActions) {
-    sections.splice(2, 0, {
-      id: "layout",
-      items: [
-        {
-          icon: "auto-fit-column",
-          label: t("editor.table.autoFitColumn"),
-          run: target.layoutActions.autoFitColumn,
-        },
-        {
-          icon: "fit-viewport",
-          label: t("editor.table.fitToViewport"),
-          run: target.layoutActions.fitToViewport,
-        },
-        {
-          icon: "reset-widths",
-          label: t("editor.table.resetColumnWidths"),
-          run: target.layoutActions.resetColumnWidths,
-        },
-      ],
-      toolbar: true,
-    });
-  }
-
   if (scope === "row") {
     return sections.filter((section) => section.id === "rows");
   }
   if (scope === "column") {
     return sections.filter((section) => (
-      section.id === "columns" || section.id === "layout" || section.id === "alignment"
+      section.id === "columns" || section.id === "alignment"
     ));
   }
   return sections;
@@ -429,10 +400,6 @@ function createMarkdownTableMenuSection(
   sectionElement.setAttribute("role", "group");
   if (section.label) {
     sectionElement.setAttribute("aria-label", section.label);
-    const label = document.createElement("div");
-    label.className = "desktop-menu-section-label";
-    label.textContent = section.label;
-    sectionElement.appendChild(label);
   }
 
   const list = document.createElement("div");
@@ -462,7 +429,6 @@ function createMarkdownTableMenuItem(
   button.disabled = item.disabled === true;
   button.tabIndex = -1;
   button.setAttribute("aria-label", item.label);
-  activateTooltip(button, item.label);
 
   const body = document.createElement("span");
   body.className = "desktop-menu-item-body";
@@ -488,12 +454,7 @@ function createMarkdownTableMenuItem(
     event.preventDefault();
     event.stopPropagation();
     if (button.disabled) return;
-    if (item.run) {
-      closeActiveMarkdownTableMenu();
-      item.run();
-      return;
-    }
-    if (item.operation) dispatchMarkdownTableStructureOperation(context, item.operation);
+    dispatchMarkdownTableStructureOperation(context, item.operation);
   });
   return button;
 }
@@ -514,11 +475,14 @@ function positionMarkdownTableMenu(menu: HTMLElement, clientX: number, clientY: 
   menu.style.left = "0";
   menu.style.top = "0";
   menu.style.visibility = "hidden";
-  const rect = menu.getBoundingClientRect();
+  // The entry animation scales the surface. Clamp its final layout box,
+  // not the smaller animated rect, so the finished menu retains its margin.
+  const width = menu.offsetWidth;
+  const height = menu.offsetHeight;
   const viewportWidth = win?.innerWidth ?? 0;
   const viewportHeight = win?.innerHeight ?? 0;
-  const left = Math.max(margin, Math.min(clientX, viewportWidth - rect.width - margin));
-  const top = Math.max(margin, Math.min(clientY, viewportHeight - rect.height - margin));
+  const left = Math.max(margin, Math.min(clientX, viewportWidth - width - margin));
+  const top = Math.max(margin, Math.min(clientY, viewportHeight - height - margin));
   menu.style.left = `${left}px`;
   menu.style.top = `${top}px`;
   menu.style.visibility = "";

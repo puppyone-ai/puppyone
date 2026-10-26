@@ -1,4 +1,7 @@
 {
+  "node.copyLink": "リンクをコピー",
+  "workbench.renderFailure": "このタブを表示できません。",
+  "workbench.reloadView": "表示を再読み込み",
   "workbench.newTab": "新しいタブ",
   "projectSessions.sessionCloseFailed": "セッションを閉じられませんでした。再試行してください。",
   "projectSessions.closing": "プロジェクトを閉じています…",
@@ -61,6 +64,7 @@
   "node.creating": "作成中…",
   "node.create": "作成",
   "node.actionsFor": "{name} の操作",
+  "node.copyPath": "パスをコピー",
   "node.newFileOrFolder": "新規ファイルまたはフォルダー",
   "node.pasteIntoFolder": "フォルダーにペースト",
   "node.copyItems": "{count}件をコピー",

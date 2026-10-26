@@ -9,6 +9,7 @@ import {
   resolveCopyNameExtension,
 } from "./files/file-format-policy.mjs";
 import { parseSingleByteRange } from "./files/byte-range.mjs";
+import { readWorkspaceModifiedAt } from "./files/workspace-activity.mjs";
 import {
   isSameOrInsidePath,
   normalizeRelativePath,
@@ -35,9 +36,11 @@ import {
   readGitComparisonPreview,
   resolveGitRemoteDiffComparisons,
 } from "./git/diff-comparison.mjs";
+import { readGitPublishScope } from "./git/publish-scope.mjs";
 import { resolveGitRevisionPair } from "./git/revision-pair.mjs";
 import { deriveGitRevisionSpecs } from "./git/revision-specs.mjs";
 import { parseGitPorcelainV2Status } from "./git/porcelain-v2.mjs";
+import { readGitBranchBinding, readGitPullPolicyArgs } from "./git/sync-config.mjs";
 import {
   createGitSyncTargetPolicy,
   normalizeCurrentBranchName,
@@ -93,17 +96,12 @@ export const GIT_STATUS_ENTRY_LIMIT = 10_000;
 const GIT_STATUS_RECORD_LIMIT = (GIT_STATUS_ENTRY_LIMIT * 2) + 32;
 const GIT_DETAIL_MAX_TOTAL_DIFF_LINES = 4000;
 const GIT_DETAIL_MAX_FILE_DIFF_LINES = 900;
-const PUPPYONE_CLOUD_DEFAULT_BRANCH = "main";
 const {
   chooseGitSyncTarget,
   choosePuppyoneRemoteName,
-  getConfiguredSyncBranch,
   hasEffectivePuppyoneHostingTarget,
   isPuppyoneHostingConfig,
-} = createGitSyncTargetPolicy({
-  defaultBranch: PUPPYONE_CLOUD_DEFAULT_BRANCH,
-  isPuppyoneRemote,
-});
+} = createGitSyncTargetPolicy({ isPuppyoneRemote });
 const {
   configureWorkspaceCloudRemote,
   removeWorkspaceGitRemote,
@@ -158,6 +156,7 @@ export async function workspaceFromPath(folderPath, options = {}) {
     ? await Promise.all([
       getWorkspaceCommitCount(identity.canonicalPath),
       readWorkspacePuppyoneRemoteMetadata(identity.canonicalPath),
+      readWorkspaceModifiedAt(identity.canonicalPath),
     ])
     : null;
 
@@ -170,6 +169,7 @@ export async function workspaceFromPath(folderPath, options = {}) {
       ? {
         commitCount: gitMetadata[0],
         puppyoneGitRemote: gitMetadata[1].puppyoneGitRemote,
+        lastModifiedAt: gitMetadata[2],
         hydrationState: "ready",
       }
       : { hydrationState: "metadata" }),
@@ -1006,6 +1006,19 @@ function normalizeGitHeadCommitId(value) {
   return /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(candidate) ? candidate : "";
 }
 
+/**
+ * What a folder would make reachable: how many files and how many bytes, with
+ * ignore rules already applied. The Share surface states this before the user
+ * commits to anything, so the count has to come from the same engine that will
+ * do the work rather than from a second walk of the tree.
+ */
+export async function getWorkspacePublishScope(rootPath, relativePath = "", options = {}) {
+  const root = resolveWorkspacePath(rootPath, null);
+  const normalizedPath = normalizeRelativePath(relativePath);
+  if (normalizedPath) await resolveExistingWorkspacePath(root, normalizedPath);
+  return readGitPublishScope(root, normalizedPath, { signal: options.signal });
+}
+
 export async function getWorkspaceGitStatus(rootPath, options = {}) {
   const root = resolveWorkspacePath(rootPath, null);
   const signal = options.signal;
@@ -1073,6 +1086,10 @@ export async function getWorkspaceGitStatus(rootPath, options = {}) {
   return first;
 }
 
+function readPorcelainHeader(headers, key) {
+  return typeof headers[key] === "string" ? headers[key].trim() : "";
+}
+
 async function readFastWorkspaceGitStatus(root, options = {}) {
   const signal = options.signal;
   const statusLimit = options.statusLimit ?? GIT_STATUS_ENTRY_LIMIT;
@@ -1103,12 +1120,8 @@ async function readFastWorkspaceGitStatus(root, options = {}) {
   const didHitStatusLimit = statusResult.didHitLimit
     || parsedStatus.entries.length > statusLimit;
   const statusEntries = parsedStatus.entries.slice(0, statusLimit);
-  const headerOid = typeof parsedStatus.headers["branch.oid"] === "string"
-    ? parsedStatus.headers["branch.oid"].trim()
-    : "";
-  const headerHead = typeof parsedStatus.headers["branch.head"] === "string"
-    ? parsedStatus.headers["branch.head"].trim()
-    : "";
+  const headerOid = readPorcelainHeader(parsedStatus.headers, "branch.oid");
+  const headerHead = readPorcelainHeader(parsedStatus.headers, "branch.head");
 
   let branchName = "";
   let headCommitId = normalizeGitHeadCommitId(headerOid);
@@ -1814,29 +1827,6 @@ export async function pullWorkspaceGit(rootPath) {
   const root = resolveWorkspacePath(rootPath, null);
   const currentStatus = await getWorkspaceGitStatus(root);
   assertNoInProgressGitOperation(currentStatus, "pull");
-  const config = await readPuppyoneWorkspaceConfig(root).catch(() => null);
-  const remotes = await readGitRemotes(root);
-  if (hasEffectivePuppyoneHostingTarget(remotes, config)) {
-    const target = await buildPuppyoneCloudSyncTarget(root, config);
-    if (!target.remote || !target.branch) {
-      throw new Error("Unable to pull changes: PuppyOne Cloud remote is not configured.");
-    }
-    await execGit(root, ["fetch", "--prune", target.remote], { timeout: GIT_NETWORK_TIMEOUT_MS }).catch((error) => {
-      throw new Error(`Unable to fetch cloud changes: ${getGitErrorOutput(error)}`);
-    });
-
-    const nextStatus = await getWorkspaceGitStatus(root);
-    if (nextStatus.sourceControl.remote.behind === 0) return nextStatus;
-
-    const pullModeArgs = nextStatus.sourceControl.remote.ahead > 0
-      ? ["pull", "--rebase", "--autostash", target.remote, target.branch]
-      : ["pull", "--ff-only", "--autostash", target.remote, target.branch];
-    await execGit(root, pullModeArgs, { timeout: GIT_NETWORK_TIMEOUT_MS }).catch((error) => {
-      throw new Error(`Unable to pull cloud changes: ${getGitErrorOutput(error)}`);
-    });
-    return getWorkspaceGitStatus(root);
-  }
-
   const pullArgs = await buildDefaultPullArgs(root);
   await execGit(root, pullArgs, { timeout: GIT_NETWORK_TIMEOUT_MS }).catch((error) => {
     throw new Error(`Unable to pull changes: ${getGitErrorOutput(error)}`);
@@ -1980,12 +1970,7 @@ export async function syncWorkspaceGit(rootPath) {
 
   const refreshedStatus = await getWorkspaceGitStatus(root);
   if (refreshedStatus.sourceControl.remote.ahead > 0) {
-    await execGit(root, ["push"], { timeout: GIT_NETWORK_TIMEOUT_MS }).catch((error) => {
-      if (isMissingUpstreamError(error)) {
-        return pushWorkspaceGitWithDefaultUpstream(root);
-      }
-      throw new Error(`Unable to sync changes: ${getGitErrorOutput(error)}`);
-    });
+    return pushWorkspaceGit(root);
   }
 
   return getWorkspaceGitStatus(root);
@@ -2145,81 +2130,59 @@ function assertNoInProgressGitOperation(status, requestedOperation) {
 }
 
 async function buildDefaultPullArgs(rootPath) {
-  const config = await readPuppyoneWorkspaceConfig(rootPath).catch(() => null);
-  const remotes = await readGitRemotes(rootPath);
-  const puppyoneHostingActive = hasEffectivePuppyoneHostingTarget(remotes, config);
-  const upstream = await execGit(rootPath, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"])
-    .then((result) => result.stdout.trim())
-    .catch(() => "");
-  if (upstream && !puppyoneHostingActive) return ["pull", "--rebase", "--autostash"];
-
-  const branch = await execGit(rootPath, ["branch", "--show-current"])
-    .then((result) => result.stdout.trim())
-    .catch(() => "");
-  const rawBranches = await readGitBranches(rootPath);
-  const headCommitId = await execGit(rootPath, ["rev-parse", "HEAD"])
-    .then((result) => result.stdout.trim())
-    .catch(() => "");
-  const branches = normalizeGitBranches(rawBranches, branch || "detached", headCommitId);
-  const target = chooseGitSyncTarget(remotes, branches, branch || "detached", config);
-  const remoteName = target.remote;
-  const branchName = target.branch;
-
-  if (remoteName && branchName) return ["pull", "--rebase", "--autostash", remoteName, branchName];
-  return ["pull", "--rebase", "--autostash"];
+  const binding = await readGitBranchBinding(execGit, rootPath);
+  const policy = await readGitPullPolicyArgs(execGit, rootPath, binding.branch);
+  const remote = await chooseDefaultPushRemote(rootPath, binding.remote);
+  return ["pull", ...policy, remote, binding.destination ?? binding.branch];
 }
 
 async function pushWorkspaceGitWithDefaultUpstream(rootPath, requestedRemoteName = null) {
-  const branch = await execGit(rootPath, ["branch", "--show-current"])
-    .then((result) => result.stdout.trim())
-    .catch(() => "");
-  if (!branch) {
-    throw new Error("Unable to push changes: current workspace is not on a branch.");
-  }
-  const config = await readPuppyoneWorkspaceConfig(rootPath).catch(() => null);
-  const remotes = await readGitRemotes(rootPath);
-  const targetBranch = getConfiguredSyncBranch(config, branch, hasEffectivePuppyoneHostingTarget(remotes, config));
-  const refspec = targetBranch === branch ? branch : `HEAD:${targetBranch}`;
-  const remote = await chooseDefaultPushRemote(rootPath, requestedRemoteName);
-  await execGit(rootPath, ["push", "--set-upstream", remote, refspec], { timeout: GIT_NETWORK_TIMEOUT_MS }).catch((error) => {
+  const binding = await readGitBranchBinding(execGit, rootPath);
+  const remote = await chooseDefaultPushRemote(
+    rootPath, requestedRemoteName ?? binding.pushRemote ?? binding.remote,
+  );
+  const targetBranch = remote === binding.remote ? binding.destination : binding.branch;
+  const head = (await execGit(rootPath, ["rev-parse", "--verify", `refs/heads/${binding.branch}^{commit}`])).stdout.trim();
+  // Capture the object, not a moving HEAD. Never upload a checkout that changes
+  // while credentials/network IO is in flight, and never force by default.
+  await execGit(rootPath, ["push", remote, `${head}:refs/heads/${targetBranch}`], { timeout: GIT_NETWORK_TIMEOUT_MS }).catch((error) => {
     throw new Error(`Unable to push changes: ${getGitErrorOutput(error)}`);
   });
+  if (!binding.remote) {
+    const after = await readGitBranchBinding(execGit, rootPath);
+    const afterHead = (await execGit(rootPath, ["rev-parse", "--verify", "HEAD"])).stdout.trim();
+    if (after.branch !== binding.branch || afterHead !== head || after.remote) {
+      throw new Error("Push completed for the captured commit, but local branch state changed; upstream was not replaced.");
+    }
+    await execGit(rootPath, ["branch", `--set-upstream-to=${remote}/${targetBranch}`, binding.branch]);
+  }
 }
 
 async function chooseDefaultPushRemote(rootPath, requestedRemoteName = null) {
   const remotes = await readGitRemotes(rootPath);
   if (requestedRemoteName) {
-    const normalizedRemoteName = normalizeGitRemoteName(requestedRemoteName);
-    if (remotes.some((remote) => remote.name === normalizedRemoteName)) return normalizedRemoteName;
-    throw new Error(`Unable to push changes: remote '${normalizedRemoteName}' is not configured.`);
+    // Existing Git remotes can have names (including slashes) that the narrower
+    // remote-creation UI does not offer. Select only an exact configured name;
+    // never reinterpret it as a URL or a command-line option.
+    if (typeof requestedRemoteName !== "string" || requestedRemoteName.startsWith("-")) {
+      throw new Error("Remote name is invalid.");
+    }
+    if (remotes.some((remote) => remote.name === requestedRemoteName)) return requestedRemoteName;
+    throw new Error(`Unable to synchronize changes: remote '${requestedRemoteName}' is not configured.`);
   }
-  const config = await readPuppyoneWorkspaceConfig(rootPath).catch(() => null);
-  // A canonical PuppyOne Project remote is the hosted source of truth even
-  // when this repository also keeps a GitHub `origin`. Initialization maps any
-  // local branch to puppyone/main; later ordinary Push must preserve that same
-  // contract instead of silently selecting origin by name precedence.
+  const config = await readPuppyoneWorkspaceConfig(rootPath);
+  const preferredRemoteName = config?.sync?.sourceOfTruth?.remote ?? config?.git?.primaryRemote ?? config?.backup?.remote;
+  if (preferredRemoteName) {
+    if (remotes.some((remote) => remote.name === preferredRemoteName)) return preferredRemoteName;
+    throw new Error(`Unable to push changes: remote '${preferredRemoteName}' is not configured.`);
+  }
   const puppyoneRemote = choosePuppyoneRemoteName(remotes, config);
   if (puppyoneRemote) return puppyoneRemote;
-  const preferredRemoteName = config?.sync?.sourceOfTruth?.remote ?? config?.git?.primaryRemote ?? config?.backup?.remote;
-  if (preferredRemoteName && remotes.some((remote) => remote.name === preferredRemoteName)) return preferredRemoteName;
   if (remotes.some((remote) => remote.name === "origin")) return "origin";
   if (remotes.some((remote) => remote.name === "puppyone")) return "puppyone";
   const firstRemote = remotes[0]?.name;
   if (firstRemote) return firstRemote;
   throw new Error("Unable to push changes: no Git remote is configured.");
-}
-
-async function buildPuppyoneCloudSyncTarget(rootPath, config) {
-  const remotes = await readGitRemotes(rootPath);
-  const branch = await execGit(rootPath, ["branch", "--show-current"])
-    .then((result) => result.stdout.trim())
-    .catch(() => "");
-  const rawBranches = await readGitBranches(rootPath);
-  const headCommitId = await execGit(rootPath, ["rev-parse", "HEAD"])
-    .then((result) => result.stdout.trim())
-    .catch(() => "");
-  const branches = normalizeGitBranches(rawBranches, branch || "detached", headCommitId);
-  return chooseGitSyncTarget(remotes, branches, branch || "detached", config);
 }
 
 function formatGitCheckoutError(error) {
@@ -2459,8 +2422,8 @@ function resolveGitEffectiveHosting({ remotes, branches, currentBranchName, sync
       return {
         kind: "puppyone-cloud",
         remoteName: puppyoneRemote?.name ?? null,
-        branchName: branchName ?? PUPPYONE_CLOUD_DEFAULT_BRANCH,
-        ref: puppyoneRemote?.name ? ref ?? `${puppyoneRemote.name}/${branchName ?? PUPPYONE_CLOUD_DEFAULT_BRANCH}` : null,
+        branchName,
+        ref: ref ?? (branchName ? `${puppyoneRemote.name}/${branchName}` : null),
         ready: Boolean(puppyoneRemote),
         reason: puppyoneRemote ? "configured" : "missing-remote",
         identity: buildPuppyoneHostingIdentity(puppyoneRemote),
@@ -2498,7 +2461,7 @@ function resolveGitEffectiveHosting({ remotes, branches, currentBranchName, sync
       return buildRemoteHosting({
         kind: "puppyone-cloud",
         remote: candidate,
-        branchName: branchName ?? PUPPYONE_CLOUD_DEFAULT_BRANCH,
+        branchName,
         ref,
         reason: candidate === upstreamRemote ? "upstream-detected" : configuredRemoteName ? "configured" : "remote-detected",
       });
@@ -2521,7 +2484,7 @@ function resolveGitEffectiveHosting({ remotes, branches, currentBranchName, sync
     return buildRemoteHosting({
       kind: "puppyone-cloud",
       remote: detectedPuppyoneRemote,
-      branchName: branchName ?? PUPPYONE_CLOUD_DEFAULT_BRANCH,
+      branchName,
       ref,
       reason: "remote-detected",
     });
@@ -2844,7 +2807,7 @@ function parseGitTrackingText(value) {
   };
 }
 
-async function readGitRemotes(rootPath, options = {}) {
+export async function readGitRemotes(rootPath, options = {}) {
   const signal = options.signal;
   const result = await execGit(rootPath, ["remote", "-v"], { optionalLocks: false, signal }).catch(() => {
     throwIfGitStatusAborted(signal);

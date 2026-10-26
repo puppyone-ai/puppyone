@@ -17,7 +17,8 @@
   box-shadow: var(--interface-shell-box-shadow);
 }
 
-:root[data-interface-style]:not([data-interface-style="default"]) .desktop-titlebar[data-workspace-kind] {
+/* Local retains the interface skin; Cloud uses the product-blue Header palette. */
+:root[data-interface-style]:not([data-interface-style="default"]) .desktop-titlebar[data-workspace-kind="local"] {
   --desktop-titlebar-bg: var(--interface-titlebar-context-desktop-titlebar-bg);
   --desktop-titlebar-text: var(--interface-titlebar-context-desktop-titlebar-text);
   --desktop-titlebar-text-muted: var(--interface-titlebar-context-desktop-titlebar-text-muted);
@@ -33,7 +34,7 @@
     .desktop-titlebar-workspace-button,
     .desktop-titlebar-branch-button,
     .desktop-titlebar-context-icon-button,
-    .desktop-titlebar-action
+    .desktop-titlebar-action:not(.homepage-cloud-avatar)
   ) {
   border: var(--interface-titlebar-control-border);
   border-radius: var(--interface-titlebar-control-border-radius);
@@ -44,20 +45,37 @@
     .desktop-titlebar-workspace-button,
     .desktop-titlebar-branch-button,
     .desktop-titlebar-context-icon-button,
-    .desktop-titlebar-action
+    .desktop-titlebar-action:not(.homepage-cloud-avatar)
   ):hover,
 :root[data-interface-style]:not([data-interface-style="default"])
   :where(
     .desktop-titlebar-workspace-button,
     .desktop-titlebar-branch-button,
     .desktop-titlebar-context-icon-button,
-    .desktop-titlebar-action
+    .desktop-titlebar-action:not(.homepage-cloud-avatar)
   )[aria-expanded="true"],
 :root[data-interface-style]:not([data-interface-style="default"]) .desktop-titlebar-action[aria-pressed="true"] {
   border-color: var(--interface-titlebar-control-active-border-color);
   background: var(--interface-titlebar-control-active-background);
   color: var(--interface-titlebar-control-active-color);
   box-shadow: var(--interface-titlebar-control-active-box-shadow);
+}
+
+/* The sliding location plate follows the same selected Header control tokens. */
+:root[data-interface-style]:not([data-interface-style="default"])
+  .desktop-project-location-controls[data-presentation="header-icons"] {
+  --desktop-project-location-selected-bg:
+    var(--desktop-titlebar-windows-hover-background, var(--interface-titlebar-control-active-background));
+  --desktop-project-location-selected-color:
+    var(--desktop-titlebar-windows-symbol-color, var(--interface-titlebar-control-active-color));
+  --desktop-project-location-selected-shadow: var(--interface-titlebar-control-active-box-shadow);
+}
+
+:root[data-interface-style]:not([data-interface-style="default"])
+  .desktop-project-location-controls[data-presentation="header-icons"] .desktop-project-location-indicator {
+  box-sizing: border-box;
+  border: var(--interface-titlebar-control-border);
+  border-color: var(--interface-titlebar-control-active-border-color);
 }
 
 :root[data-interface-style]:not([data-interface-style="default"])

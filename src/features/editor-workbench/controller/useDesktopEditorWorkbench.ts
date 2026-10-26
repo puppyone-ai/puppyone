@@ -11,6 +11,7 @@ import {
   getActiveEditorPane,
   getEditorPanes,
   moveEditorPane,
+  moveEditor,
   openEditor,
   rebaseEditorPaneResources,
   rebaseEditorResources,
@@ -67,6 +68,7 @@ export type DesktopEditorWorkbenchController = Readonly<{
     direction: EditorSplitDirection,
     placement: NonNullable<EditorPaneSplitOptions["placement"]>,
   ) => void;
+  moveTab: (editorId: string, targetEditorId: string) => void;
   closePane: (paneId: string) => void;
   resizeSplit: (splitId: string, ratio: number) => void;
   close: (editorId: string) => void;
@@ -308,6 +310,15 @@ export function useDesktopEditorWorkbench(
     });
   }, [updateWorkbench]);
 
+  const moveTab = useCallback((editorId: string, targetEditorId: string) => {
+    updateWorkbench((current) => {
+      const group = moveEditor(current.group, editorId, targetEditorId);
+      return group === current.group
+        ? current
+        : createEditorWorkbenchState(group, current.layout);
+    });
+  }, [updateWorkbench]);
+
   const resizeSplit = useCallback((splitId: string, ratio: number) => {
     updateWorkbench((current) => {
       const layout = updateEditorSplitRatio(current.layout, splitId, ratio);
@@ -365,6 +376,7 @@ export function useDesktopEditorWorkbench(
     activate,
     focusPane,
     movePane,
+    moveTab,
     closePane,
     resizeSplit,
     close,
@@ -382,6 +394,7 @@ export function useDesktopEditorWorkbench(
     closeUnderResource,
     focusPane,
     movePane,
+    moveTab,
     openDocument,
     openDocumentAtPaneEdge,
     splitPane,

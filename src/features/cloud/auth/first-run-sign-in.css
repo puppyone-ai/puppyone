@@ -1,0 +1,63 @@
+@layer features {
+  .first-run-sign-in-shell {
+    padding: calc(var(--desktop-chrome-height) + 32px) var(--desktop-utility-page-padding-inline) 48px;
+  }
+
+  .first-run-sign-in {
+    display: grid;
+    width: min(320px, 100%);
+    min-width: 0;
+    justify-items: center;
+    text-align: center;
+  }
+
+  .first-run-sign-in-mark {
+    width: 64px;
+    height: 64px;
+    margin-block-end: 20px;
+    object-fit: contain;
+  }
+
+  .first-run-sign-in h1 {
+    margin: 0;
+    font-size: var(--po-text-size-page-title);
+    font-weight: var(--po-text-weight-medium);
+    line-height: 1.3;
+  }
+
+  .first-run-sign-in-description {
+    margin: 10px 0 28px;
+    color: var(--po-text-muted);
+    font-size: var(--po-text-size-body);
+    line-height: 1.5;
+  }
+
+  .first-run-sign-in-actions {
+    display: grid;
+    width: min(220px, 100%);
+    gap: 8px;
+  }
+
+  .first-run-sign-in-actions > button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .first-run-sign-in-skip {
+    border-color: transparent;
+    background: transparent;
+    color: var(--po-text-muted);
+  }
+
+  .first-run-sign-in-feedback {
+    width: 100%;
+    margin: 20px 0 0;
+    color: var(--po-text-muted);
+    font-size: var(--po-text-size-meta);
+    line-height: 1.5;
+  }
+
+  .first-run-sign-in-feedback.is-error {
+    color: var(--po-danger);
+  }
+}

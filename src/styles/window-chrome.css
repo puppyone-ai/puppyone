@@ -21,6 +21,8 @@
     a[href],
     summary,
     [role="button"],
+    [role="tab"],
+    [draggable="true"],
     [contenteditable]:not([contenteditable="false"])
   ),
 :where([data-window-no-drag="true"]) {

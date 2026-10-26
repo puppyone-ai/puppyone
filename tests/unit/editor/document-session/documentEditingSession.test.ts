@@ -7,6 +7,39 @@ import { DocumentEditingSession } from "../../../../packages/shared-ui/src/edito
 import type { EditorSourceSnapshot } from "../../../../packages/shared-ui/src/editor/sourceSnapshot";
 
 describe("DocumentEditingSession", () => {
+  it("fences a late Cloud save and preserves typing when Agent publication arrives", async () => {
+    const write = deferred<{ ok: true; version: string }>();
+    const persist = vi.fn(() => write.promise);
+    const session = new DocumentEditingSession({ documentId: "notes.md", initialContent: "one", initialVersion: "v1",
+      saveMode: "auto", persistence: { kind: "cloud", storageIdentity: "test:cloud-conflict", persist } });
+    const source = bindSource(session, { revision: "r1", content: "one" });
+    source.change({ revision: "r2", content: "human draft" }); await nextMicrotask();
+    expect(session.reconcileExternalBaseline("agent publication", "cloud-v2")).toBe("deferred");
+    source.change({ revision: "r3", content: "newer human draft" });
+    write.resolve({ ok: true, version: "stale-save-v2" }); await nextMicrotask();
+    expect(source.snapshot().content).toBe("newer human draft");
+    expect(session.getState()).toMatchObject({ status: "error", storageVersion: "v1", error: { code: "external-conflict" } });
+    await expect(session.requestSave()).rejects.toThrow("conflict");
+    expect(persist).toHaveBeenCalledTimes(1);
+    session.reloadExternalBaseline();
+    expect(source.snapshot().content).toBe("agent publication");
+    expect(session.getState()).toMatchObject({ status: "clean", storageVersion: "cloud-v2", error: null });
+    session.dispose();
+  });
+
+  it("preserves a Cloud draft after CAS rejection until the user reloads", async () => {
+    const persist = vi.fn(async () => ({ ok: false as const, kind: "conflict" as const, content: "agent publication", version: "cloud-v2" }));
+    const session = new DocumentEditingSession({ documentId: "notes.md", initialContent: "one", initialVersion: "v1",
+      saveMode: "manual", persistence: { kind: "cloud", storageIdentity: "test:cloud-cas", persist } });
+    const source = bindSource(session, { revision: "r1", content: "one" });
+    source.change({ revision: "r2", content: "human draft" });
+    await expect(session.requestSave()).rejects.toThrow("unsaved");
+    expect(source.snapshot().content).toBe("human draft");
+    expect(session.hasUnpersistedChanges()).toBe(true);
+    session.reloadExternalBaseline();
+    expect(source.snapshot().content).toBe("agent publication");
+    expect(persist).toHaveBeenCalledTimes(1); session.dispose();
+  });
   it("starts persistence in the next microtask without waiting for a timer", async () => {
     const persist = vi.fn(async () => ({ ok: true as const, version: "v2" }));
     const session = createSession(persist);

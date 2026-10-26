@@ -105,7 +105,7 @@ export function createCloudPublishCoordinator({
     ) {
       throw createPublishError(
         "SESSION_REQUIRED",
-        "Sign in with the PuppyOne Cloud account that owns this initialization.",
+        "Sign in with the Puppyone Cloud account that owns this initialization.",
         true,
       );
     }

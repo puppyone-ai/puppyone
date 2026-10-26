@@ -3,9 +3,9 @@
  * so the menu (which registers) and the dispatch/drag layers (which close or
  * query it) do not need to import each other.
  */
-let activeMarkdownTableMenu: { cleanup: () => void; element: HTMLElement } | null = null;
+let activeMarkdownTableMenu: { cleanup: (restoreFocus?: boolean) => void; element: HTMLElement } | null = null;
 
-export function setActiveMarkdownTableMenu(menu: { cleanup: () => void; element: HTMLElement }) {
+export function setActiveMarkdownTableMenu(menu: { cleanup: (restoreFocus?: boolean) => void; element: HTMLElement }) {
   activeMarkdownTableMenu = menu;
 }
 
@@ -17,8 +17,8 @@ export function hasActiveMarkdownTableMenu(): boolean {
   return activeMarkdownTableMenu !== null;
 }
 
-export function closeActiveMarkdownTableMenu() {
+export function closeActiveMarkdownTableMenu(options: Readonly<{ restoreFocus?: boolean }> = {}) {
   const active = activeMarkdownTableMenu;
   activeMarkdownTableMenu = null;
-  active?.cleanup();
+  active?.cleanup(options.restoreFocus);
 }

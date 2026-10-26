@@ -413,6 +413,17 @@
   color: var(--agent-notice-error-text);
 }
 
+.desktop-agent-readiness.is-recovery {
+  grid-template-areas:
+    "icon copy"
+    ". actions";
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.desktop-agent-readiness.is-recovery .desktop-agent-readiness-icon { grid-area: icon; }
+.desktop-agent-readiness.is-recovery .desktop-agent-readiness-copy { grid-area: copy; }
+.desktop-agent-readiness.is-recovery .desktop-agent-readiness-actions { grid-area: actions; }
+
 .desktop-agent-readiness-copy { min-width: 0; }
 
 .desktop-agent-readiness-title {
@@ -424,7 +435,8 @@
 
 .desktop-agent-readiness-description {
   margin: 2px 0 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  word-break: normal;
   color: var(--agent-text-muted);
   font-size: var(--agent-font-size-meta);
   line-height: 1.4;
@@ -451,11 +463,51 @@
   gap: 6px;
 }
 
+.desktop-agent-readiness.is-recovery .desktop-agent-readiness-actions {
+  width: 100%;
+  justify-content: flex-start;
+  padding-top: 2px;
+}
+
 .desktop-agent-readiness-action.desktop-agent-button {
   height: var(--po-control-size-compact);
   min-height: var(--po-control-size-compact);
   gap: 5px;
   padding-inline: 9px;
+}
+
+.desktop-agent-readiness-action.desktop-agent-button.is-primary {
+  border-color: var(--agent-primary-accent-surface);
+  background: var(--agent-primary-accent-surface);
+  color: var(--agent-primary-accent-foreground);
+}
+
+.desktop-agent-readiness-action.desktop-agent-button.is-primary:hover:not(:disabled) {
+  border-color: var(--agent-primary-accent-hover-surface);
+  background: var(--agent-primary-accent-hover-surface);
+}
+
+.desktop-agent-readiness-action.desktop-agent-button.is-quiet {
+  border-color: transparent;
+  color: var(--agent-text-subtle);
+}
+
+.desktop-agent-readiness-action.desktop-agent-button.is-quiet:hover:not(:disabled) {
+  background: var(--agent-row-hover-surface);
+  color: var(--agent-text);
+}
+
+.desktop-agent-readiness-management { margin-inline-start: auto; }
+
+.desktop-agent-syncing {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 2px;
+  color: var(--agent-text-muted);
+  font-size: var(--agent-font-size-meta);
+  line-height: 1.4;
 }
 
 .desktop-agent-inline-error {

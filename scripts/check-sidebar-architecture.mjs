@@ -211,10 +211,11 @@ for (const token of [
 }
 if (
   !auxiliarySource.includes('typeof children === "function"')
-  || !appSource.includes('active={presentation.contentVisible && rightSidebarSurface === "chat"}')
+  || !appSource.includes('const localRightSidebarActive = !cloudWorkspaceActive && !repositoryCloudSwitch.pending;')
+  || !appSource.includes('active={presentation.contentVisible && localRightSidebarActive && rightSidebarSurface === "chat"}')
   || appSource.includes("active={rightSidebarOpen}")
 ) {
-  errors.push("Auxiliary native content must follow the shared frame lifecycle through its render presentation.");
+  errors.push("Auxiliary native content must follow the shared frame lifecycle and remain inactive while the Cloud provider is selected.");
 }
 if (
   !collapsiblePaneGestureSource.includes("finishCollapsiblePaneGesture")
@@ -399,12 +400,7 @@ if (!dataWorkspaceSource.includes("Math.max(") || !dataWorkspaceSource.includes(
 if (dataWorkspaceSource.includes("data-explorer-collapsed-fill") || dataWorkspaceStyle.includes(".data-explorer-collapsed-fill")) {
   errors.push("Explorer collapse must not insert a competing flex child into its retained content plane.");
 }
-if (
-  !desktopDataWorkspaceSource.includes("paneLayout?.explorer.collapsed")
-  || !desktopDataWorkspaceSource.includes("? preferences.explorerWidth")
-) {
-  errors.push("Desktop Explorer must retain its expanded preference width while the Shell track is collapsed.");
-}
+// Expanded preference width during collapse is verified by desktopPreferenceConsumers.test.tsx.
 if (!paneResizeDragSource.includes("onDragActiveChange?.(true)") || !paneResizeDragSource.includes("onDragActiveChange?.(false)")) {
   errors.push("Pane resize drags must publish their complete host-neutral activity lifecycle.");
 }

@@ -11,6 +11,7 @@
  */
 export type ShareTargetId =
   | "viktor"
+  | "manus"
   | "claude"
   | "chatgpt"
   | "slack-bot"
@@ -20,9 +21,33 @@ export type ShareTargetId =
 
 export type ShareChannel = "mcp" | "link";
 
+/**
+ * What kind of agent a destination is — the only difference that changes how
+ * a user decides between them:
+ *
+ * Where the agent is, which is what decides how it is connected:
+ *
+ * - `cloud-native`: it has its own machine. It can read and change the
+ *   project while this Mac is closed, which is why write access is a real
+ *   question for it.
+ * - `assistant`: a product the user talks to, which reads the project from
+ *   its own side while that conversation is happening.
+ * - `remote-client`: a client on some other machine — a colleague's computer,
+ *   a server, a box the user keeps elsewhere. The address has to be carried
+ *   there, so its handoff is about that machine, not about a settings page we
+ *   can name.
+ *
+ * Destinations with no kind are not agents. An agent that runs on this Mac is
+ * not one either: it already reads the folder, so connecting it through Cloud
+ * would hand it an older copy of what it can already see.
+ */
+export type ShareAgentKind = "cloud-native" | "assistant" | "remote-client";
+
 export type ShareTarget = Readonly<{
   id: ShareTargetId;
   channel: ShareChannel;
+  /** Set when the destination is an agent the connect screen can offer. */
+  kind: ShareAgentKind | null;
   /** Brand names are proper nouns and stay untranslated. */
   brand: string | null;
   /** Number of `cloud.share.handoff.<id>.step<n>` messages to render. */
@@ -35,13 +60,25 @@ export const SHARE_TARGETS: readonly ShareTarget[] = [
   {
     id: "viktor",
     channel: "mcp",
+    kind: "cloud-native",
     brand: "Viktor",
     handoffSteps: 3,
     docsUrl: "https://viktor.com/blog/how-to-connect-tools-your-ai-employee-doesnt-support-yet",
   },
   {
+    id: "manus",
+    channel: "mcp",
+    kind: "cloud-native",
+    brand: "Manus",
+    handoffSteps: 2,
+    // No public page for adding a remote MCP server is linked here until one
+    // is verified; a wrong link costs more than no link.
+    docsUrl: null,
+  },
+  {
     id: "claude",
     channel: "mcp",
+    kind: "assistant",
     brand: "Claude",
     handoffSteps: 3,
     docsUrl: "https://support.claude.com/en/articles/11175166-getting-started-with-custom-connectors-using-remote-mcp",
@@ -49,6 +86,7 @@ export const SHARE_TARGETS: readonly ShareTarget[] = [
   {
     id: "chatgpt",
     channel: "mcp",
+    kind: "assistant",
     brand: "ChatGPT",
     handoffSteps: 3,
     docsUrl: "https://platform.openai.com/docs/mcp",
@@ -56,6 +94,7 @@ export const SHARE_TARGETS: readonly ShareTarget[] = [
   {
     id: "slack-bot",
     channel: "link",
+    kind: null,
     brand: null,
     handoffSteps: 2,
     docsUrl: null,
@@ -63,6 +102,7 @@ export const SHARE_TARGETS: readonly ShareTarget[] = [
   {
     id: "grok",
     channel: "link",
+    kind: null,
     brand: "Grok",
     handoffSteps: 2,
     docsUrl: null,
@@ -70,6 +110,7 @@ export const SHARE_TARGETS: readonly ShareTarget[] = [
   {
     id: "person",
     channel: "link",
+    kind: null,
     brand: null,
     handoffSteps: 1,
     docsUrl: null,
@@ -77,11 +118,22 @@ export const SHARE_TARGETS: readonly ShareTarget[] = [
   {
     id: "mcp",
     channel: "mcp",
+    kind: "remote-client",
     brand: null,
     handoffSteps: 2,
     docsUrl: "https://modelcontextprotocol.io/docs/concepts/transports",
   },
 ];
+
+/** The named agents of one kind, in the order the catalogue declares them. */
+export function shareAgentsOfKind(kind: ShareAgentKind): readonly ShareTarget[] {
+  return SHARE_TARGETS.filter((target) => target.kind === kind);
+}
+
+/** Message ID for the heading a kind is grouped under. */
+export function shareAgentKindKey(kind: ShareAgentKind): string {
+  return `cloud.share.reach.connect.kind.${kind}`;
+}
 
 export function getShareTarget(id: ShareTargetId): ShareTarget {
   const target = SHARE_TARGETS.find((candidate) => candidate.id === id);

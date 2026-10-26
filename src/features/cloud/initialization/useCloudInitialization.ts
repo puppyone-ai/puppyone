@@ -2,15 +2,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Workspace } from "@puppyone/shared-ui";
 import {
   cleanupWorkspaceCloudInitialization,
-  commitWorkspaceGit,
-  createWorkspaceGitBranch,
   getWorkspaceCloudInitializationState,
   getWorkspaceGitStatus,
-  initializeWorkspaceGitRepository,
-  stageAllWorkspaceGitChanges,
   startWorkspaceCloudInitialization,
   subscribeWorkspaceCloudInitializationProgress,
 } from "../../../lib/localFiles";
+import {
+  normalizePublishBranch as normalizeBranch,
+  prepareWorkspaceForPublish,
+} from "./publishPreparation";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import type {
   CloudInitializationAction,
@@ -20,7 +20,6 @@ import type {
   CloudInitializationState,
   GitStatusSnapshot,
 } from "../../../types/electron";
-import type { DesktopView } from "../../../components/DesktopCloudShell";
 import type { CloudWorkspaceSection } from "../types";
 import { createRepositoryRefreshReason } from "../../source-control/repositoryRefreshPolicy";
 import type { GitRefreshReason, GitRepositoryContext } from "../../source-control/gitRefreshScheduler";
@@ -65,7 +64,8 @@ export function useCloudInitialization({
   isGitRepositoryContextCurrent: (context: GitRepositoryContext) => boolean;
   refreshWorkspaceContent: () => void;
   setActiveCloudSection: (section: CloudWorkspaceSection) => void;
-  setActiveView: (view: DesktopView) => void;
+  /** Initialization only ever moves the window to the Cloud view. */
+  setActiveView: (view: "cloud") => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   setSwitcherOpen: (open: boolean) => void;
   workspace: Workspace | null;
@@ -249,7 +249,6 @@ export function useCloudInitialization({
         ? await getWorkspaceGitStatus(workspace.path)
         : null;
       if (!pending && freshStatus) {
-        let preparationFailure: CloudInitializationErrorCode = "REPOSITORY_REQUIRED";
         const reportLocalProgress = (stage: CloudInitializationProgress["stage"]) => {
           setProgress({
             rootPath: currentIdentity.rootPath,
@@ -259,36 +258,15 @@ export function useCloudInitialization({
             updatedAt: new Date().toISOString(),
           });
         };
-        try {
-          if (!freshStatus.isRepo) {
-            preparationFailure = "REPOSITORY_REQUIRED";
-            reportLocalProgress("enabling-version-control");
-            freshStatus = await initializeWorkspaceGitRepository(workspace.path);
-          }
-          if (!freshStatus.headCommitId || freshStatus.totalCommits < 1) {
-            preparationFailure = "COMMIT_REQUIRED";
-            reportLocalProgress("creating-snapshot");
-            freshStatus = await stageAllWorkspaceGitChanges(workspace.path);
-            freshStatus = await commitWorkspaceGit(
-              workspace.path,
-              "Initial snapshot",
-              {
-                allowEmpty: true,
-                authorName: activeCloudSession.user_email,
-                authorEmail: activeCloudSession.user_email,
-              },
-            );
-          }
-          if (!normalizeBranch(freshStatus.branch)) {
-            preparationFailure = "BRANCH_REQUIRED";
-            reportLocalProgress("creating-branch");
-            freshStatus = await createWorkspaceGitBranch(
-              workspace.path,
-              resolveCloudPublishBranchName(freshStatus),
-            );
-          }
-        } catch {
-          setError({ code: preparationFailure, retryable: true });
+        const prepared = await prepareWorkspaceForPublish({
+          rootPath: workspace.path,
+          status: freshStatus,
+          author: activeCloudSession.user_email,
+          onStage: reportLocalProgress,
+        });
+        freshStatus = prepared.status;
+        if (!prepared.ok) {
+          setError({ code: prepared.code, retryable: true });
           return;
         }
         reportLocalProgress("validating");
@@ -409,25 +387,6 @@ function getInitializationIdentity({
   const userId = session.user_id.trim();
   if (!resolvedApiBaseUrl || !userId) return null;
   return { rootPath: workspace.path, apiBaseUrl: resolvedApiBaseUrl, userId };
-}
-
-function normalizeBranch(value: string | null | undefined): string {
-  const normalized = value?.trim() ?? "";
-  return ["head", "detached"].includes(normalized.toLowerCase()) ? "" : normalized;
-}
-
-function resolveCloudPublishBranchName(status: GitStatusSnapshot): string {
-  const existing = new Set(
-    status.branches
-      .filter((branch) => !branch.remote)
-      .map((branch) => branch.name),
-  );
-  for (const candidate of ["main", "puppyone-publish"]) {
-    if (!existing.has(candidate)) return candidate;
-  }
-  let suffix = 2;
-  while (existing.has(`puppyone-publish-${suffix}`)) suffix += 1;
-  return `puppyone-publish-${suffix}`;
 }
 
 function isLocalPreparationRequirement(code: CloudInitializationErrorCode): boolean {

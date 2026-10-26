@@ -5,32 +5,44 @@ import {
 } from "../../../../src/features/settings/sidebar/settingsSidebarModel";
 
 describe("Settings Cloud feature gate", () => {
-  it("keeps Account public while Cloud hosting remains experimental", () => {
+  it("shows no Account or Cloud page while the Desktop is local-first", () => {
     const groups = resolveSettingsSidebarGroups({ cloudEnabled: false });
     const sections = groups.flatMap((group) => group.items.map((item) => item.id));
 
-    const cloudGroup = groups.find((group) => group.id === "cloud");
-    expect(sections).toContain("account");
+    // Signing in only serves Cloud, so the whole Cloud group waits for the experiment.
+    expect(sections).not.toContain("account");
     expect(sections).not.toContain("cloud");
     expect(sections).not.toContain("other-app-imports");
-    expect(cloudGroup?.items.map((item) => item.id)).toEqual(["account"]);
-    expect(isSettingsSectionAvailable("account", { cloudEnabled: false })).toBe(true);
+    expect(groups.find((group) => group.id === "cloud")).toBeUndefined();
+    expect(isSettingsSectionAvailable("account", { cloudEnabled: false })).toBe(false);
     expect(isSettingsSectionAvailable("cloud", { cloudEnabled: false })).toBe(false);
     expect(sections).toContain("privacy");
     expect(isSettingsSectionAvailable("privacy", { cloudEnabled: false })).toBe(true);
     expect(isSettingsSectionAvailable("experimental", { cloudEnabled: false })).toBe(true);
-    expect(groups.map((group) => group.id)).toEqual(["desktop-app", "agents", "local-project", "cloud"]);
+    expect(groups.map((group) => group.id)).toEqual(["desktop-app", "agents", "local-project"]);
     expect(groups.find((group) => group.id === "agents")?.items.map((item) => item.id)).toEqual(["local-agents", "model-connections"]);
     expect(isSettingsSectionAvailable("model-connections", { cloudEnabled: false })).toBe(true);
   });
 
-  it("reveals the complete Cloud settings group after PuppyOne Cloud is enabled", () => {
+  it("reveals the complete Cloud settings group after Puppyone Cloud is enabled", () => {
     const cloudGroup = resolveSettingsSidebarGroups({ cloudEnabled: true })
       .find((group) => group.id === "cloud");
 
     expect(cloudGroup?.items.map((item) => item.id)).toEqual(["account", "cloud"]);
     expect(isSettingsSectionAvailable("account", { cloudEnabled: true })).toBe(true);
     expect(isSettingsSectionAvailable("cloud", { cloudEnabled: true })).toBe(true);
+  });
+
+  it("keeps app and account settings available in hosted-only workspaces", () => {
+    const context = { cloudEnabled: true, localWorkspaceAvailable: false };
+    const sections = resolveSettingsSidebarGroups(context).flatMap(group => group.items.map(item => item.id));
+    expect(sections).toContain("general");
+    expect(sections).toContain("appearance");
+    expect(sections).toContain("account");
+    for (const section of ["local-project", "git", "files", "cloud"] as const) {
+      expect(isSettingsSectionAvailable(section, context)).toBe(false);
+      expect(sections).not.toContain(section);
+    }
   });
 
   it("shows the import settings page only while the import experiment is enabled", () => {

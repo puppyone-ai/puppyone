@@ -1,3 +1,4 @@
+import { useDesktopPreference } from "../preferencesStore";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import { AlertTriangle } from "lucide-react";
 import {
@@ -6,6 +7,7 @@ import {
   useRef,
   useState,
   type DragEvent as ReactDragEvent,
+  type ReactNode,
 } from "react";
 import type { ResolvedSurfaceAppearance } from "../features/appearance/AppearanceRuntime";
 import { useWorkspaceFolderDrop } from "../features/app-shell/useWorkspaceFolderDrop";
@@ -17,12 +19,8 @@ import {
   getProjectName,
   type ProjectHomeItem,
   type RecentWorkspaceHomeItem,
-} from "../features/app-shell/workspaceHomeModel";
+} from "../lib/workspaceHomeModel";
 import { writeClipboardText } from "../features/settings/utils";
-import {
-  DEFAULT_EXPERIMENTAL_SETTINGS,
-  type ExperimentalSettings,
-} from "../preferences";
 import { resolveImportPreviewBrands } from "../features/project-import/importSourceRegistry";
 import type {
   WorkspaceImportSourceRequest,
@@ -32,7 +30,7 @@ import type {
   WorkspaceCreateProjectResult,
   WorkspaceProjectLocationGrant,
 } from "../types/electron";
-import { DesktopWindowDragRegion } from "./DesktopWindowChrome";
+import { DesktopWindowChrome } from "./DesktopWindowChrome";
 import { OnboardingBrandLockup } from "./onboarding/OnboardingBrandLockup";
 import { OnboardingEmptyStateIntro } from "./onboarding/OnboardingEmptyStateIntro";
 import {
@@ -41,10 +39,11 @@ import {
 } from "./onboarding/OnboardingEntryActions";
 import { OnboardingHomeLayout } from "./onboarding/OnboardingHomeLayout";
 import { OnboardingProjectList } from "./onboarding/OnboardingProjectList";
+import { isHomepageProjectOpening, OnboardingProjectLoading } from "./onboarding/OnboardingProjectLoading";
 import { OnboardingTelemetryDisclosure } from "./onboarding/OnboardingTelemetryDisclosure";
 import type { OnboardingHomeState } from "./onboarding/types";
 
-export type { ProjectHomeItem, RecentWorkspaceHomeItem } from "../features/app-shell/workspaceHomeModel";
+export type { ProjectHomeItem, RecentWorkspaceHomeItem } from "../lib/workspaceHomeModel";
 
 export type OnboardingOperationStatus = {
   title: string;
@@ -66,13 +65,16 @@ export type MinimalOnboardingProps = {
   onRemoveProject?: (path: string) => Promise<void>;
   recentWorkspaces?: RecentWorkspaceHomeItem[];
   projectItems?: ProjectHomeItem[];
+  cloudAccountStatus?: ReactNode;
+  cloudOpening?: boolean;
+  onCancelCloudOpening?: () => void;
+  onOpenCloudProject?: (projectId: string) => void;
   operationStatus?: OnboardingOperationStatus | null;
   initialError?: string | null;
   appearance: ResolvedSurfaceAppearance;
-  experimentalSettings?: ExperimentalSettings;
 };
 
-/** Local repository entrypoint. Cloud is entered from an open repository only. */
+/** Homepage project list. Cloud catalog/auth is supplied by the host, not discovered by the view. */
 export function MinimalOnboarding({
   onChooseWorkspace,
   onChooseProjectLocation,
@@ -88,9 +90,12 @@ export function MinimalOnboarding({
   onRemoveProject,
   recentWorkspaces = [],
   projectItems,
+  cloudAccountStatus,
+  cloudOpening = false,
+  onCancelCloudOpening,
+  onOpenCloudProject,
   initialError = null,
   appearance,
-  experimentalSettings = DEFAULT_EXPERIMENTAL_SETTINGS,
 }: MinimalOnboardingProps) {
   const { t } = useLocalization();
   const [error, setError] = useState<string | null>(initialError);
@@ -98,14 +103,15 @@ export function MinimalOnboarding({
   const [removingPath, setRemovingPath] = useState<string | null>(null);
   const [draggingPath, setDraggingPath] = useState<string | null>(null);
   const projectEntryFlow = useProjectEntryFlow();
-  const importPreviewBrands = resolveImportPreviewBrands(experimentalSettings);
+  const enableOtherAppImports = useDesktopPreference(s => s.experimentalSettings.enableOtherAppImports);
+  const importPreviewBrands = resolveImportPreviewBrands({ enableOtherAppImports });
   const items = useMemo(
-    () => (projectItems ?? recentWorkspaces.map(({ workspace, lastOpenedAt }) => ({
+    () => (projectItems ?? recentWorkspaces.map(({ workspace }) => ({
       id: workspace.id,
       label: workspace.name,
       localPath: workspace.path,
-      lastOpenedAt: lastOpenedAt ?? null,
-    }))).slice(0, 40),
+      lastModifiedAt: workspace.lastModifiedAt ?? null,
+    }))),
     [projectItems, recentWorkspaces],
   );
 
@@ -168,7 +174,8 @@ export function MinimalOnboarding({
     }
   };
 
-  const busy = Boolean(openingPath) || Boolean(removingPath);
+  const busy = Boolean(openingPath) || Boolean(removingPath) || cloudOpening;
+  const openingProject = isHomepageProjectOpening(openingPath, cloudOpening);
   const startProjectDrag = (event: ReactDragEvent<HTMLButtonElement>, item: ProjectHomeItem) => {
     const absolutePath = item.localPath.trim();
     if (busy || !absolutePath) {
@@ -187,6 +194,7 @@ export function MinimalOnboarding({
     onInvalidDrop: () => setError(t("onboarding.error.dropLocalFolder")),
   });
 
+  // Account/auth controls are page chrome, never synthetic Project rows.
   const hasProjects = items.length > 0;
   const onboardingState: OnboardingHomeState = hasProjects ? "projects" : "empty";
   const [showEmptyStateIntro, setShowEmptyStateIntro] = useState(() => !hasProjects);
@@ -197,8 +205,8 @@ export function MinimalOnboarding({
   }, [hasProjects]);
 
   useEffect(() => {
-    if (homepageRef.current) homepageRef.current.inert = showEmptyStateIntro;
-  }, [showEmptyStateIntro]);
+    if (homepageRef.current) homepageRef.current.inert = showEmptyStateIntro || openingProject;
+  }, [showEmptyStateIntro, openingProject]);
 
   useEffect(() => {
     if (!import.meta.env.DEV) return undefined;
@@ -235,12 +243,13 @@ export function MinimalOnboarding({
       onDragLeave={folderDrop.onDragLeave}
       onDrop={folderDrop.onDrop}
     >
-      <DesktopWindowDragRegion className="onboarding-titlebar" />
+      <DesktopWindowChrome actions={cloudAccountStatus} />
       <section
         ref={homepageRef}
         className="onboarding-homepage"
         aria-label={t("onboarding.projects.title")}
         aria-hidden={showEmptyStateIntro || undefined}
+        aria-busy={openingProject || undefined}
       >
         <OnboardingHomeLayout
           brand={<OnboardingBrandLockup state={onboardingState} resolvedTheme={resolvedTheme} />}
@@ -248,6 +257,7 @@ export function MinimalOnboarding({
           primary={hasProjects ? (
             <OnboardingProjectList
               items={items}
+              onOpenCloudProject={onOpenCloudProject}
               busy={busy}
               openingPath={openingPath}
               removingPath={removingPath}
@@ -281,6 +291,7 @@ export function MinimalOnboarding({
 
         {error && <div className="onboarding-error onboarding-homepage-error" role="alert"><AlertTriangle size={15} /><span>{error}</span></div>}
       </section>
+      <OnboardingProjectLoading open={openingProject} cloudOpening={cloudOpening} onCancel={onCancelCloudOpening} />
       {onboardingState === "empty" && (
         <OnboardingTelemetryDisclosure ready={!showEmptyStateIntro} />
       )}
@@ -295,7 +306,6 @@ export function MinimalOnboarding({
         onCancelImport={onCancelImportSource}
         onImportProgress={onImportSourceProgress}
         onOpenFolder={() => void chooseFolder()}
-        experimentalSettings={experimentalSettings}
       />
       {showEmptyStateIntro && (
         <OnboardingEmptyStateIntro onComplete={completeEmptyStateIntro} />

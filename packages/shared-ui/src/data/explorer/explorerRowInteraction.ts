@@ -4,8 +4,16 @@ export type ExplorerRowDropState = {
   valid: boolean;
 } | null;
 
+/** The host owns menu lifetime and trigger identity; the tree only projects it. */
+export type ExplorerRowActionMenu = Readonly<{
+  /** null identifies the optional synthetic root row. */
+  path: string | null;
+  trigger: string;
+}>;
+
 export type ExplorerRowStateSources = {
   activePath: string | null;
+  openActionMenu: ExplorerRowActionMenu | null;
   selectedPaths: ReadonlySet<string>;
   cutPaths: ReadonlySet<string>;
   loadingPaths: ReadonlySet<string>;
@@ -15,6 +23,7 @@ export type ExplorerRowStateSources = {
 
 export type ExplorerRowInteractionState = {
   active: boolean;
+  openMenuTrigger: string | null;
   selected: boolean;
   cut: boolean;
   loading: boolean;
@@ -34,6 +43,7 @@ export function selectExplorerRowInteraction(
   const dropMatchesRow = sources.dropTarget?.rowPath === path;
   return {
     active: sources.activePath === path,
+    openMenuTrigger: sources.openActionMenu?.path === path ? sources.openActionMenu.trigger : null,
     selected: sources.selectedPaths.has(path),
     cut: isPathInSetOrDescendant(path, sources.cutPaths),
     loading: sources.loadingPaths.has(path),
@@ -49,6 +59,7 @@ export function equalExplorerRowInteraction(
   right: ExplorerRowInteractionState,
 ): boolean {
   return left.active === right.active
+    && left.openMenuTrigger === right.openMenuTrigger
     && left.selected === right.selected
     && left.cut === right.cut
     && left.loading === right.loading

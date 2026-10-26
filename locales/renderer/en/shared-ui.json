@@ -1,5 +1,6 @@
 {
   "loading": "Loading…",
+  "explorer.dropToAddFiles": "Drop to add files",
   "explorer.root": "Root",
   "explorer.emptyFolder": "Empty folder",
   "explorer.loadingWorkspace": "Loading workspace…",
@@ -16,5 +17,10 @@
   "status.modified": "Modified",
   "status.created": "Created",
   "status.deleted": "Deleted",
-  "status.moved": "Moved"
+  "status.moved": "Moved",
+  "scrollbar.up": "Scroll up",
+  "scrollbar.down": "Scroll down",
+  "scrollbar.left": "Scroll left",
+  "scrollbar.right": "Scroll right",
+  "notice.dismiss": "Dismiss"
 }

@@ -26,6 +26,7 @@ export type ExplorerVisibleMetaRow = {
   index: number;
   label: string;
   loading: boolean;
+  retryPath?: string;
 };
 
 export type ExplorerVisibleRow = ExplorerVisibleNodeRow | ExplorerVisibleMetaRow;
@@ -40,6 +41,7 @@ export type BuildExplorerVisibleModelOptions = {
   expandedPaths: ReadonlySet<string>;
   loadingPaths?: ReadonlySet<string>;
   loadingLabel: string;
+  folderErrors?: ReadonlyMap<string, string>;
 };
 
 const EMPTY_PATH_SET: ReadonlySet<string> = new Set();
@@ -56,6 +58,7 @@ export function buildExplorerVisibleModel(
     expandedPaths,
     loadingPaths = EMPTY_PATH_SET,
     loadingLabel,
+    folderErrors,
   }: BuildExplorerVisibleModelOptions,
 ): ExplorerVisibleModel {
   const rows: ExplorerVisibleRow[] = [];
@@ -93,6 +96,9 @@ export function buildExplorerVisibleModel(
       if (node.type !== "folder" || !expandedPaths.has(node.path)) continue;
 
       const children = node.children ?? [];
+      const error = folderErrors?.get(node.path);
+      if (error) rows.push({ kind: "meta", key: `${node.path}:error`, depth: depth + 1,
+        index: rows.length, label: error, loading: false, retryPath: node.path });
       if (children.length > 0) {
         appendSiblings(children, depth + 1, node.path);
         continue;

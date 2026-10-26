@@ -5,7 +5,7 @@ import {
   getOrderedAuxiliaryWorkbenchItems, getPresentedAuxiliaryWorkbenchItemIds,
   type WorkbenchSplitDropEdge,
 } from "@puppyone/shared-ui";
-import type { ProjectWorkbenchStore } from "./ProjectWorkbenchStore";
+import type { ProjectWorkbenchStore } from "../../../lib/workbench/ProjectWorkbenchStore";
 
 export function useAuxiliaryWorkbench(store: ProjectWorkbenchStore) {
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);

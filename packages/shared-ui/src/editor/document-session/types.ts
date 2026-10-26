@@ -10,7 +10,7 @@ import type { EditorSaveMode } from "../registry/viewerTypes";
 
 export type DocumentSessionStatus = "clean" | "dirty" | "saving" | "saved" | "error";
 
-export type DocumentSessionErrorCode = "persistence-failed";
+export type DocumentSessionErrorCode = "persistence-failed" | "external-conflict";
 
 export type DocumentSessionError = Readonly<{
   code: DocumentSessionErrorCode;
@@ -44,7 +44,7 @@ export type DocumentEditingSessionOptions = {
   onPersisted?: (commit: DocumentPersistedCommit) => void;
 };
 
-export type ExternalBaselineResult = "acknowledged" | "applied";
+export type ExternalBaselineResult = "acknowledged" | "applied" | "deferred";
 
 export type DocumentSessionDrainReason = Extract<
   DocumentPersistenceReason,

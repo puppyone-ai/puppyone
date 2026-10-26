@@ -1,3 +1,4 @@
+import { useDesktopPreference, selectFileIconTheme } from "../../../preferencesStore";
 import { memo, useMemo } from "react";
 import { useLocalization } from "@puppyone/localization";
 import { PageLoading } from "../../../components/loading";
@@ -9,12 +10,12 @@ import {
   type DataNode,
   type DataPort,
   type DocumentDataNode,
+  type DocumentSourceKind,
   type DocumentNavigationPort,
   type ContextMapWorkspaceEnvironment,
   type EditorGroupState,
   type EditorInteractionPreferences,
   type FileContent,
-  type FileIconThemeId,
   type MarkdownWorkspaceEnvironment,
   type ViewerExtensionHostAdapter,
   type Workspace,
@@ -26,9 +27,9 @@ import { useEditorPaneSource } from "./useEditorPaneSource";
 export type EditorPaneDocumentRuntimeProps = Readonly<{
   aiEditFile: AiEditFile | null;
   dataPort: DataPort;
+  documentSourceKind?: DocumentSourceKind;
   editor: EditorGroupState["editors"][number] | null;
   editorInteractionPreferences: EditorInteractionPreferences;
-  fileIconTheme: FileIconThemeId;
   markdownEnvironment: MarkdownWorkspaceEnvironment;
   documentNavigation: DocumentNavigationPort;
   refreshKey?: WorkspaceContentChange;
@@ -44,9 +45,9 @@ export type EditorPaneDocumentRuntimeProps = Readonly<{
 export const EditorPaneDocumentRuntime = memo(function EditorPaneDocumentRuntime({
   aiEditFile,
   dataPort,
+  documentSourceKind = "local",
   editor,
   editorInteractionPreferences,
-  fileIconTheme,
   markdownEnvironment,
   documentNavigation,
   refreshKey,
@@ -60,9 +61,9 @@ export const EditorPaneDocumentRuntime = memo(function EditorPaneDocumentRuntime
     <RegularEditorPaneDocumentRuntime
       aiEditFile={aiEditFile}
       dataPort={dataPort}
+      documentSourceKind={documentSourceKind}
       editor={editor}
       editorInteractionPreferences={editorInteractionPreferences}
-      fileIconTheme={fileIconTheme}
       markdownEnvironment={markdownEnvironment}
       documentNavigation={documentNavigation}
       refreshKey={refreshKey}
@@ -80,9 +81,9 @@ type RegularEditorPaneDocumentRuntimeProps = EditorPaneDocumentRuntimeProps;
 function RegularEditorPaneDocumentRuntime({
   aiEditFile,
   dataPort,
+  documentSourceKind = "local",
   editor,
   editorInteractionPreferences,
-  fileIconTheme,
   markdownEnvironment,
   documentNavigation,
   refreshKey,
@@ -92,6 +93,7 @@ function RegularEditorPaneDocumentRuntime({
   workspaceRoot,
   markdownDialect,
 }: RegularEditorPaneDocumentRuntimeProps) {
+  const fileIconTheme = useDesktopPreference(selectFileIconTheme);
   const { t } = useLocalization();
   const invalidTreeNode = Boolean(treeNode && !isDocumentDataNode(treeNode));
   const fallbackNode = useMemo(
@@ -140,6 +142,7 @@ function RegularEditorPaneDocumentRuntime({
         />
       )}
       error={source.error}
+      onRetry={source.retry}
       aiEditFile={aiEditFile}
       showHeader={false}
       hideSourceView={hideSourceView}
@@ -157,7 +160,7 @@ function RegularEditorPaneDocumentRuntime({
       openExternalFile={dataPort.openExternalFile}
       convertOfficeDocumentToDocx={dataPort.convertOfficeDocumentToDocx}
       viewerExtensionAdapter={viewerExtensionAdapter}
-      documentSourceKind="local"
+      documentSourceKind={documentSourceKind}
       documentPersistence={dataPort.documentPersistence ?? null}
       onDocumentPersisted={
         dataPort.documentPersistence && node ? source.applyPersistedCommit : undefined
@@ -172,6 +175,7 @@ export function areEditorPaneDocumentRuntimePropsEqual(
 ): boolean {
   return previous.aiEditFile === next.aiEditFile
     && previous.dataPort === next.dataPort
+    && previous.documentSourceKind === next.documentSourceKind
     && sameEditor(previous.editor, next.editor)
     && previous.editorInteractionPreferences.showSaveStatus
       === next.editorInteractionPreferences.showSaveStatus
@@ -179,7 +183,6 @@ export function areEditorPaneDocumentRuntimePropsEqual(
       === next.editorInteractionPreferences.markdownBlockDragEnabled
     && previous.editorInteractionPreferences.markdownHeadingOutlineEnabled
       === next.editorInteractionPreferences.markdownHeadingOutlineEnabled
-    && previous.fileIconTheme === next.fileIconTheme
     && samePaneEnvironment(
       previous.markdownEnvironment,
       next.markdownEnvironment,

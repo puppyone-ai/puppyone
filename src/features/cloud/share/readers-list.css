@@ -1,0 +1,108 @@
+@layer features {
+  /* Who can reach this project. Shared by the Header's reach panel and Share. */
+  .desktop-readers-list {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--po-divider);
+    border-radius: 10px;
+    list-style: none;
+  }
+
+  .desktop-readers-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 12px;
+  }
+
+  .desktop-readers-row + .desktop-readers-row {
+    border-top: 1px solid var(--po-divider);
+  }
+
+  .desktop-readers-presence {
+    flex: 0 0 auto;
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--po-text-disabled);
+  }
+
+  .desktop-readers-presence[data-read="true"] {
+    background: var(--po-success, #16a34a);
+  }
+
+  .desktop-readers-identity {
+    display: grid;
+    flex: 1 1 auto;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .desktop-readers-identity strong {
+    overflow: hidden;
+    color: var(--po-text);
+    font-size: var(--po-type-ui-hint, 13px);
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .desktop-readers-identity small {
+    color: var(--po-text-muted);
+    font-size: var(--po-type-ui-caption, 12px);
+    line-height: 1.4;
+  }
+
+  /* Stopping stays legible without competing with the screen's one action. */
+  .desktop-readers-quiet {
+    flex: 0 0 auto;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--po-text-muted);
+    font: inherit;
+    font-size: var(--po-type-ui-caption, 12px);
+  }
+
+  .desktop-readers-quiet:hover:not(:disabled) {
+    color: var(--po-text);
+    text-decoration: underline;
+  }
+
+  .desktop-readers-quiet:disabled {
+    color: var(--po-text-disabled);
+    cursor: not-allowed;
+  }
+
+  .desktop-readers-confirm {
+    display: inline-flex;
+    flex: 0 0 auto;
+    gap: 8px;
+    align-items: center;
+    color: var(--po-text-muted);
+    font-size: var(--po-type-ui-caption, 12px);
+  }
+
+  .desktop-readers-empty,
+  .desktop-readers-error {
+    margin: 0;
+    color: var(--po-text-muted);
+    font-size: var(--po-type-ui-caption, 12px);
+    line-height: 17px;
+  }
+
+  .desktop-readers-error {
+    color: var(--po-danger);
+  }
+
+  @media (max-width: 620px) {
+    .desktop-readers-row {
+      flex-wrap: wrap;
+    }
+
+    .desktop-readers-confirm {
+      flex-wrap: wrap;
+    }
+  }
+}

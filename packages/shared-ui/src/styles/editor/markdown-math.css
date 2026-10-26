@@ -14,7 +14,7 @@
 }
 
 .markdown-codemirror-editor .cm-md-math-inline-widget .katex {
-  font-size: var(--po-type-editor-content, 16px);
+  font-size: var(--po-md-math-inline-font-size);
 }
 
 .markdown-codemirror-editor .cm-md-math-block-widget {
@@ -26,7 +26,7 @@
   align-items: center;
   padding: 24px 12px;
   overflow-x: auto;
-  border-radius: 6px;
+  border-radius: var(--po-md-block-radius);
   box-shadow: 0 0 0 2px var(--cm-md-block-current-ring);
   text-align: center;
   transition: box-shadow 140ms ease;
@@ -36,7 +36,7 @@
   width: max-content;
   min-width: 100%;
   margin: 0;
-  font-size: var(--po-type-editor-heading-3, 19px);
+  font-size: var(--po-md-math-block-font-size);
   text-align: center;
 }
 
@@ -56,9 +56,9 @@
 
 .markdown-codemirror-editor .cm-md-math-source-fallback {
   display: block;
-  color: var(--po-danger);
-  font-family: var(--po-font-mono);
-  font-size: var(--po-code-font-size, 13px);
+  color: var(--po-md-error-color);
+  font-family: var(--po-md-code-font);
+  font-size: var(--po-md-code-block-font-size);
   line-height: 1.55;
   text-align: left;
   white-space: pre-wrap;

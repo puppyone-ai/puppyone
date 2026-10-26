@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { installBrokenStdioGuards } from "./main/stdio-guard.mjs";
 import { createCompanionPresenceService } from "./main/local-agent-installation/setup/companion-presence-service.mjs";
 import { createLocalAgentSetupService } from "./main/local-agent-installation/setup/setup-service.mjs";
@@ -5,6 +6,8 @@ import { registerLocalAgentSetupIpcHandlers } from "./main/ipc/local-agent-setup
 import { composeLocalAgentActivation } from "./main/compose-local-agent-activation.mjs";
 import { registerLocalAgentActivationIpcHandlers } from "./main/ipc/local-agent-activation-ipc.mjs";
 import { createDatabasePreviewService, registerDatabasePreviewIpc } from "./main/database-preview/service.mjs";
+import { createCloudNativePreviewService, registerCloudNativePreviewIpc } from "./main/cloud-native-preview-service.mjs";
+import { createCloudPreviewResourceService, registerCloudPreviewResourceIpc } from "./main/cloud-preview-resource-service.mjs";
 import { app, BrowserWindow, dialog, ipcMain, Menu, MessageChannelMain, nativeImage, nativeTheme, net, powerMonitor, protocol, safeStorage, session as electronSession, shell, utilityProcess, webContents, WebContentsView } from "electron";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { getDesktopReturnScheme, getDesktopReturnUrl, isDesktopReturnUrl } from "../shared/desktop/return-to-app-link.mjs";
@@ -46,6 +49,8 @@ import {
   getCloudApiErrorMessage,
   requestCloudApi,
 } from "./main/cloud-api-client.mjs";
+import { createTemplateMarketplaceService } from "./main/template-marketplace-service.mjs";
+import { parseTemplateLink, resolveTemplateStoreOrigin, templateShareLink } from "../shared/desktop/template-link.mjs";
 import { createCloudAuthService } from "./cloud-auth-service.mjs";
 import {
   createApplicationQuitIntent,
@@ -107,6 +112,7 @@ import { registerWindowLayoutIpcHandlers } from "./main/ipc/window-layout-ipc.mj
 import { registerProjectAppearanceIpcHandlers } from "./main/ipc/project-appearance-ipc.mjs";
 import { registerGitMetadataWatchIpcHandlers } from "./main/ipc/git-metadata-watch-ipc.mjs";
 import { registerLocalFileProtocol } from "./main/local-file-protocol.mjs";
+import { createPreviewDocumentService, registerPreviewDocumentIpc, PREVIEW_DOCUMENT_SCHEME, PREVIEW_DOCUMENT_PRIVILEGES } from "./main/preview-document-service.mjs";
 import { installEmbeddedContentSessionSecurity } from "./main/embedded-pdf-security.mjs";
 import { createLocalFileCapabilityStore } from "./main/local-file-capabilities.mjs";
 import { createProjectAppearanceStore } from "./main/project-appearance/project-appearance-store.mjs";
@@ -193,6 +199,14 @@ const desktopPlatformHost = createDesktopPlatformHost({
   safeStorage,
 });
 const appName = desktopApplicationIdentity.applicationName;
+const templateStoreOrigin = resolveTemplateStoreOrigin({ isPackaged: app.isPackaged, override: process.env.PUPPYONE_TEMPLATE_STORE_ORIGIN });
+let pendingTemplateIntent = null;
+const templateLinkOptions = { origin: templateStoreOrigin, channel: desktopBuildInfo.channel };
+for (const argument of process.argv) {
+  if (typeof argument === "string" && argument.startsWith(`${getDesktopReturnScheme(desktopBuildInfo.channel)}://templates/`)) {
+    try { pendingTemplateIntent = { id: randomUUID(), url: templateShareLink(parseTemplateLink(argument, templateLinkOptions), templateStoreOrigin), ownerId: null }; } catch { /* Invalid external intents are ignored. */ }
+  }
+}
 
 // Resolve only core launch data before the single-instance boundary. A
 // duplicate CLI launch must exit before optional subsystems are constructed.
@@ -242,6 +256,7 @@ const workspaceStateFilename = "desktop-workspace-state.json";
 const desktopWindowChromeOptions = desktopPlatformHost.windowChrome.browserWindowOptions;
 
 const privilegedSchemes = [
+  { scheme: PREVIEW_DOCUMENT_SCHEME, privileges: PREVIEW_DOCUMENT_PRIVILEGES },
   {
     scheme: "puppyone-local",
     privileges: {
@@ -281,6 +296,7 @@ const windowsById = new Map();
 const windowStateById = new Map();
 const workspaceWindowByPath = new Map();
 const localFileCapabilities = createLocalFileCapabilityStore();
+const previewDocumentService = createPreviewDocumentService();
 let lastFocusedWindowId = null;
 let initialWindowReady = false;
 const trustedIpcMain = createTrustedIpcMain({
@@ -491,6 +507,8 @@ const workspaceStateStore = createWorkspaceStateStore({
 });
 const projectEntryService = createProjectEntryService({
   journalDirectory: () => path.join(app.getPath("userData"), "project-initialization"),
+  resolveTemplate: (source, locale) => templateMarketplaceService.resolveTemplate(source, locale),
+  validateTemplateSource: (plan) => templateMarketplaceService.validateSource(plan),
 });
 const projectEntryOperationSenders = new Set();
 const importSourceTasks = new Map();
@@ -506,9 +524,20 @@ const cloudAuthService = createCloudAuthService({
   getLocale: () => localeService.getSnapshot().locale,
   returnAppUrl: app.isPackaged ? getDesktopReturnUrl(desktopBuildInfo.channel) : null,
   localCloudWebUrl: desktopCloudConfiguration?.webOrigin,
+  templateMarketplace: { origin: templateStoreOrigin, apiBase: desktopCloudConfiguration?.apiBase ?? null },
   getWindows: () => BrowserWindow.getAllWindows(),
   revealWindow: revealLastFocusedWindow,
 });
+const templateMarketplaceService = createTemplateMarketplaceService({
+  origin: templateStoreOrigin, channel: desktopBuildInfo.channel, cloudAuthService,
+  allowLocalDownloads: !app.isPackaged,
+});
+const cloudNativePreviewService = createCloudNativePreviewService({ auth: cloudAuthService,
+  database: databasePreviewService, convertOffice: desktopPlatformHost.documents.convertOfficeDocumentToDocx,
+  fetchResource: (url, options) => net.fetch(url, options) });
+cloudAuthService.subscribe(() => { void cloudNativePreviewService.reconcileSession().catch(() => {}); });
+const cloudPreviewResourceService = createCloudPreviewResourceService({auth:cloudAuthService});
+cloudAuthService.subscribe((state) => cloudPreviewResourceService.reconcileSession(state.session));
 const gitOperationCoordinator = createGitOperationCoordinator();
 const gitAutoCommitHost = createGitAutoCommitHost({
   available: gitAutoCommitFeatureProfile.available,
@@ -589,8 +618,8 @@ async function createWindow(options = {}) {
     .map((folderPath) => path.resolve(folderPath));
   const appIconPath = desktopPlatformHost.windowChrome.supportsDockIcon ? null : resolveAppIconPath();
   const window = new BrowserWindow({
-    width: 1280,
-    height: 840,
+    width: 1180,
+    height: 760,
     minWidth: DESKTOP_WINDOW_MIN_WIDTH,
     minHeight: DESKTOP_WINDOW_MIN_HEIGHT,
     center: true,
@@ -620,6 +649,7 @@ async function createWindow(options = {}) {
     webContents: window.webContents,
     applicationUrl: rendererApplicationUrl,
     externalNavigation,
+    isAuthorizedCloudResource: cloudPreviewResourceService.allowed,
   });
   windowsById.set(webContentsId, window);
   window.webContents.once("destroyed", () => {
@@ -629,6 +659,7 @@ async function createWindow(options = {}) {
   windowStateById.set(webContentsId, new WindowWorkspaceState({
     initialWorkspaceId: options.initialWorkspaceId ?? null,
     initialWorkspacePaths,
+    initialCloudProject: options.initialCloudProject ?? null,
   }));
   lastFocusedWindowId = webContentsId;
 
@@ -826,7 +857,24 @@ function resolveAppIconPath() {
   });
 }
 
+async function queueTemplateIntent(value) {
+  let parsed;
+  try { parsed = parseTemplateLink(value, templateLinkOptions); } catch { return false; }
+  const intent = { id: randomUUID(), url: templateShareLink(parsed, templateStoreOrigin), ownerId: null };
+  pendingTemplateIntent = intent;
+  if (initialWindowReady) {
+    const window = await createOrRevealWindow();
+    if (pendingTemplateIntent === intent && !window.isDestroyed()) {
+      intent.ownerId = window.webContents.id;
+      window.webContents.send("template:import-requested");
+    }
+  }
+  return true;
+}
+
 app.on("second-instance", (_event, argv, workingDirectory, launchIntent) => {
+  const templateLink = argv.find(value => value.startsWith(`${getDesktopReturnScheme(desktopBuildInfo.channel)}://templates/`));
+  if (templateLink) { void queueTemplateIntent(templateLink).catch(() => console.warn("Unable to open the template import window.")); return; }
   void handleSecondInstanceLaunch({
     launchIntent,
     argv,
@@ -839,6 +887,9 @@ app.on("second-instance", (_event, argv, workingDirectory, launchIntent) => {
 });
 
 app.on("open-url", (event, url) => {
+  if (url.startsWith(`${getDesktopReturnScheme(desktopBuildInfo.channel)}://templates/`)) {
+    event.preventDefault(); void queueTemplateIntent(url).catch(() => console.warn("Unable to open the template import window.")); return;
+  }
   if (!isDesktopReturnUrl(url, desktopBuildInfo.channel)) return;
   event.preventDefault();
   if (initialWindowReady) revealLastFocusedWindow();
@@ -854,7 +905,8 @@ app.whenReady().then(async () => {
       console.warn("Unable to register the PuppyOne Desktop return link:", error);
     }
   }
-  installEmbeddedContentSessionSecurity(electronSession.defaultSession, { applicationUrl: rendererApplicationUrl });
+  installEmbeddedContentSessionSecurity(electronSession.defaultSession, { applicationUrl: rendererApplicationUrl,
+    isAuthorizedCloudResource: cloudPreviewResourceService.allowed });
   await localeService.initialize();
   const updatePreferenceStore = createDesktopUpdatePreferenceStore({
     filePath: path.join(app.getPath("userData"), "desktop-update-preferences.json"),
@@ -898,6 +950,8 @@ app.whenReady().then(async () => {
     resolveCapability: localFileCapabilities.resolve,
     applicationUrl: rendererApplicationUrl,
   });
+  protocol.handle(PREVIEW_DOCUMENT_SCHEME, (request) => previewDocumentService.handle(request));
+  registerPreviewDocumentIpc(trustedIpcMain, previewDocumentService);
   registerProjectIconProtocol({
     protocol,
     store: projectAppearanceStore,
@@ -955,6 +1009,13 @@ app.whenReady().then(async () => {
     initialWorkspacePaths: initialWorkspaceComposition.paths,
   });
   initialWindowReady = true;
+  if (pendingTemplateIntent) {
+    const window = await createOrRevealWindow();
+    if (pendingTemplateIntent && !window.isDestroyed()) {
+      pendingTemplateIntent.ownerId = window.webContents.id;
+      window.webContents.send("template:import-requested");
+    }
+  }
 
   app.on("activate", () => {
     void localeService.refreshSystemLanguages().catch((error) => {
@@ -1016,6 +1077,7 @@ app.on("before-quit", createApplicationCloseCoordinator({
   getWindows: () => BrowserWindow.getAllWindows(),
   closeResources: async () => {
     await projectSessions.closeAllWindows();
+    await cloudNativePreviewService.closeAll();
     await Promise.all([agentService.closeAll(), terminalService.closeAll(), databasePreviewService.closeAll()]);
   },
   onFailure: async () => {
@@ -1101,6 +1163,7 @@ function registerIpcHandlers() {
     openWorkspaceInCurrentWindow,
     openWorkspaceInNewWindow,
     createProjectForCurrentWindow,
+    openCloudProjectInNewWindow,
     connectImportSourceForCurrentWindow,
     listImportResourcesForCurrentWindow,
     importSourceForCurrentWindow,
@@ -1114,6 +1177,18 @@ function registerIpcHandlers() {
     detachWorkspaceFromCurrentWindow,
   });
   registerCloudIpcHandlers({ ipcMain: trustedIpcMain, cloudAuthService });
+  trustedIpcMain.handle("template:resolve", (_event, request) => templateMarketplaceService.resolveLink(request?.url, request?.locale));
+  trustedIpcMain.handle("template:read-intent", (event) => {
+    if (pendingTemplateIntent && pendingTemplateIntent.ownerId !== null && !BrowserWindow.getAllWindows().some(window => window.webContents.id === pendingTemplateIntent.ownerId)) pendingTemplateIntent.ownerId = null;
+    if (!pendingTemplateIntent || (pendingTemplateIntent.ownerId !== null && pendingTemplateIntent.ownerId !== event.sender.id)) return null;
+    pendingTemplateIntent.ownerId = event.sender.id;
+    return { id: pendingTemplateIntent.id, url: pendingTemplateIntent.url };
+  });
+  trustedIpcMain.handle("template:acknowledge-intent", (event, id) => {
+    if (pendingTemplateIntent?.id === id && pendingTemplateIntent.ownerId === event.sender.id) pendingTemplateIntent = null;
+  });
+  registerCloudNativePreviewIpc(trustedIpcMain, cloudNativePreviewService);
+  registerCloudPreviewResourceIpc(trustedIpcMain, cloudPreviewResourceService);
   registerCloudPublishIpcHandlers({
     ipcMain: trustedIpcMain,
     authorizeWorkspaceRoot,
@@ -1327,6 +1402,7 @@ async function getInitialWorkspaceResultForWindow(sender) {
       path: null,
       workspace: null,
       workspaces: [],
+      initialCloudProject: state?.initialCloudProject ?? null,
       error: null,
     };
   }
@@ -1668,6 +1744,20 @@ async function openWorkspaceInNewWindow(folderPath, options = {}) {
   };
 }
 
+async function openCloudProjectInNewWindow(target) {
+  if (typeof target?.projectId !== "string" || !target.projectId.trim() || target.projectId.length > 256) {
+    throw new Error("A Cloud project ID is required.");
+  }
+  const session = await cloudAuthService.readSession();
+  if (!session || session.user_id !== target.userId) {
+    throw new Error("The signed-in Cloud account has changed.");
+  }
+  // Carry identity only. The new renderer restores auth and authorizes the
+  // repository through the existing Cloud workbench before opening any files.
+  await createWindow({ initialCloudProject: { projectId: target.projectId.trim(), userId: session.user_id } });
+  return { ok: true };
+}
+
 async function attachWorkspaceToCurrentWindow(sender, folderPath) {
   return workspaceNavigation.run(sender.id, () => attachWorkspaceToCurrentWindowNow(sender, folderPath));
 }
@@ -1745,10 +1835,13 @@ function assignWindowWorkspaceComposition(window, folders, options = {}) {
 }
 
 function releaseWindowWorkspaceById(webContentsId, window = null) {
+  cloudPreviewResourceService.revokeOwner(webContentsId);
+  void cloudNativePreviewService.closeOwner(webContentsId).catch(() => {});
   void databasePreviewService.closeOwner(webContentsId).catch(() => {});
   gitAutoCommitHost.releaseWindow(webContentsId);
   viewerPackHost?.destroySessionsForOwner(webContentsId);
   localFileCapabilities.revokeSender(webContentsId);
+  previewDocumentService.revokeOwner(webContentsId);
   const state = windowStateById.get(webContentsId);
   const workspacePaths = [...new Set([...(state?.folderPaths ?? []), ...projectSessions.snapshot(webContentsId).projects.map((project) => project.rootPath)])];
   for (const workspacePath of workspacePaths) {

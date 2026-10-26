@@ -1,0 +1,155 @@
+@layer features {
+  /* Qualified with the shared surface class: this lazily loaded rule shares a
+     layer and specificity with .desktop-dialog-surface, so bundle order would
+     otherwise restore the generic 16px inset instead of the task-dialog inset. */
+  .desktop-dialog-surface.desktop-cloud-workspace-switch-dialog {
+    position: relative;
+    display: flex;
+    width: min(var(--desktop-dialog-width, 560px), calc(100vw - 2 * var(--desktop-task-dialog-inset)));
+    flex-direction: column;
+    max-height: calc(100vh - 2 * var(--desktop-task-dialog-inset));
+    overflow: hidden;
+    background: var(--po-canvas);
+  }
+
+  /* Floating close action; the content owns the visible title. */
+  .desktop-cloud-workspace-switch-header {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 2;
+    display: flex;
+  }
+
+  .desktop-cloud-workspace-switch-header .desktop-dialog-icon-button {
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+  }
+
+  .desktop-cloud-workspace-switch-title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .desktop-cloud-workspace-switch-content {
+    container: desktop-cloud-switch / inline-size;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .desktop-cloud-workspace-switch-content > .desktop-cloud-main-view {
+    height: auto;
+    padding: 0;
+    background: transparent;
+    overflow: visible;
+  }
+
+  .desktop-cloud-workspace-switch-dialog .desktop-cloud-workspace-switch-content .desktop-cloud-page-shell {
+    min-height: 0;
+  }
+
+  .desktop-cloud-workspace-switch-recovery {
+    display: flex;
+    width: 100%;
+    min-height: 0;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    overflow: auto;
+    padding: 32px var(--desktop-utility-page-padding-inline);
+    color: var(--po-text);
+    text-align: center;
+    font-family: var(--po-font-sans);
+    font-size: var(--po-type-ui-body, 14px);
+    line-height: 1.5;
+  }
+
+  .desktop-cloud-workspace-recovery-copy {
+    display: grid;
+    width: min(100%, 420px);
+    gap: 8px;
+  }
+
+  .desktop-cloud-workspace-recovery-copy strong {
+    font-size: var(--po-type-ui-section-title, 16px);
+    font-weight: var(--po-text-weight-medium, 500);
+  }
+
+  .desktop-cloud-workspace-recovery-copy p {
+    margin: 0;
+    color: var(--po-text-muted);
+    overflow-wrap: anywhere;
+  }
+
+  .desktop-cloud-workspace-recovery-copy small {
+    color: var(--po-text-subtle);
+    font-size: var(--po-type-ui-caption, 12px);
+  }
+
+  .desktop-cloud-recovery-details {
+    color: var(--po-text-subtle);
+    font-size: var(--po-type-ui-caption, 12px);
+  }
+
+  .desktop-cloud-recovery-details summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding-block: 4px;
+    list-style: none;
+    cursor: var(--po-clickable-cursor, default);
+  }
+
+  .desktop-cloud-recovery-details summary::-webkit-details-marker { display: none; }
+  .desktop-cloud-recovery-details summary:hover { color: var(--po-text); }
+  .desktop-cloud-recovery-details summary:focus-visible {
+    outline: 2px solid var(--po-focus-ring);
+    outline-offset: 2px;
+    border-radius: var(--desktop-control-radius);
+  }
+
+  .desktop-cloud-recovery-details[open] summary svg { transform: rotate(90deg); }
+  .desktop-cloud-recovery-details dl {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 4px 12px;
+    margin: 8px 0;
+    text-align: start;
+  }
+
+  .desktop-cloud-recovery-details dd { margin: 0; overflow-wrap: anywhere; }
+
+  .desktop-cloud-workspace-recovery-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .desktop-cloud-workspace-recovery-actions .desktop-dialog-button {
+    gap: 6px;
+    border-color: var(--po-border-subtle);
+    color: var(--po-text);
+    font-size: var(--po-type-ui-control, 14px);
+    font-weight: var(--po-text-weight-medium, 500);
+  }
+
+  .desktop-cloud-workspace-switch-dialog.is-authentication {
+    position: relative;
+  }
+
+  .desktop-cloud-workspace-switch-dialog.is-authentication .desktop-cloud-workspace-switch-content {
+    min-height: 0;
+  }
+
+}

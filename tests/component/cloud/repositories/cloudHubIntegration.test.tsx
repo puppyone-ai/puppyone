@@ -135,7 +135,7 @@ describe("current-repository Cloud navigation", () => {
     expect(container.querySelector(".desktop-entry-state-description")?.textContent)
       .toBe("Share this Cloud project with ChatGPT, Claude, and other Agents.");
     expect(container.querySelector(".desktop-cloud-auth-submit")?.textContent)
-      .toBe("Sign in to PuppyOne Cloud");
+      .toBe("Sign in to Puppyone Cloud");
     expect(container.textContent).not.toContain("browser");
     expect(container.textContent).not.toContain("May upload");
     expect(container.querySelector(".desktop-cloud-mcp-illustration")).not.toBeNull();
@@ -181,7 +181,7 @@ describe("current-repository Cloud navigation", () => {
         loadingLabel="Restoring Cloud session…"
       />,
     ));
-    expect(container.querySelector("h1")?.textContent).toBe("PuppyOne Cloud");
+    expect(container.querySelector("h1")?.textContent).toBe("Puppyone Cloud");
     expect(container.querySelector(".desktop-cloud-activation-illustration.is-overview")).not.toBeNull();
     expect(container.querySelector(".desktop-cloud-overview-hosting-art")).not.toBeNull();
     expect(container.querySelector(".desktop-cloud-overview-hosting-cloud")).not.toBeNull();

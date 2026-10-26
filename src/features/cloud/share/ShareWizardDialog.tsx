@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
 import { bidiIsolate } from "@puppyone/localization";
 import {
@@ -18,7 +19,7 @@ import {
   DesktopDialogRoot,
   DesktopDialogSurface,
 } from "../../../components/DesktopDialog";
-import { DesktopOverlayLayer } from "../../app-shell/DesktopOverlayPortal";
+import { DesktopOverlayLayer } from "../../../components/DesktopOverlayPortal";
 import {
   createCloudMcpEndpoint,
   createCloudScope,
@@ -28,6 +29,7 @@ import {
   type DesktopCloudMcpEndpoint,
   type DesktopCloudSession,
 } from "../../../lib/cloudApi";
+import { workspaceResourceUrl } from "../files/workspaceResourceUrl";
 import type { CloudPublishProgress } from "../../../types/electron";
 import { CloudAuthCard } from "../auth/CloudAuthCard";
 import {
@@ -140,7 +142,7 @@ export function ShareWizardDialog(props: ShareWizardDialogProps) {
               </span>
               <h2 dir="auto">{title}</h2>
             </div>
-            <DesktopDialogCloseButton label={t("common.action.close")} onClick={props.onClose} />
+            <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton label={t("common.action.close")} onClick={props.onClose} /></Tooltip>
           </header>
 
           {step !== "readers" && <ShareStepper step={step} />}
@@ -266,11 +268,9 @@ function ShareTargetStep({
             </button>
           ))}
         </div>
-        <div className="desktop-share-preview" aria-live="polite">
-          {selectedTarget
-            ? t(shareTargetPreviewKey(selectedTarget.id))
-            : t("cloud.share.target.pickHint")}
-        </div>
+        {selectedTarget && <div className="desktop-share-preview" aria-live="polite">
+          {t(shareTargetPreviewKey(selectedTarget.id))}
+        </div>}
       </div>
       <footer className={`desktop-dialog-footer${canGoBack ? " two-action" : ""}`}>
         {canGoBack && (
@@ -342,6 +342,7 @@ function ShareScopeStep({
   }, [folders, initialPath]);
   const selectedFolder = visibleFolders.find((entry) => entry.path === path) ?? null;
   const linkChannel = target.channel === "link";
+  const modeLabel = mode === "r" ? "cloud.share.scope.previewMode.r" : "cloud.share.scope.previewMode.rw";
 
   return (
     <>
@@ -387,9 +388,7 @@ function ShareScopeStep({
                 : t("cloud.share.scope.previewFolder", { folder: bidiIsolate(selectedFolder?.name ?? path) })}
             </strong>
             <span className="desktop-share-scope-preview-mode">
-              {t(linkChannel || mode === "r"
-                ? "cloud.share.scope.previewMode.r"
-                : "cloud.share.scope.previewMode.rw")}
+              {t(linkChannel ? "cloud.share.scope.workspacePermissions" : modeLabel)}
             </span>
           </aside>
         </div>
@@ -660,11 +659,11 @@ function ShareConnectStep({
   const projectLink = useMemo(() => {
     if (!projectId) return null;
     try {
-      return getDesktopCloudWebUrl(`/projects/${projectId}`);
+      return workspaceResourceUrl(getDesktopCloudWebUrl("/"), projectId, scope.path, true);
     } catch {
       return null;
     }
-  }, [projectId]);
+  }, [projectId, scope.path]);
   const handoff = ready
     ? buildShareHandoff({ target, endpoint: ready.endpoint, apiBaseUrl, projectLink })
     : null;
@@ -678,7 +677,7 @@ function ShareConnectStep({
     <>
       <div className="desktop-dialog-body desktop-share-dialog-body desktop-share-connect">
         {phase.kind === "sign-in" && (
-          <ShareSignIn apiBaseUrl={apiBaseUrl} targetLabel={targetLabel} />
+          <ShareSignIn apiBaseUrl={apiBaseUrl} />
         )}
         {phase.kind === "organization" && session && (
           <ShareOrganizationPicker
@@ -847,16 +846,17 @@ function ShareReadersStep({
                   <span className="desktop-share-readers-actions">
                     {confirming === share.id ? (
                       <>
-                        <button
+                        <Tooltip content={revoking === share.id ? t("cloud.share.readers.confirmRevoke") : undefined}><button
                           type="button"
                           className="desktop-dialog-button destructive"
                           disabled={revoking === share.id}
+                          aria-label={t("cloud.share.readers.confirmRevoke")}
                           onClick={() => void revoke(share)}
                         >
                           {revoking === share.id
                             ? <LoaderCircle size={13} className="animate-spin" aria-hidden="true" />
                             : t("cloud.share.readers.confirmRevoke")}
-                        </button>
+                        </button></Tooltip>
                         <button type="button" className="desktop-dialog-button" onClick={() => setConfirming(null)}>
                           {t("common.action.cancel")}
                         </button>
@@ -919,12 +919,10 @@ function ReaderCopyUrlButton({ url }: { url: string }) {
   );
 }
 
-function ShareSignIn({ apiBaseUrl, targetLabel }: { apiBaseUrl: string | null; targetLabel: string }) {
-  const { t } = useLocalization();
+function ShareSignIn({ apiBaseUrl }: { apiBaseUrl: string | null }) {
   const auth = useCloudAuthController({ cloudApiBaseUrl: apiBaseUrl });
   return (
     <div className="desktop-share-sign-in">
-      <p>{t("cloud.share.publish.signIn", { target: targetLabel })}</p>
       <CloudAuthCard signingIn={auth.signingIn} error={auth.error} onSignIn={auth.startSignIn} />
     </div>
   );
@@ -1043,7 +1041,7 @@ function ShareHandoffPanel({
             display={keyVisible && handoff.apiKey ? handoff.apiKey : maskApiKey(handoff.apiKey, handoff.apiKeyHint)}
             disabled={!handoff.apiKey}
             trailing={handoff.apiKey ? (
-              <button
+              <Tooltip content={t(keyVisible ? "cloud.share.action.hideKey" : "cloud.share.action.showKey")}><button
                 type="button"
                 className="desktop-share-copy-toggle"
                 aria-pressed={keyVisible}
@@ -1051,7 +1049,7 @@ function ShareHandoffPanel({
                 onClick={() => setKeyVisible((visible) => !visible)}
               >
                 {keyVisible ? <EyeOff size={13} /> : <Eye size={13} />}
-              </button>
+              </button></Tooltip>
             ) : null}
           />
           {reused && !handoff.apiKey && (
@@ -1166,7 +1164,6 @@ function ShareReceipt({
       <span className="desktop-share-receipt-dot" aria-hidden="true" />
       <span>
         <strong>{t("cloud.share.receipt.waiting", { target: targetLabel })}</strong>
-        <small>{t("cloud.share.receipt.waitingHint", { target: targetLabel })}</small>
       </span>
     </div>
   );

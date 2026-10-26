@@ -373,16 +373,18 @@ function PuppyFlowStepRow({
             </select>
           </label>
           <span className="puppyflow-step-meta">{agent.provider} · {getAgentModelLabel(agent.id, t)}</span>
-          <Tooltip content={workdirTitle}><span className="puppyflow-step-meta workdir">
+          <span className="puppyflow-step-meta workdir">
             <Folder size={13} />
             <span dir={workdirIsPath ? "ltr" : "auto"}>{workdirLabel}</span>
-          </span></Tooltip>
+          </span>
         </div>
         <div className="puppyflow-step-actions">
-          <button type="button" disabled={readOnly} aria-label={t("editor.puppyflow.duplicateStep", { number: index + 1 })} onClick={onDuplicate}>
+          <Tooltip content={t("editor.puppyflow.duplicateStep", { number: index + 1 })}><button type="button" disabled={readOnly} aria-label={t("editor.puppyflow.duplicateStep", { number: index + 1 })} onClick={onDuplicate}>
             <Copy size={15} />
-          </button>
-          <button
+          </button></Tooltip>
+          <Tooltip content={step.enabled
+              ? t("editor.puppyflow.disableStep", { number: index + 1 })
+              : t("editor.puppyflow.enableStep", { number: index + 1 })}><button
             className="puppyflow-toggle"
             type="button"
             disabled={readOnly}
@@ -393,10 +395,10 @@ function PuppyFlowStepRow({
             onClick={onToggleEnabled}
           >
             <span />
-          </button>
-          <button type="button" disabled={readOnly} aria-label={t("editor.puppyflow.deleteStep", { number: index + 1 })} onClick={onRemove}>
+          </button></Tooltip>
+          <Tooltip content={t("editor.puppyflow.deleteStep", { number: index + 1 })}><button type="button" disabled={readOnly} aria-label={t("editor.puppyflow.deleteStep", { number: index + 1 })} onClick={onRemove}>
             <Trash2 size={15} />
-          </button>
+          </button></Tooltip>
         </div>
       </div>
     </article>

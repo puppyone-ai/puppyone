@@ -4,6 +4,7 @@ import type { MarkdownHtmlTrustMode } from "../../registry/viewerTypes";
 import { useVisibleFrameReadiness } from "../shared/useVisibleFrameReadiness";
 import { useEffect, useMemo, useState } from "react";
 import { useEditorPreviewServices } from "../../preview-services/EditorPreviewServices";
+import { resolveFileFormat } from "../../../core/fileFormats";
 
 export function HtmlPreviewFrame({
   path,
@@ -32,19 +33,20 @@ export function HtmlPreviewFrame({
   const projection = useMemo(() => hasContentSnapshot ? buildHtmlPreviewDocument(content, fileUrl, getHtmlPreviewPolicy(htmlTrustMode)) : null,
     [content, fileUrl, htmlTrustMode, hasContentSnapshot]);
   const [resource, setResource] = useState<{ key: string; url: string | null } | null>(null);
-  const useProjection = !!projectionPort && projection !== null && projection.length <= 2 * 1024 * 1024 && /\.html?$/i.test(path);
+  const useProjection = !!projectionPort && projection !== null && projection.length <= 2 * 1024 * 1024
+    && resolveFileFormat({ name: path }).defaultViewer === "html-artifact";
   useEffect(() => {
     if (!useProjection || !projectionPort || projection === null) return;
     const abort = new AbortController();
     let release: (() => Promise<void>) | undefined;
     // Ordinary previews retain their existing link/interaction policy through the iframe sandbox.
-    void projectionPort.create(path, projection, abort.signal, { interactive: true }).then(async (lease) => {
+    void projectionPort.create(path, projection, abort.signal, { interactive: true, baseHref: readHtmlBaseHref(content ?? "") }).then(async (lease) => {
       if (abort.signal.aborted) { await lease.close(); return; }
       release = lease.close;
       setResource({ key: frameKey, url: lease.url });
     }).catch(() => { if (!abort.signal.aborted) setResource({ key: frameKey, url: null }); });
     return () => { abort.abort(); void release?.().catch(() => undefined); };
-  }, [projectionPort, projection, useProjection, path, frameKey, htmlTrustMode]);
+  }, [projectionPort, projection, useProjection, path, frameKey, htmlTrustMode, content]);
   const resourceReady = resource?.key === frameKey;
   const projectionUrl = resourceReady ? resource.url : undefined;
 
@@ -62,6 +64,16 @@ export function HtmlPreviewFrame({
       onLoad={frameReadiness.onFrameLoad}
     />
   );
+}
+
+function readHtmlBaseHref(source: string): string | null {
+  const pending: Tree.ParentNode[] = [parse(source)];
+  while (pending.length) {
+    const node = pending.pop()!;
+    if ("tagName" in node && node.tagName === "base") return node.attrs.find((attribute) => attribute.name === "href")?.value ?? null;
+    for (const child of [...node.childNodes].reverse()) if ("childNodes" in child) pending.push(child);
+  }
+  return null;
 }
 
 type HtmlPreviewPolicy = {
@@ -124,6 +136,11 @@ export function buildHtmlPreviewDocument(rawHtml: string, baseHref: string | nul
   let resolvedBase = baseHref;
   if (originalBase !== undefined) {
     try { resolvedBase = new URL(originalBase, baseHref ?? undefined).href; } catch { /* No valid resource base is available. */ }
+  }
+  if (policy.csp && resolvedBase) {
+    try {
+      if (!["https:", "puppyone-local:"].includes(new URL(resolvedBase).protocol)) resolvedBase = null;
+    } catch { resolvedBase = null; }
   }
   const csp = policy.csp
     ? `<meta http-equiv="Content-Security-Policy" content="${escapeHtmlAttribute(policy.csp)}">`

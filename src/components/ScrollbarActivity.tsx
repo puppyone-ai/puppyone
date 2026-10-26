@@ -6,6 +6,8 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { createPortal } from "react-dom";
+import { Tooltip } from "@puppyone/shared-ui";
+import { useLocalization } from "@puppyone/localization/react";
 
 const ACTIVE_SCROLLBAR_CLASS = "po-scrollbar-active";
 const MANAGED_SCROLLBAR_SELECTOR = '[data-po-scrollbar]:not([data-po-scrollbar="hidden"])';
@@ -195,6 +197,7 @@ function getScrollTarget(target: EventTarget | null): Element | null {
  * never viewport-positioned and therefore remain below overlay/menu layers.
  */
 export function ScrollbarActivity() {
+  const { t } = useLocalization();
   const [historicalControls, setHistoricalControls] = useState<HistoricalScrollbarControl[]>([]);
   const historicalControlsRef = useRef<HistoricalScrollbarControl[]>([]);
   const repeatDelayRef = useRef<number | null>(null);
@@ -355,8 +358,9 @@ export function ScrollbarActivity() {
         width: `${control.width}px`,
       } as CSSProperties}
     >
-      <button
+      <Tooltip content={t(control.orientation === "vertical" ? "shared-ui.scrollbar.up" : "shared-ui.scrollbar.left")}><button
         className="po-classic-scrollbar-button decrement"
+        aria-label={t(control.orientation === "vertical" ? "shared-ui.scrollbar.up" : "shared-ui.scrollbar.left")}
         type="button"
         tabIndex={-1}
         disabled={!control.canDecrement}
@@ -369,9 +373,10 @@ export function ScrollbarActivity() {
         onPointerUp={stopRepeating}
         onPointerCancel={stopRepeating}
         onLostPointerCapture={stopRepeating}
-      />
-      <button
+      /></Tooltip>
+      <Tooltip content={t(control.orientation === "vertical" ? "shared-ui.scrollbar.down" : "shared-ui.scrollbar.right")}><button
         className="po-classic-scrollbar-button increment"
+        aria-label={t(control.orientation === "vertical" ? "shared-ui.scrollbar.down" : "shared-ui.scrollbar.right")}
         type="button"
         tabIndex={-1}
         disabled={!control.canIncrement}
@@ -384,7 +389,7 @@ export function ScrollbarActivity() {
         onPointerUp={stopRepeating}
         onPointerCancel={stopRepeating}
         onLostPointerCapture={stopRepeating}
-      />
+      /></Tooltip>
     </div>,
     control.host,
     `${control.id}:${control.orientation}`,

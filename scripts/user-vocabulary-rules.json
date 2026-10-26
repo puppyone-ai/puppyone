@@ -1,0 +1,185 @@
+{
+  "generated": "node scripts/check-user-vocabulary.mjs --sync",
+  "source": {
+    "provenance": "puppy-issues@d1618f5:document/product-philosophy.md#vocabulary",
+    "tableDigest": "e088b337223286c7a83cd42679897f37e9bb58d5ee656bd041421a0f151755d0"
+  },
+  "rules": [
+    {
+      "term": "备份",
+      "concept": "云上那份",
+      "userFacing": "对外那一面 / Cloud"
+    },
+    {
+      "term": "Backup",
+      "concept": "云上那份",
+      "userFacing": "对外那一面 / Cloud"
+    },
+    {
+      "term": "云盘",
+      "concept": "云上那份",
+      "userFacing": "对外那一面 / Cloud"
+    },
+    {
+      "term": "网盘",
+      "concept": "云上那份",
+      "userFacing": "对外那一面 / Cloud"
+    },
+    {
+      "term": "Clone",
+      "concept": "可编辑副本",
+      "userFacing": "（不出现，隐含）"
+    },
+    {
+      "term": "Checkout",
+      "concept": "可编辑副本",
+      "userFacing": "（不出现，隐含）"
+    },
+    {
+      "term": "仓库",
+      "concept": "可编辑副本",
+      "userFacing": "（不出现，隐含）"
+    },
+    {
+      "term": "VM",
+      "concept": "远程运行环境",
+      "userFacing": "Hosted workspace / 托管工作区"
+    },
+    {
+      "term": "虚拟机",
+      "concept": "远程运行环境",
+      "userFacing": "Hosted workspace / 托管工作区"
+    },
+    {
+      "term": "容器",
+      "concept": "远程运行环境",
+      "userFacing": "Hosted workspace / 托管工作区"
+    },
+    {
+      "term": "实例",
+      "concept": "远程运行环境",
+      "userFacing": "Hosted workspace / 托管工作区"
+    },
+    {
+      "term": "Download",
+      "concept": "取到本机",
+      "userFacing": "Get a copy"
+    },
+    {
+      "term": "Pull",
+      "concept": "取到本机",
+      "userFacing": "Get a copy"
+    },
+    {
+      "term": "Push",
+      "concept": "推上去",
+      "userFacing": "（不出现，自动）"
+    },
+    {
+      "term": "Upload",
+      "concept": "推上去",
+      "userFacing": "（不出现，自动）"
+    },
+    {
+      "term": "Sync",
+      "concept": "推上去",
+      "userFacing": "（不出现，自动）"
+    },
+    {
+      "term": "Merge",
+      "concept": "别处的改动",
+      "userFacing": "*X* made 3 changes"
+    },
+    {
+      "term": "Conflict",
+      "concept": "别处的改动",
+      "userFacing": "*X* made 3 changes"
+    },
+    {
+      "term": "Diverged",
+      "concept": "别处的改动",
+      "userFacing": "*X* made 3 changes"
+    },
+    {
+      "term": "Source of truth",
+      "concept": "权威",
+      "userFacing": "（不出现，由规则保证）"
+    },
+    {
+      "term": "主副本",
+      "concept": "权威",
+      "userFacing": "（不出现，由规则保证）"
+    },
+    {
+      "term": "Permission",
+      "concept": "可达性",
+      "userFacing": "Who can reach this"
+    },
+    {
+      "term": "ACL",
+      "concept": "可达性",
+      "userFacing": "Who can reach this"
+    },
+    {
+      "term": "Scope",
+      "concept": "可达性",
+      "userFacing": "Who can reach this"
+    },
+    {
+      "term": "Out of sync",
+      "concept": "新鲜度",
+      "userFacing": "*X* sees your 14m-ago version"
+    },
+    {
+      "term": "Stale",
+      "concept": "新鲜度",
+      "userFacing": "*X* sees your 14m-ago version"
+    },
+    {
+      "term": "同步失败",
+      "concept": "新鲜度",
+      "userFacing": "*X* sees your 14m-ago version"
+    },
+    {
+      "term": "Local",
+      "concept": "离线可用性",
+      "userFacing": "Not on this Mac"
+    },
+    {
+      "term": "存储位置",
+      "concept": "离线可用性",
+      "userFacing": "Not on this Mac"
+    },
+    {
+      "term": "Share to Cloud",
+      "concept": "分享给人",
+      "userFacing": "Invite a person"
+    },
+    {
+      "term": "Publish",
+      "concept": "分享给人",
+      "userFacing": "Invite a person"
+    },
+    {
+      "term": "Add MCP",
+      "concept": "连接 Agent",
+      "userFacing": "Connect an agent"
+    },
+    {
+      "term": "授权",
+      "concept": "连接 Agent",
+      "userFacing": "Connect an agent"
+    },
+    {
+      "term": "集成",
+      "concept": "连接 Agent",
+      "userFacing": "Connect an agent"
+    }
+  ],
+  "skipped": [
+    {
+      "term": "Cloud",
+      "reason": "sanctioned user-facing wording elsewhere in the Vocabulary table"
+    }
+  ]
+}

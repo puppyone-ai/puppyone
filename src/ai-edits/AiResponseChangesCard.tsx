@@ -54,7 +54,7 @@ export function AiResponseChangesCard({
               onOpenFile?.(file.path);
             }}
           >
-            <Tooltip content={file.path} overflowOnly><span className="ai-response-changes-card__path" dir="ltr">{file.path}</span></Tooltip>
+            <span className="ai-response-changes-card__path" dir="ltr">{file.path}</span>
             <span className="ai-response-changes-card__stat" dir="ltr">
               <span className="ai-response-changes-card__stat-add">+{file.additions}</span>
               <span className="ai-response-changes-card__stat-delete">-{file.deletions}</span>
@@ -79,16 +79,16 @@ export function AiResponseChangesCard({
         >
           <header className="ai-edit-review-popover__header">
             <div>
-              <Tooltip content={selectedFile.path} overflowOnly><strong dir="ltr">{selectedFile.path}</strong></Tooltip>
+              <strong dir="ltr">{selectedFile.path}</strong>
               <span dir="ltr">+{selectedFile.additions} -{selectedFile.deletions}</span>
             </div>
-            <button
+            <Tooltip content={t("source-control.aiChanges.closeReview")}><button
               type="button"
               aria-label={t("source-control.aiChanges.closeReview")}
               onClick={() => setReviewOpen(false)}
             >
               <X size={14} />
-            </button>
+            </button></Tooltip>
           </header>
           <AiEditFileDiff file={selectedFile} t={t} />
         </div>

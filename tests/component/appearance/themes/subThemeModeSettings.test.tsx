@@ -1,3 +1,4 @@
+import { initializeDesktopPreferences, desktopPreferencesStore as store } from "../../../../src/preferencesStore";
 // @vitest-environment happy-dom
 
 import { act } from "react";
@@ -11,6 +12,8 @@ import { withTestLocalization } from "../../../support/react/localization";
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 let container: HTMLDivElement;
+beforeEach(() => { localStorage.clear(); initializeDesktopPreferences(); });
+
 let root: Root;
 
 beforeEach(() => {
@@ -27,14 +30,14 @@ afterEach(() => {
 describe("mode-first Sub Theme settings", () => {
   it("hides a light-only theme in Dark while preserving a safe effective selection", () => {
     const catalog = controller();
-    render(catalog, "dark", "default.neutral");
+    render(catalog, "dark");
 
     const darkOptions = [...container.querySelectorAll("option")].map((option) => option.value);
     expect(darkOptions).not.toContain("com.example.light-only");
     expect(container.querySelector<HTMLSelectElement>("select")?.value).toBe("default.neutral");
     expect(container.querySelector(".desktop-sub-theme-mode-badge")).toBeNull();
 
-    render(catalog, "light", "com.example.light-only");
+    render(catalog, "light");
     const lightOptions = [...container.querySelectorAll("option")].map((option) => option.value);
     expect(lightOptions).toContain("com.example.light-only");
     expect(container.querySelector<HTMLSelectElement>("select")?.value).toBe("com.example.light-only");
@@ -45,17 +48,14 @@ describe("mode-first Sub Theme settings", () => {
 function render(
   catalog: SubThemeCatalogController,
   effectiveColorMode: "light" | "dark",
-  effectiveSubThemeId: string,
 ) {
+  act(() => {
+    store.setState({ subThemeCatalog: catalog.snapshot });
+    store.getState().setThemeMode(effectiveColorMode);
+    store.getState().setSubThemeId("com.example.light-only");
+  });
   act(() => root.render(withTestLocalization(
-    <SubThemeSettingsSection
-      catalog={catalog}
-      rootThemeId="default"
-      requestedSubThemeId="com.example.light-only"
-      effectiveSubThemeId={effectiveSubThemeId}
-      effectiveColorMode={effectiveColorMode}
-      onSubThemeChange={vi.fn()}
-    />,
+    <SubThemeSettingsSection catalog={catalog} />,
   )));
 }
 

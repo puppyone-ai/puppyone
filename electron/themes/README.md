@@ -19,7 +19,7 @@ Underneath that model, a generated Neutral fallback sits at the lowest CSS
 layer. It keeps the client readable when a theme is missing or damaged; it is
 not another selectable theme and never outranks a valid Root/Sub Theme.
 
-Shared editors remain generic. They inherit public `--po-host-md-*` and `--po-host-csv-*` tokens from the application root; installed themes cannot select CodeMirror, Markdown, CSV, or other editor implementation nodes.
+Shared editors remain generic. The compiler projects Markdown tokens at each document boundary and stops at nested appearance roots. CSV inherits its host tokens from the appearance root. Installed themes cannot select CodeMirror, Markdown, CSV, or other editor implementation nodes.
 
 ## Where this folder belongs
 
@@ -36,6 +36,33 @@ the file in this folder, refreshes the catalog, and selects it. Repeated use
 creates `custom-theme-2`, `custom-theme-3`, and so on. The built-in Sub Themes
 remain inside the application and are intentionally not copied here as editable
 duplicates.
+
+New files contain a complete Markdown profile. Edit that file's
+`@puppyone markdown` block to control body/headings, quote/list colors, inline
+code, code blocks, tables, metadata and diagram colors. Built-in files use the
+same contract. The renderer supplies no separate content palette or font scale.
+Older partial files remain valid: missing fields use defaults generated from
+the Neutral theme file, and catalog refresh never rewrites your files.
+
+The default profile uses transparent inline code, supporting quote colors for
+table/plain-code text, and the table font size for code blocks. These are file
+values you can change, not renderer-enforced appearance:
+
+```css
+/* Edit these declarations in the generated @puppyone markdown block. */
+:root {
+  --po-md-inline-code-background: transparent;
+  --po-md-code-block-color: var(--po-md-blockquote-color);
+  --po-md-code-block-font-size: var(--po-md-table-font-size);
+  --po-md-table-font-size: 13px;
+  --po-md-code-font: "Geist Mono", monospace;
+}
+```
+
+The application text-size preset continues to control product UI. Markdown
+content uses its file's sizes. Explicit Editor font and Markdown heading/strong
+preferences remain named, opt-in surface overrides; following the theme adds
+no override. Accessibility may still use operating-system colors.
 
 The recommended user layout is:
 

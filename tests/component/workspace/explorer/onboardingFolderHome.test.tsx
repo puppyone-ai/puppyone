@@ -1,10 +1,11 @@
+import { initializeDesktopPreferences, desktopPreferencesStore as preferences } from "../../../../src/preferencesStore";
 /**
  * @vitest-environment happy-dom
  */
 import { readFileSync } from "node:fs";
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MinimalOnboarding, type MinimalOnboardingProps } from "../../../../src/components/MinimalOnboarding";
 import { OnboardingImportDialog } from "../../../../src/components/OnboardingImportDialog";
 import { PUPPY_BRAND_MARK_ASSETS } from "../../../../src/components/brand/PuppyBrandMark";
@@ -17,6 +18,8 @@ import { createTestSurfaceAppearance } from "../../../support/react/surfaceAppea
 import { DEFAULT_EXPERIMENTAL_SETTINGS } from "../../../../src/preferences";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+beforeEach(() => { localStorage.clear(); initializeDesktopPreferences(); });
 
 let root: Root | null = null;
 const originalClipboard = navigator.clipboard;
@@ -281,6 +284,30 @@ describe("project folder home", () => {
     expect(surface.dataset.onboardingState).toBe("projects");
     expect(homepage?.className).toBe("onboarding-homepage");
     expect(homepage?.getAttribute("data-start-page-layout")).toBeNull();
+    const list = container.querySelector<HTMLElement>(".onboarding-project-list");
+    expect(list?.dataset.poScrollbar).toBe("menu");
+    expect(list?.dataset.poScrollbarVisibility).toBe("always");
+    expect(list?.getAttribute("role")).toBe("region");
+    expect(list?.getAttribute("aria-label")).toBe("Projects");
+    expect(list?.tabIndex).toBe(0);
+  });
+
+  it("lets the project scrollport use remaining height without fixed list caps", () => {
+    expect(onboardingCss).toContain("grid-template-rows: auto minmax(0, 1fr) auto;");
+    expect(onboardingCss).toMatch(/\.onboarding-project-list\s*\{[^}]*min-height:\s*0;[^}]*overflow-y:\s*auto;[^}]*overflow-x:\s*hidden;[^}]*scrollbar-gutter:\s*stable;/s);
+    expect(onboardingCss).not.toMatch(/\.onboarding-project-list\s*\{[^}]*max-height:/s);
+    expect(onboardingCss).not.toMatch(/\.onboarding-home-primary\[data-onboarding-primary="projects"\]\s*\{[^}]*max-height:/s);
+    expect(onboardingCss).not.toContain("::-webkit-scrollbar");
+  });
+
+  it("preserves the upper rhythm and reclaims space only below the project list", () => {
+    // The projects page hangs from the shared Header and keeps a small bottom edge;
+    // only the list below absorbs extra height.
+    expect(onboardingCss).toMatch(
+      /\.onboarding-homepage-shell\[data-onboarding-state="projects"\]\s*\{[^}]*padding-block-start:\s*calc\(var\(--desktop-chrome-height\) \+ \d+px\);[^}]*padding-block-end:\s*16px;/s,
+    );
+    expect(onboardingCss).toMatch(/\.onboarding-shell\[data-onboarding-state="projects"\] \.onboarding-homepage\s*\{[^}]*--onboarding-primary-inset-end:\s*10px;[^}]*--onboarding-primary-actions-gap:\s*12px;/s);
+    expect(onboardingCss).toMatch(/\.onboarding-shell\[data-onboarding-state="projects"\] \.onboarding-entry-actions\s*\{[^}]*padding-block-end:\s*0;/s);
   });
 
   it("keeps one folder action after the project panel", async () => {
@@ -304,7 +331,8 @@ describe("project folder home", () => {
     expect(projectFolder).not.toBeNull();
     expect(container.querySelector(".desktop-menu-item-label")?.textContent).toBe("Notes");
     expect(container.querySelector(".desktop-menu-item-detail")?.textContent).toBe("~/Desktop");
-    expect(container.querySelector(".desktop-menu-item-trailing")?.textContent).toContain("Previously opened");
+    // Opening history is not a project modification timestamp.
+    expect(container.querySelector(".desktop-menu-item-trailing")?.textContent ?? "").toBe("");
 
     await act(async () => container.querySelector<HTMLButtonElement>("[data-onboarding-action='open']")?.click());
     expect(onChooseWorkspace).toHaveBeenCalledTimes(1);
@@ -387,6 +415,29 @@ describe("project folder home", () => {
     expect(onImportSource).not.toHaveBeenCalled();
   });
 
+  it("with Cloud on, requires an explicit template preview and sign-in before marketplace creation", async () => {
+    // Marketplace templates need a PuppyOne account, so the link entry rides on Cloud.
+    preferences.getState().setExperimentalSettings((settings) => ({ ...settings, enableCloudWorkspace: true }));
+    const readText = vi.fn(async () => "https://www.puppyone.ai/t/b91aaade-bc9e-4dfd-8f23-11f06ec00301");
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { readText } });
+    const resolveTemplateLink = vi.fn(async () => ({ id: "b91aaade-bc9e-4dfd-8f23-11f06ec00301", releaseId: "b91aaade-bc9e-4dfd-8f23-11f06ec00101", name: "CRM", description: "Customers", version: "1.0.0", author: "Puppyone", locale: "en", shareUrl: "https://www.puppyone.ai/t/b91aaade-bc9e-4dfd-8f23-11f06ec00301" }));
+    window.puppyoneDesktop = { resolveTemplateLink } as unknown as NonNullable<typeof window.puppyoneDesktop>;
+    const onCreateProject = vi.fn(createProjectResult);
+    const location = vi.fn(async () => ({ grantId: "default", path: "/example/Projects" }));
+    const container = renderHome({ onDefaultProjectLocation: location, onChooseProjectLocation: location, onCreateProject });
+    await act(async () => container.querySelector<HTMLButtonElement>("[data-onboarding-action='create']")?.click());
+    expect(readText).not.toHaveBeenCalled();
+    await act(async () => container.querySelector<HTMLInputElement>("input[type='checkbox']")?.click());
+    const submit = container.querySelector<HTMLButtonElement>("button[type='submit']");
+    expect(submit?.disabled).toBe(true);
+    await act(async () => [...container.querySelectorAll("button")].find(button => button.textContent === "Paste link")?.click());
+    expect(readText).toHaveBeenCalledOnce();
+    expect(resolveTemplateLink).toHaveBeenCalledOnce();
+    expect(container.textContent).toContain("Customers");
+    expect(submit?.disabled).toBe(true);
+    expect(onCreateProject).not.toHaveBeenCalled();
+  });
+
   it("prefills the name and built-in projects folder for one-action creation", async () => {
     const onDefaultProjectLocation = vi.fn(async () => ({
       grantId: "default-1",
@@ -414,7 +465,7 @@ describe("project folder home", () => {
     expect(onChooseProjectLocation).not.toHaveBeenCalled();
     expect(container.querySelector(".onboarding-entry-location-path")?.textContent).toBe("/Users/example/Documents/PuppyOne");
     expect(container.querySelector(".onboarding-entry-location-action")?.textContent).toBe("Change");
-    const projectName = container.querySelector<HTMLInputElement>(".onboarding-entry-dialog input");
+    const projectName = container.querySelector<HTMLInputElement>(".onboarding-entry-dialog input[type='text']");
     expect(projectName?.value).toMatch(/^My project [A-F0-9]{4}$/);
     const defaultName = projectName?.value;
     expect(container.querySelector(".onboarding-entry-dialog select")).toBeNull();
@@ -458,7 +509,7 @@ describe("project folder home", () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    setInputValue(container.querySelector<HTMLInputElement>(".onboarding-entry-dialog input"), "Knowledge Base");
+    setInputValue(container.querySelector<HTMLInputElement>(".onboarding-entry-dialog input[type='text']"), "Knowledge Base");
     await act(async () => {
       container.querySelector<HTMLButtonElement>(".onboarding-entry-browse-button")?.click();
       await Promise.resolve();
@@ -494,7 +545,7 @@ describe("project folder home", () => {
     expect(container.querySelector(".onboarding-entry-location-path")?.textContent).toBe("Choose a folder");
     expect(container.querySelector(".onboarding-entry-location-action")?.textContent).toBe("Browse");
     const createButton = container.querySelector<HTMLButtonElement>(".onboarding-entry-dialog button[type='submit']");
-    setInputValue(container.querySelector<HTMLInputElement>(".onboarding-entry-dialog input"), "Knowledge Base");
+    setInputValue(container.querySelector<HTMLInputElement>(".onboarding-entry-dialog input[type='text']"), "Knowledge Base");
     expect(createButton?.disabled).toBe(true);
   });
 
@@ -509,9 +560,8 @@ describe("project folder home", () => {
     const dialog = container.querySelector<HTMLElement>("[role='dialog']");
     expect(dialog?.getAttribute("aria-label")).toBe("Import");
     expect(dialog?.classList.contains("is-import")).toBe(true);
-    expect(container.querySelector(".onboarding-import-intro")?.textContent).toBe(
-      "Bring content from these apps into a local project.",
-    );
+    // The intro sentence was redundant with the dialog title and removed (7d1f4b77).
+    expect(container.querySelector(".onboarding-import-intro")).toBeNull();
     const sources = [...container.querySelectorAll<HTMLButtonElement>(".onboarding-import-source")];
     expect(sources.map((source) => source.dataset.importSource)).toEqual([
       "github",
@@ -526,9 +576,10 @@ describe("project folder home", () => {
       "repository",
     ]);
     expect(container.querySelector(".onboarding-entry-dialog input")).toBeNull();
-    expect(dialog?.querySelectorAll("p")).toHaveLength(1);
+    // The picker is just its labelled list of sources: no prose, nothing to describe.
+    expect(dialog?.querySelectorAll("p")).toHaveLength(0);
     expect(dialog?.querySelector(".desktop-dialog-leading, .onboarding-import-source-chevron, .onboarding-import-source-copy")).toBeNull();
-    expect(dialog?.getAttribute("aria-describedby")).toBe(dialog?.querySelector(".onboarding-import-intro")?.id);
+    expect(dialog?.hasAttribute("aria-describedby")).toBe(false);
     expect(dialog?.querySelectorAll(".onboarding-import-sources > li > button")).toHaveLength(2);
     expect(sources.every((source) => source.getAttribute("role") === null)).toBe(true);
     expect(sources.every((source) => source.children.length === 2)).toBe(true);
@@ -551,11 +602,11 @@ describe("project folder home", () => {
     ".onboarding-entry-import [data-import-brand='obsidian']",
   ])("opens the common source picker from the import entry (%s)", async (selector) => {
     const onDefaultProjectLocation = vi.fn(async () => null);
+    preferences.getState().setExperimentalSettings(ALL_EXPERIMENTAL_IMPORTS);
     const container = renderHome({
       onImportSource: vi.fn(async () => true),
       onChooseWorkspace: vi.fn(async () => undefined),
       onDefaultProjectLocation,
-      experimentalSettings: ALL_EXPERIMENTAL_IMPORTS,
     });
 
     await act(async () => {
@@ -588,10 +639,20 @@ describe("project folder home", () => {
     expect(container.querySelector("[role='dialog']")).toBeNull();
   });
 
+  it("updates the production import preview and open picker from the import preference", async () => {
+    const container = renderHome({ onImportSource: vi.fn(async () => true) });
+    await act(async () => container.querySelector<HTMLButtonElement>(".onboarding-entry-import")?.click());
+    expect(container.querySelector('[data-import-source="obsidian"]')).toBeNull();
+    act(() => preferences.getState().setExperimentalSettings(current => ({ ...current, enableOtherAppImports: true })));
+    expect(container.querySelector('[data-import-source="obsidian"]')).not.toBeNull();
+    expect(container.querySelector(".onboarding-entry-import [data-import-brand='obsidian']")).not.toBeNull();
+    expect(JSON.parse(localStorage.getItem("puppyone.desktop.experimental")!).enableOtherAppImports).toBe(true);
+  });
+
   it("keeps remote providers unavailable until direct service adapters exist", async () => {
     const onImportSource = vi.fn(async () => true);
+    preferences.getState().setExperimentalSettings(ALL_EXPERIMENTAL_IMPORTS);
     const container = renderHome({
-      experimentalSettings: ALL_EXPERIMENTAL_IMPORTS,
       onImportSource,
     });
     await act(async () => container.querySelector<HTMLButtonElement>(".onboarding-entry-import")?.click());
@@ -651,8 +712,8 @@ describe("project folder home", () => {
   it("copies an Obsidian vault through the local source adapter", async () => {
     const onChooseWorkspace = vi.fn(async () => undefined);
     const onImportSource = vi.fn(async () => true);
+    preferences.getState().setExperimentalSettings(ALL_EXPERIMENTAL_IMPORTS);
     const container = renderHome({
-      experimentalSettings: ALL_EXPERIMENTAL_IMPORTS,
       onImportSource,
       onChooseWorkspace,
     });
@@ -695,9 +756,8 @@ describe("project folder home", () => {
     );
     expect(providerMarks.map((mark) => mark.dataset.repositoryProvider)).toEqual(["github"]);
     expect(providerMarks.every((mark) => mark.getAttribute("fill") === "currentColor")).toBe(true);
-    expect(container.querySelector(".onboarding-clone-hint")?.textContent).toBe(
-      "The GitHub repository will be copied to this computer.",
-    );
+    // No standing copy hint (7d1f4b77); a hint appears only for an unsupported URL.
+    expect(container.querySelector(".onboarding-clone-hint")).toBeNull();
     expect(onDefaultProjectLocation).toHaveBeenCalledOnce();
     expect(container.querySelector(".onboarding-entry-location-path")?.textContent).toBe("/Users/example/Documents/PuppyOne");
     const repositoryUrl = container.querySelector<HTMLInputElement>(".onboarding-entry-dialog input");
@@ -769,7 +829,7 @@ describe("project folder home", () => {
     expect(onImportSource).not.toHaveBeenCalled();
   });
 
-  it("shows project-opening progress only inside the project row", async () => {
+  it("shows project-opening progress in a page overlay and blocks duplicate opens", async () => {
     let finishOpening: (() => void) | null = null;
     const onOpenWorkspacePath = vi.fn(() => new Promise<void>((resolve) => {
       finishOpening = resolve;
@@ -790,11 +850,21 @@ describe("project folder home", () => {
       await Promise.resolve();
     });
 
-    expect(row?.querySelectorAll("[data-puppy-loader]")).toHaveLength(1);
-    expect(container.querySelector(".onboarding-operation-status")).toBeNull();
+    const overlay = container.querySelector(".onboarding-project-loading");
+    const page = container.querySelector<HTMLElement>(".onboarding-homepage");
+    expect(overlay?.textContent).toContain("Loading project");
+    expect(overlay?.closest(".desktop-titlebar")).toBeNull();
+    expect(page?.inert).toBe(true);
+    expect(row?.disabled).toBe(true);
+    expect(row?.querySelector("[data-puppy-loader]")).toBeNull();
     expect(container.querySelectorAll("[data-puppy-loader]")).toHaveLength(1);
+    await act(async () => row?.click());
+    expect(onOpenWorkspacePath).toHaveBeenCalledOnce();
 
     await act(async () => finishOpening?.());
+    expect(container.querySelector(".onboarding-project-loading")).toBeNull();
+    expect(page?.inert).toBe(false);
+    expect(row?.disabled).toBe(false);
   });
 
   it("shows folder-opening progress only inside the folder action", async () => {

@@ -1,3 +1,4 @@
+import type { MarkdownTaskLine } from "./markdownListStructure";
 import type {
   MarkdownCodeSourceReference,
   MarkdownHtmlBlockStatus,
@@ -57,7 +58,7 @@ export type MarkdownElementBlockData =
     }
   | { kind: "mathBlock"; source: string }
   | { kind: "mathInline"; source: string }
-  | { kind: "task"; checked: boolean }
+  | { kind: "task"; checked: boolean; task: MarkdownTaskLine }
   | { kind: "video"; model: MarkdownVideoModel }
   | {
       kind: "image";

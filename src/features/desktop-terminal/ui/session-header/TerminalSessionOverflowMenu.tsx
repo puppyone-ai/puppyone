@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import {
   useEffect,
   useRef,
@@ -11,8 +12,8 @@ import {
   DesktopMenuItem,
   DesktopMenuSurface,
 } from "../../../../components/DesktopMenu";
-import { DesktopOverlayLayer } from "../../../app-shell/DesktopOverlayPortal";
-import { useAnchoredOverlayPosition } from "../../../app-shell/useAnchoredOverlayPosition";
+import { DesktopOverlayLayer } from "../../../../components/DesktopOverlayPortal";
+import { useAnchoredOverlayPosition } from "../../../../components/useAnchoredOverlayPosition";
 import { TerminalSessionHeaderStatus } from "./TerminalSessionHeaderStatus";
 import type { TerminalSessionHeaderItem } from "./types";
 
@@ -110,14 +111,14 @@ export function TerminalSessionOverflowMenu({
   return (
     <>
       <div className="desktop-terminal-tab-overflow-wrap" ref={triggerRef}>
-        <DesktopMenuIconButton
+        <Tooltip content={label}><DesktopMenuIconButton
           className="desktop-terminal-tab-overflow-trigger"
           label={label}
           icon={<MoreHorizontal size={14} strokeWidth={1.9} aria-hidden="true" />}
           aria-haspopup="menu"
           aria-expanded={open}
           onClick={() => setOpen((current) => !current)}
-        />
+        /></Tooltip>
       </div>
       {open && (
         <DesktopOverlayLayer>
@@ -177,13 +178,13 @@ function TerminalOverflowSessionRow({
         aria-checked="false"
         onClick={onActivate}
       />
-      <DesktopMenuIconButton
+      <Tooltip content={t("terminal.closeSession", { title: presentation.sessionTitle })}><DesktopMenuIconButton
         className="desktop-terminal-tab-overflow-close"
         role="menuitem"
         label={t("terminal.closeSession", { title: presentation.sessionTitle })}
         icon={<X size={12} strokeWidth={1.8} aria-hidden="true" />}
         onClick={onClose}
-      />
+      /></Tooltip>
     </div>
   );
 }

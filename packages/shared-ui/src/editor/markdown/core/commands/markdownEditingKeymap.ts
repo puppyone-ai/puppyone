@@ -1,5 +1,7 @@
 import { EditorSelection } from "@codemirror/state";
 import { EditorView, type KeyBinding } from "@codemirror/view";
+import { insertNewlineContinueMarkupCommand } from "@codemirror/lang-markdown";
+import { getMarkdownListItemAt } from "../syntax/markdownListStructure";
 import {
   getCollapsedMarkerDeletionUnit,
   getExpandableInlineAtomAtSelection,
@@ -14,12 +16,9 @@ import {
   getMarkdownVisibleLineStart as getMarkdownVisibleLineStartPosition,
 } from "../syntax/markdownElements";
 import {
-  getContinuationPrefix,
-  getLineMarkerPrefixRange,
-  getListOrQuoteContent,
+  continueMarkdownListItem,
   indentMarkdownListItem,
   outdentMarkdownListItem,
-  renumberOrderedLists,
   setMarkdownHeadingLevel,
   toggleMarkdownList,
   toggleMarkdownQuote,
@@ -130,28 +129,13 @@ function handleMarkdownEnter(view: EditorView): boolean {
   const selection = state.selection.main;
   if (!selection.empty) return false;
 
-  const line = state.doc.lineAt(selection.from);
-  const prefix = getContinuationPrefix(line.text);
-  if (!prefix) return false;
-
-  const content = getListOrQuoteContent(line.text);
-  if (selection.from === line.to && content.trim() === "") {
-    const marker = getLineMarkerPrefixRange(line.from, line.text);
-    if (!marker) return false;
-    view.dispatch({
-      changes: { from: marker.from, to: marker.to, insert: "" },
-      selection: EditorSelection.cursor(marker.from),
-    });
-    return true;
-  }
-
-  view.dispatch({
-    changes: { from: selection.from, to: selection.to, insert: `\n${prefix}` },
-    selection: EditorSelection.cursor(selection.from + 1 + prefix.length),
-  });
-  renumberOrderedLists(view);
-  return true;
+  const item = getMarkdownListItemAt(state, selection.from);
+  if (!item || item.quoted) return continueMarkdownMarkup(view);
+  return continueMarkdownListItem(view, item);
 }
+
+// Quoted markup retains the language package's own source command.
+const continueMarkdownMarkup = insertNewlineContinueMarkupCommand({ nonTightLists: false });
 
 function expandSelectedInlineAtom(view: EditorView): boolean {
   const selection = view.state.selection.main;

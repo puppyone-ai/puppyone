@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import {
   DESKTOP_WINDOW_MIN_HEIGHT,
   DESKTOP_WINDOW_MIN_WIDTH,
+  DESKTOP_DEFAULT_CHROME_HEIGHT,
 } from "../electron/main/window-layout-contract.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -21,6 +22,8 @@ const macosPlatformSource = read("electron/main/platform/macos/index.mjs");
 
 const rendererWidthMatch = tokensCss.match(/--desktop-window-min-width:\s*(\d+)px;/);
 const rendererMinWidth = rendererWidthMatch ? Number(rendererWidthMatch[1]) : null;
+const rendererChromeHeightMatch = tokensCss.match(/--desktop-chrome-height:\s*(\d+)px;/);
+const rendererChromeHeight = rendererChromeHeightMatch ? Number(rendererChromeHeightMatch[1]) : null;
 
 if (DESKTOP_WINDOW_MIN_WIDTH !== 640) {
   errors.push("The desktop native minimum width must remain 640px unless the product contract changes intentionally.");
@@ -30,6 +33,9 @@ if (DESKTOP_WINDOW_MIN_HEIGHT !== 520) {
 }
 if (rendererMinWidth !== DESKTOP_WINDOW_MIN_WIDTH) {
   errors.push("Renderer --desktop-window-min-width must match the Electron native minimum width.");
+}
+if (rendererChromeHeight !== DESKTOP_DEFAULT_CHROME_HEIGHT) {
+  errors.push("Renderer --desktop-chrome-height must match the native default Header height used to center traffic lights.");
 }
 if (!mainSource.includes("DESKTOP_WINDOW_MIN_HEIGHT,")
     || !mainSource.includes("DESKTOP_WINDOW_MIN_WIDTH,")) {

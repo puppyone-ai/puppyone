@@ -176,6 +176,10 @@ describe("Markdown Live Preview presentation readiness", () => {
     const host = getHost(container);
     expect(host.dataset.previewState).toBe("error");
     expect(host.dataset.previewMessage).toBe(testT("editor.markdown.previewUnavailable"));
+    const notice = container.querySelector<HTMLElement>(".markdown-preview-notice-stack .po-floating-notice");
+    expect(notice?.textContent).toContain(testT("editor.markdown.previewUnavailable"));
+    await act(async () => notice!.querySelector<HTMLButtonElement>(".po-floating-notice__dismiss")!.click());
+    expect(container.querySelector(".markdown-preview-notice-stack")).toBeNull();
     expect(getEditorView(container).state.doc.toString()).toBe("# Recoverable source");
     expect(onPreviewError).toHaveBeenCalledWith(activationError);
   });

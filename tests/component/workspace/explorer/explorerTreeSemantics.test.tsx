@@ -392,11 +392,16 @@ describe("ExplorerTree interactive semantics", () => {
     const resolve = vi.fn(async () => [{ path: source.path, name: source.name, entryType: "file" as const }]);
     const container = document.createElement("div"); document.body.appendChild(container); root = createRoot(container);
     act(() => renderWithTestLocalization(root, <ExplorerTree nodes={[source, target]} activePath={null} expandedPaths={new Set()} showRoot={false}
-      canMoveNodes onSelectNode={vi.fn()} onMoveNodes={onMoveNodes} onImportFiles={onImportFiles} onResolveFileDrop={resolve} />));
+      canMoveNodes resourceDragEntries={[{ path: source.path, name: source.name, entryType: "file" }]}
+      onSelectNode={vi.fn()} onMoveNodes={onMoveNodes} onImportFiles={onImportFiles} onResolveFileDrop={resolve} />));
     const targetRow = container.querySelector<HTMLElement>('[data-explorer-path="target"]')!;
     mockRowBounds(targetRow);
     const transfer = fakeDataTransfer();
     Object.assign(transfer, { files: [new File([""], "file.md")], types: ["Files"] });
+    act(() => targetRow.dispatchEvent(dragEvent("dragenter", transfer)));
+    expect(transfer.dropEffect).toBe("move");
+    expect(container.querySelector(".explorer-tree-drop-feedback")).toBeNull();
+    expect(container.querySelector(".is-importing-files")).toBeNull();
     await act(async () => { targetRow.dispatchEvent(dragEvent("drop", transfer)); });
     expect(onMoveNodes).toHaveBeenCalledWith([source], "target");
     expect(onImportFiles).not.toHaveBeenCalled();
@@ -446,6 +451,7 @@ describe("ExplorerTree interactive semantics", () => {
         canMoveNodes
         onSelectNode={vi.fn()}
         onMoveNodes={onMoveNodes}
+        onImportFiles={vi.fn()}
       />,
     ));
 
@@ -462,13 +468,62 @@ describe("ExplorerTree interactive semantics", () => {
       }],
     }));
 
+    act(() => parentRow.dispatchEvent(dragEvent("dragover", transfer)));
+    expect(transfer.dropEffect).toBe("move");
+    expect(container.querySelector(".explorer-tree-drop-feedback")).toBeNull();
+    expect(container.querySelector(".is-importing-files")).toBeNull();
     await act(async () => {
-      parentRow.dispatchEvent(dragEvent("dragover", transfer));
       parentRow.dispatchEvent(dragEvent("drop", transfer));
       await Promise.resolve();
     });
 
     expect(onMoveNodes).toHaveBeenCalledWith([source], parent.path);
+  });
+
+  it("keeps root import feedback through nested drag transitions and imports once on drop", async () => {
+    const onImportFiles = vi.fn(async () => undefined);
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    act(() => renderWithTestLocalization(root,
+      <ExplorerTree nodes={[]} activePath={null} expandedPaths={new Set()} showRoot={false}
+        onSelectNode={vi.fn()} onImportFiles={onImportFiles} />,
+    ));
+    const tree = container.querySelector<HTMLElement>(".explorer-tree-shell")!;
+    const scroll = container.querySelector<HTMLElement>(".explorer-tree-scroll")!;
+    const transfer = fakeFileDataTransfer();
+    act(() => tree.dispatchEvent(dragEvent("dragenter", transfer)));
+    const feedback = container.querySelector(".explorer-tree-drop-feedback");
+    expect(feedback?.textContent).toBe("Drop to add files");
+    expect(tree.dataset.fileDropTarget).toBe("root");
+    expect(transfer.dropEffect).toBe("copy");
+    expect(onImportFiles).not.toHaveBeenCalled();
+    act(() => {
+      scroll.dispatchEvent(dragEvent("dragenter", transfer));
+      tree.dispatchEvent(dragEvent("dragleave", transfer));
+    });
+    expect(container.querySelector(".explorer-tree-drop-feedback")).toBe(feedback);
+    const file = new File(["hello"], "note.md");
+    Object.assign(transfer, { files: [file] });
+    await act(async () => { scroll.dispatchEvent(dragEvent("drop", transfer)); });
+    expect(onImportFiles).toHaveBeenCalledExactlyOnceWith([file], null);
+    expect(container.querySelector(".explorer-tree-drop-feedback")).toBeNull();
+    expect(tree.dataset.fileDropTarget).toBeUndefined();
+  });
+
+  it.each(["read-only", "text"])("does not advertise file import for %s drags", (kind) => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    act(() => renderWithTestLocalization(root,
+      <ExplorerTree nodes={[]} activePath={null} expandedPaths={new Set()} showRoot={false}
+        onSelectNode={vi.fn()} onImportFiles={kind === "text" ? vi.fn() : undefined} />,
+    ));
+    const transfer = kind === "read-only" ? fakeFileDataTransfer() : fakeDataTransfer();
+    if (kind === "text") transfer.setData("text/plain", "note.md");
+    act(() => container.querySelector(".explorer-tree-shell")!.dispatchEvent(dragEvent("dragenter", transfer)));
+    expect(container.querySelector(".explorer-tree-drop-feedback")).toBeNull();
+    expect(transfer.dropEffect).toBe("none");
   });
 
   it("clears external-file drop feedback when the drag leaves the tree", () => {
@@ -499,9 +554,12 @@ describe("ExplorerTree interactive semantics", () => {
 
     act(() => row.dispatchEvent(dragEvent("dragenter", transfer)));
     expect(row.classList.contains("drop-target")).toBe(true);
+    expect(container.querySelector<HTMLElement>(".explorer-tree-shell")?.dataset.fileDropTarget).toBe("folder");
+    expect(container.querySelector(".explorer-tree-drop-feedback")).not.toBeNull();
 
     act(() => row.dispatchEvent(dragEvent("dragleave", transfer)));
     expect(row.classList.contains("drop-target")).toBe(false);
+    expect(container.querySelector(".explorer-tree-drop-feedback")).toBeNull();
   });
 
   it("clears external-file drop feedback for global drag cancellation signals", () => {
@@ -540,6 +598,7 @@ describe("ExplorerTree interactive semantics", () => {
       expect(row.classList.contains("drop-target")).toBe(true);
       act(() => cancel());
       expect(row.classList.contains("drop-target")).toBe(false);
+      expect(container.querySelector(".explorer-tree-drop-feedback")).toBeNull();
     }
   });
 });

@@ -46,6 +46,7 @@ export type FileClipboardController = {
   cutPaths: ReadonlySet<string>;
   operation: FileClipboardOperation;
   notice: FileOperationNotice | null;
+  dismissNotice: () => void;
   canCopy: boolean;
   canCut: boolean;
   canDuplicate: boolean;
@@ -112,6 +113,8 @@ export function useFileClipboard({
     );
     return () => window.clearTimeout(timeoutId);
   }, [notice, operation]);
+
+  const dismissNotice = useCallback(() => setNotice(null), []);
 
   const setClipboardFromNodes = useCallback((mode: "copy" | "cut", nodes: readonly DataNode[]) => {
     if (!workspace || !workspaceKey || operationRef.current !== null) return;
@@ -331,6 +334,7 @@ export function useFileClipboard({
     cutPaths,
     operation,
     notice,
+    dismissNotice,
     canCopy: Boolean(dataPort?.copyNode) && operation === null,
     canCut: Boolean(dataPort?.moveNode) && operation === null,
     canDuplicate: Boolean(dataPort?.copyNode) && operation === null,
@@ -346,6 +350,7 @@ export function useFileClipboard({
     cutNodes,
     cutPaths,
     dataPort,
+    dismissNotice,
     duplicateNodes,
     notice,
     operation,

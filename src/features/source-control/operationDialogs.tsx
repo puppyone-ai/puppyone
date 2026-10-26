@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { DesktopDialogCloseButton, DesktopDialogRoot } from "../../components/DesktopDialog";
@@ -221,7 +222,7 @@ export function BranchSwitchConflictDialog({
               <p>{t("source-control.dialog.switch.detail", { branch: bidiIsolate(branchName) })}</p>
             </div>
           </div>
-          <DesktopDialogCloseButton disabled={loading} onClick={onCancel} />
+          <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton label={t("common.action.close")} disabled={loading} onClick={onCancel} /></Tooltip>
         </header>
 
         <div className="desktop-dialog-body" data-po-scrollbar="content">
@@ -291,10 +292,9 @@ export function GitOperationErrorDialog({
             </span>
             <div>
               <h2 id="git-operation-error-title">{t("source-control.dialog.error.title")}</h2>
-              <p>{t("source-control.dialog.error.detail")}</p>
             </div>
           </div>
-          <DesktopDialogCloseButton onClick={onClose} />
+          <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton label={t("common.action.close")} onClick={onClose} /></Tooltip>
         </header>
 
         <div className="desktop-dialog-body" data-po-scrollbar="content">
@@ -363,7 +363,6 @@ export function BranchMenuGroup({
         <DesktopMenuItem
           key={`${branch.remote ? "remote" : "local"}:${branch.name}`}
           className="desktop-branch-menu-row"
-          tooltip={branch.lastCommitMessage ?? branch.name}
           selected={branch.current}
           disabled={Boolean(operationLoading) || branch.current}
           icon={<VersionControlIcon size={13} />}

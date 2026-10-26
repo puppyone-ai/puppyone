@@ -22,6 +22,7 @@ export type SettingsSidebarItem = {
   labelId: string;
   icon: LucideIcon;
   disabled: boolean;
+  requiresLocalWorkspace?: boolean;
   requiresCloud?: boolean;
   requiresOtherAppImports?: boolean;
 };
@@ -30,12 +31,14 @@ export type SettingsSidebarGroupModel = {
   id: string;
   labelId: string;
   items: readonly SettingsSidebarItem[];
+  requiresLocalWorkspace?: boolean;
   requiresCloud?: boolean;
 };
 
 export type SettingsVisibilityContext = {
   cloudEnabled: boolean;
   otherAppImportsEnabled?: boolean;
+  localWorkspaceAvailable?: boolean;
 };
 
 export const SETTINGS_SIDEBAR_GROUPS: readonly SettingsSidebarGroupModel[] = [
@@ -62,6 +65,7 @@ export const SETTINGS_SIDEBAR_GROUPS: readonly SettingsSidebarGroupModel[] = [
   },
   {
     id: "local-project",
+    requiresLocalWorkspace: true,
     labelId: "settings.sidebar.localProject",
     items: [
       { id: "local-project", labelId: "settings.sidebar.projectInfo", icon: FolderCog, disabled: false },
@@ -73,8 +77,9 @@ export const SETTINGS_SIDEBAR_GROUPS: readonly SettingsSidebarGroupModel[] = [
     id: "cloud",
     labelId: "settings.sidebar.cloud",
     items: [
-      { id: "account", labelId: "settings.sidebar.account", icon: UserRound, disabled: false },
-      { id: "cloud", labelId: "settings.sidebar.cloudHosting", icon: Cloud, disabled: false, requiresCloud: true },
+      // Signing in only serves Cloud, so a local-first Desktop shows no Account page.
+      { id: "account", labelId: "settings.sidebar.account", icon: UserRound, disabled: false, requiresCloud: true },
+      { id: "cloud", labelId: "settings.sidebar.cloudHosting", icon: Cloud, disabled: false, requiresCloud: true, requiresLocalWorkspace: true },
     ],
   },
 ];
@@ -82,13 +87,16 @@ export const SETTINGS_SIDEBAR_GROUPS: readonly SettingsSidebarGroupModel[] = [
 export function resolveSettingsSidebarGroups({
   cloudEnabled,
   otherAppImportsEnabled = false,
+  localWorkspaceAvailable = true,
 }: SettingsVisibilityContext): readonly SettingsSidebarGroupModel[] {
   return SETTINGS_SIDEBAR_GROUPS
-    .filter((group) => !group.requiresCloud || cloudEnabled)
+    .filter((group) => (!group.requiresCloud || cloudEnabled)
+      && (!group.requiresLocalWorkspace || localWorkspaceAvailable))
     .map((group) => ({
       ...group,
       items: group.items.filter((item) => (
         (!item.requiresCloud || cloudEnabled)
+        && (!item.requiresLocalWorkspace || localWorkspaceAvailable)
         && (!item.requiresOtherAppImports || otherAppImportsEnabled)
       )),
     }))

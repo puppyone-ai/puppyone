@@ -21,7 +21,7 @@ export const DEFAULT_VISIBLE_IMPORT_SOURCES = IMPORT_SOURCE_REGISTRY.filter(
 );
 
 export function resolveVisibleImportSources(
-  settings: ExperimentalSettings,
+  settings: Pick<ExperimentalSettings, "enableOtherAppImports">,
 ): ImportSourceDescriptor[] {
   return IMPORT_SOURCE_REGISTRY.filter((source) => (
     source.availability === "ready"
@@ -31,7 +31,7 @@ export function resolveVisibleImportSources(
 
 /** Keep the compact preview restrained even when every experiment is enabled. */
 export function resolveImportPreviewBrands(
-  settings: ExperimentalSettings,
+  settings: Pick<ExperimentalSettings, "enableOtherAppImports">,
 ): ImportSourceBrand[] {
   return resolveVisibleImportSources(settings)
     .filter(({ preview, operational }) => preview && operational)

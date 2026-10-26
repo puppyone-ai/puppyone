@@ -404,6 +404,12 @@ describe("Main Agent SessionActor and versioned feed", () => {
     const frames = owner.send.mock.calls.filter(([channel]) => channel === "agent:session-frame").map(([, frame]) => frame);
     expect(frames.at(-1)).toMatchObject({ type: "resync-required", subscriptionId: receipt.subscriptionId });
     expect(frames.filter((frame) => frame.type === "delta")).toHaveLength(agentSessionFeedLimits.maxPendingFrames);
+    expect(harness.logger.warn).toHaveBeenCalledWith("Agent display feed requires resync", expect.objectContaining({
+      cause: "unacknowledged-buffer-overflow",
+      frameCount: agentSessionFeedLimits.maxPendingFrames + 1,
+      byteCount: expect.any(Number),
+      acknowledgedRevision: receipt.snapshot.cursor.revision,
+    }));
   });
 
   it("rebinds the feed when a retired session id receives a new SessionActor", async () => {

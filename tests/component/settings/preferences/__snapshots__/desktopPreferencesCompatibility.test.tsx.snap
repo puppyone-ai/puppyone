@@ -1,0 +1,97 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`desktop preference wire compatibility (locked before the store migration) > migrates legacy agent routes, menu, tools and experiments 1`] = `
+{
+  "puppyone.desktop.agentFileActivityIndicators": "false",
+  "puppyone.desktop.agentRoutingPreferences.v1": "{"version":2,"selectedRuntimeId":null,"routes":{"codex":{"modelId":"gpt-5"}}}",
+  "puppyone.desktop.aiEditAssist": "false",
+  "puppyone.desktop.appearance": "{"schemaVersion":6,"activeRootThemeId":"default","shared":{"typography":{"version":11,"contentFont":{"mode":"follow-theme"},"codeFontId":"builtin:geist-mono","terminalFontId":"builtin:terminal-system-mono","scale":"medium"},"pointerCursors":false,"loadingAnimationPreset":"ikun","fileIconTheme":"default","sidebarNavigationLayout":"bottom-horizontal"},"byRootTheme":{"default":{"requestedColorMode":"system","requestedSubThemeIds":{"light":"default.neutral","dark":"default.neutral"}},"windows-xp":{"requestedColorMode":"light","requestedSubThemeIds":{"light":"windows-xp.luna-blue","dark":"windows-xp.luna-blue"}}},"bySurface":{"markdown":{"headingScale":"theme","strongColor":"theme","strongWeight":"theme"}}}",
+  "puppyone.desktop.createNewMenu": "{"version":5,"main":["csv","customFiles"],"submenu":[],"hidden":["markdown","contextMap","text","json","html","slides","app","puppyflow"]}",
+  "puppyone.desktop.diffMarkers": "color",
+  "puppyone.desktop.experimental": "{"enableAssetLibraryHome":false,"enableAlwaysShowOnboardingCoachmarks":false,"enableCloudAutomation":false,"enableCloudWorkspace":false,"enableEditorTabsInHeader":false,"enableCenteredProjectInHeader":false,"enableProjectLocationIconsInHeader":false,"enableProjectReach":false,"enableShareOnboarding":false,"enableWorkbenchTabsInHeader":false,"enableMarkdownBlockDrag":false,"enableMarkdownHeadingOutline":false,"enableMultiRootWorkspaces":false,"enableOtherAppImports":true,"enablePayments":false,"enablePuppyFlowFiles":false,"enableProjectSwitcherRail":false,"enableViewerPlugins":false}",
+  "puppyone.desktop.explorerWidth": "220",
+  "puppyone.desktop.filesVisibility": "{"showHiddenFiles":false,"excludePatterns":["**/.git","**/.puppyone","**/.svn","**/.hg","**/.DS_Store","**/Thumbs.db"]}",
+  "puppyone.desktop.gitDisplayMode": "simple",
+  "puppyone.desktop.gitSidebarLayout": "cards",
+  "puppyone.desktop.localAgents": "{"hiddenTerminalAgentIds":["workbuddy-china","workbuddy-international","codex"],"chatHistoryDiscoveryEnabled":true}",
+  "puppyone.desktop.projectSwitcherExpanded": "false",
+  "puppyone.desktop.projectSwitcherWidth": "360",
+  "puppyone.desktop.rightSidebarSurface": "chat",
+  "puppyone.desktop.rightSidebarTools": "{"enabled":{"terminal":false},"order":["terminal"]}",
+  "puppyone.desktop.rightSidebarWidth": "501",
+  "puppyone.desktop.sidebarCollapsed": "false",
+  "puppyone.desktop.titlebarActions": "{"enabled":{"changes":true,"terminal":true},"order":["changes","terminal"]}",
+}
+`;
+
+exports[`desktop preference wire compatibility (locked before the store migration) > normalizes corrupt persisted values without changing default output 1`] = `
+{
+  "puppyone.desktop.agentFileActivityIndicators": "false",
+  "puppyone.desktop.agentRoutingPreferences.v1": "{"version":2,"selectedRuntimeId":null,"routes":{}}",
+  "puppyone.desktop.aiEditAssist": "false",
+  "puppyone.desktop.appearance": "{"schemaVersion":6,"activeRootThemeId":"default","shared":{"typography":{"version":11,"contentFont":{"mode":"follow-theme"},"codeFontId":"builtin:geist-mono","terminalFontId":"builtin:terminal-system-mono","scale":"medium"},"pointerCursors":false,"loadingAnimationPreset":"ikun","fileIconTheme":"default","sidebarNavigationLayout":"bottom-horizontal"},"byRootTheme":{"default":{"requestedColorMode":"system","requestedSubThemeIds":{"light":"default.neutral","dark":"default.neutral"}},"windows-xp":{"requestedColorMode":"light","requestedSubThemeIds":{"light":"windows-xp.luna-blue","dark":"windows-xp.luna-blue"}}},"bySurface":{"markdown":{"headingScale":"theme","strongColor":"theme","strongWeight":"theme"}}}",
+  "puppyone.desktop.createNewMenu": "{"version":5,"main":["markdown","csv","html","customFiles"],"submenu":["contextMap"],"hidden":["text","json","slides","app","puppyflow"]}",
+  "puppyone.desktop.diffMarkers": "color",
+  "puppyone.desktop.experimental": "{"enableAssetLibraryHome":false,"enableAlwaysShowOnboardingCoachmarks":false,"enableCloudAutomation":false,"enableCloudWorkspace":false,"enableEditorTabsInHeader":false,"enableCenteredProjectInHeader":false,"enableProjectLocationIconsInHeader":false,"enableProjectReach":false,"enableShareOnboarding":true,"enableWorkbenchTabsInHeader":false,"enableMarkdownBlockDrag":false,"enableMarkdownHeadingOutline":false,"enableMultiRootWorkspaces":false,"enableOtherAppImports":false,"enablePayments":false,"enablePuppyFlowFiles":false,"enableProjectSwitcherRail":false,"enableViewerPlugins":false}",
+  "puppyone.desktop.explorerWidth": "320",
+  "puppyone.desktop.filesVisibility": "{"showHiddenFiles":false,"excludePatterns":["**/.git","**/.puppyone","**/.svn","**/.hg","**/.DS_Store","**/Thumbs.db"]}",
+  "puppyone.desktop.gitDisplayMode": "simple",
+  "puppyone.desktop.gitSidebarLayout": "cards",
+  "puppyone.desktop.localAgents": "{"hiddenTerminalAgentIds":[],"chatHistoryDiscoveryEnabled":false}",
+  "puppyone.desktop.projectSwitcherExpanded": "false",
+  "puppyone.desktop.projectSwitcherWidth": "220",
+  "puppyone.desktop.rightSidebarSurface": "chat",
+  "puppyone.desktop.rightSidebarTools": "{"enabled":{"terminal":true},"order":["terminal"]}",
+  "puppyone.desktop.rightSidebarWidth": "560",
+  "puppyone.desktop.sidebarCollapsed": "false",
+  "puppyone.desktop.titlebarActions": "{"enabled":{"changes":true,"terminal":true},"order":["changes","terminal"]}",
+}
+`;
+
+exports[`desktop preference wire compatibility (locked before the store migration) > retains functional updater actions and round-trips all six domains 1`] = `
+{
+  "puppyone.desktop.agentFileActivityIndicators": "true",
+  "puppyone.desktop.agentRoutingPreferences.v1": "{"version":2,"selectedRuntimeId":"codex","routes":{"codex":{"modelId":"gpt-5"}}}",
+  "puppyone.desktop.aiEditAssist": "true",
+  "puppyone.desktop.appearance": "{"schemaVersion":6,"activeRootThemeId":"default","shared":{"typography":{"version":11,"contentFont":{"mode":"follow-theme"},"codeFontId":"builtin:geist-mono","terminalFontId":"builtin:terminal-system-mono","scale":"medium"},"pointerCursors":true,"loadingAnimationPreset":"ikun","fileIconTheme":"default","sidebarNavigationLayout":"bottom-horizontal"},"byRootTheme":{"default":{"requestedColorMode":"dark","requestedSubThemeIds":{"light":"default.neutral","dark":"default.newspaper"}},"windows-xp":{"requestedColorMode":"light","requestedSubThemeIds":{"light":"windows-xp.luna-blue","dark":"windows-xp.luna-blue"}}},"bySurface":{"markdown":{"headingScale":"theme","strongColor":"theme","strongWeight":"theme"}}}",
+  "puppyone.desktop.createNewMenu": "{"version":5,"main":["markdown","csv","html","customFiles"],"submenu":["contextMap"],"hidden":["text","json","slides","app","puppyflow"]}",
+  "puppyone.desktop.diffMarkers": "symbols",
+  "puppyone.desktop.experimental": "{"enableAssetLibraryHome":false,"enableAlwaysShowOnboardingCoachmarks":false,"enableCloudAutomation":false,"enableCloudWorkspace":true,"enableEditorTabsInHeader":false,"enableCenteredProjectInHeader":false,"enableProjectLocationIconsInHeader":false,"enableProjectReach":false,"enableShareOnboarding":true,"enableWorkbenchTabsInHeader":false,"enableMarkdownBlockDrag":false,"enableMarkdownHeadingOutline":false,"enableMultiRootWorkspaces":false,"enableOtherAppImports":false,"enablePayments":false,"enablePuppyFlowFiles":false,"enableProjectSwitcherRail":false,"enableViewerPlugins":false}",
+  "puppyone.desktop.explorerWidth": "365",
+  "puppyone.desktop.filesVisibility": "{"showHiddenFiles":true,"excludePatterns":["**/.git","**/.puppyone","**/.svn","**/.hg","**/.DS_Store","**/Thumbs.db"]}",
+  "puppyone.desktop.gitDisplayMode": "professional",
+  "puppyone.desktop.gitSidebarLayout": "dividers",
+  "puppyone.desktop.localAgents": "{"hiddenTerminalAgentIds":[],"chatHistoryDiscoveryEnabled":true}",
+  "puppyone.desktop.projectSwitcherExpanded": "true",
+  "puppyone.desktop.projectSwitcherWidth": "240",
+  "puppyone.desktop.rightSidebarSurface": "history",
+  "puppyone.desktop.rightSidebarTools": "{"enabled":{"terminal":true},"order":["terminal"]}",
+  "puppyone.desktop.rightSidebarWidth": "610",
+  "puppyone.desktop.sidebarCollapsed": "true",
+  "puppyone.desktop.titlebarActions": "{"enabled":{"changes":true,"terminal":true},"order":["changes","terminal"]}",
+}
+`;
+
+exports[`desktop preference wire compatibility (locked before the store migration) > writes every default using the original key and wire format 1`] = `
+{
+  "puppyone.desktop.agentFileActivityIndicators": "false",
+  "puppyone.desktop.agentRoutingPreferences.v1": "{"version":2,"selectedRuntimeId":null,"routes":{}}",
+  "puppyone.desktop.aiEditAssist": "false",
+  "puppyone.desktop.appearance": "{"schemaVersion":6,"activeRootThemeId":"default","shared":{"typography":{"version":11,"contentFont":{"mode":"follow-theme"},"codeFontId":"builtin:geist-mono","terminalFontId":"builtin:terminal-system-mono","scale":"medium"},"pointerCursors":false,"loadingAnimationPreset":"ikun","fileIconTheme":"default","sidebarNavigationLayout":"bottom-horizontal"},"byRootTheme":{"default":{"requestedColorMode":"system","requestedSubThemeIds":{"light":"default.neutral","dark":"default.neutral"}},"windows-xp":{"requestedColorMode":"light","requestedSubThemeIds":{"light":"windows-xp.luna-blue","dark":"windows-xp.luna-blue"}}},"bySurface":{"markdown":{"headingScale":"theme","strongColor":"theme","strongWeight":"theme"}}}",
+  "puppyone.desktop.createNewMenu": "{"version":5,"main":["markdown","csv","html","customFiles"],"submenu":["contextMap"],"hidden":["text","json","slides","app","puppyflow"]}",
+  "puppyone.desktop.diffMarkers": "color",
+  "puppyone.desktop.experimental": "{"enableAssetLibraryHome":false,"enableAlwaysShowOnboardingCoachmarks":false,"enableCloudAutomation":false,"enableCloudWorkspace":false,"enableEditorTabsInHeader":false,"enableCenteredProjectInHeader":false,"enableProjectLocationIconsInHeader":false,"enableProjectReach":false,"enableShareOnboarding":true,"enableWorkbenchTabsInHeader":false,"enableMarkdownBlockDrag":false,"enableMarkdownHeadingOutline":false,"enableMultiRootWorkspaces":false,"enableOtherAppImports":false,"enablePayments":false,"enablePuppyFlowFiles":false,"enableProjectSwitcherRail":false,"enableViewerPlugins":false}",
+  "puppyone.desktop.explorerWidth": "320",
+  "puppyone.desktop.filesVisibility": "{"showHiddenFiles":false,"excludePatterns":["**/.git","**/.puppyone","**/.svn","**/.hg","**/.DS_Store","**/Thumbs.db"]}",
+  "puppyone.desktop.gitDisplayMode": "simple",
+  "puppyone.desktop.gitSidebarLayout": "cards",
+  "puppyone.desktop.localAgents": "{"hiddenTerminalAgentIds":[],"chatHistoryDiscoveryEnabled":false}",
+  "puppyone.desktop.projectSwitcherExpanded": "false",
+  "puppyone.desktop.projectSwitcherWidth": "220",
+  "puppyone.desktop.rightSidebarSurface": "chat",
+  "puppyone.desktop.rightSidebarTools": "{"enabled":{"terminal":true},"order":["terminal"]}",
+  "puppyone.desktop.rightSidebarWidth": "560",
+  "puppyone.desktop.sidebarCollapsed": "false",
+  "puppyone.desktop.titlebarActions": "{"enabled":{"changes":true,"terminal":true},"order":["changes","terminal"]}",
+}
+`;

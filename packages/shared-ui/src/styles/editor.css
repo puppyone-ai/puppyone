@@ -38,6 +38,7 @@
 @import "./editor/markdown-editor.css";
 
 /* Markdown semantic presentation profile shared by native Markdown and HTML */
+@import "./editor/markdown-theme-tokens.generated.css";
 @import "./editor/markdown-content.css";
 
 /* Markdown live preview: fenced code + Mermaid widgets */
@@ -59,7 +60,12 @@
 /* Conflict markers, crash/empty states, misc editor status UI */
 @import "./editor/editor-status.css";
 
+/* Shared content geometry, available to theme bindings at their host boundary. */
+:root {
+  --po-editor-content-block-radius: 10px;
+}
+
 /* Markdown uses a document-sized inset; wide tabular editors own their spacing. */
 .markdown-codemirror-editor {
-  --po-editor-content-edge-inset: 64px;
+  --po-editor-content-edge-inset: 48px;
 }

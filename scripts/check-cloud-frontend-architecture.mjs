@@ -27,6 +27,10 @@ for (const relativePath of requiredArchiveFiles) {
 }
 
 const lineBudgets = new Map([
+  ["src/features/cloud/files/cloudDataPort.ts", 390],
+  ["src/features/cloud/files/cloudFileClient.ts", 230],
+  ["src/features/cloud/files/cloudFileReads.ts", 100],
+  ["src/features/cloud/files/contracts.ts", 150],
   ["src/features/cloud/CloudServiceMainView.tsx", 260],
   ["src/features/cloud/routes/CloudRouter.tsx", 160],
   ["src/features/cloud/routes/CloudProjectRouteOutlet.tsx", 240],
@@ -69,8 +73,16 @@ const productionCode = productionFiles
   .filter((filePath) => /\.(?:ts|tsx|js|jsx|mjs|cjs)$/.test(filePath))
   .map((filePath) => ({ filePath, source: readAbsolute(filePath) }));
 
+// The account workspace now has an authenticated, typed native-window entry.
+// It does not restore the archived Cloud catalog's renderer navigation API.
+const cloudWindowOwners = new Set([
+  "src/App.tsx", "src/lib/localFiles.ts", "src/types/electron.d.ts",
+  "electron/main/ipc/workspace-navigation-ipc.mjs", "electron/main.mjs", "electron/preload.cjs",
+]);
+
 for (const { filePath, source } of productionCode) {
-  const relativePath = path.relative(repoRoot, filePath);
+  // Compare and report repository paths with "/" on every platform (Windows CI).
+  const relativePath = path.relative(repoRoot, filePath).split(path.sep).join("/");
   if (/\b(?:from\s+|import\s*\()["'][^"']*archive\/desktop-cloud-catalog/.test(source)) {
     errors.push(`${relativePath} imports retired code from archive/desktop-cloud-catalog`);
   }
@@ -80,17 +92,30 @@ for (const { filePath, source } of productionCode) {
     "CloudProjectCreateDialog",
     "useCloudProjectCatalog",
     "useCloudProjectHome",
-    "listCloudProjects",
     "listCloudTemplates",
-    "createCloudProject",
     "openCloudProjectInNewWindow",
     "cloudOnlyWorkspace",
     "cloud://",
   ]) {
-    if (source.includes(token)) {
+    if (token === "openCloudProjectInNewWindow" && cloudWindowOwners.has(relativePath)) continue;
+    if (token === "cloud://" ? /(?<![\w-])cloud:\/\//.test(source) : source.includes(token)) {
       errors.push(`${relativePath} reintroduced retired Cloud catalog token ${token}`);
     }
   }
+}
+
+// Cloud is on only when the build ships it and the user turns on the Cloud
+// experiment. Reading the build flag alone would show sign-in on a local-first
+// Desktop, so only the combined decision may read it.
+const cloudDecisionOwner = "src/features/flags/index.tsx";
+for (const { filePath, source } of productionCode) {
+  const relativePath = path.relative(repoRoot, filePath).split(path.sep).join("/");
+  if (relativePath !== cloudDecisionOwner && /useFeatureFlag\(\s*["']cloudWorkspace["']\s*\)/.test(source)) {
+    errors.push(`${relativePath} reads the cloudWorkspace build flag directly; use useCloudEnabled()`);
+  }
+}
+if (!read(cloudDecisionOwner).includes("experimentalSettings.enableCloudWorkspace")) {
+  errors.push(`${cloudDecisionOwner} must combine the build flag with the user's Cloud experiment`);
 }
 
 const routeIds = read("src/features/cloud/routes/cloudRouteIds.ts");
@@ -378,6 +403,21 @@ const cloudClassNames = new Set(
 for (const className of cloudClassNames) {
   if (!rendererSource.includes(className)) {
     errors.push(`Cloud CSS class has no renderer owner: ${className}`);
+  }
+}
+
+const cloudFiles = "src/features/cloud/files/";
+const dataPort = read(`${cloudFiles}cloudDataPort.ts`);
+if (!dataPort.includes('from "./cloudWorkspaceClient"') || /cloudApiRequest|requestCloudSessionApi|reads\.fetch/.test(dataPort)) {
+  errors.push("Cloud DataPort must adapt the file client, not assemble HTTP operations.");
+}
+for (const { filePath, source } of productionCode) {
+  const relativePath = path.relative(repoRoot, filePath).split(path.sep).join("/");
+  if (relativePath.startsWith(cloudFiles) && /from\s+["'][^"']*workbench\/|import\(["'][^"']*workbench\//.test(source)) {
+    errors.push(`${relativePath} must not depend on Cloud workbench presentation`);
+  }
+  if (/cloud\/workbench\/cloud(?:DataPort|WorkbenchReads|HtmlProjection)/.test(source)) {
+    errors.push(`${relativePath} uses a retired Cloud file ownership path`);
   }
 }
 

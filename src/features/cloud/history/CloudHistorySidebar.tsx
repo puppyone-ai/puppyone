@@ -5,13 +5,7 @@ import {
 } from "lucide-react";
 import { useRef, type CSSProperties } from "react";
 import { useLocalization } from "@puppyone/localization/react";
-import {
-  Tooltip,
-  SidebarRoot,
-  STANDARD_CONTROL_SIZE,
-  VirtualSidebarList,
-  useCssPixelCustomProperty,
-} from "@puppyone/shared-ui";
+import { SidebarRoot, STANDARD_CONTROL_SIZE, VirtualSidebarList, useCssPixelCustomProperty } from "@puppyone/shared-ui";
 import { PageLoading } from "../../../components/loading";
 import type { CloudBranchGraphRow } from "../graph/model";
 import {
@@ -163,9 +157,7 @@ function CloudHistorySidebarRow({
       <span className="desktop-cloud-history-sidebar-row-main">
         <span className="desktop-cloud-history-sidebar-row-title">
           {isCurrentHead && <span className="desktop-cloud-history-inline-ref head">HEAD</span>}
-          <Tooltip content={message} overflowOnly>
-            <bdi className="desktop-cloud-history-sidebar-row-message">{message}</bdi>
-          </Tooltip>
+          <bdi className="desktop-cloud-history-sidebar-row-message">{message}</bdi>
           {row.labels.filter((label) => (
             !(isCurrentHead && formatCloudGraphLabel(label, t) === "HEAD")
           )).map((label) => (

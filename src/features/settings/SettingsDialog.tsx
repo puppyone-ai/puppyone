@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { Settings } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import {
@@ -28,7 +29,7 @@ export function SettingsDialog({ onClose, ...settings }: SettingsDialogProps) {
     <DesktopDialogRoot className="desktop-settings-dialog-backdrop" onClose={onClose}>
       <DesktopDialogSurface
         className="desktop-settings-dialog"
-        width="min(960px, calc(100vw - 80px))"
+        width={960}
         ariaLabel={title}
       >
         <header className="desktop-dialog-header desktop-settings-dialog-header">
@@ -38,7 +39,7 @@ export function SettingsDialog({ onClose, ...settings }: SettingsDialogProps) {
             </span>
             <h2>{title}</h2>
           </div>
-          <DesktopDialogCloseButton label={t("common.action.close")} onClick={onClose} />
+          <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton label={t("common.action.close")} onClick={onClose} /></Tooltip>
         </header>
 
         <div className="desktop-settings-dialog-layout">

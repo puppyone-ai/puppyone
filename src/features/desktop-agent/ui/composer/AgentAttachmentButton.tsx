@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { Paperclip } from "lucide-react";
 import { useRef, type ChangeEvent } from "react";
 import { useLocalization } from "@puppyone/localization/react";
@@ -41,7 +42,7 @@ export function AgentAttachmentButton({
 
   return (
     <div className="desktop-agent-attachment-control">
-      <button
+      <Tooltip content={label}><button
         type="button"
         className="desktop-agent-reference-trigger"
         aria-label={label}
@@ -49,7 +50,7 @@ export function AgentAttachmentButton({
         onClick={choose}
       >
         <Paperclip size={16} strokeWidth={1.7} aria-hidden="true" />
-      </button>
+      </button></Tooltip>
       <input
         ref={inputRef}
         className="desktop-agent-visually-hidden"

@@ -1,8 +1,9 @@
+import { initializeDesktopPreferences, desktopPreferencesStore as preferences } from "../../../../src/preferencesStore";
 /** @vitest-environment happy-dom */
 import { EMPTY_EDITOR_GROUP, EMPTY_MARKDOWN_WORKSPACE_ENVIRONMENT, createEditorInput, createEditorPaneLayout, openEditor, type DataNode } from "@puppyone/shared-ui";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Window as HappyWindow } from "happy-dom";
 import { DesktopEditorSplitView } from "../../../../src/features/editor-workbench/layout/DesktopEditorSplitView";
 import { unavailableDocumentNavigation } from "../../../support/editor/documentFixtures";
@@ -22,6 +23,8 @@ afterEach(() => {
 async function openPaneMenu(handle: HTMLButtonElement) {
   await act(async () => handle.click());
 }
+
+beforeEach(() => { localStorage.clear(); initializeDesktopPreferences(); });
 
 describe("Editor pane actions menu", () => {
   it("reduces a resource-only pane menu to two icon actions without headings or a filename", async () => {
@@ -52,7 +55,6 @@ describe("Editor pane actions menu", () => {
         editorInteractionPreferences={{ showSaveStatus: false, markdownBlockDragEnabled: false }}
         externalOpen={{ open: openExternal }}
         editorTree={[node]}
-        fileIconTheme="default"
         layout={createEditorPaneLayout(path)}
         markdownEnvironment={EMPTY_MARKDOWN_WORKSPACE_ENVIRONMENT}
         workspace={{ id: "workspace", name: "Workspace", path: "/workspace", status: "recording" }}
@@ -68,7 +70,7 @@ describe("Editor pane actions menu", () => {
     const handle = container.querySelector<HTMLButtonElement>(".desktop-editor-pane-handle")!;
     await openPaneMenu(handle);
     const menu = document.querySelector<HTMLElement>(".desktop-editor-pane-menu")!;
-    expect(menu.style.width).toBe("63px");
+    expect(menu.style.width).toBe("");
     const actions = Array.from(menu.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'));
 
     expect(menu.dataset.hasSecondary).toBeUndefined();
@@ -120,7 +122,6 @@ describe("Editor pane actions menu", () => {
         editorInteractionPreferences={{ showSaveStatus: false, markdownBlockDragEnabled: false }}
         externalOpen={{ open: openExternal }}
         editorTree={[node]}
-        fileIconTheme="default"
         layout={createEditorPaneLayout(path)}
         markdownEnvironment={EMPTY_MARKDOWN_WORKSPACE_ENVIRONMENT}
         workspace={{ id: "workspace", name: "Workspace", path: "/workspace", status: "recording" }}

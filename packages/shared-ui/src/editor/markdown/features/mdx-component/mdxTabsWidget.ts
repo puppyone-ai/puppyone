@@ -1,4 +1,3 @@
-import { activateTooltip } from "../../../../primitives/Tooltip";
 import { EditorSelection } from "@codemirror/state";
 import { EditorView, WidgetType } from "@codemirror/view";
 import type { MarkdownLinkGraph } from "../../../registry/viewerTypes";
@@ -79,7 +78,6 @@ export class MarkdownMdxTabsWidget extends WidgetType {
     sourceButton.type = "button";
     sourceButton.className = "cm-md-mdx-source-toggle";
     sourceButton.textContent = "</>";
-    activateTooltip(sourceButton, localization.t("editor.mode.source"));
     sourceButton.setAttribute("aria-label", localization.t("editor.mode.source"));
     toolbar.append(tabList, sourceButton);
 

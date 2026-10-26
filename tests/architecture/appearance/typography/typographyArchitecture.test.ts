@@ -116,7 +116,7 @@ describe("typography architecture", () => {
       "--po-user-header-meta-font-size": "14px",
       "--po-user-header-meta-line-height": "19px",
       "--po-user-text-size-content": "16px",
-      "--po-user-editor-line-height": "26px",
+      "--po-user-editor-line-height": "32px",
       "--po-user-text-size-data": "14px",
       "--po-user-code-font-size": "14px",
       "--po-user-editor-heading-1-font-size": "32px",
@@ -173,7 +173,7 @@ describe("typography architecture", () => {
       },
       editor: {
         content: 15,
-        lineHeight: 24,
+        lineHeight: 30,
         data: 13,
         code: 13,
         heading1: 30,
@@ -524,7 +524,7 @@ describe("typography architecture", () => {
     const agentActivities = source("src/features/desktop-agent/ui/styles/activities.css");
     const terminalAppearance = source("src/features/desktop-terminal/runtime/terminalAppearance.ts");
     const terminalAppearanceSync = source("src/features/desktop-terminal/runtime/useTerminalAppearanceSync.ts");
-    const overlayPortal = source("src/features/app-shell/DesktopOverlayPortal.tsx");
+    const overlayPortal = source("src/components/DesktopOverlayPortal.tsx");
     const markdownEditor = source("packages/shared-ui/src/editor/markdown/MarkdownCodeMirrorEditor.tsx");
     const codeEditor = source("packages/shared-ui/src/editor/viewers/code/CodeMirrorCodeEditor.tsx");
     const plainTextEditor = source("packages/shared-ui/src/editor/viewers/code/PlainTextEditor.tsx");
@@ -538,7 +538,7 @@ describe("typography architecture", () => {
     expect(styles).toContain('@import "./styles/typography/locales.css" layer(tokens);');
     expect(styles).toContain('@import "./styles/typography/roles.css" layer(tokens);');
     expect(foundations).toContain('font-family: "Geist Sans";');
-    expect(foundations).toContain("var(--po-theme-text-size-content, 16px)");
+    expect(foundations).toContain("var(--po-theme-text-size-content, 15px)");
     expect(foundations).toContain("--po-type-ui-control:");
     expect(foundations).toContain("--po-type-left-sidebar-content:");
     expect(foundations).toContain("--po-type-header-content:");
@@ -550,7 +550,7 @@ describe("typography architecture", () => {
     expect(foundations).toContain("--po-user-text-size-conversation");
     expect(foundations).toContain("--po-text-weight-medium: 500;");
     expect(foundations).toContain("--po-plain-text-reading-weight: var(--po-text-weight-medium);");
-    expect(foundations).toContain("--po-content-reading-line-height: var(--po-type-editor-line-height, 24px);");
+    expect(foundations).toContain("--po-content-reading-line-height: var(--po-type-editor-line-height, 30px);");
     expect(foundations).toContain("--po-content-reading-letter-spacing: 0;");
     expect(roles).toContain("--po-font-ui-primary: \"Geist Sans\";");
     expect(roles).toContain("--po-font-content-primary: \"Geist Sans\";");
@@ -575,20 +575,17 @@ describe("typography architecture", () => {
     expect(locales).not.toContain("--po-content-reading-line-height:");
     expect(base).toContain("font-feature-settings: normal;");
     expect(base).not.toContain("'cv02'");
-    expect(markdownContent).toContain("--po-md-content-font-primary: var(--po-font-content-primary");
-    expect(markdownContent).toContain("--po-md-content-font-fallback: var(--po-font-content-fallback");
-    expect(markdownContent).toContain("--po-md-content-font: var(--po-host-md-content-font, var(--po-md-content-font-primary), var(--po-md-content-font-fallback));");
-    expect(markdownContent).toContain("--po-editor-content-font: var(--po-font-editor-content-user, var(--po-md-content-font));");
-    expect(markdownContent).toContain('[data-font-editor-content-mode="explicit"]');
-    expect(markdownContent).toContain("font-family: var(--po-font-editor-content-user) !important;");
-    expect(markdownContent).toContain(".cm-md-math-inline-widget");
+    const markdownProjection = source("packages/shared-ui/src/styles/editor/markdown-theme-tokens.generated.css");
+    const markdownTheme = source("sub-themes/default-neutral/theme.css");
+    expect(markdownProjection).toContain("--po-md-content-font: var(--po-font-editor-content-user, var(--po-host-md-content-font));");
+    expect(markdownContent).toContain("--po-editor-content-font: var(--po-md-content-font);");
+    expect(markdownContent).toContain("font-family: var(--po-md-code-font);");
+    expect(markdownTheme).toContain('--po-md-content-font: "Geist Sans", var(--po-font-locale-sans), var(--po-font-emoji), sans-serif;');
+    expect(markdownTheme).toContain('--po-md-code-font: "Geist Mono", var(--po-font-locale-mono), var(--po-font-emoji), monospace;');
+    expect(markdownContent).not.toMatch(/font-family:[^;]*!important/);
     expect(markdownContent).not.toContain("font-family: revert");
     expect(markdownMath).not.toContain("font-family: revert");
     expect(markdownMath).not.toMatch(/font-family:\s*KaTeX_/);
-    expect(markdownContent).toContain(".cm-line:not(.cm-md-code-block-line)");
-    expect(markdownContent).toContain('[data-po-theme-surface="markdown"] .cm-md-inline-code,');
-    expect(markdownContent).toContain('[data-po-theme-surface="markdown"] .cm-md-code-textarea,');
-    expect(markdownContent).toContain("font-family: var(--po-font-code) !important;");
     expect(markdown).toContain("font-family: var(--po-editor-content-font);");
     expect(markdown).toContain("font-weight: var(--po-md-content-weight);");
     expect(markdown).toContain("font-feature-settings: normal;");

@@ -58,8 +58,11 @@ function findDirectTooltipActivation(file: string) {
   const visit = (node: ts.Node) => {
     if (
       ts.isJsxAttribute(node)
-      && node.name.getText(sourceFile).startsWith("data-tooltip")
+      && (node.name.getText(sourceFile).startsWith("data-tooltip")
+        || node.name.getText(sourceFile) === "tooltip"
+        || node.name.getText(sourceFile) === "tooltipOverflowOnly")
     ) report(node);
+    if (ts.isImportSpecifier(node) && (node.propertyName ?? node.name).text === "activateTooltip") report(node);
     if (
       ts.isBinaryExpression(node)
       && node.operatorToken.kind === ts.SyntaxKind.EqualsToken
@@ -96,8 +99,53 @@ function findDirectTooltipActivation(file: string) {
 }
 
 describe("explicit tooltip architecture", () => {
-  it("routes product tooltips through the shared opt-in API", () => {
+  it("keeps Markdown DOM controls free of implicit activation without suppressing explicit mode hints", () => {
+    const markdownRoot = path.join(REPOSITORY_ROOT, "packages/shared-ui/src/editor/markdown");
+    const violations = sourceFiles(markdownRoot).filter((file) => {
+      const source = fs.readFileSync(file, "utf8");
+      return /\bactivateTooltip\s*\(|<Tooltip\b/.test(source);
+    }).map((file) => path.relative(REPOSITORY_ROOT, file));
+    expect(violations).toEqual([]);
+    expect(fs.readFileSync(path.join(markdownRoot, "MarkdownCodeMirrorEditor.tsx"), "utf8"))
+      .not.toContain("disableTooltipHints(host)");
+    expect(fs.readFileSync(path.join(markdownRoot, "MarkdownViewer.tsx"), "utf8"))
+      .not.toContain("modeTooltipsEnabled");
+    expect(fs.readFileSync(path.join(markdownRoot, "features/table/tableContextMenu.ts"), "utf8"))
+      .not.toContain("disableTooltipHints(menu)");
+    const textEditorFrame = fs.readFileSync(path.join(
+      REPOSITORY_ROOT, "packages/shared-ui/src/editor/viewers/shared/TextEditorFrame.tsx",
+    ), "utf8");
+    expect(textEditorFrame).toContain('<Tooltip content={liveModeLabel ?? t("editor.mode.live")}');
+    expect(textEditorFrame).toContain('<Tooltip content={sourceModeLabel ?? t("editor.mode.source")}');
+  });
+
+  it("installs the native-title guard and the product-authored tooltip layer at startup", () => {
+    const entry = fs.readFileSync(path.join(REPOSITORY_ROOT, "src/main.tsx"), "utf8");
+    expect(entry).toContain("installNativeTitleSuppression()");
+    expect(entry).toContain("<DesktopTooltipLayer />");
+    expect(fs.readFileSync(path.join(REPOSITORY_ROOT, "src/styles.css"), "utf8"))
+      .toContain('"./styles/tooltip.css"');
+  });
+
+  it("only activates product tooltips through explicit Tooltip composition", () => {
     const violations = SOURCE_ROOTS.flatMap(sourceFiles).flatMap(findDirectTooltipActivation);
     expect(violations).toEqual([]);
   }, ARCHITECTURE_SCAN_TIMEOUT_MS);
+
+  it("keeps generic controls free of automatic tooltip wrappers", () => {
+    const genericControls = [
+      "src/components/DesktopMenu.tsx",
+      "src/components/DesktopDialog.tsx",
+      "src/components/SettingsControls.tsx",
+      "src/components/onboarding/HomeProjectIcon.tsx",
+      "packages/shared-ui/src/primitives/IconButton.tsx",
+    ];
+    const violations = genericControls.filter(file => /<Tooltip\b|\btooltip\??\s*[:=]/.test(
+      fs.readFileSync(path.join(REPOSITORY_ROOT, file), "utf8"),
+    ));
+    expect(violations).toEqual([]);
+    const publicApi = fs.readFileSync(path.join(REPOSITORY_ROOT, "packages/shared-ui/src/index.ts"), "utf8");
+    expect(publicApi).not.toContain("activateTooltip");
+    expect(fs.readFileSync(TOOLTIP_PRIMITIVE, "utf8")).not.toContain("activateTooltip");
+  });
 });

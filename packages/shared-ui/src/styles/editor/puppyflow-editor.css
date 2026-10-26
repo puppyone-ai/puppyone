@@ -1,6 +1,6 @@
 .puppyflow-editor-shell {
   --puppyflow-content-width: 760px;
-  --puppyflow-gutter-min: 48px;
+  --puppyflow-gutter-min: 24px;
   --puppyflow-timeline-width: 54px;
   --puppyflow-node-size: 26px;
   --puppyflow-step-gap: 16px;
@@ -529,14 +529,6 @@
 }
 
 @media (max-width: 860px) {
-  .puppyflow-editor-shell {
-    --puppyflow-gutter-min: 24px;
-  }
-
-  .puppyflow-document {
-    padding-top: 60px;
-  }
-
   .puppyflow-run-button {
     top: 16px;
     inset-inline-end: 16px;
@@ -545,7 +537,6 @@
 
 @media (max-width: 640px) {
   .puppyflow-editor-shell {
-    --puppyflow-gutter-min: 16px;
     --puppyflow-timeline-width: 42px;
   }
 

@@ -7,13 +7,13 @@ import {
   RIGHT_SIDEBAR_WIDTH_STORAGE_KEY,
   readInitialExplorerWidth,
   readInitialRightSidebarWidth,
-} from "../../../../src/features/app-shell/preferences";
+} from "../../../../src/preferenceStorage";
 import {
   DEFAULT_EXPLORER_WIDTH,
   DEFAULT_RIGHT_SIDEBAR_WIDTH,
   MIN_EXPLORER_WIDTH,
   MIN_RIGHT_SIDEBAR_WIDTH,
-} from "../../../../src/features/app-shell/layout/desktopPaneLayout";
+} from "../../../../src/lib/desktopPaneLayout";
 
 afterEach(() => window.localStorage.clear());
 

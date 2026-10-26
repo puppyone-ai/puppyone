@@ -11,16 +11,15 @@ import { LEGACY_APPEARANCE_STORAGE_KEYS } from "../../../../src/features/appeara
 import { LEGACY_SURFACE_THEME_PREFERENCES_STORAGE_KEY } from "../../../../src/features/themes/subThemePreferences";
 import { BUILTIN_FONT_IDS } from "../../../../src/features/typography";
 import { TYPOGRAPHY_STORAGE_KEY } from "../../../../src/preferences";
-import {
-  useDesktopPreferences,
-  type DesktopPreferencesController,
-} from "../../../../src/features/app-shell/useDesktopPreferences";
+import { initializeDesktopPreferences } from "../../../../src/preferencesStore";
+import { useDesktopPreferenceEffects } from "../../../../src/features/settings/useDesktopPreferenceEffects";
+import { usePreferenceSnapshot } from "../../../support/react/desktopPreferences";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 let container: HTMLDivElement;
 let root: Root;
-let latest: DesktopPreferencesController | null;
+let latest: ReturnType<typeof usePreferenceSnapshot> | null;
 
 beforeEach(() => {
   latest = null;
@@ -46,7 +45,7 @@ afterEach(() => {
 
 describe("desktop appearance preferences", () => {
   it("persists one canonical V6 document and remembers Sub Themes independently by mode and Root Theme", () => {
-    act(() => root.render(<Harness />));
+    mount();
 
     act(() => {
       latest?.setSubThemeId("default.github");
@@ -84,7 +83,7 @@ describe("desktop appearance preferences", () => {
   });
 
   it("synchronizes the canonical appearance document across windows", () => {
-    act(() => root.render(<Harness />));
+    mount();
     const remote: AppearancePreferencesV6 = {
       ...readStored(),
       activeRootThemeId: "windows-xp",
@@ -116,7 +115,7 @@ describe("desktop appearance preferences", () => {
       pack: "builtin.pack.newspaper",
     }));
 
-    act(() => root.render(<Harness />));
+    mount();
 
     expect(latest?.requestedSubThemeId).toBe("default.newspaper");
     expect(readStored().byRootTheme.default.requestedSubThemeIds).toEqual({
@@ -133,7 +132,7 @@ describe("desktop appearance preferences", () => {
       terminalFontId: BUILTIN_FONT_IDS.terminalSystemMono,
     }));
 
-    act(() => root.render(<Harness />));
+    mount();
 
     expect(readStored().shared.typography.contentFont).toEqual({
       mode: "explicit",
@@ -169,7 +168,7 @@ describe("desktop appearance preferences", () => {
       contentFontId: BUILTIN_FONT_IDS.systemSerif,
     }));
 
-    act(() => root.render(<Harness />));
+    mount();
 
     expect(readStored().schemaVersion).toBe(6);
     expect(readStored().shared.typography.contentFont).toEqual({
@@ -180,7 +179,7 @@ describe("desktop appearance preferences", () => {
   });
 
   it("ignores retired-key events after migration", () => {
-    act(() => root.render(<Harness />));
+    mount();
     const before = latest?.typographyPreferences;
 
     act(() => {
@@ -206,7 +205,7 @@ describe("desktop appearance preferences", () => {
       contentFontId: BUILTIN_FONT_IDS.systemSerif,
     }));
 
-    act(() => root.render(<Harness />));
+    mount();
 
     expect(window.localStorage.getItem(APPEARANCE_PREFERENCES_STORAGE_KEY)).toBe(future);
     expect(window.localStorage.getItem(TYPOGRAPHY_STORAGE_KEY)).not.toBeNull();
@@ -223,7 +222,7 @@ describe("desktop appearance preferences", () => {
       originalSetItem(key, value);
     });
 
-    act(() => root.render(<Harness />));
+    mount();
 
     expect(window.localStorage.getItem(APPEARANCE_PREFERENCES_STORAGE_KEY)).toBeNull();
     expect(window.localStorage.getItem(TYPOGRAPHY_STORAGE_KEY)).not.toBeNull();
@@ -235,7 +234,7 @@ describe("desktop appearance preferences", () => {
 });
 
 function Harness() {
-  latest = useDesktopPreferences();
+  useDesktopPreferenceEffects(); latest = usePreferenceSnapshot();
   return null;
 }
 
@@ -244,3 +243,5 @@ function readStored(): AppearancePreferencesV6 {
     window.localStorage.getItem(APPEARANCE_PREFERENCES_STORAGE_KEY) ?? "null",
   );
 }
+
+function mount() { initializeDesktopPreferences(); act(() => root.render(<Harness />)); }

@@ -116,21 +116,13 @@ describe("Automation landing page", () => {
 
 function automationRow(): CloudAutomationRow {
   return {
-    id: "automation:scope-1:connection-1",
-    scope: {
-      id: "scope-1",
-      target: { kind: "scope", project_id: "project-1", scope_id: "scope-1" },
-      project_id: "project-1",
-      name: "Docs",
-      path: "Research/Docs",
-      exclude: [],
-      max_mode: "rw",
-    },
-    connector: {
+    id: "synchronize:project-1:connection-1",
+    resourceKind: "synchronize",
+    binding: {
       id: "connection-1",
-      target: { kind: "scope", project_id: "project-1", scope_id: "scope-1" },
+      project_id: "project-1",
+      path: "Research/Docs",
       provider: "google_docs",
-      name: "Product brief",
       direction: "inbound",
       status: "active",
       config: {},

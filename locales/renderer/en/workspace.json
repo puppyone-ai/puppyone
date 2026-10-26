@@ -1,4 +1,7 @@
 {
+  "node.copyLink": "Copy Link",
+  "workbench.renderFailure": "Unable to display this tab.",
+  "workbench.reloadView": "Reload view",
   "workbench.newTab": "New tab",
   "projectSessions.sessionCloseFailed": "This session could not be closed. Try again.",
   "projectSessions.closing": "Closing this project…",
@@ -61,6 +64,7 @@
   "node.creating": "Creating…",
   "node.create": "Create",
   "node.actionsFor": "Actions for {name}",
+  "node.copyPath": "Copy Path",
   "node.newFileOrFolder": "New file or folder",
   "node.pasteIntoFolder": "Paste into folder",
   "node.copyItems": "{count, plural, one {Copy item} other {Copy # items}}",

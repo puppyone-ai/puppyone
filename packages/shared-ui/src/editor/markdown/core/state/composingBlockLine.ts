@@ -1,6 +1,7 @@
 import { EditorState, StateEffect, StateField, type Transaction } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { getLivePreviewFocusState } from "./livePreviewFocus";
+import { getMarkdownListInputPrefix } from "../syntax/markdownListStructure";
 
 export type ComposingBlockLine = {
   from: number;
@@ -58,7 +59,9 @@ export function getComposingBlockLineKey(state: EditorState): string {
 }
 
 function getComposingBlockPrefixRange(lineFrom: number, text: string): { from: number; to: number } | null {
-  const match = /^(#{1,6}\s?|\s*>+\s?|\s*(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s*)?|\s{0,3}(?:`{3,}|~{3,})[^\n`]*|\s{0,3}(?:-{3,}|\*{3,}|_{3,})\s*|\|.*\|)/.exec(text);
+  const listPrefix = getMarkdownListInputPrefix(text);
+  if (listPrefix !== null) return { from: lineFrom, to: lineFrom + listPrefix.length };
+  const match = /^(#{1,6}\s?|\s*>+\s?|\s{0,3}(?:`{3,}|~{3,})[^\n`]*|\s{0,3}(?:-{3,}|\*{3,}|_{3,})\s*|\|.*\|)/.exec(text);
   if (!match) return null;
   return { from: lineFrom, to: lineFrom + match[0].length };
 }

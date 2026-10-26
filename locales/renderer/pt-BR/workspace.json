@@ -1,4 +1,7 @@
 {
+  "node.copyLink": "Copiar link",
+  "workbench.renderFailure": "Não foi possível exibir esta aba.",
+  "workbench.reloadView": "Recarregar visualização",
   "workbench.newTab": "Nova aba",
   "projectSessions.sessionCloseFailed": "Não foi possível fechar esta sessão. Tente novamente.",
   "projectSessions.closing": "Fechando este projeto…",
@@ -61,6 +64,7 @@
   "node.creating": "Criando…",
   "node.create": "Criar",
   "node.actionsFor": "Ações para {name}",
+  "node.copyPath": "Copiar caminho",
   "node.newFileOrFolder": "Novo arquivo ou pasta",
   "node.pasteIntoFolder": "Colar na pasta",
   "node.copyItems": "{count, plural, one {Copiar item} other {Copiar # itens}}",

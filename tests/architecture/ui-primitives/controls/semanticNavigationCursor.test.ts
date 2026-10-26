@@ -68,8 +68,13 @@ describe("semantic navigation cursor contract", () => {
     expect(markdownCss).toMatch(
       /\[data-md-link-interaction="navigate"\]\s*\{[\s\S]*?color:\s*var\(--po-md-link-color\);/,
     );
+    // Inline code inside a navigable link takes the link color through the shared
+    // inline-foreground role rather than a selector for every inline adapter.
     expect(markdownCss).toMatch(
-      /\[data-md-link-interaction="navigate"\][\s\S]*?\.cm-md-inline-code[\s\S]*?color:\s*var\(--po-md-link-color\);/,
+      /\[data-md-link-interaction="navigate"\]\s*\{[^}]*--po-md-inline-foreground:\s*var\(--po-md-link-color\)/,
+    );
+    expect(source("packages/shared-ui/src/styles/editor/markdown-content.css")).toMatch(
+      /\.cm-md-inline-code[^{]*\{[^}]*color:\s*var\(--po-md-inline-foreground,/,
     );
     expect(markdownCss).not.toContain("cm-md-open-modifier-down");
   });

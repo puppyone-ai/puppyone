@@ -1,14 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AgentActivityEvent } from "../../../../shared/agent-activity-contract/types";
-import type { AgentActivityClient } from "../../../../src/features/desktop-agent-presence/application/agentActivityClient";
+import type { AgentActivityClient } from "../../../../src/features/desktop-agent-presence/agentActivityApi";
 import {
   AGENT_FILE_ACTIVITY_COMPLETION_LINGER_MS,
   AgentActivityStore,
-} from "../../../../src/features/desktop-agent-presence/application/agentActivityStore";
+} from "../../../../src/features/desktop-agent-presence/agentActivityStore";
 import {
   normalizeWorkspaceRelativePath,
   toWorkspaceRelativePath,
-} from "../../../../src/features/desktop-agent-presence/domain/agentActivity";
+} from "../../../../src/features/desktop-agent-presence/agentActivity";
 
 describe("AgentActivityStore", () => {
   it("uses one native subscription and updates only affected path listeners", async () => {

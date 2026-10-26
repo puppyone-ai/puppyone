@@ -1,6 +1,6 @@
 .desktop-tooltip {
   position: fixed;
-  z-index: 2000;
+  z-index: var(--po-overlay-z-tooltip, 2000);
   display: inline-flex;
   box-sizing: border-box;
   max-width: min(320px, calc(100vw - 16px));

@@ -15,5 +15,6 @@ export function useDocumentInput(node: DocumentDataNode | null, port: DataPort, 
     [node?.path, port]);
   const state = useSyncExternalStore(runtime?.subscribe ?? subscribeEmpty, runtime?.getSnapshot ?? getEmpty, getEmpty);
   useEffect(() => { if (refresh) runtime?.invalidate(refresh); }, [refresh, runtime]);
-  return useMemo(() => ({ ...state, applyPersistedCommit: runtime?.applyPersistedCommit ?? ignoreCommit }), [runtime, state]);
+  return useMemo(() => ({ ...state, retry: runtime?.refresh ?? ignoreCommit,
+    applyPersistedCommit: runtime?.applyPersistedCommit ?? ignoreCommit }), [runtime, state]);
 }

@@ -1,10 +1,21 @@
 :root {
   color-scheme: light;
+  /* Relative layers inside the shared overlay root: menu < dialog < tooltip.
+     Portaled editor menus follow this contract instead of creating a local ceiling. */
+  --po-overlay-z-menu: 90;
+  --po-overlay-z-dialog: 1200;
+  --po-overlay-z-tooltip: 2000;
+  /* Product identity blue, shared by Cloud marks and arrival light in both color modes.
+     Deliberately distinct from the active theme's accent and info/status colors. */
+  --po-brand-blue: #4599df;
   --desktop-control-radius: 6px;
   /* Mirrored from electron/main/window-layout-contract.mjs and guarded by the architecture check. */
   --desktop-window-min-width: 640px;
   --desktop-toolbar-action-radius: 5px;
+  /* Default native Header height is mirrored from window-layout-contract.mjs. */
   --desktop-chrome-height: 40px;
+  /* Logical-pixel contour of the macOS rounded overlay window (not a layout inset). */
+  --desktop-macos-window-frame-radius: 16px;
   /* Standard control geometry is owned by shared-ui/control-geometry.css. */
   --desktop-chrome-control-size: var(--po-control-size);
   --desktop-titlebar-control-height: var(--po-control-size-compact);
@@ -102,6 +113,7 @@
   --desktop-utility-page-padding-top: 24px;
   --desktop-utility-page-padding-inline: 28px;
   --desktop-utility-page-padding-bottom: 40px;
+  --desktop-task-dialog-inset: 32px;
   --po-reading-content-width: 724px;
 
   --po-menu-radius: 8px;
@@ -139,7 +151,7 @@
  * local titlebar and sidebar use a restrained blend of chrome and editor
  * materials. That keeps the frame legible without creating a heavy contrast:
  * subtly darker in light themes and subtly lighter in dark themes. Cloud
- * workspaces still opt into the dedicated sky-blue titlebar tokens.
+ * workspaces use a solid, appearance-aware blue Header with the same foreground palette.
  */
 :root,
 :where(.app-shell, .onboarding-shell, .desktop-overlay-root, .desktop-theme-preview-surface, .dark) {
@@ -198,12 +210,18 @@
   --po-surface-auxiliary: var(--po-sidebar);
   --po-surface-agent: var(--po-surface-editor);
   --po-surface-terminal: var(--po-surface-editor);
-  /* Popup controls belong to application chrome. A small foreground mix gives
-   * them more separation than the Header in both light and dark appearances. */
-  --po-surface-menu: color-mix(in srgb, var(--po-header) 94%, var(--po-text) 6%);
+  /* Popup controls share the Header's theme material. Borders, elevation and
+   * interaction states provide separation without adding another grey tier. */
+  --po-surface-menu: var(--po-header);
 
   --po-canvas: var(--po-surface-editor);
   --po-header: color-mix(in srgb, var(--po-surface-chrome) 40%, var(--po-surface-editor));
+  /* Keep light Cloud chrome grounded in the theme's Header grey, with a
+   * restrained product-blue tint. Resolve within the active theme scope. */
+  --po-cloud-header-bg: light-dark(
+    color-mix(in srgb, var(--po-header) 85%, var(--po-brand-blue) 15%),
+    #102a43
+  );
   --po-sidebar: color-mix(in srgb, var(--po-surface-chrome) 40%, var(--po-surface-editor));
   --po-chrome: var(--po-surface-chrome);
   --po-panel: var(--po-surface-panel);

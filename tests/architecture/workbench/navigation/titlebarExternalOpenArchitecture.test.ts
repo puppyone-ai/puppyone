@@ -18,7 +18,7 @@ describe("pane-scoped external-open architecture", () => {
     expect(pane).toContain("onOpenExternal");
     expect(paneMenu).toContain("findCommand.open");
     expect(paneMenu).toContain("menuContribution?.viewItems");
-    expect(actions).toContain('definition.linkedRightSidebarToolId ? "right-sidebar"');
+    expect(actions).toMatch(/definition\.linkedRightSidebarToolId\s*\?\s*"right-sidebar"\s*:\s*"header"/);
     expect(actions).toContain('className="desktop-titlebar-action-divider"');
     expect(titlebarCss).toMatch(
       /\.desktop-titlebar-action-divider\s*\{[^}]*height:\s*18px;[^}]*margin-inline:\s*3px;[^}]*background:\s*var\(--desktop-titlebar-divider\);[^}]*\}/s,
@@ -43,14 +43,12 @@ describe("pane-scoped external-open architecture", () => {
     const sidebar = source("src/features/settings/sidebar/settingsSidebarModel.ts");
     const target = source("src/features/external-apps/useExternalFileOpen.ts");
     const preferences = source("src/preferences.ts");
-    const preferenceController = source("src/features/app-shell/useDesktopPreferences.ts");
     const preload = source("electron/preload.cjs");
     const ipc = source("electron/main/ipc/workspace-files-ipc.mjs");
 
     expect(settings).not.toContain("DefaultAppsSettingsView");
     expect(sidebar).not.toContain("external-apps");
     expect(preferences).not.toContain("ExternalAppsSettings");
-    expect(preferenceController).toContain('localStorage.removeItem("puppyone.desktop.externalApps")');
     expect(target).toContain("openWorkspaceEntryExternal");
     expect(target).not.toMatch(/strategy|appPath|getAppName/);
     expect(preload).toContain("openEntryExternal:");

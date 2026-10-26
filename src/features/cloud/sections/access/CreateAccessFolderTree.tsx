@@ -8,11 +8,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
-import {
-  Tooltip,
-  STANDARD_CONTROL_SIZE,
-  useCssPixelCustomProperty,
-} from "@puppyone/shared-ui";
+import { STANDARD_CONTROL_SIZE, useCssPixelCustomProperty } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
 import { PageLoading } from "../../../../components/loading";
 import type {
@@ -276,9 +272,7 @@ function FolderRow({
           <span className="desktop-cloud-create-access-tree-marker">
             <TreeDisclosureMarker expanded={expanded} />
           </span>
-          <Tooltip content={formatTreePath(entry.path, t)} overflowOnly>
-            <span className="desktop-cloud-create-access-tree-name" dir="auto">{entry.name}</span>
-          </Tooltip>
+          <span className="desktop-cloud-create-access-tree-name" dir="auto">{entry.name}</span>
         </button>
         <FolderRowStatus selected={selected} alreadyExists={alreadyExists} onSelect={onSelect} />
       </div>
@@ -308,9 +302,7 @@ function FileRow({
       >
         <span className="desktop-cloud-create-access-tree-marker" />
         <FileText size={15} />
-        <Tooltip content={formatTreePath(entry.path, t)} overflowOnly>
-          <span className="desktop-cloud-create-access-tree-name" dir="auto">{entry.name}</span>
-        </Tooltip>
+        <span className="desktop-cloud-create-access-tree-name" dir="auto">{entry.name}</span>
       </div>
     </div>
   );
@@ -350,7 +342,7 @@ function AccessStatusText({ onSelect }: { onSelect?: () => void }) {
     return <span className="desktop-cloud-create-access-tree-status">{t("cloud.access.create.hasAccess")}</span>;
   }
   return (
-    <Tooltip content={t("cloud.access.create.openThisAccess")}><button
+    <button
       className="desktop-cloud-create-access-tree-status existing"
       type="button"
       onClick={(event) => {
@@ -359,7 +351,7 @@ function AccessStatusText({ onSelect }: { onSelect?: () => void }) {
       }}
     >
       {t("cloud.access.create.hasAccess")}
-    </button></Tooltip>
+    </button>
   );
 }
 

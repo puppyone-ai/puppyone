@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import type { ReactNode } from "react";
 import { RefreshCw } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
@@ -120,9 +121,9 @@ function UtilityEmptyState({
         {detail && <span>{detail}</span>}
         {action}
         {onRefresh && (
-          <button className="desktop-utility-icon-button" type="button" onClick={onRefresh} aria-label={t("source-control.action.refreshGit")}>
+          <Tooltip content={t("source-control.action.refreshGit")}><button className="desktop-utility-icon-button" type="button" onClick={onRefresh} aria-label={t("source-control.action.refreshGit")}>
             <RefreshCw size={15} className={loading ? "spin" : undefined} />
-          </button>
+          </button></Tooltip>
         )}
       </div>
     </section>

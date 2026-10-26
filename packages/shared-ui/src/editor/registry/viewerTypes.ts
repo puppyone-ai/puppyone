@@ -173,6 +173,8 @@ export type PresetViewerRenderContext = EditorViewerMatch & {
   fileUrl?: string | null;
   fileUrlLoading: boolean;
   fileUrlError?: string | null;
+  /** Refresh the provider input, including expired signed resource URLs. */
+  onRetryInput?: () => void;
   loading: boolean;
   error?: string | null;
   canEdit: boolean;

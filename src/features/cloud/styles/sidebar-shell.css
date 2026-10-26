@@ -11,7 +11,7 @@
   --desktop-cloud-page-padding-top: calc(
     var(--desktop-cloud-shell-padding-top) + var(--desktop-cloud-catalog-padding-top)
   );
-  --desktop-cloud-page-padding-inline: clamp(28px, 4.6vw, 44px);
+  --desktop-cloud-page-padding-inline: var(--desktop-utility-page-padding-inline);
   --desktop-cloud-page-padding-bottom: 56px;
   position: relative;
   display: flex;
@@ -115,17 +115,4 @@
   min-height: 0;
   place-items: center;
   color: var(--po-text-muted);
-}
-
-@media (max-width: 720px) {
-  .desktop-cloud-main-view {
-    --desktop-cloud-shell-padding-top: 14px;
-    --desktop-cloud-catalog-padding-top: 32px;
-    --desktop-cloud-page-padding-inline: 24px;
-    --desktop-cloud-page-padding-bottom: 44px;
-  }
-
-  .desktop-cloud-main-view:not(.desktop-cloud-history-main-view):not(.desktop-cloud-landing-main-view):not(.desktop-cloud-automation-main-view) {
-    padding: 14px;
-  }
 }

@@ -32,7 +32,7 @@
   justify-self: center;
   gap: 28px;
   margin: 0;
-  padding: clamp(20px, 3vw, 32px);
+  padding: var(--desktop-utility-page-padding-inline);
   border: 0;
   background: transparent;
   box-shadow: none;
@@ -485,7 +485,7 @@
   width: min(100%, 520px);
   min-width: 0;
   justify-items: center;
-  padding: clamp(20px, 4vw, 36px);
+  padding: var(--desktop-utility-page-padding-inline);
   border: 0;
   background: transparent;
 }
@@ -617,7 +617,6 @@
 @container cloud-publish (max-width: 720px) {
   .desktop-cloud-publish-card {
     gap: 24px;
-    padding: 16px;
   }
 
   .desktop-cloud-publish-hero {

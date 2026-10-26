@@ -1,3 +1,4 @@
+import { initializeDesktopPreferences } from "../../../../src/preferencesStore";
 import { TestLocalizationProvider } from "@puppyone/localization/testing";
 import { canonicalizeResourceUri, createWorkspaceFolder, EMPTY_MARKDOWN_LINK_COMMANDS, ExplorerTree, getEditorPanes, type DataPort, type DocumentDataNode, type MarkdownWorkspaceEnvironment } from "@puppyone/shared-ui";
 import "@puppyone/shared-ui/shared-ui.css";
@@ -13,6 +14,8 @@ import "../../../../src/styles.css";
 import "../../../../src/styles/cascade.css";
 import { unavailableDocumentNavigation } from "../../../support/editor/documentFixtures";
 import { requireResourceSmokeBridge } from "./resourceSmoke";
+
+initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeItem: () => {} });
 
 const { workspacePath } = await window.resourceSmoke.config();
 const workspace = { id: "smoke-workbench", path: workspacePath, name: "Native Editor smoke", status: "recording" as const };
@@ -51,7 +54,7 @@ function Harness() {
       <p>Drag 中文 file.md into the editor. Repeat to verify no duplicate pane.</p></aside>
     <section style={{ position: "relative", minWidth: 0, minHeight: 0 }}>
       <DesktopEditorSplitView aiEditRequest={null} dataPort={port} editorGroup={editor.state} layout={editor.paneLayout}
-        editorInteractionPreferences={{ showSaveStatus: false, markdownBlockDragEnabled: false }} fileIconTheme="default" editorTree={nodes}
+        editorInteractionPreferences={{ showSaveStatus: false, markdownBlockDragEnabled: false }}  editorTree={nodes}
         markdownEnvironment={environment} documentNavigation={unavailableDocumentNavigation} workspace={workspace}
         onClosePane={editor.closePane} onFocusPane={editor.focusPane} onResizeSplit={editor.resizeSplit} onMovePane={editor.movePane}
         onOpenAtPaneEdge={editor.openDocumentAtPaneEdge} onSplitPane={editor.splitPane} />

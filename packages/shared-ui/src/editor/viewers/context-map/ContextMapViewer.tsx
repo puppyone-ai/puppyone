@@ -1,4 +1,10 @@
 import { Tooltip } from "../../../primitives/Tooltip";
+import {
+  FloatingNotice,
+  FloatingNoticeAction,
+  FloatingNoticeStack,
+  useDismissibleNotice,
+} from "../../../primitives/FloatingNotice";
 import { useEditorDependencies } from "../../runtime/EditorTaskContext";
 import {
   useCallback,
@@ -139,6 +145,7 @@ export function ContextMapViewer({
   });
   const mapDocument = state.document;
   const parseError = state.error;
+  const [visibleParseError, dismissParseError] = useDismissibleNotice(parseError ?? null);
   const updateDocument = useCallback((update: (current: ContextMapDocument) => ContextMapDocument) => {
     applyDocumentEdit(update(model.getSnapshot().document));
   }, [applyDocumentEdit, model]);
@@ -216,15 +223,21 @@ export function ContextMapViewer({
 
   return (
     <div className="context-map-viewer-shell" onKeyDownCapture={onHistoryKeyDown}>
-      {parseError && (
-        <div className="context-map-parse-error" role="alert">
-          <span>{t("workspace.relationships.invalidFile", { detail: parseError })}</span>
-          {canEdit && (
-            <button type="button" onClick={resetInvalidFile}>
-              {t("workspace.relationships.resetFile")}
-            </button>
-          )}
-        </div>
+      {visibleParseError && (
+        <FloatingNoticeStack className="context-map-notice-stack">
+          <FloatingNotice
+            className="context-map-parse-error"
+            tone="danger"
+            actions={canEdit && (
+              <FloatingNoticeAction onClick={resetInvalidFile}>
+                {t("workspace.relationships.resetFile")}
+              </FloatingNoticeAction>
+            )}
+            onDismiss={dismissParseError}
+          >
+            {t("workspace.relationships.invalidFile", { detail: visibleParseError })}
+          </FloatingNotice>
+        </FloatingNoticeStack>
       )}
       <ContextMapSurface
         dataPort={dataPort}
@@ -858,7 +871,7 @@ function RadialRelationshipNode({
         />
       </span>
       <span className="folder-relationship-card-copy">
-        <Tooltip content={entry.node.name} overflowOnly><strong>{entry.node.name}</strong></Tooltip>
+        <strong>{entry.node.name}</strong>
       </span>
     </span>
   );
@@ -1237,7 +1250,7 @@ function LayeredRelationshipNode({
         />
       </span>
       <span className="folder-relationship-card-copy">
-        <Tooltip content={entry.node.name} overflowOnly><strong>{entry.node.name}</strong></Tooltip>
+        <strong>{entry.node.name}</strong>
       </span>
     </span>
   );
@@ -1977,7 +1990,7 @@ function RelationshipNode({
         <FileGlyphIcon name={node.name} type={node.type} size={24} theme={fileIconTheme} />
       </span>
       <span className="folder-relationship-card-copy">
-        <Tooltip content={node.name} overflowOnly><strong>{node.name}</strong></Tooltip>
+        <strong>{node.name}</strong>
       </span>
     </span>
   );

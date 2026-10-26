@@ -1,5 +1,10 @@
 "use client";
 import { Tooltip } from "../../../primitives/Tooltip";
+import {
+  FloatingNotice,
+  FloatingNoticeStack,
+  useDismissibleNotice,
+} from "../../../primitives/FloatingNotice";
 
 import { useEditorTaskController } from "../../runtime/EditorTaskContext";
 import { acquireEditorHostLease } from "../../runtime/EditorHostLeases";
@@ -146,6 +151,7 @@ type OfficeViewerProps = Pick<
   | "fileUrl"
   | "fileUrlLoading"
   | "fileUrlError"
+  | "onRetryInput"
   | "openExternalFile"
   | "convertOfficeDocumentToDocx"
   | "markdownEnvironment"
@@ -163,6 +169,7 @@ export function OfficeViewer({
   convertOfficeDocumentToDocx,
   markdownEnvironment,
   officeEditorActions = [],
+  onRetryInput,
 }: OfficeViewerProps) {
   const createTaskController = useEditorTaskController();
   const { t } = useLocalization();
@@ -264,6 +271,7 @@ export function OfficeViewer({
           <OfficeEmptyState
             title={t("editor.preview.failed")}
             message={state.message}
+            onRetry={onRetryInput}
             documentPath={document.path}
             openExternalFile={openExternalFile}
           />
@@ -348,9 +356,13 @@ function OfficePreviewControls({
   return (
     <div className="office-preview__floating-region">
       {editorActionError && (
-        <span className="office-preview__floating-error" role="alert" dir="auto">
+        <FloatingNotice
+          className="office-preview__floating-error"
+          tone="danger"
+          onDismiss={() => setEditorActionError(null)}
+        >
           {editorActionError}
-        </span>
+        </FloatingNotice>
       )}
       <div className="office-preview__floating-controls">
         {wordZoomControls && (
@@ -628,6 +640,11 @@ function PptxPresentationPreview({
     slideCount: number;
   } | null>(null);
   const [slideErrors, setSlideErrors] = useState<Record<number, string>>({});
+  const activeSlideError = slideErrors[activeSlide];
+  // Keyed by slide so a dismissed failure does not hide the next failing slide.
+  const [visibleSlideError, dismissSlideError] = useDismissibleNotice(
+    activeSlideError ? `${activeSlide}\u0000${activeSlideError}` : null,
+  );
 
   useEffect(() => {
     const host = hostRef.current;
@@ -863,13 +880,20 @@ function PptxPresentationPreview({
           {viewerState?.slideCount === 0 && (
             <div className="office-pptx-render-state">{t("editor.office.emptyPresentation")}</div>
           )}
-          {slideErrors[activeSlide] && (
-            <div className="office-pptx-slide-error" role="status">
-              {t("editor.office.slideRenderFailed", {
-                number: activeSlide + 1,
-                detail: bidiIsolate(slideErrors[activeSlide]),
-              })}
-            </div>
+          {visibleSlideError && activeSlideError && (
+            <FloatingNoticeStack className="office-pptx-notice-stack">
+              <FloatingNotice
+                className="office-pptx-slide-error"
+                tone="danger"
+                role="status"
+                onDismiss={dismissSlideError}
+              >
+                {t("editor.office.slideRenderFailed", {
+                  number: activeSlide + 1,
+                  detail: bidiIsolate(activeSlideError),
+                })}
+              </FloatingNotice>
+            </FloatingNoticeStack>
           )}
           {viewerState && viewerState.slideCount > 0 && (
             <PresentationNavigation
@@ -982,23 +1006,23 @@ function PresentationNavigation({
   const { t } = useLocalization();
   return (
     <div className="office-pptx-navigation">
-      <button
+      <Tooltip content={t("editor.office.previousSlide")}><button
         type="button"
         aria-label={t("editor.office.previousSlide")}
         disabled={activeSlide <= 0}
         onClick={() => onSelect(Math.max(0, activeSlide - 1))}
       >
         <ChevronLeft size={15} strokeWidth={2} />
-      </button>
+      </button></Tooltip>
       <span>{t("editor.office.slidePosition", { current: activeSlide + 1, total: slideCount })}</span>
-      <button
+      <Tooltip content={t("editor.office.nextSlide")}><button
         type="button"
         aria-label={t("editor.office.nextSlide")}
         disabled={activeSlide >= slideCount - 1}
         onClick={() => onSelect(Math.min(slideCount - 1, activeSlide + 1))}
       >
         <ChevronRight size={15} strokeWidth={2} />
-      </button>
+      </button></Tooltip>
     </div>
   );
 }
@@ -1249,7 +1273,7 @@ function SpreadsheetPreview({
         const frozenColumn = cell.columnPosition < selectedSheet.frozenColumns;
         const workbookStyle = result.styles[cell.styleId];
         return (
-          <Tooltip content={cell.value || undefined} overflowOnly key={`${row.rowIndex}-${cell.columnIndex}`}><td
+          <td key={`${row.rowIndex}-${cell.columnIndex}`}
             data-cell-kind={cell.kind}
             data-column-position={cell.columnPosition}
             data-frozen-column={frozenColumn ? "true" : undefined}
@@ -1271,7 +1295,7 @@ function SpreadsheetPreview({
             }}
           >
             <span dir="auto">{cell.value}</span>
-          </td></Tooltip>
+          </td>
         );
       })}
     </tr>
@@ -1374,14 +1398,14 @@ function SpreadsheetPreview({
         aria-label={t("editor.office.sheets")}
       >
         {result.sheets.map((sheet, index) => (
-          <Tooltip content={sheet.name} overflowOnly key={sheet.name}><button
+          <button key={sheet.name}
             type="button"
             role="tab"
             aria-selected={index === activeSheet}
             onClick={() => onActiveSheetChange(index)}
           >
             <span dir="auto">{sheet.name}</span>
-          </button></Tooltip>
+          </button>
         ))}
       </div>
     </div>
@@ -1495,11 +1519,13 @@ function OfficeEmptyState({
   message,
   documentPath,
   openExternalFile,
+  onRetry,
 }: {
   title: string;
   message: string;
   documentPath?: string;
   openExternalFile?: (path: string) => Promise<void>;
+  onRetry?: () => void;
 }) {
   const { t } = useLocalization();
   const [externalOpenError, setExternalOpenError] = useState<string | null>(null);
@@ -1515,6 +1541,7 @@ function OfficeEmptyState({
     <div className="office-preview-empty">
       <strong>{title}</strong>
       <span dir="auto">{message}</span>
+      {onRetry && <button type="button" onClick={onRetry}>{t("common.action.retry")}</button>}
       {documentPath && openExternalFile && (
         <button type="button" data-po-interaction="navigation" onClick={openExternally}>
           {t("editor.openDefaultApp")}

@@ -2,7 +2,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import type { MessageFormatter } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
 import { useSurfaceAppearance } from "../../appearance/AppearanceRuntime";
-import type { AuxiliaryWorkbenchContribution, AuxiliaryWorkbenchItemRenderContext } from "../../app-shell/auxiliary-workbench/types";
+import type { AuxiliaryWorkbenchContribution, AuxiliaryWorkbenchItemRenderContext } from "../../../lib/workbench/types";
 import { DESKTOP_TERMINAL_LAUNCHERS } from "../model/terminalLaunchers";
 import { presentTerminalSessionHeader } from "../model/terminalSessionHeader";
 import { TerminalSessionHeaderStatus } from "../ui/session-header/TerminalSessionHeaderStatus";
@@ -37,6 +37,7 @@ export function createTerminalWorkbenchContribution(t: MessageFormatter, readApp
       return entry ? <TerminalStatus entry={entry} /> : null;
     },
     close: {
+      executionKind: "terminal",
       decide: ({ snapshot }) => getTerminalClosePolicy(snapshot.status === "idle" ? "exited" : snapshot.status) === "close"
         ? { kind: "close" }
         : { kind: "confirm", tone: "danger", dialog: { title: t("terminal.closeDialog.title", { title: snapshot.title }),
@@ -77,11 +78,8 @@ function TerminalContent({ entry, workspacePath, presentation, onPresentationCha
       running: session.status === "running", resourceId: session.id });
   }, [onPresentationChange, session, t, workspacePath]);
   useEffect(() => { if (focusRequest && presentation.presented) entry.runtime.focus(); }, [entry, focusRequest, presentation.presented]);
-  return <>
-    <TerminalSessionView runtime={entry.runtime} workspacePath={workspacePath}
-      presented={presentation.presented} focused={presentation.commandTarget} />
-    {session.launchError && <div className="desktop-terminal-drop-error" role="alert">{session.launchError}</div>}
-  </>;
+  return <TerminalSessionView runtime={entry.runtime} workspacePath={workspacePath} launchError={session.launchError}
+    presented={presentation.presented} focused={presentation.commandTarget} />;
 }
 
 function TerminalStatus({ entry }: { entry: TerminalRuntimeEntry }) {

@@ -1,3 +1,4 @@
+import { Tooltip } from "@puppyone/shared-ui";
 import { useMemo, type CSSProperties } from "react";
 import { Plus } from "lucide-react";
 import { useLocalization } from "@puppyone/localization/react";
@@ -124,7 +125,6 @@ export function TerminalSessionHeader({
   return (
     <header
       className="desktop-terminal-subheader"
-      data-window-no-drag="true"
       style={{
         "--desktop-terminal-header-gap": `${TERMINAL_SESSION_HEADER_METRICS.gap}px`,
         "--desktop-terminal-tab-control-height": `${TERMINAL_SESSION_HEADER_METRICS.createControl}px`,
@@ -196,12 +196,12 @@ export function TerminalSessionHeader({
               onClose={onClose}
             />
           )}
-          <DesktopMenuIconButton
+          <Tooltip content={t("terminal.new")}><DesktopMenuIconButton
             className="desktop-terminal-new-button"
             label={t("terminal.new")}
             icon={<Plus size={14} strokeWidth={1.9} aria-hidden="true" />}
             onClick={onCreate}
-          />
+          /></Tooltip>
         </div>
       </div>
     </header>

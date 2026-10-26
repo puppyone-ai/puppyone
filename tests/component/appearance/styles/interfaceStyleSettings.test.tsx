@@ -1,17 +1,19 @@
+import { initializeDesktopPreferences, desktopPreferencesStore as store } from "../../../../src/preferencesStore";
 /**
  * @vitest-environment happy-dom
  */
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { INTERFACE_STYLES, type InterfaceStyle } from "../../../../src/features/appearance/interfaceStyles";
-import { resolveAppearance } from "../../../../src/features/appearance/resolveAppearance";
 import { InterfacePaletteSettings } from "../../../../src/features/settings/main/InterfacePaletteSettings";
 import { InterfaceStyleSetting } from "../../../../src/features/settings/main/InterfaceStyleSetting";
 import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+beforeEach(() => { localStorage.clear(); initializeDesktopPreferences(); });
 
 let root: Root | null = null;
 
@@ -23,9 +25,8 @@ afterEach(() => {
 
 describe("Interface style settings", () => {
   it("renders style choices from the registry and emits their typed id", () => {
-    const onChange = vi.fn();
     const host = mount(
-      <InterfaceStyleSetting value="default" onChange={onChange} />,
+      <InterfaceStyleSetting />,
     );
     const buttons = [...host.querySelectorAll<HTMLButtonElement>("button")];
 
@@ -37,7 +38,8 @@ describe("Interface style settings", () => {
     expect(buttons[0]?.getAttribute("aria-pressed")).toBe("true");
 
     act(() => buttons[1]?.click());
-    expect(onChange).toHaveBeenCalledWith("windows-xp");
+    expect(store.getState().interfaceStyle).toBe("windows-xp");
+    expect(buttons[1]?.getAttribute("aria-pressed")).toBe("true");
   });
 
   it("shows only the color mode control for an adaptive palette", () => {
@@ -69,21 +71,9 @@ function mount(element: React.ReactElement) {
 }
 
 function renderPalette(host: HTMLElement, interfaceStyle: InterfaceStyle) {
-  const decision = resolveAppearance({
-    interfaceStyle,
-    themeMode: "system",
-    sidebarNavigationLayout: "bottom-horizontal",
-    fileIconTheme: "semantic",
-  }).decisions.themeMode;
+  act(() => store.getState().setInterfaceStyle(interfaceStyle));
   act(() => root?.render(withTestLocalization(
-    <InterfacePaletteSettings
-      interfaceStyle={interfaceStyle}
-      subThemeId="default.neutral"
-      decision={decision}
-      lightThemePreset="neutral"
-      darkThemePreset="default"
-      onThemeModeChange={() => undefined}
-    />,
+    <InterfacePaletteSettings />,
   )));
   return host;
 }

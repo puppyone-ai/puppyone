@@ -5,7 +5,7 @@ import { DEFAULT_MARKDOWN_PRESENTATION_SETTINGS } from "../../markdown/markdownP
 import { AGENT_BRAND_CATALOG, resolveRendererPublicAssetUrl } from "@puppyone/shared-ui";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
-import { DesktopOverlayPortal } from "../../app-shell/DesktopOverlayPortal";
+import { DesktopOverlayPortal } from "../../../components/DesktopOverlayPortal";
 import { AgentComposer } from "./AgentComposer";
 import { AgentApprovalDock } from "./AgentApprovalDock";
 import { AgentPanelLayout } from "./AgentPanelLayout";

@@ -18,6 +18,13 @@ export class ManagedOperationScope {
   }
 }
 
+export class ScopedOperationTimeoutError extends Error {
+  constructor(readonly timeoutMs: number) {
+    super(`The operation timed out after ${timeoutMs}ms.`);
+    this.name = "ScopedOperationTimeoutError";
+  }
+}
+
 export function waitForScopedOperation<T>(promise: Promise<T>, signal: AbortSignal, timeoutMs: number): Promise<T> {
   return new Promise((resolve, reject) => {
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -30,6 +37,6 @@ export function waitForScopedOperation<T>(promise: Promise<T>, signal: AbortSign
     promise.then(value => finish(null, value), error => finish(error));
     if (signal.aborted) { abort(); return; }
     signal.addEventListener("abort", abort, { once: true });
-    timer = setTimeout(() => finish(new Error("The operation timed out.")), timeoutMs);
+    timer = setTimeout(() => finish(new ScopedOperationTimeoutError(timeoutMs)), timeoutMs);
   });
 }

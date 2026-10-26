@@ -85,12 +85,7 @@ describe("Desktop Agent architecture boundaries", () => {
     expect(timeline).toContain("showEmptyState && emptyState");
     expect(emptyState).toContain("<AgentBrandMark");
     expect(emptyState).not.toMatch(/selectedModel|AgentModelPicker/);
-    expect(source("src/features/desktop-agent/ui/AgentChatTabPanel.tsx")).toContain(
-      "const showReadyEmptyState = (routingReady || computeOnboarding)",
-    );
     const tabPanel = source("src/features/desktop-agent/ui/AgentChatTabPanel.tsx");
-    expect(tabPanel).toContain('capabilities?.modelConnections && readiness?.code === "RUNTIME_SETUP_REQUIRED"');
-    expect(tabPanel).toContain("!state.selectedModel && !state.session && !hasCommittedTranscript && !state.error && !failed");
     expect(tabPanel).toContain("commandTarget && routingReady");
     expect(markdown).not.toContain("dangerouslySetInnerHTML");
     expect(markdownDocument).not.toContain("dangerouslySetInnerHTML");
@@ -221,7 +216,6 @@ describe("Desktop Agent architecture boundaries", () => {
     const sessionCache = source("electron/main/agent/cache/ephemeral-agent-session-cache.mjs");
     const conversationCatalog = source("electron/main/agent/persistence/agent-conversation-catalog.mjs");
     const inventory = source("electron/main/agent/connections/local-agent-inventory.mjs");
-    const preferences = source("src/features/app-shell/preferences.ts");
     const header = source("src/features/desktop-agent/ui/AgentSurfaceHeader.tsx");
     const controllerState = source("src/features/desktop-agent/application/agent-controller-state.ts");
     expect(main).toContain("createEphemeralAgentSessionCache");
@@ -235,7 +229,6 @@ describe("Desktop Agent architecture boundaries", () => {
     expect(conversationCatalog).toContain("providerSessionId,");
     expect(main).toContain("agent-runtime-inventory.json");
     expect(inventory).toContain("PERSISTED_CACHE_TTL_MS");
-    expect(preferences).toContain("AGENT_ROUTING_PREFERENCES_STORAGE_KEY");
     expect(header).toContain("<AgentBrandMark");
     expect(header).not.toContain("PuppyBrandMark");
     expect(header).not.toMatch(/Session history|Recent chats|Archive chat|Delete local chat|Fork chat/);

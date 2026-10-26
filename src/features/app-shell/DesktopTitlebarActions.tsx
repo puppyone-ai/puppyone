@@ -1,9 +1,8 @@
-import { Tooltip } from "@puppyone/shared-ui";
+import { useDesktopPreference } from "../../preferencesStore";
 import { Fragment, type ReactNode } from "react";
-import { Cloud, Forward } from "lucide-react";
+import { Forward } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import { getOrderedHeaderElementDefinitions, type HeaderElementRenderContext } from "./headerElements";
-import type { TitlebarActionsSettings } from "../../preferences";
 import type { DesktopUpdateState } from "../../types/electron";
 import {
   DesktopUpdateTitlebarButton,
@@ -18,7 +17,6 @@ import type { HeaderCoachmarkId } from "./headerCoachmarks";
 
 type DesktopTitlebarActionsProps = {
   desktopUpdateState?: DesktopUpdateState | null;
-  titlebarActionsSettings: TitlebarActionsSettings;
   terminalSidebarOpen: boolean;
   terminalToolEnabled: boolean;
   gitChangesAvailable?: boolean;
@@ -28,7 +26,6 @@ type DesktopTitlebarActionsProps = {
   onToggleTerminal: () => void;
   onToggleGitChanges?: () => void;
   cloudEnabled?: boolean;
-  onOpenCloud?: () => void;
   shareEnabled?: boolean;
   onShare?: () => void;
   activeCoachmark?: HeaderCoachmarkId | null;
@@ -41,7 +38,6 @@ export type DesktopTitlebarActionGroup = "app-status" | "header" | "right-sideba
 
 export function DesktopTitlebarActions({
   desktopUpdateState = null,
-  titlebarActionsSettings,
   terminalSidebarOpen,
   terminalToolEnabled,
   gitChangesAvailable = false,
@@ -51,7 +47,6 @@ export function DesktopTitlebarActions({
   onToggleTerminal,
   onToggleGitChanges = () => {},
   cloudEnabled = false,
-  onOpenCloud = () => {},
   shareEnabled = false,
   onShare = () => {},
   activeCoachmark = null,
@@ -59,6 +54,7 @@ export function DesktopTitlebarActions({
   placement = "titlebar",
   visibleGroups,
 }: DesktopTitlebarActionsProps) {
+  const titlebarActionsSettings = useDesktopPreference(s => s.titlebarActionsSettings);
   const { t } = useLocalization();
 
   const headerElementContext: HeaderElementRenderContext = {
@@ -101,14 +97,13 @@ export function DesktopTitlebarActions({
     });
   }
 
-  if (cloudEnabled && placement === "titlebar") {
-    const cloudLabel = t("cloud.productName");
+  if (cloudEnabled && shareEnabled && placement === "titlebar") {
     const shareLabel = t("shell.titlebar.share");
     titlebarActionItems.push({
       group: "header",
-      id: shareEnabled ? "share" : "cloud",
-      node: shareEnabled ? (
-        <Tooltip content={shareLabel}><button
+      id: "share",
+      node: (
+        <button
           type="button"
           className="desktop-titlebar-action desktop-titlebar-share"
           aria-label={shareLabel}
@@ -116,16 +111,7 @@ export function DesktopTitlebarActions({
         >
           <Forward size={16} strokeWidth={1.8} aria-hidden="true" />
           <span className="desktop-titlebar-share-label">{shareLabel}</span>
-        </button></Tooltip>
-      ) : (
-        <Tooltip content={cloudLabel}><button
-          type="button"
-          className="desktop-titlebar-action desktop-titlebar-cloud"
-          aria-label={cloudLabel}
-          onClick={onOpenCloud}
-        >
-          <Cloud size={16} strokeWidth={1.8} aria-hidden="true" />
-        </button></Tooltip>
+        </button>
       ),
     });
   }
@@ -138,7 +124,8 @@ export function DesktopTitlebarActions({
       continue;
     }
 
-    const group = definition.linkedRightSidebarToolId ? "right-sidebar" as const : "header" as const;
+    const group: DesktopTitlebarActionGroup = definition.linkedRightSidebarToolId
+      ? "right-sidebar" : "header";
     const element = definition.render(headerElementContext);
 
     titlebarActionItems.push({
@@ -163,7 +150,8 @@ export function DesktopTitlebarActions({
       {visibleTitlebarActionItems.map((item, index) => {
         const previousItem = visibleTitlebarActionItems[index - 1];
         const separatesActionGroups = previousItem
-          && (previousItem.group !== item.group || previousItem.id === "cloud" || previousItem.id === "share");
+          ? previousItem.group !== item.group || previousItem.id === "share"
+          : false;
         return (
           <Fragment key={item.id}>
             {separatesActionGroups && (

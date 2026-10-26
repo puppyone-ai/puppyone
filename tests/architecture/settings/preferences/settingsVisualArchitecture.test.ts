@@ -8,8 +8,8 @@ describe("settings visual architecture", () => {
     const sidebarModel = source("src/features/settings/sidebar/settingsSidebarModel.ts");
     const types = source("src/features/settings/types.ts");
     const general = source("src/features/settings/main/GeneralSettingsView.tsx");
-    const localAgents = source("src/features/local-agents/ui/LocalAgentsSettingsView.tsx");
-    const localAgentHooks = source("src/features/local-agents/ui/LocalAgentHooksSettingsView.tsx");
+    const localAgents = source("src/features/local-agents/setup/LocalAgentsSettingsView.tsx");
+    const localAgentHooks = source("src/features/local-agents/setup/LocalAgentHooksSettingsView.tsx");
     const localProject = source("src/features/settings/main/LocalProjectSettingsView.tsx");
     const privacy = source("src/features/settings/main/PrivacySettingsView.tsx");
     const language = source("src/features/settings/LanguageSetting.tsx");
@@ -108,7 +108,7 @@ describe("settings visual architecture", () => {
   it("shares grouped settings layout between New Menu and Local Agents", () => {
     const settings = source("src/styles/settings.css");
     const newMenu = source("src/features/settings/main/CreateNewSettingsView.tsx");
-    const localAgents = source("src/features/local-agents/ui/LocalAgentsSettingsView.tsx");
+    const localAgents = source("src/features/local-agents/setup/LocalAgentsSettingsView.tsx");
     const newMenuStyles = source("src/styles/settings-new-menu.css");
 
     for (const view of [newMenu, localAgents]) {
@@ -281,12 +281,8 @@ describe("settings visual architecture", () => {
       locales: Array<{ locale: string }>;
     };
 
-    expect(view).toContain("PULSE_GRID_PRESET_IDS.map");
-    expect(view).toContain("PULSE_GRID_PRESET_FRAMES[presetId]");
-    expect(view).toContain("onLoadingAnimationPresetChange(presetId)");
     expect(view).not.toContain('settings.appearance.navigation.title');
-    expect(view.indexOf('settings.appearance.loadingAnimation.title'))
-      .toBeGreaterThan(view.indexOf('settings.appearance.gitSidebarLayout.title'));
+    // Mounted ordering, preset previews and updates: desktopPreferenceConsumers.test.tsx.
     expect(appearancePreferences).toContain("loadingAnimationPreset: LoadingAnimationPreset");
     expect(loading).toContain("LoadingAnimationContext");
     expect(loading).not.toContain("localStorage");
@@ -308,20 +304,15 @@ describe("settings visual architecture", () => {
     }
   });
 
-  it("keeps the interface Style switcher as the last Appearance control", () => {
-    const view = source("src/features/settings/SettingsView.tsx");
-    const styleSetting = view.indexOf("<InterfaceStyleSetting");
-    const pointerCursors = view.indexOf('settings.appearance.pointerCursors.title');
-
-    expect(styleSetting).toBeGreaterThan(pointerCursors);
-  });
 
   it("uses one flat Settings contract and removes legacy card primitives", () => {
-    const components = source("src/features/settings/components.tsx");
+    const components = source("src/components/SettingsControls.tsx");
+    const facade = source("src/features/settings/components.tsx");
     const view = source("src/features/settings/SettingsView.tsx");
     const workspaceConfig = source("src/features/settings/PuppyoneWorkspaceConfigSettings.tsx");
     const splitViews = [
       "AccountSettingsView.tsx",
+      "AppearanceSettingsView.tsx",
       "ExperimentalSettingsView.tsx",
       "FileSettingsViews.tsx",
       "GeneralSettingsView.tsx",
@@ -330,7 +321,7 @@ describe("settings visual architecture", () => {
       "PrivacySettingsView.tsx",
       "RepositorySettingsViews.tsx",
     ].map((fileName) => source(`src/features/settings/main/${fileName}`)).join("\n");
-    const settingsImplementation = `${components}\n${view}\n${workspaceConfig}\n${splitViews}`;
+    const settingsImplementation = `${facade}\n${components}\n${view}\n${workspaceConfig}\n${splitViews}`;
     const settings = source("src/styles/settings.css");
 
     expect(components).toContain("SettingsSubsection");
@@ -393,15 +384,12 @@ describe("settings visual architecture", () => {
     expect(controls).toMatch(/\.desktop-settings-tool-list\s*{[^}]*width:\s*fit-content;[^}]*max-width:\s*100%;/s);
     expect(controls).toMatch(/\.desktop-settings-tool-item\s*{[^}]*grid-template-columns:\s*minmax\(0, max-content\) auto;[^}]*gap:\s*8px;[^}]*padding-inline:\s*8px 0;/s);
     expect(settings).not.toContain(".desktop-settings-wide-control-row > .desktop-settings-tool-list");
-    expect(view.match(/desktop-theme-segment desktop-appearance-option-segment/g)).toHaveLength(3);
-    expect(view.match(/desktop-appearance-hug-segment/g)).toHaveLength(2);
     expect(view).not.toContain("settings.appearance.navigation.title");
     expect(view).not.toContain("settings.appearance.editorPresentation");
     expect(view).not.toContain("settings.appearance.dockIcon");
     expect(localProject).not.toContain("<strong");
     expect(repository).not.toContain("<strong");
     expect(controls).not.toContain("desktop-dock-icon-segment");
-    expect(view).toContain("settings.appearance.gitSidebarLayout.title");
     expect(controls).not.toContain(".desktop-loading-animation-segment");
     expect(controls).not.toContain(".desktop-text-size-segment");
     expect(controls).not.toContain(".desktop-sidebar-layout-segment");

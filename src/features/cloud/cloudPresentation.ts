@@ -7,10 +7,31 @@ import type {
 import type { CloudPublishErrorCode } from "../../types/electron";
 
 export type CloudMessageCode =
+  | "connection-unreachable"
+  | "connection-timeout"
+  | "access-check-unreachable"
+  | "access-check-timeout"
+  | "access-check-unavailable"
+  | "service-updating"
+  | "service-busy"
+  | "service-unavailable"
+  | "app-update-required"
+  | "workspace-connection-unavailable"
   | "project-linked"
   | "clone-command-copied"
   | "cloud-remote-removed"
   | "workspace-unavailable"
+  | "workspace-open-failed"
+  | "workspace-service-unavailable"
+  | "workspace-not-configured"
+  | "workspace-access-denied"
+  | "workspace-plan-required"
+  | "workspace-recovery-required"
+  | "workspace-preparing"
+  | "project-sign-in-required"
+  | "project-access-denied"
+  | "project-response-mismatch"
+  | "project-unavailable"
   | "connect-failed"
   | "copy-clone-failed"
   | "remove-remote-failed"
@@ -53,6 +74,8 @@ export type CloudMessageDescriptor = Readonly<{
   values?: Readonly<Record<string, string | number>>;
   /** Sanitized server/provider detail. It is preserved, not presented as translated product copy. */
   detail?: string;
+  /** Allowlisted machine diagnostics, shown separately from product copy. */
+  diagnostic?: Readonly<{ status?: number; code?: string }>;
 }>;
 
 export function cloudMessage(

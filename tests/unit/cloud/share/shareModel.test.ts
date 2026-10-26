@@ -12,6 +12,8 @@ import {
   normalizeApiOrigin,
   resolveCloudShareStatus,
   SHARE_TARGETS,
+  shareAgentKindKey,
+  shareAgentsOfKind,
   shareHasReceipt,
   shareTargetHandoffStepKey,
   shareTargetLabelKey,
@@ -38,24 +40,51 @@ const endpoint: DesktopCloudMcpEndpoint = {
   created_at: "2026-09-28T10:00:00Z",
 };
 
-function dashboardWith(connections: DesktopCloudDashboard["connections"]): DesktopCloudDashboard {
+function dashboardWith(resources: DesktopCloudDashboard["resources"]): DesktopCloudDashboard {
   return {
     project: { id: "proj-1", name: "Notes" },
     nodes: { total: 0, folders: 0, files: 0 },
-    connections,
+    resources,
     tools: [],
-  } as unknown as DesktopCloudDashboard;
+    uploads: [],
+  };
 }
 
 describe("share targets", () => {
   it("covers cloud Agents over MCP and chat bots or people over a link", () => {
     const ids = SHARE_TARGETS.map((target) => target.id);
-    expect(ids).toEqual(["viktor", "claude", "chatgpt", "slack-bot", "grok", "person", "mcp"]);
+    expect(ids).toEqual(["viktor", "manus", "claude", "chatgpt", "slack-bot", "grok", "person", "mcp"]);
     expect(getShareTarget("viktor").channel).toBe("mcp");
     expect(getShareTarget("slack-bot").channel).toBe("link");
     expect(getShareTarget("person").channel).toBe("link");
     expect(isShareTargetId("grok")).toBe(true);
+    // An agent that runs on this Mac is never a destination: it reads the
+    // folder already, so there is nothing for Cloud to hand it.
     expect(isShareTargetId("cursor")).toBe(false);
+  });
+
+  it("sorts the agents by the one difference that decides between them", () => {
+    // An agent with its own machine works while this Mac is closed; an
+    // assistant reads while the user is talking to it. Everything else is
+    // either a client the user configures or not an agent at all.
+    expect(shareAgentsOfKind("cloud-native").map((target) => target.id)).toEqual(["viktor", "manus"]);
+    expect(shareAgentsOfKind("assistant").map((target) => target.id)).toEqual(["claude", "chatgpt"]);
+    expect(shareAgentsOfKind("remote-client").map((target) => target.id)).toEqual(["mcp"]);
+    for (const id of ["slack-bot", "grok", "person"] as const) {
+      expect(getShareTarget(id).kind, id).toBeNull();
+    }
+    // Every agent holds its own credential; a destination that only opens a
+    // link cannot be one.
+    for (const kind of ["cloud-native", "assistant", "remote-client"] as const) {
+      for (const target of shareAgentsOfKind(kind)) expect(target.channel, target.id).toBe("mcp");
+    }
+  });
+
+  it("names the heading each kind is grouped under", () => {
+    const keys = new Set(Object.keys(englishCloud).map((key) => `cloud.${key}`));
+    for (const kind of ["cloud-native", "assistant", "remote-client"] as const) {
+      expect(keys.has(shareAgentKindKey(kind)), kind).toBe(true);
+    }
   });
 
   it("names every localized message it will ask for", () => {
@@ -121,17 +150,27 @@ describe("project shares", () => {
   it("joins endpoints with dashboard usage to show who has actually connected", () => {
     const shares = buildProjectShares(
       [endpoint, { ...endpoint, id: "ep-2", name: "Claude", accesses: [{ path: "docs", readonly: false }] }],
-      dashboardWith([{ id: "ep-2", provider: "mcp", status: "active", last_synced_at: "2026-09-28T11:00:00Z" }]),
+      dashboardWith([{ resource_kind: "access", resource_id: "ep-2", project_id: "proj-1", kind: "mcp", target: projectRootTarget("proj-1"), status: "active", last_activity_at: "2026-09-28T11:00:00Z" }]),
     );
     expect(shares).toHaveLength(2);
     expect(shares[0]).toMatchObject({ id: "ep-1", path: "", readonly: true, lastSeenAt: null });
     expect(shares[1]).toMatchObject({ id: "ep-2", path: "docs", readonly: false, lastSeenAt: "2026-09-28T11:00:00Z" });
   });
 
+  it("never treats an equal Synchronize ID or foreign Access Project as a share receipt", () => {
+    const resources: DesktopCloudDashboard["resources"] = [
+      { resource_kind: "synchronize", resource_id: endpoint.id, project_id: "proj-1", provider: "url", path: "", status: "active", last_activity_at: "2026-09-28T11:00:00Z" },
+      { resource_kind: "access", resource_id: endpoint.id, project_id: "foreign", kind: "mcp", target: projectRootTarget("foreign"), status: "active", last_activity_at: "2026-09-28T11:00:00Z" },
+    ];
+    const [share] = buildProjectShares([endpoint], dashboardWith(resources));
+    expect(share.lastSeenAt).toBeNull();
+    expect(shareHasReceipt(share, null)).toBe(false);
+  });
+
   it("only counts usage after the share was issued as a receipt", () => {
     const [share] = buildProjectShares(
       [endpoint],
-      dashboardWith([{ id: "ep-1", provider: "mcp", status: "active", last_synced_at: "2026-09-28T11:00:00Z" }]),
+      dashboardWith([{ resource_kind: "access", resource_id: "ep-1", project_id: "proj-1", kind: "mcp", target: projectRootTarget("proj-1"), status: "active", last_activity_at: "2026-09-28T11:00:00Z" }]),
     );
     expect(shareHasReceipt(share, "2026-09-28T10:30:00Z")).toBe(true);
     expect(shareHasReceipt(share, "2026-09-28T11:30:00Z")).toBe(false);

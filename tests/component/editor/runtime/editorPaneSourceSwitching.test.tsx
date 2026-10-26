@@ -6,6 +6,8 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DocumentEditingSession } from "../../../../packages/shared-ui/src/editor/document-session/DocumentEditingSession";
 import { useEditorPaneSource } from "../../../../src/features/editor-workbench/runtime/useEditorPaneSource";
+import { FilePreview } from "../../../../packages/shared-ui/src/editor/host/FilePreview";
+import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
@@ -21,6 +23,30 @@ afterEach(() => {
 });
 
 describe("editor pane source switching", () => {
+  it("retries a failed Cloud file in its existing surface and shows pending state before the retry returns", async () => {
+    const document = node("retry.txt", "code", "text/plain");
+    const pending = deferred<FileContent>();
+    const readFile = vi.fn().mockRejectedValueOnce(new Error("Network unavailable")).mockReturnValue(pending.promise);
+    const port = createDataPort(readFile);
+    function Probe() {
+      const source = useEditorPaneSource(document, port);
+      return <FilePreview node={document} fileContent={source.content} loading={source.loading}
+        loadingIndicator={<span data-retry-loading="true" />} error={source.error} onRetry={source.retry}
+        documentSourceKind="cloud" />;
+    }
+    const container = createContainer();
+    await act(async () => root?.render(withTestLocalization(<Probe />)));
+    expect(container.textContent).toContain("Network unavailable");
+    const retry = [...container.querySelectorAll("button")].find((button) => button.textContent === "Retry");
+    expect(retry).toBeDefined();
+    await act(async () => retry!.click());
+    expect(container.querySelector('[data-retry-loading="true"]')).not.toBeNull();
+    expect(container.textContent).not.toContain("Network unavailable");
+    await act(async () => pending.resolve({ ...fileContent(document), content: "Recovered", version: "v1" }));
+    await waitFor(() => Boolean(container.querySelector(".cm-content")));
+    expect(container.querySelector(".cm-content")?.textContent).toBe("Recovered");
+    expect(readFile).toHaveBeenCalledTimes(2);
+  });
   it("does not buffer a database or allocate a file URL before its native-session viewer opens", async () => {
     const readFile = createReadFile(); const dataPort = createDataPort(readFile); const container = createContainer();
     await renderSinglePane(container, node("sample.db", "file", "application/octet-stream"), dataPort);

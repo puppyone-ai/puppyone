@@ -1,4 +1,4 @@
-import type { AuxiliaryWorkbenchHistoryTarget } from "../../app-shell/auxiliary-workbench/types";
+import type { AuxiliaryWorkbenchHistoryTarget } from "../../../lib/workbench/types";
 import type { AgentSessionListItem } from "./agent-contract";
 
 export type AgentChatHistoryPayload = Readonly<{

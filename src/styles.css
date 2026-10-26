@@ -20,6 +20,7 @@
 @import "./styles/titlebar.css" layer(features);
 @import "./features/app-shell/header-editor-columns.css" layer(features);
 @import "./features/app-shell/project-context-asset-mark.css" layer(features);
+@import "./features/app-shell/cloud-workspace-preparation.css" layer(features);
 @import "./features/app-shell/project-switcher-rail.css" layer(features);
 @import "./features/editor-workbench/layout/desktop-editor-split-view.css" layer(features);
 @import "./styles/dialogs.css" layer(features);
@@ -32,6 +33,7 @@
 @import "./features/cloud/cloud-service.css" layer(features);
 @import "./styles/settings-controls.css" layer(features);
 @import "./features/source-control/source-control.css" layer(features);
+@import "./features/changes/incoming-changes.css" layer(features);
 @import "./styles/settings-view.css" layer(features);
 @import "./styles/settings-new-menu.css" layer(features);
 @import "./styles/file-actions.css" layer(features);

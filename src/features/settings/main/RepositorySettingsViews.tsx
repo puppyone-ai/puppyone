@@ -1,4 +1,4 @@
-import { Tooltip } from "@puppyone/shared-ui";
+import { useDesktopPreference } from "../../../preferencesStore";
 import { Copy, RefreshCw } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import type { GitStatusSnapshot, PuppyoneWorkspaceConfig } from "../../../types/electron";
@@ -102,8 +102,6 @@ export function CloudHostingSettingsView({
                       <SettingsValueRow
                         label={t("settings.cloud.connectionUrl")}
                         value={cloudRemoteUrl ? maskRemoteUrl(cloudRemoteUrl) : t("settings.shared.notConfigured")}
-                        tooltip={cloudRemoteUrl ? maskRemoteUrl(cloudRemoteUrl) : undefined}
-                        tooltipOverflowOnly
                         monospace
                         action={cloudRemoteUrl ? (
                           <CopyAction
@@ -129,7 +127,6 @@ export function CloudHostingSettingsView({
 
 export function GitSettingsView({
   workspaceRoot,
-  experimentalOptIn,
   status,
   loading,
   error,
@@ -139,9 +136,9 @@ export function GitSettingsView({
   onRefresh,
 }: RepositorySettingsBaseProps & {
   workspaceRoot: string;
-  experimentalOptIn: boolean;
 }) {
   const { t } = useLocalization();
+  const experimentalOptIn = useDesktopPreference(s => s.experimentalSettings.enableGitAutoCommit);
   const autoCommit = useGitAutoCommitSettings(workspaceRoot, experimentalOptIn);
   const autoCommitPolicy = autoCommit.snapshot?.workspacePolicy ?? null;
   const autoCommitRuntime = autoCommit.snapshot?.runtime ?? null;
@@ -272,13 +269,13 @@ export function GitSettingsView({
                         <span>{t("settings.git.remoteBranchCount", { count: remote.branches.length })}</span>
                       </div>
                       <div className="desktop-settings-remote-setting-url">
-                        <Tooltip content={copyUrl ? maskRemoteUrl(copyUrl) : undefined} overflowOnly><code
+                        <code
                           dir="ltr"
                         >
                           {copyUrl ? maskRemoteUrl(copyUrl) : t("settings.shared.notConfigured")}
-                        </code></Tooltip>
+                        </code>
                         {pushUrlDiffers && remote.pushUrl && (
-                          <Tooltip content={maskRemoteUrl(remote.pushUrl)}><small>{t("settings.git.pushUrlDiffers")}</small></Tooltip>
+                          <small>{t("settings.git.pushUrlDiffers")}</small>
                         )}
                       </div>
                       <CopyAction

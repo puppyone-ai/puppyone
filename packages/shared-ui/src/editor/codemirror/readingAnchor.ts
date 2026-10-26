@@ -14,28 +14,29 @@ export function captureReadingAnchor(view: EditorView): ReadingAnchor | null {
   const scroll = view.scrollDOM;
   if (!view.inView || !scroll.clientHeight || !scroll.clientWidth) return null;
   const rect = scroll.getBoundingClientRect();
-  // A replaced block has no character geometry inside its source range.
-  // Its own row/content viewport owns reading continuity there; applying a
-  // source-character target would scroll to the edge of the entire widget.
-  const block = view.elementAtHeight(rect.top + scroll.clientTop + 1 - view.documentTop);
-  if (block.type !== BlockType.Text) return null;
+  const viewportTop = rect.top + scroll.clientTop;
+  const maxScroll = scroll.scrollHeight - scroll.clientHeight;
+  const edge = scroll.scrollTop <= 1 ? "start"
+    : maxScroll > 1 && maxScroll - scroll.scrollTop <= 1 ? "end" : null;
+  const snapshot = scroll.scrollTop <= 1 ? view.scrollSnapshot() : null;
+  const block = view.elementAtHeight(viewportTop + 1 - view.documentTop);
+  if (block.type !== BlockType.Text) {
+    // A replaced block has no character geometry inside its source range, so
+    // anchor its top edge: the block keeps its (usually negative) offset from
+    // the viewport while content above it changes height. Rows inside the
+    // block stay with its own row viewport (tables correct those themselves).
+    return { position: block.from, offset: block.top + view.documentTop - viewportTop, edge, snapshot };
+  }
   const style = view.dom.ownerDocument.defaultView!.getComputedStyle(view.contentDOM);
   const rtl = style.direction === "rtl";
   const x = rtl
     ? rect.right - scroll.clientLeft - (parseFloat(style.paddingRight) || 0) - 1
     : rect.left + scroll.clientLeft + (parseFloat(style.paddingLeft) || 0) + 1;
-  const position = view.posAtCoords({ x, y: rect.top + scroll.clientTop + 1 }, false);
+  const position = view.posAtCoords({ x, y: viewportTop + 1 }, false);
   if (position === null) return null;
   const coords = view.coordsAtPos(position, 1);
   if (!coords) return null;
-  const maxScroll = scroll.scrollHeight - scroll.clientHeight;
-  return {
-    position,
-    offset: coords.top - rect.top - scroll.clientTop,
-    edge: scroll.scrollTop <= 1 ? "start"
-      : maxScroll > 1 && maxScroll - scroll.scrollTop <= 1 ? "end" : null,
-    snapshot: scroll.scrollTop <= 1 ? view.scrollSnapshot() : null,
-  };
+  return { position, offset: coords.top - viewportTop, edge, snapshot };
 }
 
 export function mapReadingAnchor(anchor: ReadingAnchor | null, update: ViewUpdate): ReadingAnchor | null {

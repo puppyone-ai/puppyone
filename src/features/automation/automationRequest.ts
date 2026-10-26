@@ -2,8 +2,8 @@ import type {
   DesktopCloudAutomationConfigField,
   DesktopCloudAutomationProviderResource,
   DesktopCloudAutomationProviderSpec,
-  DesktopCloudCreateAutomationRequest,
-  DesktopCloudUpdateAutomationTriggerRequest,
+  DesktopCloudCreateSynchronizeBindingRequest,
+  DesktopCloudUpdateSynchronizeTriggerRequest,
 } from "../../lib/cloudApi";
 
 export type AutomationRunMode = "manual" | "scheduled" | "realtime";
@@ -45,6 +45,8 @@ const CLOUD_AUTOMATION_INTERNAL_CONFIG_KEYS = new Set([
   "external_resource_id",
   "external_resource",
   "last_sync_commit_id",
+  "last_synchronize_commit_id",
+  "synchronize_binding_id",
   "name",
   "oauth_user_id",
   "provider",
@@ -292,7 +294,7 @@ export function getNextAutomationRun(draft: AutomationTriggerDraft, from = new D
 
 export function buildAutomationTriggerUpdateRequest(
   draft: AutomationTriggerDraft,
-): DesktopCloudUpdateAutomationTriggerRequest {
+): DesktopCloudUpdateSynchronizeTriggerRequest {
   const schedule = getAutomationTriggerSchedule(draft);
   const syncMode: AutomationRunMode = ["hourly", "daily", "weekly", "custom"].includes(draft.preset)
     ? "scheduled"
@@ -371,13 +373,12 @@ export function buildDesktopCreateAutomationRequest({
   source: AutomationSourceSelection | null;
   targetPath: string;
   trigger: AutomationTriggerDraft;
-}): DesktopCloudCreateAutomationRequest {
+}): DesktopCloudCreateSynchronizeBindingRequest {
   const triggerRequest = buildAutomationTriggerUpdateRequest(trigger);
   return {
     project_id: projectId,
     provider: provider.provider,
     config: buildAutomationConfig({ provider, configValues, source }),
-    target_folder_path: targetPath,
     target_path: targetPath,
     direction: "inbound",
     sync_mode: triggerRequest.sync_mode,

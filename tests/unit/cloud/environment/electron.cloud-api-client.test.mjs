@@ -9,6 +9,25 @@ afterEach(() => {
 });
 
 describe("Electron Cloud API error transport", () => {
+  it.each([
+    [new TypeError("fetch failed"), "CLOUD_TRANSPORT_UNAVAILABLE"],
+    [new DOMException("expired", "TimeoutError"), "CLOUD_REQUEST_TIMEOUT"],
+    [new DOMException("cancelled", "AbortError"), "CLOUD_REQUEST_CANCELLED"],
+  ])("classifies transport failures without retrying the request", async (cause, code) => {
+    globalThis.fetch = vi.fn().mockRejectedValue(cause);
+    await expect(requestCloudApi("https://api.example", "/projects/p/repository-context", { method: "POST" }))
+      .rejects.toMatchObject({ code });
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves timeout semantics when the response body aborts after headers", async () => {
+    const controller = new AbortController();
+    controller.abort(new DOMException("expired", "TimeoutError"));
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, text: vi.fn().mockRejectedValue(new DOMException("body aborted", "AbortError")) });
+    await expect(requestCloudApi("https://api.example", "/projects/p/repository-context", { signal: controller.signal }))
+      .rejects.toMatchObject({ code: "CLOUD_REQUEST_TIMEOUT" });
+  });
+
   it("returns successful binary responses without attempting JSON decoding", async () => {
     const bytes = Uint8Array.from([0, 255, 17, 42]);
     globalThis.fetch = vi.fn(async () => new Response(bytes, {

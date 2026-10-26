@@ -112,19 +112,14 @@ export const TerminalSessionTab = memo(function TerminalSessionTab({
           runtime={runtime}
           session={session}
         />
-        <Tooltip
-          content={compact ? undefined : presentation.accessibleLabel}
-          overflowOnly
-        >
-          <span className="desktop-terminal-tab-title">{presentation.pathLabel}</span>
-        </Tooltip>
+        <span className="desktop-terminal-tab-title">{presentation.pathLabel}</span>
       </button></Tooltip>
-      <DesktopMenuIconButton
+      <Tooltip content={t("terminal.closeSession", { title: presentation.sessionTitle })}><DesktopMenuIconButton
         className="desktop-terminal-tab-close"
         label={t("terminal.closeSession", { title: presentation.sessionTitle })}
         icon={<X size={12} strokeWidth={1.8} aria-hidden="true" />}
         onClick={() => onClose(session.id)}
-      />
+      /></Tooltip>
     </div>
   );
 });

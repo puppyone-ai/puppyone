@@ -9,6 +9,11 @@ import {
 import { normalizeLineEndings } from "../../shared/widgets/widgetDom";
 import { requestMarkdownTableFocus } from "./tableFocusState";
 import { closeActiveMarkdownTableMenu } from "./tableMenuState";
+import { getEditableTableMoveAxis } from "../../../table/editableTableStructureInteraction";
+import {
+  requestMarkdownTableStructuralSelection,
+  type MarkdownTableStructuralSelectionAxis,
+} from "./tableStructuralSelectionState";
 import {
   markdownInlineViewportContinuityEffect,
   type EmbeddedInlineViewportSequenceChange,
@@ -32,8 +37,18 @@ export type MarkdownTableCellDraft = {
 export function dispatchMarkdownTableStructureOperation(
   context: MarkdownTableDispatchContext,
   operation: MarkdownTableStructureOperation,
+  options: Readonly<{
+    focus?: "operation-target" | "preserve";
+    structuralSelection?: MarkdownTableStructuralSelectionAxis;
+  }> = {},
 ) {
-  closeActiveMarkdownTableMenu();
+  const activeElement = context.view.dom.ownerDocument.activeElement;
+  const focusOwnedByTable = activeElement instanceof Element && (
+    context.view.dom.contains(activeElement) || activeElement.closest(".cm-md-table-context-menu") !== null
+  );
+  // A completed command owns its next focus/selection. Restoring the launcher
+  // here would reopen cell editing before a structural move is committed.
+  closeActiveMarkdownTableMenu({ restoreFocus: false });
   const result = applyMarkdownTableOperation({
     alignments: context.alignments,
     rows: getMarkdownTableRowsWithDraft(context.rows, context.currentDraft),
@@ -53,9 +68,23 @@ export function dispatchMarkdownTableStructureOperation(
         Math.max(1, context.alignments.length),
       ),
     });
+  const moveAxis = getEditableTableMoveAxis(operation);
+  const restoreOperationFocus = (options.focus ?? (moveAxis ? "preserve" : "operation-target")) !== "preserve";
+  const selectionAxis = options.structuralSelection ?? moveAxis;
+  const structuralSelection = selectionAxis && result.focus
+    ? requestMarkdownTableStructuralSelection(
+      context.tableFrom,
+      selectionAxis,
+      selectionAxis === "row" ? result.focus.rowIndex : result.focus.columnIndex,
+      focusOwnedByTable,
+    )
+    : null;
   const effects = [
     continuity,
-    result.focus ? requestMarkdownTableFocus(context.tableFrom, result.focus) : null,
+    restoreOperationFocus && result.focus
+      ? requestMarkdownTableFocus(context.tableFrom, result.focus)
+      : null,
+    structuralSelection,
   ].filter((effect) => effect !== null);
 
   context.view.dispatch({
@@ -64,10 +93,10 @@ export function dispatchMarkdownTableStructureOperation(
       to: context.tableTo,
       insert: result.replacement,
     },
-    selection: EditorSelection.cursor(context.tableFrom),
+    selection: restoreOperationFocus ? EditorSelection.cursor(context.tableFrom) : undefined,
     effects: effects.length > 0 ? effects : undefined,
   });
-  if (!result.focus) context.view.focus();
+  if (restoreOperationFocus && !result.focus) context.view.focus();
 }
 
 export function getMarkdownTableInlineSequenceChange(

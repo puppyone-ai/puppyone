@@ -9,17 +9,15 @@ import {
 } from "@puppyone/shared-ui";
 import type {
   DesktopCloudAutomationProviderSpec,
-  DesktopCloudRepositoryView,
   DesktopCloudSession,
 } from "../../lib/cloudApi";
-import { getCloudAutomationRun } from "../../lib/cloudApi";
+import { getSynchronizeRun } from "../../lib/cloudApi";
 import {
   formatProviderLabel,
   getCloudProviderIconUrl,
-  getScopePathLabel,
   providerIcon,
 } from "../cloud/utils";
-import type { CloudAutomationRow } from "./automationDomain";
+import { getAutomationBindingPath, type CloudAutomationRow } from "./automationDomain";
 import {
   CloudManageAutomationDialog,
   CloudNewAutomationDialog,
@@ -83,7 +81,7 @@ export function CloudAutomationPage({
   const templates = buildAutomationTemplates(providerSpecs);
   const visibleTemplates = getAutomationTemplatesForCategory(templates, activeCategory);
   const activeCreationRunId = creationEcho && !isTerminalRunStatus(creationEcho.status)
-    ? creationEcho.runId
+    ? creationEcho.synchronizeRunId
     : null;
 
   const openNewAutomation = (template: AutomationTemplate | null = null) => {
@@ -93,15 +91,15 @@ export function CloudAutomationPage({
 
   const handleCreated = (echo: CloudAutomationCreationEcho) => {
     setCreationEcho(echo);
-    setHighlightedConnectionId(echo.connectionId);
+    setHighlightedConnectionId(echo.synchronizeBindingId);
   };
 
   const refreshCreationStatus = async () => {
     const echo = creationEcho;
-    if (echo?.runId) {
+    if (echo?.synchronizeRunId) {
       try {
-        const run = await getCloudAutomationRun(cloudSession, echo.runId, onCloudSessionChange, apiBaseUrl);
-        setCreationEcho((current) => current?.runId === run.id ? {
+        const run = await getSynchronizeRun(cloudSession, echo.synchronizeRunId, onCloudSessionChange, apiBaseUrl);
+        setCreationEcho((current) => current?.synchronizeRunId === run.id ? {
           ...current,
           status: run.status,
           summary: run.result_summary || null,
@@ -129,9 +127,9 @@ export function CloudAutomationPage({
     const poll = async () => {
       attempts += 1;
       try {
-        const run = await getCloudAutomationRun(cloudSession, runId, onCloudSessionChange, apiBaseUrl);
+        const run = await getSynchronizeRun(cloudSession, runId, onCloudSessionChange, apiBaseUrl);
         if (cancelled) return;
-        setCreationEcho((current) => current?.runId === runId ? {
+        setCreationEcho((current) => current?.synchronizeRunId === runId ? {
           ...current,
           status: run.status,
           summary: run.result_summary || (isTerminalRunStatus(run.status) ? null : current.summary),
@@ -158,7 +156,6 @@ export function CloudAutomationPage({
       {hasAnyAutomation && (
         <header className="desktop-cloud-automation-add-more-header">
           <h2>{t("automation.page.addMoreSources")}</h2>
-          <p>{t("automation.page.addMoreDescription")}</p>
         </header>
       )}
       <nav
@@ -215,7 +212,6 @@ export function CloudAutomationPage({
           <header className="desktop-cloud-automation-landing-header">
             <div className="desktop-cloud-automation-landing-copy">
               <h1>{t("automation.page.title")}</h1>
-              <p>{t("automation.page.description")}</p>
             </div>
             <button type="button" className="desktop-cloud-automation-new-button" onClick={() => openNewAutomation()}>
               {t("automation.page.new")}
@@ -305,10 +301,10 @@ export function CloudAutomationPage({
       )}
       {detailRow && (
         <CloudManageAutomationDialog
-          key={`${detailRow.id}:${providerSpecs.some((provider) => provider.provider === detailRow.connector.provider) ? "spec" : "fallback"}`}
+          key={`${detailRow.id}:${providerSpecs.some((provider) => provider.provider === detailRow.binding.provider) ? "spec" : "fallback"}`}
           projectId={projectId}
           row={detailRow}
-          providerSpec={providerSpecs.find((provider) => provider.provider === detailRow.connector.provider) ?? null}
+          providerSpec={providerSpecs.find((provider) => provider.provider === detailRow.binding.provider) ?? null}
           cloudSession={cloudSession}
           apiBaseUrl={apiBaseUrl}
           onCloudSessionChange={onCloudSessionChange}
@@ -356,17 +352,16 @@ function CloudAutomationAccessList({
               </div>
               <div className="desktop-cloud-automation-connection-list">
                 {group.rows.map((row) => {
-                  const connector = row.connector;
-                  const echo = creationEcho?.connectionId === connector.id ? creationEcho : null;
+                  const connector = row.binding;
+                  const echo = creationEcho?.synchronizeBindingId === connector.id ? creationEcho : null;
                   const status = echo?.status || connector.status || "active";
-                  const connectionTitle = connector.name || group.label;
                   const statusLabel = formatAutomationStatus(status, t);
                   const statusTone = getAutomationStatusTone(status);
                   const lastRunLabel = formatAutomationRelativeTime(
-                    connector.last_run_at || connector.updated_at,
+                    connector.last_synced_at || connector.updated_at,
                     localization,
                   );
-                  const targetPath = formatAutomationPathTrailLabel(row.scope);
+                  const targetPath = formatAutomationPathTrailLabel(row);
                   const highlighted = highlightedConnectionId === connector.id;
                   return (
                     <button
@@ -425,7 +420,7 @@ function CloudAutomationAccessList({
 function getAutomationProviderGroups(rows: CloudAutomationRow[], collator: Intl.Collator, t: ReturnType<typeof useLocalization>["t"]) {
   const groups = new Map<string, { provider: string; label: string; rows: CloudAutomationRow[] }>();
   for (const row of rows) {
-    const provider = row.connector.provider;
+    const provider = row.binding.provider;
     const group = groups.get(provider) ?? { provider, label: formatProviderLabel(provider, t), rows: [] };
     group.rows.push(row);
     groups.set(provider, group);
@@ -442,10 +437,9 @@ function getAutomationStatusTone(status: string | null | undefined) {
   return "muted";
 }
 
-function formatAutomationPathTrailLabel(scope: DesktopCloudRepositoryView) {
-  const path = getScopePathLabel(scope);
-  if (path === "/") return "/";
-  return `/ ${path.replace(/^\/+/, "").split("/").filter(Boolean).join(" / ")}`;
+function formatAutomationPathTrailLabel(row: CloudAutomationRow) {
+  const path = getAutomationBindingPath(row.binding);
+  return path ? `/ ${path.split("/").filter(Boolean).join(" / ")}` : "/";
 }
 
 function isTerminalRunStatus(status: string) {

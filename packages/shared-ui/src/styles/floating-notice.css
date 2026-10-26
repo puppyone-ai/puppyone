@@ -1,0 +1,215 @@
+/*
+ * Floating notices sit on the theme's overlay surface. A toned notice tints
+ * that surface and its border with the tone colour so it stands out from the
+ * content it floats over; neutral notices keep the plain overlay. Copy stays
+ * in the regular text colour and UI voice; the glyph carries the tone at full
+ * strength. Tone colours come from the theme, so light and dark both follow.
+ */
+.po-floating-notice-stack {
+  position: absolute;
+  z-index: var(--po-floating-notice-z, 85);
+  display: flex;
+  box-sizing: border-box;
+  max-width: min(400px, calc(100% - 24px));
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.po-floating-notice-stack[data-placement="top-end"] {
+  inset-block-start: 12px;
+  inset-inline-end: 12px;
+}
+
+.po-floating-notice-stack[data-placement="bottom-end"] {
+  inset-block-end: 12px;
+  inset-inline-end: 12px;
+  flex-direction: column-reverse;
+}
+
+.po-floating-notice-stack[data-placement="top"] {
+  inset-block-start: 8px;
+  inset-inline: 12px;
+  max-width: none;
+  align-items: stretch;
+}
+
+.po-floating-notice {
+  --po-floating-notice-tone: var(--po-text-muted);
+  --po-floating-notice-surface-tint: 0%;
+  --po-floating-notice-border-tint: 0%;
+  display: flex;
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid color-mix(
+    in srgb,
+    var(--po-floating-notice-tone) var(--po-floating-notice-border-tint),
+    var(--po-menu-border, var(--po-border))
+  );
+  border-radius: var(--po-menu-radius, 8px);
+  background: color-mix(
+    in srgb,
+    var(--po-floating-notice-tone) var(--po-floating-notice-surface-tint),
+    var(--po-overlay, var(--po-panel-raised))
+  );
+  background-clip: padding-box;
+  box-shadow: var(--po-elevation-popover, var(--po-elevation-low));
+  color: var(--po-text);
+  font-family: var(--po-font-ui, inherit);
+  font-size: var(--po-floating-notice-font-size, var(--po-type-ui-meta, 13px));
+  font-weight: var(--po-text-weight-regular, 400);
+  letter-spacing: 0;
+  line-height: var(--po-floating-notice-line-height, 18px);
+  pointer-events: auto;
+  animation: po-floating-notice-enter 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.po-floating-notice[data-dismissible="true"] {
+  padding-inline-end: 6px;
+}
+
+.po-floating-notice[data-tone="info"],
+.po-floating-notice[data-tone="success"],
+.po-floating-notice[data-tone="warning"],
+.po-floating-notice[data-tone="danger"] {
+  --po-floating-notice-surface-tint: 13%;
+  --po-floating-notice-border-tint: 36%;
+}
+
+.po-floating-notice[data-tone="info"] {
+  --po-floating-notice-tone: var(--po-info, var(--po-accent));
+}
+
+.po-floating-notice[data-tone="success"] {
+  --po-floating-notice-tone: var(--po-success);
+}
+
+.po-floating-notice[data-tone="warning"] {
+  --po-floating-notice-tone: var(--po-warning);
+}
+
+.po-floating-notice[data-tone="danger"] {
+  --po-floating-notice-tone: var(--po-danger);
+}
+
+.po-floating-notice__icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  height: var(--po-floating-notice-line-height, 18px);
+  color: var(--po-floating-notice-tone);
+}
+
+.po-floating-notice__message {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow-wrap: anywhere;
+}
+
+.po-floating-notice__actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  margin-block: -2px;
+}
+
+.po-floating-notice__action {
+  display: inline-flex;
+  height: var(--po-control-size-mini, 22px);
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 5px;
+  background: var(--po-control);
+  color: var(--po-text);
+  font: inherit;
+  font-weight: var(--po-text-weight-medium, 500);
+  white-space: nowrap;
+  cursor: var(--po-clickable-cursor, default);
+  transition: background 0.1s ease;
+}
+
+.po-floating-notice__action:hover {
+  background: var(--po-control-hover);
+}
+
+.po-floating-notice__action:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--po-focus-ring);
+}
+
+.po-floating-notice__action:disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.po-floating-notice__dismiss {
+  display: inline-flex;
+  width: 22px;
+  height: var(--po-control-size-mini, 22px);
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  margin-block: -2px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--po-text-muted);
+  cursor: var(--po-clickable-cursor, default);
+  transition: background 0.1s ease, color 0.1s ease;
+}
+
+.po-floating-notice__dismiss:hover {
+  background: var(--po-control);
+  color: var(--po-text);
+}
+
+.po-floating-notice__dismiss:focus-visible {
+  background: var(--po-control);
+  color: var(--po-text);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--po-focus-ring);
+}
+
+@keyframes po-floating-notice-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.po-floating-notice-stack[data-placement="bottom-end"] .po-floating-notice {
+  animation-name: po-floating-notice-enter-up;
+}
+
+@keyframes po-floating-notice-enter-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .po-floating-notice,
+  .po-floating-notice-stack .po-floating-notice {
+    animation: none;
+  }
+}

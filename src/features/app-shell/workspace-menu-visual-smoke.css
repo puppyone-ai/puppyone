@@ -1,32 +1,25 @@
 .workspace-menu-visual-smoke {
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
   overflow: hidden;
-  background: var(--po-bg);
+  background: var(--po-canvas);
   color: var(--po-text);
 }
 
 .workspace-menu-visual-titlebar {
+  flex: 0 0 48px;
   display: flex;
   height: 48px;
   align-items: center;
+  justify-content: center;
   padding: 0 36px;
   border-bottom: 1px solid var(--po-divider);
-  background: var(--po-chrome);
+  background: var(--desktop-titlebar-bg);
 }
 
 .workspace-menu-visual-titlebar .desktop-titlebar-context {
   height: 100%;
-}
-
-.workspace-menu-visual-branch {
-  display: flex;
-  height: 100%;
-  align-items: center;
-  gap: 7px;
-  padding: 0 8px;
-  color: var(--po-text-muted);
-  font-size: var(--po-type-ui-body-large, 15px);
-  font-weight: 600;
 }
 
 .workspace-menu-visual-body {
@@ -61,4 +54,24 @@
 
 .workspace-menu-visual-body span:nth-child(3) {
   width: min(560px, 62%);
+}
+
+.workspace-menu-visual-body[data-project-actions="true"] {
+  opacity: 1;
+}
+
+.workspace-menu-visual-body[data-project-actions="true"] aside {
+  position: relative;
+  padding-top: 12px;
+}
+
+.workspace-menu-visual-body[data-project-actions="true"] aside span {
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: transparent;
+}
+
+.workspace-menu-visual-body[data-project-actions="true"] > div {
+  opacity: 0.35;
 }

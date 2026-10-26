@@ -10,7 +10,7 @@ import {
   type RefObject,
   type Ref,
 } from "react";
-import { PanelLeft } from "lucide-react";
+import { House, PanelLeft } from "lucide-react";
 import {
   Tooltip,
   CollapsiblePaneFrame,
@@ -36,7 +36,7 @@ import {
   MIN_RIGHT_SIDEBAR_WIDTH,
   RIGHT_SIDEBAR_COLLAPSE_THRESHOLD,
   resolveDesktopPaneLayout,
-} from "../features/app-shell/layout/desktopPaneLayout";
+} from "../lib/desktopPaneLayout";
 import { DesktopWindowChrome } from "./DesktopWindowChrome";
 
 import type { WorkspaceSurfaceId } from "../features/app-shell/workspace-surfaces";
@@ -50,6 +50,11 @@ const FOLLOW_RIGHT_SIDEBAR_EDGE_IN_HEADER = false;
 
 type DesktopCloudShellProps = {
   children: ReactNode;
+  workspaceLocation?: "local" | "cloud";
+  /** Header feedback can precede the authorized provider commit. */
+  requestedWorkspaceLocation?: "local" | "cloud";
+  /** Retained hidden workspaces must not publish native window constraints. */
+  active?: boolean;
   leadingRail?: ReactNode;
   renderLeadingRail?: (state: DesktopLeadingRailRenderState) => ReactNode;
   leadingRailWidth?: number;
@@ -61,7 +66,10 @@ type DesktopCloudShellProps = {
   resizableLeadingRail?: boolean;
   titlebarSidebarSlot?: ReactNode;
   titlebarEditorSlot?: ReactNode;
+  titlebarCenteredSlot?: ReactNode;
   titlebarActions?: ReactNode;
+  titlebarTabs?: ReactNode;
+  alignTitlebarTabsToExplorer?: boolean;
   titlebarTabsHostRef?: Ref<HTMLDivElement>;
   navigationToolbarActions?: ReactNode;
   locationBar?: ReactNode;
@@ -77,6 +85,7 @@ type DesktopCloudShellProps = {
   minRightSidebarWidth?: number;
   maxRightSidebarWidth?: number;
   resizableRightSidebar?: boolean;
+  onGoHome?: () => void;
   onLeftSidebarExpand?: () => void;
   onLeadingRailCollapsedChange?: (collapsed: boolean) => void;
   onLeadingRailWidthChange?: (width: number) => void;
@@ -86,6 +95,9 @@ type DesktopCloudShellProps = {
 
 export function DesktopCloudShell({
   children,
+  workspaceLocation = "local",
+  requestedWorkspaceLocation,
+  active = true,
   leadingRail,
   renderLeadingRail,
   leadingRailWidth = 0,
@@ -97,7 +109,10 @@ export function DesktopCloudShell({
   resizableLeadingRail = false,
   titlebarSidebarSlot,
   titlebarEditorSlot,
+  titlebarCenteredSlot,
   titlebarActions,
+  titlebarTabs,
+  alignTitlebarTabsToExplorer = false,
   titlebarTabsHostRef,
   navigationToolbarActions,
   locationBar,
@@ -113,6 +128,7 @@ export function DesktopCloudShell({
   minRightSidebarWidth = MIN_RIGHT_SIDEBAR_WIDTH,
   maxRightSidebarWidth,
   resizableRightSidebar = false,
+  onGoHome,
   onLeftSidebarExpand,
   onLeadingRailCollapsedChange,
   onLeadingRailWidthChange,
@@ -260,12 +276,10 @@ export function DesktopCloudShell({
   }, [rightSidebarPresent]);
 
   useEffect(() => {
+    if (!active) return;
     publishWindowMinimumWidth(paneLayout.minimumWidth + resolvedLeadingRailWidth);
-  }, [paneLayout.minimumWidth, resolvedLeadingRailWidth]);
-
-  useEffect(() => () => {
-    publishWindowMinimumWidth(0);
-  }, []);
+    return () => publishWindowMinimumWidth(0);
+  }, [active, paneLayout.minimumWidth, resolvedLeadingRailWidth]);
 
   const resizeLeadingRailByKeyboard = (
     intent: SidebarResizeIntent,
@@ -314,19 +328,32 @@ export function DesktopCloudShell({
   return (
     <div
       className="desktop-shell"
+      data-workspace-kind={workspaceLocation === "cloud" ? "cloud" : undefined}
       data-leading-rail={leadingRailPresent ? "true" : undefined}
       data-header-follows-right-sidebar={trackRightSidebarHeader ? "true" : undefined}
+      data-titlebar-tabs-align-explorer={alignTitlebarTabsToExplorer ? "true" : undefined}
       data-titlebar-sidebar-state={sidebarState}
       style={shellStyle}
     >
       <div className="desktop-shell-workbench">
         <DesktopWindowChrome
+          workspaceLocation={requestedWorkspaceLocation ?? workspaceLocation}
           context={(
             <>
               <div
                 className="desktop-titlebar-sidebar-context"
                 data-sidebar-state={sidebarState}
               >
+                {onGoHome && (
+                  <Tooltip content={t("shell.workspaceSwitcher.home")}><button
+                    className="desktop-titlebar-context-icon-button desktop-titlebar-home"
+                    type="button"
+                    aria-label={t("shell.workspaceSwitcher.home")}
+                    onClick={onGoHome}
+                  >
+                    <House size={14} strokeWidth={1.65} aria-hidden="true" />
+                  </button></Tooltip>
+                )}
                 {paneLayout.explorer.collapsed && leftSidebarPresent && onLeftSidebarExpand && (
                   <Tooltip content={t("shared-ui.explorer.expandSidebar")}><button
                     className="desktop-titlebar-context-icon-button desktop-titlebar-sidebar-expand"
@@ -347,6 +374,8 @@ export function DesktopCloudShell({
             </>
           )}
           actions={titlebarActions}
+          centeredContext={titlebarCenteredSlot}
+          tabs={titlebarTabs}
           sessionTabsHostRef={titlebarTabsHostRef}
         />
 

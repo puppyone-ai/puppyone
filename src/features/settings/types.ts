@@ -1,36 +1,17 @@
-import type { FileIconThemeId, Workspace } from "@puppyone/shared-ui";
+import type { Workspace } from "@puppyone/shared-ui";
 import type { DesktopCloudSession } from "../../lib/cloudApi";
 import type { DesktopUpdateState, GitStatusSnapshot, PuppyoneWorkspaceConfig } from "../../types/electron";
-import type { CreateNewMenuSettings, DarkThemePreset, ExperimentalSettings, FilesVisibilitySettings, GitSidebarLayout, InterfaceStyle, LightThemePreset, LoadingAnimationPreset, LocalAgentsSettings, RightSidebarToolsSettings, ThemeMode, TitlebarActionsSettings, TypographyPreferences } from "../../preferences";
-import type { ResolvedAppearance } from "../appearance/resolveAppearance";
 import type { SubThemeCatalogController } from "../themes/useSubThemeCatalog";
 
 export type SettingsSection = "general" | "privacy" | "local-project" | "appearance" | "typography" | "local-agents" | "model-connections" | "new-menu" | "other-app-imports" | "experimental" | "git" | "files" | "account" | "cloud";
 
 export type SettingsViewProps = {
-  workspace: Workspace;
+  workspace: Workspace | null;
   activeSection: SettingsSection;
   gitStatus: GitStatusSnapshot | null;
   gitStatusLoading: boolean;
   gitStatusError: string | null;
-  themeMode: ThemeMode;
-  interfaceStyle: InterfaceStyle;
-  resolvedAppearance: ResolvedAppearance;
-  lightThemePreset: LightThemePreset;
-  darkThemePreset: DarkThemePreset;
-  loadingAnimationPreset: LoadingAnimationPreset;
-  localAgentsSettings: LocalAgentsSettings;
-  typographyPreferences: TypographyPreferences;
-  pointerCursors: boolean;
-  requestedSubThemeId: string;
   subThemeCatalog: SubThemeCatalogController;
-  fileIconTheme: FileIconThemeId;
-  filesVisibilitySettings: FilesVisibilitySettings;
-  createNewMenuSettings: CreateNewMenuSettings;
-  experimentalSettings: ExperimentalSettings;
-  rightSidebarToolsSettings: RightSidebarToolsSettings;
-  titlebarActionsSettings: TitlebarActionsSettings;
-  gitSidebarLayout: GitSidebarLayout;
   cloudEnabled: boolean;
   cloudSession: DesktopCloudSession | null;
   cloudSessionRestoring: boolean;
@@ -40,22 +21,8 @@ export type SettingsViewProps = {
   puppyoneConfigSaving: boolean;
   puppyoneConfigError: string | null;
   updateState: DesktopUpdateState;
-  onThemeModeChange: (mode: ThemeMode) => void;
-  onInterfaceStyleChange: (style: InterfaceStyle) => void;
-  onLoadingAnimationPresetChange: (preset: LoadingAnimationPreset) => void;
-  onLocalAgentsSettingsChange: (settings: LocalAgentsSettings) => void;
-  onAgentFileActivityIndicatorsEnabledChange: (enabled: boolean) => void;
-  onTypographyPreferencesChange: (preferences: TypographyPreferences) => void;
-  onPointerCursorsChange: (enabled: boolean) => void;
-  onSubThemeChange: (subThemeId: string) => void;
-  onFileIconThemeChange: (theme: FileIconThemeId) => void;
-  onFilesVisibilitySettingsChange: (settings: FilesVisibilitySettings) => void;
-  onCreateNewMenuSettingsChange: (settings: CreateNewMenuSettings) => void;
+  onFilesVisibilityChange: () => void;
   onOpenImport: () => void;
-  onExperimentalSettingsChange: (settings: ExperimentalSettings) => void;
-  onRightSidebarToolsSettingsChange: (settings: RightSidebarToolsSettings) => void;
-  onTitlebarActionsSettingsChange: (settings: TitlebarActionsSettings) => void;
-  onGitSidebarLayoutChange: (layout: GitSidebarLayout) => void;
   onCloudSessionChange: (session: DesktopCloudSession | null) => void;
   onPuppyoneConfigChange: (config: PuppyoneWorkspaceConfig) => Promise<PuppyoneWorkspaceConfig | null>;
   onUnlinkWorkspace: () => Promise<void>;
@@ -69,8 +36,8 @@ export type SettingsViewProps = {
 };
 
 export type SettingsSidebarProps = {
+  localWorkspaceAvailable?: boolean;
   activeSection: SettingsSection;
   cloudEnabled: boolean;
-  otherAppImportsEnabled: boolean;
   onSelectSection: (section: SettingsSection) => void;
 };

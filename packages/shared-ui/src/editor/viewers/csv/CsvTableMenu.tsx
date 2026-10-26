@@ -234,10 +234,9 @@ export function CsvTableMenu({
           role="group"
           aria-label={section.label ?? section.items.map((item) => item.label).join(", ")}
         >
-          {section.label ? <div className="desktop-menu-section-label">{section.label}</div> : null}
           <div className="desktop-menu-section-list is-icon-toolbar">
             {section.items.map((item) => (
-              <Tooltip content={item.label} key={item.id ?? item.operation?.type}>
+              <Tooltip content={item.label} trigger="hover" key={item.id ?? item.operation?.type}>
                 <button
                   type="button"
                   role="menuitem"

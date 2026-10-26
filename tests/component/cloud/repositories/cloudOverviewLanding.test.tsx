@@ -6,8 +6,10 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Workspace } from "@puppyone/shared-ui";
+import type { DesktopCloudAccessSurface } from "../../../../src/lib/cloudApi";
 import { CloudRepositoryOverview } from "../../../../src/features/cloud/sections/overview";
 import { withTestLocalization } from "../../../support/react/localization";
+import { accessSurfaceFixture } from "../../../support/cloud/accessSurfaceFixture";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -96,7 +98,7 @@ describe("CloudRepositoryOverview landing page", () => {
             storage_bytes: 104_857_600,
             storage_limit_bytes: 524_288_000,
           },
-          connections: [],
+          resources: [],
           tools: [],
           uploads: [],
         }}
@@ -182,21 +184,26 @@ describe("CloudRepositoryOverview landing page", () => {
           exclude: [],
           max_mode: "rw",
         }]}
-        connectors={[{
+        connectors={[
+          accessSurfaceFixture({ id: "root-git", kind: "git_remote" }),
+          accessSurfaceFixture({ id: "docs-git", kind: "git_remote", target: { kind: "scope", project_id: "project-1", scope_id: "scope-docs" } }),
+          accessSurfaceFixture({ id: "mcp-docs", kind: "mcp", target: { kind: "scope", project_id: "project-1", scope_id: "scope-docs" } }),
+          {
           id: "notion-root",
           target: { kind: "project_root", project_id: "project-1" },
-          provider: "notion",
+          kind: "notion",
           name: "Notion knowledge",
           direction: "inbound",
           status: "active",
         }, {
           id: "orphan-automation",
           target: { kind: "scope", project_id: "project-1", scope_id: "missing-scope" },
-          provider: "google_docs",
+          kind: "google_docs",
           name: "Detached docs",
           direction: "inbound",
           status: "active",
-        }]}
+          // Deliberate pre-cutover/stale data: never count these as Automation.
+        }] as unknown as DesktopCloudAccessSurface[]}
         mcpEndpoints={[{
           id: "mcp-docs",
           project_id: "project-1",
@@ -245,7 +252,7 @@ describe("CloudRepositoryOverview landing page", () => {
     expect(fileRows).toHaveLength(5);
     expect(Array.from(fileRows ?? []).every((row) => !row.hasAttribute("data-tooltip"))).toBe(true);
     expect(Array.from(dashboard?.querySelectorAll<HTMLElement>(".desktop-cloud-overview-file-name") ?? [])
-      .every((name) => name.dataset.tooltipWhen === "overflow")).toBe(true);
+      .every((name) => !name.hasAttribute("data-tooltip"))).toBe(true);
     expect(fileRows?.[0]?.textContent).toContain("assets");
     expect(fileRows?.[1]?.textContent).toContain("docs");
     const usersRow = Array.from(fileRows ?? []).find((row) => row.textContent?.includes("users.csv"));
@@ -262,7 +269,7 @@ describe("CloudRepositoryOverview landing page", () => {
     expect(container.textContent).not.toContain("Shared product research");
     const storage = container.querySelector<HTMLElement>(".desktop-cloud-overview-project-storage");
     expect(storage?.textContent).toBe("");
-    expect(storage?.dataset.tooltip).toBe("100 MB of 500 MB");
+    expect(storage?.hasAttribute("data-tooltip")).toBe(false);
     expect(storage?.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow")).toBe("20");
     expect(storage?.querySelector('[role="progressbar"]')?.getAttribute("aria-valuetext")).toBe("100 MB of 500 MB");
     expect(storage?.parentElement?.classList.contains("desktop-cloud-overview-landing-header")).toBe(true);

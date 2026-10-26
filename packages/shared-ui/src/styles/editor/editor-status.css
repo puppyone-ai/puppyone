@@ -139,8 +139,7 @@
   font-size: var(--po-type-ui-meta, 13px);
 }
 
-.editor-state.danger,
-.editor-inline-error {
+.editor-state.danger {
   color: var(--po-danger);
 }
 
@@ -206,14 +205,10 @@
   font-size: var(--po-type-ui-meta, 13px);
 }
 
-.editor-inline-error {
-  position: absolute;
-  z-index: 21;
-  top: 48px;
-  right: 12px;
+/* Editor notices sit below the save control; FloatingNotice owns their material. */
+.po-floating-notice-stack.editor-notice-stack {
+  --po-floating-notice-z: 21;
+  inset-block-start: 48px;
+  inset-inline-end: 12px;
   max-width: min(420px, calc(100% - 24px));
-  padding: 6px 8px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--po-danger) 10%, var(--po-panel));
-  font-size: var(--po-type-ui-meta, 13px);
 }

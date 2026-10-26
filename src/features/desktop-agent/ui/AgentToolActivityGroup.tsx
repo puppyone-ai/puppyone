@@ -1,4 +1,3 @@
-import { Tooltip } from "@puppyone/shared-ui";
 import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import type { AgentPart } from "../domain/agent-projection-types";
@@ -96,10 +95,7 @@ function AgentToolActivityGroupView({
           </div>
         ))}
         {hiddenParts.length > 0 && (
-          <Tooltip content={t("agent.activity.moreTools", {
-              count: hiddenParts.length,
-              value: formatNumber(hiddenParts.length),
-            })}><button
+          <button
             type="button"
             className="desktop-agent-tool-overflow"
             aria-expanded={overflowOpen}
@@ -114,7 +110,7 @@ function AgentToolActivityGroupView({
             }}
                 >
             +{formatNumber(hiddenParts.length)}
-          </button></Tooltip>
+          </button>
         )}
       </div>
       {overflowOpen && (

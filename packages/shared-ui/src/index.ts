@@ -1,7 +1,8 @@
 export * from "./core/types";
 export { STANDARD_CONTROL_SIZE } from "./core/controlGeometry";
+export { ipcErrorMessage } from "./core/ipcErrorMessage";
 export { OverflowDots } from "./primitives/OverflowDots";
-export { Tooltip, activateTooltip } from "./primitives/Tooltip";
+export { Tooltip, disableTooltipHints, isTooltipSuppressed } from "./primitives/Tooltip";
 export type { TooltipPlacement, TooltipProps } from "./primitives/Tooltip";
 export {
   resolveCssPixelCustomProperty,
@@ -140,6 +141,7 @@ export {
 } from "./core/fileFormats";
 
 export { DataWorkspace } from "./data/DataWorkspace";
+export { resolveMarkdownAssetPath } from "./editor/markdown";
 export {
   createDocumentNavigationPort,
   parseDocumentReferenceIntent,
@@ -171,7 +173,7 @@ export type {
   DataWorkspaceProps,
   DataWorkspaceState,
 } from "./data/DataWorkspace";
-export { ExplorerTree } from "./data/ExplorerTree";
+export { ExplorerTree, ExplorerTreeSkeleton } from "./data/ExplorerTree";
 export type { ExplorerSelectionIntent, ExplorerTreeProps } from "./data/ExplorerTree";
 export {
   EXPLORER_REFERENCE_DRAG_TYPE,
@@ -287,6 +289,7 @@ export {
   closeEditor,
   closeEditorsUnderResource,
   createEditorInput,
+  moveEditor,
   openEditor,
   parseEditorGroupState,
   rebaseEditorResources,
@@ -344,6 +347,7 @@ export {
   closeDocumentWorkingCopiesUnderResource,
   createDocumentIdentity,
   flushActiveDocumentSessions,
+  getDocumentIdentityKey,
   getDocumentWorkingCopyStatuses,
   subscribeDocumentWorkingCopyStatuses,
 } from "./editor/document-session";
@@ -624,6 +628,19 @@ export type { IconButtonProps } from "./primitives/IconButton";
 export { EmptyState } from "./primitives/EmptyState";
 export type { EmptyStateProps } from "./primitives/EmptyState";
 export { StatusBadge } from "./primitives/StatusBadge";
+export {
+  FloatingNotice,
+  FloatingNoticeAction,
+  FloatingNoticePortal,
+  FloatingNoticeStack,
+  useDismissibleNotice,
+} from "./primitives/FloatingNotice";
+export type {
+  FloatingNoticePlacement,
+  FloatingNoticeProps,
+  FloatingNoticeStackProps,
+  FloatingNoticeTone,
+} from "./primitives/FloatingNotice";
 export type { StatusBadgeProps } from "./primitives/StatusBadge";
 export { DotsLoader, InlineLoading, PulseGridLoader } from "./primitives/LoadingIndicator";
 export type { LoaderSize, LoaderTone } from "./primitives/LoadingIndicator";

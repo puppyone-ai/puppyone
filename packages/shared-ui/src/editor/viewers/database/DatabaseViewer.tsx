@@ -11,7 +11,7 @@ import {
   Rows3,
   Table2,
 } from "lucide-react";
-import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { useLocalization } from "@puppyone/localization/react";
 import { DocumentSurfacePending } from "../../host/DocumentSurfaceHost";
 import { useEditorPreviewServices } from "../../preview-services/EditorPreviewServices";
@@ -143,20 +143,20 @@ export function DatabaseViewer({ document, openExternalFile }: PresetViewerRende
       <Database size={22} strokeWidth={1.5} aria-hidden="true" />
       <span>{failureDetail}</span>
       <div className="database-preview__failure-actions">
-        <DatabaseIconButton label={t("editor.database.reload")} onClick={() => setAttempt((value) => value + 1)}><RefreshCw /></DatabaseIconButton>
-        {openExternalFile && <DatabaseIconButton label={t("editor.openDefaultApp")} onClick={() => { void openExternalFile(document.path).catch(() => setError("host-failed")); }}><ExternalLink /></DatabaseIconButton>}
+        <Tooltip content={t("editor.database.reload")}><DatabaseIconButton label={t("editor.database.reload")} onClick={() => setAttempt((value) => value + 1)}><RefreshCw /></DatabaseIconButton></Tooltip>
+        {openExternalFile && <Tooltip content={t("editor.openDefaultApp")}><DatabaseIconButton label={t("editor.openDefaultApp")} onClick={() => { void openExternalFile(document.path).catch(() => setError("host-failed")); }}><ExternalLink /></DatabaseIconButton></Tooltip>}
       </div>
     </div> : info ? <>
       <header className="database-preview__toolbar">
-        <Tooltip content={`${info.engine === "sqlite" ? "SQLite" : "DuckDB"} ${info.engineVersion} · ${t("editor.database.readonly")}`}><span className="database-preview__engine">
+        <span className="database-preview__engine">
           <Database size={15} strokeWidth={1.8} aria-hidden="true" />
-        </span></Tooltip>
+        </span>
         <div className="database-preview__object-tabs" role="tablist" aria-label={t("editor.database.objects")} data-po-scrollbar="hidden">
           {info.objects.map((object, index) => {
             const unavailable = object.readable ? null : t(databaseObjectUnavailableMessage(object.unavailableReason));
             const inaccessible = busy || !object.readable;
             const label = unavailable ? `${object.name} · ${unavailable}` : object.name;
-            return <Tooltip content={unavailable ? label : object.name} overflowOnly={(unavailable ? undefined : "overflow") === "overflow"} key={object.id}><button
+            return <button key={object.id}
               className="database-preview__object-tab"
               type="button"
               role="tab"
@@ -169,16 +169,16 @@ export function DatabaseViewer({ document, openExternalFile }: PresetViewerRende
               tabIndex={selected === object.id ? 0 : -1}
               onClick={() => { if (!inaccessible) void read(object.id, 0); }}
               onKeyDown={(event) => moveObjectTabFocus(event, index, info.objects.length)}
-><Table2 size={13} strokeWidth={1.8} aria-hidden="true" /><span dir="auto">{object.name}</span></button></Tooltip>;
+><Table2 size={13} strokeWidth={1.8} aria-hidden="true" /><span dir="auto">{object.name}</span></button>;
           })}
         </div>
         <nav className="database-preview__actions" aria-label={t("editor.database.title")}>
           {busy && <span className="database-preview__busy" aria-hidden="true"><LoaderCircle /></span>}
-          <DatabaseIconButton label={t("editor.database.data")} active={tab === "data"} onClick={() => setTab("data")}><Rows3 /></DatabaseIconButton>
-          <DatabaseIconButton label={t("editor.database.schema")} active={tab === "schema"} onClick={() => setTab("schema")}><Columns3 /></DatabaseIconButton>
+          <Tooltip content={t("editor.database.data")}><DatabaseIconButton label={t("editor.database.data")} active={tab === "data"} onClick={() => setTab("data")}><Rows3 /></DatabaseIconButton></Tooltip>
+          <Tooltip content={t("editor.database.schema")}><DatabaseIconButton label={t("editor.database.schema")} active={tab === "schema"} onClick={() => setTab("schema")}><Columns3 /></DatabaseIconButton></Tooltip>
           <span className="database-preview__separator" aria-hidden="true" />
-          <DatabaseIconButton label={t("editor.database.reload")} onClick={() => setAttempt((value) => value + 1)}><RefreshCw /></DatabaseIconButton>
-          {openExternalFile && <DatabaseIconButton label={t("editor.openDefaultApp")} onClick={() => { void openExternalFile(document.path).catch(() => setError("host-failed")); }}><ExternalLink /></DatabaseIconButton>}
+          <Tooltip content={t("editor.database.reload")}><DatabaseIconButton label={t("editor.database.reload")} onClick={() => setAttempt((value) => value + 1)}><RefreshCw /></DatabaseIconButton></Tooltip>
+          {openExternalFile && <Tooltip content={t("editor.openDefaultApp")}><DatabaseIconButton label={t("editor.openDefaultApp")} onClick={() => { void openExternalFile(document.path).catch(() => setError("host-failed")); }}><ExternalLink /></DatabaseIconButton></Tooltip>}
         </nav>
       </header>
       {page ? <>
@@ -189,22 +189,22 @@ export function DatabaseViewer({ document, openExternalFile }: PresetViewerRende
           <div className="database-preview__frame">
             {tab === "schema" ? <table className="database-preview__table database-preview__table--schema"><thead><tr><th>{t("editor.database.field")}</th><th>{t("editor.database.type")}</th></tr></thead>
               <tbody>{page.visibleColumns.map((column) => <tr key={column.id}><td dir="auto">{column.name}</td><td><span className="database-preview__type">{column.type}</span>{column.primaryKey && <span className="database-preview__key">{"PK" /* Stable database schema token. */}</span>}</td></tr>)}</tbody></table>
-              : <table className="database-preview__table" aria-label={t("editor.database.page")}><thead><tr><th className="database-preview__record-index" aria-hidden="true" />{page.visibleColumns.map((column) => <Tooltip content={column.type} key={column.id}><th dir="auto" scope="col">{column.name}</th></Tooltip>)}</tr></thead>
+              : <table className="database-preview__table" aria-label={t("editor.database.page")}><thead><tr><th className="database-preview__record-index" aria-hidden="true" />{page.visibleColumns.map((column) => <th key={column.id} dir="auto" scope="col">{column.name}</th>)}</tr></thead>
                 <tbody>{page.rows.map((row, index) => <tr key={`${page.snapshotEpoch}:${page.offset + index}`}><th className="database-preview__record-index" scope="row">{page.offset + index + 1}</th>{row.map((cell, col) =>
                   <td key={page.visibleColumns[col]?.id ?? col} tabIndex={0} dir="auto" data-cell-kind={cell.kind}>
                     {cell.kind === "null" ? <em>{"NULL" /* SQL token; distinct from an empty string. */}</em> : cell.kind === "blob" ? `BLOB · ${cell.bytes ?? 0} B` : cell.kind === "complex" ? t("editor.database.complex") : cell.text}
-                    {cell.truncated && <Tooltip content={t("editor.database.truncated")}><span>…</span></Tooltip>}
+                    {cell.truncated && <span>…</span>}
                   </td>)}</tr>)}</tbody></table>}
           </div>
         </div>
         <footer className="database-preview__pager">
           {restarted && <span className="database-preview__restart" role="status">{t("editor.database.restarted")}</span>}
           <span className="database-preview__range">{page.rows.length ? `${page.offset + 1}–${page.offset + page.rows.length}` : "0"}</span>
-          <DatabaseIconButton label={t("editor.database.first")} disabled={busy || page.offset === 0} onClick={() => { void read(selected, columnOffset); }}><ChevronsLeft /></DatabaseIconButton>
-          <DatabaseIconButton label={t("editor.database.next")} disabled={busy || !page.hasMore} onClick={() => { void read(selected, columnOffset, true); }}><ChevronRight /></DatabaseIconButton>
+          <Tooltip content={t("editor.database.first")}><DatabaseIconButton label={t("editor.database.first")} disabled={busy || page.offset === 0} onClick={() => { void read(selected, columnOffset); }}><ChevronsLeft /></DatabaseIconButton></Tooltip>
+          <Tooltip content={t("editor.database.next")}><DatabaseIconButton label={t("editor.database.next")} disabled={busy || !page.hasMore} onClick={() => { void read(selected, columnOffset, true); }}><ChevronRight /></DatabaseIconButton></Tooltip>
           {hasColumnPages && <><span className="database-preview__separator" aria-hidden="true" /><Columns3 className="database-preview__pager-glyph" aria-hidden="true" />
-            <DatabaseIconButton label={t("editor.database.previousColumns")} disabled={busy || columnOffset === 0} onClick={() => { void read(selected, Math.max(0, columnOffset - info.pageColumns)); }}><ChevronLeft /></DatabaseIconButton>
-            <DatabaseIconButton label={t("editor.database.nextColumns")} disabled={busy || columnOffset + info.pageColumns >= page.columns.length} onClick={() => { void read(selected, columnOffset + info.pageColumns); }}><ChevronRight /></DatabaseIconButton></>}
+            <Tooltip content={t("editor.database.previousColumns")}><DatabaseIconButton label={t("editor.database.previousColumns")} disabled={busy || columnOffset === 0} onClick={() => { void read(selected, Math.max(0, columnOffset - info.pageColumns)); }}><ChevronLeft /></DatabaseIconButton></Tooltip>
+            <Tooltip content={t("editor.database.nextColumns")}><DatabaseIconButton label={t("editor.database.nextColumns")} disabled={busy || columnOffset + info.pageColumns >= page.columns.length} onClick={() => { void read(selected, columnOffset + info.pageColumns); }}><ChevronRight /></DatabaseIconButton></Tooltip></>}
         </footer>
       </> : <div className="database-preview__empty"><Table2 size={20} strokeWidth={1.5} aria-hidden="true" /><span>{t("editor.database.empty")}</span></div>}
     </> : <DocumentSurfacePending label={t("editor.loadingFile")} />}
@@ -217,19 +217,20 @@ function databaseObjectUnavailableMessage(reason?: DatabaseObjectUnavailableReas
   return "editor.database.objectUnavailableKind" as const;
 }
 
-function DatabaseIconButton({ active = false, children, disabled = false, label, onClick }: {
+function DatabaseIconButton({ active = false, children, disabled = false, label, onClick, ...buttonProps }: ButtonHTMLAttributes<HTMLButtonElement> & {
   active?: boolean;
   children: ReactNode;
   disabled?: boolean;
   label: string;
   onClick: () => void;
 }) {
-  return <Tooltip content={label}><button
+  return <button
+    {...buttonProps}
     className="database-preview__icon-button"
     type="button"
     aria-label={label}
     aria-pressed={active || undefined}
     disabled={disabled}
     onClick={onClick}
->{children}</button></Tooltip>;
+>{children}</button>;
 }

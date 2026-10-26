@@ -38,13 +38,13 @@
     --po-access-active-hover: rgba(2, 132, 199, 0.36);
     --po-access-active-border: rgba(2, 132, 199, 0.34);
     --po-access-active-text: #075985;
-    --po-focus-ring: rgba(37, 99, 235, 0.34);
+    --po-focus-ring: rgba(69, 153, 223, 0.34);
     --po-shadow: rgba(33, 31, 28, 0.12);
     --po-backdrop: rgba(41, 39, 35, 0.22);
     --po-backdrop-strong: rgba(41, 39, 35, 0.32);
-    --po-accent: #2563eb;
+    --po-accent: #4599df;
     --po-text-selection-bg: color-mix(in srgb, var(--po-accent) 22%, transparent);
-    --po-accent-text: #1d4ed8;
+    --po-accent-text: #226ca4;
     --po-success: #168145;
     --po-success-contrast: #fffefa;
     --po-warning: #b46b08;

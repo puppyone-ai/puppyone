@@ -1,4 +1,5 @@
-import type { AuxiliaryWorkbenchHistoryBrowserContext } from "../../../../src/features/app-shell/auxiliary-workbench/types";
+import { initializeDesktopPreferences, desktopPreferencesStore as preferences } from "../../../../src/preferencesStore";
+import type { AuxiliaryWorkbenchHistoryBrowserContext } from "../../../../src/lib/workbench/types";
 /**
  * @vitest-environment happy-dom
  */
@@ -6,32 +7,34 @@ import { useLocalization } from "@puppyone/localization/react";
 import type { Workspace } from "@puppyone/shared-ui";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AuxiliaryWorkbenchLauncher } from "../../../../src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchLauncher";
 import { AuxiliaryWorkbenchPanel } from "../../../../src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel";
-import { ProjectWorkbenchStore } from "../../../../src/features/app-shell/auxiliary-workbench/ProjectWorkbenchStore";
+import { ProjectWorkbenchStore } from "../../../../src/lib/workbench/ProjectWorkbenchStore";
 import type {
   AuxiliaryWorkbenchContribution,
   AuxiliaryWorkbenchPreparationContext,
-} from "../../../../src/features/app-shell/auxiliary-workbench/types";
+} from "../../../../src/lib/workbench/types";
 import { createTerminalWorkbenchContribution } from "../../../../src/features/desktop-terminal/workbench/TerminalWorkbenchContribution";
 import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
 
+beforeEach(() => { localStorage.clear(); initializeDesktopPreferences(); });
+
 let root: Root | null = null;
 const stores = new Map<string, ProjectWorkbenchStore>();
 
-function RightTerminalPanel({ workspace, active, hiddenAgentIds, contributions = [] }: {
-  workspace: Workspace; active: boolean; hiddenAgentIds: readonly string[]; contributions?: readonly AuxiliaryWorkbenchContribution[];
+function RightTerminalPanel({ workspace, active, contributions = [] }: {
+  workspace: Workspace; active: boolean; contributions?: readonly AuxiliaryWorkbenchContribution[];
 }) {
   const { t } = useLocalization();
   let store = stores.get(workspace.path);
   if (!store) { store = new ProjectWorkbenchStore({ projectId: workspace.id, rootPath: workspace.path, generation: workspace.id }); stores.set(workspace.path, store); }
   const all = [createTerminalWorkbenchContribution(t, () => { throw new Error("This fixture does not launch terminals"); }), ...contributions];
   return <AuxiliaryWorkbenchPanel key={store.context.generation} store={store} active={active} contributions={all}
-    renderLauncher={(context) => <AuxiliaryWorkbenchLauncher {...context} store={store!} contributions={all} hiddenAgentIds={hiddenAgentIds} />} />;
+    renderLauncher={(context) => <AuxiliaryWorkbenchLauncher {...context} store={store!} contributions={all} />} />;
 }
 
 afterEach(() => {
@@ -52,7 +55,7 @@ describe("Unified Workbench blank launcher flow", () => {
     }] }));
     Object.assign(window.puppyoneDesktop!, { localAgentActivation: { read, subscribe: () => () => {} } });
     const container = document.createElement("div"); document.body.appendChild(container); root = createRoot(container);
-    await act(async () => root?.render(withTestLocalization(<RightTerminalPanel active hiddenAgentIds={[]}
+    await act(async () => root?.render(withTestLocalization(<RightTerminalPanel active
       workspace={WORKSPACE} contributions={mode === "chat" ? [fakeChatContribution(new Map())] : []} />)));
     expect(read).toHaveBeenCalled();
     await vi.waitFor(() => {
@@ -70,23 +73,23 @@ describe("Unified Workbench blank launcher flow", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
-    const render = (hiddenAgentIds: readonly string[]) => withTestLocalization(
+    const render = () => withTestLocalization(
       <RightTerminalPanel
         active
         contributions={[contribution]}
-        hiddenAgentIds={hiddenAgentIds}
         workspace={WORKSPACE}
       />,
     );
     await act(async () => {
-      root?.render(render([]));
+      root?.render(render());
     });
 
     await vi.waitFor(() => expect(document.body.textContent).toContain("Codex"));
     expect(document.body.textContent).toContain("Claude Code");
 
-    act(() => root?.render(render(["claude"])));
+    act(() => preferences.getState().setLocalAgentsSettings(current => ({ ...current, hiddenTerminalAgentIds: ["claude"] })));
     expect(document.body.textContent).not.toContain("Claude Code");
+    expect(JSON.parse(localStorage.getItem("puppyone.desktop.localAgents")!).hiddenTerminalAgentIds).toEqual(["claude"]);
   });
 
   it("opens the launcher from plus and resolves an Agent choice into a Chat Tab", async () => {
@@ -101,7 +104,6 @@ describe("Unified Workbench blank launcher flow", () => {
         <RightTerminalPanel
           active
           contributions={[contribution]}
-          hiddenAgentIds={[]}
           workspace={WORKSPACE}
         />,
       ));
@@ -149,7 +151,7 @@ describe("Unified Workbench blank launcher flow", () => {
       root?.render(withTestLocalization(
         <RightTerminalPanel
           active
-          hiddenAgentIds={[]}
+
           workspace={WORKSPACE}
         />,
       ));
@@ -173,7 +175,7 @@ describe("Unified Workbench blank launcher flow", () => {
     const container = document.createElement("div");
     document.body.appendChild(container); root = createRoot(container);
     await act(async () => root?.render(withTestLocalization(<RightTerminalPanel active
-      contributions={[contribution]} hiddenAgentIds={[]} workspace={WORKSPACE} />)));
+      contributions={[contribution]} workspace={WORKSPACE} />)));
     const store = stores.get(WORKSPACE.path)!;
     act(() => { store.createLauncher(null, "New tab"); });
     const plus = document.querySelector<HTMLButtonElement>('.desktop-terminal-new-button')!;
@@ -223,7 +225,6 @@ describe("Unified Workbench blank launcher flow", () => {
         <RightTerminalPanel
           active
           contributions={[contribution]}
-          hiddenAgentIds={[]}
           workspace={WORKSPACE}
         />,
       ));

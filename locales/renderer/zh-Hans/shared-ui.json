@@ -1,5 +1,6 @@
 {
   "loading": "正在加载…",
+  "explorer.dropToAddFiles": "松开以添加文件",
   "explorer.root": "根目录",
   "explorer.emptyFolder": "空文件夹",
   "explorer.loadingWorkspace": "正在加载工作区…",
@@ -16,5 +17,10 @@
   "status.modified": "已修改",
   "status.created": "已创建",
   "status.deleted": "已删除",
-  "status.moved": "已移动"
+  "status.moved": "已移动",
+  "scrollbar.up": "向上滚动",
+  "scrollbar.down": "向下滚动",
+  "scrollbar.left": "向左滚动",
+  "scrollbar.right": "向右滚动",
+  "notice.dismiss": "关闭"
 }

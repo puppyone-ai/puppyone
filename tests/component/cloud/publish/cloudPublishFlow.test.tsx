@@ -170,7 +170,7 @@ function InitializationHarness({ activeSession }: { activeSession: DesktopCloudS
   );
 }
 
-describe("durable PuppyOne Cloud initialization renderer flow", () => {
+describe("durable Puppyone Cloud initialization renderer flow", () => {
   let container: HTMLDivElement;
   let root: Root;
 

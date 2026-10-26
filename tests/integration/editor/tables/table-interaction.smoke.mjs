@@ -25,12 +25,69 @@ const results = [], errors = [];
 let window, vite, failure;
 const wait = () => new Promise(resolve => setTimeout(resolve, 160));
 const near = (a, b, message) => assert(Math.abs(a - b) <= 1, `${message}: ${a} vs ${b}`);
+const samePaintEdge = (a, b, message) => assert(a !== null && b !== null && Math.abs(a - b) <= .55,
+  `${message}: ${a} vs ${b}`);
+function readFocusedCell(kind) {
+  const cell = document.activeElement?.closest("th, td");
+  if (!cell?.closest(kind === "markdown" ? ".cm-md-table-widget" : ".csv-table-editor__table")) {
+    throw new Error(`${kind}: pointer did not focus a table cell`);
+  }
+  const box = cell.getBoundingClientRect(), style = getComputedStyle(cell);
+  return { rect: { x: box.x, y: box.y, width: box.width, height: box.height },
+    color: style.outlineColor, width: style.outlineWidth, offset: style.outlineOffset, shadow: style.boxShadow };
+}
+// Inspect real Chromium paint, including antialiased edge pixels. A DOM box or
+// computed 2px stroke alone cannot detect the previous 1px inset-shadow gap.
+async function readStrokePixels(dataURL, crop, rect, color, inset = 2.5) {
+  const bitmap = new Image(); bitmap.src = dataURL; await bitmap.decode();
+  const canvas = document.createElement("canvas"); canvas.width = bitmap.width; canvas.height = bitmap.height;
+  const context = canvas.getContext("2d", { willReadFrequently: true }); context.drawImage(bitmap, 0, 0);
+  const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+  const palette = document.createElement("canvas"); palette.width = palette.height = 1;
+  const paletteContext = palette.getContext("2d", { willReadFrequently: true });
+  paletteContext.fillStyle = color; paletteContext.fillRect(0, 0, 1, 1);
+  const expected = [...paletteContext.getImageData(0, 0, 1, 1).data].slice(0, 3);
+  const background = [...pixels.slice(0, 3)], delta = expected.map((value, index) => value - background[index]);
+  const length = delta.reduce((sum, value) => sum + value * value, 0);
+  const isStroke = (x, y) => {
+    const offset = (y * canvas.width + x) * 4;
+    const difference = delta.map((_, index) => pixels[offset + index] - background[index]);
+    const coverage = difference.reduce((sum, value, index) => sum + value * delta[index], 0) / length;
+    const residual = Math.hypot(...difference.map((value, index) => value - coverage * delta[index]));
+    return pixels[offset + 3] > 240 && coverage >= .3 && coverage <= 1.2 && residual < 20;
+  };
+  const scaleX = canvas.width / crop.width, scaleY = canvas.height / crop.height;
+  // Grips deliberately overlap the middle of a perimeter. Probe just inside
+  // its top/left corner so those controls cannot hide or impersonate an edge,
+  // and past the table's corner radius so a rounded corner cell is measured on
+  // its straight edges (f7a63c51).
+  const probeY = Math.floor((rect.y - crop.y + inset) * scaleY);
+  const probeX = Math.floor((rect.x - crop.x + inset) * scaleX);
+  const horizontal = Array.from({ length: canvas.width }, (_, x) => x).filter(x => isStroke(x, probeY));
+  const vertical = Array.from({ length: canvas.height }, (_, y) => y).filter(y => isStroke(probeX, y));
+  return { left: horizontal.length ? crop.x + horizontal[0] / scaleX : null,
+    right: horizontal.length ? crop.x + (horizontal.at(-1) + 1) / scaleX : null,
+    top: vertical.length ? crop.y + vertical[0] / scaleY : null,
+    bottom: vertical.length ? crop.y + (vertical.at(-1) + 1) / scaleY : null };
+}
+const assertActiveHandle = (metrics, axis, phase) => {
+  const handle = metrics.handleStates.find(handle => handle.axis === axis);
+  assert(metrics.outline, `${phase}: missing selection perimeter`);
+  assert.equal(handle.background, metrics.outlineColor, `${phase}: handle face lagged behind the selection stroke`);
+  assert.equal(handle.border, metrics.outlineColor, `${phase}: handle rim must use the same blue as the perimeter`);
+  assert.equal(handle.color, "rgb(255, 255, 255)", `${phase}: selected grip dots must be legible`);
+  assert.equal(handle.backgroundAlpha, 255, `${phase}: active grip must remain opaque`);
+  assert.equal(handle.transitionDuration, "0s", `${phase}: active feedback must not fade in independently`);
+};
 app.whenReady().then(async () => {
   try {
     const reservation = reservePort(); await new Promise(resolve => reservation.listen(0, "127.0.0.1", resolve));
     const port = reservation.address().port;
     await new Promise(resolve => reservation.close(resolve));
     vite = await createServer({ root, cacheDir: path.join(temporary, "vite"), logLevel: "error",
+      // Pre-bundle the fixture's whole graph: with HMR off, a dependency found
+      // mid-run re-optimizes and later page loads get outdated (504) chunks.
+      optimizeDeps: { entries: ["tests/fixtures/editor/tables/table-interaction.html"] },
       server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null } });
     await vite.listen();
     window = new BrowserWindow({ width: 1100, height: 970,
@@ -41,6 +98,14 @@ app.whenReady().then(async () => {
     });
     const evaluate = code => window.webContents.executeJavaScript(code);
     const screenshot = async name => fs.writeFile(path.join(artifacts, `${name}.png`), (await window.webContents.capturePage()).toPNG());
+    const captureStroke = async (rect, color, name, inset = 2.5) => {
+      const crop = { x: Math.floor(rect.x) - 3, y: Math.floor(rect.y) - 3,
+        width: Math.ceil(rect.x + rect.width) - Math.floor(rect.x) + 6,
+        height: Math.ceil(rect.y + rect.height) - Math.floor(rect.y) + 6 };
+      const bitmap = await window.webContents.capturePage(crop);
+      await fs.writeFile(path.join(artifacts, `${name}-stroke.png`), bitmap.toPNG());
+      return evaluate(`(${readStrokePixels.toString()})(${JSON.stringify(bitmap.toDataURL())}, ${JSON.stringify(crop)}, ${JSON.stringify(rect)}, ${JSON.stringify(color)}, ${inset})`);
+    };
     const click = async point => {
       window.webContents.sendInputEvent({ type: "mouseMove", ...point });
       window.webContents.sendInputEvent({ type: "mouseDown", button: "left", clickCount: 1, ...point });
@@ -48,7 +113,7 @@ app.whenReady().then(async () => {
     };
     const escape = async () => { window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Escape" }); window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Escape" }); await wait(); };
     await window.loadURL(`http://127.0.0.1:${port}/tests/fixtures/editor/tables/table-interaction.html`);
-    await evaluate(`(async () => { for (let i=0; i<500 && !window.tableFixture; i++) await new Promise(r=>setTimeout(r,10)); await window.tableFixture.ready(); })()`);
+    await evaluate(`(async () => { for (let i=0; i<3000 && !window.tableFixture; i++) await new Promise(r=>setTimeout(r,10)); if (!window.tableFixture) throw new Error('Table fixture did not load within 30s'); await window.tableFixture.ready(); })()`);
     window.webContents.debugger.attach("1.3");
     const reducedMotion = value => window.webContents.debugger.sendCommand("Emulation.setEmulatedMedia", {
       features: [{ name: "prefers-reduced-motion", value: value ? "reduce" : "no-preference" }],
@@ -56,14 +121,27 @@ app.whenReady().then(async () => {
     for (const mode of ["light", "dark"]) {
       await evaluate(`window.tableFixture.mode('${mode}')`);
       await screenshot(`${mode}-rest`);
+      let sharedRadius = null;
       for (const kind of ["markdown", "csv"]) {
         const metrics = () => evaluate(`window.tableFixture.metrics('${kind}')`);
         const baseline = await metrics();
-        assert.equal(baseline.radius, "0px", `${kind} must have square corners`);
+        // Tables share the editor's rounded content-block corners (f7a63c51).
+        assert.notEqual(baseline.radius, "0px", `${kind} uses the content block radius`);
+        sharedRadius ??= baseline.radius;
+        assert.equal(baseline.radius, sharedRadius, `${kind} shares one table radius`);
         assert.equal(baseline.border, "1px", `${kind} outer stroke`);
         assert.equal(baseline.cellBorder, "1px", `${kind} cell stroke`);
         near(baseline.grip.width, 22, "compact grip width"); near(baseline.grip.height, 14, "compact grip height");
         assert.equal(baseline.gripShadow, "none", "grip must not look raised");
+        assert.equal(baseline.gripStyles.length, 2, "row and column grips must share the table style");
+        for (const gripStyle of baseline.gripStyles) {
+          assert.equal(gripStyle.radius, "2px", `${kind} grip must have a small corner radius`);
+          assert.equal(gripStyle.border, baseline.border, `${kind} grip stroke must match the table`);
+          assert.equal(gripStyle.borderColor, baseline.borderColor, `${mode} ${kind} grip rim must match the table palette`);
+          assert.equal(gripStyle.backgroundAlpha, 255, `${kind} grip must have a fully opaque background`);
+          assert(gripStyle.backgroundImage.includes(baseline.borderColor), `${kind} grip tint must use the table border color`);
+          assert.equal(gripStyle.backgroundClip, "padding-box, border-box", `${kind} opaque base must cover the face and rim`);
+        }
         assert.deepEqual(baseline.dots, { width: "12px", height: "4px" }, "column handle needs a single line of three dots");
         for (const reduced of [false, true]) {
           await reducedMotion(reduced);
@@ -100,6 +178,15 @@ app.whenReady().then(async () => {
         window.webContents.sendInputEvent({ type: "mouseMove", ...point }); await wait();
         assert.deepEqual((await metrics()).backgrounds, baseline.backgrounds, "hover tinted cells");
         await screenshot(`${mode}-${kind}-handles-visible`);
+        for (const axis of ["column", "row"]) {
+          window.webContents.sendInputEvent({ type: "mouseMove", ...await evaluate(`window.tableFixture.point('${kind}', '.po-editable-table-${axis}-handle')`) });
+          await wait();
+          assert.deepEqual((await metrics()).gripStyles, baseline.gripStyles, `${kind} ${axis} hover must keep the table palette and radius`);
+          if (kind === "markdown") {
+            await evaluate("new Promise(resolve => setTimeout(resolve, 500))");
+            assert.equal(await evaluate("document.querySelector('[role=tooltip]') !== null"), false, "Markdown handle hover opened a hint bubble");
+          }
+        }
         await click(point);
         await evaluate(`window.tableFixture.selectText('${kind}')`); await wait();
         const focused = await metrics();
@@ -108,13 +195,89 @@ app.whenReady().then(async () => {
         assert.match(focused.cellFocus, /2px/, "focused cell needs a crisp outline");
         near(focused.table.width, baseline.table.width, "focus changed column geometry");
         await screenshot(`${mode}-${kind}-editing`);
+        let firstCellInk;
+        for (const target of ["body-first", "header-first", "header-last", "body-middle", "body-last"]) {
+          if (target !== "body-first") {
+            const targetPoint = await evaluate(`(() => {
+              const table = document.querySelector(${JSON.stringify(kind === "markdown" ? ".cm-md-table-widget" : ".csv-table-editor__table")});
+              const rows = ${JSON.stringify(target)}.startsWith('header') ? [...table.tHead.rows] : [...table.tBodies[0].rows];
+              const row = ${JSON.stringify(target)} === 'body-middle' ? rows[2] : ${JSON.stringify(target)} === 'body-last' ? rows.at(-1) : rows[0];
+              const cells = [...row.querySelectorAll(${JSON.stringify(kind === "markdown" ? "th, td" : ":is(th, td)[data-csv-column]")})];
+              const cell = ${JSON.stringify(target)}.endsWith('last') ? cells.at(-1) : ${JSON.stringify(target)} === 'body-middle' ? cells[1] : cells[0];
+              const input = cell.querySelector(${JSON.stringify(kind === "markdown" ? "[contenteditable]" : "input")});
+              const box = input.getBoundingClientRect(); return { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) };
+            })()`);
+            await click(targetPoint);
+          }
+          const cell = await evaluate(`(${readFocusedCell.toString()})('${kind}')`);
+          assert.equal(cell.width, "2px"); assert.equal(cell.offset, "-2px"); assert.equal(cell.shadow, "none");
+          // Only the header row meets the table's rounded corners; body rows keep
+          // the default probe so their row grips cannot cover it.
+          const inset = target.startsWith("header") ? 2.5 + (parseFloat(baseline.radius) || 0) : 2.5;
+          const ink = await captureStroke(cell.rect, cell.color, `${mode}-${kind}-${target}`, inset);
+          for (const [edge, expected] of Object.entries({ left: cell.rect.x, right: cell.rect.x + cell.rect.width,
+            top: cell.rect.y, bottom: cell.rect.y + cell.rect.height })) {
+            samePaintEdge(ink[edge], expected, `${mode} ${kind} ${target} ${edge} stroke must reach the border box`);
+          }
+          if (target === "body-first") firstCellInk = ink;
+          near((await metrics()).table.width, baseline.table.width, "cell focus changed column geometry");
+          results.push({ mode, kind, state: `cell-perimeter-${target}`, cell, ink });
+        }
+        await click(point); await evaluate(`window.tableFixture.selectText('${kind}')`); await wait();
         for (const axis of ["column", "row"]) {
+          // Retarget after menu focus recovery; the CSV header is also a row
+          // target, so the comparison must explicitly select the first record.
+          window.webContents.sendInputEvent({ type: "mouseMove", ...point }); await wait();
           const handle = await evaluate(`window.tableFixture.point('${kind}', '.po-editable-table-${axis}-handle')`);
-          await click(handle);
+          window.webContents.sendInputEvent({ type: "mouseMove", ...handle });
+          window.webContents.sendInputEvent({ type: "mouseDown", button: "left", clickCount: 1, ...handle });
+          await evaluate("new Promise(requestAnimationFrame)");
+          const pressed = await metrics();
+          assertActiveHandle(pressed, axis, `${kind} ${axis} pointer-down`);
+          assert.equal(pressed.handleStates.find(handle => handle.axis === axis).pressed, true);
+          assert.equal(pressed.handleStates.find(handle => handle.axis === axis).dragging, false);
+          assert.deepEqual(pressed.backgrounds, baseline.backgrounds, "press tinted cells");
+          const ink = await captureStroke(pressed.cell, pressed.outlineColor, `${mode}-${kind}-${axis}-pressed`);
+          for (const edge of axis === "column" ? ["left", "right"] : ["top", "bottom"]) {
+            samePaintEdge(ink[edge], firstCellInk[edge], `${mode} ${kind} ${axis} and first cell ${edge} paint must align`);
+          }
+          assert.equal(pressed.cellFocusShadow, "none", "structural selection retained a competing cell shadow");
+          assert.doesNotMatch(pressed.cellFocus, /2px/, "structural selection retained a competing cell outline");
+          results.push({ mode, kind, state: `${axis}-pressed`, ...pressed, ink });
+          await screenshot(`${mode}-${kind}-${axis}-pressed`);
+          window.webContents.sendInputEvent({ type: "mouseUp", button: "left", clickCount: 1, ...handle });
+          await wait();
           const selected = await metrics();
+          const placement = await evaluate(`window.tableFixture.menuPlacement('${kind}', '${axis}')`);
+          if (axis === "row") {
+            near(placement.menu.x, placement.grip.x, `${kind} row menu must align with the grip's inline start`);
+            assert(placement.menu.y >= placement.grip.y + placement.grip.height + 3,
+              `${kind} row menu must open below the grip instead of beside the selected row`);
+          }
+          assertActiveHandle(selected, axis, `${kind} ${axis} menu-open`);
+          assert.equal(selected.handleStates.find(handle => handle.axis === axis).pressed, false);
+          assert.equal(selected.handleStates.find(handle => handle.axis === axis).menuActive, true);
           assert(selected.outline && selected.target, `${kind}: ${axis} selection perimeter missing`);
           assert.equal(selected.axis, axis);
           assert.equal(selected.outlineBorder, "2px");
+          if (kind === "markdown") {
+            const menuHints = await evaluate(`(() => {
+              const menu = document.querySelector('.cm-md-table-context-menu');
+              return { disabled: menu.dataset.tooltipDisabled, hints: menu.querySelectorAll('[data-tooltip], [title]').length,
+                bubble: document.querySelector('[role=tooltip]') !== null };
+            })()`);
+            assert.deepEqual(menuHints, { disabled: undefined, hints: 0, bubble: false }, "Markdown menu gained an implicit hint or blanket suppression");
+            const menu = await evaluate("window.tableFixture.menuMetrics()");
+            assert.equal(menu.headings, 0, "Markdown menu must not render section headings");
+            near(menu.bounds.width, menu.requiredWidth, "menu has surplus right-side width");
+            assert.equal(menu.buttons, axis === "column" ? 8 : 6);
+            assert.deepEqual(menu.groups, axis === "column" ? ["Columns", "Alignment"] : ["Rows"]);
+            assert.deepEqual(menu.radios, axis === "column" ? [
+              { label: "Align left", checked: "true" }, { label: "Align center", checked: "false" },
+              { label: "Align right", checked: "false" },
+            ] : []);
+            results.push({ mode, kind, state: `${axis}-menu-layout`, ...menu });
+          }
           assert.equal(selected.textSelectionBackground, "rgba(0, 0, 0, 0)", "structural selection painted a second text highlight");
           assert.deepEqual(selected.backgrounds, baseline.backgrounds, `${axis} selection tinted cells`);
           if (axis === "column") {
@@ -129,14 +292,32 @@ app.whenReady().then(async () => {
           await screenshot(`${mode}-${kind}-${axis}`);
           results.push({ mode, kind, state: axis, ...selected });
           await escape();
-          assert.equal((await metrics()).outline, null, "closed menu left a stale perimeter");
+          const closed = await metrics();
+          assert.equal(closed.outline, null, "closed menu left a stale perimeter");
+          assert(closed.handleStates.every(handle => !handle.pressed && !handle.dragging && !handle.menuActive), "menu left active handle state");
+        }
+        if (kind === "markdown") {
+          await evaluate("window.tableFixture.openMenuAtEdge()"); await wait();
+          const menu = await evaluate("window.tableFixture.menuMetrics()");
+          near(menu.bounds.width, menu.requiredWidth, "cell menu does not hug its longest row");
+          assert.equal(menu.headings, 0);
+          assert.equal(menu.buttons, 15);
+          assert(menu.bounds.x >= 8 && menu.bounds.y >= 8, "edge menu overflowed viewport origin");
+          assert(menu.bounds.x + menu.bounds.width <= menu.viewport.width - 8, "edge menu overflowed right viewport");
+          assert(menu.bounds.y + menu.bounds.height <= menu.viewport.height - 8, "edge menu overflowed bottom viewport");
+          results.push({ mode, kind, state: "cell-menu-edge", ...menu });
+          await screenshot(`${mode}-markdown-cell-edge`);
+          await escape();
         }
         // Native pointer capture + Escape must remove the perimeter without a source edit.
         window.webContents.sendInputEvent({ type: "mouseMove", ...point }); await wait();
         const grip = await evaluate(`window.tableFixture.point('${kind}', '.po-editable-table-column-handle')`);
         window.webContents.sendInputEvent({ type: "mouseDown", button: "left", clickCount: 1, ...grip });
         window.webContents.sendInputEvent({ type: "mouseMove", ...grip, x: grip.x + 60 }); await wait();
-        assert((await metrics()).outline, "drag source perimeter missing");
+        const dragging = await metrics();
+        assertActiveHandle(dragging, "column", `${kind} dragging`);
+        assert.equal(dragging.handleStates.find(handle => handle.axis === "column").pressed, true);
+        assert.equal(dragging.handleStates.find(handle => handle.axis === "column").dragging, true);
         assert.deepEqual((await metrics()).backgrounds, baseline.backgrounds, "drag tinted source cells");
         const frames = await evaluate(`window.tableFixture.layoutFrames('${kind}')`);
         assert(frames.some(frame => frame.scrollLeft > 0), "fixture did not exercise horizontal overflow");
@@ -149,7 +330,9 @@ app.whenReady().then(async () => {
         results.push({ mode, kind, state: "drag-layout-frames", frames });
         await escape();
         window.webContents.sendInputEvent({ type: "mouseUp", button: "left", clickCount: 1, ...grip }); await wait();
-        assert.equal((await metrics()).outline, null, "cancel left a stale drag perimeter");
+        const canceled = await metrics();
+        assert.equal(canceled.outline, null, "cancel left a stale drag perimeter");
+        assert(canceled.handleStates.every(handle => !handle.pressed && !handle.dragging && !handle.menuActive), "cancel left a highlighted handle");
         if (kind === "markdown") {
           app.focus({ steal: true }); window.focus(); window.webContents.focus();
           await evaluate("window.tableFixture.selectMarkdownTable()"); await wait();
@@ -167,6 +350,37 @@ app.whenReady().then(async () => {
         assert.equal((await metrics()).csvSource, baseline.csvSource, "styling altered CSV source");
       }
     }
+    // A successful reorder keeps structural selection on the moved row or
+    // column. It must not collapse to a destination cell or disappear.
+    for (const kind of ["markdown", "csv"]) {
+      const beforeRowDrop = await evaluate(`window.tableFixture.metrics('${kind}')`);
+      const rowDrop = await evaluate(`window.tableFixture.drag('${kind}', 'row', 3, 0)`);
+      assert.notEqual(kind === "markdown" ? rowDrop.markdown : rowDrop.csvSource,
+        kind === "markdown" ? beforeRowDrop.markdown : beforeRowDrop.csvSource,
+        `${kind} row reorder did not commit`);
+      assert(rowDrop.outline, `${kind} row drop cleared the structural perimeter`);
+      assert.equal(rowDrop.axis, "row", `${kind} row drop selected the wrong structural axis`);
+      assert.match(rowDrop.structuralTarget?.text ?? "", /Project files/,
+        `${kind} row selection did not follow the moved row`);
+      assert.equal(rowDrop.activeTableCell, null, `${kind} row drop focused a destination cell`);
+      assert.equal(rowDrop.focusedTableCellCount, 0, `${kind} row drop painted a cell focus ring`);
+      results.push({ mode: "dark", kind, state: "row-drop-selected", ...rowDrop });
+      await screenshot(`dark-${kind}-row-drop-selected`);
+
+      const beforeColumnDrop = await evaluate(`window.tableFixture.metrics('${kind}')`);
+      const columnDrop = await evaluate(`window.tableFixture.drag('${kind}', 'column', 0, 3)`);
+      assert.notEqual(kind === "markdown" ? columnDrop.markdown : columnDrop.csvSource,
+        kind === "markdown" ? beforeColumnDrop.markdown : beforeColumnDrop.csvSource,
+        `${kind} column reorder did not commit`);
+      assert(columnDrop.outline, `${kind} column drop cleared the structural perimeter`);
+      assert.equal(columnDrop.axis, "column", `${kind} column drop selected the wrong structural axis`);
+      assert.match(columnDrop.structuralTarget?.text ?? "", /Order/,
+        `${kind} column selection did not follow the moved column`);
+      assert.equal(columnDrop.activeTableCell, null, `${kind} column drop focused a destination cell`);
+      assert.equal(columnDrop.focusedTableCellCount, 0, `${kind} column drop painted a cell focus ring`);
+      results.push({ mode: "dark", kind, state: "column-drop-selected", ...columnDrop });
+      await screenshot(`dark-${kind}-column-drop-selected`);
+    }
     for (const kind of ["markdown", "csv"]) {
       await click(await evaluate(`window.tableFixture.point('${kind}')`));
       await evaluate(`window.tableFixture.selectText('${kind}')`);
@@ -176,6 +390,28 @@ app.whenReady().then(async () => {
       const edited = await evaluate(`window.tableFixture.metrics('${kind}')`);
       assert((kind === "markdown" ? edited.markdown : edited.csvSource).includes("Edited"), `${kind} edit did not reach source`);
       results.push({ kind, state: "source-edit", ...edited });
+    }
+    // A format-specific table border (CSV) and a theme divider (Markdown)
+    // must both feed the grip rim, including after a live theme/mode switch.
+    for (const theme of ["default.github", "default.newspaper"]) {
+      await evaluate(`window.tableFixture.theme('${theme}')`);
+      for (const mode of ["light", "dark"]) {
+        await evaluate(`window.tableFixture.mode('${mode}')`);
+        for (const kind of ["markdown", "csv"]) {
+          window.webContents.sendInputEvent({ type: "mouseMove", ...await evaluate(`window.tableFixture.cellPoint('${kind}', 0, 0)`) });
+          await wait();
+          const palette = await evaluate(`window.tableFixture.metrics('${kind}')`);
+          assert.equal(palette.subThemeId, theme, `${kind}: theme fixture did not switch to ${theme}`);
+          assert.equal(palette.dark, mode === "dark", `${kind}: mode fixture did not switch to ${mode}`);
+          for (const grip of palette.gripStyles) {
+            assert.equal(grip.borderColor, palette.borderColor, `${theme} ${mode} ${kind}: grip rim diverged from grid`);
+            assert(grip.backgroundImage.includes(palette.borderColor), `${theme} ${mode} ${kind}: grip fill lost grid tint`);
+            assert.equal(grip.backgroundAlpha, 255, `${theme} ${mode} ${kind}: grip base became transparent`);
+          }
+          results.push({ theme, mode, kind, state: "theme-grip-palette", ...palette });
+          await screenshot(`${theme}-${mode}-${kind}-handles-visible`);
+        }
+      }
     }
     assert.equal(errors.length, 0, errors.join("\n"));
   } catch (error) {

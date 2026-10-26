@@ -1,5 +1,6 @@
+import { useDesktopPreference, selectFileIconTheme } from "../../preferencesStore";
 import type { CSSProperties, Dispatch, ReactNode, SetStateAction } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronRight,
   ClipboardPaste,
@@ -13,6 +14,7 @@ import {
   Plus,
   Scissors,
   Share2,
+  Link2,
   Trash2,
   Workflow,
   X,
@@ -39,6 +41,7 @@ import {
   DesktopSidebarActionMenu,
   resolveDesktopSidebarActionMenuPosition,
 } from "../../components/DesktopSidebarActionMenu";
+import { useDesktopSidebarMenuInteraction } from "../../components/useDesktopSidebarMenuInteraction";
 import {
   CREATE_NEW_SUBMENU_ID,
   type CreateNewItemId,
@@ -74,6 +77,8 @@ export type DesktopCreateEntryDraft = {
   name: string;
 };
 export type DesktopNodeActionMenuDraft = {
+  /** The clicked row may differ from the collapsed multi-selection command target. */
+  launcherPath?: string;
   node: DataNode;
   nodes: DataNode[];
   anchor: DesktopCreateEntryAnchor;
@@ -82,7 +87,7 @@ export type DesktopNodeActionMenuDraft = {
   renameExtensionValue: string;
   renameFocus: "name" | "type";
   error: DesktopNodeActionError | null;
-  operation: "rename" | "delete" | "open" | "reveal" | "paste" | "duplicate" | null;
+  operation: "copy-link" | "copy-path" | "rename" | "delete" | "open" | "reveal" | "paste" | "duplicate" | null;
 };
 
 export type DesktopNodeActionError = Readonly<
@@ -133,6 +138,7 @@ export function DesktopExplorerRowActions({
           aria-label={t("workspace.node.createNew")}
           aria-haspopup="menu"
           aria-expanded={createMenuOpen}
+          data-desktop-sidebar-menu-trigger="true"
           onClick={(event) => onCreate(parentPath, event.currentTarget.getBoundingClientRect())}
         >
           <Plus aria-hidden="true" />
@@ -145,6 +151,7 @@ export function DesktopExplorerRowActions({
           aria-label={t("workspace.node.moreActionsFor", { name: bidiIsolate(node.name) })}
           aria-haspopup="menu"
           aria-expanded={nodeMenuOpen}
+          data-desktop-sidebar-menu-trigger="true"
           onClick={(event) => onOpenNodeMenu(node, event.currentTarget.getBoundingClientRect())}
         >
           <OverflowDots orientation="vertical" />
@@ -171,17 +178,16 @@ export function DesktopCreateEntryMenu({
   draft,
   mainEntries,
   submenuItemKinds,
-  fileIconTheme,
   onCancel,
   onSelectKind,
 }: {
   draft: DesktopCreateEntryDraft;
   mainEntries: readonly CreateNewMainMenuEntry[];
   submenuItemKinds: readonly CreateNewItemId[];
-  fileIconTheme?: FileIconThemeId | null;
   onCancel: () => void;
   onSelectKind: (kind: DesktopCreateEntryKind) => void;
 }) {
+  const fileIconTheme = useDesktopPreference(selectFileIconTheme);
   const { t } = useLocalization();
   const menuRef = useRef<HTMLDivElement>(null);
   const menuRowHeight = useCssPixelCustomProperty(
@@ -262,26 +268,22 @@ export function DesktopCreateEntryMenu({
     trigger.focus();
   };
 
-  useEffect(() => {
-    if (sidebarLauncher) return;
-    const frame = window.requestAnimationFrame(() => {
-      menuRef.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [sidebarLauncher]);
+  useLayoutEffect(() => {
+    clearSubmenuCloseTimer();
+    suppressSubmenuFocusOpenRef.current = false;
+    setSubmenuOpen(false);
+  }, [draft.anchor]);
 
   useEffect(() => {
     return () => clearSubmenuCloseTimer();
   }, []);
 
-  useEffect(() => {
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (target instanceof Node && menuRef.current?.contains(target)) return;
-      onCancel();
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+  useDesktopSidebarMenuInteraction({
+    menuRef,
+    anchor: draft.anchor,
+    onDismiss: onCancel,
+    autoFocus: !sidebarLauncher,
+    onEscape: (event) => {
       if (submenuOpen) {
         event.preventDefault();
         if (submenuCloseTimerRef.current !== null) {
@@ -293,27 +295,15 @@ export function DesktopCreateEntryMenu({
           ?.querySelector<HTMLButtonElement>(".desktop-create-entry-submenu-trigger");
         if (trigger && document.activeElement !== trigger) {
           suppressSubmenuFocusOpenRef.current = true;
-          trigger.focus();
+          trigger.focus({ preventScroll: true });
         } else {
           suppressSubmenuFocusOpenRef.current = false;
         }
         return;
       }
       onCancel();
-    };
-    const handleViewportChange = () => onCancel();
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("resize", handleViewportChange);
-    window.addEventListener("scroll", handleViewportChange, true);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("resize", handleViewportChange);
-      window.removeEventListener("scroll", handleViewportChange, true);
-    };
-  }, [submenuOpen, onCancel]);
+    },
+  });
 
   return (
     <DesktopMenuSurface
@@ -421,17 +411,16 @@ export function DesktopCreateEntryMenu({
 
 export function DesktopCreateEntryDialog({
   draft,
-  fileIconTheme,
   onChange,
   onCancel,
   onCreate,
 }: {
   draft: DesktopCreateEntryDraft;
-  fileIconTheme?: FileIconThemeId | null;
   onChange: Dispatch<SetStateAction<DesktopCreateEntryDraft | null>>;
   onCancel: () => void;
   onCreate: () => void;
 }) {
+  const fileIconTheme = useDesktopPreference(selectFileIconTheme);
   const { t } = useLocalization();
   const inputRef = useRef<HTMLInputElement>(null);
   const selectedKind = draft.selectedKind;
@@ -482,7 +471,7 @@ export function DesktopCreateEntryDialog({
               <h2 id="desktop-create-entry-title">{getCreateEntryDialogTitle(selectedKind, t)}</h2>
             </div>
           </div>
-          <DesktopDialogCloseButton disabled={draft.creatingKind !== null} onClick={onCancel} />
+          <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton label={t("common.action.close")} disabled={draft.creatingKind !== null} onClick={onCancel} /></Tooltip>
         </header>
 
         <div
@@ -545,7 +534,6 @@ export function DesktopCreateEntryDialog({
 
 export function DesktopNodeActionMenu({
   draft,
-  experimentalSettings,
   showRevealInFinder = true,
   showOpenInDefaultApp = true,
   canPaste = false,
@@ -554,6 +542,8 @@ export function DesktopNodeActionMenu({
   canDuplicate = true,
   onChange,
   onCancel,
+  onCopyPath,
+  onCopyLink,
   onCopy,
   onCut,
   onPaste,
@@ -566,7 +556,6 @@ export function DesktopNodeActionMenu({
   onShare,
 }: {
   draft: DesktopNodeActionMenuDraft;
-  experimentalSettings?: ExperimentalSettings | null;
   showRevealInFinder?: boolean;
   showOpenInDefaultApp?: boolean;
   canPaste?: boolean;
@@ -575,6 +564,8 @@ export function DesktopNodeActionMenu({
   canDuplicate?: boolean;
   onChange: Dispatch<SetStateAction<DesktopNodeActionMenuDraft | null>>;
   onCancel: () => void;
+  onCopyPath: () => void;
+  onCopyLink?: () => void;
   onCopy: () => void;
   onCut: () => void;
   onPaste: () => void;
@@ -591,7 +582,6 @@ export function DesktopNodeActionMenu({
     return (
       <DesktopNodeRenameDialog
         draft={draft}
-        experimentalSettings={experimentalSettings}
         onChange={onChange}
         onCancel={onCancel}
         onRename={onRename}
@@ -610,6 +600,8 @@ export function DesktopNodeActionMenu({
         canDuplicate={canDuplicate}
         onChange={onChange}
         onCancel={onCancel}
+        onCopyPath={onCopyPath}
+        onCopyLink={onCopyLink}
         onCopy={onCopy}
         onCut={onCut}
         onPaste={onPaste}
@@ -633,6 +625,8 @@ function DesktopNodeActionPopover({
   canDuplicate,
   onChange,
   onCancel,
+  onCopyPath,
+  onCopyLink,
   onCopy,
   onCut,
   onPaste,
@@ -652,6 +646,8 @@ function DesktopNodeActionPopover({
   canDuplicate: boolean;
   onChange: Dispatch<SetStateAction<DesktopNodeActionMenuDraft | null>>;
   onCancel: () => void;
+  onCopyPath: () => void;
+  onCopyLink?: () => void;
   onCopy: () => void;
   onCut: () => void;
   onPaste: () => void;
@@ -681,14 +677,14 @@ function DesktopNodeActionPopover({
   const singleNodeAction = actionCount === 1;
   const errorMessage = formatDesktopNodeActionError(draft.error, t);
   const showShare = Boolean(onShare) && singleNodeAction && draft.node.type === "folder";
-  const menuRowCount = 4
+  const menuRowCount = 5 + Number(singleNodeAction && Boolean(onCopyLink))
     + (draft.node.type === "folder" ? 2 : 0)
     + Number(showShare)
     + Number(singleNodeAction && showOpenInDefaultApp && draft.node.type !== "folder")
     + Number(singleNodeAction && showRevealInFinder)
     + Number(singleNodeAction)
     + Number(singleNodeAction && draft.node.type !== "folder");
-  const separatorCount = 1 + Number(draft.node.type === "folder");
+  const separatorCount = 2 + Number(draft.node.type === "folder");
   const estimatedHeight = (menuPadding * 2)
     + (menuRowCount * menuRowHeight)
     + (separatorCount * MENU_SEPARATOR_BLOCK_SIZE)
@@ -706,35 +702,7 @@ function DesktopNodeActionPopover({
     width: `${NODE_ACTION_MENU_WIDTH}px`,
   } as CSSProperties;
 
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      menuRef.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, []);
-
-  useEffect(() => {
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (target instanceof Node && menuRef.current?.contains(target)) return;
-      onCancel();
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onCancel();
-    };
-    const handleViewportChange = () => onCancel();
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("resize", handleViewportChange);
-    window.addEventListener("scroll", handleViewportChange, true);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("resize", handleViewportChange);
-      window.removeEventListener("scroll", handleViewportChange, true);
-    };
-  }, [onCancel]);
+  useDesktopSidebarMenuInteraction({ menuRef, anchor: draft.anchor, onDismiss: onCancel });
 
   return (
     <DesktopSidebarActionMenu
@@ -745,6 +713,19 @@ function DesktopNodeActionPopover({
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
     >
+      <DesktopNodeActionMenuItem
+        icon={<Copy size={14} />}
+        label={t("workspace.node.copyPath")}
+        disabled={draft.operation !== null}
+        onClick={onCopyPath}
+      />
+      {onCopyLink && singleNodeAction && <DesktopNodeActionMenuItem
+        icon={<Link2 size={14} />}
+        label={t("workspace.node.copyLink")}
+        disabled={draft.operation !== null}
+        onClick={onCopyLink}
+      />}
+      <DesktopMenuSeparator />
       {draft.node.type === "folder" && (
         <DesktopNodeActionMenuItem
           icon={<FolderPlus size={14} />}
@@ -853,24 +834,23 @@ function DesktopNodeActionPopover({
 
 function DesktopNodeRenameDialog({
   draft,
-  experimentalSettings,
   onChange,
   onCancel,
   onRename,
 }: {
   draft: DesktopNodeActionMenuDraft;
-  experimentalSettings?: ExperimentalSettings | null;
   onChange: Dispatch<SetStateAction<DesktopNodeActionMenuDraft | null>>;
   onCancel: () => void;
   onRename: () => void;
 }) {
+  const enablePuppyFlowFiles = useDesktopPreference(s => s.experimentalSettings.enablePuppyFlowFiles);
   const { t } = useLocalization();
   const inputRef = useRef<HTMLInputElement>(null);
   const selectRef = useRef<HTMLSelectElement>(null);
   const isFile = draft.node.type !== "folder";
   const fileTypeOptions = useMemo(
-    () => getDesktopFileTypeOptions(draft.renameExtensionValue, t, experimentalSettings),
-    [draft.renameExtensionValue, experimentalSettings, t],
+    () => getDesktopFileTypeOptions(draft.renameExtensionValue, t, { enablePuppyFlowFiles }),
+    [draft.renameExtensionValue, enablePuppyFlowFiles, t],
   );
   const title = draft.renameFocus === "type" && isFile
     ? t("workspace.node.changeType")
@@ -918,7 +898,7 @@ function DesktopNodeRenameDialog({
               <h2 id="desktop-node-rename-title">{title}</h2>
             </div>
           </div>
-          <DesktopDialogCloseButton disabled={draft.operation !== null} onClick={onCancel} />
+          <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton label={t("common.action.close")} disabled={draft.operation !== null} onClick={onCancel} /></Tooltip>
         </header>
 
         <div
@@ -1045,7 +1025,7 @@ function CreateEntryGlyph({
 type DesktopFileTypeOption = {
   id: string;
   extension: string;
-  experimentalSetting?: keyof ExperimentalSettings;
+  experimentalSetting?: "enablePuppyFlowFiles";
 };
 
 const DESKTOP_FILE_TYPE_OPTIONS = [
@@ -1115,7 +1095,7 @@ export function validateDesktopNodeName(name: string): void {
 export function getDesktopFileTypeOptions(
   currentExtension: string,
   t: MessageFormatter,
-  experimentalSettings?: ExperimentalSettings | null,
+  experimentalSettings?: Pick<ExperimentalSettings, "enablePuppyFlowFiles"> | null,
 ): Array<{ label: string; extension: string }> {
   const extension = normalizeDesktopExtension(currentExtension);
   const options = DESKTOP_FILE_TYPE_OPTIONS

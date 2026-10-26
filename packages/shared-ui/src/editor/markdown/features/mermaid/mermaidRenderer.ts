@@ -45,23 +45,23 @@ const themeChangeSubscribers = new Set<() => void>();
 
 export function getMermaidThemeSnapshot(root: Element = document.documentElement): MermaidThemeSnapshot {
   const style = getComputedStyle(root);
-  const read = (name: string, fallback: string) => style.getPropertyValue(name).trim() || fallback;
-  const background = read("--po-editor-bg", "#ffffff");
-  const panel = read("--po-panel", "#f7f3ec");
-  const text = read("--po-text", "#2f2a24");
-  const textMuted = read("--po-text-muted", "#8a8073");
-  const accent = read("--po-accent", "#2563eb");
-  const divider = read("--po-divider", "#ded4c7");
-  const success = read("--po-success", "#16a34a");
-  const warning = read("--po-warning", "#d97706");
-  const danger = read("--po-danger", "#dc2626");
-  const fontFamily = read(
-    "--po-font-editor-content-user",
-    read(
-      "--po-editor-content-font",
-      read("--po-font-content", read("--po-font-sans", "ui-sans-serif, system-ui, sans-serif")),
-    ),
+  // Markdown diagrams read the same file-owned profile as text. Conversation
+  // mounts outside a Markdown document retain their application role adapter.
+  const read = (role: string, applicationRole: string) => (
+    style.getPropertyValue(`--po-md-mermaid-${role}`).trim()
+    || style.getPropertyValue(applicationRole).trim()
   );
+  const background = resolveMermaidColor(read("background", "--po-editor-bg"), root);
+  const panel = resolveMermaidColor(read("panel", "--po-panel"), root);
+  const text = resolveMermaidColor(read("text", "--po-text"), root);
+  const textMuted = resolveMermaidColor(read("muted", "--po-text-muted"), root);
+  const accent = resolveMermaidColor(read("accent", "--po-accent"), root);
+  const divider = resolveMermaidColor(read("border", "--po-divider"), root);
+  const success = resolveMermaidColor(read("success", "--po-success"), root);
+  const warning = resolveMermaidColor(read("warning", "--po-warning"), root);
+  const danger = resolveMermaidColor(read("danger", "--po-danger"), root);
+  const fontFamily = read("font", "--po-editor-content-font") || style.fontFamily;
+  const fontSize = read("font-size", "--po-type-editor-content") || style.fontSize;
   const isDark = isDarkColor(background);
 
   const config: MermaidConfig = {
@@ -72,6 +72,7 @@ export function getMermaidThemeSnapshot(root: Element = document.documentElement
     darkMode: isDark,
     htmlLabels: false,
     fontFamily,
+    fontSize: Number.parseFloat(fontSize),
     themeVariables: {
       background,
       mainBkg: panel,
@@ -116,6 +117,7 @@ export function getMermaidThemeSnapshot(root: Element = document.documentElement
       git2: warning,
       git3: danger,
       fontFamily,
+      fontSize,
     },
   };
 
@@ -123,6 +125,24 @@ export function getMermaidThemeSnapshot(root: Element = document.documentElement
     config,
     key: JSON.stringify(config),
   };
+}
+
+// Mermaid's palette math accepts hex colors. Resolve CSS color functions in
+// the actual document context before passing file values to that renderer.
+function resolveMermaidColor(value: string, root: Element): string {
+  if (/^#[0-9a-f]{3,8}$/i.test(value)) return value;
+  const document = root.ownerDocument;
+  const probe = document.createElement("span");
+  probe.style.color = value;
+  root.appendChild(probe);
+  const resolved = getComputedStyle(probe).color;
+  probe.remove();
+  const context = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
+  if (!context) return resolved;
+  context.fillStyle = resolved;
+  context.fillRect(0, 0, 1, 1);
+  const [red, green, blue] = context.getImageData(0, 0, 1, 1).data;
+  return `#${[red, green, blue].map(channel => channel.toString(16).padStart(2, "0")).join("")}`;
 }
 
 export async function renderMermaidDiagram({

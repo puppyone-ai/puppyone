@@ -3,7 +3,13 @@
 
   <h1>puppyone</h1>
 
-  <p><b>A local-first editor. Built for you and your agents.</b></p>
+  <p>The (local/cloud) folder built for your agents.</p>
+
+  
+  <p>
+    <a href="https://www.puppyone.ai/download"><b>Download for macOS</b></a> ·
+    <a href="https://www.puppyone.ai/download"><b>Download for Windows</b></a>
+  </p>
 
   <p>
     <a href="https://www.puppyone.ai"><img src="https://img.shields.io/badge/Website-puppyone.ai-39BC66?style=flat-square" alt="Website" /></a>
@@ -13,8 +19,82 @@
   </p>
 </div>
 
-![puppyone editor overview](public/assets/media/screenshots/puppyone-editor-overview.png)
+<br />
+
+![A folder open in puppyone](public/assets/media/screenshots/puppyone-editor-overview.png)
+
+puppyone opens any folder on your computer. Your documents, spreadsheets, slides,
+PDFs and web pages stay as ordinary files you can just open — nothing to upload,
+nothing to migrate. Let AI agents work in that folder: every change is tracked in
+Git, down to a redline view for Word documents, and anything can be rolled back.
+When you need it online, put the folder in puppyone Cloud and it stays on after
+you close your laptop.
+
+**Agents come and go. Your folder stays.**
+
+## It's a folder. Everything's already in it.
+
+Open a folder you already have — no import, no migration. Documents, spreadsheets,
+slides, PDFs, images, audio and video, 3D models and web pages all render in place,
+instead of showing up as a list of filenames.
+
+| | Formats |
+| --- | --- |
+| Documents | DOCX, DOC, ODT, RTF |
+| Spreadsheets | XLSX, XLS, XLSM, ODS, CSV |
+| Slides | PPTX, PPSX, ODP |
+| PDF | PDF |
+| Images | PNG, JPG, SVG, WEBP, GIF |
+| Audio and video | MP3, WAV, MP4, WEBM |
+| Text and data | Markdown, TXT, JSON, JSONL, YAML, TOML |
+| Code and web | HTML, CSS, JS, TS, TSX |
+| 3D | GLB |
+| Archives | ZIP, TAR.GZ |
+
+Files stay on your disk. Nothing leaves the folder unless you put it in puppyone Cloud.
+
+## Let AI work in it. See every change. Undo any of it.
+
+Git is built in — nothing to configure. After an agent works, you get a change
+list, a history timeline and per-commit detail in the sidebar:
+
+- **Text** — line-by-line diffs.
+- **Word documents** — a redline view, so you can read what an agent rewrote the
+  way you would read tracked changes.
+- **Binary files** — a change summary.
+
+If something looks wrong, roll back a single file or the whole folder to any
+earlier version.
+
+![Agent working in a folder](public/assets/media/screenshots/editor-agent-light.png)
+
+## Works with 10+ agents
+
+Swap the agent; keep the folder.
+
+| How it connects | Agents | Notes |
+| --- | --- | --- |
+| Built in | puppyone Agent | Sign in with email. Every account gets trial credit, then pay as you go — or bring your own API key or local model and use no credit at all. |
+| Bundled with the app | WorkBuddy | macOS, Windows |
+| Your installed CLI | Claude Code, Codex, OpenCode, Pi | macOS, Linux, Windows |
+| Your installed CLI | Cursor | macOS, Linux |
+| Companion runtime | Hermes | macOS, Linux |
+| Via puppyone Cloud | ChatGPT, Claude, Manus, Viktor, Grok | Or any MCP client |
+
+## Need it online? puppyone Cloud.
+
+Put the folder in puppyone Cloud and it stays on after you close your laptop.
+An agent on any device — your laptop, a server, CI, ChatGPT or Claude — opens the
+same files and picks up where the last one left off. Each agent gets its own key,
+scoped to only the paths it needs.
+
+> Cloud connection in the app is Early Access.
+
 ## Install
+
+Download the installer for [macOS or Windows](https://www.puppyone.ai/download).
+
+Or install from npm:
 
 ```bash
 npm install --global puppyone
@@ -25,15 +105,6 @@ npm install --global puppyone
 ```bash
 puppyone
 ```
-
-## Features
-
-- **Rich files** — Edit and preview Markdown, HTML, CSS, CSV, JSON, DOCX, XLSX, PDF, media, 3D files, and more.
-- **Local-first** — Work with local folders; files stay local unless you choose Cloud.
-- **Git** — Review changes and keep project history with local Git.
-- **Terminal & agents** — Built-in terminal with Codex, Claude Code, Cursor, and OpenCode.
-- **Puppyone Cloud (optional)** — Hosting, backup, and always-on MCP or CLI access.
-- **Cloud collaboration (optional)** — Invite teammates to hosted projects.
 
 ## Development checks
 

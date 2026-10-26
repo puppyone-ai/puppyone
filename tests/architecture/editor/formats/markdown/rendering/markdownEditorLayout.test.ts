@@ -37,6 +37,13 @@ const markdownInlineCss = readFileSync(
   new URL("../../../../../../packages/shared-ui/src/styles/editor/markdown-inline-widgets.css", import.meta.url),
   "utf8",
 );
+const markdownProjectionCss = readFileSync(
+  new URL("../../../../../../packages/shared-ui/src/styles/editor/markdown-theme-tokens.generated.css", import.meta.url),
+  "utf8",
+);
+const neutralThemeCss = readFileSync(
+  new URL("../../../../../../sub-themes/default-neutral/theme.css", import.meta.url), "utf8",
+);
 const markdownCodeMirrorExtensionsSource = readFileSync(
   new URL("../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions.ts", import.meta.url),
   "utf8",
@@ -44,12 +51,29 @@ const markdownCodeMirrorExtensionsSource = readFileSync(
 
 describe("Markdown editor layout", () => {
   it("keeps supporting quotes quieter than body copy in every theme", () => {
-    expect(markdownContentCss).toContain(
+    expect(neutralThemeCss).toContain(
       "color-mix(in srgb, var(--po-text-muted) 76%, var(--po-md-surface-background))",
     );
-    expect(markdownContentCss).toContain(
+    expect(neutralThemeCss).toContain(
       "color-mix(in srgb, var(--po-divider) 76%, var(--po-md-surface-background))",
     );
+  });
+
+  it("publishes one inline foreground context instead of quote-specific descendant overrides", () => {
+    expect(markdownContentCss).toMatch(
+      /:is\(\.cm-md-blockquote, \.cm-md-html-rendered-surface blockquote\)\s*\{\s*--po-md-inline-foreground:\s*var\(--po-md-blockquote-color\);/s,
+    );
+    expect(markdownContentCss).toContain("color: var(--po-md-inline-foreground, var(--po-md-strong-color));");
+    expect(markdownContentCss).toContain("color: var(--po-md-inline-foreground, var(--po-md-inline-code-color));");
+    expect(markdownEditorCss).not.toMatch(/\.cm-md-syntax-strong\s*\{[^}]*color:/s);
+    expect(readCssRule(markdownInlineCss, ".markdown-codemirror-editor .cm-md-inline-code")).not.toMatch(/\bcolor:/);
+    expect(markdownContentCss).not.toMatch(/:is\(\.cm-md-blockquote,[^{}]*\)\s+:is\(/s);
+    expect(readCssRule(markdownEditorCss,
+      ".markdown-codemirror-editor .cm-md-list-line:not(.cm-md-task-line):not(.cm-md-list-continuation):not(.cm-md-list-source-line)::before",
+    )).toContain("color: var(--po-md-list-marker-color);");
+    expect(readCssRule(markdownContentCss,
+      ".markdown-codemirror-editor .cm-md-html-rendered-surface li::marker",
+    )).toContain("color: var(--po-md-list-marker-color);");
   });
 
   it("shares its reading width with other document-like product surfaces", () => {
@@ -90,7 +114,7 @@ describe("Markdown editor layout", () => {
       /\.markdown-codemirror-editor\[data-live-preview="false"\][\s\S]*?\{[\s\S]*?font-family:\s*inherit;/s,
     );
     expect(markdownEditorCss).toMatch(
-      /\.markdown-codemirror-editor\[data-live-preview="false"\][\s\S]*?\{[\s\S]*?font-size:\s*var\(--po-type-editor-content, 15px\);/s,
+      /\.markdown-codemirror-editor\[data-live-preview="false"\][\s\S]*?\{[\s\S]*?font-size:\s*var\(--po-md-content-size\);/s,
     );
     expect(markdownEditorCss).toMatch(
       /\.markdown-codemirror-editor\[data-live-preview="false"\][\s\S]*?\{[\s\S]*?font-style:\s*normal;/s,
@@ -103,18 +127,16 @@ describe("Markdown editor layout", () => {
     );
   });
 
-  it("keeps vertical document padding fixed while the inline gutter responds to width", () => {
+  it("shares the minimum document inset while only inline padding responds to width", () => {
     const editorRule = readCssRule(markdownEditorCss, ".markdown-codemirror-editor");
     const scrollerRule = readCssRule(markdownEditorCss, ".markdown-codemirror-editor .cm-scroller");
     const contentRule = readCssRule(markdownEditorCss, ".markdown-codemirror-editor .cm-content");
 
-    expect(editorEntryCss).toContain("--po-editor-content-edge-inset: 64px;");
-    expect(editorRule).toContain("--po-markdown-editor-gutter-min: var(--po-editor-content-edge-inset, 64px);");
-    expect(editorRule).toContain("--po-markdown-editor-content-padding-block: var(--po-editor-content-edge-inset, 64px);");
+    expect(editorEntryCss).toContain("--po-editor-content-edge-inset: 48px;");
+    expect(editorRule).toContain("--po-markdown-editor-gutter-min: var(--po-editor-content-edge-inset, 48px);");
     expect(contentRule).toContain("--po-markdown-editor-content-gutter-inline: max(");
-    expect(contentRule).toContain("padding-block: var(--po-markdown-editor-content-padding-block);");
+    expect(contentRule).toContain("padding-block: var(--po-markdown-editor-gutter-min);");
     expect(contentRule).toContain("padding-inline: var(--po-markdown-editor-content-gutter-inline);");
-    expect(contentRule).not.toMatch(/padding-(?:block|top):[^;]*content-gutter-inline/);
     expect(editorRule).toContain("container-type: inline-size;");
     expect(editorRule).toContain("--po-markdown-scroll-viewport-inline-size: 100cqw;");
     expect(editorRule).toContain("-webkit-font-smoothing: antialiased;");
@@ -133,13 +155,18 @@ describe("Markdown editor layout", () => {
 
   it("keeps ordinary editable-line geometry independent of empty-line DOM", () => {
     const livePreviewRule = readCssRule(
-      markdownEditorCss,
-      '.markdown-codemirror-editor[data-live-preview="true"]',
+      markdownContentCss,
+      '.markdown-codemirror-editor[data-live-preview="true"] .cm-line:not(:is(.cm-md-heading, .cm-md-table-line, .cm-md-code-fence, .cm-md-code-block-line))',
     );
 
-    expect(livePreviewRule).toContain("--po-markdown-editor-line-spacing: 3px;");
-    expect(markdownCodeMirrorExtensionsSource).toContain(
-      'padding: "var(--po-markdown-editor-line-spacing, 0px) 0"',
+    expect(livePreviewRule).toContain("calc(var(--po-md-source-line-gap) + var(--md-line-padding-after, 0px))");
+    expect(neutralThemeCss).toContain("--po-md-content-line-height: 1.75;");
+    expect(neutralThemeCss).toContain("--po-md-source-line-gap: .25em;");
+    expect(neutralThemeCss).toContain("--po-md-list-item-gap: 0px;");
+    expect(markdownEditorCss).not.toContain("--po-markdown-editor-line-spacing");
+    expect(markdownCodeMirrorExtensionsSource).toContain('padding: "0"');
+    expect(readCssRule(markdownContentCss, ".markdown-codemirror-editor .cm-md-html-rendered-surface p")).toContain(
+      "calc(var(--po-md-source-line-gap) + var(--po-md-paragraph-gap-after))",
     );
     expect(markdownEditorCss).not.toMatch(
       /\.cm-line:has\(\s*>\s*br:only-child\s*\)/,
@@ -182,10 +209,6 @@ describe("Markdown HTML media layout", () => {
 
   it("uses one semantic presentation profile without a second HTML widget gap", () => {
     const profileRule = readCssRule(markdownContentCss, ".markdown-codemirror-editor");
-    const darkProfileRule = readCssRule(
-      markdownContentCss,
-      ":where(.dark) .markdown-codemirror-editor",
-    );
     const editorTextRule = readCssRule(
       markdownEditorCss,
       ".markdown-codemirror-editor .cm-editor",
@@ -228,27 +251,12 @@ describe("Markdown HTML media layout", () => {
     );
 
     expect(editorEntryCss).toContain('@import "./editor/markdown-content.css";');
-    expect(profileRule).toContain("--po-md-presentation-version: 2;");
-    expect(profileRule).toContain(
-      "--po-md-content-size: var(--po-type-editor-content, var(--po-text-size-content, 15px));",
-    );
-    expect(profileRule).toContain(
-      "--po-md-content-weight: var(--po-host-md-content-weight, var(--po-content-reading-weight, 450));",
-    );
-    expect(profileRule).toContain(
-      "--po-md-content-letter-spacing: var(--po-host-md-content-letter-spacing, var(--po-content-reading-letter-spacing, 0));",
-    );
-    expect(profileRule).toContain(
-      "--po-md-content-line-height: var(--po-type-editor-line-height, var(--po-content-reading-line-height, 24px));",
-    );
-    expect(profileRule).toContain("--po-md-content-color: var(--po-host-md-content-color, var(--po-text));");
-    expect(darkProfileRule).toContain(
-      "--po-md-content-color: var(\n    --po-host-md-content-color,\n    color-mix(in srgb, var(--po-text) 80%, var(--po-text-muted))",
-    );
-    expect(darkProfileRule).not.toContain("--po-md-content-weight:");
-    expect(profileRule).toContain("--po-md-block-gap: var(--po-host-md-block-gap, 16px);");
-    expect(profileRule).toContain("--po-md-heading-gap-before: var(--po-host-md-heading-gap-before, 24px);");
-    expect(profileRule).toContain("--po-md-heading-gap-after: var(--po-host-md-heading-gap-after, 16px);");
+    expect(editorEntryCss).toContain('@import "./editor/markdown-theme-tokens.generated.css";');
+    expect(profileRule).toContain("--po-md-presentation-version: 6;");
+    expect(profileRule).not.toMatch(/--po-md-(?:content|h[1-6]|strong|rule)[a-z-]*:/);
+    expect(markdownProjectionCss).toContain("--po-md-content-size: var(--po-host-md-content-size);");
+    expect(markdownProjectionCss).toContain("--po-md-content-line-height: var(--po-host-md-content-line-height);");
+    expect(markdownProjectionCss).not.toContain("--po-type-editor-");
     expect(editorTextRule).toContain("font-family: var(--po-editor-content-font);");
     expect(editorTextRule).toContain("font-size: var(--po-md-content-size);");
     expect(editorTextRule).toContain("font-weight: var(--po-md-content-weight);");
@@ -256,23 +264,10 @@ describe("Markdown HTML media layout", () => {
     expect(htmlSurfaceRule).toContain("font-size: var(--po-md-content-size);");
     expect(htmlSurfaceRule).toContain("font-weight: var(--po-md-content-weight);");
     expect(htmlSurfaceRule).toContain("line-height: var(--po-md-content-line-height);");
-    expect(profileRule).toContain("--po-md-h1-weight: var(--po-host-md-h1-weight, 650);");
-    expect(profileRule).toContain("--po-md-h2-weight: var(--po-host-md-h2-weight, 625);");
-    expect(profileRule).toContain("--po-md-h3-weight: var(--po-host-md-h3-weight, 600);");
-    expect(profileRule).toContain("--po-md-heading-line-height: var(--po-host-md-heading-line-height, 1.25);");
-    expect(profileRule).toContain(
-      "--po-md-h1-size: var(--po-user-md-h1-size, var(--po-type-editor-heading-1, 30px));",
-    );
-    expect(profileRule).toContain(
-      "--po-md-strong-weight: var(--po-user-md-strong-weight, var(--po-host-md-strong-weight, 600));",
-    );
-    expect(profileRule).toContain(
-      "--po-md-strong-color: var(--po-user-md-strong-color, var(--po-host-md-strong-color, var(--po-text)));",
-    );
+    expect(markdownProjectionCss).toContain("--po-md-h1-size: var(--po-user-md-h1-size, var(--po-host-md-h1-size));");
+    expect(markdownProjectionCss).toContain("--po-md-strong-weight: var(--po-user-md-strong-weight, var(--po-host-md-strong-weight));");
+    expect(markdownProjectionCss).toContain("--po-md-strong-color: var(--po-user-md-strong-color, var(--po-host-md-strong-color));");
     expect(markdownContentCss).not.toMatch(/app-shell|onboarding-shell|desktop-overlay-root/);
-    expect(profileRule).toContain(
-      "--po-md-rule-color: var(--po-host-md-rule-color, color-mix(in srgb, var(--po-divider) 96%, var(--po-text-muted) 4%));",
-    );
     expect(nativeHeadingRule).toContain("font-size: var(--po-md-h1-size);");
     expect(nativeHeadingRule).toContain(
       "--po-md-current-heading-weight: var(--po-md-h1-weight);",
@@ -419,8 +414,8 @@ describe("Markdown rich-block boundary affordance", () => {
     expect(markdownTableCss).not.toContain(
       ".cm-md-table-widget-wrap:focus-within:not(.is-doc-selected) .cm-md-table-widget",
     );
-    expect(selectedRule).toContain("border-color:");
-    expect(selectedRule).toContain("box-shadow: 0 0 0 1px var(--po-editable-table-selection-border);");
+    expect(selectedRule).toContain("border-color: var(--cm-md-table-document-selection);");
+    expect(selectedRule).toContain("box-shadow: 0 0 0 1px var(--cm-md-table-document-selection);");
   });
 
   it("uses semantic fixed column tracks so cell focus cannot resize a Markdown table", () => {
@@ -458,7 +453,10 @@ describe("Markdown rich-block boundary affordance", () => {
     );
 
     for (const rule of [textareaRule, highlightRule]) {
-      expect(rule).toContain("font-weight: 400;");
+      expect(rule).toContain("font-weight: var(--po-md-code-block-font-weight);");
+      expect(rule).toContain("font-size: var(--po-md-code-block-font-size);");
+      expect(rule).toContain("line-height: var(--po-md-code-block-line-height);");
+      expect(rule).toContain("padding: var(--po-md-code-block-padding);");
       expect(rule).toContain("font-variant-ligatures: none;");
       expect(rule).toContain("font-feature-settings: \"liga\" 0, \"calt\" 0;");
       expect(rule).toContain("letter-spacing: normal;");
@@ -489,10 +487,18 @@ describe("Markdown rich-block boundary affordance", () => {
     }
   });
 
-  it("lays out code source metadata separately from the language field", () => {
-    const headerRule = readCssRule(
+  it("keeps code metadata inside the panel and clear of the code body", () => {
+    const panelRule = readCssRule(
       markdownCodeCss,
-      ".markdown-codemirror-editor .cm-md-code-header",
+      ".markdown-codemirror-editor .cm-md-code-panel",
+    );
+    const insetRule = readCssRule(
+      markdownCodeCss,
+      ".markdown-codemirror-editor .cm-md-code-panel:is([data-has-metadata], :has(.cm-md-code-language:focus))",
+    );
+    const metadataRule = readCssRule(
+      markdownCodeCss,
+      ".markdown-codemirror-editor .cm-md-code-metadata",
     );
     const referenceRule = readCssRule(
       markdownCodeCss,
@@ -500,13 +506,19 @@ describe("Markdown rich-block boundary affordance", () => {
     );
     const languageRule = readCssRule(
       markdownCodeCss,
-      ".markdown-codemirror-editor .cm-md-code-header.has-source-reference .cm-md-code-language",
+      ".markdown-codemirror-editor .cm-md-code-language",
     );
 
-    expect(headerRule).toContain("display: flex;");
+    expect(panelRule).toContain("position: relative;");
+    expect(insetRule).toContain("padding-block-start: calc(var(--po-md-metadata-line-height) + 6px);");
+    expect(metadataRule).toContain("position: absolute;");
+    expect(metadataRule).toContain("inset-block-start: 6px;");
+    expect(metadataRule).toContain("display: flex;");
     expect(referenceRule).toContain("text-overflow: ellipsis;");
     expect(referenceRule).toContain("white-space: nowrap;");
     expect(languageRule).toContain("text-align: right;");
+    expect(markdownCodeCss).not.toContain(".cm-md-code-header");
+    expect(markdownCodeCss).not.toContain(".cm-md-code-language.is-empty");
   });
 
   it("reveals the HTML source control only for hover, keyboard focus, or selection", () => {

@@ -14,7 +14,7 @@ import {
   RIGHT_SIDEBAR_SURFACE_STORAGE_KEY,
   readInitialAgentPreferredRuntime,
   readInitialRightSidebarSurface,
-} from "../../../../src/features/app-shell/preferences";
+} from "../../../../src/preferenceStorage";
 import { testT, withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

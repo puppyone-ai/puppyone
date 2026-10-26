@@ -1,12 +1,10 @@
 .markdown-codemirror-editor {
   --po-markdown-editor-text-width: var(--po-reading-content-width, 724px);
-  --po-markdown-editor-gutter-min: var(--po-editor-content-edge-inset, 64px);
-  --po-markdown-editor-content-padding-block: var(--po-editor-content-edge-inset, 64px);
+  --po-markdown-editor-gutter-min: var(--po-editor-content-edge-inset, 48px);
   /* Reading content stays on the centered text rail. Wide block viewports are
      a separate layout tier and may use the full editor client width. */
   --po-markdown-wide-block-edge-inset: 0px;
   --po-markdown-scroll-viewport-inline-size: 100cqw;
-  --po-markdown-editor-line-spacing: 0px;
   --cm-md-block-hover-ring: color-mix(in srgb, var(--po-text-muted) 18%, transparent);
   --cm-md-block-selected-ring: color-mix(in srgb, var(--po-accent) 30%, transparent);
   position: relative;
@@ -15,7 +13,7 @@
   height: 100%;
   overflow: hidden;
   box-sizing: border-box;
-  background: var(--po-editor-bg);
+  background: var(--po-md-surface-background);
   color: var(--po-text);
   cursor: text;
   /* Document rasterization is content presentation, not interface chrome.
@@ -35,30 +33,18 @@
   overflow: hidden;
   border: 1px solid var(--po-border);
   border-radius: 8px;
-  background: var(--po-editor-bg);
+  background: var(--po-md-surface-background);
   box-shadow: inset 0 1px 0 color-mix(in srgb, white 2%, transparent);
 }
 
 .markdown-presentation-preview .markdown-codemirror-editor {
   --po-markdown-editor-gutter-min: 32px;
-  --po-markdown-editor-content-padding-block: 28px;
-}
-
-@media (max-width: 760px) {
-  .markdown-presentation-preview {
-    height: 300px;
-  }
-
-  .markdown-presentation-preview .markdown-codemirror-editor {
-    --po-markdown-editor-gutter-min: 20px;
-    --po-markdown-editor-content-padding-block: 22px;
-  }
 }
 
 .markdown-codemirror-editor .cm-editor {
   height: 100%;
   min-height: 100%;
-  color: var(--po-text);
+  color: var(--po-md-content-color);
   font-family: var(--po-editor-content-font);
   font-size: var(--po-md-content-size);
   font-weight: var(--po-md-content-weight);
@@ -96,25 +82,6 @@
   font-weight: var(--po-text-weight-medium, 500);
 }
 
-.markdown-codemirror-editor[data-preview-state="error"][data-preview-message]::after {
-  position: absolute;
-  z-index: 4;
-  top: 14px;
-  left: 50%;
-  padding: 5px 8px;
-  border: 1px solid color-mix(in srgb, var(--po-danger) 20%, var(--po-border));
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--po-panel-raised) 96%, transparent);
-  box-shadow: var(--po-shadow-sm);
-  color: var(--po-danger);
-  content: attr(data-preview-message);
-  font-family: var(--po-font-ui, var(--po-font-sans));
-  font-size: var(--po-text-size-caption, 11px);
-  font-weight: var(--po-text-weight-medium, 500);
-  transform: translateX(-50%);
-  white-space: nowrap;
-}
-
 .markdown-preview-announcer {
   position: absolute;
   width: 1px;
@@ -147,9 +114,8 @@
 }
 
 .markdown-codemirror-editor .cm-content {
-  /* The inline gutter grows to center the 724px reading rail. The block
-     padding is intentionally independent so horizontal resize never moves
-     the document's first line vertically. */
+  /* All four edges share a minimum inset. Only the inline gutter grows to
+     center the 724px reading rail; block padding stays at that minimum. */
   --po-markdown-editor-content-gutter-inline: max(
     var(--po-markdown-editor-gutter-min),
     calc((100% - var(--po-markdown-editor-text-width)) / 2)
@@ -159,28 +125,15 @@
   max-width: none;
   min-height: 100%;
   margin: 0;
-  padding-block: var(--po-markdown-editor-content-padding-block);
+  padding-block: var(--po-markdown-editor-gutter-min);
   padding-inline: var(--po-markdown-editor-content-gutter-inline);
   caret-color: var(--po-text);
   color: var(--po-md-content-color);
   overflow-wrap: anywhere;
 }
 
-/*
- * Vertical rhythm: the shared presentation line-height spaces wrapped lines;
- * per-line padding spaces blocks apart (the block-editor convention). The
- * token is 0 in source mode and only opens up in live preview; the editor
- * theme applies it uniformly to every ordinary .cm-line. Editable line
- * geometry must not depend on CodeMirror rendering an empty line as a lone
- * <br>, otherwise inserting or deleting the first character shifts the
- * caret and every following line.
- */
-.markdown-codemirror-editor[data-live-preview="true"] {
-  --po-markdown-editor-line-spacing: 3px;
-}
-
-/* Table source lines form one contiguous mono block; keep them compact. */
-.markdown-codemirror-editor .cm-line.cm-md-table-line {
+/* Structured source lines keep their own contiguous geometry. */
+.markdown-codemirror-editor .cm-line:is(.cm-md-table-line, .cm-md-code-fence, .cm-md-code-block-line) {
   padding-top: 0;
   padding-bottom: 0;
 }
@@ -268,13 +221,13 @@
 }
 
 .markdown-codemirror-editor .cm-placeholder {
-  color: var(--po-text-disabled);
+  color: var(--po-md-markup-color);
   font-style: italic;
 }
 
 .markdown-codemirror-editor .cm-md-markup,
 .markdown-codemirror-editor .cm-md-syntax-markup {
-  color: var(--po-text-disabled);
+  color: var(--po-md-markup-color);
 }
 
 .markdown-codemirror-editor .cm-md-heading-mark,
@@ -286,32 +239,28 @@
 .markdown-codemirror-editor .cm-md-emphasis-mark,
 .markdown-codemirror-editor .cm-md-link-mark,
 .markdown-codemirror-editor .cm-md-url {
-  color: var(--po-text-disabled);
-}
-
-.markdown-codemirror-editor .cm-md-syntax-strong {
-  color: var(--po-md-strong-color, var(--po-text));
+  color: var(--po-md-markup-color);
 }
 
 .markdown-codemirror-editor .cm-md-syntax-emphasis {
-  color: var(--po-text-muted);
   font-style: italic;
 }
 
 .markdown-codemirror-editor .cm-md-syntax-link {
+  --po-md-inline-foreground: var(--po-md-link-color);
   color: var(--po-md-link-color);
 }
 
 .markdown-codemirror-editor .cm-md-syntax-monospace,
 .markdown-codemirror-editor .cm-md-code-fence,
 .markdown-codemirror-editor .cm-md-code-block-line {
-  font-family: var(--po-font-mono);
+  font-family: var(--po-md-code-font);
 }
 
 .markdown-codemirror-editor .cm-md-code-fence,
-.markdown-codemirror-editor .cm-md-syntax-monospace,
 .markdown-codemirror-editor .cm-md-code-block-line {
   color: var(--po-md-code-block-color);
+  font-size: var(--po-md-code-block-font-size);
 }
 
 /* Sub Themes expose semantic syntax colors; this editor-owned projection is
@@ -328,13 +277,7 @@
   color: var(--po-md-syntax-comment);
 }
 
-.markdown-codemirror-editor .cm-md-syntax-monospace {
-  background: var(--po-md-inline-code-background);
-  color: var(--po-md-inline-code-color);
-}
-
 .markdown-codemirror-editor .cm-md-syntax-strikethrough {
-  color: var(--po-text-subtle);
   text-decoration: line-through;
 }
 
@@ -357,7 +300,7 @@
 ) {
   color: inherit;
   font-family: inherit;
-  font-size: var(--po-type-editor-content, 15px);
+  font-size: var(--po-md-content-size);
   font-style: normal;
   font-weight: inherit;
   text-decoration: none;
@@ -368,46 +311,78 @@
 }
 
 .markdown-codemirror-editor .cm-md-blockquote {
-  padding-left: 16px;
-  border-left: 3px solid var(--po-md-blockquote-border-color);
-  color: var(--po-md-blockquote-color);
+  padding-left: var(--po-md-blockquote-padding-inline);
+  border-left: var(--po-md-blockquote-border-width) solid var(--po-md-blockquote-border-color);
+}
+
+/* Resolve the source-derived prefix in the line's font metrics once. Its
+   marker can use a different weight without changing the text/marker gap. */
+@property --md-list-marker-slot-width {
+  syntax: "<length-percentage>";
+  inherits: true;
+  initial-value: 0px;
+}
+
+@property --md-list-prefix-width {
+  syntax: "<length-percentage>";
+  inherits: true;
+  initial-value: 0px;
 }
 
 .markdown-codemirror-editor .cm-md-list-line {
   position: relative;
-  padding-left: calc(20px + var(--md-list-depth, 0) * 16px);
-  color: color-mix(in srgb, var(--po-text) 78%, var(--po-text-muted));
+  --md-list-marker-slot-width: var(--po-md-list-marker-width);
+  --md-list-prefix-width: calc(var(--po-md-list-inset) + var(--md-list-marker-slot-width) + var(--po-md-list-marker-gap) + var(--md-list-depth, 0) * var(--po-md-list-indent-step));
+  padding-inline-start: var(--md-list-prefix-width);
+  color: var(--po-md-list-color);
 }
 
-.markdown-codemirror-editor .cm-md-list-line:not(.cm-md-task-line)::before {
+.markdown-codemirror-editor .cm-md-nested-list-line {
+  --md-list-prefix-width: calc(var(--md-list-parent-prefix-width) + max(var(--po-md-list-indent-step), calc(var(--md-list-marker-slot-width) + var(--po-md-list-marker-gap))));
+}
+
+.markdown-codemirror-editor .cm-md-list-line:not(.cm-md-task-line):not(.cm-md-list-continuation):not(.cm-md-list-source-line)::before {
   position: absolute;
-  left: calc(var(--md-list-depth, 0) * 16px);
+  inset-inline-start: calc(var(--md-list-prefix-width) - var(--md-list-marker-slot-width) - var(--po-md-list-marker-gap));
+  inset-block-start: var(--md-line-padding-before, 0px);
   display: inline-flex;
-  width: 20px;
+  width: var(--md-list-marker-slot-width);
+  height: 1lh;
   align-items: center;
-  justify-content: flex-start;
-  color: var(--po-text-subtle);
-  font-weight: 650;
+  justify-content: var(--md-list-marker-align, center);
+  color: var(--po-md-list-marker-color);
+  font-weight: var(--po-md-list-marker-weight);
+  font-variant-numeric: var(--po-md-list-marker-numeric-variant);
   user-select: none;
   content: var(--md-list-marker, "");
 }
 
+/* While editing a prefix, the literal marker occupies its own rail. Parent
+   indentation still comes from the same theme geometry as preview mode. */
+.markdown-codemirror-editor .cm-md-list-source-line:not(.cm-md-list-continuation) {
+  padding-inline-start: calc(var(--md-list-prefix-width) - var(--md-list-marker-slot-width) - var(--po-md-list-marker-gap));
+}
+
+.markdown-codemirror-editor .cm-md-ordered-list-line {
+  --md-list-marker-align: var(--po-md-ordered-marker-align);
+}
+
 .markdown-codemirror-editor .cm-md-list-mark {
-  color: var(--po-text-subtle);
-  font-weight: 650;
+  color: var(--po-md-list-marker-color);
+  font-weight: var(--po-md-list-marker-weight);
 }
 
 .markdown-codemirror-editor .cm-md-task-marker {
-  font-weight: 650;
+  font-weight: var(--po-md-list-marker-weight);
 }
 
 .markdown-codemirror-editor .cm-md-table-line {
-  font-family: var(--po-font-mono);
-  color: color-mix(in srgb, var(--po-text) 76%, var(--po-text-muted));
+  font-family: var(--po-md-code-font);
+  color: var(--po-md-table-color);
 }
 
 .markdown-codemirror-editor .cm-md-hr {
-  color: var(--po-text-disabled);
+  color: var(--po-md-markup-color);
 }
 
 .markdown-codemirror-editor .cm-md-hidden-syntax {
@@ -422,39 +397,38 @@
 }
 
 .markdown-codemirror-editor .cm-md-source-syntax {
-  color: var(--po-text-disabled);
+  color: var(--po-md-markup-color);
   opacity: 1;
 }
 
 .markdown-codemirror-editor .cm-md-source-syntax-heading,
 .markdown-codemirror-editor .cm-md-source-syntax-list,
 .markdown-codemirror-editor .cm-md-source-syntax-task {
-  font-weight: 650;
+  font-weight: var(--po-md-list-marker-weight);
 }
 
 .markdown-codemirror-editor .cm-md-task-line {
   --md-task-checkbox-size: 1.05em;
   --md-task-checkbox-hit-size: 24px;
-  /* Checkbox (~15px) + ~9px gap to the text — the to-do list convention;
-     wider gaps read as disconnected. */
-  --md-task-prefix-width: calc(24px + var(--md-list-depth, 0) * 16px);
+  --md-task-prefix-width: var(--md-list-prefix-width);
   position: relative;
-  padding-left: var(--md-task-prefix-width);
-  color: color-mix(in srgb, var(--po-text) 78%, var(--po-text-muted));
+  padding-inline-start: var(--md-task-prefix-width);
+  color: var(--po-md-list-color);
 }
 
 .markdown-codemirror-editor .cm-md-task-checked {
-  color: var(--po-text-subtle);
+  color: var(--po-md-task-completed-color);
   text-decoration: line-through;
   text-decoration-thickness: 1px;
-  text-decoration-color: color-mix(in srgb, var(--po-text-subtle) 72%, transparent);
+  text-decoration-color: var(--po-md-task-completed-decoration-color);
 }
 
 .markdown-codemirror-editor .cm-md-task-checkbox-widget {
   position: absolute;
-  /* Center on the first text line: line padding + half the 1.68 line box. */
-  top: calc(var(--po-markdown-editor-line-spacing, 0px) + 0.84em);
-  left: calc(var(--md-list-depth, 0) * 16px - 5px);
+  /* The hit target stays compact, centered in the file-owned marker slot
+     and on the first text line, even when item spacing or fonts change. */
+  inset-block-start: calc(var(--md-line-padding-before, 0px) + .5lh);
+  inset-inline-start: calc(var(--md-list-prefix-width) - var(--md-list-marker-slot-width) - var(--po-md-list-marker-gap) + (var(--md-list-marker-slot-width) - var(--md-task-checkbox-hit-size)) / 2);
   display: inline-grid;
   width: var(--md-task-checkbox-hit-size);
   height: var(--md-task-checkbox-hit-size);
@@ -467,7 +441,7 @@
   cursor: var(--po-clickable-cursor, default);
   font: inherit;
   place-items: center;
-  line-height: 1;
+  line-height: inherit;
   text-decoration: none;
   transform: translateY(-50%);
   user-select: none;
@@ -540,9 +514,12 @@
 }
 
 .markdown-codemirror-editor :is(.cm-md-code-panel, .cm-md-mermaid-body, .cm-md-html-widget-content, .cm-md-mdx-tabs-panels, .cm-md-image-widget, .cm-md-video-widget) {
-  border-radius: 6px;
   box-shadow: 0 0 0 2px var(--cm-md-block-current-ring);
   transition: box-shadow 140ms ease;
+}
+
+.markdown-codemirror-editor :is(.cm-md-mermaid-body, .cm-md-html-widget-content, .cm-md-mdx-tabs-panels, .cm-md-image-widget, .cm-md-video-widget) {
+  border-radius: var(--po-md-block-radius);
 }
 
 /*
@@ -742,7 +719,7 @@
   padding: 4px;
   border: 1px solid color-mix(in srgb, var(--po-border-subtle) 72%, transparent);
   border-radius: 9px;
-  background: color-mix(in srgb, var(--po-panel-raised) 94%, transparent);
+  background: var(--po-menu-bg);
   box-shadow: 0 4px 16px color-mix(in srgb, var(--po-shadow) 12%, transparent);
   backdrop-filter: blur(8px);
   font-family: var(--po-font-ui, var(--po-font-sans));
@@ -887,7 +864,7 @@
   flex: 0 0 auto;
   padding: 0 2px 10px;
   cursor: var(--po-clickable-cursor, default);
-  font-family: var(--po-font-mono);
+  font-family: var(--po-md-code-font);
   font-size: var(--po-type-ui-caption, 12px);
   opacity: 0;
   transition: opacity 140ms ease;

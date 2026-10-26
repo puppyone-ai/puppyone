@@ -31,6 +31,6 @@ export type DatabasePreviewPort = Readonly<{
 /** Narrow format service ports, not a DataPort or arbitrary IPC locator. */
 export type DocumentProjectionLease = Readonly<{ url: string; close: () => Promise<void> }>;
 export type DocumentProjectionPort = Readonly<{
-  create: (path: string, content: string, signal: AbortSignal, options?: { interactive: boolean }) => Promise<DocumentProjectionLease>;
+  create: (path: string, content: string, signal: AbortSignal, options?: { interactive: boolean; baseHref?: string | null }) => Promise<DocumentProjectionLease>;
 }>;
 export type EditorPreviewServices = Readonly<{ database?: DatabasePreviewPort; documentProjection?: DocumentProjectionPort }>;

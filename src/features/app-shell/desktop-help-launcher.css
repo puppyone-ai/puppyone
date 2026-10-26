@@ -10,14 +10,14 @@
   appearance: none;
   display: grid;
   box-sizing: border-box;
-  width: var(--desktop-sidebar-control-size);
-  height: var(--desktop-sidebar-control-size);
+  width: var(--desktop-sidebar-utility-control-size, var(--desktop-sidebar-control-size));
+  height: var(--desktop-sidebar-utility-control-size, var(--desktop-sidebar-control-size));
   place-items: center;
   padding: 0;
   border: 0;
   border-radius: var(--desktop-control-radius);
   background: transparent;
-  color: var(--po-text-muted);
+  color: var(--desktop-sidebar-utility-icon-color, var(--po-text-muted));
   box-shadow: none;
   cursor: var(--po-clickable-cursor, default);
   transition:
@@ -34,6 +34,9 @@
 
 .desktop-help-launcher-icon-slot > svg {
   display: block;
+  width: var(--desktop-sidebar-utility-icon-size, 17px);
+  height: var(--desktop-sidebar-utility-icon-size, 17px);
+  stroke-width: var(--desktop-sidebar-utility-icon-stroke-width, 1.65);
 }
 
 .desktop-help-launcher:hover {

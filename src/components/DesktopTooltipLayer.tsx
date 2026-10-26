@@ -1,3 +1,4 @@
+import { isTooltipSuppressed } from "@puppyone/shared-ui";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -14,6 +15,7 @@ const VIEWPORT_MARGIN = 8;
 const TRIGGER_GAP = 8;
 
 function readTooltip(target: HTMLElement): ActiveTooltip | null {
+  if (isTooltipSuppressed(target)) return null;
   const label = target.dataset.tooltip?.trim();
   if (!label) return null;
   if (
@@ -33,9 +35,8 @@ function readTooltip(target: HTMLElement): ActiveTooltip | null {
 }
 
 function tooltipTarget(node: EventTarget | null): HTMLElement | null {
-  return node instanceof Element
-    ? node.closest<HTMLElement>("[data-tooltip]")
-    : null;
+  if (!(node instanceof Element) || isTooltipSuppressed(node)) return null;
+  return node.closest<HTMLElement>("[data-tooltip]");
 }
 
 function positionTooltip(
@@ -73,8 +74,8 @@ function positionTooltip(
 }
 
 /**
- * One tooltip surface for explicitly authored hints. Visible labels should not
- * repeat themselves here; clipped values can opt into `data-tooltip-when="overflow"`.
+ * One tooltip surface for explicitly authored hints on controls without visible
+ * text. The owning UI controls hint content when its presentation changes.
  */
 export function DesktopTooltipLayer() {
   const tooltipId = useId();
@@ -119,12 +120,12 @@ export function DesktopTooltipLayer() {
       const target = activeTarget.current;
       if (!target || !target.contains(event.target as Node)) return;
       if (target.contains(event.relatedTarget as Node | null)) return;
-      if (target.contains(document.activeElement)) return;
+      if (target.dataset.tooltipTrigger !== "hover" && target.contains(document.activeElement)) return;
       hide();
     };
     const onFocusIn = (event: FocusEvent) => {
       const target = tooltipTarget(event.target);
-      if (target && target !== pointerFocusTarget) show(target, false);
+      if (target && target.dataset.tooltipTrigger !== "hover" && target !== pointerFocusTarget) show(target, false);
       pointerFocusTarget = null;
     };
     const onFocusOut = (event: FocusEvent) => {
@@ -172,11 +173,23 @@ export function DesktopTooltipLayer() {
     const previousDescription = active.target.getAttribute("aria-describedby");
     active.target.setAttribute("aria-describedby", [previousDescription, tooltipId].filter(Boolean).join(" "));
     return () => {
-      if (!active.target.isConnected) return;
       if (previousDescription) active.target.setAttribute("aria-describedby", previousDescription);
       else active.target.removeAttribute("aria-describedby");
     };
   }, [active, tooltipId]);
+
+  useEffect(() => {
+    if (!active) return;
+    let disposed = false;
+    const observer = new MutationObserver(() => {
+      if (disposed || active.target.isConnected || activeTarget.current !== active.target) return;
+      activeTarget.current = null;
+      setActive(null);
+      setPosition(null);
+    });
+    observer.observe(active.target.ownerDocument.body, { childList: true, subtree: true });
+    return () => { disposed = true; observer.disconnect(); };
+  }, [active]);
 
   if (!active) return null;
   // The overlay root carries the selected UI font and small/medium/large scale.

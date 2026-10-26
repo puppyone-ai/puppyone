@@ -119,8 +119,11 @@ export function buildProjectShares(
   dashboard: DesktopCloudDashboard | null,
 ): ProjectShare[] {
   const lastSeenById = new Map<string, string | null>();
-  for (const connection of dashboard?.connections ?? []) {
-    lastSeenById.set(connection.id, connection.last_synced_at ?? null);
+  for (const resource of dashboard?.resources ?? []) {
+    if (resource.resource_kind === "access" && (resource.kind === "mcp" || resource.kind === "mcp_endpoint")
+      && resource.project_id === dashboard?.project.id) {
+      lastSeenById.set(`${resource.project_id}:${resource.resource_id}`, resource.last_activity_at ?? null);
+    }
   }
   return endpoints.map((endpoint) => {
     const access = endpoint.accesses?.[0];
@@ -131,7 +134,7 @@ export function buildProjectShares(
       readonly: access?.readonly !== false,
       status: endpoint.status || "active",
       createdAt: endpoint.created_at ?? null,
-      lastSeenAt: lastSeenById.get(endpoint.id) ?? null,
+      lastSeenAt: endpoint.project_id ? lastSeenById.get(`${endpoint.project_id}:${endpoint.id}`) ?? null : null,
       endpoint,
     };
   });

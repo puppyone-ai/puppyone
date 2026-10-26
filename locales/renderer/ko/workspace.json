@@ -1,4 +1,7 @@
 {
+  "node.copyLink": "링크 복사",
+  "workbench.renderFailure": "이 탭을 표시할 수 없습니다.",
+  "workbench.reloadView": "화면 다시 불러오기",
   "workbench.newTab": "새 탭",
   "projectSessions.sessionCloseFailed": "세션을 닫지 못했습니다. 다시 시도하세요.",
   "projectSessions.closing": "프로젝트를 닫는 중…",
@@ -61,6 +64,7 @@
   "node.creating": "만드는 중…",
   "node.create": "만들기",
   "node.actionsFor": "{name} 작업",
+  "node.copyPath": "경로 복사",
   "node.newFileOrFolder": "새 파일 또는 폴더",
   "node.pasteIntoFolder": "폴더에 붙여넣기",
   "node.copyItems": "항목 {count}개 복사",

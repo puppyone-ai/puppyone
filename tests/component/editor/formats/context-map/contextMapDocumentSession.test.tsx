@@ -69,10 +69,7 @@ describe("Context Map Document Session integration", () => {
       'button.folder-relationship-card[data-node-path="Civil Law"]',
     );
     expect(folderCard?.hasAttribute("data-tooltip")).toBe(false);
-    expect(folderCard?.querySelector<HTMLElement>(".folder-relationship-card-copy strong")?.dataset.tooltip)
-      .toBe("Civil Law");
-    expect(folderCard?.querySelector<HTMLElement>(".folder-relationship-card-copy strong")?.dataset.tooltipWhen)
-      .toBe("overflow");
+    expect(folderCard?.querySelector("[data-tooltip]")).toBeNull();
     act(() => folderCard?.click());
 
     await vi.waitFor(() => expect(persist).toHaveBeenCalled());

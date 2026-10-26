@@ -2,15 +2,7 @@
   align-items: flex-start;
   justify-content: center;
   overflow: auto;
-  padding: 68px 48px 48px;
-}
-
-.asset-library-home-titlebar {
-  position: absolute;
-  z-index: 20;
-  top: 0;
-  inset-inline: 0;
-  height: 38px;
+  padding: calc(var(--desktop-chrome-height) + 28px) var(--desktop-utility-page-padding-inline) 40px;
 }
 
 .asset-library-home {
@@ -109,7 +101,7 @@
   padding: 5px;
   border: 1px solid var(--po-border-subtle);
   border-radius: 8px;
-  background: var(--po-overlay);
+  background: var(--po-menu-bg);
   box-shadow: var(--po-menu-shadow);
 }
 
@@ -430,6 +422,12 @@
   color: var(--po-text-subtle);
 }
 
+.asset-library-card-location > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .asset-library-new-project-wrap {
   position: relative;
   min-width: 0;
@@ -562,10 +560,6 @@
 }
 
 @media (max-width: 760px) {
-  .asset-library-home-shell {
-    padding: 66px 24px 40px;
-  }
-
   .asset-library-home-header {
     align-items: stretch;
     flex-direction: column;
@@ -603,15 +597,6 @@
   }
 }
 
-@media (max-height: 720px) and (min-width: 761px) {
-  .asset-library-home-shell {
-    padding-top: 56px;
-  }
-
-  .asset-library-home {
-    gap: 14px;
-  }
-}
 
 @media (prefers-reduced-motion: reduce) {
   .asset-library-card,

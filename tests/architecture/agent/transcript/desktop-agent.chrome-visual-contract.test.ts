@@ -47,8 +47,9 @@ describe("Desktop Agent and Terminal chrome visual contract", () => {
     expect(launcherCss).toMatch(/\.desktop-agent-runtime-launcher-option > span:nth-child\(2\)\s*\{[^}]*font-size:\s*var\(--agent-font-size\)[^}]*line-height:\s*var\(--agent-control-line-height\)/s);
     expect(launcherCss).not.toMatch(/font-size:\s*[0-9]+px/);
     expect(launcherCss).not.toMatch(/\.desktop-agent-runtime-launcher-option\s*\{[^}]*min-height:\s*38px/s);
-    expect(launcher).toContain('aria-describedby="desktop-agent-runtime-launcher-description"');
-    expect(launcher).toContain('className="desktop-agent-runtime-launcher-description"');
+    // The launcher is named by its heading; redundant description copy was removed (7d1f4b77).
+    expect(launcher).toMatch(/aria-labelledby="desktop-agent-runtime-launcher-title"/);
+    expect(launcher).toContain('id="desktop-agent-runtime-launcher-title"');
     expect(launcher).not.toContain('className="desktop-agent-runtime-launcher-history"');
     expect(launcher).not.toContain("historyOpen");
     expect(launcherCss).toMatch(/\.desktop-agent-runtime-launcher\.is-history\s*\{[^}]*place-items:\s*stretch[^}]*padding:\s*0/s);

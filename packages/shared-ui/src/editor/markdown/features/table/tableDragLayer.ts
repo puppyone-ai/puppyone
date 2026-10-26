@@ -1,4 +1,3 @@
-import { activateTooltip } from "../../../../primitives/Tooltip";
 import { showEditableTableHandle } from "../../../table/editableTableHandle";
 import { createEditableTableSelection } from "../../../table/editableTableSelection";
 import type { EditorView } from "@codemirror/view";
@@ -21,12 +20,17 @@ import {
   getEditableTableDropBoundary,
 } from "../../../table/editableTableDrag";
 import type { MarkdownTableInlineViewportController } from "./tableInlineViewportController";
-import type { MarkdownTableColumnLayoutController } from "./tableColumnLayoutController";
+import {
+  clearMarkdownTableStructuralSelection,
+  MARKDOWN_TABLE_STRUCTURAL_SELECTION_EVENT,
+  markdownTableStructuralSelectionField,
+  requestMarkdownTableStructuralSelection,
+  type MarkdownTableStructuralSelection,
+} from "./tableStructuralSelectionState";
 
 export type MarkdownTableDragHandleContext = {
   alignments: readonly MarkdownTableAlignment[];
   columnCount: number;
-  columnLayout: MarkdownTableColumnLayoutController | null;
   inlineViewport: MarkdownTableInlineViewportController;
   rows: readonly MarkdownTableRow[];
   table: HTMLTableElement;
@@ -78,6 +82,7 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
     dragging: false,
   };
   let activeDragCleanup: (() => void) | null = null;
+  let activeHighlight: { kind: MarkdownTableDragKind; sourceIndex: number } | null = null;
   let disposed = false;
   let ownedMenu: HTMLElement | null = null;
 
@@ -174,6 +179,19 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
       : null;
   };
 
+  const requestStructuralSelection = (kind: MarkdownTableDragKind, sourceIndex: number) => {
+    const tableRange = context.getTableRange();
+    if (!tableRange || disposed) return;
+    context.view.dispatch({
+      effects: requestMarkdownTableStructuralSelection(tableRange.from, kind, sourceIndex),
+    });
+  };
+
+  const clearStructuralSelection = () => {
+    if (disposed || !context.view.state.field(markdownTableStructuralSelectionField, false)) return;
+    context.view.dispatch({ effects: clearMarkdownTableStructuralSelection() });
+  };
+
   const openHandleMenu = (kind: MarkdownTableDragKind, sourceIndex: number, handle: HTMLElement) => {
     const dispatchContext = buildDispatchContext();
     if (!dispatchContext) return;
@@ -181,6 +199,7 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
     positionHandles();
     setInteractionPinnedRow(kind === "row" ? sourceIndex : hover.rowIndex);
     setDragSourceHighlight(kind, sourceIndex, true);
+    requestStructuralSelection(kind, sourceIndex);
     handle.classList.add("is-menu-active");
     // The button is deliberately larger than the visible grip. Anchor menus
     // to the grip so increasing hit slop never makes the menu drift away.
@@ -188,21 +207,15 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
     const rect = anchor.getBoundingClientRect();
     let nextMenu: HTMLElement | null = null;
     nextMenu = showMarkdownTableContextMenu(dispatchContext, {
-      clientX: kind === "row"
-        ? localization.direction === "rtl" ? rect.left - 4 : rect.right + 4
-        : rect.left,
-      clientY: kind === "row" ? rect.top : rect.bottom + 4,
+      // Both horizontal toolbars open below their visible grip. A row menu
+      // beside the grip obscures the selected row and its destination context.
+      clientX: rect.left,
+      clientY: rect.bottom + 4,
       columnCount: context.columnCount,
       columnIndex: kind === "column" ? sourceIndex : hover.columnIndex ?? 0,
-      layoutActions: kind === "column" && context.columnLayout
-        ? {
-            autoFitColumn: () => context.columnLayout?.autoFitColumn(sourceIndex),
-            fitToViewport: () => context.columnLayout?.fitToViewport(),
-            resetColumnWidths: () => context.columnLayout?.resetColumnWidths(),
-          }
-        : undefined,
       onClose: () => {
         setDragSourceHighlight(kind, sourceIndex, false);
+        clearStructuralSelection();
         handle.classList.remove("is-menu-active");
         handle.setAttribute("aria-expanded", "false");
         handle.removeAttribute("aria-controls");
@@ -219,11 +232,11 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
     handle.setAttribute("aria-expanded", "true");
   };
 
-  const setDragSourceHighlight = (kind: MarkdownTableDragKind, sourceIndex: number, active: boolean) => {
-    if (active) selection.show(kind, () => kind === "column"
-      ? getHeaderCellElements()[sourceIndex] ?? null
-      : getBodyRowElements().find(row => Number(row.dataset.mdTableRow) === sourceIndex) ?? null);
-    else selection.clear();
+  const toggleDragSourceClasses = (
+    kind: MarkdownTableDragKind,
+    sourceIndex: number,
+    active: boolean,
+  ) => {
     if (kind === "row") {
       const row = getBodyRowElements().find(
         (candidate) => Number(candidate.dataset.mdTableRow) === sourceIndex,
@@ -240,6 +253,29 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
       const cell = row.cells[sourceIndex];
       cell?.classList.toggle("cm-md-table-drag-source", active);
       cell?.classList.toggle("po-editable-table-drag-source", active);
+    }
+  };
+
+  const setDragSourceHighlight = (kind: MarkdownTableDragKind, sourceIndex: number, active: boolean) => {
+    if (active) {
+      if (activeHighlight && (
+        activeHighlight.kind !== kind || activeHighlight.sourceIndex !== sourceIndex
+      )) {
+        toggleDragSourceClasses(activeHighlight.kind, activeHighlight.sourceIndex, false);
+      }
+      activeHighlight = { kind, sourceIndex };
+      selection.show(kind, () => kind === "column"
+        ? getHeaderCellElements()[sourceIndex] ?? null
+        : getBodyRowElements().find(row => Number(row.dataset.mdTableRow) === sourceIndex) ?? null);
+      toggleDragSourceClasses(kind, sourceIndex, true);
+      return;
+    }
+    toggleDragSourceClasses(kind, sourceIndex, false);
+    if (!activeHighlight || (
+      activeHighlight.kind === kind && activeHighlight.sourceIndex === sourceIndex
+    )) {
+      activeHighlight = null;
+      selection.clear();
     }
   };
 
@@ -325,7 +361,9 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
     positionHandles();
     setInteractionPinnedRow(kind === "row" ? sourceIndex : hover.rowIndex);
     handle.setPointerCapture(pointerId);
+    handle.classList.add("is-pressed");
     setDragSourceHighlight(kind, sourceIndex, true);
+    requestStructuralSelection(kind, sourceIndex);
 
     const beginVisualDrag = () => {
       handle.classList.add("is-dragging");
@@ -352,6 +390,7 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
     };
 
     const onPointerMove = (moveEvent: PointerEvent) => {
+      if (moveEvent.pointerId !== pointerId) return;
       moveEvent.preventDefault();
       moveEvent.stopPropagation();
       if (!moved) {
@@ -368,62 +407,80 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
     };
 
     const applyMove = () => {
-      if (dropBoundary == null) return;
+      if (dropBoundary == null) return false;
       const dispatchContext = buildDispatchContext();
-      if (!dispatchContext) return;
+      if (!dispatchContext) return false;
       if (kind === "column") {
         const targetColumnIndex = dropBoundary > sourceIndex ? dropBoundary - 1 : dropBoundary;
-        if (targetColumnIndex === sourceIndex) return;
+        if (targetColumnIndex === sourceIndex) return false;
         dispatchMarkdownTableStructureOperation(dispatchContext, {
           type: "move-column-to",
           rowIndex: hover.rowIndex ?? 0,
           columnIndex: sourceIndex,
           targetColumnIndex,
         });
-        return;
+        return true;
       }
       const sourceBodyIndex = sourceIndex - 1;
       const targetBodyIndex = dropBoundary > sourceBodyIndex ? dropBoundary - 1 : dropBoundary;
-      if (targetBodyIndex === sourceBodyIndex) return;
+      if (targetBodyIndex === sourceBodyIndex) return false;
       dispatchMarkdownTableStructureOperation(dispatchContext, {
         type: "move-row-to",
         rowIndex: sourceIndex,
         columnIndex: hover.columnIndex ?? 0,
         targetRowIndex: targetBodyIndex + 1,
       });
+      return true;
     };
 
-    const cleanup = ({ preserveSourceHighlight = false }: { preserveSourceHighlight?: boolean } = {}) => {
+    const cleanup = ({
+      preserveSourceHighlight = false,
+      preserveStructuralSelection = false,
+    }: {
+      preserveSourceHighlight?: boolean;
+      preserveStructuralSelection?: boolean;
+    } = {}) => {
       if (activeDragCleanup !== cleanup) return;
       activeDragCleanup = null;
       hover.dragging = false;
-      handle.classList.remove("is-dragging");
+      handle.classList.remove("is-pressed", "is-dragging");
       context.wrapper.classList.remove("is-table-dragging");
       context.inlineViewport.stopDragAutoScroll();
       setInteractionPinnedRow(null);
       dropIndicator.hidden = true;
       if (!preserveSourceHighlight) setDragSourceHighlight(kind, sourceIndex, false);
-      if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId);
+      if (!preserveStructuralSelection) clearStructuralSelection();
       handle.removeEventListener("pointermove", onPointerMove);
       handle.removeEventListener("pointerup", onPointerUp);
       handle.removeEventListener("pointercancel", onPointerCancel);
+      handle.removeEventListener("lostpointercapture", onLostPointerCapture);
       doc.removeEventListener("keydown", onKeyDown, true);
+      doc.defaultView?.removeEventListener("blur", onBlur);
+      if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId);
       if (!disposed) positionHandles();
     };
 
     const onPointerUp = (upEvent: PointerEvent) => {
+      if (upEvent.pointerId !== pointerId) return;
       upEvent.preventDefault();
       upEvent.stopPropagation();
       const shouldApply = moved;
-      cleanup({ preserveSourceHighlight: !shouldApply });
+      cleanup({
+        preserveSourceHighlight: !shouldApply,
+        preserveStructuralSelection: true,
+      });
       if (!shouldApply) {
         openHandleMenu(kind, sourceIndex, handle);
         return;
       }
-      applyMove();
+      if (!applyMove() && !disposed) {
+        setDragSourceHighlight(kind, sourceIndex, true);
+        requestStructuralSelection(kind, sourceIndex);
+      }
     };
 
     const onPointerCancel = (cancelEvent: PointerEvent) => {
+      if (cancelEvent.pointerId !== pointerId) return;
       cancelEvent.preventDefault();
       cancelEvent.stopPropagation();
       cleanup();
@@ -436,11 +493,18 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
       cleanup();
     };
 
+    const onLostPointerCapture = (captureEvent: PointerEvent) => {
+      if (captureEvent.pointerId === pointerId) cleanup();
+    };
+    const onBlur = () => cleanup();
+
     activeDragCleanup = cleanup;
     handle.addEventListener("pointermove", onPointerMove);
     handle.addEventListener("pointerup", onPointerUp);
     handle.addEventListener("pointercancel", onPointerCancel);
+    handle.addEventListener("lostpointercapture", onLostPointerCapture);
     doc.addEventListener("keydown", onKeyDown, true);
+    doc.defaultView?.addEventListener("blur", onBlur);
   };
 
   const bindHandle = (handle: HTMLButtonElement, kind: MarkdownTableDragKind) => {
@@ -454,6 +518,18 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
     });
     handle.addEventListener("mousedown", stopCodeMirrorEvent);
     handle.addEventListener("click", stopCodeMirrorEvent);
+    handle.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        clearStructuralSelection();
+      } else if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        event.stopPropagation();
+        const sourceIndex = kind === "column" ? hover.columnIndex : hover.rowIndex;
+        if (sourceIndex != null) openHandleMenu(kind, sourceIndex, handle);
+      }
+    });
   };
   bindHandle(columnHandle, "column");
   bindHandle(rowHandle, "row");
@@ -466,6 +542,42 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
     }
   };
 
+  const synchronizeStructuralSelection = (selected: MarkdownTableStructuralSelection | null) => {
+    const tableRange = context.getTableRange();
+    const matchesThisTable = selected && tableRange && selected.tableFrom === tableRange.from;
+    if (matchesThisTable) {
+      if (selected.axis === "row") hover.rowIndex = selected.index;
+      else hover.columnIndex = selected.index;
+      setDragSourceHighlight(selected.axis, selected.index, true);
+      positionHandles();
+      return;
+    }
+    if (activeHighlight) {
+      setDragSourceHighlight(activeHighlight.kind, activeHighlight.sourceIndex, false);
+    }
+  };
+  const onStructuralSelectionChange = (event: Event) => {
+    synchronizeStructuralSelection(
+      (event as CustomEvent<MarkdownTableStructuralSelection | null>).detail,
+    );
+  };
+  const onTableCellPointerDown = (event: PointerEvent) => {
+    const target = event.target;
+    if (!(target instanceof Element) || !target.closest("th, td")) return;
+    if (activeHighlight) {
+      setDragSourceHighlight(activeHighlight.kind, activeHighlight.sourceIndex, false);
+    }
+    clearStructuralSelection();
+  };
+  context.wrapper.addEventListener(
+    MARKDOWN_TABLE_STRUCTURAL_SELECTION_EVENT,
+    onStructuralSelectionChange,
+  );
+  context.table.addEventListener("pointerdown", onTableCellPointerDown);
+  synchronizeStructuralSelection(
+    context.view.state.field(markdownTableStructuralSelectionField, false) ?? null,
+  );
+
   return {
     element: layer,
     dispose() {
@@ -473,7 +585,12 @@ export function createMarkdownTableDragLayer(context: MarkdownTableDragHandleCon
       disposed = true;
       activeDragCleanup?.();
       context.table.removeEventListener("pointerover", updateHoverFromEvent);
+      context.table.removeEventListener("pointerdown", onTableCellPointerDown);
       context.wrapper.removeEventListener("pointerleave", clearHover);
+      context.wrapper.removeEventListener(
+        MARKDOWN_TABLE_STRUCTURAL_SELECTION_EVENT,
+        onStructuralSelectionChange,
+      );
       if (ownedMenu && isActiveMarkdownTableMenu(ownedMenu)) {
         closeActiveMarkdownTableMenu();
       }
@@ -502,7 +619,7 @@ function createMarkdownTableHandleElement(
   handle.tabIndex = -1;
   handle.setAttribute("aria-expanded", "false");
   handle.setAttribute("aria-haspopup", "menu");
-  activateTooltip(handle, title);
+  handle.setAttribute("aria-label", title);
   const visual = doc.createElement("span");
   visual.className = "cm-md-table-drag-handle-visual po-editable-table-drag-handle-visual";
   visual.setAttribute("aria-hidden", "true");

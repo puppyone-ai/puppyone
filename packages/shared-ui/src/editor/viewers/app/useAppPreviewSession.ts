@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ipcErrorMessage } from "../../../core/ipcErrorMessage";
 import type {
   AppPreviewController,
   AppPreviewResult,
@@ -208,8 +209,7 @@ function activateRuntime(
 }
 
 function sanitizePreviewTransportError(value: string): string {
-  return value
-    .replace(/Error invoking remote method[^:]*:\s*/gi, "")
+  return ipcErrorMessage(value)
     .replace(/\b(?:ipc|rpc)[\w:-]*\b/gi, "preview service")
     .slice(0, 1_000);
 }

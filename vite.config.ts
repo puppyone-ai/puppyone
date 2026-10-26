@@ -19,9 +19,9 @@ const DESKTOP_CONTENT_SECURITY_POLICY = [
   "img-src 'self' data: blob: puppyone-local: puppyone-asset: http: https:",
   "font-src 'self' data: blob:",
   "media-src 'self' data: blob: puppyone-local: http: https:",
-  "connect-src 'self' puppyone-local: http: https: ws: wss:",
+  "connect-src 'self' blob: puppyone-local: http: https: ws: wss:",
   "worker-src 'self' blob:",
-  "frame-src 'self' data: blob: puppyone-local: http: https:",
+  "frame-src 'self' data: blob: puppyone-local: puppyone-preview: http: https:",
 ].join("; ");
 
 const desktopContentSecurityPolicyPlugin: Plugin = {

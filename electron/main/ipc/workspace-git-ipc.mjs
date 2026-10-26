@@ -13,12 +13,14 @@ import {
   getWorkspaceGitCommitDetail,
   getWorkspaceGitFileDiff,
   getWorkspaceGitStatus,
+  getWorkspacePublishScope,
   initializeWorkspaceGitRepository,
   pullWorkspaceGit,
   publishWorkspaceGitBranch,
   pushWorkspaceGit,
   pushWorkspaceGitCommitToRemote,
   readPuppyoneWorkspaceConfig,
+  readGitRemotes,
   removeWorkspaceGitRemote,
   resolveGitRepositoryIdentity,
   stageAllWorkspaceGitChanges,
@@ -99,6 +101,12 @@ export function registerWorkspaceGitIpcHandlers({
     await gitOperationCoordinator.whenIdleAll([worktreeKey, repoKey]);
     return handler(rootPath, request, event);
   });
+
+  // Read-only and idle-gated: the Share surface asks what a folder would make
+  // reachable while a commit or publish may still be running on the worktree.
+  ipcMain.handle("workspace:publish-scope", withAuthorizedIdleRead(async (rootPath, request) => (
+    getWorkspacePublishScope(rootPath, request?.path ?? "")
+  )));
 
   ipcMain.handle("workspace:git-status", withAuthorizedRoot(async (rootPath, request, event) => {
     const requestId = normalizeGitStatusRequestId(request?.requestId);
@@ -192,9 +200,23 @@ export function registerWorkspaceGitIpcHandlers({
 
   ipcMain.handle("workspace:git-remove-remote", withAuthorizedRepositoryMutation(async (rootPath, request) => {
     const remoteName = request?.remoteName ?? "puppyone";
-    if (remoteName !== "puppyone") return removeWorkspaceGitRemote(rootPath, remoteName);
+    const assertReviewedRemotes = async () => {
+      if (request?.expectedRemotes === undefined) return;
+      const snapshot = (remotes) => JSON.stringify(remotes.map(({ name, fetchUrl, pushUrl }) => (
+        [name, fetchUrl, pushUrl]
+      )).sort(([left], [right]) => left.localeCompare(right)));
+      const remotes = await readGitRemotes(rootPath);
+      if (!Array.isArray(request.expectedRemotes) || snapshot(remotes) !== snapshot(request.expectedRemotes)) {
+        throw new Error("Git remotes changed after the Cloud connection was reviewed. Refresh and try again.");
+      }
+    };
+    if (remoteName !== "puppyone") {
+      await assertReviewedRemotes();
+      return removeWorkspaceGitRemote(rootPath, remoteName);
+    }
     const lease = await cloudGitOperationLease.acquire(rootPath);
     try {
+      await assertReviewedRemotes();
       const remote = await inspectCloudRemote(rootPath);
       if (remote.kind === "exact") {
         await cloudGitCredentialManager.detachManaged(rootPath, remote.url);
@@ -203,6 +225,7 @@ export function registerWorkspaceGitIpcHandlers({
           "The PuppyOne Git remote is ambiguous. Repair its fetch/push URLs before detaching it.",
         );
       }
+      await assertReviewedRemotes();
       return await removeWorkspaceGitRemote(rootPath, remoteName);
     } finally {
       await lease.release();

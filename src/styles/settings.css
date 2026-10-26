@@ -190,6 +190,12 @@
   color: var(--po-text-subtle);
 }
 
+.desktop-settings-choice-row > span {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .desktop-settings-row > .desktop-settings-row-value {
   min-width: 0;
   overflow: hidden;

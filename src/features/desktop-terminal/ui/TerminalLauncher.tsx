@@ -1,15 +1,15 @@
 import { Tooltip } from "@puppyone/shared-ui";
 import { AlertCircle, History, RefreshCw } from "lucide-react";
 import { useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { WorkbenchLauncherState } from "../../app-shell/auxiliary-workbench/WorkbenchLauncherState";
+import { WorkbenchLauncherState } from "../../../lib/workbench/WorkbenchLauncherState";
 import { useLocalization } from "@puppyone/localization/react";
 import type {
   AuxiliaryWorkbenchCreationRecipe,
   AuxiliaryWorkbenchHistoryContribution,
   AuxiliaryWorkbenchHistoryTarget,
-} from "../../app-shell/auxiliary-workbench/types";
+} from "../../../lib/workbench/types";
 import type { LocalAgentInstallationId } from "../../../../shared/local-agent-installation/types";
-import type { LocalAgentInstallationDiscoveryPhase } from "../../local-agents/model/localAgentInstallationAvailability";
+import type { LocalAgentInstallationDiscoveryPhase } from "../../local-agents";
 import {
   DESKTOP_TERMINAL_LAUNCHERS,
   getDesktopTerminalLauncher,
@@ -43,6 +43,7 @@ type TerminalLauncherProps = {
   launching?: boolean;
   terminalEnabled?: boolean;
   titleId?: string;
+  headingLabel?: string;
   history?: AuxiliaryWorkbenchHistoryContribution | null;
   historyRootId?: string;
   historyRootPath?: string;
@@ -51,7 +52,7 @@ type TerminalLauncherProps = {
   onOpenHistory?: () => void;
   onRestoreHistoryTarget?: (target: AuxiliaryWorkbenchHistoryTarget) => Promise<boolean>;
   onLaunch: (launcherId: DesktopTerminalLauncherId) => void;
-  onRefresh: () => void;
+  onRefresh?: () => void;
 };
 
 /**
@@ -85,6 +86,7 @@ export function TerminalLauncher({
   onRefresh,
   terminalEnabled = true,
   titleId = "desktop-terminal-launcher-title",
+  headingLabel,
 }: TerminalLauncherProps) {
   const { t } = useLocalization();
   const toolsRef = useRef<HTMLDivElement>(null);
@@ -171,10 +173,10 @@ export function TerminalLauncher({
                 <TerminalActivityGrid className="desktop-terminal-launcher-spinner" />
               )}
               <span>
-                {t(launching ? "terminal.launcher.launching" : "terminal.launcher.localTitle")}
+                {headingLabel ?? t(launching ? "terminal.launcher.launching" : "terminal.launcher.localTitle")}
               </span>
             </h2>
-            <Tooltip content={t("terminal.launcher.scanAgain")}><button
+            {onRefresh && <Tooltip content={t("terminal.launcher.scanAgain")}><button
               type="button"
               className="desktop-terminal-launcher-scan"
               onClick={onRefresh}
@@ -182,7 +184,7 @@ export function TerminalLauncher({
               aria-label={t("terminal.launcher.scanAgain")}
             >
               <RefreshCw size={12} strokeWidth={1.7} aria-hidden="true" />
-            </button></Tooltip>
+            </button></Tooltip>}
           </header>
           {history && onRestoreHistoryTarget && (
             <Tooltip content={history.label}><button
@@ -224,7 +226,7 @@ export function TerminalLauncher({
             </div>
 
             {terminalEnabled && (
-              <Tooltip content={t(shell.descriptionMessage)}><button
+              <button
                 type="button"
                 className="desktop-terminal-launcher-shell"
                 data-po-interaction="navigation"
@@ -234,7 +236,7 @@ export function TerminalLauncher({
               >
                 <WorkbenchLauncherIcon launcherId="shell" />
                 <span>{t("terminal.title")}</span>
-              </button></Tooltip>
+              </button>
             )}
           </div>
 
@@ -262,7 +264,7 @@ function TerminalAgentButton({
   const description = t(launcher.descriptionMessage);
 
   return (
-    <Tooltip content={description}><button
+    <button
       type="button"
       className="desktop-terminal-launcher-tool"
       data-po-interaction="navigation"
@@ -272,7 +274,7 @@ function TerminalAgentButton({
     >
       <WorkbenchLauncherIcon launcherId={launcher.id} />
       <span>{label}</span>
-    </button></Tooltip>
+    </button>
   );
 }
 
@@ -295,7 +297,7 @@ function ChatRecipeButton({
   const title = statusLabel ? `${recipe.label} — ${statusLabel}` : recipe.label;
 
   return (
-    <Tooltip content={available ? undefined : title}><button
+    <button
       type="button"
       className="desktop-terminal-launcher-tool"
       data-po-interaction="navigation"
@@ -306,6 +308,6 @@ function ChatRecipeButton({
     >
       <WorkbenchLauncherIcon iconKey={recipe.iconKey} />
       <span>{recipe.label}</span>
-    </button></Tooltip>
+    </button>
   );
 }

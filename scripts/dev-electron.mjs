@@ -2,6 +2,7 @@ import { watch, watchFile, unwatchFile } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getDefaultElectronBin } from "./electron-runtime.mjs";
+import { repairNodePtyPermissions } from "./node-pty-permissions.mjs";
 import { watchInterfaceStyleGraph } from "./interface-style-graph-watcher.mjs";
 import {
   isLoopbackHostname,
@@ -16,6 +17,7 @@ import {
   terminateManagedChild,
 } from "./managed-child-process.mjs";
 import { probeViteDevServer } from "./vite-client-health.mjs";
+import { registerDevelopmentShutdown } from "./managed-child-lifecycle.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const desktopRoot = path.resolve(__dirname, "..");
@@ -55,6 +57,9 @@ let rendererStartedDuringEnvironmentRestart = false;
 let shuttingDown = false;
 let exitCode = 0;
 let localCloudServices = null;
+let localCloudStartup = null;
+let localCloudCleanupComplete = true;
+const localCloudAbort = new AbortController();
 let localCloudHealthCheck = null;
 let localCloudHealthCheckInFlight = false;
 let localCloudFailureCount = 0;
@@ -65,6 +70,7 @@ void startDevelopmentEnvironment();
 
 async function startDevelopmentEnvironment() {
   try {
+    repairNodePtyPermissions(desktopRoot);
     const developmentEnvironment = loadDesktopDevelopmentEnvironment({ desktopRoot });
     const rendererUrl = parseConfiguredHttpUrl(
       developmentEnvironment.PUPPYONE_DESKTOP_RENDERER_URL,
@@ -96,10 +102,13 @@ async function startDevelopmentEnvironment() {
     const localCloudConfig = resolveLocalCloudDevConfig({
       desktopRoot,
       environment: developmentEnvironment,
+      args: process.argv.slice(2),
     });
     desktopCloudWebUrl = cloudWebUrl.toString().replace(/\/+$/, "");
     if (localCloudConfig) {
-      localCloudServices = await prepareLocalCloudDevServices(localCloudConfig);
+      localCloudStartup = prepareLocalCloudDevServices(localCloudConfig, { signal: localCloudAbort.signal });
+      localCloudServices = await localCloudStartup;
+      if (shuttingDown) return;
       for (const { child, name } of localCloudServices.ownedProcesses) {
         child.on("exit", (code, signal) => {
           if (shuttingDown) {
@@ -391,7 +400,10 @@ function restartEnvironment(reason) {
 }
 
 function beginShutdown(code) {
-  if (shuttingDown) return;
+  if (shuttingDown) {
+    if (code !== 0) exitCode = code;
+    return;
+  }
   shuttingDown = true;
   exitCode = code;
   stopMainWatchers();
@@ -404,12 +416,27 @@ function beginShutdown(code) {
   if (rendererRestartTimer) clearTimeout(rendererRestartTimer);
   if (electron) terminateManagedChild(electron);
   if (renderer) terminateManagedChild(renderer);
-  localCloudServices?.stop();
+  localCloudAbort.abort();
+  localCloudCleanupComplete = false;
+  void (async () => {
+    try {
+      // SIGINT during startup must not orphan detached children before the
+      // manager has been assigned. Failed startup cleans up its own children.
+      const services = localCloudServices ?? await localCloudStartup?.catch(() => null);
+      await services?.stop();
+    } catch (error) {
+      console.error("[desktop-dev] Local Cloud cleanup failed:", error);
+      exitCode = 1;
+    } finally {
+      localCloudCleanupComplete = true;
+      maybeExit();
+    }
+  })();
   maybeExit();
 }
 
 function maybeExit() {
-  if (!shuttingDown || electron || renderer) return;
+  if (!shuttingDown || electron || renderer || !localCloudCleanupComplete) return;
   const localCloudProcessRunning = localCloudServices?.ownedProcesses.some(
     ({ child }) => child.exitCode === null && child.signalCode === null,
   );
@@ -417,5 +444,4 @@ function maybeExit() {
   process.exit(exitCode);
 }
 
-process.once("SIGINT", () => beginShutdown(130));
-process.once("SIGTERM", () => beginShutdown(143));
+registerDevelopmentShutdown({ shutdown: beginShutdown });

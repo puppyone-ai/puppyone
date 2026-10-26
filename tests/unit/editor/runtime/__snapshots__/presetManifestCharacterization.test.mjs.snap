@@ -1,0 +1,3147 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`main manifest characterization > preserves alias collides with fallback 1`] = `
+{
+  "error": "TypeError",
+  "message": "Core viewer id document-placeholder maps to more than one preset viewer.",
+}
+`;
+
+exports[`main manifest characterization > preserves alias equals canonical id 1`] = `
+{
+  "error": "TypeError",
+  "message": "Core viewer id fixture-viewer maps to more than one preset viewer.",
+}
+`;
+
+exports[`main manifest characterization > preserves browser lazy 1`] = `
+{
+  "error": "TypeError",
+  "message": "Browser-engine preset viewer fixture-viewer must eagerly navigate to a resource.",
+}
+`;
+
+exports[`main manifest characterization > preserves browser maxActiveCanvases 1`] = `
+{
+  "error": "TypeError",
+  "message": "Browser-engine preset viewer fixture-viewer cannot declare app-owned worker or Canvas budgets.",
+}
+`;
+
+exports[`main manifest characterization > preserves browser maxCanvasPixels 1`] = `
+{
+  "error": "TypeError",
+  "message": "Browser-engine preset viewer fixture-viewer cannot declare app-owned worker or Canvas budgets.",
+}
+`;
+
+exports[`main manifest characterization > preserves browser maxWorkers 1`] = `
+{
+  "error": "TypeError",
+  "message": "Browser-engine preset viewer fixture-viewer cannot declare app-owned worker or Canvas budgets.",
+}
+`;
+
+exports[`main manifest characterization > preserves browser source 1`] = `
+{
+  "error": "TypeError",
+  "message": "Browser-engine preset viewer fixture-viewer must eagerly navigate to a resource.",
+}
+`;
+
+exports[`main manifest characterization > preserves canonical 1`] = `
+{
+  "contractVersion": 8,
+  "fallbackViewerId": "document-placeholder",
+  "viewers": [
+    {
+      "capability": "edit",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [
+        "context-map-viewer",
+      ],
+      "id": "context-map",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 1,
+        "maxCanvasPixels": 8388608,
+        "maxSourceBytes": 8388608,
+        "maxWorkers": 0,
+        "memoryClass": "medium",
+      },
+      "runtime": "lazy",
+      "source": "content",
+      "surfaceFamily": "canvas",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "requires-visible",
+      "surfaceTraits": [
+        "zoomable",
+      ],
+    },
+    {
+      "capability": "preview",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "sandboxed-frame",
+      "contractVersion": 8,
+      "formatViewerIds": [],
+      "id": "app-preview",
+      "readinessSignal": "frame-paint",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 4194304,
+        "maxWorkers": 0,
+        "memoryClass": "small",
+      },
+      "runtime": "eager",
+      "source": "content",
+      "surfaceFamily": "embedded",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "requires-visible",
+      "surfaceTraits": [
+        "sandboxed",
+      ],
+    },
+    {
+      "capability": "edit",
+      "computeIsolation": "worker",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [
+        "markdown-editor",
+      ],
+      "id": "markdown",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 16777216,
+        "maxWorkers": 1,
+        "memoryClass": "medium",
+      },
+      "runtime": "lazy",
+      "source": "content",
+      "surfaceFamily": "document",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [
+        "rich-text",
+        "scrollable",
+      ],
+    },
+    {
+      "capability": "edit",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [
+        "puppyflow-editor",
+      ],
+      "id": "puppyflow",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 1,
+        "maxCanvasPixels": 8388608,
+        "maxSourceBytes": 8388608,
+        "maxWorkers": 0,
+        "memoryClass": "medium",
+      },
+      "runtime": "lazy",
+      "source": "content",
+      "surfaceFamily": "canvas",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "requires-visible",
+      "surfaceTraits": [
+        "zoomable",
+      ],
+    },
+    {
+      "capability": "edit",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [],
+      "id": "json",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 8388608,
+        "maxWorkers": 0,
+        "memoryClass": "small",
+      },
+      "runtime": "eager",
+      "source": "content",
+      "surfaceFamily": "code",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [
+        "monospace",
+        "scrollable",
+      ],
+    },
+    {
+      "capability": "edit",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [],
+      "id": "csv-table",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 8388608,
+        "maxWorkers": 0,
+        "memoryClass": "medium",
+      },
+      "runtime": "eager",
+      "source": "content",
+      "surfaceFamily": "grid",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [
+        "tabular",
+        "scrollable",
+      ],
+    },
+    {
+      "capability": "edit",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "sandboxed-frame",
+      "contractVersion": 8,
+      "formatViewerIds": [],
+      "id": "html-artifact",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 4194304,
+        "maxWorkers": 0,
+        "memoryClass": "medium",
+      },
+      "runtime": "eager",
+      "source": "content-and-resource",
+      "surfaceFamily": "embedded",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [
+        "sandboxed",
+        "scrollable",
+      ],
+    },
+    {
+      "capability": "preview",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [],
+      "id": "image-preview",
+      "readinessSignal": "decoded-resource",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 134217728,
+        "maxWorkers": 0,
+        "memoryClass": "medium",
+      },
+      "runtime": "eager",
+      "source": "resource",
+      "surfaceFamily": "media",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [
+        "zoomable",
+      ],
+    },
+    {
+      "capability": "preview",
+      "computeIsolation": "browser-engine",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [],
+      "id": "pdf-preview",
+      "readinessSignal": "frame-paint",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 536870912,
+        "maxWorkers": 0,
+        "memoryClass": "large",
+      },
+      "runtime": "eager",
+      "source": "resource",
+      "surfaceFamily": "document",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "requires-visible",
+      "surfaceTraits": [
+        "paginated",
+        "zoomable",
+        "scrollable",
+      ],
+    },
+    {
+      "capability": "preview",
+      "computeIsolation": "worker",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [],
+      "id": "office-preview",
+      "readinessSignal": "first-rendered-frame",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 4,
+        "maxCanvasPixels": 16777216,
+        "maxSourceBytes": 26214400,
+        "maxWorkers": 1,
+        "memoryClass": "large",
+      },
+      "runtime": "lazy",
+      "source": "resource",
+      "surfaceFamily": "document",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "requires-visible",
+      "surfaceTraits": [
+        "paginated",
+        "scrollable",
+      ],
+    },
+    {
+      "capability": "preview",
+      "computeIsolation": "native-process",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [],
+      "id": "database-preview",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 8589934592,
+        "maxWorkers": 0,
+        "memoryClass": "large",
+      },
+      "runtime": "lazy",
+      "source": "resource-session",
+      "surfaceFamily": "grid",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [
+        "tabular",
+        "scrollable",
+        "paginated",
+      ],
+    },
+    {
+      "capability": "preview",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [],
+      "id": "audio-preview",
+      "readinessSignal": "media-metadata",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 536870912,
+        "maxWorkers": 0,
+        "memoryClass": "small",
+      },
+      "runtime": "eager",
+      "source": "resource",
+      "surfaceFamily": "media",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [],
+    },
+    {
+      "capability": "preview",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [],
+      "id": "video-preview",
+      "readinessSignal": "first-rendered-frame",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 2147483648,
+        "maxWorkers": 0,
+        "memoryClass": "medium",
+      },
+      "runtime": "eager",
+      "source": "resource",
+      "surfaceFamily": "media",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "requires-visible",
+      "surfaceTraits": [],
+    },
+    {
+      "capability": "edit",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [
+        "plain-text",
+        "monaco-code",
+      ],
+      "id": "text",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 16777216,
+        "maxWorkers": 0,
+        "memoryClass": "small",
+      },
+      "runtime": "eager",
+      "source": "content",
+      "surfaceFamily": "code",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [
+        "monospace",
+        "scrollable",
+      ],
+    },
+    {
+      "capability": "placeholder",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [
+        "binary-placeholder",
+      ],
+      "id": "document-placeholder",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 0,
+        "maxWorkers": 0,
+        "memoryClass": "small",
+      },
+      "runtime": "eager",
+      "source": "none",
+      "surfaceFamily": "fallback",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [],
+    },
+  ],
+}
+`;
+
+exports[`main manifest characterization > preserves canvas without budget 1`] = `
+{
+  "error": "TypeError",
+  "message": "Canvas or paginated preset viewer fixture-viewer must declare positive Canvas limits.",
+}
+`;
+
+exports[`main manifest characterization > preserves definition "invalid" 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer definition at index 0 must be an object.",
+}
+`;
+
+exports[`main manifest characterization > preserves definition [] 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer definition at index 0 must be an object.",
+}
+`;
+
+exports[`main manifest characterization > preserves definition null 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer definition at index 0 must be an object.",
+}
+`;
+
+exports[`main manifest characterization > preserves duplicate canonical id 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer manifest declares fixture-viewer more than once.",
+}
+`;
+
+exports[`main manifest characterization > preserves edit without source 1`] = `
+{
+  "error": "TypeError",
+  "message": "Editable preset viewer fixture-viewer must receive content or a resource.",
+}
+`;
+
+exports[`main manifest characterization > preserves empty viewers 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer manifest must declare at least one viewer.",
+}
+`;
+
+exports[`main manifest characterization > preserves fallback id 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer manifest has an invalid fallback viewer id.",
+}
+`;
+
+exports[`main manifest characterization > preserves fallback missing 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fallback must be a declared placeholder with source 'none'.",
+}
+`;
+
+exports[`main manifest characterization > preserves fallback not placeholder 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fallback must be a declared placeholder with source 'none'.",
+}
+`;
+
+exports[`main manifest characterization > preserves first validation error wins 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has invalid or repeated format viewer ids.",
+}
+`;
+
+exports[`main manifest characterization > preserves formatViewerIds "invalid" 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has invalid or repeated format viewer ids.",
+}
+`;
+
+exports[`main manifest characterization > preserves formatViewerIds ["Bad ID"] 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has invalid or repeated format viewer ids.",
+}
+`;
+
+exports[`main manifest characterization > preserves formatViewerIds ["alias","alias"] 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has invalid or repeated format viewer ids.",
+}
+`;
+
+exports[`main manifest characterization > preserves formatViewerIds [null] 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has invalid or repeated format viewer ids.",
+}
+`;
+
+exports[`main manifest characterization > preserves formatViewerIds null 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has invalid or repeated format viewer ids.",
+}
+`;
+
+exports[`main manifest characterization > preserves grid pagination allowed 1`] = `
+{
+  "contractVersion": 8,
+  "fallbackViewerId": "document-placeholder",
+  "viewers": [
+    {
+      "capability": "preview",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [
+        "fixture-alias",
+      ],
+      "id": "fixture-viewer",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 10,
+        "maxWorkers": 0,
+        "memoryClass": "small",
+      },
+      "runtime": "eager",
+      "source": "content",
+      "surfaceFamily": "grid",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [
+        "paginated",
+      ],
+    },
+    {
+      "capability": "placeholder",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [
+        "binary-placeholder",
+      ],
+      "id": "document-placeholder",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 0,
+        "maxWorkers": 0,
+        "memoryClass": "small",
+      },
+      "runtime": "eager",
+      "source": "none",
+      "surfaceFamily": "fallback",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [],
+    },
+  ],
+}
+`;
+
+exports[`main manifest characterization > preserves invalid capability 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported capability.",
+}
+`;
+
+exports[`main manifest characterization > preserves invalid computeIsolation 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported compute isolation boundary.",
+}
+`;
+
+exports[`main manifest characterization > preserves invalid contentSandbox 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported content sandbox boundary.",
+}
+`;
+
+exports[`main manifest characterization > preserves invalid id 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer definition at index 0 has an invalid id.",
+}
+`;
+
+exports[`main manifest characterization > preserves invalid readinessSignal 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported readiness signal.",
+}
+`;
+
+exports[`main manifest characterization > preserves invalid runtime 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported runtime boundary.",
+}
+`;
+
+exports[`main manifest characterization > preserves invalid source 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported source requirement.",
+}
+`;
+
+exports[`main manifest characterization > preserves invalid surfaceFamily 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported surface family.",
+}
+`;
+
+exports[`main manifest characterization > preserves invalid surfaceIsolation 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported surface isolation boundary.",
+}
+`;
+
+exports[`main manifest characterization > preserves invalid surfacePreparation 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported surface preparation policy.",
+}
+`;
+
+exports[`main manifest characterization > preserves main thread worker budget 1`] = `
+{
+  "error": "TypeError",
+  "message": "Main-thread preset viewer fixture-viewer cannot declare worker capacity.",
+}
+`;
+
+exports[`main manifest characterization > preserves manifest "invalid" 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer manifest must be an object.",
+}
+`;
+
+exports[`main manifest characterization > preserves manifest [] 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer manifest must be an object.",
+}
+`;
+
+exports[`main manifest characterization > preserves manifest null 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer manifest must be an object.",
+}
+`;
+
+exports[`main manifest characterization > preserves maxActiveCanvases -1 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxActiveCanvases must be a non-negative safe integer.",
+}
+`;
+
+exports[`main manifest characterization > preserves maxActiveCanvases 0.5 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxActiveCanvases must be a non-negative safe integer.",
+}
+`;
+
+exports[`main manifest characterization > preserves maxActiveCanvases 1 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxActiveCanvases must be a non-negative safe integer.",
+}
+`;
+
+exports[`main manifest characterization > preserves maxActiveCanvases 9007199254740992 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxActiveCanvases must be a non-negative safe integer.",
+}
+`;
+
+exports[`main manifest characterization > preserves maxCanvasPixels -1 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxCanvasPixels must be a non-negative safe integer.",
+}
+`;
+
+exports[`main manifest characterization > preserves maxCanvasPixels 0.5 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxCanvasPixels must be a non-negative safe integer.",
+}
+`;
+
+exports[`main manifest characterization > preserves maxCanvasPixels 1 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxCanvasPixels must be a non-negative safe integer.",
+}
+`;
+
+exports[`main manifest characterization > preserves maxCanvasPixels 9007199254740992 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxCanvasPixels must be a non-negative safe integer.",
+}
+`;
+
+exports[`main manifest characterization > preserves maxSourceBytes -1 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxSourceBytes must be a non-negative safe integer.",
+}
+`;
+
+exports[`main manifest characterization > preserves maxSourceBytes 0.5 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxSourceBytes must be a non-negative safe integer.",
+}
+`;
+
+exports[`main manifest characterization > preserves maxSourceBytes 1 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxSourceBytes must be a non-negative safe integer.",
+}
+`;
+
+exports[`main manifest characterization > preserves maxSourceBytes 9007199254740992 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxSourceBytes must be a non-negative safe integer.",
+}
+`;
+
+exports[`main manifest characterization > preserves maxWorkers -1 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxWorkers must be a non-negative safe integer.",
+}
+`;
+
+exports[`main manifest characterization > preserves maxWorkers 0.5 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxWorkers must be a non-negative safe integer.",
+}
+`;
+
+exports[`main manifest characterization > preserves maxWorkers 1 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxWorkers must be a non-negative safe integer.",
+}
+`;
+
+exports[`main manifest characterization > preserves maxWorkers 9007199254740992 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxWorkers must be a non-negative safe integer.",
+}
+`;
+
+exports[`main manifest characterization > preserves memory class 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy has an unsupported memory class.",
+}
+`;
+
+exports[`main manifest characterization > preserves metadata byte budget 1`] = `
+{
+  "error": "TypeError",
+  "message": "Metadata-only preset viewer fixture-viewer cannot declare a source byte budget.",
+}
+`;
+
+exports[`main manifest characterization > preserves minimal 1`] = `
+{
+  "contractVersion": 8,
+  "fallbackViewerId": "document-placeholder",
+  "viewers": [
+    {
+      "capability": "preview",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [
+        "fixture-alias",
+      ],
+      "id": "fixture-viewer",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 10,
+        "maxWorkers": 0,
+        "memoryClass": "small",
+      },
+      "runtime": "eager",
+      "source": "content",
+      "surfaceFamily": "document",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [],
+    },
+    {
+      "capability": "placeholder",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [
+        "binary-placeholder",
+      ],
+      "id": "document-placeholder",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 0,
+        "maxWorkers": 0,
+        "memoryClass": "small",
+      },
+      "runtime": "eager",
+      "source": "none",
+      "surfaceFamily": "fallback",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [],
+    },
+  ],
+}
+`;
+
+exports[`main manifest characterization > preserves missing capability 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported capability.",
+}
+`;
+
+exports[`main manifest characterization > preserves missing computeIsolation 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported compute isolation boundary.",
+}
+`;
+
+exports[`main manifest characterization > preserves missing contentSandbox 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported content sandbox boundary.",
+}
+`;
+
+exports[`main manifest characterization > preserves missing formatViewerIds 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has invalid or repeated format viewer ids.",
+}
+`;
+
+exports[`main manifest characterization > preserves missing id 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer definition at index 0 has an invalid id.",
+}
+`;
+
+exports[`main manifest characterization > preserves missing readinessSignal 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported readiness signal.",
+}
+`;
+
+exports[`main manifest characterization > preserves missing recoveryPolicy 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer recovery policy must be an object.",
+}
+`;
+
+exports[`main manifest characterization > preserves missing resourcePolicy 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy must be an object.",
+}
+`;
+
+exports[`main manifest characterization > preserves missing runtime 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported runtime boundary.",
+}
+`;
+
+exports[`main manifest characterization > preserves missing source 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported source requirement.",
+}
+`;
+
+exports[`main manifest characterization > preserves missing surfaceFamily 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported surface family.",
+}
+`;
+
+exports[`main manifest characterization > preserves missing surfaceIsolation 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported surface isolation boundary.",
+}
+`;
+
+exports[`main manifest characterization > preserves missing surfacePreparation 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported surface preparation policy.",
+}
+`;
+
+exports[`main manifest characterization > preserves missing surfaceTraits 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has unsupported or repeated surface traits.",
+}
+`;
+
+exports[`main manifest characterization > preserves missing viewers 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer manifest must declare at least one viewer.",
+}
+`;
+
+exports[`main manifest characterization > preserves multiple placeholders 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer manifest must declare exactly one placeholder fallback.",
+}
+`;
+
+exports[`main manifest characterization > preserves native capability 1`] = `
+{
+  "error": "TypeError",
+  "message": "Native-session preset viewer fixture-viewer must be a lazy, inline, read-only DOM surface.",
+}
+`;
+
+exports[`main manifest characterization > preserves native compute mismatch 1`] = `
+{
+  "error": "TypeError",
+  "message": "Native-session preset viewer fixture-viewer must be a lazy, inline, read-only DOM surface.",
+}
+`;
+
+exports[`main manifest characterization > preserves native maxActiveCanvases 1`] = `
+{
+  "error": "TypeError",
+  "message": "Native-session preset viewer fixture-viewer must be a lazy, inline, read-only DOM surface.",
+}
+`;
+
+exports[`main manifest characterization > preserves native maxCanvasPixels 1`] = `
+{
+  "error": "TypeError",
+  "message": "Native-session preset viewer fixture-viewer must be a lazy, inline, read-only DOM surface.",
+}
+`;
+
+exports[`main manifest characterization > preserves native maxWorkers 1`] = `
+{
+  "error": "TypeError",
+  "message": "Native-session preset viewer fixture-viewer must be a lazy, inline, read-only DOM surface.",
+}
+`;
+
+exports[`main manifest characterization > preserves native runtime 1`] = `
+{
+  "error": "TypeError",
+  "message": "Native-session preset viewer fixture-viewer must be a lazy, inline, read-only DOM surface.",
+}
+`;
+
+exports[`main manifest characterization > preserves native source mismatch 1`] = `
+{
+  "error": "TypeError",
+  "message": "Native-session preset viewer fixture-viewer must be a lazy, inline, read-only DOM surface.",
+}
+`;
+
+exports[`main manifest characterization > preserves native surfaceIsolation 1`] = `
+{
+  "error": "TypeError",
+  "message": "Native-session preset viewer fixture-viewer must be a lazy, inline, read-only DOM surface.",
+}
+`;
+
+exports[`main manifest characterization > preserves paginated without budget 1`] = `
+{
+  "error": "TypeError",
+  "message": "Canvas or paginated preset viewer fixture-viewer must declare positive Canvas limits.",
+}
+`;
+
+exports[`main manifest characterization > preserves placeholder with source 1`] = `
+{
+  "error": "TypeError",
+  "message": "Placeholder preset viewer fixture-viewer must use source 'none'.",
+}
+`;
+
+exports[`main manifest characterization > preserves preview without source 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preview preset viewer fixture-viewer must declare a content or resource source.",
+}
+`;
+
+exports[`main manifest characterization > preserves recoveryPolicy array 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer recovery policy must be an object.",
+}
+`;
+
+exports[`main manifest characterization > preserves recoveryPolicy unknown field 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer recovery policy has unknown field(s): extra.",
+}
+`;
+
+exports[`main manifest characterization > preserves resourcePolicy array 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy must be an object.",
+}
+`;
+
+exports[`main manifest characterization > preserves resourcePolicy unknown field 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy has unknown field(s): extra.",
+}
+`;
+
+exports[`main manifest characterization > preserves retry -1 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer recovery policy maxAutomaticRetries must be zero or one.",
+}
+`;
+
+exports[`main manifest characterization > preserves retry 0.5 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer recovery policy maxAutomaticRetries must be zero or one.",
+}
+`;
+
+exports[`main manifest characterization > preserves retry 1 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer recovery policy maxAutomaticRetries must be zero or one.",
+}
+`;
+
+exports[`main manifest characterization > preserves retry 2 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer recovery policy maxAutomaticRetries must be zero or one.",
+}
+`;
+
+exports[`main manifest characterization > preserves safe mode boolean 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer recovery policy supportsSafeMode must be a boolean.",
+}
+`;
+
+exports[`main manifest characterization > preserves safe mode requires isolated surface 1`] = `
+{
+  "error": "TypeError",
+  "message": "Safe-mode preset viewer fixture-viewer must use an isolated surface.",
+}
+`;
+
+exports[`main manifest characterization > preserves sandbox without trait 1`] = `
+{
+  "error": "TypeError",
+  "message": "Sandboxed-frame preset viewer fixture-viewer must declare the sandboxed trait.",
+}
+`;
+
+exports[`main manifest characterization > preserves surfaceTraits "invalid" 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has unsupported or repeated surface traits.",
+}
+`;
+
+exports[`main manifest characterization > preserves surfaceTraits ["Bad ID"] 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has unsupported or repeated surface traits.",
+}
+`;
+
+exports[`main manifest characterization > preserves surfaceTraits ["scrollable","scrollable"] 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has unsupported or repeated surface traits.",
+}
+`;
+
+exports[`main manifest characterization > preserves surfaceTraits [null] 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has unsupported or repeated surface traits.",
+}
+`;
+
+exports[`main manifest characterization > preserves surfaceTraits null 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has unsupported or repeated surface traits.",
+}
+`;
+
+exports[`main manifest characterization > preserves trait without sandbox 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer cannot claim a sandboxed trait without a sandbox boundary.",
+}
+`;
+
+exports[`main manifest characterization > preserves unknown definition fields 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer definition at index 0 has unknown field(s): first, second.",
+}
+`;
+
+exports[`main manifest characterization > preserves unknown manifest fields 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer manifest has unknown field(s): first, second.",
+}
+`;
+
+exports[`main manifest characterization > preserves valid native 1`] = `
+{
+  "contractVersion": 8,
+  "fallbackViewerId": "document-placeholder",
+  "viewers": [
+    {
+      "capability": "preview",
+      "computeIsolation": "native-process",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [
+        "fixture-alias",
+      ],
+      "id": "fixture-viewer",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 10,
+        "maxWorkers": 0,
+        "memoryClass": "small",
+      },
+      "runtime": "lazy",
+      "source": "resource-session",
+      "surfaceFamily": "document",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [],
+    },
+    {
+      "capability": "placeholder",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [
+        "binary-placeholder",
+      ],
+      "id": "document-placeholder",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 0,
+        "maxWorkers": 0,
+        "memoryClass": "small",
+      },
+      "runtime": "eager",
+      "source": "none",
+      "surfaceFamily": "fallback",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [],
+    },
+  ],
+}
+`;
+
+exports[`main manifest characterization > preserves valid safe mode 1`] = `
+{
+  "contractVersion": 8,
+  "fallbackViewerId": "document-placeholder",
+  "viewers": [
+    {
+      "capability": "preview",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [
+        "fixture-alias",
+      ],
+      "id": "fixture-viewer",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": true,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 10,
+        "maxWorkers": 0,
+        "memoryClass": "small",
+      },
+      "runtime": "eager",
+      "source": "content",
+      "surfaceFamily": "document",
+      "surfaceIsolation": "isolated-webcontents",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [],
+    },
+    {
+      "capability": "placeholder",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [
+        "binary-placeholder",
+      ],
+      "id": "document-placeholder",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 0,
+        "maxWorkers": 0,
+        "memoryClass": "small",
+      },
+      "runtime": "eager",
+      "source": "none",
+      "surfaceFamily": "fallback",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [],
+    },
+  ],
+}
+`;
+
+exports[`main manifest characterization > preserves valid sandbox 1`] = `
+{
+  "contractVersion": 8,
+  "fallbackViewerId": "document-placeholder",
+  "viewers": [
+    {
+      "capability": "preview",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "sandboxed-frame",
+      "contractVersion": 8,
+      "formatViewerIds": [
+        "fixture-alias",
+      ],
+      "id": "fixture-viewer",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 10,
+        "maxWorkers": 0,
+        "memoryClass": "small",
+      },
+      "runtime": "eager",
+      "source": "content",
+      "surfaceFamily": "document",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [
+        "sandboxed",
+      ],
+    },
+    {
+      "capability": "placeholder",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [
+        "binary-placeholder",
+      ],
+      "id": "document-placeholder",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 0,
+        "maxWorkers": 0,
+        "memoryClass": "small",
+      },
+      "runtime": "eager",
+      "source": "none",
+      "surfaceFamily": "fallback",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [],
+    },
+  ],
+}
+`;
+
+exports[`main manifest characterization > preserves valid worker 1`] = `
+{
+  "contractVersion": 8,
+  "fallbackViewerId": "document-placeholder",
+  "viewers": [
+    {
+      "capability": "preview",
+      "computeIsolation": "worker",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [
+        "fixture-alias",
+      ],
+      "id": "fixture-viewer",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 10,
+        "maxWorkers": 1,
+        "memoryClass": "small",
+      },
+      "runtime": "lazy",
+      "source": "content",
+      "surfaceFamily": "document",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [],
+    },
+    {
+      "capability": "placeholder",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [
+        "binary-placeholder",
+      ],
+      "id": "document-placeholder",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 0,
+        "maxWorkers": 0,
+        "memoryClass": "small",
+      },
+      "runtime": "eager",
+      "source": "none",
+      "surfaceFamily": "fallback",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [],
+    },
+  ],
+}
+`;
+
+exports[`main manifest characterization > preserves version 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer manifest uses an unsupported contract version.",
+}
+`;
+
+exports[`main manifest characterization > preserves worker eager 1`] = `
+{
+  "error": "TypeError",
+  "message": "Worker-compute preset viewer fixture-viewer must keep its runtime lazy.",
+}
+`;
+
+exports[`main manifest characterization > preserves worker without budget 1`] = `
+{
+  "error": "TypeError",
+  "message": "Worker-compute preset viewer fixture-viewer must declare at least one worker.",
+}
+`;
+
+exports[`main manifest characterization > preserves zero source budget 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer must declare a positive source byte budget.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves alias collides with fallback 1`] = `
+{
+  "error": "TypeError",
+  "message": "Core viewer id document-placeholder maps to more than one preset viewer.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves alias equals canonical id 1`] = `
+{
+  "error": "TypeError",
+  "message": "Core viewer id fixture-viewer maps to more than one preset viewer.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves browser lazy 1`] = `
+{
+  "error": "TypeError",
+  "message": "Browser-engine preset viewer fixture-viewer must eagerly navigate to a resource.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves browser maxActiveCanvases 1`] = `
+{
+  "error": "TypeError",
+  "message": "Browser-engine preset viewer fixture-viewer cannot declare app-owned worker or Canvas budgets.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves browser maxCanvasPixels 1`] = `
+{
+  "error": "TypeError",
+  "message": "Browser-engine preset viewer fixture-viewer cannot declare app-owned worker or Canvas budgets.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves browser maxWorkers 1`] = `
+{
+  "error": "TypeError",
+  "message": "Browser-engine preset viewer fixture-viewer cannot declare app-owned worker or Canvas budgets.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves browser source 1`] = `
+{
+  "error": "TypeError",
+  "message": "Browser-engine preset viewer fixture-viewer must eagerly navigate to a resource.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves canonical 1`] = `
+{
+  "contractVersion": 8,
+  "fallbackViewerId": "document-placeholder",
+  "viewers": [
+    {
+      "capability": "edit",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [
+        "context-map-viewer",
+      ],
+      "id": "context-map",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 1,
+        "maxCanvasPixels": 8388608,
+        "maxSourceBytes": 8388608,
+        "maxWorkers": 0,
+        "memoryClass": "medium",
+      },
+      "runtime": "lazy",
+      "source": "content",
+      "surfaceFamily": "canvas",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "requires-visible",
+      "surfaceTraits": [
+        "zoomable",
+      ],
+    },
+    {
+      "capability": "preview",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "sandboxed-frame",
+      "contractVersion": 8,
+      "formatViewerIds": [],
+      "id": "app-preview",
+      "readinessSignal": "frame-paint",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 4194304,
+        "maxWorkers": 0,
+        "memoryClass": "small",
+      },
+      "runtime": "eager",
+      "source": "content",
+      "surfaceFamily": "embedded",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "requires-visible",
+      "surfaceTraits": [
+        "sandboxed",
+      ],
+    },
+    {
+      "capability": "edit",
+      "computeIsolation": "worker",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [
+        "markdown-editor",
+      ],
+      "id": "markdown",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 16777216,
+        "maxWorkers": 1,
+        "memoryClass": "medium",
+      },
+      "runtime": "lazy",
+      "source": "content",
+      "surfaceFamily": "document",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [
+        "rich-text",
+        "scrollable",
+      ],
+    },
+    {
+      "capability": "edit",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [
+        "puppyflow-editor",
+      ],
+      "id": "puppyflow",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 1,
+        "maxCanvasPixels": 8388608,
+        "maxSourceBytes": 8388608,
+        "maxWorkers": 0,
+        "memoryClass": "medium",
+      },
+      "runtime": "lazy",
+      "source": "content",
+      "surfaceFamily": "canvas",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "requires-visible",
+      "surfaceTraits": [
+        "zoomable",
+      ],
+    },
+    {
+      "capability": "edit",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [],
+      "id": "json",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 8388608,
+        "maxWorkers": 0,
+        "memoryClass": "small",
+      },
+      "runtime": "eager",
+      "source": "content",
+      "surfaceFamily": "code",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [
+        "monospace",
+        "scrollable",
+      ],
+    },
+    {
+      "capability": "edit",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [],
+      "id": "csv-table",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 8388608,
+        "maxWorkers": 0,
+        "memoryClass": "medium",
+      },
+      "runtime": "eager",
+      "source": "content",
+      "surfaceFamily": "grid",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [
+        "tabular",
+        "scrollable",
+      ],
+    },
+    {
+      "capability": "edit",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "sandboxed-frame",
+      "contractVersion": 8,
+      "formatViewerIds": [],
+      "id": "html-artifact",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 4194304,
+        "maxWorkers": 0,
+        "memoryClass": "medium",
+      },
+      "runtime": "eager",
+      "source": "content-and-resource",
+      "surfaceFamily": "embedded",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [
+        "sandboxed",
+        "scrollable",
+      ],
+    },
+    {
+      "capability": "preview",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [],
+      "id": "image-preview",
+      "readinessSignal": "decoded-resource",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 134217728,
+        "maxWorkers": 0,
+        "memoryClass": "medium",
+      },
+      "runtime": "eager",
+      "source": "resource",
+      "surfaceFamily": "media",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [
+        "zoomable",
+      ],
+    },
+    {
+      "capability": "preview",
+      "computeIsolation": "browser-engine",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [],
+      "id": "pdf-preview",
+      "readinessSignal": "frame-paint",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 536870912,
+        "maxWorkers": 0,
+        "memoryClass": "large",
+      },
+      "runtime": "eager",
+      "source": "resource",
+      "surfaceFamily": "document",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "requires-visible",
+      "surfaceTraits": [
+        "paginated",
+        "zoomable",
+        "scrollable",
+      ],
+    },
+    {
+      "capability": "preview",
+      "computeIsolation": "worker",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [],
+      "id": "office-preview",
+      "readinessSignal": "first-rendered-frame",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 4,
+        "maxCanvasPixels": 16777216,
+        "maxSourceBytes": 26214400,
+        "maxWorkers": 1,
+        "memoryClass": "large",
+      },
+      "runtime": "lazy",
+      "source": "resource",
+      "surfaceFamily": "document",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "requires-visible",
+      "surfaceTraits": [
+        "paginated",
+        "scrollable",
+      ],
+    },
+    {
+      "capability": "preview",
+      "computeIsolation": "native-process",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [],
+      "id": "database-preview",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 8589934592,
+        "maxWorkers": 0,
+        "memoryClass": "large",
+      },
+      "runtime": "lazy",
+      "source": "resource-session",
+      "surfaceFamily": "grid",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [
+        "tabular",
+        "scrollable",
+        "paginated",
+      ],
+    },
+    {
+      "capability": "preview",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [],
+      "id": "audio-preview",
+      "readinessSignal": "media-metadata",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 536870912,
+        "maxWorkers": 0,
+        "memoryClass": "small",
+      },
+      "runtime": "eager",
+      "source": "resource",
+      "surfaceFamily": "media",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [],
+    },
+    {
+      "capability": "preview",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [],
+      "id": "video-preview",
+      "readinessSignal": "first-rendered-frame",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 2147483648,
+        "maxWorkers": 0,
+        "memoryClass": "medium",
+      },
+      "runtime": "eager",
+      "source": "resource",
+      "surfaceFamily": "media",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "requires-visible",
+      "surfaceTraits": [],
+    },
+    {
+      "capability": "edit",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [
+        "plain-text",
+        "monaco-code",
+      ],
+      "id": "text",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 16777216,
+        "maxWorkers": 0,
+        "memoryClass": "small",
+      },
+      "runtime": "eager",
+      "source": "content",
+      "surfaceFamily": "code",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [
+        "monospace",
+        "scrollable",
+      ],
+    },
+    {
+      "capability": "placeholder",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [
+        "binary-placeholder",
+      ],
+      "id": "document-placeholder",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 0,
+        "maxWorkers": 0,
+        "memoryClass": "small",
+      },
+      "runtime": "eager",
+      "source": "none",
+      "surfaceFamily": "fallback",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [],
+    },
+  ],
+}
+`;
+
+exports[`renderer manifest characterization > preserves canvas without budget 1`] = `
+{
+  "error": "TypeError",
+  "message": "Canvas or paginated preset viewer fixture-viewer must declare positive Canvas limits.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves definition "invalid" 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer definition at index 0 must be an object.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves definition [] 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer definition at index 0 must be an object.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves definition null 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer definition at index 0 must be an object.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves duplicate canonical id 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer manifest declares fixture-viewer more than once.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves edit without source 1`] = `
+{
+  "error": "TypeError",
+  "message": "Editable preset viewer fixture-viewer must receive content or a resource.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves empty viewers 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer manifest must declare at least one viewer.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves fallback id 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer manifest has an invalid fallback viewer id.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves fallback missing 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fallback must be a declared placeholder with source 'none'.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves fallback not placeholder 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fallback must be a declared placeholder with source 'none'.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves first validation error wins 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has invalid format viewer ids.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves formatViewerIds "invalid" 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has invalid format viewer ids.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves formatViewerIds ["Bad ID"] 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has invalid format viewer ids.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves formatViewerIds ["alias","alias"] 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer repeats a format viewer id.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves formatViewerIds [null] 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has invalid format viewer ids.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves formatViewerIds null 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has invalid format viewer ids.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves grid pagination allowed 1`] = `
+{
+  "contractVersion": 8,
+  "fallbackViewerId": "document-placeholder",
+  "viewers": [
+    {
+      "capability": "preview",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [
+        "fixture-alias",
+      ],
+      "id": "fixture-viewer",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 10,
+        "maxWorkers": 0,
+        "memoryClass": "small",
+      },
+      "runtime": "eager",
+      "source": "content",
+      "surfaceFamily": "grid",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [
+        "paginated",
+      ],
+    },
+    {
+      "capability": "placeholder",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [
+        "binary-placeholder",
+      ],
+      "id": "document-placeholder",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 0,
+        "maxWorkers": 0,
+        "memoryClass": "small",
+      },
+      "runtime": "eager",
+      "source": "none",
+      "surfaceFamily": "fallback",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [],
+    },
+  ],
+}
+`;
+
+exports[`renderer manifest characterization > preserves invalid capability 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported capability.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves invalid computeIsolation 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported compute isolation boundary.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves invalid contentSandbox 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported content sandbox boundary.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves invalid id 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer definition at index 0 has an invalid id.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves invalid readinessSignal 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported readiness signal.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves invalid runtime 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported runtime boundary.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves invalid source 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported source requirement.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves invalid surfaceFamily 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported surface family.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves invalid surfaceIsolation 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported surface isolation boundary.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves invalid surfacePreparation 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported surface preparation policy.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves main thread worker budget 1`] = `
+{
+  "error": "TypeError",
+  "message": "Main-thread preset viewer fixture-viewer cannot declare worker capacity.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves manifest "invalid" 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer manifest must be an object.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves manifest [] 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer manifest must be an object.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves manifest null 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer manifest must be an object.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves maxActiveCanvases -1 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxActiveCanvases must be a non-negative safe integer.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves maxActiveCanvases 0.5 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxActiveCanvases must be a non-negative safe integer.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves maxActiveCanvases 1 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxActiveCanvases must be a non-negative safe integer.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves maxActiveCanvases 9007199254740992 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxActiveCanvases must be a non-negative safe integer.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves maxCanvasPixels -1 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxCanvasPixels must be a non-negative safe integer.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves maxCanvasPixels 0.5 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxCanvasPixels must be a non-negative safe integer.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves maxCanvasPixels 1 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxCanvasPixels must be a non-negative safe integer.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves maxCanvasPixels 9007199254740992 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxCanvasPixels must be a non-negative safe integer.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves maxSourceBytes -1 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxSourceBytes must be a non-negative safe integer.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves maxSourceBytes 0.5 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxSourceBytes must be a non-negative safe integer.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves maxSourceBytes 1 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxSourceBytes must be a non-negative safe integer.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves maxSourceBytes 9007199254740992 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxSourceBytes must be a non-negative safe integer.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves maxWorkers -1 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxWorkers must be a non-negative safe integer.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves maxWorkers 0.5 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxWorkers must be a non-negative safe integer.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves maxWorkers 1 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxWorkers must be a non-negative safe integer.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves maxWorkers 9007199254740992 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy maxWorkers must be a non-negative safe integer.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves memory class 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy has an unsupported memory class.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves metadata byte budget 1`] = `
+{
+  "error": "TypeError",
+  "message": "Metadata-only preset viewer fixture-viewer cannot declare a source byte budget.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves minimal 1`] = `
+{
+  "contractVersion": 8,
+  "fallbackViewerId": "document-placeholder",
+  "viewers": [
+    {
+      "capability": "preview",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [
+        "fixture-alias",
+      ],
+      "id": "fixture-viewer",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 10,
+        "maxWorkers": 0,
+        "memoryClass": "small",
+      },
+      "runtime": "eager",
+      "source": "content",
+      "surfaceFamily": "document",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [],
+    },
+    {
+      "capability": "placeholder",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [
+        "binary-placeholder",
+      ],
+      "id": "document-placeholder",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 0,
+        "maxWorkers": 0,
+        "memoryClass": "small",
+      },
+      "runtime": "eager",
+      "source": "none",
+      "surfaceFamily": "fallback",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [],
+    },
+  ],
+}
+`;
+
+exports[`renderer manifest characterization > preserves missing capability 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported capability.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves missing computeIsolation 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported compute isolation boundary.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves missing contentSandbox 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported content sandbox boundary.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves missing formatViewerIds 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has invalid format viewer ids.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves missing id 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer definition at index 0 has an invalid id.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves missing readinessSignal 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported readiness signal.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves missing recoveryPolicy 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer recovery policy must be an object.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves missing resourcePolicy 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy must be an object.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves missing runtime 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported runtime boundary.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves missing source 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported source requirement.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves missing surfaceFamily 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported surface family.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves missing surfaceIsolation 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported surface isolation boundary.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves missing surfacePreparation 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has an unsupported surface preparation policy.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves missing surfaceTraits 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has unsupported surface traits.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves missing viewers 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer manifest must declare at least one viewer.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves multiple placeholders 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer manifest must declare exactly one placeholder fallback.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves native capability 1`] = `
+{
+  "error": "TypeError",
+  "message": "Native-session preset viewer fixture-viewer must be a lazy, inline, read-only DOM surface.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves native compute mismatch 1`] = `
+{
+  "error": "TypeError",
+  "message": "Native-session preset viewer fixture-viewer must be a lazy, inline, read-only DOM surface.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves native maxActiveCanvases 1`] = `
+{
+  "error": "TypeError",
+  "message": "Native-session preset viewer fixture-viewer must be a lazy, inline, read-only DOM surface.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves native maxCanvasPixels 1`] = `
+{
+  "error": "TypeError",
+  "message": "Native-session preset viewer fixture-viewer must be a lazy, inline, read-only DOM surface.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves native maxWorkers 1`] = `
+{
+  "error": "TypeError",
+  "message": "Native-session preset viewer fixture-viewer must be a lazy, inline, read-only DOM surface.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves native runtime 1`] = `
+{
+  "error": "TypeError",
+  "message": "Native-session preset viewer fixture-viewer must be a lazy, inline, read-only DOM surface.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves native source mismatch 1`] = `
+{
+  "error": "TypeError",
+  "message": "Native-session preset viewer fixture-viewer must be a lazy, inline, read-only DOM surface.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves native surfaceIsolation 1`] = `
+{
+  "error": "TypeError",
+  "message": "Native-session preset viewer fixture-viewer must be a lazy, inline, read-only DOM surface.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves paginated without budget 1`] = `
+{
+  "error": "TypeError",
+  "message": "Canvas or paginated preset viewer fixture-viewer must declare positive Canvas limits.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves placeholder with source 1`] = `
+{
+  "error": "TypeError",
+  "message": "Placeholder preset viewer fixture-viewer must use source 'none'.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves preview without source 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preview preset viewer fixture-viewer must declare a content or resource source.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves recoveryPolicy array 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer recovery policy must be an object.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves recoveryPolicy unknown field 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer recovery policy has unknown field(s): extra.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves resourcePolicy array 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy must be an object.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves resourcePolicy unknown field 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer resource policy has unknown field(s): extra.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves retry -1 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer recovery policy maxAutomaticRetries must be zero or one.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves retry 0.5 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer recovery policy maxAutomaticRetries must be zero or one.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves retry 1 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer recovery policy maxAutomaticRetries must be zero or one.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves retry 2 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer recovery policy maxAutomaticRetries must be zero or one.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves safe mode boolean 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer recovery policy supportsSafeMode must be a boolean.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves safe mode requires isolated surface 1`] = `
+{
+  "error": "TypeError",
+  "message": "Safe-mode preset viewer fixture-viewer must use an isolated surface.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves sandbox without trait 1`] = `
+{
+  "error": "TypeError",
+  "message": "Sandboxed-frame preset viewer fixture-viewer must declare the sandboxed trait.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves surfaceTraits "invalid" 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has unsupported surface traits.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves surfaceTraits ["Bad ID"] 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has unsupported surface traits.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves surfaceTraits ["scrollable","scrollable"] 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer repeats a surface trait.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves surfaceTraits [null] 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has unsupported surface traits.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves surfaceTraits null 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer has unsupported surface traits.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves trait without sandbox 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer cannot claim a sandboxed trait without a sandbox boundary.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves unknown definition fields 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer definition at index 0 has unknown field(s): first, second.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves unknown manifest fields 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer manifest has unknown field(s): first, second.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves valid native 1`] = `
+{
+  "contractVersion": 8,
+  "fallbackViewerId": "document-placeholder",
+  "viewers": [
+    {
+      "capability": "preview",
+      "computeIsolation": "native-process",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [
+        "fixture-alias",
+      ],
+      "id": "fixture-viewer",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 10,
+        "maxWorkers": 0,
+        "memoryClass": "small",
+      },
+      "runtime": "lazy",
+      "source": "resource-session",
+      "surfaceFamily": "document",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [],
+    },
+    {
+      "capability": "placeholder",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [
+        "binary-placeholder",
+      ],
+      "id": "document-placeholder",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 0,
+        "maxWorkers": 0,
+        "memoryClass": "small",
+      },
+      "runtime": "eager",
+      "source": "none",
+      "surfaceFamily": "fallback",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [],
+    },
+  ],
+}
+`;
+
+exports[`renderer manifest characterization > preserves valid safe mode 1`] = `
+{
+  "contractVersion": 8,
+  "fallbackViewerId": "document-placeholder",
+  "viewers": [
+    {
+      "capability": "preview",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [
+        "fixture-alias",
+      ],
+      "id": "fixture-viewer",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": true,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 10,
+        "maxWorkers": 0,
+        "memoryClass": "small",
+      },
+      "runtime": "eager",
+      "source": "content",
+      "surfaceFamily": "document",
+      "surfaceIsolation": "isolated-webcontents",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [],
+    },
+    {
+      "capability": "placeholder",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [
+        "binary-placeholder",
+      ],
+      "id": "document-placeholder",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 0,
+        "maxWorkers": 0,
+        "memoryClass": "small",
+      },
+      "runtime": "eager",
+      "source": "none",
+      "surfaceFamily": "fallback",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [],
+    },
+  ],
+}
+`;
+
+exports[`renderer manifest characterization > preserves valid sandbox 1`] = `
+{
+  "contractVersion": 8,
+  "fallbackViewerId": "document-placeholder",
+  "viewers": [
+    {
+      "capability": "preview",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "sandboxed-frame",
+      "contractVersion": 8,
+      "formatViewerIds": [
+        "fixture-alias",
+      ],
+      "id": "fixture-viewer",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 10,
+        "maxWorkers": 0,
+        "memoryClass": "small",
+      },
+      "runtime": "eager",
+      "source": "content",
+      "surfaceFamily": "document",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [
+        "sandboxed",
+      ],
+    },
+    {
+      "capability": "placeholder",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [
+        "binary-placeholder",
+      ],
+      "id": "document-placeholder",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 0,
+        "maxWorkers": 0,
+        "memoryClass": "small",
+      },
+      "runtime": "eager",
+      "source": "none",
+      "surfaceFamily": "fallback",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [],
+    },
+  ],
+}
+`;
+
+exports[`renderer manifest characterization > preserves valid worker 1`] = `
+{
+  "contractVersion": 8,
+  "fallbackViewerId": "document-placeholder",
+  "viewers": [
+    {
+      "capability": "preview",
+      "computeIsolation": "worker",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [
+        "fixture-alias",
+      ],
+      "id": "fixture-viewer",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 10,
+        "maxWorkers": 1,
+        "memoryClass": "small",
+      },
+      "runtime": "lazy",
+      "source": "content",
+      "surfaceFamily": "document",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [],
+    },
+    {
+      "capability": "placeholder",
+      "computeIsolation": "main-thread",
+      "contentSandbox": "none",
+      "contractVersion": 8,
+      "formatViewerIds": [
+        "binary-placeholder",
+      ],
+      "id": "document-placeholder",
+      "readinessSignal": "dom-stable",
+      "recoveryPolicy": {
+        "maxAutomaticRetries": 0,
+        "supportsSafeMode": false,
+      },
+      "resourcePolicy": {
+        "maxActiveCanvases": 0,
+        "maxCanvasPixels": 0,
+        "maxSourceBytes": 0,
+        "maxWorkers": 0,
+        "memoryClass": "small",
+      },
+      "runtime": "eager",
+      "source": "none",
+      "surfaceFamily": "fallback",
+      "surfaceIsolation": "inline",
+      "surfacePreparation": "hidden-safe",
+      "surfaceTraits": [],
+    },
+  ],
+}
+`;
+
+exports[`renderer manifest characterization > preserves version 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer manifest uses an unsupported contract version.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves worker eager 1`] = `
+{
+  "error": "TypeError",
+  "message": "Worker-compute preset viewer fixture-viewer must keep its runtime lazy.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves worker without budget 1`] = `
+{
+  "error": "TypeError",
+  "message": "Worker-compute preset viewer fixture-viewer must declare at least one worker.",
+}
+`;
+
+exports[`renderer manifest characterization > preserves zero source budget 1`] = `
+{
+  "error": "TypeError",
+  "message": "Preset viewer fixture-viewer must declare a positive source byte budget.",
+}
+`;

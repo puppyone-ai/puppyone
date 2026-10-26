@@ -7,6 +7,7 @@ This file defines the default Git and delivery workflow for the entire PuppyOne 
 - Current Desktop product, architecture, operations, privacy, release, and source-control documentation lives in [`puppy-issues/document/puppyone-desktop`](https://github.com/puppyone-ai/puppy-issues/tree/main/document/puppyone-desktop).
 - `docs/README.md` is only a relocation notice. Do not add current specifications or runbooks under `docs/`.
 - `archive/legacy-desktop-docs/` is a frozen, non-canonical historical snapshot. Never use it to decide current behavior or implementation direction, and do not make code, tests, benchmarks, or quality gates depend on it.
+- [`puppy-issues/document/product-philosophy.md`](https://github.com/puppyone-ai/puppy-issues/blob/main/document/product-philosophy.md) is the authority for the concepts users face and for user-facing wording. Its Vocabulary table decides which words may appear in `locales/renderer/**`; `npm run check:boundaries` enforces it through `scripts/check-user-vocabulary.mjs`, whose rules are generated from that table. Widen or narrow an exception by editing the table and running `node scripts/check-user-vocabulary.mjs --sync`, never by editing the generated rules or the violation baseline.
 - When implementation changes affect documented behavior, update the canonical `puppy-issues` document in the same delivery window and include a source link using `repository@commit:path` provenance.
 
 ## Canonical Branches

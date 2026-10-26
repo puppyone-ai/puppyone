@@ -105,7 +105,7 @@ function buildLinearCloudRows(history: DesktopCloudHistory): CloudBranchGraphRow
     message: commit.message,
     messageCode: commit.message ? undefined : "update-workspace",
     createdAt: commit.created_at,
-    stats: buildCloudCommitStats(commit.changes),
+    stats: commit.changes_loaded === false ? null : buildCloudCommitStats(commit.changes),
     authorName: commit.who,
     authorCode: commit.who ? undefined : "cloud",
     labels: commit.commit_id === history.head_commit_id || (!history.head_commit_id && index === 0)

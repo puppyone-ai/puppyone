@@ -16,6 +16,27 @@ function fixture() {
 }
 
 describe("per-session Agent process ownership", () => {
+  it.each(["createSession", "openSession"])("terminates an item while %s is stalled, before any session identity is published", async method => {
+    const { service, hosts, sender, request, createHost } = fixture();
+    const pending = Promise.withResolvers();
+    const create = createHost.getMockImplementation();
+    createHost.mockImplementationOnce(options => {
+      const host = create(options);
+      host.call.mockReturnValueOnce(pending.promise);
+      return host;
+    });
+    const opening = service[method](sender, { ...request, ...(method === "openSession" ? { sessionId: "saved-session" } : {}) }, "/project");
+    expect(service.getSessionCount()).toBe(1);
+    expect(service.findItemSession(sender.id, sender.hostItemId)).toBeNull();
+    await service.closeItem(sender.id, sender.hostItemId);
+    expect(hosts[0].close).toHaveBeenCalledOnce();
+    pending.resolve(method === "openSession" ? { status: "opened", snapshot: snapshot("saved-session") } : snapshot());
+    await expect(opening).rejects.toMatchObject({ code: "SESSION_STALE" });
+    expect(service.findItemSession(sender.id, sender.hostItemId)).toBeNull();
+    expect(service.getSessionCount()).toBe(0);
+    expect(hosts[0].call).toHaveBeenCalledTimes(1);
+  });
+
   it("releases an unavailable resumed conversation so the item can start a new one", async () => {
     const { service, hosts, sender, request } = fixture();
     await service.createSession(sender, request, "/project");

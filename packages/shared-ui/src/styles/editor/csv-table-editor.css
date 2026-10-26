@@ -10,6 +10,7 @@
   --po-csv-surface-color: var(--po-host-csv-surface-color, var(--po-text));
   --po-csv-link-color: var(--po-host-csv-link-color, var(--po-accent));
   /* Preserve format-theme base colors; shared CSS owns all defaults and states. */
+  --po-editable-table-format-radius: var(--po-host-csv-table-radius);
   --po-editable-table-format-background: var(--po-host-csv-table-background);
   --po-editable-table-format-border: var(--po-host-csv-table-border);
   --po-editable-table-format-cell-border: var(--po-host-csv-cell-border);
@@ -225,8 +226,8 @@
   vertical-align: top;
 }
 
-/* A square, low-contrast data grid avoids the floating-card treatment. The
-   surrounding editor remains full width; this element owns only its tracks. */
+/* The table owns its rounded frame; the viewport stays full width. Preserve
+   visible overflow for sticky headers, selection and resize controls. */
 .csv-table-editor__table {
   width: max-content;
   min-width: 0;
@@ -234,7 +235,7 @@
   margin: 0;
   overflow: visible;
   border: 1px solid var(--po-editable-table-border);
-  border-radius: 0;
+  border-radius: var(--po-editable-table-radius);
   border-collapse: separate;
   border-spacing: 0;
   table-layout: fixed;
@@ -352,23 +353,23 @@
 .csv-table-editor__table > thead > tr:first-child > :first-child,
 .csv-table-editor__surface:not([data-header-enabled])
   .csv-table-editor__table > tbody > tr:first-child > :first-child {
-  border-start-start-radius: var(--po-editable-table-radius);
+  border-start-start-radius: max(0px, calc(var(--po-editable-table-radius) - 1px));
 }
 
 .csv-table-editor__table > thead > tr:first-child > :last-child,
 .csv-table-editor__surface:not([data-header-enabled])
   .csv-table-editor__table > tbody > tr:first-child > :last-child {
-  border-start-end-radius: var(--po-editable-table-radius);
+  border-start-end-radius: max(0px, calc(var(--po-editable-table-radius) - 1px));
 }
 
 .csv-table-editor__table > tbody > tr:last-child > :first-child,
 .csv-table-editor__table:not(:has(tbody > tr)) > thead > tr:last-child > :first-child {
-  border-end-start-radius: var(--po-editable-table-radius);
+  border-end-start-radius: max(0px, calc(var(--po-editable-table-radius) - 1px));
 }
 
 .csv-table-editor__table > tbody > tr:last-child > :last-child,
 .csv-table-editor__table:not(:has(tbody > tr)) > thead > tr:last-child > :last-child {
-  border-end-end-radius: var(--po-editable-table-radius);
+  border-end-end-radius: max(0px, calc(var(--po-editable-table-radius) - 1px));
 }
 
 .csv-table-editor__table th {
@@ -659,7 +660,9 @@
 .csv-table-editor__table th:focus-within,
 .csv-table-editor__table td:focus-within {
   z-index: 1;
-  box-shadow: var(--po-editable-table-cell-focus-shadow);
+  outline: var(--po-editable-table-cell-focus-outline);
+  outline-offset: calc(-1 * var(--po-editable-table-selection-stroke));
+  box-shadow: none;
 }
 
 .csv-table-editor__table thead th:focus-within {
@@ -856,7 +859,7 @@
 
 .csv-table-editor__resize-picker.desktop-menu-surface {
   position: absolute;
-  z-index: 10000;
+  z-index: var(--po-overlay-z-menu, 90);
   inset-inline-end: 0;
   bottom: calc(100% + 6px);
   display: grid;

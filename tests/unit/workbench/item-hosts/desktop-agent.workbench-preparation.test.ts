@@ -13,7 +13,7 @@ const discard = vi.hoisted(() => vi.fn());
 vi.mock("../../../../src/features/desktop-agent/workbench/projectAgentControllers", () => ({
   projectAgentControllers: () => ({ get, discard }),
 }));
-import { ProjectWorkbenchStore } from "../../../../src/features/app-shell/auxiliary-workbench/ProjectWorkbenchStore";
+import { ProjectWorkbenchStore } from "../../../../src/lib/workbench/ProjectWorkbenchStore";
 const project = new ProjectWorkbenchStore({ projectId: "project", generation: "open-1", rootPath: "/workspace/project" });
 
 import {

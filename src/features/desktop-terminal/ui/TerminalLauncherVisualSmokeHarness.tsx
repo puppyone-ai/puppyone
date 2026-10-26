@@ -1,16 +1,17 @@
+import { initializeDesktopPreferences } from "../../../preferencesStore";
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { AGENT_CHAT_CREATION_RECIPES, filterAgentChatCreationRecipesByLocalAgentIds } from "../../app-shell/auxiliary-workbench/agentChatCreationRecipes";
 import type { LocalAgentInstallationId } from "../../../../shared/local-agent-installation/types";
-import type { LocalAgentInstallationDiscoveryPhase } from "../../local-agents/model/localAgentInstallationAvailability";
 import { TerminalLauncher } from "./TerminalLauncher";
-import { LocalAgentSetupSection } from "../../local-agents/ui/LocalAgentSetupSection";
-import { DesktopOverlayPortal } from "../../app-shell/DesktopOverlayPortal";
-import type { LocalAgentSetupPreferences } from "../../../../shared/local-agent-installation/setup-types";
+import { LocalAgentSetupSection, type LocalAgentInstallationDiscoveryPhase } from "../../local-agents";
+import { DesktopOverlayPortal } from "../../../components/DesktopOverlayPortal";
 import { resolveAppearance } from "../../appearance/resolveAppearance";
 import { applySurfaceAppearanceToElement, resolveSurfaceAppearance, SurfaceAppearanceProvider } from "../../appearance/AppearanceRuntime";
 import { DEFAULT_TYPOGRAPHY_PREFERENCES, resolveTypography } from "../../typography";
 import { DEFAULT_MARKDOWN_PRESENTATION_SETTINGS } from "../../markdown/markdownPresentation";
 import "./desktop-terminal.css";
+
+initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeItem: () => {} });
 
 export function TerminalLauncherVisualSmokeHarness() {
   const query = new URLSearchParams(window.location.search);
@@ -32,7 +33,6 @@ export function TerminalLauncherVisualSmokeHarness() {
   const [selection, setSelection] = useState<string | null>(null);
   const setupScenario = query.get("scenario") === "setup";
   const discoveryScenario = setupScenario || query.get("scenario") === "discovery";
-  const [setupPreferences, setSetupPreferences] = useState<LocalAgentSetupPreferences>({ enabled: true, dismissedSetupIds: [], snoozedUntil: {} });
   const [discovery, setDiscovery] = useState<{
     phase: LocalAgentInstallationDiscoveryPhase; ids: LocalAgentInstallationId[];
     completed: number; refreshing: boolean; failed: boolean;
@@ -65,8 +65,7 @@ export function TerminalLauncherVisualSmokeHarness() {
             availableAgentIds={discovery.ids}
             agentSetup={setupScenario ? (onReturnToLauncher) => <LocalAgentSetupSection enabled surface="chat"
               onReturnToLauncher={onReturnToLauncher}
-              eligibleInstallationIds={["codex", "cursor"]} hiddenAgentIds={[]}
-              preferences={setupPreferences} onPreferencesChange={setSetupPreferences}
+              eligibleInstallationIds={["codex", "cursor"]}
               discovery={{ ids: discovery.ids, phase: discovery.phase, hasFailures: discovery.failed, refreshing: discovery.refreshing, progress: null,
                 snapshot: { schemaVersion: 1, generation: discovery.completed, scanId: `fixture:${discovery.completed}`,
                   source: "scan", results: [], availableAgentIds: discovery.ids, requestedAt: "2026-09-19T00:00:00Z", completedAt: "2026-09-19T00:00:00Z" } }}

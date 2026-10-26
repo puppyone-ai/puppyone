@@ -28,12 +28,14 @@ import {
   getDisplayNameKey,
   getExplorerDisplayName,
   type ExplorerVisibleNodeRow,
+  type ExplorerVisibleMetaRow,
   type ExplorerVisibleRow,
 } from "./explorer/explorerVisibleModel";
 import {
   equalExplorerRowInteraction,
   selectExplorerRowInteraction,
   type ExplorerRowInteractionState,
+  type ExplorerRowActionMenu,
   type ExplorerRowStateSources,
 } from "./explorer/explorerRowInteraction";
 import {
@@ -63,6 +65,8 @@ export type ExplorerLoadingPresentation = "dots" | "skeleton" | "none";
 export type ExplorerTreeProps = {
   nodes: readonly DataNode[];
   activePath: string | null;
+  /** Independent from selection; changing triggers on the same row also invalidates its actions. */
+  openActionMenu?: ExplorerRowActionMenu | null;
   selectedPaths?: ReadonlySet<string>;
   cutPaths?: ReadonlySet<string>;
   currentFolderPath?: string | null;
@@ -71,6 +75,8 @@ export type ExplorerTreeProps = {
   loadingPaths?: ReadonlySet<string>;
   rootLoading?: boolean;
   rootError?: string | null;
+  folderErrors?: ReadonlyMap<string, string>;
+  onRetryFolder?: (path: string | null) => void;
   rootLabel?: string;
   showRoot?: boolean;
   loadingLabel?: string;
@@ -114,6 +120,7 @@ type TreeDropTarget = {
   targetFolderPath: string | null;
   mode: "folder" | "parent";
   valid: boolean;
+  operation: "copy" | "move";
 } | null;
 
 type TreeDragController = {
@@ -137,6 +144,7 @@ const EXPLORER_ROW_DOM_ID_PREFIX = "puppyone-explorer-row";
 export function ExplorerTree({
   nodes,
   activePath,
+  openActionMenu = null,
   selectedPaths = EMPTY_PATH_SET,
   cutPaths = EMPTY_PATH_SET,
   currentFolderPath = null,
@@ -145,6 +153,8 @@ export function ExplorerTree({
   loadingPaths,
   rootLoading = false,
   rootError = null,
+  folderErrors,
+  onRetryFolder,
   rootLabel,
   showRoot = true,
   loadingLabel,
@@ -195,7 +205,8 @@ export function ExplorerTree({
     expandedPaths,
     loadingPaths: resolvedLoadingPaths,
     loadingLabel: resolvedLoadingLabel,
-  }), [expandedPaths, nodes, resolvedLoadingLabel, resolvedLoadingPaths]);
+    folderErrors,
+  }), [expandedPaths, folderErrors, nodes, resolvedLoadingLabel, resolvedLoadingPaths]);
   const initialLoading = rootLoading && nodes.length === 0;
   const softWorkspaceGrouping = useMemo(
     () => nodes.filter((node) => node.workspaceFolderRoot).length > 1,
@@ -212,12 +223,13 @@ export function ExplorerTree({
   );
   const rowStateSources = useMemo<ExplorerRowStateSources>(() => ({
     activePath,
+    openActionMenu,
     selectedPaths,
     cutPaths,
     loadingPaths: resolvedLoadingPaths,
     draggedPaths,
     dropTarget,
-  }), [activePath, cutPaths, draggedPaths, dropTarget, resolvedLoadingPaths, selectedPaths]);
+  }), [activePath, openActionMenu, cutPaths, draggedPaths, dropTarget, resolvedLoadingPaths, selectedPaths]);
   const activeIndex = activePath ? visibleModel.pathToIndex.get(activePath) ?? null : null;
   const firstNavigableIndex = useMemo(
     () => findNavigableRowIndex(visibleModel.rows, 0, 1),
@@ -339,6 +351,7 @@ export function ExplorerTree({
     targetFolderPath: string | null,
     mode: "folder" | "parent",
     valid: boolean,
+    operation: "copy" | "move",
   ) => {
     setDropTarget((current) => {
       if (
@@ -346,10 +359,11 @@ export function ExplorerTree({
         && current.targetFolderPath === targetFolderPath
         && current.mode === mode
         && current.valid === valid
+        && current.operation === operation
       ) {
         return current;
       }
-      return { rowPath, targetFolderPath, mode, valid };
+      return { rowPath, targetFolderPath, mode, valid, operation };
     });
   }, []);
 
@@ -404,14 +418,14 @@ export function ExplorerTree({
       event.preventDefault();
       event.stopPropagation();
       event.dataTransfer.dropEffect = valid ? "move" : "none";
-      setNextDropTarget(rowPath, targetFolderPath, mode, valid);
+      setNextDropTarget(rowPath, targetFolderPath, mode, valid, "move");
       return valid;
     }
     if (fileDropEnabled && hasDataTransferFiles(event.dataTransfer)) {
       event.preventDefault();
       event.stopPropagation();
       event.dataTransfer.dropEffect = "copy";
-      setNextDropTarget(rowPath, targetFolderPath, mode, true);
+      setNextDropTarget(rowPath, targetFolderPath, mode, true, "copy");
       return true;
     }
 
@@ -430,7 +444,7 @@ export function ExplorerTree({
     event.preventDefault();
     event.stopPropagation();
     event.dataTransfer.dropEffect = valid ? "move" : "none";
-    setNextDropTarget(rowPath, targetFolderPath, mode, valid);
+    setNextDropTarget(rowPath, targetFolderPath, mode, valid, "move");
     return valid;
   }, [fileDropEnabled, moveEnabled, nativeDraggedNodes, setNextDropTarget]);
 
@@ -596,9 +610,12 @@ export function ExplorerTree({
     handleTreeNavigation(event);
   }, [handleClipboardShortcut, handleTreeNavigation]);
 
+  const externalDropTarget = importEnabled && dropTarget?.valid && dropTarget.operation === "copy" ? dropTarget : null;
+  const fileDropDestination = dropTarget?.targetFolderPath === null ? "root" : "folder";
   return (
     <div
-      className={`explorer-tree-shell ${showRoot ? "has-root" : "no-root"} ${scrollable ? "is-scrollable" : ""} ${draggedNodes.length > 0 ? "is-dragging-node" : ""} ${dropTarget && draggedNodes.length === 0 ? "is-importing-files" : ""}`}
+      className={`explorer-tree-shell ${showRoot ? "has-root" : "no-root"} ${scrollable ? "is-scrollable" : ""} ${draggedNodes.length > 0 ? "is-dragging-node" : ""} ${externalDropTarget ? "is-importing-files" : ""}`}
+      data-file-drop-target={externalDropTarget ? fileDropDestination : undefined}
       data-workspace-grouping={softWorkspaceGrouping ? "soft" : undefined}
       data-scroll-at-bottom={scrollEdgeState.atBottom ? "true" : "false"}
       data-scroll-at-top={scrollEdgeState.atTop ? "true" : "false"}
@@ -616,11 +633,15 @@ export function ExplorerTree({
       onContextMenu={onRootContextMenu}
       onKeyDown={handleTreeKeyDown}
     >
+      {externalDropTarget && <div className="explorer-tree-drop-feedback" aria-hidden="true">
+        <span className="explorer-tree-drop-hint">{t("shared-ui.explorer.dropToAddFiles")}</span>
+      </div>}
       {showRoot && (
         <div className="explorer-tree-root-scope">
           {onRootClick ? (
             <button
               className={`tree-row root root-command ${dropTarget?.rowPath === null && dropTarget.valid ? "drop-target" : ""} ${dropTarget?.rowPath === null && !dropTarget.valid ? "drop-invalid" : ""}`}
+              data-action-menu-open={openActionMenu?.path === null || undefined}
               type="button"
               style={{ "--depth": 0 } as CSSProperties}
               onDragEnter={dropEnabled ? (event) => dragController.onRowDragOver(event, null, null, "folder") : undefined}
@@ -640,6 +661,7 @@ export function ExplorerTree({
           ) : (
             <div
               className={`tree-row root ${dropTarget?.rowPath === null && dropTarget.valid ? "drop-target" : ""} ${dropTarget?.rowPath === null && !dropTarget.valid ? "drop-invalid" : ""}`}
+              data-action-menu-open={openActionMenu?.path === null || undefined}
               style={{ "--depth": 0 } as CSSProperties}
               onDragEnter={dropEnabled ? (event) => dragController.onRowDragOver(event, null, null, "folder") : undefined}
               onDragOver={dropEnabled ? (event) => dragController.onRowDragOver(event, null, null, "folder") : undefined}
@@ -661,6 +683,7 @@ export function ExplorerTree({
       {rootError && nodes.length > 0 && (
         <div className="explorer-tree-error-banner" role="alert" dir="auto">
           {rootError}
+          {onRetryFolder && <button type="button" onClick={() => onRetryFolder(null)}>{t("common.action.retry")}</button>}
         </div>
       )}
 
@@ -679,15 +702,13 @@ export function ExplorerTree({
               {renderListStart()}
             </div>
           )}
-          {initialLoading ? (
-            loadingPresentation === "skeleton"
-              ? <ExplorerTreeSkeleton loadingLabel={resolvedLoadingLabel} />
-              : loadingPresentation === "dots"
-                ? <ExplorerTreeMetaRow depth={0} loading>{resolvedLoadingLabel}</ExplorerTreeMetaRow>
-                : null
-          ) : rootError && nodes.length === 0 ? (
-            <ExplorerTreeMetaRow depth={0}>{rootError}</ExplorerTreeMetaRow>
-          ) : nodes.length > 0 ? (
+          {initialLoading && <ExplorerInitialLoading presentation={loadingPresentation} label={resolvedLoadingLabel} />}
+          {!initialLoading && rootError && nodes.length === 0 && (
+            <ExplorerTreeMetaRow depth={0}><span role="alert">{rootError}</span>
+              {onRetryFolder && <button type="button" onClick={() => onRetryFolder(null)}>{t("common.action.retry")}</button>}
+            </ExplorerTreeMetaRow>
+          )}
+          {!initialLoading && nodes.length > 0 && (
             <div
               className="explorer-tree-virtual-canvas"
               style={{ height: `${virtualWindow.totalHeight}px` }}
@@ -711,11 +732,11 @@ export function ExplorerTree({
                     instruction={motionPlan?.instructions.get(row.key)}
                   >
                     {row.kind === "meta" ? (
-                      <ExplorerTreeLoadingRow
+                      <ExplorerVisibleMetaRowContent
+                        row={row}
                         depth={getExplorerPresentationDepth(row.depth, softWorkspaceGrouping)}
-                        label={row.label}
-                        loading={row.loading}
                         presentation={loadingPresentation}
+                        onRetry={onRetryFolder}
                       />
                     ) : (
                       <TreeNodeRow
@@ -766,7 +787,7 @@ export function ExplorerTree({
                 </div>
               ))}
             </div>
-          ) : null}
+          )}
           {!initialLoading && renderListEnd && (
             <ExplorerListEndMotionShell
               generation={motionPlan?.generation ?? 0}
@@ -872,6 +893,7 @@ const TreeNodeRow = memo(function TreeNodeRow({
       className={`tree-row ${isFolder ? "folder" : "file"} ${node.workspaceFolderRoot ? "workspace-folder-root" : ""} ${workspaceGroupHeader ? "workspace-group-header" : ""} ${interaction.selected ? "selected" : ""} ${interaction.active ? "active" : ""} ${interaction.cut ? "clipboard-cut" : ""} ${interaction.loading ? "loading" : ""} ${interaction.dragging ? "dragging" : ""} ${interaction.dropOver ? "drop-target" : ""} ${interaction.dropParentOver ? "drop-parent-target" : ""} ${interaction.dropInvalid ? "drop-invalid" : ""} ${node.status ? `status-${node.status}` : ""}`}
       role="treeitem"
       data-explorer-path={node.path}
+      data-action-menu-open={interaction.openMenuTrigger !== null || undefined}
       draggable={!node.workspaceFolderRoot && dragController.enabled}
       tabIndex={focusable ? 0 : -1}
       aria-level={row.depth + 1}
@@ -1146,6 +1168,8 @@ function TreeDisclosureMarker({
   size?: number;
 }) {
   const { direction } = useLocalization();
+  const closedTransform = direction === "rtl" ? "scaleX(-1)" : "rotate(0deg)";
+  const openTransform = direction === "rtl" ? "rotate(-90deg)" : "rotate(90deg)";
   return (
     <svg
       width={size}
@@ -1160,14 +1184,30 @@ function TreeDisclosureMarker({
       className="tree-disclosure-marker"
       data-expanded={expanded ? "true" : "false"}
       style={{
-        transform: expanded
-          ? direction === "rtl" ? "rotate(-90deg)" : "rotate(90deg)"
-          : direction === "rtl" ? "scaleX(-1)" : "rotate(0deg)",
+        transform: expanded ? openTransform : closedTransform,
       }}
     >
       <path d="M4 2.5 7.5 6 4 9.5" />
     </svg>
   );
+}
+
+function ExplorerInitialLoading({ presentation, label }: { presentation: ExplorerLoadingPresentation; label: string }) {
+  if (presentation === "skeleton") return <ExplorerTreeSkeleton loadingLabel={label} />;
+  if (presentation === "dots") return <ExplorerTreeMetaRow depth={0} loading>{label}</ExplorerTreeMetaRow>;
+  return null;
+}
+
+function ExplorerVisibleMetaRowContent({ row, depth, presentation, onRetry }: {
+  row: ExplorerVisibleMetaRow; depth: number; presentation: ExplorerLoadingPresentation;
+  onRetry?: ExplorerTreeProps["onRetryFolder"];
+}) {
+  const { t } = useLocalization();
+  if (!row.retryPath) return <ExplorerTreeLoadingRow depth={depth} label={row.label} loading={row.loading} presentation={presentation} />;
+  return <ExplorerTreeMetaRow depth={depth}>
+    <span role="alert" className="tree-folder-error">{row.label}</span>
+    {onRetry && <button type="button" onClick={() => onRetry(row.retryPath!)}>{t("common.action.retry")}</button>}
+  </ExplorerTreeMetaRow>;
 }
 
 function ExplorerTreeMetaRow({
@@ -1223,7 +1263,7 @@ function ExplorerTreeLoadingRow({
   );
 }
 
-function ExplorerTreeSkeleton({ loadingLabel }: { loadingLabel: string }) {
+export function ExplorerTreeSkeleton({ loadingLabel }: { loadingLabel: string }) {
   return (
     <div
       className="explorer-tree-skeleton"

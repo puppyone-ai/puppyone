@@ -26,16 +26,36 @@ export function isTrustedCloudGitOrigin(
 ): boolean {
   if (sameCloudOrigin(remoteOrOrigin, apiBaseUrl)) return true;
   if (!remoteOrOrigin || !isLoopbackOrigin(apiBaseUrl)) return false;
-  const configuredGitOrigin = (
-    import.meta as ImportMeta & { env?: Record<string, string | undefined> }
-  ).env?.VITE_DESKTOP_CLOUD_GIT_ORIGIN?.trim();
-  return Boolean(configuredGitOrigin && sameCloudOrigin(remoteOrOrigin, configuredGitOrigin));
+  const configuredGitOrigin = import.meta.env.VITE_DESKTOP_CLOUD_GIT_ORIGIN?.trim();
+  return Boolean(configuredGitOrigin && sameCloudOrigin(remoteOrOrigin, configuredGitOrigin)
+    && cloudOriginFromApiBase(configuredGitOrigin).startsWith("https://"));
 }
 
 function isLoopbackOrigin(value: string | null | undefined): boolean {
   if (!value) return false;
   try {
     return ["localhost", "127.0.0.1", "::1"].includes(new URL(value).hostname);
+  } catch {
+    return false;
+  }
+}
+
+/** Legacy official HTTP locators are identity hints only. Verify them through
+ * the configured API when its HTTPS Git origin is trusted, including an explicit
+ * hosted Git origin in loopback development. Never authorize HTTP Git credentials. */
+export function isTrustedCloudProjectLocator(remote: string, apiBaseUrl: string | null): boolean {
+  if (isTrustedCloudGitOrigin(remote, apiBaseUrl)) return true;
+  if (!apiBaseUrl) return false;
+  try {
+    const locator = new URL(remote);
+    if (locator.protocol !== "http:" || locator.hostname !== "api.puppyone.ai"
+      || locator.port || locator.username || locator.password || locator.search || locator.hash) {
+      return false;
+    }
+    // Normalize identity in memory only; API requests still use apiBaseUrl and
+    // the existing remote/transport remains untouched.
+    locator.protocol = "https:";
+    return isTrustedCloudGitOrigin(locator.origin, apiBaseUrl);
   } catch {
     return false;
   }
@@ -52,7 +72,7 @@ export function assertCloudRemoteNameAvailable(
   const normalizedRemoteName = remoteName.toLowerCase();
   if (status.remotes.some((remote) => remote.name.toLowerCase() === normalizedRemoteName)) {
     throw new Error(
-      `A Git remote named "${remoteName}" already exists. Remove or rename it before initializing this project on PuppyOne Cloud.`,
+      `A Git remote named "${remoteName}" already exists. Remove or rename it before initializing this project on Puppyone Cloud.`,
     );
   }
 }
@@ -80,7 +100,7 @@ export function assertExpectedGitRepositoryState(
     || (expected.branch !== undefined && actualBranch !== expected.branch)
   ) {
     throw new Error(
-      "The local Git branch or HEAD changed while PuppyOne Cloud initialization was starting. Review the current branch and try again.",
+      "The local Git branch or HEAD changed while Puppyone Cloud initialization was starting. Review the current branch and try again.",
     );
   }
 }

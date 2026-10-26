@@ -24,6 +24,9 @@ export type DocumentInputState = Readonly<{
   generation: number;
 }>;
 const scopes = new Map<string, Map<string, DocumentInputRuntime>>();
+// Resource generations cannot repeat when a runtime is reopened or another
+// consumer still retains a capability with the same per-runtime sequence.
+let resourceGenerationSequence = 0;
 export { getEditorStorageIdentity } from "./editorStorageIdentity";
 
 export function getDocumentInputRuntime(port: DataPort, node: DocumentDataNode): DocumentInputRuntime {
@@ -36,6 +39,8 @@ export function getDocumentInputRuntime(port: DataPort, node: DocumentDataNode):
     assertEditorRuntimeAdmission();
     if (documentOperationQueue.isBlocked(identity, path)) throw new Error("This document is being moved or closed.");
     runtime = new DocumentInputRuntime(identity, path, port, node); documents.set(path, runtime);
+  } else {
+    runtime.rebindPort(port);
   }
   return runtime;
 }
@@ -73,19 +78,27 @@ export class DocumentInputRuntime {
   private refreshQueued = false;
   private sequences = new Map<string, number>();
   private generation = 0;
-  private dependencyGeneration = 0;
   private readonly resourceDirectory: string | null;
   private readonly needsContent: boolean;
   private readonly needsResource: boolean;
   private state: DocumentInputState;
 
-  constructor(readonly storageIdentity: string, readonly path: string, private readonly port: DataPort, node: DocumentDataNode) {
+  constructor(readonly storageIdentity: string, readonly path: string, private port: DataPort, node: DocumentDataNode) {
     const requirement = getEditorSourceRequirement(node);
     this.resourceDirectory = getEditorProviderPolicy(node).resourceDependencies === "document-directory" ? getDataResourceParent(path) ?? "" : null;
     this.needsContent = Boolean(port.readFile && shouldReadEditorContent(node));
     this.needsResource = Boolean(port.getFileUrl && (requirement === "resource" || requirement === "content-and-resource"));
     this.state = Object.freeze({ content: null, loading: this.needsContent, error: null,
       fileUrl: null, fileUrlLoading: this.needsResource, fileUrlError: null, generation: 0 });
+  }
+
+  rebindPort(port: DataPort): void {
+    if (port === this.port || this.disposed) return;
+    if (getEditorStorageIdentity(port) !== this.storageIdentity) throw new Error("Cannot rebind a document to another storage identity.");
+    this.port = port;
+    // Stable document identity does not mean a provider lease is still valid
+    // after re-authentication or reopening a retained Cloud workspace.
+    this.refresh();
   }
 
   getSnapshot = (): DocumentInputState => this.state;
@@ -108,7 +121,6 @@ export class DocumentInputRuntime {
     const matches = workspaceContentChangeMatchesResource(change, this.path, previous);
     this.sequences.set(origin, change.sequence);
     const dependencyChanged = this.resourceDirectory !== null && dependencyMatches(change, { kind: "directory", resource: this.resourceDirectory }, previous);
-    if (dependencyChanged && !matches) this.dependencyGeneration++;
     if (matches || dependencyChanged) this.refresh();
   }
 
@@ -140,6 +152,7 @@ export class DocumentInputRuntime {
   }
 
   private async load(generation: number): Promise<void> {
+    const resourceGeneration = ++resourceGenerationSequence;
     const controller = new AbortController();
     this.read = controller;
     const current = () => !this.disposed && generation === this.generation && !controller.signal.aborted;
@@ -166,14 +179,14 @@ export class DocumentInputRuntime {
           signal: controller.signal,
           ...(this.needsResource ? { prepare: async (content: FileContent) => {
             if (!content.version) throw new Error("A version is required to combine text and resource inputs.");
-            const resource = await acquireFileResource(this.port, this.path, { expectedVersion: content.version, inputGeneration: this.dependencyGeneration }, controller.signal);
+            const resource = await acquireFileResource(this.port, this.path, { expectedVersion: content.version, inputGeneration: resourceGeneration }, controller.signal);
             staged = resource;
             return () => resource.revoke();
           } } : {}),
           accept: commit,
         });
       } else {
-        if (this.needsResource) staged = await acquireFileResource(this.port, this.path, {}, controller.signal);
+        if (this.needsResource) staged = await acquireFileResource(this.port, this.path, { inputGeneration: resourceGeneration }, controller.signal);
         commit(null);
       }
     } catch (error) {

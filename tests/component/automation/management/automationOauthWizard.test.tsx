@@ -22,7 +22,7 @@ const apiMocks = vi.hoisted(() => ({
 
 vi.mock("../../../../src/lib/cloudApi", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../../../src/lib/cloudApi")>()),
-  createCloudAutomation: apiMocks.create,
+  createSynchronizeBinding: apiMocks.create,
   getCloudAutomationOauthAuthorizeUrl: apiMocks.authorize,
   getCloudAutomationOauthStatus: apiMocks.status,
   openCloudAutomationAuthorizationUrl: apiMocks.openAuthorization,
@@ -50,6 +50,23 @@ afterEach(() => {
 });
 
 describe("Automation OAuth wizard", () => {
+  it("keeps the resolving state visible until account lookup completes", () => {
+    apiMocks.status.mockReturnValue(new Promise(() => {}));
+    const container = renderWizard(TEMPLATE);
+    expect(stripBidiIsolation(container.querySelector(".desktop-dialog-body")?.textContent)).toMatchSnapshot();
+    expect(container.querySelector(".desktop-cloud-automation-builder")).toBeNull();
+  });
+
+  it("shows lookup failure and retries without losing the chosen source", async () => {
+    apiMocks.status.mockRejectedValueOnce(new Error("offline")).mockReturnValue(new Promise(() => {}));
+    const container = renderWizard(TEMPLATE);
+    await flushEffects();
+    expect(stripBidiIsolation(container.querySelector(".desktop-dialog-body")?.textContent)).toMatchSnapshot();
+    act(() => findButton(container, "Retry")?.click());
+    expect(container.textContent).toContain("Checking");
+    expect(apiMocks.status).toHaveBeenCalledTimes(2);
+  });
+
   it.each([
     { entry: "template", connected: true, expected: "configure" },
     { entry: "template", connected: false, expected: "connect" },
@@ -162,7 +179,7 @@ describe("Automation OAuth wizard", () => {
     apiMocks.status.mockResolvedValue(oauthStatus(true));
     apiMocks.resources.mockResolvedValue({ resources: [resource()], next_cursor: null });
     apiMocks.create.mockResolvedValue({
-      sync: {
+      binding: {
         id: "connection-1",
         project_id: "project-1",
         path: "Google Docs",
@@ -172,7 +189,8 @@ describe("Automation OAuth wizard", () => {
         status: "active",
       },
       execution_result: {
-        run_id: "run-1",
+        synchronize_run_id: "run-1",
+        synchronize_binding_id: "connection-1",
         status: "queued",
         summary: "Sync queued",
       },
@@ -192,8 +210,8 @@ describe("Automation OAuth wizard", () => {
     });
 
     expect(onCreated).toHaveBeenCalledWith(expect.objectContaining({
-      connectionId: "connection-1",
-      runId: "run-1",
+      synchronizeBindingId: "connection-1",
+      synchronizeRunId: "run-1",
       status: "queued",
       summary: "Sync queued",
     }));

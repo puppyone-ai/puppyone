@@ -4,7 +4,6 @@ export {
   buildCloudAutomationRows,
   cloudAutomationRowMatchesProvider,
   getCloudAutomationWebPath,
-  isCloudAutomationConnector,
   normalizeAutomationProviderKey,
 } from "./automationDomain";
 export type { CloudAutomationRow } from "./automationDomain";

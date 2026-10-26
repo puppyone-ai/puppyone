@@ -325,6 +325,18 @@ export type GitEffectiveHosting = {
   identity: GitEffectiveHostingIdentity | null;
 };
 
+/**
+ * What a folder would make reachable. Ignore rules are already applied, so the
+ * numbers describe the files that actually leave this Mac. `truncated` means
+ * the folder is larger than a summary can honestly count, and the count is a
+ * floor rather than a total.
+ */
+export type WorkspacePublishScope = {
+  files: number;
+  bytes: number;
+  truncated: boolean;
+};
+
 export type GitStatusSnapshot = {
   isRepo: boolean;
   branch: string | null;
@@ -645,11 +657,14 @@ export type GitRepositoryWindowFocusEvent = {
   focused: boolean;
 };
 
+export type CloudProjectWindowTarget = Readonly<{ projectId: string; userId: string }>;
+
 export type LastWorkspaceResult = {
   workspaceId: string | null;
   path: string | null;
   workspace: Workspace | null;
   workspaces?: Workspace[];
+  initialCloudProject?: CloudProjectWindowTarget | null;
   error: string | null;
 };
 
@@ -712,11 +727,16 @@ export type WorkspaceDetachResult = {
   workspaces: Workspace[];
 };
 
+export type MarketplaceTemplateDetail = {
+  id: string; releaseId: string; name: string; description: string;
+  version: string; author: string; locale: string; shareUrl: string;
+};
+
 export type WorkspaceCreateProjectRequest = {
   name: string;
   locationGrantId: string;
   operationId: string;
-  source: { kind: "blank" } | { kind: "template"; ref: { sourceId: "builtin"; id: "puppyone.project.getting-started"; version: 1 } };
+  source: { kind: "blank" } | { kind: "template"; ref: { sourceId: "builtin"; id: "puppyone.project.getting-started"; version: 1 } } | { kind: "template"; ref: { sourceId: "marketplace"; id: string; releaseId: string } };
   locale: string;
 };
 
@@ -727,7 +747,7 @@ export type ProjectInitializationReceipt = {
   name: string;
   createdPaths: string[];
   initialOpenPath: string | null;
-  template: { sourceId: string; id: string; version: number; digest: string; resolvedLocale: string } | null;
+  template: { sourceId: string; id: string; version: number | string; releaseId?: string; digest: string; resolvedLocale: string } | null;
 };
 
 export type WorkspaceCreateProjectResult = {
@@ -1074,8 +1094,11 @@ declare global {
         headers?: Record<string, string>;
         body?: string;
       }) => Promise<DesktopCloudIpcEnvelope<unknown>>;
+      cancelCloudSessionApi?: (requestId: string) => Promise<void>;
       requestCloudSessionApi: (request: {
+        requestId?: string;
         apiBaseUrl: string;
+        expectedSession: { userId: string; generation: string };
         path: string;
         method?: string;
         headers?: Record<string, string>;
@@ -1191,6 +1214,7 @@ declare global {
       onProjectSessionsChanged: (callback: (snapshot: import("../../shared/project-session-contract/types").ProjectSessionSnapshot) => void) => () => void;
       openWorkspaceInCurrentWindow: (folderPath: string) => Promise<WorkspaceOpenResult>;
       openWorkspaceInNewWindow: (folderPath: string) => Promise<WorkspaceOpenResult>;
+      openCloudProjectInNewWindow: (target: CloudProjectWindowTarget) => Promise<{ ok: boolean }>;
       openDroppedWorkspaceInCurrentWindow: (folder: File) => Promise<WorkspaceOpenResult>;
       selectFolder: () => Promise<WorkspaceOpenResult | null>;
       selectFolderToAttach: () => Promise<WorkspaceAttachResult | null>;
@@ -1199,6 +1223,10 @@ declare global {
       selectFolderInNewWindow: () => Promise<WorkspaceOpenResult | null>;
       selectLocalProjectLocation: () => Promise<WorkspaceProjectLocationGrant | null>;
       getDefaultLocalProjectLocation: () => Promise<WorkspaceProjectLocationGrant | null>;
+      resolveTemplateLink: (request: { url: string; locale: string }) => Promise<MarketplaceTemplateDetail>;
+      readTemplateImportIntent: () => Promise<{ id: string; url: string } | null>;
+      acknowledgeTemplateImportIntent: (id: string) => Promise<void>;
+      onTemplateImportRequested: (callback: () => void) => () => void;
       createLocalProject: (
         request: WorkspaceCreateProjectRequest,
       ) => Promise<WorkspaceCreateProjectResult>;
@@ -1262,9 +1290,21 @@ declare global {
       }) => Promise<{ url: string }>;
       revokeFileUrl: (request: { url: string }) => Promise<{ revoked: boolean }>;
       createPreviewDocument: (request: { rootPath: string; path: string; content: string; interactive?: boolean }) => Promise<{ url: string }>;
+      createSandboxedPreviewDocument: (request: { content: string; interactive?: boolean }) => Promise<{ url: string }>;
+      revokeSandboxedPreviewDocument: (request: { url: string }) => Promise<{ revoked: boolean }>;
       openDatabasePreview: import("../platform/databasePreviewClient").DatabaseBridge["openDatabasePreview"];
       readDatabasePreviewPage: import("../platform/databasePreviewClient").DatabaseBridge["readDatabasePreviewPage"];
       closeDatabasePreview: import("../platform/databasePreviewClient").DatabaseBridge["closeDatabasePreview"];
+      openCloudDatabasePreview: import("../platform/cloudNativePreviewClient").CloudNativePreviewBridge["openCloudDatabasePreview"];
+      readCloudDatabasePreviewPage: import("../platform/cloudNativePreviewClient").CloudNativePreviewBridge["readCloudDatabasePreviewPage"];
+      closeCloudNativePreview: import("../platform/cloudNativePreviewClient").CloudNativePreviewBridge["closeCloudNativePreview"];
+      convertCloudOfficeDocument: import("../platform/cloudNativePreviewClient").CloudNativePreviewBridge["convertCloudOfficeDocument"];
+      watchCloudWorkspace: (request: { id: string; apiBaseUrl: string; projectId: string; generation: string;
+        expectedSession: { userId: string; generation: string } }) => Promise<{ id: string }>;
+      stopCloudWorkspaceWatch: (request: { id: string }) => Promise<void>;
+      onCloudWorkspaceEvent: (callback: (event: { id: string; type: "change" | "reconnecting" | "unavailable"; generation?: string; message?: string }) => void) => () => void;
+      retainCloudPreviewResource: (request: import("../platform/cloudNativePreviewClient").CloudPreviewSource) => Promise<{ url: string }>;
+      revokeCloudPreviewResource: (request: { url: string }) => Promise<void>;
       convertOfficeDocumentToDocx: (
         request: WorkspaceConvertOfficeDocumentToDocxRequest,
       ) => Promise<WorkspaceConvertOfficeDocumentToDocxResult>;
@@ -1339,6 +1379,10 @@ declare global {
       onAiEditReviewUpdated: (
         callback: (event: AiEditReviewUpdatedEvent) => void,
       ) => () => void;
+      getPublishScope?: (request: {
+        rootPath: string;
+        path?: string;
+      }) => Promise<WorkspacePublishScope>;
       getGitStatus: (request: {
         rootPath: string;
         requestId?: string;
@@ -1359,6 +1403,7 @@ declare global {
       removeGitRemote: (request: {
         rootPath: string;
         remoteName?: string;
+        expectedRemotes?: GitRemoteSummary[];
       }) => Promise<GitStatusSnapshot>;
       readPuppyoneConfig: (request: {
         rootPath: string;

@@ -407,7 +407,7 @@
   position: relative;
   width: min(100%, 680px);
   min-height: 100%;
-  padding: clamp(44px, 9vh, 92px) 34px 56px;
+  padding: 44px 34px 56px;
 }
 
 .app-setup-back {

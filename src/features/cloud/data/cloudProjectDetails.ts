@@ -1,11 +1,11 @@
 import {
   getCloudDashboard,
   getCloudRepoIdentity,
-  listCloudConnectors,
+  listAccessSurfaces,
   listCloudMcpEndpoints,
   listCloudRoot,
   listCloudScopes,
-  type DesktopCloudConnector,
+  type DesktopCloudAccessSurface,
   type DesktopCloudDashboard,
   type DesktopCloudMcpEndpoint,
   type DesktopCloudProject,
@@ -27,7 +27,7 @@ export type CloudProjectDetailsData = {
   tree: DesktopCloudTree | null;
   history: DesktopCloudHistory | null;
   scopes: DesktopCloudScope[];
-  connectors: DesktopCloudConnector[];
+  connectors: DesktopCloudAccessSurface[];
   mcpEndpoints: DesktopCloudMcpEndpoint[];
   identity: DesktopCloudRepoIdentity | null;
   warning: CloudMessageDescriptor | null;
@@ -83,7 +83,7 @@ export async function loadCloudProjectDetails({
       ? listCloudScopes(session, projectId, onSessionChange, cloudApiBaseUrl)
       : Promise.resolve(null),
     requested.has("connectors")
-      ? listCloudConnectors(session, projectId, onSessionChange, cloudApiBaseUrl)
+      ? listAccessSurfaces(session, projectId, onSessionChange, cloudApiBaseUrl)
       : Promise.resolve(null),
     requested.has("mcp-endpoints")
       ? listCloudMcpEndpoints(session, projectId, onSessionChange, cloudApiBaseUrl)

@@ -5,8 +5,12 @@ import { useDesktopPlatformCapabilities } from "../platform/useDesktopPlatformCa
 import { PuppyBrandMark } from "./brand/PuppyBrandMark";
 
 type DesktopWindowChromeProps = {
+  /** Header presentation location; shell content separately owns the committed provider. */
+  workspaceLocation?: "local" | "cloud";
   context?: ReactNode;
+  centeredContext?: ReactNode;
   actions?: ReactNode;
+  tabs?: ReactNode;
   sessionTabsHostRef?: Ref<HTMLDivElement>;
 };
 
@@ -18,8 +22,11 @@ type DesktopWindowChromeProps = {
  * hit testing.
  */
 export function DesktopWindowChrome({
+  workspaceLocation = "local",
   context,
+  centeredContext,
   actions,
+  tabs,
   sessionTabsHostRef,
 }: DesktopWindowChromeProps) {
   const { t } = useLocalization();
@@ -30,31 +37,49 @@ export function DesktopWindowChrome({
   return (
     <header
       className="desktop-titlebar"
+      // Leave Local's existing skin cascade untouched; only Cloud opts into tint.
+      data-workspace-kind={workspaceLocation === "cloud" ? "cloud" : undefined}
       data-window-drag-region="true"
       data-window-chrome-mode={platformCapabilities?.windowChrome.mode}
       data-window-platform={platformCapabilities?.platform}
       data-window-active={windowActive ? "true" : "false"}
       data-window-full-screen={fullScreen ? "true" : undefined}
+      data-centered-project={centeredContext ? "true" : undefined}
     >
+      {workspaceLocation === "cloud" && <span className="desktop-cloud-header-reveal" aria-hidden="true" />}
       <div className="desktop-titlebar-layout">
-        <div className="desktop-titlebar-left">
-          <div className="desktop-titlebar-brand" aria-hidden="true">
-            <PuppyBrandMark
-              className="desktop-titlebar-brand-icon"
-              tone="lite"
-            />
-            <strong className="desktop-titlebar-brand-name">{t("shell.brand.name")}</strong>
-            <span className="desktop-titlebar-brand-separator">—</span>
+        <div className="desktop-titlebar-leading">
+          <div className="desktop-titlebar-left">
+            <div className="desktop-titlebar-brand" aria-hidden="true">
+              <PuppyBrandMark
+                className="desktop-titlebar-brand-icon"
+                tone="lite"
+              />
+              <strong className="desktop-titlebar-brand-name">{t("shell.brand.name")}</strong>
+              <span className="desktop-titlebar-brand-separator">—</span>
+            </div>
+            {context}
           </div>
-          {context}
+          <div
+            className="desktop-titlebar-drag-fill"
+            data-window-drag-region="true"
+            aria-hidden={sessionTabsHostRef || tabs ? undefined : true}
+          >
+            {(sessionTabsHostRef || tabs) && (
+              <div
+                ref={sessionTabsHostRef}
+                className="desktop-titlebar-session-tabs-host"
+              >
+                {tabs}
+              </div>
+            )}
+          </div>
         </div>
-        <div
-          className="desktop-titlebar-drag-fill"
-          data-window-drag-region="true"
-          aria-hidden={sessionTabsHostRef ? undefined : true}
-        >
-          {sessionTabsHostRef && <div ref={sessionTabsHostRef} className="desktop-titlebar-session-tabs-host" data-window-no-drag="true" />}
-        </div>
+        {centeredContext && (
+          <div className="desktop-titlebar-centered-context">
+            {centeredContext}
+          </div>
+        )}
         <div className="desktop-titlebar-trailing">
           {actions && (
             <div className="desktop-titlebar-actions">

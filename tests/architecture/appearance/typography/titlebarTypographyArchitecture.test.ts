@@ -39,25 +39,44 @@ describe("titlebar typography architecture", () => {
     expect(conflict).toContain("var(--po-danger) 78%, white");
   });
 
-  it("scopes the sky-blue titlebar surface to cloud workspaces", () => {
+  it("tints committed Cloud chrome while preserving the theme foreground palette", () => {
     const titlebarRule = readCssBlock(`\n${titlebarCss}`, ".desktop-titlebar");
-    const cloudTitlebarRule = readCssBlock(
-      titlebarCss,
-      '.desktop-titlebar[data-workspace-kind="cloud"]',
-    );
 
     expect(tokensCss).toContain(
       "--po-header: color-mix(in srgb, var(--po-surface-chrome) 40%, var(--po-surface-editor));",
     );
     expect(tokensCss).not.toContain("--po-cloud-titlebar-bg:");
-    expect(neutralThemeCss).toContain("--po-cloud-titlebar-bg: #dbeaf1;");
-    expect(neutralThemeCss).toContain("--po-cloud-titlebar-bg: #263a45;");
+    expect(neutralThemeCss).toContain("--po-accent: #4599df;");
+    expect(neutralThemeCss).toContain("--po-accent: #60a5fa;");
     expect(titlebarRule).toContain("--desktop-titlebar-bg: var(--po-header);");
     expect(titlebarRule).toContain("--po-font-size-chrome: var(--po-type-header-content);");
     expect(titlebarRule).toContain("background: var(--desktop-titlebar-bg);");
-    expect(cloudTitlebarRule).toContain("--desktop-titlebar-bg: var(--po-cloud-titlebar-bg);");
-    expect(cloudTitlebarRule).toContain("--desktop-titlebar-divider: var(--po-cloud-titlebar-divider);");
+    const cloud = readCssBlock(titlebarCss, '.desktop-titlebar[data-workspace-kind="cloud"]');
+    expect(cloud).toContain("--desktop-titlebar-bg: var(--po-cloud-header-bg);");
+    expect(tokensCss).toContain("color-mix(in srgb, var(--po-header) 85%, var(--po-brand-blue) 15%)");
+    expect(cloud).not.toMatch(/--desktop-titlebar-(?:text|hover|active|focus|divider)\s*:/);
+    expect(titlebarRule).toContain("--desktop-titlebar-text: var(--po-text);");
+    expect(titlebarRule).toContain("--desktop-titlebar-text-muted: var(--po-text-muted);");
     expect(titlebarCss).not.toContain(".desktop-titlebar-workspace-button.cloud {");
+    const skinContract = readFileSync(new URL("../../../../src/styles/interface-skin-contract.css", import.meta.url), "utf8");
+    expect(skinContract).toContain('.desktop-titlebar[data-workspace-kind="local"] {');
+    expect(skinContract).not.toContain('.desktop-titlebar[data-workspace-kind] {');
+  });
+
+  it("lets the Cloud Header mark inherit project text while Homepage marks use product blue", () => {
+    expect(tokensCss).toContain("--po-brand-blue: #4599df;");
+    expect(titlebarCss).not.toContain('.desktop-titlebar-workspace-mark[data-project-location="cloud"]');
+    const onboarding = readFileSync(new URL("../../../../src/styles/onboarding.css", import.meta.url), "utf8");
+    // Whatever else shares the rule, the Homepage Cloud mark is painted product blue.
+    expect(onboarding).toMatch(/\.onboarding-project-icon\.is-cloud[^{]*\{[^}]*color:\s*var\(--po-brand-blue\)/);
+    expect(readCssBlock(titlebarCss, '.desktop-titlebar-workspace-button .desktop-titlebar-workspace-mark'))
+      .toContain("color: inherit;");
+  });
+
+  it("does not paint a Cloud frame around the workspace", () => {
+    const shellCss = readFileSync(new URL("../../../../src/styles/shell.css", import.meta.url), "utf8");
+    expect(shellCss).not.toContain('.desktop-shell[data-workspace-kind="cloud"]::after');
+    expect(shellCss).not.toContain("--desktop-cloud-frame-radius");
   });
 
   it("keeps the titlebar divider inside the native window edge", () => {
@@ -157,7 +176,7 @@ describe("titlebar typography architecture", () => {
     );
     const windowsChanges = readCssBlock(
       titlebarCss,
-      `${windowsTitlebarSelector} .desktop-titlebar-actions .desktop-titlebar-changes`,
+      `${windowsTitlebarSelector} .desktop-titlebar-action.desktop-titlebar-changes`,
     );
     const windowsDivider = readCssBlock(
       titlebarCss,
@@ -279,7 +298,7 @@ describe("titlebar typography architecture", () => {
     expect(rule).toContain("line-height: var(--desktop-titlebar-context-line-height);");
   });
 
-  it("keeps the project quiet and distinguishes the branch with its semantic glyph", () => {
+  it("keeps the combined Home / project trigger quiet and separates the location control", () => {
     const context = readCssBlock(titlebarCss, ".desktop-titlebar-context");
     const projectButton = readCssBlock(titlebarCss, ".desktop-titlebar-workspace-button");
     const projectName = readCssBlock(titlebarCss, ".desktop-titlebar-workspace-name");
@@ -289,9 +308,10 @@ describe("titlebar typography architecture", () => {
     );
     const branchButton = readCssBlock(titlebarCss, ".desktop-titlebar-branch-button");
 
-    expect(titlebarContextSource).toContain("<GitBranch size={13}");
+    expect(titlebarContextSource).not.toContain("GitBranch");
+    expect(titlebarContextSource).toContain("<DesktopProjectLocationSwitcher");
     expect(workspaceSwitcherSource).toContain('className="desktop-titlebar-workspace-mark"');
-    expect(workspaceSwitcherSource).toContain("resolveProjectContextAssetKind(workspace)");
+    expect(workspaceSwitcherSource).toContain("<House");
     expect(titlebarContextSource).not.toContain("desktop-titlebar-cloud-button");
     expect(titlebarContextSource).not.toContain("desktop-titlebar-context-divider");
     expect(titlebarContextSource).not.toContain("VersionControlIcon");
@@ -300,7 +320,8 @@ describe("titlebar typography architecture", () => {
     expect(projectButton).toContain(
       "padding: 0 var(--desktop-titlebar-workspace-inline-padding);",
     );
-    expect(projectName).toContain("color: var(--desktop-titlebar-text-muted);");
+    expect(projectName).toContain("color: inherit;");
+    expect(projectMark).toContain("color: inherit;");
     expect(projectMark).toContain("width: var(--desktop-titlebar-workspace-icon-slot-size);");
     expect(projectMark).toContain(
       "flex: 0 0 var(--desktop-titlebar-workspace-icon-slot-size);",
@@ -356,7 +377,7 @@ describe("titlebar typography architecture", () => {
     expect(context).toContain("--desktop-titlebar-workspace-max-width: 220px;");
     expect(context).toContain("--desktop-titlebar-branch-max-width: 200px;");
     expect(project).toContain("width: max-content;");
-    expect(project).toContain("flex: 0 0 auto;");
+    expect(project).toContain("flex: 0 1 auto;");
     expect(branch).toContain("width: max-content;");
     expect(branch).toContain("min-width: var(--desktop-titlebar-tool-action-width);");
     expect(branch).toContain("flex: 0 1 auto;");

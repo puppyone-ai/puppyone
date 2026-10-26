@@ -1,62 +1,38 @@
 import { describe, expect, it } from "vitest";
-import type { DesktopCloudConnector } from "../../../../src/lib/cloudApi";
-import {
-  buildCloudAutomationRows,
-  getCloudAutomationWebPath,
-  isCloudAutomationConnector,
-} from "../../../../src/features/automation";
-import {
-  getCloudRoute,
-  normalizeCloudSection,
-} from "../../../../src/features/cloud/routes/cloudRoutes";
+import type { DesktopCloudSynchronizeBinding } from "../../../../src/lib/cloudApi";
+import { buildCloudAutomationRows, getCloudAutomationWebPath } from "../../../../src/features/automation";
+import { getCloudRoute, normalizeCloudSection } from "../../../../src/features/cloud/routes/cloudRoutes";
 
-function connector(provider: string): DesktopCloudConnector {
-  return {
-    id: provider,
-    target: { kind: "scope", project_id: "project-1", scope_id: "scope-1" },
-    provider,
-    name: provider,
-    direction: "inbound",
-    status: "active",
-  };
-}
+const binding: DesktopCloudSynchronizeBinding = {
+  id: "binding-id", project_id: "project-1", provider: "url", direction: "inbound",
+  status: "active", config: {}, path: "folder-without-scope",
+};
 
-describe("Automation and Plugin product-domain boundary", () => {
-  it("classifies cloud information sources without capturing built-in access transports", () => {
-    expect(isCloudAutomationConnector(connector("notion"))).toBe(true);
-    expect(isCloudAutomationConnector(connector("google-drive"))).toBe(true);
-    expect(isCloudAutomationConnector(connector("git_remote"))).toBe(false);
-    expect(isCloudAutomationConnector(connector("mcp_endpoint"))).toBe(false);
-    expect(isCloudAutomationConnector(connector("cli"))).toBe(false);
+describe("Automation resource identity", () => {
+  it("renders a real binding without any Access surface or Scope", () => {
+    expect(buildCloudAutomationRows({ projectId: "project-1", bindings: [binding] })).toEqual([{
+      id: "synchronize:project-1:binding-id", resourceKind: "synchronize", binding,
+    }]);
   });
 
-  it("builds Automation-owned rows without adding them to the Access model", () => {
+  it("does not merge same-name bindings or cross project boundaries", () => {
     const rows = buildCloudAutomationRows({
-      scopes: [{
-        id: "scope-1",
-        target: { kind: "scope", project_id: "project-1", scope_id: "scope-1" },
-        project_id: "project-1",
-        name: "Docs",
-        path: "docs",
-        exclude: [],
-        max_mode: "rw",
-      }],
-      connectors: [connector("notion"), connector("git_remote")],
+      projectId: "project-1",
+      bindings: [binding, { ...binding, id: "second-binding" }, { ...binding, project_id: "other-project" }],
     });
-
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({
-      id: "automation:scope-1:notion",
-      connector: { provider: "notion" },
-    });
+    expect(rows.map((row) => row.binding.id)).toEqual(["binding-id", "second-binding"]);
   });
 
-  it("uses Automation as the product route while preserving the established Cloud web path", () => {
+  it("supports root destinations without manufacturing a root Scope", () => {
+    const rows = buildCloudAutomationRows({ projectId: "project-1", bindings: [{ ...binding, path: "" }] });
+    expect(rows[0].binding.path).toBe("");
+    expect(rows[0]).not.toHaveProperty("scope");
+    expect(rows[0]).not.toHaveProperty("connector");
+  });
+
+  it("preserves the Automation product route and established Cloud web path", () => {
     expect(getCloudRoute("automation").labelId).toBe("cloud.route.automation.label");
     expect(getCloudAutomationWebPath("project/a")).toBe("/projects/project%2Fa/workflows");
-  });
-
-  it("does not preserve retired route aliases in the production router", () => {
     expect(normalizeCloudSection("integrations")).toBe("contents");
   });
 });

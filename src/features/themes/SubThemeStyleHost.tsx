@@ -59,8 +59,10 @@ function createMarkdownPresentationCss(settings: MarkdownPresentationSettings): 
     .map(([property, value]) => `  ${property.replace("--po-md-", "--po-user-md-")}: ${String(value)};`);
   if (declarations.length === 0) return "";
   return [
-    "[data-po-appearance-root][data-sub-theme-id] {",
-    ...declarations,
+    "@scope ([data-po-appearance-root][data-sub-theme-id]) to ([data-po-appearance-root]) {",
+    "  .markdown-codemirror-editor {",
+    ...declarations.map(declaration => `  ${declaration}`),
+    "  }",
     "}",
   ].join("\n");
 }

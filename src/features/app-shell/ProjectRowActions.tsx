@@ -21,12 +21,13 @@ import {
   DesktopSidebarActionMenu,
   resolveDesktopSidebarActionMenuPosition,
 } from "../../components/DesktopSidebarActionMenu";
-import { DesktopOverlayLayer } from "./DesktopOverlayPortal";
+import { DesktopOverlayLayer } from "../../components/DesktopOverlayPortal";
+import { ProjectMenuHeader } from "./ProjectMenuHeader";
 
 export type ProjectActionSurface = "menu" | "rename" | "unlink" | null;
 
-const PROJECT_ACTION_MENU_WIDTH = 184;
-const PROJECT_ACTION_MENU_ESTIMATED_HEIGHT = 82;
+const PROJECT_ACTION_MENU_WIDTH = 288;
+const PROJECT_ACTION_MENU_ESTIMATED_HEIGHT = 180;
 
 export type ProjectRowActionsProps = Readonly<{
   workspace: Workspace;
@@ -45,6 +46,7 @@ export function ProjectRowActions({
 }: ProjectRowActionsProps) {
   const { t } = useLocalization();
   const menuRef = useRef<HTMLDivElement>(null);
+  const menuAnchorRef = useRef<HTMLElement | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
   const [name, setName] = useState(workspace.name);
@@ -57,10 +59,29 @@ export function ProjectRowActions({
 
   useLayoutEffect(() => {
     if (surface === "menu") {
-      menuRef.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
+      menuRef.current?.querySelector<HTMLButtonElement>(".desktop-menu-item:not(:disabled)")?.focus();
     } else if (surface === "rename") {
       inputRef.current?.select();
     }
+  }, [surface]);
+
+  useLayoutEffect(() => {
+    const menu = menuRef.current;
+    const anchor = menuAnchorRef.current;
+    if (surface !== "menu" || !menu || !anchor) return;
+    const reposition = () => {
+      const bounds = menu.getBoundingClientRect();
+      if (!bounds.height) return;
+      const next = resolveDesktopSidebarActionMenuPosition(anchor.getBoundingClientRect(), {
+        menuWidth: bounds.width,
+        estimatedHeight: bounds.height,
+      });
+      setMenuPosition(current => current.top === next.top && current.left === next.left ? current : next);
+    };
+    reposition();
+    const observer = new ResizeObserver(reposition);
+    observer.observe(menu);
+    return () => observer.disconnect();
   }, [surface]);
 
   useEffect(() => {
@@ -72,7 +93,10 @@ export function ProjectRowActions({
     const dismissWithKeyboard = (event: KeyboardEvent) => {
       if (event.key === "Escape") onSurfaceChange(null);
     };
-    const dismissOnViewportChange = () => onSurfaceChange(null);
+    const dismissOnViewportChange = (event: Event) => {
+      if (event.target instanceof Node && menuRef.current?.contains(event.target)) return;
+      onSurfaceChange(null);
+    };
     document.addEventListener("pointerdown", dismiss);
     document.addEventListener("keydown", dismissWithKeyboard);
     window.addEventListener("resize", dismissOnViewportChange);
@@ -86,6 +110,7 @@ export function ProjectRowActions({
   }, [onSurfaceChange, surface]);
 
   const openMenu = (anchor: HTMLElement) => {
+    menuAnchorRef.current = anchor;
     setError(null);
     setMenuPosition(resolveDesktopSidebarActionMenuPosition(
       anchor.getBoundingClientRect(),
@@ -158,6 +183,7 @@ export function ProjectRowActions({
             style={{ ...menuPosition, width: PROJECT_ACTION_MENU_WIDTH }}
             onPointerDown={(event) => event.stopPropagation()}
           >
+            <ProjectMenuHeader key={workspace.path} name={workspace.name} path={workspace.path} />
             {onRenameProject && (
               <DesktopMenuItem
                 icon={<Pencil size={14} />}
@@ -204,11 +230,11 @@ export function ProjectRowActions({
                     {t("shell.workspaceSwitcher.renameProjectTitle")}
                   </h2>
                 </div>
-                <DesktopDialogCloseButton
+                <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton
                   label={t("common.action.close")}
                   disabled={pending !== null}
                   onClick={() => onSurfaceChange(null)}
-                />
+                /></Tooltip>
               </header>
               <div className="desktop-dialog-body">
                 <label className="desktop-dialog-field">
@@ -273,11 +299,11 @@ export function ProjectRowActions({
                     {t("shell.workspaceSwitcher.unlinkProjectTitle")}
                   </h2>
                 </div>
-                <DesktopDialogCloseButton
+                <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton
                   label={t("common.action.close")}
                   disabled={pending !== null}
                   onClick={() => onSurfaceChange(null)}
-                />
+                /></Tooltip>
               </header>
               <div className="desktop-dialog-body">
                 <p>

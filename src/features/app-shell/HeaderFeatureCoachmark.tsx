@@ -2,9 +2,9 @@ import { useEffect, useId, useRef, type CSSProperties, type ReactNode } from "re
 import { useLocalization } from "@puppyone/localization";
 import { Button } from "@puppyone/shared-ui";
 import { DesktopMenuSurface } from "../../components/DesktopMenu";
-import { DesktopOverlayLayer } from "./DesktopOverlayPortal";
-import { AgentEntryIcon } from "./AgentEntryIcon";
-import { useAnchoredOverlayPosition } from "./useAnchoredOverlayPosition";
+import { DesktopOverlayLayer } from "../../components/DesktopOverlayPortal";
+import { AgentEntryIcon } from "../../components/brand/AgentEntryIcon";
+import { useAnchoredOverlayPosition } from "../../components/useAnchoredOverlayPosition";
 import { VersionControlIcon } from "../source-control/VersionControlIcon";
 import type { HeaderCoachmarkId } from "./headerCoachmarks";
 

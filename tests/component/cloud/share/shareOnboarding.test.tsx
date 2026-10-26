@@ -64,14 +64,18 @@ function dashboardReads(reads: Record<string, string>): DesktopCloudDashboard {
   return {
     project: { id: "proj-1", name: "Notes" },
     nodes: { total: 0, folders: 0, files: 0 },
-    connections: Object.entries(reads).map(([id, lastSyncedAt]) => ({
-      id,
-      provider: "mcp",
+    resources: Object.entries(reads).map(([id, lastSeenAt]) => ({
+      resource_kind: "access",
+      resource_id: id,
+      project_id: "proj-1",
+      kind: "mcp",
+      target: { kind: "project_root", project_id: "proj-1" },
       status: "active",
-      last_synced_at: lastSyncedAt,
+      last_activity_at: lastSeenAt,
     })),
     tools: [],
-  } as unknown as DesktopCloudDashboard;
+    uploads: [],
+  };
 }
 
 function sharesState(overrides: Partial<ProjectSharesState> = {}): ProjectSharesState {
@@ -131,6 +135,24 @@ describe("Share dialog", () => {
     };
   }
   const dialog = () => document.querySelector<HTMLElement>("[role='dialog']");
+
+  it("hands people a selected folder URL without creating a scope or credential", async () => {
+    const projectId = "01926faa-7ed1-7000-a000-000000000001";
+    const props = { ...baseProps(), initialTargetId: "person" as const,
+      initialPath: "docs/笔记 #1", projectContext: { status: "resolved" as const,
+        projectId, target: projectRootTarget(projectId) } };
+    await act(async () => root?.render(withTestLocalization(<ShareWizardDialog {...props} shares={sharesState()} />)));
+    await flush();
+    const next = dialog()?.querySelector<HTMLButtonElement>(".desktop-dialog-button.primary");
+    expect(next).toBeTruthy();
+    expect(dialog()?.textContent).toContain("Recipients use their existing workspace permissions.");
+    await act(async () => next?.click());
+    await flush();
+    const values = Array.from(dialog()?.querySelectorAll<HTMLElement>(".desktop-share-copy-value") ?? []).map(value => value.textContent);
+    expect(values).toContain(`https://cloud.example/${projectId}/docs/%E7%AC%94%E8%AE%B0%20%231/`);
+    expect(api.createCloudScope).not.toHaveBeenCalled();
+    expect(api.createCloudMcpEndpoint).not.toHaveBeenCalled();
+  });
 
   it("walks who → how much → paste-ready URL and reports the issued share", async () => {
     api.createCloudMcpEndpoint.mockResolvedValue(issuedEndpoint);

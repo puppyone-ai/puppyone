@@ -52,6 +52,9 @@ export async function runNativeResourceAcceptance({ windows, entries, temporaryR
         assert.equal(received.files.length, count);
         assert(received.types.includes("Files"));
         assert(received.files.every((file) => path.isAbsolute(file.path)));
+        assert(received.types.includes("text/plain"), "Native takeover dropped the path text representation.");
+        assert.equal(received.text, received.files.map((file) => file.path).join("\n"),
+          "Native path text must contain every selected absolute path once, never file contents.");
         const claimed = await until(() => entries.slice(start).find((entry) => entry.claimed), `claim ${index}`);
         assert.equal(claimed.claimed.kind, "workspace-entries");
         assert.equal(claimed.claimed.entries.length, count);

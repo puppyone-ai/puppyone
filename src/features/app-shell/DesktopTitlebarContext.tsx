@@ -1,212 +1,27 @@
-import { Tooltip } from "@puppyone/shared-ui";
-import type { RefObject } from "react";
-import type { Workspace, WorkspaceFolder } from "@puppyone/shared-ui";
-import { GitBranch } from "lucide-react";
-import { bidiIsolate, useLocalization } from "@puppyone/localization";
-import { DesktopMenuItem } from "../../components/DesktopMenu";
-import type { GitBranchSummary, GitStatusSnapshot } from "../../types/electron";
-import { BranchMenuGroup } from "../source-control/operationDialogs";
-import { DesktopTitlebarMenuLayer } from "./DesktopTitlebarMenuLayer";
-import {
-  DesktopWorkspaceSwitcher,
-  type DesktopProjectLocation,
-} from "./DesktopWorkspaceSwitcher";
+import type { DesktopProjectCloudCopy, DesktopProjectLocation } from "../../components/DesktopProjectLocationSwitcher";
+import { DesktopProjectLocationSwitcher } from "../../components/DesktopProjectLocationSwitcher";
+import { DesktopWorkspaceSwitcher, type DesktopWorkspaceSwitcherProps } from "./DesktopWorkspaceSwitcher";
+import { ProjectReachControl, type ProjectReachControlProps } from "./project-reach";
 
-export function DesktopTitlebarContext({
-  activeGitStatus,
-  branchSwitcherOpen,
-  branchSwitcherRef,
-  gitStatusLoading,
-  gitOperationLoading,
-  localBranches,
-  remoteBranches,
-  projectLocation,
-  workspace,
-  workspaceFolders,
-  multiRootWorkspacesEnabled,
-  workspaceSwitcherOpen,
-  workspaceSwitcherRef,
-  onCheckoutBranch,
-  onCloseBranchSwitcher,
-  onCloseWorkspaceSwitcher,
-  onGoHome,
-  onAddProject,
-  onAddExistingProject,
-  onSaveToLocal,
-  onSetupCloud,
-  onSwitchToCloud,
-  onSwitchToLocal,
-  availableProjects,
-  onToggleBranchSwitcher,
-  onToggleWorkspaceSwitcher,
-}: DesktopTitlebarContextProps) {
-  const { t } = useLocalization();
-  const workspaceTitlebarLabel = workspace.name.trim() || workspace.name;
-  const branchReady = activeGitStatus?.isRepo === true;
-  const branchPending = activeGitStatus === null && gitStatusLoading;
-  const branchLabel = branchReady
-    ? (activeGitStatus.branch ?? t("shell.branch.detached"))
-    : branchPending
-      ? t("shell.branch.loading")
-      : t("shell.branch.noGit");
-  const branchTitlebarLabel = branchPending ? "" : branchLabel.trim() || branchLabel;
-
-  return (
-    <div className="desktop-titlebar-context">
-      <DesktopWorkspaceSwitcher
-        open={workspaceSwitcherOpen}
-        refObject={workspaceSwitcherRef}
-        titlebarLabel={workspaceTitlebarLabel}
-        workspace={workspace}
-        workspaceFolders={workspaceFolders}
-        multiRootWorkspacesEnabled={multiRootWorkspacesEnabled}
-        projectLocation={projectLocation}
-        availableProjects={availableProjects}
-        onAddExistingProject={multiRootWorkspacesEnabled ? onAddExistingProject : undefined}
-        onOpenFolder={multiRootWorkspacesEnabled ? onAddProject : undefined}
-        onClose={onCloseWorkspaceSwitcher}
-        onGoHome={onGoHome}
-        onSaveToLocal={onSaveToLocal}
-        onSetupCloud={onSetupCloud}
-        onSwitchToCloud={onSwitchToCloud}
-        onSwitchToLocal={onSwitchToLocal}
-        onToggle={onToggleWorkspaceSwitcher}
-      />
-      <DesktopBranchSwitcher
-        open={branchSwitcherOpen}
-        refObject={branchSwitcherRef}
-        titlebarLabel={branchTitlebarLabel}
-        branchLabel={branchLabel}
-        disabled={!branchReady}
-        loading={gitStatusLoading}
-        localBranches={localBranches}
-        remoteBranches={remoteBranches}
-        operationLoading={gitOperationLoading}
-        onCheckout={onCheckoutBranch}
-        onDone={onCloseBranchSwitcher}
-        onToggle={onToggleBranchSwitcher}
-      />
-    </div>
-  );
+/** Project navigation and provider selection are independent Header controls. */
+export function DesktopTitlebarContext({ projectLocation, cloudProject, onViewLocal, onViewCloud, projectReach, ...project }: DesktopTitlebarContextProps) {
+  const projectMenuOpen = project.projectMenuEnabled !== false && project.open;
+  return <div className="desktop-titlebar-context">
+    <DesktopWorkspaceSwitcher {...project} />
+    {projectReach
+      ? <ProjectReachControl {...projectReach} projectMenuOpen={projectMenuOpen} onOpen={project.onClose}
+        opening={{ projectLocation, cloudProject, onViewLocal, onViewCloud }} />
+      : <DesktopProjectLocationSwitcher projectLocation={projectLocation} cloudProject={cloudProject}
+        onViewLocal={onViewLocal} onViewCloud={onViewCloud}
+        projectMenuOpen={projectMenuOpen} onOpen={project.onClose} />}
+  </div>;
 }
 
-type DesktopTitlebarContextProps = {
-  activeGitStatus: GitStatusSnapshot | null;
-  branchSwitcherOpen: boolean;
-  branchSwitcherRef: RefObject<HTMLDivElement>;
-  gitStatusLoading: boolean;
-  gitOperationLoading: string | null;
-  localBranches: GitBranchSummary[];
-  remoteBranches: GitBranchSummary[];
+export type DesktopTitlebarContextProps = DesktopWorkspaceSwitcherProps & {
   projectLocation?: DesktopProjectLocation;
-  workspace: Workspace;
-  workspaceFolders: readonly WorkspaceFolder[];
-  multiRootWorkspacesEnabled: boolean;
-  availableProjects: readonly Workspace[];
-  workspaceSwitcherOpen: boolean;
-  workspaceSwitcherRef: RefObject<HTMLDivElement>;
-  onCheckoutBranch: (branchName: string, remote: boolean) => Promise<boolean>;
-  onCloseBranchSwitcher: () => void;
-  onCloseWorkspaceSwitcher: () => void;
-  onGoHome: () => void;
-  onAddProject: () => void;
-  onAddExistingProject: (folderPath: string) => void;
-  onSaveToLocal?: () => void;
-  onSetupCloud?: () => void;
-  onSwitchToCloud?: () => void;
-  onSwitchToLocal?: () => void;
-  onToggleBranchSwitcher: () => void;
-  onToggleWorkspaceSwitcher: () => void;
+  cloudProject?: DesktopProjectCloudCopy;
+  onViewLocal?: () => void;
+  onViewCloud?: () => void;
+  /** Present only on the project reach path; absent keeps the established control. */
+  projectReach?: ProjectReachControlProps | null;
 };
-
-function DesktopBranchSwitcher({
-  branchLabel,
-  disabled,
-  loading,
-  localBranches,
-  open,
-  operationLoading,
-  refObject,
-  remoteBranches,
-  titlebarLabel,
-  onCheckout,
-  onDone,
-  onToggle,
-}: {
-  branchLabel: string;
-  disabled: boolean;
-  loading: boolean;
-  localBranches: GitBranchSummary[];
-  open: boolean;
-  operationLoading: string | null;
-  refObject: RefObject<HTMLDivElement>;
-  remoteBranches: GitBranchSummary[];
-  titlebarLabel: string;
-  onCheckout: (branchName: string, remote: boolean) => Promise<boolean>;
-  onDone: () => void;
-  onToggle: () => void;
-}) {
-  const { t } = useLocalization();
-  const hasBranches = localBranches.length > 0 || remoteBranches.length > 0;
-
-  return (
-    <div className="desktop-titlebar-branch-wrap" ref={refObject}>
-      <Tooltip content={disabled
-          ? loading ? undefined : branchLabel
-          : t("shell.branch.title", { branch: bidiIsolate(branchLabel) })}><button
-        className="desktop-titlebar-branch-button"
-        type="button"
-        aria-label={t("shell.branch.switch", { branch: bidiIsolate(branchLabel) })}
-        aria-expanded={open}
-        aria-haspopup="menu"
-        disabled={disabled}
-        onClick={onToggle}
-      >
-        <GitBranch size={13} strokeWidth={1.8} aria-hidden="true" />
-        <span
-          className="desktop-titlebar-branch-label"
-          data-loading={loading && !titlebarLabel ? "true" : undefined}
-        >
-          {titlebarLabel || (loading ? (
-            <span className="desktop-titlebar-branch-placeholder" aria-hidden="true" />
-          ) : null)}
-        </span>
-      </button></Tooltip>
-
-      <DesktopTitlebarMenuLayer
-        anchorRef={refObject}
-        className="desktop-branch-menu"
-        gap={4}
-        onDismiss={onDone}
-        open={open && !disabled}
-        preferredMaxHeight={440}
-      >
-        {hasBranches ? (
-          <>
-            <BranchMenuGroup
-              title={t("shell.branch.localBranches")}
-              branches={localBranches}
-              operationLoading={operationLoading}
-              onCheckout={onCheckout}
-              onDone={onDone}
-            />
-            <BranchMenuGroup
-              title={t("shell.branch.remoteBranches")}
-              branches={remoteBranches}
-              operationLoading={operationLoading}
-              onCheckout={onCheckout}
-              onDone={onDone}
-            />
-          </>
-        ) : loading ? null : (
-          <DesktopMenuItem
-            className="desktop-branch-menu-row"
-            disabled
-            icon={<GitBranch size={13} strokeWidth={1.8} />}
-            label={t("shell.branch.noBranches")}
-          />
-        )}
-      </DesktopTitlebarMenuLayer>
-    </div>
-  );
-}
