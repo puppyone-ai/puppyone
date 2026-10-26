@@ -1,5 +1,4 @@
 import { Check, Copy, LockKeyhole, Unlink } from "lucide-react";
-import { CloudIcon as Cloud } from "../../../../components/icons/CloudIcon";
 import { useEffect, useState } from "react";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
@@ -11,6 +10,7 @@ import {
 } from "../../../../lib/cloudApi";
 import type { CloudWorkspaceSection } from "../../types";
 import { copyText } from "../../utils";
+import { CloudIcon as Cloud } from "@puppyone/shared-ui";
 
 type SettingsTab = "general" | "access" | "connection";
 

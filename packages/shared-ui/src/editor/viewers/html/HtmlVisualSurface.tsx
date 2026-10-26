@@ -5,7 +5,7 @@ import {
   FloatingNoticeStack,
   useDismissibleNotice,
 } from "../../../primitives/FloatingNotice";
-import { PulseGridLoader } from "../../../primitives/LoadingIndicator";
+import { LoadingMark } from "../../../primitives/LoadingMark";
 import type { CodeMirrorDocumentModel } from "../../document-session/CodeMirrorDocumentModel";
 import { useDocumentAssetImport } from "../../resource/DocumentAssetImport";
 import { useEditorPreviewServices } from "../../preview-services/EditorPreviewServices";
@@ -22,11 +22,13 @@ import type { HtmlEditOperation } from "./htmlEditCompiler";
 import { imageSourceReference } from "./htmlImageReference";
 import { useHtmlEditPresence } from "./useHtmlEditPresence";
 import { HtmlBlockActionRail, type HtmlActionBounds } from "./HtmlBlockActionRail";
+import type { HtmlPageViewport } from "./htmlPageViewport";
 
-export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, registerPrepare, onUnavailable }: {
+export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, viewportState, registerPrepare, onUnavailable }: {
   model: CodeMirrorDocumentModel; path: string; title: string; fileUrl?: string | null; canEdit: boolean;
   onUnavailable: () => void;
   registerPrepare: (prepare: (() => void | Promise<void>) | null) => void;
+  viewportState?: HtmlPageViewport;
 }) {
   const { t } = useLocalization();
   const assets = useDocumentAssetImport();
@@ -49,7 +51,8 @@ export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, regist
   const active = useRef<string | null>(null);
   const composing = useRef(false);
   const nativeControl = useRef(false);
-  const scroll = useRef({ x: 0, y: 0 });
+  const localScroll = useRef({ x: 0, y: 0 });
+  const scroll = viewportState ?? localScroll;
   const port = useRef<MessagePort | null>(null);
   const prepareText = useRef<(() => void) | null>(null);
   const pendingImport = useRef<Promise<void> | null>(null);
@@ -291,7 +294,7 @@ export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, regist
   }}>
     {visibleStatus && <FloatingNoticeStack className="html-editor-notice-stack html-visual-notice-stack">
       <FloatingNotice className="html-visual-editor__status" tone={error ? "danger" : "neutral"}
-        icon={error ? undefined : <PulseGridLoader size="xs" ariaHidden />}
+        icon={error ? undefined : <LoadingMark size="xs" ariaHidden />}
         role={error ? "alert" : "status"} onDismiss={dismissStatus}>
         {visibleStatus}
       </FloatingNotice>

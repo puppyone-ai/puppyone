@@ -1,15 +1,16 @@
-import {
-  EDITABLE_TABLE_COLUMN_RESIZE_MAX_WIDTH,
-  clampEditableTableColumnWidth,
-  fitEditableTableColumnWidths,
-} from "../../../table/editableTableLayout";
+import { clampEmbeddedTableColumnWidth } from "../../platform/codemirror/embeddedTableColumnGeometry";
 import type { MarkdownEmbedHost } from "../../platform/codemirror/embedHost";
 import type { EmbeddedTableColumnLayoutSession } from "../../platform/codemirror/embeddedTableColumnLayoutSession";
 import type { MarkdownTableAlignment, MarkdownTableRow } from "./tableModel";
 import {
+  DEFAULT_MARKDOWN_TABLE_LAYOUT_METRICS,
   estimateMarkdownTableColumnWidth,
-  estimateMarkdownTableColumnWidths,
-} from "./tableLayout";
+  fitMarkdownTableColumnWidths,
+  layoutMarkdownTableColumns,
+  measureMarkdownTableColumns,
+  type MarkdownTableColumnContent,
+  type MarkdownTableLayoutMetrics,
+} from "./markdownTableColumnLayout";
 import { closeActiveMarkdownTableMenu } from "./tableMenuState";
 
 export type MarkdownTableColumnLayoutController = Readonly<{
@@ -29,15 +30,20 @@ type MarkdownTableColumnLayoutContext = Readonly<{
   rows: readonly MarkdownTableRow[];
   scrollport: HTMLElement;
   session: EmbeddedTableColumnLayoutSession;
+  /** Settles horizontal overflow after the table changes its own tracks. */
+  settleOverflow?: () => void;
   surface: HTMLElement;
   table: HTMLTableElement;
   wrapper: HTMLElement;
 }>;
 
 /**
- * DOM adapter for one progressively disclosed resize rail. Pointer moves only
- * update the <col> track; the semantic View State is committed once at the
- * gesture boundary, outside Markdown source and undo history.
+ * DOM adapter for one table's column tracks. Automatic tracks follow the
+ * reading column: they reflow whenever its width changes, never while a cell
+ * is edited. Explicit tracks come from the progressively disclosed resize
+ * rail (or auto-fit / fit-to-viewport): pointer moves only update the <col>
+ * track, and the semantic View State is committed once at the gesture
+ * boundary, outside Markdown source and undo history.
  */
 export function createMarkdownTableColumnLayoutController(
   context: MarkdownTableColumnLayoutContext,
@@ -56,6 +62,10 @@ export function createMarkdownTableColumnLayoutController(
   context.surface.appendChild(resizeLayer);
 
   let widths = [...context.session.widths];
+  let explicit = context.session.explicit;
+  let autoLayoutWidth = context.session.autoLayoutWidth;
+  let columnContents: MarkdownTableColumnContent[] | null = null;
+  let reflowFrame: number | null = null;
   let activeColumnIndex: number | null = null;
   let activeResizeCleanup: (() => void) | null = null;
   let positionFrame: number | null = null;
@@ -73,10 +83,9 @@ export function createMarkdownTableColumnLayoutController(
   };
 
   const commitWidths = (nextWidths: readonly number[]) => {
-    widths = nextWidths.map((width) => clampEditableTableColumnWidth(
-      width,
-      EDITABLE_TABLE_COLUMN_RESIZE_MAX_WIDTH,
-    ));
+    widths = nextWidths.map(clampEmbeddedTableColumnWidth);
+    explicit = true;
+    autoLayoutWidth = null;
     applyWidths(widths);
     context.host.tableColumnLayouts.setWidths(
       context.session.sessionId,
@@ -85,6 +94,75 @@ export function createMarkdownTableColumnLayoutController(
     );
     context.host.requestMeasure();
     positionHandle();
+  };
+
+  /**
+   * The reading column the table may fill. The frame's inline padding is the
+   * interaction rail outside the reading column, which already holds the
+   * add-column action, so a fitted table aligns with the text edges.
+   */
+  const measureAvailableWidth = () => {
+    const styles = ownerWindow?.getComputedStyle(context.frame);
+    const paddingStart = Number.parseFloat(styles?.paddingInlineStart ?? "0") || 0;
+    const paddingEnd = Number.parseFloat(styles?.paddingInlineEnd ?? "0") || 0;
+    return Math.max(0, context.scrollport.clientWidth - paddingStart - paddingEnd);
+  };
+
+  const measureLayoutMetrics = (): MarkdownTableLayoutMetrics | null => {
+    const availableWidth = measureAvailableWidth();
+    if (!ownerWindow || availableWidth <= 0) return null;
+    const fontSize = Number.parseFloat(ownerWindow.getComputedStyle(context.table).fontSize);
+    const cellContent = context.table.querySelector<HTMLElement>(".cm-md-table-cell-content");
+    const cellStyles = cellContent ? ownerWindow.getComputedStyle(cellContent) : null;
+    const cellInset = (Number.parseFloat(cellStyles?.paddingLeft ?? "") || 0)
+      + (Number.parseFloat(cellStyles?.paddingRight ?? "") || 0)
+      + 1;
+    if (!Number.isFinite(fontSize) || fontSize <= 0) return null;
+    return { availableWidth, emPx: fontSize, cellInset };
+  };
+
+  /** Lay automatic tracks out for one reading column. */
+  const applyAutomaticLayout = (metrics: MarkdownTableLayoutMetrics) => {
+    columnContents ??= measureMarkdownTableColumns(context.rows, context.alignments.length);
+    const nextWidths = layoutMarkdownTableColumns(columnContents, metrics);
+    autoLayoutWidth = metrics.availableWidth;
+    context.host.tableColumnLayouts.setAutoWidths(
+      context.session.sessionId,
+      context.session.mountToken,
+      nextWidths,
+      metrics.availableWidth,
+    );
+    if (nextWidths.length === widths.length && nextWidths.every((width, index) => width === widths[index])) return;
+    widths = nextWidths;
+    applyWidths(widths);
+    context.settleOverflow?.();
+    context.host.requestMeasure();
+    positionHandle();
+  };
+
+  /**
+   * Follow the reading column. Only a changed width reflows, so re-rendering
+   * a table while a cell is edited never moves its columns.
+   */
+  const reflowAutomaticWidths = () => {
+    if (disposed || explicit || activeResizeCleanup) return;
+    const metrics = measureLayoutMetrics();
+    if (!metrics) return;
+    context.host.tableColumnLayouts.rememberAutoLayoutMetrics(metrics);
+    if (autoLayoutWidth !== null && Math.abs(metrics.availableWidth - autoLayoutWidth) < 1) return;
+    applyAutomaticLayout(metrics);
+  };
+
+  const scheduleReflow = () => {
+    if (reflowFrame !== null || disposed) return;
+    if (!ownerWindow) {
+      reflowAutomaticWidths();
+      return;
+    }
+    reflowFrame = ownerWindow.requestAnimationFrame(() => {
+      reflowFrame = null;
+      reflowAutomaticWidths();
+    });
   };
 
   const positionHandle = () => {
@@ -144,7 +222,10 @@ export function createMarkdownTableColumnLayoutController(
   const autoFitColumn = (columnIndex: number) => {
     if (disposed || !Number.isInteger(columnIndex) || !widths[columnIndex]) return;
     const next = [...widths];
-    next[columnIndex] = estimateMarkdownTableColumnWidth(context.rows, columnIndex);
+    const metrics = measureLayoutMetrics()
+      ?? context.host.tableColumnLayouts.getAutoLayoutMetrics()
+      ?? undefined;
+    next[columnIndex] = estimateMarkdownTableColumnWidth(context.rows, columnIndex, metrics);
     commitWidths(next);
   };
 
@@ -170,10 +251,7 @@ export function createMarkdownTableColumnLayoutController(
       moveEvent.preventDefault();
       moveEvent.stopPropagation();
       const delta = (moveEvent.clientX - startX) * (context.direction === "rtl" ? -1 : 1);
-      currentWidth = clampEditableTableColumnWidth(
-        startWidth + delta,
-        EDITABLE_TABLE_COLUMN_RESIZE_MAX_WIDTH,
-      );
+      currentWidth = clampEmbeddedTableColumnWidth(startWidth + delta);
       const physicalDelta = (currentWidth - startWidth) * (context.direction === "rtl" ? -1 : 1);
       handle.style.left = `${startLeft + physicalDelta}px`;
       if (columnTrack) columnTrack.style.width = `${currentWidth}px`;
@@ -239,6 +317,11 @@ export function createMarkdownTableColumnLayoutController(
     ? null
     : new ResizeObserver(schedulePosition);
   resizeObserver?.observe(context.table);
+  // The reading column, not the table: automatic tracks follow its width.
+  const readingColumnObserver = typeof ResizeObserver === "undefined"
+    ? null
+    : new ResizeObserver(scheduleReflow);
+  readingColumnObserver?.observe(context.wrapper);
 
   return {
     autoFitColumn,
@@ -252,8 +335,11 @@ export function createMarkdownTableColumnLayoutController(
       context.surface.removeEventListener("pointerleave", clearHover);
       context.scrollport.removeEventListener("scroll", positionHandle);
       resizeObserver?.disconnect();
+      readingColumnObserver?.disconnect();
       if (positionFrame !== null) ownerWindow?.cancelAnimationFrame(positionFrame);
       positionFrame = null;
+      if (reflowFrame !== null) ownerWindow?.cancelAnimationFrame(reflowFrame);
+      reflowFrame = null;
       resizeLayer.remove();
       context.host.tableColumnLayouts.detach(
         context.session.sessionId,
@@ -262,26 +348,21 @@ export function createMarkdownTableColumnLayoutController(
     },
 
     fitToViewport() {
-      const styles = ownerWindow?.getComputedStyle(context.frame);
-      const surfaceStyles = ownerWindow?.getComputedStyle(context.surface);
-      const paddingStart = Number.parseFloat(styles?.paddingInlineStart ?? "0") || 0;
-      const paddingEnd = Number.parseFloat(styles?.paddingInlineEnd ?? "0") || 0;
-      const actionGutter = Number.parseFloat(
-        surfaceStyles?.getPropertyValue("--po-editable-table-action-gutter") ?? "0",
-      ) || 0;
-      const availableWidth = Math.max(
-        0,
-        context.scrollport.clientWidth - paddingStart - paddingEnd - actionGutter,
-      );
-      commitWidths(fitEditableTableColumnWidths(
-        widths,
-        availableWidth,
-        EDITABLE_TABLE_COLUMN_RESIZE_MAX_WIDTH,
-      ));
+      commitWidths(fitMarkdownTableColumnWidths(widths, measureAvailableWidth()));
     },
 
+    /** Back to automatic tracks that follow the reading column. */
     resetColumnWidths() {
-      commitWidths(estimateMarkdownTableColumnWidths(context.alignments, context.rows));
+      context.host.tableColumnLayouts.resetToAuto(
+        context.session.sessionId,
+        context.session.mountToken,
+      );
+      explicit = false;
+      applyAutomaticLayout(
+        measureLayoutMetrics()
+          ?? context.host.tableColumnLayouts.getAutoLayoutMetrics()
+          ?? DEFAULT_MARKDOWN_TABLE_LAYOUT_METRICS,
+      );
     },
   };
 }

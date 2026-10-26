@@ -1,10 +1,15 @@
-import { FILE_ICON_THEMES, PULSE_GRID_PRESET_FRAMES, PULSE_GRID_PRESET_IDS, FileGlyphIcon } from "@puppyone/shared-ui";
+import {
+  FILE_ICON_THEMES,
+  LoadingMark,
+  LoadingPlaceholderStyleProvider,
+  FileGlyphIcon,
+  PlaceholderLayer,
+} from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
-import { TITLEBAR_ACTION_IDS } from "../../../preferences";
+import { SELECTABLE_LOADING_STYLES, TITLEBAR_ACTION_IDS } from "../../../preferences";
 import { AgentEntryIcon } from "../../../components/brand/AgentEntryIcon";
 import { VersionControlIcon } from "../../source-control";
 import { isAppearanceDecisionLocked, isAppearanceValueAllowed } from "../../appearance";
-import { PulseGrid } from "../../../components/loading";
 import { useDesktopPreference } from "../../../preferencesStore";
 import { useDesktopAppearance } from "../useDesktopAppearance";
 import { SettingsSectionHeader } from "../components";
@@ -23,9 +28,11 @@ export function AppearanceSettingsView({ subThemeCatalog }: { subThemeCatalog: S
           <div className="desktop-settings-list desktop-settings-lead-list">
             <InterfacePaletteSettings />
             <SubThemeSettingsSection catalog={subThemeCatalog} />
-            <FileIconSetting />
-            <GitSidebarLayoutSetting />
-            <LoadingAnimationSetting />
+            {/* A choice exists only once a second file-icon theme is registered. */}
+            {FILE_ICON_THEMES.length > 1 && <FileIconSetting />}
+            <ShowFileIconsSetting />
+            {/* A choice exists only while more than one loading style is offered. */}
+            {SELECTABLE_LOADING_STYLES.length > 1 && <LoadingStyleSetting />}
             <HeaderElementsSetting />
             <PointerCursorSetting />
             <InterfaceStyleSetting />
@@ -70,61 +77,40 @@ function FileIconSetting() {
   );
 }
 
-function GitSidebarLayoutSetting() {
+/**
+ * One loading style for the whole app: loading marks and loading placeholders
+ * are drawn in the same material. Each option previews both in its own style.
+ */
+function LoadingStyleSetting() {
   const { t } = useLocalization();
-  const gitSidebarLayout = useDesktopPreference(s => s.gitSidebarLayout);
-  const onGitSidebarLayoutChange = useDesktopPreference(s => s.setGitSidebarLayout);
+  const loadingStyle = useDesktopPreference(s => s.loadingPlaceholderStyle);
+  const onLoadingStyleChange = useDesktopPreference(s => s.setLoadingPlaceholderStyle);
   return (
     <div className="desktop-settings-row desktop-settings-row-control desktop-settings-wide-control-row">
-      <span>{t("settings.appearance.gitSidebarLayout.title")}</span>
+      <span>{t("settings.appearance.loadingStyle.title")}</span>
       <div
         className="desktop-theme-segment desktop-appearance-option-segment desktop-appearance-hug-segment"
-        aria-label={t("settings.appearance.gitSidebarLayout.ariaLabel")}
+        aria-label={t("settings.appearance.loadingStyle.ariaLabel")}
       >
-        {(["cards", "dividers"] as const).map((layout) => (
+        {SELECTABLE_LOADING_STYLES.map((style) => (
           <button
-            key={layout}
-            className={gitSidebarLayout === layout ? "active" : ""}
+            key={style}
+            className={loadingStyle === style ? "active" : ""}
             type="button"
-            aria-pressed={gitSidebarLayout === layout}
-            onClick={() => onGitSidebarLayoutChange(layout)}
+            aria-pressed={loadingStyle === style}
+            onClick={() => onLoadingStyleChange(style)}
           >
-            <span>{t(`settings.appearance.gitSidebarLayout.${layout}.label`)}</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function LoadingAnimationSetting() {
-  const { t } = useLocalization();
-  const loadingAnimationPreset = useDesktopPreference(s => s.loadingAnimationPreset);
-  const onLoadingAnimationPresetChange = useDesktopPreference(s => s.setLoadingAnimationPreset);
-  return (
-    <div className="desktop-settings-row desktop-settings-row-control desktop-settings-wide-control-row">
-      <span>{t("settings.appearance.loadingAnimation.title")}</span>
-      <div
-        className="desktop-theme-segment desktop-appearance-option-segment desktop-appearance-hug-segment"
-        aria-label={t("settings.appearance.loadingAnimation.ariaLabel")}
-      >
-        {PULSE_GRID_PRESET_IDS.map((presetId) => (
-          <button
-            key={presetId}
-            className={loadingAnimationPreset === presetId ? "active" : ""}
-            type="button"
-            aria-pressed={loadingAnimationPreset === presetId}
-            onClick={() => onLoadingAnimationPresetChange(presetId)}
-          >
-            <span className="desktop-loading-animation-preview" aria-hidden="true">
-              <PulseGrid
-                size="sm"
-                tone="neutral"
-                frames={PULSE_GRID_PRESET_FRAMES[presetId]}
-                ariaHidden
-              />
+            <span className="desktop-loading-style-preview" aria-hidden="true">
+              <LoadingMark size="sm" loadingStyle={style} ariaHidden />
+              <span className="desktop-loading-placeholder-preview po-placeholder-surface">
+                <span data-placeholder-shape="" />
+                <span data-placeholder-shape="" />
+                <LoadingPlaceholderStyleProvider style={style}>
+                  <PlaceholderLayer />
+                </LoadingPlaceholderStyleProvider>
+              </span>
             </span>
-            <span>{t(`settings.appearance.loadingAnimation.${presetId}.label`)}</span>
+            <span>{t(`settings.appearance.loadingStyle.${style}.label`)}</span>
           </button>
         ))}
       </div>
@@ -185,6 +171,27 @@ function HeaderElementsSetting() {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+/** File glyphs in the explorer; off leaves only the folder chevrons. */
+function ShowFileIconsSetting() {
+  const { t } = useLocalization();
+  const showFileIcons = useDesktopPreference(s => s.showFileIcons);
+  const onShowFileIconsChange = useDesktopPreference(s => s.setShowFileIcons);
+  return (
+    <div className="desktop-settings-row desktop-settings-row-control">
+      <span id="desktop-show-file-icons-label">{t("settings.appearance.showFileIcons.title")}</span>
+      <label className="desktop-settings-switch">
+        <input
+          type="checkbox"
+          checked={showFileIcons}
+          aria-labelledby="desktop-show-file-icons-label"
+          onChange={(event) => onShowFileIconsChange(event.target.checked)}
+        />
+        <span aria-hidden="true" />
+      </label>
     </div>
   );
 }

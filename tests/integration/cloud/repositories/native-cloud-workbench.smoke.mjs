@@ -143,7 +143,7 @@ async function headerPresentation(location) {
       icon:{ location:mark.dataset.projectLocation, name:svg.dataset.cloudIcon ?? null,
         glyph:[...svg.classList].find(name => name.startsWith('lucide-')) ?? null,
         color:rgb(getComputedStyle(mark).color),
-        paint:rgb(outline ? getComputedStyle(outline).fill : getComputedStyle(svg).stroke),
+        paint:rgb(getComputedStyle(outline ?? svg).stroke),
         accessibleLabel:button.getAttribute('aria-label') },
       labelColor:rgb(getComputedStyle(button.lastElementChild).color),
       buttonColor:rgb(getComputedStyle(button).color),
@@ -174,11 +174,7 @@ async function headerPresentation(location) {
   assert(sample.icon.location === location && JSON.stringify(sample.icon.color) === JSON.stringify(expectedIcon)
     && JSON.stringify(sample.icon.paint) === JSON.stringify(expectedIcon), 'Location icons must share readable Header ink');
   assert(JSON.stringify(sample.accent) === '[69,153,223]', 'Brand blue is the approved #4599DF in both themes, not adaptive accent/info');
-  // The location control names where the project runs (cd3649b7): a laptop on
-  // this computer, a server for the hosted workspace. The approved Cloud
-  // outline is reserved for Cloud collaboration, not the runtime mark.
-  assert(sample.icon.name === null && sample.icon.glyph === (location === 'cloud' ? 'lucide-server' : 'lucide-laptop'),
-    `The runtime mark must be a laptop or a server, never the Cloud outline: ${JSON.stringify(sample.icon)}`);
+  assert(sample.icon.name === (location === 'cloud' ? 'puppyone' : null), 'Use the approved Cloud outline only for the committed Cloud provider');
   assert(JSON.stringify(sample.labelColor) === JSON.stringify(sample.buttonColor), 'Blue icon must not recolor the location label');
   assert(sample.frame.location === location && sample.frame.identity === 'retained-shell', 'Window frame must follow the same committed provider without remounting');
   assert(sample.frame.x === 0 && sample.frame.y === 0 && sample.frame.width === sample.viewport
@@ -198,13 +194,15 @@ async function headerPresentation(location) {
   const iconInk = luminance(sample.icon.color), iconPaper = luminance(sample.contrastSamples[0].paper);
   sample.iconContrast = (Math.max(iconInk,iconPaper)+0.05)/(Math.min(iconInk,iconPaper)+0.05);
   assert(sample.iconContrast >= 3, `Location icon needs 3:1 contrast: ${sample.iconContrast}`);
-  // The runtime is named in words ("Hosted workspace" / "Local", cd3649b7), not by color alone.
-  assert(sample.icon.accessibleLabel.includes(location === 'cloud' ? 'Hosted workspace' : 'Local'),
+  // The computer is named in words ("Cloud Computer" / "Local"), not by color alone.
+  assert(sample.icon.accessibleLabel.includes(location === 'cloud' ? 'Cloud Computer' : 'Local'),
     `Location needs a textual accessible name, not just the brand color: ${sample.icon.accessibleLabel}`);
   return sample;
 }
 async function windowFramePixels(sample) {
   const width = sample.viewport, height = sample.viewportHeight;
+  // headerPresentation settles transitions in script; capture a frame painted after that.
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   const image = await window.webContents.capturePage();
   const bitmap = image.toBitmap();
   const scale = Math.sqrt(bitmap.length / (width * height * 4));
@@ -252,6 +250,19 @@ async function openProjectMenu() {
     // Locations are menu rows in the popover (93ca6498); the sliding plate only
     // exists in the header-icons presentation. Either way, opening must not
     // move or resize the bar, and a missing element fails instead of hanging.
+    // Let the Header finish the previous step (sidebar, centering) first, so the
+    // frames below measure opening alone, not an anchor that is still settling.
+    await evaluate(`new Promise(resolve => {
+      let previous = null, stable = 0, frames = 0;
+      const check = () => {
+        const r = document.querySelector('.desktop-titlebar-location-button')?.getBoundingClientRect();
+        const now = r ? [r.x, r.y, r.width, r.height].join() : null;
+        stable = now && now === previous ? stable + 1 : 0;
+        previous = now;
+        if (stable >= 2 || ++frames > 60) resolve(); else requestAnimationFrame(check);
+      };
+      requestAnimationFrame(check);
+    })`);
     const frames = await evaluate(`new Promise((resolve, reject) => {
       const samples = [];
       document.querySelector('.desktop-titlebar-location-button').click();
@@ -267,7 +278,8 @@ async function openProjectMenu() {
                 plateWidth: Math.abs(plate.getBoundingClientRect().width - selected.getBoundingClientRect().width),
                 animations: plate.getAnimations().length }
               : null;
-            samples.push({ x: m.x, y: m.y, width: m.width, height: m.height, slider });
+            const anchor = document.querySelector('.desktop-titlebar-location-button')?.getBoundingClientRect();
+            samples.push({ x: m.x, y: m.y, width: m.width, height: m.height, slider, anchorX: anchor?.x });
           }
           if (samples.length < 24) requestAnimationFrame(sample); else resolve(samples);
         } catch (error) { reject(error); }
@@ -445,11 +457,10 @@ app.whenReady().then(async () => {
       && animation.effect.getTiming().duration === 260
       && animation.animationName === 'desktop-cloud-header-expand';
   })()`), 'Header blue must expand from its lower-right center over 260ms while Cloud prepares');
-  // Since 3b3355db/cd3649b7 the location button states where the project runs,
-  // so it stays Local until the provider commits; the rest of the Header
-  // follows the intent at once.
-  assert(await evaluate("document.querySelector('.desktop-titlebar')?.dataset.workspaceKind === 'cloud' && Boolean(document.querySelector('.desktop-titlebar-location-button .desktop-titlebar-workspace-mark[data-project-location=local]')) && !document.querySelector('.desktop-titlebar-terminal:not([data-cloud-workspace-tool]), .desktop-titlebar-changes')"),
-    'Cloud intent must switch the Header and remove local actions before provider commit, while the runtime mark stays Local');
+  // The location button names the computer being opened and states that it
+  // is still opening; the rest of the Header follows the intent at once.
+  assert(await evaluate("document.querySelector('.desktop-titlebar')?.dataset.workspaceKind === 'cloud' && Boolean(document.querySelector('.desktop-titlebar-location-button[aria-busy=true] .desktop-titlebar-workspace-mark[data-project-location=cloud][data-computer-status=opening]')) && !document.querySelector('.desktop-titlebar-terminal:not([data-cloud-workspace-tool]), .desktop-titlebar-changes')"),
+    'Cloud intent must switch the Header and remove local actions before provider commit, while the location mark states Cloud is opening');
   assert(await evaluate("document.querySelectorAll('[data-cloud-workspace-tool]').length === 3 && [...document.querySelectorAll('[data-cloud-workspace-tool]')].every(button => button.disabled)"),
     'All three Cloud tools must appear immediately and await the authorized provider commit');
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
@@ -463,7 +474,7 @@ app.whenReady().then(async () => {
       window.setSize(width, 760);
       await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
       const loadingLayout = await evaluate(`(() => {
-        const rail = document.querySelector('.desktop-cloud-preparation-rail');
+        const rail = document.querySelector('.desktop-cloud-preparation .explorer-column');
         const tree = document.querySelector('[data-workspace-location=local] .explorer-tree-shell');
         const css = getComputedStyle(tree), bounds = rail.getBoundingClientRect();
         const number = name => parseFloat(css.getPropertyValue(name));
@@ -475,8 +486,12 @@ app.whenReady().then(async () => {
         });
         return { rows, height:number('--tree-row-height'), indent:number('--tree-row-indent'),
           inset:number('--tree-row-left-gap')+number('--tree-row-content-left'),
-          top:number('--tree-no-root-top-gap'), gap:number('--tree-row-icon-label-gap') };
+          top:number('--tree-no-root-top-gap'), gap:number('--tree-row-icon-label-gap'),
+          width:bounds.width, readyWidth:document.querySelector('[data-workspace-location=local] .explorer-column').getBoundingClientRect().width,
+          resizable:Boolean(rail.querySelector('.data-explorer-resizer')) };
       })()`);
+      assert(loadingLayout.resizable && Math.abs(loadingLayout.width-loadingLayout.readyWidth) < 1,
+        `Pending Cloud Explorer must be the resizable workbench column (${theme}/${width}): ${JSON.stringify(loadingLayout)}`);
       assert(loadingLayout.rows.length === 6 && loadingLayout.rows.every((row, index) =>
         Math.abs(row.height-loadingLayout.height) < 1 && Math.abs(row.gap-loadingLayout.gap) < 1
         && Math.abs(row.y-(loadingLayout.top+index*(loadingLayout.height+2))) < 1
@@ -619,8 +634,12 @@ app.whenReady().then(async () => {
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await writeFile(path.join(artifacts, "cloud-html.png"), (await window.webContents.capturePage()).toPNG());
   await evaluate("document.querySelector('[data-cloud-native=true] .desktop-editor-pane-handle').click()");
-  await waitFor("Boolean([...document.querySelectorAll('.desktop-editor-pane-menu button')].find(button => button.textContent === 'Show code'))");
-  await evaluate("[...document.querySelectorAll('.desktop-editor-pane-menu button')].find(button => button.textContent === 'Show code').click()");
+  await waitFor("Boolean(document.querySelector('.desktop-editor-pane-menu button[aria-label=\"Source code\"]'))");
+  await evaluate("document.querySelector('.desktop-editor-pane-menu button[aria-label=\"Source code\"]').click()");
+  // View modes are a toggle that keeps the menu open. Dismiss it as a person
+  // would, or it stays open over later steps once its pane is hidden.
+  await evaluate("document.activeElement.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true}))");
+  await waitFor("!document.querySelector('.desktop-editor-pane-menu')");
   await waitFor("Boolean(document.querySelector('[data-cloud-native=true] .document-surface-slot.is-committed:not(.is-obscured) .html-document-editor .cm-editor'))");
   await editDocument('cloud', '<!doctype html><h1>Cloud HTML saved</h1>');
   await waitFor("window.__nativeCloudWorkbenchSmoke.state().cloudWrites.some(write => write.path === 'page.html' && write.content.includes('Cloud HTML saved'))");

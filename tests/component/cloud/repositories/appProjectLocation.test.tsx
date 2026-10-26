@@ -53,7 +53,9 @@ function appLocation(cloudWorkspaceActive: boolean, cloudState: DesktopProjectLo
   expect(locationBinding).not.toBe("");
   expect(surfaceBinding).not.toBe("");
   expect(chromeBinding).not.toBe("");
-  expect(headerBindings).toEqual(["projectLocation", "projectLocation"]);
+  // Every place control reads the one committed location: the Header context,
+  // the Cloud dialog's controls, and the Project rail's row menu.
+  expect(headerBindings).toEqual(["projectLocation", "projectLocation", "projectLocation"]);
   const compiled = ts.transpileModule(`const projectLocation = ${locationBinding};
     ({ projectLocation, surface: ${surfaceBinding}, chrome: ${chromeBinding} });`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
   return runInNewContext(compiled, { cloudEnabled, cloudWorkspaceActive, projectCloudLocationState: cloudState,
@@ -126,7 +128,7 @@ describe("production App location wiring", () => {
     expect(localButton().getAttribute("aria-pressed")).toBe("false");
     expect(localButton().disabled).toBe(false);
     expect(title?.querySelector('[data-project-location="cloud"]')).not.toBeNull();
-    expect(title?.getAttribute("aria-label")).toContain("Hosted workspace");
+    expect(title?.getAttribute("aria-label")).toContain("Cloud Computer");
     expect(document.querySelector(".desktop-titlebar")).toBe(header);
     expect(document.querySelector(".desktop-titlebar-location-button")).toBe(title);
     expect(document.querySelector(".desktop-titlebar-centered-context .desktop-titlebar-workspace-name")?.textContent).toBe("To-Do-List");

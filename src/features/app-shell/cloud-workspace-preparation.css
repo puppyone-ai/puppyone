@@ -7,10 +7,3 @@
   background: var(--po-canvas);
   color: var(--po-text);
 }
-
-.desktop-cloud-preparation-rail {
-  box-sizing: border-box;
-  width: var(--desktop-shell-explorer-width, 240px);
-  flex: 0 0 auto;
-  overflow: hidden;
-}

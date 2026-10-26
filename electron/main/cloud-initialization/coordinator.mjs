@@ -30,6 +30,7 @@ import {
   toStoredError,
 } from "./contract.mjs";
 import { archiveAttempt, createPushAttempt } from "./attempts/source-ref.mjs";
+import { requiresSameCommitRetry } from "./attempts/retry-policy.mjs";
 import { deriveCloudInitializationState } from "./state-derivation.mjs";
 import { createCloudInitializationTelemetry } from "./telemetry.mjs";
 
@@ -55,6 +56,7 @@ export function createCloudPublishCoordinator({
   configuredGitOrigin = process.env.VITE_DESKTOP_CLOUD_GIT_ORIGIN ?? null,
   telemetry = null,
   logger = {},
+  fetchImpl = globalThis.fetch,
 } = {}) {
   if (!cloudAuthService?.readSession || !cloudAuthService?.requestSessionApi) {
     throw new TypeError("Cloud initialization coordinator requires cloudAuthService.");
@@ -77,6 +79,7 @@ export function createCloudPublishCoordinator({
     getGitStatus,
     gitCredentialManager,
     injectFault,
+    fetchImpl,
   });
   const events = telemetry ?? createCloudInitializationTelemetry({ logger, now });
   const inflight = new Map();
@@ -251,20 +254,13 @@ export function createCloudPublishCoordinator({
         if (record.push_state === "conflict") {
           throw createPublishError("REMOTE_REF_CONFLICT", "Cloud main contains a different commit.", false);
         }
-        if (record.push_state === "uncertain") {
-          if (base.action !== "reconcile") {
-            throw createPublishError("PUSH_UNCERTAIN", "Check Cloud main before creating another push attempt.", true);
-          }
-          const notAccepted = createPublishError(
-            "PUSH_FAILED",
-            "Cloud main does not contain the uncertain attempt. Retry Push when ready.",
-            true,
-          );
-          record = await persistFailure(base.rootPath, record, notAccepted);
-          const refreshedFacts = await readLocalFacts(base.rootPath, record);
-          return failureResult(notAccepted, deriveCloudInitializationState(record, refreshedFacts));
-        }
-        if (base.action === "choose-source") {
+        if (requiresSameCommitRetry(record)) {
+          // Absence is not a failure receipt. Resend the same candidate with a
+          // fresh physical attempt ID; both writers require an absent main.
+          // The server's atomic CAS, not a client timeout, arbitrates the race.
+          record = await beginRetryAttempt(base.rootPath, record);
+          reportProgress("validating", record);
+        } else if (base.action === "choose-source") {
           if (!facts.sourceMissing) {
             throw createPublishError(
               "IDENTITY_MISMATCH",
@@ -324,7 +320,7 @@ export function createCloudPublishCoordinator({
           base.rootPath,
           record,
           await requireStoredSecret(record),
-          (stage) => reportProgress(stage, record),
+          (stage, transfer) => reportProgress(stage, record, transfer),
         );
         record = await persist(base.rootPath, record, {
           checkpoint: "push-accepted",
@@ -397,19 +393,7 @@ export function createCloudPublishCoordinator({
           await cloudApi.abandonEmptyProject(record);
         } catch (error) {
           if (isNotAbandonable(error)) {
-            facts = await readFacts(base.rootPath, record, { canonicalUrlOnly: true });
-            ({ record, facts } = await persistRemoteTruth(base.rootPath, record, facts));
-            if (record.push_state === "accepted") {
-              return finishAcceptedOperation(base.rootPath, record, facts.status, null);
-            }
-            if (record.push_state === "conflict") {
-              throw createPublishError(
-                "REMOTE_REF_CONFLICT",
-                "Cloud main contains content; cleanup stopped without deleting the Project.",
-                false,
-                error,
-              );
-            }
+            return await handleCleanupRefusal(base.rootPath, record, error);
           }
           if (!isProjectUnavailable(error)) throw error;
         }
@@ -444,6 +428,41 @@ export function createCloudPublishCoordinator({
       const facts = failed ? await readLocalFacts(base.rootPath, failed).catch(() => ({})) : {};
       return failureResult(error, failed ? deriveCloudInitializationState(failed, facts) : null);
     }
+  }
+
+  async function handleCleanupRefusal(rootPath, record, error) {
+    let facts = await readFacts(rootPath, record, { canonicalUrlOnly: true });
+    ({ record, facts } = await persistRemoteTruth(rootPath, record, facts));
+    if (record.push_state === "accepted") {
+      return finishAcceptedOperation(rootPath, record, facts.status, null);
+    }
+    if (record.push_state === "conflict") {
+      throw createPublishError(
+        "REMOTE_REF_CONFLICT",
+        "Cloud main contains content; cleanup stopped without deleting the Project.",
+        false,
+        error,
+      );
+    }
+    // Only a definitive refusal clears cleanup intent. A lost response must
+    // keep the deletion workflow. Preserve all cloud and local resources.
+    const refused = createPublishError(
+      "CLEANUP_NOT_ALLOWED",
+      "Cloud did not allow this Project to be discarded. Retry sending or manage it in Cloud.",
+      false,
+      error,
+    );
+    let checkpoint = "project-created";
+    if (record.credential_id) checkpoint = "credential-issued";
+    if (record.credential_config_snapshot) checkpoint = "push-attempt";
+    record = await persist(rootPath, record, {
+      checkpoint,
+      project_state: "empty",
+      cleanup_state: "none",
+      last_error: toStoredError(refused, now),
+    });
+    events.record("cleanup_refused", { ...eventFields(record, now), error_code: refused.publishCode });
+    return failureResult(refused, deriveCloudInitializationState(record, facts));
   }
 
   async function configureRemote(rootPath, current, reportProgress, targetCheckpoint = "remote-configured") {
@@ -488,9 +507,13 @@ export function createCloudPublishCoordinator({
     if (record.push_state === "conflict") {
       throw createPublishError("REMOTE_REF_CONFLICT", "Cloud main contains a different commit.", false);
     }
-    const source = await gitService.resolveSourceCommit(rootPath, sourceBranch);
+    const preserveCommit = requiresSameCommitRetry(record);
+    const source = preserveCommit
+      ? { commitOid: record.attempt.commit_oid }
+      : await gitService.resolveSourceCommit(rootPath, sourceBranch);
     await gitService.preflight(rootPath, source.commitOid);
-    const historyEntry = archiveAttempt(record.attempt, terminalAttemptState(record.push_state), now);
+    const historyEntry = archiveAttempt(record.attempt,
+      preserveCommit ? "uncertain" : terminalAttemptState(record.push_state), now);
     const attempt = createPushAttempt({
       sequence: record.attempt_count + 1,
       commitOid: source.commitOid,
@@ -498,8 +521,8 @@ export function createCloudPublishCoordinator({
       randomUUID,
     });
     return persist(rootPath, record, {
-      selected_source_branch: sourceBranch,
-      selected_source_ref: `refs/heads/${sourceBranch}`,
+      selected_source_branch: preserveCommit ? record.selected_source_branch : sourceBranch,
+      selected_source_ref: preserveCommit ? record.selected_source_ref : `refs/heads/${sourceBranch}`,
       push_state: "preparing",
       attempt_count: record.attempt_count + 1,
       attempt,
@@ -522,17 +545,19 @@ export function createCloudPublishCoordinator({
     ) return facts;
     const secret = await secretVault.get(record.secret_ref).catch(() => null);
     if (!secret) return facts;
-    const inspectHead = canonicalUrlOnly
-      ? gitService.inspectJournaledRemoteHead
-      : gitService.inspectCanonicalRemoteHead;
-    const remoteHead = await inspectHead(rootPath, record, secret).catch((error) => {
-      if (error?.publishCode === "REMOTE_CONFLICT") throw error;
+    const inspectOutcome = canonicalUrlOnly
+      ? gitService.inspectJournaledPushOutcome
+      : gitService.inspectCanonicalPushOutcome;
+    const outcome = await inspectOutcome(rootPath, record, secret).catch((error) => {
+      if (["REMOTE_CONFLICT", "PUSH_FAILED"].includes(error?.publishCode)) throw error;
       return undefined;
     });
-    if (remoteHead === undefined) return facts;
+    if (!outcome) return facts;
+    const { remoteHead, rejected } = outcome;
     return {
       ...facts,
       remoteHead,
+      remoteRejected: rejected,
       remoteAccepted: Boolean(remoteHead && remoteHead === record.attempt?.commit_oid),
       remoteConflict: Boolean(remoteHead && remoteHead !== record.attempt?.commit_oid),
     };
@@ -595,6 +620,22 @@ export function createCloudPublishCoordinator({
         attempt: updateAttempt(record.attempt, "conflict", now, true),
       });
       events.record("push_reconciled", { ...eventFields(record, now), outcome: "conflict" });
+    } else if (facts.remoteRejected && record.push_state !== "failed"
+      && !record.attempt_history.some((attempt) => attempt.state === "uncertain")) {
+      // Only a bound rejection resolves uncertainty; an absent ref alone does
+      // not. Earlier unresolved transmissions still keep their frozen target.
+      record = await persist(rootPath, record, {
+        push_state: "failed",
+        attempt: updateAttempt(record.attempt, "failed", now, true),
+        last_error: toStoredError(createPublishError("PUSH_FAILED", "Cloud rejected the upload. Retry after correcting the cause.", true), now),
+      });
+    } else if (["uploading", "confirming"].includes(record.push_state)) {
+      // This code runs under the repository operation lease, after the old
+      // local execution has ended. A restarted app must offer Retry as well.
+      record = await persist(rootPath, record, {
+        push_state: "uncertain",
+        attempt: updateAttempt(record.attempt, "uncertain", now, true),
+      });
     }
     return { record, facts };
   }
@@ -602,11 +643,11 @@ export function createCloudPublishCoordinator({
   async function persistFailure(rootPath, record, error) {
     if (["push-accepted", "completed"].includes(record.checkpoint)) return record;
     const code = error?.publishCode ?? "UNKNOWN";
-    const pushState = code === "PUSH_UNCERTAIN"
-      ? "uncertain"
-      : ["REMOTE_REF_CONFLICT", "REMOTE_CONFLICT"].includes(code)
-        ? "conflict"
-        : "failed";
+    let pushState = "failed";
+    if (code === "PUSH_UNCERTAIN" || record.attempt_history.some((attempt) => attempt.state === "uncertain")) {
+      pushState = "uncertain";
+    }
+    if (["REMOTE_REF_CONFLICT", "REMOTE_CONFLICT"].includes(code)) pushState = "conflict";
     return persist(rootPath, record, {
       project_state: code === "PROJECT_UNAVAILABLE" ? "unavailable" : record.project_state,
       push_state: pushState,
@@ -765,6 +806,6 @@ function eventFields(record, now) {
 
 function errorEventName(error) {
   if (error?.publishCode === "PUSH_UNCERTAIN") return "push_attempt_uncertain";
-  if (["PUSH_FAILED", "REMOTE_REF_CONFLICT"].includes(error?.publishCode)) return "push_attempt_failed";
+  if (["PUSH_FAILED", "PUSH_LIMIT_EXCEEDED", "REMOTE_REF_CONFLICT"].includes(error?.publishCode)) return "push_attempt_failed";
   return "cloud_init_failed";
 }

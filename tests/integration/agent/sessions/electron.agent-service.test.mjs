@@ -558,7 +558,7 @@ describe("Electron AgentService ownership and lifecycle", () => {
     expect(replay.events.filter((event) => event.type === "turn.interrupted")).toHaveLength(1);
   });
 
-  it("retires the provider instead of claiming an unconfirmed interrupt succeeded", async () => {
+  it("reports an unconfirmed interrupt without terminating the native task", async () => {
     vi.useFakeTimers();
     try {
       const harness = createServiceHarness();
@@ -575,9 +575,14 @@ describe("Electron AgentService ownership and lifecycle", () => {
       const events = replay.events;
       expect(events.filter((event) => event.type === "turn.interrupted")).toHaveLength(0);
       expect(events.some((event) => event.type === "turn.failed")).toBe(false);
-      expect(replay.control.execution).toMatchObject({ status: "outcome-unknown", uncertainTurnId: "turn-1", certainty: "unknown" });
-      expect(harness.adapters[0].disposed).toBe(true);
-      expect(harness.service.getSessionCount()).toBe(0);
+      expect(replay.control.execution).toMatchObject({ status: "active", activeTurnId: "turn-1", certainty: "confirmed" });
+      expect(events.some(event => event.payload?.code === "INTERRUPT_UNCONFIRMED")).toBe(true);
+      expect(harness.adapters[0].disposed).not.toBe(true);
+      expect(harness.service.getSessionCount()).toBe(1);
+      harness.adapters[0].emit({ type: "turn.interrupted", providerSessionId: "thread-1", turnId: "turn-1", payload: {} });
+      expect(harness.service.replay(owner, { sessionId: snapshot.session.id, afterSequence: 0 }).control.execution)
+        .toMatchObject({ status: "ended", nativeOutcome: "interrupted" });
+      await harness.service.closeAll();
     } finally {
       vi.useRealTimers();
     }

@@ -11,11 +11,101 @@ function fixture() {
     hosts.push(host);
     return host;
   });
-  const service = createAgentProcessService({ createHost, catalogService: { hasRuntimeResources: () => false }, conversationCatalog: {}, attachmentStore: {} });
+  const service = createAgentProcessService({ createHost, catalogService: { hasRuntimeResources: () => false, closeAll: async () => {} }, conversationCatalog: {}, attachmentStore: {} });
   return { service, hosts, createHost, sender: { id: 1, hostItemId: "item" }, request: { rootPath: "/project", projectContext: { projectId: "project" } } };
 }
 
 describe("per-session Agent process ownership", () => {
+  it("releases a crashed item when its native history no longer exists", async () => {
+    const { service, hosts, sender, request, createHost } = fixture();
+    await service.createSession(sender, request, "/project");
+    hosts[0].exited = true;
+    const create = createHost.getMockImplementation();
+    createHost.mockImplementationOnce(options => {
+      const host = create(options);
+      host.call.mockResolvedValue(null);
+      return host;
+    });
+    const result = await service.openSession(sender, { ...request, sessionId: "session", instanceId: "instance" }, "/project");
+    expect(result).toMatchObject({ status: "failed", error: { code: "SESSION_NOT_FOUND" } });
+    expect(service.getSessionCount()).toBe(0);
+    expect(hosts[1].exited).toBe(true);
+  });
+  it("replaces a crashed host once, preserves the conversation, and fences its old instance", async () => {
+    const { service, hosts, sender, request, createHost } = fixture();
+    await service.createSession(sender, request, "/project");
+    hosts[0].exited = true;
+    hosts[0].options.onExit({ expected: false });
+    const replacement = createHost.getMockImplementation();
+    createHost.mockImplementationOnce(options => {
+      const host = replacement(options);
+      host.call.mockResolvedValue(snapshot("session", "replacement"));
+      return host;
+    });
+    const resume = { ...request, sessionId: "session", instanceId: "instance" };
+    const results = await Promise.all([service.resumeSession(sender, resume, "/project"), service.openSession(sender, resume, "/project")]);
+    expect(results[0].session.instanceId).toBe("replacement");
+    expect(results[1].snapshot.session.id).toBe("session");
+    expect(hosts).toHaveLength(2);
+    expect(hosts[1].call).toHaveBeenCalledTimes(1);
+    expect(hosts[1].call.mock.calls[0][0]).toBe("resumeSession");
+    expect(() => service.startTurn(sender, resume, "/project")).toThrow(/owned/);
+    hosts[0].options.onExit({ expected: false });
+    expect(service.diagnostics()[0].lifecycle.observedLifecycle).toBe("live");
+    await service.closeAll();
+  });
+
+  it("does not replace a crashed host before cleanup confirmation, and lets close win", async () => {
+    const { service, hosts, sender, request } = fixture();
+    await service.createSession(sender, request, "/project");
+    hosts[0].exited = true;
+    const cleanup = Promise.withResolvers();
+    hosts[0].close.mockReturnValue(cleanup.promise);
+    const resume = service.resumeSession(sender, { ...request, sessionId: "session", instanceId: "instance" }, "/project");
+    const rejected = expect(resume).rejects.toMatchObject({ code: "SESSION_STALE" });
+    const closed = service.closeItem(1, "item");
+    expect(hosts).toHaveLength(1);
+    cleanup.resolve();
+    await Promise.all([closed, rejected]);
+    expect(hosts).toHaveLength(1);
+    expect(service.getSessionCount()).toBe(0);
+  });
+
+  it("retains ownership after unconfirmed crash cleanup and retries recovery safely", async () => {
+    const { service, hosts, sender, request } = fixture();
+    await service.createSession(sender, request, "/project");
+    hosts[0].exited = true;
+    hosts[0].close.mockRejectedValueOnce(Object.assign(new Error("cleanup pending"), { code: "HOST_CLOSE_UNCONFIRMED" }));
+    const resume = { ...request, sessionId: "session", instanceId: "instance" };
+    await expect(service.resumeSession(sender, resume, "/project")).rejects.toMatchObject({ code: "HOST_CLOSE_UNCONFIRMED" });
+    expect(hosts).toHaveLength(1);
+    expect(service.getSessionCount()).toBe(1);
+    await service.resumeSession(sender, resume, "/project");
+    expect(hosts).toHaveLength(2);
+    await service.closeAll();
+  });
+
+  it("closes a replacement that finishes native startup after its item was closed", async () => {
+    const { service, hosts, sender, request, createHost } = fixture();
+    await service.createSession(sender, request, "/project");
+    hosts[0].exited = true;
+    const opened = Promise.withResolvers();
+    const replacement = createHost.getMockImplementation();
+    createHost.mockImplementationOnce(options => {
+      const host = replacement(options);
+      host.call.mockReturnValue(opened.promise);
+      return host;
+    });
+    const recovery = service.resumeSession(sender, { ...request, sessionId: "session", instanceId: "instance" }, "/project");
+    const rejected = expect(recovery).rejects.toMatchObject({ code: "SESSION_STALE" });
+    await vi.waitFor(() => expect(hosts).toHaveLength(2));
+    await service.closeItem(1, "item");
+    opened.resolve(snapshot("session", "late-instance"));
+    await rejected;
+    expect(hosts[1].exited).toBe(true);
+    expect(service.findItemSession(1, "item")).toBeNull();
+  });
+
   it.each(["createSession", "openSession"])("terminates an item while %s is stalled, before any session identity is published", async method => {
     const { service, hosts, sender, request, createHost } = fixture();
     const pending = Promise.withResolvers();

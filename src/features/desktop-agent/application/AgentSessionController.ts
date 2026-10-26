@@ -13,7 +13,7 @@ import type {
   AgentSessionSnapshot,
   AgentTurnInterruptRequest,
 } from "../domain/agent-contract";
-import { ManagedOperationScope, waitForScopedOperation } from "../../session-transport/ManagedOperationScope";
+import { ManagedOperationScope, waitForScopedOperation } from "../../session-transport";
 import { AgentSessionOpenError } from "../domain/agent-session-open-error";
 import { AgentSessionReplica } from "./AgentSessionReplica";
 import { agentControllerTransitions, type AgentControllerState } from "./agent-controller-state";
@@ -821,7 +821,9 @@ function deriveControlReplicaState(state: AgentControllerState): AgentController
   const localPending = state.pendingIntent && !admitted ? state.pendingIntent.prompt : null;
   return {
     ...state,
-    phase: state.phase === "discovering" || state.phase === "restoring" ? state.phase : view.phase,
+    // A cached projection cannot override a newer transport failure or local
+    // preparation failure. Explicit recovery publishes the next ready phase.
+    phase: ["discovering", "restoring", "failed", "runtime-exited"].includes(state.phase) ? state.phase : view.phase,
     session: { ...state.session, activeTurnId: state.projection.runningTurnId, terminalState: view.terminalState },
     pendingPrompt: view.pendingPrompt ?? localPending,
     submitting: view.submitting || Boolean(state.pendingIntent),

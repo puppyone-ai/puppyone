@@ -18,10 +18,11 @@ const projectContextAssetMarkCss = readCss(
 );
 const dataShellCss = readCss("../../../../src/features/data-workspace/data-shell.css");
 const dataTreeCss = readCss("../../../../packages/shared-ui/src/styles/data-workspace.css");
-const dataWorkspaceSource = readFileSync(
-  new URL("../../../../packages/shared-ui/src/data/DataWorkspace.tsx", import.meta.url),
+// The Data workspace and the frame it shares with surfaces that have no files yet.
+const dataWorkspaceSource = ["DataWorkspace.tsx", "DataWorkspaceFrame.tsx"].map((file) => readFileSync(
+  new URL(`../../../../packages/shared-ui/src/data/${file}`, import.meta.url),
   "utf8",
-);
+)).join("\n");
 const workspaceSurfaceOutletSource = readFileSync(
   new URL("../../../../src/features/app-shell/workspace-surfaces/WorkspaceSurfaceOutlet.tsx", import.meta.url),
   "utf8",

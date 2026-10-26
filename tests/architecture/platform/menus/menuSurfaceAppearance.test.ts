@@ -65,6 +65,10 @@ describe("desktop menu appearance architecture", () => {
     expect(fileActions).not.toMatch(
       /\.desktop-create-entry-menu\[data-sidebar-launcher="true"\] \.desktop-menu-item\s*\{/,
     );
+    // Folder is set apart from the file kinds in every New menu, the Sidebar launcher included.
+    expect(fileActions).not.toMatch(
+      /\.desktop-create-entry-menu\[data-sidebar-launcher="true"\] \.desktop-menu-separator\s*\{/,
+    );
     expect(fileActions).not.toContain(".app-shell.dark .desktop-create-entry-menu");
     expect(fileActions).not.toContain(".desktop-overlay-root.dark .desktop-create-entry-menu");
     expect(nodeActions).toContain('elevation={sidebarLauncher ? "compact" : "default"}');
@@ -72,6 +76,30 @@ describe("desktop menu appearance architecture", () => {
     expect(nodeActions).toContain(
       'typographySurface={sidebarLauncher ? "left-sidebar" : "ui"}',
     );
+  });
+
+  it("takes its width from the menu, not from the longest row", () => {
+    // A stacked list is a grid, and an implicit `auto` track adopts the widest
+    // label as its minimum: rows then outgrow the surface and the list scrolls
+    // sideways instead of ending the label in an ellipsis. Every stacked list
+    // states a minimum-zero column so the label can always be clipped.
+    for (const [css, selector] of [
+      [menus, ".desktop-menu-section"],
+      [menus, ".desktop-menu-section-list"],
+      [layout, ".desktop-project-list"],
+      [projectSwitcher, ".desktop-project-switcher-rail-list"],
+    ] as const) {
+      expect(readCssBlock(css, selector)).toContain("grid-template-columns: minmax(0, 1fr);");
+    }
+
+    // The row itself may not reintroduce the minimum the track just dropped,
+    // and a menu never scrolls sideways.
+    expect(readCssBlock(layout, ".desktop-project-list > *")).toContain("min-width: 0;");
+    expect(readCssBlock(layout, ".desktop-project-list")).toContain("overflow-x: hidden;");
+    expect(readCssBlock(menus, ".desktop-menu-item")).toContain("min-width: 0;");
+    expect(readCssBlock(menus, ".desktop-menu-item-body")).toContain("min-width: 0;");
+    expect(readCssBlock(menus, ".desktop-menu-item-label,\n.desktop-menu-item-detail"))
+      .toContain("text-overflow: ellipsis;");
   });
 
   it("routes richer popup implementations through the shared menu tokens", () => {

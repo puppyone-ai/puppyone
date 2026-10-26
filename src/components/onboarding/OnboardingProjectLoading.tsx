@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useLocalization } from "@puppyone/localization";
-import { PulseGrid } from "../loading";
+import { LoadingMark } from "@puppyone/shared-ui";
 
 /** Native folder selection keeps its own feedback until a project is selected. */
 export function isHomepageProjectOpening(openingPath: string | null, cloudOpening: boolean) {
@@ -45,7 +45,7 @@ function ProjectLoadingOverlay({ onCancel }: { onCancel?: () => void }) {
       }
     }}>
     <div className="onboarding-project-loading-content">
-      <PulseGrid size="sm" tone="neutral" ariaHidden />
+      <LoadingMark layout="area" size="md" tone="neutral" ariaHidden />
       <p>{t("onboarding.status.loadingProject")}</p>
       {onCancel && <button type="button" className="desktop-dialog-button"
         onClick={onCancel}>{t("common.action.cancel")}</button>}

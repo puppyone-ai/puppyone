@@ -22,6 +22,7 @@
   "native.menu.theme.pack": "ビジュアルバリエーション",
   "native.menu.theme.openFolder": "テーマフォルダーを開く",
   "native.menu.checkForUpdates": "アップデートを確認…",
+  "native.menu.settings": "設定…",
   "native.update.manual.ok": "OK",
   "native.update.manual.notNow": "後で",
   "native.update.manual.updateNow": "今すぐアップデート",

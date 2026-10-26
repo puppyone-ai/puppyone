@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Database, Workflow } from "lucide-react";
 import type { FileIconRenderContext } from "../iconThemeTypes";
+import { glyphLine } from "./glyphLine";
 
 export function AppGlyph({ color, size }: FileIconRenderContext): ReactNode {
   return (
@@ -9,11 +10,11 @@ export function AppGlyph({ color, size }: FileIconRenderContext): ReactNode {
         d="M5.15 11.25h7.7c.7 0 1.25.5 1.37 1.18l.34 2.02H3.44l.34-2.02c.12-.68.67-1.18 1.37-1.18Z"
         fill="color-mix(in srgb, var(--po-file-icon-body) 72%, transparent)"
         stroke={color}
-        strokeWidth="1.35"
+        strokeWidth={glyphLine(size)}
         strokeLinejoin="round"
       />
-      <path d="M9.65 11.25 8.75 6.8" stroke={color} strokeWidth="1.35" strokeLinecap="round" />
-      <circle cx="8.45" cy="4.9" r="2" fill="color-mix(in srgb, var(--po-file-icon-body) 72%, transparent)" stroke={color} strokeWidth="1.35" />
+      <path d="M9.65 11.25 8.75 6.8" stroke={color} strokeWidth={glyphLine(size)} strokeLinecap="round" />
+      <circle cx="8.45" cy="4.9" r="2" fill="color-mix(in srgb, var(--po-file-icon-body) 72%, transparent)" stroke={color} strokeWidth={glyphLine(size)} />
       <circle cx="12.2" cy="13.05" r="0.62" fill={color} opacity="0.76" />
       <circle cx="6.15" cy="13.05" r="0.46" fill={color} opacity="0.55" />
     </svg>
@@ -21,7 +22,28 @@ export function AppGlyph({ color, size }: FileIconRenderContext): ReactNode {
 }
 
 export function WorkflowGlyph({ color, size }: FileIconRenderContext): ReactNode {
-  return <Workflow size={size} color={color} strokeWidth={1.9} aria-hidden="true" />;
+  return <Workflow size={size} color={color} strokeWidth={glyphLine(size, 24)} aria-hidden="true" />;
+}
+
+/** A quiet webpage window, optically balanced with the surrounding file glyphs. */
+export function HtmlDocumentGlyph({ color, size }: FileIconRenderContext): ReactNode {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 18 18"
+      fill="none"
+      stroke={color}
+      strokeWidth={glyphLine(size)}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      data-file-icon-shape="html-window"
+    >
+      <rect x="3.5" y="3.5" width="11" height="11" rx="1.5" />
+      <path d="M3.5 6.75h11" strokeWidth={glyphLine(size, 18, 0.85)} opacity="0.7" />
+    </svg>
+  );
 }
 
 /** Database family identity, independent of the detected storage engine. */
@@ -32,7 +54,7 @@ export function DatabaseGlyph({ color, size }: FileIconRenderContext): ReactNode
       size={size}
       viewBox="-3 -3 30 30"
       color={color}
-      strokeWidth={1.65}
+      strokeWidth={glyphLine(size, 30)}
       aria-hidden="true"
       data-file-icon-shape="database-cylinder"
     />
@@ -56,13 +78,13 @@ export function TreasureMapGlyph({ color, size }: FileIconRenderContext): ReactN
       <path
         d="M2.9 4.6 6.7 3l4.6 1.6L15.1 3v10.4L11.3 15l-4.6-1.6L2.9 15V4.6Z"
         stroke={color}
-        strokeWidth="1.3"
+        strokeWidth={glyphLine(size)}
         strokeLinejoin="round"
       />
       <path
         d="M4.8 11.8c1.15-2.8 3.35.65 4.55-1.75.55-1.1 1.1-1.65 2.05-1.85"
         stroke={color}
-        strokeWidth="1.1"
+        strokeWidth={glyphLine(size, 18, 0.85)}
         strokeLinecap="round"
         strokeDasharray="1 1.55"
         data-file-icon-route="treasure-trail"
@@ -70,7 +92,7 @@ export function TreasureMapGlyph({ color, size }: FileIconRenderContext): ReactN
       <path
         d="m11.7 5.5 1.9 1.9m0-1.9-1.9 1.9"
         stroke={color}
-        strokeWidth="1.3"
+        strokeWidth={glyphLine(size)}
         strokeLinecap="round"
       />
     </svg>

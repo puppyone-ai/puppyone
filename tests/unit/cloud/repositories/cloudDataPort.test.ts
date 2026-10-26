@@ -142,6 +142,19 @@ describe('live Cloud files', () => {
     await expect(cloud.dataPort.readFile!('readme.md')).rejects.toThrow(/session changed/);
     expect(files.get('readme.md')).toBe('initial');
   });
+  it('does not allocate a workspace after a pending open loses its account or project', async () => {
+    row = null;
+    let current = true;
+    const cloud = service({ isCurrent: () => current });
+    const original = request.getMockImplementation()!;
+    request.mockImplementation(async input => {
+      const result = await original(input);
+      if (input.path.endsWith('/workbench') && input.method === 'GET') current = false;
+      return result;
+    });
+    await expect(cloud.dataPort.listChildren(null)).rejects.toThrow(/session changed/);
+    expect(request.mock.calls.some(([input]) => input.method === 'POST')).toBe(false);
+  });
   it('previews accepted HTML snapshots and live binary bytes without signing Git URLs', async () => {
     const create = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:fixture');
     const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});

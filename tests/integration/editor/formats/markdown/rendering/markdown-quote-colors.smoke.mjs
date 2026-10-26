@@ -153,7 +153,9 @@ function assertColors(metrics, override) {
     assert.deepEqual(metrics.ordinaryStrongColor, [217, 0, 113, 255], "ordinary strong user override was lost");
     assert.deepEqual(metrics.ordinaryCodeColor, [20, 122, 150, 255], "ordinary code host override was lost");
   } else {
-    assert.notDeepEqual(metrics.ordinaryCodeColor, metrics.bodyColor, "inline code lost its softer foreground");
+    // Inline code reads in its surrounding text color; the monospace face and
+    // the quiet frame mark it, not a second ink.
+    assert.deepEqual(metrics.ordinaryCodeColor, metrics.bodyColor, "inline code must follow its surrounding text color");
     assert.notDeepEqual(metrics.ordinaryCodeColor, metrics.quoteColor, "inline code must stay readable above supporting quote text");
     for (let channel = 0; channel < 3; channel++) {
       assert(metrics.ordinaryCodeColor[channel] >= Math.min(metrics.bodyColor[channel], metrics.quoteColor[channel]) - 1
@@ -204,12 +206,10 @@ function readStructuredContent() {
   const quote = host.querySelector(".cm-md-blockquote");
   const blocks = [...host.querySelectorAll(".cm-md-code-widget")].map(widget => {
     const editor = widget.querySelector("textarea"), highlight = widget.querySelector("pre");
-    const language = widget.querySelector(".cm-md-code-language");
-    const metadata = widget.querySelector(".cm-md-code-metadata");
+    const metadata = widget.querySelector(".cm-md-code-language,.cm-md-code-metadata");
     const editorStyle = getComputedStyle(editor), highlightStyle = getComputedStyle(highlight);
-    return { language: language.value, placeholder: language.placeholder,
-      languageOpacity: getComputedStyle(language).opacity, metadataPosition: getComputedStyle(metadata).position,
-      widget: rect(widget), metadata: rect(metadata), panel: rect(widget.querySelector(".cm-md-code-panel")),
+    return { hasMetadata: Boolean(metadata),
+      widget: rect(widget), panel: rect(widget.querySelector(".cm-md-code-panel")),
       surface: rect(widget.querySelector(".cm-md-code-surface")), color: color(highlight),
       font: editorStyle.fontFamily, highlightFont: highlightStyle.fontFamily,
       size: editorStyle.fontSize, highlightSize: highlightStyle.fontSize,
@@ -217,7 +217,7 @@ function readStructuredContent() {
       editorPadding: editorStyle.padding, highlightPadding: highlightStyle.padding,
       editorLineHeight: editorStyle.lineHeight, highlightLineHeight: highlightStyle.lineHeight,
       editor: rect(editor), highlight: rect(highlight), scrollWidth: editor.scrollWidth, clientWidth: editor.clientWidth,
-      sourceReference: widget.querySelector(".cm-md-code-source-reference")?.textContent ?? null,
+      sourceReference: widget.querySelector(".cm-md-code-panel").getAttribute("aria-description"),
     };
   });
   const cells = [...host.querySelectorAll(".cm-md-table-widget :is(th,td), .cm-md-html-rendered-surface table :is(th,td)")]
@@ -253,16 +253,8 @@ function assertStructuredContent(metrics, scale, inlineBackground = "rgba(0, 0, 
     assert.equal(block.editorPadding, block.highlightPadding, "highlight padding drifted");
     assert.equal(block.editorLineHeight, block.highlightLineHeight, "highlight line height drifted");
     assert.deepEqual(block.editor, block.highlight, "highlight and editing geometry drifted");
-    assert.equal(block.placeholder, "", "empty language must never show a Code prompt");
-    assert.equal(block.metadataPosition, "absolute", "language metadata participates in block flow");
-    assert.equal(block.languageOpacity, "1", "known language is gated on hover");
-    assert(block.metadata.y >= block.panel.y, "language badge sits outside the code panel");
-    assert(block.metadata.x >= block.panel.x && block.metadata.x + block.metadata.width <= block.panel.x + block.panel.width, "language badge exceeds the code panel width");
-    if (block.language || block.sourceReference) {
-      assert(block.metadata.y + block.metadata.height <= block.surface.y, "language badge overlaps code text");
-    } else {
-      assert.equal(block.panel.y, block.surface.y, "unlabelled code block reserves an empty metadata row");
-    }
+    assert.equal(block.hasMetadata, false, "code language metadata still occupies the panel");
+    assert.equal(block.panel.y, block.surface.y, "code block reserves an empty header row");
   }
   assert.equal(metrics.blocks[0].sourceReference, "src/example.ts · L1–2");
   assert(metrics.blocks[1].scrollWidth > metrics.blocks[1].clientWidth, "long code lines lost horizontal scrolling");
@@ -295,21 +287,30 @@ function readHeadingRhythm() {
       nextTextTop: (() => { const next = element.nextElementSibling, range = document.createRange(); range.selectNodeContents(next); return range.getBoundingClientRect().top; })(),
     };
   };
+  // The theme's own rhythm roles, resolved for this host: what both renderers must honor.
+  const role = name => parseFloat(getComputedStyle(host).getPropertyValue(name));
+  const levels = [1, 2, 3, 4, 5, 6];
   return { native: [...host.querySelectorAll(".cm-line.cm-md-heading")].map(read),
     html: [...host.querySelectorAll(".cm-md-html-rendered-surface :is(h1,h2,h3,h4,h5,h6)")].map(read),
+    rhythm: { before: levels.map(level => role(`--po-md-h${level}-gap-before`)),
+      after: levels.map(level => role(`--po-md-h${level}-gap-after`)),
+      lineHeight: role("--po-md-heading-line-height") },
     geometry: window.tableFixture.markdownLineGeometry() };
 }
 
 function assertHeadingRhythm(metrics, newspaper, wrapped = false) {
-  const before = newspaper ? [20,17.5,15,12.5,10,10] : [16,14,12,10,8,8];
-  const after = newspaper ? [12,9.6,8.4,7.2,6,6] : [10,8,7,6,5,5];
+  // The theme owns the numbers; both renderers must honor them exactly.
+  const { before, after, lineHeight } = metrics.rhythm;
+  for (const value of [...before, ...after, lineHeight]) assert(Number.isFinite(value) && value >= 0, `heading rhythm role unresolved: ${JSON.stringify(metrics.rhythm)}`);
+  for (let index=1;index<6;index++) assert(before[index] <= before[index-1] + .01, "a deeper heading may not open with more space than its parent");
+  if (newspaper) assert(before[0] > 8, "the newspaper theme keeps its generous heading rhythm");
   const near = (actual, expected, label) => assert(Math.abs(actual-expected) < .6, `${label}: ${actual} vs ${expected}`);
   assert.equal(metrics.native.length, 6); assert.equal(metrics.html.length, 6);
   for (let index=0;index<6;index++) {
     const native=metrics.native[index], html=metrics.html[index];
     near(native.before, before[index], `H${index+1} before`); near(native.after, after[index], `H${index+1} after`);
     near(html.marginBefore, before[index], `HTML H${index+1} before`); near(html.marginAfter, after[index], `HTML H${index+1} after`);
-    near(native.size, html.size, "shared heading size"); near(native.lineHeight, native.size*1.5, "heading line height");
+    near(native.size, html.size, "shared heading size"); near(native.lineHeight, native.size*lineHeight, "heading line height");
     near(native.lineHeight, html.lineHeight, "shared heading line height");
     assert(native.nextTextTop-native.textBottom >= after[index], "following paragraph touched heading text");
     assert(html.nextTextTop-html.textBottom >= after[index]-.6, "following HTML paragraph touched heading text");
@@ -607,7 +608,7 @@ app.whenReady().then(async () => {
       console.log(`PASS ${name}`);
     }
     // Metadata is outside the panel visually, but remains inside the same
-    // editing session. Native focus transitions must not commit half a draft.
+    // editing session. Native focus transitions preserve the code draft until blur.
     for (const mode of ["light", "dark"]) {
       await evaluate(`(async () => {
         await window.tableFixture.mode('${mode}'); await window.tableFixture.theme(null);
@@ -630,10 +631,7 @@ app.whenReady().then(async () => {
         assert.equal(selected.start, 0, "native Select All did not reach the focused input");
         assert.equal(selected.end, selected.value.length, "native Select All did not select the entire draft");
       };
-      await click("#markdown .cm-md-code-widget .cm-md-code-language"); await selectAll();
-      await browser.webContents.insertText("tsx");
       await click("#markdown .cm-md-code-widget .cm-md-code-textarea");
-      assert.equal(await evaluate("window.tableFixture.markdownSource()"), structuredSource, "language-to-code focus committed a partial draft");
       await selectAll(); const updatedCode = 'const changed = "' + "x".repeat(180) + '";';
       await browser.webContents.insertText(updatedCode);
       await evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
@@ -643,8 +641,8 @@ app.whenReady().then(async () => {
       assert(scroll.editor > 0); assert.equal(scroll.editor, scroll.highlight, "horizontal scroll desynchronized the highlight layer");
       await click("#markdown .cm-line");
       await evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
-      const expected = structuredSource.replace('```ts file=', '```tsx file=').replace('const example = "代码示例";\nconsole.log(example);', updatedCode);
-      assert.equal(await evaluate("window.tableFixture.markdownSource()"), expected, "composite blur lost code, language or source metadata");
+      const expected = structuredSource.replace('const example = "代码示例";\nconsole.log(example);', updatedCode);
+      assert.equal(await evaluate("window.tableFixture.markdownSource()"), expected, "code blur lost content, language or source metadata");
       const name = `code-edit-${mode}`; results.push({ name, metrics, scroll }); console.log(`PASS ${name}`);
       await fs.writeFile(path.join(artifacts, `${name}.png`), (await browser.webContents.capturePage()).toPNG());
     }
@@ -863,7 +861,8 @@ app.whenReady().then(async () => {
       assert.equal(metrics.listIndent,revision ? "55px" : "45px");
       assert.equal(metrics.listMarkerInset,revision ? "15px" : "9px");
       assert.deepEqual(metrics.orderedMarker,{weight:revision?'450':'350',numeric:revision?'tabular-nums':'proportional-nums',align:revision?'end':'start'},'registered marker styles were not applied');
-      assert.equal(metrics.subheadingBefore, revision ? "38.5px" : "31.5px", "per-level gap lost its file-owned base reference");
+      // Levels without their own gap share the file's base heading gap.
+      assert.equal(metrics.subheadingBefore, revision ? "44px" : "36px", "per-level gap lost its file-owned base reference");
       assert(Math.abs(parseFloat(metrics.headingLineHeight)-(revision ? 42*1.6 : 38*1.4)) < .01, "file heading line-height was lost");
       assert(metrics.bodyFont.includes("Georgia"));
       assert.equal(metrics.bodyColor, mode === "dark" ? revision ? "#ecd2e3" : "#d0e0f1" : revision ? "#643354" : "#253b52");

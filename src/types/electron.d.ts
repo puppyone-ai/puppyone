@@ -55,6 +55,7 @@ import type {
   CloudInitializationResult,
   CloudInitializationStartRequest,
   CloudInitializationState,
+  CloudInitializationTransfer,
 } from "./cloudInitialization";
 
 export type {
@@ -363,6 +364,7 @@ export type CloudPublishErrorCode = CloudInitializationErrorCode;
 export type CloudPublishProgressStage = CloudInitializationProgressStage;
 export type CloudPublishState = CloudInitializationState;
 export type CloudPublishProgress = CloudInitializationProgress;
+export type CloudPublishTransfer = CloudInitializationTransfer;
 export type CloudPublishResult = CloudInitializationResult;
 export type CloudPublishIdentityRequest = CloudInitializationIdentityRequest;
 export type CloudPublishStartRequest = CloudInitializationStartRequest;
@@ -704,7 +706,7 @@ export type ProjectIconSelectionResult = Readonly<{
 }>;
 
 export type WorkspaceOpenResult = {
-  status: "opened-current" | "opened-new-window" | "focused-existing";
+  status: "opened-current" | "opened-new-window";
   workspaceId: string | null;
   path: string | null;
   workspace: Workspace | null;
@@ -712,7 +714,7 @@ export type WorkspaceOpenResult = {
 };
 
 export type WorkspaceAttachResult = {
-  status: "attached-current" | "already-attached" | "focused-existing";
+  status: "attached-current" | "already-attached";
   workspaceId: string;
   path: string | null;
   workspace: Workspace | null;
@@ -974,12 +976,12 @@ declare global {
         }>;
         cancel: (id: string) => Promise<void>;
       };
-      connectAgentSession: (request: import("../../shared/session-transport/types").AgentConnectionRequest) => Promise<import("../../shared/session-transport/types").SessionConnection>;
+      connectAgentSession: (request: import("../../shared/session-transport/types").AgentConnectionRequest) => Promise<import("../../shared/session-transport/types").SessionConnectionResult>;
       terminateItemExecution: import("../../shared/item-host-contract/lifecycle").ItemLifecyclePort["terminateItemExecution"];
       retryItemExecutionCleanup: import("../../shared/item-host-contract/lifecycle").ItemLifecyclePort["retryItemExecutionCleanup"];
       listItemExecutions: import("../../shared/item-host-contract/lifecycle").ItemLifecyclePort["listItemExecutions"];
       openItemExecutionManager: () => Promise<void>;
-      connectTerminalSession: (request: import("../../shared/session-transport/types").TerminalConnectionRequest) => Promise<import("../../shared/session-transport/types").SessionConnection>;
+      connectTerminalSession: (request: import("../../shared/session-transport/types").TerminalConnectionRequest) => Promise<import("../../shared/session-transport/types").SessionConnectionResult>;
       onSessionRuntimeFailure: (listener: (failure: import("../../shared/session-transport/types").SessionRuntimeFailure) => void) => () => void;
       getWindowChromeState: () => Promise<{ fullScreen: boolean; maximized: boolean }>;
       setWindowChromeProfile: (request: {
@@ -1008,6 +1010,8 @@ declare global {
           callback: (request: { kind: "pack"; themeId: string }) => void,
         ) => () => void;
       };
+      /** Fires when the native application menu asks this window to open Settings. */
+      onSettingsRequested?: (callback: () => void) => () => void;
       setWindowMinimumWidth: (request: { width: number }) => Promise<{
         applied: boolean;
         width?: number;

@@ -10,10 +10,11 @@ import {
   type RefObject,
   type Ref,
 } from "react";
-import { House, PanelLeft } from "lucide-react";
+import { PanelLeft } from "lucide-react";
 import {
   Tooltip,
   CollapsiblePaneFrame,
+  HomeIcon,
   useCollapsiblePaneResize,
   type CollapsiblePanePresentation,
   type CollapsiblePaneGestureCommit,
@@ -351,7 +352,7 @@ export function DesktopCloudShell({
                     aria-label={t("shell.workspaceSwitcher.home")}
                     onClick={onGoHome}
                   >
-                    <House size={14} strokeWidth={1.65} aria-hidden="true" />
+                    <HomeIcon size={14} strokeWidth={1.65} aria-hidden="true" />
                   </button></Tooltip>
                 )}
                 {paneLayout.explorer.collapsed && leftSidebarPresent && onLeftSidebarExpand && (

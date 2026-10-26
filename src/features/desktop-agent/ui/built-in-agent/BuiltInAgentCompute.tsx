@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { KeyRound, Server, Sparkles } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
+import { LocalIcon } from "@puppyone/shared-ui";
 import type { ModelConnectionSnapshot, ModelConnectionSourceKind } from "../../../../../shared/model-connections/types";
 import type { AgentModel } from "../../domain/agent-contract";
 import { useModelConnections } from "../../../model-connections";
@@ -10,7 +11,7 @@ import "./built-in-agent-compute.css";
 export type ComputeAccessRequired = "loading" | "sign-in-required" | "insufficient-credit" | "gateway-unavailable"
   | "compute-setup-required" | null;
 
-const SOURCE_ICONS: Record<ModelConnectionSourceKind, typeof Server> = { managed: Sparkles, api: KeyRound, local: Server };
+const SOURCE_ICONS: Record<ModelConnectionSourceKind, typeof Server> = { managed: Sparkles, api: KeyRound, local: LocalIcon };
 const SOURCE_LABELS: Record<ModelConnectionSourceKind, string> = {
   managed: "agent.compute.managed", api: "agent.compute.source.api", local: "agent.compute.source.local",
 };

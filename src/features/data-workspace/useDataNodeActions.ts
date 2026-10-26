@@ -86,8 +86,6 @@ export function useDataNodeActions({
       anchor: normalizeCreateEntryAnchor(anchorRect),
       error: null,
       creatingKind: null,
-      selectedKind: null,
-      name: "",
     });
   }, [onEnterDataView]);
 
@@ -112,29 +110,10 @@ export function useDataNodeActions({
     });
   }, [onEnterDataView]);
 
-  const selectCreateEntryKind = useCallback((kind: DesktopCreateEntryKind) => {
-    if (!createEntryDraft) return;
-    setCreateEntryDraft((current) => {
-      if (!current) return current;
-      return {
-        ...current,
-        selectedKind: kind,
-        name: defaultCreateName(kind, t),
-        error: null,
-      };
-    });
-  }, [createEntryDraft, t]);
+  /** Creates the chosen kind at once under its default, de-duplicated name, then opens it. */
+  const createEntry = useCallback(async (kind: DesktopCreateEntryKind) => {
+    if (!workspace || !dataPort || !createEntryDraft || createEntryDraft.creatingKind) return;
 
-  const createEntryFromMenu = useCallback(async () => {
-    if (
-      !workspace ||
-      !dataPort ||
-      !createEntryDraft ||
-      createEntryDraft.creatingKind ||
-      !createEntryDraft.selectedKind
-    ) return;
-
-    const kind = createEntryDraft.selectedKind;
     if (kind === "slides") {
       if (!dataPort.instantiateTemplate) return;
     } else if (!dataPort.createFolder || !dataPort.createFile) {
@@ -142,7 +121,7 @@ export function useDataNodeActions({
     }
     let requestedName: string;
     try {
-      requestedName = normalizeCreateEntryName(kind, createEntryDraft.name);
+      requestedName = normalizeCreateEntryName(kind, defaultCreateName(kind, t));
     } catch (error) {
       setCreateEntryDraft((current) => current ? {
         ...current,
@@ -415,8 +394,7 @@ export function useDataNodeActions({
     setNodeActionMenu,
     openCreateEntryMenu,
     openNodeActionMenu,
-    selectCreateEntryKind,
-    createEntryFromMenu,
+    createEntry,
     renameNodeFromMenu,
     deleteNodeFromMenu,
     copyNodePathFromMenu,

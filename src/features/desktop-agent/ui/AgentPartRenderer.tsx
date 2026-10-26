@@ -7,6 +7,7 @@ import {
   resolveAgentPartRenderer,
 } from "./AgentPartRendererRegistry";
 import { AgentToolRenderer } from "./AgentToolRendererRegistry";
+import { AgentSystemActivity } from "./activity/AgentSystemActivity";
 import { AgentTurnSummary } from "./AgentTurnSummary";
 import {
   AgentNoticeActivity,
@@ -86,6 +87,8 @@ registerAgentPartRenderer("command", (props) => <ToolPart {...props} />);
 registerAgentPartRenderer("file-change", (props) => <ToolPart {...props} />);
 registerAgentPartRenderer("warning", (props) => <NoticePart {...props} />);
 registerAgentPartRenderer("error", (props) => <NoticePart {...props} />);
+registerAgentPartRenderer("notification", StatusPart);
+registerAgentPartRenderer("system", ({ part }) => <AgentSystemActivity activity={part} />);
 registerAgentPartRenderer("usage", StatusPart);
 registerAgentPartRenderer("permission", StatusPart);
 registerAgentPartRenderer("question", StatusPart);

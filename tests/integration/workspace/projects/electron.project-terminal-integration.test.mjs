@@ -23,11 +23,29 @@ async function harness({ initializeWorkspaceEditReview = async () => {} } = {}) 
   const contexts = roots.map((root, index) => projects.open(owner.id, { path: root, workspace: { id: String(index) } }));
   const handlers = new Map();
   registerTerminalIpcHandlers({ ipcMain: { handle: (name, fn) => handlers.set(name, fn), on: (name, fn) => handlers.set(name, fn) }, terminalService: service, projectSessions: projects });
-  const call = (name, index, request) => handlers.get(name)({ sender: owner }, { rootPath: roots[index], projectContext: contexts[index], ...request });
+  const call = (name, index, request, sender = owner) => handlers.get(name)({ sender }, { rootPath: roots[index], projectContext: contexts[index], ...request });
   return { contexts, call, owner, projects, service, terminals };
 }
 
 describe("project-owned Terminal IPC and native shutdown", () => {
+  it("isolates Terminal execution and shutdown for the same project in two windows", async () => {
+    const h = await harness();
+    const otherOwner = { id: 602, isDestroyed: () => false, send: vi.fn() };
+    const other = h.projects.open(otherOwner.id, h.contexts[0].folder);
+    const first = await h.call("terminal:create", 0, { id: "first-window" });
+    const second = await h.call("terminal:create", 0, { id: "second-window", projectContext: other }, otherOwner);
+    expect(h.terminals).toHaveLength(2);
+    h.call("terminal:input", 0, { ...first, projectContext: other, data: "wrong window" }, otherOwner);
+    expect(h.terminals[0].write).not.toHaveBeenCalled();
+    h.terminals[0].kill.mockImplementation(h.terminals[0].emitExit);
+    await expect(h.projects.closeWindow(h.owner.id)).resolves.toEqual({ closed: true });
+    expect(h.terminals[1].kill).not.toHaveBeenCalled();
+    h.call("terminal:input", 0, { ...second, projectContext: other, data: "still running" }, otherOwner);
+    expect(h.terminals[1].write).toHaveBeenCalledWith("still running");
+    h.terminals[1].kill.mockImplementation(h.terminals[1].emitExit);
+    await h.projects.closeWindow(otherOwner.id);
+  });
+
   it("cancels preflight creation and reserves the ID before asynchronous preparation", async () => {
     let proceed;
     const preflight = new Promise((resolve) => { proceed = resolve; });

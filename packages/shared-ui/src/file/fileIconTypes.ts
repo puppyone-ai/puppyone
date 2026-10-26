@@ -11,11 +11,23 @@ export const FILE_VISUAL_KINDS = FILE_SEMANTIC_KINDS;
  */
 export type FileVisualKind = FileSemanticKind;
 
-export type FileIconThemeId = "default" | "lines" | "semantic" | "material" | "minimal";
+/**
+ * Every installed file-icon theme. A new theme adds its id here and one entry
+ * in `icon-themes/registry.ts`; the registry's `satisfies` check keeps the two
+ * in step. See `icon-themes/README.md` for the plug-in contract.
+ */
+export type FileIconThemeId = "default";
 
 export type FileIconThemeMetadata = {
   id: FileIconThemeId;
 };
+
+/**
+ * Glyph ink per kind. Kinds whose colour says what the file is keep a type
+ * accent; plain documents take the ink of the label beside them, so they read
+ * as part of the row rather than as a second colour.
+ */
+const LABEL_INK = "currentColor";
 
 const KIND_ACCENT = {
   folder: "var(--po-file-accent-default)",
@@ -23,7 +35,7 @@ const KIND_ACCENT = {
   "context-map": "var(--po-accent)",
   workflow: "var(--po-accent)",
   json: "var(--po-file-accent-json)",
-  markdown: "var(--po-file-accent-markdown)",
+  markdown: LABEL_INK,
   html: "var(--po-file-accent-html)",
   pdf: "var(--po-file-accent-pdf)",
   image: "var(--po-file-accent-image)",
@@ -35,11 +47,11 @@ const KIND_ACCENT = {
   database: "var(--po-file-accent-code)",
   presentation: "var(--po-file-accent-presentation)",
   archive: "var(--po-file-accent-pdf)",
-  document: "var(--po-file-accent-default)",
-  binary: "var(--po-file-accent-default)",
+  document: LABEL_INK,
+  binary: LABEL_INK,
   code: "var(--po-file-accent-code)",
-  text: "var(--po-file-accent-default)",
-  file: "var(--po-file-accent-default)",
+  text: LABEL_INK,
+  file: LABEL_INK,
 } satisfies Record<FileVisualKind, string>;
 
 export function getFileAccent(kind: FileVisualKind): string {

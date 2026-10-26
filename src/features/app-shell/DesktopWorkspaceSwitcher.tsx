@@ -1,13 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { createWorkspaceFolder, type Workspace, type WorkspaceFolder } from "@puppyone/shared-ui";
+import { createWorkspaceFolder, HomeIcon, type Workspace, type WorkspaceFolder } from "@puppyone/shared-ui";
 import {
   ArrowLeft,
   Plus,
   FolderPlus,
-  House,
 } from "lucide-react";
 import { DesktopMenuItem, DesktopMenuSeparator } from "../../components/DesktopMenu";
-import { HomeProjectIcon } from "../../components/onboarding/HomeProjectIcon";
 import { DesktopTitlebarMenuLayer } from "../../components/DesktopTitlebarMenuLayer";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import {
@@ -15,6 +13,7 @@ import {
   resolveProjectContextAssetKind,
 } from "./ProjectContextAssetMark";
 import { getWorkspaceParentPathForDisplay, type ProjectHomeItem } from "../../lib/workspaceHomeModel";
+import { projectMatchesTarget, type ProjectNavigationTarget } from "./projectNavigation";
 import { DesktopProjectMenuItem } from "./DesktopProjectMenuItem";
 
 export type DesktopWorkspaceSwitcherProps = {
@@ -22,12 +21,12 @@ export type DesktopWorkspaceSwitcherProps = {
   refObject: RefObject<HTMLDivElement>;
   titlebarLabel: string;
   menuAlignment?: "start" | "center";
-  projectMenuEnabled?: boolean;
   workspace: Workspace;
   workspaceFolders: readonly WorkspaceFolder[];
   multiRootWorkspacesEnabled: boolean;
   availableProjects?: readonly Workspace[];
   projectItems?: readonly ProjectHomeItem[];
+  pendingProject?: ProjectNavigationTarget | null;
   onAddExistingProject?: (folderPath: string) => void;
   onOpenFolder?: () => void;
   onClose: () => void;
@@ -43,12 +42,12 @@ export function DesktopWorkspaceSwitcher({
   refObject,
   titlebarLabel,
   menuAlignment = "start",
-  projectMenuEnabled = true,
   workspace,
   workspaceFolders,
   multiRootWorkspacesEnabled,
   availableProjects = [],
   projectItems,
+  pendingProject,
   onAddExistingProject,
   onOpenFolder,
   onClose,
@@ -82,28 +81,13 @@ export function DesktopWorkspaceSwitcher({
   useEffect(() => {
     setView("projects");
   }, [workspace.path]);
-  useEffect(() => {
-    if (!projectMenuEnabled && open) onClose();
-  }, [projectMenuEnabled, open, onClose]);
-  if (!projectMenuEnabled) {
-    const project = projects.find(item => item.localPath === workspace.path
-      || Boolean(currentCloudProjectId && item.cloudProjectId === currentCloudProjectId))
-      ?? { id: workspace.id, label: titlebarLabel, localPath: currentCloudProjectId ? "" : workspace.path,
-        ...(currentCloudProjectId ? { cloudProjectId: currentCloudProjectId } : {}) };
-    return <div className="desktop-titlebar-workspace-wrap" ref={refObject}>
-      <div className="desktop-titlebar-workspace-button desktop-titlebar-workspace-label" data-window-drag-region="true">
-        <span className="desktop-titlebar-workspace-mark"><HomeProjectIcon item={project} /></span>
-        <bdi className="desktop-titlebar-workspace-name">{titlebarLabel}</bdi>
-      </div>
-    </div>;
-  }
   return (
     <div className="desktop-titlebar-workspace-wrap" ref={refObject}>
       <button
         type="button" ref={triggerRef} className="desktop-titlebar-workspace-button"
         aria-label={t("shell.workspaceSwitcher.openMenu", { workspace: bidiIsolate(workspace.name) })}
         aria-expanded={open} aria-haspopup="menu" onClick={() => { setView("projects"); onToggle(); }}>
-        <House className="desktop-titlebar-workspace-mark" size={16} strokeWidth={1.65} aria-hidden="true" />
+        <HomeIcon className="desktop-titlebar-workspace-mark" size={16} strokeWidth={1.65} aria-hidden="true" />
         <bdi className="desktop-titlebar-workspace-name">{titlebarLabel}</bdi>
       </button>
       <DesktopTitlebarMenuLayer
@@ -133,9 +117,10 @@ export function DesktopWorkspaceSwitcher({
                   || Boolean(currentCloudProjectId && project.cloudProjectId === currentCloudProjectId);
                 return <DesktopProjectMenuItem key={`${project.id}:${project.localPath}`}
                   project={project} selected={selected}
+                  pending={projectMatchesTarget(project, pendingProject ?? null)}
                   onSelect={() => {
                     onClose();
-                    if (selected) return;
+                    if (selected && !pendingProject) return;
                     if (project.localPath) onSelectProject?.(project.localPath);
                     else if (project.cloudProjectId) onSelectCloudProject?.(project.cloudProjectId);
                   }} />;

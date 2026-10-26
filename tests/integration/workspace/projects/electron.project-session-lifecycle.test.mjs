@@ -5,6 +5,17 @@ const folder = (id) => ({ path: `/projects/${id}`, workspace: { id, path: `/proj
 const deferred = () => { let resolve; const promise = new Promise((done) => { resolve = done; }); return { promise, resolve }; };
 
 describe("project lifetime independent of presentation", () => {
+  it("allows the same instance in two windows but rejects conflicting identities", () => {
+    const host = createProjectSessionService();
+    const a = host.open(1, folder("a"));
+    const b = host.open(2, folder("a"));
+    expect(a.generation).not.toBe(b.generation);
+    expect(() => host.open(3, { ...folder("a"), path: "/alias/a" })).toThrow();
+    expect(() => host.open(3, { path: a.rootPath, workspace: { id: "different" } })).toThrow();
+    expect(() => host.require(1, b)).toThrow();
+    expect(() => host.require(2, a)).toThrow();
+  });
+
   it("retains both projects, scopes shutdown, and never authorizes a recent-only root", async () => {
     const closeProject = vi.fn();
     const host = createProjectSessionService({ participants: [{ name: "test", closeProject }] });
@@ -62,13 +73,17 @@ describe("project lifetime independent of presentation", () => {
     const host = createProjectSessionService({ getSender: () => sender, participants: [{ name: "terminal", closeProject }] });
     const a = host.open(1, folder("a"));
     expect(() => host.require(2, a)).toThrow();
-    expect(() => host.open(2, folder("a"))).toThrow();
+    const other = host.open(2, folder("a"));
+    expect(other.generation).not.toBe(a.generation);
+    expect(() => host.require(1, other)).toThrow();
     await expect(host.close(1, a)).resolves.toEqual({ closed: false, failures: ["terminal"] });
     expect(host.snapshot(1).projects[0].state).toBe("closing");
     closeProject.mockResolvedValue(undefined);
     await expect(host.close(1, a)).resolves.toEqual({ closed: true });
     expect(sender.send.mock.calls.at(-1)[1].projects).toEqual([]);
     expect(host.snapshot(1).revision).toBeGreaterThan(1);
+    expect(host.require(2, other)).toBe(other);
+    expect(closeProject.mock.calls.every(([owner]) => owner === 1)).toBe(true);
   });
 
   it("window close fences all future admission, including projects without allocated sessions", async () => {

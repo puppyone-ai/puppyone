@@ -1,5 +1,4 @@
-import { Tooltip } from "@puppyone/shared-ui";
-import { CloudIcon as Cloud } from "../../components/icons/CloudIcon";
+import { Tooltip, CloudIcon as Cloud } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
 import type { ReactNode } from "react";
 import {

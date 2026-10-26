@@ -70,6 +70,35 @@ afterEach(async () => {
 });
 
 describe("multi-project Workspace experiment", () => {
+  it("opens folders in the current window even when a project is already displayed", async () => {
+    const primary = workspace("a", "A", "/projects/a");
+    const next = workspace("b", "B", "/projects/b");
+    localFiles.getInitialWorkspace.mockResolvedValue({ workspace: primary, workspaces: [primary], path: primary.path, error: null });
+    localFiles.selectWorkspaceFolder.mockResolvedValue({ status: "opened-current", workspace: next, workspaces: [next], path: next.path });
+    const harness = await renderHarness(false, vi.fn());
+    await act(async () => harness.current.openFolder());
+    expect(harness.current.workspace?.path).toBe(next.path);
+    expect(localFiles.selectWorkspaceFolderInNewWindow).not.toHaveBeenCalled();
+  });
+
+  it("does not restore a late local open after navigation has cleared the workspace", async () => {
+    const primary = workspace("a", "A", "/projects/a");
+    const next = workspace("b", "B", "/projects/b");
+    let resolveOpen!: (value: unknown) => void;
+    const pending = new Promise(resolve => { resolveOpen = resolve; });
+    localFiles.getInitialWorkspace.mockResolvedValue({ workspace: primary, workspaces: [primary], path: primary.path, error: null });
+    localFiles.openWorkspaceInCurrentWindow.mockReturnValue(pending);
+    const harness = await renderHarness(false, vi.fn());
+    let opening!: Promise<void>;
+    await act(async () => { opening = harness.current.openWorkspacePath(next.path); });
+    await act(async () => harness.current.clearWorkspace());
+    await act(async () => {
+      resolveOpen({ status: "opened-current", workspace: next, workspaces: [next], path: next.path });
+      await opening;
+    });
+    expect(harness.current.workspace).toBeNull();
+  });
+
   it("emits the same entry intent for created and opened projects", async () => {
     const created = workspace("created", "Created", "/projects/created");
     const opened = workspace("opened", "Opened", "/projects/opened");
@@ -141,7 +170,7 @@ describe("multi-project Workspace experiment", () => {
   it("allows both Project attachment paths after the experiment is enabled", async () => {
     localFiles.selectWorkspaceFolderToAttach.mockResolvedValue(null);
     localFiles.attachWorkspaceFolder.mockResolvedValue({
-      status: "focused-existing",
+      status: "attached-current",
       path: "/projects/second",
       workspace: null,
       workspaces: [],

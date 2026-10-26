@@ -48,6 +48,20 @@ fileIcons
 - The registry is the only module that assembles all built-in themes.
 - `fileIconThemeRegistry.tsx` remains a thin compatibility re-export.
 
+## Line weight and ink
+
+- Stroke every glyph with `glyphLine(size, viewBox)` from `shared/glyphLine.ts`.
+  Glyphs then share the weight of the label text beside them: one CSS pixel up
+  to explorer size, growing with larger previews.
+- Plain documents (Markdown, text, other documents, unknown and binary files)
+  take the label's ink (`currentColor`) and stay unfilled. Kinds whose colour
+  tells the user what the file is keep their type accent.
+- Folders are chevrons and code is `<>`. Documents (Markdown, text, PDF,
+  archives) are one page with a folded corner and two lines of text, in their
+  kind's ink, so a document never reads as a folder chevron; a file whose
+  contents cannot be told is the same page left blank. A folder glyph in a
+  row sits in a padded field so it weighs the same as its neighbours.
+
 ## Theme organization
 
 - Keep compact tree glyphs in `glyphs.tsx`.
@@ -56,6 +70,26 @@ fileIcons
 - Share only stable visual primitives. Theme-specific SVG paths stay with their
   theme even when a more generic abstraction would be possible.
 
-The `lines` theme intentionally inherits the `default` theme and overrides the
-Markdown glyph and preview. Changes to inherited Default renderers therefore
-also affect Lines unless Lines adds an explicit override.
+## Adding a theme
+
+Only `default` ships today. The plug-in contract stays in place for the next
+theme:
+
+1. Create `icon-themes/<id>/` and build the theme with one factory:
+   `createIconTheme` (own glyphs, shared preview shell),
+   `createCustomPreviewIconTheme` (own glyphs and previews), or
+   `createThemeVariant` (inherit a base theme, override a few kinds).
+2. Add `<id>` to `FileIconThemeId` in `../fileIconTypes.ts`.
+3. List the theme in `registry.ts` (`FILE_ICON_THEME_ORDER` and
+   `FILE_ICON_THEME_REGISTRY`). The `satisfies` check fails until 2 and 3 agree.
+4. Add `settings.appearance.fileIcons.<id>.label` and `.description` to every
+   renderer locale. Appearance settings show the File icons choice only while
+   more than one theme is registered.
+5. Re-export the Rust frontend's icon catalog
+   (`puppy-one-rust/tools/import-file-icons.mjs`).
+
+`check-data-ui-boundaries` discovers every theme folder, so a new theme gets
+the same factory, dependency and coverage checks without editing the script.
+
+Removing a theme maps its id to a remaining theme in `registry.ts`
+(`RETIRED_FILE_ICON_THEME_IDS`) so saved preferences never fail to load.

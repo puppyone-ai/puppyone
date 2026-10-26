@@ -55,7 +55,7 @@ export type AgentActivityLabelCode =
   | "provider-error"
   | "provider-warning";
 
-export type AgentActivityKind = "tool" | "command" | "file-change" | "plan" | "reasoning" | "warning" | "error";
+export type AgentActivityKind = "notification" | "system" | "tool" | "command" | "file-change" | "plan" | "reasoning" | "warning" | "error";
 
 /** Discriminated semantic activity type shared by projection and Renderer registries. */
 export type AgentActivity<TKind extends AgentActivityKind = AgentActivityKind> = TKind extends AgentActivityKind ? {

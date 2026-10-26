@@ -3,8 +3,8 @@ import type { ShareTarget } from "./shareTargets";
 
 /**
  * The handoff is the one thing the user carries into the destination product.
- * It must be paste-ready: a single URL for MCP-capable Agents, a single link
- * for everything else.
+ * MCP uses the public proxy URL and a separate bearer credential. Human
+ * project links remain locators under the recipient's own permissions.
  */
 export type ShareHandoff =
   | Readonly<{
@@ -19,10 +19,9 @@ export type ShareHandoff =
       url: string;
     }>;
 
-export function buildMcpServerUrl(apiBaseUrl: string | null, apiKey: string | null | undefined): string {
+export function buildMcpServerUrl(apiBaseUrl: string | null): string {
   const base = normalizeApiOrigin(apiBaseUrl);
-  if (!base || !apiKey) return "";
-  return `${base}/api/v1/mcp/server/${apiKey}`;
+  return base ? `${base}/api/v1/mcp/proxy` : "";
 }
 
 /**
@@ -55,7 +54,7 @@ export function buildShareHandoff({
   }
   if (!endpoint) return null;
   const apiKey = endpoint.api_key ?? null;
-  const serverUrl = buildMcpServerUrl(apiBaseUrl, apiKey);
+  const serverUrl = buildMcpServerUrl(apiBaseUrl);
   if (!serverUrl) {
     return {
       channel: "mcp",

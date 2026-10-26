@@ -390,13 +390,7 @@
     "complexity": {
       "count": 3
     },
-    "max-depth": {
-      "count": 2
-    },
     "max-lines-per-function": {
-      "count": 1
-    },
-    "no-nested-ternary": {
       "count": 1
     }
   },
@@ -474,7 +468,7 @@
   },
   "electron/main/item-hosts/agent-process-service.mjs": {
     "complexity": {
-      "count": 2
+      "count": 1
     }
   },
   "electron/main/item-hosts/resource-budget.mjs": {
@@ -1391,11 +1385,6 @@
       "count": 1
     }
   },
-  "packages/shared-ui/src/primitives/LoadingIndicator.tsx": {
-    "no-nested-ternary": {
-      "count": 1
-    }
-  },
   "packages/shared-ui/src/sidebar/CollapsiblePaneFrame.tsx": {
     "complexity": {
       "count": 1
@@ -1522,11 +1511,6 @@
     }
   },
   "src/components/brand/AgentLauncherIcon.tsx": {
-    "no-nested-ternary": {
-      "count": 1
-    }
-  },
-  "src/components/loading/index.tsx": {
     "no-nested-ternary": {
       "count": 1
     }
@@ -1731,11 +1715,6 @@
       "count": 2
     }
   },
-  "src/features/cloud/initialization/CloudPublishProgressIndicator.tsx": {
-    "no-nested-ternary": {
-      "count": 1
-    }
-  },
   "src/features/cloud/initialization/useCloudInitialization.ts": {
     "complexity": {
       "count": 1
@@ -1885,9 +1864,6 @@
   },
   "src/features/desktop-agent/application/AgentSessionReplica.ts": {
     "complexity": {
-      "count": 1
-    },
-    "no-nested-ternary": {
       "count": 1
     }
   },
@@ -2159,17 +2135,9 @@
       "count": 2
     }
   },
-  "src/features/settings/main/AccountAICredits.tsx": {
-    "no-nested-ternary": {
-      "count": 1
-    }
-  },
   "src/features/settings/main/AccountSettingsView.tsx": {
     "complexity": {
       "count": 1
-    },
-    "no-nested-ternary": {
-      "count": 4
     }
   },
   "src/features/settings/main/RepositorySettingsViews.tsx": {

@@ -1,6 +1,6 @@
-import { Button } from "@puppyone/shared-ui";
+import { Button, FolderIcon } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
-import { Download, FilePlus2, FolderOpen } from "lucide-react";
+import { Download, FilePlus2 } from "lucide-react";
 import { InlineLoading } from "../loading";
 import { ImportSourcePreview } from "./ImportSourcePreview";
 import type { ImportSourceBrand } from "./ImportSourceMark";
@@ -107,7 +107,7 @@ function OpenFolderAction({
       aria-busy={openingFolder || undefined}
       leadingIcon={openingFolder
         ? <InlineLoading label={null} size="sm" tone="neutral" />
-        : <FolderOpen aria-hidden="true" />}
+        : <FolderIcon aria-hidden="true" />}
       onClick={onOpenFolder}
     >
       {t("onboarding.action.openFolder")}

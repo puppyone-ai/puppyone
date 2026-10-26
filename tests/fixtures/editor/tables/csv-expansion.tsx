@@ -50,7 +50,7 @@ function Harness() {
     subThemeCatalog: { subThemes: [...BUILTIN_SUB_THEMES], diagnostics: [] },
     sidebarNavigationLayout: "bottom-horizontal", fileIconTheme: "default" });
   const surface = resolveSurfaceAppearance({ appearance, typography: resolveTypography(DEFAULT_TYPOGRAPHY_PREFERENCES),
-    markdownPresentation: DEFAULT_MARKDOWN_PRESENTATION_SETTINGS, loadingAnimationPreset: "ikun",
+    markdownPresentation: DEFAULT_MARKDOWN_PRESENTATION_SETTINGS,
     lightThemePreset: "neutral", darkThemePreset: "default", pointerCursors: false, diffMarkers: "color" });
   useLayoutEffect(() => applySurfaceAppearanceToElement(document.documentElement, surface), [surface]);
   return <FixtureLocalization rtl={rtl}><SurfaceAppearanceProvider value={surface}>

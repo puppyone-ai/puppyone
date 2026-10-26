@@ -1,4 +1,5 @@
 "use client";
+import { PlaceholderLayer } from "../../../primitives/LoadingPlaceholder";
 import { Tooltip } from "../../../primitives/Tooltip";
 import {
   FloatingNotice,
@@ -973,6 +974,8 @@ function PptxThumbnail({
     };
   }, [scrollRoot, slideIndex, viewer]);
 
+  const pending = renderStatus === "waiting" || renderStatus === "rendering";
+
   return (
     <button
       type="button"
@@ -984,12 +987,17 @@ function PptxThumbnail({
       onClick={onSelect}
     >
       <span className="office-pptx-thumbnail__number">{formatNumber(slideIndex + 1)}</span>
-      <span
-        className="office-pptx-thumbnail__frame"
-        ref={hostRef}
-        aria-hidden="true"
-        data-render-state={renderStatus}
-      />
+      {/* The renderer owns the frame's children, so the pending slide is drawn beside it. */}
+      <span className="office-pptx-thumbnail__paper po-placeholder-surface">
+        <span
+          className="office-pptx-thumbnail__frame"
+          ref={hostRef}
+          aria-hidden="true"
+          data-render-state={renderStatus}
+          data-placeholder-shape={pending ? "" : undefined}
+        />
+        {pending ? <PlaceholderLayer /> : null}
+      </span>
     </button>
   );
 }

@@ -1,7 +1,7 @@
-import { FolderOpen } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useLocalization } from "@puppyone/localization";
 import type { WorkspaceProjectLocationGrant } from "../../types/electron";
+import { FolderIcon } from "@puppyone/shared-ui";
 
 export function useImportLocation({
   onDefaultLocation,
@@ -71,7 +71,7 @@ export function ImportLocationField({
         aria-label={t("onboarding.entry.import.saveTo")}
         onClick={onChoose}
       >
-        <FolderOpen aria-hidden="true" />
+        <FolderIcon aria-hidden="true" />
         <bdi
           className={`onboarding-entry-location-path ${location ? "is-selected" : ""}`}
           dir="ltr"

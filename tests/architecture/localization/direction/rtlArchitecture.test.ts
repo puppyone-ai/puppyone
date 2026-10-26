@@ -53,8 +53,12 @@ describe("RTL architecture", () => {
       .toContain('dir="ltr"');
     expect(read("../../../../src/features/source-control/diff/contributions/text-unified/TextUnifiedDiff.tsx"))
       .toContain('dir="ltr"');
-    expect(read("../../../../src/features/source-control/styles/history-list.css"))
-      .toContain('[dir="rtl"] .desktop-history-date-group button[aria-expanded="false"]');
+    // History groups use the shared disclosure chevron, which points along the
+    // reading direction while collapsed, so RTL mirrors it in one place.
+    expect(read("../../../../src/features/source-control/GitHistoryTimeline.tsx"))
+      .toMatch(/<DisclosureIcon className="desktop-history-date-disclosure" expanded=\{!row\.collapsed\}/);
+    expect(read("../../../../packages/shared-ui/src/styles/product-icons.css"))
+      .toContain('[dir="rtl"] .po-disclosure-icon[data-expanded="false"]');
     expect(read("../../../../src/features/cloud/history/CloudHistorySidebar.tsx"))
       .toMatch(/aria-hidden="true"\s+dir="ltr"/);
     expect(read("../../../../src/features/settings/main/RepositorySettingsViews.tsx"))

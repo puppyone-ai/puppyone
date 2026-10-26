@@ -4,6 +4,7 @@ import { createExecutableDiscoveryPort } from "./common/executable-discovery-por
 import { createCompanionAppPort } from "./macos/companion-apps.mjs";
 import { createLinuxPlatformAdapter } from "./linux/index.mjs";
 import { createMacosPlatformAdapter } from "./macos/index.mjs";
+import { NO_MENU_SYMBOLS, createMacosMenuSymbolPort } from "./macos/menu-symbols.mjs";
 import { createWindowsPlatformAdapter } from "./windows/index.mjs";
 
 export function createDesktopPlatformHost({
@@ -11,6 +12,8 @@ export function createDesktopPlatformHost({
   nodeArch = process.arch,
   safeStorage = null,
   officeDocumentConverter,
+  nativeImage = null,
+  systemVersion = "",
 } = {}) {
   const target = createDesktopTargetFromNode({ platform: nodePlatform, arch: nodeArch });
   const adapter = target.platform === "macos"
@@ -27,6 +30,9 @@ export function createDesktopPlatformHost({
     documents: adapter.documents,
     executableDiscovery: createExecutableDiscoveryPort({ nodePlatform }),
     companionApps: createCompanionAppPort({ nodePlatform }),
+    menuSymbols: target.platform === "macos"
+      ? createMacosMenuSymbolPort({ nativeImage, systemVersion })
+      : NO_MENU_SYMBOLS,
     getCapabilities: () => capabilities,
   });
 }

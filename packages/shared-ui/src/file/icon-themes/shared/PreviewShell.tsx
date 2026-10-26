@@ -17,8 +17,8 @@ export function renderIconThemePreview(
     return renderFolderPreview(context, renderFolderPreviewGlyph(context));
   }
 
-  // Database previews keep their standalone cylinder, never a paper wrapper.
-  if (context.kind === "database") {
+  // These glyphs already carry their full silhouette without a paper wrapper.
+  if (context.kind === "database" || context.kind === "html") {
     return renderCenteredIcon(
       context.size,
       renderGlyph({ ...context, size: Math.round(context.size * 0.78) }),

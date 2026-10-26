@@ -115,6 +115,7 @@ export function formatCloudPublishFailure(
   if (error.code === "CLEANUP_FAILED") {
     return t("cloud.initialize.cleanupFailed");
   }
+  if (error.code === "CLEANUP_NOT_ALLOWED") return t("cloud.initialize.cleanupNotAllowed");
   if (error.code === "PROJECT_UNAVAILABLE") return t("cloud.initialize.projectUnavailable");
   if (error.code === "PERMISSION_DENIED") return t("cloud.initialize.permissionDenied");
   if (error.code === "SERVICE_UPGRADE_REQUIRED") {
@@ -124,6 +125,7 @@ export function formatCloudPublishFailure(
   if (error.code === "CREDENTIAL_FAILED") return t("cloud.message.project-publish-credential-failed");
   if (error.code === "REMOTE_CONFIG_FAILED") return t("cloud.message.project-publish-remote-failed");
   if (error.code === "PUSH_FAILED") return t("cloud.message.project-publish-push-failed");
+  if (error.code === "PUSH_LIMIT_EXCEEDED") return t("cloud.message.project-publish-size-limit");
   if (error.code === "COMPENSATION_FAILED") {
     return t("cloud.message.project-publish-compensation-failed");
   }

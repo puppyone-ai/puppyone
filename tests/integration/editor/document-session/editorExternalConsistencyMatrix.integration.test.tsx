@@ -515,8 +515,9 @@ async function createEditorHarness(formatCase: FormatCase) {
         />,
       )));
       if (formatCase.viewerId === "html-artifact" && !container.querySelector(".cm-editor")) {
-        const sourceToggle = Array.from(container.querySelectorAll<HTMLButtonElement>(".html-editor-options button"))
-          .find((button) => button.textContent === "Show code");
+        const sourceToggle = container.querySelector<HTMLButtonElement>(
+          '.html-editor-options [role="menuitemradio"][data-mode="source"]',
+        ) ?? undefined;
         expect(sourceToggle, "HTML view must expose its source-mode command").toBeDefined();
         await act(async () => sourceToggle!.click());
       }

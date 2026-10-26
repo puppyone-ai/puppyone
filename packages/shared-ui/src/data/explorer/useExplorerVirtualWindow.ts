@@ -94,11 +94,17 @@ export function useExplorerVirtualWindow({
 
     const rowTop = activeIndex * rowSize;
     const rowBottom = rowTop + rowSize;
-    const viewportTop = element.scrollTop;
-    const viewportBottom = viewportTop + (element.clientHeight || EXPLORER_VIRTUAL_FALLBACK_VIEWPORT_HEIGHT);
-    if (rowTop < viewportTop) element.scrollTop = rowTop;
-    else if (rowBottom > viewportBottom) element.scrollTop = Math.max(0, rowBottom - (element.clientHeight || viewport.height));
-    else return;
+    // Honor the container's scroll-padding like native scrollIntoView does, so
+    // a pinned header or footer never covers the revealed row.
+    const padding = readScrollPaddingBlock(element);
+    const viewportTop = element.scrollTop + padding.start;
+    const viewportBottom = element.scrollTop
+      + (element.clientHeight || EXPLORER_VIRTUAL_FALLBACK_VIEWPORT_HEIGHT)
+      - padding.end;
+    if (rowTop < viewportTop) element.scrollTop = Math.max(0, rowTop - padding.start);
+    else if (rowBottom > viewportBottom) {
+      element.scrollTop = Math.max(0, rowBottom - (element.clientHeight || viewport.height) + padding.end);
+    } else return;
     readViewport();
   }, [activeIndex, readViewport, rowCount, rowSize, scrollRef, viewport.height]);
 
@@ -108,4 +114,19 @@ export function useExplorerVirtualWindow({
     totalHeight: rowCount * rowSize,
     onScroll,
   };
+}
+
+function readScrollPaddingBlock(element: HTMLElement) {
+  if (typeof window === "undefined") return { start: 0, end: 0 };
+  const style = window.getComputedStyle(element);
+  return {
+    start: parseScrollPadding(style.scrollPaddingBlockStart),
+    end: parseScrollPadding(style.scrollPaddingBlockEnd),
+  };
+}
+
+/** `auto` and unresolved values contribute no inset. */
+function parseScrollPadding(value: string) {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }

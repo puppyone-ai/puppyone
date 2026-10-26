@@ -14,6 +14,13 @@ export type RtlScrollBehavior = "negative" | "positive-ascending" | "positive-de
 export type MarkdownTableInlineViewportController = {
   dispose(): void;
   revealColumn(columnIndex: number): void;
+  /**
+   * Show or hide the scrollbar rail now, for column tracks the table changed
+   * on its own. The rail's height then lands in the same frame as the tracks
+   * that caused it, instead of resizing the table again while the editor is
+   * still delivering that frame's size changes.
+   */
+  settleOverflow(): void;
   updateDragAutoScroll(clientX: number, onScroll: () => void): void;
   stopDragAutoScroll(): void;
 };
@@ -250,6 +257,13 @@ export function createMarkdownTableInlineViewportController(
       stopDragAutoScroll();
       context.host.inlineViewports.detach(session.sessionId, session.mountToken);
       controllerByRoot.delete(context.root);
+    },
+
+    settleOverflow() {
+      if (disposed) return;
+      const geometry = readGeometry();
+      cachedGeometry = geometry;
+      updateScrollbarPresentation(geometry);
     },
 
     revealColumn(columnIndex) {

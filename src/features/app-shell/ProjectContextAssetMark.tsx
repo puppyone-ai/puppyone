@@ -1,6 +1,4 @@
-import type { Workspace } from "@puppyone/shared-ui";
-import { FolderClosed } from "lucide-react";
-import { CloudIcon as Cloud } from "../../components/icons/CloudIcon";
+import { CloudIcon, LocalIcon, type Workspace } from "@puppyone/shared-ui";
 
 export type ProjectContextAssetKind = "cloud" | "local";
 
@@ -19,14 +17,14 @@ export function ProjectContextAssetMark({
   kind: ProjectContextAssetKind;
   size?: number;
 }>) {
-  const Icon = kind === "cloud" ? Cloud : FolderClosed;
+  const Icon = kind === "cloud" ? CloudIcon : LocalIcon;
   return (
     <span
       className={`desktop-project-context-asset-mark ${className}`.trim()}
       data-context-asset-kind={kind}
       aria-hidden="true"
     >
-      <Icon size={size} strokeWidth={kind === "cloud" ? 1.8 : 1.65} />
+      <Icon size={size} strokeWidth={1.65} />
     </span>
   );
 }

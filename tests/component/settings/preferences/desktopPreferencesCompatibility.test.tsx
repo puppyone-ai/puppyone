@@ -50,7 +50,6 @@ describe("desktop preference wire compatibility (locked before the store migrati
     mount();
     act(() => {
       latest.setPointerCursors(v => !v);
-      latest.setLoadingAnimationPreset("ikun");
       latest.setExplorerWidth(v => v + 45);
       latest.setSidebarCollapsed(v => !v);
       latest.setProjectSwitcherExpanded(v => !v);
@@ -60,7 +59,6 @@ describe("desktop preference wire compatibility (locked before the store migrati
       latest.setRightSidebarOpen(true);
       latest.setDiffMarkers("symbols");
       latest.setGitDisplayMode("professional");
-      latest.setGitSidebarLayout("dividers");
       latest.setAgentPreferredRuntime("codex");
       latest.setAgentFileActivityIndicatorsEnabled(v => !v);
       latest.setAiEditAssistEnabled(v => !v);
@@ -88,6 +86,23 @@ describe("desktop preference wire compatibility (locked before the store migrati
 
     act(() => root.unmount()); root = createRoot(host); mount();
     expect(latest.reachLastAgentId).toBe("claude");
+  });
+
+  it("persists hidden file icons and falls back to shown for missing or corrupt values", () => {
+    mount();
+    expect(latest.showFileIcons).toBe(true);
+
+    act(() => latest.setShowFileIcons(false));
+    const appearance = JSON.parse(localStorage.getItem("puppyone.desktop.appearance")!);
+    expect(appearance.shared.showFileIcons).toBe(false);
+
+    act(() => root.unmount()); root = createRoot(host); mount();
+    expect(latest.showFileIcons).toBe(false);
+
+    act(() => root.unmount()); root = createRoot(host);
+    localStorage.setItem("puppyone.desktop.appearance", JSON.stringify({ ...appearance, shared: { ...appearance.shared, showFileIcons: "no" } }));
+    mount();
+    expect(latest.showFileIcons).toBe(true);
   });
 
   it("keeps defaults usable if storage reads are unavailable", () => {

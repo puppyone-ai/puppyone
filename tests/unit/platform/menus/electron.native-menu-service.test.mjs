@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { createDesktopNativeMenuService } from "../../../../electron/main/native-menu-service.mjs";
+import { NATIVE_MENU_COMMAND_SYMBOLS, createDesktopNativeMenuService } from "../../../../electron/main/native-menu-service.mjs";
 
-function createHarness({ platform = "darwin" } = {}) {
+function createHarness({ platform = "darwin", menuSymbol } = {}) {
   const Menu = {
     buildFromTemplate: vi.fn((template) => ({ template })),
     setApplicationMenu: vi.fn(),
@@ -10,12 +10,14 @@ function createHarness({ platform = "darwin" } = {}) {
   const actions = {
     checkForUpdates: vi.fn(),
     newWindow: vi.fn(),
+    openSettings: vi.fn(),
     openThemesDirectory: vi.fn(),
     selectTheme: vi.fn(),
   };
   const labels = {
     "native.menu.file": "File",
     "native.menu.checkForUpdates": "Check for Updates…",
+    "native.menu.settings": "Settings…",
     "native.menu.theme": "Theme",
     "native.menu.theme.pack": "Visual Variant",
     "native.menu.theme.openFolder": "Open Themes Folder",
@@ -28,8 +30,10 @@ function createHarness({ platform = "darwin" } = {}) {
     t: (messageId) => labels[messageId] ?? messageId,
     onCheckForUpdates: actions.checkForUpdates,
     onNewWindow: actions.newWindow,
+    onOpenSettings: actions.openSettings,
     onOpenThemesDirectory: actions.openThemesDirectory,
     onSelectTheme: actions.selectTheme,
+    ...(menuSymbol ? { menuSymbol } : {}),
   });
   return { actions, app, Menu, service };
 }
@@ -55,10 +59,12 @@ describe("DesktopNativeMenuService", () => {
 
     const appItems = applicationTemplate[0].submenu;
     const checkForUpdates = appItems.find((item) => item.id === "app.checkForUpdates");
+    const settings = appItems.find((item) => item.id === "app.settings");
     expect(appItems.map((item) => item.role ?? item.id ?? item.type)).toEqual([
       "about",
-      "separator",
       "app.checkForUpdates",
+      "separator",
+      "app.settings",
       "separator",
       "services",
       "separator",
@@ -69,6 +75,7 @@ describe("DesktopNativeMenuService", () => {
       "quit",
     ]);
     expect(checkForUpdates).toMatchObject({ label: "Check for Updates…" });
+    expect(settings).toMatchObject({ label: "Settings…", accelerator: "CmdOrCtrl+," });
 
     const fileItems = applicationTemplate[1].submenu;
     const newWindow = fileItems.find((item) => item.id === "file.newWindow");
@@ -80,12 +87,45 @@ describe("DesktopNativeMenuService", () => {
 
     newWindow.click();
     checkForUpdates.click();
+    settings.click();
     Menu.buildFromTemplate.mock.calls[1][0][0].click();
     await Promise.resolve();
     await Promise.resolve();
 
     expect(actions.newWindow).toHaveBeenCalledTimes(2);
     expect(actions.checkForUpdates).toHaveBeenCalledOnce();
+    expect(actions.openSettings).toHaveBeenCalledOnce();
+  });
+
+  it("gives every custom command an SF Symbol and leaves standard roles to AppKit", () => {
+    const menuSymbol = vi.fn((symbolName) => ({ symbolName }));
+    const { service } = createHarness({ menuSymbol });
+    const template = service.createApplicationMenuTemplate();
+    const items = (menu) => menu.submenu.filter((item) => item.type !== "separator");
+    const [appMenu, fileMenu] = template;
+    const themeMenu = template.find((item) => item.id === "themes");
+
+    for (const item of [...items(appMenu), ...items(fileMenu), ...items(themeMenu)]) {
+      if (item.role) {
+        expect(item, item.role).not.toHaveProperty("icon");
+      } else {
+        expect(item.icon, item.id).toEqual({ symbolName: NATIVE_MENU_COMMAND_SYMBOLS[item.id] });
+      }
+    }
+    expect(appMenu.submenu.find((item) => item.id === "app.settings").icon).toEqual({ symbolName: "gearshape" });
+    expect(appMenu.submenu.find((item) => item.id === "app.checkForUpdates").icon)
+      .toEqual({ symbolName: "arrow.triangle.2.circlepath" });
+    // Theme choices are radio items: their checkmark takes the image column.
+    expect(themeMenu.submenu[0].submenu.every((item) => !("icon" in item))).toBe(true);
+    expect(service.createDockMenuTemplate().every((item) => !("icon" in item))).toBe(true);
+  });
+
+  it("keeps commands bare when the platform draws no menu symbols", () => {
+    const { service } = createHarness({ menuSymbol: () => undefined });
+    const appItems = service.createApplicationMenuTemplate()[0].submenu;
+    expect(appItems.find((item) => item.id === "app.settings")).not.toHaveProperty("icon");
+    expect(createHarness().service.createApplicationMenuTemplate()[0].submenu
+      .find((item) => item.id === "app.checkForUpdates")).not.toHaveProperty("icon");
   });
 
   it("builds one coordinated theme-pack group without Customize", async () => {

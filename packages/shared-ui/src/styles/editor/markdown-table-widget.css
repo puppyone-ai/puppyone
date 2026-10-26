@@ -10,9 +10,11 @@
 .markdown-codemirror-editor .cm-md-table-widget-wrap {
   --cm-md-table-handle-gutter: var(--po-editable-table-handle-gutter);
   --cm-md-table-interaction-gutter: var(--po-editable-table-interaction-gutter);
-  /* 220px is the compact initial/reset cap. Explicit auto-fit and manual
-     resize may open a track to the shared readable maximum. */
-  --po-editable-table-cell-max-width: 560px;
+  /* Markdown tracks come from markdownTableColumnLayout, which fits them to
+     the reading column and clamps them; cells never re-clamp a track with
+     the CSV editor's spreadsheet limits. */
+  --po-editable-table-cell-min-width: 0px;
+  --po-editable-table-cell-max-width: none;
   position: relative;
   display: block;
   box-sizing: border-box;

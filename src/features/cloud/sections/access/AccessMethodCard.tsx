@@ -1,4 +1,5 @@
-import { ChevronDown, ChevronRight, Monitor } from "lucide-react";
+import { ChevronRight, Monitor } from "lucide-react";
+import { DisclosureIcon } from "@puppyone/shared-ui";
 import { useState, type ReactNode } from "react";
 import { bidiIsolate, type MessageFormatter } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
@@ -130,7 +131,7 @@ export function DesktopCloudAccessMethodCard({
               onClick={onToggle}
             >
               <span>{expanded ? meta.expandedActionLabel : meta.actionLabel}</span>
-              {expanded ? <ChevronDown className="desktop-cloud-access-method-expanded-chevron" size={12} /> : meta.actionIcon}
+              {expanded ? <DisclosureIcon expanded size={12} /> : meta.actionIcon}
             </button>
           </div>
         </div>

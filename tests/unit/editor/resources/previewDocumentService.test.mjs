@@ -13,11 +13,15 @@ describe("provider-neutral immutable preview documents", () => {
     expect(service.handle({ url, method: "HEAD" }).headers.get("content-length")).toBe("23");
     expect(await service.handle({ url, method: "HEAD" }).text()).toBe("");
   });
-  it("restricts normal previews and revocation to the owning sender", async () => {
+  it("permits page interaction in an opaque sandbox and restricts revocation to the owning sender", async () => {
     const service = createPreviewDocumentService();
     const a = service.create(7, { content: "A", interactive: true }).url;
     const b = service.create(8, { content: "B" }).url;
-    expect(service.handle({ url: a }).headers.get("content-security-policy")).not.toContain("allow-scripts");
+    const policy = service.handle({ url: a }).headers.get("content-security-policy");
+    expect(policy).toContain("allow-scripts");
+    expect(policy).toContain("allow-forms");
+    expect(policy).not.toContain("allow-same-origin");
+    expect(policy).not.toContain("allow-top-navigation");
     expect(service.revoke(8, a)).toBe(false);
     service.revokeOwner(7);
     expect(service.handle({ url: a }).status).toBe(404);

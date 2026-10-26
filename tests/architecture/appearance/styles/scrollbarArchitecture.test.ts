@@ -16,7 +16,9 @@ const terminalCss = readCss("src/features/desktop-terminal/ui/styles/terminal-su
   + readCss("src/features/desktop-terminal/ui/styles/xterm-adapter.css");
 const interfaceSkinContractCss = readCss("src/styles/interface-skin-contract.css");
 const dataWorkspaceCss = readCss("packages/shared-ui/src/styles/data-workspace.css");
-const dataWorkspaceSource = readCss("packages/shared-ui/src/data/DataWorkspace.tsx");
+// The Data workspace and the frame it shares with surfaces that have no files yet.
+const dataWorkspaceSource = readCss("packages/shared-ui/src/data/DataWorkspace.tsx")
+  + readCss("packages/shared-ui/src/data/DataWorkspaceFrame.tsx");
 const desktopDataShellCss = readCss("src/features/data-workspace/data-shell.css");
 const paneCss = readCss("packages/shared-ui/src/sidebar/collapsible-pane.css");
 const sidebarResizeHandleSource = readCss(

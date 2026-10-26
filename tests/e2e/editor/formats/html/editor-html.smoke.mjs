@@ -23,7 +23,7 @@ const root = path.join(temporary, "HTML Workspace"); await fs.mkdir(root);
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aN5kAAAAASUVORK5CYII=', 'base64');
 await fs.writeFile(path.join(root, "old.png"), png);
 const selectedImage = path.join(temporary, "selected.png"); await fs.writeFile(selectedImage, png);
-const original = '<!DOCTYPE html>\r\n<!-- preserved -->\r\n<html><head><style>body{margin:30px}</style></head><body><h1 id="title">Original title</h1><p>Untouched paragraph</p><img id="cover" src="old.png" width="64" height="64"></body></html>';
+const original = '<!DOCTYPE html>\r\n<!-- preserved -->\r\n<html><head><style>body{margin:30px}</style></head><body><h1 id="title">Original title</h1><button id="counter" onclick="this.textContent=String(Number(this.textContent)+1)">0</button><p>Untouched paragraph</p><img id="cover" src="old.png" width="64" height="64"></body></html>';
 await fs.writeFile(path.join(root, "page.html"), original);
 await fs.writeFile(path.join(root, "note.md"), "# Another document");
 const registry = createWorkspaceStateStore({ app, filename: "desktop-workspace-state.json", canonicalizeWorkspacePath: value => fs.realpath(value), workspaceFromPath });
@@ -64,7 +64,7 @@ async function nativeClick(selector, inFrame = false) {
   if (inFrame) {
     await until(() => target.executeJavaScript(`document.elementFromPoint(${point.x},${point.y})?.closest(${JSON.stringify(selector)})?.matches(${JSON.stringify(selector)})`),
       `frame hit target ${selector}`);
-    const outer = await evaluate("(()=>{const r=document.querySelector('.html-visual-editor iframe').getBoundingClientRect();return {x:r.x,y:r.y}})()");
+    const outer = await evaluate("(()=>{const r=document.querySelector('.html-document-editor iframe').getBoundingClientRect();return {x:r.x,y:r.y}})()");
     point.x += outer.x; point.y += outer.y;
   }
   await window.webContents.debugger.sendCommand("Input.dispatchMouseEvent", { type: "mouseMoved", ...point });
@@ -94,8 +94,8 @@ async function activate(selector) {
 }
 async function mode(label) {
   await click('.desktop-editor-pane-handle');
-  await until(() => evaluate(`Boolean([...document.querySelectorAll('[role="menuitem"]')].find(b=>b.textContent===${JSON.stringify(label)}))`), 'mode menu');
-  await evaluate(`([...document.querySelectorAll('[role="menuitem"]')].find(b=>b.textContent===${JSON.stringify(label)})).click()`);
+  await nativeClick(`[role="menuitemradio"][aria-label="${label}"]`);
+  await click('.desktop-editor-pane-handle');
 }
 async function history(direction) {
   await ready();
@@ -112,11 +112,26 @@ app.whenReady().then(async () => {
   try {
     window = await until(() => BrowserWindow.getAllWindows()[0], "main window"); window.setSize(1200, 850);
     await until(() => evaluate("!!document.querySelector('.app-shell')"), "app ready");
+    await evaluate("document.querySelector('.desktop-header-coachmark-actions button')?.click()");
     window.hide();
     window.webContents.debugger.attach("1.3");
     await window.webContents.debugger.sendCommand("Emulation.setFocusEmulationEnabled", { enabled: true });
     await click('.tree-row.file[aria-label="page.html"]');
-    await until(() => evaluate("!!document.querySelector('.html-visual-editor')"), "HTML provider mounted from Explorer");
+    await until(() => evaluate("!!document.querySelector('[data-html-interactive=true]')"), "HTML opens in interaction mode from Explorer");
+    assert.equal(await evaluate("!!document.querySelector('.html-mode-bar,.html-mode-switch')"), false);
+    assert.equal(await evaluate("(()=>{const host=document.querySelector('.html-document-editor').getBoundingClientRect(),frame=document.querySelector('.html-document-editor iframe').getBoundingClientRect();return Math.abs(frame.top-host.top)<1&&Math.abs(frame.bottom-host.bottom)<1})()"), true, 'HTML fills the editor height without an extra header');
+    await until(() => evaluate("document.querySelector('[data-html-interactive=true]')?.getAttribute('aria-busy')==='false'"), 'interactive page ready under production CSP');
+    await nativeClick('#counter', true);
+    assert.equal(await frame().executeJavaScript("document.querySelector('#counter').textContent"), '1', 'page script runs under production CSP');
+    assert.equal(await frame().executeJavaScript("typeof require"), 'undefined');
+    assert.equal(await frame().executeJavaScript("typeof window.puppyone"), 'undefined');
+    assert.equal(await frame().executeJavaScript("(()=>{try{return !!parent.document}catch{return false}})()"), false);
+    assert.equal(await disk(), original, 'interaction leaves the original file unchanged');
+    await evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+    await fs.writeFile(path.join(output, "html-interaction.png"), (await window.webContents.capturePage()).toPNG());
+    steps.push('default interaction, native scripted button click and isolated page under production CSP');
+    await mode("Edit");
+    await until(() => evaluate("!!document.querySelector('.html-visual-editor')"), "HTML edit mode selected");
     await until(() => imageResponses.some(response => response.url.endsWith("/old.png") && response.status === 200),
       "safe preview relative image resolves under production CSP");
     assert.equal(await disk(), original);
@@ -130,9 +145,9 @@ app.whenReady().then(async () => {
     assert.equal(frame().routingId, routing, "save echo/resource refresh must not reload the active frame");
     assert.equal(await disk(), original.replace("Original title", "Edited from Explorer 中文"));
     steps.push("Explorer entry, native text input, lossless production autosave and stable frame");
-    await mode("Show code");
+    await mode("Source code");
     await until(() => evaluate("document.querySelector('.cm-content')?.textContent.includes('Edited from Explorer 中文')"), "same source model");
-    await mode("Show page"); await ready();
+    await mode("Edit"); await ready();
     await history("undo"); await until(async () => await disk() === original, "shared undo");
     await history("redo"); await until(async () => (await disk()).includes("Edited from Explorer 中文"), "shared redo");
     await ready();

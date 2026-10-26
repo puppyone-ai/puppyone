@@ -9,13 +9,19 @@ describe("Settings Cloud feature gate", () => {
     const groups = resolveSettingsSidebarGroups({ cloudEnabled: false });
     const sections = groups.flatMap((group) => group.items.map((item) => item.id));
 
-    // Signing in only serves Cloud, so the whole Cloud group waits for the experiment.
+    // Signing in only serves Cloud, so Account and Plan wait for the experiment.
     expect(sections).not.toContain("account");
-    expect(sections).not.toContain("cloud");
+    expect(sections).not.toContain("seats");
     expect(sections).not.toContain("other-app-imports");
     expect(groups.find((group) => group.id === "cloud")).toBeUndefined();
     expect(isSettingsSectionAvailable("account", { cloudEnabled: false })).toBe(false);
-    expect(isSettingsSectionAvailable("cloud", { cloudEnabled: false })).toBe(false);
+    expect(isSettingsSectionAvailable("seats", { cloudEnabled: false })).toBe(false);
+    // Where a project is hosted is a fact about the project, and GitHub is one
+    // of the answers, so it survives our Cloud being switched off entirely.
+    expect(sections).toContain("cloud");
+    expect(isSettingsSectionAvailable("cloud", { cloudEnabled: false })).toBe(true);
+    expect(groups.find((group) => group.id === "local-project")?.items.map((item) => item.id))
+      .toEqual(["local-project", "cloud", "git", "files"]);
     expect(sections).toContain("privacy");
     expect(isSettingsSectionAvailable("privacy", { cloudEnabled: false })).toBe(true);
     expect(isSettingsSectionAvailable("experimental", { cloudEnabled: false })).toBe(true);
@@ -24,12 +30,18 @@ describe("Settings Cloud feature gate", () => {
     expect(isSettingsSectionAvailable("model-connections", { cloudEnabled: false })).toBe(true);
   });
 
-  it("reveals the complete Cloud settings group after Puppyone Cloud is enabled", () => {
+  it("keeps the Cloud group to the account and what it runs once Puppyone Cloud is enabled", () => {
     const cloudGroup = resolveSettingsSidebarGroups({ cloudEnabled: true })
       .find((group) => group.id === "cloud");
 
-    expect(cloudGroup?.items.map((item) => item.id)).toEqual(["account", "cloud"]);
+    // Identity, then what is held. Hosting moved to the project it describes,
+    // and invoices are a browser surface that Seats links out to.
+    expect(cloudGroup?.items.map((item) => item.id)).toEqual(["account", "seats"]);
     expect(isSettingsSectionAvailable("account", { cloudEnabled: true })).toBe(true);
+    // Cloud leads once enabled: the nav scrolls, and an account below the fold
+    // is an account nobody finds. See settingsSidebarModel.ts.
+    expect(resolveSettingsSidebarGroups({ cloudEnabled: true }).map((group) => group.id))
+      .toEqual(["cloud", "desktop-app", "agents", "local-project"]);
     expect(isSettingsSectionAvailable("cloud", { cloudEnabled: true })).toBe(true);
   });
 

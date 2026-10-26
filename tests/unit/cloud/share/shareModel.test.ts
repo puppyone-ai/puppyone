@@ -104,10 +104,10 @@ describe("share handoff", () => {
     expect(normalizeApiOrigin("https://cloud.example/api/v1")).toBe("https://cloud.example");
     expect(normalizeApiOrigin("https://cloud.example")).toBe("https://cloud.example");
     expect(normalizeApiOrigin(null)).toBe("");
-    expect(buildMcpServerUrl("https://cloud.example/api/v1", "mcp_key")).toBe(
-      "https://cloud.example/api/v1/mcp/server/mcp_key",
+    expect(buildMcpServerUrl("https://cloud.example/api/v1")).toBe(
+      "https://cloud.example/api/v1/mcp/proxy",
     );
-    expect(buildMcpServerUrl("https://cloud.example", null)).toBe("");
+    expect(buildMcpServerUrl(null)).toBe("");
   });
 
   it("gives MCP targets a paste-ready URL and link targets the project link", () => {
@@ -119,7 +119,7 @@ describe("share handoff", () => {
     });
     expect(mcp).toEqual({
       channel: "mcp",
-      serverUrl: "https://cloud.example/api/v1/mcp/server/mcp_live_0123456789abcdef",
+      serverUrl: "https://cloud.example/api/v1/mcp/proxy",
       apiKey: "mcp_live_0123456789abcdef",
       apiKeyHint: "mcp_…cdef",
     });

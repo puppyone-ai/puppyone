@@ -8,7 +8,6 @@ import {
   CopyPlus,
   ExternalLink,
   FileText,
-  FolderOpen,
   FolderPlus,
   Pencil,
   Plus,
@@ -32,6 +31,7 @@ import {
   type FileIconThemeId,
   type PuppyFlowDocumentDefaults,
   useCssPixelCustomProperty,
+  FolderIcon,
 } from "@puppyone/shared-ui";
 import { bidiIsolate, type MessageFormatter } from "@puppyone/localization/core";
 import { useLocalization } from "@puppyone/localization/react";
@@ -73,8 +73,6 @@ export type DesktopCreateEntryDraft = {
   anchor: DesktopCreateEntryAnchor;
   error: DesktopNodeActionError | null;
   creatingKind: DesktopCreateEntryKind | null;
-  selectedKind: DesktopCreateEntryKind | null;
-  name: string;
 };
 export type DesktopNodeActionMenuDraft = {
   /** The clicked row may differ from the collapsed multi-selection command target. */
@@ -174,6 +172,12 @@ export function DesktopExplorerRowActions({
   );
 }
 
+/**
+ * New, as the anchored menu (upward from the Sidebar launcher). Choosing a
+ * kind creates it at once in the target folder under its default,
+ * de-duplicated name (Untitled, Untitled 2, …) and opens it; there is no
+ * naming step. Renaming is the ordinary rename action afterwards.
+ */
 export function DesktopCreateEntryMenu({
   draft,
   mainEntries,
@@ -204,6 +208,9 @@ export function DesktopCreateEntryMenu({
   const suppressSubmenuFocusOpenRef = useRef(false);
   const [submenuOpen, setSubmenuOpen] = useState(false);
   const submenuOptions = getConfiguredCreateEntryMenuItems(submenuItemKinds);
+  // Choosing a kind creates it at once; while it is written, the kinds rest.
+  const creating = draft.creatingKind !== null;
+  const errorMessage = formatDesktopNodeActionError(draft.error, t);
   const sidebarLauncher = draft.anchor.placement === "auto-end";
   const menuWidth = sidebarLauncher
     ? Math.max(CREATE_ENTRY_MENU_WIDTH, draft.anchor.width)
@@ -212,7 +219,8 @@ export function DesktopCreateEntryMenu({
   const separatorCount = Number(mainEntries.length > 0);
   const estimatedHeight = (menuPadding * 2)
     + (menuRowCount * menuRowHeight)
-    + (separatorCount * MENU_SEPARATOR_BLOCK_SIZE);
+    + (separatorCount * MENU_SEPARATOR_BLOCK_SIZE)
+    + (errorMessage ? MENU_ERROR_BLOCK_SIZE : 0);
   const position = getCreateEntryMenuPosition(draft.anchor, menuWidth, estimatedHeight);
   const documentDirection = document.documentElement.dir === "rtl" ? "rtl" : "ltr";
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
@@ -322,6 +330,7 @@ export function DesktopCreateEntryMenu({
       <DesktopNodeActionMenuItem
         icon={<CreateEntryGlyph option={getCreateEntryMenuItem("folder")} theme={fileIconTheme} />}
         label={getCreateEntryOptionLabel("folder", t)}
+        disabled={creating}
         onClick={() => onSelectKind("folder")}
       />
       {mainEntries.length > 0 && <DesktopMenuSeparator />}
@@ -333,6 +342,7 @@ export function DesktopCreateEntryMenu({
               key={option.kind}
               icon={<CreateEntryGlyph option={option} theme={fileIconTheme} />}
               label={getCreateEntryOptionLabel(option.kind, t)}
+              disabled={creating}
               onClick={() => onSelectKind(option.kind)}
             />
           );
@@ -398,6 +408,7 @@ export function DesktopCreateEntryMenu({
                   key={option.kind}
                   icon={<CreateEntryGlyph option={option} theme={fileIconTheme} />}
                   label={getCreateEntryOptionLabel(option.kind, t)}
+                  disabled={creating}
                   onClick={() => onSelectKind(option.kind)}
                 />
               ))}
@@ -405,130 +416,8 @@ export function DesktopCreateEntryMenu({
           </div>
         );
       })}
+      {errorMessage && <div className="desktop-node-action-error" role="alert" dir="auto">{errorMessage}</div>}
     </DesktopMenuSurface>
-  );
-}
-
-export function DesktopCreateEntryDialog({
-  draft,
-  onChange,
-  onCancel,
-  onCreate,
-}: {
-  draft: DesktopCreateEntryDraft;
-  onChange: Dispatch<SetStateAction<DesktopCreateEntryDraft | null>>;
-  onCancel: () => void;
-  onCreate: () => void;
-}) {
-  const fileIconTheme = useDesktopPreference(selectFileIconTheme);
-  const { t } = useLocalization();
-  const inputRef = useRef<HTMLInputElement>(null);
-  const selectedKind = draft.selectedKind;
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && draft.creatingKind === null) onCancel();
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [draft.creatingKind, onCancel]);
-
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(() => inputRef.current?.select());
-    return () => window.cancelAnimationFrame(frame);
-  }, []);
-
-  if (!selectedKind) return null;
-
-  const selectedOption = getCreateEntryMenuItem(selectedKind);
-  const optionLabel = getCreateEntryOptionLabel(selectedKind, t);
-  const errorMessage = formatDesktopNodeActionError(draft.error, t);
-
-  return (
-    <DesktopDialogRoot
-      onClose={onCancel}
-      dismissOnBackdrop={draft.creatingKind === null}
-    >
-      <form
-        className="desktop-dialog-surface desktop-file-dialog desktop-create-entry-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="desktop-create-entry-title"
-        onClick={(event) => event.stopPropagation()}
-        onSubmit={(event) => {
-          event.preventDefault();
-          onCreate();
-        }}
-      >
-        <header className="desktop-dialog-header">
-          <div className="desktop-dialog-title-row">
-            <span className="desktop-dialog-leading file" aria-hidden="true">
-              <CreateEntryGlyph option={selectedOption} theme={fileIconTheme} size={16} />
-            </span>
-            <div>
-              <h2 id="desktop-create-entry-title">{getCreateEntryDialogTitle(selectedKind, t)}</h2>
-            </div>
-          </div>
-          <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton label={t("common.action.close")} disabled={draft.creatingKind !== null} onClick={onCancel} /></Tooltip>
-        </header>
-
-        <div
-          className="desktop-dialog-body desktop-file-dialog-body"
-          data-po-scrollbar="content"
-        >
-          <div className="desktop-dialog-field">
-            <input
-              ref={inputRef}
-              value={draft.name}
-              disabled={draft.creatingKind !== null}
-              aria-label={t("workspace.node.kindName", { kind: optionLabel })}
-              placeholder={t("workspace.node.kindName", { kind: optionLabel })}
-              onChange={(event) => {
-                const value = event.target.value;
-                onChange((current) => current ? { ...current, name: value, error: null } : current);
-              }}
-            />
-          </div>
-
-          {selectedKind === "slides" && (
-            <section className="desktop-slides-template" aria-label={t("workspace.node.create.slides.templateLabel")}>
-              <div className="desktop-slides-template-preview" aria-hidden="true">
-                <span>{t("workspace.node.create.slides.brand")}</span>
-                <strong>{t("workspace.node.create.slides.previewTitle")}</strong>
-                <i />
-              </div>
-              <div className="desktop-slides-template-copy">
-                <strong>{t("workspace.node.create.slides.defaultTemplate")}</strong>
-                <span>{t("workspace.node.create.slides.defaultTemplateDetail")}</span>
-              </div>
-              <span className="desktop-slides-template-selected" aria-hidden="true">✓</span>
-            </section>
-          )}
-
-          {errorMessage && <div className="desktop-dialog-error" dir="auto">{errorMessage}</div>}
-        </div>
-
-        <footer className="desktop-dialog-footer">
-          <button
-            className="desktop-dialog-button"
-            type="button"
-            disabled={draft.creatingKind !== null}
-            onClick={onCancel}
-          >
-            {t("common.action.cancel")}
-          </button>
-          <button
-            className="desktop-dialog-button primary file"
-            type="submit"
-            disabled={draft.creatingKind !== null || !draft.name.trim()}
-          >
-            {draft.creatingKind ? t("workspace.node.creating") : t("workspace.node.create")}
-          </button>
-        </footer>
-      </form>
-    </DesktopDialogRoot>
   );
 }
 
@@ -786,7 +675,7 @@ function DesktopNodeActionPopover({
       )}
       {singleNodeAction && showRevealInFinder && (
         <DesktopNodeActionMenuItem
-          icon={<FolderOpen size={14} />}
+          icon={<FolderIcon size={14} />}
           label={draft.operation === "reveal" ? t("workspace.node.opening") : t("workspace.node.revealInFinder")}
           disabled={draft.operation !== null}
           onClick={onRevealInFinder}
@@ -1209,10 +1098,6 @@ function ensureCreateEntryExtension(name: string, extensionPattern: RegExp, fall
 
 function getCreateEntryOptionLabel(kind: DesktopCreateEntryKind, t: MessageFormatter): string {
   return t(`workspace.node.create.kind.${kind}.label`);
-}
-
-function getCreateEntryDialogTitle(kind: DesktopCreateEntryKind, t: MessageFormatter): string {
-  return t(`workspace.node.create.kind.${kind}.title`);
 }
 
 export function toDesktopNodeActionError(error: unknown): DesktopNodeActionError {

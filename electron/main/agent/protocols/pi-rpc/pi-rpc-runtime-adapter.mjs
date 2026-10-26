@@ -249,6 +249,7 @@ export class PiRpcRuntimeAdapter {
 
   async startTurn({
     prompt,
+    clientUserMessageId = randomUUID(),
     model = null,
     effort = null,
     references: allReferences = [],
@@ -257,7 +258,11 @@ export class PiRpcRuntimeAdapter {
   }) {
     this.#assertConnected();
     if (this.activeState) throw new Error(`A ${this.runtimeLabel} turn is already running.`);
-    await this.#applySelection(model, effort);
+    try { await this.#applySelection(model, effort); }
+    catch (error) {
+      // A preflight request may be uncertain, but this prompt was never sent.
+      throw new Error(errorText(error), { cause: error });
+    }
     const references = allReferences.length > 0 ? allReferences : [...contextReferences, ...attachments];
     const projectInstructions = this.projectInstructionLoader
       ? await this.projectInstructionLoader(this.workspaceRoot)
@@ -270,24 +275,24 @@ export class PiRpcRuntimeAdapter {
     const state = createPiEventState({ turnId, providerSessionId: this.sessionId,
       namespace: this.runtimeNamespace, runtimeLabel: this.runtimeLabel });
     this.activeState = state;
-    this.onEvent({
-      type: "turn.started",
-      providerSessionId: this.sessionId,
-      turnId,
-      payload: { status: "running", model, effort },
-    });
+    state.startAccepted = false;
+    state.clientUserMessageId = clientUserMessageId;
+    const accept = () => this.#acceptTurn(state, model, effort);
     try {
       await this.client.request("prompt", {
         message: input.message,
         ...(input.images.length > 0 ? { images: input.images } : {}),
-      });
+      }, { onLateResponse: (error) => {
+        if (!error) accept();
+      } });
+      accept();
       return { turnId };
     } catch (error) {
-      if (this.activeState === state) this.activeState = null;
       if (error?.deliveryOutcome === "unknown") {
-        this.onExit({ expected: false, error: errorText(error) });
+        if (state.startAccepted) return { turnId };
         throw error;
       }
+      if (this.activeState === state) this.activeState = null;
       this.onEvent({
         type: "turn.failed",
         providerSessionId: this.sessionId,
@@ -456,6 +461,13 @@ export class PiRpcRuntimeAdapter {
     this.sessionId = state.sessionId;
   }
 
+  #acceptTurn(state, model = null, effort = null) {
+    if (this.disposed || state.startAccepted || this.activeState !== state) return;
+    state.startAccepted = true;
+    this.onEvent({ type: "turn.started", providerSessionId: this.sessionId,
+      turnId: state.turnId, payload: { status: "running", model, effort, clientUserMessageId: state.clientUserMessageId } });
+  }
+
   #handleRpcEvent(message) {
     if (message?.type === "extension_ui_request") {
       this.#handleExtensionUi(message);
@@ -464,6 +476,9 @@ export class PiRpcRuntimeAdapter {
     if (!this.activeState && isTurnScopedPiEvent(message?.type)) return;
     const state = this.activeState ?? createPiEventState({ providerSessionId: this.sessionId,
       namespace: this.runtimeNamespace, runtimeLabel: this.runtimeLabel });
+    // A single prompt owns this stream; a native agent_start confirms acceptance
+    // even when its command receipt is delayed. Preflight UI alone does not.
+    if (message?.type === "agent_start" && this.activeState === state) this.#acceptTurn(state);
     const normalized = normalizePiRpcEvent(message, state);
     for (const event of normalized) this.onEvent(event);
     if (normalized.some((event) => ["turn.completed", "turn.failed", "turn.interrupted"].includes(event.type))) {
@@ -556,14 +571,14 @@ export class PiRpcRuntimeAdapter {
     }
     if (message.method === "notify") {
       this.onEvent({
-        type: message.notifyType === "error" || message.notifyType === "warning" ? "provider.warning" : "provider.activity",
+        type: "provider.notification",
         providerSessionId: this.sessionId,
         turnId: this.activeState?.turnId ?? null,
         itemId: `${this.runtimeNamespace}:extension:${safeId(message.id) || randomUUID()}`,
         payload: {
-          message: redactSecretText(String(message.message || `${this.runtimeLabel} extension notification`).slice(0, 4_000)),
-          label: `${this.runtimeLabel} extension`,
-          status: "completed",
+          message: redactSecretText(String(message.message || `${this.runtimeLabel} extension notification`).trim().slice(0, 4_000) || `${this.runtimeLabel} extension notification`),
+          source: `${this.runtimeLabel} extension`,
+          severity: ["warning", "error"].includes(message.notifyType) ? message.notifyType : "info",
         },
       });
     }

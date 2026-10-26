@@ -8,7 +8,7 @@ const REMOTE = "https://api.puppyone.test/git/project-1.git";
 const HEAD = "0123456789abcdef0123456789abcdef01234567";
 
 describe("Cloud publish Git diagnostics", () => {
-  it("reports the failing remote stage while redacting credential material", async () => {
+  it("reports credential setup failure while redacting credential material", async () => {
     let remoteExists = false;
     const rollback = vi.fn(async () => undefined);
     const service = createCloudPublishGitService({
@@ -34,7 +34,7 @@ describe("Cloud publish Git diagnostics", () => {
       gitCredentialManager: {
         prepare: async () => ({}),
         approve: async () => ({ rollback }),
-        assertManaged: async () => undefined,
+        assertManaged: async () => { throw new Error("Authentication failed pwg_do_not_leak"); },
         cleanupManaged: async () => undefined,
         commandArgs: (_url, _snapshot, args) => args,
       },
@@ -43,7 +43,7 @@ describe("Cloud publish Git diagnostics", () => {
     await expect(service.configureCanonicalRemote("/workspace", record(), "pwg_do_not_leak"))
       .rejects.toMatchObject({
         publishCode: "REMOTE_CONFIG_FAILED",
-        message: expect.stringMatching(/verifying Cloud Git access.*Authentication failed/i),
+        message: expect.stringMatching(/verifying the managed credential configuration.*Authentication failed/i),
       });
     await expect(service.configureCanonicalRemote("/workspace", record(), "pwg_do_not_leak"))
       .rejects.not.toThrow(/pwg_do_not_leak|x-puppyone-token:/i);
@@ -55,7 +55,7 @@ describe("Cloud publish Git diagnostics", () => {
     const waits = [];
     const rollback = vi.fn(async () => undefined);
     const execGitCommand = vi.fn(async (_rootPath, args, options = {}) => {
-      const command = args[0];
+      const command = args.includes("push") ? "push" : args[0];
       if (command === "cat-file" && args[1] === "-e") return { stdout: "", stderr: "" };
       if (args.join(" ") === "remote") return { stdout: "puppyone\n", stderr: "" };
       if (command === "remote" && args.includes("get-url")) {
@@ -64,7 +64,7 @@ describe("Cloud publish Git diagnostics", () => {
       if (command === "ls-remote") {
         remoteReadCount += 1;
         return {
-          stdout: remoteReadCount >= 3 ? `${HEAD}\trefs/heads/main\n` : "",
+          stdout: remoteReadCount >= 1 ? `${HEAD}\trefs/heads/main\n` : "",
           stderr: "",
         };
       }
@@ -82,6 +82,7 @@ describe("Cloud publish Git diagnostics", () => {
     });
     const service = createCloudPublishGitService({
       execGitCommand,
+      fetchImpl: async () => ({ ok: false, status: 404 }),
       wait: async (delayMs) => waits.push(delayMs),
       gitCredentialManager: {
         prepare: async () => ({}),
@@ -94,19 +95,31 @@ describe("Cloud publish Git diagnostics", () => {
 
     await expect(service.pushExpectedCommit("/workspace", record(), "pwg_secret"))
       .resolves.toEqual({ remoteHead: HEAD });
-    const pushCalls = execGitCommand.mock.calls.filter(([, args]) => args[0] === "push");
+    const pushCalls = execGitCommand.mock.calls.filter(([, args]) => args.includes("push"));
     expect(pushCalls).toHaveLength(1);
     expect(pushCalls[0][1]).toEqual([
+      "-c", `http.${REMOTE}.extraHeader=X-PuppyOne-Initial-Attempt: ${record().attempt.attempt_id}`,
       "push",
+      "--progress",
       "--force-with-lease=refs/heads/main:",
       REMOTE,
       `${HEAD}:refs/heads/main`,
     ]);
-    expect(waits).toEqual([2_000]);
+    expect(waits).toEqual([]);
+    expect(remoteReadCount).toBe(1);
     expect(rollback).not.toHaveBeenCalled();
   });
 
-  it("returns an explicit uncertain state when timeout reconciliation cannot prove the ref", async () => {
+  it.each([
+    ["connection timed out", "PUSH_UNCERTAIN"],
+    ["remote: unpack invalid pack: incoming pack expansion budget exceeded", "PUSH_LIMIT_EXCEEDED"],
+    ["remote: unpack invalid pack: incoming expanded pack budget exceeded", "PUSH_LIMIT_EXCEEDED"],
+    ["remote: unpack invalid pack: Git single-object budget exceeded", "PUSH_LIMIT_EXCEEDED"],
+    ["remote: unpack invalid pack: Git pack exceeds the 2147483648-byte limit for this operation", "PUSH_LIMIT_EXCEEDED"],
+    ["RPC failed; HTTP 413 curl 22 The requested URL returned error: 413\nfatal: the remote end hung up unexpectedly", "PUSH_LIMIT_EXCEEDED"],
+    ["remote: unpack invalid pack: completed Git pack exceeds the storage processing budget", "PUSH_LIMIT_EXCEEDED"],
+    ["remote: unpack invalid pack: Git pack checksum mismatch", "PUSH_FAILED"],
+  ])("classifies %s after checking that the desired ref was not published", async (diagnostic, code) => {
     const waits = [];
     const execGitCommand = vi.fn(async (_rootPath, args) => {
       if (args[0] === "cat-file" && args[1] === "-e") return { stdout: "", stderr: "" };
@@ -115,13 +128,14 @@ describe("Cloud publish Git diagnostics", () => {
         return { stdout: `${REMOTE}\n`, stderr: "" };
       }
       if (args[0] === "ls-remote") return { stdout: "", stderr: "" };
-      if (args[0] === "push") {
-        throw Object.assign(new Error("connection timed out"), { code: "ETIMEDOUT", killed: true });
+      if (args.includes("push")) {
+        throw Object.assign(new Error("Git push failed"), { stderr: diagnostic });
       }
       throw new Error(`Unexpected Git command: ${args.join(" ")}`);
     });
     const service = createCloudPublishGitService({
       execGitCommand,
+      fetchImpl: async () => ({ ok: false, status: 404 }),
       wait: async (delayMs) => waits.push(delayMs),
       gitCredentialManager: {
         prepare: async () => ({}),
@@ -133,9 +147,46 @@ describe("Cloud publish Git diagnostics", () => {
     });
 
     await expect(service.pushExpectedCommit("/workspace", record(), "pwg_secret"))
-      .rejects.toMatchObject({ publishCode: "PUSH_UNCERTAIN", publishRetryable: true });
-    expect(waits).toEqual([2_000, 5_000, 10_000, 20_000, 30_000]);
-    expect(execGitCommand.mock.calls.filter(([, args]) => args[0] === "push")).toHaveLength(1);
+      .rejects.toMatchObject({ publishCode: code, publishRetryable: true });
+    expect(waits).toEqual([]);
+    expect(execGitCommand.mock.calls.filter(([, args]) => args[0] === "ls-remote")).toHaveLength(1);
+    expect(execGitCommand.mock.calls.filter(([, args]) => args.includes("push"))).toHaveLength(1);
+  });
+
+  it.each([false, true])("handles explicit size rejection when status is unavailable or already accepted (%s)", async (accepted) => {
+    const execGitCommand = vi.fn(async (_rootPath, args) => {
+      if (args[0] === "cat-file") return { stdout: "", stderr: "" };
+      if (args.join(" ") === "remote") return { stdout: "puppyone\n", stderr: "" };
+      if (args[0] === "remote") return { stdout: `${REMOTE}\n`, stderr: "" };
+      if (args[0] === "ls-remote") {
+        if (accepted) return { stdout: `${HEAD}\trefs/heads/main\n`, stderr: "" };
+        throw new Error("connection timed out");
+      }
+      if (args.includes("push")) {
+        throw Object.assign(new Error("Git push failed"), {
+          stderr: "RPC failed; HTTP 413 curl 22\nfatal: the remote end hung up unexpectedly",
+        });
+      }
+      throw new Error(`Unexpected Git command: ${args.join(" ")}`);
+    });
+    const service = createCloudPublishGitService({
+      execGitCommand,
+      fetchImpl: async () => { throw new Error("connection timed out"); },
+      gitCredentialManager: {
+        prepare: async () => ({}),
+        approve: async () => ({ rollback: async () => undefined }),
+        assertManaged: async () => undefined,
+        cleanupManaged: async () => undefined,
+        commandArgs: (_url, _snapshot, args) => args,
+      },
+    });
+    const result = service.pushExpectedCommit("/workspace", record(), "pwg_secret");
+    if (accepted) await expect(result).resolves.toEqual({ remoteHead: HEAD });
+    else await expect(result).rejects.toMatchObject({
+      publishCode: "PUSH_LIMIT_EXCEEDED", message: expect.stringContaining("2 GiB"),
+    });
+    expect(execGitCommand.mock.calls.filter(([, args]) => args.includes("push"))).toHaveLength(1);
+    expect(execGitCommand.mock.calls.some(([, args]) => args.includes("pack-objects"))).toBe(false);
   });
 });
 

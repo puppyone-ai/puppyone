@@ -1,9 +1,8 @@
 import type { SourceRange } from "../../core/plans/markdownPlanTypes";
 import {
-  EDITABLE_TABLE_COLUMN_MIN_WIDTH,
-  EDITABLE_TABLE_COLUMN_RESIZE_MAX_WIDTH,
-  clampEditableTableColumnWidth,
-} from "../../../table/editableTableLayout";
+  EMBEDDED_TABLE_COLUMN_MIN_WIDTH,
+  clampEmbeddedTableColumnWidth,
+} from "./embeddedTableColumnGeometry";
 import type {
   EmbeddedInlineViewportContinuity,
   EmbeddedInlineViewportSequenceChange,
@@ -21,9 +20,20 @@ export type EmbeddedTableColumnLayoutSession = Readonly<{
   widths: readonly number[];
   lifecycle: "mounted" | "detached";
   mountToken: number;
+  /** The user set these tracks (resize, auto-fit, fit); they persist and never reflow. */
+  explicit: boolean;
+  /** Reading-column width the automatic tracks were laid out for; null when explicit. */
+  autoLayoutWidth: number | null;
 }>;
 
-type StoredTableColumnLayoutSession = Omit<EmbeddedTableColumnLayoutSession, "widths"> & {
+/** Last measured reading geometry, so a new table's first paint is already fitted. */
+export type EmbeddedTableAutoLayoutMetrics = Readonly<{
+  availableWidth: number;
+  emPx: number;
+  cellInset: number;
+}>;
+
+type StoredTableColumnLayoutSession = Omit<EmbeddedTableColumnLayoutSession, "widths" | "explicit"> & {
   acceptsNextSourceIdentity: boolean;
   lastTouchedAt: number;
   persistenceActive: boolean;
@@ -35,6 +45,8 @@ type StoredTableColumnLayoutSession = Omit<EmbeddedTableColumnLayoutSession, "wi
 export type EmbeddedTableColumnLayoutAcquireInput = Readonly<{
   featureId: string;
   initialWidths: readonly number[];
+  /** Reading-column width `initialWidths` were laid out for. */
+  initialLayoutWidth?: number | null;
   mappedRange: SourceRange;
   persistenceNamespace?: string | null;
   sourceIdentity: string;
@@ -43,6 +55,7 @@ export type EmbeddedTableColumnLayoutAcquireInput = Readonly<{
 export type EmbeddedTableColumnLayoutPersistence = Readonly<{
   read: (key: string, columnCount: number) => readonly number[] | undefined;
   write: (key: string, widths: readonly number[], previousKey?: string | null) => void;
+  remove?: (key: string) => void;
 }>;
 
 export type EmbeddedTableColumnLayoutTransactionMapping = Readonly<{
@@ -73,6 +86,7 @@ export function createEmbeddedTableColumnLayoutSessionStore(
   const now = options.now ?? Date.now;
   const persistence = options.persistence ?? null;
   const sessions = new Map<string, StoredTableColumnLayoutSession>();
+  const autoLayoutMetrics = createAutoLayoutMetricsMemory();
   let sessionSequence = 0;
   let mountSequence = 0;
 
@@ -117,9 +131,13 @@ export function createEmbeddedTableColumnLayoutSessionStore(
     widths: resolveWidths(session.widths, fallbackWidths),
     lifecycle: session.lifecycle,
     mountToken: session.mountToken,
+    explicit: session.persistenceActive,
+    autoLayoutWidth: session.persistenceActive ? null : session.autoLayoutWidth,
   });
 
   return {
+    ...autoLayoutMetrics,
+
     acquire(input: EmbeddedTableColumnLayoutAcquireInput): EmbeddedTableColumnLayoutSession {
       prune();
       const timestamp = now();
@@ -178,6 +196,7 @@ export function createEmbeddedTableColumnLayoutSessionStore(
         widths: [...(persistedWidths ?? input.initialWidths)],
         lifecycle: "mounted",
         mountToken,
+        autoLayoutWidth: input.initialLayoutWidth ?? null,
         acceptsNextSourceIdentity: false,
         persistenceActive: persistedWidths !== undefined,
         persistenceNamespace,
@@ -200,16 +219,61 @@ export function createEmbeddedTableColumnLayoutSessionStore(
       const next: StoredTableColumnLayoutSession = {
         ...current,
         persistenceActive: true,
-        widths: widths.map((width) => clampEditableTableColumnWidth(
-          width,
-          EDITABLE_TABLE_COLUMN_RESIZE_MAX_WIDTH,
-        )),
+        autoLayoutWidth: null,
+        widths: widths.map(clampEmbeddedTableColumnWidth),
         lastTouchedAt: now(),
       };
       sessions.set(sessionId, next);
       if (next.persistenceKey) persistence?.write(next.persistenceKey, next.widths);
       return snapshot(next);
     },
+
+    /** Automatic tracks reflowed for a new reading width: not persisted, not explicit. */
+    setAutoWidths(
+      sessionId: string,
+      mountToken: number,
+      widths: readonly number[],
+      layoutWidth: number,
+    ): EmbeddedTableColumnLayoutSession | null {
+      const current = sessions.get(sessionId);
+      if (
+        !current
+        || current.mountToken !== mountToken
+        || current.lifecycle !== "mounted"
+        || current.persistenceActive
+      ) {
+        return null;
+      }
+      const next: StoredTableColumnLayoutSession = {
+        ...current,
+        autoLayoutWidth: layoutWidth,
+        widths: widths.map(clampEmbeddedTableColumnWidth),
+        lastTouchedAt: now(),
+      };
+      sessions.set(sessionId, next);
+      return snapshot(next);
+    },
+
+    /** Forget explicit tracks so the table follows the reading column again. */
+    resetToAuto(
+      sessionId: string,
+      mountToken: number,
+    ): EmbeddedTableColumnLayoutSession | null {
+      const current = sessions.get(sessionId);
+      if (!current || current.mountToken !== mountToken || current.lifecycle !== "mounted") {
+        return null;
+      }
+      const next: StoredTableColumnLayoutSession = {
+        ...current,
+        persistenceActive: false,
+        autoLayoutWidth: null,
+        lastTouchedAt: now(),
+      };
+      sessions.set(sessionId, next);
+      if (current.persistenceKey) persistence?.remove?.(current.persistenceKey);
+      return snapshot(next);
+    },
+
 
     detach(sessionId: string, mountToken: number) {
       const current = sessions.get(sessionId);
@@ -241,6 +305,12 @@ export function createEmbeddedTableColumnLayoutSessionStore(
             mappedRange: { ...continuity.newRange },
             persistenceKey,
             widths: mapColumnWidths(session.widths, continuity.sequenceChange),
+            // A column added or removed changes how automatic tracks share the
+            // reading column; moving one keeps every track.
+            autoLayoutWidth: continuity.sequenceChange.kind === "insert"
+              || continuity.sequenceChange.kind === "delete"
+              ? null
+              : session.autoLayoutWidth,
             acceptsNextSourceIdentity: true,
             lastTouchedAt: now(),
           });
@@ -322,6 +392,24 @@ export function createEmbeddedTableColumnLayoutSessionStore(
   };
 }
 
+/** Last measured reading geometry, shared by every table in one EditorView. */
+function createAutoLayoutMetricsMemory() {
+  let metrics: EmbeddedTableAutoLayoutMetrics | null = null;
+  return {
+    getAutoLayoutMetrics(): EmbeddedTableAutoLayoutMetrics | null {
+      return metrics;
+    },
+    rememberAutoLayoutMetrics(next: EmbeddedTableAutoLayoutMetrics) {
+      if (
+        Number.isFinite(next.availableWidth) && next.availableWidth > 0
+        && Number.isFinite(next.emPx) && next.emPx > 0
+      ) {
+        metrics = next;
+      }
+    },
+  };
+}
+
 export function createEmbeddedTableColumnLayoutBrowserPersistence(
   storage: Pick<Storage, "getItem" | "setItem"> | null = getBrowserStorage(),
 ): EmbeddedTableColumnLayoutPersistence | null {
@@ -330,17 +418,11 @@ export function createEmbeddedTableColumnLayoutBrowserPersistence(
     read(key, columnCount) {
       const widths = readPreferenceStore(storage)[key]?.widths;
       if (!widths || widths.length !== columnCount) return undefined;
-      return widths.map((width) => clampEditableTableColumnWidth(
-        width,
-        EDITABLE_TABLE_COLUMN_RESIZE_MAX_WIDTH,
-      ));
+      return widths.map(clampEmbeddedTableColumnWidth);
     },
     write(key, widths, previousKey) {
       if (widths.length === 0 || widths.some((width) => !Number.isFinite(width) || width <= 0)) return;
-      const normalizedWidths = widths.map((width) => clampEditableTableColumnWidth(
-        width,
-        EDITABLE_TABLE_COLUMN_RESIZE_MAX_WIDTH,
-      ));
+      const normalizedWidths = widths.map(clampEmbeddedTableColumnWidth);
       const currentStore = readPreferenceStore(storage);
       const nextStore: TableColumnLayoutPreferenceStore = { ...currentStore };
       const removedPrevious = Boolean(previousKey && previousKey !== key && nextStore[previousKey]);
@@ -363,6 +445,17 @@ export function createEmbeddedTableColumnLayoutBrowserPersistence(
           MARKDOWN_TABLE_LAYOUT_STORAGE_KEY,
           JSON.stringify(Object.fromEntries(recentEntries)),
         );
+      } catch {
+        // View preferences are best-effort and must never block editing.
+      }
+    },
+    remove(key) {
+      const currentStore = readPreferenceStore(storage);
+      if (!currentStore[key]) return;
+      const nextStore: TableColumnLayoutPreferenceStore = { ...currentStore };
+      delete nextStore[key];
+      try {
+        storage.setItem(MARKDOWN_TABLE_LAYOUT_STORAGE_KEY, JSON.stringify(nextStore));
       } catch {
         // View preferences are best-effort and must never block editing.
       }
@@ -394,7 +487,7 @@ function mapColumnWidths(
     next.splice(
       clampInteger(change.index, 0, next.length),
       0,
-      ...Array(change.count).fill(EDITABLE_TABLE_COLUMN_MIN_WIDTH),
+      ...Array(change.count).fill(EMBEDDED_TABLE_COLUMN_MIN_WIDTH),
     );
     return next;
   }

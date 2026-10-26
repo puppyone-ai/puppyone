@@ -206,6 +206,13 @@ export async function acceptRevokedCloudMedia({evaluate,waitFor,assert}) {
 
 async function acceptCloudVisualHtml({ window, evaluate, waitFor, assert }) {
   await evaluate("window.__nativeCloudWorkbenchSmoke.openCloudFile('acceptance/visual.html')");
+  await waitFor(`Boolean(document.querySelector(${JSON.stringify(`${active} .html-document-editor iframe[aria-busy=false]`)}))`);
+  await evaluate("if (!document.querySelector('.desktop-editor-pane-menu')) document.querySelector('[data-cloud-native=true] .desktop-editor-pane-handle').click()");
+  await waitFor("Boolean(document.querySelector('.desktop-editor-pane-menu button[aria-label=\"Edit\"]'))");
+  await evaluate("document.querySelector('.desktop-editor-pane-menu button[aria-label=\"Edit\"]').click()");
+  // View modes keep the menu open; dismiss it as a person would.
+  await evaluate("document.activeElement.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true}))");
+  await waitFor("!document.querySelector('.desktop-editor-pane-menu')");
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(`${active} .html-visual-editor iframe[aria-busy=false]`)}))`);
   const frame = window.webContents.mainFrame.frames.find((item) => item.url.startsWith('puppyone-preview:'));
   assert(!!frame, 'Cloud visual editing requires its isolated projection');

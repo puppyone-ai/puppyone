@@ -31,20 +31,22 @@ function setup() {
 describe("project-owned session connections", () => {
   it.each(["agent:session-connect", "terminal:connect"])("%s binds an existing instance to the originating frame", async channel => {
     const f = setup();
-    const result = await f.handlers.get(channel)({ sender:f.sender, senderFrame:f.frame }, f.request);
+    const reply = await f.handlers.get(channel)({ sender:f.sender, senderFrame:f.frame }, f.request);
+    expect(reply.ok).toBe(true);
+    const result = reply.value;
     expect(f.service.assertSessionInstance).toHaveBeenCalledWith(f.sender, f.request, "/project/a");
     expect(f.frame.postMessage).toHaveBeenCalledWith("session:port", result, [f.ports[1]]);
     expect(result).toEqual({ connection:expect.any(String), hostGeneration:"host-a" });
   });
   it("rejects a stale project before allocating a port", async () => {
     const f = setup();
-    await expect(f.handlers.get("terminal:connect")({sender:f.sender, senderFrame:f.frame}, {...f.request, projectContext:{}})).rejects.toThrow("stale project");
+    await expect(f.handlers.get("terminal:connect")({sender:f.sender, senderFrame:f.frame}, {...f.request, projectContext:{}})).resolves.toMatchObject({ ok: false, error: { message: "stale project" } });
     expect(f.ports).toHaveLength(0);
   });
   it("rejects stale session identity before allocating a port", async () => {
     const f = setup();
     f.service.assertSessionInstance.mockImplementation(() => { throw new Error("stale session"); });
-    await expect(f.handlers.get("terminal:connect")({sender:f.sender, senderFrame:f.frame}, f.request)).rejects.toThrow("stale session");
+    await expect(f.handlers.get("terminal:connect")({sender:f.sender, senderFrame:f.frame}, f.request)).resolves.toMatchObject({ ok: false, error: { message: "stale session" } });
     expect(f.ports).toHaveLength(0);
   });
   it.each(["project-close", "page-navigation", "window-close", "attachment-failure"])("releases both ends after %s during connection", async condition => {
@@ -56,9 +58,24 @@ describe("project-owned session connections", () => {
       if (condition === "attachment-failure") throw new Error("attachment failed");
       return {hostGeneration:"host-a"};
     });
-    await expect(f.handlers.get("terminal:connect")({sender:f.sender, senderFrame:f.frame}, f.request)).rejects.toThrow();
+    await expect(f.handlers.get("terminal:connect")({sender:f.sender, senderFrame:f.frame}, f.request)).resolves.toMatchObject({ ok: false });
     expect(f.frame.postMessage).not.toHaveBeenCalled();
     f.ports.forEach(port => expect(port.close).toHaveBeenCalledOnce());
+  });
+  it("preserves a stale-instance error through the serialized connection reply", async () => {
+    const f = setup();
+    f.service.assertSessionInstance.mockImplementation(() => { throw Object.assign(new Error("stale"), { code: "SESSION_STALE" }); });
+    const reply = await f.handlers.get("agent:session-connect")({ sender: f.sender, senderFrame: f.frame }, f.request);
+    expect(JSON.parse(JSON.stringify(reply))).toEqual({ ok: false, error: { code: "SESSION_STALE", message: "stale" } });
+    expect(f.ports).toHaveLength(0);
+  });
+  it("preserves failure scope so display failure does not claim native process exit", () => {
+    const f = setup();
+    const record = { sessionId: "agent-a", instanceId: "instance-a" };
+    sendSessionRuntimeFailure(f.sender, "agent", record, { type: "stream-failed", code: "STREAM_RESET", message: "feed reset" });
+    expect(f.sender.send).toHaveBeenLastCalledWith("session:failure", expect.objectContaining({ code: "STREAM_RESET", scope: "display" }));
+    sendSessionRuntimeFailure(f.sender, "agent", record, { type: "host-exited", expected: false, error: { code: "HOST_MEMORY_BUDGET" } });
+    expect(f.sender.send).toHaveBeenLastCalledWith("session:failure", expect.objectContaining({ code: "HOST_MEMORY_BUDGET", scope: "execution" }));
   });
   it("reports unexpected runtime failure with instance identity, without treating normal close as a crash", () => {
     const f = setup();

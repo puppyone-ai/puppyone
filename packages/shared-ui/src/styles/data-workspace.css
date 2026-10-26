@@ -200,6 +200,10 @@ body.data-sidebar-resizing .data-preview-accessory {
   --tree-root-top-gap: var(--po-tree-root-top-gap, 5px);
   --tree-no-root-top-gap: var(--po-tree-no-root-top-gap, 12px);
   --tree-list-bottom-gap: var(--po-tree-list-bottom-gap, 6px);
+  /* Sticky list end: breathing room above its row, and the height of the fade
+     rows dissolve into (also the distance over which that fade ramps). */
+  --tree-list-end-top-gap: var(--po-tree-list-end-top-gap, 2px);
+  --tree-list-end-fade-size: var(--po-tree-list-end-fade-size, 28px);
   --tree-row-hover-bg: var(--po-tree-row-hover-bg, color-mix(in srgb, var(--po-hover) 86%, transparent));
   --tree-row-selected-bg: var(
     --po-tree-row-selected-bg,
@@ -332,6 +336,76 @@ body.data-sidebar-resizing .data-preview-accessory {
 .explorer-tree-list-end-motion {
   position: relative;
   width: 100%;
+}
+
+/* A sticky list end rides directly after the last row while the tree fits,
+   then pins to the bottom of the scrollport once rows overflow. The pinned
+   band owns the list's bottom gap so both states share one edge. */
+.explorer-tree-shell[data-list-end-placement="sticky"] .explorer-tree-list {
+  padding-block-end: 0;
+}
+
+/* Native focus, scrollIntoView and keyboard reveal keep rows clear of the
+   pinned band. The band's measured size is published by useStickyListEnd. */
+.explorer-tree-shell[data-list-end-placement="sticky"] .explorer-tree-scroll {
+  scroll-padding-block-end: var(--tree-list-end-block-size, 0px);
+}
+
+.explorer-tree-list-end-motion[data-placement="sticky"] {
+  position: sticky;
+  z-index: 2;
+  bottom: 0;
+  width: auto;
+  box-sizing: border-box;
+  /* Bleed the opaque backplate across the list gutters so rows passing
+     underneath never peek out beside the pinned band. */
+  margin-inline:
+    calc(-1 * var(--tree-row-left-gap))
+    calc(var(--tree-scrollbar-width) - var(--tree-row-right-gap));
+  padding-block: var(--tree-list-end-top-gap) var(--tree-list-bottom-gap);
+  padding-inline:
+    var(--tree-row-left-gap)
+    calc(var(--tree-row-right-gap) - var(--tree-scrollbar-width));
+  background: var(--po-sidebar);
+}
+
+/* Rows dissolve into the pinned band instead of meeting a hard edge. The
+   fade is the share of the sentinel clipped below the scrollport, i.e. how
+   much of the tree is actually hidden beneath the band. */
+.explorer-tree-list-end-motion[data-placement="sticky"]::before {
+  position: absolute;
+  bottom: 100%;
+  inset-inline: 0;
+  height: var(--tree-list-end-fade-size);
+  background: linear-gradient(
+    to top,
+    var(--po-sidebar) 0%,
+    color-mix(in srgb, var(--po-sidebar) 78%, transparent) 40%,
+    transparent 100%
+  );
+  content: "";
+  opacity: var(--tree-list-end-fade, 0);
+  pointer-events: none;
+}
+
+/* A disclosure can flip the tree between overflowing and fitting; ease the
+   fade on the rows' own timing then. User scrolling stays immediate. */
+.explorer-tree-list-end-motion[data-placement="sticky"][data-disclosure-motion]::before {
+  transition: opacity var(--tree-motion-duration, 220ms) var(--tree-motion-easing, ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .explorer-tree-list-end-motion[data-placement="sticky"][data-disclosure-motion]::before {
+    transition: none;
+  }
+}
+
+/* Follows the band in flow and ends exactly where the band's natural box
+   ends; it is observed for geometry and never painted or hit-tested. */
+.explorer-tree-list-end-sentinel {
+  height: var(--tree-list-end-fade-size);
+  margin-block-start: calc(-1 * var(--tree-list-end-fade-size));
+  pointer-events: none;
 }
 
 /* Do not pre-promote Explorer content with will-change. At fractional Windows
@@ -720,17 +794,14 @@ body.data-sidebar-resizing .data-preview-accessory {
   text-overflow: ellipsis;
 }
 
+/* Same size and weight as the name beside it; only the lighter ink sets it apart. */
 .tree-label-extension {
   flex: 0 0 auto;
   color: var(--po-text-subtle);
-  font-size: var(--po-type-left-sidebar-meta, 12px);
-  font-weight: 650;
-  line-height: 1;
 }
 
 .tree-label-extension::before {
   content: "· ";
-  font-weight: 600;
 }
 
 .tree-meta-row {
@@ -799,18 +870,10 @@ body.data-sidebar-resizing .data-preview-accessory {
 .explorer-tree-skeleton-row[data-depth="0"] { --depth: 0; }
 .explorer-tree-skeleton-row[data-depth="1"] { --depth: 1; }
 
+/* Loading placeholder shapes (loading-placeholder.css); the style paints them. */
 .explorer-tree-skeleton-icon,
 .explorer-tree-skeleton-label {
   flex: 0 0 auto;
-  background:
-    linear-gradient(
-      100deg,
-      var(--po-skeleton-base) 22%,
-      var(--po-skeleton-shimmer) 48%,
-      var(--po-skeleton-base) 74%
-    );
-  background-size: 220% 100%;
-  animation: explorer-tree-skeleton-shimmer 1.45s ease-in-out infinite;
 }
 
 .explorer-tree-skeleton-icon {
@@ -831,40 +894,8 @@ body.data-sidebar-resizing .data-preview-accessory {
 .explorer-tree-skeleton-row:nth-child(5) .explorer-tree-skeleton-label { width: 38%; }
 .explorer-tree-skeleton-row:nth-child(6) .explorer-tree-skeleton-label { width: 49%; }
 
-.explorer-tree-skeleton-row:nth-child(2n) > span { animation-delay: -0.18s; }
-.explorer-tree-skeleton-row:nth-child(3n) > span { animation-delay: -0.36s; }
-
-@keyframes explorer-tree-skeleton-shimmer {
-  from { background-position: 180% 0; }
-  to { background-position: -40% 0; }
-}
-
 .tree-loading-indicator {
   margin-right: 2px;
-}
-
-@keyframes puppy-pulse-grid {
-  0%,
-  60%,
-  100% {
-    opacity: 0.18;
-  }
-  30% {
-    opacity: 1;
-  }
-}
-
-@keyframes puppy-dot-bounce {
-  0%,
-  80%,
-  100% {
-    opacity: 0.35;
-    transform: translateY(0);
-  }
-  40% {
-    opacity: 1;
-    transform: translateY(-2px);
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -876,12 +907,6 @@ body.data-sidebar-resizing .data-preview-accessory {
 
   .tree-disclosure-marker {
     transition: none !important;
-  }
-
-  .explorer-tree-skeleton-icon,
-  .explorer-tree-skeleton-label {
-    animation: none;
-    background: var(--po-skeleton-base);
   }
 }
 

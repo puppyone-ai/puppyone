@@ -109,7 +109,9 @@ function syncPreferenceStorageEvent(event: StorageEvent) {
     lightThemePreset: light?.legacyPresets?.light ?? "neutral", darkThemePreset: dark?.legacyPresets?.dark ?? "default",
     legacySubThemeId: root.requestedSubThemeIds[resolved.effectiveColorMode], markdownPresentation: s.markdownPresentation,
     legacyTextSize: "default", typography: s.typographyPreferences, pointerCursors: s.pointerCursors,
-    loadingAnimationPreset: s.loadingAnimationPreset, fileIconTheme: s.fileIconTheme,
+    fileIconTheme: s.fileIconTheme,
+    showFileIcons: s.showFileIcons,
+    loadingPlaceholderStyle: s.loadingPlaceholderStyle,
     sidebarNavigationLayout: DEFAULT_SIDEBAR_NAVIGATION_LAYOUT,
   });
   if (result.source !== "future") desktopPreferencesStore.setState(appearanceFields(result.preferences));

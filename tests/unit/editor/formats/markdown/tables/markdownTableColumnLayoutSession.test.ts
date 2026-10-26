@@ -82,7 +82,8 @@ describe("Markdown table column layout session", () => {
       mappedRange: { from: 0, to: 70 },
       sourceIdentity: "table:v2",
     });
-    expect(session.widths).toEqual([120, 96, 180, 220]);
+    // The inserted track starts at the Markdown floor until automatic layout runs.
+    expect(session.widths).toEqual([120, 48, 180, 220]);
 
     store.mapTransaction(transactionMapping(
       { from: 0, to: 70 },
@@ -95,7 +96,7 @@ describe("Markdown table column layout session", () => {
       mappedRange: { from: 0, to: 70 },
       sourceIdentity: "table:v3",
     });
-    expect(session.widths).toEqual([96, 180, 120, 220]);
+    expect(session.widths).toEqual([48, 180, 120, 220]);
 
     store.mapTransaction(transactionMapping(
       { from: 0, to: 70 },
@@ -108,7 +109,72 @@ describe("Markdown table column layout session", () => {
       mappedRange: { from: 0, to: 62 },
       sourceIdentity: "table:v4",
     });
-    expect(session.widths).toEqual([96, 120, 220]);
+    expect(session.widths).toEqual([48, 120, 220]);
+  });
+
+  it("keeps automatic tracks reflowable and explicit tracks fixed", () => {
+    const written: string[] = [];
+    const removed: string[] = [];
+    const store = createEmbeddedTableColumnLayoutSessionStore({
+      persistence: {
+        read: () => undefined,
+        write: (key) => { written.push(key); },
+        remove: (key) => { removed.push(key); },
+      },
+    });
+    let session = store.acquire({
+      featureId: "markdown-table",
+      initialWidths: [200, 300],
+      initialLayoutWidth: 640,
+      mappedRange: { from: 0, to: 40 },
+      persistenceNamespace: "/notes/table.md",
+      sourceIdentity: "table:v1",
+    });
+    expect(session.explicit).toBe(false);
+    expect(session.autoLayoutWidth).toBe(640);
+
+    // A new reading width reflows without persisting or becoming explicit.
+    session = store.setAutoWidths(session.sessionId, session.mountToken, [150, 250], 480)!;
+    expect(session).toMatchObject({ widths: [150, 250], explicit: false, autoLayoutWidth: 480 });
+    expect(written).toEqual([]);
+
+    // The user's own widths persist and stop following the reading column.
+    session = store.setWidths(session.sessionId, session.mountToken, [260, 220])!;
+    expect(session).toMatchObject({ widths: [260, 220], explicit: true, autoLayoutWidth: null });
+    expect(written).toHaveLength(1);
+    expect(store.setAutoWidths(session.sessionId, session.mountToken, [1, 2], 900)).toBeNull();
+
+    // Reset returns the table to automatic layout and forgets the stored widths.
+    session = store.resetToAuto(session.sessionId, session.mountToken)!;
+    expect(session).toMatchObject({ explicit: false, autoLayoutWidth: null });
+    expect(removed).toEqual(written);
+  });
+
+  it("re-lays automatic tracks out when a column is added or removed, not when one moves", () => {
+    const store = createEmbeddedTableColumnLayoutSessionStore();
+    const acquire = (initialWidths: number[], to: number, sourceIdentity: string) => store.acquire({
+      featureId: "markdown-table",
+      initialWidths,
+      initialLayoutWidth: 640,
+      mappedRange: { from: 0, to },
+      sourceIdentity,
+    });
+    let session = acquire([200, 300], 40, "table:v1");
+    store.mapTransaction(transactionMapping(
+      { from: 0, to: 40 },
+      { from: 0, to: 40 },
+      { kind: "move", fromIndex: 0, toIndex: 1 },
+    ));
+    session = acquire([96, 96], 40, "table:v2");
+    expect(session).toMatchObject({ widths: [300, 200], autoLayoutWidth: 640 });
+
+    store.mapTransaction(transactionMapping(
+      { from: 0, to: 40 },
+      { from: 0, to: 50 },
+      { kind: "insert", index: 2, count: 1 },
+    ));
+    session = acquire([96, 96, 96], 50, "table:v3");
+    expect(session.autoLayoutWidth).toBeNull();
   });
 });
 

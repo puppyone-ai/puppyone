@@ -29,7 +29,7 @@ export function execGit(rootPath, args, options = {}) {
   };
   const commandArgs = ["-C", rootPath, "-c", "core.quotePath=false", ...args];
   const execution = options.input === undefined
-    ? execFilePromise("git", commandArgs, execOptions)
+    ? execFilePromise("git", commandArgs, execOptions, options.onStderr)
     : execFilePromiseWithInput("git", commandArgs, execOptions, options.input);
   return execution.catch((error) => {
     annotateGitError(error, args, timeout);
@@ -57,9 +57,14 @@ export function cloneGitRepository(targetPath, repositoryUrl, options = {}) {
   });
 }
 
-function execFilePromise(file, args, options) {
+/**
+ * `onStderr` observes stderr as it arrives, for commands such as
+ * `push --progress` whose progress is only ever written there. It sees the
+ * same text the result still collects, and a listener that throws is ignored.
+ */
+function execFilePromise(file, args, options, onStderr = null) {
   return new Promise((resolve, reject) => {
-    execFile(file, args, options, (error, stdout, stderr) => {
+    const child = execFile(file, args, options, (error, stdout, stderr) => {
       if (error) {
         error.stdout ??= stdout;
         error.stderr ??= stderr;
@@ -68,6 +73,15 @@ function execFilePromise(file, args, options) {
       }
       resolve({ stdout, stderr });
     });
+    if (typeof onStderr === "function") {
+      child.stderr?.on("data", (chunk) => {
+        try {
+          onStderr(String(chunk));
+        } catch {
+          // Observers cannot change the command's outcome.
+        }
+      });
+    }
   });
 }
 

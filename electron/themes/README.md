@@ -285,7 +285,15 @@ Omitting these tokens uses the product's accent-derived default. Markdown,
 CSV and terminal inherit the global selection pair unless overridden. Providing
 only an active color automatically derives its inactive counterpart using the
 product's shared opacity ratio. Light and Dark may provide different values.
-Keep backgrounds translucent so syntax and text remain readable.
+Author these values as translucent tints over the page, as in the example.
+
+PuppyOne paints the tint as given wherever it is drawn as a single layer
+(the code editor and the terminal). Native browser selection paints one
+rectangle per line, and neighbouring rectangles overlap by a device pixel at
+fractional line heights and display scales. There, PuppyOne paints the same
+tint already composited over `--po-canvas`, so the color is identical but
+opaque and the overlap cannot show as a darker seam. Selected images keep the
+translucent tint.
 
 Selection values and their dependencies must be supported CSS colors. Unknown
 tokens, cycles, unresolved domain references, and OS colors such as `Highlight`

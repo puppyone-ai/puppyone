@@ -1,6 +1,6 @@
 import { useDesktopPreference, selectFileIconTheme } from "../../preferencesStore";
-import { ChevronDown, GitBranch } from "lucide-react";
-import { FileGlyphIcon, VirtualSidebarList, useCssPixelCustomProperty } from "@puppyone/shared-ui";
+import { GitBranch } from "lucide-react";
+import { DisclosureIcon, FileGlyphIcon, VirtualSidebarList, useCssPixelCustomProperty } from "@puppyone/shared-ui";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import { useCallback, useRef, useState } from "react";
 import type {
@@ -86,7 +86,7 @@ export function GitHistoryTimeline({
                 return next;
               })}
             >
-              <ChevronDown className="desktop-history-date-disclosure" size={13} aria-hidden="true" />
+              <DisclosureIcon className="desktop-history-date-disclosure" expanded={!row.collapsed} size={13} />
               <time dateTime={row.dateTime ?? undefined}>{row.label}</time>
               <span className="desktop-history-date-divider" aria-hidden="true" />
             </button>

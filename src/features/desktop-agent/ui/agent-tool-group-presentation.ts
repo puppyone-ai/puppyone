@@ -1,3 +1,4 @@
+import { isAgentToolActivity } from "../../../../shared/agent-contract/activity-semantics.mjs";
 import { isContextCompactionActivity } from "../domain/agent-activity-presentation";
 import type { AgentPart, TimelineRow } from "../domain/agent-projection-types";
 import { STANDARD_CONTROL_SIZE } from "@puppyone/shared-ui";
@@ -91,13 +92,9 @@ export function groupAgentToolRows(
 function isGroupableToolRow(row: TimelineRow, parts: ReadonlyMap<string, AgentPart>) {
   if (!isToolKind(row.kind)) return false;
   const part = parts.get(row.partId);
-  return Boolean(part && isToolPart(part) && !isContextCompactionActivity(part));
+  return Boolean(part && isAgentToolActivity(part) && !isContextCompactionActivity(part));
 }
 
 function isToolKind(kind: AgentPart["kind"]): kind is "tool" | "command" | "file-change" {
   return kind === "tool" || kind === "command" || kind === "file-change";
-}
-
-function isToolPart(part: AgentPart): part is Extract<AgentPart, { kind: "tool" | "command" | "file-change" }> {
-  return isToolKind(part.kind);
 }
