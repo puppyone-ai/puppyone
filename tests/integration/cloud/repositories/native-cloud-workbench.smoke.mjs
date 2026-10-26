@@ -59,6 +59,12 @@ const waitFor = async (expression) => {
   while (Date.now() < deadline) { if (await evaluate(expression)) return; await new Promise((resolve) => setTimeout(resolve, 50)); }
   throw new Error(`Renderer did not become ready: ${expression}`);
 };
+// Edit only once the target's committed editor is mounted; a slower runner may
+// still be swapping the document surface when the previous step returns.
+async function editDocument(target, text) {
+  await waitFor(`Boolean(document.querySelector('[data-workspace-location="${target}"] .document-surface-slot.is-committed:not(.is-obscured) .cm-editor'))`);
+  await evaluate(`window.__nativeCloudWorkbenchSmoke.edit(${JSON.stringify(target)}, ${JSON.stringify(text)})`);
+}
 const headerPresentations = [];
 const nativeCornerCaptures = [];
 async function captureCloudReady(scene) {
@@ -358,7 +364,7 @@ app.whenReady().then(async () => {
     {path:'report.xlsx',mimeType:'application/octet-stream',content_base64:spreadsheet.toString('base64')},
     {path:'assets/diagram.svg',mimeType:'image/svg+xml',content:'<svg xmlns="http://www.w3.org/2000/svg" width="300" height="120"><rect width="300" height="120" fill="#102a43"/></svg>'},
   ])})`);
-  await evaluate("window.__nativeCloudWorkbenchSmoke.edit('local', 'LOCAL_UNSAVED_DRAFT')");
+  await editDocument('local', 'LOCAL_UNSAVED_DRAFT');
   await waitFor("window.__nativeCloudWorkbenchSmoke.state().localWrites.some(item => item.content === 'LOCAL_UNSAVED_DRAFT')");
   const localPresentation = await presentation("local");
   await writeFile(path.join(artifacts, "local.png"), (await window.webContents.capturePage()).toPNG());
@@ -520,7 +526,7 @@ app.whenReady().then(async () => {
     }
   }
   assert(await evaluate("!document.querySelector('[data-workspace-location=cloud] .desktop-explorer-toolbar, [data-workspace-location=cloud] .desktop-cloud-service-sidebar, [data-workspace-location=cloud] .desktop-cloud-inline-navigation')"), "Cloud must use the native file UI without a separate toolbar or service menu");
-  await evaluate("window.__nativeCloudWorkbenchSmoke.edit('cloud', 'CLOUD_EDIT_ONLY')");
+  await editDocument('cloud', 'CLOUD_EDIT_ONLY');
   await waitFor("window.__nativeCloudWorkbenchSmoke.state().cloudWrites.some(item => item.content === 'CLOUD_EDIT_ONLY' && item.path === 'readme.txt')");
   let snapshot = await state();
   assert(snapshot.localWrites.every((item) => !item.content.includes("CLOUD_EDIT")), "Cloud edits must never write to the local provider");
@@ -580,11 +586,11 @@ app.whenReady().then(async () => {
   await openCloudFile("notes");
   await waitFor("Boolean(document.querySelector('[data-cloud-native=true] img[alt=\"Cloud diagram\"]')?.naturalWidth)");
   await writeFile(path.join(artifacts, "cloud-markdown-assets.png"), (await window.webContents.capturePage()).toPNG());
-  await evaluate("window.__nativeCloudWorkbenchSmoke.edit('cloud', '# Cloud note updated\\n\\n![Cloud diagram](/assets/diagram.svg)')");
+  await editDocument('cloud', '# Cloud note updated\n\n![Cloud diagram](/assets/diagram.svg)');
   await waitFor("window.__nativeCloudWorkbenchSmoke.state().cloudWrites.some(write => write.path === 'notes.md' && write.content.includes('Cloud note updated'))");
   await openCloudFile("settings");
   await waitFor("document.querySelector('[data-cloud-native=true] .document-surface-slot.is-committed:not(.is-obscured) .cm-content')?.textContent.includes('cloud')");
-  await evaluate(`window.__nativeCloudWorkbenchSmoke.edit('cloud', '{"cloud":true,"saved":true}')`);
+  await editDocument('cloud', '{"cloud":true,"saved":true}');
   await waitFor("window.__nativeCloudWorkbenchSmoke.state().cloudWrites.some(write => write.path === 'settings.json' && write.content.includes('saved'))");
   await openCloudFile("page");
   await waitFor("Boolean(document.querySelector('[data-cloud-native=true] .document-surface-slot.is-committed:not(.is-obscured) .html-document-editor iframe[aria-busy=false]'))");
@@ -594,7 +600,7 @@ app.whenReady().then(async () => {
   await waitFor("Boolean([...document.querySelectorAll('.desktop-editor-pane-menu button')].find(button => button.textContent === 'Show code'))");
   await evaluate("[...document.querySelectorAll('.desktop-editor-pane-menu button')].find(button => button.textContent === 'Show code').click()");
   await waitFor("Boolean(document.querySelector('[data-cloud-native=true] .document-surface-slot.is-committed:not(.is-obscured) .html-document-editor .cm-editor'))");
-  await evaluate("window.__nativeCloudWorkbenchSmoke.edit('cloud', '<!doctype html><h1>Cloud HTML saved</h1>')");
+  await editDocument('cloud', '<!doctype html><h1>Cloud HTML saved</h1>');
   await waitFor("window.__nativeCloudWorkbenchSmoke.state().cloudWrites.some(write => write.path === 'page.html' && write.content.includes('Cloud HTML saved'))");
   await openCloudFile("report");
   await waitFor("Boolean(document.querySelector('[data-cloud-native=true] .document-surface-slot.is-committed[data-surface-ready=true] .office-spreadsheet-preview'))");
