@@ -48,6 +48,25 @@ function color(owner: HTMLElement, value: string) {
   const result = getComputedStyle(probe).color; probe.remove(); return result;
 }
 function selectionColor(owner: HTMLElement) { return getComputedStyle(owner, "::selection").backgroundColor; }
+function channels(value: string) {
+  // Chromium serializes resolved colors as rgb()/rgba() or color(srgb …).
+  const srgb = /^color\(srgb ([-\d.e]+) ([-\d.e]+) ([-\d.e]+)(?: \/ ([-\d.e]+))?\)$/.exec(value);
+  if (srgb) return [Number(srgb[1]) * 255, Number(srgb[2]) * 255, Number(srgb[3]) * 255, Number(srgb[4] ?? 1)];
+  const rgb = /^rgba?\(([\d.]+), ([\d.]+), ([\d.]+)(?:, ([\d.]+))?\)$/.exec(value);
+  check(rgb, `Unparsed color ${value}`);
+  return [Number(rgb[1]), Number(rgb[2]), Number(rgb[3]), Number(rgb[4] ?? 1)];
+}
+/** Native selection overlaps neighbouring line rectangles by a device pixel,
+ * so every native highlight paints its tint composited opaque over the canvas. */
+function checkNativePaint(label: string, owner: HTMLElement, tint: string) {
+  const [r, g, b, alpha] = channels(tint);
+  const canvas = channels(color(owner, "var(--po-canvas)"));
+  const painted = selectionColor(owner);
+  const actual = channels(painted);
+  const expected = [r, g, b].map((channel, i) => channel * alpha + canvas[i] * (1 - alpha));
+  check(actual[3] === 1 && expected.every((channel, i) => Math.abs(channel - actual[i]) <= 1),
+    `${label}: native selection must be ${tint} composited opaque over the canvas: ${painted}`);
+}
 
 async function waitForEditorFocus(editor: EditorView, focused: boolean) {
   // CodeMirror publishes blur through a timer; two animation frames can finish
@@ -87,7 +106,7 @@ function Harness() {
   const surface = resolveSurfaceAppearance({ appearance,
     typography: resolveTypography(DEFAULT_TYPOGRAPHY_PREFERENCES),
     markdownPresentation: DEFAULT_MARKDOWN_PRESENTATION_SETTINGS,
-    loadingAnimationPreset: "ikun", lightThemePreset: "neutral", darkThemePreset: "default", pointerCursors: false, diffMarkers: "color",
+    lightThemePreset: "neutral", darkThemePreset: "default", pointerCursors: false, diffMarkers: "color",
   });
   return <TestLocalizationProvider messages={englishCatalog}><SurfaceAppearanceProvider value={surface}>
     <div id="surface" {...surface.rootProps} className={mode === "dark" ? "dark" : ""} style={{ ...surface.rootProps.style, padding: 16, background: "var(--po-canvas)", color: "var(--po-text)" }}>
@@ -128,45 +147,47 @@ async function verifyTheme(theme: SubThemeDefinition, mode: "light" | "dark") {
   const active = color(root, "var(--po-text-selection-bg)");
   const inactive = color(root, "var(--po-text-selection-inactive-bg)");
   check(active !== inactive, "Selection states are indistinguishable");
-  check(selectionColor(element("#portal")) === active, "Portal selection differs from root");
+  checkNativePaint("Portal", element("#portal"), active);
   const preview = document.createElement("div");
   preview.dataset.poAppearanceRoot = "true"; preview.textContent = "Independent preview";
   element("#markdown .markdown-codemirror-editor").append(preview);
-  check(selectionColor(preview) === color(preview, "var(--po-text-selection-bg)"), "Nested appearance root inherited the enclosing Markdown override");
+  checkNativePaint("Nested appearance root (must not inherit the enclosing Markdown override)", preview, color(preview, "var(--po-text-selection-bg)"));
   preview.remove();
   const input = element("#input") as HTMLInputElement;
   input.focus(); input.select();
-  check(selectionColor(input) === active, "Native input active color");
+  checkNativePaint("Native input active", input, active);
   element("#blur").focus();
-  check(selectionColor(input) === inactive, "Native input inactive color");
+  checkNativePaint("Native input inactive", input, inactive);
   for (const id of ["markdown", "source", "agent", "code"]) {
     const editor = view(id);
     editor.focus(); editor.dispatch({ selection: { anchor: 0, head: 10 } });
     await waitForEditorFocus(editor, true);
     const expected = color(editor.dom, "var(--po-selection-background, var(--po-text-selection-bg))");
     const expectedInactive = color(editor.dom, "var(--po-selection-inactive-background, var(--po-text-selection-inactive-bg))");
-    // CodeMirror can replace its painted rectangles during focus/layout updates.
-    const actual = () => id === "code"
-      ? getComputedStyle(element("#code .cm-selectionBackground")).backgroundColor
-      : selectionColor(editor.contentDOM);
-    check(actual() === expected, `${id}: active selection mismatch: ${actual()} vs ${expected}`);
+    // A drawn layer paints the tint once; CodeMirror can replace its
+    // rectangles during focus/layout updates, so read them each time.
+    const drawn = () => getComputedStyle(element("#code .cm-selectionBackground")).backgroundColor;
+    const verify = (state: string, tint: string) => id === "code"
+      ? check(drawn() === tint, `${id}: ${state} selection mismatch: ${drawn()} vs ${tint}`)
+      : checkNativePaint(`${id} ${state}`, editor.contentDOM, tint);
+    verify("active", expected);
     element("#blur").focus(); await waitForEditorFocus(editor, false);
-    check(actual() === expectedInactive, `${id}: inactive selection mismatch: ${actual()} vs ${expectedInactive}`);
+    verify("inactive", expectedInactive);
   }
   const csvInput = element("#csv-source textarea") as HTMLTextAreaElement;
   csvInput.focus(); csvInput.select();
-  check(selectionColor(csvInput) === color(csvInput, "var(--po-selection-background)"), `CSV source selection mismatch: ${selectionColor(csvInput)} vs ${color(csvInput, "var(--po-selection-background)")}`);
+  checkNativePaint("CSV source", csvInput, color(csvInput, "var(--po-selection-background)"));
   const csvCell = element("#csv input[data-csv-row]") as HTMLInputElement;
   csvCell.focus(); csvCell.select();
-  check(selectionColor(csvCell) === color(csvCell, "var(--po-selection-background)"), "CSV cell selection mismatch");
+  checkNativePaint("CSV cell", csvCell, color(csvCell, "var(--po-selection-background)"));
   const tableCell = element('#markdown .cm-content [contenteditable="true"]');
   tableCell.focus();
   const range = document.createRange(); range.selectNodeContents(tableCell);
   document.getSelection()!.removeAllRanges(); document.getSelection()!.addRange(range);
   await frames();
-  check(selectionColor(tableCell) === color(tableCell, "var(--po-selection-background)"), "Markdown table leaked system selection");
+  checkNativePaint("Markdown table cell active (no system Highlight leak)", tableCell, color(tableCell, "var(--po-selection-background)"));
   element("#blur").focus();
-  check(selectionColor(tableCell) === color(tableCell, "var(--po-selection-inactive-background)"), "Markdown table inactive selection mismatch");
+  checkNativePaint("Markdown table cell inactive", tableCell, color(tableCell, "var(--po-selection-inactive-background)"));
   terminal.focus(); terminal.select(0, 0, 8); await frames();
   check(terminal.options.theme?.selectionBackground === color(root, "var(--po-terminal-selection, var(--po-text-selection-bg))"), "Terminal active selection mismatch");
   check(terminal.options.theme?.selectionInactiveBackground === color(root, "var(--po-terminal-selection-inactive, var(--po-text-selection-inactive-bg))"), "Terminal inactive selection mismatch");

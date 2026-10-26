@@ -132,11 +132,11 @@
     --po-user-code-font-size,
     var(--po-theme-code-font-size, 13px)
   );
-  --po-type-editor-heading-1: var(--po-user-editor-heading-1-font-size, 30px);
-  --po-type-editor-heading-2: var(--po-user-editor-heading-2-font-size, 23px);
-  --po-type-editor-heading-3: var(--po-user-editor-heading-3-font-size, 19px);
-  --po-type-editor-heading-4: var(--po-user-editor-heading-4-font-size, 17px);
-  --po-type-editor-heading-5: var(--po-user-editor-heading-5-font-size, 16px);
+  --po-type-editor-heading-1: var(--po-user-editor-heading-1-font-size, 22px);
+  --po-type-editor-heading-2: var(--po-user-editor-heading-2-font-size, 19px);
+  --po-type-editor-heading-3: var(--po-user-editor-heading-3-font-size, 17px);
+  --po-type-editor-heading-4: var(--po-user-editor-heading-4-font-size, 16px);
+  --po-type-editor-heading-5: var(--po-user-editor-heading-5-font-size, 15px);
   --po-type-editor-heading-6: var(--po-user-editor-heading-6-font-size, 15px);
 
   /* Right Sidebar values move conversation copy, controls, supporting text,

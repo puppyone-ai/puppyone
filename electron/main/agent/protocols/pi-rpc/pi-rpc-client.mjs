@@ -1,3 +1,4 @@
+import { NativeRequestLedger } from "../../transports/native-request-ledger.mjs";
 import { createJsonlFramer, writeJsonlFrame } from "../../transports/jsonl-stream.mjs";
 import { EventEmitter } from "node:events";
 import { spawn as nodeSpawn } from "node:child_process";
@@ -67,8 +68,11 @@ export class PiRpcClient extends EventEmitter {
     this.redactSensitive = (text) => sensitiveValues.reduce((result, secret) => secret
       ? result.split(JSON.stringify(secret).slice(1, -1)).join("[redacted]").split(secret).join("[redacted]") : result, String(text));
     this.nextRequestId = 1;
-    this.pending = new Map();
-    this.seenResponseIds = new Set();
+    this.requests = new NativeRequestLedger({ wasIssued: (id) => {
+      const serial = /^puppyone-([1-9][0-9]*)$/u.exec(id)?.[1];
+      return serial !== null && Number.isSafeInteger(Number(serial)) && Number(serial) < this.nextRequestId;
+    } });
+    this.pending = this.requests.pending;
     this.receiveStdout = createJsonlFramer({
       maxLineBytes,
       onLine: (line) => this.#receiveLine(line),
@@ -104,7 +108,7 @@ export class PiRpcClient extends EventEmitter {
     this.child.once("close", (code, signal) => this.#handleExit(code, signal, null));
   }
 
-  request(type, payload = {}, { timeoutMs = 20_000, signal } = {}) {
+  request(type, payload = {}, { timeoutMs = 20_000, signal, onLateResponse } = {}) {
     if (signal?.aborted) return Promise.reject(signal.reason ?? new Error("Native RPC request aborted before dispatch."));
     if (this.closed) return Promise.reject(new Error("Pi RPC is not connected."));
     if (this.pending.size >= this.maxPending) return Promise.reject(new Error("Too many pending Pi RPC requests."));
@@ -112,30 +116,11 @@ export class PiRpcClient extends EventEmitter {
       return Promise.reject(new TypeError("Pi RPC command type is invalid."));
     }
     const id = `puppyone-${this.nextRequestId++}`;
-    return new Promise((resolve, reject) => {
-      const timer = timeoutMs > 0
-        ? setTimeout(() => {
-          this.pending.get(id)?.cleanup();
-          this.pending.delete(id);
-          const error = new PiRpcRequestTimeoutError(type);
-          reject(error);
-          // A timed-out mutation has an ambiguous outcome. Retire this process
-          // instead of risking a duplicate prompt, abort or session switch.
-          this.dispose(error.message, { expected: false });
-        }, timeoutMs)
-        : null;
-      timer?.unref?.();
-      const onAbort = () => this.dispose("Native RPC request aborted after dispatch.", { expected: false });
-      signal?.addEventListener("abort", onAbort, { once: true });
-      const cleanup = () => { if (timer) clearTimeout(timer); signal?.removeEventListener("abort", onAbort); };
-      this.pending.set(id, { type, resolve, reject, timer, cleanup });
-      try {
-        this.#write({ id, type, ...boundedPayload(payload) });
-      } catch (error) {
-        cleanup();
-        this.pending.delete(id);
-        reject(error);
-      }
+    return this.requests.request({
+      id: String(id), method: type, timeoutMs, signal, onLateResponse,
+      timeoutError: () => new PiRpcRequestTimeoutError(type),
+      abortError: () => new PiRpcDeliveryUnknownError(type, "Native RPC request aborted after dispatch."),
+      write: () => this.#write({ id, type, ...boundedPayload(payload) }),
     });
   }
 
@@ -215,26 +200,19 @@ export class PiRpcClient extends EventEmitter {
 
   #receiveResponse(message) {
     const id = typeof message.id === "string" ? message.id : "";
-    if (!id || this.seenResponseIds.has(id)) {
-      this.#protocolFailure("Pi RPC emitted an invalid or duplicate response id.");
+    const { request: pending, failure } = this.requests.take(id);
+    if (failure) {
+      this.#protocolFailure(`Native RPC emitted an ${failure} response id.`);
       return;
     }
-    const pending = this.pending.get(id);
-    if (!pending) {
-      this.#protocolFailure("Pi RPC emitted an unknown response id.");
-      return;
-    }
-    this.pending.delete(id);
-    pending.cleanup();
-    this.seenResponseIds.add(id);
-    if (this.seenResponseIds.size > 512) this.seenResponseIds.delete(this.seenResponseIds.values().next().value);
-    if (message.command !== pending.type) {
-      pending.reject(new PiRpcErrorResponse(pending.type, "response command did not match the request"));
+    if (!pending) return; // An issued request whose late-receipt window expired.
+    if (message.command !== pending.method) {
+      pending.reject(new PiRpcErrorResponse(pending.method, "response command did not match the request"));
       this.#protocolFailure("Pi RPC response correlation failed.");
       return;
     }
     if (message.success !== true) {
-      pending.reject(new PiRpcErrorResponse(pending.type, redactSecretText(message.error || "Unknown Pi RPC error")));
+      pending.reject(new PiRpcErrorResponse(pending.method, redactSecretText(message.error || "Unknown Pi RPC error")));
       return;
     }
     pending.resolve(message.data);
@@ -273,13 +251,9 @@ export class PiRpcClient extends EventEmitter {
   }
 
   #rejectPending(error) {
-    for (const pending of this.pending.values()) {
-      pending.cleanup();
-      pending.reject(error?.deliveryOutcome === "unknown"
-        ? error
-        : new PiRpcDeliveryUnknownError(pending.type, error?.message || String(error)));
-    }
-    this.pending.clear();
+    this.requests.close((method) => error?.deliveryOutcome === "unknown"
+      ? error
+      : new PiRpcDeliveryUnknownError(method, error?.message || String(error)));
   }
 }
 

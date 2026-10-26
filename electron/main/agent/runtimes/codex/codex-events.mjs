@@ -187,6 +187,10 @@ export function normalizeItemLifecycle(item, phase, threadId, turnId) {
       { type: "file.change.updated", providerSessionId: threadId, turnId, itemId, payload: { changes, status: normalizeToolStatus(item.status, phase) } },
     ];
   }
+  if (item.type === "contextCompaction") {
+    return [{ type: "provider.activity", providerSessionId: threadId, turnId, itemId,
+      payload: { category: "compaction", status: phase === "completed" ? "completed" : "running" } }];
+  }
   const tool = summarizeToolItem(item, phase);
   if (tool) return [{ type: phase === "started" ? "tool.started" : "tool.completed", providerSessionId: threadId, turnId, itemId, payload: tool }];
   return phase === "completed" && typeof item.type === "string"
@@ -236,7 +240,6 @@ export function summarizeToolItem(item, phase) {
   }
   if (item.type === "webSearch") return { kind: "search", tool: "websearch", label: item.query || "Web search", query: item.query || "", input: { query: item.query || "" }, status: phase === "completed" ? "completed" : "running" };
   if (item.type === "imageView") return { kind: "read", tool: "read", label: `Viewed ${item.path || "image"}`, path: item.path || null, input: { path: item.path || null }, status: phase === "completed" ? "completed" : "running" };
-  if (item.type === "contextCompaction") return { kind: "system", tool: "compaction", label: "Compacted context", status: phase === "completed" ? "completed" : "running" };
   return null;
 }
 

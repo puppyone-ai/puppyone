@@ -109,7 +109,13 @@ export function createCloudAuthService({
     const normalizedProvider = normalizeOAuthProvider(provider);
     const startKey = getOAuthStartKey(normalizedApiBase);
     const pendingState = findPendingOAuthState(startKey);
-    if (pendingState) return { ok: true, pending: true };
+    if (pendingState) {
+      // The browser page is the only way to finish this sign-in. A user who
+      // closed it, or whose page failed to load, asks again by signing in
+      // again; reopen the same request instead of silently waiting it out.
+      if (pendingState.loginUrl) await externalNavigation.open(pendingState.loginUrl);
+      return { ok: true, pending: true };
+    }
     const existing = pendingOAuthStarts.get(startKey);
     if (existing) return existing;
 
@@ -157,18 +163,18 @@ export function createCloudAuthService({
           broadcastPublicState();
         }, OAUTH_STATE_TTL_MS);
         timeout.unref?.();
-        pendingOAuthStates.set(state, {
-          startKey, apiBase: normalizedApiBase, callbackUrl, verifier, challenge,
-          providerCallback: providerCallback.toString(), generation: operationGeneration,
-          callbackServer, timeout, createdAt: now(), previousStatus,
-        });
-        callbackServer = null;
         const loginUrl = new URL("/login", web.origin);
         loginUrl.search = new URLSearchParams({
           client: "desktop", desktop_state: state, desktop_callback: callbackUrl,
           code_challenge: challenge,
           ...(normalizedProvider ? { provider: normalizedProvider } : {}),
         }).toString();
+        pendingOAuthStates.set(state, {
+          startKey, apiBase: normalizedApiBase, callbackUrl, verifier, challenge,
+          providerCallback: providerCallback.toString(), generation: operationGeneration,
+          callbackServer, timeout, createdAt: now(), previousStatus, loginUrl: loginUrl.toString(),
+        });
+        callbackServer = null;
         await externalNavigation.open(loginUrl.toString());
         return { ok: true };
       } catch (error) {

@@ -60,8 +60,11 @@ body.desktop-project-switcher-resizing * {
   user-select: none;
 }
 
+/* Rows take the rail's width, never the widest Project name: the explicit
+ * minimum-zero column keeps a long name ending in an ellipsis. */
 .desktop-project-switcher-rail-list {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   box-sizing: border-box;
   width: 100%;
   min-height: 0;
@@ -227,8 +230,45 @@ body.desktop-project-switcher-resizing * {
 
 .desktop-project-switcher-rail[data-expanded="true"]
   .desktop-project-switcher-rail-project-row:has(.desktop-project-switcher-row-action)
+  .desktop-project-switcher-rail-project,
+.desktop-project-switcher-rail[data-expanded="true"]
+  .desktop-project-switcher-rail-project-row:has(.desktop-project-switcher-rail-place)
   .desktop-project-switcher-rail-project {
   padding-inline-end: calc(var(--desktop-sidebar-row-content-right) + 26px);
+}
+
+/* Where the Project is worked on, in the row's trailing slot. Local states
+   nothing; the Cloud mark is the only place fact the rail carries. The slot
+   belongs to the row actions while the pointer is on the row, so the two
+   never share it. */
+.desktop-project-switcher-rail-place {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-end: 7px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--po-text-subtle);
+  opacity: 0.72;
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: opacity 120ms ease;
+}
+
+.desktop-project-switcher-rail-project-row:has(.desktop-project-switcher-row-action):hover
+  .desktop-project-switcher-rail-place,
+.desktop-project-switcher-rail-project-row:has(.desktop-project-switcher-row-action):focus-within
+  .desktop-project-switcher-rail-place,
+.desktop-project-switcher-rail-project-row[data-menu-open="true"]
+  .desktop-project-switcher-rail-place {
+  opacity: 0;
+}
+
+.desktop-project-switcher-rail-project[aria-current="page"]
+  ~ .desktop-project-switcher-rail-place {
+  color: var(--po-text-muted);
+  opacity: 1;
 }
 
 .desktop-project-switcher-row-action {
@@ -596,8 +636,18 @@ body.desktop-project-switcher-resizing * {
   opacity: 0.3;
 }
 
+/* The place switch is a menu section: the surface already owns the insets. */
+.desktop-project-row-actions-location {
+  display: grid;
+  min-width: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .desktop-project-switcher-rail-button {
     transition-property: background-color, color;
+  }
+
+  .desktop-project-switcher-rail-place {
+    transition-property: opacity;
   }
 }

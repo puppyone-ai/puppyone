@@ -278,7 +278,8 @@ describe("Interface style registry", () => {
     expect(visualHarness).not.toContain("desktop-explorer-pane-caption");
     expect(xp).toContain(".desktop-dialog-header .desktop-dialog-icon-button");
     expect(xp).toContain("--po-surface-editable-table-radius: 0px;");
-    expect(explorer).toContain('data-expanded={expanded ? "true" : "false"}');
+    // The product DisclosureIcon publishes data-expanded for the XP marker paint.
+    expect(explorer).toContain('<DisclosureIcon className="tree-disclosure-marker" expanded={expanded} size={size} />');
     expect(explorer).toContain("data-file-kind={isFolder ? undefined : getFileVisualKind");
     expect(xp).not.toMatch(/grid-template-columns|--data-explorer-width|--desktop-right-sidebar-width/);
     expect(profile.composition.navigation).toBe("sidebar-bottom-footer");

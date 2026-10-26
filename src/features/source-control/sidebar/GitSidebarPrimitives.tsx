@@ -1,5 +1,6 @@
 import { ArrowDown, ArrowUp, Check, Plus } from "lucide-react";
 import {
+  LoadingMark,
   SidebarResizeHandle,
   type SidebarResizeIntent,
 } from "@puppyone/shared-ui";
@@ -112,18 +113,17 @@ export function GitOperationButton({
   );
 }
 
+/** The shared loading mark in the Git accent; hosts may recolour it through the class. */
 export function SourceControlDots({ decorative = false }: Readonly<{ decorative?: boolean }> = {}) {
   const { t } = useLocalization();
   return (
-    <span
+    <LoadingMark
       className="desktop-git-loading-dots"
-      data-puppy-loader="dots"
-      role={decorative ? undefined : "status"}
-      aria-label={decorative ? undefined : t("common.status.loading")}
-      aria-hidden={decorative || undefined}
-    >
-      {[0, 1, 2].map((index) => <span key={index} />)}
-    </span>
+      size="xs"
+      tone="info"
+      ariaHidden={decorative}
+      ariaLabel={t("common.status.loading")}
+    />
   );
 }
 

@@ -8,8 +8,9 @@ import { useLocalization } from "@puppyone/localization/react";
 import {
   ExplorerTree,
   type DataNode,
+  FolderIcon,
 } from "@puppyone/shared-ui";
-import { CircleHelp, FolderOpen, GitBranch, Settings } from "lucide-react";
+import { CircleHelp, GitBranch, Settings } from "lucide-react";
 import { useEffect } from "react";
 import {
   getInterfaceStyleDefinition,
@@ -76,7 +77,7 @@ const fixtureSelectedPaths = new Set(["PuppyOne"]);
 const codeFixture = "const style = resolveAppearance(profile);";
 const gridFixture = { firstColumn: "id", secondColumn: "family", file: "README.md" };
 const smokeNavigationItems = [
-  { dataItem: "data", icon: FolderOpen, labelKey: "shell.navigation.files" },
+  { dataItem: "data", icon: FolderIcon, labelKey: "shell.navigation.files" },
   { dataItem: "git", icon: GitBranch, labelKey: "shell.navigation.git" },
   { dataItem: "settings", icon: Settings, labelKey: "shell.navigation.settings" },
   { dataItem: "feedback", icon: CircleHelp, labelKey: "shell.feedback.label" },

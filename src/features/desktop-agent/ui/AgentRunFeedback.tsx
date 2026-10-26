@@ -1,4 +1,4 @@
-import { Dots } from "../../../components/loading";
+import { LoadingMark } from "@puppyone/shared-ui";
 
 /** Live and completed feedback share text geometry; the loader never indents the label. */
 export function AgentRunFeedback({ label, ariaLabel, busy = false, className = "", status }: {
@@ -12,7 +12,7 @@ export function AgentRunFeedback({ label, ariaLabel, busy = false, className = "
     <span className={`desktop-agent-run-feedback ${className}`.trim()} role="status"
       aria-label={ariaLabel} data-status={status}>
       <span className="desktop-agent-run-feedback-label">{label}</span>
-      {busy && <Dots size="xs" tone="neutral" ariaHidden />}
+      {busy && <LoadingMark size="xs" tone="neutral" ariaHidden />}
     </span>
   );
 }

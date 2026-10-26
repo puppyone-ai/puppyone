@@ -1,10 +1,11 @@
 import type { ComponentType } from "react";
-import { Clock3, Cloud, CreditCard, FolderOpen, GitBranch, Grid2X2, House, Settings, Share2, ShieldCheck, SquareTerminal, Users } from "lucide-react";
+import { Clock3, CreditCard, GitBranch, Grid2X2, Settings, Share2, ShieldCheck, SquareTerminal, Users } from "lucide-react";
 import type { MessageFormatter } from "@puppyone/localization/core";
 import { getCloudAutomationWebPath } from "../../automation/automationDomain";
 import { McpLogoIcon } from "../components/McpLogoIcon";
 import type { CloudProjectDetailResource } from "../data/cloudProjectDetails";
 import type { CloudWorkspaceSection } from "./cloudRouteIds";
+import { CloudIcon, FolderIcon, HomeIcon } from "@puppyone/shared-ui";
 
 export type CloudRouteContext = "initialization" | "project" | "organization";
 export type CloudRouteSurface = "standard" | "landing" | "history" | "automation";
@@ -67,7 +68,7 @@ export const CLOUD_ROUTES = [
     labelId: "cloud.route.initialize.label",
     titleId: "cloud.route.initialize.title",
     descriptionId: "cloud.route.initialize.description",
-    icon: Cloud,
+    icon: CloudIcon,
     context: "initialization",
     surface: "standard",
     resources: NO_PROJECT_RESOURCES,
@@ -105,7 +106,7 @@ export const CLOUD_ROUTES = [
     labelId: "cloud.route.contents.label",
     titleId: "cloud.route.contents.title",
     descriptionId: "cloud.route.contents.description",
-    icon: House,
+    icon: HomeIcon,
     context: "project",
     surface: "landing",
     resources: OVERVIEW_PROJECT_RESOURCES,
@@ -122,7 +123,7 @@ export const CLOUD_ROUTES = [
     labelId: "cloud.route.project.label",
     titleId: "cloud.route.project.title",
     descriptionId: "cloud.route.project.description",
-    icon: FolderOpen,
+    icon: FolderIcon,
     context: "project",
     surface: "landing",
     resources: OVERVIEW_PROJECT_RESOURCES,

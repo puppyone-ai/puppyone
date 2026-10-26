@@ -7709,42 +7709,6 @@
   },
   {
     "type": "dependency",
-    "from": "src/features/desktop-agent/application/AgentSessionController.ts",
-    "to": "src/features/session-transport/ManagedOperationScope.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-desktop-agent"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-agent/application/AgentSessionReplica.ts",
-    "to": "src/features/session-transport/ManagedOperationScope.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-desktop-agent"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-agent/infrastructure/electron/agentExecutionClient.ts",
-    "to": "src/features/session-transport/itemLifecycleClient.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-desktop-agent"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-agent/infrastructure/electron/agentSessionClient.ts",
-    "to": "src/features/session-transport/sessionPorts.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-desktop-agent"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/features/desktop-agent/ui/AgentRenderStabilitySmokeHarness.tsx",
     "to": "src/features/markdown/markdownPresentation.ts",
     "rule": {
@@ -7963,24 +7927,6 @@
     "type": "dependency",
     "from": "src/features/desktop-terminal/model/terminalTabMove.ts",
     "to": "src/features/app-shell/auxiliary-workbench/layout/workbenchTabMove.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-desktop-terminal"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-terminal/runtime/terminalSessionBridge.ts",
-    "to": "src/features/session-transport/itemLifecycleClient.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-desktop-terminal"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/desktop-terminal/runtime/terminalSessionBridge.ts",
-    "to": "src/features/session-transport/sessionPorts.ts",
     "rule": {
       "severity": "error",
       "name": "public-domain-entry-src-features-desktop-terminal"

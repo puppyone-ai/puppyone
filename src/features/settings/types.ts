@@ -3,11 +3,12 @@ import type { DesktopCloudSession } from "../../lib/cloudApi";
 import type { DesktopUpdateState, GitStatusSnapshot, PuppyoneWorkspaceConfig } from "../../types/electron";
 import type { SubThemeCatalogController } from "../themes/useSubThemeCatalog";
 
-export type SettingsSection = "general" | "privacy" | "local-project" | "appearance" | "typography" | "local-agents" | "model-connections" | "new-menu" | "other-app-imports" | "experimental" | "git" | "files" | "account" | "cloud";
+export type SettingsSection = "general" | "privacy" | "local-project" | "appearance" | "typography" | "local-agents" | "model-connections" | "new-menu" | "other-app-imports" | "experimental" | "git" | "files" | "account" | "seats" | "cloud";
 
 export type SettingsViewProps = {
   workspace: Workspace | null;
   activeSection: SettingsSection;
+  onSelectSection: (section: SettingsSection) => void;
   gitStatus: GitStatusSnapshot | null;
   gitStatusLoading: boolean;
   gitStatusError: string | null;
@@ -41,3 +42,5 @@ export type SettingsSidebarProps = {
   cloudEnabled: boolean;
   onSelectSection: (section: SettingsSection) => void;
 };
+
+export type SettingsSectionNavigator = (section: SettingsSection) => void;

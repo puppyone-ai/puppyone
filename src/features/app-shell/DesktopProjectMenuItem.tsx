@@ -7,9 +7,10 @@ import { HomeProjectIcon } from "../../components/onboarding/HomeProjectIcon";
 import { writeClipboardText } from "../../lib/clipboard";
 import { getProjectName, type ProjectHomeItem } from "../../lib/workspaceHomeModel";
 
-export function DesktopProjectMenuItem({ project, selected, onSelect }: {
+export function DesktopProjectMenuItem({ project, selected, pending = false, onSelect }: {
   project: ProjectHomeItem;
   selected: boolean;
+  pending?: boolean;
   onSelect: () => void;
 }) {
   const { t } = useLocalization();
@@ -42,6 +43,7 @@ export function DesktopProjectMenuItem({ project, selected, onSelect }: {
         label={<bdi>{name}</bdi>}
         selected={selected}
         aria-current={selected ? "page" : undefined}
+        aria-busy={pending || undefined}
         trailing={selected ? <Check size={14} /> : undefined}
         onClick={onSelect}
       />

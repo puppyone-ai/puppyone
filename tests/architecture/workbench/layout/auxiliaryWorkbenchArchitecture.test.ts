@@ -44,11 +44,13 @@ describe("Project-owned auxiliary workbench architecture", () => {
     expect(app).toContain("createTerminalWorkbenchContribution(t, readAuxiliaryTerminalAppearance)");
     // Surfaces are mutually exclusive: each local surface needs the local sidebar
     // (false over a Cloud workspace) and its own selection; Cloud owns its own surface.
+    expect(app.match(/className=\{`desktop-right-sidebar-surface/g)).toHaveLength(4);
     for (const surface of ["chat", "changes", "history"]) {
       expect(app).toContain(`localRightSidebarActive && rightSidebarSurface === "${surface}" ? "is-active" : ""`);
     }
     expect(app).toMatch(/const localRightSidebarActive = !cloudWorkspaceActive\b/);
     expect(app).toContain('className={`desktop-right-sidebar-surface ${cloudWorkspaceActive ? "is-active" : ""}`}');
+    expect(app).toContain('renderCloudSidebar(presentation.contentVisible && cloudWorkspaceActive)');
     expect(app).not.toContain("<RightAgentPanel");
     expect(app).not.toContain('key={focusedWorkspace?.path ?? workspace.path}');
     expect(lazyEntry).toContain('import("./workbench/AgentChatWorkbenchItem")');

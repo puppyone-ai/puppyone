@@ -734,7 +734,7 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   opacity: 1;
 }
 
-/* Long project lists scroll; Home and Create new retain the standard row height. */
+/* Long project lists scroll; Home and New workspace retain the standard row height. */
 .desktop-project-menu > .desktop-menu-item {
   min-height: var(--po-menu-item-height);
   flex-shrink: 0;
@@ -749,14 +749,26 @@ body.desktop-right-sidebar-resizing .desktop-right-sidebar-inner {
   color: inherit;
 }
 
+/* The list is as wide as the menu, never as wide as its longest project. An
+ * implicit `auto` track would take the widest name as its minimum, widen every
+ * row past the menu and scroll the menu sideways instead of ending the name in
+ * an ellipsis. The explicit minimum-zero track, the zero minimum on each row,
+ * and the hidden inline axis keep all three outcomes impossible. */
 .desktop-project-list {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 2px;
+  min-width: 0;
   min-height: 0;
   margin-top: 4px;
   padding-top: 4px;
   border-top: 1px solid var(--po-divider);
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.desktop-project-list > * {
+  min-width: 0;
 }
 
 .desktop-project-switcher-list {

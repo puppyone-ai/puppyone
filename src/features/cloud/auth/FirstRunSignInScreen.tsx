@@ -19,7 +19,7 @@ export function FirstRunSignInScreen({ appearance, apiBaseUrl, onContinueLocally
   return <main className={`onboarding-shell first-run-sign-in-shell ${resolvedTheme === "dark" ? "dark" : ""}`}
     {...appearance.rootProps}>
     <DesktopWindowChrome actions={<button type="button" className="desktop-titlebar-action homepage-cloud-sign-in"
-      aria-label={t("cloud.auth.signInToCloud")} disabled={auth.signingIn} onClick={auth.startSignIn}>
+      aria-label={t("cloud.auth.signInToCloud")} onClick={auth.startSignIn}>
       {t("cloud.auth.signIn")}
     </button>} />
     <section className="first-run-sign-in" aria-label={t("cloud.auth.signInToCloud")}>
@@ -28,7 +28,8 @@ export function FirstRunSignInScreen({ appearance, apiBaseUrl, onContinueLocally
       <p className="first-run-sign-in-description">{t("cloud.auth.signInToCloud")}</p>
       <div className="first-run-sign-in-actions">
         <button type="button" className="desktop-dialog-button primary first-run-sign-in-submit"
-          disabled={auth.signingIn} onClick={auth.startSignIn}>
+          // Stays available while waiting: asking again reopens the browser page.
+          onClick={auth.startSignIn}>
           {t("cloud.auth.signIn")}
         </button>
         <button type="button" className="desktop-dialog-button first-run-sign-in-skip" onClick={onContinueLocally}>

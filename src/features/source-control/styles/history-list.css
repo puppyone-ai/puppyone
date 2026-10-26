@@ -57,14 +57,6 @@
   transition: transform 120ms ease;
 }
 
-.desktop-history-date-group button[aria-expanded="false"] .desktop-history-date-disclosure {
-  transform: rotate(-90deg);
-}
-
-[dir="rtl"] .desktop-history-date-group button[aria-expanded="false"] .desktop-history-date-disclosure {
-  transform: rotate(90deg);
-}
-
 .desktop-history-date-group time {
   overflow: hidden;
   text-overflow: ellipsis;

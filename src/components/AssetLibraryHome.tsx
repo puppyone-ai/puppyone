@@ -1,4 +1,4 @@
-import { AlertTriangle, FolderOpen, Plus } from "lucide-react";
+import { AlertTriangle, Plus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import { useWorkspaceFolderDrop } from "../features/app-shell/useWorkspaceFolderDrop";
@@ -9,6 +9,7 @@ import { HomeProjectIcon } from "./onboarding/HomeProjectIcon";
 import { DesktopWindowChrome } from "./DesktopWindowChrome";
 import { InlineLoading } from "./loading";
 import { isHomepageProjectOpening, OnboardingProjectLoading } from "./onboarding/OnboardingProjectLoading";
+import { FolderIcon } from "@puppyone/shared-ui";
 
 /** Optional visual home consuming the same host-owned local/Cloud project model. */
 export function AssetLibraryHome({
@@ -137,7 +138,7 @@ export function AssetLibraryHome({
       </section>
       <OnboardingProjectLoading open={openingProject} cloudOpening={cloudOpening} onCancel={onCancelCloudOpening} />
 
-      {folderDrop.dragging && <div className="asset-library-home-drop-overlay" aria-hidden="true"><FolderOpen size={24} strokeWidth={1.6} /><strong>{t("onboarding.library.dropOverlay")}</strong></div>}
+      {folderDrop.dragging && <div className="asset-library-home-drop-overlay" aria-hidden="true"><FolderIcon size={24} strokeWidth={1.6} /><strong>{t("onboarding.library.dropOverlay")}</strong></div>}
     </main>
   );
 }

@@ -180,13 +180,16 @@ const layoutStyle = read(absolute("src/styles/layout.css"));
 const controlGeometryStyle = read(absolute("packages/shared-ui/src/styles/control-geometry.css"));
 const dataWorkspaceStyle = read(absolute("packages/shared-ui/src/styles/data-workspace.css"));
 const desktopDataWorkspaceStyle = read(absolute("src/features/data-workspace/data-shell.css"));
-const dataWorkspaceSource = read(absolute("packages/shared-ui/src/data/DataWorkspace.tsx"));
+// The Data workspace and the frame it shares with surfaces that have no files yet.
+const dataWorkspaceSource = read(absolute("packages/shared-ui/src/data/DataWorkspace.tsx"))
+  + read(absolute("packages/shared-ui/src/data/DataWorkspaceFrame.tsx"));
 const collapsiblePaneResizeSource = read(absolute("packages/shared-ui/src/primitives/useCollapsiblePaneResize.ts"));
 const collapsiblePaneGestureSource = read(absolute("packages/shared-ui/src/primitives/collapsiblePaneGesture.ts"));
 const paneResizeDragSource = read(absolute("packages/shared-ui/src/primitives/usePaneResizeDrag.ts"));
 const collapsiblePaneFrameSource = read(absolute("packages/shared-ui/src/sidebar/CollapsiblePaneFrame.tsx"));
 const sidebarResizeHandleSource = read(absolute("packages/shared-ui/src/sidebar/SidebarResizeHandle.tsx"));
 const desktopDataWorkspaceSource = read(absolute("src/features/app-shell/DesktopDataWorkspaceSurface.tsx"));
+const desktopExplorerFrameSource = read(absolute("src/features/app-shell/layout/useDesktopExplorerFrame.ts"));
 if (layoutStyle.includes("--desktop-right-sidebar-visible-width") || auxiliarySource.includes("desktop-right-sidebar-visible-width")) {
   errors.push("AuxiliaryPanelHost must not drive its content plane from the shrinking visibility width.");
 }
@@ -404,12 +407,14 @@ if (dataWorkspaceSource.includes("data-explorer-collapsed-fill") || dataWorkspac
 if (!paneResizeDragSource.includes("onDragActiveChange?.(true)") || !paneResizeDragSource.includes("onDragActiveChange?.(false)")) {
   errors.push("Pane resize drags must publish their complete host-neutral activity lifecycle.");
 }
+// The window's Explorer frame registers both; the file workbench takes them from it.
 if (
-  !desktopDataWorkspaceSource.includes("useNativeSurfacePointerPassthroughActivity(")
-  || !desktopDataWorkspaceSource.includes("useNativeSurfacePointerRoutingRegion(")
-  || !desktopDataWorkspaceSource.includes('"explorer-resize"')
+  !desktopExplorerFrameSource.includes("useNativeSurfacePointerPassthroughActivity(")
+  || !desktopExplorerFrameSource.includes("useNativeSurfacePointerRoutingRegion(")
+  || !desktopExplorerFrameSource.includes('"explorer-resize"')
+  || !desktopExplorerFrameSource.includes("onResizeActiveChange,")
   || !desktopDataWorkspaceSource.includes(
-    "onExplorerResizeActiveChange={onExplorerResizeActiveChange}",
+    "onExplorerResizeActiveChange={explorerFrame.onResizeActiveChange}",
   )
 ) {
   errors.push("Desktop explorer resize must register both initial-press routing and active-drag native-surface passthrough.");

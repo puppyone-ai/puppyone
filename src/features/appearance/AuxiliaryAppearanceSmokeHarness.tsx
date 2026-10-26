@@ -99,7 +99,7 @@ export function AuxiliaryAppearanceSmokeHarness() {
     appearance: resolveAppearance({ interfaceStyle: theme === "windows-xp" ? "windows-xp" : "default", themeMode: theme === "dark" ? "dark" : "light", sidebarNavigationLayout: "bottom-horizontal", fileIconTheme: "default" }),
     typography: resolveTypography(DEFAULT_TYPOGRAPHY_PREFERENCES),
     markdownPresentation: DEFAULT_MARKDOWN_PRESENTATION_SETTINGS,
-    loadingAnimationPreset: "ikun", lightThemePreset: "neutral", darkThemePreset: "default", pointerCursors: false, diffMarkers: "color",
+    lightThemePreset: "neutral", darkThemePreset: "default", pointerCursors: false, diffMarkers: "color",
   }), [theme]);
   const readAppearance = useCallback(() => readTerminalAppearance(surface.current!), []);
   const contributions = useMemo(() => {

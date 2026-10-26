@@ -1,4 +1,4 @@
-import { Bot, Cloud, Database, GitBranch, Link, Server, SquareTerminal } from "lucide-react";
+import { Bot, Database, GitBranch, Link, Server, SquareTerminal } from "lucide-react";
 import type { LocaleFormatters, MessageFormatter } from "@puppyone/localization/core";
 import {
   RENDERER_ASSET_PATHS,

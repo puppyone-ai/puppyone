@@ -57,13 +57,13 @@ function Harness() {
     subThemeCatalog: catalog,
     sidebarNavigationLayout: "bottom-horizontal", fileIconTheme: "default" });
   const surface = resolveSurfaceAppearance({ appearance, typography: resolveTypography(DEFAULT_TYPOGRAPHY_PREFERENCES),
-    markdownPresentation: DEFAULT_MARKDOWN_PRESENTATION_SETTINGS, loadingAnimationPreset: "ikun",
+    markdownPresentation: DEFAULT_MARKDOWN_PRESENTATION_SETTINGS,
     lightThemePreset: "neutral", darkThemePreset: "default", pointerCursors: false, diffMarkers: "color" });
   const peer = resolveSurfaceAppearance({ appearance: resolveAppearance({ interfaceStyle: "default", themeMode: mode,
     requestedSubThemeIds: { light: peerTheme ?? "default.neutral", dark: peerTheme ?? "default.neutral" },
     subThemeCatalog: catalog, sidebarNavigationLayout: "bottom-horizontal", fileIconTheme: "default" }),
     typography: resolveTypography(DEFAULT_TYPOGRAPHY_PREFERENCES), markdownPresentation: DEFAULT_MARKDOWN_PRESENTATION_SETTINGS,
-    loadingAnimationPreset: "ikun", lightThemePreset: "neutral", darkThemePreset: "default", pointerCursors: false, diffMarkers: "color" });
+    lightThemePreset: "neutral", darkThemePreset: "default", pointerCursors: false, diffMarkers: "color" });
   useLayoutEffect(() => applySurfaceAppearanceToElement(document.documentElement, surface), [surface]);
   return <TestLocalizationProvider messages={englishCatalog}><SurfaceAppearanceProvider value={surface}>
     <div {...surface.rootProps} id="surface" className={mode === "dark" ? "dark" : ""}

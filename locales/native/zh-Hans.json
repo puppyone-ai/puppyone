@@ -22,6 +22,7 @@
   "native.menu.theme.pack": "视觉变体",
   "native.menu.theme.openFolder": "打开主题文件夹",
   "native.menu.checkForUpdates": "检查更新…",
+  "native.menu.settings": "设置…",
   "native.update.manual.ok": "好",
   "native.update.manual.notNow": "暂不更新",
   "native.update.manual.updateNow": "立即更新",

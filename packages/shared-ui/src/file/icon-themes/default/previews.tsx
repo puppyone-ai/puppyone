@@ -11,7 +11,7 @@ import {
   renderFolderPreview,
   SNIPPET_PREVIEW_KINDS,
 } from "../shared/PreviewShell";
-import { DatabaseGlyph } from "../shared/semanticGlyphs";
+import { DatabaseGlyph, HtmlDocumentGlyph } from "../shared/semanticGlyphs";
 import { renderDefaultFolderPreviewGlyph } from "./glyphs";
 
 const DEFAULT_PREVIEW_GLYPH_RENDERERS = {
@@ -21,7 +21,7 @@ const DEFAULT_PREVIEW_GLYPH_RENDERERS = {
   workflow: renderDefaultWorkflowPreviewGlyph,
   markdown: renderDefaultDocumentPreviewGlyph,
   json: renderDefaultDocumentPreviewGlyph,
-  html: renderDefaultCodePreviewGlyph,
+  html: HtmlDocumentGlyph,
   image: renderDefaultImagePreviewGlyph,
   audio: renderDefaultAudioPreviewGlyph,
   pdf: renderDefaultDocumentPreviewGlyph,
@@ -49,7 +49,7 @@ export function renderDefaultPreview(
     );
   }
 
-  if (context.kind === "database") {
+  if (context.kind === "database" || context.kind === "html") {
     return renderCenteredIcon(
       context.size,
       renderDefaultPreviewGlyph({ ...context, size: Math.round(context.size * 0.78) }),
@@ -153,13 +153,11 @@ function renderDefaultVideoPreviewGlyph({
 
 function renderDefaultCodePreviewGlyph({
   color,
-  kind,
 }: FileIconRenderContext): ReactNode {
   return (
     <svg viewBox="0 0 32 32" width="100%" height="100%" fill="none" aria-hidden>
       <path d="m13.2 10.2-5.1 5.9 5.1 5.8" stroke={color} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
       <path d="m18.8 10.2 5.1 5.9-5.1 5.8" stroke={color} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-      {kind === "html" && <path d="m17.9 9.7-3.8 12.6" stroke={color} strokeWidth="1.85" strokeLinecap="round" opacity="0.78" />}
     </svg>
   );
 }

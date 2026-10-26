@@ -30,9 +30,10 @@ describe("Cloud loading state", () => {
       <CloudWorkspaceLoadingState label="Loading project" />,
     ));
 
-    const point = container.querySelector<HTMLElement>("[data-pulse-grid-point]");
-    expect(point?.style.background).toBe("var(--po-text-subtle)");
-    expect(point?.style.background).not.toBe("var(--po-accent)");
+    const mark = container.querySelector<HTMLElement>("[data-puppy-loader]");
+    const ink = mark?.style.getPropertyValue("--po-loading-mark-ink");
+    expect(ink).toBe("var(--po-text-muted)");
+    expect(ink).not.toContain("--po-accent");
   });
 
   it("centers against the full Cloud main surface", () => {

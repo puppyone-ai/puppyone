@@ -71,6 +71,12 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
       return () => ipcRenderer.removeListener("theme:selection-requested", listener);
     },
   },
+  onSettingsRequested: (callback) => {
+    if (typeof callback !== "function") return () => {};
+    const listener = () => callback();
+    ipcRenderer.on("settings:open-requested", listener);
+    return () => ipcRenderer.removeListener("settings:open-requested", listener);
+  },
   setWindowMinimumWidth: (request) => (
     ipcRenderer.invoke("window-layout:set-minimum-width", request)
   ),

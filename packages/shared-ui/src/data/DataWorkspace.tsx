@@ -43,6 +43,7 @@ import { resolveMarkdownAssetPath } from "../editor/markdown/assetResolution";
 import { createDocumentNavigationPort } from "../editor/navigation/documentNavigation";
 import {
   ExplorerTree,
+  type ExplorerListEndPlacement,
   type ExplorerLoadingPresentation,
   type ExplorerTreeProps,
 } from "./ExplorerTree";
@@ -68,12 +69,7 @@ import type { DocumentPersistedCommit } from "../editor/document-session/types";
 import { withEditorDocumentOperations } from "../editor/document-session/documentResourceOperations";
 import { getEditorRuntimeGeneration, subscribeEditorRuntimeGeneration } from "../editor/runtime/editorRuntimeAdmission";
 import type { FileIconThemeId } from "../file/fileIcons";
-import { useCollapsiblePaneResize } from "../primitives/useCollapsiblePaneResize";
-import type { CollapsiblePaneGestureCommit } from "../primitives/collapsiblePaneGesture";
-import {
-  CollapsiblePaneFrame,
-  type SidebarResizeIntent,
-} from "../sidebar";
+import { DataWorkspaceFrame } from "./DataWorkspaceFrame";
 import { getRendererPerformanceTracker } from "../performance/rendererPerformance";
 import { reconcileFolderChildren } from "./explorer/explorerTreeReconciliation";
 import { useStableEventCallback } from "../primitives/useStableEventCallback";
@@ -151,6 +147,7 @@ export type DataWorkspaceProps = {
   collapsedExplorerSlot?: DataWorkspaceSlot;
   explorerListStartSlot?: DataWorkspaceSlot;
   explorerListEndSlot?: DataWorkspaceSlot;
+  explorerListEndPlacement?: ExplorerListEndPlacement;
   explorerLoadingPresentation?: ExplorerLoadingPresentation;
   showExplorerRoot?: boolean;
   explorerRootContentSlot?: DataWorkspaceSlot;
@@ -228,10 +225,6 @@ export type DataWorkspaceProps = {
 const ROOT_FOLDER_KEY = "__puppyone_workspace_root__";
 const EMPTY_PATH_LIST: readonly string[] = Object.freeze([]);
 const EMPTY_DATA_NODE_LIST: readonly DataNode[] = Object.freeze([]);
-const DEFAULT_EXPLORER_WIDTH = 320;
-const MIN_EXPLORER_WIDTH = 240;
-const MAX_EXPLORER_WIDTH = 520;
-const COLLAPSED_EXPLORER_WIDTH = 47;
 const MARKDOWN_LINK_INDEX_MAX_FILES = 250;
 
 export function DataWorkspace({
@@ -254,6 +247,7 @@ export function DataWorkspace({
   collapsedExplorerSlot,
   explorerListStartSlot,
   explorerListEndSlot,
+  explorerListEndPlacement = "flow",
   explorerLoadingPresentation = "dots",
   showExplorerRoot = true,
   explorerRootContentSlot,
@@ -264,10 +258,10 @@ export function DataWorkspace({
   resizableExplorer = false,
   explorerCollapsed = false,
   explorerWidth,
-  defaultExplorerWidth = DEFAULT_EXPLORER_WIDTH,
-  minExplorerWidth = MIN_EXPLORER_WIDTH,
-  maxExplorerWidth = MAX_EXPLORER_WIDTH,
-  collapsedExplorerWidth = COLLAPSED_EXPLORER_WIDTH,
+  defaultExplorerWidth,
+  minExplorerWidth,
+  maxExplorerWidth,
+  collapsedExplorerWidth,
   explorerCollapseThreshold,
   mainSlot,
   loadActiveFileSource = true,
@@ -386,36 +380,7 @@ export function DataWorkspace({
     rootLoadedRef.current = next;
     setRootLoadedState(next);
   }, []);
-  const [internalExplorerWidth, setInternalExplorerWidth] = useState(() => (
-    clampNumber(defaultExplorerWidth, minExplorerWidth, maxExplorerWidth)
-  ));
   const resolvedActivePath = activePath !== undefined ? activePath : internalActivePath;
-  const expandedExplorerWidth = clampNumber(
-    explorerWidth ?? internalExplorerWidth,
-    minExplorerWidth,
-    maxExplorerWidth,
-  );
-  const resolvedExplorerWidth = clampNumber(
-    explorerCollapsed ? collapsedExplorerWidth : expandedExplorerWidth,
-    collapsedExplorerWidth,
-    maxExplorerWidth,
-  );
-  const explorerCanCollapse = Boolean(onExplorerCollapsedChange);
-  const resolvedExplorerCollapseThreshold = clampNumber(
-    explorerCollapseThreshold ?? Math.round(minExplorerWidth * 0.5),
-    collapsedExplorerWidth,
-    minExplorerWidth,
-  );
-
-  const setExplorerWidth = useCallback(
-    (nextWidth: number) => {
-      const clampedWidth = clampNumber(nextWidth, minExplorerWidth, maxExplorerWidth);
-      if (explorerWidth === undefined) setInternalExplorerWidth(clampedWidth);
-      onExplorerWidthChange?.(clampedWidth);
-    },
-    [explorerWidth, maxExplorerWidth, minExplorerWidth, onExplorerWidthChange],
-  );
-
   const setFolderLoading = useCallback((folderPath: string | null, loading: boolean) => {
     const loadingKey = getLoadingKey(folderPath);
     setLoadingFolderPaths((current) => {
@@ -580,11 +545,6 @@ export function DataWorkspace({
     workspace.id,
     workspace.path,
   ]);
-
-  useEffect(() => {
-    if (explorerWidth !== undefined) return;
-    setInternalExplorerWidth(clampNumber(defaultExplorerWidth, minExplorerWidth, maxExplorerWidth));
-  }, [defaultExplorerWidth, explorerWidth, maxExplorerWidth, minExplorerWidth]);
 
   useEffect(() => {
     const requestGeneration = ++loadGenerationRef.current;
@@ -1249,84 +1209,9 @@ export function DataWorkspace({
     [moveNodes],
   );
 
-  const commitExplorerPane = (commit: CollapsiblePaneGestureCommit) => {
-    if (commit.type === "collapse") {
-      setExplorerWidth(commit.restoreWidth);
-      onExplorerCollapsedChange?.(true);
-      return;
-    }
-    if (commit.type === "expand") {
-      if (commit.width !== undefined) setExplorerWidth(commit.width);
-      onExplorerCollapsedChange?.(false);
-      return;
-    }
-    setExplorerWidth(commit.width);
-  };
-  const explorerResize = useCollapsiblePaneResize({
-    enabled: resizableExplorer,
-    bodyClassName: "data-sidebar-resizing",
-    collapsed: explorerCollapsed,
-    collapsedWidth: collapsedExplorerWidth,
-    collapseThreshold: resolvedExplorerCollapseThreshold,
-    collapsible: explorerCanCollapse,
-    direction,
-    maxWidth: maxExplorerWidth,
-    minWidth: minExplorerWidth,
-    side: "inline-start",
-    width: expandedExplorerWidth,
-    onCommit: commitExplorerPane,
-    onDragActiveChange: onExplorerResizeActiveChange,
-  });
-
-  const resizeExplorerByKeyboard = (intent: SidebarResizeIntent, accelerated: boolean) => {
-    if (!resizableExplorer) return;
-
-    if (intent === "minimum") {
-      if (explorerCanCollapse) {
-        commitExplorerPane({ type: "collapse", restoreWidth: minExplorerWidth });
-        return;
-      }
-      commitExplorerPane({ type: "resize", width: minExplorerWidth });
-      return;
-    }
-    if (intent === "maximum") {
-      commitExplorerPane({ type: "expand", width: maxExplorerWidth });
-      return;
-    }
-
-    const step = accelerated ? 24 : 12;
-    const physicalDirection = intent === "decrease" ? -1 : 1;
-    const directionMultiplier = direction === "rtl" ? -1 : 1;
-    const nextWidth = resolvedExplorerWidth + physicalDirection * directionMultiplier * step;
-    if (explorerCollapsed) {
-      if (nextWidth > collapsedExplorerWidth) {
-        commitExplorerPane({ type: "expand", width: minExplorerWidth });
-      }
-      return;
-    }
-    if (explorerCanCollapse && nextWidth < minExplorerWidth) {
-      commitExplorerPane({ type: "collapse", restoreWidth: minExplorerWidth });
-      return;
-    }
-    commitExplorerPane({ type: "resize", width: nextWidth });
-  };
-
-  // Shrinking the frame must clip a stable expanded content plane. Otherwise
-  // flex rows and labels recompute at every pointer sample before collapse.
-  // Growing may extend the plane with the pointer because nothing is squeezed.
-  const renderedExplorerContentWidth = Math.max(
-    explorerResize.width,
-    expandedExplorerWidth,
-  );
-  const dataContentStyle = resizableExplorer
-    ? ({
-        "--data-explorer-width": `${explorerResize.width}px`,
-      } as CSSProperties)
-    : undefined;
-
   return (
-    <section className="data-workspace">
-      {showHeader && (
+    <DataWorkspaceFrame
+      header={showHeader && (
         headerSlot ? (
           renderWorkspaceSlot(headerSlot, workspaceState)
         ) : (
@@ -1336,232 +1221,189 @@ export function DataWorkspace({
           />
         )
       )}
-
-      <div
-        className="data-content"
-        data-explorer-collapsed={explorerResize.collapsed ? "true" : undefined}
-        data-explorer-gesture={explorerResize.phase === "idle" ? undefined : explorerResize.phase}
-        data-explorer-dragging={explorerResize.dragging ? "true" : undefined}
-        style={dataContentStyle}
-      >
-        <CollapsiblePaneFrame
-          as="aside"
-          className="explorer-column"
-          collapsed={explorerResize.collapsed}
-          contentWidth={renderedExplorerContentWidth}
-          frameWidth={explorerResize.width}
-          gesturePhase={explorerResize.phase}
-          side="inline-start"
-          viewportClassName="data-explorer-viewport"
-          contentClassName="data-explorer-inner"
-          resizeHandleRef={explorerResizeHandleRef}
-          resizeHandleProps={(presentation) => resizableExplorer && presentation.contentVisible
-            ? {
-                className: "data-explorer-resizer",
-                resizing: explorerResize.dragging,
-                orientation: "vertical",
-                label: t("shared-ui.explorer.resizeSidebar"),
-                min: explorerCanCollapse ? collapsedExplorerWidth : minExplorerWidth,
-                max: maxExplorerWidth,
-                value: explorerResize.width,
-                "aria-hidden": explorerResize.collapsed ? true : undefined,
-                tabIndex: explorerResize.collapsed ? -1 : 0,
-                onPointerDown: explorerResize.collapsed ? undefined : explorerResize.onPointerDown,
-                onKeyboardResize: explorerResize.collapsed ? undefined : resizeExplorerByKeyboard,
-            }
-            : undefined}
-        >
-          {({ contentVisible }) => (
-            <>
-              {contentVisible && (
-                <div className="data-explorer-layout" data-has-rail={explorerRailSlot ? "true" : undefined}>
-              {explorerRailSlot && (
-                <div className="data-explorer-rail">
-                  {renderWorkspaceSlot(explorerRailSlot, workspaceState)}
-                </div>
-              )}
-              <div className="data-explorer-pane">
-                {showExplorerToolbar && (
-                  explorerToolbarSlot ? (
-                    renderWorkspaceSlot(explorerToolbarSlot, workspaceState)
-                  ) : (
-                    <div className="desktop-explorer-toolbar">
-                      <span>{labels?.root ?? t("shared-ui.explorer.root")}</span>
-                      <div className="desktop-explorer-actions">
-                        {resolvedCapabilities.create && onCreate && (
-                          <Tooltip content={t("shared-ui.explorer.create")}><button type="button" aria-label={t("shared-ui.explorer.create")} onClick={() => onCreate(currentFolderPath)}>
-                            <Plus size={15} />
-                          </button></Tooltip>
-                        )}
-                        {onMore && (
-                          <Tooltip content={t("shared-ui.explorer.more")}><button type="button" aria-label={t("shared-ui.explorer.more")} onClick={() => onMore(workspaceState)}>
-                            <MoreVertical size={15} />
-                          </button></Tooltip>
-                        )}
-                        {resolvedCapabilities.accessPoints && onAccess && (
-                          <Tooltip content={t("shared-ui.explorer.access")}><button type="button" aria-label={t("shared-ui.explorer.access")} onClick={() => onAccess(currentFolderPath)}>
-                            <Link2 size={15} />
-                          </button></Tooltip>
-                        )}
-                      </div>
-                    </div>
-                  )
-                )}
-                <div className="data-explorer-view-stack" data-view-mode={filesExplorerActive ? "files" : "custom"}>
-                  <div
-                    className="data-explorer-view-frame"
-                    data-view-mode="files"
-                    data-active={filesExplorerActive ? "true" : "false"}
-                    aria-hidden={filesExplorerActive ? undefined : true}
-                  >
-                    <ExplorerTree
-                      nodes={explorerPresentationPending ? EMPTY_DATA_NODE_LIST : tree}
-                      dragWorkspaceId={workspace.id}
-                      onExportNodes={onExportNodes}
-                      resourceDragEntries={resourceDragEntries}
-                      onResolveFileDrop={onResolveFileDrop}
-                      activePath={resolvedActivePath}
-                      selectedPaths={selectedNodePaths}
-                      cutPaths={explorerCutPaths}
-                      currentFolderPath={currentFolderPath}
-                      expandedPaths={expandedFolderPaths}
-                      loadingPaths={loadingFolderPaths}
-                      rootLoading={explorerPresentationPending || rootLoading}
-                      loadingPresentation={explorerLoadingPresentation}
-                      rootError={operationError ?? folderErrors.get(ROOT_FOLDER_KEY)}
-                      folderErrors={folderErrors}
-                      onRetryFolder={(path) => {
-                        if (path === null) setOperationError(null);
-                        void loadFolder(path, true);
-                      }}
-                      rootLabel={labels?.root ?? t("shared-ui.explorer.root")}
-                      showRoot={showExplorerRoot}
-                      loadingLabel={labels?.loadingWorkspace ?? t("shared-ui.explorer.loadingWorkspace")}
-                      onToggleFolder={toggleFolder}
-                      onSelectNode={activateNode}
-                      fileIconTheme={fileIconTheme}
-                      canMoveNodes={Boolean(resolvedCapabilities.move && dataPort.moveNode)}
-                      onMoveNode={moveNode}
-                      onMoveNodes={moveNodes}
-                      onCopyNodes={resolvedCapabilities.copy && dataPort.copyNode ? onCopyNodes : undefined}
-                      onCutNodes={resolvedCapabilities.move && dataPort.moveNode ? onCutNodes : undefined}
-                      onPasteNodes={(resolvedCapabilities.copy && dataPort.copyNode) || (resolvedCapabilities.move && dataPort.moveNode)
-                        ? onPasteNodes
-                        : undefined}
-                      onDuplicateNodes={resolvedCapabilities.copy && dataPort.copyNode ? onDuplicateNodes : undefined}
-                      onImportFiles={dataPort.importFiles ? importFiles : undefined}
-                      onRootClick={onExplorerRootClick ? (event) => onExplorerRootClick(workspaceState, event) : undefined}
-                      onRootContextMenu={onExplorerRootContextMenu ? (event) => onExplorerRootContextMenu(workspaceState, event) : undefined}
-                      onNodeContextMenu={onExplorerNodeContextMenu ? (node, event) => onExplorerNodeContextMenu(workspaceState, node, event) : undefined}
-                      renderRootContent={explorerRootContentSlot ? () => renderWorkspaceSlot(explorerRootContentSlot, workspaceState) : undefined}
-                      renderListStart={explorerListStartSlot ? () => renderWorkspaceSlot(explorerListStartSlot, workspaceState) : undefined}
-                      renderListEnd={explorerListEndSlot ? () => renderWorkspaceSlot(explorerListEndSlot, workspaceState) : undefined}
-                      renderRootActions={explorerRootActionSlot ? () => renderWorkspaceSlot(explorerRootActionSlot, workspaceState) : undefined}
-                      renderFolderActions={explorerFolderActionSlot ? (folder) => renderWorkspaceFolderSlot(explorerFolderActionSlot, workspaceState, folder) : undefined}
-                      renderNodeActions={explorerNodeActionSlot ? (node) => renderWorkspaceNodeSlot(explorerNodeActionSlot, workspaceState, node) : undefined}
-                      openActionMenu={explorerOpenActionMenu}
-                    />
-                  </div>
-                  {explorerSlot && (
-                    <div className="data-explorer-view-frame" data-view-mode="custom" data-active="true">
-                      {renderWorkspaceSlot(explorerSlot, workspaceState)}
-                    </div>
-                  )}
-                </div>
-              </div>
-                </div>
-              )}
-              {contentVisible && explorerFooterSlot && (
-                <div className="data-explorer-footer">
-                  {renderWorkspaceSlot(explorerFooterSlot, workspaceState)}
-                </div>
-              )}
-            </>
+      resizable={resizableExplorer}
+      collapsed={explorerCollapsed}
+      width={explorerWidth}
+      defaultWidth={defaultExplorerWidth}
+      minWidth={minExplorerWidth}
+      maxWidth={maxExplorerWidth}
+      collapsedWidth={collapsedExplorerWidth}
+      collapseThreshold={explorerCollapseThreshold}
+      onWidthChange={onExplorerWidthChange}
+      onCollapsedChange={onExplorerCollapsedChange}
+      onResizeActiveChange={onExplorerResizeActiveChange}
+      resizeHandleRef={explorerResizeHandleRef}
+      explorerFooter={explorerFooterSlot ? () => renderWorkspaceSlot(explorerFooterSlot, workspaceState) : null}
+      collapsedExplorer={collapsedExplorerSlot ? () => renderWorkspaceSlot(collapsedExplorerSlot, workspaceState) : null}
+      explorer={() => (
+        <div className="data-explorer-layout" data-has-rail={explorerRailSlot ? "true" : undefined}>
+          {explorerRailSlot && (
+            <div className="data-explorer-rail">
+              {renderWorkspaceSlot(explorerRailSlot, workspaceState)}
+            </div>
           )}
-        </CollapsiblePaneFrame>
-
-        {explorerResize.collapsed && collapsedExplorerSlot && (
-          <div className="data-explorer-collapsed-slot">
-            {renderWorkspaceSlot(collapsedExplorerSlot, workspaceState)}
-          </div>
-        )}
-
-        <main className="browser-column desktop-editor-panel">
-          {documentNavigationError && (
-            <FloatingNoticeStack className="editor-notice-stack">
-              <FloatingNotice
-                className="editor-inline-error"
-                tone="danger"
-                onDismiss={dismissDocumentNavigationError}
-              >
-                {t("editor.session.saveFailedDetail", {
-                  detail: bidiIsolate(documentNavigationError),
-                })}
-              </FloatingNotice>
-            </FloatingNoticeStack>
-          )}
-          <div className="data-main-view-frame" data-view-mode={mainSlot ? "custom" : "files"}>
-            {mainSlot ? (
-              renderWorkspaceSlot(mainSlot, workspaceState)
-            ) : (
-              <>
-                {previewAccessory && (
-                  <div className="data-preview-accessory">
-                    {previewAccessory}
+          <div className="data-explorer-pane">
+            {showExplorerToolbar && (
+              explorerToolbarSlot ? (
+                renderWorkspaceSlot(explorerToolbarSlot, workspaceState)
+              ) : (
+                <div className="desktop-explorer-toolbar">
+                  <span>{labels?.root ?? t("shared-ui.explorer.root")}</span>
+                  <div className="desktop-explorer-actions">
+                    {resolvedCapabilities.create && onCreate && (
+                      <Tooltip content={t("shared-ui.explorer.create")}><button type="button" aria-label={t("shared-ui.explorer.create")} onClick={() => onCreate(currentFolderPath)}>
+                        <Plus size={15} />
+                      </button></Tooltip>
+                    )}
+                    {onMore && (
+                      <Tooltip content={t("shared-ui.explorer.more")}><button type="button" aria-label={t("shared-ui.explorer.more")} onClick={() => onMore(workspaceState)}>
+                        <MoreVertical size={15} />
+                      </button></Tooltip>
+                    )}
+                    {resolvedCapabilities.accessPoints && onAccess && (
+                      <Tooltip content={t("shared-ui.explorer.access")}><button type="button" aria-label={t("shared-ui.explorer.access")} onClick={() => onAccess(currentFolderPath)}>
+                        <Link2 size={15} />
+                      </button></Tooltip>
+                    )}
                   </div>
-                )}
-                <FilePreview
-                  editorAssets={dataPort.editorAssets}
-                  previewServices={dataPort.previewServices}
-                  inputGeneration={selectedInput.generation}
-                  node={selectedFile}
-                  fileContent={selectedFileContent}
-                  fileUrl={selectedFileUrl}
-                  fileUrlLoading={selectedFileUrlLoading}
-                  fileUrlError={selectedFileUrlError}
-                  loading={fileLoading || selectedFileContentPending}
-                  error={selectedFileError}
-                  onRetry={selectedInput.retry}
-                  aiEditFile={selectedPreviewAiEditFile}
-                  showHeader={showPreviewHeader}
-                  hideSourceView={hidePreviewSourceView}
-                  fileIconTheme={fileIconTheme}
-                  editorInteractionPreferences={editorInteractionPreferences}
-                  editorSaveMode={editorSaveMode}
-                  htmlTrustMode={htmlTrustMode}
-                  workspaceId={workspace.id}
-                  workspaceRoot={workspace.path}
-                  markdownDialect={workspace.markdownDialect ?? null}
-                  markdownEnvironment={markdownEnvironment}
-                  documentNavigation={documentNavigation}
-                  appPreview={dataPort.appPreview ?? null}
-                  openExternalFile={dataPort.openExternalFile}
-                  convertOfficeDocumentToDocx={dataPort.convertOfficeDocumentToDocx}
-                  resolveOfficeEditorActions={resolveOfficeEditorActions}
-                  viewerExtensionAdapter={viewerExtensionAdapter}
-                  documentSourceKind={documentSourceKind ?? resolvedDocumentSourceKind}
-                  emptySlot={resolvedActivePath && !activeNode
-                    ? unavailableActivePath === resolvedActivePath
-                      ? <div className="empty-preview" role="alert"><span>{t("editor.unavailable.title")}</span></div>
-                      : <div className="empty-preview" aria-busy="true" />
-                    : emptySlot}
-                  actionSlot={previewActionSlot}
-                  documentPersistence={dataPort.documentPersistence ?? null}
-                  onDocumentPersisted={dataPort.documentPersistence && selectedFile
-                    ? (commit) => applyPersistedFileContent(selectedFile, commit)
-                    : undefined}
-                />
-              </>
+                </div>
+              )
             )}
+            <div className="data-explorer-view-stack" data-view-mode={filesExplorerActive ? "files" : "custom"}>
+              <div
+                className="data-explorer-view-frame"
+                data-view-mode="files"
+                data-active={filesExplorerActive ? "true" : "false"}
+                aria-hidden={filesExplorerActive ? undefined : true}
+              >
+                <ExplorerTree
+                  nodes={explorerPresentationPending ? EMPTY_DATA_NODE_LIST : tree}
+                  dragWorkspaceId={workspace.id}
+                  onExportNodes={onExportNodes}
+                  resourceDragEntries={resourceDragEntries}
+                  onResolveFileDrop={onResolveFileDrop}
+                  activePath={resolvedActivePath}
+                  selectedPaths={selectedNodePaths}
+                  cutPaths={explorerCutPaths}
+                  currentFolderPath={currentFolderPath}
+                  expandedPaths={expandedFolderPaths}
+                  loadingPaths={loadingFolderPaths}
+                  rootLoading={explorerPresentationPending || rootLoading}
+                  loadingPresentation={explorerLoadingPresentation}
+                  rootError={operationError ?? folderErrors.get(ROOT_FOLDER_KEY)}
+                  folderErrors={folderErrors}
+                  onRetryFolder={(path) => {
+                    if (path === null) setOperationError(null);
+                    void loadFolder(path, true);
+                  }}
+                  rootLabel={labels?.root ?? t("shared-ui.explorer.root")}
+                  showRoot={showExplorerRoot}
+                  loadingLabel={labels?.loadingWorkspace ?? t("shared-ui.explorer.loadingWorkspace")}
+                  onToggleFolder={toggleFolder}
+                  onSelectNode={activateNode}
+                  fileIconTheme={fileIconTheme}
+                  canMoveNodes={Boolean(resolvedCapabilities.move && dataPort.moveNode)}
+                  onMoveNode={moveNode}
+                  onMoveNodes={moveNodes}
+                  onCopyNodes={resolvedCapabilities.copy && dataPort.copyNode ? onCopyNodes : undefined}
+                  onCutNodes={resolvedCapabilities.move && dataPort.moveNode ? onCutNodes : undefined}
+                  onPasteNodes={(resolvedCapabilities.copy && dataPort.copyNode) || (resolvedCapabilities.move && dataPort.moveNode)
+                    ? onPasteNodes
+                    : undefined}
+                  onDuplicateNodes={resolvedCapabilities.copy && dataPort.copyNode ? onDuplicateNodes : undefined}
+                  onImportFiles={dataPort.importFiles ? importFiles : undefined}
+                  onRootClick={onExplorerRootClick ? (event) => onExplorerRootClick(workspaceState, event) : undefined}
+                  onRootContextMenu={onExplorerRootContextMenu ? (event) => onExplorerRootContextMenu(workspaceState, event) : undefined}
+                  onNodeContextMenu={onExplorerNodeContextMenu ? (node, event) => onExplorerNodeContextMenu(workspaceState, node, event) : undefined}
+                  renderRootContent={explorerRootContentSlot ? () => renderWorkspaceSlot(explorerRootContentSlot, workspaceState) : undefined}
+                  renderListStart={explorerListStartSlot ? () => renderWorkspaceSlot(explorerListStartSlot, workspaceState) : undefined}
+                  renderListEnd={explorerListEndSlot ? () => renderWorkspaceSlot(explorerListEndSlot, workspaceState) : undefined}
+                  listEndPlacement={explorerListEndPlacement}
+                  renderRootActions={explorerRootActionSlot ? () => renderWorkspaceSlot(explorerRootActionSlot, workspaceState) : undefined}
+                  renderFolderActions={explorerFolderActionSlot ? (folder) => renderWorkspaceFolderSlot(explorerFolderActionSlot, workspaceState, folder) : undefined}
+                  renderNodeActions={explorerNodeActionSlot ? (node) => renderWorkspaceNodeSlot(explorerNodeActionSlot, workspaceState, node) : undefined}
+                  openActionMenu={explorerOpenActionMenu}
+                />
+              </div>
+              {explorerSlot && (
+                <div className="data-explorer-view-frame" data-view-mode="custom" data-active="true">
+                  {renderWorkspaceSlot(explorerSlot, workspaceState)}
+                </div>
+              )}
+            </div>
           </div>
-        </main>
+        </div>
+      )}
+    >
+      {documentNavigationError && (
+        <FloatingNoticeStack className="editor-notice-stack">
+          <FloatingNotice
+            className="editor-inline-error"
+            tone="danger"
+            onDismiss={dismissDocumentNavigationError}
+          >
+            {t("editor.session.saveFailedDetail", {
+              detail: bidiIsolate(documentNavigationError),
+            })}
+          </FloatingNotice>
+        </FloatingNoticeStack>
+      )}
+      <div className="data-main-view-frame" data-view-mode={mainSlot ? "custom" : "files"}>
+        {mainSlot ? (
+          renderWorkspaceSlot(mainSlot, workspaceState)
+        ) : (
+          <>
+            {previewAccessory && (
+              <div className="data-preview-accessory">
+                {previewAccessory}
+              </div>
+            )}
+            <FilePreview
+              editorAssets={dataPort.editorAssets}
+              previewServices={dataPort.previewServices}
+              inputGeneration={selectedInput.generation}
+              node={selectedFile}
+              fileContent={selectedFileContent}
+              fileUrl={selectedFileUrl}
+              fileUrlLoading={selectedFileUrlLoading}
+              fileUrlError={selectedFileUrlError}
+              loading={fileLoading || selectedFileContentPending}
+              error={selectedFileError}
+              onRetry={selectedInput.retry}
+              aiEditFile={selectedPreviewAiEditFile}
+              showHeader={showPreviewHeader}
+              hideSourceView={hidePreviewSourceView}
+              fileIconTheme={fileIconTheme}
+              editorInteractionPreferences={editorInteractionPreferences}
+              editorSaveMode={editorSaveMode}
+              htmlTrustMode={htmlTrustMode}
+              workspaceId={workspace.id}
+              workspaceRoot={workspace.path}
+              markdownDialect={workspace.markdownDialect ?? null}
+              markdownEnvironment={markdownEnvironment}
+              documentNavigation={documentNavigation}
+              appPreview={dataPort.appPreview ?? null}
+              openExternalFile={dataPort.openExternalFile}
+              convertOfficeDocumentToDocx={dataPort.convertOfficeDocumentToDocx}
+              resolveOfficeEditorActions={resolveOfficeEditorActions}
+              viewerExtensionAdapter={viewerExtensionAdapter}
+              documentSourceKind={documentSourceKind ?? resolvedDocumentSourceKind}
+              emptySlot={resolvedActivePath && !activeNode
+                ? unavailableActivePath === resolvedActivePath
+                  ? <div className="empty-preview" role="alert"><span>{t("editor.unavailable.title")}</span></div>
+                  : <div className="empty-preview" aria-busy="true" />
+                : emptySlot}
+              actionSlot={previewActionSlot}
+              documentPersistence={dataPort.documentPersistence ?? null}
+              onDocumentPersisted={dataPort.documentPersistence && selectedFile
+                ? (commit) => applyPersistedFileContent(selectedFile, commit)
+                : undefined}
+            />
+          </>
+        )}
       </div>
-    </section>
+    </DataWorkspaceFrame>
   );
-}
-
-function clampNumber(value: number, min: number, max: number): number {
-  return Math.min(Math.max(Math.round(value), min), max);
 }
 
 function getFirstSetValue<T>(values: ReadonlySet<T>): T | null {

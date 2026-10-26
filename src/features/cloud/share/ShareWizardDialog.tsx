@@ -1,4 +1,4 @@
-import { Tooltip } from "@puppyone/shared-ui";
+import { Tooltip, FolderIcon } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
 import { bidiIsolate } from "@puppyone/localization";
 import {
@@ -7,7 +7,6 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
-  Folder,
   FolderTree,
   LoaderCircle,
   Plus,
@@ -64,6 +63,8 @@ export type ShareWizardFolderEntry = Readonly<{ name: string; path: string }>;
 
 export type ShareWizardPublishController = Readonly<{
   loading: boolean;
+  /** A durable first-push operation remains incomplete, even if its Project exists. */
+  pending?: boolean;
   progress: CloudPublishProgress | null;
   error: CloudInitializationFailure | null;
   start: (organizationId?: string, options?: CloudInitializationStartOptions) => void | Promise<void>;
@@ -370,7 +371,7 @@ function ShareScopeStep({
                 <ScopeOption
                   key={entry.path}
                   checked={path === entry.path}
-                  icon={<Folder size={14} />}
+                  icon={<FolderIcon size={14} />}
                   label={<bdi>{entry.name}</bdi>}
                   onSelect={() => setPath(entry.path)}
                 />
@@ -499,6 +500,7 @@ function ShareConnectStep({
   const hasSession = Boolean(session);
   const publishFailed = Boolean(publish.error);
   const publishLoading = publish.loading;
+  const publishPending = publish.pending === true;
   const sharesLoaded = shares.loaded || shares.error;
   const settled = phase.kind === "ready" || phase.kind === "failed";
 
@@ -521,12 +523,13 @@ function ShareConnectStep({
       transition({ kind: "sign-in" });
       return;
     }
+    if (publishLoading) return transition({ kind: "publishing" });
     if (publishFailed && publishRequestedRef.current) {
       transition({ kind: "failed" });
       return;
     }
     const context = latest.current.projectContext;
-    if (context.status === "resolved") {
+    if (context.status === "resolved" && !publishPending) {
       if (target.channel === "mcp" && !sharesLoaded) {
         transition({ kind: "resolving" });
         return;
@@ -538,18 +541,18 @@ function ShareConnectStep({
       transition({ kind: "resolving" });
       return;
     }
-    if (context.status === "local-only") {
-      if (publishLoading || publishRequestedRef.current) {
+    if (context.status === "local-only" || publishPending) {
+      if (publishRequestedRef.current) {
         transition({ kind: "publishing" });
         return;
       }
-      if (!organizationId) {
+      if (!organizationId && !publishPending) {
         transition({ kind: "organization" });
         return;
       }
       publishRequestedRef.current = true;
       transition({ kind: "publishing" });
-      void latest.current.publish.start(organizationId, { navigateToCloud: false });
+      void latest.current.publish.start(organizationId ?? undefined, { navigateToCloud: false });
       return;
     }
     const warning = getCloudContextWarning(context);
@@ -567,6 +570,7 @@ function ShareConnectStep({
     projectContext.status,
     publishFailed,
     publishLoading,
+    publishPending,
     settled,
     sharesLoaded,
     target.channel,
@@ -592,7 +596,8 @@ function ShareConnectStep({
         const existing = currentShares.shares.find((share) => (
           share.path === scope.path
           && share.readonly === (scope.mode === "r")
-          && share.status !== "disabled"
+          && share.status === "active"
+          && share.name === targetLabel
         ));
         if (existing) {
           finish({ kind: "ready", endpoint: existing.endpoint, issuedAt: existing.createdAt, reused: true });
@@ -692,7 +697,7 @@ function ShareConnectStep({
             <h3 dir="auto">{t("cloud.share.publish.title", { project: bidiIsolate(workspaceName), target: targetLabel })}</h3>
             <p>{t("cloud.share.publish.why", { target: targetLabel })}</p>
             {publish.progress
-              ? <CloudPublishProgressIndicator stage={publish.progress.stage} t={t} />
+              ? <CloudPublishProgressIndicator stage={publish.progress.stage} transfer={publish.progress.transfer} t={t} />
               : (
                 <div className="desktop-share-inline-status" role="status">
                   <LoaderCircle size={13} className="animate-spin" aria-hidden="true" />
@@ -827,7 +832,7 @@ function ShareReadersStep({
         {readers.length > 0 && (
           <ul className="desktop-share-readers-list" aria-label={t("cloud.share.readers.listLabel")}>
             {readers.map((share) => {
-              const url = buildMcpServerUrl(apiBaseUrl, share.endpoint.api_key);
+              const url = buildMcpServerUrl(apiBaseUrl);
               return (
                 <li className="desktop-share-readers-row" key={share.id}>
                   <span className="desktop-share-status-reader-dot" data-live={Boolean(share.lastSeenAt)} aria-hidden="true" />

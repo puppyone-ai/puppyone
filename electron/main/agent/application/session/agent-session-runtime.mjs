@@ -289,16 +289,9 @@ export function createAgentSessionRuntime({
       session.interruptFallbackTimer = null;
       if (!sessionStore.isCurrent(session) || session.closing || session.activeTurnId !== turnId) return;
       const runtimeName = session.runtime?.displayName || "Agent runtime";
-      const forcedExit = typeof session.adapter?.forceTerminate === "function"
-        ? session.adapter.forceTerminate(`${runtimeName} did not confirm the interrupt in time.`)
-        : session.adapter?.dispose?.(`${runtimeName} did not confirm the interrupt in time.`);
-      void Promise.resolve(forcedExit).catch((error) => {
-        logger.warn?.("Unable to force-stop unresponsive Agent runtime:", redactSecretText(error?.message || String(error)));
-      });
-      retireProviderSession(session, {
-        providerMessage: `${runtimeName} was stopped because it did not confirm the interrupt. Refresh to resume the saved session.`,
-        diagnostic: "Interrupt confirmation timed out.",
-      });
+      emit(session, { type: "provider.warning", providerSessionId: session.providerSessionId, turnId,
+        payload: { message: `${runtimeName} has not confirmed that the turn stopped. You can end the execution from the execution manager.`,
+          code: "INTERRUPT_UNCONFIRMED", recoverable: true } });
     }, INTERRUPT_CONFIRMATION_TIMEOUT_MS);
     session.interruptFallbackTimer.unref?.();
   }

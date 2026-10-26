@@ -4,7 +4,7 @@ import { useLocalization } from "@puppyone/localization";
 import { DesktopDataWorkspaceSurface, type DesktopDataWorkspaceSurfaceProps } from "../../app-shell/DesktopDataWorkspaceSurface";
 import { resolveWorkspaceSurface } from "../../app-shell/workspace-surfaces/workspaceSurfaceRegistry";
 import { formatFileOperationNotice } from "../../data-workspace/useFileClipboard";
-import { DesktopCreateEntryDialog, DesktopCreateEntryMenu, DesktopNodeActionMenu, toDesktopNodeActionError } from "../../data-workspace/nodeActions";
+import { DesktopCreateEntryMenu, DesktopNodeActionMenu, toDesktopNodeActionError } from "../../data-workspace/nodeActions";
 import { resolveVisibleCreateNewMenuItems } from "../../../preferences";
 import type { NativeCloudWorkbench } from "./useNativeCloudWorkbench";
 import { getDesktopCloudWebUrl } from "../../../lib/cloudApi";
@@ -81,19 +81,17 @@ function CloudFileBinding({ workbench, surfaceProps, providerStateContent }: {
       onCreateEntryMenu={(parent, anchor) => { if (surfaceService.writable) actions.openCreateEntryMenu(parent ?? surfaceService.folder.uri, anchor); }}
       onDismissCreateEntryMenu={() => actions.setCreateEntryDraft(null)}
       onNodeActionMenu={actions.openNodeActionMenu}
-      openCreateEntryParentPath={createEntryDraft && !createEntryDraft.selectedKind
+      openCreateEntryParentPath={createEntryDraft
         && createEntryDraft.anchor.placement !== "auto-end" ? createEntryDraft.parentPath : undefined}
       openNodeActionPath={nodeActionMenu?.mode === "actions"
         ? nodeActionMenu.launcherPath ?? nodeActionMenu.node.path : null}
-      sidebarCreateMenuOpen={Boolean(createEntryDraft && !createEntryDraft.selectedKind)}
+      sidebarCreateMenuOpen={createEntryDraft?.anchor.placement === "auto-end"}
       workspaceRefreshToken={workbench.refreshToken} workspaceAtomicRefreshToken={0}
       workspaceSurfaceError={dataPort ? workbench.error : null}
       onRetryWorkspaceSurface={dataPort ? () => { void workbench.resumeWorkspace(); } : undefined} />
-    {createEntryDraft && (createEntryDraft.selectedKind
-      ? <DesktopCreateEntryDialog draft={createEntryDraft}
-          onChange={actions.setCreateEntryDraft} onCancel={() => actions.setCreateEntryDraft(null)} onCreate={actions.createEntryFromMenu} />
-      : <DesktopCreateEntryMenu draft={createEntryDraft} mainEntries={createItems.main} submenuItemKinds={createItems.submenu}
-          onCancel={() => actions.setCreateEntryDraft(null)} onSelectKind={actions.selectCreateEntryKind} />)}
+    {createEntryDraft && <DesktopCreateEntryMenu draft={createEntryDraft}
+      mainEntries={createItems.main} submenuItemKinds={createItems.submenu}
+      onCancel={() => actions.setCreateEntryDraft(null)} onSelectKind={(kind) => { void actions.createEntry(kind); }} />}
     {nodeActionMenu && <DesktopNodeActionMenu draft={nodeActionMenu}
       showRevealInFinder={false} showOpenInDefaultApp={false} canCopy={clipboard.canCopy} canCut={clipboard.canCut}
       canPaste={nodeActionMenu.node.type === "folder" && clipboard.canPasteInto(nodeActionMenu.node.path)} canDuplicate={clipboard.canDuplicate}

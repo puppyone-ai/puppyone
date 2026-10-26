@@ -21,7 +21,9 @@ export function appearanceFields(p: AppearancePreferencesV6) {
   return {
     interfaceStyle: p.activeRootThemeId, byRootTheme: p.byRootTheme,
     typographyPreferences: p.shared.typography, pointerCursors: p.shared.pointerCursors,
-    loadingAnimationPreset: p.shared.loadingAnimationPreset, fileIconTheme: p.shared.fileIconTheme,
+    showFileIcons: p.shared.showFileIcons,
+    fileIconTheme: p.shared.fileIconTheme,
+    loadingPlaceholderStyle: p.shared.loadingPlaceholderStyle,
     markdownPresentation: p.bySurface.markdown,
   };
 }
@@ -35,7 +37,6 @@ function readPreferences(storage: PreferenceStorage, onReadFailure: () => void) 
     ...appearanceFields(appearance.preferences), appearanceWritable: appearance.writable,
     diffMarkers: legacy.readInitialDiffMarkers(safe),
     gitDisplayMode: legacy.readInitialGitDisplayMode(safe),
-    gitSidebarLayout: legacy.readInitialGitSidebarLayout(safe),
     filesVisibilitySettings: legacy.readInitialFilesVisibilitySettings(safe),
     createNewMenuSettings: legacy.readInitialCreateNewMenuSettings(safe),
     experimentalSettings: legacy.readInitialExperimentalSettings(safe),
@@ -62,8 +63,8 @@ function serializeAppearance(s: PersistedDesktopPreferences) {
   return serializeAppearancePreferences(createAppearancePreferencesV6({
     activeRootThemeId: s.interfaceStyle,
     shared: { typography: s.typographyPreferences, pointerCursors: s.pointerCursors,
-      loadingAnimationPreset: s.loadingAnimationPreset, fileIconTheme: s.fileIconTheme,
-      sidebarNavigationLayout: keys.DEFAULT_SIDEBAR_NAVIGATION_LAYOUT },
+      showFileIcons: s.showFileIcons, loadingPlaceholderStyle: s.loadingPlaceholderStyle,
+      fileIconTheme: s.fileIconTheme, sidebarNavigationLayout: keys.DEFAULT_SIDEBAR_NAVIGATION_LAYOUT },
     byRootTheme: s.byRootTheme, bySurface: { markdown: s.markdownPresentation },
   }));
 }
@@ -74,7 +75,6 @@ function serializePreferences(s: PersistedDesktopPreferences): Record<string, st
     ...(s.appearanceWritable ? { [APPEARANCE_PREFERENCES_STORAGE_KEY]: serializeAppearance(s) } : {}),
     [keys.DIFF_MARKERS_STORAGE_KEY]: s.diffMarkers,
     [keys.GIT_DISPLAY_MODE_STORAGE_KEY]: s.gitDisplayMode,
-    [keys.GIT_SIDEBAR_LAYOUT_STORAGE_KEY]: s.gitSidebarLayout,
     [keys.FILES_VISIBILITY_STORAGE_KEY]: JSON.stringify(s.filesVisibilitySettings),
     [keys.CREATE_NEW_MENU_STORAGE_KEY]: JSON.stringify(s.createNewMenuSettings),
     [keys.EXPERIMENTAL_SETTINGS_STORAGE_KEY]: JSON.stringify(rendererOwned),
@@ -118,6 +118,7 @@ export function createPreferencePersistence(storage: PreferenceStorage): Persist
       }
       try {
         storage.removeItem("puppyone.desktop.externalApps");
+        storage.removeItem(keys.GIT_SIDEBAR_LAYOUT_STORAGE_KEY);
         if (!state.reachLastAgentId) storage.removeItem(legacy.REACH_LAST_AGENT_STORAGE_KEY);
       } catch { /* Storage can be unavailable. */ }
     },

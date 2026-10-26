@@ -11,6 +11,7 @@ import type { AgentControllerState } from "../application/agent-controller-state
 type AgentPanelStatusProps = {
   unavailable: boolean;
   failed: boolean;
+  runtimeExited?: boolean;
   error: AgentErrorDescriptor | null;
   runtimeLabel: string;
   readiness?: AgentRuntimeReadiness;
@@ -25,6 +26,7 @@ type AgentPanelStatusProps = {
 export function AgentPanelStatus({
   unavailable,
   failed,
+  runtimeExited = false,
   error,
   runtimeLabel,
   readiness,
@@ -47,7 +49,7 @@ export function AgentPanelStatus({
         <AgentStatusCard
           tone={failed ? "recovery" : "readiness"}
           heading={failed
-            ? t("agent.readiness.sessionAttention", { agent: bidiIsolate(runtimeLabel) })
+            ? t(runtimeExited ? "agent.readiness.sessionAttention" : "agent.readiness.sessionFailed", { agent: bidiIsolate(runtimeLabel) })
             : readinessPresentation.heading}
           description={failed
             ? errorPresentation?.summary || t("agent.readiness.sessionRecovery")
@@ -65,7 +67,7 @@ export function AgentPanelStatus({
             className="desktop-agent-button is-secondary desktop-agent-readiness-action"
             aria-label={t("agent.readiness.retryAria")}
             onClick={onRetry}
-          ><RefreshCw size={12} /> {t(failed ? "agent.readiness.reconnect" : "common.action.retry")}</button>}
+          ><RefreshCw size={12} /> {t(runtimeExited ? "agent.readiness.reconnect" : "common.action.retry")}</button>}
         />
       )}
       {errorPresentation && !unavailable && !failed && !displayFailure && !recovery && (

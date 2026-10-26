@@ -12,7 +12,15 @@ export function DesktopCloudSignInCta({ signingIn, error, onSignIn }: {
   const { t } = useLocalization();
   return (
     <CloudProjectActivation busy={signingIn}
-      supplemental={error && <p className="desktop-cloud-sign-in-error" role="alert">{error}</p>}
+      supplemental={error ? <p className="desktop-cloud-sign-in-error" role="alert">{error}</p>
+        // The browser page is the only way to finish; closing it must not
+        // leave the user waiting on a disabled button.
+        : signingIn && <p className="desktop-cloud-sign-in-reopen">
+          <span>{t("cloud.auth.desktopReopenHint")}</span>
+          <button type="button" className="desktop-cloud-sign-in-reopen-action" onClick={onSignIn}>
+            {t("cloud.auth.desktopReopen")}
+          </button>
+        </p>}
       action={
         <button
           className="desktop-dialog-button primary desktop-cloud-sign-in-button"

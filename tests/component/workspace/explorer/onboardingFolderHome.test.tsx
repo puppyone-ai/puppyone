@@ -59,6 +59,20 @@ afterEach(() => {
 });
 
 describe("project folder home", () => {
+  it("uses the App-owned entry flow without subscribing a second template consumer", async () => {
+    const readTemplateImportIntent = vi.fn().mockResolvedValue(null);
+    window.puppyoneDesktop = { readTemplateImportIntent } as unknown as NonNullable<typeof window.puppyoneDesktop>;
+    const openCreate = vi.fn();
+    const projectEntryController = { step: null, templateUrl: null, openCreate,
+      openLauncher: vi.fn(), openImport: vi.fn(), openTemplate: vi.fn(), close: vi.fn() };
+    const container = renderHome({ projectEntryController,
+      onChooseProjectLocation: vi.fn(async () => null), onCreateProject: vi.fn(createProjectResult) });
+    await act(async () => container.querySelector<HTMLButtonElement>("[data-onboarding-action='create']")?.click());
+    expect(openCreate).toHaveBeenCalledOnce();
+    expect(readTemplateImportIntent).not.toHaveBeenCalled();
+    expect(document.querySelector(".onboarding-project-dialog")).toBeNull();
+  });
+
   it("localizes the agent-ready brand promise in every renderer locale", () => {
     for (const [locale, expected] of Object.entries(agentReadyMessages)) {
       const messages = JSON.parse(
@@ -327,8 +341,8 @@ describe("project folder home", () => {
     const panel = container.querySelector(".onboarding-home-primary");
     expect(panel?.getAttribute("data-onboarding-primary")).toBe("projects");
     expect(panel?.lastElementChild?.classList.contains("onboarding-project-list")).toBe(true);
-    const projectFolder = container.querySelector(".onboarding-project-row .lucide-folder");
-    expect(projectFolder).not.toBeNull();
+    const projectPlace = container.querySelector('.onboarding-project-row [data-product-icon="local"]');
+    expect(projectPlace).not.toBeNull();
     expect(container.querySelector(".desktop-menu-item-label")?.textContent).toBe("Notes");
     expect(container.querySelector(".desktop-menu-item-detail")?.textContent).toBe("~/Desktop");
     // Opening history is not a project modification timestamp.
@@ -370,7 +384,7 @@ describe("project folder home", () => {
     expect(actions[2]?.dataset.onboardingAction).toBe("import");
     expect(actions[0]?.classList.contains("onboarding-entry-action-folder")).toBe(false);
     expect(actions[0]?.querySelector(".onboarding-entry-create-icon")).not.toBeNull();
-    expect(actions[1]?.querySelector(".lucide-folder-open")).not.toBeNull();
+    expect(actions[1]?.querySelector('[data-product-icon="folder"]')).not.toBeNull();
     expect(actions[2]?.querySelector(".po-button__icon .lucide-download")).not.toBeNull();
     expect(actions[2]?.disabled).toBe(false);
     // Import keeps one accessible target, with an action icon and named source marks.
@@ -589,7 +603,7 @@ describe("project folder home", () => {
       source.querySelector<HTMLImageElement>(".onboarding-import-source-icon img")?.dataset.importBrand
     ))).toEqual(["github", "gitlab"]);
     expect(sources.slice(2)).toHaveLength(0);
-    expect(container.querySelector(".onboarding-import-source .lucide-folder-open")).toBeNull();
+    expect(container.querySelector('.onboarding-import-source [data-product-icon="folder"]')).toBeNull();
     expect(onChooseWorkspace).not.toHaveBeenCalled();
     expect(onImportSource).not.toHaveBeenCalled();
   });

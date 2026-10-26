@@ -29,9 +29,11 @@ export const CLOUD_PUBLISH_ERROR_CODES = Object.freeze([
   "SERVICE_UPGRADE_REQUIRED",
   "REMOTE_CONFIG_FAILED",
   "PUSH_FAILED",
+  "PUSH_LIMIT_EXCEEDED",
   "PUSH_UNCERTAIN",
   "LOCAL_FINALIZE_FAILED",
   "CLEANUP_FAILED",
+  "CLEANUP_NOT_ALLOWED",
   // Kept as a decoder/API compatibility code for version-1 operations.
   "COMPENSATION_FAILED",
   "JOURNAL_CORRUPT",

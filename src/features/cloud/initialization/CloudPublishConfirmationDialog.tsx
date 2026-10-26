@@ -1,5 +1,5 @@
-import { Tooltip } from "@puppyone/shared-ui";
-import { CloudUpload, RefreshCw } from "lucide-react";
+import { Tooltip, CloudUploadIcon } from "@puppyone/shared-ui";
+import { RefreshCw } from "lucide-react";
 import { useLocalization } from "@puppyone/localization/react";
 import {
   DesktopDialogCloseButton,
@@ -39,7 +39,7 @@ export function CloudPublishConfirmationDialog({
         <header className="desktop-dialog-header">
           <div className="desktop-dialog-title-row">
             <span className="desktop-dialog-leading cloud" aria-hidden="true">
-              <CloudUpload size={17} strokeWidth={1.8} />
+              <CloudUploadIcon size={17} strokeWidth={1.8} />
             </span>
             <h2>{title}</h2>
           </div>

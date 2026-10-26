@@ -78,13 +78,16 @@ describe("payments experiment", () => {
     expect(path()).toBe("paid");
   });
 
-  it("offers one default-off switch next to the other account experiments", () => {
+  it("offers one switch, on by default once Cloud is on, that can still be turned off", () => {
     enableCloud();
     const host = render(<ExperimentalSettingsView />);
     const toggle = host.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!;
 
     expect(toggle.closest(".desktop-settings-subsection")?.querySelector("h3")?.textContent).toBe("Cloud & automation");
-    expect(toggle.checked).toBe(false);
+    // Asking for money is the product, so the price is there on an untouched
+    // install instead of waiting behind a switch nobody opens.
+    expect(DEFAULT_EXPERIMENTAL_SETTINGS.enablePayments).toBe(true);
+    expect(toggle.checked).toBe(true);
     expect(toggle.getAttribute("aria-description")).toBe(
       "Use Puppyone's token and pay for what you use, with no subscription."
       + " Off keeps the Agent on your own API or model and never shows a balance or a price.",
@@ -92,12 +95,14 @@ describe("payments experiment", () => {
 
     act(() => toggle.click());
     expect(store.getState().experimentalSettings).toEqual({
-      ...DEFAULT_EXPERIMENTAL_SETTINGS, enableCloudWorkspace: true, enablePayments: true,
+      ...DEFAULT_EXPERIMENTAL_SETTINGS, enableCloudWorkspace: true, enablePayments: false,
     });
 
+    // The opt-out survives a restart: a stored `false` must not be read back as
+    // the on-by-default answer.
     act(() => initializeDesktopPreferences());
-    expect(JSON.parse(localStorage.getItem("puppyone.desktop.experimental")!).enablePayments).toBe(true);
-    expect(toggle.checked).toBe(true);
+    expect(JSON.parse(localStorage.getItem("puppyone.desktop.experimental")!).enablePayments).toBe(false);
+    expect(toggle.checked).toBe(false);
 
     act(() => toggle.click());
     expect(store.getState().experimentalSettings).toEqual({ ...DEFAULT_EXPERIMENTAL_SETTINGS, enableCloudWorkspace: true });
@@ -109,14 +114,14 @@ describe("payments experiment", () => {
     const toggle = host.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!;
     const path = () => host.querySelector('[data-testid="path"]')?.textContent;
 
-    expect(path()).toBe("own compute");
-
-    act(() => toggle.click());
     expect(path()).toBe("paid");
 
-    act(() => store.getState().setExperimentalSettings(settings => ({ ...settings, enablePayments: false })));
+    act(() => toggle.click());
     expect(path()).toBe("own compute");
-    expect(toggle.checked).toBe(false);
+
+    act(() => store.getState().setExperimentalSettings(settings => ({ ...settings, enablePayments: true })));
+    expect(path()).toBe("paid");
+    expect(toggle.checked).toBe(true);
   });
 
   it("keeps Settings on account sign-in alone and never reads the wallet", async () => {
@@ -127,14 +132,19 @@ describe("payments experiment", () => {
     expect(host.querySelector("button")).toBeNull();
     expect(managed).not.toHaveBeenCalled();
 
+    // Sign-in belongs to the Account page, not to the wallet: see
+    // accountIdentity.test.tsx for the call to action itself. Here the only
+    // thing that matters is that a switched-off wallet shows no money and
+    // reads nothing.
     const signedOut = render(<AccountAICredits payments={false} signedIn={false} onSignIn={() => undefined} />);
-    expect([...signedOut.querySelectorAll("button")].map((button) => button.textContent)).toEqual(["Sign in"]);
+    expect(signedOut.textContent).toBe("");
+    expect(signedOut.querySelector("button")).toBeNull();
     expect(signedOut.textContent).not.toMatch(/\$|balance|Add|Refresh/);
     expect(managed).not.toHaveBeenCalled();
   });
 
   it("asks a signed-in account to top up only while the experiment is on", async () => {
-    const host = render(<AccountAICredits payments signedIn />);
+    const host = render(<AccountAICredits payments signedIn topUp />);
     await act(async () => undefined);
 
     expect(host.textContent).toContain("Available balance");

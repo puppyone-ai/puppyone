@@ -319,6 +319,7 @@ export type AgentEventType =
   | "approval.resolved"
   | "question.requested"
   | "question.resolved"
+  | "provider.notification"
   | "provider.activity"
   | "provider.connection.updated"
   | "provider.warning"
@@ -406,7 +407,8 @@ export type AgentEventPayloadMap = {
   "approval.resolved": AgentBlockingPayload & { decision?: AgentApprovalDecision };
   "question.requested": AgentBlockingPayload & { questions: unknown[] };
   "question.resolved": AgentBlockingPayload & { resolution?: string; rejected?: boolean };
-  "provider.activity": AgentActivityPayload;
+  "provider.notification": { message: string; severity: "info" | "warning" | "error"; source?: string };
+  "provider.activity": AgentActivityPayload & { category?: "authentication" | "compaction" | "status"; message?: string };
   "provider.connection.updated": {
     scope?: "upstream-request" | "transport";
     requestId?: string;

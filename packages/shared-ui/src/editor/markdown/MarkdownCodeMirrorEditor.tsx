@@ -110,6 +110,9 @@ export function MarkdownCodeMirrorEditor({
 }: MarkdownCodeMirrorEditorProps) {
   const appearanceRevision = useEditorAppearanceRevision();
   const taskOwner = useEditorTaskOwner();
+  // The view is created once per model; later owners are reconfigured below.
+  const initialTaskOwnerRef = useRef(taskOwner);
+  initialTaskOwnerRef.current = taskOwner;
   const taskOwnerCompartment = useRef(new Compartment());
   const { direction, formatNumber, locale, t } = useLocalization();
   const localization = useMemo(
@@ -267,7 +270,7 @@ export function MarkdownCodeMirrorEditor({
       },
       state: model.createViewState([
           ...markdownCodeMirrorUrgentExtensions(initialConfig.readOnly, false),
-          taskOwnerCompartment.current.of(markdownTaskOwner.of(taskOwner)),
+          taskOwnerCompartment.current.of(markdownTaskOwner.of(initialTaskOwnerRef.current)),
           findAdapter.extension,
           localizationCompartmentRef.current.of(
             markdownLocalizationExtension(initialLocalizationRef.current, initialConfig.readOnly),

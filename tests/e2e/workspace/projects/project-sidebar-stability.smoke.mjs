@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, Menu } from "electron";
 import { workspaceFromPath } from "../../../../local-api/workspace.mjs";
 import { createWorkspaceStateStore } from "../../../../electron/main/workspace-state-store.mjs";
 import { getDesktopBuildChannelPolicy } from "../../../../shared/desktop-build-identity.mjs";
@@ -18,7 +18,7 @@ app.setPath("appData", temporaryRoot);
 app.setPath("userData", path.join(temporaryRoot, getDesktopBuildChannelPolicy("dev").userDataName));
 await fs.mkdir(app.getPath("userData"), { recursive: true });
 app.on("window-all-closed", () => {});
-const report = { ok: false, navigationCount: 0, cases: [], dedicatedOpenRequests: [], error: null };
+const report = { ok: false, navigationCount: 0, cases: [], inWindowOpenRequests: [], dedicatedOpenRequests: [], error: null };
 let window;
 let server;
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -29,6 +29,10 @@ const guard = setTimeout(() => { console.error("Project sidebar check timed out"
 // is observable even on a fast local disk. No workspace result is mocked.
 const handle = ipcMain.handle.bind(ipcMain);
 ipcMain.handle = (channel, listener) => handle(channel, async (event, ...args) => {
+  if (channel === "workspace:open-current") {
+    report.inWindowOpenRequests.push(args[0]);
+    await wait(350);
+  }
   if (channel === "workspace:open-new-window") {
     report.dedicatedOpenRequests.push(args[0]);
     await wait(350);
@@ -69,6 +73,8 @@ async function initialize() {
   app.on("browser-window-created", (_event, owner) => {
     owner.webContents.setBackgroundThrottling(false);
   });
+  process.env.VITE_DESKTOP_CLOUD_API_URL = "http://127.0.0.1:9/api/v1";
+  process.env.VITE_DESKTOP_CLOUD_WEB_URL = "http://127.0.0.1:9";
   await import("../../../../electron/main.mjs");
 }
 
@@ -80,6 +86,7 @@ async function run() {
   window.setContentSize(1200, 800);
   await until("!!document.querySelector('.app-shell')", "App mount");
   for (const expanded of [true, false]) await verifySwitches(expanded);
+  await verifyHeaderAndWindows();
   report.ok = true;
 }
 
@@ -118,11 +125,12 @@ async function verifySwitches(expanded) {
     })()`);
     await until("window.sidebarObservation.frames.some(frame => frame.pending)", "pending navigation frame");
     await fs.writeFile(path.join(reportDirectory, `${mode}-${name.replaceAll(" ", "-")}-pending.png`), (await window.webContents.capturePage()).toPNG());
-    await until("!document.querySelector('.desktop-project-switcher-rail [aria-busy=true]')", "dedicated-window opening settled");
-    assert.equal(path.basename(report.dedicatedOpenRequests.at(-1)), name, "Sidebar used the dedicated-window route");
-    assert.equal(BrowserWindow.getAllWindows().length, name === "Project B" ? 2 : 3, "target project opened in another window");
-    assert.equal(await evaluate("document.querySelector('.desktop-project-switcher-rail-project[aria-current=page]')?.getAttribute('aria-label').includes('Project A')"), true, "the original project stayed selected");
-    assert.equal(await evaluate("!!document.querySelector('.desktop-titlebar-workspace-label[data-window-drag-region=true]') && !document.querySelector('.desktop-project-menu')"), true, "Sidebar mode retains a static draggable Header identity");
+    await until("!document.querySelector('.desktop-project-switcher-rail [aria-busy=true]')", "in-window switch settled");
+    assert.equal(path.basename(report.inWindowOpenRequests.at(-1)), name, "Sidebar used the current-window route");
+    assert.deepEqual(report.dedicatedOpenRequests, [], "Sidebar opened a dedicated window");
+    assert.equal(BrowserWindow.getAllWindows().length, 1, "project switching opened another window");
+    await until(`document.querySelector('.desktop-project-switcher-rail-project[aria-current=page]')?.getAttribute('aria-label').includes(${JSON.stringify(name)})`, "selected project follows the switch");
+    assert.equal(await evaluate("!document.querySelector('.desktop-titlebar-workspace-label') && !document.querySelector('.desktop-titlebar-workspace-button') && !document.querySelector('.desktop-titlebar-location-button')"), true, "the Header still states the Project the rail owns");
     await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
     const observation = await evaluate(`window.sidebarObservation.recording = false; window.sidebarObservation`);
     report.cases.push({ name, mode, ...observation });
@@ -138,6 +146,81 @@ async function verifySwitches(expanded) {
     assert.ok(sample.frames.every((frame) => frame.animation === "none" && frame.avatarOpacity === "1"), `${sample.name}: project icon pulsed`);
     assert.ok(sample.frames.every((frame) => frame.x === sample.frames[0].x && frame.width === sample.frames[0].width), `${sample.name}: sidebar geometry changed`);
   }
+}
+
+async function verifyHeaderAndWindows() {
+  await evaluate(`localStorage.setItem('puppyone.desktop.experimental', JSON.stringify({ enableProjectSwitcherRail: false })); location.reload();`);
+  await until("!!document.querySelector('.desktop-titlebar-workspace-button')", "Header switcher");
+  await evaluate("window.navigationDocumentIdentity = crypto.randomUUID()");
+  const documentIdentity = await evaluate("window.navigationDocumentIdentity");
+  const recordNavigation = () => { report.navigationCount++; };
+  window.webContents.on("did-navigate", recordNavigation);
+  const select = async (name, settle = true) => {
+    await evaluate("document.querySelector('.desktop-titlebar-workspace-button').click()");
+    await until("!!document.querySelector('.desktop-project-switcher-list')", "Header menu");
+    await evaluate(`(() => { const row = [...document.querySelectorAll('.desktop-project-switcher-list .desktop-menu-item')].find(row => row.textContent.trim() === ${JSON.stringify(name)}); if (!row) throw new Error('Project row missing'); row.click(); })()`);
+    if (settle) await until(`document.querySelector('.desktop-titlebar-workspace-name')?.textContent === ${JSON.stringify(name)}`, "Header selection");
+  };
+  for (const name of ["Project A", "Project B", "Project C"]) {
+    await select(name);
+    assert.equal(BrowserWindow.getAllWindows().length, 1, "Header selection opened a window");
+  }
+  await select("Project A");
+  await select("Project B", false);
+  await select("Project A", false);
+  await wait(1000); // Both real, delayed current-window IPC operations settle.
+  assert.equal(await evaluate("document.querySelector('.desktop-titlebar-workspace-name')?.textContent"), "Project A", "A -> B -> A lost the final intent");
+  const retained = await evaluate("window.puppyoneDesktop.readProjectSessions()");
+  const cRoot = retained.projects.find(project => path.basename(project.rootPath) === "Project C").rootPath;
+  await fs.rename(cRoot, cRoot + "-unavailable");
+  try {
+    await select("Project C", false);
+    await until("!!document.querySelector('.desktop-dialog-surface [role=alert]')", "switch failure");
+    assert.equal(await evaluate("document.querySelector('.desktop-titlebar-workspace-name')?.textContent"), "Project A", "failed switch replaced the displayed project");
+    await fs.writeFile(path.join(reportDirectory, "header-switch-failure.png"), (await window.webContents.capturePage()).toPNG());
+  } finally { await fs.rename(cRoot + "-unavailable", cRoot); }
+  await evaluate("document.querySelector('.desktop-dialog-footer .primary').click()");
+  await until("document.querySelector('.desktop-titlebar-workspace-name')?.textContent === 'Project C'", "retry switch");
+  report.failureAndRetry = true;
+  report.latestIntent = true;
+  // Both surfaces hand New workspace to the same create/open/import launcher.
+  await evaluate("document.querySelector('.desktop-titlebar-workspace-button').click()");
+  await until("!!document.querySelector('.desktop-project-menu')", "Header menu");
+  await evaluate("[...document.querySelectorAll('.desktop-project-menu button')].find(button => button.textContent.trim() === 'New workspace').click()");
+  await until("!!document.querySelector('.desktop-project-entry-launcher')", "shared launcher");
+  await evaluate("document.querySelector('.desktop-project-entry-launcher .desktop-dialog-icon-button').click()");
+  const firstWindow = window;
+  const newWindow = Menu.getApplicationMenu()?.getMenuItemById("file.newWindow");
+  assert.ok(newWindow, "native New Window action exists");
+  newWindow.click();
+  for (let n = 0; n < 300 && BrowserWindow.getAllWindows().length !== 2; n++) await wait(50);
+  assert.equal(BrowserWindow.getAllWindows().length, 2, "explicit New window did not create a window");
+  window = BrowserWindow.getAllWindows().find(owner => owner !== firstWindow);
+  await until("!!document.querySelector('.onboarding-homepage') || !!document.querySelector('.app-shell')", "new empty window");
+  // A is retained in the first window. The real current-window IPC must still
+  // admit it in the new window, without redirecting or copying its sessions.
+  const roots = await firstWindow.webContents.executeJavaScript("window.puppyoneDesktop.readProjectSessions()");
+  const a = roots.projects.find(project => path.basename(project.rootPath) === "Project A");
+  assert.ok(a, "first window retained A");
+  window.webContents.send("workspace:open-requested", { rootPath: a.rootPath });
+  await until("document.querySelector('.desktop-titlebar-workspace-name')?.textContent === 'Project A'", "same project in second window");
+  const secondProjects = await evaluate("window.puppyoneDesktop.readProjectSessions()");
+  const secondA = secondProjects.projects.find(project => project.rootPath === a.rootPath);
+  assert.ok(secondA && secondA.generation !== a.generation, "windows must have independent authorized contexts");
+  assert.equal(await firstWindow.webContents.executeJavaScript("document.querySelector('.desktop-titlebar-workspace-name')?.textContent"), "Project C", "selection changed the other window");
+  await select("Project B");
+  assert.equal(BrowserWindow.getAllWindows().length, 2, "selection created a third window");
+  window.close();
+  for (let n = 0; n < 300 && !window.isDestroyed(); n++) await wait(50);
+  assert.ok(window.isDestroyed() && !firstWindow.isDestroyed(), "window close affected another window");
+  window = firstWindow;
+  await select("Project A");
+  assert.equal(await evaluate("window.navigationDocumentIdentity"), documentIdentity, "switching replaced the document");
+  assert.equal(report.navigationCount, 0, "Header switching reloaded the window");
+  assert.deepEqual(report.dedicatedOpenRequests, [], "a switch used dedicated-window IPC");
+  window.webContents.removeListener("did-navigate", recordNavigation);
+  report.headerAndWindowIsolation = true;
+  await fs.writeFile(path.join(reportDirectory, "header-project-switch.png"), (await window.webContents.capturePage()).toPNG());
 }
 
 async function verifyActionMenuSession() {

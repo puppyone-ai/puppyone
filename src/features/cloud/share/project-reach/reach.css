@@ -1,18 +1,87 @@
 @layer features {
-  /* The one screen for inviting a person or connecting an agent. Both share
-     this skeleton; only the verb, the object and one sentence differ.
-
-     Two type sizes only: the dialog's body size for anything the user reads
-     to decide, and the meta size for consequences. Earlier revisions grew a
-     third and a fourth, which is what made the screen look assembled rather
-     than designed. */
+  /* First publication shares activation's frame; hosted projects retain
+     their link and permission controls. */
+  /* Every block on this screen is as wide as the dialog and no wider. The
+     folder illustration is a scaled-down copy of the real Explorer and
+     Viewer, so its contents are deliberately wider than the space they are
+     drawn in; without this the grid would take its width from them and the
+     dialog would grow to fit a picture. */
   .desktop-reach-dialog .desktop-dialog-body {
     gap: 14px;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .desktop-reach-section {
     display: grid;
     gap: 6px;
+  }
+
+  /* First publication uses the same banner, canvas and footer as activation. */
+  .desktop-reach-dialog.is-converting { position: relative; padding: 0; }
+  .desktop-reach-dialog.is-converting .desktop-cloud-project-activation {
+    width: 100%;
+    border: 0;
+    border-radius: 0;
+  }
+  /* Passes the dialog's height limit to the banner, whose copy is the only
+     part that scrolls; scrolling here would carry the picture away. */
+  .desktop-reach-conversion-scroll { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  .desktop-reach-conversion-scroll > .desktop-cloud-project-activation { flex: 0 1 auto; }
+  .desktop-reach-conversion-close { position: absolute; top: 10px; right: 10px; z-index: 3; }
+  .desktop-reach-conversion-close .desktop-dialog-icon-button { width: 28px; height: 28px; border-radius: 7px; }
+  .desktop-reach-dialog.is-converting .desktop-cloud-project-activation-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    background: var(--po-canvas);
+  }
+  .desktop-reach-conversion-content { display: grid; min-width: 0; gap: 12px; margin-top: 18px; }
+  .desktop-reach-invite-link {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid var(--po-border);
+    border-radius: 10px;
+    background: var(--po-panel-raised);
+  }
+  .desktop-reach-invite-link .desktop-reach-link-row {
+    flex: 1;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+  .desktop-reach-invite-link .desktop-cloud-project-journey-avatars { flex-shrink: 0; }
+  .desktop-reach-dialog.is-converting .desktop-cloud-project-activation-title { overflow-wrap: anywhere; }
+  .desktop-reach-agent-groups.is-compact { display: flex; flex-wrap: wrap; gap: 8px; }
+  .desktop-reach-agent-groups.is-compact .desktop-reach-agent-group,
+  .desktop-reach-agent-groups.is-compact .desktop-reach-agents { display: contents; }
+  .desktop-reach-agent-groups.is-compact .desktop-reach-agent-kind { display: none; }
+
+  /* Use activation's value typography, including native UI type for the URL.
+     The hosted-project forms retain their existing control styles. */
+  .desktop-reach-conversion-content :is(.desktop-reach-agent, .desktop-reach-chosen-label,
+    .desktop-reach-link-value, .desktop-share-question, .desktop-reach-readers h3) {
+    font: var(--desktop-cloud-value-title-font);
+  }
+  .desktop-reach-conversion-content .desktop-reach-link-known { font-weight: inherit; }
+  .desktop-cloud-project-activation .desktop-reach-conversion-content :is(.desktop-reach-fact, .desktop-share-inline-link,
+    .desktop-reach-agent-note, .desktop-share-inline-status) {
+    color: var(--po-text-subtle);
+    font: var(--desktop-cloud-value-detail-font);
+  }
+  .desktop-reach-conversion-content :is(.desktop-share-mode-option, .desktop-share-scope-option) {
+    font: var(--desktop-cloud-value-title-font);
+    font-weight: var(--po-text-weight-regular, 400);
+  }
+  .desktop-reach-conversion-content .desktop-share-mode-option.is-selected { font-weight: 550; }
+  .desktop-reach-conversion-content .desktop-reach-agent {
+    height: var(--po-control-size);
+    gap: 6px;
+    padding-inline: 8px 10px;
+    border-radius: 8px;
   }
 
   .desktop-reach-switch:hover,
@@ -24,25 +93,52 @@
      illustration the Cloud workspace share screen uses. The counts annotate
      it from inside its own fade, so the screen keeps one block where there
      used to be a frame, a caption and a sentence. */
+  /* The illustration is a scaled copy of the real Explorer and Viewer, so
+     what is inside it is wider than the frame on purpose. Both the frame and
+     everything between it and this grid have to be allowed to be narrower
+     than their own contents, or the dialog ends up sized by a picture. */
+  .desktop-reach-preview,
+  .desktop-reach-preview .desktop-cloud-share-preview {
+    min-width: 0;
+  }
+
   .desktop-reach-preview {
     display: grid;
   }
 
   .desktop-reach-preview .desktop-cloud-share-preview-window {
-    height: 190px;
+    max-width: 100%;
+    height: 220px;
   }
 
-  /* The link and the verb that makes it, in one row. The row is the same
-     shape the Cloud workspace share screen uses for a finished link, so the
-     button that fills it stands exactly where the copy button will. */
+  /* Reduced, but still readable. At half size the file names and the lines
+     of the open document were smaller than anything else on the screen — a
+     picture of text rather than text — and an illustration the user has to
+     lean into is not showing them their folder. Closer to full size costs a
+     couple of rows, which the fade was already taking anyway. */
+  .desktop-reach-preview .desktop-cloud-share-preview-canvas {
+    width: 143%;
+    height: 143%;
+    transform: scale(0.7);
+  }
+
+  /* The link, in a row of its own. The row is the same shape the Cloud
+     workspace share screen uses for a finished link, so the verb that fills
+     it — when there is one — stands exactly where the copy button will.
+
+     It sits on the surface this product already uses for a thing that holds
+     content rather than being content, so the address reads as a field about
+     to be filled instead of as one more line of dialog text. That, and being
+     alone in its bubble, is all the emphasis it gets. */
   .desktop-reach-link-row {
     display: flex;
     min-width: 0;
     align-items: center;
-    gap: 8px;
-    padding: 4px 4px 4px 10px;
+    gap: 9px;
+    min-height: 34px;
+    padding: 3px 4px 3px 11px;
     border: 1px solid var(--po-border);
-    border-radius: 9px;
+    border-radius: 10px;
     background: var(--po-panel);
     user-select: none;
   }
@@ -55,17 +151,40 @@
   }
 
   /* Masked, not blurred: dots say "not decided yet", blur says "your screen
-     is broken". The host is real, because it is already true. */
+     is broken".
+
+     In the product's own monospace, which is what the <code> around it has
+     meant all along and what the row was overriding. It is the only text on
+     this screen set in it, so the address is told apart from everything
+     around it by what kind of thing it is rather than by being coloured or
+     enlarged — and an address is a literal string, not a label. */
   .desktop-reach-link-value {
     min-width: 0;
     flex: 1 1 auto;
     overflow: hidden;
-    color: var(--po-text-muted);
-    font-family: var(--po-font-ui);
-    font-size: var(--po-type-ui-body, 13px);
-    letter-spacing: 0.01em;
+    font-family: var(--po-font-mono);
+    font-size: var(--po-type-ui-meta, 13px);
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  /* The half of the address that is already true, at the strength of
+     something true.
+
+     It was briefly accent-coloured, on the reasoning that everyone knows
+     what blue text is for. They do — blue text is for pressing, and this is
+     the one thing on the screen that cannot be pressed and does not yet
+     exist. It sat there as a third candidate for the click beside a text
+     link and a button, which is the crowding the screen could least afford.
+     So the accent on this screen is spent in one place only, on the route to
+     Cloud, and the address is told apart by type and by weight instead. */
+  .desktop-reach-link-known {
+    color: var(--po-text);
+    font-weight: var(--po-text-weight-medium, 500);
+  }
+
+  .desktop-reach-link-pending {
+    color: var(--po-text-subtle, var(--po-text-muted));
   }
 
   .desktop-reach-link-action {
@@ -97,14 +216,33 @@
     opacity: 0.5;
   }
 
-  /* Ways out of the default, together, under everything they are an
-     alternative to — and at the same size as every other secondary line on
-     this screen. */
+  /* Ways out of the default, together — and at the same size as every other
+     secondary line on this screen. On a first reach they sit in the footer
+     opposite the one press that commits to anything, because a screen that
+     ends in a row of links and then a row with one button is asking the user
+     to read the same decision twice. */
   .desktop-reach-links {
     display: flex;
+    min-width: 0;
     align-items: center;
     gap: 14px;
     padding-top: 2px;
+  }
+
+  .desktop-reach-footer .desktop-reach-links {
+    padding-top: 0;
+  }
+
+  /* Beside a filled button, a blue link is a second thing asking to be
+     pressed, and this screen can afford exactly one. These are the ways out
+     of its default, not rivals to the decision on it, so they are stated at
+     the weight of a note and find their colour only under the pointer. */
+  .desktop-reach-links .desktop-share-inline-link {
+    color: var(--po-text-muted);
+  }
+
+  .desktop-reach-links .desktop-share-inline-link:hover {
+    color: var(--po-text);
   }
 
   .desktop-reach-links .desktop-share-inline-link {

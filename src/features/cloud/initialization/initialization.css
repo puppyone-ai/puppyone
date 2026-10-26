@@ -25,19 +25,6 @@
   gap: 12px;
 }
 
-.desktop-cloud-publish-card {
-  display: grid;
-  width: min(100%, 880px);
-  min-width: 0;
-  justify-self: center;
-  gap: 28px;
-  margin: 0;
-  padding: var(--desktop-utility-page-padding-inline);
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
 .desktop-cloud-git-prerequisite-organization button {
   padding: 2px 4px;
   border: 0;
@@ -116,565 +103,362 @@
   background: transparent;
 }
 
-.desktop-cloud-main-alert + .desktop-cloud-publish-card {
-  margin-top: 0;
-}
-
-.desktop-cloud-publish-hero {
-  --desktop-cloud-publish-symbol-size: 78px;
-  --desktop-cloud-publish-arrow-min-width: 132px;
-  display: grid;
-  min-width: 0;
-  grid-template-columns: auto minmax(var(--desktop-cloud-publish-arrow-min-width), 168px) auto;
-  align-items: start;
-  justify-content: center;
-  column-gap: 6px;
-  row-gap: 0;
-  padding: 12px 0 4px;
-  animation: desktop-cloud-publish-hero-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.desktop-cloud-publish-symbol {
-  display: grid;
-  width: min(100%, 200px);
-  min-width: 0;
-  justify-items: center;
-  gap: 12px;
-}
-
-.desktop-cloud-publish-symbol.local {
-  justify-self: end;
-}
-
-.desktop-cloud-publish-symbol.cloud {
-  justify-self: start;
-}
-
-.desktop-cloud-publish-symbol-mark {
-  position: relative;
-  display: flex;
-  width: var(--desktop-cloud-publish-symbol-size);
-  height: var(--desktop-cloud-publish-symbol-size);
-  align-items: center;
-  justify-content: center;
-  isolation: isolate;
-}
-
-.desktop-cloud-publish-symbol-mark::before {
-  content: none;
-}
-
-.desktop-cloud-publish-symbol-icon {
-  display: block;
-  width: var(--desktop-cloud-publish-symbol-size);
-  height: calc(var(--desktop-cloud-publish-symbol-size) * 0.9);
-  overflow: visible;
-  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.22));
-  animation: desktop-cloud-publish-symbol-in 640ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.desktop-cloud-publish-symbol.local .desktop-cloud-publish-symbol-icon {
-  animation-delay: 40ms;
-}
-
-.desktop-cloud-publish-symbol.cloud .desktop-cloud-publish-symbol-icon {
-  animation-delay: 160ms;
-}
-
-.desktop-cloud-publish-organization {
-  display: grid;
-  width: 100%;
-  min-width: 0;
-  gap: 6px;
-  padding-top: 10px;
-  border-top: 1px solid color-mix(in srgb, var(--po-divider) 72%, transparent);
-  color: var(--po-text-muted);
-  font-size: var(--po-type-ui-meta, 13px);
-  font-weight: 600;
-}
-
-.desktop-cloud-publish-organization .desktop-cloud-organization-selector,
-.desktop-cloud-publish-organization .desktop-cloud-organization-selector select {
-  width: 100%;
-  min-width: 0;
-}
-
-.desktop-cloud-publish-organization .warning,
-.desktop-cloud-publish-summary .warning {
-  color: var(--po-warning);
-}
-
-.desktop-cloud-publish-arrow {
-  display: flex;
-  width: 100%;
-  min-width: var(--desktop-cloud-publish-arrow-min-width);
-  height: var(--desktop-cloud-publish-symbol-size);
-  align-items: center;
-  color: color-mix(in srgb, var(--po-text-subtle) 70%, var(--po-accent));
-  opacity: 0.9;
-  filter: drop-shadow(0 1px 0 color-mix(in srgb, #fff 10%, transparent));
-  animation: desktop-cloud-publish-arrow-in 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  animation-delay: 120ms;
-}
-
-.desktop-cloud-publish-arrow-horizontal,
-.desktop-cloud-publish-arrow-vertical {
-  display: block;
-  width: 100%;
-  min-width: 0;
-  color: inherit;
-  overflow: visible;
-}
-
-.desktop-cloud-publish-arrow-horizontal {
-  height: 24px;
-}
-
-.desktop-cloud-publish-arrow-vertical {
-  display: none;
-  width: 24px;
-  height: 72px;
-}
-
-.desktop-cloud-publish-details {
-  display: grid;
-  width: 100%;
-  min-width: 0;
-  justify-items: center;
-  gap: 8px;
-  padding-top: 2px;
-  animation: desktop-cloud-publish-details-in 560ms ease-out both;
-  animation-delay: 180ms;
-}
-
-.desktop-cloud-publish-project {
-  margin: 0;
-  max-width: 100%;
-  overflow: hidden;
-  color: var(--po-text-muted);
-  font-size: var(--po-type-ui-body-large, 15px);
-  font-weight: 620;
-  line-height: 1.35;
-  text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.desktop-cloud-publish-meta {
-  display: grid;
-  width: 100%;
-  justify-items: center;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  color: var(--po-text-subtle);
-  font-size: var(--po-type-ui-meta, 13px);
-  font-weight: 540;
-  line-height: 1.35;
-  text-align: center;
-}
-
-.desktop-cloud-publish-meta li {
-  display: inline-flex;
-  min-width: 0;
-  max-width: 100%;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-}
-
-.desktop-cloud-publish-meta li svg {
-  flex: 0 0 auto;
-  opacity: 0.78;
-}
-
-.desktop-cloud-publish-meta li bdi,
-.desktop-cloud-publish-meta li span:not(.desktop-cloud-publish-status) {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.desktop-cloud-publish-meta li.warning {
-  color: var(--po-warning);
-}
-
-.desktop-cloud-publish-status {
-  display: inline-flex;
-  align-items: center;
-  height: 22px;
-  max-width: 100%;
-  padding: 0 8px;
-  border: 1px solid color-mix(in srgb, var(--po-text-subtle) 22%, transparent);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--po-control) 42%, transparent);
-  color: var(--po-text-subtle);
-  font-size: var(--po-type-ui-caption, 12px);
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.desktop-cloud-publish-summary {
-  display: grid;
-  min-width: 0;
-  justify-items: center;
-  gap: 5px;
-  padding: 4px 12px;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  background: transparent;
-  text-align: center;
-}
-
-.desktop-cloud-publish-summary strong {
-  color: var(--po-text-muted);
-  font-size: var(--po-text-size-label, 13px);
-  font-weight: 600;
-  line-height: 1.45;
-}
-
-.desktop-cloud-publish-summary p,
-.desktop-cloud-publish-summary small {
-  max-width: 520px;
-  margin: 0;
-  color: var(--po-text-subtle);
-  font-size: var(--po-type-ui-meta, 13px);
-  line-height: 1.45;
-}
-
-.desktop-cloud-publish-summary small {
-  color: color-mix(in srgb, var(--po-text-subtle) 88%, transparent);
-}
-
-.desktop-cloud-publish-summary.blocked {
-  padding: 15px 18px;
-  border-color: color-mix(in srgb, var(--po-warning) 28%, var(--po-divider));
-  background: color-mix(in srgb, var(--po-warning) 8%, var(--po-panel));
-}
-
-.desktop-cloud-publish-summary.blocked strong {
-  color: color-mix(in srgb, var(--po-warning) 82%, var(--po-text));
-}
-
+/* Progress is a slim meter over a quiet checklist, drawn in the same card
+   language as the activation banner it replaces, so the run reads as the next
+   state of that screen rather than a separate numbered wizard. */
 .desktop-cloud-publish-progress {
+  --desktop-cloud-publish-progress-ink: var(--po-accent);
+  --desktop-cloud-publish-progress-sheen: color-mix(in srgb, var(--desktop-cloud-publish-progress-ink) 55%, #fff);
   display: grid;
-  width: min(100%, 420px);
+  width: 100%;
   min-width: 0;
-  gap: 16px;
+  gap: 12px;
+  text-align: start;
+}
+
+.desktop-cloud-publish-progress[data-complete] {
+  --desktop-cloud-publish-progress-ink: var(--po-success);
+}
+
+.desktop-cloud-publish-progress-meter {
+  position: relative;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--po-text-subtle) 16%, transparent);
+}
+
+.desktop-cloud-publish-progress-meter-fill {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: calc(var(--desktop-cloud-publish-progress, 0) * 100%);
+  min-width: 8px;
+  overflow: hidden;
+  border-radius: inherit;
+  background: var(--desktop-cloud-publish-progress-ink);
+  transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/*
+ * Progress moves per step, so a sheen says "still working" inside a long one.
+ * It is a band of the meter's own lighter tone, in the loading placeholder
+ * style chosen in Appearance (loading-placeholder.css).
+ */
+.desktop-cloud-publish-progress-meter-fill::after {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, transparent, var(--desktop-cloud-publish-progress-sheen), transparent)
+    -40px 0 / 40px 100% no-repeat;
+  animation: desktop-cloud-publish-sheen var(--po-placeholder-period) ease-in-out infinite;
+  content: "";
+}
+
+/*
+ * Dither: a checkerboard core inside a quarter-density halo. The two stripes
+ * travel together while both lattices stay put, so the dots never slide; only
+ * which of them are lit moves along the fill. Because the levels are nested,
+ * (core AND level 8) OR (halo AND level 4) is one band.
+ */
+:where([data-loading-placeholder-style="dither"]) .desktop-cloud-publish-progress-meter-fill::after {
+  background: var(--desktop-cloud-publish-progress-sheen);
+  mask-image:
+    var(--po-dither-8),
+    linear-gradient(90deg, transparent 12px, #000 12px 28px, transparent 28px),
+    var(--po-dither-4),
+    linear-gradient(#000, #000);
+  mask-size: var(--po-dither-tile), 40px 100%, var(--po-dither-tile), 40px 100%;
+  mask-repeat: repeat, no-repeat, repeat, no-repeat;
+  mask-position: 0 0, -40px 0, 0 0, -40px 0;
+  mask-composite: intersect, add, intersect, add;
+  animation-name: desktop-cloud-publish-dither-sheen;
+}
+
+.desktop-cloud-publish-progress[data-complete] .desktop-cloud-publish-progress-meter-fill::after {
+  display: none;
 }
 
 .desktop-cloud-publish-progress ol {
   display: grid;
-  width: 100%;
-  gap: 0;
+  gap: 1px;
   margin: 0;
-  padding: 0;
+  padding: 4px;
+  border: 1px solid var(--po-border);
+  border-radius: 10px;
+  background: var(--po-canvas);
   list-style: none;
 }
 
 .desktop-cloud-publish-progress li {
-  position: relative;
   display: grid;
   min-width: 0;
-  min-height: 58px;
-  grid-template-columns: 28px minmax(0, 1fr);
-  align-items: start;
-  gap: 14px;
-  color: color-mix(in srgb, var(--po-text-subtle) 64%, transparent);
-  text-align: start;
-}
-
-.desktop-cloud-publish-progress li:not(:last-child)::after {
-  position: absolute;
-  z-index: 0;
-  top: 28px;
-  bottom: 0;
-  inset-inline-start: 13px;
-  width: 1px;
-  background: color-mix(in srgb, var(--po-text-subtle) 22%, transparent);
-  content: "";
-}
-
-.desktop-cloud-publish-progress li.done:not(:last-child)::after {
-  background: color-mix(in srgb, var(--po-success) 58%, var(--po-divider));
-}
-
-.desktop-cloud-publish-progress-marker {
-  position: relative;
-  z-index: 1;
-  display: inline-flex;
-  width: 28px;
-  height: 28px;
+  min-height: var(--po-control-size);
+  box-sizing: border-box;
+  grid-template-columns: 18px minmax(0, 1fr);
   align-items: center;
-  justify-content: center;
-  border: 1px solid color-mix(in srgb, var(--po-text-subtle) 26%, var(--po-border));
-  border-radius: 50%;
-  background: var(--po-canvas);
+  column-gap: 10px;
+  padding: 6px 10px;
+  border-radius: 7px;
   color: var(--po-text-subtle);
-  font-size: var(--po-type-ui-caption, 12px);
-  font-weight: 650;
-  line-height: 1;
-  box-shadow: 0 0 0 4px var(--po-canvas);
+  font-size: var(--po-type-ui-meta, 13px);
+  line-height: 1.4;
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
-.desktop-cloud-publish-progress li.done,
-.desktop-cloud-publish-progress li.current {
+.desktop-cloud-publish-progress li.done {
   color: var(--po-text-muted);
 }
 
-.desktop-cloud-publish-progress li.done .desktop-cloud-publish-progress-marker {
-  border-color: color-mix(in srgb, var(--po-success) 66%, var(--po-border));
-  background: color-mix(in srgb, var(--po-success) 10%, var(--po-canvas));
-  color: color-mix(in srgb, var(--po-success) 82%, var(--po-text));
+.desktop-cloud-publish-progress li.current {
+  background: var(--po-hover);
+  color: var(--po-text);
 }
 
-.desktop-cloud-publish-progress li.current .desktop-cloud-publish-progress-marker {
-  border-color: color-mix(in srgb, var(--po-accent) 74%, var(--po-text));
-  background: color-mix(in srgb, var(--po-accent) 8%, var(--po-canvas));
-  color: color-mix(in srgb, var(--po-accent) 82%, var(--po-text));
-  box-shadow: 0 0 0 4px var(--po-canvas);
+.desktop-cloud-publish-progress-marker {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border-radius: 50%;
+  color: inherit;
+}
+
+.desktop-cloud-publish-progress-marker[data-step-state="pending"]::before {
+  box-sizing: border-box;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid color-mix(in srgb, var(--po-text-subtle) 55%, transparent);
+  border-radius: 50%;
+  content: "";
+}
+
+.desktop-cloud-publish-progress-marker[data-step-state="done"] {
+  background: color-mix(in srgb, var(--po-success) 16%, transparent);
+  color: color-mix(in srgb, var(--po-success) 86%, var(--po-text));
+}
+
+.desktop-cloud-publish-progress-marker[data-step-state="current"] {
+  color: var(--desktop-cloud-publish-progress-ink);
 }
 
 .desktop-cloud-publish-progress-task {
-  display: grid;
+  display: flex;
   min-width: 0;
-  gap: 4px;
-  padding: 3px 0 16px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 12px;
 }
 
 .desktop-cloud-publish-progress-task strong {
   color: inherit;
-  font-size: var(--po-type-ui-body, 14px);
-  font-weight: 580;
-  line-height: 1.4;
+  font-weight: var(--po-text-weight-medium, 500);
 }
 
 .desktop-cloud-publish-progress li.current .desktop-cloud-publish-progress-task strong {
-  color: var(--po-text);
-  font-weight: 640;
+  font-weight: 600;
 }
 
 .desktop-cloud-publish-progress-task small {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--po-text-subtle);
-  font-size: var(--po-type-ui-meta, 13px);
-  line-height: 1.45;
+  min-width: 0;
+  margin-inline-start: auto;
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-caption, 12px);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
-.desktop-cloud-publish-progress-task small svg {
-  flex: 0 0 auto;
+/* The upload's own meter: the run's meter, scoped to its row and placed under
+   the step name. Numbers stay on tabular figures so they do not jitter. */
+.desktop-cloud-publish-progress li > .desktop-cloud-publish-transfer {
+  grid-column: 2;
+  margin-block: 6px 3px;
 }
 
-.desktop-cloud-publish-progress p {
+.desktop-cloud-publish-progress-task .desktop-cloud-publish-transfer-reading {
+  font-variant-numeric: tabular-nums;
+}
+
+.desktop-cloud-publish-progress > p {
   margin: 0;
-  padding-inline-start: 42px;
-  color: color-mix(in srgb, var(--po-text-subtle) 86%, transparent);
-  font-size: var(--po-text-size-hint, 12px);
+  color: var(--po-text-subtle);
+  font-size: var(--po-type-ui-caption, 12px);
   line-height: 1.5;
-  text-align: start;
 }
 
+/* The running state is the activation banner in motion; this section is only
+   the hook the dialog and its checks look for. */
 .desktop-cloud-publish-running {
   display: grid;
-  width: min(100%, 520px);
+  width: 100%;
   min-width: 0;
   justify-items: center;
-  padding: var(--desktop-utility-page-padding-inline);
-  border: 0;
-  background: transparent;
 }
 
-@keyframes desktop-cloud-publish-hero-in {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.desktop-cloud-publish-running .desktop-cloud-publish-progress {
+  margin-top: 16px;
 }
 
-@keyframes desktop-cloud-publish-symbol-in {
-  from {
-    opacity: 0;
-    transform: scale(0.92) translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
+/* The picture is a reminder here, not the pitch: it gives up height to the
+   progress so the run fits a short window without scrolling. */
+.desktop-cloud-publish-running .desktop-cloud-project-journey {
+  min-height: 0;
+  padding-block: 20px 22px;
 }
 
-@keyframes desktop-cloud-publish-arrow-in {
-  from {
-    opacity: 0;
-    transform: translateX(-6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
+.desktop-cloud-publish-running .desktop-cloud-project-activation-body {
+  padding-top: 18px;
 }
 
-@keyframes desktop-cloud-publish-details-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.desktop-cloud-publish-running .desktop-cloud-project-activation-footer {
+  padding-block: 16px 18px;
 }
 
-.desktop-cloud-publish-actions {
+.desktop-cloud-publish-running .desktop-cloud-publish-progress li {
+  min-height: var(--po-control-size-compact);
+  padding-block: 5px;
+}
+
+/* Folder → Cloud: the first wire carries the work while it runs. */
+.desktop-cloud-publish-running .desktop-cloud-project-journey-wire.is-active {
+  background: repeating-linear-gradient(90deg,
+    color-mix(in srgb, var(--po-accent) 72%, var(--po-border-strong)) 0 4px, transparent 4px 8px);
+  animation: desktop-cloud-publish-wire 0.8s linear infinite;
+}
+
+.desktop-cloud-publish-running .desktop-cloud-project-journey-wire.is-active::after {
+  left: -3px;
+  animation: desktop-cloud-publish-packet 1.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+[dir="rtl"] .desktop-cloud-publish-running .desktop-cloud-project-journey-wire.is-active {
+  transform: scaleX(-1);
+}
+
+.desktop-cloud-publish-running .desktop-cloud-project-journey-cloud-mark {
+  animation: desktop-cloud-publish-cloud 2.4s ease-in-out infinite;
+}
+
+/* Stopped where it stopped: the picture stands still and the current step
+   says so, so "Continue" reads as picking the same task back up. */
+.desktop-cloud-publish-progress[data-paused] {
+  --desktop-cloud-publish-progress-ink: var(--po-warning, var(--po-accent));
+}
+
+.desktop-cloud-publish-progress[data-paused] .desktop-cloud-publish-progress-meter-fill::after {
+  display: none;
+}
+
+.desktop-cloud-publish-progress[data-paused] .desktop-cloud-publish-progress-marker[data-step-state="current"] {
+  background: color-mix(in srgb, var(--po-warning, var(--po-accent)) 16%, transparent);
+  color: color-mix(in srgb, var(--po-warning, var(--po-accent)) 86%, var(--po-text));
+}
+
+.desktop-cloud-publish-running[data-paused] .desktop-cloud-project-journey-wire.is-active,
+.desktop-cloud-publish-running[data-paused] .desktop-cloud-project-journey-wire.is-active::after,
+.desktop-cloud-publish-running[data-paused] .desktop-cloud-project-journey-cloud-mark {
+  animation: none;
+}
+
+.desktop-cloud-publish-running-notice {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.desktop-cloud-publish-running-notice:empty {
+  display: none;
+}
+
+.desktop-cloud-publish-running-notice .desktop-cloud-main-alert {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.desktop-cloud-publish-resume-error {
+  margin: 0;
+  color: var(--po-danger);
+  font-size: var(--po-type-ui-meta, 13px);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* Giving up sits beside Continue as the other real choice, in the danger hue
+   so the two never read as equivalent. */
+.desktop-cloud-project-activation-actions > .desktop-cloud-publish-resume-abandon {
+  color: var(--po-danger);
+}
+
+.desktop-cloud-project-activation-actions > .desktop-cloud-publish-resume-abandon:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--po-danger) 40%, var(--po-border));
+  background: color-mix(in srgb, var(--po-danger) 10%, transparent);
+  color: var(--po-danger);
+}
+
+.desktop-cloud-publish-resume-confirm {
+  display: grid;
+  width: 100%;
+  box-sizing: border-box;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--po-danger) 30%, var(--po-border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--po-danger) 6%, var(--po-canvas));
+  font-size: var(--po-type-ui-meta, 13px);
+  line-height: 1.5;
+}
+
+.desktop-cloud-publish-resume-confirm p {
+  margin: 0;
+  color: var(--po-text-muted);
+}
+
+.desktop-cloud-publish-resume-confirm-actions {
   display: flex;
-  min-width: 0;
-  align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
   gap: 8px;
   margin-top: 4px;
 }
 
-.desktop-cloud-publish-actions .desktop-cloud-row-action {
-  min-width: 0;
-  height: var(--po-control-size);
-  padding: 0 10px;
-  border: 1px solid var(--po-divider);
-  border-radius: 6px;
-  background: var(--po-control);
-  color: var(--po-text-muted);
-  font-size: var(--desktop-cloud-body-size, var(--po-text-size-body));
-  font-weight: 500;
-  box-shadow: none;
-  transition:
-    background 0.16s ease,
-    border-color 0.16s ease,
-    color 0.16s ease,
-    opacity 0.16s ease;
+.desktop-cloud-publish-resume-confirm .desktop-cloud-publish-resume-confirm-abandon:not(:disabled) {
+  border-color: transparent;
+  background: var(--po-danger);
+  color: var(--po-danger-contrast, #fff);
 }
 
-.desktop-cloud-publish-actions .desktop-cloud-row-action[aria-busy="true"] {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  cursor: progress;
+.desktop-cloud-publish-resume-confirm .desktop-cloud-publish-resume-confirm-abandon:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--po-danger) 88%, #000);
 }
 
-.desktop-cloud-publish-actions .desktop-cloud-row-action[aria-busy="true"] span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+@keyframes desktop-cloud-publish-sheen {
+  to { background-position: calc(100% + 40px) 0; }
 }
 
-.desktop-cloud-publish-actions .desktop-cloud-row-action:hover:not(:disabled) {
-  border-color: var(--po-border-strong);
-  background: var(--po-control-hover);
-  color: var(--po-text);
-  transform: none;
+@keyframes desktop-cloud-publish-dither-sheen {
+  to { mask-position: 0 0, calc(100% + 40px) 0, 0 0, calc(100% + 40px) 0; }
 }
 
-/* Quiet fill only — size/radius stay on the shared control geometry. */
-.desktop-cloud-publish-actions .desktop-cloud-row-action.desktop-cloud-publish-primary {
-  min-width: 140px;
-  padding: 0 12px;
-  border-color: color-mix(in srgb, var(--po-text) 16%, var(--po-divider));
-  background: color-mix(in srgb, var(--po-text) 9%, var(--po-control));
-  color: var(--po-text);
-  font-weight: 600;
-  box-shadow: none;
+@keyframes desktop-cloud-publish-wire {
+  to { background-position: 8px 0; }
 }
 
-.desktop-cloud-publish-actions .desktop-cloud-row-action.desktop-cloud-publish-primary:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--po-text) 26%, var(--po-divider));
-  background: color-mix(in srgb, var(--po-text) 14%, var(--po-control));
-  color: var(--po-text);
-  opacity: 1;
-  box-shadow: none;
+@keyframes desktop-cloud-publish-packet {
+  0% { left: -3px; opacity: 0; }
+  15%, 85% { opacity: 1; }
+  100% { left: calc(100% - 3px); opacity: 0; }
 }
 
-.desktop-cloud-publish-actions .desktop-cloud-row-action.desktop-cloud-publish-primary:disabled {
-  border-color: color-mix(in srgb, var(--po-text) 10%, var(--po-divider));
-  background: color-mix(in srgb, var(--po-text) 6%, var(--po-control));
-  color: var(--po-text-muted);
-  opacity: 0.55;
-  box-shadow: none;
-}
-
-.desktop-cloud-publish-actions .desktop-cloud-row-action.desktop-cloud-publish-primary[aria-busy="true"] {
-  opacity: 0.82;
+@keyframes desktop-cloud-publish-cloud {
+  0%, 100% { box-shadow: 0 6px 18px color-mix(in srgb, var(--po-shadow) 55%, transparent); }
+  50% {
+    box-shadow:
+      0 6px 18px color-mix(in srgb, var(--po-shadow) 55%, transparent),
+      0 0 0 5px color-mix(in srgb, var(--po-accent) 16%, transparent);
+  }
 }
 
 @container cloud-publish (max-width: 720px) {
-  .desktop-cloud-publish-card {
-    gap: 24px;
-  }
-
-  .desktop-cloud-publish-hero {
-    --desktop-cloud-publish-symbol-size: 64px;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 10px;
-    padding-top: 4px;
-  }
-
-  /* Stack as destination → source: cloud on top, folder below. */
-  .desktop-cloud-publish-symbol.cloud {
-    order: 1;
-    justify-self: center;
-  }
-
-  .desktop-cloud-publish-arrow {
-    order: 2;
-    width: auto;
-    min-width: 0;
-    height: auto;
-    min-height: 64px;
-    justify-content: center;
-    padding: 2px 0;
-  }
-
-  .desktop-cloud-publish-symbol.local {
-    order: 3;
-    justify-self: center;
-  }
-
-  .desktop-cloud-publish-arrow-horizontal {
-    display: none;
-  }
-
-  .desktop-cloud-publish-arrow-vertical {
-    display: block;
-    width: 24px;
-    height: 64px;
-    /* Point up toward cloud when folder sits below. */
-    transform: rotate(180deg);
-  }
-
-  .desktop-cloud-publish-meta {
-    gap: 8px 12px;
-  }
-
-  .desktop-cloud-publish-actions {
-    display: flex;
-    justify-content: center;
-  }
-
-  .desktop-cloud-publish-actions .desktop-cloud-row-action {
-    width: auto;
-    min-width: 140px;
-    height: var(--po-control-size);
-    justify-self: center;
-  }
-
   .desktop-cloud-publish-status-error {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -692,19 +476,16 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .desktop-cloud-publish-hero,
-  .desktop-cloud-publish-symbol-icon,
-  .desktop-cloud-publish-arrow,
-  .desktop-cloud-publish-details {
-    animation: none;
-  }
-
-  .desktop-cloud-publish-actions .desktop-cloud-row-action {
+  .desktop-cloud-publish-progress-meter-fill,
+  .desktop-cloud-publish-progress li {
     transition: none;
   }
 
-  .desktop-cloud-publish-actions .desktop-cloud-row-action:hover:not(:disabled) {
-    transform: none;
+  .desktop-cloud-publish-progress-meter-fill::after,
+  .desktop-cloud-publish-running .desktop-cloud-project-journey-wire.is-active,
+  .desktop-cloud-publish-running .desktop-cloud-project-journey-wire.is-active::after,
+  .desktop-cloud-publish-running .desktop-cloud-project-journey-cloud-mark {
+    animation: none;
   }
 }
 

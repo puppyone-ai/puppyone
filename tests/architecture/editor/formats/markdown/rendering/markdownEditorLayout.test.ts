@@ -487,38 +487,12 @@ describe("Markdown rich-block boundary affordance", () => {
     }
   });
 
-  it("keeps code metadata inside the panel and clear of the code body", () => {
-    const panelRule = readCssRule(
-      markdownCodeCss,
-      ".markdown-codemirror-editor .cm-md-code-panel",
-    );
-    const insetRule = readCssRule(
-      markdownCodeCss,
-      ".markdown-codemirror-editor .cm-md-code-panel:is([data-has-metadata], :has(.cm-md-code-language:focus))",
-    );
-    const metadataRule = readCssRule(
-      markdownCodeCss,
-      ".markdown-codemirror-editor .cm-md-code-metadata",
-    );
-    const referenceRule = readCssRule(
-      markdownCodeCss,
-      ".markdown-codemirror-editor .cm-md-code-source-reference",
-    );
-    const languageRule = readCssRule(
-      markdownCodeCss,
-      ".markdown-codemirror-editor .cm-md-code-language",
-    );
-
-    expect(panelRule).toContain("position: relative;");
-    expect(insetRule).toContain("padding-block-start: calc(var(--po-md-metadata-line-height) + 6px);");
-    expect(metadataRule).toContain("position: absolute;");
-    expect(metadataRule).toContain("inset-block-start: 6px;");
-    expect(metadataRule).toContain("display: flex;");
-    expect(referenceRule).toContain("text-overflow: ellipsis;");
-    expect(referenceRule).toContain("white-space: nowrap;");
-    expect(languageRule).toContain("text-align: right;");
-    expect(markdownCodeCss).not.toContain(".cm-md-code-header");
-    expect(markdownCodeCss).not.toContain(".cm-md-code-language.is-empty");
+  it("keeps code panels free of language metadata and its reserved row", () => {
+    const panelRule = readCssRule(markdownCodeCss, ".markdown-codemirror-editor .cm-md-code-panel");
+    expect(panelRule).toContain("border-radius: var(--po-md-code-block-radius);");
+    expect(panelRule).not.toContain("padding-block-start:");
+    expect(markdownCodeCss).not.toMatch(/\.cm-md-code-(header|language|metadata|source-reference)/);
+    expect(markdownCodeCss).not.toContain("data-has-metadata");
   });
 
   it("reveals the HTML source control only for hover, keyboard focus, or selection", () => {

@@ -86,8 +86,10 @@ describe("local HTML editor persistence", () => {
       ));
     });
 
-    await waitFor(() => !!container.querySelector('.html-editor-options > button'));
-    await act(async () => container.querySelector<HTMLButtonElement>('.html-editor-options > button')?.click());
+    // Standalone previews carry the view modes in their own menu (no pane menu).
+    const sourceMode = '.html-editor-options [role="menuitemradio"][data-mode="source"]';
+    await waitFor(() => !!container.querySelector(sourceMode));
+    await act(async () => container.querySelector<HTMLButtonElement>(sourceMode)?.click());
     const editor = await waitForEditor(container);
     act(() => editor.dispatch({
       changes: { from: editor.state.doc.length, insert: "<!-- After -->" },

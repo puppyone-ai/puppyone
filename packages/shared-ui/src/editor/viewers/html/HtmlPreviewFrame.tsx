@@ -2,9 +2,10 @@ import { getHtmlPreviewInteractionCss } from "../../htmlPreviewInteraction";
 import { parse, parseFragment, serialize, type DefaultTreeAdapterTypes as Tree } from "parse5";
 import type { MarkdownHtmlTrustMode } from "../../registry/viewerTypes";
 import { useVisibleFrameReadiness } from "../shared/useVisibleFrameReadiness";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useEditorPreviewServices } from "../../preview-services/EditorPreviewServices";
 import { resolveFileFormat } from "../../../core/fileFormats";
+import { htmlPageViewportScript, useHtmlPageViewport, type HtmlPageViewport } from "./htmlPageViewport";
 
 export function HtmlPreviewFrame({
   path,
@@ -12,26 +13,32 @@ export function HtmlPreviewFrame({
   content,
   fileUrl,
   htmlTrustMode,
+  interactive = false,
+  viewportState,
 }: {
   path: string;
   title: string;
   content?: string | null;
   fileUrl?: string | null;
   htmlTrustMode: MarkdownHtmlTrustMode;
+  interactive?: boolean;
+  viewportState?: HtmlPageViewport;
 }) {
-  const policy = getHtmlPreviewPolicy(htmlTrustMode);
+  const policy = getHtmlPreviewPolicy(htmlTrustMode, interactive);
+  const frame = useRef<HTMLIFrameElement>(null);
+  const [viewportChannel] = useState(() => crypto.randomUUID());
   const hasContentSnapshot = content !== null && content !== undefined;
-  const useFileUrl = Boolean(fileUrl && !hasContentSnapshot);
   const frameKey = [
     path,
     htmlTrustMode,
+    String(interactive),
     fileUrl ?? "",
     hasContentSnapshot ? `${content.length}:${hashString(content)}` : "",
   ].join("|");
-  const frameReadiness = useVisibleFrameReadiness(frameKey);
   const projectionPort = useEditorPreviewServices().services?.documentProjection;
-  const projection = useMemo(() => hasContentSnapshot ? buildHtmlPreviewDocument(content, fileUrl, getHtmlPreviewPolicy(htmlTrustMode)) : null,
-    [content, fileUrl, htmlTrustMode, hasContentSnapshot]);
+  const projection = useMemo(() => hasContentSnapshot ? buildHtmlPreviewDocument(content, fileUrl,
+    getHtmlPreviewPolicy(htmlTrustMode, interactive), interactive ? viewportChannel : undefined) : null,
+    [content, fileUrl, htmlTrustMode, hasContentSnapshot, interactive, viewportChannel]);
   const [resource, setResource] = useState<{ key: string; url: string | null } | null>(null);
   const useProjection = !!projectionPort && projection !== null && projection.length <= 2 * 1024 * 1024
     && resolveFileFormat({ name: path }).defaultViewer === "html-artifact";
@@ -49,21 +56,41 @@ export function HtmlPreviewFrame({
   }, [projectionPort, projection, useProjection, path, frameKey, htmlTrustMode, content]);
   const resourceReady = resource?.key === frameKey;
   const projectionUrl = resourceReady ? resource.url : undefined;
+  const waitingForProjection = useProjection && !resourceReady;
+  const visibleFrameKey = `${frameKey}|${projectionUrl ?? String(waitingForProjection)}`;
+  const frameReadiness = useVisibleFrameReadiness(visibleFrameKey);
+  const onFrameLoad = useHtmlPageViewport({ frame, viewportState, channel: viewportChannel,
+    enabled: interactive, waiting: waitingForProjection, onFrameLoad: frameReadiness.onFrameLoad });
+  const frameSource = resolveFrameSource({ fileUrl, hasContentSnapshot, projection,
+    projectionUrl, waiting: waitingForProjection });
 
   return (
     <iframe
-      key={frameKey}
+      ref={frame}
+      key={visibleFrameKey}
       className="native-preview-frame"
       data-html-trust-mode={htmlTrustMode}
+      data-html-interactive={interactive}
       aria-label={title}
       sandbox={policy.sandbox}
       referrerPolicy="no-referrer"
-      src={projectionUrl ?? (useFileUrl ? fileUrl ?? undefined : undefined)}
-      srcDoc={!useFileUrl && !projectionUrl && (!useProjection || resourceReady) ? projection ?? undefined : undefined}
-      aria-busy={!frameReadiness.ready}
-      onLoad={frameReadiness.onFrameLoad}
+      {...frameSource}
+      aria-busy={waitingForProjection || !frameReadiness.ready}
+      onLoad={onFrameLoad}
     />
   );
+}
+
+function resolveFrameSource({ fileUrl, hasContentSnapshot, projection, projectionUrl, waiting }: {
+  fileUrl?: string | null;
+  hasContentSnapshot: boolean;
+  projection: string | null;
+  projectionUrl?: string | null;
+  waiting: boolean;
+}) {
+  const src = projectionUrl ?? (!hasContentSnapshot ? fileUrl ?? undefined : undefined);
+  const srcDoc = hasContentSnapshot && !projectionUrl && !waiting ? projection ?? undefined : undefined;
+  return { src, srcDoc };
 }
 
 function readHtmlBaseHref(source: string): string | null {
@@ -79,6 +106,7 @@ function readHtmlBaseHref(source: string): string | null {
 type HtmlPreviewPolicy = {
   sandbox: string;
   csp: string | null;
+  linkTarget?: "_self" | "_blank";
 };
 
 const SAFE_HTML_PREVIEW_CSP = [
@@ -96,7 +124,18 @@ const SAFE_HTML_PREVIEW_CSP = [
   "form-action 'none'",
 ].join("; ");
 
-function getHtmlPreviewPolicy(htmlTrustMode: MarkdownHtmlTrustMode): HtmlPreviewPolicy {
+export function getHtmlPreviewPolicy(htmlTrustMode: MarkdownHtmlTrustMode, interactive = false): HtmlPreviewPolicy {
+  if (interactive) {
+    return {
+      sandbox: "allow-scripts allow-forms allow-modals allow-downloads allow-popups",
+      csp: ["default-src 'none'", "script-src 'unsafe-inline' https: puppyone-local:",
+        "style-src 'unsafe-inline' https: puppyone-local:", "img-src data: blob: https: puppyone-local:",
+        "media-src data: blob: https: puppyone-local:", "font-src data: https: puppyone-local:",
+        "connect-src https: puppyone-local:", "object-src 'none'", "frame-src 'none'",
+        "base-uri https: puppyone-local:", "form-action https:"].join("; "),
+      linkTarget: "_self",
+    };
+  }
   if (htmlTrustMode === "localTrusted") {
     return {
       sandbox: "allow-downloads allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-scripts",
@@ -110,7 +149,7 @@ function getHtmlPreviewPolicy(htmlTrustMode: MarkdownHtmlTrustMode): HtmlPreview
   };
 }
 
-export function buildHtmlPreviewDocument(rawHtml: string, baseHref: string | null | undefined, policy: HtmlPreviewPolicy): string {
+export function buildHtmlPreviewDocument(rawHtml: string, baseHref: string | null | undefined, policy: HtmlPreviewPolicy, viewportChannel?: string): string {
   const tree = parse(rawHtml);
   const html = tree.childNodes.find((node): node is Tree.Element => "tagName" in node && node.tagName === "html")!;
   const head = html.childNodes.find((node): node is Tree.Element => "tagName" in node && node.tagName === "head")!;
@@ -145,12 +184,17 @@ export function buildHtmlPreviewDocument(rawHtml: string, baseHref: string | nul
   const csp = policy.csp
     ? `<meta http-equiv="Content-Security-Policy" content="${escapeHtmlAttribute(policy.csp)}">`
     : "";
+  const target = policy.linkTarget ?? "_blank";
   const base = resolvedBase
-    ? `<base href="${escapeHtmlAttribute(resolvedBase)}" target="_blank">`
-    : '<base target="_blank">';
+    ? `<base href="${escapeHtmlAttribute(resolvedBase)}" target="${target}">`
+    : `<base target="${target}">`;
   const interactionStyle = `<style id="puppyone-html-preview-interaction">${getHtmlPreviewInteractionCss("body")}</style>`;
 
   head.childNodes.unshift(...parseFragment(`${csp}${base}${interactionStyle}`).childNodes);
+  if (viewportChannel) {
+    const body = html.childNodes.find((node): node is Tree.Element => "tagName" in node && node.tagName === "body")!;
+    body.childNodes.push(...parseFragment(htmlPageViewportScript(viewportChannel)).childNodes);
+  }
   return serialize(tree);
 }
 

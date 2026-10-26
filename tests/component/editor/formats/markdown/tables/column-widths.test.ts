@@ -31,7 +31,7 @@ describe("Markdown table EditorView interactions", () => {
       .map((column) => column.style.width)).toEqual(widths);
   });
 
-  it("caps initial tracks at 220px and preserves double-click auto-fit outside the compact menu", () => {
+  it("fits automatic tracks to the reading column by content and auto-fits within it", () => {
     const view = createTableView([
       `| ${"wide ".repeat(80)} | B |`,
       "| --- | --- |",
@@ -39,11 +39,14 @@ describe("Markdown table EditorView interactions", () => {
     ].join("\n"));
     const widths = Array.from(
       view.dom.querySelectorAll<HTMLTableColElement>(".cm-md-table-widget colgroup col"),
-      (column) => column.style.width,
+      (column) => Number.parseInt(column.style.width, 10),
     );
 
-    expect(widths[0]).toBe("220px");
-    expect(Number.parseInt(widths[1] ?? "0", 10)).toBeLessThanOrEqual(220);
+    // Not a spreadsheet cap: the long column takes the reading column's spare
+    // width (640px default, less the table rule) and the short one stays snug.
+    expect(widths[0] + widths[1]).toBe(638);
+    expect(widths[0]).toBeGreaterThan(500);
+    expect(widths[1]).toBeLessThan(80);
 
     const firstHeader = view.dom.querySelector<HTMLTableCellElement>("thead th")!;
     firstHeader.dispatchEvent(new PointerEvent("pointerover", { bubbles: true }));
@@ -51,7 +54,7 @@ describe("Markdown table EditorView interactions", () => {
       ?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
     expect(view.dom.querySelector<HTMLTableColElement>(
       '.cm-md-table-widget col[data-md-table-column="0"]',
-    )?.style.width).toBe("280px");
+    )?.style.width).toBe("638px");
 
     const columnHandle = view.dom.querySelector<HTMLElement>(".cm-md-table-column-handle")!;
     makeHandleCaptureSafe(columnHandle);
@@ -69,7 +72,22 @@ describe("Markdown table EditorView interactions", () => {
     expect(menu.textContent).not.toMatch(/Auto fit column|Fit columns to viewport|Reset column widths/);
     expect(view.dom.querySelector<HTMLTableColElement>(
       '.cm-md-table-widget col[data-md-table-column="0"]',
-    )?.style.width).toBe("280px");
+    )?.style.width).toBe("638px");
+  });
+
+  it("lets a short table hug its content instead of stretching", () => {
+    const view = createTableView([
+      "| 字段 | 值 |",
+      "| --- | --- |",
+      "| Title | puppyone |",
+    ].join("\n"));
+    const widths = Array.from(
+      view.dom.querySelectorAll<HTMLTableColElement>(".cm-md-table-widget colgroup col"),
+      (column) => Number.parseInt(column.style.width, 10),
+    );
+
+    expect(widths).toHaveLength(2);
+    expect(widths[0] + widths[1]).toBeLessThan(240);
   });
 
   it("keeps a user-resized track stable across content commits and reopening", () => {

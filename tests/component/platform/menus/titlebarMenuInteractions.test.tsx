@@ -13,7 +13,7 @@ import { writeClipboardText } from "../../../../src/lib/clipboard";
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const device = vi.hoisted(() => ({ platform: "macos" as string | null }));
 vi.mock("../../../../src/platform/useDesktopPlatformCapabilities", () => ({
-  useDesktopPlatformCapabilities: () => device.platform ? { platform: device.platform } : null,
+  useDesktopPlatformCapabilities: () => device.platform ? { platform: device.platform, windowChrome: { mode: "overlay" } } : null,
 }));
 vi.mock("../../../../src/lib/clipboard", () => ({ writeClipboardText: vi.fn() }));
 let root: Root;
@@ -44,25 +44,16 @@ const projectProps = { open: true, refObject: createRef<HTMLDivElement>(), works
   workspaceFolders: [], multiRootWorkspacesEnabled: false, onClose: noOp, onToggle: noOp };
 
 describe("combined Home and project menu", () => {
-  it("uses a draggable static project identity in Sidebar mode while retaining the provider menu", async () => {
-    const toggle = vi.fn(), close = vi.fn(), viewCloud = vi.fn();
-    await render(<DesktopTitlebarContext {...projectProps} projectMenuEnabled={false}
-      availableProjects={[workspace, second]} onToggle={toggle} onClose={close}
-      projectLocation={{ current: "local", localAvailable: true, cloudState: "available" }} onViewCloud={viewCloud} />);
-    const identity = container.querySelector<HTMLElement>(".desktop-titlebar-workspace-label")!;
-    expect(identity.tagName).toBe("DIV");
-    expect(identity.textContent).toBe(workspace.name);
-    expect(identity.dataset.windowDragRegion).toBe("true");
-    expect(identity.querySelector('[data-project-location="local"]')).not.toBeNull();
-    expect(identity.hasAttribute("aria-haspopup")).toBe(false);
-    expect(identity.hasAttribute("aria-expanded")).toBe(false);
-    act(() => identity.click());
-    expect(toggle).not.toHaveBeenCalled();
-    expect(document.querySelector(".desktop-project-menu")).toBeNull();
-    openLocation();
-    act(() => locationButton("cloud").click());
-    expect(viewCloud).toHaveBeenCalledOnce();
-    expect(document.querySelector(".desktop-project-menu")).toBeNull();
+  // The Header states the Project only while it is the Project switcher. When
+  // the rail takes that role its hosts render no context at all, so this
+  // component has no second, menu-less presentation to cover.
+  it("states the Project with one menu trigger and no silent identity variant", async () => {
+    await render(<DesktopTitlebarContext {...projectProps} open={false} availableProjects={[workspace, second]}
+      projectLocation={{ current: "local", localAvailable: true, cloudState: "available" }} />);
+    expect(container.querySelector(".desktop-titlebar-workspace-label")).toBeNull();
+    const trigger = container.querySelector<HTMLButtonElement>(".desktop-titlebar-workspace-button")!;
+    expect(trigger.tagName).toBe("BUTTON");
+    expect(trigger.getAttribute("aria-haspopup")).toBe("menu");
   });
 
   it("lists registered projects, marks the current one and routes Home, create and another project separately", async () => {
@@ -70,7 +61,7 @@ describe("combined Home and project menu", () => {
     await render(<DesktopWorkspaceSwitcher {...projectProps} availableProjects={[workspace, second, second]}
       onClose={close} onHome={home} onCreateProject={create} onSelectProject={select} />);
     const trigger = container.querySelector<HTMLButtonElement>(".desktop-titlebar-workspace-button")!;
-    expect(trigger.querySelector(".lucide-house")).not.toBeNull();
+    expect(trigger.querySelector('[data-product-icon="home"]')).not.toBeNull();
     expect(trigger.textContent).toBe(workspace.name);
     expect(container.querySelectorAll("button")).toHaveLength(1);
     expect(container.contains(menu())).toBe(false);
@@ -80,8 +71,17 @@ describe("combined Home and project menu", () => {
     clickText(workspace.name); expect(select).not.toHaveBeenCalled();
     clickText(second.name); expect(select).toHaveBeenCalledExactlyOnceWith(second.path);
     clickText("Home"); expect(home).toHaveBeenCalledOnce();
-    clickText("Create new"); expect(create).toHaveBeenCalledOnce();
+    clickText("New workspace"); expect(create).toHaveBeenCalledOnce();
     expect(close).toHaveBeenCalledTimes(4);
+  });
+
+  it("lets a click on the displayed project replace a pending switch", async () => {
+    const select = vi.fn();
+    await render(<DesktopWorkspaceSwitcher {...projectProps} availableProjects={[workspace, second]}
+      pendingProject={{ kind: "local", path: second.path }} onSelectProject={select} />);
+    expect(menu().querySelector('[aria-busy="true"]')?.textContent).toContain(second.name);
+    clickText(workspace.name);
+    expect(select).toHaveBeenCalledWith(workspace.path);
   });
 
   it("copies each local project's path without navigating or closing the menu", async () => {
@@ -179,7 +179,7 @@ describe("independent Local / Cloud menu", () => {
       await render(<DesktopProjectLocationSwitcher projectLocation={{ current: "local", localAvailable: true, cloudState: "available" }} onViewCloud={noOp} />);
       expect(container.querySelector(".desktop-titlebar-location-button")?.textContent).toBe("Local");
       openLocation();
-      expect(menu(".desktop-project-location-menu").textContent).toBe(`Open on ${label}Open in a hosted workspace`);
+      expect(menu(".desktop-project-location-menu").textContent).toBe(`Open on ${label}Open on Cloud Computer`);
       expect(menu(".desktop-project-location-menu").getAttribute("role")).toBe("dialog");
       expect(locationButton("local").getAttribute("aria-current")).toBe("true");
     });
@@ -189,7 +189,7 @@ describe("independent Local / Cloud menu", () => {
       const cloud = vi.fn();
       await render(<DesktopProjectLocationSwitcher projectLocation={{ current: "local", localAvailable: true, cloudState }} onViewCloud={cloud} />);
       openLocation(); const popup = menu(".desktop-project-location-menu");
-      expect(locationButton("cloud").textContent).toBe("Open in a hosted workspace");
+      expect(locationButton("cloud").textContent).toBe("Open on Cloud Computer");
       expect(Boolean(locationButton("cloud").querySelector('[data-puppy-loader]'))).toBe(cloudState === "resolving");
       act(() => locationButton("cloud").click());
       expect(cloud).toHaveBeenCalledOnce();
@@ -210,8 +210,8 @@ describe("independent Local / Cloud menu", () => {
     const input = container.querySelector("input"), project = container.querySelector<HTMLButtonElement>(".desktop-titlebar-workspace-button")!;
     openLocation(); const popup = menu(".desktop-project-location-menu");
     act(() => locationButton("cloud").click());
-    expect(container.querySelector(".desktop-titlebar-location-button")?.textContent).toBe("Hosted workspace");
-    expect(container.querySelector(".desktop-titlebar-location-button .lucide-server")).not.toBeNull();
+    expect(container.querySelector(".desktop-titlebar-location-button")?.textContent).toBe("Cloud Computer");
+    expect(container.querySelector(".desktop-titlebar-location-button .desktop-cloud-icon")).not.toBeNull();
     expect(container.querySelector(".desktop-titlebar-workspace-button")).toBe(project);
     act(() => locationButton("local").click());
     expect(menu(".desktop-project-location-menu")).toBe(popup);

@@ -31,6 +31,17 @@ export type CloudInitializationFailure = {
 
 export type CloudInitializationNotice = "cleanup-completed" | null;
 
+/**
+ * How the latest publish run in this window ended. A new object per run, so a
+ * surface can tell "this ending" from "an ending it already showed". Absent
+ * while running, before any run, and after the project or account changes —
+ * a reset is not an ending.
+ */
+export type CloudInitializationOutcome = Readonly<{
+  /** `attention`: the run returned, but the project still needs the user. */
+  kind: "published" | "attention" | "failed";
+}>;
+
 export type CloudInitializationStartOptions = {
   /** Set to false to stay on the current surface after a successful publish. */
   navigateToCloud?: boolean;
@@ -74,6 +85,7 @@ export function useCloudInitialization({
   const [progress, setProgress] = useState<CloudInitializationProgress | null>(null);
   const [error, setError] = useState<CloudInitializationFailure | null>(null);
   const [notice, setNotice] = useState<CloudInitializationNotice>(null);
+  const [outcome, setOutcome] = useState<CloudInitializationOutcome | null>(null);
   const [stateLoading, setStateLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const actionRef = useRef<symbol | null>(null);
@@ -138,6 +150,7 @@ export function useCloudInitialization({
     setProgress(null);
     setError(null);
     setNotice(null);
+    setOutcome(null);
     setActionLoading(false);
     if (!identity || !identityKey) {
       setStateLoading(false);
@@ -229,6 +242,9 @@ export function useCloudInitialization({
     });
     setError(null);
     setNotice(null);
+    setOutcome(null);
+    // Every way out of the run below is a failure unless it says otherwise.
+    let ending: CloudInitializationOutcome["kind"] | null = "failed";
     try {
       const pending = state;
       const choosingSource = pending?.availableActions.includes("choose-source") === true;
@@ -282,13 +298,18 @@ export function useCloudInitialization({
         operationId: pending?.operationId ?? null,
         action,
       });
-      if (actionRef.current !== request || !isGitRepositoryContextCurrent(context)) return;
+      if (actionRef.current !== request || !isGitRepositoryContextCurrent(context)) {
+        ending = null;
+        return;
+      }
       setState(result.state);
       if (!result.ok) {
         setError(toPublicFailure(result));
         return;
       }
-      finishPublished(result, context, options);
+      const finished = finishPublished(result, context, options);
+      if (!finished) ending = null;
+      else ending = isPublished(result.state) ? "published" : "attention";
     } catch {
       if (actionRef.current === request) setError({ code: "UNKNOWN", retryable: true });
     } finally {
@@ -296,6 +317,7 @@ export function useCloudInitialization({
         actionRef.current = null;
         setActionLoading(false);
         setProgress(null);
+        setOutcome(ending ? { kind: ending } : null);
       }
     }
   }, [
@@ -362,6 +384,7 @@ export function useCloudInitialization({
     cloudInitializationError: error,
     cloudInitializationLoading: actionLoading,
     cloudInitializationNotice: notice,
+    cloudInitializationOutcome: outcome,
     cloudInitializationPending: false,
     cloudInitializationProgress: progress,
     cloudInitializationState: state,

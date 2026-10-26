@@ -19,7 +19,6 @@
   </p>
 </div>
 
-<br />
 
 ![A folder open in puppyone](public/assets/media/screenshots/puppyone-editor-overview.png)
 

@@ -23,64 +23,6 @@
   background: var(--po-md-code-block-background);
 }
 
-/* Keep metadata inside the rounded panel, clear of both editing and highlight
-   surfaces. Unlabelled blocks need no extra inset until the language is focused. */
-.markdown-codemirror-editor .cm-md-code-panel:is([data-has-metadata], :has(.cm-md-code-language:focus)) {
-  padding-block-start: calc(var(--po-md-metadata-line-height) + 6px);
-}
-
-.markdown-codemirror-editor .cm-md-code-metadata {
-  position: absolute;
-  z-index: 1;
-  inset-block-start: 6px;
-  inset-inline: 12px;
-  display: flex;
-  min-width: 0;
-  height: var(--po-md-metadata-line-height);
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  pointer-events: none;
-}
-
-.markdown-codemirror-editor .cm-md-code-language {
-  display: block;
-  flex: 0 1 auto;
-  min-width: 0;
-  max-inline-size: 40%;
-  height: var(--po-md-metadata-line-height);
-  padding: 0;
-  border: 0;
-  border-radius: 3px;
-  outline: 0;
-  background: transparent;
-  color: var(--po-md-metadata-color);
-  font-family: var(--po-md-metadata-font);
-  font-size: var(--po-md-metadata-font-size);
-  font-weight: var(--po-md-metadata-font-weight);
-  line-height: var(--po-md-metadata-line-height);
-  text-align: right;
-  pointer-events: auto;
-}
-
-.markdown-codemirror-editor .cm-md-code-source-reference {
-  min-width: 0;
-  flex: 1 1 auto;
-  overflow: hidden;
-  color: var(--po-md-metadata-color);
-  font-family: var(--po-md-metadata-font);
-  font-size: var(--po-md-metadata-font-size);
-  font-weight: var(--po-md-metadata-font-weight);
-  line-height: var(--po-md-metadata-line-height);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  pointer-events: auto;
-}
-
-.markdown-codemirror-editor .cm-md-code-language:focus {
-  background: var(--po-md-code-focus-background);
-}
-
 .markdown-codemirror-editor .cm-md-code-surface {
   position: relative;
   min-width: 0;

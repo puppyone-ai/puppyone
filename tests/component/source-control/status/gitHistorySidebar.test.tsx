@@ -142,7 +142,7 @@ describe("Git History right-sidebar surface", () => {
       .not.toBeNull();
     expect(surface.querySelector(".desktop-git-history-loading")?.getAttribute("role"))
       .toBe("status");
-    expect(surface.querySelector('[data-puppy-loader="dots"]')).not.toBeNull();
+    expect(surface.querySelector('[data-puppy-loader]')).not.toBeNull();
   });
 
   it("groups commits by local date in descending date order", () => {

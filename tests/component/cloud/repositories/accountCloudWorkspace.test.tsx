@@ -119,6 +119,57 @@ describe("account-owned Cloud workspaces on the existing API", () => {
     expect(localWrite).not.toHaveBeenCalled();
   });
 
+  it.each([
+    [401, undefined, "project-sign-in-required", "account"],
+    [402, undefined, "workspace-plan-required", "account"],
+    [403, undefined, "workspace-access-denied", "none"],
+    [404, undefined, "workspace-service-unavailable", "none"],
+    [503, "workbench_provider_not_configured", "workspace-not-configured", "none"],
+    [503, undefined, "workspace-open-failed", "retry"],
+  ])("preserves the selected project and classifies runtime failure %s / %s", async (status, code, expected, action) => {
+    await render(); await open("a");
+    const original = window.puppyoneDesktop!.requestCloudSessionApi;
+    const requests = vi.fn<typeof original>(async request => request.path === "/projects/b/workbench"
+      ? { transport: "puppyone-cloud-ipc-v1", ok: false, error: { status, code, message: "Private provider diagnostics" } }
+      : original(request));
+    window.puppyoneDesktop!.requestCloudSessionApi = requests;
+    await act(async () => {
+      await expect(account.openTarget({ kind: "project_root", project_id: "b" }, () => true, true))
+        .rejects.toMatchObject({ failure: { message: { code: expected }, action } });
+    });
+    expect(account.failure).toEqual({ message: { code: expected }, action });
+    expect(account.context.projectId).toBe("a");
+    expect(account.active).toBe(true);
+    expect(requests.mock.calls.map(([request]) => [request.method, request.path])).toEqual([
+      ["POST", "/projects/b/repository-context"], ["GET", "/projects/b/workbench"],
+    ]);
+    expect(localWrite).not.toHaveBeenCalled();
+  });
+
+  it("distinguishes a missing project from an unavailable runtime", async () => {
+    bridge.mockRejectedValueOnce(Object.assign(new Error("Not found"), { status: 404 }));
+    await render(); await open("missing");
+    expect(account.failure).toMatchObject({ message: { code: "project-unavailable" }, action: "none" });
+    expect(account.active).toBe(false);
+    expect(bridge).toHaveBeenCalledOnce();
+    expect(bridge.mock.calls[0][0].path).toBe("/projects/missing/repository-context");
+  });
+
+  it.each([
+    ["retained", "workspace-recovery-required", "none"],
+    ["cleanup_pending", "workspace-recovery-required", "none"],
+  ])("does not allocate another runtime when its state is %s", async (state, code, action) => {
+    const original = window.puppyoneDesktop!.requestCloudSessionApi;
+    const requests = vi.fn<typeof original>(async request => request.path.endsWith("/workbench")
+      ? { transport: "puppyone-cloud-ipc-v1", ok: true, data: { workspace: { id: "workbench-a", project_id: "a", generation: "one", state } } } : original(request));
+    window.puppyoneDesktop!.requestCloudSessionApi = requests;
+    await render(); await open("a");
+    expect(account.failure).toMatchObject({ message: { code }, action });
+    expect(account.active).toBe(false);
+    expect(requests.mock.calls.filter(([request]) => request.path.endsWith("/workbench"))).toHaveLength(1);
+    expect(requests.mock.calls.at(-1)![0].method).toBe("GET");
+  });
+
   it.each(["local-only", "wrong-host", "not-authorized", "not-found"])("keeps the account catalog usable when local association is %s", async (status) => {
     const context = status === "local-only" ? { status, projectId: null } : { status, projectId: "local-target", message: cloudMessage("remote-wrong-host") };
     await render({ homeVisible: true, association: context as ProjectCloudContext });
@@ -178,6 +229,28 @@ describe("account-owned Cloud workspaces on the existing API", () => {
     await open("b");
     await act(async () => { pending.resolve({ entries: [], ...nativeSnapshot("old") }); await opening; });
     expect(account.context.projectId).toBe("b");
+  });
+
+  it("keeps the displayed Cloud project when the shared navigation supersedes a request", async () => {
+    await render(); await open("a");
+    await act(async () => account.openTarget({ kind: "project_root", project_id: "b" }, () => false));
+    expect(account.context.projectId).toBe("a");
+    expect(account.opening).toBe(false);
+    expect(account.error).toBeNull();
+  });
+
+  it("reports an opening failure to the shared navigation without replacing the current project", async () => {
+    await render(); await open("a");
+    const actual = bridge.getMockImplementation()!;
+    bridge.mockImplementation(request => {
+      if (request.path.startsWith("/projects/b/workbench/")) throw new Error("Offline");
+      return actual(request);
+    });
+    await act(async () => {
+      await expect(account.openTarget({ kind: "project_root", project_id: "b" }, () => true, true)).rejects.toThrow();
+    });
+    expect(account.context.projectId).toBe("a");
+    expect(account.opening).toBe(false);
   });
 
   it("rejects a mismatched project/target response", async () => {

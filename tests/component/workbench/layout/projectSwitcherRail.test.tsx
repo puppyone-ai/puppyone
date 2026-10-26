@@ -12,6 +12,7 @@ import {
   getProjectSwitcherInitial,
   mergeProjectSwitcherRailOrder,
   ProjectSwitcherRail,
+  resolveProjectRowPlace,
   resolveProjectSwitcherCompactWidth,
   resolveProjectSwitcherRailWidth,
   resolveProjectSwitcherRailItems,
@@ -21,6 +22,7 @@ import {
   ProjectEntryFlow,
   useProjectEntryFlow,
 } from "../../../../src/features/app-shell/ProjectEntryFlow";
+import { useProjectNavigation } from "../../../../src/features/app-shell/useProjectNavigation";
 import { ProjectEntryLauncherDialog } from "../../../../src/features/app-shell/ProjectEntryLauncherDialog";
 import { DesktopCloudShell } from "../../../../src/components/DesktopCloudShell";
 import { withTestLocalization } from "../../../support/react/localization";
@@ -154,7 +156,7 @@ describe("Project switcher rail", () => {
     expect(rows[0]?.classList.contains("po-sidebar-row")).toBe(true);
     expect(rows[0]?.classList.contains("desktop-project-switcher-rail-expanded-project")).toBe(true);
     expect(rows[0]?.classList.contains("active")).toBe(true);
-    expect(rows[0]?.querySelector('[data-project-location="local"] .lucide-folder')).not.toBeNull();
+    expect(rows[0]?.querySelector('[data-project-location="local"] [data-product-icon="local"]')).not.toBeNull();
 
     expect(host.querySelector(".desktop-project-switcher-rail-toggle")).toBeNull();
     expect(host.querySelector(".desktop-project-switcher-rail-footer")).toBeNull();
@@ -438,20 +440,20 @@ describe("Project switcher rail", () => {
       { id: "local:linked", label: "Linked", localPath: linked.path, cloudProjectId: "linked-cloud" },
       { id: "cloud:hosted", label: "Hosted", localPath: "", cloudProjectId: "hosted" },
     ];
-    const selectLocal = vi.fn(), selectCloud = vi.fn(), home = vi.fn();
+    const selectLocal = vi.fn(), selectCloud = vi.fn();
     const host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
     const renderRail = (expanded: boolean, activeCloudProjectId?: string) => withTestLocalization(
       <ProjectSwitcherRail activeWorkspace={local} activeCloudProjectId={activeCloudProjectId}
         expanded={expanded} recentWorkspaces={[{ workspace: linked }]} projectItems={items}
-        onSelectProject={selectLocal} onSelectCloudProject={selectCloud} onHome={home}
+        onSelectProject={selectLocal} onSelectCloudProject={selectCloud}
         onCreateNew={() => undefined} onRenameProject={async () => undefined} onUnlinkProject={async () => undefined} />,
     );
     await act(async () => root?.render(renderRail(true)));
     const rows = [...host.querySelectorAll<HTMLButtonElement>(".desktop-project-switcher-rail-project")];
     expect(rows.map(row => row.dataset.contextAssetKind)).toEqual(["local", "linked", "cloud"]);
-    expect(rows[0]?.querySelector('[data-project-location="local"] .lucide-folder')).not.toBeNull();
+    expect(rows[0]?.querySelector('[data-project-location="local"] [data-product-icon="local"]')).not.toBeNull();
     expect(rows[1]?.querySelector('[data-project-location="linked"] .onboarding-project-cloud-badge')).not.toBeNull();
     expect(rows[2]?.querySelector('[data-project-location="cloud"] .desktop-cloud-icon')).not.toBeNull();
     expect(rows[1]?.getAttribute("aria-label")).toContain("Local folder + Cloud project");
@@ -463,16 +465,116 @@ describe("Project switcher rail", () => {
     expect(selectLocal).toHaveBeenCalledExactlyOnceWith(linked.path);
     await act(async () => rows[2]?.click());
     expect(selectCloud).toHaveBeenCalledExactlyOnceWith("hosted");
-    await act(async () => host.querySelector<HTMLButtonElement>(".desktop-project-switcher-rail-home")?.click());
-    expect(home).toHaveBeenCalledOnce();
-    expect(host.querySelector<HTMLButtonElement>(".desktop-project-switcher-rail-home")?.dataset.tooltip).toBeUndefined();
     await act(async () => root?.render(renderRail(false, "hosted")));
     const compactRows = [...host.querySelectorAll<HTMLButtonElement>(".desktop-project-switcher-rail-project")];
     expect(compactRows.map(row => row.dataset.contextAssetKind)).toEqual(["local", "linked", "cloud"]);
     expect(compactRows[2]?.getAttribute("aria-current")).toBe("page");
     expect(compactRows[0]?.hasAttribute("aria-current")).toBe(false);
     expect(compactRows[1]?.querySelector(".onboarding-project-cloud-badge")).not.toBeNull();
-    expect(host.querySelector<HTMLButtonElement>(".desktop-project-switcher-rail-home")?.dataset.tooltip).toBe("Home");
+  });
+
+  it("lists Projects without a way back to a second Project list", async () => {
+    const active = workspace("active", "Alpha", "/projects/alpha");
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+
+    for (const expanded of [true, false]) {
+      await act(async () => root?.render(withTestLocalization(
+        <ProjectSwitcherRail
+          activeWorkspace={active}
+          expanded={expanded}
+          recentWorkspaces={[]}
+          projectItems={localCatalog(active, [])}
+          onCreateNew={() => undefined}
+          onSelectProject={() => undefined}
+        />,
+      )));
+      const buttons = [...host.querySelectorAll<HTMLButtonElement>(".desktop-project-switcher-rail-button")];
+      expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual([
+        "Project: ⁨Alpha⁩ · Local folder",
+        "New workspace",
+      ]);
+      expect(host.querySelector(".desktop-project-switcher-rail-home")).toBeNull();
+      expect(host.querySelector(".po-directional-icon")).toBeNull();
+    }
+  });
+
+  it("states only the Cloud place on rows, and never in the compact rail", async () => {
+    const local = workspace("local", "Local", "/projects/local");
+    const linked = workspace("linked", "Linked", "/projects/linked");
+    const items: ProjectHomeItem[] = [
+      { id: "local:local", label: "Local", localPath: local.path },
+      { id: "local:linked", label: "Linked", localPath: linked.path, cloudProjectId: "linked-cloud" },
+      { id: "cloud:hosted", label: "Hosted", localPath: "", cloudProjectId: "hosted" },
+    ];
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+    const renderRail = (expanded: boolean, activeCloudProjectId?: string) => withTestLocalization(
+      <ProjectSwitcherRail activeWorkspace={local} activeCloudProjectId={activeCloudProjectId}
+        expanded={expanded} recentWorkspaces={[{ workspace: linked }]} projectItems={items}
+        onCreateNew={() => undefined} onSelectProject={() => undefined} onSelectCloudProject={() => undefined} />,
+    );
+
+    await act(async () => root?.render(renderRail(true)));
+    const placed = [...host.querySelectorAll<HTMLElement>(".desktop-project-switcher-rail-project-row")]
+      .map((row) => Boolean(row.querySelector(".desktop-project-switcher-rail-place")));
+    expect(placed).toEqual([false, false, true]);
+    expect(host.querySelector(".desktop-project-switcher-rail-place .desktop-cloud-icon")).not.toBeNull();
+    expect(host.querySelector(".desktop-project-switcher-rail-place")?.getAttribute("aria-hidden")).toBe("true");
+
+    // Working on the linked Project in the Cloud moves the place with it.
+    await act(async () => root?.render(renderRail(true, "linked-cloud")));
+    expect([...host.querySelectorAll<HTMLElement>(".desktop-project-switcher-rail-project-row")]
+      .map((row) => Boolean(row.querySelector(".desktop-project-switcher-rail-place")))).toEqual([false, true, true]);
+
+    await act(async () => root?.render(renderRail(false)));
+    expect(host.querySelector(".desktop-project-switcher-rail-place")).toBeNull();
+  });
+
+  it("derives a row's place from the Project itself and the surface it is open on", () => {
+    const localOnly: ProjectHomeItem = { id: "local:a", label: "A", localPath: "/projects/a" };
+    const hosted: ProjectHomeItem = { id: "cloud:b", label: "B", localPath: "", cloudProjectId: "b" };
+    expect(resolveProjectRowPlace(localOnly, false)).toBe("local");
+    expect(resolveProjectRowPlace(localOnly, true)).toBe("cloud");
+    expect(resolveProjectRowPlace(hosted, false)).toBe("cloud");
+  });
+
+  it("carries the Local / Cloud switch in the open Project's row menu only", async () => {
+    const active = workspace("active", "Alpha", "/projects/alpha");
+    const beta = workspace("beta", "Beta", "/projects/beta");
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+
+    await act(async () => root?.render(withTestLocalization(
+      <ProjectSwitcherRail
+        activeWorkspace={active}
+        activeProjectLocationControls={<button type="button" data-testid="place-switch">This Mac</button>}
+        expanded
+        recentWorkspaces={[{ workspace: beta }]}
+        projectItems={localCatalog(active, [{ workspace: beta }])}
+        onCreateNew={() => undefined}
+        onRenameProject={async () => undefined}
+        onSelectProject={() => undefined}
+        onUnlinkProject={async () => undefined}
+      />,
+    )));
+
+    const actions = host.querySelectorAll<HTMLButtonElement>(".desktop-project-switcher-row-action");
+    await act(async () => actions[1]?.click());
+    expect(document.body.querySelector("[data-testid='place-switch']")).toBeNull();
+
+    await act(async () => actions[0]?.click());
+    const menu = document.body.querySelector<HTMLElement>(".desktop-project-row-actions-menu");
+    const place = menu?.querySelector<HTMLButtonElement>("[data-testid='place-switch']");
+    expect(place).not.toBeNull();
+    expect(place?.closest(".desktop-project-row-actions-location")).not.toBeNull();
+
+    // Choosing a place acts on the open Project, so the session ends with it.
+    await act(async () => place?.click());
+    expect(document.body.querySelector(".desktop-project-row-actions-menu")).toBeNull();
   });
 
   it("omits hints for Project initials and expanded labels while hinting the icon-only create action", async () => {
@@ -498,7 +600,7 @@ describe("Project switcher rail", () => {
     expect(compactRow?.hasAttribute("data-tooltip")).toBe(false);
     expect(compactRow?.hasAttribute("title")).toBe(false);
     const create = host.querySelector<HTMLButtonElement>(".desktop-project-switcher-rail-create");
-    expect(create?.dataset.tooltip).toBe("Create new");
+    expect(create?.dataset.tooltip).toBe("New workspace");
     expect(create?.dataset.tooltipPlacement).toBe("right");
     expect(create?.hasAttribute("title")).toBe(false);
 
@@ -600,8 +702,8 @@ describe("Project switcher rail", () => {
     expect(buttons[0]?.getAttribute("aria-current")).toBe("page");
     expect(buttons[0]?.querySelector(".desktop-project-switcher-rail-identity-badge")?.textContent).toBe("A");
     expect(buttons[1]?.querySelector(".desktop-project-switcher-rail-identity-badge")?.textContent).toBe("B");
-    expect(buttons[0]?.querySelector(".desktop-project-switcher-rail-compact-context-avatar .lucide-folder")).not.toBeNull();
-    expect(buttons[1]?.querySelector(".desktop-project-switcher-rail-compact-context-avatar .lucide-folder")).not.toBeNull();
+    expect(buttons[0]?.querySelector('.desktop-project-switcher-rail-compact-context-avatar [data-product-icon="local"]')).not.toBeNull();
+    expect(buttons[1]?.querySelector('.desktop-project-switcher-rail-compact-context-avatar [data-product-icon="local"]')).not.toBeNull();
     expect(buttons[0]?.querySelector(".desktop-project-switcher-rail-label")).toBeNull();
     expect(buttons[1]?.querySelector(".desktop-project-switcher-rail-label")).toBeNull();
 
@@ -637,15 +739,17 @@ describe("Project switcher rail", () => {
     document.body.append(host);
     root = createRoot(host);
 
-    await act(async () => root?.render(withTestLocalization(
-      <ProjectSwitcherRail
-        activeWorkspace={alpha}
+    function NavigationHost() {
+      const navigation = useProjectNavigation({ open: async target => {
+        if (target.kind === "local") await onSelectProject(target.path);
+      }, onError: error => { throw error; } });
+      return <ProjectSwitcherRail activeWorkspace={alpha}
         recentWorkspaces={[{ workspace: beta }, { workspace: gamma }]}
         projectItems={localCatalog(alpha, [{ workspace: beta }, { workspace: gamma }])}
-        onCreateNew={() => undefined}
-        onSelectProject={onSelectProject}
-      />,
-    )));
+        pendingProject={navigation.pending} onCreateNew={() => undefined}
+        onSelectProject={path => navigation.select({ kind: "local", path })} />;
+    }
+    await act(async () => root?.render(withTestLocalization(<NavigationHost />)));
 
     const buttons = host.querySelectorAll<HTMLButtonElement>(
       ".desktop-project-switcher-rail-project",
