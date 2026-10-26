@@ -4,6 +4,12 @@ Paid compute is an experiment. `enablePayments` is off by default, so an
 untouched Desktop install never shows a price, a balance, a trial credit or a
 top-up, and the Agent routes only to the user's own API keys and local models.
 
+Paid compute needs a PuppyOne account, so it rides on Cloud:
+`usePaymentsExperience()` is true only while Cloud is on (`useCloudEnabled()` in
+`src/features/flags`)
+*and* `enablePayments` is on. With Cloud off, the Payments switch is not
+offered and a stored `true` has no effect.
+
 ## Fork convention
 
 - `enablePayments` is named in exactly three files: `src/preferences.ts` (the
@@ -23,7 +29,7 @@ top-up, and the Agent routes only to the user's own API keys and local models.
 | --- | --- | --- |
 | Agent compute summary | PuppyOne's token, with the account balance behind it | the user's own API and local models only |
 | Agent send attempt without a route | sign-in, the one-time trial credit, or `Add credit to use this model.` | points at the user's own connection |
-| Settings → Account | available balance, top-up and refresh | account sign-in only |
+| Settings → Account (shown only with Cloud on) | available balance, top-up and refresh | account sign-in only |
 | Wallet reads and the trial claim | polled while signed in | never requested |
 
 Off is not only a hidden surface: with the experiment off the renderer issues

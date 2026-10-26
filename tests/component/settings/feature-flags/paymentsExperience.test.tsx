@@ -17,6 +17,11 @@ vi.mock("../../../../src/features/model-connections/modelConnectionsApi");
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const label = "Pay for PuppyOne compute";
+const cloudLabel = "Puppyone Cloud";
+
+function enableCloud() {
+  store.getState().setExperimentalSettings((settings) => ({ ...settings, enableCloudWorkspace: true }));
+}
 const paidSnapshot: ModelConnectionSnapshot = {
   schemaVersion: 1, revision: 1, connections: [], catalogs: [],
   managed: { available: true, reason: "ready", signedIn: true, availableMicroUsd: 750_000,
@@ -58,7 +63,23 @@ function PaymentProbe() {
 }
 
 describe("payments experiment", () => {
+  it("rides on Cloud: no Payments switch and no paid route while Cloud is off", () => {
+    store.getState().setExperimentalSettings((settings) => ({ ...settings, enablePayments: true }));
+    const host = render(<><ExperimentalSettingsView /><PaymentProbe /></>);
+    const path = () => host.querySelector('[data-testid="path"]')?.textContent;
+
+    // The Cloud switch itself is always offered; only Payments waits for it.
+    expect(host.querySelector(`input[aria-label="${cloudLabel}"]`)).not.toBeNull();
+    expect(host.querySelector(`input[aria-label="${label}"]`)).toBeNull();
+    expect(path()).toBe("own compute");
+
+    act(() => host.querySelector<HTMLInputElement>(`input[aria-label="${cloudLabel}"]`)!.click());
+    expect(host.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)?.checked).toBe(true);
+    expect(path()).toBe("paid");
+  });
+
   it("offers one default-off switch next to the other account experiments", () => {
+    enableCloud();
     const host = render(<ExperimentalSettingsView />);
     const toggle = host.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!;
 
@@ -70,17 +91,20 @@ describe("payments experiment", () => {
     );
 
     act(() => toggle.click());
-    expect(store.getState().experimentalSettings).toEqual({ ...DEFAULT_EXPERIMENTAL_SETTINGS, enablePayments: true });
+    expect(store.getState().experimentalSettings).toEqual({
+      ...DEFAULT_EXPERIMENTAL_SETTINGS, enableCloudWorkspace: true, enablePayments: true,
+    });
 
     act(() => initializeDesktopPreferences());
     expect(JSON.parse(localStorage.getItem("puppyone.desktop.experimental")!).enablePayments).toBe(true);
     expect(toggle.checked).toBe(true);
 
     act(() => toggle.click());
-    expect(store.getState().experimentalSettings).toEqual(DEFAULT_EXPERIMENTAL_SETTINGS);
+    expect(store.getState().experimentalSettings).toEqual({ ...DEFAULT_EXPERIMENTAL_SETTINGS, enableCloudWorkspace: true });
   });
 
   it("gives every render entry the same decision through the single consumption point", () => {
+    enableCloud();
     const host = render(<><ExperimentalSettingsView /><PaymentProbe /></>);
     const toggle = host.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!;
     const path = () => host.querySelector('[data-testid="path"]')?.textContent;

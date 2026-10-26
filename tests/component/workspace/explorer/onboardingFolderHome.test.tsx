@@ -415,7 +415,9 @@ describe("project folder home", () => {
     expect(onImportSource).not.toHaveBeenCalled();
   });
 
-  it("requires an explicit template preview and sign-in before marketplace creation", async () => {
+  it("with Cloud on, requires an explicit template preview and sign-in before marketplace creation", async () => {
+    // Marketplace templates need a PuppyOne account, so the link entry rides on Cloud.
+    preferences.getState().setExperimentalSettings((settings) => ({ ...settings, enableCloudWorkspace: true }));
     const readText = vi.fn(async () => "https://www.puppyone.ai/t/b91aaade-bc9e-4dfd-8f23-11f06ec00301");
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { readText } });
     const resolveTemplateLink = vi.fn(async () => ({ id: "b91aaade-bc9e-4dfd-8f23-11f06ec00301", releaseId: "b91aaade-bc9e-4dfd-8f23-11f06ec00101", name: "CRM", description: "Customers", version: "1.0.0", author: "Puppyone", locale: "en", shareUrl: "https://www.puppyone.ai/t/b91aaade-bc9e-4dfd-8f23-11f06ec00301" }));

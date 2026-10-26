@@ -5,21 +5,21 @@ import {
 } from "../../../../src/features/settings/sidebar/settingsSidebarModel";
 
 describe("Settings Cloud feature gate", () => {
-  it("keeps Account public while Cloud hosting remains experimental", () => {
+  it("shows no Account or Cloud page while the Desktop is local-first", () => {
     const groups = resolveSettingsSidebarGroups({ cloudEnabled: false });
     const sections = groups.flatMap((group) => group.items.map((item) => item.id));
 
-    const cloudGroup = groups.find((group) => group.id === "cloud");
-    expect(sections).toContain("account");
+    // Signing in only serves Cloud, so the whole Cloud group waits for the experiment.
+    expect(sections).not.toContain("account");
     expect(sections).not.toContain("cloud");
     expect(sections).not.toContain("other-app-imports");
-    expect(cloudGroup?.items.map((item) => item.id)).toEqual(["account"]);
-    expect(isSettingsSectionAvailable("account", { cloudEnabled: false })).toBe(true);
+    expect(groups.find((group) => group.id === "cloud")).toBeUndefined();
+    expect(isSettingsSectionAvailable("account", { cloudEnabled: false })).toBe(false);
     expect(isSettingsSectionAvailable("cloud", { cloudEnabled: false })).toBe(false);
     expect(sections).toContain("privacy");
     expect(isSettingsSectionAvailable("privacy", { cloudEnabled: false })).toBe(true);
     expect(isSettingsSectionAvailable("experimental", { cloudEnabled: false })).toBe(true);
-    expect(groups.map((group) => group.id)).toEqual(["desktop-app", "agents", "local-project", "cloud"]);
+    expect(groups.map((group) => group.id)).toEqual(["desktop-app", "agents", "local-project"]);
     expect(groups.find((group) => group.id === "agents")?.items.map((item) => item.id)).toEqual(["local-agents", "model-connections"]);
     expect(isSettingsSectionAvailable("model-connections", { cloudEnabled: false })).toBe(true);
   });

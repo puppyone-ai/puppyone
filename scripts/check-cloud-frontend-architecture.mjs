@@ -104,6 +104,20 @@ for (const { filePath, source } of productionCode) {
   }
 }
 
+// Cloud is on only when the build ships it and the user turns on the Cloud
+// experiment. Reading the build flag alone would show sign-in on a local-first
+// Desktop, so only the combined decision may read it.
+const cloudDecisionOwner = "src/features/flags/index.tsx";
+for (const { filePath, source } of productionCode) {
+  const relativePath = path.relative(repoRoot, filePath).split(path.sep).join("/");
+  if (relativePath !== cloudDecisionOwner && /useFeatureFlag\(\s*["']cloudWorkspace["']\s*\)/.test(source)) {
+    errors.push(`${relativePath} reads the cloudWorkspace build flag directly; use useCloudEnabled()`);
+  }
+}
+if (!read(cloudDecisionOwner).includes("experimentalSettings.enableCloudWorkspace")) {
+  errors.push(`${cloudDecisionOwner} must combine the build flag with the user's Cloud experiment`);
+}
+
 const routeIds = read("src/features/cloud/routes/cloudRouteIds.ts");
 for (const retiredRoute of ['"projects"', '"templates"']) {
   if (routeIds.includes(retiredRoute)) {

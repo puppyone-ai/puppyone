@@ -6,7 +6,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { useWorkspaceEntryBootstrap } from "../../../../src/features/app-shell/useWorkspaceEntryBootstrap";
 import type { WorkspaceEntryIntent } from "../../../../src/features/app-shell/workspaceEntryBootstrap";
 import { OnboardingProjectEntryDialog } from "../../../../src/components/OnboardingProjectEntryDialog";
-import type { ProjectInitializationReceipt, WorkspaceCreateProjectRequest, WorkspaceCreateProjectResult } from "../../../../src/types/electron";
+import { ProjectEntryFlow, useProjectEntryFlow, type ProjectEntryFlowController } from "../../../../src/features/app-shell/ProjectEntryFlow";
+import { desktopPreferencesStore, initializeDesktopPreferences } from "../../../../src/preferencesStore";
+import type { MarketplaceTemplateDetail, ProjectInitializationReceipt, WorkspaceCreateProjectRequest, WorkspaceCreateProjectResult } from "../../../../src/types/electron";
 import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -113,7 +115,7 @@ describe("project template selection", () => {
     }));
     const onDefaultLocation = vi.fn(async () => ({ grantId: "location", path: "/projects" }));
     const onClose = vi.fn();
-    await act(async () => { root!.render(withTestLocalization(<StrictMode><OnboardingProjectEntryDialog onClose={onClose} onDefaultLocation={onDefaultLocation} onSubmit={onSubmit} /></StrictMode>)); await flush(); });
+    await act(async () => { root!.render(withTestLocalization(<StrictMode><OnboardingProjectEntryDialog templateLinks={false} onClose={onClose} onDefaultLocation={onDefaultLocation} onSubmit={onSubmit} /></StrictMode>)); await flush(); });
     expect(onDefaultLocation).toHaveBeenCalledOnce();
     expect(host.querySelector("select")).toBeNull();
     setName(host, "Notes");
@@ -132,7 +134,7 @@ describe("project template selection", () => {
       initialization: { ...receipt, operationId: request.operationId },
       opening: { status: "failed", message: "Window unavailable" },
     }));
-    await act(async () => { root!.render(withTestLocalization(<OnboardingProjectEntryDialog onClose={vi.fn()} onDefaultLocation={async () => ({ grantId: "location", path: "/projects" })} onSubmit={onSubmit} />)); await flush(); });
+    await act(async () => { root!.render(withTestLocalization(<OnboardingProjectEntryDialog templateLinks={false} onClose={vi.fn()} onDefaultLocation={async () => ({ grantId: "location", path: "/projects" })} onSubmit={onSubmit} />)); await flush(); });
     setName(host, "Notes");
     await act(async () => { host.querySelector<HTMLButtonElement>('button[type="submit"]')!.click(); await flush(); });
     expect(host.textContent).toContain("Project created at /projects/Notes");
@@ -141,5 +143,71 @@ describe("project template selection", () => {
     await act(async () => { host.querySelector<HTMLButtonElement>('button[type="submit"]')!.click(); await flush(); });
     expect(onSubmit).toHaveBeenCalledTimes(2);
     expect(onSubmit.mock.calls[1]![0]).toBe(onSubmit.mock.calls[0]![0]);
+  });
+});
+
+describe("marketplace template links follow Cloud", () => {
+  const link = "https://www.puppyone.ai/t/hiring-tracker";
+  const detail: MarketplaceTemplateDetail = {
+    id: "template-one", releaseId: "release-one", name: "Hiring Tracker", description: "Roles and candidates.",
+    version: "1.0.0", author: "PuppyOne", locale: "en", shareUrl: link,
+  };
+  type TemplateBridge = Record<"readTemplateImportIntent" | "acknowledgeTemplateImportIntent" | "onTemplateImportRequested"
+    | "resolveTemplateLink" | "readCloudAuthState", ReturnType<typeof vi.fn>>;
+  let flow: ProjectEntryFlowController;
+  function FlowHarness() {
+    flow = useProjectEntryFlow();
+    return <ProjectEntryFlow controller={flow} onOpenFolder={vi.fn()} onCreateProject={vi.fn()}
+      onChooseLocation={async () => null} onDefaultLocation={async () => ({ grantId: "location", path: "/projects" })} />;
+  }
+  function installBridge(): TemplateBridge {
+    const bridge: TemplateBridge = {
+      readTemplateImportIntent: vi.fn(async () => ({ id: "intent-one", url: link })),
+      acknowledgeTemplateImportIntent: vi.fn(async () => undefined),
+      onTemplateImportRequested: vi.fn(() => () => {}),
+      resolveTemplateLink: vi.fn(async () => detail),
+      readCloudAuthState: vi.fn(async () => ({ status: "signed-out", session: null })),
+    };
+    Object.assign(window, { puppyoneDesktop: bridge });
+    return bridge;
+  }
+  function preferences(cloud: boolean) {
+    localStorage.clear();
+    initializeDesktopPreferences();
+    desktopPreferencesStore.getState().setExperimentalSettings((settings) => ({ ...settings, enableCloudWorkspace: cloud }));
+  }
+  afterEach(() => { Reflect.deleteProperty(window, "puppyoneDesktop"); localStorage.clear(); });
+
+  it("offers no template link, consumes no store link and reads no account while Cloud is off", async () => {
+    preferences(false);
+    const bridge = installBridge();
+    const host = mount();
+    await act(async () => { root!.render(withTestLocalization(<FlowHarness />)); await flush(); });
+
+    expect(bridge.readTemplateImportIntent).not.toHaveBeenCalled();
+    expect(host.querySelector("form")).toBeNull();
+
+    await act(async () => { flow.openCreate(); await flush(); });
+    expect(host.querySelector("form")).not.toBeNull();
+    expect(host.textContent).not.toContain("Use a template link");
+    expect(host.querySelector('input[type="checkbox"]')).toBeNull();
+    expect(host.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled).toBe(false);
+    expect(bridge.readCloudAuthState).not.toHaveBeenCalled();
+    expect(bridge.resolveTemplateLink).not.toHaveBeenCalled();
+    expect(bridge.acknowledgeTemplateImportIntent).not.toHaveBeenCalled();
+  });
+
+  it("opens a store link as a template project once Cloud is on", async () => {
+    preferences(true);
+    const bridge = installBridge();
+    const host = mount();
+    await act(async () => { root!.render(withTestLocalization(<FlowHarness />)); await flush(); await flush(); });
+
+    expect(bridge.readTemplateImportIntent).toHaveBeenCalled();
+    expect(bridge.acknowledgeTemplateImportIntent).toHaveBeenCalledWith("intent-one");
+    expect(bridge.resolveTemplateLink).toHaveBeenCalledWith({ url: link, locale: "en" });
+    expect(host.textContent).toContain("Use a template link");
+    expect(host.querySelector<HTMLInputElement>('input[type="checkbox"]')!.checked).toBe(true);
+    expect(bridge.readCloudAuthState).toHaveBeenCalled();
   });
 });

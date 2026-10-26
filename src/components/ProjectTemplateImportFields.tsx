@@ -9,6 +9,8 @@ export function ProjectTemplateImportFields({ controller: flow, disabled, onChan
     try { const url = await navigator.clipboard.readText(); flow.setUrl(url); onChange(); await flow.resolve(url); }
     catch { flow.setError(t("onboarding.template.pasteFailed")); }
   };
+  // Marketplace templates need a PuppyOne account; without Cloud there is no entry.
+  if (!flow.enabled) return null;
   return <>
     <label className="onboarding-entry-create-label">
       <input type="checkbox" checked={flow.mode} disabled={disabled} onChange={event => { flow.setMode(event.target.checked); flow.setError(null); onChange(); }} /> {t("onboarding.template.useLink")}

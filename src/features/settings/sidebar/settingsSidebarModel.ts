@@ -77,7 +77,8 @@ export const SETTINGS_SIDEBAR_GROUPS: readonly SettingsSidebarGroupModel[] = [
     id: "cloud",
     labelId: "settings.sidebar.cloud",
     items: [
-      { id: "account", labelId: "settings.sidebar.account", icon: UserRound, disabled: false },
+      // Signing in only serves Cloud, so a local-first Desktop shows no Account page.
+      { id: "account", labelId: "settings.sidebar.account", icon: UserRound, disabled: false, requiresCloud: true },
       { id: "cloud", labelId: "settings.sidebar.cloudHosting", icon: Cloud, disabled: false, requiresCloud: true, requiresLocalWorkspace: true },
     ],
   },
