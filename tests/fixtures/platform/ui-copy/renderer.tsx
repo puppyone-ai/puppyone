@@ -176,7 +176,7 @@ function surface() {
     // The money, as a signed-in account sees it: what is held, what it has
     // used, and what another machine would cost — all of it on Account.
     case 'plan': return <AccountSettingsView cloudSession={session} cloudSessionRestoring={false}
-      cloudApiBaseUrl={session.api_base_url} onCloudSessionChange={noop} />;
+      cloudApiBaseUrl={session.api_base_url} onCloudSessionChange={noop} cloudEnabled />;
     case 'experiments': return <ExperimentalSettingsView />;
     case 'diagnostics': return <div className="desktop-agent-boundary"><AgentSurfaceHeader title="Chat" statusCode="ready" statusLabel="Ready" loading={false}
       newSessionDisabled={false} onNewSession={noop} onCloseSession={noop} diagnostic={variant === 'diagnostic' ? 'Fixture transport detail' : null} />

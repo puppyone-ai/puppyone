@@ -105,13 +105,14 @@ for (const { filePath, source } of productionCode) {
 }
 
 // Cloud is on only when the build ships it and the user turns on the Cloud
-// experiment. Reading the build flag alone would show sign-in on a local-first
-// Desktop, so only the combined decision may read it.
+// experiment. The same build flag also says whether the build has PuppyOne
+// accounts, which never wait for Cloud. Both decisions live in the flags entry
+// (useCloudEnabled() and useAccountAvailable()), so nothing else may read it.
 const cloudDecisionOwner = "src/features/flags/index.tsx";
 for (const { filePath, source } of productionCode) {
   const relativePath = path.relative(repoRoot, filePath).split(path.sep).join("/");
   if (relativePath !== cloudDecisionOwner && /useFeatureFlag\(\s*["']cloudWorkspace["']\s*\)/.test(source)) {
-    errors.push(`${relativePath} reads the cloudWorkspace build flag directly; use useCloudEnabled()`);
+    errors.push(`${relativePath} reads the cloudWorkspace build flag directly; use useCloudEnabled() or useAccountAvailable()`);
   }
 }
 if (!read(cloudDecisionOwner).includes("experimentalSettings.enableCloudWorkspace")) {

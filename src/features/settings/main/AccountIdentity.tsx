@@ -21,8 +21,11 @@ export function AccountIdentity({
   statusNote,
   busy,
   onSignOut,
+  cloudEnabled = true,
 }: {
   email: string | null;
+  /** Without Cloud, what an account is for is PuppyOne compute. */
+  cloudEnabled?: boolean;
   /** Only set when the session needs explaining (restoring, offline, …). */
   statusNote: string | null;
   busy: boolean;
@@ -31,7 +34,8 @@ export function AccountIdentity({
   const { t } = useLocalization();
   const signedIn = Boolean(email);
   // Signed out, the one line worth adding is why an account exists at all.
-  const meta = signedIn ? null : t("settings.account.signedOutDetail");
+  const meta = signedIn ? null
+    : t(cloudEnabled ? "settings.account.signedOutDetail" : "settings.account.signedOutDetailCompute");
 
   return (
     <header className="desktop-account-identity">

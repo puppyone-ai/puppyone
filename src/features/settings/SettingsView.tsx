@@ -14,6 +14,7 @@ import { CreateNewSettingsView } from "./main/CreateNewSettingsView";
 import { OtherAppImportsSettingsView } from "./main/OtherAppImportsSettingsView";
 import { CloudHostingSettingsView, GitSettingsView } from "./main/RepositorySettingsViews";
 import { usePaymentsExperience } from "../payments";
+import { useAccountAvailable } from "../flags";
 import { isSettingsSectionAvailable } from "./sidebar/settingsSidebarModel";
 import type { SettingsViewProps } from "./types";
 import { writeClipboardText } from "./utils";
@@ -22,6 +23,16 @@ const TypographySettingsView = lazy(async () => {
   const module = await import("./main/TypographySettingsView");
   return { default: module.TypographySettingsView };
 });
+
+/** Plan sells storage and the Cloud Computer, so Account links to it only with Cloud on. */
+function resolvePlanOpener({ paymentsEnabled, cloudEnabled, onSelectSection }: {
+  paymentsEnabled: boolean;
+  cloudEnabled: boolean;
+  onSelectSection: SettingsViewProps["onSelectSection"];
+}): (() => void) | undefined {
+  if (!paymentsEnabled || !cloudEnabled) return undefined;
+  return () => onSelectSection("seats");
+}
 
 export function SettingsView({
   workspace,
@@ -59,9 +70,11 @@ export function SettingsView({
   // Settings is a render entry: it reads the payments experiment once and
   // hands the answer down, so no payment surface reads the flag itself.
   const paymentsEnabled = usePaymentsExperience();
+  const accountAvailable = useAccountAvailable();
 
   if (!isSettingsSectionAvailable(activeSection, {
     cloudEnabled,
+    accountAvailable,
     otherAppImportsEnabled,
     localWorkspaceAvailable: workspace !== null,
   })) {
@@ -120,7 +133,8 @@ export function SettingsView({
         cloudSessionRestoring={cloudSessionRestoring}
         cloudApiBaseUrl={cloudApiBaseUrl}
         onCloudSessionChange={onCloudSessionChange}
-        onOpenBilling={paymentsEnabled ? () => onSelectSection("seats") : undefined}
+        cloudEnabled={cloudEnabled}
+        onOpenBilling={resolvePlanOpener({ paymentsEnabled, cloudEnabled, onSelectSection })}
       />
     );
   }

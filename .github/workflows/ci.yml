@@ -131,7 +131,9 @@ jobs:
       matrix:
         os: [ubuntu-24.04, macos-14]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 25
+    # The checks take about ten minutes; the rest covers one slow package
+    # download on a cold Linux cache.
+    timeout-minutes: 35
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -145,15 +147,37 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
+      # The runner's Ubuntu mirror has stalled for 19 minutes and crawled
+      # through the 61 MB CJK font package. Keep the downloaded packages, so
+      # most runs install without touching the mirror's package pool.
+      - name: Restore Linux package downloads
+        if: runner.os == 'Linux'
+        id: apt-downloads
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/ci-apt-archives
+          key: ci-apt-${{ runner.os }}-${{ runner.arch }}-xvfb-fonts-noto-cjk-v1
+
       - name: Prepare Linux display and multilingual fonts
         if: runner.os == 'Linux'
-        # A stalled mirror once held one download for 19 minutes and spent the
-        # whole job budget. Give up on a silent connection and retry instead.
-        timeout-minutes: 8
+        timeout-minutes: 15
         run: |
-          apt_options=(-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30)
+          archives="$HOME/.cache/ci-apt-archives"
+          mkdir -p "$archives/partial"
+          # Give up on a silent connection and retry instead of waiting.
+          apt_options=(-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30
+            -o "Dir::Cache::archives=$archives")
           sudo apt-get "${apt_options[@]}" update
           sudo apt-get "${apt_options[@]}" install --yes xvfb fonts-noto-cjk
+          sudo rm -rf "$archives/partial" "$archives/lock"
+          sudo chown -R "$(id -u):$(id -g)" "$archives"
+
+      - name: Save Linux package downloads
+        if: runner.os == 'Linux' && steps.apt-downloads.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/ci-apt-archives
+          key: ${{ steps.apt-downloads.outputs.cache-primary-key }}
 
       - name: Pre-release Checks — app
         run: npm run check:release -- --group app
