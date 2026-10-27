@@ -6,6 +6,7 @@ mod assets;
 #[cfg(all(test, target_os = "macos"))]
 mod bench;
 mod capture;
+mod cloud_auth;
 mod documents;
 mod editor;
 mod features;
@@ -120,6 +121,7 @@ fn main() {
             if background {
                 capture::run_in_background();
             }
+            features::cloud_account::install(!background, cx);
             let (window, shell_view) = open_shell_window(
                 WindowOptions {
                     focus: !background,

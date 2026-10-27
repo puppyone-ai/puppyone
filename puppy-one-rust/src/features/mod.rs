@@ -1,4 +1,5 @@
 pub mod agent_settings;
+pub mod cloud_account;
 pub mod create_new;
 pub mod desktop_agent;
 pub mod model_connections;

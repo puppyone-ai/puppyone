@@ -226,7 +226,7 @@ impl Shell {
                 let _ = open_host.update(cx, |s, cx| s.open_project(path, w, cx));
             })
     }
-    /// `DesktopProjectLocationSwitcher`: this computer, or Cloud once signed in.
+    /// Native authentication does not imply Cloud file-provider readiness.
     fn location_menu(&self) -> impl FnOnce(Menu) -> Menu + 'static {
         let device = tr(if cfg!(target_os = "macos") {
             "shell.workspaceSwitcher.location.thisMac"
@@ -246,7 +246,7 @@ impl Shell {
             });
         let cloud = MenuItem::new(tr("shell.projectOpen.inCloud"))
             .product_icon(crate::ui::components::ProductIcon::Cloud)
-            .detail(tr("shell.workspaceSwitcher.location.signInToAccess"))
+            .detail(tr("onboarding.error.cloudOpeningUnavailable"))
             .disabled(true);
         move |menu| {
             menu.label(tr("shell.workspaceSwitcher.projectDetails"))

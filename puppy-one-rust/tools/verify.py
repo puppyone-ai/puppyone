@@ -17,7 +17,7 @@ out = root / 'artifacts/gpui-verification'
 out.mkdir(parents=True, exist_ok=True)
 cargo = shutil.which('cargo') or str(Path.home() / '.cargo/bin/cargo')
 paths = [root / p for p in ['Cargo.toml', 'Cargo.lock', 'README.md', 'THIRD_PARTY.md', 'product-source.json']]
-for folder in ['src', 'assets', 'native-editor-probe/src', 'native-editor-probe/assets', 'tools']:
+for folder in ['src', 'assets', 'fixtures', 'native-editor-probe/src', 'native-editor-probe/assets', 'tools']:
     paths.extend(p for p in sorted((root / folder).rglob('*')) if p.is_file() and "__pycache__" not in p.parts)
 paths.extend(root / p for p in ['native-editor-probe/Cargo.toml', 'native-editor-probe/Cargo.lock'])
 def source_hashes():
@@ -28,6 +28,7 @@ commands = [
     ('fmt', [cargo, 'fmt', '--check']),
     ('boundaries', ['python3', 'tools/check-ui-boundaries.py']),
     ('product-layers', ['python3', 'tools/audit-product-layers.py']),
+    ('auth-reference', ['python3', 'tools/check-auth-reference.py']),
     ('localization', ['python3', 'tools/import-localization.py', '--check']),
     ('assets', ['python3', 'tools/generate-assets-rs.py', '--check']),
     ('agent-marks', ['python3', 'tools/import-agent-marks.py', '--check']),

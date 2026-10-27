@@ -253,9 +253,17 @@ python3 tools/audit-ui-migration.py
 - [x] 本地目录、文档条件读写、新建/重命名/移动/复制/导入/删除、预览与文档观察走端口；类型化错误在展示边界转成文字。
 - [x] Provider 变更通知取代 Documents 自行定时观察；本地保留 500ms 观察，订阅有界合并、Drop/撤销清理；不是完整目录监听 journal。
 - [x] 原文件系统测试经统一入口运行；无本地目录的内存 Provider 验证真实 Documents 保存/预览流程；覆盖身份隔离、权限准入、迟到结果、未知写入结果和监听清理。
-- [ ] Cloud 认证、HTTP/SSE、账号/项目导航和保活、Cloud 草稿冲突策略：后续步骤，不因端口存在标为已迁移。
+- [~] Cloud 认证见下节；HTTP/SSE 文件 Provider、账号/项目导航和保活、Cloud 草稿冲突策略仍待接入，不因端口或登录存在标为已迁移。
+
+## Native Cloud authentication（第二步）
+
+- [x] 原生 Broker + 独立 macOS Keychain adapter；恢复/刷新合并、账号/环境代次、取消/超时、退出和安全回调；不导入 TS 凭据，不做明文回退。协议参考来源与实际脏输入哈希由 `fixtures/cloud/auth-reference.json` / `tools/check-auth-reference.py` 固定。
+- [x] Settings 投影真实公开状态及登录/重开浏览器/取消/重试/退出；原生服务不依赖 GPUI，视图不持有令牌。不确定业务写入不自动重放；Cloud 打开、Billing/订阅依然禁用。
+- [x] 正常关闭在现有 Shell 屏障等待凭据修改与失败回滚；清理失败阻止关闭，文档沿原会话恢复输入/监听，普通关闭不当作退出登录。证据：`close_preflight_waits_for_slow_vault_work_before_framework_shutdown`、`failed_rollback_blocks_close_until_cleanup_succeeds`、`another_close_participant_failure_thaws_the_same_session_and_resumes_its_watch`。
+- [x] 29 项认证测试 + GPUI 公开投影回归，使用合成 Supabase、真实本地 TCP/HTTP 和内存凭据；全部 Rust 回归两配置各 392 passed / 9 ignored，Clippy / release / frame budgets 通过。
+- [ ] 实际 Keychain/系统浏览器/托管测试账号验收、Windows/Linux、同 profile 多进程协作。回调结果页为纯文本，错误诊断仍为原生英文；完整本地化和像素一致未验收。不得用本地 fixture 替代真实环境验收。
 - [ ] 完整多根/多文档工作副本注册表、跨平台实机与严格像素一致性：仍未完成。
 
 ## 10. 明确不在本轮范围
 
-需要 Cloud 服务或平台服务、当前没有原生实现的功能保持如实提示，不伪造：Account 登录、Plan 计费、Host Server、自动更新下载、Feedback 上传、Share/Reach、子主题包安装、Windows XP 界面风格。
+需要 Cloud 服务或平台服务、当前没有原生实现的功能保持如实提示，不伪造：Plan 计费、Host Server、自动更新下载、Feedback 上传、Share/Reach、子主题包安装、Windows XP 界面风格。Account 登录须显式配置原生 API/Web 环境；服务实现与本地协议测试不等于真实账号验收。

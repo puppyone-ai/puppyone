@@ -123,11 +123,10 @@ impl Shell {
         let weak = cx.weak_entity();
         window.on_window_should_close(cx, move |window, cx| {
             weak.update(cx, |s, cx| {
-                if s.files.allow_quit
-                    && s.preferences.read(cx).drained()
-                    && !s.modals.create_entry().is_some_and(|f| f.read(cx).busy())
-                {
-                    true
+                if s.files.allow_quit {
+                    s.preferences.read(cx).drained()
+                        && !s.modals.create_entry().is_some_and(|f| f.read(cx).busy())
+                        && crate::features::cloud_account::close_ready(cx)
                 } else {
                     s.command(Command::Quit, window, cx);
                     false
@@ -135,6 +134,16 @@ impl Shell {
             })
             .unwrap_or(true)
         });
+        if let Some(account) = cx
+            .try_global::<crate::features::cloud_account::CloudAccountService>()
+            .map(|s| s.0.clone())
+        {
+            cx.observe(&account, |s, _, cx| {
+                s.wake.notify();
+                cx.notify();
+            })
+            .detach();
+        }
         cx.spawn_in(window, async move |this, cx| {
             while rx.recv().await.is_ok() {
                 if this
@@ -745,11 +754,22 @@ impl Shell {
         if self.files.allow_quit && !self.preferences.read(cx).drained() {
             if let Some(error) = self.preferences.read(cx).error.clone() {
                 self.show_error(error);
-                self.files.allow_quit = false;
+                self.files.cancel_quit(&self.wake);
+                self.sync_editor(window, cx);
             }
             return;
         }
         if self.files.allow_quit {
+            match crate::features::cloud_account::prepare_close(cx) {
+                Ok(true) => {}
+                Ok(false) => return,
+                Err(error) => {
+                    self.files.cancel_quit(&self.wake);
+                    self.sync_editor(window, cx);
+                    self.show_error(error.to_string());
+                    return;
+                }
+            }
             self.workbench.update(cx, |s, cx| s.shutdown(cx));
             window.remove_window();
         }
@@ -1029,13 +1049,17 @@ impl Shell {
             );
         }
         if home {
-            // Cloud sign-in is not native yet; it opens Account, which says so.
-            bar = bar.action(header::sign_in().on_click(cx.listener(|s, _, w, cx| {
-                s.command(Command::Settings, w, cx);
-                s.task_ui.settings.update(cx, |settings, cx| {
-                    settings.select_page(crate::features::settings::Page::Account, cx)
-                });
-            })));
+            // Account identity is public state, not permission to open Cloud files.
+            bar = bar.action(
+                header::account_entry(crate::features::cloud_account::has_account(cx)).on_click(
+                    cx.listener(|s, _, w, cx| {
+                        s.command(Command::Settings, w, cx);
+                        s.task_ui.settings.update(cx, |settings, cx| {
+                            settings.select_page(crate::features::settings::Page::Account, cx)
+                        });
+                    }),
+                ),
+            );
         }
         if project && centered {
             bar = bar.centered(self.project_context(cx));

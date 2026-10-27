@@ -5475,9 +5475,11 @@ dependencies = [
  "blake3",
  "cap-std",
  "futures-util",
+ "getrandom 0.3.4",
  "gpui-component",
  "gpui-kit",
  "gpui-pre-apple",
+ "httparse",
  "libc",
  "objc2 0.6.4",
  "objc2-app-kit 0.3.2",
@@ -5489,6 +5491,7 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "tempfile",
  "tokio",
  "unicode-linebreak",
@@ -5498,6 +5501,7 @@ dependencies = [
  "vt100",
  "vte",
  "zed-reqwest",
+ "zeroize",
 ]
 
 [[package]]

@@ -234,21 +234,36 @@ impl Documents {
                 self.observing = false;
                 self.observation_pending = false;
                 self.watch = None;
-                if let Some(ws) = &self.workspace
-                    && ws.capabilities().watch
-                {
-                    let wake = ctx.clone();
-                    match ws.watch(doc, Arc::new(move || wake.notify())) {
-                        Ok(watch) => self.watch = Some(watch),
-                        Err(error) => self.error = Some(error.to_string()),
-                    }
-                }
+                self.start_watch(ctx);
             }
         } else {
             self.session = None;
             self.autosave_request = None;
             self.watch = None;
             self.observation_pending = false;
+        }
+    }
+    fn start_watch(&mut self, ctx: &Wake) {
+        if let (Some(ws), Some(doc)) = (&self.workspace, &self.document)
+            && ws.capabilities().watch
+            && !self.allow_quit
+        {
+            let wake = ctx.clone();
+            match ws.watch(doc, Arc::new(move || wake.notify())) {
+                Ok(watch) => self.watch = Some(watch),
+                Err(error) => self.error = Some(error.to_string()),
+            }
+        }
+    }
+    /// A different close participant failed after the document drain completed.
+    /// Keep this session/history, restore input and resume its observation lease.
+    pub fn cancel_quit(&mut self, ctx: &Wake) {
+        if self.allow_quit {
+            self.allow_quit = false;
+            self.thaw();
+            if self.watch.is_none() {
+                self.start_watch(ctx);
+            }
         }
     }
     fn sync_state(&mut self) {

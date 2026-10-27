@@ -52,6 +52,18 @@ for relative in ['src/documents.rs', 'src/shell/explorer', 'src/features/create_
         if re.search(r'workspace::local|cap_std\s*::|std\s*::\s*fs\b', source):
             errors.append(f'{path.relative_to(root)}: workspace consumer bypasses provider authority')
 
+# Native auth has one credential/transport owner, outside presentation. Only
+# features/cloud_account.rs projects public snapshots and opens validated URLs.
+for path in (root / 'src/cloud_auth').rglob('*.rs'):
+    if re.search(r'\bgpui\s*::|crate::(?:features|shell|ui)', path.read_text()):
+        errors.append(f'{path.relative_to(root)}: auth authority depends on presentation')
+for base in ['src/features/settings/main', 'src/shell', 'src/shell.rs']:
+    paths = [root / base] if (root / base).is_file() else (root / base).rglob('*.rs')
+    for path in paths:
+        source = path.read_text().split('#[cfg(test)]')[0]
+        if re.search(r'\b(?:access_token|refresh_token|code_verifier)\b|bearer_auth|security_framework::|cloud_auth::(?:Broker|http|store)', source):
+            errors.append(f'{path.relative_to(root)}: account view bypasses the public auth projection')
+
 # The retired Markdown prototype must not come back.
 if (root / "src/native_editor").exists():
     errors.append("src/native_editor: retired prototype editor remains")

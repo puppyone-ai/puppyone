@@ -84,7 +84,25 @@ python3 tools/verify-ui-assets.py --binary /path/to/dev-capture/puppy-one-rust -
 
 监听由 Provider 持有：本地仍为 500ms 有界文本观察，合并为重读通知；关闭文档或撤销租约停止观察。它不是递归目录 watcher 或持久 journal。本地条件写仍保留 BOM/换行/权限与磁盘优先规则，未增加 Cloud 冲突策略。资源型预览支持本地文件或不可变字节，租约撤销后不再交付；原有本地路径型预览的 OS 打开行为不宣称变成原子文件快照。
 
-**这只是第一步，不是 Cloud 已接通**：原生登录、HTTP/SSE Provider、Cloud 导航与保活、云端草稿冲突处理均未启用；编辑器仍单文档。TS 参考输入的 HEAD 与脏工作树哈希见 `fixtures/workspace/provider-reference.json`。完整契约归 [Native Host and Lifecycle](https://github.com/puppyone-ai/puppy-issues/blob/main/document/puppyone-desktop/platform/rust-native-frontend/host-and-lifecycle.md#native-workspace-provider-foundation)。
+**Provider 底座不是 Cloud 已接通**：原生登录由下节的独立服务承接；HTTP/SSE 文件 Provider、Cloud 导航与保活、云端草稿冲突处理仍未启用，编辑器仍单文档。TS 参考输入的 HEAD 与脏工作树哈希见 `fixtures/workspace/provider-reference.json`。完整契约归 [Native Host and Lifecycle](https://github.com/puppyone-ai/puppy-issues/blob/main/document/puppyone-desktop/platform/rust-native-frontend/host-and-lifecycle.md#native-workspace-provider-foundation)。
+
+## Native Cloud authentication（第二步）
+
+`src/cloud_auth/` 是唯一原生账号权威：复用现有 Web `/login`、PKCE S256 和 IP-loopback 回调，以及邮箱登录的顶层表单 POST。HTTP 禁止重定向并限制响应大小；本地认证请求不经过代理。`features/cloud_account.rs` 仅把无凭证快照交给 Settings，系统浏览器只有在用户发起且请求仍有效时才打开。Cloud 工作区、计费/订阅和文件服务没有随登录一起启用。
+
+正常构建必须显式设置 **`PUPPYONE_CLOUD_API_URL`**（以 `/api/v1` 结束）和 **`PUPPYONE_CLOUD_WEB_URL`**（origin）。允许官方 `puppyone.ai` 域族 HTTPS，或显式 loopback HTTP 开发环境；无生产默认值，不读取 TS 的 `.env`、登录文件或凭证。缺配置或平台不支持时登录不可用。截图/lab 不启动认证服务。
+
+macOS 使用独立的 `Puppyone Native Cloud Auth` Keychain service，按原生数据目录区分 profile；只持久化 refresh credential，access token 留在服务内存。恢复与按需刷新 singleflight；账号/环境/退出/取消的代次撤销阻断旧请求和迟到写入。退出先尝试清理本地凭据，再以 `scope=local` 尝试远端撤销；远端未确认与 Keychain 删除失败分别明确显示，不能假装完全退出。正常关闭接入 Shell 的现有退出屏障，等待凭据修改与回滚；失败时阻止关闭并恢复文档输入和监听，不依赖 GPUI 的 200ms 最后清理钩子。普通关闭保留已确认登录，不等于退出账号；强制终止/崩溃不在清理保证内。不确定的业务写入不自动重放。
+
+本地验收使用内存凭据存储、真实 loopback TCP/HTTP、合成 Supabase 与 GPUI 公开状态投影；覆盖 20 路刷新/401、重放/期限/取消、错误 Host/Origin/PKCE、存储失败、退出竞争和恢复。**不等于真实 Keychain、系统浏览器/社会化登录或托管环境验收**；Windows/Linux 的安全存储未接入，同 profile 多进程并发未资格化。回调结果页目前为无脚本纯文本，错误诊断为原生英文；不宣称与 Web 结果页像素或完整本地化一致。
+
+```bash
+cargo test --locked cloud_auth::
+cargo test --locked public_account_projection
+python3 tools/check-auth-reference.py
+```
+
+参考 HEAD 与八份脏输入哈希在 `fixtures/cloud/auth-reference.json`；新增直接依赖只提升已有 lockfile 中的 `getrandom`、`sha2`、`httparse`、`zeroize`，未升级/替换 Kit。协议权威归 [Unified Authentication and Sessions](https://github.com/puppyone-ai/puppy-issues/blob/main/document/puppyone/architecture/control-plane/authentication-and-sessions.md#rust-native-client)。
 
 ## 这一版可以做什么
 

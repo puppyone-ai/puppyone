@@ -138,6 +138,28 @@ fn conditional_write_adopts_external_content_and_close_does_not_request_a_choice
     );
 }
 #[test]
+fn another_close_participant_failure_thaws_the_same_session_and_resumes_its_watch() {
+    let (temp, mut d, ctx) = setup();
+    d.begin(Intent::Quit, &ctx);
+    snapshot(&mut d, &ctx, "saved before closing");
+    wait(&mut d, &ctx);
+    assert!(d.allow_quit && d.watch.is_none());
+    let id = d.session.as_ref().unwrap().id.clone();
+    d.outgoing.clear();
+    d.cancel_quit(&ctx);
+    assert!(!d.allow_quit && d.watch.is_some());
+    assert!(d.outgoing.contains(&HostMessage::Thaw));
+    assert_eq!(d.session.as_ref().unwrap().id, id);
+    std::fs::write(temp.path().join("a.md"), "external after cancelled close").unwrap();
+    let deadline = Instant::now() + Duration::from_secs(4);
+    while d.document.as_ref().unwrap().text != "external after cancelled close" {
+        d.poll(&ctx);
+        assert!(Instant::now() < deadline);
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+#[test]
 fn genuine_write_failure_blocks_close_and_retains_current_document() {
     let (temp, mut d, ctx) = setup();
     std::fs::remove_file(temp.path().join("a.md")).unwrap();

@@ -1,7 +1,5 @@
-//! Signed-out states of `AccountSettingsView.tsx` (+ `AccountIdentity`) and
-//! `SeatsSettingsView.tsx` (`PersonalPlanRows` over the catalogue fallback).
-//! Desktop browser sign-in is not native yet: like a product build without
-//! `supportsDesktopCloudOAuth()`, the sign-in action is shown disabled.
+//! Account is a projection of the app-owned native broker, never a credential
+//! or browser protocol owner. Plan/billing remains the catalogue fallback.
 use super::super::settings_workspace_surface::SettingsWorkspaceSurface;
 use super::Page;
 use crate::{
@@ -20,6 +18,26 @@ const INCLUDED_COMPUTERS: usize = 1;
 
 impl SettingsWorkspaceSurface {
     pub(super) fn account(&self, t: Theme, cx: &mut Context<Self>) -> AnyElement {
+        use crate::features::cloud_account::Status;
+        let model = self.cloud.as_ref().map(|c| c.read(cx));
+        let snapshot = model.and_then(|m| m.snapshot.clone());
+        let unavailable = model.and_then(|m| m.unavailable);
+        let closing = model.is_some_and(|m| m.closing);
+        let status = snapshot.as_ref().map_or(Status::SignedOut, |s| s.status);
+        let account = snapshot.as_ref().and_then(|s| s.account.as_ref());
+        let title = account.map_or_else(
+            || tr("settings.account.notSignedIn").to_owned(),
+            |a| a.email.clone(),
+        );
+        let detail = tr(match status {
+            Status::SignedOut | Status::StorageBlocked => "settings.account.signedOutDetail",
+            Status::Restoring => "settings.account.status.restoring",
+            Status::SigningIn => "settings.account.message.finishInBrowser",
+            Status::Authenticated => "settings.account.status.signedIn",
+            Status::Offline => "settings.account.status.offline",
+            Status::Refreshing => "settings.account.status.refreshing",
+            Status::SigningOut => "settings.account.status.signingOut",
+        });
         let m = theme::ty();
         // `.desktop-account-identity`: a 38px round mark (an initial once
         // signed in), 11px before the name and the signed-out reason.
@@ -45,23 +63,103 @@ impl SettingsWorkspaceSurface {
                             .line_height(px(18.))
                             .font_weight(FontWeight::MEDIUM)
                             .text_color(t.text)
-                            .child(tr("settings.account.notSignedIn")),
+                            .child(title),
                     )
                     .child(
                         div()
                             .text_size(px(m.ui.meta))
                             .line_height(px(17.))
                             .text_color(t.subtle)
-                            .child(tr("settings.account.signedOutDetail")),
+                            .child(detail),
                     ),
             );
-        // `.desktop-account-signin`.
-        let sign_in = h_flex().px(px(10.)).pt(px(2.)).pb(px(6.)).child(
-            Button::new("sign-in")
-                .variant(ButtonVariant::OutlinePrimary)
-                .label(tr("settings.account.signInWithBrowser"))
-                .disabled(true),
-        );
+        let busy = closing
+            || matches!(
+                status,
+                Status::Restoring | Status::Refreshing | Status::SigningOut
+            );
+        let mut sign_in = h_flex().gap(px(8.)).px(px(10.)).pt(px(2.)).pb(px(6.));
+        if status == Status::SigningIn {
+            sign_in = sign_in
+                .child(
+                    Button::new("reopen-sign-in")
+                        .label(tr("cloud.auth.desktopReopen"))
+                        .disabled(closing || !snapshot.as_ref().is_some_and(|s| s.can_reopen))
+                        .on_click(cx.listener(|s, _, _, cx| {
+                            if let Some(cloud) = &s.cloud {
+                                cloud.read(cx).reopen();
+                            }
+                        })),
+                )
+                .child(
+                    Button::new("cancel-sign-in")
+                        .label(tr("common.action.cancel"))
+                        .disabled(closing)
+                        .on_click(cx.listener(|s, _, _, cx| {
+                            if let Some(cloud) = &s.cloud {
+                                cloud.read(cx).cancel();
+                            }
+                        })),
+                );
+        } else if account.is_some() || status == Status::StorageBlocked {
+            sign_in = sign_in.child(
+                Button::new("sign-out")
+                    .label(tr("settings.account.signOut"))
+                    .disabled(busy)
+                    .on_click(cx.listener(|s, _, _, cx| {
+                        if let Some(cloud) = &s.cloud {
+                            cloud.read(cx).sign_out();
+                        }
+                    })),
+            );
+            if status == Status::Offline {
+                sign_in = sign_in.child(
+                    Button::new("restore-sign-in")
+                        .label(tr("common.action.retry"))
+                        .disabled(closing)
+                        .on_click(cx.listener(|s, _, _, cx| {
+                            if let Some(cloud) = &s.cloud {
+                                cloud.read(cx).retry();
+                            }
+                        })),
+                );
+            }
+        } else {
+            sign_in = sign_in.child(
+                Button::new("sign-in")
+                    .variant(ButtonVariant::OutlinePrimary)
+                    .label(tr("settings.account.signInWithBrowser"))
+                    .disabled(busy || unavailable.is_some() || self.cloud.is_none())
+                    .on_click(cx.listener(|s, _, _, cx| {
+                        if let Some(cloud) = &s.cloud {
+                            cloud.read(cx).sign_in();
+                        }
+                    })),
+            );
+        }
+        let mut session_details = v_flex()
+            .gap(px(6.))
+            .px(px(10.))
+            .text_size(px(m.ui.meta))
+            .text_color(t.subtle);
+        if let Some(snapshot) = &snapshot {
+            let (label, service) = account.map_or(
+                (
+                    "settings.account.desktopService",
+                    snapshot.environment.api(),
+                ),
+                |a| {
+                    (
+                        "settings.account.sessionService",
+                        a.binding.environment.api(),
+                    )
+                },
+            );
+            session_details = session_details.child(format!("{}: {}", tr(label), service));
+        }
+        if let Some(error) = unavailable.or_else(|| snapshot.as_ref().and_then(|s| s.error)) {
+            session_details = session_details.child(error.to_string());
+        }
         let upgrade = Button::new("account-upgrade")
             .label(tr("settings.account.upgrade"))
             .on_click(cx.listener(|s, _, _, cx| s.select_page(Page::Plan, cx)));
@@ -76,21 +174,39 @@ impl SettingsWorkspaceSurface {
         SettingsSection::new(tr(Page::Account.title()))
             .child(identity)
             .child(sign_in)
-            .child(
-                SettingsSubsection::new()
-                    .lead(true)
-                    .child(
-                        ValueRow::new(tr("settings.account.plan"), tr("settings.plan.freePrice"))
+            .when(self.cloud.is_some(), |section| {
+                section.child(session_details)
+            })
+            .when(account.is_none(), |section| {
+                section.child(
+                    SettingsSubsection::new()
+                        .lead(true)
+                        .child(
+                            ValueRow::new(
+                                tr("settings.account.plan"),
+                                tr("settings.plan.freePrice"),
+                            )
                             .action(upgrade),
-                    )
-                    .child(note),
-            )
+                        )
+                        .child(note),
+                )
+            })
             .into_any_element()
     }
     pub(super) fn plan(&self, _: Theme, cx: &mut Context<Self>) -> AnyElement {
+        let signed_in = self
+            .cloud
+            .as_ref()
+            .and_then(|s| s.read(cx).snapshot.as_ref())
+            .is_some_and(|s| s.account.is_some());
         let subscribe = Button::new("subscribe")
             .variant(ButtonVariant::OutlinePrimary)
-            .label(tr("settings.seats.signInToSubscribe"))
+            .label(tr(if signed_in {
+                "settings.account.openBilling"
+            } else {
+                "settings.seats.signInToSubscribe"
+            }))
+            .disabled(signed_in)
             // Buying needs an account, and Account owns the one sign-in flow.
             .on_click(cx.listener(|s, _, _, cx| s.select_page(Page::Account, cx)));
         SettingsSection::new(tr(Page::Plan.title()))

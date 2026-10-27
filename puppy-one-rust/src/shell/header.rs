@@ -7,8 +7,8 @@
 //!   window controls, the empty space that moves the window, the trailing
 //!   actions, and optionally a project centred over all of it
 //! - [`ChangesButton`]: the Changes entry, showing [`GitTitlebarStatus`]
-//! - [`agent_entry`], [`sign_in`]: the Agent entry and the homepage's
-//!   "Sign in"
+//! - [`agent_entry`], [`account_entry`]: the Agent entry and the homepage's
+//!   public account / sign-in entry
 use crate::{
     features::source_control::SourceControl,
     localization::{t as tr, tf},
@@ -293,13 +293,21 @@ pub(super) fn agent_entry(open: bool) -> Button {
         .w(px(metric::TITLEBAR_TOOL_ACTION_WIDTH))
 }
 
-/// `HomepageCloudStatus` signed out: "Sign in" (`.homepage-cloud-sign-in`).
-pub(super) fn sign_in() -> Button {
+/// Account settings entry; signing in does not enable Cloud project opening.
+pub(super) fn account_entry(has_account: bool) -> Button {
     let ty = theme::ty().header;
     Button::new("home-sign-in")
         .variant(ButtonVariant::Titlebar)
-        .label(tr("cloud.auth.signIn"))
-        .accessibility_label(tr("cloud.auth.signInToCloud"))
+        .label(tr(if has_account {
+            "settings.account.title"
+        } else {
+            "cloud.auth.signIn"
+        }))
+        .accessibility_label(tr(if has_account {
+            "settings.account.title"
+        } else {
+            "cloud.auth.signInToCloud"
+        }))
         .pr(px(8.))
         .text_size(px(ty.content))
         .line_height(px(ty.line_height))
