@@ -29,6 +29,7 @@ commands = [
     ('boundaries', ['python3', 'tools/check-ui-boundaries.py']),
     ('product-layers', ['python3', 'tools/audit-product-layers.py']),
     ('auth-reference', ['python3', 'tools/check-auth-reference.py']),
+    ('cloud-reference', ['python3', 'tools/check-cloud-reference.py']),
     ('localization', ['python3', 'tools/import-localization.py', '--check']),
     ('assets', ['python3', 'tools/generate-assets-rs.py', '--check']),
     ('agent-marks', ['python3', 'tools/import-agent-marks.py', '--check']),

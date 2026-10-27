@@ -64,6 +64,15 @@ for base in ['src/features/settings/main', 'src/shell', 'src/shell.rs']:
         if re.search(r'\b(?:access_token|refresh_token|code_verifier)\b|bearer_auth|security_framework::|cloud_auth::(?:Broker|http|store)', source):
             errors.append(f'{path.relative_to(root)}: account view bypasses the public auth projection')
 
+# Live Cloud files consume admitted auth transport, not credentials, a private
+# HTTP client, local mirrors or a second presentation/save owner.
+for path in (root / 'src/workspace/cloud').rglob('*.rs'):
+    if path.name == 'tests.rs':
+        continue
+    source = path.read_text()
+    if re.search(r'\b(?:gpui|cap_std|security_framework)\s*::|crate::(?:features|shell|ui|editor)|bearer_auth|\b(?:access_token|refresh_token)\b|reqwest::(?:Client|RequestBuilder|blocking)|std::(?:fs|process|net)', source):
+        errors.append(f'{path.relative_to(root)}: live Cloud adapter bypasses its authority/port boundary')
+
 # The retired Markdown prototype must not come back.
 if (root / "src/native_editor").exists():
     errors.append("src/native_editor: retired prototype editor remains")

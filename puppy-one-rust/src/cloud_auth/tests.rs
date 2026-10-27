@@ -211,6 +211,24 @@ pub(crate) fn account_fixture() -> (
     login(&pair.0, "alice").unwrap();
     pair
 }
+pub(crate) fn protocol_fixture(environment: Environment) -> (Arc<Broker>, Binding) {
+    let broker = Broker::new(
+        environment.clone(),
+        Arc::new(super::http::Http::new().unwrap()),
+        Arc::new(MemoryStore::default()),
+    )
+    .0;
+    broker
+        .complete_login(
+            environment,
+            callback::Input::Code(Secret("synthetic-code".into())),
+            &Secret("synthetic-verifier".into()),
+            &broker.control.fence(),
+        )
+        .unwrap();
+    let binding = binding(&broker);
+    (broker, binding)
+}
 fn snapshot(broker: &Broker) -> Snapshot {
     broker.subscribe().borrow().clone()
 }

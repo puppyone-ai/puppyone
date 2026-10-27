@@ -253,7 +253,7 @@ python3 tools/audit-ui-migration.py
 - [x] 本地目录、文档条件读写、新建/重命名/移动/复制/导入/删除、预览与文档观察走端口；类型化错误在展示边界转成文字。
 - [x] Provider 变更通知取代 Documents 自行定时观察；本地保留 500ms 观察，订阅有界合并、Drop/撤销清理；不是完整目录监听 journal。
 - [x] 原文件系统测试经统一入口运行；无本地目录的内存 Provider 验证真实 Documents 保存/预览流程；覆盖身份隔离、权限准入、迟到结果、未知写入结果和监听清理。
-- [~] Cloud 认证见下节；HTTP/SSE 文件 Provider、账号/项目导航和保活、Cloud 草稿冲突策略仍待接入，不因端口或登录存在标为已迁移。
+- [~] Cloud 认证与 live 文件 Provider 的已验证切片见下节；账号/项目导航和保活、Cloud 草稿冲突策略仍待接入，不因端口或登录存在标为已迁移。
 
 ## Native Cloud authentication（第二步）
 
@@ -263,6 +263,16 @@ python3 tools/audit-ui-migration.py
 - [x] 29 项认证测试 + GPUI 公开投影回归，使用合成 Supabase、真实本地 TCP/HTTP 和内存凭据；全部 Rust 回归两配置各 392 passed / 9 ignored，Clippy / release / frame budgets 通过。
 - [ ] 实际 Keychain/系统浏览器/托管测试账号验收、Windows/Linux、同 profile 多进程协作。回调结果页为纯文本，错误诊断仍为原生英文；完整本地化和像素一致未验收。不得用本地 fixture 替代真实环境验收。
 - [ ] 完整多根/多文档工作副本注册表、跨平台实机与严格像素一致性：仍未完成。
+
+## Live Cloud file Provider（第三步协议切片）
+
+- [x] 项目根 context + running workbench/generation + 实际根列表准备；5 秒一次性收据。独立 Provider 实现 live list/read、CAS、新建/目录、重命名/移动/删除、不可变字节预览，无本地镜像或 Git 内容回退。
+- [x] Broker 持有 HTTP/SSE 与凭据；绑定账号/环境/lease，路径与文件完整性校验，Cloud 8 MiB/10,000 条目与本地原有边界分开；BOM/CRLF 保留，不确定写入不重放。
+- [x] 文档/树订阅共享有界 reset SSE；失效后重读、有限重连、正常 token 续期、取消/Drop/权限与 generation 撤权；无 Agent cursor、文件轮询或自动唤醒计算。
+- [x] 20 项新增真实 loopback 协议/故障测试；两配置各 412 passed / 9 ignored，Clippy 通过；12 个 TS/后端输入哈希由 `tools/check-cloud-reference.py` 固定。不是实际后端或托管验收。
+- [ ] 显式 workbench 创建/唤醒、opening/polling/recovery 准备状态机；当前适配器只接入 running workbench。
+- [ ] 第四步 Cloud 草稿冲突/未知写结果阻断语义；第五步两种导航、保活、执行隔离。当前 Cloud UI 仍禁用，不以通用 facade 的本地磁盘优先策略代替 Cloud 保存策略。
+- [ ] Scope、Cloud 复制/导入、本地执行能力不开放；真实账号/项目、平台、可访问性、大文件编辑延迟和严格视觉验收未覆盖。继承的完整 localization gate 与独立 probe 问题仍未解决。
 
 ## 10. 明确不在本轮范围
 

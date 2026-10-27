@@ -1,0 +1,31 @@
+{
+  "note": "Reviewed live-workbench contracts; actual dirty-input hashes, not HEAD-only provenance. Local fixtures are not hosted acceptance. No backend changes.",
+  "sources": {
+    "desktop": {
+      "repository": "puppyone",
+      "head": "d2ddc4b903636442ea81b3fb454a24c6f96696f4",
+      "checkout": "../../puppyone-qubits",
+      "inputs": {
+        "src/features/cloud/files/cloudWorkspaceClient.ts": "33c56d7a16a08371e6d0471d876366822995f04133bce41462786038531c944b",
+        "src/features/cloud/files/cloudDataPort.ts": "fdd1477623e39086f965c495138dcb82d894b902ab83af6fc13674c3017222d0",
+        "electron/main/cloud-workspace-file.mjs": "edd03aa65e91b35304e682e51b007598986f2a2de85852ed969e2817f0b511b1",
+        "electron/main/cloud-workspace-events.mjs": "8ce3c36c3c8e5e4741d4149063977218f3e480651a31ff03913e00faae296b63",
+        "src/features/cloud/project/context/projectCloudContext.ts": "8e074c79ef2491f3f1dd3e19e6ac9119244e9704da34a1779703eb80a15a4210"
+      }
+    },
+    "cloud": {
+      "repository": "puppyone-cloud",
+      "head": "5ba5f878dab9654e5e5033cd413083a6f96f3cc9",
+      "checkout": "../../puppyone-cloud-qubits",
+      "inputs": {
+        "backend/src/platform/access/adapters/api/workbench_router.py": "e98edb70637e0dbe0116d58050c55bbdfd02edb1f6970bffc1b2eb3f482c83bb",
+        "backend/src/platform/workspace/service.py": "4b0ee466d755c513c7b2fad460fd4ef5ca153a615440968a55f7a76e2f25533c",
+        "backend/agent-worker/workbench-files.py": "e2020dab526e543ab2af32e4ac7ea2701c81d747394ee19a1afb49f6ff121b3a",
+        "backend/src/platform/repository_context/router.py": "687ac6ee0eb182c36e2b91f6e69c39dfc258c084d0fd24d5aa194627cec787c6",
+        "backend/src/platform/repository_context/schemas.py": "270d31207d4060233c14dc4d1b1d56ff4bf4b77b44f89398e067693bc9126c07",
+        "backend/src/platform/repository_target/schemas.py": "7b73eb75656a4d62bce2c5db8e7abce1adb7773a3c10c508c6f31900e6dd8aa4",
+        "backend/src/exception_handler.py": "ef51d0b4c3b8e1b89e802f312fb05a514620a8cb204da87ec2be06df3e60968a"
+      }
+    }
+  }
+}

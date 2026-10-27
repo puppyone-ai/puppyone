@@ -51,9 +51,13 @@ which receive the file's checked path (`Workspace::resource`). The host
 concrete viewer; product viewers the native build does not have yet are
 `Presentation::Unavailable` and show the honest placeholder.
 
-Text input is capped by the workspace at 4 MiB (`MAX_TEXT_BYTES`), below
-every content viewer's `maxSourceBytes`, so the manifest budget never binds
-before the read does.
+Local text remains capped at 4 MiB (`MAX_TEXT_BYTES`), no larger than
+any content viewer's `maxSourceBytes`. The dormant live Cloud adapter has an
+8 MiB transport/storage bound; that is **not** a blanket increase to viewer
+budgets or a large-document rendering qualification. Before Cloud navigation
+is enabled, admission must honor the selected viewer's smaller budget too.
+Resource viewers consume lease-checked local paths or immutable bytes; a Cloud
+preview never manufactures a local path.
 
 ### External Viewer Packs (`registry/packs/`)
 

@@ -12,7 +12,8 @@ use std::{
 /// Process-wide, so a replaced tree never reuses a revision.
 static NEXT_REVISION: AtomicU64 = AtomicU64::new(1);
 
-pub const MAX_DIRECTORY_ENTRIES: usize = 2_000;
+pub const MAX_DIRECTORY_ENTRIES: usize =
+    crate::workspace::contracts::Limits::LOCAL.directory_entries;
 
 #[derive(Clone, Deserialize, Debug, Default)]
 #[serde(default)]

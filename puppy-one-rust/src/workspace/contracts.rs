@@ -59,6 +59,9 @@ impl From<String> for Error {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct StorageId(Arc<str>);
 impl StorageId {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
     pub fn new(root: &str) -> Result<Self> {
         let url = url::Url::parse(root).map_err(|_| Error::from("Invalid workspace URI"))?;
         if url.cannot_be_a_base()
@@ -136,8 +139,24 @@ pub struct Capabilities {
     pub preview: bool,
     pub local_actions: bool,
 }
+#[derive(Clone, Copy, Debug)]
+pub struct Limits {
+    pub text_bytes: usize,
+    pub directory_entries: usize,
+}
+impl Limits {
+    pub const LOCAL: Self = Self {
+        text_bytes: 4 * 1024 * 1024,
+        directory_entries: 2_000,
+    };
+    pub const CLOUD: Self = Self {
+        text_bytes: 8 * 1024 * 1024,
+        directory_entries: 10_000,
+    };
+}
 #[derive(Clone, Debug)]
 pub struct Descriptor {
+    pub limits: Limits,
     pub storage: StorageId,
     pub name: String,
     pub capabilities: Capabilities,
@@ -148,13 +167,6 @@ pub struct Descriptor {
 pub enum PreviewData {
     LocalFile(PathBuf),
     /// Immutable provider-owned bytes; no ambient path needed by the renderer.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "Provider-neutral immutable input, exercised by the non-filesystem provider tests; Cloud is not enabled yet"
-        )
-    )]
     Bytes {
         mime: String,
         bytes: Arc<[u8]>,

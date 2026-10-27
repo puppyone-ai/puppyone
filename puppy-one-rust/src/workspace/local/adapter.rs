@@ -16,6 +16,7 @@ pub(in crate::workspace) fn open(path: &Path) -> Result<Arc<dyn Provider>> {
     let uri = url::Url::from_directory_path(&inner.path)
         .map_err(|_| Error::from("Invalid local workspace root"))?;
     let descriptor = Descriptor {
+        limits: Limits::LOCAL,
         storage: StorageId::new(uri.as_str())?,
         name: inner
             .path
@@ -152,7 +153,9 @@ impl ResourceWatchPort for LocalProvider {
         });
         Ok(WatchSubscription {
             events,
-            cancel: Arc::new(cancel),
+            cancel: WatchCancellation::new(move || {
+                let _ = cancel.send(());
+            }),
         })
     }
 }

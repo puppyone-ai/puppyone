@@ -1,5 +1,8 @@
 //! Bounded, redirect-free transport. All diagnostics are fixed codes; never log bodies/URLs.
-use super::model::*;
+use super::{
+    model::*,
+    transport::{StreamEvent, StreamSink, response_error},
+};
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use futures_util::StreamExt;
 use serde_json::{Value, json};
@@ -26,6 +29,15 @@ pub(super) trait Remote: Send + Sync {
     ) -> Result<()>;
     fn initialize(&self, session: &Session, fence: &Fence) -> Result<()>;
     fn request(&self, session: &Session, request: &ApiRequest, fence: &Fence) -> Result<Value>;
+    fn stream(
+        &self,
+        _session: &Session,
+        _request: &ApiRequest,
+        _fence: &Fence,
+        _sink: &mut StreamSink<'_>,
+    ) -> Result<()> {
+        Err(Error::Unsupported)
+    }
 }
 #[derive(Clone)]
 struct Config {
@@ -91,15 +103,14 @@ impl Http {
                 fence.check()?;
                 let value: Value = if status == 204 { Value::Null } else { serde_json::from_slice(&body).unwrap_or(Value::Null) };
                 if !(200..300).contains(&status) {
-                    let code = value.get("error_code").and_then(Value::as_str).unwrap_or_default();
-                    return Err(if status == 401 || (status == 400 && matches!(code, "refresh_token_not_found" | "refresh_token_already_used" | "invalid_grant" | "session_not_found")) { Error::InvalidCredentials }
-                        else if status >= 500 || status == 429 { Error::Unavailable } else { Error::Http(status) });
+                    return Err(response_error(status, &value));
                 }
                 if status != 204 && value.is_null() { return Err(Error::InvalidResponse); }
                 Ok(value)
             };
             tokio::select! {
                 _ = cancelled.changed() => Err(Error::SessionChanged),
+                _ = async { if let Some(cancel) = &fence.cancel { cancel.cancelled().await; } else { std::future::pending::<()>().await; } } => Err(Error::Cancelled),
                 result = tokio::time::timeout(remaining, operation) => result.unwrap_or_else(|_| Err(fence.check().err().unwrap_or(Error::Unavailable))),
             }
         })
@@ -271,5 +282,51 @@ impl Remote for Http {
             http = http.json(body);
         }
         self.send(http, 12 * 1024 * 1024, fence)
+    }
+    fn stream(
+        &self,
+        session: &Session,
+        request: &ApiRequest,
+        fence: &Fence,
+        sink: &mut StreamSink<'_>,
+    ) -> Result<()> {
+        let url = session
+            .credential
+            .environment
+            .api_url(&request.path, &request.query)?;
+        // Reconnect with fresh credentials before expiry. This GET cannot wake
+        // compute, and dropping the operation releases the response/socket.
+        let lifetime = session
+            .until
+            .saturating_duration_since(Instant::now())
+            .saturating_sub(Duration::from_secs(60))
+            .clamp(Duration::from_secs(1), Duration::from_secs(3600));
+        let http = self
+            .client(&url)
+            .get(url)
+            .bearer_auth(&session.access.0)
+            .header("Accept", "text/event-stream")
+            .header("Cache-Control", "no-store")
+            .timeout(lifetime + Duration::from_secs(1));
+        runtime().block_on(async {
+            let mut changed = fence.control.changes.subscribe(); fence.check()?;
+            let operation = async {
+                let response = tokio::time::timeout(Duration::from_secs(15), http.send()).await.map_err(|_| Error::Unavailable)?.map_err(|_| Error::Unavailable)?;
+                let status = response.status().as_u16();
+                if status != 200 { return Err(response_error(status, &Value::Null)); }
+                if !response.headers().get("content-type").and_then(|v| v.to_str().ok()).is_some_and(|v| v.split(';').next().unwrap_or_default().trim().eq_ignore_ascii_case("text/event-stream")) { return Err(Error::InvalidResponse); }
+                fence.check()?; sink(StreamEvent::Connected)?;
+                let mut body = response.bytes_stream();
+                loop {
+                    let part = tokio::time::timeout(Duration::from_secs(30), body.next()).await.map_err(|_| Error::Unavailable)?.ok_or(Error::Unavailable)?.map_err(|_| Error::Unavailable)?;
+                    fence.check()?; sink(StreamEvent::Data(&part))?;
+                }
+            };
+            tokio::select! {
+                _ = changed.changed() => Err(Error::SessionChanged),
+                _ = async { if let Some(cancel) = &fence.cancel { cancel.cancelled().await; } else { std::future::pending::<()>().await; } } => Err(Error::Cancelled),
+                result = tokio::time::timeout(lifetime, operation) => result.unwrap_or(Err(Error::Expired)),
+            }
+        })
     }
 }

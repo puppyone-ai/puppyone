@@ -21,6 +21,7 @@ pub enum Error {
     NoProviders,
     RemoteLogoutUnavailable,
     Http(u16),
+    Service(u16, super::transport::ServiceCode),
     OutcomeUnknown,
 }
 pub type Result<T> = std::result::Result<T, Error>;
@@ -38,7 +39,7 @@ impl std::fmt::Display for Error {
             Self::Unsupported => "Secure native sign-in is unavailable on this platform.",
             Self::NoProviders => "No sign-in method is enabled for this service.",
             Self::RemoteLogoutUnavailable => "Signed out on this device. Remote session revocation could not be confirmed.",
-            Self::Http(_) => "The service rejected this request.",
+            Self::Http(_) | Self::Service(_, _) => "The service rejected this request.",
             Self::OutcomeUnknown => "The operation may have completed. Verify its outcome before trying again.",
         })
     }
@@ -255,6 +256,7 @@ impl Control {
             control: self.clone(),
             epoch: self.epoch.load(Ordering::SeqCst),
             deadline: None,
+            cancel: None,
         }
     }
     pub fn close(&self) {
@@ -267,9 +269,13 @@ pub(super) struct Fence {
     pub control: Arc<Control>,
     pub epoch: u64,
     pub deadline: Option<Instant>,
+    pub cancel: Option<super::transport::Cancellation>,
 }
 impl Fence {
     pub fn check(&self) -> Result<()> {
+        if let Some(cancel) = &self.cancel {
+            cancel.check()?;
+        }
         if self.control.closed.load(Ordering::SeqCst)
             || self.epoch != self.control.epoch.load(Ordering::SeqCst)
         {

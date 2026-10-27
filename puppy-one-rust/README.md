@@ -84,7 +84,19 @@ python3 tools/verify-ui-assets.py --binary /path/to/dev-capture/puppy-one-rust -
 
 监听由 Provider 持有：本地仍为 500ms 有界文本观察，合并为重读通知；关闭文档或撤销租约停止观察。它不是递归目录 watcher 或持久 journal。本地条件写仍保留 BOM/换行/权限与磁盘优先规则，未增加 Cloud 冲突策略。资源型预览支持本地文件或不可变字节，租约撤销后不再交付；原有本地路径型预览的 OS 打开行为不宣称变成原子文件快照。
 
-**Provider 底座不是 Cloud 已接通**：原生登录由下节的独立服务承接；HTTP/SSE 文件 Provider、Cloud 导航与保活、云端草稿冲突处理仍未启用，编辑器仍单文档。TS 参考输入的 HEAD 与脏工作树哈希见 `fixtures/workspace/provider-reference.json`。完整契约归 [Native Host and Lifecycle](https://github.com/puppyone-ai/puppy-issues/blob/main/document/puppyone-desktop/platform/rust-native-frontend/host-and-lifecycle.md#native-workspace-provider-foundation)。
+**Provider 底座不是 Cloud 已接通**：原生登录由独立认证服务承接；HTTP/SSE 文件 Provider 的协议切片见第三步；Cloud 导航与保活、云端草稿冲突处理仍未启用，编辑器仍单文档。TS 参考输入的 HEAD 与脏工作树哈希见 `fixtures/workspace/provider-reference.json`。完整契约归 [Native Host and Lifecycle](https://github.com/puppyone-ai/puppy-issues/blob/main/document/puppyone-desktop/platform/rust-native-frontend/host-and-lifecycle.md#native-workspace-provider-foundation)。
+
+## Live Cloud file Provider（第三步协议切片）
+
+`src/workspace/cloud/` 实现现有四个 Provider 端口，不增加第二套文件 UI 或保存队列。`prepare_running` 通过账号/环境绑定的 Broker 校验项目根 context、固定 workbench ID/generation，并实际读取根目录；返回 5 秒、一次性消费的准备收据。**仅接入已运行的 workbench**；创建/唤醒、opening/polling/recovery 状态机仍归后续显式导航准备，不在读文件或断线重连时偷偷 POST 启动计算。
+
+- live list/read、条件写、新建（不覆盖）、目录创建、重命名/移动/删除；读写受服务端逐次授权与 generation 约束。Scope、复制/导入、本地路径与执行能力不开放，无本地镜像或已发布 Git 回退。
+- 不可变字节预览验证名称、类型、长度、base64 与 SHA-256；本地仍为 4 MiB/2,000 条目，Cloud 为 8 MiB/10,000 条目。文本保留 BOM/CRLF；revision 同时绑定存储、workbench、generation 和路径。并发读/list 合并，失效代次拦截旧读取。
+- 凭据和 HTTP/SSE 均归原生认证 Broker，Provider 不拿 token。单个 Provider 共享一条有界 reset 流；验证媒体类型、分片 UTF-8/CRLF、32 KiB 帧与 generation。断线最多重连三次，每次重新失效；正常 token 续期不消耗断线重连预算。不使用 Agent cursor 或文件轮询。
+- 撤销/最后一个订阅 Drop 取消相应 I/O；观测到权限撤销或账号/环境/运行代次变化后，旧预览访问失败。已交付的字节/已派发的解码无法追回；共享账号刷新可自行收尾，但取消后不再派发文件请求。流终止/重试耗尽后须重新授权准备，不静默换 generation。
+- 不确定写入返回 `OutcomeUnknown`，不重放；CAS 冲突提供外部快照。**Documents 的 Cloud dirty-draft/未知结果阻断语义尚待第四步，不能据此启用 Cloud 编辑 UI。** 账号/仓库两种导航、保活与执行隔离也仍未接通；启用 Cloud host 前还须遵守所选 viewer 更小的 source budget，不能把 8 MiB 传输上限当作全体编辑器准入。
+
+20 项新增本地协议测试使用真实 loopback HTTP/SSE、合成认证与内存 vault，覆盖完整 8 MiB 收发、故障与取消；两配置各 412 passed / 9 ignored。不是后端实际部署、真实账号/Keychain/浏览器验收或大文件编辑器延迟证明。参考 TS/后端 HEAD 与 12 个实际输入哈希见 `fixtures/cloud/provider-reference.json`，由 `tools/check-cloud-reference.py` 校验。规范归 [Cloud Workspace State](https://github.com/puppyone-ai/puppy-issues/blob/main/document/puppyone-desktop/cloud/workspace-state.md)。
 
 ## Native Cloud authentication（第二步）
 
@@ -348,7 +360,7 @@ CARGO_TARGET_DIR=../target cargo run --release --locked
 - `src/ui/ime.rs`：系统输入法补充（丢弃组字、过滤功能键字符），所有文本输入共用。
 - `src/wake.rs`：后台 I/O 的有界唤醒；`src/capture.rs`：显式启用的 macOS 合成截图。
 - `src/shell/tasks.rs`：首批原生 Settings / Feedback；尚未通过完整像素验收。
-- `src/workspace.rs` / `src/workspace/{contracts,ports}.rs`：统一资源、Provider 端口、能力与租约；私有 `src/workspace/local.rs` / `local/adapter.rs` 保留本地受限访问、编码和条件写。
+- `src/workspace.rs` / `src/workspace/{contracts,ports}.rs`：统一资源、Provider 端口、能力与租约；私有 `src/workspace/local.rs` / `local/adapter.rs` 保留本地受限访问、编码和条件写；`src/workspace/cloud/` 是尚未接导航的 live HTTP/SSE 适配器。
 - `src/documents.rs`：单文档状态机和关闭检查。
 - `src/localization.rs` / `tools/import-localization.py`：同源 locale 投影，不持久化用户偏好。
 - `src/shell/project_menu.rs`：锚定 Header 的原生项目位置 popup。

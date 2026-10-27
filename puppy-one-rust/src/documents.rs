@@ -391,7 +391,13 @@ impl Documents {
                 if !barrier && !automatic {
                     return;
                 }
-                if text.len() > MAX_TEXT_BYTES || text.contains(['\0', '\r']) {
+                if text.len()
+                    > self
+                        .workspace
+                        .as_ref()
+                        .map_or(MAX_TEXT_BYTES, |ws| ws.text_limit())
+                    || text.contains(['\0', '\r'])
+                {
                     self.fail(crate::localization::t("native.editor.invalidSnapshot").into());
                     return;
                 }

@@ -1,5 +1,13 @@
 //! Admitted workspace handle: stable resource identity, revocable provider lease
 //! and capability enforcement. Only `local` knows the capability filesystem.
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "Live Cloud adapter is protocol-tested; navigation awaits conflict policy and execution isolation"
+    )
+)]
+pub mod cloud;
 pub mod contracts;
 mod local;
 #[cfg(test)]
@@ -11,31 +19,38 @@ pub(crate) mod testing;
 #[cfg(test)]
 mod tests;
 
-use crate::model::{MAX_DIRECTORY_ENTRIES, Node};
+use crate::model::Node;
 use contracts::{Descriptor, RelativePath, Revision, TextSnapshot, WriteResult};
 pub use contracts::{Error, ErrorKind, PreviewData, ResourceId, Result};
-use ports::{Notify, Provider, WatchEvent, WatchSubscription};
+use ports::{Notify, Provider, WatchCancellation, WatchEvent, WatchSubscription};
 use std::{
     path::{Path, PathBuf},
     sync::{
         Arc, Mutex, Weak,
         atomic::{AtomicBool, Ordering},
-        mpsc,
     },
 };
 use uuid::Uuid;
-pub const MAX_TEXT_BYTES: usize = 4 * 1024 * 1024;
+pub const MAX_TEXT_BYTES: usize = contracts::Limits::LOCAL.text_bytes;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 struct Lease {
     id: Uuid,
     live: Arc<AtomicBool>,
-    watches: Arc<Mutex<Vec<Weak<mpsc::Sender<()>>>>>,
+    watches: Arc<Mutex<Vec<Weak<WatchCancellation>>>>,
+    provider: Arc<dyn Provider>,
+}
+impl std::fmt::Debug for Lease {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Lease")
+            .field("id", &self.id)
+            .finish_non_exhaustive()
+    }
 }
 impl Lease {
     fn check(&self) -> Result<()> {
         if self.live.load(Ordering::Acquire) {
-            Ok(())
+            self.provider.check_authority()
         } else {
             Err(Error::new(
                 ErrorKind::StaleLease,
@@ -100,7 +115,15 @@ impl Workspace {
         Self::from_provider(local::open(path)?)
     }
     pub fn from_provider(provider: Arc<dyn Provider>) -> Result<Arc<Self>> {
+        provider.check_authority()?;
         let descriptor = provider.descriptor();
+        if descriptor.limits.text_bytes == 0
+            || descriptor.limits.text_bytes > contracts::Limits::CLOUD.text_bytes
+            || descriptor.limits.directory_entries == 0
+            || descriptor.limits.directory_entries > contracts::Limits::CLOUD.directory_entries
+        {
+            return Err(Error::from("Invalid provider limits"));
+        }
         if descriptor.capabilities.local_actions && descriptor.local_root.is_none() {
             return Err(Error::from(
                 "Native actions require a native workspace root",
@@ -108,8 +131,9 @@ impl Workspace {
         }
         Ok(Arc::new(Self {
             descriptor,
-            provider,
+            provider: provider.clone(),
             lease: Lease {
+                provider,
                 id: Uuid::new_v4(),
                 live: Arc::new(AtomicBool::new(true)),
                 watches: Arc::default(),
@@ -119,6 +143,9 @@ impl Workspace {
     pub fn local_root(&self) -> Option<&Path> {
         self.descriptor.local_root.as_deref()
     }
+    pub fn text_limit(&self) -> usize {
+        self.descriptor.limits.text_bytes
+    }
     pub fn name(&self) -> &str {
         &self.descriptor.name
     }
@@ -127,9 +154,10 @@ impl Workspace {
     }
     pub fn revoke(&self) {
         self.lease.live.store(false, Ordering::Release);
+        self.provider.revoke();
         if let Ok(mut watches) = self.lease.watches.lock() {
             for cancel in watches.drain(..).filter_map(|weak| weak.upgrade()) {
-                let _ = cancel.send(());
+                cancel.cancel();
             }
         }
     }
@@ -181,7 +209,7 @@ impl Workspace {
         Ok(())
     }
     fn document(&self, identity: ResourceId, value: TextSnapshot, id: String) -> Result<Document> {
-        if value.text.len() > MAX_TEXT_BYTES
+        if value.text.len() > self.text_limit()
             || value.text.contains(['\0', '\r'])
             || value.revision.0.is_empty()
         {
@@ -217,7 +245,7 @@ impl Workspace {
     pub fn save(&self, document: &Document, text: &str) -> Result<WriteOutcome> {
         self.check_document(document)?;
         self.admit(self.capabilities().write)?;
-        if text.len() > MAX_TEXT_BYTES || text.contains(['\0', '\r']) {
+        if text.len() > self.text_limit() || text.contains(['\0', '\r']) {
             return Err(Error::from(crate::localization::t(
                 "native.workspace.invalidText",
             )));
@@ -240,10 +268,19 @@ impl Workspace {
         self.admit(self.capabilities().read)?;
         let relative = RelativePath::new(path)?;
         let rows = self.finish(self.provider.list(&relative))?;
-        if rows.len() > MAX_DIRECTORY_ENTRIES {
-            return Err(Error::from(crate::localization::t(
-                "native.workspace.folderLimit",
-            )));
+        if rows.len() > self.descriptor.limits.directory_entries {
+            return Err(Error::from(
+                if self.descriptor.limits.directory_entries
+                    == contracts::Limits::LOCAL.directory_entries
+                {
+                    crate::localization::t("native.workspace.folderLimit").to_owned()
+                } else {
+                    format!(
+                        "Directory exceeds the {}-entry provider limit",
+                        self.descriptor.limits.directory_entries
+                    )
+                },
+            ));
         }
         let mut seen = std::collections::HashSet::new();
         rows.into_iter()
@@ -272,7 +309,7 @@ impl Workspace {
     ) -> Result<PathBuf> {
         self.admit(self.capabilities().create)?;
         Self::entry_name(name)?;
-        if text.len() > MAX_TEXT_BYTES {
+        if text.len() > self.text_limit() {
             return Err(Error::from("Template exceeds the editor limit"));
         }
         self.mutated(
@@ -353,6 +390,20 @@ impl Workspace {
             &document.revision,
             notify,
         ))?;
+        self.register_watch(inner)
+    }
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "Cloud tree observation is wired with navigation in the later workspace-host stage"
+        )
+    )]
+    pub fn watch_root(&self, notify: Notify) -> Result<Subscription> {
+        self.admit(self.capabilities().watch)?;
+        self.register_watch(self.finish(self.provider.watch_root(notify))?)
+    }
+    fn register_watch(&self, inner: WatchSubscription) -> Result<Subscription> {
         {
             let mut watches = self
                 .lease

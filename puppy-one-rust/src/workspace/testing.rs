@@ -22,6 +22,7 @@ impl Memory {
     pub fn new(namespace: &str) -> Self {
         Self {
             descriptor: Descriptor {
+                limits: Limits::LOCAL,
                 storage: StorageId::new(namespace).unwrap(),
                 name: "Memory".into(),
                 local_root: None,

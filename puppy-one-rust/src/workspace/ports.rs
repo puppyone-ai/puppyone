@@ -2,11 +2,22 @@
 use super::contracts::*;
 use std::{
     path::{Path, PathBuf},
-    sync::{Arc, Mutex, mpsc},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 pub trait DataPort: Send + Sync {
     fn descriptor(&self) -> Descriptor;
+    /// Local admission is checked by the facade. Remote authority additionally
+    /// expires on account, service, permission or runtime-generation changes.
+    fn check_authority(&self) -> Result<()> {
+        Ok(())
+    }
+    /// Retire this admitted adapter's work. Revocable adapters are constructed
+    /// per admission, never shared between independently opened handles.
+    fn revoke(&self) {}
     fn list(&self, path: &RelativePath) -> Result<Vec<Entry>>;
     fn create(
         &self,
@@ -51,9 +62,26 @@ pub enum WatchEvent {
     Failed(Error),
 }
 pub type Notify = Arc<dyn Fn() + Send + Sync>;
+pub struct WatchCancellation {
+    cancelled: AtomicBool,
+    cancel: Box<dyn Fn() + Send + Sync>,
+}
+impl WatchCancellation {
+    pub fn new(cancel: impl Fn() + Send + Sync + 'static) -> Arc<Self> {
+        Arc::new(Self {
+            cancelled: AtomicBool::new(false),
+            cancel: Box::new(cancel),
+        })
+    }
+    pub fn cancel(&self) {
+        if !self.cancelled.swap(true, Ordering::AcqRel) {
+            (self.cancel)();
+        }
+    }
+}
 pub struct WatchSubscription {
     pub(crate) events: Arc<Mutex<Option<WatchEvent>>>,
-    pub(crate) cancel: Arc<mpsc::Sender<()>>,
+    pub(crate) cancel: Arc<WatchCancellation>,
 }
 impl WatchSubscription {
     pub fn next(&self) -> Option<WatchEvent> {
@@ -62,10 +90,20 @@ impl WatchSubscription {
 }
 impl Drop for WatchSubscription {
     fn drop(&mut self) {
-        let _ = self.cancel.send(());
+        self.cancel.cancel();
     }
 }
 pub trait ResourceWatchPort: Send + Sync {
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "Provider root observation precedes Cloud navigation wiring"
+        )
+    )]
+    fn watch_root(&self, _notify: Notify) -> Result<WatchSubscription> {
+        Err(Error::unsupported())
+    }
     /// Dropping the subscription must stop observation and release its resources.
     fn watch(
         &self,

@@ -187,6 +187,7 @@ impl Broker {
             control: self.control.clone(),
             epoch,
             deadline: None,
+            cancel: None,
         };
         state.epoch = epoch;
         state.status = status;
@@ -590,11 +591,24 @@ impl Broker {
         not(test),
         expect(
             dead_code,
-            reason = "Bound transport consumed by the next Cloud Provider stage; exercised by contract tests"
+            reason = "Unscoped convenience for non-workspace consumers; the live Provider uses request_scoped"
         )
     )]
     pub fn request(&self, binding: &Binding, request: &ApiRequest) -> Result<serde_json::Value> {
-        let fence = self.authorized(binding)?;
+        self.request_scoped(binding, request, &super::Cancellation::default())
+    }
+    pub fn check_binding(&self, binding: &Binding) -> Result<()> {
+        self.authorized(binding).map(|_| ())
+    }
+    pub fn request_scoped(
+        &self,
+        binding: &Binding,
+        request: &ApiRequest,
+        cancel: &super::Cancellation,
+    ) -> Result<serde_json::Value> {
+        let mut fence = self.authorized(binding)?;
+        fence.cancel = Some(cancel.clone());
+        fence.check()?;
         binding.environment.api_url(&request.path, &request.query)?;
         let session = self.session_for(binding, None)?;
         let _ = self.initialize(&session, &fence);
@@ -612,7 +626,10 @@ impl Broker {
             && (valid.is_err()
                 || matches!(
                     result,
-                    Err(Error::Unavailable | Error::SessionChanged | Error::InvalidResponse)
+                    Err(Error::Unavailable
+                        | Error::SessionChanged
+                        | Error::Cancelled
+                        | Error::InvalidResponse)
                 ))
         {
             return Err(Error::OutcomeUnknown);
@@ -625,6 +642,46 @@ impl Broker {
             })?;
         }
         result
+    }
+    pub fn stream(
+        &self,
+        binding: &Binding,
+        request: &ApiRequest,
+        cancel: &super::Cancellation,
+        sink: &mut super::transport::StreamSink<'_>,
+    ) -> Result<()> {
+        if request.method != reqwest::Method::GET || request.body.is_some() {
+            return Err(Error::Configuration);
+        }
+        let mut fence = self.authorized(binding)?;
+        fence.cancel = Some(cancel.clone());
+        fence.check()?;
+        let mut session = self.session_for(binding, None)?;
+        let mut retried_401 = false;
+        loop {
+            fence.check()?;
+            let result = self.remote.stream(&session, request, &fence, &mut |event| {
+                fence.check()?;
+                if matches!(event, super::StreamEvent::Connected) {
+                    self.update(&fence, |state| {
+                        state.status = Status::Authenticated;
+                        state.error = None;
+                    })?;
+                }
+                sink(event)
+            });
+            fence.check()?;
+            // Planned renewal is not a transport failure and must not consume
+            // the Provider's bounded reconnect budget. Never cross bindings.
+            if result == Err(Error::Expired)
+                || (result == Err(Error::InvalidCredentials) && !retried_401)
+            {
+                retried_401 |= result == Err(Error::InvalidCredentials);
+                session = self.session_for(binding, Some(&session.access))?;
+            } else {
+                return result;
+            }
+        }
     }
     #[cfg_attr(
         not(test),
