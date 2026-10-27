@@ -14,7 +14,8 @@ registry/        which viewer opens a document: the preset viewer manifest,
                  contributions validated against it, the surface contract
 viewers/         the surfaces built-in contributions open (text, csv, image,
                  placeholder)
-workbench/       pane chrome (⋯ handle, actions menu) and the find widget
+workbench/       open-document catalog, recursive pane layout, retained local
+                 workspace/copy runtime, metadata restoration, chrome and find
 markdown/ csv/   document formats
 table/           the editable-table primitive shared by CSV and Markdown tables
 navigation.rs    document references (links in values)
@@ -22,6 +23,31 @@ view/            the editor view (CodeMirror view counterpart) on Kit editor_hos
 text/            the text kernel: buffer, changes, selection, transactions, history
 tokens.rs        product theme tokens (assets/editor/*-theme.json)
 ```
+
+## Retained workbench (partial migration)
+
+`workbench/catalog.rs` owns ordered open references/MRU; `layout.rs` owns
+placement, not documents. `runtime.rs` retains one `Documents` coordinator and
+one native host per admitted resource, and independent local workspace states.
+The Shell routes every snapshot/reply by its owning slot. Focus and moving a
+pane never read or drain a document. Closing a pane drops placement only;
+closing a reference drains that copy before retiring its host. Window close
+drains all retained copies; failed close thaws pending and completed barriers.
+
+Metadata restoration is separate from document durability: an independent native
+profile namespace, 200ms coalescing, asynchronous atomic writes, Provider file
+admission before restored references become visible, interaction-over-hydration
+fencing. Ratios during a resize gesture are not durable until commit; cancel is
+bound to the originating workspace, not a reused split ID. Stored input is
+bounded to 128 documents/12 tree levels; non-UTF8 paths are currently omitted.
+Only metadata, never draft content, commands, credentials or authority, is stored.
+
+This is **not full TS parity**. Cloud navigation/admission/source permissions,
+viewer budgets and existing TS Cloud draft behavior are not wired to this host.
+Explorer tree retention/root observation, Explorer edge drops, complete pane-view
+lifetime, multi-root composition and history-preserving rename/move are pending.
+Current file operations drain/close all affected copies, then reopen moved paths.
+Do not mistake that safety barrier for a no-loss model/history rebase.
 
 ## Viewers (`registry/`, `viewers/`)
 

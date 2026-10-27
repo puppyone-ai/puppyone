@@ -1,5 +1,6 @@
 pub mod accessibility;
 pub mod desktop;
+pub mod editor_state_storage;
 pub mod environment;
 pub mod git;
 pub mod git_diff;

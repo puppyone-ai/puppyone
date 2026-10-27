@@ -1,6 +1,7 @@
-//! Native document-session boundary. The native document editor
-//! (`editor::host`) reports revisions and provides snapshots; the shared
-//! editing session owns autosave and disk epochs.
+//! Per-Working-Copy document/session boundary. The native document editor
+//! reports revisions and snapshots; the existing editing session owns autosave
+//! and storage epochs. `editor::workbench::runtime` retains these owners and
+//! routes their messages; ordinary tab/pane/workspace focus bypasses barriers.
 pub use crate::editor::document_session::types::Snapshot;
 use crate::editor::document_session::{
     document_editing_session::DocumentEditingSession,
@@ -205,6 +206,12 @@ impl Default for Documents {
     }
 }
 impl Documents {
+    pub fn in_workspace(workspace: Arc<Workspace>) -> Self {
+        Self {
+            workspace: Some(workspace),
+            ..Self::default()
+        }
+    }
     /// Background persistence does not block keyboard input or native commands.
     pub fn busy(&self) -> bool {
         !matches!(self.phase, Phase::Idle | Phase::AwaitComposition { .. })
@@ -217,7 +224,6 @@ impl Documents {
             (None, None) => None,
         }
     }
-    #[cfg(test)]
     pub fn saving(&self) -> bool {
         self.session.as_ref().is_some_and(|s| !s.drained()) || self.autosave_request.is_some()
     }
@@ -258,8 +264,22 @@ impl Documents {
     /// A different close participant failed after the document drain completed.
     /// Keep this session/history, restore input and resume its observation lease.
     pub fn cancel_quit(&mut self, ctx: &Wake) {
-        if self.allow_quit {
+        let pending_quit = matches!(
+            &self.phase,
+            Phase::Snapshot {
+                intent: Intent::Quit,
+                ..
+            } | Phase::AwaitComposition {
+                intent: Intent::Quit
+            } | Phase::Draining {
+                intent: Intent::Quit
+            }
+        );
+        if self.allow_quit || pending_quit {
             self.allow_quit = false;
+            self.phase = Phase::Idle;
+            self.outgoing
+                .retain(|m| !matches!(m, HostMessage::Snapshot { freeze: true, .. }));
             self.thaw();
             if self.watch.is_none() {
                 self.start_watch(ctx);
@@ -594,6 +614,18 @@ impl Documents {
             let _ = tx.send(Completed::Children(ws, path, result));
             ctx.notify();
         });
+    }
+    /// Cheap retained-host invalidation; do not hash every background document
+    /// on each input turn. Content replacements also advance id/revision.
+    pub fn status_key(&self) -> (Option<String>, u64, bool, bool, String, Option<String>) {
+        (
+            self.opened().map(|(id, _)| id.to_owned()),
+            self.revision,
+            self.dirty,
+            self.busy(),
+            self.status.clone(),
+            self.error.clone(),
+        )
     }
     pub fn presentation_key(&self) -> PresentationKey {
         (

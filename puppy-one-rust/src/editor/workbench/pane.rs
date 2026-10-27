@@ -169,11 +169,22 @@ type OnAction = Rc<dyn Fn(Action, &mut Window, &mut App)>;
 type OnDismiss = Rc<dyn Fn(bool, &mut Window, &mut App)>;
 type OnKey = Rc<dyn Fn(&KeyDownEvent, &mut Window, &mut App)>;
 
+#[derive(Clone)]
+pub struct PaneDrag {
+    pub owner: EntityId,
+    pub slot: u64,
+}
+impl Render for PaneDrag {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        div().px_2().child(t("editor.panes.dragToMove"))
+    }
+}
 /// The handle (`.desktop-editor-pane-handle-shell` / `-handle`).
 pub fn handle(
     dark: bool,
     revealed: bool,
     label: SharedString,
+    drag: Option<PaneDrag>,
     on_toggle: impl Fn(&mut Window, &mut App) + 'static,
 ) -> AnyElement {
     let t_ = Theme::new(dark);
@@ -214,6 +225,9 @@ pub fn handle(
                         .gap(px(2.))
                         .cursor(CursorStyle::OpenHand)
                         .tooltip(tooltip(label))
+                        .when_some(drag, |d, drag| {
+                            d.on_drag(drag, |drag, _, _, cx| cx.new(|_| drag.clone()))
+                        })
                         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                         .on_click(move |_, window, cx| on_toggle(window, cx))
                         .child(dot())

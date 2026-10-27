@@ -233,7 +233,7 @@ python3 tools/audit-ui-migration.py
 - [~] N10 编辑器工作台原生
   - [x] 窗格外框（单窗格）：⋯ 手柄（窗格上三分之一悬停显示）、动作菜单（Markdown 实时 / 源码分段控件、查找、用默认应用打开、关闭；CSV 的表头 / 行号开关与列宽命令；开关不关菜单、命令关菜单；方向键 / Home / End / Enter / Esc）
   - [x] 查找栏（`EditorFindHost`）：⌘F / 菜单打开，Enter / ⇧Enter 上下，结果“n / 共 m”，Esc 关闭并回到编辑器；CSV 适配器与编辑视图适配器（CodeMirror 等价：不区分大小写的字面匹配、当前项选中并居中、匹配标记与当前项外框、编辑后保持）
-  - [ ] 标签页（`EditorHeaderTabs`）、分屏与拖动窗格、每窗格独立文档会话、工作台布局持久化
+  - [~] 本地标签/MRU、递归分屏与 Pane 移动/调宽、独立 Working Copy、原生布局恢复和本地项目文档保活已接进 Shell；真实 TS 600 个 Pane 转换及原生 Undo/后台保存集成测试覆盖。**不是完整工作台迁移**：Cloud、Explorer 保活/边缘拖放、完整 Pane 视图生命周期、跨 Root composition、资源操作历史重绑定等仍缺失；详见 README 的 Retained Editor workbench。
   - 已知差异：当前匹配被选中时，选区由 Kit 绘制在匹配底色之上（产品为底色在选区之上），颜色叠加顺序略有不同
 - [~] N11 路由：MD / CSV / 纯文本只走原生编辑器；WebView 编辑器、其产品代码打包（`editor/`）和 GUI 冒烟驱动已删除，不存在回退路径。缺：代码 / JSON 语法高亮，HTML / PDF / 媒体查看器；原型 `native_editor` 已删除（其自绘输入框无人使用，一并删除；共享编辑动作在 `src/ui/input.rs`，文档格式动作在 `src/editor/actions.rs`）
 
@@ -271,7 +271,7 @@ python3 tools/audit-ui-migration.py
 - [x] 文档/树订阅共享有界 reset SSE；失效后重读、有限重连、正常 token 续期、取消/Drop/权限与 generation 撤权；无 Agent cursor、文件轮询或自动唤醒计算。
 - [x] 20 项新增真实 loopback 协议/故障测试；两配置各 412 passed / 9 ignored，Clippy 通过；12 个 TS/后端输入哈希由 `tools/check-cloud-reference.py` 固定。不是实际后端或托管验收。
 - [ ] 显式 workbench 创建/唤醒、opening/polling/recovery 准备状态机；当前适配器只接入 running workbench。
-- [ ] 第四步 Cloud 草稿冲突/未知写结果阻断语义；第五步两种导航、保活、执行隔离。当前 Cloud UI 仍禁用，不以通用 facade 的本地磁盘优先策略代替 Cloud 保存策略。
+- [ ] 按项目选择 → 显式准备 → Explorer → 既有 Editor → 工作区切换的完整链路接入；把 TS 已有 Cloud 草稿/未知写结果行为一起迁移，不另建冲突策略项目或后端 CAS。当前 Cloud UI 仍禁用；本地保活切片不代表 Cloud 导航、执行隔离或保存语义通过。
 - [ ] Scope、Cloud 复制/导入、本地执行能力不开放；真实账号/项目、平台、可访问性、大文件编辑延迟和严格视觉验收未覆盖。继承的完整 localization gate 与独立 probe 问题仍未解决。
 
 ## 10. 明确不在本轮范围

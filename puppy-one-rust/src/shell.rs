@@ -1,5 +1,6 @@
 use crate::{
-    documents::{ClientMessage, Documents, Intent},
+    documents::{ClientMessage, Intent},
+    editor::workbench::runtime::Runtime as Documents,
     geometry::Rect,
     localization::Locale,
     theme::{self, Theme},
@@ -18,6 +19,7 @@ mod bench;
 mod capture_scenario;
 mod command;
 mod create_new;
+mod editor_workbench;
 mod explorer;
 mod footer;
 mod header;
@@ -74,6 +76,9 @@ pub struct Shell {
     pending: bool,
     files: Documents,
     native: Entity<crate::editor::host::DocumentEditor>,
+    native_hosts: std::collections::BTreeMap<u64, Entity<crate::editor::host::DocumentEditor>>,
+    editor_resize: Option<editor_workbench::EditorResize>,
+    editor_tab_focus: std::collections::BTreeMap<u64, FocusHandle>,
     fixture: bool,
     startup_file: Option<PathBuf>,
     wake: Wake,
@@ -148,9 +153,17 @@ impl Shell {
             while rx.recv().await.is_ok() {
                 if this
                     .update_in(cx, |s, w, cx| {
-                        let before = (s.files.presentation_key(), s.project.clone());
+                        let before = (
+                            s.files.presentation_key(),
+                            s.files.generation,
+                            s.project.clone(),
+                        );
                         s.receive(w, cx);
-                        let after = (s.files.presentation_key(), s.project.clone());
+                        let after = (
+                            s.files.presentation_key(),
+                            s.files.generation,
+                            s.project.clone(),
+                        );
                         if before != after {
                             cx.notify();
                         }
@@ -199,8 +212,15 @@ impl Shell {
             task_ui: TaskUi::new(preferences.clone(), window, cx),
             preferences,
             pending: false,
-            files: Documents::default(),
+            files: if fixture {
+                Documents::default()
+            } else {
+                Documents::native()
+            },
             native: cx.new(crate::editor::host::DocumentEditor::new),
+            native_hosts: Default::default(),
+            editor_resize: None,
+            editor_tab_focus: Default::default(),
             fixture,
             startup_file: if cfg!(test) {
                 None
@@ -222,6 +242,7 @@ impl Shell {
             #[cfg(test)]
             frames: 0,
         };
+        s.native_hosts.insert(0, s.native.clone());
         // Captures can start on a task dialog.
         match std::env::var("PUPPYONE_CAPTURE_SURFACE").as_deref() {
             Ok("settings") => s.modals.open(Modal::Task(Task::Settings)),
@@ -243,7 +264,7 @@ impl Shell {
             match event {
                 ExplorerEvent::Open(path) => s.files.begin(Intent::OpenFile(path.clone()), &s.wake),
                 ExplorerEvent::LoadChildren(path) => s.files.load_children(path.clone(), &s.wake),
-                ExplorerEvent::CloseDocument => s.files.begin(Intent::CloseFile, &s.wake),
+                ExplorerEvent::CloseDocuments(paths) => s.files.close_paths(paths, &s.wake),
                 ExplorerEvent::Create { entry, parent } => {
                     s.start_create(*entry, parent.clone(), window, cx)
                 }
@@ -306,6 +327,7 @@ impl Shell {
         cx.observe_window_activation(window, |s, window, cx| {
             if !window.is_window_active() {
                 s.end_pane_drag(false, cx);
+                s.end_editor_resize(false, cx);
             } else {
                 cx.set_reduce_motion(crate::platform::accessibility::reduce_motion());
             }
@@ -320,6 +342,10 @@ impl Shell {
                 return;
             }
             let _ = shell.update(cx, |s, cx| {
+                if s.editor_resize.is_some() {
+                    s.end_editor_resize(false, cx);
+                    cx.stop_propagation();
+                }
                 if s.panes.dragging().is_some() {
                     s.end_pane_drag(false, cx);
                     cx.stop_propagation();
@@ -342,12 +368,15 @@ impl Shell {
         cx.subscribe_in(&s.native, window, |s, _, event, window, cx| {
             // Pane menu commands (open in default app, close) are the shell's.
             if let ClientMessage::Action { action } = event {
+                if s.files.state().is_some() {
+                    return;
+                }
                 if let Some(command) = Command::from_protocol(action) {
                     s.command(command, window, cx);
                 }
                 return;
             }
-            s.files.client(event.clone(), &s.wake);
+            s.files.client_for(0, event.clone(), &s.wake);
             cx.notify();
         })
         .detach();
@@ -529,6 +558,9 @@ impl Shell {
         .detach();
     }
     pub fn command(&mut self, command: Command, window: &mut Window, cx: &mut Context<Self>) {
+        if command == Command::Quit {
+            self.end_editor_resize(false, cx);
+        }
         match command {
             Command::Quit if self.workbench.read(cx).has_running(cx) => {
                 self.modals.open(Modal::ConfirmQuit);
@@ -590,12 +622,12 @@ impl Shell {
             Command::Undo | Command::Redo => {
                 if !self.modal()
                     && !self.files.busy()
-                    && let Some(doc) = &self.files.document
+                    && let Some(id) = self.files.document.as_ref().map(|doc| doc.id.clone())
                 {
                     self.files
                         .outgoing
                         .push(crate::documents::HostMessage::History {
-                            id: doc.id.clone(),
+                            id,
                             redo: command == Command::Redo,
                         });
                 }
@@ -700,6 +732,7 @@ impl Shell {
         let previous = self.files.opened().map(|(id, _)| id.to_owned());
         self.files.poll(&self.wake);
         if let Some(nodes) = self.files.tree_update.take() {
+            self.end_editor_resize(false, cx);
             let ws = self.files.workspace.clone().unwrap();
             self.explorer
                 .update(cx, |e, cx| e.load_workspace(ws.clone(), nodes, cx));
@@ -775,30 +808,119 @@ impl Shell {
         }
     }
     fn sync_editor(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let mut focus_native = false;
-        // Snapshot -> open -> loaded -> thaw settle synchronously with the
-        // native editor; a few rounds cover replies that queue new messages.
+        self.files.persist_metadata(&self.wake, false);
+        let active = self.files.active_slot();
+        let mut focus_native = self
+            .native_hosts
+            .get(&active)
+            .is_some_and(|e| e != &self.native);
         for _ in 0..4 {
-            if self.files.outgoing.is_empty() {
+            let messages = self.files.take_outgoing();
+            if messages.is_empty() {
                 break;
             }
-            let messages = std::mem::take(&mut self.files.outgoing);
-            for message in messages {
-                focus_native |= matches!(message, crate::documents::HostMessage::Open { .. });
-                let replies = self
-                    .native
-                    .update(cx, |s, cx| s.receive(&message, window, cx));
+            for (slot, message) in messages {
+                if let std::collections::btree_map::Entry::Vacant(entry) =
+                    self.native_hosts.entry(slot)
+                {
+                    self.editor_tab_focus.insert(slot, cx.focus_handle());
+                    let owner = cx.entity_id();
+                    let editor = cx.new(|cx| {
+                        let mut editor = crate::editor::host::DocumentEditor::new(cx);
+                        editor.workbench = true;
+                        editor.pane_drag =
+                            Some(crate::editor::workbench::pane::PaneDrag { owner, slot });
+                        editor
+                    });
+                    cx.subscribe_in(
+                        &editor,
+                        window,
+                        move |s, _, event: &ClientMessage, window, cx| {
+                            if let ClientMessage::Action { action } = event {
+                                if s.files.visible_slots().contains(&slot) && !s.modal() {
+                                    s.focus_editor_slot(slot);
+                                    if action == "close-file" {
+                                        if let Some(state) = s.files.state_mut() {
+                                            state.close_pane(&state.layout.active.clone());
+                                        }
+                                    } else if let Some((direction, placement)) = match action
+                                        .as_str()
+                                    {
+                                        "split-right" => Some((
+                                            crate::editor::workbench::layout::Direction::Horizontal,
+                                            crate::editor::workbench::layout::Placement::Second,
+                                        )),
+                                        "split-left" => Some((
+                                            crate::editor::workbench::layout::Direction::Horizontal,
+                                            crate::editor::workbench::layout::Placement::First,
+                                        )),
+                                        "split-down" => Some((
+                                            crate::editor::workbench::layout::Direction::Vertical,
+                                            crate::editor::workbench::layout::Placement::Second,
+                                        )),
+                                        "split-up" => Some((
+                                            crate::editor::workbench::layout::Direction::Vertical,
+                                            crate::editor::workbench::layout::Placement::First,
+                                        )),
+                                        _ => None,
+                                    } {
+                                        if let Some(state) = s.files.state_mut() {
+                                            if placement == crate::editor::workbench::layout::Placement::Second {
+                                                state.split(direction);
+                                            } else {
+                                                state.layout.split(&state.layout.active.clone(), direction, placement, None);
+                                            }
+                                        }
+                                    } else if let Some(command) = Command::from_protocol(action) {
+                                        s.command(command, window, cx);
+                                    }
+                                    s.sync_editor(window, cx);
+                                }
+                            } else {
+                                s.files.client_for(slot, event.clone(), &s.wake);
+                            }
+                            cx.notify();
+                        },
+                    )
+                    .detach();
+                    entry.insert(editor);
+                }
+                focus_native |= slot == active
+                    && matches!(
+                        message,
+                        crate::documents::HostMessage::Open { .. }
+                            | crate::documents::HostMessage::OpenResource { .. }
+                    );
+                let replies =
+                    self.native_hosts[&slot].update(cx, |s, cx| s.receive(&message, window, cx));
                 for reply in replies {
-                    self.files.client(reply, &self.wake);
+                    self.files.client_for(slot, reply, &self.wake);
                 }
             }
         }
-        // The workbench close dialog is window-level too.
+        let retained = self.files.retained_slots();
+        self.native_hosts.retain(|id, _| retained.contains(id));
+        self.editor_tab_focus.retain(|id, _| retained.contains(id));
+        if let Some(editor) = self.native_hosts.get(&active) {
+            self.native = editor.clone();
+        }
         let modal = self.modal() || self.workbench.read(cx).dialog_open();
         let home = self.home_visible();
-        self.native.update(cx, |s, cx| {
-            s.gate(modal || home || self.files.busy(), self.dark, cx)
-        });
+        let visible = self.files.visible_slots();
+        for (slot, editor) in &self.native_hosts {
+            let blocked = modal
+                || home
+                || !visible.contains(slot)
+                || self
+                    .files
+                    .slot(*slot)
+                    .is_none_or(|f| f.busy() || f.allow_quit);
+            editor.update(cx, |s, cx| s.gate(blocked, self.dark, cx));
+        }
+        if home || (active == 0 && self.files.state().is_some()) {
+            self.focus.focus(window, cx);
+            focus_native = false;
+        }
         #[cfg(feature = "dev-capture")]
         if std::env::var_os("PUPPYONE_SCREENSHOT").is_some()
             && std::env::var("PUPPYONE_EDITOR_FOCUS").as_deref() == Ok("0")
@@ -834,11 +956,14 @@ impl Shell {
     fn editor(&self, cx: &mut Context<Self>) -> Div {
         // A project with no open document shows the quiet editor canvas.
         let r = self.layout.editor;
-        at(r)
-            .bg(cx.palette().canvas)
-            .when(self.files.opened().is_some(), |d| {
-                d.child(at(Rect::new(0., 0., r.w, r.h)).child(self.native.clone()))
-            })
+        let mut canvas = at(r).bg(cx.palette().canvas);
+        if let Some(state) = self.files.state() {
+            canvas =
+                canvas.child(self.editor_node(&state.layout.root, Rect::new(0., 0., r.w, r.h), cx));
+        } else if self.files.opened().is_some() {
+            canvas = canvas.child(at(Rect::new(0., 0., r.w, r.h)).child(self.native.clone()));
+        }
+        canvas
     }
     /// Compact `ProjectSwitcherRail`: one mark per remembered project.
     fn project_rail(&self, h: f32, cx: &mut Context<Self>) -> Div {
@@ -980,6 +1105,7 @@ impl Shell {
                 .files
                 .opened()
                 .map(|(_, relative)| relative.to_path_buf()),
+            open_resources: self.files.open_paths(),
             documents_busy: self.files.busy(),
             folder_busy: self.files.folder_busy,
             picking: self.pending,
@@ -1028,6 +1154,9 @@ impl Shell {
         }
         if project && !centered {
             bar = bar.leading(self.project_context(cx));
+        }
+        if !home && self.files.state().is_some() {
+            bar = bar.tabs(self.editor_tabs(cx));
         }
         if changes {
             use gpui_kit::base::Selectable as _;
@@ -1170,10 +1299,15 @@ impl Render for Shell {
             .track_focus(&self.focus)
             .on_mouse_move(cx.listener(|s, e: &MouseMoveEvent, _, cx| {
                 s.move_pane_drag(e.position, cx);
+                s.move_editor_resize(e.position, cx);
             }))
             .on_mouse_up(
                 MouseButton::Left,
                 cx.listener(|s, e: &MouseUpEvent, _, cx| {
+                    if s.editor_resize.is_some() {
+                        s.move_editor_resize(e.position, cx);
+                        s.end_editor_resize(true, cx);
+                    }
                     if s.panes.dragging().is_some() {
                         s.move_pane_drag(e.position, cx);
                         s.end_pane_drag(true, cx);

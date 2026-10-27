@@ -1,0 +1,526 @@
+//! Retained workspace/document runtimes. Reuses Documents' save coordinator for
+//! every Working Copy; focus/layout operations never run its read/save barriers.
+//! A document host is retained until an explicit, successfully drained close.
+use super::catalog::{Input, Workbench, resource_key};
+use crate::{
+    documents::{ClientMessage, Documents, HostMessage, Intent},
+    model::Node,
+    wake::Wake,
+    workspace,
+};
+use std::{
+    collections::BTreeMap,
+    ops::{Deref, DerefMut},
+    path::PathBuf,
+};
+
+mod persistence;
+#[cfg(test)]
+mod tests;
+pub type SlotId = u64;
+struct Slot {
+    key: String,
+    files: Documents,
+    admitted: bool,
+    opening: u64,
+    closing: bool,
+    reported_error: Option<String>,
+    restoring: bool,
+}
+struct Host {
+    empty: Documents,
+    state: Workbench,
+    slots: BTreeMap<SlotId, Slot>,
+    rows: Vec<Node>,
+    interacted: bool,
+    restore: Option<serde_json::Value>,
+    metadata_loaded: bool,
+    metadata_value: Option<serde_json::Value>,
+    metadata_due: Option<std::time::Instant>,
+}
+impl Host {
+    fn interact(&mut self) {
+        self.interacted = true;
+        self.restore = None;
+        // Restore-only copies have never owned input. Retire their channels and
+        // watches before accepting an interaction; late completions are dropped.
+        self.slots.retain(|_, slot| !slot.restoring);
+    }
+}
+#[derive(Default)]
+pub struct Runtime {
+    scratch: Documents,
+    hosts: BTreeMap<String, Host>,
+    active: Option<String>,
+    preparing: Option<Documents>,
+    serial: u64,
+    navigation: u64,
+    quitting: bool,
+    storage: Option<crate::platform::editor_state_storage::Storage>,
+    metadata_inflight: usize,
+    pub metadata_suspended: bool,
+    pub allow_quit: bool,
+    pub error: Option<String>,
+    pub tree_update: Option<Vec<Node>>,
+    pub children_update: Option<(PathBuf, workspace::Result<Vec<Node>>)>,
+    /// Changes outside the focused document also invalidate tabs/layout once.
+    pub generation: u64,
+}
+impl Deref for Runtime {
+    type Target = Documents;
+    fn deref(&self) -> &Documents {
+        if let Some(host) = self.active.as_ref().and_then(|id| self.hosts.get(id)) {
+            if let Some(key) = host.state.layout.active_editor()
+                && let Some(slot) = host.slots.values().find(|s| s.admitted && s.key == key)
+            {
+                return &slot.files;
+            }
+            return &host.empty;
+        }
+        &self.scratch
+    }
+}
+impl DerefMut for Runtime {
+    fn deref_mut(&mut self) -> &mut Documents {
+        if let Some(host) = self.active.as_ref().and_then(|id| self.hosts.get_mut(id)) {
+            if let Some(key) = host.state.layout.active_editor()
+                && let Some(id) = host
+                    .slots
+                    .iter()
+                    .find(|(_, s)| s.admitted && s.key == key)
+                    .map(|(id, _)| *id)
+            {
+                return &mut host.slots.get_mut(&id).unwrap().files;
+            }
+            return &mut host.empty;
+        }
+        &mut self.scratch
+    }
+}
+impl Runtime {
+    pub fn workspace_key(&self) -> Option<&str> {
+        self.active.as_deref()
+    }
+    pub fn cancel_resize(&mut self, workspace: &str, split: &str, ratio: f64) {
+        if let Some(host) = self.hosts.get_mut(workspace) {
+            host.state.layout.resize(split, ratio);
+        }
+    }
+    pub fn state(&self) -> Option<&Workbench> {
+        self.active
+            .as_ref()
+            .and_then(|id| self.hosts.get(id))
+            .map(|h| &h.state)
+    }
+    pub fn state_mut(&mut self) -> Option<&mut Workbench> {
+        self.active
+            .as_ref()
+            .and_then(|id| self.hosts.get_mut(id))
+            .map(|h| {
+                h.interact();
+                &mut h.state
+            })
+    }
+    pub fn active_slot(&self) -> SlotId {
+        self.state()
+            .and_then(|s| s.layout.active_editor())
+            .and_then(|key| self.slot_for_key(key))
+            .unwrap_or(0)
+    }
+    pub fn slot_for_key(&self, key: &str) -> Option<SlotId> {
+        self.active
+            .as_ref()
+            .and_then(|id| self.hosts.get(id))
+            .and_then(|h| {
+                h.slots
+                    .iter()
+                    .find(|(_, s)| s.admitted && s.key == key)
+                    .map(|(id, _)| *id)
+            })
+    }
+    pub fn visible_slots(&self) -> Vec<SlotId> {
+        self.state()
+            .map(|s| {
+                s.layout
+                    .root
+                    .panes()
+                    .into_iter()
+                    .filter_map(|(_, key)| key.and_then(|k| self.slot_for_key(k)))
+                    .collect()
+            })
+            .unwrap_or_else(|| vec![0])
+    }
+    pub fn slot(&self, id: SlotId) -> Option<&Documents> {
+        if id == 0 {
+            return Some(&self.scratch);
+        }
+        self.hosts
+            .values()
+            .find_map(|h| h.slots.get(&id).map(|s| &s.files))
+    }
+    fn slot_mut(&mut self, id: SlotId) -> Option<&mut Documents> {
+        if id == 0 {
+            return Some(&mut self.scratch);
+        }
+        self.hosts
+            .values_mut()
+            .find_map(|h| h.slots.get_mut(&id).map(|s| &mut s.files))
+    }
+    pub fn retained_slots(&self) -> Vec<SlotId> {
+        std::iter::once(0)
+            .chain(self.hosts.values().flat_map(|h| h.slots.keys().copied()))
+            .collect()
+    }
+    pub fn busy(&self) -> bool {
+        self.quitting
+            || self.preparing.is_some()
+            || self.deref().busy()
+            || self
+                .active
+                .as_ref()
+                .and_then(|key| self.hosts.get(key))
+                .is_some_and(|host| host.slots.values().any(|s| s.files.busy()))
+    }
+    pub fn open_paths(&self) -> Vec<PathBuf> {
+        match self.active.as_ref().and_then(|key| self.hosts.get(key)) {
+            Some(host) => host
+                .slots
+                .values()
+                .filter_map(|s| s.files.opened().map(|(_, p)| p.to_owned()))
+                .collect(),
+            None => self
+                .scratch
+                .opened()
+                .map(|(_, p)| vec![p.to_owned()])
+                .unwrap_or_default(),
+        }
+    }
+    pub fn close_paths(&mut self, paths: &[PathBuf], wake: &Wake) {
+        let slots: Vec<_> = self
+            .retained_slots()
+            .into_iter()
+            .filter(|id| {
+                self.slot(*id).is_some_and(|f| {
+                    f.workspace
+                        .as_ref()
+                        .zip(self.workspace.as_ref())
+                        .is_some_and(|(a, b)| std::sync::Arc::ptr_eq(a, b))
+                        && f.opened()
+                            .is_some_and(|(_, p)| paths.iter().any(|root| p.starts_with(root)))
+                })
+            })
+            .collect();
+        for id in slots {
+            self.close_slot(id, wake);
+        }
+    }
+    pub fn begin(&mut self, intent: Intent, wake: &Wake) {
+        if self.quitting {
+            return;
+        }
+        match intent {
+            Intent::OpenFolder(path) => {
+                self.navigation += 1;
+                // Reuse only an already-admitted local root. No I/O on a hit.
+                if let Some(key) = self
+                    .hosts
+                    .iter()
+                    .find(|(_, h)| {
+                        h.empty
+                            .workspace
+                            .as_ref()
+                            .is_some_and(|ws| ws.local_root() == Some(path.as_path()))
+                    })
+                    .map(|(key, _)| key.clone())
+                {
+                    self.preparing = None;
+                    self.activate_workspace(key);
+                    wake.notify();
+                    return;
+                }
+                let mut preparing = Documents::default();
+                preparing.begin(Intent::OpenFolder(path), wake);
+                self.preparing = Some(preparing);
+            }
+            Intent::OpenFile(path) => {
+                let Some(ws) = self.workspace.clone() else {
+                    self.scratch.begin(Intent::OpenFile(path), wake);
+                    return;
+                };
+                if self.active.is_none() {
+                    self.scratch.begin(Intent::OpenFile(path), wake);
+                    return;
+                }
+                let key = match ws.resource_id(&path) {
+                    Ok(id) if !id.path.is_root() => resource_key(&id),
+                    _ => return,
+                };
+                self.navigation += 1;
+                if self.slot_for_key(&key).is_some() {
+                    self.activate(&key);
+                    wake.notify();
+                    return;
+                }
+                let host = self.hosts.get_mut(self.active.as_ref().unwrap()).unwrap();
+                host.interact();
+                if let Some(slot) = host.slots.values_mut().find(|s| s.key == key) {
+                    slot.opening = self.navigation;
+                    slot.restoring = false;
+                    return;
+                }
+                self.serial += 1;
+                let mut files = Documents::in_workspace(ws);
+                files.begin(Intent::OpenFile(path), wake);
+                host.slots.insert(
+                    self.serial,
+                    Slot {
+                        key,
+                        files,
+                        admitted: false,
+                        opening: self.navigation,
+                        closing: false,
+                        reported_error: None,
+                        restoring: false,
+                    },
+                );
+            }
+            Intent::CloseFile => {
+                let id = self.active_slot();
+                self.close_slot(id, wake);
+            }
+            Intent::Quit => {
+                self.preparing = None;
+                self.quitting = true;
+                self.allow_quit = false;
+                for id in self.retained_slots() {
+                    if let Some(files) = self.slot_mut(id) {
+                        files.begin(Intent::Quit, wake);
+                    }
+                }
+            }
+            other => self.deref_mut().begin(other, wake),
+        }
+        self.generation += 1;
+        wake.notify();
+    }
+    pub fn activate(&mut self, key: &str) {
+        if self.quitting {
+            return;
+        }
+        self.navigation += 1;
+        if let Some(state) = self.state_mut() {
+            state.activate(key);
+            self.generation += 1;
+        }
+    }
+    pub fn focus(&mut self, pane: &str) {
+        if self.quitting {
+            return;
+        }
+        self.navigation += 1;
+        if let Some(state) = self.state_mut() {
+            state.focus(pane);
+            self.generation += 1;
+        }
+    }
+    pub fn close_slot(&mut self, id: SlotId, wake: &Wake) {
+        if self.quitting {
+            return;
+        }
+        if id == 0 {
+            self.scratch.begin(Intent::CloseFile, wake);
+            return;
+        }
+        for host in self.hosts.values_mut() {
+            if let Some(slot) = host.slots.get_mut(&id)
+                && !slot.closing
+                && !slot.files.busy()
+            {
+                slot.closing = true;
+                slot.files.begin(Intent::CloseFile, wake);
+            }
+        }
+        self.generation += 1;
+    }
+    fn activate_workspace(&mut self, key: String) {
+        let host = &self.hosts[&key];
+        self.tree_update = Some(host.rows.clone());
+        self.active = Some(key);
+        self.generation += 1;
+    }
+    pub fn client_for(&mut self, slot: SlotId, message: ClientMessage, wake: &Wake) {
+        // Hidden slots may acknowledge snapshots and save, but cannot navigate.
+        if let ClientMessage::OpenPaths { paths } = message {
+            if slot == self.active_slot()
+                && let Some(path) = paths.first()
+            {
+                self.begin(
+                    Intent::OpenFile(PathBuf::from(path.trim_start_matches('/'))),
+                    wake,
+                );
+            }
+            return;
+        }
+        if let Some(files) = self.slot_mut(slot) {
+            files.client(message, wake);
+        }
+    }
+    pub fn take_outgoing(&mut self) -> Vec<(SlotId, HostMessage)> {
+        let mut messages: Vec<_> = std::mem::take(&mut self.scratch.outgoing)
+            .into_iter()
+            .map(|m| (0, m))
+            .collect();
+        for host in self.hosts.values_mut() {
+            for (id, slot) in &mut host.slots {
+                messages.extend(
+                    std::mem::take(&mut slot.files.outgoing)
+                        .into_iter()
+                        .map(|m| (*id, m)),
+                );
+            }
+        }
+        messages
+    }
+    pub fn load_children(&mut self, path: PathBuf, wake: &Wake) {
+        if let Some(host) = self.active.as_ref().and_then(|id| self.hosts.get_mut(id)) {
+            host.empty.load_children(path, wake);
+        } else {
+            self.scratch.load_children(path, wake);
+        }
+    }
+    pub fn cancel_quit(&mut self, wake: &Wake) {
+        self.quitting = false;
+        self.allow_quit = false;
+        for id in self.retained_slots() {
+            if let Some(files) = self.slot_mut(id) {
+                files.cancel_quit(wake);
+            }
+        }
+    }
+    pub fn poll(&mut self, wake: &Wake) {
+        self.poll_metadata(wake);
+        self.scratch.poll(wake);
+        if self.active.is_none() {
+            self.tree_update = self.scratch.tree_update.take().or(self.tree_update.take());
+            self.children_update = self.scratch.children_update.take();
+        }
+        if let Some(preparing) = &mut self.preparing {
+            preparing.poll(wake);
+            if let Some(error) = preparing.error.take() {
+                self.error = Some(error);
+                self.preparing = None;
+            } else if let Some(rows) = preparing.tree_update.take() {
+                let ws = preparing.workspace.clone().unwrap();
+                let key = resource_key(&ws.resource_id(std::path::Path::new("")).unwrap());
+                if !self.hosts.contains_key(&key) {
+                    self.hosts.insert(
+                        key.clone(),
+                        Host {
+                            empty: Documents::in_workspace(ws),
+                            state: Workbench::default(),
+                            slots: BTreeMap::new(),
+                            rows,
+                            interacted: false,
+                            restore: None,
+                            metadata_loaded: self
+                                .storage
+                                .as_ref()
+                                .is_none_or(|store| !store.load(key.clone(), wake)),
+                            metadata_value: None,
+                            metadata_due: None,
+                        },
+                    );
+                }
+                self.preparing = None;
+                self.activate_workspace(key);
+            }
+        }
+        let mut quit_failed = false;
+        for (key, host) in &mut self.hosts {
+            host.empty.poll(wake);
+            if self.active.as_ref() == Some(key) {
+                self.children_update = host
+                    .empty
+                    .children_update
+                    .take()
+                    .or(self.children_update.take());
+            }
+            let mut remove = Vec::new();
+            for (id, slot) in &mut host.slots {
+                let before = slot.files.status_key();
+                slot.files.poll(wake);
+                if before != slot.files.status_key() {
+                    self.generation += 1;
+                }
+                if let Some(error) = &slot.files.error {
+                    if !slot.restoring && slot.reported_error.as_ref() != Some(error) {
+                        self.error = Some(error.clone());
+                        slot.reported_error = Some(error.clone());
+                    }
+                    if !slot.admitted {
+                        remove.push(*id);
+                    }
+                    if !slot.files.busy() && slot.files.opened().is_some() {
+                        slot.closing = false;
+                        quit_failed |= self.quitting;
+                    }
+                }
+                if !slot.admitted
+                    && let Some((_, path)) = slot.files.opened()
+                {
+                    let input = Input {
+                        id: slot.key.clone(),
+                        label: path
+                            .file_name()
+                            .unwrap_or_default()
+                            .to_string_lossy()
+                            .into_owned(),
+                    };
+                    if slot.restoring {
+                        if host.restore.is_none() {
+                            remove.push(*id);
+                        }
+                    } else if slot.opening == self.navigation && self.active.as_ref() == Some(key) {
+                        host.state.open(input);
+                    } else {
+                        host.state.catalog.editors.push(input);
+                    }
+                    slot.admitted = true;
+                    self.generation += 1;
+                }
+                if slot.closing && !slot.files.busy() && slot.files.opened().is_none() {
+                    host.state.close(&slot.key);
+                    remove.push(*id);
+                    self.generation += 1;
+                }
+                if self.quitting
+                    && !slot.files.allow_quit
+                    && !slot.files.busy()
+                    && slot.files.error.is_none()
+                {
+                    slot.files.begin(Intent::Quit, wake);
+                }
+            }
+            for id in remove {
+                host.slots.remove(&id);
+            }
+        }
+        if let Some(error) = self.scratch.error.take() {
+            self.error = Some(error);
+            quit_failed |= self.quitting;
+        }
+        if quit_failed {
+            self.cancel_quit(wake);
+        }
+        self.poll_metadata(wake);
+        self.persist_metadata(wake, self.quitting);
+        if self.quitting {
+            self.allow_quit = self.metadata_inflight == 0
+                && self.hosts.values().all(|h| h.metadata_due.is_none())
+                && self
+                    .retained_slots()
+                    .into_iter()
+                    .all(|id| self.slot(id).is_some_and(|f| f.allow_quit));
+        }
+    }
+}

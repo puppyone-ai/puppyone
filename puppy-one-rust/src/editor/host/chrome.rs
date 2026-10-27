@@ -18,7 +18,21 @@ impl DocumentEditor {
         let (Some(session), Some(surface)) = (&self.session, &self.surface) else {
             return Contribution::default();
         };
-        let entries = surface.pane(cx);
+        let mut entries = surface.pane(cx);
+        if self.workbench {
+            for (id, key) in [
+                ("split-left", "editor.panes.splitLeft"),
+                ("split-right", "editor.panes.splitRight"),
+                ("split-up", "editor.panes.splitUp"),
+                ("split-down", "editor.panes.splitDown"),
+            ] {
+                entries.items.push(crate::editor::workbench::pane::Item {
+                    id,
+                    label: crate::localization::t(key).into(),
+                    kind: crate::editor::workbench::pane::ItemKind::Command { disabled: false },
+                });
+            }
+        }
         // The live / source toggle is the contribution's to declare.
         let segmented = entries
             .segmented
@@ -110,6 +124,12 @@ impl DocumentEditor {
             Action::Close => cx.emit(ClientMessage::Action {
                 action: "close-file".into(),
             }),
+            Action::Item(id)
+                if self.workbench
+                    && matches!(id, "split-left" | "split-right" | "split-up" | "split-down") =>
+            {
+                cx.emit(ClientMessage::Action { action: id.into() })
+            }
             Action::Item(id) => {
                 if let Some(surface) = &self.surface {
                     surface.pane_item(id, window, cx);
@@ -123,7 +143,7 @@ impl DocumentEditor {
 
     /// `openFind` (⌘F or the menu), when the editor has a find adapter.
     pub(super) fn open_find(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.contribution(cx).find {
+        if self.blocked || !self.contribution(cx).find {
             return;
         }
         let bar = match &self.find {

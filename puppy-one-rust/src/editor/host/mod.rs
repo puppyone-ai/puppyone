@@ -48,6 +48,8 @@ struct Session {
 }
 
 pub struct DocumentEditor {
+    pub workbench: bool,
+    pub pane_drag: Option<crate::editor::workbench::pane::PaneDrag>,
     session: Option<Session>,
     surface: Option<Box<dyn ViewerSurface>>,
     subscription: Option<Subscription>,
@@ -71,6 +73,8 @@ impl EventEmitter<ClientMessage> for DocumentEditor {}
 impl DocumentEditor {
     pub fn new(cx: &mut Context<Self>) -> Self {
         Self {
+            workbench: false,
+            pane_drag: None,
             session: None,
             surface: None,
             subscription: None,
@@ -321,6 +325,9 @@ impl DocumentEditor {
 
     /// Menu and shell commands (`source`, `undo`, `redo`, formatting).
     pub fn command(&mut self, name: &str, window: &mut Window, cx: &mut Context<Self>) {
+        if self.blocked {
+            return;
+        }
         let Some(surface) = &self.surface else { return };
         surface.command(name, window, cx);
         self.focus_document(window, cx);
@@ -367,6 +374,7 @@ impl Render for DocumentEditor {
                 self.dark,
                 self.chrome.revealed(),
                 handle_label.into(),
+                self.pane_drag.clone(),
                 move |window, cx| {
                     let _ = toggle.update(cx, |this, cx| this.toggle_pane_menu(window, cx));
                 },

@@ -1,0 +1,398 @@
+//! Shell wiring for the retained Editor workbench. No file reads or saves here.
+use super::*;
+use crate::editor::workbench::layout::{Direction, Node};
+use crate::ui::components::{Icon, ResizeHandle, tooltip};
+use gpui_kit::component::Sizable as _;
+
+pub(super) struct EditorResize {
+    pub workspace: String,
+    pub split: String,
+    pub rect: Rect,
+    pub direction: Direction,
+    pub original: f64,
+}
+#[derive(Clone)]
+struct TabDrag {
+    owner: EntityId,
+    key: String,
+    label: String,
+}
+impl Render for TabDrag {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        div().px_2().child(self.label.clone())
+    }
+}
+impl Shell {
+    pub(super) fn focus_editor_slot(&mut self, slot: u64) {
+        let pane = self.files.state().and_then(|state| {
+            state
+                .layout
+                .root
+                .panes()
+                .into_iter()
+                .find(|(_, key)| key.and_then(|key| self.files.slot_for_key(key)) == Some(slot))
+                .map(|(pane, _)| pane.to_owned())
+        });
+        if let Some(pane) = pane {
+            self.files.focus(&pane);
+        }
+    }
+    pub(super) fn editor_tabs(&self, cx: &mut Context<Self>) -> AnyElement {
+        let Some(state) = self.files.state() else {
+            return div().into_any_element();
+        };
+        let palette = cx.palette();
+        let mut tabs = div()
+            .id("editor-tabs")
+            .flex()
+            .items_center()
+            .h_full()
+            .min_w_0()
+            .overflow_x_scroll();
+        let ids: Vec<_> = state.catalog.editors.iter().map(|e| e.id.clone()).collect();
+        for (index, input) in state.catalog.editors.iter().enumerate() {
+            let key = input.id.clone();
+            let active = state.layout.active_editor() == Some(key.as_str());
+            let slot = self.files.slot_for_key(&key).unwrap();
+            let status = self.files.slot(slot);
+            let dirty = status.is_some_and(|f| f.dirty);
+            let saving = status.is_some_and(|f| f.saving() || f.busy());
+            let focus = self.editor_tab_focus.get(&slot).cloned();
+            let error = status.is_some_and(|f| f.error.is_some());
+            let close = crate::localization::tf(
+                "shell.editorTabs.close",
+                &[("name", input.label.clone().into())],
+            );
+            let select = key.clone();
+            let target = key.clone();
+            let keyboard_ids = ids.clone();
+            let tab = div()
+                .id(SharedString::from(format!("editor-tab-{slot}")))
+                .flex()
+                .items_center()
+                .group("editor-tab")
+                .min_w(px(76.))
+                .max_w(px(220.))
+                .flex_grow(1.)
+                .flex_shrink(1.)
+                .flex_basis(px(168.))
+                .h_full()
+                .overflow_hidden()
+                .border_l_1()
+                .when(index + 1 == ids.len(), |d| d.border_r_1())
+                .border_color(palette.shell_divider)
+                .text_color(if active { palette.text } else { palette.muted })
+                .bg(if active {
+                    palette.canvas
+                } else {
+                    Rgba::default()
+                })
+                .hover(move |s| s.bg(palette.hover).text_color(palette.text))
+                .on_mouse_down(
+                    MouseButton::Middle,
+                    cx.listener(move |s, _, w, cx| {
+                        s.files.close_slot(slot, &s.wake);
+                        s.receive(w, cx);
+                        cx.notify();
+                    }),
+                )
+                .on_drag(
+                    TabDrag {
+                        owner: cx.entity_id(),
+                        key: key.clone(),
+                        label: input.label.clone(),
+                    },
+                    |drag, _, _, cx| cx.new(|_| drag.clone()),
+                )
+                .on_drop(cx.listener(move |s, drag: &TabDrag, _, cx| {
+                    if drag.owner != cx.entity_id() {
+                        return;
+                    }
+                    if let Some(state) = s.files.state_mut() {
+                        state.catalog.move_before(&drag.key, &target);
+                    }
+                    cx.notify();
+                }))
+                .child(
+                    div()
+                        .id(SharedString::from(format!("editor-tab-select-{slot}")))
+                        .when_some(focus, |d, focus| d.track_focus(&focus).tab_stop(active))
+                        .flex()
+                        .items_center()
+                        .flex_1()
+                        .min_w_0()
+                        .gap(px(7.))
+                        .pl(px(10.))
+                        .pr(px(4.))
+                        .h_full()
+                        .cursor(theme::clickable_cursor())
+                        .text_size(px(theme::ty().header.content))
+                        .on_click(cx.listener(move |s, _, w, cx| {
+                            s.files.activate(&select);
+                            s.sync_editor(w, cx);
+                            cx.notify();
+                        }))
+                        .on_key_down(cx.listener(move |s, e: &KeyDownEvent, w, cx| {
+                            let next = match e.keystroke.key.as_str() {
+                                "left" => (index + keyboard_ids.len() - 1) % keyboard_ids.len(),
+                                "right" => (index + 1) % keyboard_ids.len(),
+                                "home" => 0,
+                                "end" => keyboard_ids.len() - 1,
+                                _ => return,
+                            };
+                            s.files.activate(&keyboard_ids[next]);
+                            s.sync_editor(w, cx);
+                            if let Some(focus) = s.editor_tab_focus.get(&s.files.active_slot()) {
+                                focus.focus(w, cx);
+                            }
+                            cx.stop_propagation();
+                            cx.notify();
+                        }))
+                        .child(
+                            crate::ui::components::FileIcon::file(
+                                input.label.clone(),
+                                self.preferences.read(cx).state.file_icon_theme.clone(),
+                            )
+                            .size_px(15.),
+                        )
+                        .child(
+                            div()
+                                .min_w_0()
+                                .text_ellipsis()
+                                .whitespace_nowrap()
+                                .child(input.label.clone()),
+                        ),
+                )
+                .child(
+                    div()
+                        .size(px(24.))
+                        .flex_shrink_0()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .when(active, |d| d.hidden())
+                        .group_hover("editor-tab", |s| s.hidden())
+                        .when(saving, |d| {
+                            d.child(crate::ui::components::Spinner::new(
+                                SharedString::from(format!("tab-saving-{slot}")),
+                                palette.divider,
+                                palette.muted,
+                            ))
+                        })
+                        .when(error && !saving, |d| {
+                            d.child(Icon::new("circle-alert").small().color(palette.danger))
+                        })
+                        .when(dirty && !error && !saving, |d| {
+                            d.child(div().size(px(6.)).rounded_full().bg(palette.muted))
+                        }),
+                )
+                .child(
+                    div()
+                        .id(SharedString::from(format!("editor-tab-close-{slot}")))
+                        .size(px(24.))
+                        .flex_shrink_0()
+                        .mr(px(3.))
+                        .rounded(px(theme::metric::TOOLBAR_ACTION_RADIUS))
+                        .flex()
+                        .when(!active, |d| d.hidden())
+                        .group_hover("editor-tab", |s| s.flex())
+                        .items_center()
+                        .justify_center()
+                        .cursor(theme::clickable_cursor())
+                        .tooltip(tooltip(close))
+                        .on_click(cx.listener(move |s, _, w, cx| {
+                            cx.stop_propagation();
+                            s.files.close_slot(slot, &s.wake);
+                            s.receive(w, cx);
+                            cx.notify();
+                        }))
+                        .child(Icon::new("x").small()),
+                );
+            tabs = tabs.child(tab);
+        }
+        tabs.into_any_element()
+    }
+    pub(super) fn editor_node(
+        &self,
+        node: &Node,
+        rect: Rect,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        match node {
+            Node::Pane { id, editor } => {
+                let pane = id.clone();
+                let target = id.clone();
+                let mut view = at(rect)
+                    .id(SharedString::from(id.clone()))
+                    .overflow_hidden()
+                    .capture_any_mouse_down(cx.listener(move |s, _, window, cx| {
+                        s.files.focus(&pane);
+                        s.sync_editor(window, cx);
+                        cx.notify();
+                    }))
+                    .on_drop(cx.listener(
+                        move |s, drag: &crate::editor::workbench::pane::PaneDrag, w, cx| {
+                            if drag.owner != cx.entity_id()
+                                || !s.files.visible_slots().contains(&drag.slot)
+                                || s.modal()
+                            {
+                                return;
+                            }
+                            let source = s.files.state().and_then(|state| {
+                                state
+                                    .layout
+                                    .root
+                                    .panes()
+                                    .into_iter()
+                                    .find(|(_, key)| {
+                                        key.and_then(|key| s.files.slot_for_key(key))
+                                            == Some(drag.slot)
+                                    })
+                                    .map(|(pane, _)| pane.to_owned())
+                            });
+                            let Some(source) = source else {
+                                return;
+                            };
+                            let p = w.mouse_position();
+                            let x = f32::from(p.x) - s.layout.editor.x - rect.x;
+                            let y = f32::from(p.y) - s.layout.editor.y - rect.y;
+                            let (direction, placement) =
+                                crate::editor::workbench::layout::drop_edge(x, y, rect.w, rect.h);
+                            if let Some(state) = s.files.state_mut() {
+                                state
+                                    .layout
+                                    .move_pane(&source, &target, direction, placement);
+                                state.focus(&source);
+                            }
+                            s.sync_editor(w, cx);
+                            cx.notify();
+                        },
+                    ));
+                if let Some(editor) = editor
+                    .as_deref()
+                    .and_then(|key| self.files.slot_for_key(key))
+                    .and_then(|slot| self.native_hosts.get(&slot))
+                {
+                    view = view.child(editor.clone());
+                } else {
+                    let close = id.clone();
+                    view = view.child(
+                        div().absolute().top(px(4.)).right(px(4.)).child(
+                            IconButton::new(SharedString::from(format!("close-empty-{id}")), "x")
+                                .label(crate::localization::t("editor.panes.closePane"))
+                                .on_click(cx.listener(move |s, _, w, cx| {
+                                    if let Some(state) = s.files.state_mut() {
+                                        state.close_pane(&close);
+                                    }
+                                    s.sync_editor(w, cx);
+                                    cx.notify();
+                                })),
+                        ),
+                    );
+                }
+                view.into_any_element()
+            }
+            Node::Split {
+                id,
+                direction,
+                ratio,
+                first,
+                second,
+            } => {
+                let horizontal = *direction == Direction::Horizontal;
+                let size = if horizontal { rect.w } else { rect.h };
+                let edge = size * *ratio as f32;
+                let (a, b, lane) = if horizontal {
+                    (
+                        Rect::new(rect.x, rect.y, edge, rect.h),
+                        Rect::new(rect.x + edge, rect.y, rect.w - edge, rect.h),
+                        Rect::new(rect.x + edge - 3., rect.y, 6., rect.h),
+                    )
+                } else {
+                    (
+                        Rect::new(rect.x, rect.y, rect.w, edge),
+                        Rect::new(rect.x, rect.y + edge, rect.w, rect.h - edge),
+                        Rect::new(rect.x, rect.y + edge - 3., rect.w, 6.),
+                    )
+                };
+                let split = id.clone();
+                let direction = *direction;
+                let original = *ratio;
+                let global = Rect::new(
+                    rect.x + self.layout.editor.x,
+                    rect.y + self.layout.editor.y,
+                    rect.w,
+                    rect.h,
+                );
+                let handle = ResizeHandle::new(
+                    SharedString::from(format!("editor-resize-{id}")),
+                    if horizontal {
+                        Axis::Horizontal
+                    } else {
+                        Axis::Vertical
+                    },
+                )
+                .absolute()
+                .left(px(lane.x))
+                .top(px(lane.y))
+                .w(px(lane.w))
+                .h(px(lane.h))
+                .stroke_at(3.)
+                .rest(cx.palette().divider)
+                .resizing(self.editor_resize.as_ref().is_some_and(|r| r.split == *id))
+                .on_drag_start(cx.listener(move |s, _, _, cx| {
+                    s.end_editor_resize(false, cx);
+                    let Some(workspace) = s.files.workspace_key().map(str::to_owned) else {
+                        return;
+                    };
+                    s.files.metadata_suspended = true;
+                    s.editor_resize = Some(EditorResize {
+                        workspace,
+                        split: split.clone(),
+                        rect: global,
+                        direction,
+                        original,
+                    });
+                    cx.stop_propagation();
+                    cx.notify();
+                }));
+                div()
+                    .size_full()
+                    .child(self.editor_node(first, a, cx))
+                    .child(self.editor_node(second, b, cx))
+                    .child(handle)
+                    .into_any_element()
+            }
+        }
+    }
+    pub(super) fn move_editor_resize(&mut self, point: Point<Pixels>, cx: &mut Context<Self>) {
+        let Some(resize) = &self.editor_resize else {
+            return;
+        };
+        if self.files.workspace_key() != Some(resize.workspace.as_str()) {
+            self.end_editor_resize(false, cx);
+            return;
+        }
+        let position = if resize.direction == Direction::Horizontal {
+            (f32::from(point.x) - resize.rect.x) / resize.rect.w.max(1.)
+        } else {
+            (f32::from(point.y) - resize.rect.y) / resize.rect.h.max(1.)
+        };
+        let split = resize.split.clone();
+        if let Some(state) = self.files.state_mut() {
+            state.layout.resize(&split, position.into());
+        }
+        cx.notify();
+    }
+    pub(super) fn end_editor_resize(&mut self, commit: bool, cx: &mut Context<Self>) {
+        if let Some(resize) = self.editor_resize.take() {
+            if !commit || self.files.workspace_key() != Some(resize.workspace.as_str()) {
+                self.files
+                    .cancel_resize(&resize.workspace, &resize.split, resize.original);
+            }
+            self.files.metadata_suspended = false;
+            self.wake.notify();
+            cx.notify();
+        }
+    }
+}

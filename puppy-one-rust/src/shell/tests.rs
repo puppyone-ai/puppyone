@@ -91,6 +91,113 @@ fn native_keyboard_autosaves_and_closes_without_prompt_and_adopts_disk(cx: &mut 
     view.update(cx, |s, _| assert!(s.files.document.is_none()));
 }
 #[gpui::test]
+fn workbench_tabs_splits_and_project_switch_retain_the_same_native_history(
+    cx: &mut TestAppContext,
+) {
+    let first = tempfile::tempdir().unwrap();
+    let second = tempfile::tempdir().unwrap();
+    std::fs::write(first.path().join("a.md"), "# Original\n").unwrap();
+    std::fs::write(first.path().join("b.md"), "# Second\n").unwrap();
+    let (view, cx) = setup(cx);
+    let settle =
+        |view: &Entity<Shell>, cx: &mut VisualTestContext, ready: &dyn Fn(&Shell) -> bool| {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+            loop {
+                view.update_in(cx, |s, w, cx| s.receive(w, cx));
+                cx.run_until_parked();
+                if view.read_with(cx, |s, _| ready(s)) {
+                    break;
+                }
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "Workbench did not settle"
+                );
+                std::thread::sleep(std::time::Duration::from_millis(2));
+            }
+            cx.update(|w, cx| {
+                let _ = w.draw(cx);
+            });
+        };
+    view.update(cx, |s, _| {
+        s.files
+            .begin(Intent::OpenFolder(first.path().into()), &s.wake)
+    });
+    settle(&view, cx, &|s| s.files.state().is_some());
+    view.update(cx, |s, _| {
+        s.files.begin(Intent::OpenFile("a.md".into()), &s.wake)
+    });
+    settle(&view, cx, &|s| s.files.opened().is_some());
+    let (slot, entity, key) = view.read_with(cx, |s, _| {
+        (
+            s.files.active_slot(),
+            s.native.entity_id(),
+            s.files
+                .state()
+                .unwrap()
+                .layout
+                .active_editor()
+                .unwrap()
+                .to_owned(),
+        )
+    });
+    cx.simulate_keystrokes("cmd-right cmd-left cmd-shift-right");
+    cx.simulate_input("Retained");
+    settle(&view, cx, &|s| !s.files.saving());
+    assert_eq!(
+        std::fs::read_to_string(first.path().join("a.md")).unwrap(),
+        "# Retained\n"
+    );
+    view.update(cx, |s, _| {
+        s.files
+            .state_mut()
+            .unwrap()
+            .split(crate::editor::workbench::layout::Direction::Horizontal);
+        s.files.begin(Intent::OpenFile("b.md".into()), &s.wake);
+    });
+    settle(&view, cx, &|s| {
+        s.files
+            .opened()
+            .is_some_and(|(_, p)| p == std::path::Path::new("b.md"))
+    });
+    view.read_with(cx, |s, _| {
+        assert_eq!(s.files.visible_slots().len(), 2);
+        assert_eq!(s.native_hosts[&slot].entity_id(), entity);
+    });
+    view.update_in(cx, |s, w, cx| {
+        let pane = s.files.state().unwrap().layout.active.clone();
+        s.files.state_mut().unwrap().close_pane(&pane);
+        s.files.activate(&key);
+        s.sync_editor(w, cx);
+    });
+    view.read_with(cx, |s, _| {
+        assert_eq!(s.files.state().unwrap().catalog.editors.len(), 2);
+        assert_eq!(s.native.entity_id(), entity);
+    });
+    view.update(cx, |s, _| {
+        s.files
+            .begin(Intent::OpenFolder(second.path().into()), &s.wake)
+    });
+    settle(&view, cx, &|s| {
+        s.files
+            .state()
+            .is_some_and(|state| state.catalog.editors.is_empty())
+    });
+    view.update(cx, |s, _| {
+        s.files.begin(
+            Intent::OpenFolder(first.path().canonicalize().unwrap()),
+            &s.wake,
+        )
+    });
+    settle(&view, cx, &|s| s.files.active_slot() == slot);
+    view.read_with(cx, |s, _| assert_eq!(s.native.entity_id(), entity));
+    command(&view, cx, Command::Undo);
+    settle(&view, cx, &|s| !s.files.saving());
+    assert_eq!(
+        std::fs::read_to_string(first.path().join("a.md")).unwrap(),
+        "# Original\n"
+    );
+}
+#[gpui::test]
 fn native_buttons_toggle_slots_and_open_settings(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     // ⌘B collapses the Explorer; the Header then offers the expand button.
@@ -447,6 +554,7 @@ fn renaming_the_open_document_closes_it_first_and_reopens_it_renamed(cx: &mut Te
     use std::path::Path;
     let temp = tempfile::tempdir().unwrap();
     std::fs::write(temp.path().join("notes.md"), "# Notes\n").unwrap();
+    std::fs::write(temp.path().join("unrelated.md"), "# Other\n").unwrap();
     let (view, cx) = setup(cx);
     let explorer = explorer_of(&view, cx);
     // Real workers answer: pump the shell (and its frames, where the
@@ -486,14 +594,24 @@ fn renaming_the_open_document_closes_it_first_and_reopens_it_renamed(cx: &mut Te
         }
     };
     settle(cx, &opened("notes.md"));
-    // The rename touches the open document: the Explorer has it closed,
-    // renames once nothing is open, then has it reopened at its new path.
+    view.update(cx, |s, _| {
+        s.files
+            .begin(Intent::OpenFile("unrelated.md".into()), &s.wake)
+    });
+    settle(cx, &opened("unrelated.md"));
+    let unrelated = view.read_with(cx, |s, _| s.files.active_slot());
+    // Drain the hidden affected copy, not the unrelated focused copy. Waiting
+    // for the entire workbench to become empty would deadlock with multiple tabs.
     explorer.update(cx, |e, cx| {
         e.rename("notes.md".into(), "renamed.md".into(), cx)
     });
     settle(cx, &opened("renamed.md"));
     assert!(temp.path().join("renamed.md").exists());
     assert!(!temp.path().join("notes.md").exists());
+    view.read_with(cx, |s, _| {
+        assert!(s.files.retained_slots().contains(&unrelated));
+        assert_eq!(s.files.state().unwrap().catalog.editors.len(), 2);
+    });
     explorer.read_with(cx, |e, _| {
         assert_eq!(e.tree().selected, Path::new("renamed.md"));
         assert!(!e.busy());

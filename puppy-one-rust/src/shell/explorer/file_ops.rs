@@ -20,7 +20,7 @@ pub enum FileOp {
 }
 impl FileOp {
     /// Workspace entries whose identity changes (the open document must close first).
-    fn touched(&self) -> Vec<PathBuf> {
+    pub(super) fn touched(&self) -> Vec<PathBuf> {
         match self {
             Self::Rename { path, .. } => vec![path.clone()],
             Self::Delete(paths) | Self::Move(paths, _) => paths.clone(),
@@ -41,7 +41,7 @@ impl Explorer {
         let Some(ws) = self.workspace.clone() else {
             return;
         };
-        if self.op.is_some() {
+        if self.op.is_some() || self.host.documents_busy {
             return;
         }
         let caps = ws.capabilities();
@@ -59,13 +59,19 @@ impl Explorer {
             return;
         }
         let touched = op.touched();
-        if let Some(relative) = &self.host.opened
-            && touched.iter().any(|p| relative.starts_with(p))
-        {
-            // Close first; `sync` resumes once the document is gone.
-            self.reopen = Some(relative.clone());
+        let affected: Vec<_> = self
+            .host
+            .open_resources
+            .iter()
+            .filter(|relative| touched.iter().any(|p| relative.starts_with(p)))
+            .cloned()
+            .collect();
+        if !affected.is_empty() {
+            // Drain every affected Working Copy, including hidden tabs. An
+            // unrelated focused document must not stall or bypass this barrier.
+            self.reopen = affected.clone();
             self.queued_op = Some(op);
-            cx.emit(ExplorerEvent::CloseDocument);
+            cx.emit(ExplorerEvent::CloseDocuments(affected));
             return;
         }
         let (tx, rx) = async_channel::bounded(1);
@@ -177,7 +183,7 @@ impl Explorer {
                 &[("detail", error.into())],
             )));
         }
-        if let Some(old) = self.reopen.take() {
+        for old in std::mem::take(&mut self.reopen) {
             let target = outcome.moved.iter().find_map(|(from, to)| {
                 let rest = old.strip_prefix(from).ok()?;
                 // The document itself moved: joining an empty rest would

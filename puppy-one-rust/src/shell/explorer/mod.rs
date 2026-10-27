@@ -55,6 +55,7 @@ pub(in crate::shell) struct Host {
     pub open: bool,
     /// The document in the editor, workspace-relative.
     pub opened: Option<PathBuf>,
+    pub open_resources: Vec<PathBuf>,
     /// A document switch, save or close is in flight.
     pub documents_busy: bool,
     /// A folder listing is loading.
@@ -73,7 +74,7 @@ pub(in crate::shell) enum ExplorerEvent {
     LoadChildren(PathBuf),
     /// A file operation touches the open document: close it (autosave
     /// drained) first. The operation resumes once nothing is open.
-    CloseDocument,
+    CloseDocuments(Vec<PathBuf>),
     /// The create form for `entry` in `parent`.
     Create { entry: Entry, parent: PathBuf },
     /// The rename (or change file type) dialog for `path`.
@@ -101,7 +102,7 @@ pub(in crate::shell) struct Explorer {
     /// An operation waiting for the open document to close first.
     queued_op: Option<FileOp>,
     /// The document to reopen at its new path once the operation lands.
-    reopen: Option<PathBuf>,
+    reopen: Vec<PathBuf>,
     /// The disclosure motion of the visible rows.
     motion: motion::TreeMotion,
     #[cfg(test)]
@@ -152,7 +153,7 @@ impl Explorer {
             menu: None,
             op: None,
             queued_op: None,
-            reopen: None,
+            reopen: vec![],
             motion: motion::TreeMotion::default(),
             #[cfg(test)]
             painted_rows: 0,
@@ -202,7 +203,13 @@ impl Explorer {
             cx.notify();
         }
         if self.op.is_none()
-            && self.host.opened.is_none()
+            && self.queued_op.as_ref().is_some_and(|op| {
+                !self
+                    .host
+                    .open_resources
+                    .iter()
+                    .any(|path| op.touched().iter().any(|root| path.starts_with(root)))
+            })
             && !self.host.documents_busy
             && let Some(op) = self.queued_op.take()
         {
@@ -225,7 +232,7 @@ impl Explorer {
         self.tree.rebuild();
         self.op = None;
         self.queued_op = None;
-        self.reopen = None;
+        self.reopen.clear();
         self.workspace = Some(workspace);
         self.fixture = false;
         self.scroll = UniformListScrollHandle::new();

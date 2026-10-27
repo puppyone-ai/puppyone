@@ -84,7 +84,18 @@ python3 tools/verify-ui-assets.py --binary /path/to/dev-capture/puppy-one-rust -
 
 监听由 Provider 持有：本地仍为 500ms 有界文本观察，合并为重读通知；关闭文档或撤销租约停止观察。它不是递归目录 watcher 或持久 journal。本地条件写仍保留 BOM/换行/权限与磁盘优先规则，未增加 Cloud 冲突策略。资源型预览支持本地文件或不可变字节，租约撤销后不再交付；原有本地路径型预览的 OS 打开行为不宣称变成原子文件快照。
 
-**Provider 底座不是 Cloud 已接通**：原生登录由独立认证服务承接；HTTP/SSE 文件 Provider 的协议切片见第三步；Cloud 导航与保活、云端草稿冲突处理仍未启用，编辑器仍单文档。TS 参考输入的 HEAD 与脏工作树哈希见 `fixtures/workspace/provider-reference.json`。完整契约归 [Native Host and Lifecycle](https://github.com/puppyone-ai/puppy-issues/blob/main/document/puppyone-desktop/platform/rust-native-frontend/host-and-lifecycle.md#native-workspace-provider-foundation)。
+**Provider 底座不是 Cloud 已接通**：原生登录由独立认证服务承接；HTTP/SSE 文件 Provider 的协议切片见第三步；Cloud 导航与保活、云端草稿处理仍未启用；本地多文档工作台已接入，范围与缺口见下一节。TS 参考输入的 HEAD 与脏工作树哈希见 `fixtures/workspace/provider-reference.json`。完整契约归 [Native Host and Lifecycle](https://github.com/puppyone-ai/puppy-issues/blob/main/document/puppyone-desktop/platform/rust-native-frontend/host-and-lifecycle.md#native-workspace-provider-foundation)。
+
+## Retained Editor workbench（迁移进行中，不是全量完成）
+
+`editor/workbench/{catalog,layout,runtime}.rs` 分别持有打开文档目录/MRU、递归 Pane 树和保活工作区；Shell 使用这些实际运行时，不是另一个演示页。每份 Working Copy 继续使用现有 `Documents` / `DocumentEditingSession` 保存队列，按稳定资源身份去重；标签和 Pane 焦点切换不读文件、不执行保存屏障。
+
+- 本地文件标签、切换/重排/关闭、空分屏、四向拆分、Pane 移动与比例调整；关闭 Pane 保留打开引用。复用原有原生编辑器 Entity，保留撤销、选区和滚动；隐藏宿主撤去输入与导航路由。
+- 本地项目切换保留各自文档和布局；准备失败保留当前工作区。后台文档继续保存/观察，显式关闭按所属文档 drain；窗口关闭等待所有保活文档，其他参与者失败时恢复原会话。
+- 原生 profile 的 `editor-workbench/` 只写非正文元数据：200ms 合并、后台原子写入、关闭时等待已接收写入。恢复逐条经过 Provider 文件准入，晚到恢复不能覆盖交互；不信任文件夹、越界路径、外部资源 ID。恢复限 128 文档/12 层树，当前不恢复非 UTF-8 路径；不持久化草稿或凭据。
+- TS HEAD 与 **61 个实际输入哈希**见 `fixtures/editor/workbench-reference.json`；`node tools/reference-editor-workbench.mjs --check` 执行真实 TS，600 个含递归结构的 Pane 状态转换由 Rust 对照。GPUI 集成测试实际验证跨标签、分屏、本地项目切换后，同一原生 Entity 的 Undo 仍可恢复并落盘。
+
+**仍未完成用户要求的全部 TS 功能**：Cloud 项目选择/显式启动准备与两种导航、Cloud→Editor 来源/权限/viewer budget、既有 Cloud 草稿与未知保存结果语义、目录订阅和执行隔离；Explorer 状态保活、Explorer→Pane 边缘拖放/完整预览与快捷键/可访问性、完整每 Pane 视图状态、跨 Root composition、重命名/移动后原 Working Copy 与历史重绑定。文件操作现阶段先 drain/关闭所有受影响（包括隐藏）文档再执行并重开，**不是历史无损重绑定**。元数据恢复不是崩溃草稿恢复。Cloud UI 仍禁用，严格视觉与真实 Cloud 验收没有因此通过。
 
 ## Live Cloud file Provider（第三步协议切片）
 
@@ -94,7 +105,7 @@ python3 tools/verify-ui-assets.py --binary /path/to/dev-capture/puppy-one-rust -
 - 不可变字节预览验证名称、类型、长度、base64 与 SHA-256；本地仍为 4 MiB/2,000 条目，Cloud 为 8 MiB/10,000 条目。文本保留 BOM/CRLF；revision 同时绑定存储、workbench、generation 和路径。并发读/list 合并，失效代次拦截旧读取。
 - 凭据和 HTTP/SSE 均归原生认证 Broker，Provider 不拿 token。单个 Provider 共享一条有界 reset 流；验证媒体类型、分片 UTF-8/CRLF、32 KiB 帧与 generation。断线最多重连三次，每次重新失效；正常 token 续期不消耗断线重连预算。不使用 Agent cursor 或文件轮询。
 - 撤销/最后一个订阅 Drop 取消相应 I/O；观测到权限撤销或账号/环境/运行代次变化后，旧预览访问失败。已交付的字节/已派发的解码无法追回；共享账号刷新可自行收尾，但取消后不再派发文件请求。流终止/重试耗尽后须重新授权准备，不静默换 generation。
-- 不确定写入返回 `OutcomeUnknown`，不重放；CAS 冲突提供外部快照。**Documents 的 Cloud dirty-draft/未知结果阻断语义尚待第四步，不能据此启用 Cloud 编辑 UI。** 账号/仓库两种导航、保活与执行隔离也仍未接通；启用 Cloud host 前还须遵守所选 viewer 更小的 source budget，不能把 8 MiB 传输上限当作全体编辑器准入。
+- 不确定写入返回 `OutcomeUnknown`，不重放；CAS 冲突提供外部快照。**Documents 的既有 TS Cloud dirty-draft/未知结果行为须随工作台接入一起迁移，不能据此启用 Cloud 编辑 UI。** 账号/仓库两种导航、保活与执行隔离也仍未接通；启用 Cloud host 前还须遵守所选 viewer 更小的 source budget，不能把 8 MiB 传输上限当作全体编辑器准入。
 
 20 项新增本地协议测试使用真实 loopback HTTP/SSE、合成认证与内存 vault，覆盖完整 8 MiB 收发、故障与取消；两配置各 412 passed / 9 ignored。不是后端实际部署、真实账号/Keychain/浏览器验收或大文件编辑器延迟证明。参考 TS/后端 HEAD 与 12 个实际输入哈希见 `fixtures/cloud/provider-reference.json`，由 `tools/check-cloud-reference.py` 校验。规范归 [Cloud Workspace State](https://github.com/puppyone-ai/puppy-issues/blob/main/document/puppyone-desktop/cloud/workspace-state.md)。
 

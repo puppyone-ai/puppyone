@@ -31,10 +31,15 @@ pub(super) struct TitleBar {
     leading: Vec<AnyElement>,
     actions: Vec<AnyElement>,
     centered: Option<AnyElement>,
+    tabs: Option<AnyElement>,
 }
 impl TitleBar {
     pub fn new() -> Self {
         Self::default()
+    }
+    pub fn tabs(mut self, tabs: impl IntoElement) -> Self {
+        self.tabs = Some(tabs.into_any_element());
+        self
     }
     /// An entry after the native window controls (`.desktop-titlebar-left`),
     /// 2px from the previous one.
@@ -69,9 +74,13 @@ impl RenderOnce for TitleBar {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
         let t = cx.palette();
         // Empty space moves the window; a double click zooms it.
+        let with_tabs = self.tabs.is_some();
         let drag = div()
             .id("header-drag")
-            .flex_1()
+            .when(!with_tabs, |d| d.flex_1())
+            .when(with_tabs, |d| {
+                d.w(px(metric::TITLEBAR_DRAG_MIN_WIDTH)).flex_shrink_0()
+            })
             .h_full()
             .min_w(px(metric::TITLEBAR_DRAG_MIN_WIDTH))
             .on_mouse_down(MouseButton::Left, |e, window, _| {
@@ -98,6 +107,9 @@ impl RenderOnce for TitleBar {
                     .gap(px(2.))
                     .children(self.leading),
             )
+            .when_some(self.tabs, |d, tabs| {
+                d.child(div().flex_1().min_w_0().h_full().child(tabs))
+            })
             .child(drag)
             .child(
                 h_flex()
