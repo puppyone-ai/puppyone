@@ -1,5 +1,6 @@
 //! `ExternalViewerChooser`: several installed Viewer Packs match a document
 //! equally; the user picks one and its host surface opens in place.
+use crate::workspace::PreviewResource;
 use crate::{
     editor::registry::{
         SurfaceInput, SurfaceRequest, ViewerSurface,
@@ -15,7 +16,6 @@ use crate::{
     },
 };
 use gpui::{prelude::*, *};
-use std::path::PathBuf;
 
 pub fn chooser(
     request: &SurfaceRequest,
@@ -24,7 +24,7 @@ pub fn chooser(
     cx: &mut App,
 ) -> Box<dyn ViewerSurface> {
     let path = match request.input {
-        SurfaceInput::Resource(path) => Some(path.to_path_buf()),
+        SurfaceInput::Resource(path) => Some(path.clone()),
         _ => None,
     };
     let view = cx.new(|_| Chooser {
@@ -53,7 +53,7 @@ impl ViewerSurface for ChooserSurface {
 struct Chooser {
     id: String,
     name: String,
-    path: Option<PathBuf>,
+    path: Option<PreviewResource>,
     format: &'static FileFormat,
     dark: bool,
     scale: Scale,

@@ -13,7 +13,8 @@ pub fn create(
     crate::localization::spawn(move || {
         let result = workspace
             .create_entry(&parent, &name, kind == Entry::Folder, kind.initial_text())
-            .map(|path| (path, workspace.list(&parent)));
+            .map(|path| (path, workspace.list(&parent).map_err(|e| e.to_string())))
+            .map_err(|e| e.to_string());
         let _ = tx.send_blocking(result);
     });
     rx

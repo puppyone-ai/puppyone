@@ -143,7 +143,11 @@ impl Shell {
         h: f32,
         cx: &mut Context<Self>,
     ) -> gpui_kit::base::Dialog {
-        let root = self.files.workspace.as_ref().map(|ws| ws.path.clone());
+        let root = self
+            .files
+            .workspace
+            .as_ref()
+            .and_then(|ws| ws.local_root().map(PathBuf::from));
         self.task_ui.settings.update(cx, |s, cx| {
             s.set_root(root, cx);
         });

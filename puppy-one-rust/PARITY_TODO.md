@@ -247,6 +247,15 @@ python3 tools/audit-ui-migration.py
 - 深浅色下，reduced-motion 的 0s / 2.1s 原生图各自完全相同，Web 图也各自相同；dither 的 27 个 TS alpha oracle 逐字节匹配。并未测得 GPU 提交或真实输入延迟保证。
 - 大型 `FilePreviewIcon` 卡片预览不在已移植范围；不改 GPUI Kit、不牺牲既有可见区渲染 / 面板缓存。
 
-## 9. 明确不在本轮范围
+## 9. Workspace Provider 底座（Cloud 接入第一步）
+
+- [x] `workspace.rs` 统一入口 + `contracts.rs` / `ports.rs`，本地适配器私有；稳定存储/资源身份与可撤销打开租约分离。
+- [x] 本地目录、文档条件读写、新建/重命名/移动/复制/导入/删除、预览与文档观察走端口；类型化错误在展示边界转成文字。
+- [x] Provider 变更通知取代 Documents 自行定时观察；本地保留 500ms 观察，订阅有界合并、Drop/撤销清理；不是完整目录监听 journal。
+- [x] 原文件系统测试经统一入口运行；无本地目录的内存 Provider 验证真实 Documents 保存/预览流程；覆盖身份隔离、权限准入、迟到结果、未知写入结果和监听清理。
+- [ ] Cloud 认证、HTTP/SSE、账号/项目导航和保活、Cloud 草稿冲突策略：后续步骤，不因端口存在标为已迁移。
+- [ ] 完整多根/多文档工作副本注册表、跨平台实机与严格像素一致性：仍未完成。
+
+## 10. 明确不在本轮范围
 
 需要 Cloud 服务或平台服务、当前没有原生实现的功能保持如实提示，不伪造：Account 登录、Plan 计费、Host Server、自动更新下载、Feedback 上传、Share/Reach、子主题包安装、Windows XP 界面风格。

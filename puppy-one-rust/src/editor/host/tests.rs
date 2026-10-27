@@ -238,7 +238,7 @@ fn the_registry_picks_each_documents_surface(cx: &mut TestAppContext) {
         HostMessage::OpenResource {
             id: "img".into(),
             name: "assets/logo.png".into(),
-            path: "/tmp/logo.png".into(),
+            path: crate::workspace::testing::preview("logo.png"),
         },
     );
     assert!(matches!(replies.as_slice(), [ClientMessage::Loaded { id }] if id == "img"));
@@ -268,7 +268,7 @@ fn the_registry_picks_each_documents_surface(cx: &mut TestAppContext) {
         HostMessage::OpenResource {
             id: "bin".into(),
             name: "model.qqqq".into(),
-            path: "/tmp/model.qqqq".into(),
+            path: crate::workspace::testing::preview("model.qqqq"),
         },
     );
     view.update(cx, |v, _| {
@@ -283,7 +283,7 @@ fn the_registry_picks_each_documents_surface(cx: &mut TestAppContext) {
         HostMessage::OpenResource {
             id: "pdf".into(),
             name: "paper.pdf".into(),
-            path: "/tmp/paper.pdf".into(),
+            path: crate::workspace::testing::preview("paper.pdf"),
         },
     );
     view.update(cx, |v, _| {
@@ -345,7 +345,7 @@ fn installed_packs_render_placeholder_documents_through_the_host_port(cx: &mut T
         let message = HostMessage::OpenResource {
             id: id.into(),
             name: name.into(),
-            path: format!("/tmp/{name}").into(),
+            path: crate::workspace::testing::preview(name),
         };
         view.update_in(cx, |v, w, cx| v.receive(&message, w, cx));
     };

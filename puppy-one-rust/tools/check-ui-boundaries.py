@@ -36,6 +36,22 @@ for base in ['src/shell','src/features','src/ui']:
         if product_drawing.search(path.read_text()):
             errors.append(f'{path.relative_to(root)}: use ProductIcon registry, not a concrete product drawing')
 
+# Workspace consumers use the admitted handle/ports, never the concrete local
+# adapter. Relative paths in the single-root tree are not ambient OS grants.
+for relative in ['src/workspace/contracts.rs', 'src/workspace/ports.rs']:
+    source = (root / relative).read_text()
+    if re.search(r'\b(?:gpui|cap_std|reqwest|tokio)\s*::|\bstd\s*::\s*(?:fs|net|thread|process)|crate::(?:shell|features)', source):
+        errors.append(f'{relative}: provider contract owns an implementation/UI dependency')
+for relative in ['src/documents.rs', 'src/shell/explorer', 'src/features/create_new', 'src/editor/host', 'src/editor/viewers']:
+    base = root / relative
+    paths = base.rglob('*.rs') if base.is_dir() else [base]
+    for path in paths:
+        if path.name == 'tests.rs':
+            continue
+        source = path.read_text().split('#[cfg(test)]')[0]
+        if re.search(r'workspace::local|cap_std\s*::|std\s*::\s*fs\b', source):
+            errors.append(f'{path.relative_to(root)}: workspace consumer bypasses provider authority')
+
 # The retired Markdown prototype must not come back.
 if (root / "src/native_editor").exists():
     errors.append("src/native_editor: retired prototype editor remains")

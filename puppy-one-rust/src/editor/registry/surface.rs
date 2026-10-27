@@ -11,7 +11,7 @@ use crate::{
     typography::Scale,
 };
 use gpui::{AnyElement, App, FocusHandle, Subscription, Window};
-use std::{path::Path, rc::Rc};
+use std::rc::Rc;
 
 /// What the host hands a viewer to open (`PresetViewerRenderContext`).
 pub struct SurfaceRequest<'a> {
@@ -34,7 +34,7 @@ pub enum SurfaceInput<'a> {
     /// `content` / `content-and-resource`: the document text.
     Text(&'a str),
     /// `resource`: the file, read by the viewer itself.
-    Resource(&'a Path),
+    Resource(&'a crate::workspace::PreviewResource),
     /// `none`: nothing but the document's identity.
     None,
 }

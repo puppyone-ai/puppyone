@@ -45,7 +45,7 @@ pub enum HostMessage {
     OpenResource {
         id: String,
         name: String,
-        path: PathBuf,
+        path: workspace::PreviewResource,
     },
     /// No document is open.
     Clear,
@@ -124,12 +124,12 @@ pub enum Phase {
 pub struct Resource {
     pub id: String,
     pub relative: PathBuf,
-    pub absolute: PathBuf,
+    pub preview: workspace::PreviewResource,
 }
 enum Completed {
     Root(workspace::Result<(Arc<Workspace>, Vec<Node>)>),
     File(workspace::Result<Document>),
-    Resource(PathBuf, workspace::Result<PathBuf>),
+    Resource(PathBuf, workspace::Result<workspace::PreviewResource>),
     Save {
         id: String,
         sequence: u64,
@@ -170,7 +170,8 @@ pub struct Documents {
     autosave_request: Option<(u64, u64, Instant)>,
     observing: bool,
     read_generation: u64,
-    next_observation: Instant,
+    watch: Option<workspace::Subscription>,
+    observation_pending: bool,
     tx: Sender<Completed>,
     rx: Receiver<Completed>,
 }
@@ -196,7 +197,8 @@ impl Default for Documents {
             autosave_request: None,
             observing: false,
             read_generation: 0,
-            next_observation: Instant::now(),
+            watch: None,
+            observation_pending: false,
             tx,
             rx,
         }
@@ -219,7 +221,7 @@ impl Documents {
     pub fn saving(&self) -> bool {
         self.session.as_ref().is_some_and(|s| !s.drained()) || self.autosave_request.is_some()
     }
-    fn ensure_session(&mut self) {
+    fn ensure_session(&mut self, ctx: &Wake) {
         if let Some(doc) = &self.document {
             if self.session.as_ref().is_none_or(|s| s.id != doc.id) {
                 self.session = Some(DocumentEditingSession::new(
@@ -229,10 +231,24 @@ impl Documents {
                 ));
                 self.autosave_request = None;
                 self.read_generation += 1;
+                self.observing = false;
+                self.observation_pending = false;
+                self.watch = None;
+                if let Some(ws) = &self.workspace
+                    && ws.capabilities().watch
+                {
+                    let wake = ctx.clone();
+                    match ws.watch(doc, Arc::new(move || wake.notify())) {
+                        Ok(watch) => self.watch = Some(watch),
+                        Err(error) => self.error = Some(error.to_string()),
+                    }
+                }
             }
         } else {
             self.session = None;
             self.autosave_request = None;
+            self.watch = None;
+            self.observation_pending = false;
         }
     }
     fn sync_state(&mut self) {
@@ -245,7 +261,7 @@ impl Documents {
         if !matches!(self.phase, Phase::Idle) {
             return;
         }
-        self.ensure_session();
+        self.ensure_session(ctx);
         if let (Intent::OpenFile(path), Some((_, open))) = (&intent, self.opened())
             && path == open
         {
@@ -283,7 +299,7 @@ impl Documents {
             (None, Some(resource)) => HostMessage::OpenResource {
                 id: resource.id.clone(),
                 name: resource.relative.to_string_lossy().into_owned(),
-                path: resource.absolute.clone(),
+                path: resource.preview.clone(),
             },
             (None, None) => HostMessage::Clear,
         };
@@ -300,7 +316,7 @@ impl Documents {
         }
     }
     pub fn client(&mut self, message: ClientMessage, ctx: &Wake) {
-        self.ensure_session();
+        self.ensure_session(ctx);
         match message {
             ClientMessage::Dirty {
                 id,
@@ -521,6 +537,8 @@ impl Documents {
                 });
             }
             Intent::CloseFile => {
+                self.watch = None;
+                self.observation_pending = false;
                 self.document = None;
                 self.resource = None;
                 self.dirty = false;
@@ -565,7 +583,7 @@ impl Documents {
                     self.resource.as_ref().map(|r| {
                         (
                             r.id.clone(),
-                            blake3::hash(r.absolute.as_os_str().as_encoded_bytes()),
+                            blake3::hash(r.relative.as_os_str().as_encoded_bytes()),
                         )
                     })
                 }),
@@ -577,7 +595,7 @@ impl Documents {
         )
     }
     pub fn poll(&mut self, ctx: &Wake) {
-        self.ensure_session();
+        self.ensure_session(ctx);
         if matches!(&self.phase, Phase::Snapshot { since, .. } if since.elapsed() > Duration::from_secs(5))
         {
             self.fail(crate::localization::t("native.editor.noAck").into());
@@ -594,7 +612,11 @@ impl Documents {
         while let Ok(message) = self.rx.try_recv() {
             match message {
                 Completed::Root(Ok((ws, rows))) => {
-                    self.workspace = Some(ws);
+                    if let Some(previous) = self.workspace.replace(ws) {
+                        previous.revoke();
+                    }
+                    self.watch = None;
+                    self.observation_pending = false;
                     self.document = None;
                     self.resource = None;
                     self.session = None;
@@ -615,7 +637,7 @@ impl Documents {
                     self.revision = 0;
                     self.phase = Phase::Idle;
                     self.error = None;
-                    self.ensure_session();
+                    self.ensure_session(ctx);
                     self.status = "Opened".into();
                     self.show_document();
                 }
@@ -633,7 +655,7 @@ impl Documents {
                         result
                             .as_ref()
                             .map(|r| (r.document.text.clone(), r.updated))
-                            .map_err(Clone::clone),
+                            .map_err(ToString::to_string),
                     );
                     match completion {
                         Completion::Saved => {
@@ -659,10 +681,15 @@ impl Documents {
                     result,
                 } => {
                     self.observing = false;
+                    let current = self.session.as_ref().is_some_and(|s| s.id == id);
                     if generation != self.read_generation
                         || !matches!(self.phase, Phase::Idle)
-                        || !self.session.as_ref().is_some_and(|s| s.id == id)
+                        || !current
                     {
+                        // A reset was already consumed to start this read. If a
+                        // save/barrier superseded it, reconcile again when idle;
+                        // event-driven providers need not send a second reset.
+                        self.observation_pending |= current;
                         continue;
                     }
                     match result {
@@ -678,16 +705,17 @@ impl Documents {
                                 self.show_storage_update();
                             }
                         },
-                        Err(error) => self.error = Some(error),
+                        Err(error) => self.error = Some(error.to_string()),
                     }
                 }
-                Completed::Resource(relative, Ok(absolute)) => {
+                Completed::Resource(relative, Ok(preview)) => {
                     self.document = None;
                     self.resource = Some(Resource {
                         id: uuid::Uuid::new_v4().to_string(),
                         relative,
-                        absolute,
+                        preview,
                     });
+                    self.watch = None;
                     self.session = None;
                     self.dirty = false;
                     self.revision = 0;
@@ -698,7 +726,7 @@ impl Documents {
                 }
                 Completed::Root(Err(error))
                 | Completed::File(Err(error))
-                | Completed::Resource(_, Err(error)) => self.fail(error),
+                | Completed::Resource(_, Err(error)) => self.fail(error.to_string()),
                 Completed::Children(ws, path, result) => {
                     if self
                         .workspace
@@ -711,7 +739,16 @@ impl Documents {
                 }
             }
         }
+        if let Some(event) = self.watch.as_ref().and_then(workspace::Subscription::next) {
+            match event {
+                workspace::ports::WatchEvent::Invalidated => self.observation_pending = true,
+                workspace::ports::WatchEvent::Failed(error) => self.error = Some(error.to_string()),
+            }
+        }
         self.pump(ctx);
+        if self.allow_quit {
+            self.watch = None;
+        }
         if matches!(self.phase, Phase::Idle) {
             if self.autosave_request.is_none()
                 && let Some(s) = &mut self.session
@@ -726,7 +763,7 @@ impl Documents {
                 });
             }
             if !self.observing
-                && Instant::now() >= self.next_observation
+                && self.observation_pending
                 && let (Some(ws), Some(doc)) = (&self.workspace, &self.document)
             {
                 let (ws, doc, tx, wake, generation) = (
@@ -737,7 +774,7 @@ impl Documents {
                     self.read_generation,
                 );
                 self.observing = true;
-                self.next_observation = Instant::now() + Duration::from_millis(500);
+                self.observation_pending = false;
                 crate::localization::spawn(move || {
                     let result = ws.observe(&doc);
                     let _ = tx.send(Completed::Observed {
@@ -749,14 +786,11 @@ impl Documents {
                 });
             }
         }
-        if self.document.is_some() && !self.allow_quit {
-            ctx.after(Duration::from_millis(
-                if matches!(self.phase, Phase::Idle) && self.autosave_request.is_none() {
-                    500
-                } else {
-                    100
-                },
-            ));
+        if self.document.is_some()
+            && !self.allow_quit
+            && (!matches!(self.phase, Phase::Idle) || self.autosave_request.is_some())
+        {
+            ctx.after(Duration::from_millis(100));
         }
     }
 }

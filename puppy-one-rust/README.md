@@ -76,6 +76,16 @@ python3 tools/verify-ui-assets.py --binary /path/to/dev-capture/puppy-one-rust -
 - `header.rs`、`footer.rs`：Header（`TitleBar`、`ChangesButton` 等）和侧栏底部栏是只负责展示的组件，由 `Shell::header` / `Shell::footer` 按状态组装。
 - 缓存的面板：Explorer、右侧工作台与 Changes 以 GPUI 缓存视图（`Entity::cached`）嵌入，只在自身被 notify 时重新渲染；编辑器滚动、输入只重绘编辑器与 Shell 本身。Shell 推送给 Explorer 的 `Host` 变化或展开动画进行中时由 `Explorer::sync` notify；外观、字号与语言是进程级状态，`apply_preferences` 以 `window.refresh()` 让整个窗口重新渲染。
 
+## Workspace Provider 底座（Cloud 接入第一步）
+
+`src/workspace.rs` 现在是持有稳定资源身份与可撤销租约的统一入口，不是具体文件系统。`workspace/contracts.rs` 定义身份、能力和类型化结果；`workspace/ports.rs` 分开目录操作、文档持久化、预览与监听。原有 capability 文件系统收进私有 `workspace/local.rs`，由 `workspace/local/adapter.rs` 实现这些端口。
+
+现有 Documents、Explorer 文件操作、新建和图片预览已消费统一入口。文档有稳定的 `ResourceId`，一次打开的编辑 ID / 访问租约与它分开；同路径重开不能复用旧保存许可。非文件系统测试 Provider 无本地根目录，也能走真实文档打开、保存及字节预览链路。现有文件系统回归全部通过统一入口运行。
+
+监听由 Provider 持有：本地仍为 500ms 有界文本观察，合并为重读通知；关闭文档或撤销租约停止观察。它不是递归目录 watcher 或持久 journal。本地条件写仍保留 BOM/换行/权限与磁盘优先规则，未增加 Cloud 冲突策略。资源型预览支持本地文件或不可变字节，租约撤销后不再交付；原有本地路径型预览的 OS 打开行为不宣称变成原子文件快照。
+
+**这只是第一步，不是 Cloud 已接通**：原生登录、HTTP/SSE Provider、Cloud 导航与保活、云端草稿冲突处理均未启用；编辑器仍单文档。TS 参考输入的 HEAD 与脏工作树哈希见 `fixtures/workspace/provider-reference.json`。完整契约归 [Native Host and Lifecycle](https://github.com/puppyone-ai/puppy-issues/blob/main/document/puppyone-desktop/platform/rust-native-frontend/host-and-lifecycle.md#native-workspace-provider-foundation)。
+
 ## 这一版可以做什么
 
 - 选择真实本地文件夹，展开目录，读取文件；目录扫描和读写在后台线程。
@@ -320,7 +330,7 @@ CARGO_TARGET_DIR=../target cargo run --release --locked
 - `src/ui/ime.rs`：系统输入法补充（丢弃组字、过滤功能键字符），所有文本输入共用。
 - `src/wake.rs`：后台 I/O 的有界唤醒；`src/capture.rs`：显式启用的 macOS 合成截图。
 - `src/shell/tasks.rs`：首批原生 Settings / Feedback；尚未通过完整像素验收。
-- `src/workspace.rs`：受限文件访问、编码和保存。
+- `src/workspace.rs` / `src/workspace/{contracts,ports}.rs`：统一资源、Provider 端口、能力与租约；私有 `src/workspace/local.rs` / `local/adapter.rs` 保留本地受限访问、编码和条件写。
 - `src/documents.rs`：单文档状态机和关闭检查。
 - `src/localization.rs` / `tools/import-localization.py`：同源 locale 投影，不持久化用户偏好。
 - `src/shell/project_menu.rs`：锚定 Header 的原生项目位置 popup。

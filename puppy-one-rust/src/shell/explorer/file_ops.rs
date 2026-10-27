@@ -44,6 +44,20 @@ impl Explorer {
         if self.op.is_some() {
             return;
         }
+        let caps = ws.capabilities();
+        let allowed = match &op {
+            FileOp::Rename { .. } => caps.rename,
+            FileOp::Delete(_) => caps.remove,
+            FileOp::Move(..) => caps.move_entry,
+            FileOp::Copy(..) => caps.copy,
+            FileOp::Import(..) => caps.import,
+        };
+        if !allowed {
+            cx.emit(ExplorerEvent::Error(
+                crate::workspace::Error::unsupported().to_string(),
+            ));
+            return;
+        }
         let touched = op.touched();
         if let Some(relative) = &self.host.opened
             && touched.iter().any(|p| relative.starts_with(p))
@@ -55,6 +69,7 @@ impl Explorer {
             return;
         }
         let (tx, rx) = async_channel::bounded(1);
+        let owner = ws.clone();
         crate::localization::spawn(move || {
             let mut out = OpOutcome {
                 listings: vec![],
@@ -63,9 +78,9 @@ impl Explorer {
                 error: None,
             };
             let mut folders: Vec<PathBuf> = vec![];
-            let fail = |e: String, out: &mut OpOutcome| {
+            let fail = |e: crate::workspace::Error, out: &mut OpOutcome| {
                 if out.error.is_none() {
-                    out.error = Some(e)
+                    out.error = Some(e.to_string())
                 }
             };
             match &op {
@@ -128,6 +143,13 @@ impl Explorer {
         self.op = Some(cx.spawn(async move |this, cx| {
             let outcome = rx.recv().await;
             let _ = this.update(cx, |s, cx| {
+                if !s
+                    .workspace
+                    .as_ref()
+                    .is_some_and(|current| Arc::ptr_eq(current, &owner))
+                {
+                    return;
+                }
                 s.op = None;
                 if let Ok(outcome) = outcome {
                     s.finish_op(outcome, cx);
@@ -143,7 +165,7 @@ impl Explorer {
         for (folder, listing) in outcome.listings {
             match listing {
                 Ok(nodes) => self.tree.refresh_children(&folder, nodes),
-                Err(e) => cx.emit(ExplorerEvent::Error(e)),
+                Err(e) => cx.emit(ExplorerEvent::Error(e.to_string())),
             }
         }
         if let Some(path) = outcome.select.clone() {

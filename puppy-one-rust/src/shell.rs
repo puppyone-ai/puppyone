@@ -264,7 +264,11 @@ impl Shell {
                     s.preferences
                         .update(cx, |p, cx| p.change(|p| p.forget_project(&path), cx));
                     s.close_tasks(w, cx);
-                    if s.files.workspace.as_ref().is_some_and(|ws| ws.path == path) {
+                    if s.files
+                        .workspace
+                        .as_ref()
+                        .is_some_and(|ws| ws.local_root() == Some(path.as_path()))
+                    {
                         s.command(Command::Home, w, cx);
                     }
                 }
@@ -601,7 +605,7 @@ impl Shell {
                                 self.show_error(e);
                             }
                         }
-                        Err(e) => self.show_error(e),
+                        Err(e) => self.show_error(e.to_string()),
                     }
                 }
             }
@@ -690,26 +694,24 @@ impl Shell {
             let ws = self.files.workspace.clone().unwrap();
             self.explorer
                 .update(cx, |e, cx| e.load_workspace(ws.clone(), nodes, cx));
-            let root = ws.path.clone();
-            self.workbench
-                .update(cx, |s, cx| s.set_workspace(root.clone(), cx));
-            self.source_control
-                .update(cx, |s, cx| s.set_workspace(root, cx));
-            self.project = ws
-                .path
-                .file_name()
-                .unwrap_or_default()
-                .to_string_lossy()
-                .into_owned();
+            if let Some(root) = ws.local_root() {
+                self.workbench
+                    .update(cx, |s, cx| s.set_workspace(root.to_owned(), cx));
+                self.source_control
+                    .update(cx, |s, cx| s.set_workspace(root.to_owned(), cx));
+            }
+            self.project = ws.name().to_owned();
             self.fixture = false;
             self.modals.remove(|m| matches!(m, Modal::Error(_)));
             self.home = false;
-            let opened = ws.path.clone();
+            let opened = ws.local_root().map(PathBuf::from);
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|d| d.as_secs())
                 .unwrap_or_default();
-            if !cfg!(test) {
+            if !cfg!(test)
+                && let Some(opened) = opened
+            {
                 self.preferences.update(cx, |p, cx| {
                     p.change(|p| p.remember_project(&opened, now), cx)
                 });
@@ -800,7 +802,7 @@ impl Shell {
             .files
             .workspace
             .as_ref()
-            .is_some_and(|ws| ws.path == path)
+            .is_some_and(|ws| ws.local_root() == Some(path.as_path()))
         {
             self.home = false;
         } else if !self.pending && !self.files.busy() {
@@ -821,7 +823,11 @@ impl Shell {
     /// Compact `ProjectSwitcherRail`: one mark per remembered project.
     fn project_rail(&self, h: f32, cx: &mut Context<Self>) -> Div {
         let t = cx.palette();
-        let current = self.files.workspace.as_ref().map(|ws| ws.path.clone());
+        let current = self
+            .files
+            .workspace
+            .as_ref()
+            .and_then(|ws| ws.local_root().map(PathBuf::from));
         let mut rail = at(Rect::new(
             0.,
             theme::HEADER,

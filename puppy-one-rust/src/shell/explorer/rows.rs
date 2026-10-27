@@ -15,6 +15,15 @@ use gpui_kit::{
 pub(in crate::shell) struct DragNodes {
     pub paths: Vec<PathBuf>,
     pub label: SharedString,
+    pub workspace: Option<Arc<Workspace>>,
+}
+impl DragNodes {
+    pub fn belongs_to(&self, workspace: &Option<Arc<Workspace>>) -> bool {
+        self.workspace
+            .as_ref()
+            .zip(workspace.as_ref())
+            .is_some_and(|(a, b)| Arc::ptr_eq(a, b))
+    }
 }
 impl Render for DragNodes {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -283,12 +292,16 @@ impl Explorer {
             DragNodes {
                 paths: drag_paths,
                 label: drag_label,
+                workspace: self.workspace.clone(),
             },
             |drag, _, _, cx| cx.new(|_| drag.clone()),
         )
         .drag_over::<DragNodes>(move |s, _, _, _| s.bg(theme::alpha(t.accent, 0.18)))
         .drag_over::<ExternalPaths>(move |s, _, _, _| s.bg(theme::alpha(t.accent, 0.18)))
         .on_drop(cx.listener(move |s, drag: &DragNodes, _, cx| {
+            if !drag.belongs_to(&s.workspace) {
+                return;
+            }
             let paths: Vec<PathBuf> = drag
                 .paths
                 .iter()
@@ -310,7 +323,11 @@ impl Explorer {
     /// The quiet "New" row after the last item; it opens the create menu for
     /// the workspace root, end aligned under the row.
     fn list_end_row(&mut self, cx: &mut Context<Self>) -> AnyElement {
-        let enabled = self.workspace.is_some() && self.preferences.read(cx).loaded;
+        let enabled = self
+            .workspace
+            .as_ref()
+            .is_some_and(|ws| ws.capabilities().create)
+            && self.preferences.read(cx).loaded;
         let row = SidebarRow::new("explorer-new")
             .variant(RowVariant::Launcher)
             .icon(Icon::new("plus").small().stroke(2.2).opacity(0.76))

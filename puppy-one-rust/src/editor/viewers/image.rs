@@ -1,6 +1,7 @@
 //! `image-preview` (`ImageResourceViewer`): the file centred and contained
 //! in the pane (`.native-preview-centered`, `.native-image-preview`), with a
 //! pending label while it decodes and an honest message if it cannot.
+use crate::workspace::{PreviewData, PreviewResource};
 use crate::{
     editor::registry::{SurfaceInput, SurfaceRequest, ViewerSurface},
     localization::{t, tf},
@@ -8,15 +9,24 @@ use crate::{
     ui::appearance::ActiveAppearance,
 };
 use gpui::{prelude::*, *};
-use std::path::PathBuf;
+use std::sync::Arc;
 
 pub fn open(request: &SurfaceRequest, _: &mut Window, cx: &mut App) -> Box<dyn ViewerSurface> {
-    let path = match request.input {
-        SurfaceInput::Resource(path) => path.to_path_buf(),
-        _ => PathBuf::new(),
+    let resource = match request.input {
+        SurfaceInput::Resource(resource) => Some(resource.clone()),
+        _ => None,
     };
+    let image = resource
+        .as_ref()
+        .and_then(|r| r.data().ok())
+        .and_then(|data| match data {
+            PreviewData::LocalFile(path) => Some(ImageSource::from(path.clone())),
+            PreviewData::Bytes { mime, bytes } => ImageFormat::from_mime_type(mime).map(|format| {
+                ImageSource::from(Arc::new(Image::from_bytes(format, bytes.to_vec())))
+            }),
+        });
     Box::new(ImageSurface {
-        view: cx.new(|_| ImagePreview { path }),
+        view: cx.new(|_| ImagePreview { resource, image }),
     })
 }
 
@@ -30,7 +40,8 @@ impl ViewerSurface for ImageSurface {
 }
 
 struct ImagePreview {
-    path: PathBuf,
+    resource: Option<PreviewResource>,
+    image: Option<ImageSource>,
 }
 impl Render for ImagePreview {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -47,6 +58,22 @@ impl Render for ImagePreview {
             "editor.resource.unavailable",
             &[("kind", t("editor.resource.kind.image").into())],
         );
+        let image = self
+            .resource
+            .as_ref()
+            .filter(|r| r.data().is_ok())
+            .and(self.image.clone());
+        let content = match image {
+            Some(image) => img(image)
+                .max_w_full()
+                .max_h_full()
+                .object_fit(ObjectFit::Contain)
+                .rounded(px(6.))
+                .with_loading(move || note(t("editor.preview.loading").into(), p.muted))
+                .with_fallback(move || note(failed.clone(), p.danger))
+                .into_any_element(),
+            None => note(failed, p.danger),
+        };
         div()
             .id("native-image-preview")
             .size_full()
@@ -56,14 +83,6 @@ impl Render for ImagePreview {
             .overflow_hidden()
             .p(px(24.))
             .bg(p.canvas)
-            .child(
-                img(self.path.clone())
-                    .max_w_full()
-                    .max_h_full()
-                    .object_fit(ObjectFit::Contain)
-                    .rounded(px(6.))
-                    .with_loading(move || note(t("editor.preview.loading").into(), p.muted))
-                    .with_fallback(move || note(failed.clone(), p.danger)),
-            )
+            .child(content)
     }
 }

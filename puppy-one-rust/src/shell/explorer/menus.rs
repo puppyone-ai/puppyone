@@ -101,7 +101,11 @@ impl Explorer {
         at: MenuAt,
         cx: &mut Context<Self>,
     ) {
-        if self.workspace.is_none() {
+        if !self
+            .workspace
+            .as_ref()
+            .is_some_and(|ws| ws.capabilities().create)
+        {
             return;
         }
         self.menu = Some(ExplorerMenu {
@@ -351,14 +355,18 @@ impl Explorer {
         let count = paths.len();
         let single = count == 1;
         let folder = self.tree.is_folder(&primary);
+        let capabilities = self
+            .workspace
+            .as_ref()
+            .map(|ws| ws.capabilities())
+            .unwrap_or_default();
         let absolute = self
             .workspace
             .as_ref()
-            .and_then(|ws| ws.absolute(&primary).ok())
-            .unwrap_or_default();
+            .and_then(|ws| ws.absolute(&primary).ok());
         // `None` is a separator.
         let mut rows: Vec<Option<MenuItem>> = vec![];
-        let copy_text = absolute.display().to_string();
+        let copy_text = absolute.as_ref().unwrap_or(&primary).display().to_string();
         rows.push(Some(
             MenuItem::new(tr("workspace.node.copyPath"))
                 .icon("copy")
@@ -372,6 +380,7 @@ impl Explorer {
             rows.push(Some(
                 MenuItem::new(tr("workspace.node.newFileOrFolder"))
                     .icon("folder-plus")
+                    .disabled(!capabilities.create)
                     .on_click(act(Box::new(move |s, _, cx| {
                         s.open_create_menu(parent.clone(), create_at.clone(), cx)
                     }))),
@@ -381,7 +390,11 @@ impl Explorer {
                 MenuItem::new(tr("workspace.node.pasteIntoFolder"))
                     .icon("clipboard-paste")
                     .shortcut(shortcut("V"))
-                    .disabled(self.clipboard.is_none())
+                    .disabled(match &self.clipboard {
+                        Some(FileClipboard::Copy(_)) => !capabilities.copy,
+                        Some(FileClipboard::Cut(_)) => !capabilities.move_entry,
+                        None => true,
+                    })
                     .on_click(act(Box::new(move |s, _, cx| {
                         s.paste_into(target.clone(), cx)
                     }))),
@@ -393,6 +406,7 @@ impl Explorer {
             MenuItem::new(tf("workspace.node.copyItems", &[("count", count.into())]))
                 .icon("copy")
                 .shortcut(shortcut("C"))
+                .disabled(!capabilities.copy)
                 .on_click(act(Box::new(move |s, _, _| {
                     s.clipboard = Some(FileClipboard::Copy(copy.clone()))
                 }))),
@@ -402,6 +416,7 @@ impl Explorer {
             MenuItem::new(tf("workspace.node.cutItems", &[("count", count.into())]))
                 .icon("scissors")
                 .shortcut(shortcut("X"))
+                .disabled(!capabilities.move_entry)
                 .on_click(act(Box::new(move |s, _, _| {
                     s.clipboard = Some(FileClipboard::Cut(cut.clone()))
                 }))),
@@ -414,13 +429,16 @@ impl Explorer {
             ))
             .icon("copy-plus")
             .shortcut(shortcut("D"))
+            .disabled(!capabilities.copy)
             .on_click(act(Box::new(move |s, _, cx| {
                 s.duplicate(duplicate.clone(), cx)
             }))),
         ));
         rows.push(None);
-        if single && !folder {
-            let path = absolute.clone();
+        if single
+            && !folder
+            && let Some(path) = absolute.clone()
+        {
             rows.push(Some(
                 MenuItem::new(tr("workspace.node.openDefaultApp"))
                     .icon("external-link")
@@ -432,20 +450,22 @@ impl Explorer {
             ));
         }
         if single {
-            let reveal = absolute.clone();
-            rows.push(Some(
-                MenuItem::new(tr("workspace.node.revealInFinder"))
-                    .product_icon(crate::ui::components::ProductIcon::Folder)
-                    .on_click(act(Box::new(move |_, _, cx| {
-                        if let Err(e) = crate::platform::desktop::reveal(&reveal) {
-                            cx.emit(ExplorerEvent::Error(e))
-                        }
-                    }))),
-            ));
+            if let Some(reveal) = absolute.clone() {
+                rows.push(Some(
+                    MenuItem::new(tr("workspace.node.revealInFinder"))
+                        .product_icon(crate::ui::components::ProductIcon::Folder)
+                        .on_click(act(Box::new(move |_, _, cx| {
+                            if let Err(e) = crate::platform::desktop::reveal(&reveal) {
+                                cx.emit(ExplorerEvent::Error(e))
+                            }
+                        }))),
+                ));
+            }
             let path = primary.clone();
             rows.push(Some(
                 MenuItem::new(tr("workspace.node.rename"))
                     .icon("pencil")
+                    .disabled(!capabilities.rename)
                     .on_click(act(Box::new(move |_, _, cx| {
                         cx.emit(ExplorerEvent::Rename {
                             path: path.clone(),
@@ -459,6 +479,7 @@ impl Explorer {
             rows.push(Some(
                 MenuItem::new(tr("workspace.node.changeType"))
                     .icon("file-text")
+                    .disabled(!capabilities.rename)
                     .on_click(act(Box::new(move |_, _, cx| {
                         cx.emit(ExplorerEvent::Rename {
                             path: path.clone(),
@@ -471,6 +492,7 @@ impl Explorer {
         rows.push(Some(
             MenuItem::new(tf("workspace.node.deleteItems", &[("count", count.into())]))
                 .icon("trash-2")
+                .disabled(!capabilities.remove)
                 .danger()
                 .on_click(act(Box::new(move |s, w, cx| {
                     s.confirm_delete(delete.clone(), w, cx)

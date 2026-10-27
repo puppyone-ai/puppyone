@@ -223,6 +223,9 @@ impl Explorer {
             ..Tree::new()
         };
         self.tree.rebuild();
+        self.op = None;
+        self.queued_op = None;
+        self.reopen = None;
         self.workspace = Some(workspace);
         self.fixture = false;
         self.scroll = UniformListScrollHandle::new();
@@ -239,7 +242,7 @@ impl Explorer {
     ) {
         match children {
             Ok(nodes) => self.tree.attach_children(path, nodes),
-            Err(error) => self.tree.fail_children(path, error),
+            Err(error) => self.tree.fail_children(path, error.to_string()),
         }
         cx.notify();
     }
@@ -412,6 +415,9 @@ impl Render for Explorer {
             .drag_over::<rows::DragNodes>(move |s, _, _, _| s.bg(theme::alpha(t.accent, 0.05)))
             .drag_over::<ExternalPaths>(move |s, _, _, _| s.bg(theme::alpha(t.accent, 0.05)))
             .on_drop(cx.listener(|s, drag: &rows::DragNodes, _, cx| {
+                if !drag.belongs_to(&s.workspace) {
+                    return;
+                }
                 let paths: Vec<PathBuf> = drag
                     .paths
                     .iter()

@@ -1,0 +1,13 @@
+{
+  "repository": "puppyone",
+  "head": "d2ddc4b903636442ea81b3fb454a24c6f96696f4",
+  "note": "Reference worktree is dirty; input hashes, not HEAD alone, identify the reviewed contract. Step 1 does not implement Cloud.",
+  "inputs": {
+    "packages/shared-ui/src/core/types.ts": "78f13ee590d7118a049399691ff1620c157055cc31d6ea0ba7b5d9d7909857ef",
+    "packages/shared-ui/src/editor/document-session/DocumentEditingSession.ts": "ea8b058a5d9efad4a75433a63b793a3d0a174e731613e7e2996ee246394116a6",
+    "src/features/data-workspace/workbenchDataPort.ts": "7ae5c55e9f3c8a5291d45a38caea941e9e3b9a4c9e4153b2ac23d8cb497340b2",
+    "src/features/cloud/files/cloudDataPort.ts": "fdd1477623e39086f965c495138dcb82d894b902ab83af6fc13674c3017222d0",
+    "src/features/cloud/workbench/useNativeCloudWorkbench.ts": "825a4de9ba301df742cb66938472494c37e3a2d41c1e68b0137735c2d8956450",
+    "src/features/cloud/files/cloudWorkspaceClient.ts": "33c56d7a16a08371e6d0471d876366822995f04133bce41462786038531c944b"
+  }
+}

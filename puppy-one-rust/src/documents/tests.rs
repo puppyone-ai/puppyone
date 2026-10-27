@@ -154,7 +154,7 @@ fn genuine_write_failure_blocks_close_and_retains_current_document() {
 #[test]
 fn observed_disk_change_replaces_model_without_a_write_or_conflict_error() {
     let (temp, mut d, ctx) = setup();
-    d.ensure_session();
+    d.ensure_session(&ctx);
     d.client(
         ClientMessage::Dirty {
             id: d.document.as_ref().unwrap().id.clone(),
@@ -189,7 +189,7 @@ fn observed_disk_change_replaces_model_without_a_write_or_conflict_error() {
 #[test]
 fn read_started_before_save_receipt_cannot_restore_old_content() {
     let (_temp, mut d, ctx) = setup();
-    d.ensure_session();
+    d.ensure_session(&ctx);
     let old = d.document.as_ref().unwrap().clone();
     let generation = d.read_generation;
     d.begin(Intent::Save, &ctx);
@@ -299,7 +299,7 @@ fn files_their_viewer_reads_itself_open_as_resources_without_reading_text() {
     assert!(d.outgoing.iter().any(|m| matches!(
         m,
         HostMessage::OpenResource { name, path, .. }
-            if name == "logo.png" && path == &resource.absolute
+            if name == "logo.png" && path == &resource.preview
     )));
     // Opening a text file afterwards replaces it with a document.
     d.begin(Intent::OpenFile("b.md".into()), &ctx);
@@ -323,6 +323,79 @@ fn resources_outside_the_workspace_or_through_symlinks_are_refused() {
     assert!(d.resource.is_none());
     assert!(d.error.is_some());
 }
+#[test]
+fn a_non_filesystem_provider_runs_the_real_document_save_and_preview_pipeline() {
+    use crate::workspace::testing::Memory;
+    let memory = Arc::new(Memory::new("memory://actor/project/"));
+    let ws = Workspace::from_provider(memory.clone()).unwrap();
+    assert!(ws.local_root().is_none());
+    let ctx = Wake::default();
+    let mut d = Documents {
+        workspace: Some(ws),
+        ..Default::default()
+    };
+    d.begin(Intent::OpenFile("note.md".into()), &ctx);
+    wait(&mut d, &ctx);
+    assert!(d.error.is_none(), "{:?}", d.error);
+    d.begin(Intent::Save, &ctx);
+    snapshot(&mut d, &ctx, "provider bytes");
+    wait(&mut d, &ctx);
+    assert_eq!(*memory.text.lock().unwrap(), "provider bytes");
+    assert!(!d.dirty);
+    d.begin(Intent::OpenFile("image.png".into()), &ctx);
+    snapshot(&mut d, &ctx, "provider bytes");
+    wait(&mut d, &ctx);
+    assert!(d.error.is_none(), "{:?}", d.error);
+    assert!(matches!(
+        d.resource.as_ref().unwrap().preview.data(),
+        Ok(workspace::PreviewData::Bytes { .. })
+    ));
+    assert!(d.document.is_none());
+}
+
+#[test]
+fn superseded_observation_revalidates_without_needing_another_notification() {
+    let (temp, mut d, ctx) = setup();
+    d.ensure_session(&ctx);
+    d.watch = None; // No timer or second event can rescue a lost invalidation.
+    let old = d.document.as_ref().unwrap().clone();
+    let generation = d.read_generation;
+    d.read_generation += 1; // A save receipt superseded the in-flight read.
+    std::fs::write(temp.path().join("a.md"), "new baseline").unwrap();
+    d.tx.send(Completed::Observed {
+        id: old.id.clone(),
+        generation,
+        result: Ok(old),
+    })
+    .unwrap();
+    let deadline = Instant::now() + Duration::from_secs(4);
+    while d.document.as_ref().unwrap().text != "new baseline" {
+        d.poll(&ctx);
+        assert!(Instant::now() < deadline);
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert!(!d.dirty);
+}
+
+#[test]
+fn local_provider_notifications_reconcile_without_controller_filesystem_polling() {
+    let (temp, mut d, ctx) = setup();
+    d.ensure_session(&ctx);
+    std::fs::write(temp.path().join("a.md"), "watch changed").unwrap();
+    let deadline = Instant::now() + Duration::from_secs(4);
+    while d.document.as_ref().unwrap().text != "watch changed" {
+        d.poll(&ctx);
+        assert!(Instant::now() < deadline, "{:?}", d.error);
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(!d.dirty);
+    d.begin(Intent::CloseFile, &ctx);
+    snapshot(&mut d, &ctx, "watch changed");
+    wait(&mut d, &ctx);
+    d.poll(&ctx);
+    assert!(d.watch.is_none());
+}
+
 #[test]
 fn a_referenced_workspace_path_opens_that_file() {
     let (_temp, mut d, ctx) = setup();

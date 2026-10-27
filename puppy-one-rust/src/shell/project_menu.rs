@@ -150,7 +150,11 @@ impl Shell {
                 let _ = host.update(cx, |s, cx| s.command(command, w, cx));
             }
         };
-        let current = self.files.workspace.as_ref().map(|ws| ws.path.clone());
+        let current = self
+            .files
+            .workspace
+            .as_ref()
+            .and_then(|ws| ws.local_root().map(PathBuf::from));
         let projects = self
             .recent_projects
             .iter()
