@@ -38,7 +38,9 @@
 | 工作区与 Explorer `[~]` | 本地树/选择/滚动/剪贴板保活及重核；目录移动保留子树；同工作区单文件边缘拖放及目标生命周期隔离 | 完整每 Pane 视图状态、跨 Root composition；目录订阅；外部原生拖放；键盘/可访问性与 OS/像素验收 |
 | Cloud 完整链路 `[ ]` | 继承已验证认证和 running Provider 底座；入口仍禁用 | 项目选择→创建/唤醒→opening/polling/recovery→双入口切换→Editor；草稿/未知保存结果、权限/viewer budget 与执行隔离；真实测试环境验收 |
 | 文件查看器 `[ ]` | 继承 Markdown、CSV、图片与通用文本实现 | 代码/JSON 语法编辑；HTML 实际预览；Context Map/PuppyFlow；App/PDF/数据库/Office/音视频的完整 TS 能力与失败态 |
-| Markdown 高级功能 `[ ]` | 继承原生基础格式、代码块及表格 | 数学公式、Mermaid、图片/视频、HTML/MDX；表格列宽、链接图和资源解析；CSV 工作区引用的真实宿主接线 |
+| Markdown 高级功能 `[~]` | 原生基础格式、代码块及表格；真实工作区元数据解析；CSV 引用打开；Markdown/Wiki 点击与当前文档标题跳转 | 数学公式、Mermaid、图片/视频、HTML/MDX；表格列宽、backlinks/资源预览；跨文档 heading 与 HTML id、引用视觉/可访问性；多 Root URI 和不同系统 locale 排序 |
+
+工作区引用续作：`tools/reference-navigation.mjs --check` 固定 TS HEAD 与实际输入哈希，Rust 对照 1,200 个解析结果、4 个标题索引及 18 个 URL 策略。Shell 测试覆盖 CSV→真实文件、目录重绑定后缓存更新和跨项目保活；GPUI 覆盖 Markdown 点击、4px 拖选取消、空白命中与标题跳转不改正文。完整链接图、资源预览及多 Root 未完成，不能将该切片记为整项通过。
 
 本批执行证据：`renaming_a_hidden_document_rebinds_its_native_history_without_changing_focus`、`resource_barrier_waits_for_composition_and_cannot_be_stolen_by_close`、`copying_a_directory_flushes_hidden_working_copies_without_replacing_them`、`failed_snapshot_cancels_the_mutation_and_thaws_every_affected_document`、`lost_rename_receipt_is_reconciled_without_replaying_the_mutation`、`project_return_restores_explorer_state_and_revalidates_loaded_folders`、`delayed_drop_cannot_attach_to_a_removed_and_recreated_pane_id`。这些覆盖文件与工作台切片，不将后面三项标为完成。
 

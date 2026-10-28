@@ -181,6 +181,11 @@ impl Render for EditorView {
             .size_full()
             .key_context(KEY_CONTEXT)
             .track_focus(&self.focus)
+            .on_hover(cx.listener(|s, hovered: &bool, _, _| {
+                if !hovered {
+                    s.link_press = None;
+                }
+            }))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::mouse_down))
             .on_mouse_move(cx.listener(Self::mouse_move))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::mouse_up))

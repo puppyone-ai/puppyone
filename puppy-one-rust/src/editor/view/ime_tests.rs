@@ -75,7 +75,7 @@ fn open<'a>(cx: &'a mut TestAppContext, format: Format, text: &str, caret: usize
     let sink = events.clone();
     cx.update(|_, cx| {
         cx.subscribe(&view, move |_, e: &EditorEvent, _| {
-            sink.borrow_mut().push(*e)
+            sink.borrow_mut().push(e.clone())
         })
         .detach()
     });

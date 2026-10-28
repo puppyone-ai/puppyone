@@ -31,6 +31,7 @@ commands = [
     ('auth-reference', ['python3', 'tools/check-auth-reference.py']),
     ('cloud-reference', ['python3', 'tools/check-cloud-reference.py']),
     ('editor-workbench-reference', ['node', 'tools/reference-editor-workbench.mjs', '--check']),
+    ('navigation-reference', ['node', 'tools/reference-navigation.mjs', '--check']),
     ('localization', ['python3', 'tools/import-localization.py', '--check']),
     ('assets', ['python3', 'tools/generate-assets-rs.py', '--check']),
     ('agent-marks', ['python3', 'tools/import-agent-marks.py', '--check']),

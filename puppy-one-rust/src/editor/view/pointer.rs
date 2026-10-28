@@ -4,7 +4,39 @@ use super::editor::{Drag, EditorView, Granularity};
 use crate::editor::text::{selection::Selection, state::Transaction, words};
 use gpui::*;
 
+pub(super) struct LinkPress {
+    activation: super::extension::LinkActivation,
+    position: Point<Pixels>,
+    revision: u64,
+    anchor: usize,
+}
+
 impl EditorView {
+    fn link_for(
+        &mut self,
+        position: Point<Pixels>,
+        release: bool,
+    ) -> Option<super::extension::LinkActivation> {
+        let layout = self.layout.as_ref()?;
+        if layout.revision != self.state.revision || !layout.bounds.contains(&position) {
+            return None;
+        }
+        let point = layout.to_layout(position, self.scroll_y);
+        let (offset, _) = layout.offset_at(point);
+        // Nearest-caret hit testing can return the label's end or clamp empty
+        // margin to its start. Require an actual label box under the pointer.
+        for offset in [offset, self.state.doc.clamp(offset.saturating_sub(1))] {
+            if let Some(link) = self.extension.link_at(&self.state, offset, release)
+                && layout
+                    .range_boxes(link.label.clone())
+                    .iter()
+                    .any(|bounds| bounds.contains(&point))
+            {
+                return Some(link);
+            }
+        }
+        None
+    }
     fn offset_for(&self, position: Point<Pixels>) -> Option<(usize, bool)> {
         let layout = self.layout.as_ref()?;
         Some(layout.offset_at(layout.to_layout(position, self.scroll_y)))
@@ -23,6 +55,21 @@ impl EditorView {
         let Some((offset, upstream)) = self.offset_for(event.position) else {
             return;
         };
+        self.link_press = None;
+        if event.click_count == 1
+            && self.state.selection.is_empty()
+            && !self.composing()
+            && !self.read_only()
+        {
+            self.link_press = self
+                .link_for(event.position, false)
+                .map(|activation| LinkPress {
+                    activation,
+                    position: event.position,
+                    revision: self.state.revision,
+                    anchor: self.state.selection.anchor,
+                });
+        }
         let text = self.state.doc.as_str();
         let granularity = match event.click_count {
             2 => {
@@ -69,6 +116,13 @@ impl EditorView {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.link_press.as_ref().is_some_and(|press| {
+            (press.position.x - event.position.x).abs() > px(4.)
+                || (press.position.y - event.position.y).abs() > px(4.)
+                || event.pressed_button != Some(MouseButton::Left)
+        }) {
+            self.link_press = None;
+        }
         let Some(drag) = self.drag else { return };
         if event.pressed_button != Some(MouseButton::Left) {
             return;
@@ -104,7 +158,43 @@ impl EditorView {
         }
     }
 
-    pub(super) fn mouse_up(&mut self, _: &MouseUpEvent, _: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn mouse_up(
+        &mut self,
+        event: &MouseUpEvent,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if event.button != MouseButton::Left {
+            return;
+        }
+        if let Some(press) = self.link_press.take()
+            && press.revision == self.state.revision
+            && self.state.selection.is_empty()
+            && !self.composing()
+            && !self.read_only()
+            && (press.position.x - event.position.x).abs() <= px(4.)
+            && (press.position.y - event.position.y).abs() <= px(4.)
+            && let Some(release) = self.link_for(event.position, true)
+            && release.key == press.activation.key
+        {
+            use super::extension::LinkAction;
+            // Navigation is a selection-only action: no dirty event/history entry.
+            let position = if let LinkAction::Position(position) = release.action {
+                position
+            } else {
+                press.anchor
+            };
+            let mut transaction = Transaction::select(Selection::cursor(position));
+            transaction.scroll_into_view = matches!(release.action, LinkAction::Position(_));
+            self.dispatch(transaction, cx);
+            match release.action {
+                LinkAction::Workspace(paths) => {
+                    cx.emit(super::editor::EditorEvent::OpenPaths(paths))
+                }
+                LinkAction::External(href) => cx.open_url(&href),
+                LinkAction::Position(_) => {}
+            }
+        }
         if self.drag.take().is_some() {
             // Releasing the pointer lets formats reconcile reveal state.
             let (state, focused) = (&self.state, true);

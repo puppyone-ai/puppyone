@@ -1125,3 +1125,131 @@ fn the_cached_panes_render_again_only_when_they_change(cx: &mut TestAppContext) 
     draw(cx);
     assert!(renders(cx) > pushed, "the window refreshed");
 }
+
+#[gpui::test]
+fn csv_references_use_real_workspace_and_follow_directory_rebinds(cx: &mut TestAppContext) {
+    use crate::editor::navigation::Reference;
+    fn settle(
+        view: &Entity<Shell>,
+        cx: &mut VisualTestContext,
+        ready: impl Fn(&Shell, &App) -> bool,
+    ) {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        loop {
+            view.update_in(cx, |s, w, cx| s.receive(w, cx));
+            cx.run_until_parked();
+            if view.read_with(cx, |s, cx| ready(s, cx)) {
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "reference workbench did not settle"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        cx.update(|w, cx| {
+            let _ = w.draw(cx);
+        });
+    }
+    fn path(csv: &Entity<crate::editor::csv::CsvEditor>, cx: &App, row: usize) -> Option<String> {
+        match csv.read(cx).reference(row, 1) {
+            Some(Reference::Workspace { path, .. }) => path,
+            _ => None,
+        }
+    }
+    let first = tempfile::tempdir().unwrap();
+    let second = tempfile::tempdir().unwrap();
+    std::fs::create_dir(first.path().join("dir")).unwrap();
+    std::fs::write(first.path().join("dir/Target.md"), "# First target").unwrap();
+    std::fs::write(
+        first.path().join("dir/table.csv"),
+        "name,link\nnote,[[Target]]\nlater,[[Later]]\n",
+    )
+    .unwrap();
+    std::fs::write(second.path().join("Target.md"), "# Second target").unwrap();
+    std::fs::write(
+        second.path().join("table.csv"),
+        "name,link\nnote,[[Target]]\n",
+    )
+    .unwrap();
+    let (view, cx) = setup(cx);
+    view.update(cx, |s, _| {
+        s.files
+            .begin(Intent::OpenFolder(first.path().into()), &s.wake)
+    });
+    settle(&view, cx, |s, _| s.files.state().is_some());
+    view.update(cx, |s, _| s.files.load_children("dir".into(), &s.wake));
+    settle(&view, cx, |s, cx| {
+        s.explorer
+            .read(cx)
+            .tree()
+            .rows
+            .iter()
+            .any(|row| row.path == std::path::Path::new("dir/table.csv"))
+    });
+    view.update(cx, |s, _| {
+        s.files
+            .begin(Intent::OpenFile("dir/table.csv".into()), &s.wake)
+    });
+    settle(&view, cx, |s, cx| s.native.read(cx).csv_editor().is_some());
+    let csv = view.read_with(cx, |s, cx| s.native.read(cx).csv_editor().unwrap());
+    assert_eq!(
+        cx.read(|cx| path(&csv, cx, 1)),
+        Some("dir/Target.md".into())
+    );
+    assert_eq!(cx.read(|cx| path(&csv, cx, 2)), None);
+    std::fs::write(first.path().join("dir/Later.md"), "# Later").unwrap();
+    view.update(cx, |s, _| s.files.load_children("dir".into(), &s.wake));
+    settle(&view, cx, |_, cx| {
+        path(&csv, cx, 2).as_deref() == Some("dir/Later.md")
+    });
+    csv.update_in(cx, |csv, w, cx| {
+        assert!(csv.activate_reference(1, 1, w, cx));
+    });
+    settle(&view, cx, |s, _| {
+        s.files
+            .opened()
+            .is_some_and(|(_, p)| p == std::path::Path::new("dir/Target.md"))
+    });
+    let explorer = view.read_with(cx, |s, _| s.explorer.clone());
+    explorer.update(cx, |e, cx| e.rename("dir".into(), "moved".into(), cx));
+    settle(&view, cx, |s, cx| {
+        !s.files.busy()
+            && !s.explorer.read(cx).busy()
+            && path(&csv, cx, 1).as_deref() == Some("moved/Target.md")
+    });
+    assert!(first.path().join("moved/table.csv").exists());
+    view.update(cx, |s, _| {
+        s.files
+            .begin(Intent::OpenFolder(second.path().into()), &s.wake)
+    });
+    settle(&view, cx, |s, _| {
+        s.files.workspace.as_ref().is_some_and(|w| {
+            w.local_root() == Some(second.path().canonicalize().unwrap().as_path())
+        })
+    });
+    view.update(cx, |s, _| {
+        s.files.begin(Intent::OpenFile("table.csv".into()), &s.wake)
+    });
+    settle(&view, cx, |s, cx| {
+        s.native
+            .read(cx)
+            .csv_editor()
+            .is_some_and(|other| other != csv)
+    });
+    let other = view.read_with(cx, |s, cx| s.native.read(cx).csv_editor().unwrap());
+    assert_eq!(cx.read(|cx| path(&other, cx, 1)), Some("Target.md".into()));
+    assert_eq!(
+        cx.read(|cx| path(&csv, cx, 1)),
+        Some("moved/Target.md".into()),
+        "hidden editors retain their own workspace resolver"
+    );
+    other.update_in(cx, |csv, w, cx| {
+        assert!(csv.activate_reference(1, 1, w, cx));
+    });
+    settle(&view, cx, |s, _| {
+        s.files
+            .opened()
+            .is_some_and(|(_, p)| p == std::path::Path::new("Target.md"))
+    });
+}

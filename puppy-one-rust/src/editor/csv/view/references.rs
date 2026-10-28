@@ -28,9 +28,27 @@ pub(super) struct ReferenceCells {
 }
 
 impl CsvEditor {
-    /// Resolve workspace targets through the host (`resolveWorkspaceReference`).
-    /// The native host has no workspace resolver yet; tests install one.
     #[cfg(test)]
+    pub(crate) fn activate_reference(
+        &mut self,
+        row: usize,
+        column: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        self.press_reference(
+            row,
+            column,
+            0.,
+            Modifiers {
+                platform: true,
+                ..Default::default()
+            },
+            window,
+            cx,
+        )
+    }
+    /// Resolve workspace targets through the host (`resolveWorkspaceReference`).
     pub fn set_reference_resolver(&mut self, resolver: Option<Resolver>, cx: &mut Context<Self>) {
         self.refs.resolver = resolver;
         self.refs.cache.borrow_mut().clear();
@@ -38,7 +56,7 @@ impl CsvEditor {
     }
 
     /// The reference a cell's value is, if any (cached by value).
-    pub(super) fn reference(&self, row: usize, column: usize) -> Option<Reference> {
+    pub(crate) fn reference(&self, row: usize, column: usize) -> Option<Reference> {
         let value = self.model.rows().get(row)?.cells.get(column)?;
         if value.is_empty() {
             return None;

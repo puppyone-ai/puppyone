@@ -59,6 +59,13 @@ pub struct PaneEntries {
 }
 
 pub trait ViewerSurface {
+    /// Workspace-scoped, hydrated reference metadata owned by the shell.
+    fn set_reference_context(
+        &self,
+        _context: Option<crate::editor::navigation::ReferenceContext>,
+        _cx: &mut App,
+    ) {
+    }
     /// The element the pane shows.
     fn element(&self) -> AnyElement;
     /// Report changes; `None` for surfaces that never change.
@@ -105,6 +112,10 @@ pub trait ViewerSurface {
     /// Tests reach the text editor behind a text surface.
     #[cfg(test)]
     fn editor_view(&self) -> Option<gpui::Entity<crate::editor::view::EditorView>> {
+        None
+    }
+    #[cfg(test)]
+    fn csv_editor(&self) -> Option<gpui::Entity<crate::editor::csv::CsvEditor>> {
         None
     }
 }

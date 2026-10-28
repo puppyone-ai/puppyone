@@ -376,3 +376,153 @@ fn corrected_estimates_above_the_viewport_do_not_move_what_is_shown(cx: &mut Tes
     let travelled = start - view.read_with(cx, |v, _| v.scroll_y);
     assert!(travelled > steps * 24. + 1., "no estimate was corrected");
 }
+
+#[gpui::test]
+fn markdown_link_pointer_gesture_preserves_selection_and_cancels_drag(cx: &mut TestAppContext) {
+    use crate::editor::{
+        markdown::MarkdownExtension,
+        navigation::{Document, ReferenceContext, ReferenceIndex},
+    };
+    use std::{cell::RefCell, rc::Rc, sync::Arc};
+    let source = "# Title\n\n[[Target|label]]\n\n[jump](#title)\n";
+    let (view, cx) = setup(cx, source);
+    view.update(cx, |v, cx| {
+        let mut markdown = MarkdownExtension::new(true, crate::typography::Scale::Medium);
+        markdown.references = Some(ReferenceContext {
+            source: "source.md".into(),
+            index: Arc::new(ReferenceIndex::new(vec![Document {
+                path: "Target.md".into(),
+                name: "Target.md".into(),
+            }])),
+        });
+        v.extension = Box::new(markdown);
+        v.appearance += 1;
+        v.set_selection(Selection::cursor(2), cx);
+        cx.notify();
+    });
+    cx.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+    let events = Rc::new(RefCell::new(Vec::new()));
+    let sink = events.clone();
+    cx.update(|_, cx| {
+        cx.subscribe(&view, move |_, event: &editor::EditorEvent, _| {
+            sink.borrow_mut().push(event.clone())
+        })
+        .detach();
+    });
+    let at = view.read_with(cx, |v, _| {
+        v.layout
+            .as_ref()
+            .unwrap()
+            .range_boxes(source.find("label").unwrap()..source.find("label").unwrap() + 5)[0]
+            .center()
+    });
+    let down = |position| MouseDownEvent {
+        button: MouseButton::Left,
+        position,
+        click_count: 1,
+        ..Default::default()
+    };
+    let up = |position| MouseUpEvent {
+        button: MouseButton::Left,
+        position,
+        click_count: 1,
+        ..Default::default()
+    };
+    view.update_in(cx, |v, w, cx| {
+        let anchor = v.state.selection.anchor;
+        v.mouse_down(&down(at), w, cx);
+        v.mouse_up(&up(at), w, cx);
+        assert_eq!(v.state.selection.anchor, anchor);
+        assert_eq!(v.text(), source);
+    });
+    assert_eq!(
+        *events.borrow(),
+        vec![editor::EditorEvent::OpenPaths(vec!["Target.md".into()])]
+    );
+    events.borrow_mut().clear();
+    // Leaving the threshold cancels even if the pointer returns before release.
+    view.update_in(cx, |v, w, cx| {
+        v.mouse_down(&down(at), w, cx);
+        v.mouse_move(
+            &MouseMoveEvent {
+                position: at + point(px(5.), px(0.)),
+                pressed_button: Some(MouseButton::Left),
+                ..Default::default()
+            },
+            w,
+            cx,
+        );
+        v.mouse_move(
+            &MouseMoveEvent {
+                position: at,
+                pressed_button: Some(MouseButton::Left),
+                ..Default::default()
+            },
+            w,
+            cx,
+        );
+        v.mouse_up(&up(at), w, cx);
+        assert!(v.link_press.is_none());
+        v.set_selection(Selection::cursor(0), cx);
+    });
+    assert!(events.borrow().is_empty());
+    // Empty margins must not activate the link through nearest-caret clamping.
+    view.update_in(cx, |v, w, cx| {
+        let margin = point(px(1.), at.y);
+        v.mouse_down(&down(margin), w, cx);
+        v.mouse_up(&up(margin), w, cx);
+        v.set_selection(Selection::cursor(0), cx);
+    });
+    assert!(events.borrow().is_empty());
+    cx.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+    let jump = view.read_with(cx, |v, _| {
+        v.layout
+            .as_ref()
+            .unwrap()
+            .range_boxes(source.find("jump").unwrap()..source.find("jump").unwrap() + 4)[0]
+            .center()
+    });
+    view.update_in(cx, |v, w, cx| {
+        v.mouse_down(&down(jump), w, cx);
+        v.mouse_up(&up(jump), w, cx);
+        assert_eq!(v.state.selection.anchor, 2);
+        assert_eq!(v.state.revision, 0);
+        assert_eq!(v.text(), source);
+    });
+    assert!(
+        events.borrow().is_empty(),
+        "heading navigation is not a document edit"
+    );
+    cx.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+    view.update_in(cx, |v, w, cx| {
+        v.mouse_down(&down(at), w, cx);
+        assert!(v.link_press.is_some());
+        v.set_read_only(true, cx);
+        v.set_read_only(false, cx);
+        v.mouse_up(&up(at), w, cx);
+        v.set_selection(Selection::cursor(2), cx);
+    });
+    assert!(
+        events.borrow().is_empty(),
+        "a save/modal barrier cancels the old gesture"
+    );
+    cx.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+    view.update_in(cx, |v, w, cx| {
+        v.mouse_down(&down(at), w, cx);
+        assert!(v.link_press.is_some());
+        v.replace_text("Changed on disk", cx);
+        v.mouse_up(&up(at), w, cx);
+    });
+    assert!(
+        events.borrow().is_empty(),
+        "an old revision cannot activate a link"
+    );
+}

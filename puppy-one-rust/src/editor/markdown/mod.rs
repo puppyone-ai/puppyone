@@ -12,6 +12,7 @@
 pub mod composition;
 pub mod core;
 pub mod features;
+mod navigation;
 pub mod shared;
 pub mod style;
 #[cfg(test)]
@@ -52,6 +53,7 @@ struct Parsed {
     len: usize,
     syntax: Rc<Syntax>,
     plans: Rc<Vec<Plan>>,
+    headings: navigation::Headings,
 }
 
 pub struct MarkdownExtension {
@@ -63,6 +65,7 @@ pub struct MarkdownExtension {
     pub read_only: bool,
     parsed: Option<Parsed>,
     preview: PreviewState,
+    pub references: Option<crate::editor::navigation::ReferenceContext>,
 }
 
 impl MarkdownExtension {
@@ -75,6 +78,7 @@ impl MarkdownExtension {
             read_only: false,
             parsed: None,
             preview: PreviewState::default(),
+            references: None,
         }
     }
 
@@ -101,6 +105,7 @@ impl MarkdownExtension {
                     len: state.doc.len(),
                     syntax: syntax.clone(),
                     plans: plans.clone(),
+                    headings: navigation::Headings::new(state.doc.as_str()),
                 });
                 (syntax, plans)
             }
@@ -109,6 +114,14 @@ impl MarkdownExtension {
 }
 
 impl EditorExtension for MarkdownExtension {
+    fn link_at(
+        &mut self,
+        state: &EditorState,
+        offset: usize,
+        release: bool,
+    ) -> Option<crate::editor::view::extension::LinkActivation> {
+        self.link_activation(state, offset, release)
+    }
     fn decorate(&mut self, input: &DecorateInput) -> Decorations {
         if input.dark != self.theme.dark {
             self.theme = MarkdownTheme::resolve(input.dark, self.scale);

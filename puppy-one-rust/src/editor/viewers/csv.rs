@@ -29,6 +29,27 @@ pub struct CsvSurface {
 }
 
 impl ViewerSurface for CsvSurface {
+    #[cfg(test)]
+    fn csv_editor(&self) -> Option<Entity<CsvEditor>> {
+        Some(self.editor.clone())
+    }
+    fn set_reference_context(
+        &self,
+        context: Option<crate::editor::navigation::ReferenceContext>,
+        cx: &mut App,
+    ) {
+        self.editor.update(cx, |e, cx| {
+            e.set_reference_resolver(
+                context.map(|context| {
+                    std::rc::Rc::new(move |target: &str| Some(context.resolve(target)))
+                        as std::rc::Rc<
+                            dyn Fn(&str) -> Option<crate::editor::navigation::Resolution>,
+                        >
+                }),
+                cx,
+            )
+        });
+    }
     fn element(&self) -> AnyElement {
         self.editor.clone().into_any_element()
     }

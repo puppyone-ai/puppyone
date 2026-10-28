@@ -99,6 +99,14 @@ python3 tools/verify-ui-assets.py --binary /path/to/dev-capture/puppy-one-rust -
 
 **仍未完成用户要求的全部 TS 功能**：Cloud 项目选择/显式启动准备与两种导航、Cloud→Editor 来源/权限/viewer budget、既有 Cloud 草稿与未知保存结果语义、目录订阅和执行隔离；改变扩展名后的 viewer 转换、按资源范围并发的操作队列、完整每 Pane 视图状态与跨 Root composition、跨应用原生资源拖放、完整快捷键/可访问性和拖放实机/视觉验收。元数据恢复不是崩溃草稿恢复。Cloud UI 仍禁用；五个复刻领域的剩余验收项见 `PARITY_TODO.md` §0.3。
 
+## 工作区文档引用（迁移切片）
+
+`editor/navigation/index.rs` 复刻 TS `markdownLinkGraph.ts` 的元数据解析：当前目录相对路径、根路径、省略扩展名、大小写、同名就近选择、缺失候选顺序，以及 Markdown href 的查询/fragment/编码处理。Explorer 提供已加载节点，包含折叠目录中缓存的子节点；不递归读取整个工作区。每个文档持有所属工作区与完整相对路径的上下文，目录加载、重命名/移动、返回项目后的异步重核会更新缓存。
+
+CSV 的引用标签/按钮和 ⌘ 点击已经接入实际宿主。Markdown 的渲染标签支持普通点击，源码编辑与拖选不打开；按下/抬起要求同一目标、同一正文 revision、空选区及最多 4px 移动。当前文档标题支持 ATX/Setext、重复 slug、Unicode 和百分号解码；跳转只改变选区/滚动，不生成内容 revision、保存或撤销条目。外链先按 Markdown URL 策略规范化并校验，才交给系统打开。
+
+`node tools/reference-navigation.mjs --check` 执行实际 TS，收据记录 HEAD、11 个输入 SHA-256 和 en-US/ICU 版本；Rust 对照 1,200 个解析结果、4 个标题索引和 18 个 URL 策略。**这不是完整链接图验收**：backlinks、资源预览、跨文档 heading/HTML id、引用 hover/可访问性、跨 Root URI 与不同系统 locale 排序仍待迁移；现阶段 URI 不降级为本地路径。真实 OS/严格像素测试未补齐。
+
 ## Live Cloud file Provider（第三步协议切片）
 
 `src/workspace/cloud/` 实现现有四个 Provider 端口，不增加第二套文件 UI 或保存队列。`prepare_running` 通过账号/环境绑定的 Broker 校验项目根 context、固定 workbench ID/generation，并实际读取根目录；返回 5 秒、一次性消费的准备收据。**仅接入已运行的 workbench**；创建/唤醒、opening/polling/recovery 状态机仍归后续显式导航准备，不在读文件或断线重连时偷偷 POST 启动计算。

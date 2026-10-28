@@ -66,11 +66,16 @@ pub struct DocumentEditor {
     /// External Viewer Packs (`ViewerExtensionHostAdapter`); none while the
     /// pack runtime is not part of the build.
     extensions: Option<ExtensionHost>,
+    references: Option<crate::editor::navigation::ReferenceContext>,
 }
 
 impl EventEmitter<ClientMessage> for DocumentEditor {}
 
 impl DocumentEditor {
+    #[cfg(test)]
+    pub(crate) fn csv_editor(&self) -> Option<Entity<crate::editor::csv::CsvEditor>> {
+        self.surface.as_ref()?.csv_editor()
+    }
     pub fn new(cx: &mut Context<Self>) -> Self {
         Self {
             workbench: false,
@@ -87,6 +92,7 @@ impl DocumentEditor {
             find_subscription: None,
             bounds: None,
             extensions: None,
+            references: None,
         }
     }
 
@@ -94,6 +100,20 @@ impl DocumentEditor {
     #[cfg_attr(not(test), allow(dead_code))]
     pub fn set_extension_host(&mut self, host: Option<ExtensionHost>) {
         self.extensions = host;
+    }
+
+    pub fn set_reference_context(
+        &mut self,
+        context: Option<crate::editor::navigation::ReferenceContext>,
+        cx: &mut Context<Self>,
+    ) {
+        if self.references == context {
+            return;
+        }
+        if let Some(surface) = &self.surface {
+            surface.set_reference_context(context.clone(), cx);
+        }
+        self.references = context;
     }
 
     /// A placeholder-grade local document an installed pack renders, when
@@ -152,6 +172,7 @@ impl DocumentEditor {
                 Presentation::Unavailable => placeholder::open_unavailable(&request, window, cx),
             },
         };
+        surface.set_reference_context(self.references.clone(), cx);
         let host = cx.weak_entity();
         self.subscription = surface.subscribe(
             Rc::new(move |event, cx| {

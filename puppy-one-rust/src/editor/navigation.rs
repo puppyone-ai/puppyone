@@ -5,6 +5,10 @@
 //! stays text. Workspace targets are resolved by the host.
 use crate::editor::markdown::core::links::{find_links, find_wiki_links};
 
+mod index;
+pub use index::{Document, ReferenceContext, ReferenceIndex};
+pub(crate) use index::{markdown_target, percent_decode};
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Syntax {
     Url,

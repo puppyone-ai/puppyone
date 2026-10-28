@@ -1,0 +1,19 @@
+{
+  "checkout": "../../puppyone-qubits",
+  "commit": "d2ddc4b903636442ea81b3fb454a24c6f96696f4",
+  "locale": "en-US",
+  "icu": "78.2",
+  "inputs": {
+    "node_modules/@codemirror/state/dist/index.js": "1adb0b0ad37781dc26f5fd61ecd2b7528017c267e624856aa34ce14c32033c86",
+    "node_modules/@marijn/find-cluster-break/src/index.js": "b388956e964931f9de2e984e0f236f88c33c1e2e7f34f83d01f3676e6c47b616",
+    "packages/shared-ui/src/core/dataResourcePath.ts": "78ab58a2a0f53f92ea6d5d46439fefac4be5cbd701cc6381d9b6e9798aab36b0",
+    "packages/shared-ui/src/core/resourcePath.ts": "d25dc64fe07471bd736bb98f5798929d530b74222813e5fb9a8c587f2de7d118",
+    "packages/shared-ui/src/core/resourceUri.ts": "168b6997c30e39a348d7c8540fb2fdf88fe8e6b43aff491ff221121f99fe43e4",
+    "packages/shared-ui/src/editor/markdown/core/links/markdownHeadingIndex.ts": "6c39e8a7bc2a719576eac12809d389ae5482899209e935228cb74dc83d2a0a22",
+    "packages/shared-ui/src/editor/markdown/core/links/markdownLinkGraph.ts": "db0549d5480731f54f89468672972db5d0590439c3ed97c3d7ec9c3ffb0fcf1f",
+    "packages/shared-ui/src/editor/markdown/core/links/markdownLinkModel.ts": "dd89d3df27fb29a877db43de797d72d3920c722725b41c260d651a3b8c5839ec",
+    "packages/shared-ui/src/editor/markdown/core/links/wikiLinkModel.ts": "6b28c3a5817776d8b752c8a8714c0471a4f3e84aec0942f3307a15ecc1a98b2b",
+    "packages/shared-ui/src/editor/markdown/platform/policy/markdownUrlPolicy.ts": "5673221c39f33799cea3d3f3aac76af3ecc66afe12e995a8b8820dfd77059e4b",
+    "packages/shared-ui/src/editor/markdown/shared/inlineTokenScan.ts": "5d056db16ae51b5c29138860b11f9b0efd23f7be3f5245284767b9dfc3886d11"
+  }
+}

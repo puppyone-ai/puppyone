@@ -56,7 +56,32 @@ pub enum EditIntent {
     Quote,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum LinkAction {
+    Workspace(Vec<String>),
+    External(String),
+    Position(usize),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct LinkActivation {
+    pub label: std::ops::Range<usize>,
+    /// Syntax and authored target identify a gesture, not its current resolution.
+    pub key: String,
+    pub action: LinkAction,
+}
+
 pub trait EditorExtension: std::any::Any {
+    /// The format owns recognition, edit/reveal policy and target resolution.
+    /// Release may hit the label that the pointer selection just revealed.
+    fn link_at(
+        &mut self,
+        _state: &EditorState,
+        _offset: usize,
+        _release: bool,
+    ) -> Option<LinkActivation> {
+        None
+    }
     fn decorate(&mut self, input: &DecorateInput) -> Decorations;
     /// A cheap key; decorations are rebuilt when it changes (besides
     /// document revision, selection, focus, pointer and appearance).

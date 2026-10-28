@@ -264,6 +264,7 @@ impl Shell {
         // What the Explorer asks for.
         cx.subscribe_in(&s.explorer, window, |s, _, event, window, cx| {
             match event {
+                ExplorerEvent::ReferencesChanged => {}
                 ExplorerEvent::Open(path) => s.files.begin(Intent::OpenFile(path.clone()), &s.wake),
                 ExplorerEvent::LoadChildren(path) => s.files.load_children(path.clone(), &s.wake),
                 ExplorerEvent::ResourceOperation(operation) => {
@@ -916,8 +917,17 @@ impl Shell {
                         crate::documents::HostMessage::Open { .. }
                             | crate::documents::HostMessage::OpenResource { .. }
                     );
-                let replies =
-                    self.native_hosts[&slot].update(cx, |s, cx| s.receive(&message, window, cx));
+                let references = self.files.slot(slot).and_then(|files| {
+                    let workspace = files.workspace.as_ref()?;
+                    let (_, path) = files.opened()?;
+                    self.explorer.update(cx, |explorer, _| {
+                        explorer.reference_context(workspace, path)
+                    })
+                });
+                let replies = self.native_hosts[&slot].update(cx, |s, cx| {
+                    s.set_reference_context(references, cx);
+                    s.receive(&message, window, cx)
+                });
                 for reply in replies {
                     self.files.client_for(slot, reply, &self.wake);
                 }
@@ -933,6 +943,13 @@ impl Shell {
         let home = self.home_visible();
         let visible = self.files.visible_slots();
         for (slot, editor) in &self.native_hosts {
+            let references = self.files.slot(*slot).and_then(|files| {
+                let workspace = files.workspace.as_ref()?;
+                let (_, path) = files.opened()?;
+                self.explorer.update(cx, |explorer, _| {
+                    explorer.reference_context(workspace, path)
+                })
+            });
             let blocked = modal
                 || home
                 || !visible.contains(slot)
@@ -940,7 +957,10 @@ impl Shell {
                     .files
                     .slot(*slot)
                     .is_none_or(|f| f.busy() || f.allow_quit);
-            editor.update(cx, |s, cx| s.gate(blocked, self.dark, cx));
+            editor.update(cx, |s, cx| {
+                s.set_reference_context(references, cx);
+                s.gate(blocked, self.dark, cx);
+            });
         }
         if home || (active == 0 && self.files.state().is_some()) {
             self.focus.focus(window, cx);

@@ -68,6 +68,8 @@ pub(in crate::shell) struct Host {
 /// What the Explorer asks of the shell.
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::shell) enum ExplorerEvent {
+    /// Background revalidation changed the metadata used by document links.
+    ReferencesChanged,
     /// Open a workspace file in the editor.
     Open(PathBuf),
     /// Read a folder's children; they come back through
@@ -102,6 +104,8 @@ pub(in crate::shell) struct Explorer {
     op: bool,
     retained: std::collections::BTreeMap<String, RetainedExplorer>,
     refresh: Option<Task<()>>,
+    references:
+        std::collections::BTreeMap<String, (u64, Arc<crate::editor::navigation::ReferenceIndex>)>,
     /// The disclosure motion of the visible rows.
     motion: motion::TreeMotion,
     #[cfg(test)]
@@ -159,6 +163,7 @@ impl Explorer {
             op: false,
             retained: Default::default(),
             refresh: None,
+            references: Default::default(),
             motion: motion::TreeMotion::default(),
             #[cfg(test)]
             painted_rows: 0,
@@ -182,6 +187,54 @@ impl Explorer {
     }
 
     // ---------------------------------------------------------- from the shell
+    /// Metadata uses every hydrated node, including collapsed descendants.
+    /// Retained editors resolve against their owner, never the active project.
+    pub fn reference_context(
+        &mut self,
+        workspace: &Workspace,
+        path: &Path,
+    ) -> Option<crate::editor::navigation::ReferenceContext> {
+        use crate::editor::navigation::{Document, ReferenceContext, ReferenceIndex};
+        let key = |workspace: &Workspace| {
+            crate::editor::workbench::catalog::resource_key(
+                &workspace
+                    .resource_id(Path::new(""))
+                    .expect("workspace root"),
+            )
+        };
+        let owner = key(workspace);
+        let tree = if self.workspace.as_ref().is_some_and(|ws| key(ws) == owner) {
+            &self.tree
+        } else {
+            &self.retained.get(&owner)?.tree
+        };
+        let cached = self.references.get(&owner);
+        if cached.is_none_or(|(revision, _)| *revision != tree.revision) {
+            fn collect(nodes: &[Node], out: &mut Vec<Document>) {
+                for node in nodes {
+                    if !node.folder {
+                        out.push(Document {
+                            path: node.path.to_string_lossy().into_owned(),
+                            name: node.name.clone(),
+                        });
+                    }
+                    collect(&node.children, out);
+                }
+            }
+            let mut documents = Vec::new();
+            collect(&tree.roots, &mut documents);
+            let index = cached
+                .filter(|(_, index)| index.matches(&documents))
+                .map(|(_, index)| index.clone())
+                .unwrap_or_else(|| Arc::new(ReferenceIndex::new(documents)));
+            self.references
+                .insert(owner.clone(), (tree.revision, index));
+        }
+        Some(ReferenceContext {
+            source: path.to_string_lossy().into_owned(),
+            index: self.references[&owner].1.clone(),
+        })
+    }
     /// The shell's state this frame; also commits the visible rows to the
     /// disclosure motion and keeps frames coming while it runs. A file
     /// operation waiting on the open document resumes once nothing is open.
@@ -292,6 +345,7 @@ impl Explorer {
                     }
                 }
                 s.tree.rebuild();
+                cx.emit(ExplorerEvent::ReferencesChanged);
                 cx.notify();
             });
         }));
@@ -311,6 +365,20 @@ impl Explorer {
     }
     /// The editor opened `path`: the selection follows it.
     pub fn reveal(&mut self, path: &Path, cx: &mut Context<Self>) {
+        let mut changed = false;
+        for parent in path.ancestors().skip(1) {
+            if let Some(node) = self.tree.find_mut(parent)
+                && node.folder
+                && node.loaded
+                && !node.expanded
+            {
+                node.expanded = true;
+                changed = true;
+            }
+        }
+        if changed {
+            self.tree.rebuild();
+        }
         self.tree.selected = path.to_path_buf();
         cx.notify();
     }

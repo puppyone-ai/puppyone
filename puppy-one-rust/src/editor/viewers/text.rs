@@ -109,6 +109,19 @@ impl TextSurface {
 }
 
 impl ViewerSurface for TextSurface {
+    fn set_reference_context(
+        &self,
+        context: Option<crate::editor::navigation::ReferenceContext>,
+        cx: &mut App,
+    ) {
+        self.editor.update(cx, |e, cx| {
+            if let Some(md) = e.extension_mut::<MarkdownExtension>() {
+                md.references = context;
+                e.appearance += 1;
+                cx.notify();
+            }
+        });
+    }
     fn element(&self) -> AnyElement {
         self.editor.clone().into_any_element()
     }
@@ -121,6 +134,7 @@ impl ViewerSurface for TextSurface {
                 EditorEvent::Changed(_) | EditorEvent::CompositionEnded => {
                     events(SurfaceEvent::Changed, cx)
                 }
+                EditorEvent::OpenPaths(paths) => events(SurfaceEvent::OpenPaths(paths.clone()), cx),
             },
         ))
     }

@@ -37,7 +37,7 @@ pub(super) struct Drag {
     pub granularity: Granularity,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum EditorEvent {
     /// The document text changed (not emitted for External replacement, nor
     /// for provisional IME text: a composition reports once, when it ends).
@@ -45,6 +45,7 @@ pub enum EditorEvent {
     /// An IME composition ended without changing the document (cancelled).
     /// Hosts that deferred work while it was open can proceed.
     CompositionEnded,
+    OpenPaths(Vec<String>),
 }
 
 #[derive(Clone, PartialEq)]
@@ -60,6 +61,7 @@ struct DecoKey {
 
 pub struct EditorView {
     pub(super) state: EditorState,
+    pub(super) link_press: Option<super::pointer::LinkPress>,
     pub(super) history: History,
     pub(super) extension: Box<dyn EditorExtension>,
     pub(super) focus: FocusHandle,
@@ -121,6 +123,7 @@ impl EditorView {
         }
         Self {
             state,
+            link_press: None,
             history: History::default(),
             extension,
             focus: cx.focus_handle(),
@@ -199,6 +202,7 @@ impl EditorView {
             return;
         }
         if read_only {
+            self.link_press = None;
             self.commit_composition(cx);
         }
         self.read_only = read_only;
@@ -209,6 +213,7 @@ impl EditorView {
     pub(super) fn watch_focus(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.blur.is_none() {
             self.blur = Some(cx.on_blur(&self.focus, window, |this, _, cx| {
+                this.link_press = None;
                 this.commit_composition(cx)
             }));
         }
