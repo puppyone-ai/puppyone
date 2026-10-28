@@ -15,11 +15,11 @@ args = parser.parse_args()
 root = Path(__file__).resolve().parents[1]
 out = root / 'artifacts/gpui-verification'
 out.mkdir(parents=True, exist_ok=True)
+(out / 'result.json').unlink(missing_ok=True)
 cargo = shutil.which('cargo') or str(Path.home() / '.cargo/bin/cargo')
 paths = [root / p for p in ['Cargo.toml', 'Cargo.lock', 'README.md', 'THIRD_PARTY.md', 'product-source.json']]
-for folder in ['src', 'assets', 'fixtures', 'native-editor-probe/src', 'native-editor-probe/assets', 'tools']:
+for folder in ['src', 'assets', 'fixtures', 'tools']:
     paths.extend(p for p in sorted((root / folder).rglob('*')) if p.is_file() and "__pycache__" not in p.parts)
-paths.extend(root / p for p in ['native-editor-probe/Cargo.toml', 'native-editor-probe/Cargo.lock'])
 def source_hashes():
     return {os.path.relpath(p, root): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
 verified_sources = source_hashes()
@@ -42,7 +42,7 @@ commands = [
     ('clippy', [cargo, 'clippy', '--locked', '--all-targets', '--features', 'dev-capture', '--', '-D', 'warnings']),
     ('release', [cargo, 'build', '--locked', '--release']),
     ('editor-frames', ['python3', 'tools/bench-editor.py', '--check']),
-    ('native-probe', ['python3', 'native-editor-probe/tools/verify.py']),
+    ('native-editor', ['python3', 'tools/verify-native-editor.py']),
 ]
 checks = []
 for name, command in commands:
@@ -68,7 +68,9 @@ receipt = {
     'implementation': 'puppy-one-rust at baseCommit; sourceHashes record the verified files, including uncommitted changes',
     'sourceUnchangedDuringVerification': True,
     'sourceHashes': verified_sources,
-    'releaseBinarySha256': hashlib.sha256((root/'target/release/puppy-one-rust').read_bytes()).hexdigest(),
+    'releaseBinarySha256': hashlib.sha256((Path(json.loads(subprocess.check_output(
+        [cargo, 'metadata', '--locked', '--offline', '--no-deps', '--format-version=1'],
+        cwd=root, text=True))['target_directory']) / 'release/puppy-one-rust').read_bytes()).hexdigest(),
 }
 (out / 'result.json').write_text(json.dumps(receipt, ensure_ascii=False, indent=2) + '\n')
 print('GPUI verification passed.', flush=True)

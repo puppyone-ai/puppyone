@@ -1,4 +1,12 @@
-# Native Editor Lab
+# Native Editor Lab（已退役）
+
+2026-10-28：此目录是历史实验，所依赖的 `src/native_editor/gpui` 输入实现已经删除，不能再使用下面历史记录中的 Cargo 启动命令。现行产品编辑器及其回归位于 `../src/editor/`。
+
+验证入口 `python3 tools/verify.py` 现在转到 `../tools/verify-native-editor.py`：直接执行产品编辑器的 IME、CSV、撤销和宿主快照测试，要求指定契约测试真实通过，收据写入 `../artifacts/native-editor-verification/result.json`。主程序统一门禁调用同一脚本。它仍不代表真实 OS 输入法、跨平台或严格视觉验收。
+
+以下内容仅保留实验范围和历史使用记录。
+
+## 历史说明
 
 独立的小型原生编辑器验证，**不替换主应用的 Web 编辑器**。Rust + GPUI Kit 0.8.0（gpui-pre 0.3.9）；没有 WebView，不加载 JavaScript。与主程序共享 GPUI 文本输入 primitive，文档模型和统一撤销由本验证独立拥有。
 

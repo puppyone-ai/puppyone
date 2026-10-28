@@ -44,6 +44,15 @@
 
 本批执行证据：`renaming_a_hidden_document_rebinds_its_native_history_without_changing_focus`、`resource_barrier_waits_for_composition_and_cannot_be_stolen_by_close`、`copying_a_directory_flushes_hidden_working_copies_without_replacing_them`、`failed_snapshot_cancels_the_mutation_and_thaws_every_affected_document`、`lost_rename_receipt_is_reconciled_without_replaying_the_mutation`、`project_return_restores_explorer_state_and_revalidates_loaded_folders`、`delayed_drop_cannot_attach_to_a_removed_and_recreated_pane_id`。这些覆盖文件与工作台切片，不将后面三项标为完成。
 
+### 0.4 已完成项收口（2026-10-28）
+
+- [x] CSV 宿主引用、Pane 菜单与查找接线已验收，见 N9；修正遗留的未完成标记。
+- [x] 同步 8 个 locale 的现行 TS 投影；移除已退役的 Git sidebar layout 设置，补上持久化的“显示文件图标”开关；隐藏 glyph 保留行内槽位。证据：`hidden_file_icons_survive_preference_reload`、`legacy_theme_flag_becomes_an_explicit_mode_and_new_fields_default` 和 localization/file-icons 门禁。
+- [x] 旧 native-editor-probe 明确退役，其验证入口迁到产品 `src/editor/`，不再构建已删除的输入实现。新门禁要求 IME、CSV 与宿主的具体契约用例通过，零匹配不能报成功；原实验源码仅保留为历史。
+- [x] `tools/verify.py` 18 项全部通过：`dev-capture` **448 passed / 9 ignored**，fmt、边界、TS 参考、资产、Clippy、release、CPU 帧预算及现行编辑器专项 **46 passed**。运行前后源文件哈希一致；共享 `CARGO_TARGET_DIR` 的 release 哈希取自 Cargo 实际输出目录。收据：`artifacts/gpui-verification/result.json`、`artifacts/native-editor-verification/result.json`。
+
+此前各日期下“localization / native probe 尚未解决”是当时记录，现由本节更新。§0.3 的五个完整领域仍未通过整体验收；没有把 Cloud、缺失查看器、Markdown 高级功能、跨 Root 或严格像素验收归档或改成完成。
+
 ## 1. 基础设施
 
 - [x] S1 样式 token：`theme.rs` 从 5 个内置主题包（`assets/themes.json`，`tools/import-themes.mjs`）+ `tokens.css` 语义层公式构建；控件几何、UI 字号角色随三档尺度变化。证据：`semantic_tokens_follow_the_web_formulas`、`medium_literals_follow_the_product_role_table`
@@ -87,7 +96,7 @@
   - 证据：`project_names_and_folders_display_like_the_product`、`modification_times_round_down_to_minutes_hours_and_days`、`project_names_follow_the_product_rules`、`a_blank_project_is_a_new_empty_folder`、`a_repository_counts_its_commit_and_its_changes`、`relative_past_follows_intl_relative_time_format`；截图场景步骤 `home` / `remember:` / `forget:` / `create-project:`
 
 ### Settings
-- [x] P1-11 Appearance：System/Light/Dark（带预览、跟随系统）、主题包、文件图标主题、Git 侧栏布局、加载动画、Header 元素、指针样式；主题包目录/添加、调色板、界面风格禁用展示
+- [x] P1-11 Appearance：System/Light/Dark（带预览、跟随系统）、主题包、文件图标主题与显示开关、加载样式、Header 元素、指针样式；已移除 TS 退役的 Git 侧栏布局入口；主题包目录/添加、调色板、界面风格禁用展示
 - [x] P1-12 Experimental：与 Web 同样的分组和全部行；有原生消费者的接通，其余禁用
 - [x] P1-13 Project Info：名称、路径、模式、受保护状态、从最近项目移除
 - [x] P1-14 Git：分支、分支数、上游、同步状态、HEAD、远程（复制 URL）、刷新。证据：`remote_labels_and_masking`、截图
@@ -244,7 +253,7 @@ python3 tools/audit-ui-migration.py
   - [x] 右下角扩展控件：拖拽按整行（31px）/ 整列（96px）预览并扩展（预览单元格、强调色外框、尺寸状态条，纵向受视口限制，横向贴边自动滚动），单击打开 6×6 尺寸选择器（悬停 / 方向键 / Enter）
   - [x] 引用单元格（`documentNavigation` 的整值识别：URL、Markdown 链接、维基链接、工作区路径，拒绝不安全协议 / 凭据 / 控制字符）：外链显示为下划线链接、点击打开；工作区链接显示标签、悬停操作按钮与来源预览，⌘ 点击打开；宿主解析器接口与 `OpenPaths` 打开消息已就绪
   - [x] 查找适配器（`useCsvFindAdapter`）：匹配单元格着色与内框、当前项 2px 框、编辑后保持当前项
-  - [ ] 宿主侧：工作区引用解析（产品用 Markdown 链接图）、窗格 ⋯ 菜单与查找栏接入（N10）
+  - [x] 宿主侧：已加载工作区元数据解析、窗格 ⋯ 菜单与查找栏接入。证据：`csv_contributes_view_items_and_find`、`csv_references_use_real_workspace_and_follow_directory_rebinds`；完整 backlinks/跨 Root 等另归 §0.3
   - 截图核对暂停：当前机器处于锁屏，`screencapture -l` 只返回旧图；交互部分已用 GPUI 测试覆盖，解锁后补拍悬停 / 菜单 / 拖拽状态
 - [~] N10 编辑器工作台原生
   - [x] 窗格外框（单窗格）：⋯ 手柄（窗格上三分之一悬停显示）、动作菜单（Markdown 实时 / 源码分段控件、查找、用默认应用打开、关闭；CSV 的表头 / 行号开关与列宽命令；开关不关菜单、命令关菜单；方向键 / Home / End / Enter / Esc）
@@ -288,7 +297,7 @@ python3 tools/audit-ui-migration.py
 - [x] 20 项新增真实 loopback 协议/故障测试；两配置各 412 passed / 9 ignored，Clippy 通过；12 个 TS/后端输入哈希由 `tools/check-cloud-reference.py` 固定。不是实际后端或托管验收。
 - [ ] 显式 workbench 创建/唤醒、opening/polling/recovery 准备状态机；当前适配器只接入 running workbench。
 - [ ] 按项目选择 → 显式准备 → Explorer → 既有 Editor → 工作区切换的完整链路接入；把 TS 已有 Cloud 草稿/未知写结果行为一起迁移，不另建冲突策略项目或后端 CAS。当前 Cloud UI 仍禁用；本地保活切片不代表 Cloud 导航、执行隔离或保存语义通过。
-- [ ] Scope、Cloud 复制/导入、本地执行能力不开放；真实账号/项目、平台、可访问性、大文件编辑延迟和严格视觉验收未覆盖。继承的完整 localization gate 与独立 probe 问题仍未解决。
+- [ ] Scope、Cloud 复制/导入、本地执行能力不开放；真实账号/项目、平台、可访问性、大文件编辑延迟和严格视觉验收未覆盖。localization 与旧 probe 验证入口已在 §0.4 收口，其他缺口继续保留。
 
 ## 10. 明确不在本轮范围
 

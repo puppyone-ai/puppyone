@@ -178,7 +178,7 @@ src/editor/
 
 原生 Chat 入口覆盖 PuppyOne Agent、Codex、Claude、Cursor、Hermes、OpenCode、Pi、WorkBuddy；安装发现、协议握手与真实推理是不同层级的验证。Workbench 将布局和 native session identity 原子保存为项目元数据；重启后显式 Resume，不重放之前的命令。CLI 自己拥有登录，Rust 不复制其认证文件。
 
-当前验证以 `artifacts/gpui-verification/result.json` 及独立 probe 收据为准，包含连续文档交互和真实临时文件保存检查；新连续编辑版本的 OS 视觉/真实中文候选窗尚未验收。Codex 的真实推理/上下文/工具写入/Stop/恢复/fork/rename/文本引用，Cursor 的回复/第二轮上下文/跨进程会话恢复，PTY 与内置 Rust Agent 的 HTTP SSE/审批/拒绝/恢复/分叉/停止/绑定隔离集成通过。内置运行时使用本机回环模型夹具，**不等于已用用户真实模型完成推理**。Pi 回复及第二轮上下文通过，但当前 `pi-with-claude/opus` 配置在重启后丢失模型上下文；原生 CLI 对照也复现，不能声明其恢复验收通过。Pi 适配器已修正现代 `agent_settled`/重试边界、最终模型错误和历史加载竞态。Claude 原生握手通过，但当前配置的 `api.omnimaas.com` 返回 HTTP 522，真实推理失败。OpenCode 使用隔离配置握手通过，用户配置中的 `oh-my-openagent` 下载/启动失败没有被修改。Hermes/WorkBuddy 未安装，未做实机验证。
+当前验证以 `artifacts/gpui-verification/result.json` 及 `artifacts/native-editor-verification/result.json` 为准，包含连续文档交互和真实临时文件保存检查；新连续编辑版本的 OS 视觉/真实中文候选窗尚未验收。Codex 的真实推理/上下文/工具写入/Stop/恢复/fork/rename/文本引用，Cursor 的回复/第二轮上下文/跨进程会话恢复，PTY 与内置 Rust Agent 的 HTTP SSE/审批/拒绝/恢复/分叉/停止/绑定隔离集成通过。内置运行时使用本机回环模型夹具，**不等于已用用户真实模型完成推理**。Pi 回复及第二轮上下文通过，但当前 `pi-with-claude/opus` 配置在重启后丢失模型上下文；原生 CLI 对照也复现，不能声明其恢复验收通过。Pi 适配器已修正现代 `agent_settled`/重试边界、最终模型错误和历史加载竞态。Claude 原生握手通过，但当前配置的 `api.omnimaas.com` 返回 HTTP 522，真实推理失败。OpenCode 使用隔离配置握手通过，用户配置中的 `oh-my-openagent` 下载/启动失败没有被修改。Hermes/WorkBuddy 未安装，未做实机验证。
 
 ```bash
 python3 tools/verify.py
@@ -274,7 +274,7 @@ Rust / GPUI Kit 0.8.0 / gpui-pre 0.3.9 / Metal (macOS)
 
 ## 验证
 
-可运行 `python3 tools/verify.py` 一次验证主程序和历史 probe 并生成带源文件摘要的收据；不启动窗口。
+可运行 `python3 tools/verify.py` 验证主程序和现行原生编辑器契约，并生成带源文件摘要的收据；不启动 OS 窗口。文件图标投影校验的 Python 环境需要 `fonttools[woff]`；可在独立 venv 中安装并将该 venv 的 `bin` 放到 `PATH` 首位。
 
 ```bash
 cargo fmt --check
@@ -362,16 +362,11 @@ python3 tools/compare.py artifacts/reference-dark.png artifacts/native-dark.png 
 
 Python 比图依赖 Pillow / numpy。截图模式显式使用合成树，只测外围，不会自动保存真实文档。原 CSS 静态参考不等于完整 React 产品验收；评分排除空白 Editor / Agent 区域并单列文字 / 图标前景误差。历史调研和像素结果见 [RESEARCH.md](RESEARCH.md)。
 
-## 可选：独立原生编辑器小验证
+## 原生编辑器契约验证
 
-用户后续授权的实验位于 [`native-editor-probe/`](native-editor-probe/README.md)：原生段落粗体/斜体、可编辑表格、统一撤销和 IME 事件回归。它是独立 Cargo 程序，**不是这里的产品编辑器**（产品编辑器在 `src/editor/`）；只在内存中运行，没有文件打开/保存或正式偏好服务。
+`python3 tools/verify-native-editor.py` 直接运行 `src/editor/` 的产品测试，覆盖 IME 提交/取消、UTF-16、候选窗锚点、CSV 共享撤销、源码切换、列宽和宿主快照屏障。脚本要求具体契约用例通过，过滤器匹配零用例不会生成成功收据。真实系统 IME 和严格视觉仍需单独验收。
 
-```bash
-cd native-editor-probe
-CARGO_TARGET_DIR=../target cargo run --release --locked
-```
-
-这是一个有明确限额的小验证，不是已经完成原生富文本重写。当前实现、许可说明和验收边界见其 README；真实系统 IME 仍须手动验证。
+[`native-editor-probe/`](native-editor-probe/README.md) 是已退役的内存实验，依赖的旧输入框已删除；其源文件保留作历史记录，不再参与产品构建门禁。原 `native-editor-probe/tools/verify.py` 命令转到上述产品验证。
 
 ## 源码入口与下一步
 
