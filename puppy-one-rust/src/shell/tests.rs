@@ -550,7 +550,9 @@ fn folder_selection_expands_tree_without_resetting_to_editor(cx: &mut TestAppCon
     explorer.read_with(cx, |e, _| assert_eq!(e.tree().selected, path));
 }
 #[gpui::test]
-fn renaming_the_open_document_closes_it_first_and_reopens_it_renamed(cx: &mut TestAppContext) {
+fn renaming_a_hidden_document_rebinds_its_native_history_without_changing_focus(
+    cx: &mut TestAppContext,
+) {
     use std::path::Path;
     let temp = tempfile::tempdir().unwrap();
     std::fs::write(temp.path().join("notes.md"), "# Notes\n").unwrap();
@@ -594,6 +596,20 @@ fn renaming_the_open_document_closes_it_first_and_reopens_it_renamed(cx: &mut Te
         }
     };
     settle(cx, &opened("notes.md"));
+    let (slot, entity, session) = view.read_with(cx, |s, _| {
+        (
+            s.files.active_slot(),
+            s.native.entity_id(),
+            s.files.document.as_ref().unwrap().id.clone(),
+        )
+    });
+    cx.simulate_keystrokes("cmd-right cmd-left cmd-shift-right");
+    cx.simulate_input("Edited");
+    settle(cx, &|s, _| !s.files.saving());
+    assert_eq!(
+        std::fs::read_to_string(temp.path().join("notes.md")).unwrap(),
+        "# Edited\n"
+    );
     view.update(cx, |s, _| {
         s.files
             .begin(Intent::OpenFile("unrelated.md".into()), &s.wake)
@@ -605,17 +621,41 @@ fn renaming_the_open_document_closes_it_first_and_reopens_it_renamed(cx: &mut Te
     explorer.update(cx, |e, cx| {
         e.rename("notes.md".into(), "renamed.md".into(), cx)
     });
-    settle(cx, &opened("renamed.md"));
+    settle(cx, &|s, cx| {
+        !s.explorer.read(cx).busy()
+            && s.files.slot(slot).is_some_and(|f| {
+                f.opened()
+                    .is_some_and(|(_, p)| p == Path::new("renamed.md"))
+            })
+    });
     assert!(temp.path().join("renamed.md").exists());
     assert!(!temp.path().join("notes.md").exists());
     view.read_with(cx, |s, _| {
         assert!(s.files.retained_slots().contains(&unrelated));
         assert_eq!(s.files.state().unwrap().catalog.editors.len(), 2);
+        assert_eq!(s.files.active_slot(), unrelated);
+        assert_eq!(s.native_hosts[&slot].entity_id(), entity);
+        assert_eq!(
+            s.files.slot(slot).unwrap().document.as_ref().unwrap().id,
+            session
+        );
     });
     explorer.read_with(cx, |e, _| {
         assert_eq!(e.tree().selected, Path::new("renamed.md"));
         assert!(!e.busy());
     });
+    view.update_in(cx, |s, w, cx| {
+        s.files
+            .begin(Intent::OpenFile("renamed.md".into()), &s.wake);
+        s.sync_editor(w, cx);
+    });
+    command(&view, cx, Command::Undo);
+    settle(cx, &|s, _| !s.files.saving());
+    assert_eq!(
+        std::fs::read_to_string(temp.path().join("renamed.md")).unwrap(),
+        "# Notes\n"
+    );
+    assert!(!temp.path().join("notes.md").exists());
 }
 #[gpui::test]
 fn large_tree_uses_gpui_virtual_rows(cx: &mut TestAppContext) {

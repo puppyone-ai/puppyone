@@ -282,6 +282,16 @@ impl DocumentEditor {
                     session.frozen = false;
                 }
             }
+            HostMessage::Rebind { id, name, resource } => {
+                if let Some(session) = &mut self.session
+                    && &session.id == id
+                {
+                    session.name = label(name);
+                    if let (Some(surface), Some(resource)) = (&self.surface, resource) {
+                        surface.rebind_resource(resource, cx);
+                    }
+                }
+            }
             HostMessage::Saved { id, revision, text } => {
                 if let Some(session) = &mut self.session
                     && id == &session.id

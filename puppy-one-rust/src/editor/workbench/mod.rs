@@ -6,6 +6,7 @@ pub mod catalog;
 pub mod find;
 pub mod layout;
 pub mod pane;
+pub mod resource_operations;
 pub mod runtime;
 #[cfg(test)]
 mod tests;

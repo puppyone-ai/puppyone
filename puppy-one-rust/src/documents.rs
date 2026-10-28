@@ -29,6 +29,8 @@ pub enum Intent {
     CloseFile,
     Quit,
     Save,
+    /// Freeze and drain without disposing the Working Copy or editor.
+    PrepareOperation,
 }
 /// What the document session asks the editor host (`editor::host`) to do.
 #[derive(Clone, Debug, PartialEq)]
@@ -56,6 +58,12 @@ pub enum HostMessage {
         freeze: bool,
     },
     Thaw,
+    /// Same editing instance at a new address; preserve view/history.
+    Rebind {
+        id: String,
+        name: String,
+        resource: Option<workspace::PreviewResource>,
+    },
     /// A snapshot reached disk: it is the document's clean baseline.
     Saved {
         id: String,
@@ -119,6 +127,7 @@ pub enum Phase {
         intent: Intent,
     },
     Working,
+    Prepared,
 }
 /// An open file whose viewer reads it itself: no text, nothing to save.
 #[derive(Clone, Debug, PartialEq)]
@@ -260,6 +269,46 @@ impl Documents {
                 Err(error) => self.error = Some(error.to_string()),
             }
         }
+    }
+    pub fn operation_ready(&self) -> bool {
+        matches!(self.phase, Phase::Prepared)
+    }
+    pub fn can_prepare_operation(&self) -> bool {
+        matches!(self.phase, Phase::Idle)
+    }
+    pub fn release_operation(&mut self, ctx: &Wake) {
+        self.phase = Phase::Idle;
+        self.read_generation += 1;
+        self.observation_pending = false;
+        self.autosave_request = None;
+        self.outgoing
+            .retain(|m| !matches!(m, HostMessage::Snapshot { freeze: true, .. }));
+        self.thaw();
+        self.start_watch(ctx);
+    }
+    pub fn rebind_document(&mut self, document: Document) {
+        debug_assert!(self.operation_ready());
+        debug_assert_eq!(self.document.as_ref().map(|d| &d.id), Some(&document.id));
+        self.outgoing.push(HostMessage::Rebind {
+            id: document.id.clone(),
+            name: document.relative.to_string_lossy().into_owned(),
+            resource: None,
+        });
+        self.document = Some(document);
+    }
+    pub fn rebind_resource(&mut self, relative: PathBuf, preview: workspace::PreviewResource) {
+        if let Some(resource) = &mut self.resource {
+            resource.relative = relative;
+            resource.preview = preview.clone();
+            self.outgoing.push(HostMessage::Rebind {
+                id: resource.id.clone(),
+                name: resource.relative.to_string_lossy().into_owned(),
+                resource: Some(preview),
+            });
+        }
+    }
+    pub fn remove_after_operation(&mut self, ctx: &Wake) {
+        self.execute(Intent::CloseFile, ctx);
     }
     /// A different close participant failed after the document drain completed.
     /// Keep this session/history, restore input and resume its observation lease.
@@ -597,6 +646,12 @@ impl Documents {
                 self.phase = Phase::Idle;
                 self.thaw();
             }
+            Intent::PrepareOperation => {
+                self.watch = None;
+                self.read_generation += 1;
+                self.observation_pending = false;
+                self.phase = Phase::Prepared;
+            }
         }
     }
     pub fn load_children(&mut self, path: PathBuf, ctx: &Wake) {
@@ -841,7 +896,8 @@ impl Documents {
         }
         if self.document.is_some()
             && !self.allow_quit
-            && (!matches!(self.phase, Phase::Idle) || self.autosave_request.is_some())
+            && (!matches!(self.phase, Phase::Idle | Phase::Prepared)
+                || self.autosave_request.is_some())
         {
             ctx.after(Duration::from_millis(100));
         }

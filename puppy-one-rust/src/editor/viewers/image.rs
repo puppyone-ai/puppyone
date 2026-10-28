@@ -37,6 +37,20 @@ impl ViewerSurface for ImageSurface {
     fn element(&self) -> AnyElement {
         self.view.clone().into_any_element()
     }
+    fn rebind_resource(&self, resource: &PreviewResource, cx: &mut App) {
+        self.view.update(cx, |view, cx| {
+            view.resource = Some(resource.clone());
+            view.image = resource.data().ok().and_then(|data| match data {
+                PreviewData::LocalFile(path) => Some(ImageSource::from(path.clone())),
+                PreviewData::Bytes { mime, bytes } => {
+                    ImageFormat::from_mime_type(mime).map(|format| {
+                        ImageSource::from(Arc::new(Image::from_bytes(format, bytes.to_vec())))
+                    })
+                }
+            });
+            cx.notify();
+        });
+    }
 }
 
 struct ImagePreview {

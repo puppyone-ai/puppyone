@@ -93,9 +93,11 @@ python3 tools/verify-ui-assets.py --binary /path/to/dev-capture/puppy-one-rust -
 - 本地文件标签、切换/重排/关闭、空分屏、四向拆分、Pane 移动与比例调整；关闭 Pane 保留打开引用。复用原有原生编辑器 Entity，保留撤销、选区和滚动；隐藏宿主撤去输入与导航路由。
 - 本地项目切换保留各自文档和布局；准备失败保留当前工作区。后台文档继续保存/观察，显式关闭按所属文档 drain；窗口关闭等待所有保活文档，其他参与者失败时恢复原会话。
 - 原生 profile 的 `editor-workbench/` 只写非正文元数据：200ms 合并、后台原子写入、关闭时等待已接收写入。恢复逐条经过 Provider 文件准入，晚到恢复不能覆盖交互；不信任文件夹、越界路径、外部资源 ID。恢复限 128 文档/12 层树，当前不恢复非 UTF-8 路径；不持久化草稿或凭据。
-- TS HEAD 与 **61 个实际输入哈希**见 `fixtures/editor/workbench-reference.json`；`node tools/reference-editor-workbench.mjs --check` 执行真实 TS，600 个含递归结构的 Pane 状态转换由 Rust 对照。GPUI 集成测试实际验证跨标签、分屏、本地项目切换后，同一原生 Entity 的 Undo 仍可恢复并落盘。
+- 文件重命名/移动经过工作台保存屏障，成功后给原 Working Copy、标签/MRU、Pane 和观察订阅重新绑定路径，保留原生 Entity 与 Undo；目录操作包含隐藏的子文档，复制先保存源文档，跨目录多选副本逐项处理。保存失败取消文件修改；丢失回执保留屏障，Retry 只核对状态与已保存正文，不重放未知操作。
+- Explorer 按项目保留树展开、选择、滚动与剪贴板，返回时异步重核已加载目录；移动目录保留已加载子树。同工作区单文件拖入 Pane：已显示文档聚焦原 Pane，空 Pane 直接接收，其余在最近边缘分屏；半区预览与目标生命周期检查阻止迟到读取附着到已关闭/重建的 Pane。
+- TS HEAD 与 **63 个实际输入哈希**见 `fixtures/editor/workbench-reference.json`；`node tools/reference-editor-workbench.mjs --check` 执行真实 TS，600 个含递归结构的 Pane 状态转换由 Rust 对照。GPUI 集成测试实际验证跨标签、分屏、本地项目切换及重命名后，同一原生 Entity 的 Undo 仍可恢复并落盘。
 
-**仍未完成用户要求的全部 TS 功能**：Cloud 项目选择/显式启动准备与两种导航、Cloud→Editor 来源/权限/viewer budget、既有 Cloud 草稿与未知保存结果语义、目录订阅和执行隔离；Explorer 状态保活、Explorer→Pane 边缘拖放/完整预览与快捷键/可访问性、完整每 Pane 视图状态、跨 Root composition、重命名/移动后原 Working Copy 与历史重绑定。文件操作现阶段先 drain/关闭所有受影响（包括隐藏）文档再执行并重开，**不是历史无损重绑定**。元数据恢复不是崩溃草稿恢复。Cloud UI 仍禁用，严格视觉与真实 Cloud 验收没有因此通过。
+**仍未完成用户要求的全部 TS 功能**：Cloud 项目选择/显式启动准备与两种导航、Cloud→Editor 来源/权限/viewer budget、既有 Cloud 草稿与未知保存结果语义、目录订阅和执行隔离；改变扩展名后的 viewer 转换、按资源范围并发的操作队列、完整每 Pane 视图状态与跨 Root composition、跨应用原生资源拖放、完整快捷键/可访问性和拖放实机/视觉验收。元数据恢复不是崩溃草稿恢复。Cloud UI 仍禁用；五个复刻领域的剩余验收项见 `PARITY_TODO.md` §0.3。
 
 ## Live Cloud file Provider（第三步协议切片）
 
@@ -135,13 +137,13 @@ python3 tools/check-auth-reference.py
 - 输入法：所有原生编辑器共用一套组字适配（中文 / 日文 / 韩文 / 死键 / 长按重音），整段组字一步撤销；过滤部分输入法（如搜狗）把方向键当文字插入的功能键字符。
 - 其他文本文件：撤销 / 重做、查找、输入法；暂无行号和语法高亮。
 - 编辑默认自动落盘；`⌘S` 仅用于 flush/retry；**File → Reload from Disk** 重读磁盘；`⌘W` / **File → Close File** 关闭当前文件。正文不再显示文件工具栏、格式工具栏和底部状态栏；格式操作移到系统 **Format** 菜单，源码切换位于 **View → Toggle Markdown Source**。
-- 切换文件、文件夹和正常退出会取得冻结快照并等待自动写入完成；IME 结束后继续，不弹出普通文档保存确认。
+- 显式关闭文档、资源修改和正常退出会取得冻结快照并等待自动写入完成；IME 结束后继续，不弹出普通文档保存确认。标签、Pane 和本地项目切换保留文档，不以关闭/重开实现保活。
 - 磁盘轮询/条件写确认外部变化后采纳磁盘内容，推进 persistence epoch，忽略旧写回执；自身写回声不得覆盖新输入。真正 I/O 失败保留输入并显示可重试错误。
 - 保留 UTF-8 BOM、LF / CRLF 和末尾换行；普通 POSIX 文件权限随保存保留。
 - 外围 `⌘B` / `⌘J` 切换左右区域；Markdown 内容焦点内的 `⌘B` 由原生 Markdown 格式命令处理。拖动分隔线调整宽度。
 - Settings 按 Web 的 sidebar/main/components 分层；语言、深/浅色、三档文字尺度、Header Changes/Terminal 可见性、Project Rail 和创建菜单配置修改后自动持久化。不跟随系统主题；其他未接通设置明确只读/禁用。Feedback 已有原生表单，但附件和发送禁用，**不会上传任何内容**。
 
-**编辑器仍是单窗格、单文档，不是完整多格式 Editor workbench/L3。** Header 的 Git 现在显示实际变更和同步计数，打开右侧 Changes；Terminal 图标打开原生工作台。两者切换保留 Agent/Terminal 实例。
+**已有本地多文档和分屏，仍不是完整多格式 Editor workbench/L3。** Header 的 Git 显示实际变更和同步计数，打开右侧 Changes；Terminal 图标打开原生工作台。两者切换保留 Agent/Terminal 实例。
 
 原生编辑器的分层、功能契约和样式约定见 [`src/editor/ARCHITECTURE.md`](src/editor/ARCHITECTURE.md)：
 

@@ -521,7 +521,10 @@
         "assets/file-icons.json",
         "tools/import-file-icons.mjs",
         "src/ui/components/menu.rs",
-        "src/ui/components/popover.rs"
+        "src/ui/components/popover.rs",
+        "src/shell/explorer/file_ops.rs",
+        "src/editor/workbench/resource_operations.rs",
+        "src/editor/workbench/runtime/operations.rs"
       ],
       "evidence": [
         "test:visibility_display_names_and_selection_follow_the_product",
@@ -530,9 +533,11 @@
         "test:classification_and_display_follow_the_product_registry",
         "test:explorer_row_menus_light_their_trigger_and_dismiss",
         "test:explorer_keys_move_the_selection_and_fill_the_clipboard",
-        "test:renaming_the_open_document_closes_it_first_and_reopens_it_renamed"
+        "test:renaming_a_hidden_document_rebinds_its_native_history_without_changing_focus",
+        "test:project_return_restores_explorer_state_and_revalidates_loaded_folders",
+        "test:moving_an_expanded_subtree_carries_state_into_the_destination_listing"
       ],
-      "remaining": "File-type icons, hover actions, row/context/create menus anchored like the product (no Git letters on rows, matching the desktop Explorer), keyboard navigation, multi-select, drag-move and external drop import are native. Expand/collapse motion, reference drag into the Agent composer, drag export to other apps and multi-root workspaces are not ported."
+      "remaining": "Local resource mutations now drain and rebind retained Working Copies; Explorer sessions retain trees, selection, scroll and clipboard across projects and revalidate loaded folders. Extension-changing viewer transitions, concurrent scoped mutation queues, directory subscriptions, reference drag into Agent, cross-app drag export and multi-root composition remain incomplete; strict visual and OS drag parity are unverified."
     },
     {
       "name": "Sidebar footer navigation and help",
@@ -857,9 +862,18 @@
       ],
       "targets": [
         "src/documents.rs",
-        "src/shell.rs"
+        "src/shell.rs",
+        "src/editor/workbench/runtime.rs",
+        "src/editor/workbench/runtime/drops.rs",
+        "src/shell/editor_workbench.rs"
       ],
-      "remaining": "One pane, one document per window. Split panes, editor tabs, dragging a pane by its handle, explorer drop-to-split and workbench persistence are not ported (they need multiple native document sessions)."
+      "remaining": "Local tabs/MRU, recursive panes, retained documents/projects and layout persistence run in the real Shell. Same-workspace single-file Explorer drops focus existing views, fill empty panes or split at an edge, with a preview and target-lifetime fencing. Cloud navigation/drafts, full pane view state, cross-root/native external-drop authority, complete keyboard/accessibility and strict pixel parity remain incomplete.",
+      "evidence": [
+        "test:actual_typescript_pane_transition_oracle",
+        "test:workbench_tabs_splits_and_project_switch_retain_the_same_native_history",
+        "test:explorer_drop_reuses_visible_views_and_places_new_documents_at_the_requested_edge",
+        "test:delayed_drop_cannot_attach_to_a_removed_and_recreated_pane_id"
+      ]
     },
     {
       "name": "Editor and shared-ui stylesheets (product tokens in native styles)",

@@ -33,6 +33,7 @@ pub enum Command {
     /// View → Toggle Markdown Source.
     ToggleMarkdownSource,
     ClearError,
+    RetryFileOperation,
     Changes,
 }
 impl Command {

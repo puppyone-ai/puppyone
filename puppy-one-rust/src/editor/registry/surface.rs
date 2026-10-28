@@ -75,6 +75,7 @@ pub trait ViewerSurface {
     }
     /// The file changed on disk: show its new text in place.
     fn replace_text(&self, _text: &str, _cx: &mut App) {}
+    fn rebind_resource(&self, _resource: &crate::workspace::PreviewResource, _cx: &mut App) {}
     fn undo(&self, _redo: bool, _window: &mut Window, _cx: &mut App) {}
     /// Input is blocked (modal UI, a save barrier) and the app appearance.
     fn apply(&self, _read_only: bool, _dark: bool, _scale: Scale, _cx: &mut App) {}

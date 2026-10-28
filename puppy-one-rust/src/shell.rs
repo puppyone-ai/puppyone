@@ -78,6 +78,7 @@ pub struct Shell {
     native: Entity<crate::editor::host::DocumentEditor>,
     native_hosts: std::collections::BTreeMap<u64, Entity<crate::editor::host::DocumentEditor>>,
     editor_resize: Option<editor_workbench::EditorResize>,
+    editor_drop: Option<editor_workbench::EditorDrop>,
     editor_tab_focus: std::collections::BTreeMap<u64, FocusHandle>,
     fixture: bool,
     startup_file: Option<PathBuf>,
@@ -220,6 +221,7 @@ impl Shell {
             native: cx.new(crate::editor::host::DocumentEditor::new),
             native_hosts: Default::default(),
             editor_resize: None,
+            editor_drop: None,
             editor_tab_focus: Default::default(),
             fixture,
             startup_file: if cfg!(test) {
@@ -264,7 +266,12 @@ impl Shell {
             match event {
                 ExplorerEvent::Open(path) => s.files.begin(Intent::OpenFile(path.clone()), &s.wake),
                 ExplorerEvent::LoadChildren(path) => s.files.load_children(path.clone(), &s.wake),
-                ExplorerEvent::CloseDocuments(paths) => s.files.close_paths(paths, &s.wake),
+                ExplorerEvent::ResourceOperation(operation) => {
+                    if let Err(error) = s.files.resource_operation(operation.clone(), &s.wake) {
+                        s.explorer.update(cx, |e, cx| e.operation_failed(cx));
+                        s.show_error(error);
+                    }
+                }
                 ExplorerEvent::Create { entry, parent } => {
                     s.start_create(*entry, parent.clone(), window, cx)
                 }
@@ -326,6 +333,7 @@ impl Shell {
         // Leaving the window abandons a pane drag (`blur` cancels).
         cx.observe_window_activation(window, |s, window, cx| {
             if !window.is_window_active() {
+                s.editor_drop = None;
                 s.end_pane_drag(false, cx);
                 s.end_editor_resize(false, cx);
             } else {
@@ -342,6 +350,11 @@ impl Shell {
                 return;
             }
             let _ = shell.update(cx, |s, cx| {
+                if s.editor_drop.take().is_some() {
+                    cx.stop_active_drag(window);
+                    cx.stop_propagation();
+                    cx.notify();
+                }
                 if s.editor_resize.is_some() {
                     s.end_editor_resize(false, cx);
                     cx.stop_propagation();
@@ -702,6 +715,11 @@ impl Shell {
                         .update(cx, |s, cx| s.command("source", window, cx));
                 }
             }
+            Command::RetryFileOperation => {
+                self.modals.remove(|m| matches!(m, Modal::Error(_)));
+                self.files.error = None;
+                self.files.retry_operation(&self.wake);
+            }
             Command::ClearError => {
                 self.modals.remove(|m| matches!(m, Modal::Error(_)));
                 self.files.error = None;
@@ -731,7 +749,12 @@ impl Shell {
     fn receive(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let previous = self.files.opened().map(|(id, _)| id.to_owned());
         self.files.poll(&self.wake);
+        for (owner, outcome) in std::mem::take(&mut self.files.operation_results) {
+            self.explorer
+                .update(cx, |e, cx| e.finish_op(&owner, outcome, cx));
+        }
         if let Some(nodes) = self.files.tree_update.take() {
+            self.editor_drop = None;
             self.end_editor_resize(false, cx);
             let ws = self.files.workspace.clone().unwrap();
             self.explorer
@@ -840,8 +863,9 @@ impl Shell {
                                 if s.files.visible_slots().contains(&slot) && !s.modal() {
                                     s.focus_editor_slot(slot);
                                     if action == "close-file" {
-                                        if let Some(state) = s.files.state_mut() {
-                                            state.close_pane(&state.layout.active.clone());
+                                        if let Some(mut state) = s.files.state_mut() {
+                                            let active = state.layout.active.clone();
+                                            state.close_pane(&active);
                                         }
                                     } else if let Some((direction, placement)) = match action
                                         .as_str()
@@ -864,11 +888,12 @@ impl Shell {
                                         )),
                                         _ => None,
                                     } {
-                                        if let Some(state) = s.files.state_mut() {
+                                        if let Some(mut state) = s.files.state_mut() {
                                             if placement == crate::editor::workbench::layout::Placement::Second {
                                                 state.split(direction);
                                             } else {
-                                                state.layout.split(&state.layout.active.clone(), direction, placement, None);
+                                            let active = state.layout.active.clone();
+                                            state.layout.split(&active, direction, placement, None);
                                             }
                                         }
                                     } else if let Some(command) = Command::from_protocol(action) {
@@ -1254,6 +1279,9 @@ impl Shell {
 }
 impl Render for Shell {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if !cx.has_active_drag() {
+            self.editor_drop = None;
+        }
         #[cfg(test)]
         {
             self.frames += 1;
@@ -1379,11 +1407,21 @@ impl Shell {
                 .simple_modal(
                     tr("native.error.title"),
                     message,
-                    vec![(
-                        tr("common.action.close"),
-                        Command::ClearError,
-                        ButtonVariant::Solid,
-                    )],
+                    {
+                        let mut actions = vec![(
+                            tr("common.action.close"),
+                            Command::ClearError,
+                            ButtonVariant::Secondary,
+                        )];
+                        if shell.files.can_retry_operation() {
+                            actions.push((
+                                tr("common.action.retry"),
+                                Command::RetryFileOperation,
+                                ButtonVariant::Solid,
+                            ));
+                        }
+                        actions
+                    },
                     cx,
                 )
                 .into_any_element()

@@ -187,6 +187,13 @@ impl Node {
     }
 }
 impl Layout {
+    pub fn rebind_editor(&mut self, from: &str, to: &str) {
+        self.root.map_editors(&mut |editor| {
+            if editor.as_deref() == Some(from) {
+                *editor = Some(to.into());
+            }
+        });
+    }
     pub fn new(editor: Option<String>) -> Self {
         Self {
             root: Node::Pane {

@@ -13,6 +13,7 @@ use gpui_kit::{
 /// Entries being dragged within the Explorer.
 #[derive(Clone)]
 pub(in crate::shell) struct DragNodes {
+    pub single_file: bool,
     pub paths: Vec<PathBuf>,
     pub label: SharedString,
     pub workspace: Option<Arc<Workspace>>,
@@ -290,6 +291,12 @@ impl Explorer {
         )
         .on_drag(
             DragNodes {
+                single_file: drag_paths.len() == 1
+                    && self
+                        .tree
+                        .rows
+                        .iter()
+                        .any(|row| row.path == drag_paths[0] && !row.folder),
                 paths: drag_paths,
                 label: drag_label,
                 workspace: self.workspace.clone(),

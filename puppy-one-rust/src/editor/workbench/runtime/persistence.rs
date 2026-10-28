@@ -57,6 +57,7 @@ impl Runtime {
                         host.slots.insert(
                             self.serial,
                             Slot {
+                                drop_target: None,
                                 key,
                                 files,
                                 admitted: false,

@@ -5,8 +5,8 @@
 //! selection, the file clipboard, its menus, file operations and the
 //! disclosure motion. The shell tells it where it is painted and what the
 //! documents are doing ([`Host`]), hands it folder listings, and acts on what
-//! it asks for ([`ExplorerEvent`]): open a file, read a folder, close the open
-//! document before an operation moves it, show the create or rename dialog,
+//! it asks for ([`ExplorerEvent`]): open a file, read a folder, prepare retained
+//! documents for a resource operation, show the create or rename dialog,
 //! show a notice.
 //!
 //! - [`rows`]: tree rows and the list-end "New" row, built from
@@ -44,6 +44,7 @@ use file_ops::FileOp;
 pub use keyboard::bind_keys;
 use menus::ExplorerMenu;
 pub(super) use menus::{MenuAt, RowTrigger};
+pub(in crate::shell) use rows::DragNodes;
 
 /// What the Explorer reads from the shell, pushed every frame.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -72,9 +73,9 @@ pub(in crate::shell) enum ExplorerEvent {
     /// Read a folder's children; they come back through
     /// [`Explorer::children_loaded`].
     LoadChildren(PathBuf),
-    /// A file operation touches the open document: close it (autosave
-    /// drained) first. The operation resumes once nothing is open.
-    CloseDocuments(Vec<PathBuf>),
+    /// The workbench drains and rebinds affected Working Copies without
+    /// replacing their editor entities.
+    ResourceOperation(FileOp),
     /// The create form for `entry` in `parent`.
     Create { entry: Entry, parent: PathBuf },
     /// The rename (or change file type) dialog for `path`.
@@ -98,11 +99,9 @@ pub(in crate::shell) struct Explorer {
     /// The open create or node-action menu.
     menu: Option<ExplorerMenu>,
     /// The running file operation.
-    op: Option<Task<()>>,
-    /// An operation waiting for the open document to close first.
-    queued_op: Option<FileOp>,
-    /// The document to reopen at its new path once the operation lands.
-    reopen: Vec<PathBuf>,
+    op: bool,
+    retained: std::collections::BTreeMap<String, RetainedExplorer>,
+    refresh: Option<Task<()>>,
     /// The disclosure motion of the visible rows.
     motion: motion::TreeMotion,
     #[cfg(test)]
@@ -110,6 +109,12 @@ pub(in crate::shell) struct Explorer {
     /// Times the Explorer rendered (it is a cached view in the shell).
     #[cfg(test)]
     pub renders: usize,
+}
+struct RetainedExplorer {
+    tree: Tree,
+    scroll: UniformListScrollHandle,
+    clipboard: Option<FileClipboard>,
+    op: bool,
 }
 impl EventEmitter<ExplorerEvent> for Explorer {}
 impl Focusable for Explorer {
@@ -151,9 +156,9 @@ impl Explorer {
             scroll: UniformListScrollHandle::new(),
             clipboard: None,
             menu: None,
-            op: None,
-            queued_op: None,
-            reopen: vec![],
+            op: false,
+            retained: Default::default(),
+            refresh: None,
             motion: motion::TreeMotion::default(),
             #[cfg(test)]
             painted_rows: 0,
@@ -202,43 +207,94 @@ impl Explorer {
         if changed || moving {
             cx.notify();
         }
-        if self.op.is_none()
-            && self.queued_op.as_ref().is_some_and(|op| {
-                !self
-                    .host
-                    .open_resources
-                    .iter()
-                    .any(|path| op.touched().iter().any(|root| path.starts_with(root)))
-            })
-            && !self.host.documents_busy
-            && let Some(op) = self.queued_op.take()
-        {
-            self.run_op(op, cx);
-        }
     }
-    /// A folder opened: its root listing replaces the tree.
+    /// Restore the workspace's Explorer session, then revalidate its listings.
     pub fn load_workspace(
         &mut self,
         workspace: Arc<Workspace>,
         roots: Vec<Node>,
         cx: &mut Context<Self>,
     ) {
-        let visibility = self.tree.visibility.clone();
-        self.tree = Tree {
-            roots,
-            visibility,
-            ..Tree::new()
+        let key = |ws: &Workspace| {
+            crate::editor::workbench::catalog::resource_key(
+                &ws.resource_id(Path::new("")).expect("workspace root"),
+            )
         };
+        let next = key(&workspace);
+        if self.workspace.as_ref().is_some_and(|ws| key(ws) == next) {
+            return;
+        }
+        let visibility = self.tree.visibility.clone();
+        let empty = RetainedExplorer {
+            tree: Tree {
+                roots,
+                visibility,
+                ..Tree::new()
+            },
+            scroll: UniformListScrollHandle::new(),
+            clipboard: None,
+            op: false,
+        };
+        let cached = self.retained.remove(&next);
+        let revalidate = cached.is_some();
+        let restored = cached.unwrap_or(empty);
+        self.refresh = None;
+        let previous = RetainedExplorer {
+            tree: std::mem::replace(&mut self.tree, restored.tree),
+            scroll: std::mem::replace(&mut self.scroll, restored.scroll),
+            clipboard: std::mem::replace(&mut self.clipboard, restored.clipboard),
+            op: std::mem::replace(&mut self.op, restored.op),
+        };
+        if let Some(old) = self.workspace.replace(workspace) {
+            self.retained.insert(key(&old), previous);
+        }
         self.tree.rebuild();
-        self.op = None;
-        self.queued_op = None;
-        self.reopen.clear();
-        self.workspace = Some(workspace);
+        self.apply_visibility(cx);
         self.fixture = false;
-        self.scroll = UniformListScrollHandle::new();
         self.menu = None;
-        self.clipboard = None;
+        if revalidate {
+            self.refresh_loaded_folders(cx);
+        }
         cx.notify();
+    }
+    fn refresh_loaded_folders(&mut self, cx: &mut Context<Self>) {
+        let Some(workspace) = self.workspace.clone() else {
+            return;
+        };
+        let tree_id = self.tree.id;
+        let paths = self.tree.loaded_folders();
+        let read = cx.background_executor().spawn(async move {
+            paths
+                .into_iter()
+                .map(|path| {
+                    let result = workspace.list(&path);
+                    (path, result)
+                })
+                .collect::<Vec<_>>()
+        });
+        self.refresh = Some(cx.spawn(async move |this, cx| {
+            let listings = read.await;
+            let _ = this.update(cx, |s, cx| {
+                if s.tree.id != tree_id {
+                    return;
+                }
+                for (path, listing) in listings {
+                    match listing {
+                        Ok(nodes) => s.tree.refresh_children(&path, nodes),
+                        Err(error) if path.as_os_str().is_empty() => {
+                            cx.emit(ExplorerEvent::Error(error.to_string()))
+                        }
+                        Err(error) => {
+                            if let Some(node) = s.tree.find_mut(&path) {
+                                node.error = Some(error.to_string());
+                            }
+                        }
+                    }
+                }
+                s.tree.rebuild();
+                cx.notify();
+            });
+        }));
     }
     /// A folder's listing came back ([`ExplorerEvent::LoadChildren`]).
     pub fn children_loaded(
@@ -292,7 +348,7 @@ impl Explorer {
     }
     /// A file operation is running.
     pub fn busy(&self) -> bool {
-        self.op.is_some()
+        self.op
     }
     #[cfg(any(test, feature = "dev-capture"))]
     pub fn tree(&self) -> &Tree {
@@ -548,3 +604,6 @@ pub(super) fn bottom_fade(offset_y: f32, max_y: f32) -> f32 {
     let scroll_top = (-offset_y).clamp(0., max_y);
     ((max_y - scroll_top) / FADE_DISTANCE).clamp(0., 1.)
 }
+
+#[cfg(test)]
+mod tests;

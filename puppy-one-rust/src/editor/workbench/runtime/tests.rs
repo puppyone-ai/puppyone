@@ -30,6 +30,388 @@ fn open(r: &mut Runtime, name: &str) {
             .is_some_and(|(_, p)| p == std::path::Path::new(name))
     });
 }
+fn snapshots(r: &mut Runtime, content: impl Fn(&str) -> String) {
+    for (slot, message) in r.take_outgoing() {
+        if let HostMessage::Snapshot {
+            request,
+            freeze: true,
+        } = message
+        {
+            let document = r.slot(slot).unwrap().document.as_ref().unwrap();
+            r.client_for(
+                slot,
+                ClientMessage::Snapshot {
+                    request,
+                    id: document.id.clone(),
+                    revision: 1,
+                    text: content(document.relative.to_str().unwrap()),
+                },
+                &Wake::default(),
+            );
+        }
+    }
+}
+#[test]
+fn unknown_resource_result_blocks_its_paths_but_allows_unrelated_navigation() {
+    use super::super::resource_operations::Operation;
+    let root = tempfile::tempdir().unwrap();
+    for name in ["a.md", "b.md", "unrelated.md"] {
+        std::fs::write(root.path().join(name), name).unwrap();
+    }
+    let mut r = Runtime::default();
+    open_root(&mut r, root.path());
+    open(&mut r, "a.md");
+    let slot = r.active_slot();
+    r.resource_operation(
+        Operation::Rename {
+            path: "a.md".into(),
+            name: "b.md".into(),
+        },
+        &Wake::default(),
+    )
+    .unwrap();
+    snapshots(&mut r, |path| path.into());
+    wait(&mut r, |r| r.can_retry_operation());
+    assert!(r.slot(slot).unwrap().operation_ready());
+    assert!(!r.busy());
+    open(&mut r, "unrelated.md");
+    let active = r.active_slot();
+    r.begin(Intent::OpenFile("a.md".into()), &Wake::default());
+    assert_eq!(r.active_slot(), active);
+    assert!(
+        r.error
+            .as_ref()
+            .is_some_and(|error| error.contains("pending file operation"))
+    );
+    std::fs::remove_file(root.path().join("b.md")).unwrap();
+    r.retry_operation(&Wake::default());
+    wait(&mut r, |r| r.mutation.is_none());
+    assert!(!r.slot(slot).unwrap().busy());
+    assert!(root.path().join("a.md").exists());
+    assert!(
+        !root.path().join("b.md").exists(),
+        "reconciliation must never repeat the rename"
+    );
+}
+#[test]
+fn resource_barrier_waits_for_composition_and_cannot_be_stolen_by_close() {
+    use super::super::resource_operations::Operation;
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("a.md"), "old").unwrap();
+    let mut r = Runtime::default();
+    open_root(&mut r, root.path());
+    open(&mut r, "a.md");
+    let slot = r.active_slot();
+    let id = r.document.as_ref().unwrap().id.clone();
+    r.resource_operation(
+        Operation::Rename {
+            path: "a.md".into(),
+            name: "b.md".into(),
+        },
+        &Wake::default(),
+    )
+    .unwrap();
+    for (_, message) in r.take_outgoing() {
+        if let HostMessage::Snapshot {
+            request,
+            freeze: true,
+        } = message
+        {
+            r.client_for(
+                slot,
+                ClientMessage::Deferred {
+                    request,
+                    id: id.clone(),
+                },
+                &Wake::default(),
+            );
+        }
+    }
+    r.close_slot(slot, &Wake::default());
+    r.poll(&Wake::default());
+    assert!(root.path().join("a.md").exists() && !root.path().join("b.md").exists());
+    assert!(!r.hosts[r.active.as_ref().unwrap()].slots[&slot].closing);
+    r.client_for(
+        slot,
+        ClientMessage::Dirty {
+            id: id.clone(),
+            revision: 1,
+            dirty: true,
+        },
+        &Wake::default(),
+    );
+    snapshots(&mut r, |_| "中文组字".into());
+    wait(&mut r, |r| r.mutation.is_none());
+    assert_eq!(
+        std::fs::read_to_string(root.path().join("b.md")).unwrap(),
+        "中文组字"
+    );
+    assert_eq!(r.slot(slot).unwrap().document.as_ref().unwrap().id, id);
+}
+#[test]
+fn explorer_drop_reuses_visible_views_and_places_new_documents_at_the_requested_edge() {
+    use super::super::layout::{Direction, Placement};
+    let root = tempfile::tempdir().unwrap();
+    for name in ["a.md", "b.md", "c.md"] {
+        std::fs::write(root.path().join(name), name).unwrap();
+    }
+    let mut r = Runtime::default();
+    open_root(&mut r, root.path());
+    open(&mut r, "a.md");
+    let first = r.active_slot();
+    let pane = r.state().unwrap().layout.active.clone();
+    r.open_at_edge(
+        "b.md".into(),
+        &pane,
+        Direction::Vertical,
+        Placement::First,
+        &Wake::default(),
+    );
+    wait(&mut r, |r| {
+        r.opened()
+            .is_some_and(|(_, path)| path == std::path::Path::new("b.md"))
+    });
+    assert_eq!(r.visible_slots(), vec![r.active_slot(), first]);
+    let layout = r.state().unwrap().layout.clone();
+    r.open_at_edge(
+        "b.md".into(),
+        &pane,
+        Direction::Horizontal,
+        Placement::Second,
+        &Wake::default(),
+    );
+    assert_eq!(r.state().unwrap().layout, layout);
+    r.state_mut().unwrap().split(Direction::Horizontal);
+    let empty = r.state().unwrap().layout.active.clone();
+    let count = r.state().unwrap().layout.root.panes().len();
+    r.open_at_edge(
+        "c.md".into(),
+        &empty,
+        Direction::Horizontal,
+        Placement::First,
+        &Wake::default(),
+    );
+    wait(&mut r, |r| {
+        r.opened()
+            .is_some_and(|(_, path)| path == std::path::Path::new("c.md"))
+    });
+    assert_eq!(r.state().unwrap().layout.root.panes().len(), count);
+    assert_eq!(r.state().unwrap().layout.active, empty);
+}
+#[test]
+fn delayed_drop_cannot_attach_to_a_removed_and_recreated_pane_id() {
+    use super::super::layout::{Direction, Placement};
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("a.md"), "a").unwrap();
+    let mut r = Runtime::default();
+    open_root(&mut r, root.path());
+    r.state_mut().unwrap().split(Direction::Horizontal);
+    let target = r.state().unwrap().layout.active.clone();
+    r.open_at_edge(
+        "a.md".into(),
+        &target,
+        Direction::Horizontal,
+        Placement::Second,
+        &Wake::default(),
+    );
+    r.state_mut().unwrap().close_pane(&target);
+    r.state_mut().unwrap().split(Direction::Horizontal);
+    assert_eq!(
+        r.state().unwrap().layout.active,
+        target,
+        "the layout reuses the textual pane ID"
+    );
+    wait(&mut r, |r| r.hosts.values().all(|h| h.slots.is_empty()));
+    assert!(r.state().unwrap().catalog.editors.is_empty());
+    assert!(
+        r.state()
+            .unwrap()
+            .layout
+            .root
+            .panes()
+            .iter()
+            .all(|(_, editor)| editor.is_none())
+    );
+}
+#[test]
+fn drop_read_failure_does_not_create_a_pane_and_a_resize_does_not_cancel_admission() {
+    use super::super::layout::{Direction, Placement};
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("a.md"), "a").unwrap();
+    let mut r = Runtime::default();
+    open_root(&mut r, root.path());
+    r.state_mut().unwrap().split(Direction::Horizontal);
+    let target = r.state().unwrap().layout.active.clone();
+    let layout = r.state().unwrap().layout.clone();
+    r.open_at_edge(
+        "missing.md".into(),
+        &target,
+        Direction::Horizontal,
+        Placement::Second,
+        &Wake::default(),
+    );
+    wait(&mut r, |r| r.error.is_some());
+    assert_eq!(r.state().unwrap().layout, layout);
+    r.open_at_edge(
+        "a.md".into(),
+        &target,
+        Direction::Horizontal,
+        Placement::Second,
+        &Wake::default(),
+    );
+    r.state_mut().unwrap().layout.resize("editor-split-1", 0.7);
+    wait(&mut r, |r| r.opened().is_some());
+    assert_eq!(r.state().unwrap().layout.active, target);
+    assert_eq!(r.state().unwrap().layout.root.panes().len(), 2);
+}
+#[test]
+fn copying_a_directory_flushes_hidden_working_copies_without_replacing_them() {
+    use super::super::resource_operations::Operation;
+    let root = tempfile::tempdir().unwrap();
+    std::fs::create_dir(root.path().join("folder")).unwrap();
+    for name in ["folder/a.md", "folder/b.md"] {
+        std::fs::write(root.path().join(name), "old").unwrap();
+    }
+    let mut r = Runtime::default();
+    open_root(&mut r, root.path());
+    open(&mut r, "folder/a.md");
+    let first = r.active_slot();
+    let id = r.document.as_ref().unwrap().id.clone();
+    open(&mut r, "folder/b.md");
+    let active = r.active_slot();
+    let state = r.state().unwrap().clone();
+    r.resource_operation(
+        Operation::Duplicate(vec!["folder".into(), "folder/a.md".into()]),
+        &Wake::default(),
+    )
+    .unwrap();
+    snapshots(&mut r, |path| format!("edited {path}"));
+    wait(&mut r, |r| r.mutation.is_none());
+    let outcome = r.operation_results.pop().unwrap().1;
+    assert!(outcome.error.is_none(), "{:?}", outcome.error);
+    let copy = outcome.select.unwrap();
+    for name in ["a.md", "b.md"] {
+        assert_eq!(
+            std::fs::read_to_string(root.path().join(&copy).join(name)).unwrap(),
+            format!("edited folder/{name}")
+        );
+    }
+    assert_eq!(r.active_slot(), active);
+    assert_eq!(r.state(), Some(&state));
+    assert_eq!(r.slot(first).unwrap().document.as_ref().unwrap().id, id);
+    assert!(
+        r.hosts
+            .values()
+            .flat_map(|h| h.slots.values())
+            .all(|s| !s.files.busy())
+    );
+}
+#[test]
+fn failed_snapshot_cancels_the_mutation_and_thaws_every_affected_document() {
+    use super::super::resource_operations::Operation;
+    let root = tempfile::tempdir().unwrap();
+    for name in ["a.md", "b.md"] {
+        std::fs::write(root.path().join(name), "original").unwrap();
+    }
+    let mut r = Runtime::default();
+    open_root(&mut r, root.path());
+    open(&mut r, "a.md");
+    open(&mut r, "b.md");
+    let state = r.state().unwrap().clone();
+    r.resource_operation(
+        Operation::Delete(vec!["a.md".into(), "b.md".into()]),
+        &Wake::default(),
+    )
+    .unwrap();
+    snapshots(&mut r, |path| {
+        if path == "a.md" {
+            "\0invalid".into()
+        } else {
+            "original".into()
+        }
+    });
+    wait(&mut r, |r| r.mutation.is_none());
+    assert!(r.operation_results.last().unwrap().1.error.is_some());
+    assert_eq!(r.state(), Some(&state));
+    assert!(
+        r.hosts
+            .values()
+            .flat_map(|h| h.slots.values())
+            .all(|s| !s.files.busy())
+    );
+    for name in ["a.md", "b.md"] {
+        assert_eq!(
+            std::fs::read_to_string(root.path().join(name)).unwrap(),
+            "original"
+        );
+    }
+}
+#[test]
+fn move_rebinds_its_original_project_even_if_another_project_is_active() {
+    use super::super::resource_operations::Operation;
+    let first = tempfile::tempdir().unwrap();
+    let second = tempfile::tempdir().unwrap();
+    std::fs::write(first.path().join("old.md"), "old").unwrap();
+    let mut r = Runtime::default();
+    open_root(&mut r, first.path());
+    open(&mut r, "old.md");
+    let owner = r.active.clone().unwrap();
+    let slot = r.active_slot();
+    r.resource_operation(
+        Operation::Rename {
+            path: "old.md".into(),
+            name: "new.md".into(),
+        },
+        &Wake::default(),
+    )
+    .unwrap();
+    r.begin(Intent::OpenFolder(second.path().into()), &Wake::default());
+    wait(&mut r, |r| r.active.as_ref() != Some(&owner));
+    let current = r.active.clone();
+    snapshots(&mut r, |_| "saved before moving".into());
+    wait(&mut r, |r| r.mutation.is_none());
+    assert_eq!(r.active, current);
+    assert_eq!(
+        r.slot(slot).unwrap().opened().unwrap().1,
+        std::path::Path::new("new.md")
+    );
+    assert_eq!(r.hosts[&owner].state.catalog.editors[0].label, "new.md");
+    assert_eq!(
+        std::fs::read_to_string(first.path().join("new.md")).unwrap(),
+        "saved before moving"
+    );
+    assert!(!first.path().join("old.md").exists());
+}
+#[test]
+fn a_destination_with_an_open_working_copy_rejects_the_move_before_freezing() {
+    use super::super::resource_operations::Operation;
+    let root = tempfile::tempdir().unwrap();
+    for name in ["a.md", "b.md"] {
+        std::fs::write(root.path().join(name), name).unwrap();
+    }
+    let mut r = Runtime::default();
+    open_root(&mut r, root.path());
+    open(&mut r, "a.md");
+    open(&mut r, "b.md");
+    assert!(
+        r.resource_operation(
+            Operation::Rename {
+                path: "a.md".into(),
+                name: "b.md".into()
+            },
+            &Wake::default()
+        )
+        .is_err()
+    );
+    assert!(r.mutation.is_none());
+    assert!(!r.busy());
+    for name in ["a.md", "b.md"] {
+        assert_eq!(
+            std::fs::read_to_string(root.path().join(name)).unwrap(),
+            name
+        );
+    }
+}
 #[test]
 fn native_metadata_roundtrip_restores_order_mru_panes_and_ratio_after_provider_admission() {
     let profile = tempfile::tempdir().unwrap();

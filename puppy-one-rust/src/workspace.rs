@@ -242,6 +242,27 @@ impl Workspace {
         current.id = document.id.clone();
         Ok(current)
     }
+    /// Verify the moved address before changing a retained Working Copy's
+    /// binding. A lost receipt may be reconciled, never blindly replayed.
+    pub fn rebind(&self, document: &Document, path: &Path) -> Result<Document> {
+        self.check_document(document)?;
+        let mut next = self.read(path)?;
+        if next.text != document.text {
+            return Err(Error::new(
+                ErrorKind::OutcomeUnknown,
+                "The moved file differs from the saved document; reconcile it before continuing",
+            ));
+        }
+        next.id = document.id.clone();
+        Ok(next)
+    }
+    pub fn entry_exists(&self, path: &Path) -> Result<bool> {
+        Self::entry_path(path)?;
+        Ok(self
+            .list(path.parent().unwrap_or(Path::new("")))?
+            .iter()
+            .any(|entry| entry.path == path))
+    }
     pub fn save(&self, document: &Document, text: &str) -> Result<WriteOutcome> {
         self.check_document(document)?;
         self.admit(self.capabilities().write)?;

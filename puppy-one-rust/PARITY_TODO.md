@@ -1,6 +1,6 @@
 # Rust 前端与 Web 产品对齐 TODO
 
-参考实现：`../../puppyone-qubits`（`product-source.json`）。本清单只覆盖左侧栏、Header、Settings、右侧 Agent/工作台以及它们依赖的样式与本地化基础设施。
+参考实现：`../../puppyone-qubits`（`product-source.json`）。本清单跟踪原生产品迁移；本轮要求的五个 1:1 复刻领域统一列于 §0.3，后文保留各模块的详细验收项。
 状态：`[ ]` 未开始 · `[~]` 部分完成（写明缺什么）· `[x]` 完成并有测试/截图证据。
 
 ## 0. 工作方法
@@ -27,6 +27,20 @@
   - 字号：`src/styles/typography/foundations.css`（UI 字号角色，随三档文字尺度变化）
 - `src/ui/` 提供与 Web 同名语义的样式原语（sidebar row/group、settings row/switch/segment/select/action、menu、icon button），功能代码只组合原语。
 - `check-ui-boundaries.py` 扩展：`features/`、`shell.rs` 等不得出现 `rgb(`/`rgba(` 字面色值。
+
+### 0.3 五个领域的 1:1 复刻验收（2026-10-28 起）
+
+验收单位是 TS 的产品行为、状态转换、异常处理和真实入口；已有接口或局部测试不算整项完成。参考 HEAD 必须同时绑定实际工作树输入哈希。
+
+| 领域 | 当前已接入 | 完成前还必须验证 |
+| --- | --- | --- |
+| 文件操作 `[~]` | 原 Working Copy/Entity 重绑定；隐藏文档与目录后代保存屏障；复制源 flush；未知回执只对账；移动后 Undo 写回新路径 | 改扩展名的 viewer 转换与历史连续性；与 TS 等价的按资源范围并发队列；所有格式与跨 Root 操作 |
+| 工作区与 Explorer `[~]` | 本地树/选择/滚动/剪贴板保活及重核；目录移动保留子树；同工作区单文件边缘拖放及目标生命周期隔离 | 完整每 Pane 视图状态、跨 Root composition；目录订阅；外部原生拖放；键盘/可访问性与 OS/像素验收 |
+| Cloud 完整链路 `[ ]` | 继承已验证认证和 running Provider 底座；入口仍禁用 | 项目选择→创建/唤醒→opening/polling/recovery→双入口切换→Editor；草稿/未知保存结果、权限/viewer budget 与执行隔离；真实测试环境验收 |
+| 文件查看器 `[ ]` | 继承 Markdown、CSV、图片与通用文本实现 | 代码/JSON 语法编辑；HTML 实际预览；Context Map/PuppyFlow；App/PDF/数据库/Office/音视频的完整 TS 能力与失败态 |
+| Markdown 高级功能 `[ ]` | 继承原生基础格式、代码块及表格 | 数学公式、Mermaid、图片/视频、HTML/MDX；表格列宽、链接图和资源解析；CSV 工作区引用的真实宿主接线 |
+
+本批执行证据：`renaming_a_hidden_document_rebinds_its_native_history_without_changing_focus`、`resource_barrier_waits_for_composition_and_cannot_be_stolen_by_close`、`copying_a_directory_flushes_hidden_working_copies_without_replacing_them`、`failed_snapshot_cancels_the_mutation_and_thaws_every_affected_document`、`lost_rename_receipt_is_reconciled_without_replaying_the_mutation`、`project_return_restores_explorer_state_and_revalidates_loaded_folders`、`delayed_drop_cannot_attach_to_a_removed_and_recreated_pane_id`。这些覆盖文件与工作台切片，不将后面三项标为完成。
 
 ## 1. 基础设施
 
@@ -233,7 +247,7 @@ python3 tools/audit-ui-migration.py
 - [~] N10 编辑器工作台原生
   - [x] 窗格外框（单窗格）：⋯ 手柄（窗格上三分之一悬停显示）、动作菜单（Markdown 实时 / 源码分段控件、查找、用默认应用打开、关闭；CSV 的表头 / 行号开关与列宽命令；开关不关菜单、命令关菜单；方向键 / Home / End / Enter / Esc）
   - [x] 查找栏（`EditorFindHost`）：⌘F / 菜单打开，Enter / ⇧Enter 上下，结果“n / 共 m”，Esc 关闭并回到编辑器；CSV 适配器与编辑视图适配器（CodeMirror 等价：不区分大小写的字面匹配、当前项选中并居中、匹配标记与当前项外框、编辑后保持）
-  - [~] 本地标签/MRU、递归分屏与 Pane 移动/调宽、独立 Working Copy、原生布局恢复和本地项目文档保活已接进 Shell；真实 TS 600 个 Pane 转换及原生 Undo/后台保存集成测试覆盖。**不是完整工作台迁移**：Cloud、Explorer 保活/边缘拖放、完整 Pane 视图生命周期、跨 Root composition、资源操作历史重绑定等仍缺失；详见 README 的 Retained Editor workbench。
+  - [~] 本地标签/MRU、递归分屏与 Pane 移动/调宽、独立 Working Copy、原生布局恢复和本地项目文档保活已接进 Shell；真实 TS 600 个 Pane 转换及原生 Undo/后台保存集成测试覆盖。本批补充本地资源历史重绑定、Explorer 状态保活与同工作区边缘拖放。**不是完整工作台迁移**：Cloud、完整 Pane 视图生命周期、跨 Root composition、扩展名变化后的 viewer 转换、并发资源队列与跨应用拖放等仍缺失；详见 §0.3 与 README 的 Retained Editor workbench。
   - 已知差异：当前匹配被选中时，选区由 Kit 绘制在匹配底色之上（产品为底色在选区之上），颜色叠加顺序略有不同
 - [~] N11 路由：MD / CSV / 纯文本只走原生编辑器；WebView 编辑器、其产品代码打包（`editor/`）和 GUI 冒烟驱动已删除，不存在回退路径。缺：代码 / JSON 语法高亮，HTML / PDF / 媒体查看器；原型 `native_editor` 已删除（其自绘输入框无人使用，一并删除；共享编辑动作在 `src/ui/input.rs`，文档格式动作在 `src/editor/actions.rs`）
 

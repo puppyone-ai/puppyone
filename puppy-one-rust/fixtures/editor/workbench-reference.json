@@ -63,8 +63,17 @@
     "tests/unit/workbench/layout/editorPaneLayoutModel.test.ts": "546f5b54311542a21eb17329517561ede46f1e82f87783fad613fcc2bf31dd2f",
     "tests/unit/workbench/layout/editorWorkbenchPersistence.test.ts": "7e1d41fd32e8a109febbcc0f35a5c9ffdc2be18c106f7545ba56390b523d575a",
     "tests/unit/workbench/layout/workbenchSplitTreeModel.test.ts": "91696e90edd09aa8ce2f08334a8ff5de5639d6d39b0fb88b81de3a6670f11d1d",
-    "tests/unit/workbench/tabs/editorGroupModel.test.ts": "842c659f050560265ce071103d0cb4895e123342498e784328c62bec6fd0927d"
+    "tests/unit/workbench/tabs/editorGroupModel.test.ts": "842c659f050560265ce071103d0cb4895e123342498e784328c62bec6fd0927d",
+    "packages/shared-ui/src/data/DataWorkspace.tsx": "d9fff4671ce79ccf1b931857ccbb84958cfc01fb949360a6e1d99ef33263fc3d",
+    "src/features/data-workspace/fileClipboard.ts": "cb4c5d290cf83ce890bc40abf7227d67c58fc23079491ea10b9e90bb6cc3e513"
   },
-  "dirtyInputs": [" M src/styles/titlebar.css"],
-  "additionalInputReview": "Titlebar CSS/chrome added after inspecting their actual bytes for Editor tab metrics; existing 59 input hashes unchanged."
+  "dirtyInputs": [
+    " M src/styles/titlebar.css",
+    " M packages/shared-ui/src/data/DataWorkspace.tsx"
+  ],
+  "additionalInputReview": "Titlebar CSS/chrome added after inspecting their actual bytes for Editor tab metrics; existing 59 input hashes unchanged.",
+  "reviewedAdditions20261028": [
+    "packages/shared-ui/src/data/DataWorkspace.tsx",
+    "src/features/data-workspace/fileClipboard.ts"
+  ]
 }

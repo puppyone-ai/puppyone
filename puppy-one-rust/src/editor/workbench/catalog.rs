@@ -89,6 +89,61 @@ pub struct Workbench {
     pub layout: Layout,
 }
 impl Workbench {
+    /// Explorer drop: focus an existing view, fill an empty pane, otherwise
+    /// split at the requested edge (`openDocumentAtPaneEdge`).
+    pub fn open_at_edge(
+        &mut self,
+        input: Input,
+        target: &str,
+        direction: Direction,
+        placement: Placement,
+    ) {
+        let visible = self
+            .layout
+            .root
+            .panes()
+            .into_iter()
+            .find(|(_, editor)| *editor == Some(input.id.as_str()))
+            .map(|(id, _)| id.to_owned());
+        if let Some(pane) = visible {
+            self.catalog.open(input);
+            self.focus(&pane);
+            return;
+        }
+        let Some((_, editor)) = self
+            .layout
+            .root
+            .panes()
+            .into_iter()
+            .find(|(id, _)| *id == target)
+        else {
+            return;
+        };
+        let empty = editor.is_none();
+        let key = input.id.clone();
+        self.catalog.open(input);
+        if empty {
+            self.layout.assign(target, Some(key));
+        } else {
+            self.layout.split(target, direction, placement, Some(key));
+        }
+    }
+    pub fn rebind(&mut self, from: &str, input: Input) {
+        for existing in &mut self.catalog.editors {
+            if existing.id == from {
+                *existing = input.clone();
+            }
+        }
+        if self.catalog.active.as_deref() == Some(from) {
+            self.catalog.active = Some(input.id.clone());
+        }
+        for id in &mut self.catalog.mru {
+            if id == from {
+                *id = input.id.clone();
+            }
+        }
+        self.layout.rebind_editor(from, &input.id);
+    }
     pub fn open(&mut self, input: Input) {
         let id = input.id.clone();
         self.catalog.open(input);

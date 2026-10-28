@@ -14,7 +14,10 @@ use std::{
     path::PathBuf,
 };
 
+mod drops;
+mod operations;
 mod persistence;
+pub use drops::StateMut;
 #[cfg(test)]
 mod tests;
 pub type SlotId = u64;
@@ -26,6 +29,7 @@ struct Slot {
     closing: bool,
     reported_error: Option<String>,
     restoring: bool,
+    drop_target: Option<drops::Target>,
 }
 struct Host {
     empty: Documents,
@@ -37,6 +41,8 @@ struct Host {
     metadata_loaded: bool,
     metadata_value: Option<serde_json::Value>,
     metadata_due: Option<std::time::Instant>,
+    pane_lifetimes: BTreeMap<String, u64>,
+    pane_serial: u64,
 }
 impl Host {
     fn interact(&mut self) {
@@ -49,6 +55,8 @@ impl Host {
 }
 #[derive(Default)]
 pub struct Runtime {
+    mutation: Option<operations::Mutation>,
+    pub operation_results: Vec<(String, super::resource_operations::Outcome)>,
     scratch: Documents,
     hosts: BTreeMap<String, Host>,
     active: Option<String>,
@@ -112,13 +120,14 @@ impl Runtime {
             .and_then(|id| self.hosts.get(id))
             .map(|h| &h.state)
     }
-    pub fn state_mut(&mut self) -> Option<&mut Workbench> {
+    pub fn state_mut(&mut self) -> Option<StateMut<'_>> {
         self.active
             .as_ref()
             .and_then(|id| self.hosts.get_mut(id))
             .map(|h| {
                 h.interact();
-                &mut h.state
+                h.sync_panes();
+                StateMut(h)
             })
     }
     pub fn active_slot(&self) -> SlotId {
@@ -172,14 +181,17 @@ impl Runtime {
             .collect()
     }
     pub fn busy(&self) -> bool {
+        // A held resource barrier blocks its own paths and editor input, not
+        // unrelated Explorer navigation or another retained project.
+        let transitioning = |files: &Documents| files.busy() && !files.operation_ready();
         self.quitting
             || self.preparing.is_some()
-            || self.deref().busy()
+            || transitioning(self.deref())
             || self
                 .active
                 .as_ref()
                 .and_then(|key| self.hosts.get(key))
-                .is_some_and(|host| host.slots.values().any(|s| s.files.busy()))
+                .is_some_and(|host| host.slots.values().any(|s| transitioning(&s.files)))
     }
     pub fn open_paths(&self) -> Vec<PathBuf> {
         match self.active.as_ref().and_then(|key| self.hosts.get(key)) {
@@ -193,25 +205,6 @@ impl Runtime {
                 .opened()
                 .map(|(_, p)| vec![p.to_owned()])
                 .unwrap_or_default(),
-        }
-    }
-    pub fn close_paths(&mut self, paths: &[PathBuf], wake: &Wake) {
-        let slots: Vec<_> = self
-            .retained_slots()
-            .into_iter()
-            .filter(|id| {
-                self.slot(*id).is_some_and(|f| {
-                    f.workspace
-                        .as_ref()
-                        .zip(self.workspace.as_ref())
-                        .is_some_and(|(a, b)| std::sync::Arc::ptr_eq(a, b))
-                        && f.opened()
-                            .is_some_and(|(_, p)| paths.iter().any(|root| p.starts_with(root)))
-                })
-            })
-            .collect();
-        for id in slots {
-            self.close_slot(id, wake);
         }
     }
     pub fn begin(&mut self, intent: Intent, wake: &Wake) {
@@ -243,6 +236,10 @@ impl Runtime {
                 self.preparing = Some(preparing);
             }
             Intent::OpenFile(path) => {
+                if self.mutation_blocks(&path) {
+                    self.error = Some("This resource has a pending file operation".into());
+                    return;
+                }
                 let Some(ws) = self.workspace.clone() else {
                     self.scratch.begin(Intent::OpenFile(path), wake);
                     return;
@@ -266,6 +263,7 @@ impl Runtime {
                 if let Some(slot) = host.slots.values_mut().find(|s| s.key == key) {
                     slot.opening = self.navigation;
                     slot.restoring = false;
+                    slot.drop_target = None;
                     return;
                 }
                 self.serial += 1;
@@ -281,6 +279,7 @@ impl Runtime {
                         closing: false,
                         reported_error: None,
                         restoring: false,
+                        drop_target: None,
                     },
                 );
             }
@@ -289,6 +288,12 @@ impl Runtime {
                 self.close_slot(id, wake);
             }
             Intent::Quit => {
+                if self.mutation.is_some() {
+                    self.error = Some(
+                        "Finish or reconcile the pending file operation before closing".into(),
+                    );
+                    return;
+                }
                 self.preparing = None;
                 self.quitting = true;
                 self.allow_quit = false;
@@ -308,23 +313,30 @@ impl Runtime {
             return;
         }
         self.navigation += 1;
-        if let Some(state) = self.state_mut() {
+        if let Some(mut state) = self.state_mut() {
             state.activate(key);
-            self.generation += 1;
         }
+        self.generation += 1;
     }
     pub fn focus(&mut self, pane: &str) {
         if self.quitting {
             return;
         }
         self.navigation += 1;
-        if let Some(state) = self.state_mut() {
+        if let Some(mut state) = self.state_mut() {
             state.focus(pane);
-            self.generation += 1;
         }
+        self.generation += 1;
     }
     pub fn close_slot(&mut self, id: SlotId, wake: &Wake) {
         if self.quitting {
+            return;
+        }
+        if self.mutation_owns_slot(id) {
+            self.error = Some(
+                "Finish or reconcile the pending file operation before closing this document"
+                    .into(),
+            );
             return;
         }
         if id == 0 {
@@ -428,6 +440,8 @@ impl Runtime {
                                 .is_none_or(|store| !store.load(key.clone(), wake)),
                             metadata_value: None,
                             metadata_due: None,
+                            pane_lifetimes: BTreeMap::new(),
+                            pane_serial: 0,
                         },
                     );
                 }
@@ -476,7 +490,18 @@ impl Runtime {
                             .to_string_lossy()
                             .into_owned(),
                     };
-                    if slot.restoring {
+                    if let Some(target) = slot.drop_target.take() {
+                        if host.pane_lifetimes.get(&target.pane) == Some(&target.lifetime) {
+                            host.state.open_at_edge(
+                                input,
+                                &target.pane,
+                                target.direction,
+                                target.placement,
+                            );
+                        } else {
+                            remove.push(*id);
+                        }
+                    } else if slot.restoring {
                         if host.restore.is_none() {
                             remove.push(*id);
                         }
@@ -504,6 +529,7 @@ impl Runtime {
             for id in remove {
                 host.slots.remove(&id);
             }
+            host.sync_panes();
         }
         if let Some(error) = self.scratch.error.take() {
             self.error = Some(error);
@@ -512,6 +538,7 @@ impl Runtime {
         if quit_failed {
             self.cancel_quit(wake);
         }
+        self.poll_mutation(wake);
         self.poll_metadata(wake);
         self.persist_metadata(wake, self.quitting);
         if self.quitting {

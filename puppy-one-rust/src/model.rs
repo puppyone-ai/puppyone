@@ -93,6 +93,82 @@ pub struct Tree {
 }
 
 impl Tree {
+    /// A committed move changes addresses, not disclosure/selection state.
+    pub fn rebind(&mut self, from: &Path, to: &Path) {
+        fn detach(nodes: &mut Vec<Node>, from: &Path) -> Option<Node> {
+            if let Some(index) = nodes.iter().position(|n| n.path == from) {
+                return Some(nodes.remove(index));
+            }
+            nodes
+                .iter_mut()
+                .find_map(|node| detach(&mut node.children, from))
+        }
+        fn path(value: &mut PathBuf, from: &Path, to: &Path) {
+            if let Ok(rest) = value.strip_prefix(from) {
+                *value = if rest.as_os_str().is_empty() {
+                    to.into()
+                } else {
+                    to.join(rest)
+                };
+            }
+        }
+        fn nodes(entries: &mut [Node], from: &Path, to: &Path) {
+            for node in entries {
+                path(&mut node.path, from, to);
+                node.name = node
+                    .path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .into_owned();
+                nodes(&mut node.children, from, to);
+            }
+        }
+        if let Some(mut node) = detach(&mut self.roots, from) {
+            nodes(std::slice::from_mut(&mut node), from, to);
+            let parent = to.parent().unwrap_or(Path::new(""));
+            if parent.as_os_str().is_empty() {
+                self.roots.push(node);
+            } else if let Some(destination) = self.find_mut(parent) {
+                destination.children.push(node);
+            }
+        }
+        path(&mut self.selected, from, to);
+        self.selection = self
+            .selection
+            .iter()
+            .cloned()
+            .map(|mut p| {
+                path(&mut p, from, to);
+                p
+            })
+            .collect();
+        if let Some(anchor) = &mut self.anchor {
+            path(anchor, from, to);
+        }
+    }
+    pub fn remove_selection(&mut self, path: &Path) {
+        self.selection.retain(|p| !p.starts_with(path));
+        if self.selected.starts_with(path) {
+            self.selected = PathBuf::new();
+        }
+        if self.anchor.as_ref().is_some_and(|p| p.starts_with(path)) {
+            self.anchor = None;
+        }
+    }
+    /// Revalidate previously read folders when restoring an Explorer session.
+    /// Parent-first reads let removed subtrees disappear before child results.
+    pub fn loaded_folders(&self) -> Vec<PathBuf> {
+        fn visit(nodes: &[Node], paths: &mut Vec<PathBuf>) {
+            for node in nodes.iter().filter(|n| n.folder && n.loaded) {
+                paths.push(node.path.clone());
+                visit(&node.children, paths);
+            }
+        }
+        let mut paths = vec![PathBuf::new()];
+        visit(&self.roots, &mut paths);
+        paths
+    }
     pub fn new() -> Self {
         Self {
             roots: vec![],
@@ -305,6 +381,38 @@ impl Default for Tree {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn moving_an_expanded_subtree_carries_state_into_the_destination_listing() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(root.path().join("from/nested")).unwrap();
+        std::fs::create_dir(root.path().join("to")).unwrap();
+        std::fs::write(root.path().join("from/nested/a.md"), "a").unwrap();
+        let ws = crate::workspace::Workspace::open(root.path()).unwrap();
+        let mut tree = Tree {
+            roots: ws.list(Path::new("")).unwrap(),
+            ..Tree::new()
+        };
+        for path in ["from", "from/nested", "to"] {
+            tree.attach_children(Path::new(path), ws.list(Path::new(path)).unwrap());
+        }
+        tree.select(Path::new("from/nested/a.md"), false, false);
+        ws.move_entry(Path::new("from"), Path::new("to")).unwrap();
+        tree.rebind(Path::new("from"), Path::new("to/from"));
+        for path in ["", "to"] {
+            tree.refresh_children(Path::new(path), ws.list(Path::new(path)).unwrap());
+        }
+        for path in ["to/from", "to/from/nested"] {
+            let node = tree.find_mut(Path::new(path)).unwrap();
+            assert!(node.expanded && node.loaded);
+        }
+        assert!(tree.selection.contains(Path::new("to/from/nested/a.md")));
+        assert_eq!(
+            tree.anchor.as_deref(),
+            Some(Path::new("to/from/nested/a.md"))
+        );
+        assert!(tree.index_of(Path::new("to/from/nested/a.md")).is_some());
+        assert!(tree.find_mut(Path::new("from")).is_none());
+    }
     #[test]
     fn collapsed_children_are_not_in_projection() {
         let mut t = Tree::fixture();
