@@ -119,7 +119,8 @@
       "native.git.binaryPreview": "Binary file — preview unavailable",
       "native.terminal.pasteTooLarge": "Paste exceeds 1 MiB",
       "native.desktop.openUnsupported": "Opening files with the operating system is implemented for macOS.",
-      "native.desktop.openFilesOnly": "Only files can be opened in another app."
+      "native.desktop.openFilesOnly": "Only files can be opened in another app.",
+      "native.create.creating": "Creating…"
     },
     "zh-Hans": {
       "native.agent.fork": "分叉对话",
@@ -239,7 +240,8 @@
       "native.git.binaryPreview": "二进制文件，无法预览",
       "native.terminal.pasteTooLarge": "粘贴内容超过 1 MiB",
       "native.desktop.openUnsupported": "目前只在 macOS 上支持用系统打开文件。",
-      "native.desktop.openFilesOnly": "只能在其他应用中打开文件。"
+      "native.desktop.openFilesOnly": "只能在其他应用中打开文件。",
+      "native.create.creating": "正在创建…"
     },
     "ja": {
       "native.agent.fork": "会話をフォーク",
@@ -359,7 +361,8 @@
       "native.git.binaryPreview": "バイナリファイル — プレビューできません",
       "native.terminal.pasteTooLarge": "貼り付ける内容が 1 MiB を超えています",
       "native.desktop.openUnsupported": "OS でファイルを開く機能は macOS でのみ実装されています。",
-      "native.desktop.openFilesOnly": "他のアプリで開けるのはファイルのみです。"
+      "native.desktop.openFilesOnly": "他のアプリで開けるのはファイルのみです。",
+      "native.create.creating": "作成中…"
     },
     "ko": {
       "native.agent.fork": "대화 포크",
@@ -479,7 +482,8 @@
       "native.git.binaryPreview": "바이너리 파일 — 미리 보기를 사용할 수 없음",
       "native.terminal.pasteTooLarge": "붙여넣기 내용이 1MiB를 초과합니다",
       "native.desktop.openUnsupported": "운영 체제로 파일 열기는 macOS에서만 구현되어 있습니다.",
-      "native.desktop.openFilesOnly": "다른 앱에서는 파일만 열 수 있습니다."
+      "native.desktop.openFilesOnly": "다른 앱에서는 파일만 열 수 있습니다.",
+      "native.create.creating": "만드는 중…"
     },
     "es": {
       "native.agent.fork": "Bifurcar conversación",
@@ -599,7 +603,8 @@
       "native.git.binaryPreview": "Archivo binario: vista previa no disponible",
       "native.terminal.pasteTooLarge": "El texto pegado supera 1 MiB",
       "native.desktop.openUnsupported": "Abrir archivos con el sistema operativo solo está implementado en macOS.",
-      "native.desktop.openFilesOnly": "Solo se pueden abrir archivos en otra app."
+      "native.desktop.openFilesOnly": "Solo se pueden abrir archivos en otra app.",
+      "native.create.creating": "Creando…"
     },
     "pt-BR": {
       "native.agent.fork": "Bifurcar conversa",
@@ -719,7 +724,8 @@
       "native.git.binaryPreview": "Arquivo binário — visualização indisponível",
       "native.terminal.pasteTooLarge": "A colagem excede 1 MiB",
       "native.desktop.openUnsupported": "Abrir arquivos com o sistema operacional só está implementado no macOS.",
-      "native.desktop.openFilesOnly": "Somente arquivos podem ser abertos em outro app."
+      "native.desktop.openFilesOnly": "Somente arquivos podem ser abertos em outro app.",
+      "native.create.creating": "Criando…"
     },
     "fr": {
       "native.agent.fork": "Dupliquer la conversation",
@@ -839,7 +845,8 @@
       "native.git.binaryPreview": "Fichier binaire — aperçu indisponible",
       "native.terminal.pasteTooLarge": "Le collage dépasse 1 Mio",
       "native.desktop.openUnsupported": "L’ouverture des fichiers avec le système n’est implémentée que sur macOS.",
-      "native.desktop.openFilesOnly": "Seuls les fichiers peuvent être ouverts dans une autre app."
+      "native.desktop.openFilesOnly": "Seuls les fichiers peuvent être ouverts dans une autre app.",
+      "native.create.creating": "Création…"
     },
     "de": {
       "native.agent.fork": "Unterhaltung abzweigen",
@@ -959,7 +966,8 @@
       "native.git.binaryPreview": "Binärdatei – Vorschau nicht verfügbar",
       "native.terminal.pasteTooLarge": "Eingefügter Text überschreitet 1 MiB",
       "native.desktop.openUnsupported": "Das Öffnen von Dateien mit dem Betriebssystem ist nur unter macOS implementiert.",
-      "native.desktop.openFilesOnly": "Nur Dateien können in einer anderen App geöffnet werden."
+      "native.desktop.openFilesOnly": "Nur Dateien können in einer anderen App geöffnet werden.",
+      "native.create.creating": "Wird erstellt…"
     }
   }
 }

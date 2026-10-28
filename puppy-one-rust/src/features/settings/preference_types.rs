@@ -153,6 +153,7 @@ pub struct Preferences {
     pub theme_pack: String,
     pub text_scale: crate::typography::Scale,
     pub file_icon_theme: String,
+    pub show_file_icons: bool,
     pub git_sidebar_layout: GitSidebarLayout,
     /// Shared material for every loading mark and placeholder. Old PulseGrid
     /// preferences are ignored; absent / unknown styles default to rounded.
@@ -183,6 +184,7 @@ impl Default for Preferences {
             theme_pack: "default.neutral".into(),
             text_scale: crate::typography::Scale::Medium,
             file_icon_theme: "default".into(),
+            show_file_icons: true,
             git_sidebar_layout: GitSidebarLayout::Cards,
             loading_style: Default::default(),
             pointer_cursors: false,
@@ -299,10 +301,24 @@ mod tests {
         assert!(p.experimental.share_onboarding);
         let fresh = Preferences::from_stored(serde_json::json!({})).unwrap();
         assert_eq!(fresh.theme_mode, ThemeMode::System);
+        assert!(fresh.show_file_icons);
         assert_eq!(
             normalize_patterns(" /a\\b \n#c\n**/x, **/x\n"),
             vec!["a/b".to_string(), "**/x".to_string()]
         );
+    }
+    #[test]
+    fn hidden_file_icons_survive_preference_reload() {
+        let p = Preferences::from_stored(serde_json::json!({
+            "show_file_icons": false,
+            "file_icon_theme": "default",
+            "locale": "zh-Hans"
+        }))
+        .unwrap();
+        let restored = Preferences::from_stored(serde_json::to_value(p).unwrap()).unwrap();
+        assert!(!restored.show_file_icons);
+        assert_eq!(restored.file_icon_theme, "default");
+        assert_eq!(restored.locale, "zh-Hans");
     }
     #[test]
     fn project_history_is_most_recent_first_and_bounded() {

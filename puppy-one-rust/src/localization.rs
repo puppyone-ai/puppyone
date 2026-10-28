@@ -12,7 +12,8 @@ fn data() -> &'static Value {
         let mut data: Value = serde_json::from_str(include_str!("../assets/locales.json"))
             .expect("generated catalogs");
         // Narrow, provenance-checked projection of the new loading-style keys.
-        // Do not regenerate the unrelated catalog from the dirty TS checkout.
+        // The full reviewed catalog is projected by import-localization.py;
+        // the asset receipt also protects the loading-style subset.
         for (locale, messages) in crate::asset_catalog::data()["locales"].as_object().unwrap() {
             data["catalogs"][locale]
                 .as_object_mut()

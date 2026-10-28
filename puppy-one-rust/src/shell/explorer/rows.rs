@@ -138,7 +138,12 @@ impl Explorer {
             };
             row.icon(marker.xsmall().opacity(0.82))
         } else {
-            row.leading(FileIcon::file(item.name.clone(), icon_theme))
+            // The TS visibility rule keeps the icon slot and only hides its glyph.
+            row.leading(
+                div().when(self.preferences.read(cx).state.show_file_icons, |d| {
+                    d.child(FileIcon::file(item.name.clone(), icon_theme))
+                }),
+            )
         };
         // Indent guides through the row's 1px margins.
         let levels = item

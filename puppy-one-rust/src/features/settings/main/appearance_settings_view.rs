@@ -1,8 +1,7 @@
 //! Port of `AppearanceSettingsView.tsx` with `InterfacePaletteSettings`,
 //! `ThemePreview`, `SubThemeSettingsSection` and `InterfaceStyleSetting`.
 use super::super::{
-    preference_types::{GitSidebarLayout, ThemeMode},
-    settings_workspace_surface::SettingsWorkspaceSurface,
+    preference_types::ThemeMode, settings_workspace_surface::SettingsWorkspaceSurface,
 };
 use super::Page;
 use crate::{
@@ -252,24 +251,7 @@ impl SettingsWorkspaceSurface {
             })
             .collect::<Vec<_>>();
 
-        // Git sidebar layout.
-        let layout_options = [GitSidebarLayout::Cards, GitSidebarLayout::Dividers]
-            .into_iter()
-            .map(|layout| {
-                let prefs = prefs.clone();
-                let key = match layout {
-                    GitSidebarLayout::Cards => "settings.appearance.gitSidebarLayout.cards.label",
-                    GitSidebarLayout::Dividers => {
-                        "settings.appearance.gitSidebarLayout.dividers.label"
-                    }
-                };
-                Segment::new(tr(key))
-                    .selected(state.git_sidebar_layout == layout)
-                    .on_select(move |_, cx| {
-                        prefs.update(cx, |p, cx| p.change(|p| p.git_sidebar_layout = layout, cx))
-                    })
-            })
-            .collect::<Vec<_>>();
+        let file_icon_preferences = prefs.clone();
 
         // One loading material; each option previews the actual mark and
         // placeholder primitives (`desktop-loading-style-preview`).
@@ -399,10 +381,16 @@ impl SettingsWorkspaceSurface {
                         )
                     })
                     .child(
-                        SettingRow::new(tr("settings.appearance.gitSidebarLayout.title")).control(
-                            SegmentedControl::new("git-layout")
-                                .layout(SegmentLayout::Hug)
-                                .segments(layout_options),
+                        SettingRow::new(tr("settings.appearance.showFileIcons.title")).control(
+                            Switch::new(
+                                "show-file-icons",
+                                tr("settings.appearance.showFileIcons.title"),
+                            )
+                            .checked(state.show_file_icons)
+                            .on_change(move |on, _, cx| {
+                                file_icon_preferences
+                                    .update(cx, |p, cx| p.change(|p| p.show_file_icons = on, cx));
+                            }),
                         ),
                     )
                     .child(

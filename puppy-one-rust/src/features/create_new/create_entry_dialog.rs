@@ -3,7 +3,7 @@ use super::{create_entry_draft::normalize_name, create_entry_menu_registry::Entr
 use crate::ui::appearance::ActiveAppearance;
 use crate::ui::components::{Button, ButtonVariant};
 use crate::{
-    localization::{t as tr, tf},
+    localization::t as tr,
     ui::form_input::{InputEvent, TextInput},
     workspace::Workspace,
 };
@@ -139,10 +139,7 @@ impl Render for CreateEntryDialog {
                 div()
                     .text_size(px(crate::theme::ty().ui.meta))
                     .text_color(t.muted)
-                    .child(tf(
-                        "workspace.node.kindName",
-                        &[("kind", tr(self.kind.label_key()).into())],
-                    )),
+                    .child(tr("workspace.node.name")),
             )
             .child(self.input.clone())
             .when_some(self.error.clone(), |d, e| {
@@ -171,9 +168,9 @@ impl Render for CreateEntryDialog {
                         Button::new("create-entry")
                             .variant(ButtonVariant::OutlinePrimary)
                             .label(tr(if self.busy {
-                                "workspace.node.creating"
+                                "native.create.creating"
                             } else {
-                                "workspace.node.create"
+                                "shared-ui.explorer.create"
                             }))
                             .disabled(self.busy)
                             .on_click(cx.listener(|s, _, w, cx| s.create(w, cx))),
