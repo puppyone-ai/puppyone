@@ -5,7 +5,10 @@
 //! claim breathes its border; a finished one lingers dimmed. It takes no
 //! pointer events.
 use super::Icon;
-use crate::{theme, ui::appearance::ActiveAppearance};
+use crate::{
+    theme,
+    ui::{appearance::ActiveAppearance, motion::ease_in_out},
+};
 use gpui::{prelude::*, *};
 use gpui_kit::component::Sizable as _;
 
@@ -63,23 +66,6 @@ pub fn initials(label: &str) -> String {
         .take(2)
         .flat_map(char::to_uppercase)
         .collect()
-}
-/// CSS `ease-in-out`.
-fn ease_in_out(t: f32) -> f32 {
-    // cubic-bezier(0.42, 0, 0.58, 1), solved for x by bisection.
-    let bezier = |p1: f32, p2: f32, s: f32| {
-        3. * (1. - s) * (1. - s) * s * p1 + 3. * (1. - s) * s * s * p2 + s * s * s
-    };
-    let (mut low, mut high) = (0f32, 1f32);
-    for _ in 0..24 {
-        let mid = (low + high) / 2.;
-        if bezier(0.42, 0.58, mid) < t {
-            low = mid;
-        } else {
-            high = mid;
-        }
-    }
-    bezier(0., 1., (low + high) / 2.)
 }
 impl RenderOnce for FilePresence {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {

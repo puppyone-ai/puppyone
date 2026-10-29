@@ -11,6 +11,9 @@
 //!   (`tools/cloud-scenarios.json`).
 //! - `editor-<scenario>-<mode>`: one editor pane over a `fixtures/editor`
 //!   document (`tools/editor-scenarios.json`, `tools/reference-editor.mjs`).
+//! - `shell-<scenario>-<mode>`: the feedback dialog, or a real shell on the
+//!   empty Homepage of a packaged Stable build that still owes the analytics
+//!   notice (`tools/shell-scenarios.json`).
 use crate::{
     features::{
         settings::{Page, SettingsWorkspaceSurface, preferences_store::PreferencesStore},
@@ -30,6 +33,8 @@ enum Surface {
     Gallery(Entity<crate::ui::gallery::Gallery>),
     Workbench(Entity<Workbench>),
     Settings(Entity<SettingsWorkspaceSurface>),
+    Feedback(Entity<crate::features::feedback::Feedback>),
+    Shell(Entity<crate::shell::Shell>),
 }
 
 pub struct Lab {
@@ -193,6 +198,26 @@ impl Lab {
             });
             cx.observe(&history, |_, _, cx| cx.notify()).detach();
             Surface::CloudHistory(history)
+        } else if let Some(shell) = scenario.strip_prefix("shell-") {
+            use crate::{features::telemetry, platform::telemetry::Level};
+            telemetry::install_fixture(Some(telemetry::fixture(Level::Basic, true, true)), cx);
+            if shell.starts_with("feedback") {
+                let feedback = cx.new(|cx| {
+                    let mut feedback = crate::features::feedback::Feedback::new(window, cx);
+                    feedback.lab_state(shell, cx);
+                    feedback
+                });
+                cx.observe(&feedback, |_, _, cx| cx.notify()).detach();
+                Surface::Feedback(feedback)
+            } else {
+                let shell_view = cx.new(|cx| {
+                    let mut view = crate::shell::Shell::new(window, cx);
+                    view.lab_home(shell == "home-empty");
+                    view
+                });
+                cx.observe(&shell_view, |_, _, cx| cx.notify()).detach();
+                Surface::Shell(shell_view)
+            }
         } else if scenario == "assets" {
             Surface::Assets(cx.new(|_| crate::ui::asset_gallery::AssetGallery))
         } else if let Some(rest) = gallery {
@@ -201,6 +226,12 @@ impl Lab {
         } else {
             match scenario.strip_prefix("settings-").and_then(settings_page) {
                 Some(page) => {
+                    // A fresh development build's analytics state.
+                    {
+                        use crate::{features::telemetry, platform::telemetry::Level};
+                        let state = telemetry::fixture(Level::Basic, false, true);
+                        telemetry::install_fixture(Some(state), cx);
+                    }
                     // Cloud is off by default; Plan exists only with it on
                     // (`tools/reference-settings-entry.tsx`).
                     let preferences = cx.new(|_| {
@@ -330,6 +361,9 @@ impl Render for Lab {
             Surface::Workbench(workbench) => root.bg(t.auxiliary()).child(workbench.clone()),
             Surface::CloudHistory(history) => root.bg(t.auxiliary()).child(history.clone()),
             Surface::Editor(editor) => root.bg(t.canvas).child(editor.clone()),
+            // The dialog brings its own backdrop over the page body.
+            Surface::Feedback(feedback) => root.bg(t.canvas).child(feedback.clone()),
+            Surface::Shell(shell) => root.child(shell.clone()),
             Surface::Settings(settings) => {
                 // The product page body is `--po-canvas`; the task backdrop
                 // and the dialog sit over it exactly as in the shell.

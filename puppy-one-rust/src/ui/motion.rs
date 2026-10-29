@@ -38,6 +38,29 @@ impl Timeline {
     }
 }
 
+/// CSS `cubic-bezier(x1, y1, x2, y2)` at linear progress `t`: the curve is
+/// solved for x by bisection, then evaluated for y.
+pub fn cubic_bezier(x1: f32, y1: f32, x2: f32, y2: f32, t: f32) -> f32 {
+    let t = t.clamp(0., 1.);
+    let curve = |p1: f32, p2: f32, s: f32| {
+        3. * (1. - s) * (1. - s) * s * p1 + 3. * (1. - s) * s * s * p2 + s * s * s
+    };
+    let (mut low, mut high) = (0f32, 1f32);
+    for _ in 0..24 {
+        let mid = (low + high) / 2.;
+        if curve(x1, x2, mid) < t {
+            low = mid;
+        } else {
+            high = mid;
+        }
+    }
+    curve(y1, y2, (low + high) / 2.)
+}
+/// CSS `ease-in-out`.
+pub fn ease_in_out(t: f32) -> f32 {
+    cubic_bezier(0.42, 0., 0.58, 1., t)
+}
+
 /// Dev-capture only: `PUPPYONE_MOTION_AT=<0..1>` holds every motion at that
 /// point of its timeline, so a capture shows one exact frame.
 #[cfg(feature = "dev-capture")]
@@ -69,5 +92,16 @@ mod tests {
         timeline.advance(Duration::from_millis(150));
         assert_eq!(timeline.time(), 1.);
         assert!(timeline.finished());
+    }
+
+    #[test]
+    fn css_curves_hold_their_ends_and_shape() {
+        for t in [0., 1.] {
+            assert!((cubic_bezier(0.2, 0.7, 0.2, 1., t) - t).abs() < 1e-4);
+            assert!((ease_in_out(t) - t).abs() < 1e-4);
+        }
+        assert!((ease_in_out(0.5) - 0.5).abs() < 1e-3);
+        // `cubic-bezier(0.2, 0.7, 0.2, 1)` is front-loaded.
+        assert!(cubic_bezier(0.2, 0.7, 0.2, 1., 0.25) > 0.6);
     }
 }

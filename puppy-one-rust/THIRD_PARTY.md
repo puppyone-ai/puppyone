@@ -35,6 +35,8 @@ are upstream; the continuous document retains its host-owned editing model.
 - `assets/themes/`: the product's Themes Folder guide, Markdown theme contract and built-in Sub Theme sources, copied by `tools/import-theme-contract.mjs` (product licence).
 - `rusty-leveldb` 4.0.2 (MIT) with `snap` (BSD-3-Clause) and `crc32c` (Apache-2.0 / MIT): reads the Electron product's `localStorage` once, for the first-launch preference import.
 - `tar` 0.4.46 (MIT / Apache-2.0) with `filetime` (MIT / Apache-2.0) and `flate2` 1.1 (MIT / Apache-2.0): read the reviewed Codex and Cursor CLI archives for Local Agent activation. The archives are validated and written by `src/platform/local_agent_setup/installer.rs`; the crate never unpacks them.
+- `hmac` 0.12 (MIT / Apache-2.0) over the existing `sha2`: the product's monthly-rotating anonymous analytics identifiers (`src/platform/telemetry/store.rs`).
+- `image` 0.25.10 (MIT / Apache-2.0) with its PNG, JPEG and WebP codecs (`png`, `zune-jpeg`, `image-webp`; MIT / Apache-2.0, `zune-jpeg` also Zlib), already in the graph through GPUI: feedback screenshots are sniffed, decoded and re-encoded (`src/platform/feedback.rs`).
 - Embedded icons/fonts and their retained notices: [assets/README.md](assets/README.md).
 - Probe fonts and dependency details: [native-editor-probe/THIRD_PARTY.md](native-editor-probe/THIRD_PARTY.md).
 

@@ -6287,6 +6287,7 @@ dependencies = [
  "gpui-component",
  "gpui-kit",
  "gpui-pre-apple",
+ "hmac",
  "httparse",
  "icu_collator",
  "icu_normalizer",

@@ -1,0 +1,12 @@
+{
+  "note": "Shell surfaces: the Help launcher's feedback dialog (DesktopHelpLauncher) and the empty Homepage (MinimalOnboarding) with its first-run analytics disclosure and empty-state intro. `intro` holds the intro at that many milliseconds (reference: paused animations; native: PUPPYONE_MOTION_AT over the 1100ms intro). Fixtures mirror src/lab.rs (shell-* cases) and tools/reference-shell-entry.tsx.",
+  "scenarios": [
+    {"scenario": "feedback", "width": 1280, "height": 800},
+    {"scenario": "feedback-filled", "width": 1280, "height": 800, "data": "fixtures/feedback/screenshot.png"},
+    {"scenario": "feedback-sent", "width": 1280, "height": 800, "data": "fixtures/feedback/screenshot.png"},
+    {"scenario": "feedback-error", "width": 1280, "height": 800},
+    {"scenario": "home-empty", "width": 1280, "height": 800},
+    {"scenario": "home-intro-breathe", "width": 1280, "height": 800, "intro": 97},
+    {"scenario": "home-intro-reveal", "width": 1280, "height": 800, "intro": 560}
+  ]
+}

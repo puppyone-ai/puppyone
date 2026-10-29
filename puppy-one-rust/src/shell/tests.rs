@@ -301,23 +301,36 @@ fn escape_answers_the_topmost_dialog(cx: &mut TestAppContext) {
     view.update(cx, |s, _| assert!(!s.modal()));
 }
 #[gpui::test]
-fn feedback_backdrop_keeps_draft_and_escape_resets_it(cx: &mut TestAppContext) {
+fn feedback_leaves_only_by_its_close_button_and_forgets_the_draft(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     command(&view, cx, Command::Feedback);
-    let field = view.update(cx, |s, _| s.task_ui.message.clone());
+    let feedback = view.update(cx, |s, _| s.feedback.clone());
+    let field = feedback.read_with(cx, |f, _| f.message.clone());
     field.update_in(cx, |i, w, cx| {
         i.replace_text_in_range(None, "draft 中🐶", w, cx)
     });
+    // Backdrop, Escape, ⌘W and Help again all keep it and its draft.
     cx.simulate_click(point(px(2.), px(100.)), Modifiers::none());
+    cx.simulate_keystrokes("escape");
+    command(&view, cx, Command::Escape);
+    command(&view, cx, Command::CloseFile);
+    command(&view, cx, Command::Feedback);
     view.update(cx, |s, cx| {
         assert_eq!(s.modals.task(), Some(Task::Feedback));
-        assert_eq!(s.task_ui.message.read(cx).text(), "draft 中🐶");
+        assert_eq!(s.feedback.read(cx).message.read(cx).text(), "draft 中🐶");
     });
-    cx.simulate_keystrokes("escape");
-    view.update(cx, |s, cx| {
+    feedback.update(cx, |f, cx| f.close(cx));
+    view.update_in(cx, |s, w, cx| {
         assert_eq!(s.modals.task(), None);
-        assert!(s.task_ui.message.read(cx).text().is_empty());
-        assert!(s.task_ui.email.read(cx).text().is_empty());
+        assert!(s.feedback.read(cx).message.read(cx).text().is_empty());
+        assert!(s.feedback.read(cx).email.read(cx).text().is_empty());
+        assert!(s.focus.is_focused(w));
+    });
+    // Reopened, it starts empty with the message focused.
+    command(&view, cx, Command::Feedback);
+    view.update_in(cx, |s, w, cx| {
+        assert_eq!(s.modals.task(), Some(Task::Feedback));
+        assert!(s.feedback.read(cx).message.focus_handle(cx).is_focused(w));
     });
 }
 #[gpui::test]
@@ -329,8 +342,8 @@ fn kit_dialog_tab_order_keeps_focus_inside_feedback(cx: &mut TestAppContext) {
         for _ in 0..8 {
             cx.simulate_keystrokes(key);
             view.update_in(cx, |s, w, cx| {
-                assert!(s.modal_focus.contains_focused(w, cx));
-                assert_eq!(s.task_ui.message.read(cx).text(), "draft");
+                assert!(s.feedback.read(cx).contains_focused(w, cx));
+                assert_eq!(s.feedback.read(cx).message.read(cx).text(), "draft");
             });
         }
     }
@@ -2426,4 +2439,70 @@ fn a_project_that_cannot_open_reports_why_and_retries(cx: &mut TestAppContext) {
         );
         assert!(s.files.opening_root());
     });
+}
+
+#[gpui::test]
+fn an_empty_homepage_plays_its_intro_then_shows_the_analytics_disclosure(cx: &mut TestAppContext) {
+    use crate::{features::telemetry, platform::telemetry::Level};
+    cx.update(|cx| {
+        telemetry::install_fixture(Some(telemetry::fixture(Level::Basic, true, true)), cx)
+    });
+    let (view, cx) = setup(cx);
+    view.update(cx, |s, _| s.fixture = false);
+    command(&view, cx, Command::Home);
+    view.update(cx, |s, cx| {
+        assert!(s.home_visible() && s.project_items(cx).is_empty());
+        assert!(s.homepage.intro.is_some());
+        // The disclosure waits for the intro.
+        assert!(!s.homepage.disclosure_shown);
+    });
+    assert!(cx.debug_bounds("onboarding-empty-state-intro").is_some());
+    assert!(cx.debug_bounds("onboarding-telemetry-disclosure").is_none());
+    view.update(cx, |s, _| {
+        s.homepage
+            .intro
+            .as_mut()
+            .unwrap()
+            .advance(std::time::Duration::from_millis(1200))
+    });
+    draw(cx);
+    draw(cx);
+    view.update(cx, |s, _| {
+        assert!(s.homepage.intro.is_none() && s.homepage.disclosure_shown);
+    });
+    assert!(cx.debug_bounds("onboarding-empty-state-intro").is_none());
+    let disclosure = cx.debug_bounds("onboarding-telemetry-disclosure").unwrap();
+    // Bottom end corner: 24px in, 16px up.
+    let window = cx.update(|w, _| w.viewport_size());
+    assert!((f32::from(window.width - disclosure.right()) - 24.).abs() < 0.5);
+    assert!((f32::from(window.height - disclosure.bottom()) - 16.).abs() < 0.5);
+
+    // Once seen, a Homepage shown again replays the intro but asks no more.
+    let state = cx.update(|_, cx| telemetry::global(cx).unwrap());
+    state.update(cx, |t, _| {
+        t.snapshot = Some(telemetry::fixture(Level::Basic, true, false))
+    });
+    view.update(cx, |s, _| s.fixture = true);
+    draw(cx);
+    view.update(cx, |s, _| s.fixture = false);
+    draw(cx);
+    view.update(cx, |s, _| {
+        assert!(s.homepage.intro.is_some() && !s.homepage.disclosure_shown);
+        s.homepage
+            .intro
+            .as_mut()
+            .unwrap()
+            .advance(std::time::Duration::from_millis(1200));
+    });
+    draw(cx);
+    draw(cx);
+    assert!(cx.debug_bounds("onboarding-telemetry-disclosure").is_none());
+
+    // Reduced motion: no intro at all.
+    cx.update(|_, cx| cx.set_reduce_motion(true));
+    view.update(cx, |s, _| s.fixture = true);
+    draw(cx);
+    view.update(cx, |s, _| s.fixture = false);
+    draw(cx);
+    view.update(cx, |s, _| assert!(s.homepage.intro.is_none()));
 }

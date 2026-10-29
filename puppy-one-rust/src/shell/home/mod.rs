@@ -39,6 +39,7 @@ use std::{
 mod create_project;
 mod first_run;
 mod import_repository;
+mod intro;
 pub(in crate::shell) mod project_entry;
 pub(super) use create_project::CreateProject;
 pub(super) use import_repository::ImportRepository;
@@ -64,6 +65,14 @@ pub(super) struct Homepage {
     shown: bool,
     /// Activity is being read.
     pub reading: bool,
+    /// The empty-state intro that is playing.
+    pub(in crate::shell) intro: Option<crate::ui::motion::Timeline>,
+    /// Whether the visible Homepage had no projects at the last frame
+    /// (`None` while it is hidden, so showing it again replays the intro).
+    intro_empty: Option<bool>,
+    /// This Homepage has shown the analytics disclosure; it stays for as
+    /// long as the Homepage does (`shownForLaunch`).
+    pub(in crate::shell) disclosure_shown: bool,
 }
 
 /// `preferredWidth={252}` of the Homepage Open menu.
@@ -327,6 +336,105 @@ impl Shell {
             });
         }
     }
+    /// `showEmptyStateIntro`: the intro plays whenever the Homepage appears
+    /// (or loses its last project) with no projects, unless motion is
+    /// reduced; the disclosure waits for it. Called once per frame.
+    pub(super) fn sync_home_intro(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let visible = self.home_visible() && !self.restoring() && !self.first_run_sign_in(cx);
+        if !visible {
+            self.homepage.intro = None;
+            self.homepage.intro_empty = None;
+            self.homepage.disclosure_shown = false;
+            return;
+        }
+        let empty = self.project_items(cx).is_empty();
+        if self.homepage.intro_empty != Some(empty) {
+            self.homepage.intro_empty = Some(empty);
+            self.homepage.intro = (empty && !cx.reduce_motion())
+                .then(|| crate::ui::motion::Timeline::start(intro::TOTAL));
+        }
+        match self.homepage.intro {
+            Some(timeline) if timeline.finished() => self.homepage.intro = None,
+            Some(_) => window.request_animation_frame(),
+            None => {}
+        }
+        // `OnboardingTelemetryDisclosure ready={!showEmptyStateIntro}`: shown
+        // on an empty Homepage once the intro is over, then marked seen.
+        if empty
+            && self.homepage.intro.is_none()
+            && !self.homepage.disclosure_shown
+            && let Some(telemetry) = crate::features::telemetry::global(cx)
+            && telemetry.read(cx).disclosure_required()
+        {
+            self.homepage.disclosure_shown = true;
+            telemetry.update(cx, |t, cx| t.disclosure_presented(cx));
+        }
+    }
+    /// The pixel lab's Homepage (`shell-home-*`): no fixture workspace and
+    /// no capture of its own. `played` starts after the intro, as if it had
+    /// already run; otherwise it plays (held by `PUPPYONE_MOTION_AT`).
+    #[cfg(feature = "dev-capture")]
+    pub fn lab_home(&mut self, played: bool) {
+        self.fixture = false;
+        self.captured = true;
+        if played {
+            self.homepage.intro_empty = Some(true);
+        }
+    }
+    /// Dev builds: Alt+Shift+L replays the intro on an empty Homepage.
+    pub(super) fn replay_home_intro(&mut self, cx: &mut Context<Self>) -> bool {
+        if !cfg!(debug_assertions)
+            || self.homepage.intro.is_some()
+            || self.homepage.intro_empty != Some(true)
+        {
+            return false;
+        }
+        self.homepage.intro = Some(crate::ui::motion::Timeline::start(intro::TOTAL));
+        cx.notify();
+        true
+    }
+    /// The curtain over the whole window while the intro plays.
+    pub(super) fn home_intro_curtain(&self, w: f32, h: f32, cx: &App) -> Option<AnyElement> {
+        let timeline = self.homepage.intro.as_ref()?;
+        let frame = intro::current(timeline, w, h);
+        Some(intro::curtain(frame.radius, w, h, cx.palette().dark).into_any_element())
+    }
+    /// `.onboarding-telemetry-disclosure`: one caption line in the bottom
+    /// end corner, the Learn More link underlined at 45%.
+    fn telemetry_disclosure(&self, w: f32, cx: &App) -> Option<AnyElement> {
+        if !self.homepage.disclosure_shown || self.homepage.intro.is_some() {
+            return None;
+        }
+        let t = cx.palette();
+        let narrow = w <= 700.;
+        let (end, bottom) = if narrow { (16., 12.) } else { (24., 16.) };
+        Some(
+            h_flex()
+                .debug_selector(|| "onboarding-telemetry-disclosure".into())
+                .absolute()
+                .right(px(end))
+                .bottom(px(bottom))
+                .max_w(px(w - end * 2.))
+                .flex_wrap()
+                .text_size(px(theme::ty().ui.caption))
+                .line_height(px(15.))
+                .text_color(t.subtle)
+                .child(format!("{} ", tr("onboarding.telemetry.notice")))
+                .child(
+                    div()
+                        .id("onboarding-telemetry-learn-more")
+                        .underline()
+                        .text_decoration_color(theme::alpha(t.subtle, 0.45))
+                        .cursor(theme::clickable_cursor())
+                        .hover(move |s| s.text_color(t.muted).text_decoration_color(t.muted))
+                        .on_click(|_, _, cx| {
+                            cx.open_url(crate::platform::telemetry::DISCLOSURE_URL)
+                        })
+                        .child(tr("onboarding.telemetry.learnMore")),
+                )
+                .into_any_element(),
+        )
+    }
     pub(super) fn home_view(&self, cx: &mut Context<Self>) -> Div {
         if self.restoring() {
             return self.restoring_view(cx);
@@ -415,6 +523,11 @@ impl Shell {
             .max_w_full()
             .max_h_full()
             .min_h_0()
+            // `.is-empty-state-intro > .onboarding-homepage`: the column fades in.
+            .when_some(self.homepage.intro.as_ref(), |d, timeline| {
+                let (w, h) = (self.layout.header.w, self.layout.editor.bottom());
+                d.opacity(intro::current(timeline, w, h).content)
+            })
             .child(brand)
             .child(primary)
             .child(actions);
@@ -440,6 +553,9 @@ impl Shell {
         .pb(px(bottom))
         .px(px(metric::UTILITY_PADDING_INLINE))
         .child(launcher)
+        .when(!has_projects, |d| {
+            d.children(self.telemetry_disclosure(self.layout.header.w, cx))
+        })
         .children(self.cloud_opening_overlay(cx))
         .when(self.files.folder_busy, |d| {
             // OnboardingProjectLoading: the chosen project's request is

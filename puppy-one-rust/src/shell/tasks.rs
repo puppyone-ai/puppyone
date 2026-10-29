@@ -1,16 +1,10 @@
 use super::*;
 use crate::{
     features::settings::{SettingsWorkspaceSurface, preferences_store::PreferencesStore},
-    ui::components::{Button, ButtonVariant, Dialog, Icon},
-};
-use gpui_kit::{
-    base::{Disableable as _, h_flex, v_flex},
-    component::Sizable as _,
+    ui::components::{Button, ButtonVariant, Dialog},
 };
 pub struct TaskUi {
     pub settings: Entity<SettingsWorkspaceSurface>,
-    pub message: Entity<ui::form_input::TextInput>,
-    pub email: Entity<ui::form_input::TextInput>,
 }
 impl TaskUi {
     pub fn new(
@@ -20,25 +14,7 @@ impl TaskUi {
     ) -> Self {
         Self {
             settings: cx.new(|cx| SettingsWorkspaceSurface::new(preferences, window, cx)),
-            message: cx.new(|cx| {
-                let mut i = ui::form_input::TextInput::new(
-                    crate::localization::t("shell.feedback.placeholder"),
-                    true,
-                    2000,
-                    window,
-                    cx,
-                );
-                i.min_height = 112.;
-                i
-            }),
-            email: cx.new(|cx| {
-                ui::form_input::TextInput::new("you@example.com", false, 254, window, cx)
-            }),
         }
-    }
-    pub fn clear(&mut self, cx: &mut Context<Shell>) {
-        self.message.update(cx, |i, cx| i.clear(cx));
-        self.email.update(cx, |i, cx| i.clear(cx));
     }
 }
 /// `.desktop-settings-dialog-backdrop`: `color-mix(var(--po-backdrop) 84%,
@@ -402,72 +378,6 @@ impl Shell {
             cx,
         );
         self.dialog_host(cx).popup(card.child(form))
-    }
-    /// The Help & feedback task: message, screenshot hint and contact. A
-    /// backdrop press keeps the draft; Escape and Close discard it.
-    pub(super) fn feedback_view(&self, w: f32, cx: &mut Context<Self>) -> Dialog {
-        let t = cx.palette();
-        self.task_ui.message.update(cx, |i, _| {
-            i.set_placeholder(self.locale.text("shell.feedback.placeholder"));
-        });
-        let count = self.task_ui.message.read(cx).text().chars().count();
-        Dialog::new("feedback")
-            .width((w - 32.).clamp(280., 400.))
-            .title(self.locale.text("shell.feedback.label"))
-            .focus_handle(self.modal_focus.clone())
-            .keep_on_backdrop()
-            .on_close({
-                let host = cx.weak_entity();
-                move |w, cx| {
-                    let _ = host.update(cx, |s, cx| {
-                        s.close_tasks(w, cx);
-                        cx.notify();
-                    });
-                }
-            })
-            .child(
-                v_flex()
-                    .gap(px(6.))
-                    .child(format!(
-                        "{} *",
-                        self.locale.text("shell.feedback.messageLabel")
-                    ))
-                    .child(self.task_ui.message.clone())
-                    .child(
-                        div()
-                            .text_size(px(crate::theme::ty().ui.hint))
-                            .text_color(t.subtle)
-                            .child(format!("{count} / 2000")),
-                    ),
-            )
-            .child(
-                h_flex()
-                    .gap(px(6.))
-                    .text_color(t.subtle)
-                    .child(Icon::new("image-plus").small())
-                    .child(self.locale.text("shell.feedback.attachScreenshot")),
-            )
-            .child(
-                v_flex()
-                    .gap(px(6.))
-                    .child(format!(
-                        "{} *",
-                        self.locale.text("shell.feedback.contactLabel")
-                    ))
-                    .child(self.task_ui.email.clone())
-                    .child(
-                        div()
-                            .text_size(px(crate::theme::ty().ui.caption))
-                            .text_color(t.subtle)
-                            .child(self.locale.text("native.feedback.notConnected")),
-                    ),
-            )
-            .footer(
-                Button::new("feedback-send")
-                    .variant(ButtonVariant::Solid)
-                    .label(self.locale.text("shell.feedback.send"))
-                    .disabled(true),
-            )
     }
 }
 #[cfg(test)]

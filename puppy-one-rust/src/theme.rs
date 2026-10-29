@@ -309,6 +309,16 @@ pub fn shade(c: Rgba, weight: f32) -> Rgba {
 pub fn on_solid() -> Rgba {
     rgb(0xffffff)
 }
+/// `--po-success-contrast`: text on a success fill. Only the fallback layer
+/// and Neutral define it, so every Default theme uses Neutral's values.
+pub fn success_contrast(dark: bool) -> Rgba {
+    if dark { rgb(0x0a0a0a) } else { rgb(0xfffefa) }
+}
+/// `.onboarding-empty-state-reveal`: the Homepage intro's curtain, black on
+/// the light page and white on the dark one.
+pub fn intro_curtain(dark: bool) -> Rgba {
+    if dark { rgb(0xffffff) } else { rgb(0x000000) }
+}
 /// `--agent-presence-accent` (`agent-file-presence.css`): the reading tint,
 /// or the writing one (`[data-kind="writing"]`).
 pub fn presence_accent(accent: Rgba, writing: bool) -> Rgba {

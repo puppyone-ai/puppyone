@@ -38,7 +38,8 @@ root = Path(__file__).resolve().parents[1]
 SUITES = {"workbench": ("tools/workbench-scenarios.json", ""),
           "settings": ("tools/settings-scenarios.json", "settings-"),
           "cloud": ("tools/cloud-scenarios.json", "cloud-"),
-          "editor": ("tools/editor-scenarios.json", "editor-")}
+          "editor": ("tools/editor-scenarios.json", "editor-"),
+          "shell": ("tools/shell-scenarios.json", "shell-")}
 
 parser = argparse.ArgumentParser()
 parser.add_argument("only", nargs="*")
@@ -71,6 +72,11 @@ if not args.compare_only:
                 PUPPYONE_HEIGHT=str(case["height"]),
                 PUPPYONE_SCREENSHOT=str(native_dir / f"{case['id']}.png"),
             )
+            # A real shell in the lab follows its own preferences; pin the mode.
+            env["PUPPYONE_THEME"] = case["mode"]
+            # A held motion: the same instant of the 1100ms intro.
+            if case.get("intro") is not None:
+                env["PUPPYONE_MOTION_AT"] = str(case["intro"] / 1100)
             subprocess.run([str(root / "target/debug/puppy-one-rust")], cwd=root, env=env, check=True, timeout=40)
 
 report = {"tolerance": args.tolerance, "cases": {}}

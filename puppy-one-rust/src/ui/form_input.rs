@@ -36,6 +36,8 @@ pub struct TextInput {
     placeholder: SharedString,
     pending: Option<InputSnapshot>,
     pub appearance: bool,
+    /// Kit's disabled field: no editing or focus, muted.
+    pub disabled: bool,
     pub submit_on_enter: bool,
     pub min_height: f32,
     /// Prompt editors: Kit's smallest editor padding (4px inline, 0 block) so
@@ -111,6 +113,7 @@ impl TextInput {
             placeholder,
             pending: None,
             appearance: true,
+            disabled: false,
             submit_on_enter: false,
             prompt_text: None,
             placeholder_color: None,
@@ -272,6 +275,7 @@ impl Render for TextInput {
                     input.token(move |token, window, cx| render(token, window, cx))
                 })
                 .appearance(self.appearance)
+                .disabled(self.disabled)
                 .w_full()
                 .when_some(self.prompt_text, |input, (size, line)| {
                     use gpui_kit::component::Sizable as _;
@@ -283,6 +287,7 @@ impl Render for TextInput {
                     area.token(move |token, window, cx| render(token, window, cx))
                 })
                 .appearance(self.appearance)
+                .disabled(self.disabled)
                 .w_full()
                 .when_some(self.prompt_text, |area, (size, line)| {
                     use gpui_kit::component::Sizable as _;

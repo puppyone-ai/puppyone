@@ -33,7 +33,7 @@ impl SettingsWorkspaceSurface {
             Page::Typography => self.typography(t, cx),
             Page::CreateNew => self.create_new(t, cx),
             Page::OtherAppImports => self.other_app_imports(t),
-            Page::Privacy => self.privacy(t),
+            Page::Privacy => self.privacy(t, cx),
             Page::Experimental => self.experimental(t, cx),
             Page::LocalAgents => SettingsSection::new(tr(Page::LocalAgents.title()))
                 .child(self.agents.clone())

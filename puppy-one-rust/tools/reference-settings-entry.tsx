@@ -51,8 +51,11 @@ const MODEL_SNAPSHOT = { schemaVersion: 1, revision: 1, connections: [], catalog
   managed: { available: false, reason: "sign-in-required", signedIn: false } };
 Object.defineProperty(window, "puppyoneDesktop", { configurable: true, value: {
   getPlatformCapabilities: async () => ({ platform: "macos" }),
-  // The native build has no telemetry client: analytics report off.
-  getTelemetryState: async () => ({ level: "off", noticeRequired: false }),
+  // A fresh development build: Basic by default, never asked, never sent
+  // (`telemetry::fixture(Level::Basic, false, true)` in src/lab.rs).
+  getTelemetryState: async () => ({ schemaVersion: 2, defaultLevel: "basic", level: "basic", effectiveLevel: "off",
+    enabled: false, eligible: false, disabledReason: "unpackaged-build", noticeVersion: 2, noticeSeenVersion: 0,
+    noticeRequired: false, transportConfigured: false, queuedEventCount: 0 }),
   onTelemetryStateChanged: () => noop,
   getBuildInfo: async () => ({ channel: "dev", version: "0.1.0", buildId: "reference", commitSha: "reference", builtAt: "2026-10-24T00:00:00.000Z", sourceDirty: false }),
   discoverLocalAgentInstallations: async () => ({

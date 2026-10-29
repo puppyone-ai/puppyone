@@ -144,6 +144,22 @@ fn main() {
             capture::run_in_background();
         }
         features::cloud_account::install(!background, cx);
+        // Captures paint a development build's analytics state without files.
+        #[cfg(feature = "dev-capture")]
+        if background {
+            features::telemetry::install_fixture(
+                Some(features::telemetry::fixture(
+                    platform::telemetry::Level::Basic,
+                    false,
+                    false,
+                )),
+                cx,
+            );
+        } else {
+            features::telemetry::init(cx);
+        }
+        #[cfg(not(feature = "dev-capture"))]
+        features::telemetry::init(cx);
         cx.spawn(async move |cx| {
             while let Ok(urls) = open_rx.recv().await {
                 cx.update(|cx| shell::windows::open_launch_urls(urls, cx));

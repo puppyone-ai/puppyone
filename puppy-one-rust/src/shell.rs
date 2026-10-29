@@ -118,6 +118,8 @@ pub struct Shell {
     explorer: Entity<Explorer>,
     homepage: home::Homepage,
     task_ui: TaskUi,
+    /// Help → Feedback (`DesktopHelpLauncher`).
+    feedback: Entity<crate::features::feedback::Feedback>,
     preferences: Entity<crate::features::settings::preferences_store::PreferencesStore>,
     pending: bool,
     files: Documents,
@@ -283,6 +285,7 @@ impl Shell {
             },
             homepage: Default::default(),
             task_ui: TaskUi::new(preferences.clone(), window, cx),
+            feedback: cx.new(|cx| crate::features::feedback::Feedback::new(window, cx)),
             preferences,
             pending: false,
             files: if fixture {
@@ -447,6 +450,8 @@ impl Shell {
                 cx.set_reduce_motion(crate::platform::accessibility::reduce_motion());
                 // The catalog refreshes whenever a window regains focus.
                 crate::features::sub_theme_catalog::refresh(cx);
+                // `browser-window-focus`: bounded foreground activity.
+                crate::features::telemetry::note_foreground(cx);
                 // A returning window may probe the Cloud association once.
                 s.repository_cloud.update(cx, |r, cx| r.probe(cx));
             }
@@ -477,6 +482,32 @@ impl Shell {
             });
         })
         .detach();
+        // Dev builds replay the Homepage intro (Alt+Shift+L, `KeyL`).
+        if cfg!(debug_assertions) {
+            let shell = cx.weak_entity();
+            cx.intercept_keystrokes(move |event, window, cx| {
+                let k = &event.keystroke;
+                if window.window_handle() != own
+                    || !k.key.eq_ignore_ascii_case("l")
+                    || !k.modifiers.alt
+                    || !k.modifiers.shift
+                    || k.modifiers.platform
+                    || k.modifiers.control
+                {
+                    return;
+                }
+                let _ = shell.update(cx, |s, cx| {
+                    if s.replay_home_intro(cx) {
+                        cx.stop_propagation();
+                    }
+                });
+            })
+            .detach();
+        }
+        // The Homepage disclosure follows the analytics state.
+        if let Some(telemetry) = crate::features::telemetry::global(cx) {
+            cx.observe(&telemetry, |_, _, cx| cx.notify()).detach();
+        }
         // The Header's Changes status follows the Git snapshot.
         cx.observe(&s.source_control, |_, _, cx| cx.notify())
             .detach();
@@ -512,11 +543,15 @@ impl Shell {
             cx.notify();
         })
         .detach();
-        cx.subscribe_in(&s.task_ui.message, window, |_, _, event, _, cx| {
-            if matches!(event, ui::form_input::InputEvent::Changed) {
+        // Its close button is the only way out; the draft is already gone.
+        cx.subscribe_in(
+            &s.feedback,
+            window,
+            |s, _, _: &crate::features::feedback::Close, window, cx| {
+                s.close_tasks(window, cx);
                 cx.notify();
-            }
-        })
+            },
+        )
         .detach();
         let mut args = if cfg!(test) || !launch.from_args {
             vec![]
@@ -666,6 +701,9 @@ impl Shell {
             return;
         }
         match self.modals.top() {
+            // Help → Feedback leaves only by its close button ("can only be
+            // dismissed with its close button").
+            Some(Modal::Task(Task::Feedback)) => {}
             Some(Modal::Task(_)) => self.close_tasks(window, cx),
             Some(Modal::CreateEntry(form)) => {
                 if !form.read(cx).busy() {
@@ -807,7 +845,8 @@ impl Shell {
                 return;
             }
             // Escape answers the topmost dialog; ⌘W closes a window task
-            // (Settings, Help, Create entry) on top instead of the file.
+            // (Settings, Create entry) on top instead of the file. Help →
+            // Feedback ignores both (`dismiss_modal`).
             Command::Escape if self.modal() => {
                 self.dismiss_modal(window, cx);
                 self.receive(window, cx);
@@ -833,7 +872,7 @@ impl Shell {
             match command {
                 Command::Settings if task == Task::Settings => self.close_tasks(window, cx),
                 Command::Settings => {
-                    self.task_ui.clear(cx);
+                    self.feedback.update(cx, |f, cx| f.reset(cx));
                     self.modals.open(Modal::Task(Task::Settings));
                     self.focus.focus(window, cx);
                 }
@@ -909,7 +948,8 @@ impl Shell {
                 self.popover = None;
                 self.explorer.update(cx, |e, cx| e.dismiss_menu(cx));
                 self.modals.open(Modal::Task(Task::Feedback));
-                self.task_ui.message.focus_handle(cx).focus(window, cx);
+                let message = self.feedback.read(cx).message.focus_handle(cx);
+                message.focus(window, cx);
             }
             Command::ProjectMenu => {
                 self.popover = if self.popover == Some(Popover::Project) {
@@ -1042,7 +1082,7 @@ impl Shell {
     /// Closes Settings or Help; Help's draft goes with it.
     fn close_tasks(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.modals.task() == Some(Task::Feedback) {
-            self.task_ui.clear(cx);
+            self.feedback.update(cx, |f, cx| f.reset(cx));
         }
         self.modals.remove(|m| matches!(m, Modal::Task(_)));
         self.focus.focus(window, cx);
@@ -1783,6 +1823,7 @@ impl Render for Shell {
         self.refresh_home_activity(cx);
         self.sync_open_history(cx);
         self.sync_first_run(cx);
+        self.sync_home_intro(window, cx);
         self.sync_coachmarks(cx);
         #[cfg(feature = "dev-capture")]
         let scenario_done = self.advance_capture_scenario(window, cx);
@@ -1878,6 +1919,11 @@ impl Render for Shell {
         }
         if self.rail && !home {
             root = root.child(self.project_rail(h, cx));
+        }
+        // The intro's curtain covers the window under the Header, whose
+        // titlebar stays above it (`z-index: 60` over the curtain's 3).
+        if home {
+            root = root.children(self.home_intro_curtain(w, h, cx));
         }
         root = root.child(at(self.layout.header).child(self.header(cx)));
         // Each frame owns its edge while it is on screen; a closed right
@@ -2058,7 +2104,7 @@ impl Shell {
             .iter()
             .map(|modal| match modal {
                 Modal::Task(Task::Settings) => self.settings_view(w, h, cx).into_any_element(),
-                Modal::Task(Task::Feedback) => self.feedback_view(w, cx).into_any_element(),
+                Modal::Task(Task::Feedback) => self.feedback.clone().into_any_element(),
                 Modal::CreateEntry(form) => self
                     .create_entry_view(form.clone(), w, h, cx)
                     .into_any_element(),

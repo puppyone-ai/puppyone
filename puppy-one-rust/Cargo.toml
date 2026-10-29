@@ -33,6 +33,8 @@ pulldown-cmark = "0.13"
 base64 = "0.22"
 getrandom = "0.3"
 sha2 = "0.10"
+# Telemetry's rotating anonymous IDs (src/platform/telemetry/store.rs).
+hmac = "0.12"
 # Local Agent activation: reading the official CLI archives (validated and
 # written by src/platform/local_agent_setup/installer.rs, never unpacked by the crate).
 tar = { version = "=0.4.46", default-features = false }
@@ -49,7 +51,8 @@ chrono = { version = "=0.4.45", default-features = false, features = ["std"] }
 rusty-leveldb = { version = "=4.0.2" }
 regex = "1.13.1"
 notify = { version = "=8.2.0", default-features = false, features = ["macos_fsevent"] }
-image = { version = "=0.25.10", default-features = false }
+# Feedback screenshots: sniffed, decoded and re-encoded (src/platform/feedback.rs).
+image = { version = "=0.25.10", default-features = false, features = ["png", "jpeg", "webp"] }
 tempfile = "3"
 pdfium-render = { version = "=0.9.4", default-features = false, features = ["pdfium_latest", "thread_safe", "image_025"] }
 rusqlite = { version = "0.37", features = ["bundled"] }

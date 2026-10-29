@@ -29,6 +29,8 @@ pub struct Dialog {
     footer: Vec<AnyElement>,
     on_close: Option<Handler>,
     close_on_backdrop: bool,
+    close_on_escape: bool,
+    center_header: bool,
     focus: Option<FocusHandle>,
     style: StyleRefinement,
 }
@@ -48,6 +50,8 @@ impl Dialog {
             footer: Vec::new(),
             on_close: None,
             close_on_backdrop: true,
+            close_on_escape: true,
+            center_header: false,
             focus: None,
             style: StyleRefinement::default(),
         }
@@ -107,6 +111,18 @@ impl Dialog {
         self.close_on_backdrop = false;
         self
     }
+    /// Only the close button dismisses: a root without `onClose` ignores
+    /// Escape (`DesktopDialogRoot`).
+    pub fn keep_on_escape(mut self) -> Self {
+        self.close_on_escape = false;
+        self
+    }
+    /// The title row and close button centred on one line
+    /// (`align-items: center` instead of the default top alignment).
+    pub fn center_header(mut self) -> Self {
+        self.center_header = true;
+        self
+    }
     /// A focus handle the owner keeps (to restore focus or test focus).
     pub fn focus_handle(mut self, handle: FocusHandle) -> Self {
         self.focus = Some(handle);
@@ -142,7 +158,13 @@ impl RenderOnce for Dialog {
             div()
                 .flex()
                 .flex_shrink_0()
-                .items_start()
+                .map(|d| {
+                    if self.center_header {
+                        d.items_center()
+                    } else {
+                        d.items_start()
+                    }
+                })
                 .justify_between()
                 .gap(px(16.))
                 .pt(px(self.inset.unwrap_or(14.)))
@@ -245,15 +267,18 @@ impl RenderOnce for Dialog {
             .refine_style(&self.style);
         BaseDialog::new(cx)
             .focus_handle(focus)
-            .close_on_escape(true)
+            .close_on_escape(self.close_on_escape)
             .close_on_backdrop_press(self.close_on_backdrop)
             // Enter belongs to the dialog's own controls.
             .on_ok(|_, _, _| false)
-            .on_cancel(move |_, window, cx| {
-                if let Some(cancel) = &cancel {
-                    cancel(window, cx);
+            .on_cancel({
+                let escape = self.close_on_escape;
+                move |_, window, cx| {
+                    if escape && let Some(cancel) = &cancel {
+                        cancel(window, cx);
+                    }
+                    false
                 }
-                false
             })
             .backdrop(div().size_full().bg(t.backdrop))
             .popup(surface)

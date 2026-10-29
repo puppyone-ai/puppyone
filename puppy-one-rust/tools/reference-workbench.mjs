@@ -4,6 +4,7 @@
 //               src/features/workbench/lab.rs
 //   settings  — SettingsDialog, one page per case; fixtures mirror src/lab.rs
 //   cloud     — Cloud surfaces (History sidebar); data shared with src/lab.rs
+//   shell     — the feedback dialog and the empty Homepage (intro, disclosure)
 //
 //   <product>/node_modules/.bin/electron tools/reference-workbench.mjs
 //   PUPPYONE_REFERENCE_SUITE=settings ... for the Settings suite.
@@ -33,6 +34,10 @@ const SUITES = {
     elements: '.desktop-git-history-sidebar, .desktop-git-history-sidebar *, #desktop-overlay-root *',
     data: 'fixtures/cloud-history.json',
     env: {VITE_DESKTOP_CLOUD_API_URL: 'https://api.puppyone.ai'}},
+  shell: {entry: 'tools/reference-shell-entry.tsx', scenarios: 'tools/shell-scenarios.json',
+    scope: 'real product DesktopHelpLauncher and MinimalOnboarding; offline fixture services',
+    elements: '.onboarding-shell, .onboarding-shell *, #desktop-overlay-root *',
+    env: {VITE_DESKTOP_CLOUD_API_URL: 'https://api.puppyone.ai'}},
 };
 const suiteName = process.env.PUPPYONE_REFERENCE_SUITE ?? 'workbench';
 const suite = SUITES[suiteName];
@@ -56,10 +61,11 @@ async function run() {
   await mkdir(out, {recursive: true}); await app.whenReady();
   for (const c of cases) {
     if (only && !only.includes(c.id)) continue;
-    const fixture = {id: c.id, mode: c.mode, locale: 'en', width: c.width, height: c.height};
+    const fixture = {id: c.id, mode: c.mode, locale: 'en', width: c.width, height: c.height, intro: c.intro ?? null};
     // A scenario may bring its own data; non-JSON files arrive as a string.
     const dataFile = c.data ?? suite.data;
-    const raw = dataFile ? await readFile(path.join(root, dataFile), 'utf8') : null;
+    // Images arrive as base64.
+    const raw = dataFile ? await readFile(path.join(root, dataFile), dataFile.endsWith('.png') ? 'base64' : 'utf8') : null;
     const data = raw === null ? 'null' : dataFile.endsWith('.json') ? raw : JSON.stringify(raw);
     const page = `window.__catalogs=${JSON.stringify(catalogMap)};window.__fixtureData=${data};\n${script}`;
     const win = await openPage(profile, {width: c.width, height: c.height, mode: c.mode, fixture, script: page, style});
@@ -80,8 +86,9 @@ async function run() {
       // animations (the approval attention ring's three pulses) are captured
       // at rest so the frame doesn't depend on timing; the native lab
       // settles the same ones (\`crate::lab::settled\`).
+      // A held motion (\`intro\`) stays paused at its frame.
       await win.webContents.executeJavaScript(`(async()=>{document.activeElement?.blur?.();
-        for(const a of document.getAnimations()){if(Number.isFinite(a.effect?.getComputedTiming?.().endTime))a.finish();}
+        if(!${JSON.stringify(c.intro != null)})for(const a of document.getAnimations()){if(Number.isFinite(a.effect?.getComputedTiming?.().endTime))a.finish();}
         document.dispatchEvent(new PointerEvent('pointermove',{clientX:-10,clientY:-10}));await new Promise(r=>setTimeout(r,250));})()`);
       const state = await win.webContents.executeJavaScript(`(()=>{
         const sel=${JSON.stringify(suite.elements)};

@@ -102,6 +102,10 @@ impl SettingsWorkspaceSurface {
     ) -> Self {
         let compute = crate::features::managed_compute::global(cx);
         cx.observe(&compute, |_, _, cx| cx.notify()).detach();
+        // Product Analytics follows the process-wide telemetry state.
+        if let Some(telemetry) = crate::features::telemetry::global(cx) {
+            cx.observe(&telemetry, |_, _, cx| cx.notify()).detach();
+        }
         cx.subscribe(&preferences, |s, _, _: &PreferencesChanged, cx| {
             s.sync_patterns(cx);
             cx.notify()
