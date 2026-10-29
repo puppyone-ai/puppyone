@@ -269,9 +269,7 @@ pub fn form(
 /// credentials; `PUPPYONE_FEEDBACK_ENDPOINT` replaces the public form.
 pub fn endpoint(value: Option<&str>) -> Result<url::Url, Error> {
     let url = url::Url::parse(value.unwrap_or(DEFAULT_ENDPOINT)).map_err(|_| Error::Endpoint)?;
-    let loopback =
-        url.scheme() == "http" && matches!(url.host_str(), Some("127.0.0.1" | "localhost"));
-    if (url.scheme() != "https" && !loopback)
+    if (url.scheme() != "https" && !(url.scheme() == "http" && loopback(&url)))
         || !url.username().is_empty()
         || url.password().is_some()
     {
@@ -283,7 +281,18 @@ pub fn endpoint(value: Option<&str>) -> Result<url::Url, Error> {
 /// Sends the feedback; blocks for at most 15 seconds.
 pub fn submit(request: &Request, app_version: &str) -> Result<(), Error> {
     let configured = std::env::var("PUPPYONE_FEEDBACK_ENDPOINT").ok();
-    let url = endpoint(configured.as_deref().filter(|v| !v.is_empty()))?;
+    send_to(
+        endpoint(configured.as_deref().filter(|v| !v.is_empty()))?,
+        request,
+        app_version,
+    )
+}
+
+fn loopback(url: &url::Url) -> bool {
+    matches!(url.host_str(), Some("127.0.0.1" | "localhost"))
+}
+
+fn send_to(url: url::Url, request: &Request, app_version: &str) -> Result<(), Error> {
     let boundary = format!("puppyone-feedback-{}", uuid::Uuid::new_v4().simple());
     let timestamp = crate::platform::telemetry::store::iso(chrono::Utc::now());
     let platform = crate::platform::build_identity::node_platform();
@@ -302,10 +311,12 @@ pub fn submit(request: &Request, app_version: &str) -> Result<(), Error> {
         .build()
         .map_err(|_| Error::Unavailable)?;
     let status = runtime.block_on(async {
-        let client = reqwest::Client::builder()
-            .timeout(TIMEOUT)
-            .build()
-            .map_err(|_| Error::Unavailable)?;
+        let mut client = reqwest::Client::builder().timeout(TIMEOUT);
+        // Like Chromium, a loopback endpoint never goes through a proxy.
+        if loopback(&url) {
+            client = client.no_proxy();
+        }
+        let client = client.build().map_err(|_| Error::Unavailable)?;
         let response = client
             .post(url)
             .header("accept", "application/json")
@@ -380,6 +391,82 @@ mod tests {
         for word in ["path", "workspace", "account", "token"] {
             assert!(!body.to_lowercase().contains(word), "{word}");
         }
+    }
+
+    /// One loopback exchange: the raw request it received, answered with
+    /// `status`.
+    fn serve_once(status: &'static str) -> (url::Url, std::thread::JoinHandle<String>) {
+        use std::io::{BufRead as _, BufReader, Read as _, Write as _};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url =
+            url::Url::parse(&format!("http://{}/f/test", listener.local_addr().unwrap())).unwrap();
+        let server = std::thread::spawn(move || {
+            let (stream, _) = listener.accept().unwrap();
+            let mut reader = BufReader::new(stream);
+            let mut head = String::new();
+            let mut length = 0;
+            loop {
+                let mut line = String::new();
+                reader.read_line(&mut line).unwrap();
+                if let Some(value) = line.to_ascii_lowercase().strip_prefix("content-length:") {
+                    length = value.trim().parse().unwrap();
+                }
+                head.push_str(&line);
+                if line == "\r\n" {
+                    break;
+                }
+            }
+            let mut body = vec![0; length];
+            reader.read_exact(&mut body).unwrap();
+            let mut stream = reader.into_inner();
+            write!(
+                stream,
+                "HTTP/1.1 {status}\r\ncontent-length: 2\r\nconnection: close\r\n\r\n{{}}"
+            )
+            .unwrap();
+            head + &text(&body)
+        });
+        (url, server)
+    }
+
+    #[test]
+    fn feedback_posts_one_multipart_form_and_only_a_success_status_counts() {
+        let mut with_shot = request("The sidebar flickers.", "person@example.com");
+        with_shot.screenshot = Some(Screenshot {
+            bytes: PNG.to_vec(),
+            mime: Mime::Png,
+        });
+        let (url, server) = serve_once("200 OK");
+        assert_eq!(send_to(url, &with_shot, "0.4.0"), Ok(()));
+        let received = server.join().unwrap();
+        let lower = received.to_ascii_lowercase();
+        assert!(
+            received.starts_with("POST /f/test HTTP/1.1\r\n"),
+            "{received}"
+        );
+        assert!(lower.contains("\r\naccept: application/json\r\n"));
+        assert!(lower.contains("\r\nuser-agent: puppyone-desktop/0.4.0\r\n"));
+        assert!(
+            lower.contains("\r\ncontent-type: multipart/form-data; boundary=puppyone-feedback-")
+        );
+        assert!(received.contains("name=\"message\"\r\n\r\nThe sidebar flickers.\r\n"));
+        assert!(received.contains("name=\"email\"\r\n\r\nperson@example.com\r\n"));
+        assert!(received.contains("filename=\"feedback-screenshot.png\""));
+
+        // An error status is a rejection; a closed port is unreachable.
+        let (url, server) = serve_once("500 Internal Server Error");
+        assert_eq!(
+            send_to(url, &request("hi", "a@b.co"), "0.4.0"),
+            Err(Error::Rejected)
+        );
+        server.join().unwrap();
+        let closed = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = url::Url::parse(&format!("http://{}/f", closed.local_addr().unwrap())).unwrap();
+        drop(closed);
+        assert_eq!(
+            send_to(url, &request("hi", "a@b.co"), "0.4.0"),
+            Err(Error::Unavailable)
+        );
     }
 
     #[test]
