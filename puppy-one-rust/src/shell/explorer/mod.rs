@@ -82,6 +82,8 @@ pub(in crate::shell) enum ExplorerEvent {
     Create { entry: Entry, parent: PathBuf },
     /// The rename (or change file type) dialog for `path`.
     Rename { path: PathBuf, change_type: bool },
+    /// Cloud Explorer "Copy Link": the hosted resource URL of `path`.
+    CopyLink { path: PathBuf, folder: bool },
     /// A notice.
     Error(String),
 }

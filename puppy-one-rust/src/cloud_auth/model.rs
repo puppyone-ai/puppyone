@@ -69,6 +69,10 @@ impl<'de> Deserialize<'de> for Environment {
     }
 }
 impl Environment {
+    /// The Web origin hosted resource links use (`workspaceResourceUrl`).
+    pub fn web(&self) -> &str {
+        &self.web
+    }
     pub fn api(&self) -> &str {
         &self.api
     }

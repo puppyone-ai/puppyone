@@ -58,6 +58,8 @@ pub struct Shell {
     window_key: String,
     /// The shared Cloud account catalog (Homepage / Header rows).
     pub(super) cloud_catalog: Entity<crate::features::cloud_catalog::CloudCatalog>,
+    /// The hosted Project this window opened (links, Share, History).
+    cloud_project: Option<String>,
     /// Launch without a project: open the last active one once preferences load.
     restore_last: bool,
     project: String,
@@ -193,6 +195,7 @@ impl Shell {
         let mut s = Self {
             window_key: format!("window:{:?}", window.window_handle().window_id()),
             cloud_catalog: crate::features::cloud_catalog::global(cx),
+            cloud_project: None,
             restore_last: false,
             project: if fixture {
                 "puppyone".into()
@@ -300,6 +303,7 @@ impl Shell {
                     s.begin_rename(path.clone(), *change_type, window, cx)
                 }
                 ExplorerEvent::Error(error) => s.show_error(error.clone()),
+                ExplorerEvent::CopyLink { path, folder } => s.copy_cloud_link(path, *folder, cx),
             }
             s.receive(window, cx);
             cx.notify();
@@ -1094,7 +1098,28 @@ impl Shell {
             .update(cx, |c, cx| c.ensure(enabled, retry, cx));
     }
     /// Explicit Cloud opening of a hosted Project root in this window.
+    fn copy_cloud_link(&mut self, path: &std::path::Path, folder: bool, cx: &mut Context<Self>) {
+        let link = crate::features::cloud_account::broker_and_binding(cx)
+            .zip(self.cloud_project.clone())
+            .ok_or("Cloud link unavailable")
+            .and_then(|((_, binding), project)| {
+                crate::workspace::cloud::locator::resource_url(
+                    binding.environment.web(),
+                    &project,
+                    &path.to_string_lossy(),
+                    folder,
+                )
+            });
+        match link {
+            Ok(link) => cx.write_to_clipboard(ClipboardItem::new_string(link)),
+            Err(detail) => self.show_error(crate::localization::tf(
+                "workspace.node.error.operationFailedDetail",
+                &[("detail", detail.into())],
+            )),
+        }
+    }
     pub(super) fn open_cloud(&mut self, project: String, cx: &mut Context<Self>) {
+        self.cloud_project = Some(project.clone());
         let Some((broker, binding)) = crate::features::cloud_account::broker_and_binding(cx) else {
             self.show_error(crate::localization::t(
                 "cloud.message.project-sign-in-required",

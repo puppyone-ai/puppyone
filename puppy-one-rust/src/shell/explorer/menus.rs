@@ -374,6 +374,26 @@ impl Explorer {
                     cx.write_to_clipboard(ClipboardItem::new_string(copy_text.clone()))
                 }))),
         ));
+        // Cloud Explorer: Copy Link beside Copy Path (`workspaceResourceUrl`);
+        // local-only actions (reveal, default app, copy/duplicate) are not
+        // presented for hosted files.
+        let hosted = self
+            .workspace
+            .as_ref()
+            .is_some_and(|ws| ws.local_root().is_none());
+        if hosted && single {
+            let (path, is_folder) = (primary.clone(), folder);
+            rows.push(Some(
+                MenuItem::new(tr("workspace.node.copyLink"))
+                    .icon("link-2")
+                    .on_click(act(Box::new(move |_, _, cx| {
+                        cx.emit(ExplorerEvent::CopyLink {
+                            path: path.clone(),
+                            folder: is_folder,
+                        })
+                    }))),
+            ));
+        }
         rows.push(None);
         if folder {
             let parent = primary.clone();
@@ -402,39 +422,41 @@ impl Explorer {
             rows.push(None);
         }
         let copy = paths.clone();
-        rows.push(Some(
-            MenuItem::new(tf("workspace.node.copyItems", &[("count", count.into())]))
-                .icon("copy")
-                .shortcut(shortcut("C"))
+        if !hosted {
+            rows.push(Some(
+                MenuItem::new(tf("workspace.node.copyItems", &[("count", count.into())]))
+                    .icon("copy")
+                    .shortcut(shortcut("C"))
+                    .disabled(!capabilities.copy)
+                    .on_click(act(Box::new(move |s, _, _| {
+                        s.clipboard = Some(FileClipboard::Copy(copy.clone()))
+                    }))),
+            ));
+            let cut = paths.clone();
+            rows.push(Some(
+                MenuItem::new(tf("workspace.node.cutItems", &[("count", count.into())]))
+                    .icon("scissors")
+                    .shortcut(shortcut("X"))
+                    .disabled(!capabilities.move_entry)
+                    .on_click(act(Box::new(move |s, _, _| {
+                        s.clipboard = Some(FileClipboard::Cut(cut.clone()))
+                    }))),
+            ));
+            let duplicate = paths.clone();
+            rows.push(Some(
+                MenuItem::new(tf(
+                    "workspace.node.duplicateItems",
+                    &[("count", count.into())],
+                ))
+                .icon("copy-plus")
+                .shortcut(shortcut("D"))
                 .disabled(!capabilities.copy)
-                .on_click(act(Box::new(move |s, _, _| {
-                    s.clipboard = Some(FileClipboard::Copy(copy.clone()))
+                .on_click(act(Box::new(move |s, _, cx| {
+                    s.duplicate(duplicate.clone(), cx)
                 }))),
-        ));
-        let cut = paths.clone();
-        rows.push(Some(
-            MenuItem::new(tf("workspace.node.cutItems", &[("count", count.into())]))
-                .icon("scissors")
-                .shortcut(shortcut("X"))
-                .disabled(!capabilities.move_entry)
-                .on_click(act(Box::new(move |s, _, _| {
-                    s.clipboard = Some(FileClipboard::Cut(cut.clone()))
-                }))),
-        ));
-        let duplicate = paths.clone();
-        rows.push(Some(
-            MenuItem::new(tf(
-                "workspace.node.duplicateItems",
-                &[("count", count.into())],
-            ))
-            .icon("copy-plus")
-            .shortcut(shortcut("D"))
-            .disabled(!capabilities.copy)
-            .on_click(act(Box::new(move |s, _, cx| {
-                s.duplicate(duplicate.clone(), cx)
-            }))),
-        ));
-        rows.push(None);
+            ));
+            rows.push(None);
+        }
         if single
             && !folder
             && let Some(path) = absolute.clone()
