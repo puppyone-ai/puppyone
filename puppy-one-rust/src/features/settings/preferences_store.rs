@@ -102,6 +102,17 @@ impl PreferencesStore {
                 self.loaded = true;
                 cx.emit(PreferencesChanged);
             }
+            Event::Fresh(imported) => {
+                self.loaded = true;
+                // A first launch starts from the Electron product's
+                // preferences and keeps them as its own from then on.
+                if let Some(data) = imported {
+                    self.state = super::electron_preferences::import(&data);
+                    self.revision += 1;
+                    self.pump();
+                }
+                cx.emit(PreferencesChanged);
+            }
             Event::Saved(revision, result) => {
                 self.active = false;
                 match result {

@@ -1,11 +1,16 @@
 //! The product font catalog and its locale fallbacks; no window dependency.
 //!
-//! Ports `src/features/typography/fontCatalog.ts` (catalog, role resolution)
-//! and
+//! Ports `src/features/typography/fontCatalog.ts` (catalog, role resolution,
+//! stored preference parsing with every legacy version) and
 //! `src/styles/typography/locales.css` (script fallbacks per `lang`). The
 //! GPUI projection — which of these families are installed, and the cascade
 //! list built from the rest — lives in `ui::fonts`.
+use super::Scale;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+
+/// `TYPOGRAPHY_PREFERENCE_VERSION`.
+pub const PREFERENCE_VERSION: u64 = 11;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Role {
@@ -266,6 +271,136 @@ pub fn valid_font_id(id: &str) -> bool {
         && n.all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
 }
 
+/// `parseTypographyPreferences`: the stored `puppyone.desktop.typography`
+/// value, with every legacy shape migrated. Anything unreadable is the
+/// default.
+pub fn parse_preferences(value: Option<&str>) -> (Selection, Scale) {
+    let Some(parsed) = value
+        .and_then(|v| serde_json::from_str::<Value>(v).ok())
+        .filter(Value::is_object)
+    else {
+        return (Selection::default(), Scale::Medium);
+    };
+    let selection = Selection {
+        content_font: parse_content_font(&parsed),
+        code_font_id: normalize_font_id(parsed.get("codeFontId"), Role::Code),
+        terminal_font_id: normalize_font_id(parsed.get("terminalFontId"), Role::Terminal),
+    };
+    (selection, parse_scale(&parsed))
+}
+
+fn version(parsed: &Value) -> Option<f64> {
+    parsed.get("version").and_then(Value::as_f64)
+}
+fn version_in(parsed: &Value, versions: &[u64]) -> bool {
+    version(parsed).is_some_and(|v| versions.iter().any(|&w| v == w as f64))
+}
+
+fn parse_content_font(parsed: &Value) -> ContentFont {
+    if version_in(parsed, &[PREFERENCE_VERSION, 10, 9, 8, 7, 6, 5, 4]) {
+        let Some(content) = parsed.get("contentFont").filter(|v| v.is_object()) else {
+            return ContentFont::FollowTheme;
+        };
+        return match content.get("mode").and_then(Value::as_str) {
+            Some("follow-theme") => ContentFont::FollowTheme,
+            Some("explicit") => {
+                let font_id = content
+                    .get("fontId")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .trim();
+                if valid_font_id(font_id) {
+                    ContentFont::Explicit {
+                        font_id: font_id.into(),
+                    }
+                } else {
+                    ContentFont::FollowTheme
+                }
+            }
+            _ => ContentFont::FollowTheme,
+        };
+    }
+    let legacy = parsed
+        .get("contentFontId")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim();
+    if legacy.is_empty() || legacy == "theme" {
+        return ContentFont::FollowTheme;
+    }
+    let font_id = normalize_font_id(Some(&Value::from(legacy)), Role::Content);
+    let early = parsed.get("version").is_none() || version_in(parsed, &[1, 2]);
+    if early && font_id == ids::GEIST_SANS {
+        return ContentFont::FollowTheme;
+    }
+    ContentFont::Explicit { font_id }
+}
+
+/// `DEFAULT_FONT_ID_BY_ROLE`.
+fn default_font(role: Role) -> &'static str {
+    match role {
+        Role::Ui | Role::Content => ids::GEIST_SANS,
+        Role::Code => ids::GEIST_MONO,
+        Role::Terminal => ids::TERMINAL_SYSTEM_MONO,
+    }
+}
+
+/// `normalizeFontId`: a syntactically valid id is kept even when the catalog
+/// does not know it (resolution falls back later, so an imported font that
+/// returns is honoured again).
+fn normalize_font_id(value: Option<&Value>, role: Role) -> String {
+    match value.and_then(Value::as_str).map(str::trim) {
+        Some(id) if valid_font_id(id) => id.into(),
+        _ => default_font(role).into(),
+    }
+}
+
+fn parse_scale(parsed: &Value) -> Scale {
+    let normalize = |v: Option<&Value>| match v.and_then(Value::as_str) {
+        Some("small") => Scale::Small,
+        Some("large") => Scale::Large,
+        _ => Scale::Medium,
+    };
+    if version_in(parsed, &[PREFERENCE_VERSION]) {
+        return normalize(parsed.get("scale"));
+    }
+    // Versions 6–10 stored independent surface scales; the editor was the
+    // primary reading-size choice, so it is the migration source.
+    if version_in(parsed, &[10, 9, 8, 7, 6])
+        && let Some(scales) = parsed.get("scales").filter(|v| v.is_object())
+    {
+        return normalize(scales.get("editor"));
+    }
+    let content = parsed
+        .get("sizes")
+        .filter(|v| v.is_object())
+        .and_then(|sizes| sizes.get("content"))
+        .filter(|v| v.is_object());
+    let Some(size) = content
+        .filter(|c| c.get("mode").and_then(Value::as_str) == Some("explicit"))
+        .and_then(|c| c.get("sizePx"))
+        .and_then(Value::as_f64)
+    else {
+        return Scale::Medium;
+    };
+    // `inferLegacyScale`: the nearest preset, the smaller one on a tie.
+    [
+        (14., Scale::Small),
+        (15., Scale::Medium),
+        (16., Scale::Large),
+    ]
+    .into_iter()
+    .fold((f64::INFINITY, Scale::Medium), |best, (preset, scale)| {
+        let distance = (preset - size).abs();
+        if distance < best.0 {
+            (distance, scale)
+        } else {
+            best
+        }
+    })
+    .1
+}
+
 /// `--po-font-emoji`.
 pub const EMOJI: [&str; 3] = ["Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji"];
 
@@ -426,6 +561,65 @@ mod tests {
         ] {
             assert!(!valid_font_id(id), "{id}");
         }
+    }
+
+    #[test]
+    fn stored_preferences_migrate_every_legacy_shape() {
+        let parse = |v: &str| parse_preferences(Some(v));
+        assert_eq!(
+            parse_preferences(None),
+            (Selection::default(), Scale::Medium)
+        );
+        assert_eq!(parse("not json"), (Selection::default(), Scale::Medium));
+        assert_eq!(parse("[1]"), (Selection::default(), Scale::Medium));
+        // Current shape.
+        let (s, scale) = parse(
+            r#"{"version":11,"contentFont":{"mode":"explicit","fontId":" builtin:system-serif "},
+                "codeFontId":"imported:Fira","terminalFontId":"bad id","scale":"large"}"#,
+        );
+        assert_eq!(
+            s.content_font,
+            ContentFont::Explicit {
+                font_id: ids::SYSTEM_SERIF.into()
+            }
+        );
+        assert_eq!(s.code_font_id, "imported:Fira");
+        assert_eq!(s.terminal_font_id, ids::TERMINAL_SYSTEM_MONO);
+        assert_eq!(scale, Scale::Large);
+        // An invalid explicit id follows the theme.
+        let (s, _) = parse(r#"{"version":9,"contentFont":{"mode":"explicit","fontId":"x"}}"#);
+        assert_eq!(s.content_font, ContentFont::FollowTheme);
+        // Versions 6–10: the editor scale is the migration source.
+        let (_, scale) =
+            parse(r#"{"version":8,"scales":{"editor":"small","ui":"large"},"contentFont":{}}"#);
+        assert_eq!(scale, Scale::Small);
+        // Versions 1–3: `contentFontId`, Geist meant "the theme" before v3.
+        let (s, _) = parse(r#"{"version":2,"contentFontId":"builtin:geist-sans"}"#);
+        assert_eq!(s.content_font, ContentFont::FollowTheme);
+        let (s, _) = parse(r#"{"version":3,"contentFontId":"builtin:geist-sans"}"#);
+        assert_eq!(
+            s.content_font,
+            ContentFont::Explicit {
+                font_id: ids::GEIST_SANS.into()
+            }
+        );
+        let (s, _) = parse(r#"{"contentFontId":"theme"}"#);
+        assert_eq!(s.content_font, ContentFont::FollowTheme);
+        // Legacy explicit pixel sizes map to the nearest preset.
+        for (px, expected) in [
+            (12., Scale::Small),
+            (14.5, Scale::Small),
+            (15.4, Scale::Medium),
+            (15.5, Scale::Medium),
+            (19., Scale::Large),
+        ] {
+            let json = format!(
+                r#"{{"version":3,"sizes":{{"content":{{"mode":"explicit","sizePx":{px}}}}}}}"#
+            );
+            assert_eq!(parse(&json).1, expected, "{px}");
+        }
+        let (_, scale) = parse(r#"{"version":3,"sizes":{"content":{"mode":"auto","sizePx":16}}}"#);
+        assert_eq!(scale, Scale::Medium);
     }
 
     #[test]

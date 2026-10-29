@@ -2,6 +2,7 @@ pub mod accessibility;
 pub mod database;
 pub mod desktop;
 pub mod editor_state_storage;
+pub mod electron_import;
 pub mod environment;
 pub mod git;
 pub mod git_diff;

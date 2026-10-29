@@ -118,24 +118,29 @@
       "name": "Appearance preferences and runtime",
       "status": "partial",
       "sources": [
+        "src/features/appearance/AppearanceRuntime.tsx",
         "src/features/appearance/appearancePreferences.ts",
-        "src/features/appearance/resolveAppearance.ts",
         "src/features/appearance/legacyAppearancePreferences.ts",
         "src/features/appearance/legacyTextSizeMigration.ts",
-        "src/features/appearance/AppearanceRuntime.tsx",
-        "src/features/settings/useDesktopAppearance.ts",
-        "src/features/settings/appearanceSlice.ts"
+        "src/features/appearance/resolveAppearance.ts",
+        "src/features/settings/appearanceSlice.ts",
+        "src/features/settings/useDesktopAppearance.ts"
       ],
       "targets": [
+        "src/features/settings/electron_preferences.rs",
         "src/features/settings/preference_types.rs",
+        "src/platform/electron_import.rs",
+        "src/platform/environment.rs",
         "src/shell.rs",
-        "src/theme.rs",
-        "src/platform/environment.rs"
+        "src/theme.rs"
       ],
       "evidence": [
-        "test:legacy_theme_flag_becomes_an_explicit_mode_and_new_fields_default"
+        "test:legacy_theme_flag_becomes_an_explicit_mode_and_new_fields_default",
+        "test:the_product_appearance_document_and_layout_carry_over",
+        "test:legacy_keys_flags_and_unknown_values_follow_the_product_parsers",
+        "test:the_product_data_directory_is_read_without_its_lock"
       ],
-      "remaining": "Theme mode (including following the OS), theme pack, text scale, file icon theme and pointer cursors apply natively. Palette overrides and interface styles are stored but not applied."
+      "remaining": "Theme mode (including following the OS), theme pack, text scale, file icon theme and pointer cursors apply natively. Palette overrides and interface styles are stored but not applied. A first launch imports the Electron product's preferences (PL-3): recent Projects with the last active first, the locale, the appearance v6 document or its legacy keys (colour mode, Sub Theme, typography, pointer cursors, file icons, loading style), pane widths, experiments, files visibility, local agents, Git layout, titlebar actions and first-run sign-in; editor tab layouts and credentials are not imported (the apps keep separate data and Keychain)."
     },
     {
       "name": "Interface styles (skins)",

@@ -3,6 +3,9 @@ use serde_json::Value;
 use std::{path::PathBuf, sync::mpsc};
 pub enum Event {
     Loaded(Result<Option<Value>, String>),
+    /// No native preferences yet: what the Electron product left, if this
+    /// is the real data directory and it left anything (PL-3).
+    Fresh(Option<super::electron_import::ElectronData>),
     Saved(u64, Result<(), String>),
 }
 pub struct Write {
@@ -13,17 +16,24 @@ pub fn start() -> (mpsc::Sender<Write>, async_channel::Receiver<Event>) {
     let (tx, rx) = mpsc::channel::<Write>();
     let (events, out) = async_channel::unbounded();
     std::thread::spawn(move || {
-        let base = std::env::var_os("PUPPYONE_RUST_DATA_DIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| {
-                PathBuf::from(std::env::var_os("HOME").unwrap_or_default())
-                    .join("Library/Application Support/PuppyOne GPUI")
-            });
+        let isolated = std::env::var_os("PUPPYONE_RUST_DATA_DIR");
+        let base = isolated.clone().map(PathBuf::from).unwrap_or_else(|| {
+            PathBuf::from(std::env::var_os("HOME").unwrap_or_default())
+                .join("Library/Application Support/PuppyOne GPUI")
+        });
         let path = base.join("preferences.json");
-        if events
-            .send_blocking(Event::Loaded(super::ui_state_store::read(&path)))
-            .is_err()
-        {
+        let loaded = match super::ui_state_store::read(&path) {
+            // An isolated data directory (tests, captures) imports only from
+            // an explicitly named product directory.
+            Ok(None) => Event::Fresh(
+                (isolated.is_none() || std::env::var_os("PUPPYONE_ELECTRON_DATA_DIR").is_some())
+                    .then(super::electron_import::default_dir)
+                    .flatten()
+                    .and_then(|dir| super::electron_import::read(&dir)),
+            ),
+            other => Event::Loaded(other),
+        };
+        if events.send_blocking(loaded).is_err() {
             return;
         }
         while let Ok(write) = rx.recv() {

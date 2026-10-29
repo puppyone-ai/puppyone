@@ -40,6 +40,8 @@ futures-util = "0.3"
 icu_collator = "=2.3.0"
 icu_normalizer = "=2.3.0"
 chrono = { version = "=0.4.45", default-features = false, features = ["std"] }
+# The Electron product's localStorage (Chromium LevelDB) for the first-launch import.
+rusty-leveldb = { version = "=4.0.2" }
 regex = "1.13.1"
 notify = { version = "=8.2.0", default-features = false, features = ["macos_fsevent"] }
 image = { version = "=0.25.10", default-features = false }

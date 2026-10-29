@@ -1,3 +1,4 @@
+mod electron_preferences;
 mod main;
 pub mod preference_types;
 pub mod preferences_store;
