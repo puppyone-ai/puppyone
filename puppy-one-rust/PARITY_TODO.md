@@ -92,6 +92,13 @@
 
 仍未完成（第六轮后）：Cloud Agent、服务管理页、Billing、Scope、历史图、Share 缩略图、真实后端验收；从应用拖到外部、WebView Pane 的 Finder 拖放；Context Map、App 预览；右侧栏（G-1–G-8、G-11–G-13）与设置（S-3–S-5、S-7、S-9、S-12–S-15、S-18–S-20、S-22）的剩余项；全部新界面的像素流程。
 
+- [x] 第七轮（`3529435f`..`25b1b59f`，7 个提交）：
+  - 字体：`typography::fonts`（`fontCatalog.ts` 的目录、角色回退、id 规范化；`locales.css` 的按语言字体栈）与 `ui::fonts`（按 Chromium 的方式解析字体栈）；界面 Geist、代码 Geist Mono、终端 Terminal Mono（S-15）。存储格式 `puppyone.desktop.typography` 的解析归 PL-3。
+  - 终端：xterm WebGL 单元格（W 前进宽度、Blink 取整字框 ×1.24、设备像素网格）、会话内边距与 FitAddon、6000 行、450/700、光标闪烁与失焦描边、`isCursorInitialized`、产品 xterm 自定义字形（`tools/import-xterm-glyphs.mjs` + verify 漂移检查）、链接、滚动条、系统行、顶部提示；工作台像素用例 `terminal`（产品 xterm + 离线 PTY 桥，`fixtures/terminal-session.ansi`）95.3%；标签按文件夹命名、溢出详情、32/8 上限；48 个终端源文件全部登记（G-9）。
+  - 滚动条：`theme::product_scrollbar` + `ui::scrollbar`，gpui-base 补丁“悬停视口显示”（`PUPPYONE_PATCH.md`）（S-3）。
+  - Git：仓库子目录作为项目时与 TS 一致地管理整个仓库，操作只作用于文件夹内（G-13 / D-5）。
+  - 像素流程：`capture-workbench` / `compare` / `diff-hotspots` 先按 ICC 转 sRGB；Settings 15 页 96.3–99.7%（S-13）。
+  - 项目入口：`ProjectEntryLauncherDialog`、`ProjectNavigationFailure`、`RestoringWorkspaceScreen`（S-7）。
 （第一轮记录）仍未完成：HTML/Office/音视频/数据库/Context Map/App 预览查看器；代码编辑器装饰与冲突横幅；Cloud 全部界面；各处像素对比流程；右侧栏、设置与账户付费的剩余项。完整清单与状态见桌面迁移清单第 2 版。
 
 ## 1. 基础设施
