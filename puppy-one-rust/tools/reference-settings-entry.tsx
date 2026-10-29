@@ -6,7 +6,7 @@
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { LocalizationProvider } from "@puppyone/localization/react";
-import { initializeDesktopPreferences } from "PRODUCT/src/preferencesStore";
+import { desktopPreferencesStore, initializeDesktopPreferences } from "PRODUCT/src/preferencesStore";
 import { SettingsDialog } from "PRODUCT/src/features/settings/SettingsDialog";
 import { useSubThemeCatalog } from "PRODUCT/src/features/themes/useSubThemeCatalog";
 
@@ -70,6 +70,10 @@ Object.defineProperty(window, "puppyoneDesktop", { configurable: true, value: {
   },
 } });
 initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeItem: () => {} });
+// Cloud follows the experiment, off by default; only Plan (`seats`), which
+// exists only with Cloud on, turns it on (the native lab does the same).
+const CLOUD_ENABLED = scenario === "seats";
+if (CLOUD_ENABLED) desktopPreferencesStore.getState().setExperimentalSettings((current) => ({ ...current, enableCloudWorkspace: true }));
 
 const workspace = { id: "reference", name: "project", path: "/reference/project" };
 // `RepositoryInfo` of the native lab: one commit on `main`, no upstream; the
@@ -112,7 +116,7 @@ function Fixture() {
     subThemeCatalog={subThemeCatalog}
     onFilesVisibilityChange={noop}
     git={{ status: GIT_STATUS as never, loading: false, error: null, refresh: noop }}
-    cloud={{ enabled: true, session: null, sessionRestoring: false, apiBaseUrl: null, onSessionChange: noop }}
+    cloud={{ enabled: CLOUD_ENABLED, session: null, sessionRestoring: false, apiBaseUrl: null, onSessionChange: noop }}
     workspaceConfig={{ value: null, loading: false, saving: false, error: null, change: async () => null, unlink: async () => {} }}
     updates={{
       state: { status: "disabled", channel: "dev", blockers: [], currentVersion: "0.1.0" } as never,

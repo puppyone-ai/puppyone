@@ -208,6 +208,21 @@ pub fn prepare_close(cx: &mut App) -> Result<bool, Error> {
     };
     account.update(cx, |s, cx| s.prepare_close(cx))
 }
+/// The pixel lab: an available account that is signed out, with no
+/// broker, vault or service behind it (the product fixture's
+/// `cloud: { enabled: true, session: null }`).
+#[cfg(feature = "dev-capture")]
+pub fn install_offline(cx: &mut App) {
+    let model = cx.new(|_| CloudAccount {
+        snapshot: None,
+        unavailable: None,
+        broker: None,
+        closing: false,
+        close_ready: true,
+        close_error: None,
+    });
+    cx.set_global(CloudAccountService(model));
+}
 pub fn install(enabled: bool, cx: &mut App) {
     if !enabled {
         return;

@@ -73,6 +73,8 @@ impl Lab {
             .with_dark(dark)
             .apply(Some(window), cx);
         cx.set_reduce_motion(std::env::var("PUPPYONE_REDUCE_MOTION").as_deref() == Ok("1"));
+        // References render with the account available and signed out.
+        crate::features::cloud_account::install_offline(cx);
         let gallery = scenario.strip_prefix("gallery");
         let surface = if scenario == "assets" {
             Surface::Assets(cx.new(|_| crate::ui::asset_gallery::AssetGallery))
@@ -82,7 +84,13 @@ impl Lab {
         } else {
             match scenario.strip_prefix("settings-").and_then(settings_page) {
                 Some(page) => {
-                    let preferences = cx.new(|_| PreferencesStore::memory());
+                    // Cloud is off by default; Plan exists only with it on
+                    // (`tools/reference-settings-entry.tsx`).
+                    let preferences = cx.new(|_| {
+                        let mut store = PreferencesStore::memory();
+                        store.state.experimental.cloud_workspace = scenario == "settings-seats";
+                        store
+                    });
                     let settings = cx.new(|cx| {
                         let mut settings = SettingsWorkspaceSurface::new(preferences, window, cx);
                         settings.lab_fixture(
