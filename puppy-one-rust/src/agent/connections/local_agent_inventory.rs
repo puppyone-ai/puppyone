@@ -111,11 +111,20 @@ pub fn runtime_for(id: &str) -> Option<Runtime> {
 }
 fn locate(agent: &LocalAgent, dirs: &[PathBuf]) -> Option<PathBuf> {
     match &agent.locator {
-        Locator::Path(names) => names.iter().find_map(|name| {
-            dirs.iter()
-                .map(|dir| dir.join(name))
-                .find(|p| executable(p))
-        }),
+        // The PATH and known directories, then the product's own managed
+        // installation (`managedInstallationCandidate`, macOS only).
+        Locator::Path(names) => names
+            .iter()
+            .find_map(|name| {
+                dirs.iter()
+                    .map(|dir| dir.join(name))
+                    .find(|p| executable(p))
+            })
+            .or_else(|| {
+                let home = std::env::var_os("HOME").map(PathBuf::from)?;
+                crate::platform::local_agent_setup::installer::managed_entry(&home, agent.id)
+                    .filter(|p| cfg!(target_os = "macos") && executable(p))
+            }),
         Locator::AppBundle {
             app,
             cli,

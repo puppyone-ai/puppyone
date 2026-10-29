@@ -4,7 +4,10 @@
 //! PuppyOne's Hook in each Agent's configuration.
 use crate::{
     agent::connections::local_agent_inventory::{self, Installation},
-    features::settings::preferences_store::PreferencesStore,
+    features::{
+        local_agent_setup::{self, InstallationsChanged, Presentation, SetupSection},
+        settings::preferences_store::PreferencesStore,
+    },
     localization::{t, tf},
     platform::agent_activity::{
         host::Host,
@@ -32,7 +35,8 @@ enum HooksPhase {
 }
 /// Work finished off the UI thread.
 enum Done {
-    Installations(Vec<Installation>),
+    /// One scan generation's installations; a later scan wins.
+    Installations(u64, Vec<Installation>),
     /// `readEnrollment` of one generation; a later read or change wins.
     Enrollment(u64, Option<Vec<ProviderStatus>>),
     /// `setEnabled`: the snapshot after the change, or the failed provider.
@@ -47,6 +51,7 @@ pub struct AgentSettings {
     preferences: Entity<PreferencesStore>,
     installations: Option<Vec<Installation>>,
     scanning: bool,
+    scan_generation: u64,
     hooks: Vec<ProviderStatus>,
     hooks_phase: HooksPhase,
     hooks_generation: u64,
@@ -55,6 +60,8 @@ pub struct AgentSettings {
     /// `mutationError`: the provider whose change failed.
     hook_error: Option<&'static str>,
     enrollments: Enrollments,
+    /// `LocalAgentSetupSection presentation="settings"`.
+    setup: Entity<SetupSection>,
     tx: mpsc::Sender<Done>,
     rx: mpsc::Receiver<Done>,
     wake: Wake,
@@ -75,11 +82,29 @@ impl AgentSettings {
         })
         .detach();
         cx.observe(&preferences, |_, _, cx| cx.notify()).detach();
+        // An activation that installed a CLI refreshes the detected Agents.
+        let activation = local_agent_setup::store(cx);
+        cx.subscribe(&activation, |s, _, _: &InstallationsChanged, cx| {
+            s.refresh();
+            cx.notify();
+        })
+        .detach();
+        let owner = crate::features::agent_presence::owner(window);
+        let setup = cx.new(|cx| {
+            SetupSection::new(
+                Presentation::Settings,
+                crate::platform::local_agent_setup::Surface::Chat,
+                preferences.clone(),
+                owner,
+                cx,
+            )
+        });
         let (tx, rx) = mpsc::channel();
         let mut s = Self {
             preferences,
             installations: None,
             scanning: false,
+            scan_generation: 0,
             hooks: vec![],
             hooks_phase: HooksPhase::Loading,
             hooks_generation: 0,
@@ -92,6 +117,7 @@ impl AgentSettings {
                 }
                 Ok(host.enrollment())
             }),
+            setup,
             tx,
             rx,
             wake,
@@ -103,8 +129,15 @@ impl AgentSettings {
     fn drain(&mut self, cx: &mut Context<Self>) {
         while let Ok(done) = self.rx.try_recv() {
             match done {
-                Done::Installations(found) => {
+                Done::Installations(generation, _) if generation != self.scan_generation => {}
+                Done::Installations(_, found) => {
                     self.scanning = false;
+                    let ids = found
+                        .iter()
+                        .filter(|i| !i.bundled())
+                        .map(|i| i.id)
+                        .collect();
+                    self.setup.update(cx, |s, cx| s.set_found(Some(ids), cx));
                     self.installations = Some(found);
                 }
                 Done::Enrollment(generation, _) if generation != self.hooks_generation => {}
@@ -148,7 +181,9 @@ impl AgentSettings {
             return;
         }
         self.scanning = true;
-        self.run(|| Done::Installations(local_agent_inventory::discover()));
+        self.scan_generation += 1;
+        let generation = self.scan_generation;
+        self.run(move || Done::Installations(generation, local_agent_inventory::discover()));
     }
     /// `load` / `refresh`: the Hook enrollment, with a rescan when `rescan`.
     fn read_enrollment(&mut self, rescan: bool) {
@@ -174,10 +209,20 @@ impl AgentSettings {
     /// Dev-capture: the lab's detected agents and a fresh machine's Hooks
     /// instead of this machine's.
     #[cfg(feature = "dev-capture")]
-    pub fn lab_fixture(&mut self) {
+    pub fn lab_fixture(&mut self, cx: &mut Context<Self>) {
         use crate::platform::agent_activity::registration::PROVIDERS;
+        // Results of this machine's scans still on their way are stale.
+        self.scan_generation += 1;
+        self.hooks_generation += 1;
         self.scanning = false;
-        self.installations = Some(local_agent_inventory::lab_installations());
+        let installations = local_agent_inventory::lab_installations();
+        let ids = installations
+            .iter()
+            .filter(|i| !i.bundled())
+            .map(|i| i.id)
+            .collect();
+        self.setup.update(cx, |s, cx| s.set_found(Some(ids), cx));
+        self.installations = Some(installations);
         self.enrollments = std::sync::Arc::new(|_| {
             Ok(PROVIDERS
                 .iter()
@@ -197,6 +242,24 @@ impl AgentSettings {
         });
         self.hooks = (self.enrollments)(None).unwrap_or_default();
         self.hooks_phase = HooksPhase::Ready;
+        local_agent_setup::store(cx).update(cx, |s, cx| s.lab_fixture(cx));
+    }
+    /// Dev-capture: `agent-hooks` has the Codex Hook installed and the
+    /// setup directory open; `agent-activation` adds Codex's dialog.
+    #[cfg(feature = "dev-capture")]
+    pub fn lab_scenario(&mut self, scenario: &str, window: &mut Window, cx: &mut Context<Self>) {
+        let (hooks, activation) = (
+            scenario == "settings-agent-hooks",
+            scenario == "settings-agent-activation",
+        );
+        if !hooks && !activation {
+            return;
+        }
+        for provider in self.hooks.iter_mut().filter(|p| p.provider_id == "codex") {
+            provider.enrollment = Enrollment::Enabled;
+        }
+        self.setup
+            .update(cx, |s, cx| s.lab_open(activation, window, cx));
     }
     #[cfg(test)]
     fn with_enrollments(&mut self, enrollments: Enrollments) {
@@ -402,7 +465,7 @@ impl AgentSettings {
                     .when(pending, |d| d.opacity(0.62))
                     .when(!pending, |d| d.cursor(theme::clickable_cursor()))
                     .child(identity(icon, provider.display_name.to_owned()))
-                    .child(native_checkbox(installed, cx))
+                    .child(native_checkbox(installed, true, cx))
                     .when(!pending, |d| {
                         d.on_click(cx.listener(move |s, _, _, cx| {
                             s.set_hook(id, !installed);
@@ -473,7 +536,9 @@ fn t_static(key: &str) -> &'static str {
 impl Render for AgentSettings {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let t = cx.palette();
-        SettingsCategoryList::new().children(self.categories(t, cx))
+        SettingsCategoryList::new()
+            .children(self.categories(t, cx))
+            .child(self.setup.clone())
     }
 }
 

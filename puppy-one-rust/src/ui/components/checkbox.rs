@@ -3,7 +3,7 @@
 //! presentational: unchecked, with a tooltip saying why it is inert.
 //! [`native_checkbox`] draws the box alone, checked or not, for a row that
 //! owns the interaction (the row is the `<label>`).
-use super::{Icon, tooltip};
+use super::tooltip;
 use crate::{theme, ui::appearance::ActiveAppearance};
 use gpui::{prelude::*, *};
 use gpui_kit::base::StyledExt as _;
@@ -38,37 +38,32 @@ impl Styled for Checkbox {
         &mut self.style
     }
 }
-/// The 14px box of a native checkbox; checked boxes take `accent-color`.
-pub fn native_checkbox(checked: bool, cx: &App) -> Div {
-    use gpui_kit::component::Sizable as _;
+/// A native checkbox's box alone. `accent` is the `accent-color`
+/// (`var(--po-accent)`) of a 14px box sized in CSS; without it the default
+/// 13px box takes Chromium's own colours.
+pub fn native_checkbox(checked: bool, accent: bool, cx: &App) -> Div {
     let t = cx.palette();
-    let (fill, border) = if checked {
-        theme::native_checkbox_checked(t.accent)
-    } else {
-        theme::native_checkbox(t.dark)
-    };
-    let mark = theme::native_checkbox_checked(t.accent).1;
+    let size = if accent { 14. } else { 13. };
+    let (fill, mark) = theme::native_checkbox_checked(t.dark, accent.then_some(t.accent));
+    let (unchecked, border) = theme::native_checkbox(t.dark);
     div()
         .flex()
         .flex_shrink_0()
-        .size(px(14.))
+        .size(px(size))
         .items_center()
         .justify_center()
-        .child(
-            div()
-                .flex()
-                .size(px(13.))
-                .items_center()
-                .justify_center()
-                .rounded(px(2.))
-                .when(checked, |d| d.bg(fill))
-                .when(!checked, |d| {
-                    d.border(px(0.5)).border_color(border).bg(fill)
-                })
-                .when(checked, |d| {
-                    d.child(Icon::new("check").with_size(px(11.)).stroke(3.).color(mark))
-                }),
-        )
+        .rounded(px(2.))
+        .when(checked, |d| {
+            d.bg(fill).child(
+                svg()
+                    .path("icons/native-check.svg")
+                    .size(px(size))
+                    .text_color(mark),
+            )
+        })
+        .when(!checked, |d| {
+            d.border(px(0.5)).border_color(border).bg(unchecked)
+        })
 }
 impl RenderOnce for Checkbox {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {

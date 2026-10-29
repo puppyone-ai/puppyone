@@ -397,7 +397,9 @@
         "src/features/local-agents/setup/localAgentSetupPreferences.ts",
         "src/features/local-agents/setup/useLocalAgentSetup.ts",
         "src/features/local-agents/installation/localAgentInventoryClient.ts",
-        "src/features/local-agents/setup/LocalAgentHooksSettingsView.tsx"
+        "src/features/local-agents/setup/LocalAgentHooksSettingsView.tsx",
+        "src/features/local-agents/setup/LocalAgentSetupSection.tsx",
+        "src/features/local-agents/setup/local-agent-setup.css"
       ],
       "targets": [
         "src/features/agent_settings.rs",
@@ -405,18 +407,77 @@
         "src/features/settings/preference_types.rs",
         "src/platform/agent_activity/registration.rs",
         "src/platform/agent_activity/host.rs",
-        "src/ui/components/checkbox.rs"
+        "src/ui/components/checkbox.rs",
+        "src/features/local_agent_setup.rs",
+        "src/platform/local_agent_setup/mod.rs",
+        "src/platform/local_agent_setup/companion.rs"
       ],
-      "remaining": "Detected agents with persisted show/hide, rescan, empty/error states and history discovery are native; the Launcher honours hidden agents. Hooks: the enrollment snapshot, one change at a time, the loading/empty/error-with-Retry rows and the file-activity preference sync are native over src/platform/agent_activity (local-agents 98.9% / 98.9%). The setup-guide section and activation are not ported yet.",
+      "remaining": "Detected agents with persisted show/hide, rescan, empty/error states and history discovery are native; the Launcher honours hidden agents. Hooks: the enrollment snapshot, one change at a time, the loading/empty/error-with-Retry rows and the file-activity preference sync are native over src/platform/agent_activity. Setup (LocalAgentSetupSection): the suggestion preference and Restore, operation rows (step n/3 · status, View, Stop), the request-failed alert with Refresh, the Set up Agents directory, and the launcher presentation (suggested and running activations between the detected and the bundled Agents) over the setup registry, the companion-app scan and the advisor (local-agents 98.8%, agent-hooks 98.9%). Not ported: returning focus to the launcher after a dialog closes; native discovery has no failed scans, so entries are never `unknown`.",
       "evidence": [
         "test:a_hook_checkbox_installs_the_hook_and_turns_on_file_activity",
         "test:enabling_adds_only_owned_entries_and_disabling_restores_the_file",
-        "artifact:settings-native/local-agents-dark.png"
+        "artifact:settings-native/local-agents-dark.png",
+        "test:the_setup_directory_activates_an_agent_from_its_recipe",
+        "test:only_a_missing_cli_beside_its_app_is_recommended",
+        "test:bundles_are_identified_by_metadata_and_gaps_stay_unknown",
+        "artifact:settings-native/agent-hooks-dark.png"
       ]
     },
     {
-      "name": "Agent file presence",
+      "name": "Local Agent activation",
       "status": "partial",
+      "sources": [
+        "src/features/local-agents/activation/LocalAgentActivationDialog.tsx",
+        "src/features/local-agents/activation/LocalAgentActivationStore.ts",
+        "src/features/local-agents/activation/local-agent-activation.css"
+      ],
+      "targets": [
+        "src/features/local_agent_setup.rs",
+        "src/platform/local_agent_setup/activation.rs",
+        "src/platform/local_agent_setup/installer.rs",
+        "src/ui/components/dialog.rs"
+      ],
+      "evidence": [
+        "test:a_recipe_installs_and_discovery_confirms_it",
+        "test:guided_agents_wait_for_their_official_setup_and_existing_clis_are_reused",
+        "test:cancel_failure_and_interruption_are_reported",
+        "test:a_verified_archive_becomes_the_current_installation",
+        "test:unsafe_archives_are_rejected_before_anything_is_written",
+        "artifact:settings-native/agent-activation-dark.png"
+      ],
+      "remaining": "The store (snapshots by epoch and revision), the dialog (consent or guided text, the three steps, the background note, Installation details with publisher and version, the Claude Chat note, step circles with checks, status, error and retained notes, the request-failed alert, Cancel/Install, Stop/Try again/Guide/Check/Continue in background/Close) and the service behind it (plans per window, three at once, journal v2, interrupted on restart, the reviewed codex/cursor recipes with digest, archive and lease checks shared with the Electron product's ~/.puppyone/agent-runtimes) are native. agent-activation 96.7% / 94.0%: the light backdrop blur (D-3) and 20.8px line heights rounded to device pixels. Not ported: the v1 journal migration (the native journal starts at v2), and pixel comparison of the progress states."
+    },
+    {
+      "name": "Local Agent installation discovery store",
+      "status": "partial",
+      "sources": [
+        "src/features/local-agents/installation/LocalAgentInstallationStore.ts",
+        "src/features/local-agents/installation/useLocalAgentInstallations.ts"
+      ],
+      "targets": [
+        "src/features/agent_settings.rs",
+        "src/features/workbench/mod.rs",
+        "src/agent/connections/local_agent_inventory.rs"
+      ],
+      "evidence": [
+        "test:catalog_is_alphabetical_and_built_in_comes_last",
+        "test:a_hook_checkbox_installs_the_hook_and_turns_on_file_activity"
+      ],
+      "remaining": "Discovery runs in-process on a worker; Settings and the launchers own their scans (generations drop stale results) and rescan when an activation installs a CLI. Not ported: one shared store per window and progress events."
+    },
+    {
+      "name": "Local Agent installation IPC (Electron bridge)",
+      "status": "excluded",
+      "sources": [
+        "src/features/local-agents/installation/localAgentInstallationClient.ts",
+        "src/features/local-agents/installation/localAgentInstallationAvailability.ts"
+      ],
+      "targets": [],
+      "reason": "The preload IPC client and the validation of its snapshots; native discovery is a function call (local_agent_inventory::discover) with typed results."
+    },
+    {
+      "name": "Agent file presence",
+      "status": "ported",
       "sources": [
         "src/features/desktop-agent-presence/AgentFilePresence.tsx",
         "src/features/desktop-agent-presence/agent-file-presence.css",
@@ -437,9 +498,9 @@
       "evidence": [
         "test:claims_project_onto_their_window_and_file",
         "test:an_enabled_hook_reports_a_terminal_agents_file_reads_to_its_window",
-        "test:initials_and_easing_follow_the_product"
-      ],
-      "remaining": "The per-window store (four-second linger, writing before reading, running before finished, newest first), the editor and Explorer pills (initials, eye/hand, +N, breathing border, dimmed when settled, the 68px row reserve with the row's own actions only on hover) and the indicators preference are native. The process-wide host replaces the IPC subscribe/snapshot. Pixel comparison of the pills is pending."
+        "test:initials_and_easing_follow_the_product",
+        "artifact:workbench-native/agent-presence-dark.png"
+      ]
     },
     {
       "name": "Agent file-activity permission styles (unused)",

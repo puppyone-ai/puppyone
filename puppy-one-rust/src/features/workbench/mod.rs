@@ -164,6 +164,10 @@ pub struct Workbench {
     launcher_scroll: HashMap<Id, ScrollHandle>,
     /// Owner of `localAgents.chatHistoryDiscovery` (set by the shell).
     preferences: Option<Entity<crate::features::settings::preferences_store::PreferencesStore>>,
+    /// The launcher's `LocalAgentSetupSection` (created with the preferences).
+    setup: Option<Entity<crate::features::local_agent_setup::SetupSection>>,
+    /// This window (`agent_presence::owner`).
+    owner: String,
 }
 impl Workbench {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
@@ -193,6 +197,13 @@ impl Workbench {
                 }
             }
         })
+        .detach();
+        // An activation that installed a CLI rescans the launchers' Agents.
+        let activation = crate::features::local_agent_setup::store(cx);
+        cx.subscribe(
+            &activation,
+            |s, _, _: &crate::features::local_agent_setup::InstallationsChanged, cx| s.rescan(cx),
+        )
         .detach();
         Self {
             wake,
@@ -225,6 +236,8 @@ impl Workbench {
             launch_errors: HashMap::new(),
             launcher_scroll: HashMap::new(),
             preferences: None,
+            setup: None,
+            owner: crate::features::agent_presence::owner(window),
         }
     }
     #[cfg(feature = "dev-capture")]
@@ -901,6 +914,45 @@ impl Workbench {
         store: Entity<crate::features::settings::preferences_store::PreferencesStore>,
     ) {
         self.preferences = Some(store);
+        self.setup = None;
+    }
+    /// The launcher's setup section, narrowed to this launcher's surface and
+    /// the detected Agents.
+    fn setup_section(
+        &mut self,
+        cx: &mut Context<Self>,
+    ) -> Option<Entity<crate::features::local_agent_setup::SetupSection>> {
+        use crate::{
+            features::local_agent_setup::{Presentation, SetupSection},
+            platform::local_agent_setup::Surface,
+        };
+        let surface = if self.chat_mode {
+            Surface::Chat
+        } else {
+            Surface::Terminal
+        };
+        if self.setup.is_none() {
+            let preferences = self.preferences.clone()?;
+            let owner = self.owner.clone();
+            let section = cx.new(|cx| {
+                SetupSection::new(Presentation::Launcher, surface, preferences, owner, cx)
+            });
+            cx.observe(&section, |_, _, cx| cx.notify()).detach();
+            self.setup = Some(section);
+        }
+        let section = self.setup.clone()?;
+        let found = (!self.scanning).then(|| {
+            self.installations
+                .iter()
+                .filter(|i| !i.bundled())
+                .map(|i| i.id)
+                .collect()
+        });
+        section.update(cx, |s, cx| {
+            s.set_surface(surface, cx);
+            s.set_found(found, cx);
+        });
+        section.update(cx, |s, cx| s.visible(cx)).then_some(section)
     }
     fn end_drag(&mut self, cx: &mut Context<Self>) {
         if self.drag_split.is_some() || self.drop_intent.is_some() || self.dragging.is_some() {

@@ -204,6 +204,11 @@ impl Workbench {
                     .child(tr("terminal.launcher.detecting")),
             );
         }
+        // `agentSetup`: suggested and running activations, between the
+        // detected Agents and the bundled one.
+        if let Some(setup) = self.setup_section(cx) {
+            entries = entries.child(setup);
+        }
         entries = entries.child(bundled).child(shell);
 
         // `.desktop-terminal-launcher-error`.

@@ -10,6 +10,8 @@
     {"scenario": "privacy", "width": 1280, "height": 800},
     {"scenario": "experimental", "width": 1280, "height": 800},
     {"scenario": "local-agents", "width": 1280, "height": 800},
+    {"scenario": "agent-hooks", "width": 1280, "height": 800},
+    {"scenario": "agent-activation", "width": 1280, "height": 800},
     {"scenario": "model-connections", "width": 1280, "height": 800},
     {"scenario": "local-project", "width": 1280, "height": 800},
     {"scenario": "cloud", "width": 1280, "height": 800},

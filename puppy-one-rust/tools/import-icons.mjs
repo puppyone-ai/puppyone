@@ -34,6 +34,13 @@ await writeFile(path.join(root, 'assets/icons', 'editor-mode-preview.svg'), fram
 const disclosure = d => `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>\n`;
 await writeFile(path.join(root, 'assets/icons', 'tree-disclosure.svg'), disclosure('M4 2.5 7.5 6 4 9.5'));
 await writeFile(path.join(root, 'assets/icons', 'tree-disclosure-open.svg'), disclosure('M9.5 4 6 7.5 2.5 4'));
+// Chromium's checkbox check (native_theme_base.cc): from (0.2, 0.5) down to
+// (0.4, 0.7) and up to (0.8, 0.2) of the box, stroked at 16% of its height.
+await writeFile(path.join(root, 'assets/icons', 'native-check.svg'), `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="white" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter"><path d="M2 5 4 7 8 2"/></svg>\n`);
+// Chromium's <summary> markers (disclosure-closed / -open) at 12px: a solid
+// 7×8 triangle pointing right, or 8×7 pointing down.
+await writeFile(path.join(root, 'assets/icons', 'details-closed.svg'), `<svg xmlns="http://www.w3.org/2000/svg" width="7" height="8" viewBox="0 0 7 8" fill="white"><path d="M0 0 7 4 0 8Z"/></svg>\n`);
+await writeFile(path.join(root, 'assets/icons', 'details-open.svg'), `<svg xmlns="http://www.w3.org/2000/svg" width="8" height="7" viewBox="0 0 8 7" fill="white"><path d="M0 0H8L4 7Z"/></svg>\n`);
 // Product-owned `po-overflow-dots--vertical`: three 2px squares, 2px apart.
 await writeFile(path.join(root, 'assets/icons', 'overflow-dots.svg'), `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 10 10" fill="white"><rect x="4" y="0" width="2" height="2"/><rect x="4" y="4" width="2" height="2"/><rect x="4" y="8" width="2" height="2"/></svg>\n`);
 // Product-owned discovery spinner (.desktop-terminal-launcher-discovery-spinner):

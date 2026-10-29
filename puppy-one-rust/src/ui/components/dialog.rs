@@ -19,6 +19,7 @@ pub struct Dialog {
     id: ElementId,
     width: Pixels,
     title: Option<SharedString>,
+    heading: Option<AnyElement>,
     leading: Option<(Icon, Hsla)>,
     inset: Option<f32>,
     header_bottom: Option<f32>,
@@ -37,6 +38,7 @@ impl Dialog {
             id: id.into(),
             width: px(420.),
             title: None,
+            heading: None,
             leading: None,
             inset: None,
             header_bottom: None,
@@ -58,6 +60,12 @@ impl Dialog {
     }
     pub fn title(mut self, title: impl Into<SharedString>) -> Self {
         self.title = Some(title.into());
+        self
+    }
+    /// A heading drawn by the dialog's owner instead of the muted title
+    /// (`.local-agent-activation-title`).
+    pub fn heading(mut self, heading: impl IntoElement) -> Self {
+        self.heading = Some(heading.into_any_element());
         self
     }
     /// `.desktop-dialog-leading`: a 28px tile tinted with `tint` holding `icon`.
@@ -129,7 +137,8 @@ impl RenderOnce for Dialog {
         let viewport = window.viewport_size();
         let close = self.on_close.clone();
         let cancel = close.clone();
-        let header = (self.title.is_some() || close.is_some()).then(|| {
+        let heading = self.heading;
+        let header = (self.title.is_some() || heading.is_some() || close.is_some()).then(|| {
             div()
                 .flex()
                 .flex_shrink_0()
@@ -168,7 +177,8 @@ impl RenderOnce for Dialog {
                                 .font_weight(FontWeight::MEDIUM)
                                 .text_color(t.muted)
                                 .child(title)
-                        })),
+                        }))
+                        .children(heading),
                 )
                 .children(close.clone().map(|close| {
                     IconButton::new(child_id(&self.id, "close"), "dialog-close")

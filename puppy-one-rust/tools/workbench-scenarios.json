@@ -2,6 +2,11 @@
   "comment": "Right-sidebar pixel scenarios shared by tools/reference-workbench.mjs (product) and tools/capture-workbench.py (native lab).",
   "scenarios": [
     {
+      "scenario": "agent-presence",
+      "width": 320,
+      "height": 180
+    },
+    {
       "scenario": "launcher",
       "width": 420,
       "height": 760

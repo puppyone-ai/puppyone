@@ -32,6 +32,10 @@ pulldown-cmark = "0.13"
 base64 = "0.22"
 getrandom = "0.3"
 sha2 = "0.10"
+# Local Agent activation: reading the official CLI archives (validated and
+# written by src/platform/local_agent_setup/installer.rs, never unpacked by the crate).
+tar = { version = "=0.4.46", default-features = false }
+flate2 = "1.1"
 zeroize = "1"
 httparse = "1"
 reqwest = { package = "zed-reqwest", version = "=0.12.15-zed", default-features = false, features = ["json", "stream", "rustls-tls"] }

@@ -197,11 +197,25 @@ impl SettingsWorkspaceSurface {
         with_remotes: bool,
         cx: &mut Context<Self>,
     ) {
-        self.agents.update(cx, |a, _| a.lab_fixture());
+        self.agents.update(cx, |a, cx| a.lab_fixture(cx));
         self.set_root(Some(root), cx);
         self.select_page(page, cx);
         self.repository
             .update(cx, |r, cx| r.lab_fixture(with_remotes, cx));
+    }
+    /// Dev-capture: the Local Agents scenarios (`agent-hooks`,
+    /// `agent-activation`).
+    #[cfg(feature = "dev-capture")]
+    pub fn lab_agents(&mut self, scenario: &str, window: &mut Window, cx: &mut Context<Self>) {
+        self.agents
+            .update(cx, |a, cx| a.lab_scenario(scenario, window, cx));
+        // The setup section ends the page; the reference scrolls to it.
+        if matches!(
+            scenario,
+            "settings-agent-hooks" | "settings-agent-activation"
+        ) {
+            self.content_scroll.scroll_to_bottom();
+        }
     }
     /// Track the open project; Settings reads repository facts lazily.
     pub fn set_root(&mut self, root: Option<PathBuf>, cx: &mut Context<Self>) {

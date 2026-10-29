@@ -32,6 +32,7 @@ are upstream; the continuous document retains its host-owned editing model.
 
 - `unicode-segmentation`: MIT OR Apache-2.0; grapheme boundaries.
 - `rusty-leveldb` 4.0.2 (MIT) with `snap` (BSD-3-Clause) and `crc32c` (Apache-2.0 / MIT): reads the Electron product's `localStorage` once, for the first-launch preference import.
+- `tar` 0.4.46 (MIT / Apache-2.0) with `filetime` (MIT / Apache-2.0) and `flate2` 1.1 (MIT / Apache-2.0): read the reviewed Codex and Cursor CLI archives for Local Agent activation. The archives are validated and written by `src/platform/local_agent_setup/installer.rs`; the crate never unpacks them.
 - Embedded icons/fonts and their retained notices: [assets/README.md](assets/README.md).
 - Probe fonts and dependency details: [native-editor-probe/THIRD_PARTY.md](native-editor-probe/THIRD_PARTY.md).
 

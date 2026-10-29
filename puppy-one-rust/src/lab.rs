@@ -22,6 +22,8 @@ use gpui::{prelude::*, *};
 use std::path::PathBuf;
 
 enum Surface {
+    /// `agent-presence`: the four file-presence pills.
+    Presence,
     Assets(Entity<crate::ui::asset_gallery::AssetGallery>),
     CloudHistory(Entity<crate::features::source_control::CloudHistory>),
     Editor(Entity<crate::editor::host::DocumentEditor>),
@@ -64,7 +66,7 @@ fn settings_page(section: &str) -> Option<Page> {
         "other-app-imports" => Page::OtherAppImports,
         "privacy" => Page::Privacy,
         "experimental" => Page::Experimental,
-        "local-agents" => Page::LocalAgents,
+        "local-agents" | "agent-hooks" | "agent-activation" => Page::LocalAgents,
         "model-connections" => Page::ModelConnections,
         "local-project" => Page::Project,
         "cloud" => Page::Host,
@@ -113,7 +115,11 @@ impl Lab {
                 _ => return None,
             })
         });
-        let surface = if let Some(name) = editor_resource {
+        let surface = if scenario == "agent-presence" {
+            // The pills breathe forever; the reference pauses them at rest.
+            cx.set_reduce_motion(true);
+            Surface::Presence
+        } else if let Some(name) = editor_resource {
             let folder = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/editor");
             let workspace = crate::workspace::Workspace::open(&folder).expect("fixture workspace");
             let path = workspace
@@ -201,6 +207,7 @@ impl Lab {
                             scenario == "settings-git-remotes",
                             cx,
                         );
+                        settings.lab_agents(&scenario, window, cx);
                         settings
                     });
                     cx.observe(&settings, |_, _, cx| cx.notify()).detach();
@@ -266,6 +273,49 @@ impl Render for Lab {
             .text_color(t.text)
             .relative();
         let root = match &self.surface {
+            // `tools/reference-workbench-entry.tsx` (`agent-presence`): the
+            // pills in 288×40 boxes on the panel, 16px from the edge; editor
+            // pills sit 8px down and 38px from their pane's end.
+            Surface::Presence => {
+                use crate::ui::components::{FilePresence, PresenceVariant};
+                let at = |y: f32, pill: FilePresence| {
+                    let editor = y < 90.;
+                    div()
+                        .absolute()
+                        .left(px(16.))
+                        .top(px(y))
+                        .w(px(288.))
+                        .h(px(40.))
+                        .flex()
+                        .items_start()
+                        .child(if editor {
+                            div().absolute().top(px(8.)).right(px(38.)).child(pill)
+                        } else {
+                            div().flex().child(pill)
+                        })
+                };
+                root.bg(t.panel)
+                    .child(at(
+                        16.,
+                        FilePresence::new("p1", PresenceVariant::Editor, "Claude Code")
+                            .reading(true),
+                    ))
+                    .child(at(
+                        56.,
+                        FilePresence::new("p2", PresenceVariant::Editor, "Codex")
+                            .active(false)
+                            .more(2),
+                    ))
+                    .child(at(
+                        96.,
+                        FilePresence::new("p3", PresenceVariant::Explorer, "Cursor Agent CLI")
+                            .reading(true),
+                    ))
+                    .child(at(
+                        136.,
+                        FilePresence::new("p4", PresenceVariant::Explorer, "Pi Agent").more(1),
+                    ))
+            }
             Surface::Gallery(gallery) => root.child(gallery.clone()),
             Surface::Assets(gallery) => root.child(gallery.clone()),
             Surface::Workbench(workbench) => root.bg(t.auxiliary()).child(workbench.clone()),

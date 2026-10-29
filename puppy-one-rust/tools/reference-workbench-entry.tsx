@@ -32,6 +32,8 @@ import { TerminalSessionHeaderStatus } from "PRODUCT/src/features/desktop-termin
 import { TerminalSessionView } from "PRODUCT/src/features/desktop-terminal/ui/TerminalSessionView";
 import { TerminalRuntime } from "PRODUCT/src/features/desktop-terminal/runtime/terminalRuntime";
 import { readTerminalAppearance } from "PRODUCT/src/features/desktop-terminal/runtime/terminalAppearance";
+import { AgentFilePresence } from "PRODUCT/src/features/desktop-agent-presence/AgentFilePresence";
+import { AgentActivityStore } from "PRODUCT/src/features/desktop-agent-presence/agentActivityStore";
 import "PRODUCT/src/features/desktop-agent/ui/desktop-agent.css";
 import "PRODUCT/src/features/desktop-terminal/ui/desktop-terminal.css";
 
@@ -358,4 +360,46 @@ const initialState = { locale: fixture.locale, preference: fixture.locale, direc
 const localization = { initialState, initialCatalog: catalogs[fixture.locale], fallbackCatalog: catalogs.en,
   loadCatalog: async (locale: string) => ({ catalog: catalogs[locale], fallbackCatalog: catalogs.en }),
   client: { onLocaleChanged: () => () => {}, setLanguagePreference: async (preference: string) => ({ ...initialState, preference, locale: preference }) } };
-createRoot(document.getElementById("root")!).render(<LocalizationProvider {...(localization as never)}><Fixture /></LocalizationProvider>);
+// `agent-presence`: the product's file-presence pills over the panel, fed
+// through its own store: running reads, a finished write with two more
+// claims, and the Explorer variants (src/lab.rs draws the same four).
+function FixturePresence() {
+  const [store] = useState(() => {
+    const value = new AgentActivityStore({ subscribe: async () => ({ schemaVersion: 1, activities: [] }), onEvent: () => () => {}, unsubscribe: () => {} } as never);
+    let n = 0;
+    const event = (path: string, providerId: string, operation: string, phase: string, occurredAt: number) => value.apply({
+      schemaVersion: 1, eventId: `e${++n}`, activityId: `a${n}`, providerId, terminalSessionId: "t", phase, operation,
+      targets: [{ workspaceRelativePath: path, access: "read", confidence: "exact" }], occurredAt,
+    } as never);
+    event("a.md", "claude", "file.read", "started", 1);
+    event("b.md", "codex", "file.write", "completed", 9);
+    event("b.md", "claude", "file.read", "started", 3);
+    event("b.md", "pi", "file.read", "completed", 2);
+    event("c.md", "cursor", "file.read", "started", 1);
+    event("d.md", "pi", "file.write", "started", 5);
+    event("d.md", "codex", "file.read", "started", 4);
+    return value;
+  });
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      // The breathing border at rest, as the native lab (reduced motion) shows it.
+      for (const animation of document.getAnimations()) { animation.pause(); animation.currentTime = 0; }
+      window.__referenceReady = true;
+    }, 400);
+    return () => clearTimeout(timer);
+  }, []);
+  // Editor pills place themselves in their pane (8px down, 38px from its end).
+  // Explorer pills sit in a flex row, as in `.tree-row-actions`.
+  const at = (top: number, child: React.ReactNode) => <div style={{ position: "absolute", left: 16, top, width: 288, height: 40,
+    display: "flex", alignItems: "flex-start" }}>{child}</div>;
+  return <main className={fixture.mode === "dark" ? "dark" : undefined}
+    style={{ position: "absolute", inset: 0, background: "var(--po-panel)", color: "var(--po-text)" }}>
+    {at(16, <AgentFilePresence path="a.md" store={store} />)}
+    {at(56, <AgentFilePresence path="b.md" store={store} />)}
+    {at(96, <AgentFilePresence path="c.md" store={store} variant="explorer" />)}
+    {at(136, <AgentFilePresence path="d.md" store={store} variant="explorer" />)}
+  </main>;
+}
+
+createRoot(document.getElementById("root")!).render(<LocalizationProvider {...(localization as never)}>
+  {scenario === "agent-presence" ? <FixturePresence /> : <Fixture />}</LocalizationProvider>);

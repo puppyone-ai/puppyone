@@ -102,6 +102,12 @@
   - Electron 数据导入：首次启动读取 `desktop-workspace-state.json`、`desktop-locale-preference.json` 与 `localStorage`（rusty-leveldb，副本读取），按产品解析器映射为原生偏好；凭据不读（PL-3）。
   - Git 刷新调度：无轮询；工作区与元数据（`platform::git_watch`）失效防抖、聚焦超 5 秒刷新、上游静默 fetch（G-11）。
   - Agent 输入框：`@path` 提及为 Kit 原子内联标记，插在光标处，删除即移除引用，草稿恢复标记（G-5）。
+- [x] 第八轮（S-22，本地 Agent 安装、激活与 Hooks）：
+  - Hooks：`platform::agent_activity` 移植 `terminal-agent/activity` 与 `agent-activity`。只增删本产品拥有的条目（`~/.codex/hooks.json`、`~/.claude/settings.json`、`~/.cursor/hooks.json`）：文件未变才写回，保留用户键序，原子替换。桥接脚本放在数据目录，执行本程序的 `--agent-activity-hook`（不依赖 Node）；载荷投影与 shell 读意图在 hook 进程内完成；每用户 Unix socket（0600），会话令牌只保存 SHA-256；声明以两分钟租约计，限定在工作区内（解析符号链接）。Hook 启用后，终端注入活动环境变量，PTY 结束即关闭会话。
+  - 文件活动提示：`features::agent_presence`（按窗口归属，完成后停留 4 秒），Explorer 行与编辑器窗格的提示（首字母、眼/手图标、+N、呼吸边框、完成后变暗、68px 行预留），受 `agentFileActivityIndicators` 偏好控制（从 Electron 导入）。像素用例 `agent-presence` 97.9%。
+  - 设置 → Agents → Hooks：真实开关，每次只处理一项，加载/空/错误加重试；修改后同步提示偏好。复选框按 Chromium 绘制：14px `accent-color`，深色方案下勾为深灰（`native-check.svg`）。像素用例 `agent-hooks` 98.9%。
+  - 安装指引：`platform::local_agent_setup` 的 8 条路由、伴随 App 扫描（只读 Info.plist）、建议逻辑；`SetupSection` 同时用于设置（建议开关、恢复、操作行、Set up Agents 目录）与工作台启动器（建议与进行中的激活）。
+  - 激活：激活服务（按窗口的计划、最多 3 个并发、v2 日志、重启后标为 interrupted）。codex/cursor 安装器使用产品审核过的 recipe：HTTPS 主机白名单、不跟随重定向、512 MiB 上限、摘要校验；归档先整体校验再写入；`install.lock` 租约与 Electron 的 proper-lockfile 兼容（两个产品共用 `~/.puppyone/agent-runtimes`）；先写回执，再原子切换 `current`；用清理过的环境运行 `--version`。激活对话框（同意/引导、步骤圆圈、安装详情、各状态按钮）的像素用例 `agent-activation` 为 96.7% / 94.0%：浅色背景模糊（D-3）与 20.8px 行高取整。
 （第一轮记录）仍未完成：HTML/Office/音视频/数据库/Context Map/App 预览查看器；代码编辑器装饰与冲突横幅；Cloud 全部界面；各处像素对比流程；右侧栏、设置与账户付费的剩余项。完整清单与状态见桌面迁移清单第 2 版。
 
 ## 1. 基础设施

@@ -328,9 +328,12 @@ pub fn elevation_low(t: &Theme) -> gpui::BoxShadow {
         spread_radius: gpui::px(-2.),
     }
 }
-/// Chromium's checked native checkbox with `accent-color`: (fill, mark).
-pub fn native_checkbox_checked(accent: Rgba) -> (Rgba, Rgba) {
-    (accent, rgb(0xffffff))
+/// Chromium's checked native checkbox: (fill, check). The fill is the
+/// element's `accent-color`, else Chromium's default blue for the scheme;
+/// the check is the scheme's dark grey or white.
+pub fn native_checkbox_checked(dark: bool, accent: Option<Rgba>) -> (Rgba, Rgba) {
+    let fill = accent.unwrap_or(if dark { rgb(0x99c8ff) } else { rgb(0x0075ff) });
+    (fill, if dark { rgb(0x3b3b3b) } else { rgb(0xffffff) })
 }
 /// Chromium's unchecked native checkbox: (fill, border) in the colour scheme.
 pub fn native_checkbox(dark: bool) -> (Rgba, Rgba) {
