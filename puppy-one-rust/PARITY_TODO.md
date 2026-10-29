@@ -68,7 +68,11 @@
 - [x] 账户与 Cloud 拆分（#83 #89）：`features::flags`、Settings Account/Plan 分组、首页 Sign in 跟随 Cloud。
 - [x] Cloud 协议/模型：`workspace::cloud::{failure, locator, catalog, recovery, publish}`（打开失败分类、remote 定位与可信 origin、资源链接、首页目录合并排序、仓库关联重试、首次发布状态轴）。**界面尚未接入，C-6.6 草稿策略未做，Cloud 编辑仍不得开放。**
 
-仍未完成：HTML/Office/音视频/数据库/Context Map/App 预览查看器；代码编辑器装饰与冲突横幅；Cloud 全部界面；各处像素对比流程；右侧栏、设置与账户付费的剩余项。完整清单与状态见桌面迁移清单第 2 版。
+- [x] 第二轮：WebView 底座（`web_host`、`platform::webview` 协议）；HTML Interact/Source；音视频；Office（docx-preview、pptx-renderer、SheetJS、textutil）；SQLite 数据库预览；代码编辑器括号匹配/同词高亮/行尾空格；Cloud 首页目录、显式打开（两句加载文案与取消）、Cloud Explorer Copy Link。Cloud 文档在 C-6.6 草稿策略完成前只读。新界面均未做像素对比，WebView 显示未经真实窗口截图确认。
+
+仍未完成（第二轮后）：HTML 可视化编辑、Context Map、App 预览；Cloud 切换/Share/History/Agent/发布界面/服务管理页/Billing/草稿策略；全部像素对比流程；右侧栏、设置与账户付费的剩余项。
+
+（第一轮记录）仍未完成：HTML/Office/音视频/数据库/Context Map/App 预览查看器；代码编辑器装饰与冲突横幅；Cloud 全部界面；各处像素对比流程；右侧栏、设置与账户付费的剩余项。完整清单与状态见桌面迁移清单第 2 版。
 
 ## 1. 基础设施
 
