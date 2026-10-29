@@ -498,6 +498,18 @@ impl Explorer {
         }
         cx.notify();
     }
+    /// The selected folder (Share's folder target), if a folder is selected.
+    pub(in crate::shell) fn selected_folder(&self) -> Option<PathBuf> {
+        let selected = &self.tree.selected;
+        if selected.as_os_str().is_empty() {
+            return None;
+        }
+        self.tree
+            .rows
+            .iter()
+            .find(|r| &r.path == selected && r.folder)
+            .map(|r| r.path.clone())
+    }
     /// Expands or collapses `path`, reading it first if it never was.
     pub fn set_expanded(&mut self, path: &Path, expanded: bool, cx: &mut Context<Self>) {
         if self.tree.set_expanded(path, expanded) {

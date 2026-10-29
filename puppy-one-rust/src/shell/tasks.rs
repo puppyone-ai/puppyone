@@ -229,6 +229,88 @@ impl Shell {
                     ),
             )
     }
+    /// `CloudWorkspaceShareDialog`: title, the URL row with an icon-only Copy
+    /// (a check after copying), and the unavailable / copy-failed notes. The
+    /// locator grants nothing; recipients sign in with their own access.
+    pub(super) fn share_dialog(
+        &self,
+        url: Option<String>,
+        copied: Option<bool>,
+        cx: &mut Context<Self>,
+    ) -> Dialog {
+        let t = cx.palette();
+        let host = cx.weak_entity();
+        let mut body = div().flex().flex_col().gap(px(10.));
+        match url {
+            Some(url) => {
+                body = body.child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(6.))
+                        .child(
+                            div()
+                                .flex_1()
+                                .min_w_0()
+                                .px(px(10.))
+                                .py(px(6.))
+                                .rounded(px(6.))
+                                .border_1()
+                                .border_color(t.border_subtle)
+                                .bg(t.input)
+                                .text_size(px(theme::ty().ui.meta))
+                                .text_color(t.text)
+                                .truncate()
+                                .child(url),
+                        )
+                        .child(
+                            crate::ui::components::IconButton::new(
+                                "share-copy",
+                                if copied == Some(true) {
+                                    "check"
+                                } else {
+                                    "copy"
+                                },
+                            )
+                            .label(crate::localization::tf(
+                                "cloud.share.action.copyLabel",
+                                &[(
+                                    "label",
+                                    crate::localization::t("cloud.share.handoff.link").into(),
+                                )],
+                            ))
+                            .on_click(
+                                cx.listener(|s, _, w, cx| s.command(Command::CopyShareLink, w, cx)),
+                            ),
+                        ),
+                );
+                if copied == Some(false) {
+                    body = body.child(
+                        div()
+                            .text_size(px(theme::ty().ui.meta))
+                            .text_color(t.danger)
+                            .child(crate::localization::t("cloud.share.copyFailed")),
+                    );
+                }
+            }
+            None => {
+                body = body.child(
+                    div()
+                        .text_size(px(theme::ty().ui.meta))
+                        .text_color(t.danger)
+                        .child(crate::localization::t("cloud.share.publish.unavailable")),
+                );
+            }
+        }
+        Dialog::new("cloud-share")
+            .width(520.)
+            .title(crate::localization::t("cloud.share.thisProject").to_owned())
+            .focus_handle(self.modal_focus.clone())
+            .child(body)
+            .on_close(move |w, cx| {
+                let _ = host.update(cx, |s, cx| s.command(Command::CloseShare, w, cx));
+            })
+    }
     /// About PuppyOne: brand mark, name and version (`role: "about"`).
     pub(super) fn about_dialog(&self, cx: &mut Context<Self>) -> Dialog {
         let t = cx.palette();

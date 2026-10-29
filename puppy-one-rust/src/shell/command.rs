@@ -39,6 +39,10 @@ pub enum Command {
     ClearError,
     RetryFileOperation,
     Changes,
+    /// Cloud Header → Share (`CloudWorkspaceShareDialog`).
+    ShareCloud,
+    CloseShare,
+    CopyShareLink,
     /// The Cloud conflict notice's "Discard edits and reload".
     ReloadCloudBaseline,
     /// File → Manage Running Sessions (`file.manageExecutions`).

@@ -34,6 +34,11 @@ pub(super) enum Modal {
     Executions,
     /// App menu → About PuppyOne (`role: "about"`).
     About,
+    /// `CloudWorkspaceShareDialog`: the captured resource URL and its copy state.
+    Share {
+        url: Option<String>,
+        copied: Option<bool>,
+    },
     /// A notice; a later one replaces it.
     Error(String),
 }
@@ -63,6 +68,9 @@ impl Modals {
     }
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
+    }
+    pub fn top_mut(&mut self) -> Option<&mut Modal> {
+        self.0.last_mut()
     }
     pub fn top(&self) -> Option<&Modal> {
         self.0.last()

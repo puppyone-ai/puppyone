@@ -305,6 +305,17 @@ pub(super) fn agent_entry(open: bool) -> Button {
         .w(px(metric::TITLEBAR_TOOL_ACTION_WIDTH))
 }
 
+/// `desktop-titlebar-share`: 16 px curved arrow (1.8 stroke) and "Share"
+/// on a committed Cloud workspace (`CloudWorkspaceHeaderTools`).
+pub(super) fn share_entry() -> Button {
+    Button::new("cloud-share")
+        .variant(ButtonVariant::Titlebar)
+        .icon("forward")
+        .label(tr("shell.titlebar.share"))
+        .accessibility_label(tr("shell.titlebar.share"))
+        .tooltip(tr("shell.titlebar.share"))
+}
+
 /// Account settings entry; signing in does not enable Cloud project opening.
 pub(super) fn account_entry(has_account: bool) -> Button {
     let ty = theme::ty().header;

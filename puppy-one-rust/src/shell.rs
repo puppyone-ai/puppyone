@@ -573,6 +573,9 @@ impl Shell {
             Some(Modal::About) => {
                 self.modals.remove(|m| matches!(m, Modal::About));
             }
+            Some(Modal::Share { .. }) => {
+                self.modals.remove(|m| matches!(m, Modal::Share { .. }));
+            }
             Some(Modal::Error(_)) => {
                 self.modals.remove(|m| matches!(m, Modal::Error(_)));
             }
@@ -807,6 +810,29 @@ impl Shell {
             Command::ClearError => {
                 self.modals.remove(|m| matches!(m, Modal::Error(_)));
                 self.files.error = None;
+            }
+            Command::ShareCloud => {
+                // One snapshot when Share opens owns the copied locator: the
+                // selected folder, else the active document, else the root.
+                let url = self.share_url(cx);
+                self.popover = None;
+                self.modals.remove(|m| matches!(m, Modal::Share { .. }));
+                self.modals.open(Modal::Share { url, copied: None });
+                self.modal_focus.focus(window, cx);
+            }
+            Command::CopyShareLink => {
+                if let Some(Modal::Share {
+                    url: Some(url),
+                    copied,
+                }) = self.modals.top_mut()
+                {
+                    cx.write_to_clipboard(ClipboardItem::new_string(url.clone()));
+                    *copied = Some(true);
+                }
+            }
+            Command::CloseShare => {
+                self.modals.remove(|m| matches!(m, Modal::Share { .. }));
+                self.focus.focus(window, cx);
             }
             Command::ReloadCloudBaseline => {
                 self.files.reload_cloud_baseline();
@@ -1094,6 +1120,26 @@ impl Shell {
             .update(cx, |c, cx| c.ensure(enabled, retry, cx));
     }
     /// Explicit Cloud opening of a hosted Project root in this window.
+    /// `cloudWorkspaceShareResource`: the selected folder, else the active
+    /// document, else the authorized root.
+    fn share_url(&self, cx: &App) -> Option<String> {
+        let (_, binding) = crate::features::cloud_account::broker_and_binding(cx)?;
+        let project = self.cloud_project.clone()?;
+        let (path, folder) = match self.explorer.read(cx).selected_folder() {
+            Some(folder) => (folder, true),
+            None => match self.files.opened() {
+                Some((_, relative)) => (relative.to_path_buf(), false),
+                None => (PathBuf::new(), true),
+            },
+        };
+        crate::workspace::cloud::locator::resource_url(
+            binding.environment.web(),
+            &project,
+            &path.to_string_lossy(),
+            folder,
+        )
+        .ok()
+    }
     fn copy_cloud_link(&mut self, path: &std::path::Path, folder: bool, cx: &mut Context<Self>) {
         let link = crate::features::cloud_account::broker_and_binding(cx)
             .zip(self.cloud_project.clone())
@@ -1373,6 +1419,18 @@ impl Shell {
                     .on_click(cx.listener(|s, _, w, cx| s.command(Command::Changes, w, cx))),
             );
         }
+        if self.cloud_project.is_some()
+            && self
+                .files
+                .workspace
+                .as_ref()
+                .is_some_and(|ws| ws.local_root().is_none())
+        {
+            bar = bar.action(
+                header::share_entry()
+                    .on_click(cx.listener(|s, _, w, cx| s.command(Command::ShareCloud, w, cx))),
+            );
+        }
         if changes && agent {
             bar = bar.divider(cx);
         }
@@ -1647,6 +1705,9 @@ impl Shell {
                     .into_any_element(),
                 Modal::Executions => self.executions_dialog(cx).into_any_element(),
                 Modal::About => self.about_dialog(cx).into_any_element(),
+                Modal::Share { url, copied } => self
+                    .share_dialog(url.clone(), *copied, cx)
+                    .into_any_element(),
                 Modal::Error(message) => error(self, message, cx),
             })
             .collect();

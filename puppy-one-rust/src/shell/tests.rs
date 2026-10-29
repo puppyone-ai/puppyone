@@ -1353,3 +1353,23 @@ fn app_menu_about_and_check_for_updates_follow_the_product_menu(cx: &mut TestApp
     command(&view, cx, Command::CheckForUpdates);
     view.read_with(cx, |s, _| assert_eq!(s.modals.task(), Some(Task::Settings)));
 }
+
+#[gpui::test]
+fn cloud_share_dialog_copies_the_captured_link(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    view.update_in(cx, |s, w, cx| {
+        s.modals.open(Modal::Share {
+            url: Some("https://app.puppyone.ai/0d3b7a4e-1f2a-4b5c-8d9e-0123456789ab/docs/".into()),
+            copied: None,
+        });
+        s.command(Command::CopyShareLink, w, cx);
+        assert!(matches!(s.modals.top(), Some(Modal::Share { copied: Some(true), .. })));
+    });
+    let copied = cx.read_from_clipboard().and_then(|c| c.text());
+    assert_eq!(copied.as_deref(), Some("https://app.puppyone.ai/0d3b7a4e-1f2a-4b5c-8d9e-0123456789ab/docs/"));
+    cx.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+    command(&view, cx, Command::CloseShare);
+    view.read_with(cx, |s, _| assert!(s.modals.is_empty()));
+}
