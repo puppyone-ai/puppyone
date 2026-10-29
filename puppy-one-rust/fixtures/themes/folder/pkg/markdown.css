@@ -1,0 +1,2 @@
+:root { --po-md-blockquote-color: var(--po-text-muted); }
+.dark :root { --po-md-blockquote-color: #a9a3b8; }

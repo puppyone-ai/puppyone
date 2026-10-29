@@ -31,6 +31,8 @@ are upstream; the continuous document retains its host-owned editing model.
 ## Other material
 
 - `unicode-segmentation`: MIT OR Apache-2.0; grapheme boundaries.
+- `unicode-normalization` 0.1 (MIT / Apache-2.0): NFKD for installed theme slugs and file-name collation in the Themes Folder.
+- `assets/themes/`: the product's Themes Folder guide, Markdown theme contract and built-in Sub Theme sources, copied by `tools/import-theme-contract.mjs` (product licence).
 - `rusty-leveldb` 4.0.2 (MIT) with `snap` (BSD-3-Clause) and `crc32c` (Apache-2.0 / MIT): reads the Electron product's `localStorage` once, for the first-launch preference import.
 - `tar` 0.4.46 (MIT / Apache-2.0) with `filetime` (MIT / Apache-2.0) and `flate2` 1.1 (MIT / Apache-2.0): read the reviewed Codex and Cursor CLI archives for Local Agent activation. The archives are validated and written by `src/platform/local_agent_setup/installer.rs`; the crate never unpacks them.
 - Embedded icons/fonts and their retained notices: [assets/README.md](assets/README.md).

@@ -168,10 +168,8 @@ fn appearance<'a>(
         Some("system") => Some(ThemeMode::System),
         _ => None,
     };
-    let pack = |id: Option<&str>| {
-        id.filter(|id| crate::theme::pack_choices().any(|(known, _)| known == *id))
-            .map(str::to_owned)
-    };
+    // Installed (`local.*`) ids are kept: the Themes Folder may hold them.
+    let pack = |id: Option<&str>| id.and_then(super::preference_types::normalize_sub_theme_id);
     let current = document.filter(|d| d.get("schemaVersion").and_then(Value::as_u64) == Some(6));
     let (mode, light, dark) = match &current {
         Some(d) => {
@@ -187,30 +185,32 @@ fn appearance<'a>(
                 pack(ids.and_then(|i| i.get("dark")).and_then(Value::as_str)),
             )
         }
-        // The default interface's legacy presets were `default.<preset>`.
-        None => (
-            theme_mode(get(keys::THEME)),
-            pack(
-                get(keys::LIGHT_PRESET)
-                    .map(|p| format!("default.{p}"))
-                    .as_deref(),
-            ),
-            pack(
-                get(keys::DARK_PRESET)
-                    .map(|p| format!("default.{p}"))
-                    .as_deref(),
-            ),
-        ),
+        // `createLegacyRequestedSubThemeIds`: Warm and Graphite presets have
+        // their own Sub Themes; any other preset was Neutral.
+        None => {
+            let preset = |key: &str| {
+                get(key).map(|p| match p {
+                    "warm" => "default.warm".to_owned(),
+                    "graphite" => "default.graphite".to_owned(),
+                    _ => crate::theme::DEFAULT_PACK.to_owned(),
+                })
+            };
+            (
+                theme_mode(get(keys::THEME)),
+                preset(keys::LIGHT_PRESET),
+                preset(keys::DARK_PRESET),
+            )
+        }
     };
     if let Some(mode) = mode {
         p.theme_mode = mode;
     }
-    // One native Sub Theme serves both modes: the one the chosen mode uses.
-    if let Some(id) = match p.theme_mode {
-        ThemeMode::Dark => dark.or(light),
-        _ => light.or(dark),
-    } {
-        p.theme_pack = id;
+    // Light and Dark selections are remembered independently.
+    if let Some(id) = light {
+        p.sub_theme_ids.light = id;
+    }
+    if let Some(id) = dark {
+        p.sub_theme_ids.dark = id;
     }
     let shared = current.as_ref().and_then(|d| d.get("shared")).cloned();
     let typography = shared
@@ -327,7 +327,7 @@ mod tests {
                              "pointerCursors":true,"showFileIcons":false,"loadingPlaceholderStyle":"dither",
                              "fileIconTheme":"default","sidebarNavigationLayout":"bottom-horizontal"},
                    "byRootTheme":{"default":{"requestedColorMode":"dark",
-                      "requestedSubThemeIds":{"light":"default.neutral","dark":"default.neutral"}}},
+                      "requestedSubThemeIds":{"light":"builtin.pack.github","dark":"local.user.ocean"}}},
                    "bySurface":{}}"#,
             ),
             (keys::EXPLORER_WIDTH, "312"),
@@ -344,7 +344,14 @@ mod tests {
         assert_eq!(p.recent_projects.len(), 2);
         assert_eq!(p.locale, "ja");
         assert_eq!(p.theme_mode, ThemeMode::Dark);
-        assert_eq!(p.theme_pack, "default.neutral");
+        assert_eq!(
+            p.sub_theme_ids.light, "default.github",
+            "retired ids are renamed"
+        );
+        assert_eq!(
+            p.sub_theme_ids.dark, "local.user.ocean",
+            "installed ids are kept"
+        );
         assert_eq!(p.text_scale, crate::typography::Scale::Large);
         assert!(p.pointer_cursors);
         assert!(!p.show_file_icons);

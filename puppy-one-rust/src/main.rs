@@ -77,6 +77,7 @@ fn main() {
         shell::bind_keys(cx);
         // Hooked terminal Agents' file activity, for every window.
         features::agent_presence::init(cx);
+        features::sub_theme_catalog::init(cx);
         editor::actions::bind_keys(cx);
         editor::view::bind_keys(cx);
         editor::csv::bind_keys(cx);

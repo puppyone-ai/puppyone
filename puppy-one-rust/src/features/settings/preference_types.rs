@@ -179,6 +179,65 @@ impl Default for Experimental {
     }
 }
 
+/// `requestedSubThemeIds` of the Default Root Theme.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SubThemeIds {
+    pub light: String,
+    pub dark: String,
+}
+impl Default for SubThemeIds {
+    fn default() -> Self {
+        Self {
+            light: crate::theme::DEFAULT_PACK.into(),
+            dark: crate::theme::DEFAULT_PACK.into(),
+        }
+    }
+}
+impl SubThemeIds {
+    pub fn get(&self, dark: bool) -> &str {
+        if dark { &self.dark } else { &self.light }
+    }
+    pub fn set(&mut self, dark: bool, id: String) {
+        *(if dark {
+            &mut self.dark
+        } else {
+            &mut self.light
+        }) = id;
+    }
+    /// Retired ids map to their successors; an invalid id is the default.
+    pub fn normalized(self) -> Self {
+        let fix = |id: String| {
+            normalize_sub_theme_id(&id).unwrap_or_else(|| crate::theme::DEFAULT_PACK.into())
+        };
+        Self {
+            light: fix(self.light),
+            dark: fix(self.dark),
+        }
+    }
+}
+/// `normalizeSubThemeId` + `isSubThemeId` (`subThemePreferences.ts`).
+pub fn normalize_sub_theme_id(id: &str) -> Option<String> {
+    let id = match id {
+        "default" => "default.neutral",
+        "builtin.markdown.newsprint"
+        | "builtin.markdown.newspaper"
+        | "builtin.pack.newsprint"
+        | "builtin.pack.newspaper" => "default.newspaper",
+        "builtin.pack.github" => "default.github",
+        other => other,
+    };
+    // `^[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+$`
+    let segments: Vec<&str> = id.split('.').collect();
+    let valid = segments.len() >= 2
+        && segments.iter().all(|s| {
+            let mut chars = s.chars();
+            chars.next().is_some_and(|c| c.is_ascii_lowercase())
+                && chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+        });
+    (valid && id != crate::platform::themes::service::LEGACY_CUSTOM_THEME_ID).then(|| id.to_owned())
+}
+
 /// One entry of the project open history (`useProjectOpenHistory`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RecentProject {
@@ -198,8 +257,10 @@ pub struct Preferences {
     /// Legacy explicit theme flag; superseded by `theme_mode`.
     pub dark: bool,
     pub theme_mode: ThemeMode,
-    /// Default-interface Sub Theme id (`default.neutral`, …).
-    pub theme_pack: String,
+    /// `requestedSubThemeIds`: the Default interface's Sub Theme per colour
+    /// mode (`default.neutral`, an installed `local.user.*`, …). An id that is
+    /// missing or incompatible stays requested; the Neutral theme paints.
+    pub sub_theme_ids: SubThemeIds,
     pub text_scale: crate::typography::Scale,
     /// The font half of `puppyone.desktop.typography` (no picker in the
     /// product; legacy and imported preferences still select).
@@ -244,7 +305,7 @@ impl Default for Preferences {
             locale: "system".into(),
             dark: true,
             theme_mode: ThemeMode::System,
-            theme_pack: "default.neutral".into(),
+            sub_theme_ids: SubThemeIds::default(),
             text_scale: crate::typography::Scale::Medium,
             fonts: Default::default(),
             file_icon_theme: "default".into(),
@@ -277,7 +338,25 @@ impl Preferences {
         let legacy = value.get("theme_mode").is_none();
         let legacy_dark = value.get("dark").and_then(|v| v.as_bool());
         let legacy_locale = value.get("version").and_then(|v| v.as_u64()) == Some(1);
+        // Before per-mode selections one `theme_pack` served both modes.
+        let legacy_pack = value
+            .get("sub_theme_ids")
+            .is_none()
+            .then(|| {
+                value
+                    .get("theme_pack")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_owned)
+            })
+            .flatten();
         let mut p: Self = serde_json::from_value(value)?;
+        if let Some(pack) = legacy_pack {
+            p.sub_theme_ids = SubThemeIds {
+                light: pack.clone(),
+                dark: pack,
+            };
+        }
+        p.sub_theme_ids = std::mem::take(&mut p.sub_theme_ids).normalized();
         if legacy && let Some(dark) = legacy_dark {
             p.theme_mode = if dark {
                 ThemeMode::Dark

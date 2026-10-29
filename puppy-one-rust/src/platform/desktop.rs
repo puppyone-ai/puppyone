@@ -22,6 +22,13 @@ fn spawn(args: &[&std::ffi::OsStr]) -> Result<(), String> {
 pub fn reveal(path: &Path) -> Result<(), String> {
     spawn(&["-R".as_ref(), path.as_os_str()])
 }
+/// Show a folder in Finder (`shell.openPath` on a directory).
+pub fn open_directory(path: &Path) -> Result<(), String> {
+    if !path.is_dir() {
+        return Err("Not a folder".into());
+    }
+    spawn(&[path.as_os_str()])
+}
 pub fn open(path: &Path) -> Result<(), String> {
     if !path.is_file() {
         return Err(crate::localization::t("native.desktop.openFilesOnly").into());

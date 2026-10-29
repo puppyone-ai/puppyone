@@ -1,0 +1,2 @@
+@puppyone-theme { id: local.user.light-dark-sel; name: Light Dark; version: 1.0.0; modes: light; }
+@puppyone csv { .dark .theme-root { --po-editable-table-radius: 2px; } }

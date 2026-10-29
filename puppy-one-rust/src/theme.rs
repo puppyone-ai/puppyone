@@ -493,8 +493,29 @@ struct Pack {
     dark: Theme,
     tokens: [Vec<(String, String)>; 2],
 }
-fn packs() -> &'static [Pack] {
-    static PACKS: std::sync::OnceLock<Vec<Pack>> = std::sync::OnceLock::new();
+impl Pack {
+    fn new(
+        id: String,
+        name: String,
+        light: &std::collections::HashMap<String, String>,
+        dark: &std::collections::HashMap<String, String>,
+    ) -> Self {
+        let sorted = |tokens: &std::collections::HashMap<String, String>| {
+            let mut out: Vec<_> = tokens.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+            out.sort();
+            out
+        };
+        Self {
+            light: Theme::from_tokens(light, false),
+            dark: Theme::from_tokens(dark, true),
+            tokens: [sorted(light), sorted(dark)],
+            id,
+            name,
+        }
+    }
+}
+fn packs() -> &'static [std::sync::Arc<Pack>] {
+    static PACKS: std::sync::OnceLock<Vec<std::sync::Arc<Pack>>> = std::sync::OnceLock::new();
     PACKS.get_or_init(|| {
         #[derive(serde::Deserialize)]
         struct File {
@@ -504,48 +525,77 @@ fn packs() -> &'static [Pack] {
             serde_json::from_str(include_str!("../assets/themes.json")).expect("generated themes");
         file.packs
             .into_iter()
-            .map(|p| {
-                let sorted = |tokens: &std::collections::HashMap<String, String>| {
-                    let mut out: Vec<_> =
-                        tokens.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
-                    out.sort();
-                    out
-                };
-                Pack {
-                    light: Theme::from_tokens(&p.light, false),
-                    dark: Theme::from_tokens(&p.dark, true),
-                    tokens: [sorted(&p.light), sorted(&p.dark)],
-                    id: p.id,
-                    name: p.name,
-                }
-            })
+            .map(|p| std::sync::Arc::new(Pack::new(p.id, p.name, &p.light, &p.dark)))
             .collect()
     })
 }
-thread_local! {static PACK: std::cell::Cell<usize> = const {std::cell::Cell::new(0)};}
+
+/// An installed Sub Theme's palette (`platform::themes::palette::project`
+/// per supported mode); a mode it lacks keeps the Neutral palette.
+pub struct InstalledPack {
+    pub id: String,
+    pub name: String,
+    pub light: Option<std::collections::HashMap<String, String>>,
+    pub dark: Option<std::collections::HashMap<String, String>>,
+}
+thread_local! {
+    static INSTALLED: std::cell::RefCell<Vec<std::sync::Arc<Pack>>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+    static PACK: std::cell::RefCell<Option<std::sync::Arc<Pack>>> =
+        const { std::cell::RefCell::new(None) };
+}
+/// Replace the installed Sub Themes (the Themes Folder catalog). The
+/// active pack is re-read by the next [`set_pack`].
+pub fn set_installed(installed: Vec<InstalledPack>) {
+    let neutral = &packs()[0];
+    let packs = installed
+        .into_iter()
+        .map(|p| {
+            let light = p
+                .light
+                .unwrap_or_else(|| neutral.tokens[0].iter().cloned().collect());
+            let dark = p
+                .dark
+                .unwrap_or_else(|| neutral.tokens[1].iter().cloned().collect());
+            std::sync::Arc::new(Pack::new(p.id, p.name, &light, &dark))
+        })
+        .collect();
+    INSTALLED.with(|i| *i.borrow_mut() = packs);
+}
+fn find(id: &str) -> Option<std::sync::Arc<Pack>> {
+    packs()
+        .iter()
+        .find(|p| p.id == id)
+        .cloned()
+        .or_else(|| INSTALLED.with(|i| i.borrow().iter().find(|p| p.id == id).cloned()))
+}
+fn active() -> std::sync::Arc<Pack> {
+    PACK.with(|p| p.borrow().clone())
+        .unwrap_or_else(|| packs()[0].clone())
+}
 /// Select the active Sub Theme; unknown ids fall back to `default.neutral`.
 pub fn set_pack(id: &str) {
-    let index = packs().iter().position(|p| p.id == id).unwrap_or(0);
-    PACK.with(|p| p.set(index));
+    let pack = find(id).unwrap_or_else(|| packs()[0].clone());
+    PACK.with(|p| *p.borrow_mut() = Some(pack));
 }
 #[cfg(test)]
-pub fn pack_id() -> &'static str {
-    &packs()[PACK.with(|p| p.get())].id
+pub fn pack_id() -> String {
+    active().id.clone()
 }
-/// `(id, name)` in built-in order.
 /// The built-in Sub Theme used until preferences load (`default.neutral`).
 pub const DEFAULT_PACK: &str = "default.neutral";
+/// Built-in `(id, name)` in built-in order.
 pub fn pack_choices() -> impl Iterator<Item = (&'static str, &'static str)> {
     packs().iter().map(|p| (p.id.as_str(), p.name.as_str()))
 }
 /// The active Sub Theme's compiled tokens (`--po-<name>` values), for web
 /// content that draws product components with the app's palette.
-pub fn pack_tokens(dark: bool) -> &'static [(String, String)] {
-    &packs()[PACK.with(|p| p.get())].tokens[usize::from(dark)]
+pub fn pack_tokens(dark: bool) -> Vec<(String, String)> {
+    active().tokens[usize::from(dark)].clone()
 }
-/// Palette of a specific pack, for previews.
+/// Palette of a specific pack (built-in or installed), for previews.
 pub fn pack_theme(id: &str, dark: bool) -> Theme {
-    let pack = packs().iter().find(|p| p.id == id).unwrap_or(&packs()[0]);
+    let pack = find(id).unwrap_or_else(|| packs()[0].clone());
     if dark { pack.dark } else { pack.light }
 }
 
@@ -600,7 +650,7 @@ impl Theme {
         }
     }
     pub fn new(dark: bool) -> Self {
-        let pack = &packs()[PACK.with(|p| p.get())];
+        let pack = active();
         if dark { pack.dark } else { pack.light }
     }
     fn from_tokens(tokens: &std::collections::HashMap<String, String>, dark: bool) -> Self {

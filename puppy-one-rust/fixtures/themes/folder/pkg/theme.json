@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "local.user.pkg-theme",
+  "name": "Package Theme",
+  "version": "2.0.0",
+  "modes": ["light", "dark"],
+  "targets": ["application", "markdown", "csv"],
+  "entrypoints": {
+    "application": "application.css",
+    "markdown": "markdown.css",
+    "csv": "csv.css"
+  }
+}

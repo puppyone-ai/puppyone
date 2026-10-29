@@ -1,0 +1,2 @@
+@puppyone-theme { id: local.user.bad-selector; name: Bad Selector; version: 1.0.0; modes: light; }
+@puppyone application { .desktop-sidebar { --po-accent: #ff0000; } }

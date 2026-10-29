@@ -1,0 +1,2 @@
+@puppyone-theme { id: local.user.bad-system; name: Bad System; version: 1.0.0; modes: light; }
+@puppyone application { :root { --po-text-selection-bg: Highlight; } }

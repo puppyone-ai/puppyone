@@ -54,6 +54,10 @@ pub(super) fn take_launch(cx: &mut App) -> Launch {
         },
     }
 }
+/// The preferences every window shares, once a window created them.
+pub(super) fn preferences(cx: &App) -> Option<Entity<PreferencesStore>> {
+    cx.try_global::<SharedPreferences>().map(|p| p.0.clone())
+}
 pub(super) fn shared_preferences(fixture: bool, cx: &mut App) -> Entity<PreferencesStore> {
     if fixture {
         return cx.new(|_| PreferencesStore::memory());

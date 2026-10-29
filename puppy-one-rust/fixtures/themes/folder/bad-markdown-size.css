@@ -1,0 +1,2 @@
+@puppyone-theme { id: local.user.bad-md-size; name: Bad Md Size; version: 1.0.0; modes: light; }
+@puppyone markdown { :root { --po-md-h1-size: 2em; } }

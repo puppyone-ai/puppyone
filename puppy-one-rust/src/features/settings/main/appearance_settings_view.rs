@@ -7,6 +7,7 @@ use super::Page;
 use crate::{
     localization::{t as tr, tf},
     theme::{self, Theme},
+    ui::appearance::ActiveAppearance as _,
     ui::{
         components::{
             FileIcon, Icon, Segment, SegmentLayout, SegmentedControl, Select, SelectOption,
@@ -79,6 +80,11 @@ impl SettingsWorkspaceSurface {
         let state = self.preferences.read(cx).state.clone();
         let prefs = self.preferences.clone();
 
+        // `ThemePreview` paints every card with the effective Sub Theme.
+        let preview_pack = {
+            let dark = cx.is_dark();
+            crate::features::sub_theme_catalog::effective(state.sub_theme_ids.get(dark), dark, cx)
+        };
         // Theme mode cards (`desktop-theme-choice`).
         let mut modes = h_flex()
             .flex_wrap()
@@ -98,16 +104,16 @@ impl SettingsWorkspaceSurface {
             let preview = match mode {
                 ThemeMode::System => preview
                     .child(
-                        preview_surface(&state.theme_pack, false, (true, false))
+                        preview_surface(&preview_pack, false, (true, false))
                             .border_r_1()
                             .border_color(theme::alpha(t.border_strong, 0.72)),
                     )
-                    .child(preview_surface(&state.theme_pack, true, (false, true))),
+                    .child(preview_surface(&preview_pack, true, (false, true))),
                 ThemeMode::Light => {
-                    preview.child(preview_surface(&state.theme_pack, false, (true, true)))
+                    preview.child(preview_surface(&preview_pack, false, (true, true)))
                 }
                 ThemeMode::Dark => {
-                    preview.child(preview_surface(&state.theme_pack, true, (true, true)))
+                    preview.child(preview_surface(&preview_pack, true, (true, true)))
                 }
             };
             let prefs = prefs.clone();
@@ -187,56 +193,198 @@ impl SettingsWorkspaceSurface {
             );
         }
 
-        // Theme pack (`SubThemeSettingsSection`).
-        let current_pack = state.theme_pack.clone();
-        let pack_name = theme::pack_choices()
-            .find(|(id, _)| *id == current_pack)
-            .map(|(_, n)| n)
-            .unwrap_or("Neutral");
+        // Theme pack (`SubThemeSettingsSection`): the effective mode's
+        // selection among the built-in and compatible installed themes.
+        let dark = cx.is_dark();
+        let catalog = crate::features::sub_theme_catalog::global(cx);
+        let requested = state.sub_theme_ids.get(dark).to_owned();
+        let effective = crate::features::sub_theme_catalog::effective(&requested, dark, cx);
+        let (variants, known, diagnostics, error) = match &catalog {
+            Some(catalog) => {
+                let c = catalog.read(cx);
+                (
+                    c.selectable(dark),
+                    c.contains(&requested),
+                    c.diagnostics().to_vec(),
+                    c.error.clone(),
+                )
+            }
+            None => (
+                theme::pack_choices()
+                    .map(|(id, name)| (id.to_owned(), name.to_owned()))
+                    .collect(),
+                theme::pack_choices().any(|(id, _)| id == requested),
+                vec![],
+                None,
+            ),
+        };
+        let selected_exists = variants.iter().any(|(id, _)| *id == requested);
+        let selected = if selected_exists {
+            requested.clone()
+        } else {
+            effective.clone()
+        };
+        let pack_name = variants
+            .iter()
+            .find(|(id, _)| *id == selected)
+            .map(|(_, name)| name.clone())
+            .unwrap_or_else(|| effective.clone());
+        let missing = (!selected_exists && !known).then(|| {
+            tf(
+                "settings.appearance.themes.missing",
+                &[("id", requested.clone().into())],
+            )
+        });
         let pack_prefs = prefs.clone();
+        // `setSubThemeId`: the selection of the effective colour mode.
+        let set_pack = std::rc::Rc::new(move |id: String, cx: &mut App| {
+            pack_prefs.update(cx, |p, cx| p.change(|p| p.sub_theme_ids.set(dark, id), cx))
+        });
+        let choose = {
+            let set_pack = set_pack.clone();
+            move |id: String| {
+                let set_pack = set_pack.clone();
+                move |_: &mut Window, cx: &mut App| set_pack(id.clone(), cx)
+            }
+        };
         // `.desktop-theme-pack-controls`: the select hugs its value between
         // 124 and 156px; two 28px icon actions follow, 4px apart.
-        let pack_control = h_flex()
-            .gap(px(4.))
-            .child(
-                Select::new("theme-pack", pack_name, move |_| {
-                    theme::pack_choices()
-                        .map(|(id, name)| {
-                            let prefs = pack_prefs.clone();
-                            SelectOption::new(name)
-                                .selected(id == current_pack)
-                                .on_select(move |_, cx| {
-                                    prefs.update(cx, |p, cx| {
-                                        p.change(|p| p.theme_pack = id.into(), cx)
-                                    })
-                                })
+        let select = if variants.len() <= 1 {
+            div()
+                .text_size(px(theme::ty().ui.caption))
+                .text_color(t.muted)
+                .child(pack_name)
+                .into_any_element()
+        } else {
+            let choose = choose.clone();
+            Select::new("theme-pack", pack_name, move |_| {
+                missing
+                    .iter()
+                    .map(|label| {
+                        SelectOption::new(label.clone()).on_select(choose(requested.clone()))
+                    })
+                    .chain(variants.iter().map(|(id, name)| {
+                        SelectOption::new(name.clone())
+                            .selected(*id == selected)
+                            .on_select(choose(id.clone()))
+                    }))
+                    .collect()
+            })
+            .width_range(124., 156.)
+            .into_any_element()
+        };
+        let pack_control =
+            h_flex()
+                .gap(px(4.))
+                .child(select)
+                .children(["folder-open", "plus"].into_iter().map(|icon| {
+                    let add = icon == "plus";
+                    let label = tr(if add {
+                        "settings.appearance.themes.add"
+                    } else {
+                        "settings.appearance.themes.openFolder"
+                    });
+                    let catalog = catalog.clone();
+                    let set_pack = set_pack.clone();
+                    // `.desktop-theme-pack-icon-action`: a 14px glyph, muted
+                    // until hovered.
+                    let hover_bg = t.hover;
+                    div()
+                        .id(SharedString::from(format!("theme-pack-{icon}")))
+                        .size(px(theme::control_compact()))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .rounded(px(6.))
+                        .cursor(theme::clickable_cursor())
+                        .text_color(t.muted)
+                        .hover(move |s| s.bg(hover_bg).text_color(t.text))
+                        .child(Icon::new(icon).small().stroke(if add { 1.9 } else { 1.8 }))
+                        .tooltip(tooltip(label))
+                        .on_click(move |_, _, cx| {
+                            let Some(catalog) = catalog.clone() else {
+                                return;
+                            };
+                            let set_pack = set_pack.clone();
+                            catalog.update(cx, |c, cx| {
+                                if add {
+                                    c.create(move |id, cx| set_pack(id, cx), cx)
+                                } else {
+                                    c.open_directory(cx)
+                                }
+                            })
                         })
-                        .collect()
-                })
-                .width_range(124., 156.),
-            )
-            .children(["folder-open", "plus"].into_iter().map(|icon| {
-                let label = tr(if icon == "plus" {
-                    "settings.appearance.themes.add"
-                } else {
-                    "settings.appearance.themes.openFolder"
-                });
-                // `.desktop-theme-pack-icon-action:disabled`: 14px glyph in
-                // `--po-text-disabled` at 58%.
-                div()
-                    .id(SharedString::from(format!("theme-pack-{icon}")))
-                    .size(px(theme::control_compact()))
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .rounded(px(6.))
-                    .opacity(0.58)
-                    .child(Icon::new(icon).small().stroke(2.).color(t.text_disabled))
-                    .tooltip(tooltip(tf(
-                        "settings.sidebar.notAvailable",
-                        &[("section", label.into())],
-                    )))
-            }));
+                }));
+        // Status, error and loading issues under the list (8px apart).
+        let font_prefs = prefs.clone();
+        let font_override = (state.fonts.content_font
+            != crate::typography::fonts::ContentFont::FollowTheme)
+            .then(|| {
+                let link = t.accent_text;
+                h_flex()
+                    .mt(px(6.))
+                    .px(px(10.))
+                    .gap(px(8.))
+                    .justify_end()
+                    .items_baseline()
+                    .text_size(px(theme::ty().ui.hint))
+                    .line_height(relative(1.45))
+                    .text_color(t.subtle)
+                    .child(tr("settings.appearance.themes.contentFontOverride"))
+                    .child(
+                        div()
+                            .id("use-theme-font")
+                            .cursor(theme::clickable_cursor())
+                            .text_color(link)
+                            .whitespace_nowrap()
+                            .hover(move |s| s.text_color(t.text).underline())
+                            .child(tr("settings.appearance.themes.useThemeFont"))
+                            .on_click(move |_, _, cx| {
+                                font_prefs.update(cx, |p, cx| {
+                                    p.change(
+                                        |p| {
+                                            p.fonts.content_font =
+                                                crate::typography::fonts::ContentFont::FollowTheme
+                                        },
+                                        cx,
+                                    )
+                                })
+                            }),
+                    )
+            });
+        let error = error.map(|error| {
+            div()
+                .mt(px(6.))
+                .text_size(px(theme::ty().ui.meta))
+                .line_height(relative(1.45))
+                .text_color(t.danger)
+                .child(error)
+        });
+        let diagnostics = (!diagnostics.is_empty()).then(|| {
+            v_flex()
+                .mt(px(6.))
+                .gap(px(4.))
+                .text_size(px(theme::ty().ui.hint))
+                .line_height(relative(1.45))
+                .text_color(t.muted)
+                .children(diagnostics.into_iter().map(|d| {
+                    h_flex()
+                        .items_start()
+                        .child(div().w(px(20.)).flex().justify_center().child("•"))
+                        .child(
+                            div().flex_1().min_w_0().child(
+                                gpui::StyledText::new(format!("{}: {}", d.source, d.message))
+                                    .with_highlights([(
+                                        0..d.source.len(),
+                                        HighlightStyle {
+                                            font_weight: Some(FontWeight::BOLD),
+                                            ..Default::default()
+                                        },
+                                    )]),
+                            ),
+                        )
+                }))
+        });
 
         // File icons.
         let icon_options = crate::file_kind::themes()
@@ -371,6 +519,9 @@ impl SettingsWorkspaceSurface {
                             .control(pack_control)
                             .mt(px(20.)),
                     )
+                    .children(font_override)
+                    .children(error)
+                    .children(diagnostics)
                     .when(icon_options.len() > 1, |list| {
                         list.child(
                             SettingRow::new(tr("settings.appearance.fileIcons.title")).control(

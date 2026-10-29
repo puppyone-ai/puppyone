@@ -1,0 +1,11 @@
+@puppyone-theme {
+  id: local.user.paper-light;
+  name: Paper Light;
+  version: 1.0.0;
+  modes: light;
+}
+@puppyone application {
+  :root { --po-canvas: #fffdf6; --po-accent: #c2410c; }
+}
+@puppyone markdown {}
+@puppyone csv {}

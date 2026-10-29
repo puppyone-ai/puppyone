@@ -1,0 +1,2 @@
+@puppyone-theme { id: local.user.bad-csv; name: Bad Csv; version: 1.0.0; modes: light; }
+@puppyone csv { :root { --po-csv-unknown: 1px; } }

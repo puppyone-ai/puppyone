@@ -79,15 +79,50 @@
         "src/features/themes/subThemePreferences.ts"
       ],
       "targets": [
-        "src/theme.rs",
         "assets/themes.json",
-        "tools/import-themes.mjs",
-        "tools/css-tokens.mjs"
+        "assets/themes/builtin/default-neutral.css",
+        "src/platform/themes/palette.rs",
+        "src/theme.rs",
+        "tools/css-tokens.mjs",
+        "tools/import-themes.mjs"
       ],
       "evidence": [
-        "test:semantic_tokens_follow_the_web_formulas"
+        "test:semantic_tokens_follow_the_web_formulas",
+        "test:the_built_in_themes_project_exactly_as_the_importer_did"
       ],
-      "remaining": "The five built-in packs and the tokens.css semantic layer are projected into Theme. Installing or removing external sub-theme packages (useSubThemeCatalog / SubThemeStyleHost) and forced-colours mode are not ported."
+      "remaining": "The five built-in packs and the tokens.css semantic layer are projected into Theme; installed Sub Themes from the Themes Folder project their Application target over the Neutral fallback the same way (see Installed Sub Themes). Forced-colours mode does not occur on macOS (Chromium only enters it under Windows high contrast)."
+    },
+    {
+      "name": "Installed Sub Themes",
+      "status": "partial",
+      "sources": [
+        "src/features/themes/useSubThemeCatalog.ts",
+        "src/features/themes/SubThemeStyleHost.tsx"
+      ],
+      "targets": [
+        "src/features/sub_theme_catalog.rs",
+        "src/platform/themes/mod.rs",
+        "src/platform/themes/service.rs",
+        "src/platform/themes/contract.rs",
+        "src/platform/themes/compiler.rs",
+        "src/platform/themes/css.rs",
+        "src/platform/themes/value.rs",
+        "src/platform/themes/palette.rs",
+        "src/shell/command.rs",
+        "assets/themes/README.md",
+        "assets/themes/markdown-contract.json",
+        "assets/themes/markdown-defaults.css",
+        "tools/import-theme-contract.mjs",
+        "tools/theme-oracle.mjs",
+        "fixtures/themes/oracle.json"
+      ],
+      "evidence": [
+        "test:the_folder_lists_what_the_product_lists",
+        "test:new_themes_are_numbered_selectable_and_complete",
+        "test:installed_themes_resolve_per_mode_and_paint",
+        "test:the_theme_menu_lists_the_mode_and_checks_the_effective_theme"
+      ],
+      "remaining": "The Themes Folder (<data dir>/themes, guide installed once), single-file, theme.css-directory and theme.json packages, every contract and compiler check (oracle: the product's theme service over fixtures/themes/folder, all accepted themes and diagnostics identical), the starter custom-theme, catalog refresh on start-up/window activation/after Add, per-mode selection with Neutral fallback, and the menu bar Theme menu are ported. Only the Application target paints natively; Typography sizes are shadowed by the user's text-size preset in the product too, and the Markdown/CSV targets (built-in themes included) still render the Neutral profile in the native Markdown and CSV views. @media/@supports rules are validated but not evaluated."
     },
     {
       "name": "Typography scale and roles",
@@ -276,7 +311,7 @@
         "assets/ui-assets.json",
         "tools/import-ui-assets.mjs"
       ],
-      "remaining": "Theme mode cards, theme pack, file icons, Git layout, loading animation, Header elements and pointer cursors are live. Theme-pack folder/add actions, palette overrides and interface styles are shown disabled (no native theme directory service)."
+      "remaining": "Theme mode cards, theme pack (built-in and installed, the effective mode's selection, a missing requested theme listed), Open Themes Folder and Add Theme, the content-font override notice, catalog errors and loading issues, file icons, Git layout, loading animation, Header elements and pointer cursors are live. Interface styles (Windows XP) remain P3 (D-6) and are shown disabled."
     },
     {
       "name": "Typography settings page",

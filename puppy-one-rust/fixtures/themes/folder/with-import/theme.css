@@ -1,0 +1,11 @@
+@puppyone-theme {
+  id: local.user.with-import;
+  name: With Import;
+  version: 1.0.0;
+  modes: light dark;
+}
+@puppyone application {
+  @import "parts/colors.css";
+}
+@puppyone markdown {}
+@puppyone csv {}

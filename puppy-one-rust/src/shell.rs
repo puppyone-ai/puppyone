@@ -352,6 +352,11 @@ impl Shell {
         .detach();
         cx.observe_window_appearance(window, |s, w, cx| s.apply_preferences(w, cx))
             .detach();
+        // An installed Sub Theme can change on disk (`useSubThemeCatalog`).
+        if let Some(catalog) = crate::features::sub_theme_catalog::global(cx) {
+            cx.observe_in(&catalog, window, |s, _, w, cx| s.apply_preferences(w, cx))
+                .detach();
+        }
         // What the Explorer asks for.
         cx.subscribe_in(&s.explorer, window, |s, _, event, window, cx| {
             match event {
@@ -440,6 +445,8 @@ impl Shell {
                 s.end_editor_resize(false, cx);
             } else {
                 cx.set_reduce_motion(crate::platform::accessibility::reduce_motion());
+                // The catalog refreshes whenever a window regains focus.
+                crate::features::sub_theme_catalog::refresh(cx);
                 // A returning window may probe the Cloud association once.
                 s.repository_cloud.update(cx, |r, cx| r.probe(cx));
             }
@@ -598,7 +605,12 @@ impl Shell {
                 _ => {}
             }
         }
-        crate::ui::appearance::Appearance::new(self.dark, &p.theme_pack, scale, p.pointer_cursors)
+        let sub_theme = crate::features::sub_theme_catalog::effective(
+            p.sub_theme_ids.get(self.dark),
+            self.dark,
+            cx,
+        );
+        crate::ui::appearance::Appearance::new(self.dark, &sub_theme, scale, p.pointer_cursors)
             .with_loading(p.loading_style)
             .with_fonts(p.fonts.normalized())
             .apply(Some(window), cx);
@@ -624,7 +636,12 @@ impl Shell {
             crate::platform::environment::system_languages(),
         );
         crate::localization::set_current(code);
-        if self.locale.set(code) {
+        let theme_menu = crate::features::sub_theme_catalog::sync_menu(
+            p.sub_theme_ids.get(self.dark),
+            self.dark,
+            cx,
+        );
+        if self.locale.set(code) | theme_menu {
             cx.set_menus(app_menus());
         }
         // Appearance, type scale and locale are process-wide: the cached

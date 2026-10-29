@@ -22,6 +22,7 @@ pub mod repository_import;
 pub mod tasks;
 pub mod terminal;
 pub mod text_rendering;
+pub mod themes;
 pub mod ui_state_store;
 pub mod watchdog;
 pub mod webview;

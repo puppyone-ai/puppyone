@@ -199,6 +199,7 @@ pub fn app_menus() -> Vec<Menu> {
                 ToggleMarkdownSource,
             )],
         },
+        crate::features::sub_theme_catalog::theme_menu(|key| tr(key).into()),
         Menu {
             disabled: false,
             name: tr("native.menu.window").into(),
@@ -221,4 +222,15 @@ pub fn on_app_actions(cx: &mut App) {
     cx.on_action(|_: &HideApp, cx| cx.hide());
     cx.on_action(|_: &HideOtherApps, cx| cx.hide_other_apps());
     cx.on_action(|_: &ShowAllApps, cx| cx.unhide_other_apps());
+    // Theme menu: the selection belongs to the effective colour mode.
+    use crate::features::sub_theme_catalog::{self, OpenThemesFolder, SelectSubTheme};
+    use crate::ui::appearance::ActiveAppearance as _;
+    cx.on_action(|_: &OpenThemesFolder, cx| sub_theme_catalog::open_directory(cx));
+    cx.on_action(|action: &SelectSubTheme, cx| {
+        let Some(store) = super::windows::preferences(cx) else {
+            return;
+        };
+        let (dark, id) = (cx.is_dark(), action.id.clone());
+        store.update(cx, |p, cx| p.change(|p| p.sub_theme_ids.set(dark, id), cx));
+    });
 }
