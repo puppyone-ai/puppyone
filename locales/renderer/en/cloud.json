@@ -1061,5 +1061,12 @@
   "home.openLinkedCloudProject": "Open Cloud project {project}",
   "home.linkedCloudProjectHint": "{project} is this folder’s own Cloud project, a separate project. Changes move between them only when you send them.",
   "localFolderNotice.missingNoAction": "This folder’s Cloud project is no longer available.",
-  "initialize.separateProjectNote": "Creates the Cloud project {name} from this folder’s Git-tracked files. People and agents work in that Cloud project; this folder stays a separate project on this computer, and changes move between them only when you send them."
+  "initialize.separateProjectNote": "Creates the Cloud project {name} from this folder’s Git-tracked files. People and agents work in that Cloud project; this folder stays a separate project on this computer, and changes move between them only when you send them.",
+  "placeMenu.label": "Where this project is",
+  "placeMenu.putInCloud": "Put in the Cloud",
+  "placeMenu.continuePutInCloud": "Continue putting in the Cloud",
+  "placeMenu.putInCloudDetail.mac": "Agents keep working when this Mac is off.",
+  "placeMenu.putInCloudDetail.computer": "Agents keep working when this computer is off.",
+  "placeMenu.openFolder.mac": "Open folder on this Mac",
+  "placeMenu.openFolder.computer": "Open folder on this computer"
 }

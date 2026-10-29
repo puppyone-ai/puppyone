@@ -1061,5 +1061,12 @@
   "home.openLinkedCloudProject": "打开 Cloud 项目 {project}",
   "home.linkedCloudProjectHint": "{project} 是这个文件夹自己的 Cloud 项目，是另一个独立项目。两者之间的改动只有你主动发送后才会到达。",
   "localFolderNotice.missingNoAction": "这个文件夹的 Cloud 项目已不可用。",
-  "initialize.separateProjectNote": "将用这个文件夹中由 Git 跟踪的文件创建 Cloud 项目「{name}」。同事和 Agent 在那个 Cloud 项目里工作；这个文件夹仍是这台电脑上的另一个项目，两者之间的改动只有你主动发送后才会到达。"
+  "initialize.separateProjectNote": "将用这个文件夹中由 Git 跟踪的文件创建 Cloud 项目「{name}」。同事和 Agent 在那个 Cloud 项目里工作；这个文件夹仍是这台电脑上的另一个项目，两者之间的改动只有你主动发送后才会到达。",
+  "placeMenu.label": "项目所在位置",
+  "placeMenu.putInCloud": "放到 Cloud 上",
+  "placeMenu.continuePutInCloud": "继续放到 Cloud 上",
+  "placeMenu.putInCloudDetail.mac": "Mac 关机后，Agent 也能继续工作。",
+  "placeMenu.putInCloudDetail.computer": "电脑关机后，Agent 也能继续工作。",
+  "placeMenu.openFolder.mac": "打开这台 Mac 上的文件夹",
+  "placeMenu.openFolder.computer": "打开这台电脑上的文件夹"
 }

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Tooltip, CloudOffIcon } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
 import { ReachPanel, type ReachPanelContext } from "./ReachPanel";
+import type { ProjectPlaceMenuProps } from "../project-place/ProjectPlaceMenu";
 import { ReachPlaceMark, useReachFreshness, useReachPlaceLabel, useReachSummary } from "./reachPresentation";
 import "./reach-header.css";
 
@@ -9,11 +10,14 @@ import "./reach-header.css";
 export type ProjectReachControlProps = ReachPanelContext & {
   projectMenuOpen?: boolean;
   onOpen?: () => void;
+  /** Where the open project is and the one action that applies, inside the same panel. */
+  placeMenu?: ProjectPlaceMenuProps | null;
 };
 
 export function ProjectReachControl({
   projectMenuOpen = false,
   onOpen,
+  placeMenu,
   ...context
 }: ProjectReachControlProps) {
   const { t } = useLocalization();
@@ -51,7 +55,7 @@ export function ProjectReachControl({
           )}
         </button>
       </Tooltip>
-      <ReachPanel anchor={anchor} open={open} onDismiss={() => setOpen(false)} context={context} />
+      <ReachPanel anchor={anchor} open={open} onDismiss={() => setOpen(false)} context={context} placeMenu={placeMenu} />
     </div>
   );
 }

@@ -92,6 +92,7 @@ import {
   mergePuppyoneWorkspaceConfig,
 } from "./features/app-shell/preferences";
 import { DesktopTitlebarContext } from "./features/app-shell/DesktopTitlebarContext";
+import { resolveProjectPlaceMenu } from "./features/app-shell/project-place/projectPlaceMenuState";
 import { DesktopWorkspaceContent } from "./features/app-shell/DesktopWorkspaceContent";
 import { DesktopWorkspaceLocationSurface } from "./features/app-shell/DesktopWorkspaceLocationSurface";
 import { DesktopTitlebarActions } from "./features/app-shell/DesktopTitlebarActions";
@@ -1881,11 +1882,35 @@ function AppContent() {
   // the rail on, the name and the place are in the rail's rows, and repeating
   // them here would give the window two places to read the same fact from.
   const headerWorkspace = cloudWorkspaceActive && hostedWorkspace ? hostedWorkspace : workspace;
+  // Where the open project is and its one action: put the folder in the Cloud
+  // (the conversion entry), or open the other project of a linked pair.
+  const openCloudProjectId = cloudWorkspaceActive && accountCloud.context.status === "resolved"
+    ? accountCloud.context.projectId : null;
+  const linkedFolder = openCloudProjectId
+    ? projectCatalog.items.find((item) => item.localPath && item.linkedCloudProject?.id === openCloudProjectId) : undefined;
+  const placeMenu = cloudEnabled ? {
+    menu: resolveProjectPlaceMenu({
+      place: workspaceLocation,
+      unhosted: projectCloudContext.status === "local-only",
+      publishPending: repositoryCloudInitializationPending,
+      notice: cloudProjectNoticeState,
+      missingReplaceable: missingCloudProjectReplaceable,
+      linkedFolder: linkedFolder ? { path: linkedFolder.localPath, name: linkedFolder.label } : null,
+    }),
+    handlers: {
+      onPutInCloud: () => openCloudDialogAt("initialize"),
+      onOpenCloudProject: (projectId: string) => { void selectCloudProject(projectId); },
+      onSignIn: () => { if (activeCloudSession) openSettingsDialog("account"); else openCloudWorkspace(); },
+      onPutInCloudAgain: () => setReplacingMissingCloudProject(true),
+      onOpenLocalFolder: (path: string) => { void selectProject(path); },
+    },
+  } : null;
   const titlebarContext = railOwnsProject ? null : (
     <DesktopTitlebarContext
       titlebarLabel={headerWorkspace.name}
       menuAlignment={centerProjectInHeader ? "center" : "start"}
       projectReach={projectReach}
+      placeMenu={placeMenu}
       locationActivity={cloudEnabled
         ? <CloudPublishHeaderStatus status={cloudPublishHeader.status} onOpen={reopenCloudPublish} />
         : undefined}

@@ -42,3 +42,4 @@ export { formatCloudMessage } from "./cloudPresentation";
 export { isAccessPointNavigationResource } from "./access-points";
 export { useCloudHistoryController } from "./history/useCloudHistoryController";
 export { useCloudBillingController } from "./billing/useCloudBillingController";
+export type { LocalFolderCloudNotice } from "./project/localFolderCloudNoticeState";

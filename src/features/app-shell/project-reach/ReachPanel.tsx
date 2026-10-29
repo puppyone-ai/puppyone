@@ -6,6 +6,7 @@ import { DesktopTitlebarMenuLayer } from "../../../components/DesktopTitlebarMen
 import type { ReachState } from "./projectReachHeader";
 import { ReachPlaceMark, useReachSummary } from "./reachPresentation";
 import { LocalIcon } from "@puppyone/shared-ui";
+import { ProjectPlaceRows, type ProjectPlaceMenuProps } from "../project-place/ProjectPlaceMenu";
 
 /**
  * What the Header offers about reach, wherever it is opened from.
@@ -24,11 +25,12 @@ export type ReachPanelContext = Readonly<{
   onGetCopy?: () => void;
 }>;
 
-export function ReachPanel({ anchor, open, onDismiss, context }: {
+export function ReachPanel({ anchor, open, onDismiss, context, placeMenu }: {
   anchor: RefObject<HTMLElement | null>;
   open: boolean;
   onDismiss: () => void;
   context: ReachPanelContext;
+  placeMenu?: ProjectPlaceMenuProps | null;
 }) {
   const { t } = useLocalization();
   const { state, readers, onInvitePerson, onConnectAgent, onGetCopy } = context;
@@ -49,6 +51,7 @@ export function ReachPanel({ anchor, open, onDismiss, context }: {
       ariaLabel={t("shell.projectReach.panelLabel")}
     >
       <div className="desktop-project-reach-panel" data-reach-entry="reach">
+        {placeMenu?.menu.action && <ProjectPlaceRows {...placeMenu} onDismiss={onDismiss} />}
         <ReachPlaceCard state={state} summary={summary} />
         {state.kind === "not-on-this-device" ? null : readers}
         {state.kind === "not-on-this-device" && <ReachDeviceDetail />}
