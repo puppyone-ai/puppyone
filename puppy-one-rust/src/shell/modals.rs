@@ -44,6 +44,10 @@ pub(super) enum Modal {
     /// `CloudWorkspaceSwitchDialog`: sign-in, matching or recovery of a
     /// Header switch to the Cloud Computer.
     CloudSwitch,
+    /// `ProjectRowActions` rename: the shown name of a remembered Project.
+    RenameProject(super::project_actions::ProjectRename),
+    /// `ProjectRowActions` unlink: forget a Project, keep its files.
+    UnlinkProject(std::path::PathBuf),
     /// `CloudWorkspaceRecovery` for a Homepage or dedicated-window opening.
     CloudRecovery {
         project: String,

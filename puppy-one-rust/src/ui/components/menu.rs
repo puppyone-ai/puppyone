@@ -302,6 +302,8 @@ enum MenuEntry {
     /// Rows `gap` apart (`.desktop-project-list`).
     List(Vec<MenuItem>, f32),
     Separator,
+    /// A non-interactive block, such as `ProjectMenuHeader`.
+    Element(AnyElement),
 }
 
 /// A menu surface. Items run their handler, then `on_dismiss`.
@@ -343,6 +345,12 @@ impl Menu {
     pub fn list(mut self, gap: f32, items: impl IntoIterator<Item = MenuItem>) -> Self {
         self.entries
             .push(MenuEntry::List(items.into_iter().collect(), gap));
+        self
+    }
+    /// A non-interactive block in the menu's flow.
+    pub fn child_element(mut self, element: impl IntoElement) -> Self {
+        self.entries
+            .push(MenuEntry::Element(element.into_any_element()));
         self
     }
     pub fn separator(mut self) -> Self {
@@ -394,6 +402,7 @@ impl RenderOnce for Menu {
             surface = match entry {
                 MenuEntry::Separator if s.hide_separators => surface,
                 MenuEntry::Separator => surface.child(separator(t)),
+                MenuEntry::Element(element) => surface.child(element),
                 MenuEntry::List(items, gap) => surface.child(
                     div()
                         .flex()

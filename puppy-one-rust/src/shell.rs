@@ -27,6 +27,7 @@ mod header;
 mod home;
 mod modals;
 mod panes;
+mod project_actions;
 mod project_menu;
 mod rename;
 pub(crate) mod tasks;
@@ -68,6 +69,8 @@ pub struct Shell {
     workspace_notice: Option<String>,
     /// A Cloud recovery's Details disclosure is open.
     recovery_details: bool,
+    /// `ProjectRowActions` of a remembered Project, at the pointer.
+    project_actions: Option<(PathBuf, Point<Pixels>)>,
     /// Launch without a project: open the last active one once preferences load.
     restore_last: bool,
     project: String,
@@ -217,6 +220,7 @@ impl Shell {
             cloud_authority: None,
             workspace_notice: None,
             recovery_details: false,
+            project_actions: None,
             restore_last: false,
             project: if fixture {
                 "puppyone".into()
@@ -622,6 +626,10 @@ impl Shell {
                 self.modals.remove(|m| matches!(m, Modal::Error(_)));
             }
             Some(Modal::CloudSwitch) => self.cancel_cloud_switch(cx),
+            Some(Modal::RenameProject(_) | Modal::UnlinkProject(_)) => {
+                self.modals
+                    .remove(|m| matches!(m, Modal::RenameProject(_) | Modal::UnlinkProject(_)));
+            }
             Some(Modal::CloudRecovery { .. }) => {
                 self.modals
                     .remove(|m| matches!(m, Modal::CloudRecovery { .. }));
@@ -1406,6 +1414,13 @@ impl Shell {
                     .hover(move |s| s.bg(t.hover))
                     .tooltip(ui::components::tooltip(project.name.clone()))
                     .child(initial)
+                    .on_mouse_down(MouseButton::Right, {
+                        let path = path.clone();
+                        cx.listener(move |s, e: &MouseDownEvent, _, cx| {
+                            cx.stop_propagation();
+                            s.open_project_actions(path.clone(), e.position, cx)
+                        })
+                    })
                     .on_click(cx.listener(move |s, _, w, cx| s.open_project(path.clone(), w, cx))),
             );
         }
@@ -1800,6 +1815,7 @@ impl Render for Shell {
         if !home {
             root = root.children(self.notices(w));
         }
+        root = root.children(self.project_actions_menu(cx));
         root.children(self.modal_layer(w, h, cx))
     }
 }
@@ -1958,6 +1974,12 @@ impl Shell {
                     .into_any_element(),
                 Modal::Error(message) => error(self, message, cx),
                 Modal::CloudSwitch => self.cloud_switch_dialog(cx).into_any_element(),
+                Modal::RenameProject(rename) => {
+                    self.project_rename_dialog(rename, cx).into_any_element()
+                }
+                Modal::UnlinkProject(path) => {
+                    self.project_unlink_dialog(path, cx).into_any_element()
+                }
                 Modal::CloudRecovery { project, failure } => self
                     .cloud_open_recovery_dialog(project, failure, cx)
                     .into_any_element(),

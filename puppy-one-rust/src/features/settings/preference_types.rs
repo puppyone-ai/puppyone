@@ -244,12 +244,20 @@ impl Preferences {
         );
         Ok(p)
     }
-    /// Remember an opened folder at the head of the history.
+    /// Remember an opened folder at the head of the history; a name given
+    /// with Rename stays (`withPreservedDisplayName`).
     pub fn remember_project(&mut self, path: &std::path::Path, now: u64) {
-        let name = path
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_else(|| path.display().to_string());
+        let name = self
+            .recent_projects
+            .iter()
+            .find(|p| p.path == path)
+            .map(|p| p.name.clone())
+            .filter(|n| !n.trim().is_empty())
+            .unwrap_or_else(|| {
+                path.file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| path.display().to_string())
+            });
         self.recent_projects.retain(|p| p.path != path);
         self.recent_projects.insert(
             0,
@@ -260,6 +268,15 @@ impl Preferences {
             },
         );
         self.recent_projects.truncate(RECENT_PROJECT_LIMIT);
+    }
+    /// `renameRecentWorkspacePath`: the shown name only.
+    pub fn rename_project(&mut self, path: &std::path::Path, name: &str) {
+        let name = name.trim();
+        if let Some(project) = self.recent_projects.iter_mut().find(|p| p.path == path)
+            && !name.is_empty()
+        {
+            project.name = name.chars().take(120).collect();
+        }
     }
     pub fn forget_project(&mut self, path: &std::path::Path) {
         self.recent_projects.retain(|p| p.path != path);
@@ -298,6 +315,20 @@ mod tests {
         assert_eq!(restored.loading_style, LoadingStyle::Dither);
     }
     use super::*;
+    #[test]
+    fn a_renamed_project_keeps_its_name_when_opened_again() {
+        let mut p = Preferences::default();
+        let path = std::path::Path::new("/p/notes");
+        p.remember_project(path, 1);
+        assert_eq!(p.recent_projects[0].name, "notes");
+        p.rename_project(path, "  Field notes ");
+        assert_eq!(p.recent_projects[0].name, "Field notes");
+        p.remember_project(path, 2);
+        assert_eq!(p.recent_projects[0].name, "Field notes");
+        assert_eq!(p.recent_projects[0].opened_at, 2);
+        p.rename_project(path, "   ");
+        assert_eq!(p.recent_projects[0].name, "Field notes");
+    }
     #[test]
     fn legacy_theme_flag_becomes_an_explicit_mode_and_new_fields_default() {
         let p = Preferences::from_stored(serde_json::json!({"version":1,"dark":false})).unwrap();

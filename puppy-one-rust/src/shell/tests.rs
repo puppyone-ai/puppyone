@@ -2016,3 +2016,48 @@ fn a_failed_opening_offers_its_recovery_and_retry_repeats_that_opening(cx: &mut 
     });
     assert_eq!(attempts.load(std::sync::atomic::Ordering::SeqCst), 2);
 }
+
+#[gpui::test]
+fn the_rail_offers_rename_and_unlink_for_a_remembered_project(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    let path = PathBuf::from("/p/notes");
+    view.update(cx, |s, cx| {
+        s.preferences
+            .update(cx, |p, _| p.state.remember_project(&path, 1));
+        s.recent_projects = s.preferences.read(cx).state.recent_projects.clone();
+        s.open_project_actions(path.clone(), point(px(20.), px(80.)), cx);
+    });
+    draw(cx);
+    view.update_in(cx, |s, w, cx| {
+        assert!(s.project_actions.is_some());
+        s.begin_project_rename(path.clone(), w, cx);
+        assert!(s.project_actions.is_none());
+        let Some(Modal::RenameProject(rename)) = s.modals.top() else {
+            panic!("no rename dialog")
+        };
+        let input = rename.input.clone();
+        input.update(cx, |i, cx| i.set_text(String::from("Field notes"), cx));
+        s.submit_project_rename(w, cx);
+    });
+    view.read_with(cx, |s, cx| {
+        assert!(s.modals.is_empty());
+        assert_eq!(
+            s.preferences.read(cx).state.recent_projects[0].name,
+            "Field notes"
+        );
+    });
+    // Unlink forgets the Project (its files stay where they are).
+    view.update(cx, |s, cx| {
+        s.modals.open(Modal::UnlinkProject(path.clone()));
+        cx.notify();
+    });
+    draw(cx);
+    view.update(cx, |s, cx| {
+        s.modals.remove(|m| matches!(m, Modal::UnlinkProject(_)));
+        s.preferences
+            .update(cx, |p, cx| p.change(|p| p.forget_project(&path), cx));
+    });
+    view.read_with(cx, |s, cx| {
+        assert!(s.preferences.read(cx).state.recent_projects.is_empty())
+    });
+}
