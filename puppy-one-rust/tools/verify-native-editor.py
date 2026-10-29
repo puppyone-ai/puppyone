@@ -40,6 +40,18 @@ suites = {
         'a_snapshot_waits_for_the_composition_and_resumes_when_it_ends',
         'csv_contributes_view_items_and_find',
         'find_marks_and_selects_matches_in_text_editors',
+        'code_snapshot_defers_during_ime_and_freezes_until_thawed',
+        'code_search_shortcut_opens_the_product_find_bar',
+    ],
+    'editor::viewers::code::tests::': [
+        'code_ime_is_provisional_until_commit_or_cancel',
+        'code_unmark_preserves_single_undo_transaction',
+        'code_external_reload_abandons_preedit_and_readonly_blocks_input',
+        'code_language_rebind_keeps_entity_selection_and_history',
+        'code_platform_typing_autocloses_and_indents_json',
+        'code_multicursor_edits_are_one_undo_transaction',
+        'code_find_wraps_without_changing_the_document',
+        'code_find_starts_at_selection_and_updates_after_edits',
     ],
 }
 paths = [root / p for p in ['Cargo.toml', 'Cargo.lock', 'tools/verify-native-editor.py']]

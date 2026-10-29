@@ -10,7 +10,7 @@ use super::contribution::{
     Presentation::{Native, Unavailable},
     Profile, ProviderPolicy, SemanticInput, ViewerImplementation, ViewerMatch,
 };
-use crate::editor::viewers::{csv, image, placeholder, text};
+use crate::editor::viewers::{code, csv, image, placeholder, text};
 
 fn yes(_: &ViewerMatch, _: &str) -> bool {
     true
@@ -62,7 +62,7 @@ pub fn contributions() -> Vec<ViewerImplementation> {
             policy: None,
             matches: |m| kind(m, "json") || m.format.id == "json" || m.format.id == "jsonl",
             editable: Some(yes),
-            presentation: Native(text::open_source),
+            presentation: Native(code::open),
         },
         ViewerImplementation {
             id: "csv-table",
@@ -135,7 +135,7 @@ pub fn contributions() -> Vec<ViewerImplementation> {
                     || viewer(m, "monaco-code")
             },
             editable: Some(yes),
-            presentation: Native(text::open_source),
+            presentation: Native(code::open),
         },
     ]
 }

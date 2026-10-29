@@ -959,7 +959,7 @@ impl Shell {
                     .is_none_or(|f| f.busy() || f.allow_quit);
             editor.update(cx, |s, cx| {
                 s.set_reference_context(references, cx);
-                s.gate(blocked, self.dark, cx);
+                s.gate(blocked, self.dark, window, cx);
             });
         }
         if home || (active == 0 && self.files.state().is_some()) {

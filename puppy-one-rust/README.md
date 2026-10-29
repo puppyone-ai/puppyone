@@ -97,6 +97,8 @@ python3 tools/verify-ui-assets.py --binary /path/to/dev-capture/puppy-one-rust -
 - Explorer 按项目保留树展开、选择、滚动与剪贴板，返回时异步重核已加载目录；移动目录保留已加载子树。同工作区单文件拖入 Pane：已显示文档聚焦原 Pane，空 Pane 直接接收，其余在最近边缘分屏；半区预览与目标生命周期检查阻止迟到读取附着到已关闭/重建的 Pane。
 - TS HEAD 与 **63 个实际输入哈希**见 `fixtures/editor/workbench-reference.json`；`node tools/reference-editor-workbench.mjs --check` 执行真实 TS，600 个含递归结构的 Pane 状态转换由 Rust 对照。GPUI 集成测试实际验证跨标签、分屏、本地项目切换及重命名后，同一原生 Entity 的 Undo 仍可恢复并落盘。
 
+代码与 JSON 使用 `editor/viewers/code` 的 GPUI Kit 原生 Editor：正文、撤销、多光标和折叠由同一编辑状态持有；产品语言规则与 Markdown 代码块共享。平台 IME 代理保留 Kit 的几何和编辑语义，额外报告组字结束，保证冻结快照不会保存 preedit 或在取消后悬挂。语言重绑保留实例、选区和历史。查找按 TS 从选区起点选择最近匹配，并按 NFKD/Unicode 小写比较；编辑后更新计数。参考与回归入口为 `tools/reference-code.mjs --check`、`tools/verify-native-editor.py`。
+
 **仍未完成用户要求的全部 TS 功能**：Cloud 项目选择/显式启动准备与两种导航、Cloud→Editor 来源/权限/viewer budget、既有 Cloud 草稿与未知保存结果语义、目录订阅和执行隔离；改变扩展名后的 viewer 转换、按资源范围并发的操作队列、完整每 Pane 视图状态与跨 Root composition、跨应用原生资源拖放、完整快捷键/可访问性和拖放实机/视觉验收。元数据恢复不是崩溃草稿恢复。Cloud UI 仍禁用；五个复刻领域的剩余验收项见 `PARITY_TODO.md` §0.3。
 
 ## 工作区文档引用（迁移切片）

@@ -6,21 +6,7 @@ use crate::editor::{
 };
 use gpui::Rgba;
 
-/// The product's eleven syntax colour roles (`--po-md-syntax-*`).
-#[derive(Clone, Debug, PartialEq)]
-pub struct SyntaxColors {
-    pub comment: Rgba,
-    pub keyword: Rgba,
-    pub string: Rgba,
-    pub constant: Rgba,
-    pub special: Rgba,
-    pub type_name: Rgba,
-    pub function: Rgba,
-    pub property: Rgba,
-    pub operator: Rgba,
-    pub meta: Rgba,
-    pub invalid: Rgba,
-}
+pub use crate::editor::code::highlight::SyntaxColors;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct CodeBlockStyle {

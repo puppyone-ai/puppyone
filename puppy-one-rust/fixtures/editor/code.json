@@ -1,0 +1,7223 @@
+{
+ "sourceCommit": "d2ddc4b903636442ea81b3fb454a24c6f96696f4",
+ "languageCases": [
+  {
+   "name": "",
+   "language": null,
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "",
+   "language": "",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "",
+   "language": " ",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "",
+   "language": " TS ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "",
+   "language": "js",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "",
+   "language": "typescript",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "",
+   "language": "javascript",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "README",
+   "language": null,
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "README",
+   "language": "",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "README",
+   "language": " ",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "README",
+   "language": " TS ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "README",
+   "language": "js",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "README",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "README",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "README",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "README",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "README",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "README",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "README",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "README",
+   "language": "typescript",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "README",
+   "language": "javascript",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "README",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "README",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "README",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "README",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "README",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "README",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "README",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "file.txt",
+   "language": null,
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "file.txt",
+   "language": "",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "file.txt",
+   "language": " ",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "file.txt",
+   "language": " TS ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "file.txt",
+   "language": "js",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "file.txt",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "file.txt",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "file.txt",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "file.txt",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "file.txt",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "file.txt",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "file.txt",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "file.txt",
+   "language": "typescript",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "file.txt",
+   "language": "javascript",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "file.txt",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "file.txt",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "file.txt",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "file.txt",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "file.txt",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "file.txt",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "file.txt",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "a.TSX",
+   "language": null,
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "a.TSX",
+   "language": "",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "a.TSX",
+   "language": " ",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "a.TSX",
+   "language": " TS ",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "a.TSX",
+   "language": "js",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "a.TSX",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "a.TSX",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "a.TSX",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "a.TSX",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "a.TSX",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "a.TSX",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "a.TSX",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "a.TSX",
+   "language": "typescript",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "a.TSX",
+   "language": "javascript",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "a.TSX",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "a.TSX",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "a.TSX",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "a.TSX",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "a.TSX",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "a.TSX",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "a.TSX",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "b.jsx",
+   "language": null,
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "b.jsx",
+   "language": "",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "b.jsx",
+   "language": " ",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "b.jsx",
+   "language": " TS ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "b.jsx",
+   "language": "js",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "b.jsx",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "b.jsx",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "b.jsx",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "b.jsx",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "b.jsx",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "b.jsx",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "b.jsx",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "b.jsx",
+   "language": "typescript",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "b.jsx",
+   "language": "javascript",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "b.jsx",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "b.jsx",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "b.jsx",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "b.jsx",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "b.jsx",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "b.jsx",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "b.jsx",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.ts",
+   "language": null,
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.ts",
+   "language": "",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.ts",
+   "language": " ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.ts",
+   "language": " TS ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.ts",
+   "language": "js",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.ts",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.ts",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.ts",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.ts",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.ts",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.ts",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.ts",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.ts",
+   "language": "typescript",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.ts",
+   "language": "javascript",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.ts",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.ts",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.ts",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.ts",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.ts",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.ts",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.ts",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cts",
+   "language": null,
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cts",
+   "language": "",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cts",
+   "language": " ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cts",
+   "language": " TS ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cts",
+   "language": "js",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cts",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.cts",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cts",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cts",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cts",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cts",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cts",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cts",
+   "language": "typescript",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cts",
+   "language": "javascript",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cts",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.cts",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cts",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cts",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cts",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cts",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cts",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mts",
+   "language": null,
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mts",
+   "language": "",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mts",
+   "language": " ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mts",
+   "language": " TS ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mts",
+   "language": "js",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mts",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.mts",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mts",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mts",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mts",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mts",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mts",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mts",
+   "language": "typescript",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mts",
+   "language": "javascript",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mts",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.mts",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mts",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mts",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mts",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mts",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mts",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.js",
+   "language": null,
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.js",
+   "language": "",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.js",
+   "language": " ",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.js",
+   "language": " TS ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.js",
+   "language": "js",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.js",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.js",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.js",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.js",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.js",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.js",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.js",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.js",
+   "language": "typescript",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.js",
+   "language": "javascript",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.js",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.js",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.js",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.js",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.js",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.js",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.js",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cjs",
+   "language": null,
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cjs",
+   "language": "",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cjs",
+   "language": " ",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cjs",
+   "language": " TS ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cjs",
+   "language": "js",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cjs",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.cjs",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cjs",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cjs",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cjs",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cjs",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cjs",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cjs",
+   "language": "typescript",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cjs",
+   "language": "javascript",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cjs",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.cjs",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cjs",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cjs",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cjs",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cjs",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.cjs",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.es6",
+   "language": null,
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.es6",
+   "language": "",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.es6",
+   "language": " ",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.es6",
+   "language": " TS ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.es6",
+   "language": "js",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.es6",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.es6",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.es6",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.es6",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.es6",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.es6",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.es6",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.es6",
+   "language": "typescript",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.es6",
+   "language": "javascript",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.es6",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.es6",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.es6",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.es6",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.es6",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.es6",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.es6",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mjs",
+   "language": null,
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mjs",
+   "language": "",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mjs",
+   "language": " ",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mjs",
+   "language": " TS ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mjs",
+   "language": "js",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mjs",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.mjs",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mjs",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mjs",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mjs",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mjs",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mjs",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mjs",
+   "language": "typescript",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mjs",
+   "language": "javascript",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mjs",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.mjs",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mjs",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mjs",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mjs",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mjs",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.mjs",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pac",
+   "language": null,
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pac",
+   "language": "",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pac",
+   "language": " ",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pac",
+   "language": " TS ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pac",
+   "language": "js",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pac",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.pac",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pac",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pac",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pac",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pac",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pac",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pac",
+   "language": "typescript",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pac",
+   "language": "javascript",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pac",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.pac",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pac",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pac",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pac",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pac",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pac",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.py",
+   "language": null,
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.py",
+   "language": "",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.py",
+   "language": " ",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.py",
+   "language": " TS ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.py",
+   "language": "js",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.py",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.py",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.py",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.py",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.py",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.py",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.py",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.py",
+   "language": "typescript",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.py",
+   "language": "javascript",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.py",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.py",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.py",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.py",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.py",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.py",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.py",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyi",
+   "language": null,
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.pyi",
+   "language": "",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.pyi",
+   "language": " ",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.pyi",
+   "language": " TS ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyi",
+   "language": "js",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyi",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.pyi",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyi",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyi",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyi",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyi",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyi",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyi",
+   "language": "typescript",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyi",
+   "language": "javascript",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyi",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.pyi",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyi",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyi",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyi",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyi",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyi",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyw",
+   "language": null,
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.pyw",
+   "language": "",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.pyw",
+   "language": " ",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.pyw",
+   "language": " TS ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyw",
+   "language": "js",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyw",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.pyw",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyw",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyw",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyw",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyw",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyw",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyw",
+   "language": "typescript",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyw",
+   "language": "javascript",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyw",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.pyw",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyw",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyw",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyw",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyw",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyw",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyx",
+   "language": null,
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.pyx",
+   "language": "",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.pyx",
+   "language": " ",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.pyx",
+   "language": " TS ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyx",
+   "language": "js",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyx",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.pyx",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyx",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyx",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyx",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyx",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyx",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyx",
+   "language": "typescript",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyx",
+   "language": "javascript",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyx",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.pyx",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyx",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyx",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyx",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyx",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.pyx",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yml",
+   "language": null,
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yml",
+   "language": "",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yml",
+   "language": " ",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yml",
+   "language": " TS ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yml",
+   "language": "js",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yml",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.yml",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yml",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yml",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yml",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yml",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yml",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yml",
+   "language": "typescript",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yml",
+   "language": "javascript",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yml",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.yml",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yml",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yml",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yml",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yml",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yml",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yaml",
+   "language": null,
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yaml",
+   "language": "",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yaml",
+   "language": " ",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yaml",
+   "language": " TS ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yaml",
+   "language": "js",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yaml",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.yaml",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yaml",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yaml",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yaml",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yaml",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yaml",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yaml",
+   "language": "typescript",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yaml",
+   "language": "javascript",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yaml",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.yaml",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yaml",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yaml",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yaml",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yaml",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.yaml",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sh",
+   "language": null,
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sh",
+   "language": "",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sh",
+   "language": " ",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sh",
+   "language": " TS ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sh",
+   "language": "js",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sh",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.sh",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sh",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sh",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sh",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sh",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sh",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sh",
+   "language": "typescript",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sh",
+   "language": "javascript",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sh",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.sh",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sh",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sh",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sh",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sh",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sh",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.bash",
+   "language": null,
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.bash",
+   "language": "",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.bash",
+   "language": " ",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.bash",
+   "language": " TS ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.bash",
+   "language": "js",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.bash",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.bash",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.bash",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.bash",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.bash",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.bash",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.bash",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.bash",
+   "language": "typescript",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.bash",
+   "language": "javascript",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.bash",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.bash",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.bash",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.bash",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.bash",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.bash",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.bash",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.zsh",
+   "language": null,
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.zsh",
+   "language": "",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.zsh",
+   "language": " ",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.zsh",
+   "language": " TS ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.zsh",
+   "language": "js",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.zsh",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.zsh",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.zsh",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.zsh",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.zsh",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.zsh",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.zsh",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.zsh",
+   "language": "typescript",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.zsh",
+   "language": "javascript",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.zsh",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.zsh",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.zsh",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.zsh",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.zsh",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.zsh",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.zsh",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.toml",
+   "language": null,
+   "expected": "toml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.toml",
+   "language": "",
+   "expected": "toml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.toml",
+   "language": " ",
+   "expected": "toml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.toml",
+   "language": " TS ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.toml",
+   "language": "js",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.toml",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.toml",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.toml",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.toml",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.toml",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.toml",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.toml",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.toml",
+   "language": "typescript",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.toml",
+   "language": "javascript",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.toml",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.toml",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.toml",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.toml",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.toml",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.toml",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.toml",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sql",
+   "language": null,
+   "expected": "sql",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sql",
+   "language": "",
+   "expected": "sql",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sql",
+   "language": " ",
+   "expected": "sql",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sql",
+   "language": " TS ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sql",
+   "language": "js",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sql",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.sql",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sql",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sql",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sql",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sql",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sql",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sql",
+   "language": "typescript",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sql",
+   "language": "javascript",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sql",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.sql",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sql",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sql",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sql",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sql",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sql",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.css",
+   "language": null,
+   "expected": "css",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.css",
+   "language": "",
+   "expected": "css",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.css",
+   "language": " ",
+   "expected": "css",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.css",
+   "language": " TS ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.css",
+   "language": "js",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.css",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.css",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.css",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.css",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.css",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.css",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.css",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.css",
+   "language": "typescript",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.css",
+   "language": "javascript",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.css",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.css",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.css",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.css",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.css",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.css",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.css",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.scss",
+   "language": null,
+   "expected": "scss",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.scss",
+   "language": "",
+   "expected": "scss",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.scss",
+   "language": " ",
+   "expected": "scss",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.scss",
+   "language": " TS ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.scss",
+   "language": "js",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.scss",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.scss",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.scss",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.scss",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.scss",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.scss",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.scss",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.scss",
+   "language": "typescript",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.scss",
+   "language": "javascript",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.scss",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.scss",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.scss",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.scss",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.scss",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.scss",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.scss",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sass",
+   "language": null,
+   "expected": "scss",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sass",
+   "language": "",
+   "expected": "scss",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sass",
+   "language": " ",
+   "expected": "scss",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sass",
+   "language": " TS ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sass",
+   "language": "js",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sass",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.sass",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sass",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sass",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sass",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sass",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sass",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sass",
+   "language": "typescript",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sass",
+   "language": "javascript",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sass",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.sass",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sass",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sass",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sass",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sass",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.sass",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.less",
+   "language": null,
+   "expected": "less",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.less",
+   "language": "",
+   "expected": "less",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.less",
+   "language": " ",
+   "expected": "less",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.less",
+   "language": " TS ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.less",
+   "language": "js",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.less",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.less",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.less",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.less",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.less",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.less",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.less",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.less",
+   "language": "typescript",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.less",
+   "language": "javascript",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.less",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.less",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.less",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.less",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.less",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.less",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.less",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.html",
+   "language": null,
+   "expected": "html",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.html",
+   "language": "",
+   "expected": "html",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.html",
+   "language": " ",
+   "expected": "html",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.html",
+   "language": " TS ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.html",
+   "language": "js",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.html",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.html",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.html",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.html",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.html",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.html",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.html",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.html",
+   "language": "typescript",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.html",
+   "language": "javascript",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.html",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.html",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.html",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.html",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.html",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.html",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.html",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.htm",
+   "language": null,
+   "expected": "html",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.htm",
+   "language": "",
+   "expected": "html",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.htm",
+   "language": " ",
+   "expected": "html",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.htm",
+   "language": " TS ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.htm",
+   "language": "js",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.htm",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.htm",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.htm",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.htm",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.htm",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.htm",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.htm",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.htm",
+   "language": "typescript",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.htm",
+   "language": "javascript",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.htm",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.htm",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.htm",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.htm",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.htm",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.htm",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.htm",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xhtml",
+   "language": null,
+   "expected": "html",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xhtml",
+   "language": "",
+   "expected": "html",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xhtml",
+   "language": " ",
+   "expected": "html",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xhtml",
+   "language": " TS ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xhtml",
+   "language": "js",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xhtml",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.xhtml",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xhtml",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xhtml",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xhtml",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xhtml",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xhtml",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xhtml",
+   "language": "typescript",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xhtml",
+   "language": "javascript",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xhtml",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.xhtml",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xhtml",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xhtml",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xhtml",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xhtml",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xhtml",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xml",
+   "language": null,
+   "expected": "xml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xml",
+   "language": "",
+   "expected": "xml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xml",
+   "language": " ",
+   "expected": "xml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xml",
+   "language": " TS ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xml",
+   "language": "js",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xml",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.xml",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xml",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xml",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xml",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xml",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xml",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xml",
+   "language": "typescript",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xml",
+   "language": "javascript",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xml",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.xml",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xml",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xml",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xml",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xml",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.xml",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.svg",
+   "language": null,
+   "expected": "xml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.svg",
+   "language": "",
+   "expected": "xml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.svg",
+   "language": " ",
+   "expected": "xml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.svg",
+   "language": " TS ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.svg",
+   "language": "js",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.svg",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.svg",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.svg",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.svg",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.svg",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.svg",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.svg",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.svg",
+   "language": "typescript",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.svg",
+   "language": "javascript",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.svg",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.svg",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.svg",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.svg",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.svg",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.svg",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.svg",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.json",
+   "language": null,
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.json",
+   "language": "",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.json",
+   "language": " ",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.json",
+   "language": " TS ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.json",
+   "language": "js",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.json",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.json",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.json",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.json",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.json",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.json",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.json",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.json",
+   "language": "typescript",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.json",
+   "language": "javascript",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.json",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.json",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.json",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.json",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.json",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.json",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.json",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.jsonl",
+   "language": null,
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.jsonl",
+   "language": "",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.jsonl",
+   "language": " ",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.jsonl",
+   "language": " TS ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.jsonl",
+   "language": "js",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.jsonl",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.jsonl",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.jsonl",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.jsonl",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.jsonl",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.jsonl",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.jsonl",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.jsonl",
+   "language": "typescript",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.jsonl",
+   "language": "javascript",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.jsonl",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.jsonl",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.jsonl",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.jsonl",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.jsonl",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.jsonl",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.jsonl",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.rs",
+   "language": null,
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.rs",
+   "language": "",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.rs",
+   "language": " ",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.rs",
+   "language": " TS ",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.rs",
+   "language": "js",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.rs",
+   "language": "py",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.rs",
+   "language": "bash",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.rs",
+   "language": "zsh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.rs",
+   "language": "sh",
+   "expected": "shell",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.rs",
+   "language": "yml",
+   "expected": "yaml",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.rs",
+   "language": "text",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.rs",
+   "language": "txt",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.rs",
+   "language": "typescript",
+   "expected": "typescript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.rs",
+   "language": "javascript",
+   "expected": "javascript",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.rs",
+   "language": "python",
+   "expected": "python",
+   "tabSize": 4,
+   "indent": "    "
+  },
+  {
+   "name": "folder/code.rs",
+   "language": "json",
+   "expected": "json",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.rs",
+   "language": "rust",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.rs",
+   "language": "unknown",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.rs",
+   "language": "TSX",
+   "expected": "tsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.rs",
+   "language": "jsx",
+   "expected": "jsx",
+   "tabSize": 2,
+   "indent": "  "
+  },
+  {
+   "name": "folder/code.rs",
+   "language": "plaintext",
+   "expected": "plaintext",
+   "tabSize": 2,
+   "indent": "  "
+  }
+ ],
+ "searches": [
+  {
+   "source": "Aa aA aaa",
+   "query": "",
+   "expected": []
+  },
+  {
+   "source": "Aa aA aaa",
+   "query": "aa",
+   "expected": [
+    [
+     0,
+     2
+    ],
+    [
+     3,
+     5
+    ],
+    [
+     6,
+     8
+    ]
+   ]
+  },
+  {
+   "source": "Aa aA aaa",
+   "query": "a",
+   "expected": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     3,
+     4
+    ],
+    [
+     4,
+     5
+    ],
+    [
+     6,
+     7
+    ],
+    [
+     7,
+     8
+    ],
+    [
+     8,
+     9
+    ]
+   ]
+  },
+  {
+   "source": "Aa aA aaa",
+   "query": "a.b",
+   "expected": []
+  },
+  {
+   "source": "Aa aA aaa",
+   "query": "\\n",
+   "expected": []
+  },
+  {
+   "source": "Aa aA aaa",
+   "query": "\n",
+   "expected": []
+  },
+  {
+   "source": "Aa aA aaa",
+   "query": "straße",
+   "expected": []
+  },
+  {
+   "source": "Aa aA aaa",
+   "query": "strasse",
+   "expected": []
+  },
+  {
+   "source": "Aa aA aaa",
+   "query": "café",
+   "expected": []
+  },
+  {
+   "source": "Aa aA aaa",
+   "query": "cafe",
+   "expected": []
+  },
+  {
+   "source": "Aa aA aaa",
+   "query": "é",
+   "expected": []
+  },
+  {
+   "source": "Aa aA aaa",
+   "query": "e",
+   "expected": []
+  },
+  {
+   "source": "Aa aA aaa",
+   "query": "́",
+   "expected": []
+  },
+  {
+   "source": "Aa aA aaa",
+   "query": "ffi",
+   "expected": []
+  },
+  {
+   "source": "Aa aA aaa",
+   "query": "f",
+   "expected": []
+  },
+  {
+   "source": "Aa aA aaa",
+   "query": "ff",
+   "expected": []
+  },
+  {
+   "source": "Aa aA aaa",
+   "query": "i",
+   "expected": []
+  },
+  {
+   "source": "Aa aA aaa",
+   "query": "i̇",
+   "expected": []
+  },
+  {
+   "source": "Aa aA aaa",
+   "query": "İ",
+   "expected": []
+  },
+  {
+   "source": "Aa aA aaa",
+   "query": "1",
+   "expected": []
+  },
+  {
+   "source": "Aa aA aaa",
+   "query": "A",
+   "expected": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     3,
+     4
+    ],
+    [
+     4,
+     5
+    ],
+    [
+     6,
+     7
+    ],
+    [
+     7,
+     8
+    ],
+    [
+     8,
+     9
+    ]
+   ]
+  },
+  {
+   "source": "Aa aA aaa",
+   "query": "ΟΣ",
+   "expected": []
+  },
+  {
+   "source": "Aa aA aaa",
+   "query": "ος",
+   "expected": []
+  },
+  {
+   "source": "Aa aA aaa",
+   "query": "οσ",
+   "expected": []
+  },
+  {
+   "source": "Aa aA aaa",
+   "query": "σ",
+   "expected": []
+  },
+  {
+   "source": "Aa aA aaa",
+   "query": "🐶",
+   "expected": []
+  },
+  {
+   "source": "Aa aA aaa",
+   "query": "中文",
+   "expected": []
+  },
+  {
+   "source": "Aa aA aaa",
+   "query": "中",
+   "expected": []
+  },
+  {
+   "source": "Aa aA aaa",
+   "query": "ṩ",
+   "expected": []
+  },
+  {
+   "source": "a.b a*b \\n\n",
+   "query": "",
+   "expected": []
+  },
+  {
+   "source": "a.b a*b \\n\n",
+   "query": "aa",
+   "expected": []
+  },
+  {
+   "source": "a.b a*b \\n\n",
+   "query": "a",
+   "expected": [
+    [
+     0,
+     1
+    ],
+    [
+     4,
+     5
+    ]
+   ]
+  },
+  {
+   "source": "a.b a*b \\n\n",
+   "query": "a.b",
+   "expected": [
+    [
+     0,
+     3
+    ]
+   ]
+  },
+  {
+   "source": "a.b a*b \\n\n",
+   "query": "\\n",
+   "expected": [
+    [
+     8,
+     10
+    ]
+   ]
+  },
+  {
+   "source": "a.b a*b \\n\n",
+   "query": "\n",
+   "expected": [
+    [
+     10,
+     11
+    ]
+   ]
+  },
+  {
+   "source": "a.b a*b \\n\n",
+   "query": "straße",
+   "expected": []
+  },
+  {
+   "source": "a.b a*b \\n\n",
+   "query": "strasse",
+   "expected": []
+  },
+  {
+   "source": "a.b a*b \\n\n",
+   "query": "café",
+   "expected": []
+  },
+  {
+   "source": "a.b a*b \\n\n",
+   "query": "cafe",
+   "expected": []
+  },
+  {
+   "source": "a.b a*b \\n\n",
+   "query": "é",
+   "expected": []
+  },
+  {
+   "source": "a.b a*b \\n\n",
+   "query": "e",
+   "expected": []
+  },
+  {
+   "source": "a.b a*b \\n\n",
+   "query": "́",
+   "expected": []
+  },
+  {
+   "source": "a.b a*b \\n\n",
+   "query": "ffi",
+   "expected": []
+  },
+  {
+   "source": "a.b a*b \\n\n",
+   "query": "f",
+   "expected": []
+  },
+  {
+   "source": "a.b a*b \\n\n",
+   "query": "ff",
+   "expected": []
+  },
+  {
+   "source": "a.b a*b \\n\n",
+   "query": "i",
+   "expected": []
+  },
+  {
+   "source": "a.b a*b \\n\n",
+   "query": "i̇",
+   "expected": []
+  },
+  {
+   "source": "a.b a*b \\n\n",
+   "query": "İ",
+   "expected": []
+  },
+  {
+   "source": "a.b a*b \\n\n",
+   "query": "1",
+   "expected": []
+  },
+  {
+   "source": "a.b a*b \\n\n",
+   "query": "A",
+   "expected": [
+    [
+     0,
+     1
+    ],
+    [
+     4,
+     5
+    ]
+   ]
+  },
+  {
+   "source": "a.b a*b \\n\n",
+   "query": "ΟΣ",
+   "expected": []
+  },
+  {
+   "source": "a.b a*b \\n\n",
+   "query": "ος",
+   "expected": []
+  },
+  {
+   "source": "a.b a*b \\n\n",
+   "query": "οσ",
+   "expected": []
+  },
+  {
+   "source": "a.b a*b \\n\n",
+   "query": "σ",
+   "expected": []
+  },
+  {
+   "source": "a.b a*b \\n\n",
+   "query": "🐶",
+   "expected": []
+  },
+  {
+   "source": "a.b a*b \\n\n",
+   "query": "中文",
+   "expected": []
+  },
+  {
+   "source": "a.b a*b \\n\n",
+   "query": "中",
+   "expected": []
+  },
+  {
+   "source": "a.b a*b \\n\n",
+   "query": "ṩ",
+   "expected": []
+  },
+  {
+   "source": "Straße STRASSE",
+   "query": "",
+   "expected": []
+  },
+  {
+   "source": "Straße STRASSE",
+   "query": "aa",
+   "expected": []
+  },
+  {
+   "source": "Straße STRASSE",
+   "query": "a",
+   "expected": [
+    [
+     3,
+     4
+    ],
+    [
+     11,
+     12
+    ]
+   ]
+  },
+  {
+   "source": "Straße STRASSE",
+   "query": "a.b",
+   "expected": []
+  },
+  {
+   "source": "Straße STRASSE",
+   "query": "\\n",
+   "expected": []
+  },
+  {
+   "source": "Straße STRASSE",
+   "query": "\n",
+   "expected": []
+  },
+  {
+   "source": "Straße STRASSE",
+   "query": "straße",
+   "expected": [
+    [
+     0,
+     7
+    ]
+   ]
+  },
+  {
+   "source": "Straße STRASSE",
+   "query": "strasse",
+   "expected": [
+    [
+     8,
+     15
+    ]
+   ]
+  },
+  {
+   "source": "Straße STRASSE",
+   "query": "café",
+   "expected": []
+  },
+  {
+   "source": "Straße STRASSE",
+   "query": "cafe",
+   "expected": []
+  },
+  {
+   "source": "Straße STRASSE",
+   "query": "é",
+   "expected": []
+  },
+  {
+   "source": "Straße STRASSE",
+   "query": "e",
+   "expected": [
+    [
+     6,
+     7
+    ],
+    [
+     14,
+     15
+    ]
+   ]
+  },
+  {
+   "source": "Straße STRASSE",
+   "query": "́",
+   "expected": []
+  },
+  {
+   "source": "Straße STRASSE",
+   "query": "ffi",
+   "expected": []
+  },
+  {
+   "source": "Straße STRASSE",
+   "query": "f",
+   "expected": []
+  },
+  {
+   "source": "Straße STRASSE",
+   "query": "ff",
+   "expected": []
+  },
+  {
+   "source": "Straße STRASSE",
+   "query": "i",
+   "expected": []
+  },
+  {
+   "source": "Straße STRASSE",
+   "query": "i̇",
+   "expected": []
+  },
+  {
+   "source": "Straße STRASSE",
+   "query": "İ",
+   "expected": []
+  },
+  {
+   "source": "Straße STRASSE",
+   "query": "1",
+   "expected": []
+  },
+  {
+   "source": "Straße STRASSE",
+   "query": "A",
+   "expected": [
+    [
+     3,
+     4
+    ],
+    [
+     11,
+     12
+    ]
+   ]
+  },
+  {
+   "source": "Straße STRASSE",
+   "query": "ΟΣ",
+   "expected": []
+  },
+  {
+   "source": "Straße STRASSE",
+   "query": "ος",
+   "expected": []
+  },
+  {
+   "source": "Straße STRASSE",
+   "query": "οσ",
+   "expected": []
+  },
+  {
+   "source": "Straße STRASSE",
+   "query": "σ",
+   "expected": []
+  },
+  {
+   "source": "Straße STRASSE",
+   "query": "🐶",
+   "expected": []
+  },
+  {
+   "source": "Straße STRASSE",
+   "query": "中文",
+   "expected": []
+  },
+  {
+   "source": "Straße STRASSE",
+   "query": "中",
+   "expected": []
+  },
+  {
+   "source": "Straße STRASSE",
+   "query": "ṩ",
+   "expected": []
+  },
+  {
+   "source": "Café CAFÉ cafè",
+   "query": "",
+   "expected": []
+  },
+  {
+   "source": "Café CAFÉ cafè",
+   "query": "aa",
+   "expected": []
+  },
+  {
+   "source": "Café CAFÉ cafè",
+   "query": "a",
+   "expected": [
+    [
+     1,
+     2
+    ],
+    [
+     7,
+     8
+    ],
+    [
+     14,
+     15
+    ]
+   ]
+  },
+  {
+   "source": "Café CAFÉ cafè",
+   "query": "a.b",
+   "expected": []
+  },
+  {
+   "source": "Café CAFÉ cafè",
+   "query": "\\n",
+   "expected": []
+  },
+  {
+   "source": "Café CAFÉ cafè",
+   "query": "\n",
+   "expected": []
+  },
+  {
+   "source": "Café CAFÉ cafè",
+   "query": "straße",
+   "expected": []
+  },
+  {
+   "source": "Café CAFÉ cafè",
+   "query": "strasse",
+   "expected": []
+  },
+  {
+   "source": "Café CAFÉ cafè",
+   "query": "café",
+   "expected": [
+    [
+     0,
+     5
+    ],
+    [
+     6,
+     12
+    ]
+   ]
+  },
+  {
+   "source": "Café CAFÉ cafè",
+   "query": "cafe",
+   "expected": [
+    [
+     0,
+     5
+    ],
+    [
+     6,
+     10
+    ],
+    [
+     13,
+     18
+    ]
+   ]
+  },
+  {
+   "source": "Café CAFÉ cafè",
+   "query": "é",
+   "expected": [
+    [
+     3,
+     5
+    ],
+    [
+     9,
+     12
+    ]
+   ]
+  },
+  {
+   "source": "Café CAFÉ cafè",
+   "query": "e",
+   "expected": [
+    [
+     3,
+     5
+    ],
+    [
+     9,
+     10
+    ],
+    [
+     16,
+     18
+    ]
+   ]
+  },
+  {
+   "source": "Café CAFÉ cafè",
+   "query": "́",
+   "expected": [
+    [
+     3,
+     5
+    ],
+    [
+     10,
+     12
+    ]
+   ]
+  },
+  {
+   "source": "Café CAFÉ cafè",
+   "query": "ffi",
+   "expected": []
+  },
+  {
+   "source": "Café CAFÉ cafè",
+   "query": "f",
+   "expected": [
+    [
+     2,
+     3
+    ],
+    [
+     8,
+     9
+    ],
+    [
+     15,
+     16
+    ]
+   ]
+  },
+  {
+   "source": "Café CAFÉ cafè",
+   "query": "ff",
+   "expected": []
+  },
+  {
+   "source": "Café CAFÉ cafè",
+   "query": "i",
+   "expected": []
+  },
+  {
+   "source": "Café CAFÉ cafè",
+   "query": "i̇",
+   "expected": []
+  },
+  {
+   "source": "Café CAFÉ cafè",
+   "query": "İ",
+   "expected": []
+  },
+  {
+   "source": "Café CAFÉ cafè",
+   "query": "1",
+   "expected": []
+  },
+  {
+   "source": "Café CAFÉ cafè",
+   "query": "A",
+   "expected": [
+    [
+     1,
+     2
+    ],
+    [
+     7,
+     8
+    ],
+    [
+     14,
+     15
+    ]
+   ]
+  },
+  {
+   "source": "Café CAFÉ cafè",
+   "query": "ΟΣ",
+   "expected": []
+  },
+  {
+   "source": "Café CAFÉ cafè",
+   "query": "ος",
+   "expected": []
+  },
+  {
+   "source": "Café CAFÉ cafè",
+   "query": "οσ",
+   "expected": []
+  },
+  {
+   "source": "Café CAFÉ cafè",
+   "query": "σ",
+   "expected": []
+  },
+  {
+   "source": "Café CAFÉ cafè",
+   "query": "🐶",
+   "expected": []
+  },
+  {
+   "source": "Café CAFÉ cafè",
+   "query": "中文",
+   "expected": []
+  },
+  {
+   "source": "Café CAFÉ cafè",
+   "query": "中",
+   "expected": []
+  },
+  {
+   "source": "Café CAFÉ cafè",
+   "query": "ṩ",
+   "expected": []
+  },
+  {
+   "source": "ﬃ fffi ffi ① 1 Ａ A",
+   "query": "",
+   "expected": []
+  },
+  {
+   "source": "ﬃ fffi ffi ① 1 Ａ A",
+   "query": "aa",
+   "expected": []
+  },
+  {
+   "source": "ﬃ fffi ffi ① 1 Ａ A",
+   "query": "a",
+   "expected": [
+    [
+     19,
+     22
+    ],
+    [
+     23,
+     24
+    ]
+   ]
+  },
+  {
+   "source": "ﬃ fffi ffi ① 1 Ａ A",
+   "query": "a.b",
+   "expected": []
+  },
+  {
+   "source": "ﬃ fffi ffi ① 1 Ａ A",
+   "query": "\\n",
+   "expected": []
+  },
+  {
+   "source": "ﬃ fffi ffi ① 1 Ａ A",
+   "query": "\n",
+   "expected": []
+  },
+  {
+   "source": "ﬃ fffi ffi ① 1 Ａ A",
+   "query": "straße",
+   "expected": []
+  },
+  {
+   "source": "ﬃ fffi ffi ① 1 Ａ A",
+   "query": "strasse",
+   "expected": []
+  },
+  {
+   "source": "ﬃ fffi ffi ① 1 Ａ A",
+   "query": "café",
+   "expected": []
+  },
+  {
+   "source": "ﬃ fffi ffi ① 1 Ａ A",
+   "query": "cafe",
+   "expected": []
+  },
+  {
+   "source": "ﬃ fffi ffi ① 1 Ａ A",
+   "query": "é",
+   "expected": []
+  },
+  {
+   "source": "ﬃ fffi ffi ① 1 Ａ A",
+   "query": "e",
+   "expected": []
+  },
+  {
+   "source": "ﬃ fffi ffi ① 1 Ａ A",
+   "query": "́",
+   "expected": []
+  },
+  {
+   "source": "ﬃ fffi ffi ① 1 Ａ A",
+   "query": "ffi",
+   "expected": [
+    [
+     0,
+     3
+    ],
+    [
+     5,
+     8
+    ],
+    [
+     9,
+     12
+    ]
+   ]
+  },
+  {
+   "source": "ﬃ fffi ffi ① 1 Ａ A",
+   "query": "f",
+   "expected": [
+    [
+     0,
+     3
+    ],
+    [
+     4,
+     5
+    ],
+    [
+     5,
+     6
+    ],
+    [
+     6,
+     7
+    ],
+    [
+     9,
+     10
+    ],
+    [
+     10,
+     11
+    ]
+   ]
+  },
+  {
+   "source": "ﬃ fffi ffi ① 1 Ａ A",
+   "query": "ff",
+   "expected": [
+    [
+     0,
+     3
+    ],
+    [
+     4,
+     6
+    ],
+    [
+     9,
+     11
+    ]
+   ]
+  },
+  {
+   "source": "ﬃ fffi ffi ① 1 Ａ A",
+   "query": "i",
+   "expected": [
+    [
+     0,
+     3
+    ],
+    [
+     7,
+     8
+    ],
+    [
+     11,
+     12
+    ]
+   ]
+  },
+  {
+   "source": "ﬃ fffi ffi ① 1 Ａ A",
+   "query": "i̇",
+   "expected": []
+  },
+  {
+   "source": "ﬃ fffi ffi ① 1 Ａ A",
+   "query": "İ",
+   "expected": []
+  },
+  {
+   "source": "ﬃ fffi ffi ① 1 Ａ A",
+   "query": "1",
+   "expected": [
+    [
+     13,
+     16
+    ],
+    [
+     17,
+     18
+    ]
+   ]
+  },
+  {
+   "source": "ﬃ fffi ffi ① 1 Ａ A",
+   "query": "A",
+   "expected": [
+    [
+     19,
+     22
+    ],
+    [
+     23,
+     24
+    ]
+   ]
+  },
+  {
+   "source": "ﬃ fffi ffi ① 1 Ａ A",
+   "query": "ΟΣ",
+   "expected": []
+  },
+  {
+   "source": "ﬃ fffi ffi ① 1 Ａ A",
+   "query": "ος",
+   "expected": []
+  },
+  {
+   "source": "ﬃ fffi ffi ① 1 Ａ A",
+   "query": "οσ",
+   "expected": []
+  },
+  {
+   "source": "ﬃ fffi ffi ① 1 Ａ A",
+   "query": "σ",
+   "expected": []
+  },
+  {
+   "source": "ﬃ fffi ffi ① 1 Ａ A",
+   "query": "🐶",
+   "expected": []
+  },
+  {
+   "source": "ﬃ fffi ffi ① 1 Ａ A",
+   "query": "中文",
+   "expected": []
+  },
+  {
+   "source": "ﬃ fffi ffi ① 1 Ａ A",
+   "query": "中",
+   "expected": []
+  },
+  {
+   "source": "ﬃ fffi ffi ① 1 Ａ A",
+   "query": "ṩ",
+   "expected": []
+  },
+  {
+   "source": "İ i i̇ I ı",
+   "query": "",
+   "expected": []
+  },
+  {
+   "source": "İ i i̇ I ı",
+   "query": "aa",
+   "expected": []
+  },
+  {
+   "source": "İ i i̇ I ı",
+   "query": "a",
+   "expected": []
+  },
+  {
+   "source": "İ i i̇ I ı",
+   "query": "a.b",
+   "expected": []
+  },
+  {
+   "source": "İ i i̇ I ı",
+   "query": "\\n",
+   "expected": []
+  },
+  {
+   "source": "İ i i̇ I ı",
+   "query": "\n",
+   "expected": []
+  },
+  {
+   "source": "İ i i̇ I ı",
+   "query": "straße",
+   "expected": []
+  },
+  {
+   "source": "İ i i̇ I ı",
+   "query": "strasse",
+   "expected": []
+  },
+  {
+   "source": "İ i i̇ I ı",
+   "query": "café",
+   "expected": []
+  },
+  {
+   "source": "İ i i̇ I ı",
+   "query": "cafe",
+   "expected": []
+  },
+  {
+   "source": "İ i i̇ I ı",
+   "query": "é",
+   "expected": []
+  },
+  {
+   "source": "İ i i̇ I ı",
+   "query": "e",
+   "expected": []
+  },
+  {
+   "source": "İ i i̇ I ı",
+   "query": "́",
+   "expected": []
+  },
+  {
+   "source": "İ i i̇ I ı",
+   "query": "ffi",
+   "expected": []
+  },
+  {
+   "source": "İ i i̇ I ı",
+   "query": "f",
+   "expected": []
+  },
+  {
+   "source": "İ i i̇ I ı",
+   "query": "ff",
+   "expected": []
+  },
+  {
+   "source": "İ i i̇ I ı",
+   "query": "i",
+   "expected": [
+    [
+     0,
+     2
+    ],
+    [
+     3,
+     4
+    ],
+    [
+     5,
+     6
+    ],
+    [
+     9,
+     10
+    ]
+   ]
+  },
+  {
+   "source": "İ i i̇ I ı",
+   "query": "i̇",
+   "expected": [
+    [
+     0,
+     2
+    ],
+    [
+     5,
+     8
+    ]
+   ]
+  },
+  {
+   "source": "İ i i̇ I ı",
+   "query": "İ",
+   "expected": [
+    [
+     0,
+     2
+    ],
+    [
+     5,
+     8
+    ]
+   ]
+  },
+  {
+   "source": "İ i i̇ I ı",
+   "query": "1",
+   "expected": []
+  },
+  {
+   "source": "İ i i̇ I ı",
+   "query": "A",
+   "expected": []
+  },
+  {
+   "source": "İ i i̇ I ı",
+   "query": "ΟΣ",
+   "expected": []
+  },
+  {
+   "source": "İ i i̇ I ı",
+   "query": "ος",
+   "expected": []
+  },
+  {
+   "source": "İ i i̇ I ı",
+   "query": "οσ",
+   "expected": []
+  },
+  {
+   "source": "İ i i̇ I ı",
+   "query": "σ",
+   "expected": []
+  },
+  {
+   "source": "İ i i̇ I ı",
+   "query": "🐶",
+   "expected": []
+  },
+  {
+   "source": "İ i i̇ I ı",
+   "query": "中文",
+   "expected": []
+  },
+  {
+   "source": "İ i i̇ I ı",
+   "query": "中",
+   "expected": []
+  },
+  {
+   "source": "İ i i̇ I ı",
+   "query": "ṩ",
+   "expected": []
+  },
+  {
+   "source": "ΟΣ ος ΟΣΟΣ οσος",
+   "query": "",
+   "expected": []
+  },
+  {
+   "source": "ΟΣ ος ΟΣΟΣ οσος",
+   "query": "aa",
+   "expected": []
+  },
+  {
+   "source": "ΟΣ ος ΟΣΟΣ οσος",
+   "query": "a",
+   "expected": []
+  },
+  {
+   "source": "ΟΣ ος ΟΣΟΣ οσος",
+   "query": "a.b",
+   "expected": []
+  },
+  {
+   "source": "ΟΣ ος ΟΣΟΣ οσος",
+   "query": "\\n",
+   "expected": []
+  },
+  {
+   "source": "ΟΣ ος ΟΣΟΣ οσος",
+   "query": "\n",
+   "expected": []
+  },
+  {
+   "source": "ΟΣ ος ΟΣΟΣ οσος",
+   "query": "straße",
+   "expected": []
+  },
+  {
+   "source": "ΟΣ ος ΟΣΟΣ οσος",
+   "query": "strasse",
+   "expected": []
+  },
+  {
+   "source": "ΟΣ ος ΟΣΟΣ οσος",
+   "query": "café",
+   "expected": []
+  },
+  {
+   "source": "ΟΣ ος ΟΣΟΣ οσος",
+   "query": "cafe",
+   "expected": []
+  },
+  {
+   "source": "ΟΣ ος ΟΣΟΣ οσος",
+   "query": "é",
+   "expected": []
+  },
+  {
+   "source": "ΟΣ ος ΟΣΟΣ οσος",
+   "query": "e",
+   "expected": []
+  },
+  {
+   "source": "ΟΣ ος ΟΣΟΣ οσος",
+   "query": "́",
+   "expected": []
+  },
+  {
+   "source": "ΟΣ ος ΟΣΟΣ οσος",
+   "query": "ffi",
+   "expected": []
+  },
+  {
+   "source": "ΟΣ ος ΟΣΟΣ οσος",
+   "query": "f",
+   "expected": []
+  },
+  {
+   "source": "ΟΣ ος ΟΣΟΣ οσος",
+   "query": "ff",
+   "expected": []
+  },
+  {
+   "source": "ΟΣ ος ΟΣΟΣ οσος",
+   "query": "i",
+   "expected": []
+  },
+  {
+   "source": "ΟΣ ος ΟΣΟΣ οσος",
+   "query": "i̇",
+   "expected": []
+  },
+  {
+   "source": "ΟΣ ος ΟΣΟΣ οσος",
+   "query": "İ",
+   "expected": []
+  },
+  {
+   "source": "ΟΣ ος ΟΣΟΣ οσος",
+   "query": "1",
+   "expected": []
+  },
+  {
+   "source": "ΟΣ ος ΟΣΟΣ οσος",
+   "query": "A",
+   "expected": []
+  },
+  {
+   "source": "ΟΣ ος ΟΣΟΣ οσος",
+   "query": "ΟΣ",
+   "expected": [
+    [
+     5,
+     9
+    ],
+    [
+     23,
+     27
+    ]
+   ]
+  },
+  {
+   "source": "ΟΣ ος ΟΣΟΣ οσος",
+   "query": "ος",
+   "expected": [
+    [
+     5,
+     9
+    ],
+    [
+     23,
+     27
+    ]
+   ]
+  },
+  {
+   "source": "ΟΣ ος ΟΣΟΣ οσος",
+   "query": "οσ",
+   "expected": [
+    [
+     0,
+     4
+    ],
+    [
+     10,
+     14
+    ],
+    [
+     14,
+     18
+    ],
+    [
+     19,
+     23
+    ]
+   ]
+  },
+  {
+   "source": "ΟΣ ος ΟΣΟΣ οσος",
+   "query": "σ",
+   "expected": [
+    [
+     2,
+     4
+    ],
+    [
+     12,
+     14
+    ],
+    [
+     16,
+     18
+    ],
+    [
+     21,
+     23
+    ]
+   ]
+  },
+  {
+   "source": "ΟΣ ος ΟΣΟΣ οσος",
+   "query": "🐶",
+   "expected": []
+  },
+  {
+   "source": "ΟΣ ος ΟΣΟΣ οσος",
+   "query": "中文",
+   "expected": []
+  },
+  {
+   "source": "ΟΣ ος ΟΣΟΣ οσος",
+   "query": "中",
+   "expected": []
+  },
+  {
+   "source": "ΟΣ ος ΟΣΟΣ οσος",
+   "query": "ṩ",
+   "expected": []
+  },
+  {
+   "source": "🐶🐶中文 中 文",
+   "query": "",
+   "expected": []
+  },
+  {
+   "source": "🐶🐶中文 中 文",
+   "query": "aa",
+   "expected": []
+  },
+  {
+   "source": "🐶🐶中文 中 文",
+   "query": "a",
+   "expected": []
+  },
+  {
+   "source": "🐶🐶中文 中 文",
+   "query": "a.b",
+   "expected": []
+  },
+  {
+   "source": "🐶🐶中文 中 文",
+   "query": "\\n",
+   "expected": []
+  },
+  {
+   "source": "🐶🐶中文 中 文",
+   "query": "\n",
+   "expected": []
+  },
+  {
+   "source": "🐶🐶中文 中 文",
+   "query": "straße",
+   "expected": []
+  },
+  {
+   "source": "🐶🐶中文 中 文",
+   "query": "strasse",
+   "expected": []
+  },
+  {
+   "source": "🐶🐶中文 中 文",
+   "query": "café",
+   "expected": []
+  },
+  {
+   "source": "🐶🐶中文 中 文",
+   "query": "cafe",
+   "expected": []
+  },
+  {
+   "source": "🐶🐶中文 中 文",
+   "query": "é",
+   "expected": []
+  },
+  {
+   "source": "🐶🐶中文 中 文",
+   "query": "e",
+   "expected": []
+  },
+  {
+   "source": "🐶🐶中文 中 文",
+   "query": "́",
+   "expected": []
+  },
+  {
+   "source": "🐶🐶中文 中 文",
+   "query": "ffi",
+   "expected": []
+  },
+  {
+   "source": "🐶🐶中文 中 文",
+   "query": "f",
+   "expected": []
+  },
+  {
+   "source": "🐶🐶中文 中 文",
+   "query": "ff",
+   "expected": []
+  },
+  {
+   "source": "🐶🐶中文 中 文",
+   "query": "i",
+   "expected": []
+  },
+  {
+   "source": "🐶🐶中文 中 文",
+   "query": "i̇",
+   "expected": []
+  },
+  {
+   "source": "🐶🐶中文 中 文",
+   "query": "İ",
+   "expected": []
+  },
+  {
+   "source": "🐶🐶中文 中 文",
+   "query": "1",
+   "expected": []
+  },
+  {
+   "source": "🐶🐶中文 中 文",
+   "query": "A",
+   "expected": []
+  },
+  {
+   "source": "🐶🐶中文 中 文",
+   "query": "ΟΣ",
+   "expected": []
+  },
+  {
+   "source": "🐶🐶中文 中 文",
+   "query": "ος",
+   "expected": []
+  },
+  {
+   "source": "🐶🐶中文 中 文",
+   "query": "οσ",
+   "expected": []
+  },
+  {
+   "source": "🐶🐶中文 中 文",
+   "query": "σ",
+   "expected": []
+  },
+  {
+   "source": "🐶🐶中文 中 文",
+   "query": "🐶",
+   "expected": [
+    [
+     0,
+     4
+    ],
+    [
+     4,
+     8
+    ]
+   ]
+  },
+  {
+   "source": "🐶🐶中文 中 文",
+   "query": "中文",
+   "expected": [
+    [
+     8,
+     14
+    ]
+   ]
+  },
+  {
+   "source": "🐶🐶中文 中 文",
+   "query": "中",
+   "expected": [
+    [
+     8,
+     11
+    ],
+    [
+     15,
+     18
+    ]
+   ]
+  },
+  {
+   "source": "🐶🐶中文 中 文",
+   "query": "ṩ",
+   "expected": []
+  },
+  {
+   "source": "é é e ́",
+   "query": "",
+   "expected": []
+  },
+  {
+   "source": "é é e ́",
+   "query": "aa",
+   "expected": []
+  },
+  {
+   "source": "é é e ́",
+   "query": "a",
+   "expected": []
+  },
+  {
+   "source": "é é e ́",
+   "query": "a.b",
+   "expected": []
+  },
+  {
+   "source": "é é e ́",
+   "query": "\\n",
+   "expected": []
+  },
+  {
+   "source": "é é e ́",
+   "query": "\n",
+   "expected": []
+  },
+  {
+   "source": "é é e ́",
+   "query": "straße",
+   "expected": []
+  },
+  {
+   "source": "é é e ́",
+   "query": "strasse",
+   "expected": []
+  },
+  {
+   "source": "é é e ́",
+   "query": "café",
+   "expected": []
+  },
+  {
+   "source": "é é e ́",
+   "query": "cafe",
+   "expected": []
+  },
+  {
+   "source": "é é e ́",
+   "query": "é",
+   "expected": [
+    [
+     0,
+     2
+    ],
+    [
+     3,
+     6
+    ]
+   ]
+  },
+  {
+   "source": "é é e ́",
+   "query": "e",
+   "expected": [
+    [
+     0,
+     2
+    ],
+    [
+     3,
+     4
+    ],
+    [
+     7,
+     8
+    ]
+   ]
+  },
+  {
+   "source": "é é e ́",
+   "query": "́",
+   "expected": [
+    [
+     0,
+     2
+    ],
+    [
+     4,
+     6
+    ],
+    [
+     9,
+     11
+    ]
+   ]
+  },
+  {
+   "source": "é é e ́",
+   "query": "ffi",
+   "expected": []
+  },
+  {
+   "source": "é é e ́",
+   "query": "f",
+   "expected": []
+  },
+  {
+   "source": "é é e ́",
+   "query": "ff",
+   "expected": []
+  },
+  {
+   "source": "é é e ́",
+   "query": "i",
+   "expected": []
+  },
+  {
+   "source": "é é e ́",
+   "query": "i̇",
+   "expected": []
+  },
+  {
+   "source": "é é e ́",
+   "query": "İ",
+   "expected": []
+  },
+  {
+   "source": "é é e ́",
+   "query": "1",
+   "expected": []
+  },
+  {
+   "source": "é é e ́",
+   "query": "A",
+   "expected": []
+  },
+  {
+   "source": "é é e ́",
+   "query": "ΟΣ",
+   "expected": []
+  },
+  {
+   "source": "é é e ́",
+   "query": "ος",
+   "expected": []
+  },
+  {
+   "source": "é é e ́",
+   "query": "οσ",
+   "expected": []
+  },
+  {
+   "source": "é é e ́",
+   "query": "σ",
+   "expected": []
+  },
+  {
+   "source": "é é e ́",
+   "query": "🐶",
+   "expected": []
+  },
+  {
+   "source": "é é e ́",
+   "query": "中文",
+   "expected": []
+  },
+  {
+   "source": "é é e ́",
+   "query": "中",
+   "expected": []
+  },
+  {
+   "source": "é é e ́",
+   "query": "ṩ",
+   "expected": []
+  },
+  {
+   "source": "ẛ̣ ṩ",
+   "query": "",
+   "expected": []
+  },
+  {
+   "source": "ẛ̣ ṩ",
+   "query": "aa",
+   "expected": []
+  },
+  {
+   "source": "ẛ̣ ṩ",
+   "query": "a",
+   "expected": []
+  },
+  {
+   "source": "ẛ̣ ṩ",
+   "query": "a.b",
+   "expected": []
+  },
+  {
+   "source": "ẛ̣ ṩ",
+   "query": "\\n",
+   "expected": []
+  },
+  {
+   "source": "ẛ̣ ṩ",
+   "query": "\n",
+   "expected": []
+  },
+  {
+   "source": "ẛ̣ ṩ",
+   "query": "straße",
+   "expected": []
+  },
+  {
+   "source": "ẛ̣ ṩ",
+   "query": "strasse",
+   "expected": []
+  },
+  {
+   "source": "ẛ̣ ṩ",
+   "query": "café",
+   "expected": []
+  },
+  {
+   "source": "ẛ̣ ṩ",
+   "query": "cafe",
+   "expected": []
+  },
+  {
+   "source": "ẛ̣ ṩ",
+   "query": "é",
+   "expected": []
+  },
+  {
+   "source": "ẛ̣ ṩ",
+   "query": "e",
+   "expected": []
+  },
+  {
+   "source": "ẛ̣ ṩ",
+   "query": "́",
+   "expected": []
+  },
+  {
+   "source": "ẛ̣ ṩ",
+   "query": "ffi",
+   "expected": []
+  },
+  {
+   "source": "ẛ̣ ṩ",
+   "query": "f",
+   "expected": []
+  },
+  {
+   "source": "ẛ̣ ṩ",
+   "query": "ff",
+   "expected": []
+  },
+  {
+   "source": "ẛ̣ ṩ",
+   "query": "i",
+   "expected": []
+  },
+  {
+   "source": "ẛ̣ ṩ",
+   "query": "i̇",
+   "expected": []
+  },
+  {
+   "source": "ẛ̣ ṩ",
+   "query": "İ",
+   "expected": []
+  },
+  {
+   "source": "ẛ̣ ṩ",
+   "query": "1",
+   "expected": []
+  },
+  {
+   "source": "ẛ̣ ṩ",
+   "query": "A",
+   "expected": []
+  },
+  {
+   "source": "ẛ̣ ṩ",
+   "query": "ΟΣ",
+   "expected": []
+  },
+  {
+   "source": "ẛ̣ ṩ",
+   "query": "ος",
+   "expected": []
+  },
+  {
+   "source": "ẛ̣ ṩ",
+   "query": "οσ",
+   "expected": []
+  },
+  {
+   "source": "ẛ̣ ṩ",
+   "query": "σ",
+   "expected": []
+  },
+  {
+   "source": "ẛ̣ ṩ",
+   "query": "🐶",
+   "expected": []
+  },
+  {
+   "source": "ẛ̣ ṩ",
+   "query": "中文",
+   "expected": []
+  },
+  {
+   "source": "ẛ̣ ṩ",
+   "query": "中",
+   "expected": []
+  },
+  {
+   "source": "ẛ̣ ṩ",
+   "query": "ṩ",
+   "expected": [
+    [
+     6,
+     11
+    ]
+   ]
+  }
+ ]
+}

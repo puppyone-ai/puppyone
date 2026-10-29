@@ -4,6 +4,7 @@
 pub mod buffer;
 pub mod change;
 pub mod history;
+pub mod search;
 pub mod selection;
 pub mod state;
 pub mod words;

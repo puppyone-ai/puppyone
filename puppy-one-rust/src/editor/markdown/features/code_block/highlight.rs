@@ -4,7 +4,8 @@
 //! syntax to eleven colour roles. Parsing is GPUI Kit's tree-sitter
 //! highlighter; its capture names resolve to the same roles.
 use super::style::SyntaxColors;
-use gpui::{HighlightStyle, Rgba};
+use crate::editor::code::highlight::Roles;
+use gpui::HighlightStyle;
 use gpui_kit::component::{Rope, highlighter::SyntaxHighlighter};
 use std::{cell::RefCell, collections::HashMap, ops::Range, sync::Arc};
 
@@ -17,22 +18,7 @@ const SEGMENT_LIMIT: usize = 2048 / 2;
 /// `resolveCodeLanguageKey(language, "")` → the Kit grammar for it, or
 /// `None` for plain text (including languages the product does not support).
 pub fn grammar(language: &str) -> Option<&'static str> {
-    Some(match language.trim().to_ascii_lowercase().as_str() {
-        "js" | "javascript" => "javascript",
-        "jsx" => "javascript",
-        "ts" | "typescript" => "typescript",
-        "tsx" => "tsx",
-        "py" | "python" => "python",
-        "bash" | "zsh" | "sh" | "shell" => "bash",
-        "yml" | "yaml" => "yaml",
-        "css" | "scss" | "less" => "css",
-        "html" => "html",
-        "json" => "json",
-        "sql" => "sql",
-        "toml" => "toml",
-        // `xml` has no Kit grammar; text / unknown stay plain.
-        _ => return None,
-    })
+    crate::editor::code::language::Language::resolve(Some(language), "").grammar()
 }
 
 /// `isWithinMarkdownCodeHighlightSourceBudget`.
@@ -41,50 +27,6 @@ fn within_budget(code: &str) -> bool {
         && code
             .split('\n')
             .all(|l| l.encode_utf16().count() <= LINE_UNIT_LIMIT)
-}
-
-/// `puppyCodeHighlightStyle`, keyed by tree-sitter capture names.
-struct Roles(SyntaxColors);
-
-impl Roles {
-    fn color(&self, name: &str) -> Option<Rgba> {
-        let c = &self.0;
-        let head = name.split('.').next().unwrap_or(name);
-        Some(match (head, name) {
-            ("comment", _) => c.comment,
-            (
-                _,
-                "string.escape"
-                | "string.regex"
-                | "string.special"
-                | "string.special.regex"
-                | "escape",
-            ) => c.special,
-            ("string" | "character", _) => c.string,
-            (
-                "keyword" | "conditional" | "repeat" | "include" | "exception" | "storageclass"
-                | "boolean_operator",
-                _,
-            ) => c.keyword,
-            ("number" | "float" | "boolean" | "constant", _) => c.constant,
-            ("type" | "tag" | "namespace" | "module" | "constructor", _) => c.type_name,
-            ("function" | "method", _) => c.function,
-            ("property" | "attribute" | "field", _) => c.property,
-            ("operator", _) => c.operator,
-            ("preproc" | "meta" | "annotation" | "label", _) => c.meta,
-            ("error" | "invalid", _) => c.invalid,
-            _ => return None,
-        })
-    }
-}
-
-impl gpui_kit::base::input::HighlightStyleResolver for Roles {
-    fn style(&self, name: &str) -> Option<HighlightStyle> {
-        self.color(name).map(|c| HighlightStyle {
-            color: Some(c.into()),
-            ..Default::default()
-        })
-    }
 }
 
 /// Highlight ranges over a code block's text.
@@ -138,7 +80,7 @@ mod tests {
             .syntax;
         let js = highlight("const x = \"a\"; // c", "js", &colors);
         assert!(!js.is_empty());
-        let keyword: Rgba = colors.keyword;
+        let keyword = colors.keyword;
         assert!(
             js.iter()
                 .any(|(r, s)| *r == (0..5) && s.color == Some(keyword.into())),

@@ -178,6 +178,11 @@ impl DocumentEditor {
             Rc::new(move |event, cx| {
                 let _ = host.update(cx, |s, cx| match event {
                     SurfaceEvent::Changed => s.changed(cx),
+                    SurfaceEvent::FindResult { current, total } => {
+                        if let Some(bar) = &s.find {
+                            bar.update(cx, |b, cx| b.set_result(current, total, cx));
+                        }
+                    }
                     SurfaceEvent::OpenPaths(paths) => cx.emit(ClientMessage::OpenPaths { paths }),
                 });
             }),
@@ -235,7 +240,7 @@ impl DocumentEditor {
                     if self.text(cx).as_ref() != Some(text) || *external {
                         // External change of the open document: replace its text.
                         if let Some(surface) = &self.surface {
-                            surface.replace_text(text, cx);
+                            surface.replace_text(text, window, cx);
                         }
                     }
                     // Otherwise the same document re-sent (after a save): keep history.
@@ -308,6 +313,9 @@ impl DocumentEditor {
                     && &session.id == id
                 {
                     session.name = label(name);
+                    if let Some(surface) = &self.surface {
+                        surface.rebind_name(name, cx);
+                    }
                     if let (Some(surface), Some(resource)) = (&self.surface, resource) {
                         surface.rebind_resource(resource, cx);
                     }
@@ -329,28 +337,28 @@ impl DocumentEditor {
                 }
             }
         }
-        self.apply_gate(cx);
+        self.apply_gate(window, cx);
         cx.notify();
         replies
     }
 
     /// Block input while modal UI, a busy document operation or another
     /// provider owns the document; follow the app appearance.
-    pub fn gate(&mut self, blocked: bool, dark: bool, cx: &mut Context<Self>) {
+    pub fn gate(&mut self, blocked: bool, dark: bool, window: &mut Window, cx: &mut Context<Self>) {
         self.blocked = blocked;
         self.dark = dark;
         self.scale = crate::theme::scale();
-        self.apply_gate(cx);
+        self.apply_gate(window, cx);
     }
 
-    fn apply_gate(&mut self, cx: &mut Context<Self>) {
+    fn apply_gate(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let read_only = self.blocked
             || self
                 .session
                 .as_ref()
                 .is_none_or(|s| s.frozen || !s.editable);
         if let Some(surface) = &self.surface {
-            surface.apply(read_only, self.dark, self.scale, cx);
+            surface.apply(read_only, self.dark, self.scale, window, cx);
         }
     }
 
@@ -446,6 +454,9 @@ impl Render for DocumentEditor {
                 }),
             )
             .on_action(cx.listener(|s, _: &OpenFind, w, cx| s.open_find(w, cx)))
+            .on_action(
+                cx.listener(|s, _: &gpui_kit::base::input::Search, w, cx| s.open_find(w, cx)),
+            )
             // Ghostty-style reveal: the handle shows in the leading third.
             .on_mouse_move(cx.listener(|s, e: &MouseMoveEvent, _, cx| {
                 let hot = s

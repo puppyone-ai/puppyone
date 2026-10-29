@@ -44,6 +44,8 @@ pub enum SurfaceInput<'a> {
 pub enum SurfaceEvent {
     /// The document text changed (the host derives the dirty state).
     Changed,
+    /// Match counts changed after editing while the pane find bar is open.
+    FindResult { current: usize, total: usize },
     /// Open workspace paths the document referenced.
     OpenPaths(Vec<String>),
 }
@@ -81,11 +83,20 @@ pub trait ViewerSurface {
         false
     }
     /// The file changed on disk: show its new text in place.
-    fn replace_text(&self, _text: &str, _cx: &mut App) {}
+    fn replace_text(&self, _text: &str, _window: &mut Window, _cx: &mut App) {}
+    fn rebind_name(&self, _name: &str, _cx: &mut App) {}
     fn rebind_resource(&self, _resource: &crate::workspace::PreviewResource, _cx: &mut App) {}
     fn undo(&self, _redo: bool, _window: &mut Window, _cx: &mut App) {}
     /// Input is blocked (modal UI, a save barrier) and the app appearance.
-    fn apply(&self, _read_only: bool, _dark: bool, _scale: Scale, _cx: &mut App) {}
+    fn apply(
+        &self,
+        _read_only: bool,
+        _dark: bool,
+        _scale: Scale,
+        _window: &mut Window,
+        _cx: &mut App,
+    ) {
+    }
     /// A menu or shell command (`source`, `bold`, `italic`, `undo`, `redo`).
     fn command(&self, _name: &str, _window: &mut Window, _cx: &mut App) {}
     /// Where keyboard focus goes when the document is focused.
@@ -112,6 +123,10 @@ pub trait ViewerSurface {
     /// Tests reach the text editor behind a text surface.
     #[cfg(test)]
     fn editor_view(&self) -> Option<gpui::Entity<crate::editor::view::EditorView>> {
+        None
+    }
+    #[cfg(test)]
+    fn code_editor(&self) -> Option<gpui::Entity<crate::editor::viewers::code::CodeView>> {
         None
     }
     #[cfg(test)]

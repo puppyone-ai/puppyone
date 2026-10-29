@@ -317,6 +317,64 @@ fn the_registry_picks_each_documents_surface(cx: &mut TestAppContext) {
     );
 }
 
+#[gpui::test]
+fn code_snapshot_defers_during_ime_and_freezes_until_thawed(cx: &mut TestAppContext) {
+    use gpui::EntityInputHandler;
+    let (view, messages, cx) = setup(cx, "data.json", "");
+    let editor = view.update(cx, |v, _| {
+        v.surface.as_ref().unwrap().code_editor().unwrap()
+    });
+    editor.update_in(cx, |e, w, cx| {
+        e.replace_and_mark_text_in_range(None, "ni", Some(2..2), w, cx)
+    });
+    cx.run_until_parked();
+    let snapshot = HostMessage::Snapshot {
+        request: 21,
+        freeze: true,
+    };
+    let replies = view.update_in(cx, |v, w, cx| v.receive(&snapshot, w, cx));
+    assert!(matches!(
+        replies.as_slice(),
+        [ClientMessage::Deferred { request: 21, .. }]
+    ));
+    assert!(
+        !messages
+            .borrow()
+            .iter()
+            .any(|m| matches!(m, ClientMessage::Dirty { .. }))
+    );
+    editor.update_in(cx, |e, w, cx| e.unmark_text(w, cx));
+    cx.run_until_parked();
+    assert!(
+        messages
+            .borrow()
+            .iter()
+            .any(|m| matches!(m, ClientMessage::Dirty { dirty: true, .. }))
+    );
+    let replies = view.update_in(cx, |v, w, cx| v.receive(&snapshot, w, cx));
+    assert!(
+        matches!(replies.as_slice(), [ClientMessage::Snapshot {request:21,text,..}] if text=="ni")
+    );
+    editor.update_in(cx, |e, w, cx| {
+        e.replace_text_in_range(None, "blocked", w, cx)
+    });
+    view.update(cx, |v, cx| assert_eq!(v.text(cx).as_deref(), Some("ni")));
+    view.update_in(cx, |v, w, cx| v.receive(&HostMessage::Thaw, w, cx));
+    editor.update_in(cx, |e, w, cx| e.replace_text_in_range(None, "好", w, cx));
+    cx.run_until_parked();
+    view.update(cx, |v, cx| assert_eq!(v.text(cx).as_deref(), Some("ni好")));
+}
+
+#[gpui::test]
+fn code_search_shortcut_opens_the_product_find_bar(cx: &mut TestAppContext) {
+    let (view, _, cx) = setup(cx, "main.ts", "const answer = 42;");
+    view.update_in(cx, |v, w, cx| v.focus_document(w, cx));
+    cx.run_until_parked();
+    cx.simulate_keystrokes("cmd-f");
+    cx.run_until_parked();
+    assert!(view.update(cx, |v, cx| v.find_bar(cx)).is_some());
+}
+
 thread_local! {
     static PACK_SURFACES: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
 }

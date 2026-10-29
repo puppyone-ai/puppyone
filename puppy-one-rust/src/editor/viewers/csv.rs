@@ -69,13 +69,13 @@ impl ViewerSurface for CsvSurface {
     fn composing(&self, cx: &App) -> bool {
         self.editor.read(cx).composing(cx)
     }
-    fn replace_text(&self, text: &str, cx: &mut App) {
+    fn replace_text(&self, text: &str, _: &mut Window, cx: &mut App) {
         self.editor.update(cx, |e, cx| e.replace_text(text, cx));
     }
     fn undo(&self, redo: bool, window: &mut Window, cx: &mut App) {
         self.editor.update(cx, |e, cx| e.undo(redo, window, cx));
     }
-    fn apply(&self, read_only: bool, dark: bool, scale: Scale, cx: &mut App) {
+    fn apply(&self, read_only: bool, dark: bool, scale: Scale, _: &mut Window, cx: &mut App) {
         self.editor.update(cx, |e, cx| {
             e.set_read_only(read_only, cx);
             e.set_appearance(dark, scale, cx);

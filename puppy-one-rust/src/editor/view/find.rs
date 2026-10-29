@@ -14,36 +14,7 @@ pub struct FindMarks {
     pub current: Option<usize>,
 }
 
-/// `SearchQuery { caseSensitive: false, literal: true }` over `text`.
-pub fn find_all(text: &str, query: &str) -> Vec<Range<usize>> {
-    if query.is_empty() {
-        return Vec::new();
-    }
-    // Lower-case char by char so offsets stay those of the source.
-    let folded: Vec<(usize, char)> = text
-        .char_indices()
-        .flat_map(|(i, c)| c.to_lowercase().map(move |l| (i, l)))
-        .collect();
-    let needle: Vec<char> = query.chars().flat_map(char::to_lowercase).collect();
-    let mut out = Vec::new();
-    let mut k = 0;
-    while k + needle.len() <= folded.len() {
-        if folded[k..k + needle.len()]
-            .iter()
-            .map(|(_, c)| *c)
-            .eq(needle.iter().copied())
-        {
-            let start = folded[k].0;
-            let last = folded[k + needle.len() - 1].0;
-            let end = last + text[last..].chars().next().map_or(0, char::len_utf8);
-            out.push(start..end);
-            k += needle.len();
-        } else {
-            k += 1;
-        }
-    }
-    out
-}
+pub use crate::editor::text::search::find_all;
 
 impl EditorView {
     fn refresh_find(&mut self, select_nearest: bool, cx: &mut Context<Self>) -> (usize, usize) {

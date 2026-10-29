@@ -37,10 +37,12 @@
 | 文件操作 `[~]` | 原 Working Copy/Entity 重绑定；隐藏文档与目录后代保存屏障；复制源 flush；未知回执只对账；移动后 Undo 写回新路径 | 改扩展名的 viewer 转换与历史连续性；与 TS 等价的按资源范围并发队列；所有格式与跨 Root 操作 |
 | 工作区与 Explorer `[~]` | 本地树/选择/滚动/剪贴板保活及重核；目录移动保留子树；同工作区单文件边缘拖放及目标生命周期隔离 | 完整每 Pane 视图状态、跨 Root composition；目录订阅；外部原生拖放；键盘/可访问性与 OS/像素验收 |
 | Cloud 完整链路 `[ ]` | 继承已验证认证和 running Provider 底座；入口仍禁用 | 项目选择→创建/唤醒→opening/polling/recovery→双入口切换→Editor；草稿/未知保存结果、权限/viewer budget 与执行隔离；真实测试环境验收 |
-| 文件查看器 `[ ]` | 继承 Markdown、CSV、图片与通用文本实现 | 代码/JSON 语法编辑；HTML 实际预览；Context Map/PuppyFlow；App/PDF/数据库/Office/音视频的完整 TS 能力与失败态 |
+| 文件查看器 `[~]` | Markdown、CSV、图片；代码/JSON 原生语法编辑、行号/折叠/缩进/括号补全、多光标/撤销；同实例语言重绑；产品查找及 Unicode 规范化 | 代码括号匹配/选词高亮/尾空格装饰、严格几何/字体与历史预算；HTML 实际预览；Context Map/PuppyFlow；App/PDF/数据库/Office/音视频的完整 TS 能力与失败态 |
 | Markdown 高级功能 `[~]` | 原生基础格式、代码块及表格；真实工作区元数据解析；CSV 引用打开；Markdown/Wiki 点击与当前文档标题跳转 | 数学公式、Mermaid、图片/视频、HTML/MDX；表格列宽、backlinks/资源预览；跨文档 heading 与 HTML id、引用视觉/可访问性；多 Root URI 和不同系统 locale 排序 |
 
 工作区引用续作：`tools/reference-navigation.mjs --check` 固定 TS HEAD 与实际输入哈希，Rust 对照 1,200 个解析结果、4 个标题索引及 18 个 URL 策略。Shell 测试覆盖 CSV→真实文件、目录重绑定后缓存更新和跨项目保活；GPUI 覆盖 Markdown 点击、4px 拖选取消、空白命中与标题跳转不改正文。完整链接图、资源预览及多 Root 未完成，不能将该切片记为整项通过。
+
+代码编辑续作（2026-10-29）：`tools/reference-code.mjs --check` 执行真实 TS 语言解析与 CodeMirror SearchQuery，756 组语言/缩进与 290 组 Unicode 搜索由 Rust 对照，31 个实际输入摘要保存在 `fixtures/editor/code-reference.json`。原生输入测试覆盖 emoji UTF-16、IME 提交/取消/unmark、冻结保存、外部替换、语言重绑后 Undo、实际键盘 JSON 配对/缩进、多光标、产品查找入口与编辑后计数。`dev-capture` 全量 460 passed / 9 ignored，Clippy all-targets `-D warnings` 与边界检查通过；未计为代码编辑或所有查看器的完整 1:1/OS/像素验收。
 
 本批执行证据：`renaming_a_hidden_document_rebinds_its_native_history_without_changing_focus`、`resource_barrier_waits_for_composition_and_cannot_be_stolen_by_close`、`copying_a_directory_flushes_hidden_working_copies_without_replacing_them`、`failed_snapshot_cancels_the_mutation_and_thaws_every_affected_document`、`lost_rename_receipt_is_reconciled_without_replaying_the_mutation`、`project_return_restores_explorer_state_and_revalidates_loaded_folders`、`delayed_drop_cannot_attach_to_a_removed_and_recreated_pane_id`。这些覆盖文件与工作台切片，不将后面三项标为完成。
 
