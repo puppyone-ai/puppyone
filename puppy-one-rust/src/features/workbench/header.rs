@@ -135,10 +135,79 @@ impl Workbench {
             self.overflow = None;
         }
         self.overflow_hidden.insert(group, layout.hidden.clone());
+        // `useWorkbenchSessionHeaderMotion`: off while a tab is dragged or an
+        // insertion slot shows, and with reduced motion.
+        let overflow_start = layout.tabs_width + metrics::GAP;
+        let target_create = if layout.hidden.is_empty() {
+            overflow_start
+        } else {
+            overflow_start + metrics::OVERFLOW_CONTROL + metrics::GAP
+        };
+        let mut targets: Vec<(metrics::Part, metrics::Span)> = layout
+            .tabs
+            .iter()
+            .map(|b| {
+                (
+                    metrics::Part::Tab(b.id),
+                    metrics::Span {
+                        x: b.inline_start,
+                        width: b.width,
+                    },
+                )
+            })
+            .collect();
+        if !layout.hidden.is_empty() {
+            targets.push((
+                metrics::Part::Overflow,
+                metrics::Span {
+                    x: overflow_start,
+                    width: metrics::OVERFLOW_CONTROL,
+                },
+            ));
+        }
+        targets.push((
+            metrics::Part::Create,
+            metrics::Span {
+                x: target_create,
+                width: metrics::CREATE_CONTROL,
+            },
+        ));
+        // The lab captures at rest, as the reference finishes its animations.
+        #[cfg(feature = "dev-capture")]
+        let at_rest = crate::lab::settled();
+        #[cfg(not(feature = "dev-capture"))]
+        let at_rest = false;
+        let enabled = source.is_none() && insert.is_none() && !cx.reduce_motion() && !at_rest;
+        let (spans, moving) = self
+            .header_motion
+            .entry((root.clone(), group))
+            .or_default()
+            .frame(&targets, enabled, std::time::Instant::now());
+        if moving && !self.motion_frame {
+            self.motion_frame = true;
+            cx.spawn(async move |this, cx| {
+                cx.background_executor()
+                    .timer(std::time::Duration::from_millis(16))
+                    .await;
+                let _ = this.update(cx, |s, cx| {
+                    s.motion_frame = false;
+                    cx.notify();
+                });
+            })
+            .detach();
+        }
+        let span = |part: metrics::Part| {
+            spans
+                .iter()
+                .find(|(p, _)| *p == part)
+                .map(|(_, s)| *s)
+                .unwrap_or(metrics::Span { x: 0., width: 0. })
+        };
         let m = theme::ty();
         let mut rail = div().relative().w_full().h(px(metrics::COMPACT));
         for bounds in &layout.tabs {
             let tab = bounds.id;
+            let drawn = span(metrics::Part::Tab(tab));
             if tab == SLOT {
                 // `.desktop-terminal-tab-drop-slot`.
                 let allowed = insert.is_some_and(|(_, allowed)| allowed);
@@ -147,8 +216,8 @@ impl Workbench {
                     div()
                         .absolute()
                         .top_0()
-                        .left(px(bounds.inline_start))
-                        .w(px(bounds.width))
+                        .left(px(drawn.x))
+                        .w(px(drawn.width))
                         .h(px(metrics::COMPACT))
                         .rounded(px(RADIUS))
                         .border_1()
@@ -173,6 +242,7 @@ impl Workbench {
                 root: root.clone(),
                 tab,
                 title: label.to_string(),
+                grab: Point::default(),
             };
             let close_label: SharedString = crate::localization::tf(
                 "terminal.closeSession",
@@ -229,7 +299,12 @@ impl Workbench {
                     focus.focus(w, cx);
                     cx.notify();
                 }))
-                .on_drag(drag, |drag, _, _, cx| cx.new(|_| drag.clone()))
+                .on_drag(drag, |drag, grab, _, cx| {
+                    cx.new(|_| DragTab {
+                        grab,
+                        ..drag.clone()
+                    })
+                })
                 .on_mouse_down(
                     MouseButton::Right,
                     cx.listener(move |s, e: &MouseDownEvent, _, cx| {
@@ -276,10 +351,11 @@ impl Workbench {
                     .id(("tab-frame", tab))
                     .group(group_name.clone())
                     .absolute()
-                    .left(px(bounds.inline_start))
+                    .left(px(drawn.x))
                     .top_0()
-                    .w(px(bounds.width))
+                    .w(px(drawn.width))
                     .h(px(metrics::COMPACT))
+                    .overflow_hidden()
                     // `[data-move-source="true"]`.
                     .when(moving, |d| d.opacity(0.56))
                     .child(select)
@@ -306,8 +382,9 @@ impl Workbench {
                     t.muted
                 }))
         };
-        let mut create_start = layout.tabs_width + metrics::GAP;
+        let create_start = span(metrics::Part::Create).x;
         if !layout.hidden.is_empty() {
+            let overflow = span(metrics::Part::Overflow);
             let label: SharedString = crate::localization::tf(
                 "terminal.tabs.more",
                 &[("count", layout.hidden.len().into())],
@@ -317,9 +394,10 @@ impl Workbench {
                 self.overflow_menu(group, label, width, cx)
                     .absolute()
                     .top_0()
-                    .left(px(create_start)),
+                    .left(px(overflow.x))
+                    .w(px(overflow.width))
+                    .overflow_hidden(),
             );
-            create_start += metrics::OVERFLOW_CONTROL + metrics::GAP;
         }
         rail = rail.child(
             square(

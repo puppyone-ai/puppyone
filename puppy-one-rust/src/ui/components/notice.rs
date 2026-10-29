@@ -87,6 +87,8 @@ pub struct FloatingNotice {
     tone: NoticeTone,
     actions: Vec<NoticeAction>,
     on_dismiss: Option<Handler>,
+    /// `dismissLabel` (default `shared-ui.notice.dismiss`).
+    dismiss_label: Option<SharedString>,
     /// `--po-floating-notice-font-size` / `-line-height` overrides.
     text: Option<(f32, f32)>,
 }
@@ -98,8 +100,13 @@ impl FloatingNotice {
             tone: NoticeTone::Neutral,
             actions: vec![],
             on_dismiss: None,
+            dismiss_label: None,
             text: None,
         }
+    }
+    pub fn dismiss_label(mut self, label: impl Into<SharedString>) -> Self {
+        self.dismiss_label = Some(label.into());
+        self
     }
     /// The host surface's type role (a terminal speaks in the Right
     /// Sidebar meta size).
@@ -216,7 +223,10 @@ impl RenderOnce for FloatingNotice {
                 )
             })
             .when_some(self.on_dismiss, |d, handler| {
-                let label = crate::localization::t("shared-ui.notice.dismiss");
+                let label = self
+                    .dismiss_label
+                    .clone()
+                    .unwrap_or_else(|| crate::localization::t("shared-ui.notice.dismiss").into());
                 d.child(
                     div()
                         .id(crate::ui::components::menu::child_id(&id, "dismiss"))

@@ -749,13 +749,46 @@
       "targets": [
         "src/features/workbench/mod.rs",
         "src/features/workbench/layout.rs",
-        "src/features/workbench/persistence.rs"
+        "src/features/workbench/persistence.rs",
+        "src/features/workbench/header.rs",
+        "src/features/workbench/header_layout.rs"
       ],
       "evidence": [
         "test:move_split_preserves_identity_and_order",
-        "test:stored_layout_rejects_orphan_tabs"
+        "test:stored_layout_rejects_orphan_tabs",
+        "test:layout_changes_animate_from_where_elements_are_drawn",
+        "test:a_history_chat_that_cannot_resume_goes_back_to_the_launcher"
       ],
-      "remaining": "38px tab bar with compact/overflow modes, brand icons with the running-chat dot (AuxiliaryWorkbenchStatus), tab context menu, drag split and close confirmation are native. Session-header motion, tab-move preview animation and render-failure boundaries are not ported."
+      "remaining": "38px tab bar with compact/overflow modes, brand icons with the running-chat dot (AuxiliaryWorkbenchStatus), tab context menu, drag split and close confirmation are native. Session-header motion (200ms cubic-bezier(0.2,0,0,1) from the drawn position; new tabs grow from their neighbour, overflow from the create control; off while dragging, inserting or with reduced motion), the tab-move preview 18px before and 12px below the pointer, and the creation failure (a History conversation that cannot resume returns its tab to the launcher with a Retry/Dismiss notice) are native. Not ported: the preview's popover shadow (GPUI draws it under the transparent body)."
+    },
+    {
+      "name": "Workbench header motion, tab-move preview and creation failure",
+      "status": "partial",
+      "sources": [
+        "src/features/app-shell/auxiliary-workbench/layout/useWorkbenchSessionHeaderMotion.ts",
+        "src/features/app-shell/auxiliary-workbench/layout/interactions/workbenchTabMovePreview.ts",
+        "src/features/app-shell/auxiliary-workbench/layout/AuxiliaryWorkbenchCreationFailure.tsx"
+      ],
+      "targets": [
+        "src/features/workbench/header.rs",
+        "src/features/workbench/header_layout.rs",
+        "src/features/workbench/mod.rs",
+        "src/ui/components/notice.rs"
+      ],
+      "evidence": [
+        "test:layout_changes_animate_from_where_elements_are_drawn",
+        "test:a_history_chat_that_cannot_resume_goes_back_to_the_launcher"
+      ],
+      "remaining": "Native resume errors are free text, so the notice uses the generic itemLoadFailed message instead of the per-code openError messages; the pixel lab captures the header at rest (as the reference finishes animations)."
+    },
+    {
+      "name": "Workbench render failure boundaries",
+      "status": "excluded",
+      "sources": [
+        "src/features/app-shell/auxiliary-workbench/layout/AuxiliaryWorkbenchRenderBoundary.tsx"
+      ],
+      "targets": [],
+      "reason": "React error boundaries catch exceptions thrown while rendering. Native render functions return elements and cannot throw; a failing item host (Agent runtime, PTY) is already isolated per tab and reported in that tab's own content (failed session card, terminal system line), and process-level supervision is A-14/A-16."
     },
     {
       "name": "Changes panel (source control)",

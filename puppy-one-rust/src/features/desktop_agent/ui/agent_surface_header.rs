@@ -14,6 +14,11 @@ use gpui_kit::base::h_flex;
 #[derive(Clone, Debug)]
 pub enum AgentChatEvent {
     OpenModelConnections,
+    /// Resuming the History conversation `id` failed before it showed
+    /// anything (`AuxiliaryWorkbenchCreationFailure`).
+    ResumeFailed {
+        id: String,
+    },
 }
 impl EventEmitter<AgentChatEvent> for AgentChat {}
 

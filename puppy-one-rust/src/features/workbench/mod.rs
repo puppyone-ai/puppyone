@@ -86,6 +86,9 @@ struct DragTab {
     root: PathBuf,
     tab: Id,
     title: String,
+    /// Where the pointer held the tab; the preview sits 18px before and
+    /// 12px below the pointer (`moveWorkbenchTabMovePreview`).
+    grab: Point<Pixels>,
 }
 impl Render for DragTab {
     /// `.desktop-terminal-tab-move-preview`: a quiet pill under the pointer.
@@ -97,6 +100,8 @@ impl Render for DragTab {
         let t = cx.palette();
         let m = theme::ty();
         div()
+            .ml(self.grab.x - px(18.))
+            .mt(self.grab.y + px(12.))
             .max_w(px(220.))
             .px(px(10.))
             .py(px(6.))
@@ -148,6 +153,9 @@ pub struct Workbench {
     header_focus: HashMap<(PathBuf, Id), FocusHandle>,
     /// Rendered tab window per group (`preferredVisibleSessionIds`).
     header_windows: HashMap<(PathBuf, Id), Vec<Id>>,
+    /// Each group header's layout motion, and whether a frame is scheduled.
+    header_motion: HashMap<(PathBuf, Id), header_layout::Motion>,
+    motion_frame: bool,
     /// Hidden items of each group's header (its overflow menu).
     overflow_hidden: HashMap<Id, Vec<Id>>,
     /// The tab being dragged and where releasing it would put it.
@@ -168,6 +176,13 @@ pub struct Workbench {
     setup: Option<Entity<crate::features::local_agent_setup::SetupSection>>,
     /// This window (`agent_presence::owner`).
     owner: String,
+    /// `creationFailure`: a History conversation that could not be opened.
+    creation_failure: Option<CreationFailure>,
+}
+struct CreationFailure {
+    tab: Id,
+    installation: Installation,
+    id: String,
 }
 impl Workbench {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
@@ -229,6 +244,8 @@ impl Workbench {
             context_menu: None,
             header_focus: HashMap::new(),
             header_windows: HashMap::new(),
+            header_motion: HashMap::new(),
+            motion_frame: false,
             overflow_hidden: HashMap::new(),
             dragging: None,
             drop_intent: None,
@@ -238,6 +255,7 @@ impl Workbench {
             preferences: None,
             setup: None,
             owner: crate::features::agent_presence::owner(window),
+            creation_failure: None,
         }
     }
     #[cfg(feature = "dev-capture")]
@@ -438,15 +456,7 @@ impl Workbench {
                     view
                 });
                 cx.observe(&view, |_, _, cx| cx.notify()).detach();
-                cx.subscribe(
-                    &view,
-                    |_, _, event: &super::desktop_agent::AgentChatEvent, cx| match event {
-                        super::desktop_agent::AgentChatEvent::OpenModelConnections => {
-                            cx.emit(WorkbenchEvent::OpenModelConnections)
-                        }
-                    },
-                )
-                .detach();
+                cx.subscribe(&view, Self::chat_event).detach();
                 Content::Chat(view)
             }
             RetainedItem::Terminal { .. } => {
@@ -566,15 +576,7 @@ impl Workbench {
             if let Some(installation) = installation.clone().filter(|i| i.chat && self.chat_mode) {
                 let view = cx.new(|cx| AgentChat::new(installation, root, history, window, cx));
                 cx.observe(&view, |_, _, cx| cx.notify()).detach();
-                cx.subscribe(
-                    &view,
-                    |_, _, event: &super::desktop_agent::AgentChatEvent, cx| match event {
-                        super::desktop_agent::AgentChatEvent::OpenModelConnections => {
-                            cx.emit(WorkbenchEvent::OpenModelConnections)
-                        }
-                    },
-                )
-                .detach();
+                cx.subscribe(&view, Self::chat_event).detach();
                 Content::Chat(view)
             } else {
                 // `TerminalWorkbenchContribution`: the tab is titled by the
@@ -909,6 +911,116 @@ impl Workbench {
             self.split(group, axis, Some(tab), after, cx);
         }
     }
+    fn chat_event(
+        &mut self,
+        view: Entity<AgentChat>,
+        event: &super::desktop_agent::AgentChatEvent,
+        cx: &mut Context<Self>,
+    ) {
+        match event {
+            super::desktop_agent::AgentChatEvent::OpenModelConnections => {
+                cx.emit(WorkbenchEvent::OpenModelConnections)
+            }
+            super::desktop_agent::AgentChatEvent::ResumeFailed { id } => {
+                self.resume_failed(view, id.clone(), cx)
+            }
+        }
+    }
+    /// `recordCreationFailure`: the History item was never opened, so its
+    /// tab goes back to the launcher and a retryable notice says so.
+    fn resume_failed(&mut self, view: Entity<AgentChat>, id: String, cx: &mut Context<Self>) {
+        let installation = view.read(cx).installation().clone();
+        let Some(project) = self.project_mut() else {
+            return;
+        };
+        let Some(tab) = project
+            .content
+            .iter()
+            .find(|(_, c)| matches!(c, Content::Chat(v) if *v == view))
+            .map(|(tab, _)| *tab)
+        else {
+            return;
+        };
+        project.content.insert(tab, Content::Launcher);
+        self.creation_failure = Some(CreationFailure {
+            tab,
+            installation,
+            id,
+        });
+        cx.notify();
+    }
+    /// `retryCreation`: open the same conversation in the same tab again.
+    fn retry_creation(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(failure) = self.creation_failure.take() else {
+            return;
+        };
+        let group = self.project().and_then(|p| {
+            p.layout
+                .groups
+                .iter()
+                .find(|(_, g)| g.tabs.contains(&failure.tab))
+                .map(|(group, _)| *group)
+        });
+        let Some(group) = group else {
+            cx.notify();
+            return;
+        };
+        self.chat_mode = true;
+        self.launch(
+            group,
+            Some(failure.tab),
+            Some(failure.installation),
+            true,
+            window,
+            cx,
+        );
+        if let Some(Content::Chat(view)) = self.project().and_then(|p| p.content.get(&failure.tab))
+        {
+            view.update(cx, |view, _| view.resume_when_ready(failure.id));
+        }
+        cx.notify();
+    }
+    /// `AuxiliaryWorkbenchCreationFailure` in the panel's top notice stack.
+    fn creation_notice(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        use crate::ui::components::{
+            FloatingNotice, NoticeAction, NoticePlacement, NoticeStack, NoticeTone,
+        };
+        self.creation_failure.as_ref()?;
+        let ty = theme::ty();
+        let item = crate::localization::tf(
+            "agent.panel.chat",
+            &[("agent", crate::localization::t("agent.name").into())],
+        );
+        let message = crate::localization::tf(
+            "terminal.workbench.itemLoadFailed",
+            &[("item", item.into())],
+        );
+        let entity = cx.entity();
+        let retry = entity.clone();
+        Some(
+            NoticeStack::new(NoticePlacement::Top, 8., 12., 0.)
+                .child(
+                    FloatingNotice::new("workbench-creation-failure", message)
+                        .tone(NoticeTone::Danger)
+                        .text(ty.right.meta, ty.right.meta_line_height)
+                        .action(NoticeAction::new(
+                            "workbench-creation-retry",
+                            crate::localization::t("common.action.retry"),
+                            move |window, cx| {
+                                retry.update(cx, |s, cx| s.retry_creation(window, cx))
+                            },
+                        ))
+                        .dismiss_label(crate::localization::t("terminal.workbench.dismissError"))
+                        .on_dismiss(move |_, cx| {
+                            entity.update(cx, |s, cx| {
+                                s.creation_failure = None;
+                                cx.notify();
+                            })
+                        }),
+                )
+                .into_any_element(),
+        )
+    }
     pub fn set_preference_store(
         &mut self,
         store: Entity<crate::features::settings::preferences_store::PreferencesStore>,
@@ -1119,6 +1231,7 @@ impl Render for Workbench {
                     })
                     .child(div().flex_1().min_h_0().child(content)),
             )
+            .children(self.creation_notice(cx))
     }
 }
 
@@ -1158,6 +1271,46 @@ mod tests {
         });
         cx.update(|w, cx| {
             let _ = w.draw(cx);
+        });
+    }
+    #[cfg(feature = "dev-capture")]
+    #[gpui::test]
+    fn a_history_chat_that_cannot_resume_goes_back_to_the_launcher(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        cx.update(gpui_kit::init);
+        let (view, cx) = cx.add_window_view(Workbench::new);
+        let tab = view.update_in(cx, |s, window, cx| {
+            s.set_workspace(PathBuf::from("/project"), cx);
+            let installation = Installation {
+                runtime: crate::agent::runtime::agent_runtime_registry::Runtime::PuppyOne,
+                id: "puppyone-agent",
+                label: "Built-in Agent".into(),
+                executable: PathBuf::new(),
+                chat: true,
+            };
+            let chat = cx.new(|cx| AgentChat::lab_fixture("chat-empty", installation, window, cx));
+            cx.subscribe(&chat, Workbench::chat_event).detach();
+            let p = s.project_mut().unwrap();
+            let tab = p.layout.add(0);
+            p.content.insert(tab, Content::Chat(chat.clone()));
+            chat.update(cx, |_, cx| {
+                cx.emit(super::super::desktop_agent::AgentChatEvent::ResumeFailed {
+                    id: "thread-1".into(),
+                })
+            });
+            tab
+        });
+        cx.run_until_parked();
+        view.update(cx, |s, cx| {
+            assert!(matches!(
+                s.project().unwrap().content[&tab],
+                Content::Launcher
+            ));
+            let failure = s.creation_failure.as_ref().unwrap();
+            assert_eq!((failure.tab, failure.id.as_str()), (tab, "thread-1"));
+            assert!(s.creation_notice(cx).is_some());
+            s.creation_failure = None;
+            assert!(s.creation_notice(cx).is_none());
         });
     }
     #[gpui::test]

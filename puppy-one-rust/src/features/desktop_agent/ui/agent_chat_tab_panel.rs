@@ -94,6 +94,8 @@ pub struct AgentChat {
     diagnostics_open: bool,
     image_previews: HashMap<String, std::sync::Arc<Image>>,
     pending_resume: Option<String>,
+    /// The History conversation being resumed, until it shows or fails.
+    resuming: Option<String>,
     /// The open session-control picker, its keyboard row and search field.
     picker_open: Option<&'static str>,
     picker_active: Option<usize>,
@@ -148,7 +150,23 @@ impl AgentChat {
                             && s.session.snapshot().state != State::Failed
                             && let Some(id) = s.pending_resume.take()
                         {
+                            s.resuming = Some(id.clone());
                             s.session.resume(id);
+                        }
+                        // A resume that fails before its conversation shows
+                        // leaves no tab behind (the workbench's creation failure).
+                        if let Some(id) = s.resuming.clone() {
+                            let snapshot = s.session.snapshot();
+                            if snapshot.state == State::Failed
+                                || (snapshot.error.is_some() && snapshot.messages.is_empty())
+                            {
+                                s.resuming = None;
+                                cx.emit(AgentChatEvent::ResumeFailed { id });
+                            } else if !snapshot.messages.is_empty()
+                                || (!s.session.busy() && snapshot.thread.as_deref() == Some(&id))
+                            {
+                                s.resuming = None;
+                            }
                         }
                         s.sync_draft(cx);
                         if s.session.snapshot().revision != before {
@@ -270,6 +288,7 @@ impl AgentChat {
         cx.observe(&composer, |_, _, cx| cx.notify()).detach();
         Self {
             pending_resume: None,
+            resuming: None,
             picker_open: None,
             picker_active: None,
             picker_query,
@@ -307,6 +326,9 @@ impl AgentChat {
     }
     pub fn runtime(&self) -> crate::agent::runtime::agent_runtime_registry::Runtime {
         self.installation.runtime
+    }
+    pub fn installation(&self) -> &Installation {
+        &self.installation
     }
     pub fn resume_when_ready(&mut self, id: String) {
         self.pending_resume = Some(id);
