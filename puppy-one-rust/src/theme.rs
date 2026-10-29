@@ -649,6 +649,11 @@ impl Theme {
 /// `app-shell/layout/desktopPaneLayout.ts` pane contract.
 /// Engine-rendered document pages (PDF): paper and the page drop shadow of
 /// Chromium's viewer. Content colours come from the document itself.
+/// `#rrggbb` of a palette colour, for web documents the app generates.
+pub fn css_hex(c: gpui::Rgba) -> String {
+    let byte = |v: f32| (v.clamp(0., 1.) * 255.).round() as u8;
+    format!("#{:02x}{:02x}{:02x}", byte(c.r), byte(c.g), byte(c.b))
+}
 pub mod document_page {
     pub fn paper() -> gpui::Hsla {
         gpui::white()

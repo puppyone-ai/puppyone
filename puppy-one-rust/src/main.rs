@@ -25,6 +25,7 @@ mod theme;
 mod typography;
 mod ui;
 mod wake;
+mod web_host;
 mod workspace;
 use gpui::*;
 fn main() {

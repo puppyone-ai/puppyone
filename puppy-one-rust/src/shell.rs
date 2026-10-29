@@ -1406,6 +1406,10 @@ impl Shell {
 }
 impl Render for Shell {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // Native web content draws above GPUI: overlays hide it, and only
+        // surfaces painted in this frame stay visible.
+        crate::web_host::set_overlay(window, !self.modals.is_empty() || self.popover.is_some());
+        crate::web_host::frame_drawn(window);
         if !cx.has_active_drag() {
             self.editor_drop = None;
         }

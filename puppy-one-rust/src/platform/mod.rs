@@ -16,3 +16,4 @@ pub mod terminal;
 pub mod text_rendering;
 pub mod ui_state_store;
 pub mod watchdog;
+pub mod webview;

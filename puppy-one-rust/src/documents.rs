@@ -373,6 +373,15 @@ impl Documents {
         ctx.after(Duration::from_millis(100));
     }
     fn open_message(&self, doc: &Document, external: bool) -> HostMessage {
+        // `documentDirectory` viewers (HTML) resolve relative assets inside
+        // the document's local folder; Cloud documents have none.
+        let folder = self
+            .workspace
+            .as_ref()
+            .filter(|ws| ws.local_root().is_some())
+            .and_then(|ws| ws.absolute(&doc.relative).ok())
+            .and_then(|p| p.parent().map(PathBuf::from));
+        crate::editor::registry::set_document_folder(&doc.id, folder);
         HostMessage::Open {
             id: doc.id.clone(),
             name: doc.relative.to_string_lossy().into_owned(),

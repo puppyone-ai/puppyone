@@ -10,7 +10,7 @@ use super::contribution::{
     Presentation::{Native, Unavailable},
     Profile, ProviderPolicy, SemanticInput, ViewerImplementation, ViewerMatch,
 };
-use crate::editor::viewers::{code, csv, image, pdf, placeholder, text};
+use crate::editor::viewers::{code, csv, html, image, media, pdf, placeholder, text};
 
 fn yes(_: &ViewerMatch, _: &str) -> bool {
     true
@@ -81,7 +81,7 @@ pub fn contributions() -> Vec<ViewerImplementation> {
             }),
             matches: |m| kind(m, "html") || viewer(m, "html-artifact"),
             editable: Some(yes),
-            presentation: Native(text::open_source),
+            presentation: Native(html::open),
         },
         ViewerImplementation {
             id: "image-preview",
@@ -116,14 +116,14 @@ pub fn contributions() -> Vec<ViewerImplementation> {
             policy: None,
             matches: |m| kind(m, "audio") || viewer(m, "audio-preview"),
             editable: None,
-            presentation: Unavailable,
+            presentation: Native(media::open_audio),
         },
         ViewerImplementation {
             id: "video-preview",
             policy: None,
             matches: |m| kind(m, "video") || viewer(m, "video-preview"),
             editable: None,
-            presentation: Unavailable,
+            presentation: Native(media::open_video),
         },
         ViewerImplementation {
             id: "text",

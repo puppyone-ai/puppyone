@@ -141,6 +141,24 @@ pub fn resolve(document: &EditorDocument) -> Resolved {
     }
 }
 
+thread_local! {
+    static FOLDERS: std::cell::RefCell<std::collections::HashMap<String, std::path::PathBuf>> =
+        std::cell::RefCell::new(Default::default());
+}
+/// The local folder a document's relative resources resolve in.
+pub fn set_document_folder(id: &str, folder: Option<std::path::PathBuf>) {
+    FOLDERS.with(|f| match folder {
+        Some(folder) => {
+            f.borrow_mut().insert(id.to_owned(), folder);
+        }
+        None => {
+            f.borrow_mut().remove(id);
+        }
+    });
+}
+pub fn document_folder(id: &str) -> Option<std::path::PathBuf> {
+    FOLDERS.with(|f| f.borrow().get(id).cloned())
+}
 /// The resolved viewer's `resourcePolicy.maxSourceBytes` for `path`.
 pub fn source_budget(path: &str) -> u64 {
     resolve(&EditorDocument::local(path))

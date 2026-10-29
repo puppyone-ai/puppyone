@@ -28,3 +28,14 @@ pub fn open(path: &Path) -> Result<(), String> {
     }
     spawn(&[path.as_os_str()])
 }
+/// Open an http(s) URL in the system browser (validated; nothing else).
+pub fn open_url(url: &str) -> Result<(), String> {
+    let parsed = url::Url::parse(url).map_err(|e| e.to_string())?;
+    if !matches!(parsed.scheme(), "http" | "https")
+        || !parsed.username().is_empty()
+        || parsed.password().is_some()
+    {
+        return Err("Only http(s) links open in the browser".into());
+    }
+    spawn(&[parsed.as_str().as_ref()])
+}
