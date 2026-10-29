@@ -100,7 +100,41 @@ impl Lab {
                 _ => return None,
             })
         });
-        let surface = if let Some((name, text)) = editor_file {
+        // Resource viewers read the fixture file itself.
+        let editor_resource = scenario.strip_prefix("editor-").and_then(|case| {
+            Some(match case {
+                "image" => "sample.png",
+                "image-broken" => "broken.png",
+                "binary" => "archive.bin",
+                _ => return None,
+            })
+        });
+        let surface = if let Some(name) = editor_resource {
+            let folder = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/editor");
+            let workspace = crate::workspace::Workspace::open(&folder).expect("fixture workspace");
+            let path = workspace
+                .resource(std::path::Path::new(name))
+                .expect("fixture resource");
+            // The preview's lease lives as long as the lab.
+            std::mem::forget(workspace);
+            let editor = cx.new(|cx| {
+                let mut editor = crate::editor::host::DocumentEditor::new(cx);
+                editor.workbench = true;
+                editor.gate(false, dark, window, cx);
+                editor.receive(
+                    &crate::documents::HostMessage::OpenResource {
+                        id: format!("reference:{name}"),
+                        name: name.to_owned(),
+                        path,
+                    },
+                    window,
+                    cx,
+                );
+                editor
+            });
+            cx.observe(&editor, |_, _, cx| cx.notify()).detach();
+            Surface::Editor(editor)
+        } else if let Some((name, text)) = editor_file {
             // `tools/reference-editor.mjs`: one active pane (EditorPaneShell)
             // over the same in-memory fixture document.
             let editor = cx.new(|cx| {

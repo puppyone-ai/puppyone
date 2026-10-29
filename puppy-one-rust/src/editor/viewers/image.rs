@@ -16,15 +16,7 @@ pub fn open(request: &SurfaceRequest, _: &mut Window, cx: &mut App) -> Box<dyn V
         SurfaceInput::Resource(resource) => Some(resource.clone()),
         _ => None,
     };
-    let image = resource
-        .as_ref()
-        .and_then(|r| r.data().ok())
-        .and_then(|data| match data {
-            PreviewData::LocalFile(path) => Some(ImageSource::from(path.clone())),
-            PreviewData::Bytes { mime, bytes } => ImageFormat::from_mime_type(mime).map(|format| {
-                ImageSource::from(Arc::new(Image::from_bytes(format, bytes.to_vec())))
-            }),
-        });
+    let image = resource.as_ref().and_then(source);
     let view = cx.new(|_| ImagePreview {
         resource,
         image,
@@ -79,14 +71,7 @@ impl ViewerSurface for ImageSurface {
     fn rebind_resource(&self, resource: &PreviewResource, cx: &mut App) {
         self.view.update(cx, |view, cx| {
             view.resource = Some(resource.clone());
-            view.image = resource.data().ok().and_then(|data| match data {
-                PreviewData::LocalFile(path) => Some(ImageSource::from(path.clone())),
-                PreviewData::Bytes { mime, bytes } => {
-                    ImageFormat::from_mime_type(mime).map(|format| {
-                        ImageSource::from(Arc::new(Image::from_bytes(format, bytes.to_vec())))
-                    })
-                }
-            });
+            view.image = source(resource);
             cx.notify();
         });
         if let Ok(PreviewData::LocalFile(path)) = resource.data() {
@@ -96,11 +81,64 @@ impl ViewerSurface for ImageSurface {
     }
 }
 
+fn source(resource: &PreviewResource) -> Option<ImageSource> {
+    resource.data().ok().and_then(|data| match data {
+        PreviewData::LocalFile(path) => Some(ImageSource::from(path.clone())),
+        PreviewData::Bytes { mime, bytes } => ImageFormat::from_mime_type(mime)
+            .map(|format| ImageSource::from(Arc::new(Image::from_bytes(format, bytes.to_vec())))),
+    })
+}
+
 struct ImagePreview {
     resource: Option<PreviewResource>,
     image: Option<ImageSource>,
     /// A platform transcode is running: show loading, not failure.
     transcoding: bool,
+}
+impl ImagePreview {
+    /// `onRetryInput`: forget the failed decode and read the file again.
+    fn retry(&mut self, cx: &mut Context<Self>) {
+        if let Some(image) = self.image.take() {
+            image.remove_asset(cx);
+        }
+        self.image = self.resource.as_ref().and_then(source);
+        cx.notify();
+    }
+}
+/// `.editor-state.editor-state--stacked.danger`: the reason over Retry.
+fn failure(message: String, view: WeakEntity<ImagePreview>, p: theme::Theme) -> AnyElement {
+    let m = theme::ty();
+    v_flex_centered()
+        .gap(px(7.))
+        .text_size(px(m.ui.meta))
+        .line_height(relative(theme::NORMAL_LINE_HEIGHT))
+        .text_color(p.danger)
+        .child(message)
+        .child(
+            div()
+                .id("image-retry")
+                .mt(px(6.))
+                .h(px(theme::control()))
+                .px(px(11.))
+                .flex()
+                .items_center()
+                .border_1()
+                .border_color(p.border_subtle)
+                .rounded(px(6.))
+                .bg(p.control)
+                .hover(move |s| s.bg(p.control_hover))
+                .cursor(theme::clickable_cursor())
+                .text_color(p.text)
+                .font_weight(FontWeight(650.))
+                .child(t("common.action.retry"))
+                .on_click(move |_, _, cx| {
+                    let _ = view.update(cx, |v, cx| v.retry(cx));
+                }),
+        )
+        .into_any_element()
+}
+fn v_flex_centered() -> Div {
+    div().flex().flex_col().items_center().justify_center()
 }
 impl Render for ImagePreview {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -122,6 +160,7 @@ impl Render for ImagePreview {
             .as_ref()
             .filter(|r| r.data().is_ok())
             .and(self.image.clone());
+        let view = cx.weak_entity();
         let content = match image {
             Some(image) => img(image)
                 .max_w_full()
@@ -129,10 +168,10 @@ impl Render for ImagePreview {
                 .object_fit(ObjectFit::Contain)
                 .rounded(px(6.))
                 .with_loading(move || note(t("editor.preview.loading").into(), p.muted))
-                .with_fallback(move || note(failed.clone(), p.danger))
+                .with_fallback(move || failure(failed.clone(), view.clone(), p))
                 .into_any_element(),
             None if self.transcoding => note(t("editor.preview.loading").into(), p.muted),
-            None => note(failed, p.danger),
+            None => failure(failed, view, p),
         };
         div()
             .id("native-image-preview")

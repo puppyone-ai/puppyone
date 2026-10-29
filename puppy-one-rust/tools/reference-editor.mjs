@@ -33,6 +33,10 @@ for (const mode of ['dark', 'light']) {
   cases.push({id: `md-source-${mode}`, file: 'sample.md', mode, view: 'source'});
   cases.push({id: `json-${mode}`, file: 'sample.json', mode});
   cases.push({id: `code-${mode}`, file: 'sample.ts', mode});
+  // Resource viewers read a URL; a binary file shows the fallback preview.
+  cases.push({id: `image-${mode}`, file: 'sample.png', mode, resource: 'image/png', ready: '.native-image-preview-shell[data-preview-state="ready"]'});
+  cases.push({id: `image-broken-${mode}`, file: 'broken.png', mode, resource: 'image/png', ready: '.editor-state[role="alert"]'});
+  cases.push({id: `binary-${mode}`, file: 'archive.bin', mode, resource: 'application/octet-stream', ready: '.document-preview'});
 }
 
 async function run() {
@@ -54,8 +58,11 @@ async function run() {
       for (const [key, value] of Object.entries(values)) catalogs[locale][`${ns}.${key}`] = value;
     }
   }
-  const documents = {};
-  for (const file of new Set(cases.map(c => c.file))) documents[file] = await readFile(path.join(fixtures, file), 'utf8');
+  const documents = {}, fileUrls = {};
+  for (const c of cases) {
+    if (c.resource) fileUrls[c.file] = `data:${c.resource};base64,${(await readFile(path.join(fixtures, c.file))).toString('base64')}`;
+    else documents[c.file] = await readFile(path.join(fixtures, c.file), 'utf8');
+  }
   const input = `
 import React from 'react';import {createRoot} from 'react-dom/client';
 import {LocalizationProvider} from '@puppyone/localization/react';
@@ -69,7 +76,7 @@ import {EditorPaneShell} from ${JSON.stringify(source('src/features/editor-workb
 import ${JSON.stringify(source('src/features/editor-workbench/layout/desktop-editor-split-view.css'))};
 import {resolveTypography, DEFAULT_TYPOGRAPHY_PREFERENCES} from ${JSON.stringify(source('src/features/typography/fontCatalog.ts'))};
 import {applyTypographyToElement} from ${JSON.stringify(source('src/features/typography/typographyRuntime.ts'))};
-const catalogs=${JSON.stringify(catalogs)};const documents=${JSON.stringify(documents)};const noop=()=>{};
+const catalogs=${JSON.stringify(catalogs)};const documents=${JSON.stringify(documents)};const fileUrls=${JSON.stringify(fileUrls)};const noop=()=>{};
 window.puppyoneDesktop={getPlatformCapabilities:async()=>({platform:'macos'})};
 applyTypographyToElement(document.documentElement, resolveTypography(DEFAULT_TYPOGRAPHY_PREFERENCES));
 const f=window.fixture;
@@ -81,8 +88,8 @@ const localization={initialState,initialCatalog:catalogs[initialState.locale],fa
 const doc={path:f.file,name:f.file,type:getFileSemanticKind(f.file,'file'),version:'reference-1',markdownDialect:null,sourceKind:'local'};
 const {viewer,format,resolvedExtension}=resolveEditorViewer(doc);
 window.__viewerId=viewer.id;
-const raw=documents[f.file];const content=viewer.normalizeContent?.(raw,doc)??raw;
-const context={document:doc,format,resolvedExtension,content,resourcePolicy:viewer.resourcePolicy,canEdit:true,hideSourceView:false,loading:false,fileUrlLoading:false,fileIconTheme:'default',
+const raw=documents[f.file]??'';const content=viewer.normalizeContent?.(raw,doc)??raw;
+const context={document:doc,format,resolvedExtension,content,resourcePolicy:viewer.resourcePolicy,canEdit:true,hideSourceView:false,loading:false,fileUrl:fileUrls[f.file]??null,fileUrlLoading:false,fileUrlError:null,onRetryInput:noop,fileIconTheme:'default',
  editorInteractionPreferences:{showSaveStatus:false,markdownBlockDragEnabled:false,markdownHeadingOutlineEnabled:false},htmlTrustMode:'safe',workspaceId:'reference',workspaceRoot:'/reference',markdownEnvironment:null,documentNavigation:null,contextMapEnvironment:null,appPreview:null,aiEditFile:null};
 const pane={kind:'leaf',id:'pane-1',documentPath:doc.path};
 const drop={dropIntent:null,over:noop,leave:noop,drop:noop};
@@ -131,7 +138,7 @@ createRoot(document.getElementById('root')).render(<Fixture/>);`;
       const html = `<!doctype html><html lang="en" class="${dark}" data-interface-style="default"><meta charset="utf-8"><style>${style}\n${Object.values(theme).filter(Boolean).map(css => `@layer sub-theme {\n${css}\n}`).join('\n')}\nhtml,body,#root{margin:0;width:100%;height:100%;overflow:hidden}body{background:var(--po-canvas);color:var(--po-text)}</style><body class="app-shell theme-root ${dark}" data-po-appearance-root data-sub-theme-id="default.neutral" data-interface-style="default"><div id="root" style="position:relative"></div><div id="desktop-overlay-root" class="desktop-overlay-root ${dark}" data-po-appearance-root data-sub-theme-id="default.neutral" data-interface-style="default"></div><script>window.fixture=${JSON.stringify({...c, locale: 'en'})};window.__errors=[];window.addEventListener('error',e=>window.__errors.push(e.message));window.addEventListener('unhandledrejection',e=>window.__errors.push(String(e.reason)));</script><script type="module">${script.replaceAll('</script', '<\\/script')}</script>`;
       const page = path.join(profile, 'fixture.html'); await writeFile(page, html); await win.loadFile(page);
       await win.webContents.executeJavaScript(`(async()=>{await document.fonts.ready;
-        const ready=()=>document.querySelector(window.fixture.file.endsWith('.csv')?'.csv-table-editor, [class*="csv-table"]':'.cm-content');
+        const ready=()=>document.querySelector(window.fixture.ready??(window.fixture.file.endsWith('.csv')?'.csv-table-editor, [class*="csv-table"]':'.cm-content'));
         for(let i=0;i<250&&!ready()&&!window.__errors.length;i++)await new Promise(r=>setTimeout(r,20));
         if(!ready())throw Error('Viewer did not render: '+window.__errors.join(';'));
         await new Promise(r=>setTimeout(r,600));})()`);
@@ -157,6 +164,7 @@ createRoot(document.getElementById('root')).render(<Fixture/>);`;
           tokens:Object.fromEntries(['--po-canvas','--po-text','--po-text-muted','--po-accent','--po-font-content','--po-font-mono','--po-user-text-size-content','--po-divider'].map(n=>[n,css(n)])),
           elements:[...pick('.desktop-editor-pane,.desktop-editor-pane-content,.desktop-editor-pane-handle-shell,.desktop-editor-pane-handle,.desktop-editor-pane-menu,.desktop-editor-pane-menu *[class]'),
             ...pick('.cm-editor,.cm-scroller,.cm-content,.cm-line,.cm-line *[class]'),
+            ...pick('.native-preview,.native-preview *,.editor-state,.editor-state *,.document-preview,.document-preview *'),
             ...pick('[class*="csv"]'),...pick('table,th,td'),...pick('[class*="cm-md-"]:not(.cm-line)',600)]};})()`);
       const image = await win.webContents.capturePage(); if (image.isEmpty()) throw Error('Empty reference');
       await writeFile(path.join(out, `${c.id}.png`), image.toPNG());

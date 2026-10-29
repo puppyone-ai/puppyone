@@ -4,6 +4,9 @@
     {"scenario": "code", "width": 1060, "height": 760},
     {"scenario": "json", "width": 1060, "height": 760},
     {"scenario": "md", "width": 1060, "height": 760},
-    {"scenario": "csv", "width": 1060, "height": 760}
+    {"scenario": "csv", "width": 1060, "height": 760},
+    {"scenario": "image", "width": 1060, "height": 760},
+    {"scenario": "image-broken", "width": 1060, "height": 760},
+    {"scenario": "binary", "width": 1060, "height": 760}
   ]
 }
