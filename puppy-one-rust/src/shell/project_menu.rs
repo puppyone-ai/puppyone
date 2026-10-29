@@ -6,7 +6,6 @@
 //! one is open so commands and keys can open it too.
 use super::*;
 use crate::{
-    features::settings::preference_types::RecentProject,
     localization::{t as tr, tf},
     ui::components::{
         Button, ButtonVariant, Icon, IconButton, Menu, MenuItem, MenuVariant, PopoverMenu,
@@ -142,7 +141,7 @@ impl Shell {
             .min_w_0();
         if open {
             let fill: Box<dyn FnOnce(Menu) -> Menu> = match popover {
-                Popover::Project => Box::new(self.project_menu()),
+                Popover::Project => Box::new(self.project_menu(cx)),
                 Popover::Location => Box::new(self.location_menu(cx)),
             };
             menu = menu.menu(move |surface, window, _| {
@@ -158,8 +157,9 @@ impl Shell {
         }
         menu
     }
-    /// `DesktopWorkspaceSwitcher` "projects" view.
-    fn project_menu(&self) -> impl FnOnce(Menu) -> Menu + 'static {
+    /// `DesktopWorkspaceSwitcher` "projects" view over the shared project
+    /// list (`projectCatalog.items`).
+    fn project_menu(&self, cx: &App) -> impl FnOnce(Menu) -> Menu + 'static {
         let host = self.weak.clone();
         let action = move |command: Command| {
             let host = host.clone();
@@ -168,17 +168,18 @@ impl Shell {
             }
         };
         let current = self
-            .files
-            .workspace
-            .as_ref()
-            .and_then(|ws| ws.local_root().map(PathBuf::from));
+            .workspace_root()
+            .map(|p| p.to_string_lossy().into_owned());
+        let hosted = self.hosted_project();
+        let t = cx.palette();
         let projects = self
-            .recent_projects
-            .iter()
-            .take(10)
+            .project_items(cx)
+            .into_iter()
             .enumerate()
-            .map(|(index, project)| {
-                self.project_item(index, project, current.as_ref() == Some(&project.path))
+            .map(|(index, item)| {
+                let selected = (item.local_path.is_some() && item.local_path == current)
+                    || (hosted.is_some() && item.cloud_project == hosted);
+                self.project_item(index, item, selected, t)
             })
             .collect::<Vec<_>>();
         let home = MenuItem::new(tr("shell.workspaceSwitcher.home"))
@@ -201,34 +202,20 @@ impl Shell {
         }
     }
     /// `DesktopProjectMenuItem`: the current project carries a check at the
-    /// row end; hovering any row swaps the end slot for a copy-path button.
-    fn project_item(&self, index: usize, project: &RecentProject, current: bool) -> MenuItem {
+    /// row end; hovering a checkout swaps the end slot for a copy-path
+    /// button. Choosing keeps this window for a checkout; a hosted-only
+    /// Project opens in its own window.
+    fn project_item(
+        &self,
+        index: usize,
+        item: crate::workspace::cloud::catalog::Item,
+        current: bool,
+        t: Theme,
+    ) -> MenuItem {
         let open_host = self.weak.clone();
-        let copy_host = self.weak.clone();
-        let path = project.path.clone();
-        let copy_path = project.path.display().to_string();
-        let copy_label = tr("shell.workspaceSwitcher.copyPath");
-        let copy = IconButton::new(
-            ("copy-project-path", index),
-            Icon::new("copy").small().stroke(2.),
-        )
-        .label(format!("{copy_label}: {}", project.name))
-        .tooltip(format!("{copy_label}\n{copy_path}"))
-        .with_size(px(COPY_BUTTON))
-        .on_click(move |_, _, cx| {
-            cx.stop_propagation();
-            cx.write_to_clipboard(ClipboardItem::new_string(copy_path.clone()));
-            let _ = copy_host.update(cx, |s, cx| {
-                s.popover = None;
-                cx.notify()
-            });
-        });
-        MenuItem::new(project.name.clone())
-            .icon_sized(
-                Icon::product(crate::ui::components::ProductIcon::Folder)
-                    .small()
-                    .stroke(1.85),
-            )
+        let name = item.label.clone();
+        let mut row = MenuItem::new(name.clone())
+            .icon_element(super::home::project_icon(item.location(), t))
             .selected(current)
             .trailing(
                 div()
@@ -236,11 +223,41 @@ impl Shell {
                     .flex()
                     .justify_center()
                     .when(current, |d| d.child(Icon::new("check").small().stroke(2.))),
-            )
-            .hover_trailing(copy)
-            .on_click(move |w, cx| {
-                let path = path.clone();
-                let _ = open_host.update(cx, |s, cx| s.open_project(path, w, cx));
-            })
+            );
+        if let Some(path) = item.local_path.clone() {
+            let copy_host = self.weak.clone();
+            let copy_label = tr("shell.workspaceSwitcher.copyPath");
+            let copy_path = path.clone();
+            row = row.hover_trailing(
+                IconButton::new(
+                    ("copy-project-path", index),
+                    Icon::new("copy").small().stroke(2.),
+                )
+                .label(format!("{copy_label}: {name}"))
+                .tooltip(format!("{copy_label}\n{copy_path}"))
+                .with_size(px(COPY_BUTTON))
+                .on_click(move |_, _, cx| {
+                    cx.stop_propagation();
+                    cx.write_to_clipboard(ClipboardItem::new_string(copy_path.clone()));
+                    let _ = copy_host.update(cx, |s, cx| {
+                        s.popover = None;
+                        cx.notify()
+                    });
+                }),
+            );
+        }
+        row.on_click(move |w, cx| {
+            let _ = open_host.update(cx, |s, cx| {
+                s.popover = None;
+                if current {
+                    cx.notify();
+                } else if let Some(path) = &item.local_path {
+                    s.open_project(PathBuf::from(path), w, cx);
+                } else if let Some(project) = item.cloud_project.clone() {
+                    let _ = super::windows::open_cloud(project, cx);
+                    cx.notify();
+                }
+            });
+        })
     }
 }

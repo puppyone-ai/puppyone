@@ -10,6 +10,10 @@
 //!
 //! - [`create_project`]: the "Create a project" dialog
 use super::*;
+use crate::workspace::cloud::{
+    catalog::{self, Item, Location, Opening, history},
+    locator::{self, Locator},
+};
 use crate::{
     features::settings::preference_types::RecentProject,
     localization::{TimeUnit, relative_past, t as tr, tf},
@@ -17,7 +21,9 @@ use crate::{
     theme::metric,
     ui::{
         appearance::ActiveAppearance,
-        components::{Button, ButtonVariant, Icon, IconButton, MenuItem, MenuRow, MenuVariant},
+        components::{
+            Button, ButtonVariant, Icon, IconButton, MenuItem, MenuRow, MenuVariant, ProductIcon,
+        },
     },
 };
 use gpui_kit::{
@@ -27,7 +33,7 @@ use gpui_kit::{
 use std::{
     collections::HashMap,
     path::Path,
-    time::{Duration, SystemTime},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 mod create_project;
@@ -43,6 +49,11 @@ const SCROLLBAR_GUTTER: f32 = 12.;
 pub(super) struct Homepage {
     /// When each project last changed (`None`: unknown), by path.
     activity: HashMap<PathBuf, Option<SystemTime>>,
+    /// `puppyoneGitRemote` of each checkout whose remotes were read
+    /// (`hydrationState: "ready"`); an absent path never merges.
+    locators: HashMap<PathBuf, Option<Locator>>,
+    /// The row whose Open menu is showing.
+    pub open_menu: Option<String>,
     /// The projects the activity was read for; a new list reads again.
     read_for: Option<Vec<PathBuf>>,
     /// The homepage was showing at the last frame.
@@ -51,6 +62,57 @@ pub(super) struct Homepage {
     pub reading: bool,
 }
 
+/// `preferredWidth={252}` of the Homepage Open menu.
+const OPEN_MENU_WIDTH: f32 = 252.;
+
+/// `HomeProjectIcon`: a neutral folder, the folder with a small Cloud badge
+/// when linked, or the outline Cloud (`--po-brand-blue`) when hosted only.
+pub(super) fn project_icon(location: Location, t: Theme) -> AnyElement {
+    let glyph = |meaning: ProductIcon| Icon::product(meaning).small().stroke(1.85);
+    div()
+        .relative()
+        .size(px(14.))
+        .flex_shrink_0()
+        .child(match location {
+            Location::CloudOnly => glyph(ProductIcon::Cloud).color(t.brand_blue),
+            _ => glyph(ProductIcon::Folder),
+        })
+        .when(location == Location::Linked, |d| {
+            d.child(
+                div().absolute().right(px(-4.)).bottom(px(-3.)).child(
+                    Icon::product(ProductIcon::Cloud)
+                        .with_size(px(9.))
+                        .color(t.brand_blue),
+                ),
+            )
+        })
+        .into_any_element()
+}
+/// `getProjectName` for a catalog row.
+fn item_name(item: &Item) -> String {
+    let label = item.label.trim();
+    if !label.is_empty() && Some(label) != item.local_path.as_deref() {
+        return label.to_owned();
+    }
+    item.local_path
+        .as_deref()
+        .and_then(|p| Path::new(p).file_name())
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| tr("onboarding.projects.untitled").to_owned())
+}
+/// `useProjectOpenCaption`: where a Cloud-linked row opens.
+fn open_caption(item: &Item) -> String {
+    let mac = cfg!(target_os = "macos");
+    tr(match (item.last_opened.is_some(), item.opening()) {
+        (true, Opening::Cloud) => "shell.projectOpen.lastCloud",
+        (true, Opening::Local) if mac => "shell.projectOpen.lastMac",
+        (true, Opening::Local) => "shell.projectOpen.lastComputer",
+        (false, Opening::Cloud) => "shell.projectRuntime.label",
+        (false, Opening::Local) if mac => "shell.workspaceSwitcher.location.thisMac",
+        (false, Opening::Local) => "shell.workspaceSwitcher.location.thisComputer",
+    })
+    .to_owned()
+}
 /// `getProjectName`: the label, else the folder's name.
 fn project_name(project: &RecentProject) -> String {
     let label = project.name.trim();
@@ -104,10 +166,13 @@ impl Shell {
     pub(super) fn home_visible(&self) -> bool {
         !self.fixture && (self.home || self.files.workspace.is_none())
     }
-    /// Reads when each project last changed whenever the homepage appears or
-    /// its list changes, off the main thread.
+    /// Hydrates the remembered projects (when each last changed, and its
+    /// canonical Cloud locator) whenever the homepage or the Header project
+    /// menu appears or the list changes, off the main thread.
     pub(super) fn refresh_home_activity(&mut self, cx: &mut Context<Self>) {
-        let shown = self.home_visible();
+        // The Header menus read the same list (projects; This Mac for a
+        // hosted-only window).
+        let shown = self.home_visible() || self.popover.is_some();
         let appeared = shown && !self.homepage.shown;
         self.homepage.shown = shown;
         let paths: Vec<PathBuf> = self
@@ -125,42 +190,134 @@ impl Shell {
                 .into_iter()
                 .map(|path| {
                     let changed = project_activity::last_modified(&path);
-                    (path, changed)
+                    let remote = project_activity::remote_urls(&path)
+                        .map(|urls| locator::canonical_locator(urls.iter().map(String::as_str)));
+                    (path, changed, remote)
                 })
-                .collect::<HashMap<_, _>>()
+                .collect::<Vec<_>>()
         });
         cx.spawn(async move |this, cx| {
-            let activity = read.await;
+            let read = read.await;
             let _ = this.update(cx, |s, cx| {
-                s.homepage.activity = activity;
+                s.homepage.locators = read
+                    .iter()
+                    .filter_map(|(path, _, remote)| Some((path.clone(), remote.clone()?)))
+                    .collect();
+                s.homepage.activity = read
+                    .into_iter()
+                    .map(|(path, changed, _)| (path, changed))
+                    .collect();
                 s.homepage.reading = false;
                 cx.notify();
             });
         })
         .detach();
     }
-    /// The projects in homepage order: last change first, then by name.
-    fn home_projects(&self) -> Vec<(&RecentProject, Option<SystemTime>)> {
-        let mut projects: Vec<_> = self
+    /// `useHomepageCloudProjects().items`: the one flat project list the
+    /// Homepage and the Header project menu share. Location chooses icons
+    /// and actions, never the rank; Cloud rows come only from the current
+    /// account's catalog and merge with a checkout only through its freshly
+    /// read, trusted Project-root locator.
+    pub(super) fn project_items(&self, cx: &App) -> Vec<Item> {
+        use crate::features::cloud_catalog::State;
+        let account = crate::features::cloud_account::broker_and_binding(cx)
+            .map(|(_, binding)| binding)
+            .filter(|_| crate::features::flags::cloud_enabled(&self.preferences, cx));
+        let catalog = self.cloud_catalog.read(cx);
+        let (cloud, activity) = match (&catalog.state, &account) {
+            (State::Ready(entries), Some(_)) => (entries.as_slice(), &catalog.activity),
+            _ => (&[][..], &catalog.activity),
+        };
+        let api = account.as_ref().map(|b| b.environment.api().to_owned());
+        let millis = |t: SystemTime| {
+            t.duration_since(UNIX_EPOCH)
+                .ok()
+                .map(|d| d.as_millis() as i64)
+        };
+        let local: Vec<catalog::LocalEntry> = self
             .recent_projects
             .iter()
-            .map(|p| (p, self.homepage.activity.get(&p.path).copied().flatten()))
+            .map(|p| catalog::LocalEntry {
+                path: p.path.to_string_lossy().into_owned(),
+                name: project_name(p),
+                modified: self
+                    .homepage
+                    .activity
+                    .get(&p.path)
+                    .copied()
+                    .flatten()
+                    .and_then(millis),
+                trusted_locator: api.as_deref().and_then(|api| {
+                    self.homepage
+                        .locators
+                        .get(&p.path)
+                        .cloned()
+                        .flatten()
+                        .filter(|l| locator::is_trusted_git_origin(&l.origin, api, None))
+                }),
+            })
             .collect();
-        projects.sort_by(|(a, a_time), (b, b_time)| {
-            b_time
-                .cmp(a_time)
-                .then_with(|| {
-                    project_name(a)
-                        .to_lowercase()
-                        .cmp(&project_name(b).to_lowercase())
-                })
-                .then_with(|| a.path.cmp(&b.path))
-        });
-        projects
+        let mut items = catalog::build(&local, cloud, activity);
+        if let Some(binding) = &account
+            && let Some(remembered) = self
+                .preferences
+                .read(cx)
+                .state
+                .project_open_history
+                .get(&history::scope(binding.environment.api(), &binding.user))
+        {
+            history::apply(&mut items, remembered);
+        }
+        items
+    }
+    /// `useProjectOpenHistory`: remember where this account last opened a
+    /// Cloud-linked Project successfully (a committed hosted Project, or a
+    /// linked checkout). Failed and cancelled openings never get here.
+    pub(super) fn sync_open_history(&mut self, cx: &mut Context<Self>) {
+        let Some(binding) = crate::features::cloud_account::broker_and_binding(cx)
+            .map(|(_, b)| b)
+            .filter(|_| crate::features::flags::cloud_enabled(&self.preferences, cx))
+        else {
+            return;
+        };
+        let cloud = self.hosted_project();
+        let local = self
+            .workspace_root()
+            .map(|p| p.to_string_lossy().into_owned());
+        if cloud.is_none() && local.is_none() {
+            return;
+        }
+        let items = if cloud.is_some() {
+            vec![]
+        } else {
+            self.project_items(cx)
+        };
+        let Some(entry) = history::current(&items, local.as_deref(), cloud.as_deref()) else {
+            return;
+        };
+        let scope = history::scope(binding.environment.api(), &binding.user);
+        let known = self
+            .preferences
+            .read(cx)
+            .state
+            .project_open_history
+            .get(&scope)
+            .is_some_and(|h| h.contains(&entry));
+        if !known {
+            self.preferences.update(cx, |p, cx| {
+                p.change(
+                    |p| {
+                        history::record(p.project_open_history.entry(scope).or_default(), entry);
+                    },
+                    cx,
+                )
+            });
+        }
     }
     pub(super) fn home_view(&self, cx: &mut Context<Self>) -> Div {
         let t = cx.palette();
-        let has_projects = !self.recent_projects.is_empty();
+        let items = self.project_items(cx);
+        let has_projects = !items.is_empty();
         let busy = self.pending || self.files.busy() || self.files.folder_busy;
         // `OnboardingBrandLockup`: the 28px mark and the prompt in
         // `--po-text-muted`. On dark the product applies
@@ -213,7 +370,7 @@ impl Shell {
             .border_b_1()
             .border_color(t.border)
             .child(if has_projects {
-                self.project_list(busy, cx).into_any_element()
+                self.project_list(items, busy, cx).into_any_element()
             } else {
                 h_flex()
                     .child(self.create_action(true, busy, cx))
@@ -305,60 +462,81 @@ impl Shell {
             )
         })
     }
-    /// `OnboardingProjectList`: one menu row per project, its folder and
-    /// last change; hovering a row trades the time for Remove.
-    fn project_list(&self, busy: bool, cx: &mut Context<Self>) -> Stateful<Div> {
+    /// `OnboardingProjectList`: one menu row per project in the shared
+    /// order. Cloud-linked rows show where they open and a quiet Open menu;
+    /// checkouts trade their time for Remove on hover.
+    fn project_list(&self, items: Vec<Item>, busy: bool, cx: &mut Context<Self>) -> Stateful<Div> {
         let t = cx.palette();
         let now = SystemTime::now();
-        let rows = self
-            .home_projects()
+        let cloud = crate::features::flags::cloud_enabled(&self.preferences, cx);
+        let rows = items
             .into_iter()
             .enumerate()
-            .map(|(index, (project, changed))| {
-                let name = project_name(project);
-                let path = project.path.clone();
-                let remove = project.path.clone();
-                let remove_label = tf(
-                    "onboarding.projects.removeFor",
-                    &[("project", name.clone().into())],
-                );
-                let mut item = MenuItem::new(name.clone())
-                    .icon_sized(
-                        Icon::product(crate::ui::components::ProductIcon::Folder)
-                            .small()
-                            .stroke(1.85),
-                    )
-                    .detail(parent_for_display(&project.path))
+            .map(|(index, item)| {
+                let name = item_name(&item);
+                let opening = item.opening();
+                let menu_open = self.homepage.open_menu.as_deref() == Some(item.id.as_str());
+                let mut row = MenuItem::new(name.clone())
+                    .icon_element(project_icon(item.location(), t))
+                    .detail(match &item.cloud_project {
+                        Some(_) => open_caption(&item),
+                        None => item
+                            .local_path
+                            .as_deref()
+                            .map(|p| parent_for_display(Path::new(p)))
+                            .unwrap_or_default(),
+                    })
                     .disabled(busy)
-                    .hover_trailing(
-                        // `DesktopMenuIconButton.onboarding-project-remove`.
-                        IconButton::new(("home-project-remove", index), "unlink")
-                            .label(remove_label.clone())
-                            // The tooltip says the files stay (`removeHint`);
-                            // the accessible name keeps the project.
-                            .tooltip(tr("onboarding.projects.removeHint"))
-                            .with_size(px(22.))
-                            .rounded(px(5.))
-                            .color(t.text_disabled)
-                            .danger()
-                            .on_click(cx.listener(move |s, _, w, cx| {
-                                cx.stop_propagation();
-                                s.confirm_remove_project(remove.clone(), w, cx);
-                            })),
-                    )
+                    .hold_hover(menu_open)
                     .on_click({
                         let host = cx.weak_entity();
+                        let item = item.clone();
                         move |w, cx| {
-                            let _ = host.update(cx, |s, cx| s.open_project(path.clone(), w, cx));
+                            let _ = host.update(cx, |s, cx| s.open_item(&item, opening, w, cx));
                         }
                     });
-                if let Some(changed) = changed {
-                    item = item.trailing_text(modification_time(changed, now));
+                if let Some(ms) = item.modified.filter(|m| *m > 0) {
+                    let changed = UNIX_EPOCH + Duration::from_millis(ms as u64);
+                    row = row.trailing_text(modification_time(changed, now));
                 }
-                MenuRow::new(("home-project", index), item).variant(MenuVariant::Homepage)
+                let open_menu = (cloud && item.cloud_project.is_some())
+                    .then(|| self.project_open_menu(index, &item, &name, busy, menu_open, cx));
+                let remove = item.local_path.clone().map(|path| {
+                    let remove_label = tf(
+                        "onboarding.projects.removeFor",
+                        &[("project", name.clone().into())],
+                    );
+                    // `DesktopMenuIconButton.onboarding-project-remove`.
+                    IconButton::new(("home-project-remove", index), "unlink")
+                        .label(remove_label)
+                        // The tooltip says the files stay (`removeHint`);
+                        // the accessible name keeps the project.
+                        .tooltip(tr("onboarding.projects.removeHint"))
+                        .with_size(px(22.))
+                        .rounded(px(5.))
+                        .color(t.text_disabled)
+                        .danger()
+                        .on_click(cx.listener(move |s, _, w, cx| {
+                            cx.stop_propagation();
+                            s.confirm_remove_project(PathBuf::from(&path), w, cx);
+                        }))
+                });
+                if open_menu.is_some() {
+                    // `padding-inline-end: 112px` while the Open menu shows.
+                    row = row.hover_reserve(112.);
+                }
+                if open_menu.is_some() || remove.is_some() {
+                    // Open sits 34px from the end, Remove 6px.
+                    row = row.hover_trailing(h_flex().gap(px(6.)).children(open_menu).child(
+                        match remove {
+                            Some(remove) => remove.into_any_element(),
+                            None => div().w(px(22.)).into_any_element(),
+                        },
+                    ));
+                }
+                MenuRow::new(("home-project", index), row).variant(MenuVariant::Homepage)
             })
             .collect::<Vec<_>>();
-        let cloud = self.cloud_rows(busy, cx);
         v_flex()
             .id("home-projects")
             .w_full()
@@ -368,57 +546,115 @@ impl Shell {
             .gap(px(2.))
             .overflow_y_scroll()
             .children(rows)
-            .children(cloud)
     }
-    /// Hosted-only Projects from the account catalog: outline Cloud icon,
-    /// last activity, opening in a dedicated window. Local rows keep their
-    /// own list; account status never becomes a row.
-    fn cloud_rows(&self, busy: bool, cx: &mut Context<Self>) -> Vec<AnyElement> {
-        use crate::features::cloud_catalog::State;
+    /// `ProjectOpenMenu`: "Open ⌄" and the two opening choices, aligned to
+    /// its end, 4px below. This computer needs the row's checkout.
+    fn project_open_menu(
+        &self,
+        index: usize,
+        item: &Item,
+        name: &str,
+        busy: bool,
+        open: bool,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         let t = cx.palette();
-        let catalog = self.cloud_catalog.read(cx);
-        let State::Ready(entries) = &catalog.state else {
-            return vec![];
-        };
-        let mut entries: Vec<_> = entries
-            .iter()
-            .map(|e| {
-                let modified = crate::workspace::cloud::catalog::latest([
-                    e.updated,
-                    catalog.activity.get(&e.id).copied(),
-                ]);
-                (e.clone(), modified)
-            })
-            .collect();
-        entries.sort_by(|(a, at), (b, bt)| bt.cmp(at).then_with(|| a.name.cmp(&b.name)));
-        let now = SystemTime::now();
-        entries
-            .into_iter()
-            .enumerate()
-            .map(|(index, (entry, modified))| {
-                let id = entry.id.clone();
-                let mut item = MenuItem::new(entry.name.clone())
-                    .icon_sized(
-                        Icon::product(crate::ui::components::ProductIcon::Cloud)
-                            .small()
-                            .stroke(1.85)
-                            .color(t.accent),
-                    )
-                    .detail(tr("shell.projectOpen.inCloud"))
-                    .disabled(busy)
-                    .on_click(move |_, cx| {
-                        let _ = super::windows::open_cloud(id.clone(), cx);
+        let id = item.id.clone();
+        let trigger = Button::new(("home-project-open", index))
+            .variant(ButtonVariant::Quiet)
+            .label(tr("shell.projectOpen.action"))
+            .trailing(Icon::new("chevron-down").with_size(px(12.)).stroke(2.))
+            .accessibility_label(tf(
+                "shell.projectOpen.forProject",
+                &[("project", name.to_owned().into())],
+            ))
+            .disabled(busy);
+        let host = self.weak.clone();
+        let device = tr(if cfg!(target_os = "macos") {
+            "shell.projectOpen.onMac"
+        } else {
+            "shell.projectOpen.onComputer"
+        });
+        let local = {
+            let host = host.clone();
+            let item = item.clone();
+            MenuItem::new(device)
+                .icon_sized(Icon::product(ProductIcon::Local).with_size(px(15.)))
+                .disabled(item.local_path.is_none())
+                .on_click(move |w, cx| {
+                    let _ = host.update(cx, |s, cx| {
+                        s.homepage.open_menu = None;
+                        s.open_item(&item, Opening::Local, w, cx)
                     });
-                if let Some(ms) = modified.filter(|m| *m > 0) {
-                    let changed =
-                        std::time::UNIX_EPOCH + std::time::Duration::from_millis(ms as u64);
-                    item = item.trailing_text(modification_time(changed, now));
-                }
-                MenuRow::new(("home-cloud-project", index), item)
-                    .variant(MenuVariant::Homepage)
-                    .into_any_element()
+                })
+        };
+        let remote = {
+            let host = host.clone();
+            let item = item.clone();
+            MenuItem::new(tr("shell.projectOpen.inCloud"))
+                .icon_sized(
+                    Icon::product(ProductIcon::Cloud)
+                        .with_size(px(15.))
+                        .color(t.accent_text),
+                )
+                .on_click(move |w, cx| {
+                    let _ = host.update(cx, |s, cx| {
+                        s.homepage.open_menu = None;
+                        s.open_item(&item, Opening::Cloud, w, cx)
+                    });
+                })
+        };
+        let menu = crate::ui::components::PopoverMenu::new(("home-project-open-menu", index))
+            .anchor(Anchor::TopRight)
+            .offset(px(4.))
+            .open(open && !busy)
+            .on_open_change(move |opened, _, cx| {
+                let _ = host.update(cx, |s, cx| {
+                    if *opened {
+                        s.homepage.open_menu = Some(id.clone());
+                    } else if s.homepage.open_menu.as_deref() == Some(id.as_str()) {
+                        s.homepage.open_menu = None;
+                    }
+                    cx.notify();
+                });
             })
-            .collect()
+            .trigger(trigger)
+            .menu(move |surface, _, _| {
+                surface
+                    .variant(MenuVariant::Project)
+                    .min_w(px(OPEN_MENU_WIDTH))
+                    .item(local)
+                    .item(remote)
+            });
+        // The row behind must not open the project as well.
+        div()
+            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            .on_mouse_up(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            .child(menu)
+            .into_any_element()
+    }
+    /// Opens a row where it was asked to: a checkout here; Cloud in this
+    /// window for a linked row, in a dedicated window for a hosted-only one.
+    pub(super) fn open_item(
+        &mut self,
+        item: &Item,
+        opening: Opening,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match (opening, &item.local_path, &item.cloud_project) {
+            (Opening::Local, Some(path), _) => self.open_project(PathBuf::from(path), window, cx),
+            (Opening::Cloud, Some(_), Some(project)) => {
+                self.popover = None;
+                self.open_cloud(project.clone(), cx)
+            }
+            (_, None, Some(project)) => {
+                self.popover = None;
+                let _ = super::windows::open_cloud(project.clone(), cx);
+            }
+            _ => {}
+        }
+        cx.notify();
     }
     /// The page loading overlay of an explicit Cloud opening: the two
     /// request-driven messages and Cancel.

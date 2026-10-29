@@ -1662,6 +1662,7 @@ impl Render for Shell {
         self.sync_repository_cloud(cx);
         self.advance_cloud_switch(cx);
         self.refresh_home_activity(cx);
+        self.sync_open_history(cx);
         #[cfg(feature = "dev-capture")]
         let scenario_done = self.advance_capture_scenario(window, cx);
         #[cfg(not(feature = "dev-capture"))]

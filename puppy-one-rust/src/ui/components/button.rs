@@ -57,6 +57,9 @@ pub enum ButtonVariant {
     /// A raised command on a content surface (`.secondary-action`, as the
     /// binary diff summary's "Open current file").
     Raised,
+    /// `.project-open-menu-button`: hint type in the muted colour, the hover
+    /// backplate while hovered or expanded.
+    Quiet,
 }
 impl ButtonVariant {
     fn outlined(self) -> bool {
@@ -224,6 +227,13 @@ fn paint(variant: ButtonVariant, selected: bool, open: bool, disabled: bool, t: 
             fg: theme::mix(t.danger, t.muted, 0.72),
             hover_bg: theme::alpha(t.danger, 0.09),
             hover_fg: t.danger,
+        },
+        ButtonVariant::Quiet => Paint {
+            border: None,
+            bg: if open { t.hover } else { clear },
+            fg: if open { t.text } else { t.muted },
+            hover_bg: t.hover,
+            hover_fg: t.text,
         },
         ButtonVariant::Raised => Paint {
             border: Some(t.border),
@@ -394,10 +404,13 @@ impl RenderOnce for Button {
             ButtonVariant::GitAction | ButtonVariant::GitActionDanger
         );
         let raised = variant == ButtonVariant::Raised;
+        let quiet = variant == ButtonVariant::Quiet;
         // Outline and Git file actions: 13px icon at stroke 2; filled Git
         // actions: 15px at 2.25; entries: 14px at 1.85.
         let icon = self.icon.map(|icon| {
-            if outlined || git || raised {
+            if quiet {
+                icon.with_size(px(12.)).stroke(2.)
+            } else if outlined || git || raised {
                 icon.with_size(px(13.)).stroke(2.)
             } else if filled {
                 icon.with_size(px(15.)).stroke(2.25)
@@ -447,6 +460,7 @@ impl RenderOnce for Button {
                 ButtonVariant::Entry | ButtonVariant::EntryPrimary => metric::MENU_ITEM_GAP,
                 ButtonVariant::GitAction | ButtonVariant::GitActionDanger => 5.,
                 ButtonVariant::Raised => 8.,
+                ButtonVariant::Quiet => 4.,
                 _ => 6.,
             }))
             .h(height(
@@ -460,6 +474,8 @@ impl RenderOnce for Button {
             ))
             .px(px(if dialog {
                 14.
+            } else if quiet {
+                6.
             } else if raised {
                 12.
             } else if outlined {
@@ -468,7 +484,7 @@ impl RenderOnce for Button {
                 7.
             }))
             .when(entry, |b| b.justify_start())
-            .rounded(px(if outlined || dialog || entry || raised {
+            .rounded(px(if outlined || dialog || entry || raised || quiet {
                 metric::CONTROL_RADIUS
             } else {
                 metric::TOOLBAR_ACTION_RADIUS
@@ -496,6 +512,12 @@ impl RenderOnce for Button {
             .when(raised, |b| {
                 b.text_size(px(theme::ty().ui.body))
                     .font_weight(FontWeight::SEMIBOLD)
+            })
+            // `padding: 4px 6px` around the hint line.
+            .when(quiet, |b| {
+                b.h(px(24.))
+                    .text_size(px(theme::ty().ui.hint))
+                    .line_height(px(16.))
             })
             .when(entry, |b| {
                 b.text_size(px(theme::ty().ui.body))

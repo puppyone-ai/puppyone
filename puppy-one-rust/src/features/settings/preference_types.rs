@@ -173,6 +173,10 @@ pub struct Preferences {
     pub local_agents: LocalAgents,
     pub experimental: Experimental,
     pub recent_projects: Vec<RecentProject>,
+    /// `puppyone.project-open-location:{scope}`: successful openings per
+    /// account and API (`catalog::history::scope`).
+    pub project_open_history:
+        std::collections::BTreeMap<String, Vec<crate::workspace::cloud::catalog::history::Entry>>,
 }
 impl Default for Preferences {
     fn default() -> Self {
@@ -199,6 +203,7 @@ impl Default for Preferences {
             local_agents: LocalAgents::default(),
             experimental: Experimental::default(),
             recent_projects: vec![],
+            project_open_history: Default::default(),
         }
     }
 }

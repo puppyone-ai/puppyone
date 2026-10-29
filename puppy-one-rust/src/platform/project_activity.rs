@@ -73,6 +73,33 @@ pub fn last_modified(root: &Path) -> Option<SystemTime> {
     latest
 }
 
+/// `readGitRemotes` for `readWorkspacePuppyoneRemoteMetadata`: every fetch
+/// and push URL. `None` when Git could not answer (not "no remotes").
+pub fn remote_urls(root: &Path) -> Option<Vec<String>> {
+    let cancel = AtomicBool::new(false);
+    let out = match process::run(
+        Path::new("/usr/bin/git"),
+        &["remote", "-v"],
+        root,
+        None,
+        GIT_TIMEOUT,
+        &cancel,
+    ) {
+        Ok(out) => out,
+        Err(error) if error.to_lowercase().contains("not a git repository") => {
+            return Some(vec![]);
+        }
+        Err(_) => return None,
+    };
+    let text = String::from_utf8(out).ok()?;
+    let mut urls: Vec<String> = text
+        .lines()
+        .filter_map(|line| line.split_whitespace().nth(1).map(str::to_owned))
+        .collect();
+    urls.dedup();
+    Some(urls)
+}
+
 /// `readFolderActivity`: the newest file modification time.
 fn folder_activity(root: &Path) -> Option<SystemTime> {
     let mut visited = 0;
@@ -132,6 +159,23 @@ mod tests {
             .unwrap();
         fs::create_dir(temp.path().join("node_modules")).unwrap();
         assert_eq!(last_modified(temp.path()), Some(file));
+    }
+
+    #[test]
+    fn remotes_are_read_from_a_checkout_and_a_plain_folder_has_none() {
+        let temp = tempfile::tempdir().unwrap();
+        assert_eq!(remote_urls(temp.path()), Some(vec![]));
+        let git = |args: &[&str]| {
+            std::process::Command::new("/usr/bin/git")
+                .args(args)
+                .current_dir(temp.path())
+                .output()
+                .unwrap()
+        };
+        git(&["init", "-q"]);
+        let url = "https://api.puppyone.ai/git/0d3b7a4e-1f2a-4b5c-8d9e-0123456789ab.git";
+        git(&["remote", "add", "origin", url]);
+        assert_eq!(remote_urls(temp.path()), Some(vec![url.to_owned()]));
     }
 
     #[test]

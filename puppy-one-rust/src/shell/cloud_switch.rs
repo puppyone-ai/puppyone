@@ -120,9 +120,23 @@ impl Shell {
             },
         )
     }
-    /// `localAvailable`: a local host to show.
-    fn local_available(&self) -> bool {
-        self.hosted_project().is_none() || self.retained_local.is_some()
+    /// `localAvailable`: a local host to show — the retained one, or for a
+    /// hosted-only window the checkout the shared list matches to this
+    /// Project through its trusted locator. Never an unrelated project, and
+    /// never a new local copy.
+    fn local_available(&self, cx: &App) -> bool {
+        self.hosted_project().is_none()
+            || self.retained_local.is_some()
+            || self.matching_checkout(cx).is_some()
+    }
+    /// `projectItems.find(item => item.cloudProjectId === id && item.localPath)`.
+    pub(super) fn matching_checkout(&self, cx: &App) -> Option<PathBuf> {
+        let project = self.hosted_project()?;
+        self.project_items(cx)
+            .into_iter()
+            .find(|i| i.cloud_project.as_deref() == Some(project.as_str()))
+            .and_then(|i| i.local_path)
+            .map(PathBuf::from)
     }
     /// `closeWorkspaceSidebars`: collapse the right sidebar and release the
     /// focus it held; drafts, widths and sessions stay.
@@ -181,7 +195,10 @@ impl Shell {
             return;
         };
         let Some(local) = self.retained_local.take() else {
-            self.home = true;
+            match self.matching_checkout(cx) {
+                Some(path) => self.open_project(path, window, cx),
+                None => self.home = true,
+            }
             return;
         };
         if let (Some(cloud), Some(account)) = (self.visible_host(), account_key(cx)) {
@@ -312,7 +329,7 @@ impl Shell {
             .as_ref()
             .is_some_and(|s| s.failure.is_none()))
             || state == CloudState::Resolving;
-        let local_disabled = selection != Place::Local && !self.local_available();
+        let local_disabled = selection != Place::Local && !self.local_available(cx);
         let host = self.weak.clone();
         let local = MenuItem::new(device)
             .icon_sized(Icon::product(ProductIcon::Local).with_size(px(15.)))

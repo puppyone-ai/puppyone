@@ -167,6 +167,10 @@ pub struct MenuItem {
     trailing_text: Option<SharedString>,
     trailing: Option<AnyElement>,
     hover_trailing: Option<AnyElement>,
+    /// The row reads as hovered (its hover control's menu is open).
+    hover_held: bool,
+    /// End space kept free for the hover controls while hovered.
+    hover_reserve: Option<f32>,
     selected: bool,
     disabled: bool,
     danger: bool,
@@ -187,6 +191,8 @@ impl MenuItem {
             trailing_text: None,
             trailing: None,
             hover_trailing: None,
+            hover_held: false,
+            hover_reserve: None,
             selected: false,
             disabled: false,
             danger: false,
@@ -234,6 +240,18 @@ impl MenuItem {
     /// Shown in place of the trailing content while the row is hovered.
     pub fn hover_trailing(mut self, element: impl IntoElement) -> Self {
         self.hover_trailing = Some(element.into_any_element());
+        self
+    }
+    /// Keeps the hovered look while a hover control's menu is open
+    /// (`[aria-expanded="true"]`).
+    pub fn hold_hover(mut self, held: bool) -> Self {
+        self.hover_held = held;
+        self
+    }
+    /// Keeps `width` free at the row end while hovered, so the label
+    /// truncates before the hover controls (`padding-inline-end`).
+    pub fn hover_reserve(mut self, width: f32) -> Self {
+        self.hover_reserve = Some(width);
         self
     }
     pub fn selected(mut self, selected: bool) -> Self {
@@ -465,6 +483,8 @@ fn row(
         Trailing::Subtle => t.subtle,
     };
     let has_hover_trailing = item.hover_trailing.is_some();
+    let held = item.hover_held && !disabled;
+    let reserve = item.hover_reserve;
     let submenu = item.submenu.clone();
     let open_submenu = item.open_submenu;
     let action = item.on_click.clone();
@@ -488,8 +508,18 @@ fn row(
         .when(lit, |d| d.bg(t.hover))
         .when(disabled && !lit, |d| d.opacity(0.58))
         .when(!disabled, |d| {
-            d.cursor(theme::clickable_cursor())
-                .hover(move |s| s.bg(hover_bg).text_color(hover_fg))
+            d.cursor(theme::clickable_cursor()).hover(move |s| {
+                let s = s.bg(hover_bg).text_color(hover_fg);
+                match reserve {
+                    Some(width) => s.pr(px(width)),
+                    None => s,
+                }
+            })
+        })
+        .when(held, |d| {
+            d.bg(hover_bg)
+                .text_color(hover_fg)
+                .when_some(reserve, |d, width| d.pr(px(width)))
         })
         .children(
             item.icon
@@ -557,6 +587,7 @@ fn row(
                 .when(has_hover_trailing, |d| {
                     d.group_hover(group.clone(), |s| s.invisible())
                 })
+                .when(held, |d| d.invisible())
                 .child(text)
         }))
         .children(item.trailing.map(|element| {
@@ -568,6 +599,7 @@ fn row(
                 .when(has_hover_trailing, |d| {
                     d.group_hover(group.clone(), |s| s.invisible())
                 })
+                .when(held, |d| d.invisible())
                 .child(element)
         }))
         .children(item.hover_trailing.map(|element| {
@@ -578,8 +610,9 @@ fn row(
                 .right(px(s.hover_trailing_inset))
                 .flex()
                 .items_center()
-                .invisible()
-                .group_hover(group.clone(), |s| s.visible())
+                .when(!held, |d| {
+                    d.invisible().group_hover(group.clone(), |s| s.visible())
+                })
                 .child(element)
         }));
     let Some(submenu) = submenu else {

@@ -1578,3 +1578,155 @@ fn a_signed_out_switch_waits_in_a_dialog_and_escape_cancels_it(cx: &mut TestAppC
         assert!(s.modals.is_empty());
     });
 }
+
+#[gpui::test]
+fn the_homepage_merges_a_linked_checkout_and_remembers_where_it_opened(cx: &mut TestAppContext) {
+    use crate::workspace::cloud::catalog::{Location, Opening};
+    let temp = tempfile::tempdir().unwrap();
+    let linked = temp.path().canonicalize().unwrap().join("linked");
+    let plain = temp.path().canonicalize().unwrap().join("plain");
+    for dir in [&linked, &plain] {
+        std::fs::create_dir(dir).unwrap();
+        std::fs::write(dir.join("a.md"), "# A\n").unwrap();
+    }
+    let git = |args: &[&str]| {
+        assert!(
+            std::process::Command::new("git")
+                .args(args)
+                .current_dir(&linked)
+                .status()
+                .unwrap()
+                .success()
+        )
+    };
+    git(&["init", "-q"]);
+    git(&[
+        "remote",
+        "add",
+        "origin",
+        "http://127.0.0.1:18080/git/project-a.git",
+    ]);
+    let project = cloud_project_responder();
+    let responder: crate::cloud_auth::Responder = std::sync::Arc::new(move |request| {
+        if request.path.ends_with("/projects/") {
+            return Ok(serde_json::json!({"code": 0, "data": [
+                {"id": "project-a", "name": "Fixture Cloud", "updated_at": "2026-01-01T00:00:00Z"},
+                {"id": "project-b", "name": "Hosted only"}
+            ]}));
+        }
+        if request.path.ends_with("/commits") {
+            return Ok(serde_json::json!({"code": 0, "data": {"commits": []}}));
+        }
+        project(request)
+    });
+    let (view, cx) = setup(cx);
+    let (broker, browser) = crate::cloud_auth::responding_account_fixture(responder);
+    cx.update(|_, cx| {
+        crate::features::cloud_account::install_fixture(broker, browser, cx);
+    });
+    view.update(cx, |s, cx| {
+        s.preferences.update(cx, |p, _| {
+            p.state.experimental.cloud_workspace = true;
+            p.state.remember_project(&plain, 2);
+            p.state.remember_project(&linked, 1);
+        });
+        s.recent_projects = s.preferences.read(cx).state.recent_projects.clone();
+        s.refresh_cloud_catalog(true, cx);
+        // The Header project menu hydrates the same list as the Homepage.
+        s.popover = Some(Popover::Project);
+    });
+    let settle = |view: &Entity<Shell>,
+                  cx: &mut VisualTestContext,
+                  what: &str,
+                  ready: &dyn Fn(&Shell, &App) -> bool| {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(8);
+        loop {
+            view.update_in(cx, |s, w, cx| s.receive(w, cx));
+            cx.run_until_parked();
+            cx.update(|w, cx| {
+                let _ = w.draw(cx);
+            });
+            if cx.update(|_, cx| ready(view.read(cx), cx)) {
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "{what} did not settle"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+    };
+    let locations = |s: &Shell, cx: &App| {
+        s.project_items(cx)
+            .iter()
+            .map(|i| (i.label.clone(), i.location()))
+            .collect::<Vec<_>>()
+    };
+    settle(&view, cx, "the merged catalog", &|s, cx| {
+        let found = locations(s, cx);
+        found.len() == 3 && found.iter().any(|(_, l)| *l == Location::Linked)
+    });
+    view.update(cx, |s, cx| {
+        let found = locations(s, cx);
+        assert!(found.contains(&("linked".into(), Location::Linked)));
+        assert!(found.contains(&("plain".into(), Location::Local)));
+        assert!(found.contains(&("Hosted only".into(), Location::CloudOnly)));
+        // Without history a linked row opens on this computer.
+        let linked_row = s
+            .project_items(cx)
+            .into_iter()
+            .find(|i| i.location() == Location::Linked)
+            .unwrap();
+        assert_eq!(linked_row.opening(), Opening::Local);
+        assert_eq!(linked_row.last_opened, None);
+        // The Open menu renders for the linked row.
+        s.homepage.open_menu = Some(linked_row.id.clone());
+    });
+    draw(cx);
+    // Opening the checkout remembers "This Mac" for this account and API.
+    let row = view.read_with(cx, |s, cx| {
+        s.project_items(cx)
+            .into_iter()
+            .find(|i| i.location() == Location::Linked)
+            .unwrap()
+    });
+    view.update_in(cx, |s, w, cx| s.open_item(&row, Opening::Local, w, cx));
+    settle(&view, cx, "the local opening", &|s, cx| {
+        s.workspace_root().as_deref() == Some(linked.as_path())
+            && s.project_items(cx)
+                .iter()
+                .any(|i| i.last_opened == Some(Opening::Local))
+    });
+    // Open in Cloud from the same row: once committed, Cloud is remembered
+    // and becomes the row's default.
+    view.update_in(cx, |s, w, cx| {
+        s.home = true;
+        s.open_item(&row, Opening::Cloud, w, cx)
+    });
+    settle(&view, cx, "the Cloud opening", &|s, _| {
+        s.hosted_project().as_deref() == Some("project-a")
+    });
+    settle(&view, cx, "the remembered Cloud opening", &|s, cx| {
+        s.preferences
+            .read(cx)
+            .state
+            .project_open_history
+            .values()
+            .flatten()
+            .any(|e| {
+                e.project == "project-a"
+                    && e.opened == crate::workspace::cloud::catalog::history::Opened::Cloud
+            })
+    });
+    view.read_with(cx, |s, cx| {
+        let items = s.project_items(cx);
+        let row = items
+            .iter()
+            .find(|i| i.location() == Location::Linked)
+            .unwrap();
+        assert_eq!(row.opening(), Opening::Cloud);
+        // The hosted Project offers This Mac only through its trusted
+        // checkout in the account list.
+        assert_eq!(s.matching_checkout(cx).as_deref(), Some(linked.as_path()));
+    });
+}

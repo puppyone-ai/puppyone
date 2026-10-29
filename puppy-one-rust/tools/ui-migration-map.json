@@ -918,6 +918,149 @@
         "test:tokens_resolve_units_and_colours"
       ],
       "remaining": "Token values are imported from the product CSS (tools/import-editor-theme.mjs → assets/editor); the rules are re-expressed per element in Rust styles. Floating notices, overflow dots and the shared-ui patterns have no native consumer yet."
+    },
+    {
+      "name": "Cloud Homepage catalog and opening choices",
+      "status": "partial",
+      "sources": [
+        "src/features/cloud/workbench/homepageCloudProjects.ts",
+        "src/features/cloud/workbench/homepageCloudActivity.ts",
+        "src/features/cloud/workbench/useHomepageCloudProjects.ts",
+        "src/components/onboarding/ProjectOpenMenu.tsx"
+      ],
+      "targets": [
+        "src/workspace/cloud/catalog.rs",
+        "src/features/cloud_catalog.rs",
+        "src/shell/home/mod.rs",
+        "src/shell/project_menu.rs",
+        "src/platform/project_activity.rs",
+        "src/features/settings/preference_types.rs"
+      ],
+      "evidence": [
+        "test:a_trusted_root_locator_merges_and_the_newest_checkout_wins",
+        "test:openings_default_to_this_computer_and_follow_the_last_successful_one",
+        "test:the_open_history_is_bounded_and_stored_like_the_product",
+        "test:the_homepage_merges_a_linked_checkout_and_remembers_where_it_opened",
+        "test:the_project_envelope_parses_into_catalog_entries",
+        "test:remotes_are_read_from_a_checkout_and_a_plain_folder_has_none"
+      ],
+      "remaining": "One flat Homepage/Header list, trusted-locator merge, location icons, the Open menu and the per-account opening history are native. The linked badge has no silhouette backplate; the card layout (asset library home) is not ported; no pixel comparison against the TS Homepage with Cloud rows yet."
+    },
+    {
+      "name": "Cloud repository association and Header switch",
+      "status": "partial",
+      "sources": [
+        "src/features/cloud/project/context/projectCloudContext.ts",
+        "src/features/cloud/project/context/repositoryContextRecovery.ts",
+        "src/features/cloud/project/context/useCurrentRepositoryCloudContext.ts",
+        "src/features/cloud/workspace/workspaceGitRemote.ts",
+        "src/features/cloud/workbench/useRepositoryCloudWorkspaceSwitch.ts",
+        "src/features/cloud/workbench/useCloudWorkspaceSwitch.ts",
+        "src/features/cloud/workbench/CloudWorkspaceSwitchDialog.tsx",
+        "src/features/cloud/workbench/RepositoryCloudSwitchGate.tsx",
+        "src/features/cloud/workbench/cloud-workspace-switch.css"
+      ],
+      "targets": [
+        "src/workspace/cloud/repository.rs",
+        "src/workspace/cloud/recovery.rs",
+        "src/workspace/cloud/locator.rs",
+        "src/features/repository_cloud.rs",
+        "src/shell/cloud_switch.rs"
+      ],
+      "evidence": [
+        "test:remotes_decide_before_any_request",
+        "test:refusals_are_told_apart_and_mapped_to_location_states",
+        "test:two_jittered_retries_then_throttled_probes",
+        "test:only_the_configured_origin_or_explicit_hosted_mapping_is_trusted",
+        "test:the_header_switches_a_linked_checkout_to_cloud_and_back_keeping_both_hosts",
+        "test:a_signed_out_switch_waits_in_a_dialog_and_escape_cancels_it"
+      ],
+      "remaining": "MissingCloudProjectRecovery (404 replace-connection flow), the value page and publish hand-off, and pixel comparison of the switch dialog are not ported."
+    },
+    {
+      "name": "Cloud explicit opening and failures",
+      "status": "partial",
+      "sources": [
+        "src/features/cloud/files/cloudWorkspaceOpening.ts",
+        "src/features/cloud/files/cloudWorkspaceHandoff.ts",
+        "src/features/cloud/cloudOpeningFailure.ts",
+        "src/features/cloud/workbench/CloudWorkspaceOpeningLoading.tsx",
+        "src/features/cloud/workbench/CloudWorkspaceRecovery.tsx",
+        "src/features/cloud/workbench/CloudWorkspacePreparation.tsx",
+        "src/app/DesktopCloudWorkspacePreparation.tsx"
+      ],
+      "targets": [
+        "src/workspace/cloud/opening.rs",
+        "src/workspace/cloud/failure.rs",
+        "src/documents.rs",
+        "src/editor/workbench/runtime.rs",
+        "src/shell/home/mod.rs"
+      ],
+      "evidence": [
+        "test:explicit_opening_reuses_running_workbench_and_reads_files_before_handoff",
+        "test:explicit_opening_wakes_once_and_only_observes_pending_operation",
+        "test:explicit_opening_cancelled_at_files_cannot_deliver_a_provider",
+        "test:opening_reasons_map_to_their_product_messages",
+        "test:access_decisions_win_and_stages_stay_independent"
+      ],
+      "remaining": "Concurrent-open coalescing, the recovery dialog's Details disclosure and pixel comparison of the loading and recovery states remain."
+    },
+    {
+      "name": "Cloud live file provider",
+      "status": "partial",
+      "sources": [
+        "src/features/cloud/files/cloudFileClient.ts",
+        "src/features/cloud/files/cloudFileReads.ts",
+        "src/features/cloud/files/cloudWorkspaceClient.ts",
+        "src/features/cloud/files/cloudDataPort.ts",
+        "src/features/cloud/files/contracts.ts",
+        "src/features/cloud/files/workspaceResourceUrl.ts"
+      ],
+      "targets": [
+        "src/workspace/cloud/mod.rs",
+        "src/workspace/cloud/client.rs",
+        "src/workspace/cloud/events.rs",
+        "src/workspace/cloud/model.rs",
+        "src/workspace/cloud/locator.rs"
+      ],
+      "evidence": [
+        "test:live_files_share_the_facade_without_a_local_root_or_git_fallback",
+        "test:mutations_are_no_clobber_and_cas_returns_remote_bytes_without_replaying",
+        "test:exact_authorized_root_and_running_generation_are_required_before_handoff",
+        "test:resource_links_encode_segments_and_mark_folders"
+      ],
+      "remaining": "Scope targets, copy/import, viewer preview resources (Office/database temp files, HTML data-URL projection) and real-backend acceptance are not covered."
+    },
+    {
+      "name": "Cloud History",
+      "status": "partial",
+      "sources": [
+        "src/features/cloud/history/historyRepository.ts",
+        "src/features/cloud/history/pagination.ts",
+        "src/features/cloud/history/types.ts",
+        "src/features/cloud/history/CloudWorkspaceHistorySidebar.tsx",
+        "src/features/cloud/history/CloudCommitDetail.tsx",
+        "src/features/cloud/history/useCloudCommitDetail.ts",
+        "src/features/cloud/history/useCloudHistoryData.ts",
+        "src/features/cloud/history/useCloudHistoryController.ts",
+        "src/features/cloud/history/workspace-sidebar.css",
+        "src/features/cloud/history/styles/detail.css",
+        "src/lib/cloudHistoryApi.ts"
+      ],
+      "targets": [
+        "src/workspace/cloud/history.rs",
+        "src/features/source_control/cloud_history.rs",
+        "src/features/source_control/history.rs"
+      ],
+      "evidence": [
+        "test:requests_read_eighty_summaries_per_page_and_detail_separately",
+        "test:pages_merge_within_one_snapshot_and_restart_otherwise",
+        "test:the_sidebar_pages_reads_detail_on_demand_and_shares_snapshots",
+        "test:flights_are_shared_released_and_settled_once",
+        "test:cloud_history_closes_outside_a_hosted_project",
+        "artifact:cloud-native"
+      ],
+      "remaining": "The history graph (HistoryGraphVisual, cloudTopology) and the services-page two-pane History view are not ported."
     }
   ]
 }
