@@ -41,30 +41,19 @@ impl Failure {
             status: None,
         }
     }
+    /// `describeCloudOpeningFailure(cause, "workspace")`.
     fn auth(error: AuthError) -> Self {
-        let (code, recovery, status) = match error {
-            AuthError::InvalidCredentials | AuthError::Expired | AuthError::Http(401) => {
-                ("project-sign-in-required", Recovery::Account, Some(401))
-            }
-            AuthError::Http(402) => ("workspace-plan-required", Recovery::Account, Some(402)),
-            AuthError::Http(403) => ("workspace-access-denied", Recovery::None, Some(403)),
-            AuthError::Http(status @ (404 | 405 | 501)) => (
-                "workspace-service-unavailable",
-                Recovery::None,
-                Some(status),
-            ),
-            AuthError::Http(426) => ("app-update-required", Recovery::None, Some(426)),
-            AuthError::Http(429) => ("service-busy", Recovery::Retry, Some(429)),
-            AuthError::OutcomeUnknown => ("workspace-open-failed", Recovery::Retry, None),
-            AuthError::SessionChanged | AuthError::Cancelled => {
-                ("project-sign-in-required", Recovery::None, None)
-            }
-            _ => ("workspace-open-failed", Recovery::Retry, None),
-        };
+        use super::failure::{Action, Stage, describe, from_auth};
+        let (status, reason, retryable) = from_auth(&error);
+        let described = describe(status, reason, retryable, Stage::Workspace);
         Self {
-            code,
-            recovery,
-            status,
+            code: described.code,
+            recovery: match described.action {
+                Action::Retry => Recovery::Retry,
+                Action::Account => Recovery::Account,
+                Action::None => Recovery::None,
+            },
+            status: described.status,
         }
     }
     fn provider(error: Error) -> Self {

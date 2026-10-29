@@ -94,8 +94,19 @@ pub(super) fn response_error(status: u16, value: &serde_json::Value) -> Error {
     if status == 403 {
         return Error::Http(403);
     }
-    if status >= 500 || matches!(status, 408 | 429) {
-        return Error::Unavailable;
+    // Allowlisted reason codes survive for recovery copy (`cloudOpeningFailure`).
+    let reason = [
+        "/detail/code",
+        "/data/code",
+        "/error/code",
+        "/code",
+        "/error_code",
+    ]
+    .iter()
+    .find_map(|pointer| value.pointer(pointer).and_then(serde_json::Value::as_str))
+    .and_then(crate::workspace::cloud::failure::allowlisted);
+    if status >= 500 || matches!(status, 408 | 429) || reason.is_some() {
+        return Error::Response(status, reason);
     }
     let code = value
         .pointer("/data/code")

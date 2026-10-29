@@ -162,7 +162,10 @@ fn run_stream(hub: Weak<Hub>, shared: Arc<Shared>, run: Uuid, stop: Cancellation
             break model::stale();
         }
         let delay = [250, 1000, 3000].get(attempts).copied();
-        if failure != auth::Error::Unavailable || delay.is_none() {
+        // Transport loss and transient server errors reconnect; decisions do not.
+        let transient = failure == auth::Error::Unavailable
+            || matches!(failure, auth::Error::Response(status, _) if status >= 500 || matches!(status, 408 | 429));
+        if !transient || delay.is_none() {
             break map_error(failure);
         }
         if let Some(hub) = hub.upgrade() {

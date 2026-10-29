@@ -622,8 +622,12 @@ impl Broker {
         if result.as_ref().err() == Some(&Error::Unavailable) {
             let _ = self.update(&fence, |s| s.status = Status::Offline);
         }
+        // A server error or timeout after a mutation was sent is ambiguous.
+        let ambiguous_response =
+            matches!(result, Err(Error::Response(status, _)) if status >= 500 || status == 408);
         if !request.read_only()
             && (valid.is_err()
+                || ambiguous_response
                 || matches!(
                     result,
                     Err(Error::Unavailable

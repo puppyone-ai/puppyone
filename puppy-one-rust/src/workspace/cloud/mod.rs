@@ -3,6 +3,7 @@
 //! explicit allocation/resume and visible navigation belong to the later owner.
 mod client;
 mod events;
+pub mod failure;
 mod model;
 pub mod opening;
 #[cfg(test)]

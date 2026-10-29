@@ -22,6 +22,9 @@ pub enum Error {
     RemoteLogoutUnavailable,
     Http(u16),
     Service(u16, super::transport::ServiceCode),
+    /// A server failure (5xx, 408, 429) or an allowlisted reason code
+    /// (`cloudOpeningFailure` reasons); never free-form server prose.
+    Response(u16, Option<&'static str>),
     OutcomeUnknown,
 }
 pub type Result<T> = std::result::Result<T, Error>;
@@ -40,6 +43,7 @@ impl std::fmt::Display for Error {
             Self::NoProviders => "No sign-in method is enabled for this service.",
             Self::RemoteLogoutUnavailable => "Signed out on this device. Remote session revocation could not be confirmed.",
             Self::Http(_) | Self::Service(_, _) => "The service rejected this request.",
+            Self::Response(_, _) => "The Cloud service could not complete this request.",
             Self::OutcomeUnknown => "The operation may have completed. Verify its outcome before trying again.",
         })
     }
