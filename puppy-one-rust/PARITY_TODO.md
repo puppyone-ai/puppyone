@@ -108,6 +108,10 @@
   - 设置 → Agents → Hooks：真实开关，每次只处理一项，加载/空/错误加重试；修改后同步提示偏好。复选框按 Chromium 绘制：14px `accent-color`，深色方案下勾为深灰（`native-check.svg`）。像素用例 `agent-hooks` 98.9%。
   - 安装指引：`platform::local_agent_setup` 的 8 条路由、伴随 App 扫描（只读 Info.plist）、建议逻辑；`SetupSection` 同时用于设置（建议开关、恢复、操作行、Set up Agents 目录）与工作台启动器（建议与进行中的激活）。
   - 激活：激活服务（按窗口的计划、最多 3 个并发、v2 日志、重启后标为 interrupted）。codex/cursor 安装器使用产品审核过的 recipe：HTTPS 主机白名单、不跟随重定向、512 MiB 上限、摘要校验；归档先整体校验再写入；`install.lock` 租约与 Electron 的 proper-lockfile 兼容（两个产品共用 `~/.puppyone/agent-runtimes`）；先写回执，再原子切换 `current`；用清理过的环境运行 `--version`。激活对话框（同意/引导、步骤圆圈、安装详情、各状态按钮）的像素用例 `agent-activation` 为 96.7% / 94.0%：浅色背景模糊（D-3）与 20.8px 行高取整。
+  - Provider 活动提示（G-2）：会话快照中最多 32 条，脱敏规则移植自 `redactSecretText`，来源包括 Pi 扩展的 notify 和 Claude 的 auth_status。显示在输入框上方：醒目的逐行列出，其余收进 Notifications N。`chat-activities` 98.9%。
+  - 工作台（G-4）：会话头布局动效 200ms；拖动预览放在指针左 18px、下 12px；从 History 打开的对话恢复失败时，标签退回启动页，并弹出“重试/关闭”提示。React 渲染错误边界登记为排除，并写明原因。
+  - 引用附件（G-6）：工作区内是活引用，每次发送重新校验并读取；工作区外的文件复制成私有快照（SHA-256，归属单个对话，去重，30 分钟过期，移除或关闭对话即撤销，清理已退出进程的暂存目录）；上限 32 个，单个和总计各 25 MB。
+  - 编辑器外框像素（E-5 部分）：新增 `md-menu`、`csv-menu`、`md-source`、`md-find` 四个用例；删掉了产品里没有的“拆分编辑器”菜单项。
 （第一轮记录）仍未完成：HTML/Office/音视频/数据库/Context Map/App 预览查看器；代码编辑器装饰与冲突横幅；Cloud 全部界面；各处像素对比流程；右侧栏、设置与账户付费的剩余项。完整清单与状态见桌面迁移清单第 2 版。
 
 ## 1. 基础设施

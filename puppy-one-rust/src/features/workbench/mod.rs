@@ -998,7 +998,9 @@ impl Workbench {
         let entity = cx.entity();
         let retry = entity.clone();
         Some(
-            NoticeStack::new(NoticePlacement::Top, 8., 12., 0.)
+            // `.desktop-auxiliary-workbench-notice-stack`: under the tab strip,
+            // 8px from both edges.
+            NoticeStack::new(NoticePlacement::Top, 46., 8., 0.)
                 .child(
                     FloatingNotice::new("workbench-creation-failure", message)
                         .tone(NoticeTone::Danger)

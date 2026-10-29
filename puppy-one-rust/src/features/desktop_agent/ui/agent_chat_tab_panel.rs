@@ -242,13 +242,16 @@ impl AgentChat {
             },
         )
         .detach();
-        let mut session = AgentSessionController::new(create(
+        let session = AgentSessionController::new(create(
             installation.clone(),
             root.clone(),
             history,
             wake.clone(),
         ));
-        session.root = Some(root.clone());
+        // `revokeOwner`: a closed conversation's attachments go with it.
+        let owner = session.owner.clone();
+        cx.on_release(move |_, _| native_attachment_client::revoke_owner(&owner))
+            .detach();
         let transcript = ListState::new(0, ListAlignment::Top, px(300.));
         let weak = cx.entity().downgrade();
         transcript.set_scroll_handler(move |event, _, cx| {
@@ -398,6 +401,14 @@ impl AgentChat {
         if text.trim().is_empty() && self.session.references.is_empty() {
             return;
         }
+        // `authorizeAgentReferences`: a failure keeps the draft.
+        let mut references = self.session.references.clone();
+        if let Err(error) = native_attachment_client::authorize(&mut references, &self.root) {
+            self.session.draft_error = Some(error);
+            cx.notify();
+            return;
+        }
+        self.session.references = references;
         if !self.session.send(text) {
             cx.notify();
             return;
