@@ -183,6 +183,17 @@ pub type PresentationKey = (
     String,
     Option<String>,
 );
+/// `SaveStatus` (without manual saving, which the desktop does not use).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SaveStatus {
+    Clean,
+    Saving,
+    Saved,
+    Failed,
+}
+/// `SAVED_STATUS_DURATION_MS`.
+pub const SAVED_STATUS_DURATION: std::time::Duration = std::time::Duration::from_millis(1200);
+
 pub struct Documents {
     /// A Cloud opening in flight: its visible phase (`Waking up…` /
     /// `Taking out your files…`) and its cancellation.
@@ -203,6 +214,11 @@ pub struct Documents {
     pub revision: u64,
     pub phase: Phase,
     pub error: Option<String>,
+    /// The last autosave failed (`sessionState.status === "error"`): shown
+    /// in the pane with Retry, never as a blocking dialog.
+    pub save_error: Option<String>,
+    /// When the last write completed, for the transient "Saved" status.
+    saved_at: Option<Instant>,
     pub status: String,
     pub allow_quit: bool,
     pub outgoing: Vec<HostMessage>,
@@ -230,6 +246,8 @@ impl Default for Documents {
             revision: 0,
             phase: Phase::Idle,
             error: None,
+            save_error: None,
+            saved_at: None,
             status: "Open a folder to start".into(),
             allow_quit: false,
             outgoing: vec![],
@@ -270,6 +288,29 @@ impl Documents {
             (Some(doc), _) => Some((&doc.id, &doc.relative)),
             (None, Some(resource)) => Some((&resource.id, &resource.relative)),
             (None, None) => None,
+        }
+    }
+    /// `EditorSaveButton`'s status for the open document.
+    pub fn save_status(&self) -> SaveStatus {
+        let conflict = self.session.as_ref().is_some_and(|s| s.conflicted());
+        if self.save_error.is_some() && !conflict {
+            SaveStatus::Failed
+        } else if self.session.as_ref().is_some_and(|s| s.has_active_write()) {
+            SaveStatus::Saving
+        } else if self
+            .saved_at
+            .is_some_and(|at| at.elapsed() < SAVED_STATUS_DURATION)
+        {
+            SaveStatus::Saved
+        } else {
+            SaveStatus::Clean
+        }
+    }
+    /// The Save failed chip: write the current input again.
+    pub fn retry_save(&mut self, ctx: &Wake) {
+        if self.session.as_mut().is_some_and(|s| s.retry()) {
+            self.save_error = None;
+            ctx.notify();
         }
     }
     pub fn saving(&self) -> bool {
@@ -1024,16 +1065,19 @@ impl Documents {
                         Completion::Saved => {
                             self.document = Some(result.unwrap().document);
                             self.error = None;
+                            self.save_error = None;
+                            self.saved_at = Some(Instant::now());
                             self.status = "Saved".into();
                         }
                         Completion::Adopted => {
                             self.document = Some(result.unwrap().document);
                             self.error = None;
+                            self.save_error = None;
                             self.sync_state();
                             self.show_storage_update();
                         }
                         Completion::Failed(error) => {
-                            self.error = Some(error);
+                            self.save_error = Some(error);
                         }
                         Completion::Deferred => {
                             self.deferred_document = result.ok().map(|r| r.document);

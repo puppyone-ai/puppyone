@@ -544,3 +544,54 @@ fn a_hidden_document_releases_its_subscription_and_revalidates_when_shown() {
         std::thread::sleep(Duration::from_millis(5));
     }
 }
+#[test]
+fn a_failed_autosave_is_a_pane_status_with_retry_not_a_dialog() {
+    use crate::workspace::testing::Memory;
+    let memory = Arc::new(Memory::new("memory://actor/project/"));
+    let ctx = Wake::default();
+    let mut d = Documents {
+        workspace: Some(Workspace::from_provider(memory.clone()).unwrap()),
+        ..Default::default()
+    };
+    d.begin(Intent::OpenFile("note.md".into()), &ctx);
+    wait(&mut d, &ctx);
+    let id = d.document.as_ref().unwrap().id.clone();
+    let settle = |d: &mut Documents, done: &dyn Fn(&Documents) -> bool| {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while !done(d) {
+            d.poll(&ctx);
+            assert!(Instant::now() < deadline, "{}", d.status);
+            std::thread::sleep(Duration::from_millis(2));
+        }
+    };
+    let autosave = |d: &mut Documents, text: &str| {
+        d.poll(&ctx);
+        let request = d.autosave_request.expect("autosave snapshot").0;
+        reply(d, &ctx, request, 1, text);
+    };
+    memory
+        .failing_writes
+        .store(1, std::sync::atomic::Ordering::SeqCst);
+    d.client(
+        ClientMessage::Dirty {
+            id,
+            revision: 1,
+            dirty: true,
+        },
+        &ctx,
+    );
+    autosave(&mut d, "kept input");
+    settle(&mut d, &|d| d.save_error.is_some());
+    assert_eq!(d.save_status(), SaveStatus::Failed);
+    assert!(d.error.is_none(), "no blocking dialog");
+    assert!(d.dirty);
+    assert_eq!(*memory.text.lock().unwrap(), "original");
+    // Retry snapshots and writes the same input again.
+    d.retry_save(&ctx);
+    assert!(d.save_error.is_none());
+    autosave(&mut d, "kept input");
+    settle(&mut d, &|d| !d.saving());
+    assert_eq!(*memory.text.lock().unwrap(), "kept input");
+    assert_eq!(d.save_status(), SaveStatus::Saved);
+    assert!(!d.dirty);
+}

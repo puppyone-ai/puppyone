@@ -17,6 +17,8 @@ pub struct Memory {
     pub text: Mutex<String>,
     pub calls: AtomicUsize,
     pub hook: Mutex<Option<Box<dyn FnOnce() + Send>>>,
+    /// The next writes that fail (storage unavailable).
+    pub failing_writes: AtomicUsize,
 }
 impl Memory {
     pub fn new(namespace: &str) -> Self {
@@ -36,6 +38,7 @@ impl Memory {
             text: Mutex::new("original".into()),
             calls: AtomicUsize::new(0),
             hook: Mutex::new(None),
+            failing_writes: AtomicUsize::new(0),
         }
     }
     fn snapshot(&self) -> TextSnapshot {
@@ -75,6 +78,13 @@ impl DocumentStoragePort for Memory {
     }
     fn write(&self, _: &RelativePath, baseline: &Revision, text: &str) -> Result<WriteResult> {
         self.called();
+        if self
+            .failing_writes
+            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1))
+            .is_ok()
+        {
+            return Err(Error::new(ErrorKind::Io, "Storage unavailable"));
+        }
         let latest = self.snapshot();
         if &latest.revision != baseline {
             return Ok(WriteResult::Conflict(latest));

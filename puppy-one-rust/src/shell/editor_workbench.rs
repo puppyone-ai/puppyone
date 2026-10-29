@@ -2,7 +2,7 @@
 use super::*;
 use crate::editor::workbench::layout::{Direction, Node, Placement};
 use crate::ui::components::{Icon, ResizeHandle, tooltip};
-use gpui_kit::component::Sizable as _;
+use gpui_kit::{base::h_flex, component::Sizable as _};
 
 pub(super) struct EditorResize {
     pub workspace: String,
@@ -42,6 +42,103 @@ impl Shell {
             .all(|c| matches!(c, std::path::Component::Normal(_)));
         (normal && !relative.as_os_str().is_empty() && !self.explorer.read(cx).is_folder(relative))
             .then(|| relative.to_path_buf())
+    }
+    /// `.editor-save-overlay` / `EditorSaveButton`: a failed save offers
+    /// Retry everywhere; hosted documents also show Saving… and Saved
+    /// (`showSaveStatus`). Clean documents show nothing.
+    fn save_chip(&self, slot: u64, cx: &mut Context<Self>) -> Option<AnyElement> {
+        use crate::documents::SaveStatus;
+        let files = self.files.slot(slot)?;
+        let hosted = files
+            .workspace
+            .as_ref()
+            .is_some_and(|ws| ws.local_root().is_none());
+        let status = files.save_status();
+        if status == SaveStatus::Saved && self.saved_refresh.is_none() {
+            let weak = cx.weak_entity();
+            let task = cx.spawn(async move |_, cx| {
+                cx.background_executor()
+                    .timer(crate::documents::SAVED_STATUS_DURATION)
+                    .await;
+                let _ = weak.update(cx, |s, cx| {
+                    s.saved_refresh = None;
+                    cx.notify();
+                });
+            });
+            // Rendering cannot mutate; the timer is kept by the next update.
+            let weak = cx.weak_entity();
+            cx.defer(move |cx| {
+                let _ = weak.update(cx, |s, _| {
+                    if s.saved_refresh.is_none() {
+                        s.saved_refresh = Some(task);
+                    }
+                });
+            });
+        }
+        let t = cx.palette();
+        let chip = |id: &'static str| {
+            h_flex()
+                .id(SharedString::from(format!("{id}-{slot}")))
+                .h(px(theme::control()))
+                .px(px(10.))
+                .gap(px(6.))
+                .rounded(px(6.))
+                .text_size(px(theme::ty().ui.body))
+                .font_weight(FontWeight::MEDIUM)
+                .whitespace_nowrap()
+        };
+        let body = match status {
+            SaveStatus::Failed => chip("editor-save-failed")
+                .bg(theme::alpha(t.danger, 0.16))
+                .text_color(t.danger)
+                .hover(|d| d.bg(theme::alpha(t.danger, 0.24)))
+                .child(
+                    Icon::new("triangle-alert")
+                        .with_size(px(14.))
+                        .color(t.danger),
+                )
+                .child(crate::localization::t("editor.save.failed"))
+                .on_click(cx.listener(move |s, _, _, cx| {
+                    s.files.retry_slot_save(slot, &s.wake);
+                    cx.notify();
+                }))
+                .into_any_element(),
+            SaveStatus::Saving if hosted => chip("editor-save-saving")
+                .bg(t.border_subtle)
+                .text_color(t.muted)
+                .child(
+                    div()
+                        .size(px(7.))
+                        .rounded_full()
+                        .bg(t.muted)
+                        .with_animation(
+                            ElementId::NamedInteger("editor-save-pulse".into(), slot),
+                            Animation::new(std::time::Duration::from_millis(820)).repeat(),
+                            |d, delta| {
+                                // `tree-loading-pulse`: 0.35 → 1 → 0.35.
+                                let wave = 1. - (delta * 2. - 1.).abs();
+                                d.opacity(0.35 + 0.65 * wave)
+                            },
+                        ),
+                )
+                .child(crate::localization::t("editor.save.saving"))
+                .into_any_element(),
+            SaveStatus::Saved if hosted => chip("editor-save-saved")
+                .bg(theme::alpha(t.success, 0.14))
+                .text_color(t.success)
+                .child(Icon::new("check").with_size(px(14.)).color(t.success))
+                .child(crate::localization::t("editor.save.saved"))
+                .into_any_element(),
+            _ => return None,
+        };
+        Some(
+            div()
+                .absolute()
+                .top(px(10.))
+                .right(px(12.))
+                .child(body)
+                .into_any_element(),
+        )
     }
     pub(super) fn focus_editor_slot(&mut self, slot: u64) {
         let pane = self.files.state().and_then(|state| {
@@ -406,12 +503,14 @@ impl Shell {
                             cx.notify();
                         },
                     ));
-                if let Some(editor) = editor
+                let slot = editor
                     .as_deref()
-                    .and_then(|key| self.files.slot_for_key(key))
-                    .and_then(|slot| self.native_hosts.get(&slot))
-                {
+                    .and_then(|key| self.files.slot_for_key(key));
+                if let Some(editor) = slot.and_then(|slot| self.native_hosts.get(&slot)) {
                     view = view.child(editor.clone());
+                    if let Some(chip) = slot.and_then(|slot| self.save_chip(slot, cx)) {
+                        view = view.child(chip);
+                    }
                 } else {
                     let close = id.clone();
                     view = view.child(

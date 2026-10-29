@@ -173,6 +173,12 @@ impl Runtime {
             .values()
             .find_map(|h| h.slots.get(&id).map(|s| &s.files))
     }
+    /// The Save failed chip of one pane's document.
+    pub fn retry_slot_save(&mut self, id: SlotId, wake: &Wake) {
+        if let Some(files) = self.slot_mut(id) {
+            files.retry_save(wake);
+        }
+    }
     fn slot_mut(&mut self, id: SlotId) -> Option<&mut Documents> {
         if id == 0 {
             return Some(&mut self.scratch);

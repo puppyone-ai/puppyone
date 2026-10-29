@@ -201,6 +201,16 @@ impl DocumentEditingSession {
             }
         }
     }
+    /// `requestSave` after a failed write: snapshot and write again. A held
+    /// Cloud conflict is not retried (`retryable` is false for it).
+    pub fn retry(&mut self) -> bool {
+        if self.error.is_none() || self.external.is_some() || self.active.is_some() {
+            return false;
+        }
+        self.error = None;
+        self.needs_snapshot = true;
+        true
+    }
     pub fn take_receipt(&mut self) -> Option<Snapshot> {
         self.receipt.take()
     }
@@ -209,5 +219,31 @@ impl DocumentEditingSession {
     }
     pub fn drained(&self) -> bool {
         !self.dirty && !self.needs_snapshot && self.active.is_none() && self.pending.is_none()
+    }
+}
+
+#[cfg(test)]
+mod retry_tests {
+    use super::*;
+
+    #[test]
+    fn a_failed_write_can_be_retried_but_a_held_conflict_cannot() {
+        let mut session = DocumentEditingSession::new("a".into(), "old".into(), 0);
+        session.enqueue(Snapshot {
+            revision: 1,
+            text: "new".into(),
+        });
+        let commit = session.next_commit().unwrap();
+        assert!(!session.retry(), "nothing failed while writing");
+        session.complete(commit.sequence, Err("disk full".into()));
+        assert!(!session.needs_snapshot);
+        assert!(session.retry());
+        assert!(session.needs_snapshot && session.error.is_none());
+        let mut cloud = DocumentEditingSession::new("b".into(), "old".into(), 0);
+        cloud.cloud = true;
+        cloud.local_edit(1, true);
+        cloud.observe("remote");
+        assert!(cloud.conflicted());
+        assert!(!cloud.retry());
     }
 }

@@ -116,6 +116,10 @@ pub struct Shell {
     native_hosts: std::collections::BTreeMap<u64, Entity<crate::editor::host::DocumentEditor>>,
     editor_resize: Option<editor_workbench::EditorResize>,
     editor_drop: Option<editor_workbench::EditorDrop>,
+    /// The save failure whose notice the person dismissed (`useDismissibleNotice`).
+    dismissed_save_error: Option<String>,
+    /// Re-renders once a transient "Saved" status lapses.
+    saved_refresh: Option<gpui::Task<()>>,
     editor_tab_focus: std::collections::BTreeMap<u64, FocusHandle>,
     fixture: bool,
     startup_file: Option<PathBuf>,
@@ -272,6 +276,8 @@ impl Shell {
             native_hosts: Default::default(),
             editor_resize: None,
             editor_drop: None,
+            dismissed_save_error: None,
+            saved_refresh: None,
             editor_tab_focus: Default::default(),
             fixture,
             startup_file: if cfg!(test) {
@@ -1876,6 +1882,41 @@ impl Shell {
                                 cx.notify();
                             });
                         }),
+                )
+                .into_any_element(),
+            );
+        }
+        // `editor-notice-stack`: the active document's save failure.
+        if let Some(detail) = self.files.save_error.clone().filter(|e| {
+            !self.files.cloud_conflict() && self.dismissed_save_error.as_ref() != Some(e)
+        }) {
+            let dismiss = self.weak.clone();
+            let dismissed = detail.clone();
+            layers.push(
+                NoticeStack::new(
+                    NoticePlacement::TopEnd,
+                    editor.y + 48.,
+                    end + 12.,
+                    (editor.w - 24.).min(420.),
+                )
+                .child(
+                    FloatingNotice::new(
+                        "editor-save-failure",
+                        crate::localization::tf(
+                            "editor.session.saveFailedDetail",
+                            &[(
+                                "detail",
+                                detail.chars().take(300).collect::<String>().into(),
+                            )],
+                        ),
+                    )
+                    .tone(NoticeTone::Danger)
+                    .on_dismiss(move |_, cx| {
+                        let _ = dismiss.update(cx, |s, cx| {
+                            s.dismissed_save_error = Some(dismissed.clone());
+                            cx.notify();
+                        });
+                    }),
                 )
                 .into_any_element(),
             );
