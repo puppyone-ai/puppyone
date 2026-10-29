@@ -213,19 +213,29 @@ fn hunk_start(line: &str) -> Option<(u32, u32)> {
 
 /// `getWorkspaceGitFileDiff` for local work: the selected file (and the
 /// source of a rename) in the index, the working tree, or untracked.
+///
+/// `path` and `old_path` are repository-relative; the opened folder sits at
+/// `prefix` in the repository and reads never leave it.
 pub fn file_diff(
     root: &Path,
+    prefix: &str,
     path: &str,
     old_path: Option<&str>,
     scope: Scope,
     cancel: &AtomicBool,
 ) -> Result<Vec<FileDiff>, String> {
+    let outside = || crate::localization::t("native.git.pathOutside").to_owned();
     git::validate_path(path)?;
-    if let Some(old) = old_path {
-        git::validate_path(old)?;
-    }
+    let local = git::local(prefix, path).ok_or_else(outside)?;
+    let old_local = match old_path {
+        Some(old) => {
+            git::validate_path(old)?;
+            Some(git::local(prefix, old).ok_or_else(outside)?)
+        }
+        None => None,
+    };
     if scope == Scope::Untracked {
-        return untracked(root, path).map(|file| vec![file]);
+        return untracked(root, path, local).map(|file| vec![file]);
     }
     let mut args = vec![
         "diff",
@@ -239,14 +249,14 @@ pub fn file_diff(
         args.push("--cached");
     }
     args.push("--");
-    if let Some(old) = old_path.filter(|o| *o != path) {
+    if let Some(old) = old_local.filter(|o| *o != local) {
         args.push(old);
     }
-    args.push(path);
+    args.push(local);
     let patch = git(root, &args, None, cancel)?;
     let mut files = parse_patch(&String::from_utf8_lossy(&patch));
     for file in files.iter_mut().filter(|f| f.binary) {
-        file.revision = Some(binary_sides(root, file, scope, cancel));
+        file.revision = Some(binary_sides(root, prefix, file, scope, cancel));
     }
     Ok(files)
 }
@@ -276,9 +286,9 @@ pub fn commit_detail(root: &Path, id: &str, cancel: &AtomicBool) -> Result<Vec<F
 
 /// `buildUntrackedFileDiff`: every line added — the product splits on line
 /// breaks, so a final newline shows as an empty last line.
-fn untracked(root: &Path, path: &str) -> Result<FileDiff, String> {
+fn untracked(root: &Path, path: &str, local: &str) -> Result<FileDiff, String> {
     let base = root.canonicalize().map_err(|e| e.to_string())?;
-    let file = root.join(path).canonicalize().map_err(|e| e.to_string())?;
+    let file = root.join(local).canonicalize().map_err(|e| e.to_string())?;
     if !file.starts_with(&base) {
         return Err(crate::localization::t("native.git.symlinkPreview").into());
     }
@@ -327,7 +337,13 @@ fn untracked(root: &Path, path: &str) -> Result<FileDiff, String> {
 
 /// `deriveGitRevisionSpecs` → sizes: unstaged compares the index with the
 /// working tree, staged `HEAD` with the index.
-fn binary_sides(root: &Path, file: &FileDiff, scope: Scope, cancel: &AtomicBool) -> (Side, Side) {
+fn binary_sides(
+    root: &Path,
+    prefix: &str,
+    file: &FileDiff,
+    scope: Scope,
+    cancel: &AtomicBool,
+) -> (Side, Side) {
     let before_path = file.old_path.as_deref().unwrap_or(&file.path);
     let blob = |spec: String| -> Side {
         let size = git(root, &["cat-file", "-s", &spec], None, cancel)
@@ -347,9 +363,11 @@ fn binary_sides(root: &Path, file: &FileDiff, scope: Scope, cancel: &AtomicBool)
     } else if scope == Scope::Staged {
         blob(format!(":{}", file.path))
     } else {
+        // `HEAD:path` and `:path` name repository paths; the working file
+        // is under the opened folder.
         Side::Present(
-            std::fs::symlink_metadata(root.join(&file.path))
-                .ok()
+            git::local(prefix, &file.path)
+                .and_then(|local| std::fs::symlink_metadata(root.join(local)).ok())
                 .map(|m| m.len()),
         )
     };
@@ -447,28 +465,28 @@ mod tests {
         std::fs::write(root.join("blob.bin"), [0u8, 1, 2, 3, 4]).unwrap();
         std::fs::write(root.join("new.md"), "# New\n").unwrap();
         let cancel = AtomicBool::new(false);
-        let staged = file_diff(root, "a.txt", None, Scope::Staged, &cancel).unwrap();
+        let staged = file_diff(root, "", "a.txt", None, Scope::Staged, &cancel).unwrap();
         assert_eq!(
             (staged[0].additions, staged[0].deletions),
             (Some(1), Some(1))
         );
-        let unstaged = file_diff(root, "a.txt", None, Scope::Unstaged, &cancel).unwrap();
+        let unstaged = file_diff(root, "", "a.txt", None, Scope::Unstaged, &cancel).unwrap();
         assert_eq!(
             (unstaged[0].additions, unstaged[0].deletions),
             (Some(1), Some(0))
         );
-        let binary = &file_diff(root, "blob.bin", None, Scope::Unstaged, &cancel).unwrap()[0];
+        let binary = &file_diff(root, "", "blob.bin", None, Scope::Unstaged, &cancel).unwrap()[0];
         assert_eq!(
             binary.revision,
             Some((Side::Present(Some(3)), Side::Present(Some(5))))
         );
-        let new = &file_diff(root, "new.md", None, Scope::Untracked, &cancel).unwrap()[0];
+        let new = &file_diff(root, "", "new.md", None, Scope::Untracked, &cancel).unwrap()[0];
         assert_eq!(
             (new.status, new.additions, new.lines.len()),
             (Status::Added, Some(2), 2)
         );
         assert_eq!(new.lines[1].text, "");
-        assert!(file_diff(root, "../x", None, Scope::Unstaged, &cancel).is_err());
+        assert!(file_diff(root, "", "../x", None, Scope::Unstaged, &cancel).is_err());
         let head = String::from_utf8(
             std::process::Command::new("/usr/bin/git")
                 .args(["rev-parse", "HEAD"])

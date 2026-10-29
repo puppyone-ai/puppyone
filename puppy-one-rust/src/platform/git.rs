@@ -1,4 +1,10 @@
 //! Git CLI is the authority. Paths are NUL parsed and literal pathspecs; never shell strings.
+//!
+//! Like the product (`getWorkspaceGitStatus`: `rev-parse --is-inside-work-tree`),
+//! a folder anywhere inside a work tree is managed and its status is the whole
+//! repository's, with repository-relative paths. Mutations and file reads stay
+//! inside the opened folder: a change elsewhere in the repository is shown but
+//! cannot be staged, discarded or opened from here.
 use super::process;
 use std::{
     path::{Component, Path},
@@ -31,6 +37,9 @@ impl Change {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Snapshot {
+    /// The opened folder within its repository (`rev-parse --show-prefix`):
+    /// empty at the root, `docs/` for a subfolder.
+    pub prefix: String,
     pub head: String,
     pub branch: String,
     pub upstream: Option<String>,
@@ -125,7 +134,7 @@ pub(super) fn git(
     )
 }
 pub fn status(root: &Path, cancel: &AtomicBool) -> Result<Snapshot, String> {
-    verify_root(root, cancel)?;
+    let prefix = prefix(root, cancel)?;
     let mut snapshot = parse_status(&git(
         root,
         &[
@@ -141,24 +150,33 @@ pub fn status(root: &Path, cancel: &AtomicBool) -> Result<Snapshot, String> {
     snapshot.head = git(root, &["rev-parse", "--verify", "HEAD"], None, cancel)
         .map(|b| String::from_utf8_lossy(&b).trim().to_owned())
         .unwrap_or_default();
+    snapshot.prefix = prefix;
     Ok(snapshot)
 }
-fn verify_root(root: &Path, cancel: &AtomicBool) -> Result<(), String> {
-    let top = git(root, &["rev-parse", "--show-toplevel"], None, cancel)?;
-    let top = Path::new(
-        std::str::from_utf8(&top)
-            .map_err(|_| "Invalid repository path")?
-            .trim_end_matches('\n'),
-    )
-    .canonicalize()
-    .map_err(|e| e.to_string())?;
-    if top != root.canonicalize().map_err(|e| e.to_string())? {
-        return Err(crate::localization::tf(
-            "native.git.subdirectory",
-            &[("path", top.display().to_string().into())],
-        ));
+/// The opened folder's place in its repository; an error outside a work tree.
+pub fn prefix(root: &Path, cancel: &AtomicBool) -> Result<String, String> {
+    let out = git(root, &["rev-parse", "--show-prefix"], None, cancel)?;
+    let prefix = std::str::from_utf8(&out)
+        .map_err(|_| crate::localization::t("native.git.nonUtf8Paths"))?
+        .trim_end_matches('\n')
+        .to_owned();
+    Ok(prefix)
+}
+/// A repository-relative path as a path under the opened folder (`prefix`),
+/// or `None` when it lies elsewhere in the repository.
+pub fn local<'a>(prefix: &str, path: &'a str) -> Option<&'a str> {
+    path.strip_prefix(prefix).filter(|p| !p.is_empty())
+}
+impl Snapshot {
+    /// Whether the change lies inside the opened folder (it, and a rename's
+    /// source, can be acted on here).
+    pub fn owns(&self, change: &Change) -> bool {
+        local(&self.prefix, &change.path).is_some()
+            && change
+                .original
+                .as_deref()
+                .is_none_or(|o| local(&self.prefix, o).is_some())
     }
-    Ok(())
 }
 pub fn validate_path(path: &str) -> Result<(), String> {
     if path.is_empty()
@@ -187,16 +205,21 @@ pub enum Operation {
     Init,
 }
 pub fn operate(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result<Snapshot, String> {
-    if !matches!(op, Operation::Init) {
-        verify_root(root, cancel)?;
-    }
+    let prefix = if matches!(op, Operation::Init) {
+        String::new()
+    } else {
+        prefix(root, cancel)?
+    };
+    // Pathspecs are relative to the opened folder (the working directory);
+    // a change elsewhere in the repository is refused.
+    let outside = || crate::localization::t("native.git.pathOutside").to_owned();
     let mut paths = Vec::new();
     if let Operation::Stage(c) | Operation::Unstage(c) | Operation::Discard(c) = op {
         validate_path(&c.path)?;
-        paths.push(c.path.as_str());
+        paths.push(local(&prefix, &c.path).ok_or_else(outside)?);
         if let Some(old) = &c.original {
             validate_path(old)?;
-            paths.push(old);
+            paths.push(local(&prefix, old).ok_or_else(outside)?);
         }
     }
     let mut args = match op {
@@ -210,7 +233,7 @@ pub fn operate(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result<Snaps
                 // `discardWorkspaceGitPaths`: an untracked path is removed.
                 // `validate_path` admits only normal components, and a
                 // symlink is removed itself, never followed.
-                let target = root.join(&c.path);
+                let target = root.join(paths[0]);
                 let meta = std::fs::symlink_metadata(&target).map_err(|e| e.to_string())?;
                 if meta.is_dir() {
                     std::fs::remove_dir_all(&target)
@@ -231,7 +254,7 @@ pub fn operate(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result<Snaps
         Operation::Push => vec!["push"],
         Operation::Init => vec!["init"],
     };
-    args.extend(paths);
+    args.extend(paths.iter().copied());
     let message = match op {
         Operation::Commit(message) if !message.trim().is_empty() => Some(message.trim().to_owned()),
         Operation::Commit(_) | Operation::StageAndCommit => {
@@ -245,12 +268,7 @@ pub fn operate(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result<Snaps
         && git(root, &["rev-parse", "--verify", "HEAD"], None, cancel).is_err()
     {
         args = vec!["rm", "--cached", "-r", "--ignore-unmatch", "--"];
-        if let Operation::Unstage(c) = op {
-            args.push(&c.path);
-            if let Some(old) = &c.original {
-                args.push(old);
-            }
-        }
+        args.extend(paths.iter().copied());
     }
     git(root, &args, input, cancel)?;
     status(root, cancel)
@@ -445,6 +463,83 @@ mod tests {
         assert_eq!(subject(&cancel), "Update a.md");
     }
     #[test]
+    fn a_subfolder_lists_its_repository_and_acts_only_inside_itself() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let cancel = AtomicBool::new(false);
+        operate(root, &Operation::Init, &cancel).unwrap();
+        for (k, v) in [
+            ("user.name", "GPUI Test"),
+            ("user.email", "gpui@example.invalid"),
+        ] {
+            git(root, &["config", k, v], None, &cancel).unwrap();
+        }
+        std::fs::create_dir(root.join("sub")).unwrap();
+        std::fs::write(root.join("top.md"), "a\n").unwrap();
+        std::fs::write(root.join("sub/in.md"), "b\n").unwrap();
+        git(root, &["add", "--all"], None, &cancel).unwrap();
+        operate(root, &Operation::Commit("Initial".into()), &cancel).unwrap();
+        std::fs::write(root.join("top.md"), "a2\n").unwrap();
+        std::fs::write(root.join("sub/in.md"), "b2\n").unwrap();
+        std::fs::write(root.join("sub/new.md"), "n\n").unwrap();
+        let sub = root.join("sub");
+        // The product's scope: the whole repository, repository-relative paths.
+        let s = status(&sub, &cancel).unwrap();
+        assert_eq!(s.prefix, "sub/");
+        let mut paths: Vec<&str> = s.changes.iter().map(|c| c.path.as_str()).collect();
+        paths.sort();
+        assert_eq!(paths, ["sub/in.md", "sub/new.md", "top.md"]);
+        let find = |s: &Snapshot, p: &str| s.changes.iter().find(|c| c.path == p).unwrap().clone();
+        let top = find(&s, "top.md");
+        assert!(!s.owns(&top));
+        assert!(operate(&sub, &Operation::Stage(top.clone()), &cancel).is_err());
+        assert!(operate(&sub, &Operation::Discard(top), &cancel).is_err());
+        assert_eq!(
+            std::fs::read_to_string(root.join("top.md")).unwrap(),
+            "a2\n"
+        );
+        // Inside the folder, pathspecs and files map to the folder.
+        let inside = find(&s, "sub/in.md");
+        assert!(s.owns(&inside));
+        let s = operate(&sub, &Operation::Stage(inside), &cancel).unwrap();
+        assert!(find(&s, "sub/in.md").staged());
+        let staged = super::super::git_diff::file_diff(
+            &sub,
+            &s.prefix,
+            "sub/in.md",
+            None,
+            super::super::git_diff::Scope::Staged,
+            &cancel,
+        )
+        .unwrap();
+        assert!(staged[0].lines.iter().any(|l| l.text == "b2"));
+        assert_eq!(staged[0].path, "sub/in.md");
+        let untracked = super::super::git_diff::file_diff(
+            &sub,
+            &s.prefix,
+            "sub/new.md",
+            None,
+            super::super::git_diff::Scope::Untracked,
+            &cancel,
+        )
+        .unwrap();
+        assert_eq!(untracked[0].lines[0].text, "n");
+        operate(&sub, &Operation::Discard(find(&s, "sub/new.md")), &cancel).unwrap();
+        assert!(!root.join("sub/new.md").exists());
+        let s = operate(&sub, &Operation::Commit(String::new()), &cancel).unwrap();
+        assert_eq!(
+            s.changes
+                .iter()
+                .map(|c| c.path.as_str())
+                .collect::<Vec<_>>(),
+            ["top.md"]
+        );
+        assert_eq!(local("sub/", "sub/a/b.md"), Some("a/b.md"));
+        assert_eq!(local("sub/", "sub/"), None);
+        assert_eq!(local("sub/", "other/a.md"), None);
+        assert_eq!(local("", "a.md"), Some("a.md"));
+    }
+    #[test]
     fn real_repository_stage_commit_diff_and_unborn_unstage() {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path();
@@ -470,6 +565,7 @@ mod tests {
         let s = status(root, &cancel).unwrap();
         let files = super::super::git_diff::file_diff(
             root,
+            "",
             &s.changes[0].path,
             None,
             super::super::git_diff::Scope::Unstaged,

@@ -692,9 +692,10 @@
         "test:the_list_lays_out_cards_with_their_hunks",
         "test:logs_merge_like_read_git_history",
         "test:commits_group_by_day_newest_first",
-        "test:changes_open_file_opens_it_in_the_editor"
+        "test:changes_open_file_opens_it_in_the_editor",
+        "test:a_subfolder_lists_its_repository_and_acts_only_inside_itself"
       ],
-      "remaining": "Collapsible Staged/Unstaged/Merge/Committed panels with Commit and Stage and Commit (product default message), Pull notice and Push are native and localized. A selected change opens WorkingFileDetail in place (Open file / Stage / Unstage / Discard) over the Diff Registry: the unified text diff (numbered lines, hunk separators, wrapping) and the binary summary (format, before/after sizes, open current file), framed by GitFileDiffSurface. History is the day-grouped timeline with change totals and a four-file preview; a commit opens its summary (HEAD, copyable id, totals) and file diffs. Unlike the Web (git rev-parse --is-inside-work-tree), Git is managed only when the opened folder is the repository root, so mutations cannot reach files outside the granted folder. Pull/Push/Discard confirm inline rather than in the product's dialogs; the DOCX redline, remote management, incoming-change review and repository setup are not ported."
+      "remaining": "Collapsible Staged/Unstaged/Merge/Committed panels with Commit and Stage and Commit (product default message), Pull notice and Push are native and localized. A selected change opens WorkingFileDetail in place (Open file / Stage / Unstage / Discard) over the Diff Registry: the unified text diff (numbered lines, hunk separators, wrapping) and the binary summary (format, before/after sizes, open current file), framed by GitFileDiffSurface. History is the day-grouped timeline with change totals and a four-file preview; a commit opens its summary (HEAD, copyable id, totals) and file diffs. As in the Web (git rev-parse --is-inside-work-tree), a folder anywhere inside a work tree is managed and lists the whole repository with repository-relative paths; staging, discarding, diffs and Open file act only on changes inside the opened folder (the Web passes repository paths as folder-relative pathspecs, which fails from a subfolder). Pull/Push/Discard confirm inline rather than in the product's dialogs; the DOCX redline, remote management, incoming-change review and repository setup are not ported."
     },
     {
       "name": "Terminal surface",

@@ -153,6 +153,17 @@ struct Section {
     changes: Vec<Change>,
 }
 /// Merge, staged and unstaged resources; untracked files join "Unstaged".
+impl SourceControl {
+    /// The opened folder's place in its repository (empty at the root).
+    fn prefix(&self) -> &str {
+        self.snapshot.as_ref().map_or("", |s| s.prefix.as_str())
+    }
+    /// A repository path as the folder-relative path the editor opens;
+    /// `None` for a file elsewhere in the repository.
+    fn workspace_path(&self, path: &str) -> Option<String> {
+        git::local(self.prefix(), path).map(str::to_owned)
+    }
+}
 fn project_sections(snapshot: &Snapshot) -> Vec<Section> {
     [Panel::Merge, Panel::Staged, Panel::Unstaged]
         .into_iter()
@@ -489,9 +500,12 @@ impl SourceControl {
             Scope::Unstaged
         };
         let (path, old) = (change.path.clone(), change.original.clone());
+        let prefix = self.prefix().to_owned();
         self.open_detail(
             DetailKind::Working(Selection { change, scope }),
-            move |root, cancel| git_diff::file_diff(&root, &path, old.as_deref(), scope, cancel),
+            move |root, cancel| {
+                git_diff::file_diff(&root, &prefix, &path, old.as_deref(), scope, cancel)
+            },
             cx,
         );
     }
@@ -648,6 +662,8 @@ impl SourceControl {
         let select = change.clone();
         let stage = change.clone();
         let discard = change.clone();
+        // A change elsewhere in the repository is listed, not acted on.
+        let owned = self.snapshot.as_ref().is_some_and(|s| s.owns(change));
         let state_label = tf(
             if staged {
                 "source-control.action.unstagePath"
@@ -685,7 +701,7 @@ impl SourceControl {
         )
         // Every unstaged change can be discarded; an untracked file is
         // deleted (`discardWorkspaceGitPaths`).
-        .when(!staged && !change.conflict(), |row| {
+        .when(owned && !staged && !change.conflict(), |row| {
             row.action(
                 row_action(("discard", index), "undo-2", discard_label)
                     .danger()
@@ -695,24 +711,26 @@ impl SourceControl {
                     })),
             )
         })
-        .action(
-            row_action(
-                ("stage", index),
-                if staged { "minus" } else { "plus" },
-                state_label,
-            )
-            .on_click(cx.listener(move |s, _, _, cx| {
-                cx.stop_propagation();
-                s.operation(
-                    if staged {
-                        Operation::Unstage(stage.clone())
-                    } else {
-                        Operation::Stage(stage.clone())
-                    },
-                    cx,
+        .when(owned, |row| {
+            row.action(
+                row_action(
+                    ("stage", index),
+                    if staged { "minus" } else { "plus" },
+                    state_label,
                 )
-            })),
-        )
+                .on_click(cx.listener(move |s, _, _, cx| {
+                    cx.stop_propagation();
+                    s.operation(
+                        if staged {
+                            Operation::Unstage(stage.clone())
+                        } else {
+                            Operation::Stage(stage.clone())
+                        },
+                        cx,
+                    )
+                })),
+            )
+        })
         .on_click(cx.listener(move |s, _, _, cx| s.select(select.clone(), staged, cx)));
         // `.desktop-working-tree-list` inline padding (12px each side).
         div()
@@ -1116,8 +1134,13 @@ impl SourceControl {
     /// `WorkingFileActions`: open the file, stage or unstage it, discard it.
     fn working_actions(&self, selection: &Selection, cx: &mut Context<Self>) -> Div {
         let change = selection.change.clone();
-        let can_open = selection.status() != 'D';
-        let open_path = change.path.clone();
+        // Outside the opened folder a change is shown, never acted on.
+        if !self.snapshot.as_ref().is_some_and(|s| s.owns(&change)) {
+            return h_flex();
+        }
+        let open_path = self.workspace_path(&change.path);
+        let can_open = selection.status() != 'D' && open_path.is_some();
+        let open_path = open_path.unwrap_or_default();
         let mut actions = h_flex().flex_none().gap(px(4.)).when(can_open, |d| {
             d.child(
                 Button::new("git-detail-open")
@@ -1183,11 +1206,17 @@ impl SourceControl {
         // Working-tree files open from their binary summary; deleted and
         // committed ones cannot.
         let open_file = match &detail.kind {
-            DetailKind::Working(selection) if selection.status() != 'D' => {
+            DetailKind::Working(selection)
+                if selection.status() != 'D'
+                    && self.workspace_path(&selection.change.path).is_some() =>
+            {
                 let host = cx.weak_entity();
+                let prefix = self.prefix().to_owned();
                 Some(
                     std::rc::Rc::new(move |path: &str, _: &mut Window, cx: &mut App| {
-                        let path = path.to_owned();
+                        let Some(path) = git::local(&prefix, path).map(str::to_owned) else {
+                            return;
+                        };
                         let _ =
                             host.update(cx, |_, cx| cx.emit(SourceControlEvent::OpenFile(path)));
                     }) as diff::OpenFile,
