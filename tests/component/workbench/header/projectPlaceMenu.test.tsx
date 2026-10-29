@@ -25,6 +25,7 @@ const projectProps = {
 };
 const handlers = { onPutInCloud: vi.fn(), onOpenCloudProject: vi.fn(), onSignIn: vi.fn(),
   onPutInCloudAgain: vi.fn(), onOpenLocalFolder: vi.fn() };
+const sharing = { onInvitePerson: vi.fn(), onConnectAgent: vi.fn() };
 const local = (input: Partial<Parameters<typeof resolveProjectPlaceMenu>[0]> = {}) => resolveProjectPlaceMenu({
   place: "local", unhosted: false, publishPending: false, notice: null, missingReplaceable: false, ...input });
 
@@ -36,10 +37,11 @@ beforeEach(() => {
 });
 afterEach(() => { act(() => root.unmount()); document.body.replaceChildren(); vi.clearAllMocks(); });
 
-async function renderHeader(menu: ProjectPlaceMenu, reach = false) {
+async function renderHeader(menu: ProjectPlaceMenu, reach = false, share = false) {
   await act(async () => root.render(withTestLocalization(<DesktopTitlebarContext {...projectProps}
-    placeMenu={{ menu, handlers }}
-    projectReach={reach ? { state: resolveProjectReachState({ share: "published", shares: [], destinations: [] }) } : undefined} />)));
+    placeMenu={{ menu, handlers: share ? { ...handlers, ...sharing } : handlers }}
+    projectReach={reach ? { state: resolveProjectReachState({ share: "local", shares: [], destinations: [] }),
+      onInvitePerson: sharing.onInvitePerson, onConnectAgent: sharing.onConnectAgent } : undefined} />)));
 }
 function openMenu(selector = ".desktop-titlebar-place-button") {
   act(() => container.querySelector<HTMLButtonElement>(selector)!.click());
@@ -76,11 +78,35 @@ describe("the Header place menu (ADR-001)", () => {
     openMenu();
     expect(rows()).toEqual([
       ["current", "This Mac", null],
-      ["put-in-cloud", "Put in the Cloud", "Agents keep working when this Mac is off."],
+      ["put-in-cloud", "Put in the Cloud", null],
     ]);
     click("put-in-cloud");
     expect(handlers.onPutInCloud).toHaveBeenCalledOnce();
     expect(document.querySelector(".desktop-project-place-menu")).toBeNull();
+  });
+
+  it("puts inviting a person and connecting an agent under Put in the Cloud, as part of going to the Cloud", async () => {
+    await renderHeader(local({ unhosted: true }), false, true);
+    openMenu();
+    expect(rows().map(([kind, label]) => [kind, label])).toEqual([
+      ["current", "This Mac"],
+      ["put-in-cloud", "Put in the Cloud"],
+      ["invite-person", "Invite a person"],
+      ["connect-agent", "Connect an agent"],
+    ]);
+    const subrows = document.querySelectorAll(".desktop-project-place-subrow");
+    expect([...subrows].map((row) => (row as HTMLElement).dataset.projectPlaceRow)).toEqual(["invite-person", "connect-agent"]);
+    click("invite-person");
+    expect(sharing.onInvitePerson).toHaveBeenCalledOnce();
+    openMenu();
+    click("connect-agent");
+    expect(sharing.onConnectAgent).toHaveBeenCalledOnce();
+  });
+
+  it("offers no sharing for a folder whose Cloud project cannot be reached from here", async () => {
+    await renderHeader(local({ notice: { kind: "sign-in" } }), false, true);
+    openMenu();
+    expect(rows().map(([kind]) => kind)).toEqual(["current", "sign-in"]);
   });
 
   it("opens a linked folder's Cloud project as another project", async () => {
@@ -108,11 +134,13 @@ describe("the Header place menu (ADR-001)", () => {
     expect(document.querySelector(".desktop-titlebar-location-button, .desktop-project-location-controls")).toBeNull();
   });
 
-  it("puts the same action inside the reach panel instead of adding a second place control", async () => {
+  it("is the reach panel itself on the reach path, without a separate reach statement or actions", async () => {
     await renderHeader(local({ unhosted: true }), true);
     expect(container.querySelector(".desktop-titlebar-place-button")).toBeNull();
     openMenu(".desktop-titlebar-reach-button");
-    expect(rows().map(([kind]) => kind)).toEqual(["current", "put-in-cloud"]);
+    expect(rows().map(([kind]) => kind)).toEqual(["current", "put-in-cloud", "invite-person", "connect-agent"]);
+    expect(document.querySelector(".desktop-project-reach-card, .desktop-project-reach-action")).toBeNull();
+    expect(document.body.textContent).not.toContain("Only you can reach this project");
     click("put-in-cloud");
     expect(handlers.onPutInCloud).toHaveBeenCalledOnce();
   });

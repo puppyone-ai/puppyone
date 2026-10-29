@@ -1065,8 +1065,6 @@
   "placeMenu.label": "Wo dieses Projekt liegt",
   "placeMenu.putInCloud": "In die Cloud stellen",
   "placeMenu.continuePutInCloud": "Weiter in die Cloud stellen",
-  "placeMenu.putInCloudDetail.mac": "Agenten arbeiten weiter, wenn dieser Mac aus ist.",
-  "placeMenu.putInCloudDetail.computer": "Agenten arbeiten weiter, wenn dieser Computer aus ist.",
   "placeMenu.openFolder.mac": "Ordner auf diesem Mac öffnen",
   "placeMenu.openFolder.computer": "Ordner auf diesem Computer öffnen"
 }

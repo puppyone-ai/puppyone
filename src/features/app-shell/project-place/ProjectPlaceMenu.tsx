@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { Check } from "lucide-react";
+import { Check, Plug, UserPlus } from "lucide-react";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import { CloudIcon, CloudUploadIcon, LocalIcon } from "@puppyone/shared-ui";
-import { DesktopMenuItem } from "../../../components/DesktopMenu";
+import { DesktopMenuItem, DesktopMenuSeparator } from "../../../components/DesktopMenu";
 import { DesktopTitlebarMenuLayer } from "../../../components/DesktopTitlebarMenuLayer";
 import { useDesktopPlatformCapabilities } from "../../../platform";
 import type { ProjectPlaceAction, ProjectPlaceMenu } from "./projectPlaceMenuState";
@@ -14,6 +14,9 @@ export type ProjectPlaceHandlers = Readonly<{
   onSignIn: () => void;
   onPutInCloudAgain: () => void;
   onOpenLocalFolder: (path: string) => void;
+  /** Sharing is part of putting a folder in the Cloud; absent when sharing is off. */
+  onInvitePerson?: () => void;
+  onConnectAgent?: () => void;
 }>;
 
 export type ProjectPlaceMenuProps = Readonly<{
@@ -54,10 +57,16 @@ export function ProjectPlaceMenuControl({ menu, handlers, projectMenuOpen = fals
   </div>;
 }
 
-/** The current place as a fact, then at most one action that opens another project or starts publishing. */
+/**
+ * The current place as a fact, then the Cloud action. Inviting a person and
+ * connecting an agent sit under it: they are part of going to the Cloud, not
+ * separate tools.
+ */
 export function ProjectPlaceRows({ menu, handlers, onDismiss }: ProjectPlaceMenuProps & { onDismiss: () => void }) {
   const { t } = useLocalization();
   const placeLabel = useProjectPlaceLabel(menu.place);
+  const sharing = menu.action && sharesThroughCloud(menu.action) ? handlers : null;
+  const run = (action?: () => void) => action && (() => { onDismiss(); action(); });
   return <section className="desktop-project-place-rows" aria-label={t("cloud.placeMenu.label")}>
     <DesktopMenuItem className="desktop-project-place-row" role="button" aria-current="true" aria-disabled="true"
       data-project-place-row="current" selected
@@ -65,8 +74,22 @@ export function ProjectPlaceRows({ menu, handlers, onDismiss }: ProjectPlaceMenu
         {menu.place === "cloud" ? <CloudIcon size={15} strokeWidth={1.75} /> : <LocalIcon size={15} strokeWidth={1.75} />}
       </span>}
       label={placeLabel} trailing={<Check size={14} aria-hidden="true" />} />
-    {menu.action && <ProjectPlaceActionRow action={menu.action} handlers={handlers} onDismiss={onDismiss} />}
+    {menu.action && <>
+      <DesktopMenuSeparator />
+      <ProjectPlaceActionRow action={menu.action} handlers={handlers} onDismiss={onDismiss} />
+      {sharing?.onInvitePerson && <DesktopMenuItem className="desktop-project-place-row desktop-project-place-subrow"
+        role="button" data-project-place-row="invite-person" icon={<UserPlus size={14} strokeWidth={1.8} />}
+        label={t("shell.projectReach.invitePerson")} onClick={run(sharing.onInvitePerson)} />}
+      {sharing?.onConnectAgent && <DesktopMenuItem className="desktop-project-place-row desktop-project-place-subrow"
+        role="button" data-project-place-row="connect-agent" icon={<Plug size={14} strokeWidth={1.8} />}
+        label={t("shell.projectReach.connectAgent")} onClick={run(sharing.onConnectAgent)} />}
+    </>}
   </section>;
+}
+
+/** Inviting and connecting reach this folder's Cloud project, new or existing. */
+function sharesThroughCloud(action: ProjectPlaceAction) {
+  return action.kind === "put-in-cloud" || action.kind === "open-cloud-project";
 }
 
 function ProjectPlaceActionRow({ action, handlers, onDismiss }: {
@@ -90,7 +113,7 @@ function useProjectPlaceActionRow(action: ProjectPlaceAction, handlers: ProjectP
     case "put-in-cloud":
       return { place: "cloud", icon: <CloudUploadIcon size={15} strokeWidth={1.75} />,
         label: t(action.continuing ? "cloud.placeMenu.continuePutInCloud" : "cloud.placeMenu.putInCloud"),
-        detail: t(`cloud.placeMenu.putInCloudDetail.${device}`), run: handlers.onPutInCloud };
+        detail: undefined, run: handlers.onPutInCloud };
     case "open-cloud-project":
       return { place: "cloud", icon: <CloudIcon size={15} strokeWidth={1.75} />,
         label: t("cloud.localFolderNotice.openProject"),
@@ -98,10 +121,10 @@ function useProjectPlaceActionRow(action: ProjectPlaceAction, handlers: ProjectP
         run: () => handlers.onOpenCloudProject(action.projectId) };
     case "sign-in":
       return { place: "cloud", icon: <CloudIcon size={15} strokeWidth={1.75} />,
-        label: t("cloud.auth.signIn"), detail: t("cloud.localFolderNotice.signIn"), run: handlers.onSignIn };
+        label: t("cloud.auth.signIn"), detail: undefined, run: handlers.onSignIn };
     case "put-in-cloud-again":
       return { place: "cloud", icon: <CloudUploadIcon size={15} strokeWidth={1.75} />,
-        label: t("cloud.localFolderNotice.putInCloud"), detail: t("cloud.localFolderNotice.missingNoAction"),
+        label: t("cloud.localFolderNotice.putInCloud"), detail: undefined,
         run: handlers.onPutInCloudAgain };
     case "open-local-folder":
       return { place: "local", icon: <LocalIcon size={15} strokeWidth={1.75} />,

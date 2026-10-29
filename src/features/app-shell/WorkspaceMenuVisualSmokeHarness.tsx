@@ -8,6 +8,18 @@ import "./workspace-menu-visual-smoke.css";
 import { initializeDesktopPreferences } from "../../preferencesStore";
 import { ProjectSwitcherRail } from "./ProjectSwitcherRail";
 import { resolveProjectReachState } from "./project-reach";
+import { resolveProjectPlaceMenu } from "./project-place/projectPlaceMenuState";
+
+const noop = () => undefined;
+/** The Header place menu for a scenario: a folder to put in the Cloud, a linked folder, or a Cloud project. */
+function placeMenuFor(state: string, current: "local" | "cloud") {
+  return { menu: resolveProjectPlaceMenu({ place: current, unhosted: state === "local-only" || state === "local-github",
+    publishPending: false, missingReplaceable: false,
+    notice: state === "local-cloud" ? { kind: "linked", projectId: "project-1", projectName: "To-Do-List", openable: true } : null,
+    linkedFolder: current === "cloud" ? { path: "/Users/demo/Projects/To-Do-List", name: "To-Do-List" } : null }),
+  handlers: { onPutInCloud: noop, onOpenCloudProject: noop, onSignIn: noop, onPutInCloudAgain: noop,
+    onOpenLocalFolder: noop, onInvitePerson: noop, onConnectAgent: noop } };
+}
 
 initializeDesktopPreferences();
 
@@ -89,6 +101,7 @@ export function WorkspaceMenuVisualSmokeHarness() {
                 place: current === "cloud" ? "cloud" : "this-device" }),
               onInvitePerson: () => undefined, onConnectAgent: () => undefined,
             } : undefined}
+            placeMenu={placeMenuFor(state, current)}
             onOpenFolder={() => undefined}
             onClose={() => setOpen(false)}
             onToggle={() => setOpen(current => !current)}
