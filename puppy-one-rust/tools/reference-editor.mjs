@@ -31,6 +31,7 @@ for (const mode of ['dark', 'light']) {
   cases.push({id: `md-menu-${mode}`, file: 'sample.md', mode, menu: true});
   cases.push({id: `csv-menu-${mode}`, file: 'sample.csv', mode, menu: true});
   cases.push({id: `md-source-${mode}`, file: 'sample.md', mode, view: 'source'});
+  cases.push({id: `md-find-${mode}`, file: 'sample.md', mode, find: true});
   cases.push({id: `json-${mode}`, file: 'sample.json', mode});
   cases.push({id: `code-${mode}`, file: 'sample.ts', mode});
   // Resource viewers read a URL; a binary file shows the fallback preview.
@@ -146,6 +147,12 @@ createRoot(document.getElementById('root')).render(<Fixture/>);`;
         await win.webContents.executeJavaScript(`(async()=>{window.__setMenuOpen(true);await new Promise(r=>setTimeout(r,200));
           const b=[...document.querySelectorAll('.desktop-editor-pane-menu-segment')][1];if(!b)throw Error('No source segment');b.click();
           window.__setMenuOpen(false);await new Promise(r=>setTimeout(r,600));})()`);
+      }
+      if (c.find) {
+        // ⌘F in the editor host opens the find bar; the capture is unfocused.
+        await win.webContents.executeJavaScript(`(async()=>{const host=document.querySelector('.editor-find-host');
+          host.dispatchEvent(new KeyboardEvent('keydown',{key:'f',metaKey:true,bubbles:true,cancelable:true}));
+          await new Promise(r=>setTimeout(r,400));document.activeElement?.blur?.();await new Promise(r=>setTimeout(r,200));})()`);
       }
       if (c.menu) {
         await win.webContents.executeJavaScript(`(async()=>{const pane=document.querySelector('.desktop-editor-pane');

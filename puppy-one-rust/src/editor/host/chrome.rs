@@ -18,21 +18,9 @@ impl DocumentEditor {
         let (Some(session), Some(surface)) = (&self.session, &self.surface) else {
             return Contribution::default();
         };
-        let mut entries = surface.pane(cx);
-        if self.workbench {
-            for (id, key) in [
-                ("split-left", "editor.panes.splitLeft"),
-                ("split-right", "editor.panes.splitRight"),
-                ("split-up", "editor.panes.splitUp"),
-                ("split-down", "editor.panes.splitDown"),
-            ] {
-                entries.items.push(crate::editor::workbench::pane::Item {
-                    id,
-                    label: crate::localization::t(key).into(),
-                    kind: crate::editor::workbench::pane::ItemKind::Command { disabled: false },
-                });
-            }
-        }
+        let entries = surface.pane(cx);
+        // The product's pane menu has no split commands (`EditorPaneActionsMenu`
+        // ignores `onSplit`); panes split by dropping onto an edge.
         // The live / source toggle is the contribution's to declare.
         let segmented = entries
             .segmented
@@ -99,6 +87,21 @@ impl DocumentEditor {
         }
     }
 
+    /// Dev-capture: the reference's `md-menu` (handle revealed, menu open)
+    /// and `md-find` (find bar open, unfocused) states.
+    #[cfg(feature = "dev-capture")]
+    pub fn lab_state(&mut self, state: &str, window: &mut Window, cx: &mut Context<Self>) {
+        match state {
+            "menu" => {
+                self.chrome.hot = true;
+                self.toggle_pane_menu(window, cx);
+                self.chrome.keyboard = false;
+            }
+            "find" => self.open_find(window, cx),
+            _ => {}
+        }
+        cx.notify();
+    }
     /// Run a pane menu entry (`runAndClose` for commands).
     #[cfg(feature = "dev-capture")]
     pub fn lab_pane_segment(
@@ -133,12 +136,6 @@ impl DocumentEditor {
             Action::Close => cx.emit(ClientMessage::Action {
                 action: "close-file".into(),
             }),
-            Action::Item(id)
-                if self.workbench
-                    && matches!(id, "split-left" | "split-right" | "split-up" | "split-down") =>
-            {
-                cx.emit(ClientMessage::Action { action: id.into() })
-            }
             Action::Item(id) => {
                 if let Some(surface) = &self.surface {
                     surface.pane_item(id, window, cx);

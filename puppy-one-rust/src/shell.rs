@@ -1179,35 +1179,6 @@ impl Shell {
                                             let active = state.layout.active.clone();
                                             state.close_pane(&active);
                                         }
-                                    } else if let Some((direction, placement)) = match action
-                                        .as_str()
-                                    {
-                                        "split-right" => Some((
-                                            crate::editor::workbench::layout::Direction::Horizontal,
-                                            crate::editor::workbench::layout::Placement::Second,
-                                        )),
-                                        "split-left" => Some((
-                                            crate::editor::workbench::layout::Direction::Horizontal,
-                                            crate::editor::workbench::layout::Placement::First,
-                                        )),
-                                        "split-down" => Some((
-                                            crate::editor::workbench::layout::Direction::Vertical,
-                                            crate::editor::workbench::layout::Placement::Second,
-                                        )),
-                                        "split-up" => Some((
-                                            crate::editor::workbench::layout::Direction::Vertical,
-                                            crate::editor::workbench::layout::Placement::First,
-                                        )),
-                                        _ => None,
-                                    } {
-                                        if let Some(mut state) = s.files.state_mut() {
-                                            if placement == crate::editor::workbench::layout::Placement::Second {
-                                                state.split(direction);
-                                            } else {
-                                            let active = state.layout.active.clone();
-                                            state.layout.split(&active, direction, placement, None);
-                                            }
-                                        }
                                     } else if let Some(command) = Command::from_protocol(action) {
                                         s.command(command, window, cx);
                                     }

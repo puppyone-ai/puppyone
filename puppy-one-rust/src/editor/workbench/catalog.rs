@@ -184,6 +184,9 @@ impl Workbench {
         self.layout.close(pane);
         self.focus(&self.layout.active.clone());
     }
+    /// Split the active pane after it (tests build layouts this way; the
+    /// product splits by dropping onto a pane edge).
+    #[cfg(test)]
     pub fn split(&mut self, direction: Direction) {
         self.layout.split(
             &self.layout.active.clone(),

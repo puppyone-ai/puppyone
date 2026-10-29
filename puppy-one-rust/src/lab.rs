@@ -97,8 +97,10 @@ impl Lab {
                     "sample.json",
                     include_str!("../fixtures/editor/sample.json"),
                 ),
-                "md" => ("sample.md", include_str!("../fixtures/editor/sample.md")),
-                "csv" => ("sample.csv", include_str!("../fixtures/editor/sample.csv")),
+                "md" | "md-menu" | "md-source" | "md-find" => {
+                    ("sample.md", include_str!("../fixtures/editor/sample.md"))
+                }
+                "csv" | "csv-menu" => ("sample.csv", include_str!("../fixtures/editor/sample.csv")),
                 "html-edit" => (
                     "sample.html",
                     include_str!("../fixtures/editor/sample.html"),
@@ -166,6 +168,13 @@ impl Lab {
                 // with a window screenshot, not PUPPYONE_SCREENSHOT).
                 if scenario == "editor-html-edit" {
                     editor.lab_pane_segment("edit", window, cx);
+                }
+                // Pane chrome states of `tools/reference-editor.mjs`.
+                match scenario.as_str() {
+                    "editor-md-source" => editor.lab_pane_segment("source", window, cx),
+                    "editor-md-menu" | "editor-csv-menu" => editor.lab_state("menu", window, cx),
+                    "editor-md-find" => editor.lab_state("find", window, cx),
+                    _ => {}
                 }
                 editor
             });
