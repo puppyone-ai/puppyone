@@ -72,6 +72,16 @@
 
 仍未完成（第二轮后）：HTML 可视化编辑、Context Map、App 预览；Cloud 切换/Share/History/Agent/发布界面/服务管理页/Billing/草稿策略；全部像素对比流程；右侧栏、设置与账户付费的剩余项。
 
+- [x] 第三轮（`15ecae65`..`64e15606`）：Cloud 草稿与未知结果策略（`deferCloudBaseline`，C-6.6，Cloud 文档恢复可编辑）；Header Share 与 Share this project 对话框（缩略图未画）；Cloud History 侧栏（80 条分页、按需详情、共享有界缓存）；Header 本地/Cloud 切换、两侧宿主保活、checkout 的 Cloud 关联（C-4.3、C-7.1–7.3、C-5.4、C-5.8）。像素流程新增：Cloud History（list 99.98% / detail 99.27% / empty 99.91%）、代码 99.7%、JSON 99.7%、图片 99.94%、图片失败 99.89%、二进制占位 99.83%。为代码 gutter 引入 `vendor/gpui-base`（0.8.0 + GutterMetrics，见 `PUPPYONE_PATCH.md`，`[patch.crates-io]`）。
+- [x] 第四轮（`110df209`、`9d5be178`、`01568662`）：
+  - 首页与 Header 项目菜单共用一个扁平列表（`buildHomepageProjects`）：本地 checkout 和账号目录按实际修改时间、`localeCompare` 名称、ID 排序；只有本轮新读的、可信 origin 的项目根定位器才合并成一行（`git remote -v` 在水合 worker 上读）；三种位置图标；合并行的 Open 下拉（On This Mac / On Cloud Computer），默认本机，Open in Cloud 在本窗口准备，只在 Cloud 的行开专用窗口；打开偏好按账号 + API 记录（上限 100），失败和取消不记录。只在 Cloud 的窗口只通过账号目录里可信的本地 checkout 提供“在本机打开”（C-3.2–3.5、C-7.4）。证据：`the_homepage_merges_a_linked_checkout_and_remembers_where_it_opened`、`openings_default_to_this_computer_and_follow_the_last_successful_one`、`the_open_history_is_bounded_and_stored_like_the_product`。
+  - 账号权限（用户、会话代次、API、Cloud 开关）变化时撤销 Cloud 选择：取消进行中的打开、丢弃保活的 Cloud 宿主和 Share 对话框，窗口回到保留的本地宿主、其文件夹或首页；等待中的 Header 切换意图保留。同一目标的重复打开合并，新的选择会取消被替换的准备（C-2.5、C-5.5、C-5.6）。证据：`signing_out_revokes_the_hosted_selection_and_returns_home`、`turning_cloud_off_cancels_an_opening_in_flight`、`the_same_cloud_target_joins_its_pending_opening`。
+  - `ui::components::notice`（FloatingNotice / NoticeStack / NoticeAction）；Cloud 冲突改为编辑器内不可关闭的危险提示（“丢弃并重新加载”），不再是对话框；同一账号重新打开同一项目时重新绑定保留的宿主（Explorer、Working Copy、预览）到新租约，`Workspace::adopt` 重读后按存储观察对账，未保存输入下的远端新文本被搁置，失败的写入不重试；订阅失败显示工作区警告提示（Retry、关闭），之后的变更会清除它（S-11 部分、C-6.3、C-6.7）。证据：`a_new_lease_of_the_same_storage_rebinds_the_working_copy_and_keeps_saving`、`a_rebind_holds_newer_remote_text_back_under_unsaved_input`、`a_failed_cloud_subscription_offers_retry_which_rebinds_the_same_host`。
+  - 映射审计新登记 6 个 Cloud 组共 38 个源文件（`src/features/cloud` pending 230 → 192）。
+  - 本轮新界面（合并行与 Open 下拉、浮动提示）都**没有**像素对比；关联角标没有 TS 的 silhouette backplate。
+
+仍未完成（第四轮后）：Cloud 预览资源（Office/数据库临时文件、HTML data URL 投影）、Scope、MissingCloudProjectRecovery、发布流程与价值页、Cloud Agent、服务管理页、Billing；浮动提示的其余使用方（保存状态浮层、文件操作提示）；首页 Cloud 行与浮动提示的像素流程；HTML 可视化编辑、Context Map、App 预览；右侧栏、设置与账户付费的剩余项。
+
 （第一轮记录）仍未完成：HTML/Office/音视频/数据库/Context Map/App 预览查看器；代码编辑器装饰与冲突横幅；Cloud 全部界面；各处像素对比流程；右侧栏、设置与账户付费的剩余项。完整清单与状态见桌面迁移清单第 2 版。
 
 ## 1. 基础设施
