@@ -487,7 +487,15 @@ impl SourceControl {
             )
             .into_any_element();
         }
-        timeline_list(self.timeline_list.clone(), cx).into_any_element()
+        gpui_kit::base::v_flex()
+            .flex_1()
+            .min_h_0()
+            .child(timeline_list(self.timeline_list.clone(), cx))
+            .child(crate::ui::scrollbar::vertical(
+                "history-timeline-scrollbar",
+                &self.timeline_list,
+            ))
+            .into_any_element()
     }
     /// `GitCommitDetail`'s summary: the message and `HEAD`, the copyable id,
     /// the change totals.

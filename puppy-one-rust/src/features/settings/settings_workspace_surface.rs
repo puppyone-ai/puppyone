@@ -48,6 +48,7 @@ pub struct SettingsWorkspaceSurface {
     /// The page scroller and whether its content overflowed at the last
     /// layout: product scrollbars then reserve their 12px gutter.
     content_scroll: ScrollHandle,
+    pub(super) sidebar_scroll: ScrollHandle,
     content_overflows: bool,
     /// The wallet's 30 s reread while Account shows.
     compute_timer: Option<Task<()>>,
@@ -158,6 +159,7 @@ impl SettingsWorkspaceSurface {
             hosting_backup_branch: cx
                 .new(|cx| crate::ui::form_input::TextInput::new("", false, 200, window, cx)),
             content_scroll: ScrollHandle::new(),
+            sidebar_scroll: ScrollHandle::new(),
             content_overflows: false,
             compute_timer: None,
             capture_page: None,
@@ -398,7 +400,11 @@ impl Render for SettingsWorkspaceSurface {
                                 )
                                 .absolute()
                                 .size_0()
-                            }),
+                            })
+                            .child(crate::ui::scrollbar::vertical(
+                                "settings-content-scrollbar",
+                                &self.content_scroll,
+                            )),
                     ),
             )
     }

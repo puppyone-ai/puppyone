@@ -225,6 +225,8 @@ pub struct SourceControl {
     history_loaded: bool,
     timeline: Vec<history::TimelineRow>,
     timeline_list: ListState,
+    /// Each status panel's list scroller (Merge, Committed, Staged, Unstaged).
+    panel_scroll: [UniformListScrollHandle; 4],
     /// Collapsed days of the timeline (local `YYYY-MM-DD`).
     collapsed_days: std::collections::HashSet<String>,
     /// The commit id just copied (its icon reads "copied" briefly).
@@ -293,6 +295,7 @@ impl SourceControl {
             history_loaded: false,
             timeline: vec![],
             timeline_list: ListState::new(0, ListAlignment::Top, px(400.)),
+            panel_scroll: Default::default(),
             collapsed_days: Default::default(),
             copied: None,
             sections: vec![],
@@ -782,7 +785,8 @@ impl SourceControl {
             .child(div().h(px(1.)).w_full().bg(t.sidebar_divider))
     }
     fn file_list(&self, panel: Panel, count: usize, cx: &mut Context<Self>) -> AnyElement {
-        uniform_list(
+        let scroll = self.panel_scroll[panel as usize].clone();
+        let list = uniform_list(
             SharedString::from(format!("git-list-{panel:?}")),
             count,
             cx.processor(move |s, range: std::ops::Range<usize>, _, cx| {
@@ -806,7 +810,16 @@ impl SourceControl {
         .flex_1()
         .min_h_0()
         .pt(px(SECTION_BODY_TOP_GAP))
-        .into_any_element()
+        .track_scroll(&scroll);
+        gpui_kit::base::v_flex()
+            .flex_1()
+            .min_h_0()
+            .child(list)
+            .child(crate::ui::scrollbar::vertical(
+                SharedString::from(format!("git-list-scrollbar-{panel:?}")),
+                &scroll,
+            ))
+            .into_any_element()
     }
     /// `.desktop-git-section-empty` / `.desktop-git-committed-summary` text
     /// under the section title label.
@@ -1199,13 +1212,22 @@ impl SourceControl {
         };
         if matches!(&detail.files, Some(Ok(files)) if !files.is_empty()) {
             let host = cx.weak_entity();
-            return list(detail.list.clone(), move |i, _, cx| {
-                host.update(cx, |s, cx| s.detail_row(i, cx))
-                    .unwrap_or_else(|_| div().into_any_element())
-            })
-            .flex_1()
-            .min_h_0()
-            .into_any_element();
+            return gpui_kit::base::v_flex()
+                .flex_1()
+                .min_h_0()
+                .child(
+                    list(detail.list.clone(), move |i, _, cx| {
+                        host.update(cx, |s, cx| s.detail_row(i, cx))
+                            .unwrap_or_else(|_| div().into_any_element())
+                    })
+                    .flex_1()
+                    .min_h_0(),
+                )
+                .child(crate::ui::scrollbar::vertical(
+                    "git-detail-scrollbar",
+                    &detail.list,
+                ))
+                .into_any_element();
         }
         // `.desktop-commit-empty` / `.desktop-utility-empty`: under the
         // commit's summary, or at the top of a working file's detail.

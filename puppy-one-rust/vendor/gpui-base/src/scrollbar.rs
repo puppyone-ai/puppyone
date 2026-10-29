@@ -153,6 +153,9 @@ struct ScrollbarState(Rc<Cell<ScrollbarStateInner>>);
 struct ScrollbarStateInner {
     hovered_axis: Option<Axis>,
     hovered_on_thumb: Option<Axis>,
+    /// PuppyOne patch: the pointer is over the scrolled viewport (the scroll
+    /// owner), which reveals a [`ScrollbarMode::Hover`] scrollbar.
+    owner_hovered: bool,
     dragged_axis: Option<Axis>,
     drag_pos: Point<Pixels>,
     last_scroll_offset: Point<Pixels>,
@@ -173,6 +176,7 @@ impl Default for ScrollbarState {
         Self(Rc::new(Cell::new(ScrollbarStateInner {
             hovered_axis: None,
             hovered_on_thumb: None,
+            owner_hovered: false,
             dragged_axis: None,
             drag_pos: point(px(0.), px(0.)),
             last_scroll_offset: point(px(0.), px(0.)),
@@ -583,6 +587,14 @@ impl ScrollbarStateInner {
         let mut state = *self;
         state.hovered_axis = axis;
         state.last_scroll_time = Some(now);
+        state
+    }
+
+    /// PuppyOne patch: owner hover reveals without extending the idle hold,
+    /// so the thumb leaves with the pointer (CSS `:hover`).
+    fn with_owner_hovered(&self, hovered: bool) -> Self {
+        let mut state = *self;
+        state.owner_hovered = hovered;
         state
     }
 
@@ -1330,7 +1342,9 @@ impl Element for Scrollbar {
             inner = inner.with_last_scroll(current_offset, Some(now));
         }
 
-        let is_hovered = inner.hovered_axis.is_some() || inner.hovered_on_thumb.is_some();
+        let is_hovered = inner.hovered_axis.is_some()
+            || inner.hovered_on_thumb.is_some()
+            || (mode.is_hover() && inner.owner_hovered);
         let is_dragging = inner.dragged_axis.is_some();
         let is_currently_visible = inner.visibility.sample(now).opacity > 0.0;
         let visible = hover_keeps_visible(mode, is_hovered, is_currently_visible)
@@ -1592,6 +1606,23 @@ impl Element for Scrollbar {
         let view_id = window.current_view();
         let hitbox_bounds = prepaint.hitbox.bounds;
         let is_hover_to_show = mode.is_hover();
+
+        // PuppyOne patch: in hover mode the whole viewport reveals the
+        // scrollbar, as the product's `[data-po-scrollbar]:hover` does.
+        if is_hover_to_show {
+            let viewport = prepaint.hitbox.clone();
+            let state = scrollbar_state.clone();
+            window.on_mouse_event(move |_: &MouseMoveEvent, phase, window, cx| {
+                if !phase.bubble() {
+                    return;
+                }
+                let hovered = viewport.is_hovered(window);
+                if state.get().owner_hovered != hovered {
+                    state.set(state.get().with_owner_hovered(hovered));
+                    cx.notify(view_id);
+                }
+            });
+        }
 
         window.with_content_mask(
             Some(ContentMask {

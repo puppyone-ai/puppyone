@@ -115,11 +115,14 @@ pub struct PaneChrome {
     pub selected: usize,
     /// `:focus-visible` after keyboard navigation.
     pub keyboard: bool,
+    /// The menu's scroller.
+    pub scroll: ScrollHandle,
 }
 
 impl PaneChrome {
     pub fn new(focus: FocusHandle) -> Self {
         Self {
+            scroll: ScrollHandle::new(),
             open: false,
             hot: false,
             focus,
@@ -453,6 +456,7 @@ pub fn menu(
         .max_w(pane.size.width - px(16.))
         .max_h(px(MENU_MAX_HEIGHT))
         .overflow_y_scroll()
+        .track_scroll(&chrome.scroll)
         .p(px(metric::MENU_PADDING))
         .border_1()
         .border_color(t_.border)
@@ -481,7 +485,11 @@ pub fn menu(
                     .border_color(t_.divider)
                     .child(secondary),
             )
-        });
+        })
+        .child(crate::ui::scrollbar::vertical(
+            "desktop-editor-pane-menu-scrollbar",
+            &chrome.scroll,
+        ));
     Some(
         deferred(
             div()

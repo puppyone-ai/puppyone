@@ -120,6 +120,7 @@ impl AgentChat {
         let a = AgentTheme::new(&t);
         let m = theme::ty();
         let id = interaction.id.clone();
+        let dock_scroll = self.scrollers.dock.clone();
         let card = |padding: f32| {
             v_flex()
                 .id("agent-interaction-dock")
@@ -129,6 +130,11 @@ impl AgentChat {
                 .mx_auto()
                 .max_h(px(360.))
                 .overflow_y_scroll()
+                .track_scroll(&dock_scroll)
+                .child(crate::ui::scrollbar::vertical(
+                    "agent-interaction-dock-scrollbar",
+                    &dock_scroll,
+                ))
                 .flex_shrink_0()
                 .p(px(padding))
                 .rounded(px(8.))
@@ -183,12 +189,17 @@ impl AgentChat {
                             .id("approval-command")
                             .max_h(px(76.))
                             .overflow_y_scroll()
+                            .track_scroll(&self.scrollers.command)
                             .font_family(theme::MONO)
                             .text_size(px(m.right.code))
                             .line_height(px(m.right.code * 1.5))
                             .text_color(a.text_muted)
                             .whitespace_normal()
-                            .child(command.clone()),
+                            .child(command.clone())
+                            .child(crate::ui::scrollbar::vertical(
+                                "approval-command-scrollbar",
+                                &self.scrollers.command,
+                            )),
                     );
                 }
                 let meta = |text: String| {

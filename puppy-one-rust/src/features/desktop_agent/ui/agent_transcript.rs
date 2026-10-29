@@ -528,6 +528,10 @@ impl AgentChat {
                 .absolute()
                 .size_full(),
             )
+            .child(crate::ui::scrollbar::vertical(
+                "agent-transcript-scrollbar",
+                &self.transcript,
+            ))
             .when(scrolled, |d| {
                 // `.desktop-agent-transcript-wrap::before`: canvas → 78% canvas → transparent.
                 d.child(

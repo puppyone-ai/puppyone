@@ -418,6 +418,7 @@ impl Render for PdfView {
                     .bg(p.panel_raised)
                     .on_scroll_wheel(cx.listener(|_, _, _, cx| cx.notify()))
                     .child(column)
+                    .child(crate::ui::scrollbar::both("pdf-scrollbar", &self.scroll))
                     .into_any_element()
             }
         };

@@ -104,6 +104,8 @@ pub struct Shell {
     /// Homepage requested from the project menu (`goToHomepage`).
     home: bool,
     recent_projects: Vec<crate::features::settings::preference_types::RecentProject>,
+    /// The Homepage project list's scroller.
+    home_scroll: ScrollHandle,
     weak: WeakEntity<Shell>,
     /// The workspace tree on the left.
     explorer: Entity<Explorer>,
@@ -261,6 +263,7 @@ impl Shell {
             popover: None,
             home: false,
             recent_projects: vec![],
+            home_scroll: ScrollHandle::new(),
             weak: cx.weak_entity(),
             explorer: cx.new(|cx| Explorer::new(fixture, preferences.clone(), cx)),
             homepage: Default::default(),

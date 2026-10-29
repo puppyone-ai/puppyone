@@ -724,6 +724,10 @@ impl Render for Explorer {
             })
             .child(self.on_explorer_actions(tree, cx))
             .when(theme::footer() > 0., |d| d.child(self.tree_bottom_fade(t)))
+            .child(crate::ui::scrollbar::vertical(
+                "explorer-scrollbar",
+                &self.scroll,
+            ))
             .children(self.context_menu(cx))
     }
 }

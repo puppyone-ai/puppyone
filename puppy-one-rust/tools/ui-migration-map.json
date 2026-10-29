@@ -735,24 +735,29 @@
       "status": "partial",
       "sources": [
         "src/components/DesktopDialog.tsx",
-        "src/components/DesktopTooltipLayer.tsx",
         "src/components/DesktopOverlayLayer.tsx",
+        "src/components/DesktopTooltipLayer.tsx",
+        "src/components/ScrollbarActivity.tsx",
         "src/styles/dialogs.css",
-        "src/styles/tooltip.css",
-        "src/styles/scrollbars.css"
+        "src/styles/scrollbars.css",
+        "src/styles/tooltip.css"
       ],
       "targets": [
+        "src/geometry.rs",
+        "src/shell/modals.rs",
+        "src/shell/tasks.rs",
+        "src/theme.rs",
         "src/ui/components/dialog.rs",
         "src/ui/components/menu.rs",
-        "src/shell/tasks.rs",
-        "src/shell/modals.rs",
-        "src/geometry.rs"
+        "src/ui/scrollbar.rs",
+        "vendor/gpui-base/src/scrollbar.rs"
       ],
       "evidence": [
         "test:kit_dialog_tab_order_keeps_focus_inside_feedback",
-        "test:escape_answers_the_topmost_dialog"
+        "test:escape_answers_the_topmost_dialog",
+        "test:the_product_scrollbar_reveals_on_hover_and_for_900ms_after_a_scroll"
       ],
-      "remaining": "Dialogs and tooltips use GPUI Kit with product tokens. Scrollbar activity fading (ScrollbarActivity) is not ported."
+      "remaining": "Dialogs and tooltips use GPUI Kit with product tokens. The product scrollbar (scrollbars.css with ScrollbarActivity) is Kit's base scrollbar over each scroll owner: a 12px lane, the thumb transparent at rest and 8px / 2px inset while the owner is hovered (vendor patch) or for 900 ms after it scrolls, the hover colour over the thumb; Settings, Homepage, Explorer, Source Control, History, Agent transcript/history/picker/dock, launcher, menus, dialogs and the PDF/database viewers carry it. The classic-interface arrow buttons belong to the P3 interface styles; the light backdrop composites darker than Chromium (Settings light 86%, under investigation)."
     },
     {
       "name": "Markdown viewer (native editor)",

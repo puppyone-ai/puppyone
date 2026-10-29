@@ -475,7 +475,11 @@ impl Render for DatabaseView {
                     .min_h_0()
                     .overflow_scroll()
                     .track_scroll(&self.scroll)
-                    .child(grid),
+                    .child(grid)
+                    .child(crate::ui::scrollbar::both(
+                        "database-scrollbar",
+                        &self.scroll,
+                    )),
             )
             .children(footer)
             .into_any_element()

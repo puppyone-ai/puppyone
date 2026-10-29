@@ -103,6 +103,8 @@ impl Styled for Dialog {
 }
 impl RenderOnce for Dialog {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let body_scroll =
+            crate::ui::scrollbar::handle(child_id(&self.id, "body-scroll"), window, cx);
         let t = cx.palette();
         let focus = self.focus.unwrap_or_else(|| {
             window
@@ -186,13 +188,18 @@ impl RenderOnce for Dialog {
                     .flex_col()
                     .gap(px(12.))
                     .overflow_y_scroll()
+                    .track_scroll(&body_scroll)
                     .pt(px(self.body_padding.0))
                     .px(px(self.inset.unwrap_or(24.)))
                     .pb(px(self.body_padding.1))
                     .text_size(px(theme::ty().ui.meta))
                     .line_height(px(20.))
                     .text_color(t.muted)
-                    .children(self.body),
+                    .children(self.body)
+                    .child(crate::ui::scrollbar::vertical(
+                        child_id(&self.id, "body-scrollbar"),
+                        &body_scroll,
+                    )),
             )
             .when(!self.footer.is_empty(), |d| {
                 d.child(

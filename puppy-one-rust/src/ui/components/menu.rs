@@ -384,6 +384,7 @@ impl RenderOnce for Menu {
         };
         let dismiss = self.on_dismiss.clone();
         let id = self.id.clone();
+        let scroll = crate::ui::scrollbar::handle(child_id(&id, "scroll"), window, cx);
         let mut surface = div()
             .id(self.id)
             .flex()
@@ -397,6 +398,7 @@ impl RenderOnce for Menu {
             .text_color(t.text)
             .max_h(max_height)
             .overflow_y_scroll()
+            .track_scroll(&scroll)
             .occlude();
         for (index, entry) in self.entries.into_iter().enumerate() {
             surface = match entry {
@@ -428,7 +430,12 @@ impl RenderOnce for Menu {
                 )),
             };
         }
-        surface.refine_style(&self.style)
+        surface
+            .child(crate::ui::scrollbar::vertical(
+                child_id(&id, "scrollbar"),
+                &scroll,
+            ))
+            .refine_style(&self.style)
     }
 }
 /// `.desktop-menu-separator`: 1px with `margin: 4px 2px`.

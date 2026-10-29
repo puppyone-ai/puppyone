@@ -46,6 +46,14 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("ctrl-enter", SendMessage, Some("AgentChat")),
     ]);
 }
+/// Scroll handles of the panel's scrolling surfaces besides the transcript.
+#[derive(Default)]
+pub(super) struct Scrollers {
+    pub picker: ScrollHandle,
+    pub history: ScrollHandle,
+    pub dock: ScrollHandle,
+    pub command: ScrollHandle,
+}
 pub struct AgentChat {
     installation: Installation,
     root: PathBuf,
@@ -68,6 +76,8 @@ pub struct AgentChat {
     run_summary_open: bool,
     unread: usize,
     transcript_width: f32,
+    /// Scrollers of the panel's secondary lists.
+    pub(super) scrollers: Scrollers,
     attachment_rx: Option<
         std::sync::mpsc::Receiver<
             Result<Vec<crate::agent::domain::reference_input::Reference>, String>,
@@ -273,6 +283,7 @@ impl AgentChat {
             run_summary_open: false,
             unread: 0,
             transcript_width: 0.,
+            scrollers: Scrollers::default(),
             attachment_rx: None,
             attachment_thread: None,
             history_filter,

@@ -19,6 +19,7 @@ impl AgentChat {
             .flex_1()
             .min_h_0()
             .overflow_y_scroll()
+            .track_scroll(&self.scrollers.history)
             .px(px(12.))
             .py(px(12.))
             .gap(px(8.))
@@ -131,6 +132,9 @@ impl AgentChat {
                 ),
             );
         }
-        history
+        history.child(crate::ui::scrollbar::vertical(
+            "agent-history-list-scrollbar",
+            &self.scrollers.history,
+        ))
     }
 }

@@ -160,6 +160,8 @@ pub struct Workbench {
     >,
     /// The launcher's last refused creation, per group (`launchError`).
     launch_errors: HashMap<Id, String>,
+    /// Each launcher group's scroller.
+    launcher_scroll: HashMap<Id, ScrollHandle>,
     /// Owner of `localAgents.chatHistoryDiscovery` (set by the shell).
     preferences: Option<Entity<crate::features::settings::preferences_store::PreferencesStore>>,
 }
@@ -221,6 +223,7 @@ impl Workbench {
             drop_intent: None,
             history: HashMap::new(),
             launch_errors: HashMap::new(),
+            launcher_scroll: HashMap::new(),
             preferences: None,
         }
     }

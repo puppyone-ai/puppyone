@@ -28,7 +28,8 @@ impl SettingsWorkspaceSurface {
             .border_color(t.border_subtle)
             .py(px(metric::SIDEBAR_LIST_PADDING_BLOCK))
             .px(px(metric::SIDEBAR_ROW_LEFT_GAP))
-            .overflow_y_scroll();
+            .overflow_y_scroll()
+            .track_scroll(&self.sidebar_scroll);
         nav.children(
             groups(self.visibility(cx))
                 .into_iter()
@@ -48,5 +49,9 @@ impl SettingsWorkspaceSurface {
                         }))
                 }),
         )
+        .child(crate::ui::scrollbar::vertical(
+            "settings-navigation-scrollbar",
+            &self.sidebar_scroll,
+        ))
     }
 }

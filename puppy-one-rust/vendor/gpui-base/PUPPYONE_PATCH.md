@@ -1,6 +1,6 @@
 # gpui-base 0.8.0, patched for PuppyOne
 
-This is the crates.io release of `gpui-base` 0.8.0 with three additions, used
+This is the crates.io release of `gpui-base` 0.8.0 with four additions, used
 through `[patch.crates-io]` in `puppy-one-rust/Cargo.toml`. Nothing else
 differs from the published source.
 
@@ -56,6 +56,59 @@ inserted text, UTF-16 bytes) incrementally and drops the oldest undo entries,
 then redo entries, after every push. Without it (the default) nothing
 changes. The code viewer sets the product policy
 (`src/editor/viewers/code/mod.rs`, tests in `code/tests.rs`).
+
+## The patch: owner hover reveals the scrollbar
+
+The product's scrollbar primitive (`src/styles/scrollbars.css` with
+`ScrollbarActivity`) shows its thumb while the pointer is anywhere over the
+scroll owner, not only over the scrollbar lane, and for 900 ms after it
+scrolls. In `ScrollbarMode::Hover` the scrollbar now also tracks a pointer
+over its viewport hitbox (`owner_hovered`), which reveals it like lane hover
+but without extending the idle hold, so the thumb leaves with the pointer as
+CSS `:hover` does. Other modes are unchanged. The app installs the mode and
+the product geometry once (`theme::product_scrollbar`).
+
+```diff
+155a156,158
+>     /// PuppyOne patch: the pointer is over the scrolled viewport (the scroll
+>     /// owner), which reveals a [`ScrollbarMode::Hover`] scrollbar.
+>     owner_hovered: bool,
+175a179
+>             owner_hovered: false,
+585a590,597
+>         state
+>     }
+> 
+>     /// PuppyOne patch: owner hover reveals without extending the idle hold,
+>     /// so the thumb leaves with the pointer (CSS `:hover`).
+>     fn with_owner_hovered(&self, hovered: bool) -> Self {
+>         let mut state = *self;
+>         state.owner_hovered = hovered;
+1333c1345,1347
+<         let is_hovered = inner.hovered_axis.is_some() || inner.hovered_on_thumb.is_some();
+---
+>         let is_hovered = inner.hovered_axis.is_some()
+>             || inner.hovered_on_thumb.is_some()
+>             || (mode.is_hover() && inner.owner_hovered);
+1595a1610,1626
+>         // PuppyOne patch: in hover mode the whole viewport reveals the
+>         // scrollbar, as the product's `[data-po-scrollbar]:hover` does.
+>         if is_hover_to_show {
+>             let viewport = prepaint.hitbox.clone();
+>             let state = scrollbar_state.clone();
+>             window.on_mouse_event(move |_: &MouseMoveEvent, phase, window, cx| {
+>                 if !phase.bubble() {
+>                     return;
+>                 }
+>                 let hovered = viewport.is_hovered(window);
+>                 if state.get().owner_hovered != hovered {
+>                     state.set(state.get().with_owner_hovered(hovered));
+>                     cx.notify(view_id);
+>                 }
+>             });
+>         }
+> 
+```
 
 ## Upgrading
 

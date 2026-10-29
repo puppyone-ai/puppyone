@@ -50,6 +50,7 @@ pub struct HistoryBrowser {
     search_focused: bool,
     /// The locator being opened (`openingTargetId`).
     pub opening: Option<String>,
+    list_scroll: ScrollHandle,
     _poll: Option<Task<()>>,
 }
 
@@ -80,6 +81,7 @@ impl HistoryBrowser {
             details_open: false,
             search_focused: false,
             opening: None,
+            list_scroll: ScrollHandle::new(),
             _poll: None,
         };
         if enabled {
@@ -505,12 +507,17 @@ impl HistoryBrowser {
                 .id("history-list")
                 .size_full()
                 .overflow_y_scroll()
+                .track_scroll(&self.list_scroll)
                 .pl(px(12.))
                 .pr(px(12.))
                 .pb(px(8.))
                 .flex()
                 .flex_col()
                 .children(rows)
+                .child(crate::ui::scrollbar::vertical(
+                    "agent-history-scrollbar",
+                    &self.list_scroll,
+                ))
                 .into_any_element()
         };
         let history = self.history.as_ref().unwrap();

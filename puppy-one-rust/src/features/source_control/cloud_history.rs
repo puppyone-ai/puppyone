@@ -1109,9 +1109,12 @@ impl Render for CloudHistory {
             .children(self.notices(t, cx));
         content = match detail {
             Some(detail) => content.child(detail),
-            None if !self.commits.is_empty() => {
-                content.child(history::timeline_list(self.timeline_list.clone(), cx))
-            }
+            None if !self.commits.is_empty() => content
+                .child(history::timeline_list(self.timeline_list.clone(), cx))
+                .child(crate::ui::scrollbar::vertical(
+                    "cloud-history-scrollbar",
+                    &self.timeline_list,
+                )),
             None if self.loading => {
                 content.child(Self::state(tr("source-control.status.readingHistory"), t))
             }

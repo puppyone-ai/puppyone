@@ -231,6 +231,50 @@ pub fn sync_kit(dark: bool, window: Option<&mut gpui::Window>, cx: &mut gpui::Ap
             theme.list_active = palette.selected.into();
         });
     }
+    // Kit rebuilds the Base theme on every update; the product scrollbar is
+    // written after it.
+    let scrollbar = product_scrollbar(&palette);
+    gpui_kit::base::Theme::global_mut(cx).scrollbar = scrollbar;
+}
+
+/// `styles/scrollbars.css` in the default interface with `ScrollbarActivity`:
+/// a 12px lane whose thumb is transparent at rest and shows 8px wide, 2px from
+/// the edge, as a pill while its owner is hovered or for 900 ms after it
+/// scrolls; over the thumb it takes the hover colour. Width and colour ease
+/// over 0.16s.
+pub fn product_scrollbar(palette: &Theme) -> gpui_kit::base::ScrollbarTheme {
+    use gpui_kit::base::{ScrollbarMode, ScrollbarMotion, ScrollbarStyles, ScrollbarTheme};
+    use std::time::Duration;
+    let ease = Duration::from_millis(160);
+    let (thumb, hover) = (palette.scrollbar_thumb, palette.scrollbar_thumb_hover);
+    let geometry = |s: gpui_kit::base::ScrollbarThumbStyle| {
+        s.width(gpui::px(8.))
+            .inset(gpui::px(2.))
+            .radius(gpui::px(999.))
+            // Blink's custom scrollbar thumb is never shorter than the lane.
+            .min_length(gpui::px(12.))
+    };
+    ScrollbarTheme::new()
+        .with_mode(ScrollbarMode::Hover)
+        .with_motion(
+            ScrollbarMotion::default()
+                .with_idle(Duration::from_millis(900))
+                .with_enter(ease)
+                .with_exit(ease)
+                .with_expand(ease),
+        )
+        .with_styles(
+            ScrollbarStyles::default()
+                .track(|s| s.width(gpui::px(12.)).bg(gpui::transparent_black()))
+                .track_hover(|s| s.bg(gpui::transparent_black()))
+                .track_active(|s| {
+                    s.bg(gpui::transparent_black())
+                        .border_color(gpui::transparent_black())
+                })
+                .thumb(|s| geometry(s).bg(thumb))
+                .thumb_hover(|s| geometry(s).bg(hover))
+                .thumb_active(|s| geometry(s).bg(hover)),
+        )
 }
 
 /// CSS `color-mix(in srgb, a p%, b)` with premultiplied alpha.
@@ -713,6 +757,16 @@ pub mod pane {
 mod tests {
     use super::*;
     use core::prelude::v1::test;
+    #[test]
+    fn the_product_scrollbar_reveals_on_hover_and_for_900ms_after_a_scroll() {
+        let scrollbar = product_scrollbar(&Theme::new(false));
+        assert_eq!(scrollbar.mode(), gpui_kit::base::ScrollbarMode::Hover);
+        assert_eq!(
+            scrollbar.motion().idle(),
+            std::time::Duration::from_millis(900)
+        );
+    }
+
     #[test]
     fn semantic_tokens_follow_the_web_formulas() {
         let dark = Theme::new(true);

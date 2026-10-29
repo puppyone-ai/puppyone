@@ -557,7 +557,12 @@ impl Shell {
             .pr(px(SCROLLBAR_GUTTER))
             .gap(px(2.))
             .overflow_y_scroll()
+            .track_scroll(&self.home_scroll)
             .children(rows)
+            .child(crate::ui::scrollbar::vertical(
+                "home-projects-scrollbar",
+                &self.home_scroll,
+            ))
     }
     /// `ProjectOpenMenu`: "Open ⌄" and the two opening choices, aligned to
     /// its end, 4px below. This computer needs the row's checkout.

@@ -146,6 +146,7 @@ impl AgentChat {
             .min_h_0()
             .flex_shrink(1.)
             .overflow_y_scroll()
+            .track_scroll(&self.scrollers.picker)
             .p(px(crate::theme::metric::MENU_PADDING));
         for (index, (label, selection, selected)) in shown.iter().cloned().enumerate() {
             let highlighted = selected || (self.picker_active == Some(index));
@@ -183,6 +184,10 @@ impl AgentChat {
                     .child(tr("agent.picker.noMatches")),
             );
         }
+        list = list.child(crate::ui::scrollbar::vertical(
+            "agent-picker-scrollbar",
+            &self.scrollers.picker,
+        ));
         let count = shown.len();
         let choices_for_keys = shown.clone();
         div()

@@ -268,10 +268,12 @@ impl Workbench {
                 spread_radius: px(6.),
             }])
             .child(history);
+        let scroll = self.launcher_scroll.entry(group).or_default().clone();
         div()
             .id(("launcher", group))
             .size_full()
             .overflow_y_scroll()
+            .track_scroll(&scroll)
             .bg(t.auxiliary())
             .text_color(t.terminal_fg)
             .child(
@@ -295,6 +297,10 @@ impl Workbench {
                             .child(entries),
                     ),
             )
+            .child(crate::ui::scrollbar::vertical(
+                ("launcher-scrollbar", group),
+                &scroll,
+            ))
     }
 }
 
