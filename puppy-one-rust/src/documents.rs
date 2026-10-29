@@ -161,6 +161,9 @@ pub type PresentationKey = (
     Option<String>,
 );
 pub struct Documents {
+    /// The editor task scope (its window): reads are admitted there and
+    /// retired when the window closes.
+    pub task_scope: String,
     pub workspace: Option<Arc<Workspace>>,
     pub document: Option<Document>,
     /// The open file when its viewer does not edit text (never with `document`).
@@ -207,6 +210,7 @@ impl Default for Documents {
             autosave_request: None,
             observing: false,
             read_generation: 0,
+            task_scope: "documents".into(),
             watch: None,
             observation_pending: false,
             tx,
@@ -616,13 +620,65 @@ impl Documents {
                     .reads_content();
                 let tx = self.tx.clone();
                 let ctx = ctx.clone();
+                // `EditorDocumentHost`: a content viewer admits at most its own
+                // `maxSourceBytes`, never more than the provider's text bound.
+                let budget = crate::editor::registry::source_budget(&path.to_string_lossy())
+                    .min(ws.text_limit() as u64);
+                let owner = crate::platform::tasks::Owner::new(
+                    self.task_scope.clone(),
+                    path.to_string_lossy(),
+                    self.read_generation,
+                );
                 crate::localization::spawn(move || {
-                    let _ = tx.send(if content {
-                        Completed::File(ws.read(&path))
+                    use crate::platform::tasks::{Priority, Request, Scheduler};
+                    // Reads are bounded editor work: per-window concurrency,
+                    // queue deadlines and retirement on close.
+                    let lease = match Scheduler::global().acquire(Request {
+                        owner,
+                        kind: "document-read",
+                        input_bytes: 0,
+                        max_input_bytes: budget.max(1),
+                        priority: Priority::Interactive,
+                    }) {
+                        Ok(lease) => lease,
+                        Err(rejection) => {
+                            let error = workspace::Error::new(
+                                workspace::ErrorKind::Unsupported,
+                                rejection.to_string(),
+                            );
+                            let _ = tx.send(Completed::File(Err(error)));
+                            ctx.notify();
+                            return;
+                        }
+                    };
+                    let completed = if content {
+                        Completed::File(ws.read(&path).and_then(|doc| {
+                            if doc.text.len() as u64 > budget {
+                                Err(workspace::Error::new(
+                                    workspace::ErrorKind::Unsupported,
+                                    crate::localization::tf(
+                                        "editor.unavailable.resourceLimit",
+                                        &[(
+                                            "limit",
+                                            crate::editor::registry::format_byte_limit(budget)
+                                                .into(),
+                                        )],
+                                    ),
+                                ))
+                            } else {
+                                Ok(doc)
+                            }
+                        }))
                     } else {
                         let result = ws.resource(&path);
                         Completed::Resource(path, result)
-                    });
+                    };
+                    // A retired read (window closing) delivers nothing more.
+                    if lease.cancelled() {
+                        return;
+                    }
+                    drop(lease);
+                    let _ = tx.send(completed);
                     ctx.notify();
                 });
             }

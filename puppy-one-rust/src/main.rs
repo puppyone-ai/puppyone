@@ -122,6 +122,17 @@ fn main() {
                 capture::run_in_background();
             }
             features::cloud_account::install(!background, cx);
+            // One foreground serves every window: beat for the stall watcher.
+            platform::watchdog::start();
+            cx.spawn(async move |cx| {
+                loop {
+                    platform::watchdog::beat();
+                    cx.background_executor()
+                        .timer(platform::watchdog::BEAT)
+                        .await;
+                }
+            })
+            .detach();
             let (window, shell_view) = open_shell_window(
                 WindowOptions {
                     focus: !background,

@@ -137,6 +137,98 @@ impl Shell {
         }
         dialog
     }
+    /// Manage Running Sessions: this window's Agent and terminal hosts from
+    /// the host budget, so they stay manageable after their tabs close.
+    pub(super) fn executions_dialog(&self, cx: &mut Context<Self>) -> Dialog {
+        use crate::localization::t as tr;
+        use crate::platform::host_budget::{Budget, Cleanup};
+        let t = cx.palette();
+        let rows: Vec<_> = Budget::global()
+            .snapshot()
+            .into_iter()
+            .filter(|r| r.owner == self.window_key || r.owner == "application")
+            .collect();
+        let host = cx.weak_entity();
+        let mut list = div().flex().flex_col().gap(px(8.));
+        if rows.is_empty() {
+            list = list.child(tr("native.execution.empty"));
+        } else {
+            list = list.child(tr("native.execution.inventory"));
+        }
+        for (index, row) in rows.into_iter().enumerate() {
+            let state = tr(match row.cleanup {
+                Cleanup::Pending => "native.execution.state.pending",
+                Cleanup::Running => "native.execution.state.running",
+                Cleanup::Unconfirmed => "native.execution.state.unconfirmed",
+            });
+            let action = tr(if row.cleanup == Cleanup::Unconfirmed {
+                "native.execution.retry"
+            } else {
+                "native.execution.terminate"
+            });
+            let key = row.key.clone();
+            let short: String = row.key.chars().take(12 + row.kind.len()).collect();
+            list = list.child(
+                div()
+                    .id(("execution-row", index))
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .gap(px(12.))
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .min_w_0()
+                            .child(div().text_color(t.text).child(short))
+                            .child(
+                                div()
+                                    .text_size(px(theme::ty().ui.meta))
+                                    .text_color(t.subtle)
+                                    .child(state),
+                            ),
+                    )
+                    .child(
+                        Button::new(("execution-terminate", index))
+                            .variant(ButtonVariant::OutlineDanger)
+                            .label(action)
+                            .on_click(cx.listener(move |_, _, _, cx| {
+                                Budget::global().terminate(&key);
+                                cx.notify();
+                            })),
+                    ),
+            );
+        }
+        Dialog::new("executions")
+            .width(480.)
+            .title(tr("native.execution.title").to_owned())
+            .focus_handle(self.modal_focus.clone())
+            .keep_on_backdrop()
+            .child(list)
+            .child(
+                div()
+                    .text_size(px(theme::ty().ui.meta))
+                    .text_color(t.subtle)
+                    .child(tr("native.execution.consequence")),
+            )
+            .on_close(move |w, cx| {
+                let _ = host.update(cx, |s, cx| s.command(Command::CloseExecutions, w, cx));
+            })
+            .footer(
+                Button::new("execution-refresh")
+                    .variant(ButtonVariant::Secondary)
+                    .label(tr("native.execution.refresh"))
+                    .on_click(cx.listener(|_, _, _, cx| cx.notify())),
+            )
+            .footer(
+                Button::new("execution-done")
+                    .variant(ButtonVariant::Solid)
+                    .label(tr("native.execution.done"))
+                    .on_click(
+                        cx.listener(|s, _, w, cx| s.command(Command::CloseExecutions, w, cx)),
+                    ),
+            )
+    }
     pub(super) fn settings_view(
         &self,
         w: f32,

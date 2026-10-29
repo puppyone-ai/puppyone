@@ -51,6 +51,8 @@ pub enum Popover {
     Location,
 }
 pub struct Shell {
+    /// This window's budget owner (`ownerId`), shared with its hosts.
+    window_key: String,
     project: String,
     dark: bool,
     locale: Locale,
@@ -184,6 +186,7 @@ impl Shell {
             }
         });
         let mut s = Self {
+            window_key: format!("window:{:?}", window.window_handle().window_id()),
             project: if fixture {
                 "puppyone".into()
             } else {
@@ -244,6 +247,7 @@ impl Shell {
             #[cfg(test)]
             frames: 0,
         };
+        s.files.task_scope = s.window_key.clone();
         s.native_hosts.insert(0, s.native.clone());
         // Captures can start on a task dialog.
         match std::env::var("PUPPYONE_CAPTURE_SURFACE").as_deref() {
@@ -534,6 +538,9 @@ impl Shell {
             Some(Modal::ConfirmQuit) => {
                 self.modals.remove(|m| matches!(m, Modal::ConfirmQuit));
             }
+            Some(Modal::Executions) => {
+                self.modals.remove(|m| matches!(m, Modal::Executions));
+            }
             Some(Modal::Error(_)) => {
                 self.modals.remove(|m| matches!(m, Modal::Error(_)));
             }
@@ -725,6 +732,16 @@ impl Shell {
                 self.modals.remove(|m| matches!(m, Modal::Error(_)));
                 self.files.error = None;
             }
+            Command::ManageExecutions => {
+                self.popover = None;
+                self.modals.remove(|m| matches!(m, Modal::Executions));
+                self.modals.open(Modal::Executions);
+                self.modal_focus.focus(window, cx);
+            }
+            Command::CloseExecutions => {
+                self.modals.remove(|m| matches!(m, Modal::Executions));
+                self.focus.focus(window, cx);
+            }
             Command::Changes => {
                 if self.files.workspace.is_none() {
                     return;
@@ -748,6 +765,7 @@ impl Shell {
         self.focus.focus(window, cx);
     }
     fn receive(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        crate::platform::watchdog::activity("shell.receive");
         let previous = self.files.opened().map(|(id, _)| id.to_owned());
         self.files.poll(&self.wake);
         for (owner, outcome) in std::mem::take(&mut self.files.operation_results) {
@@ -828,6 +846,11 @@ impl Shell {
                 }
             }
             self.workbench.update(cx, |s, cx| s.shutdown(cx));
+            // Window retirement blocks new editor allocations and waits for
+            // this window's admitted tasks to confirm their exit.
+            let scheduler = crate::platform::tasks::Scheduler::global();
+            let _hold = scheduler.hold_admission();
+            let _ = scheduler.retire(&self.window_key, None, None);
             window.remove_window();
         }
     }
@@ -1478,6 +1501,7 @@ impl Shell {
                         cx,
                     )
                     .into_any_element(),
+                Modal::Executions => self.executions_dialog(cx).into_any_element(),
                 Modal::Error(message) => error(self, message, cx),
             })
             .collect();

@@ -29,6 +29,9 @@ pub(super) enum Modal {
     Rename(Rename),
     /// Quit while Agent or terminal processes still run.
     ConfirmQuit,
+    /// `createItemLifecycleManager`: running Agent/terminal hosts of this
+    /// window, listed from the host budget (not from their tabs).
+    Executions,
     /// A notice; a later one replaces it.
     Error(String),
 }

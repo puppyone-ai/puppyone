@@ -90,6 +90,10 @@ pub fn resolve_preference(preference: &str, languages: &[String]) -> &'static st
         .find(|id| *id == preference)
         .unwrap_or_else(|| resolve_system(languages))
 }
+/// The calling thread's locale code (workers inherit it from their spawner).
+pub fn current_code() -> String {
+    CURRENT.with(|c| c.borrow().clone())
+}
 pub fn current() -> Locale {
     Locale {
         code: CURRENT.with(|c| c.borrow().clone()),
@@ -101,11 +105,9 @@ pub fn spawn<F>(work: F) -> std::thread::JoinHandle<()>
 where
     F: FnOnce() + Send + 'static,
 {
-    let code = CURRENT.with(|c| c.borrow().clone());
-    std::thread::spawn(move || {
-        set_current(&code);
-        work()
-    })
+    // Workers inherit the locale; a panic is recorded and contained so one
+    // failing reader cannot take every window down.
+    crate::platform::watchdog::spawn_contained("worker", work, |_| {})
 }
 /// Parameter-free message in the current locale.
 pub fn t(key: &str) -> &'static str {

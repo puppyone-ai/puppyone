@@ -35,6 +35,9 @@ pub enum Command {
     ClearError,
     RetryFileOperation,
     Changes,
+    /// File → Manage Running Sessions (`file.manageExecutions`).
+    ManageExecutions,
+    CloseExecutions,
 }
 impl Command {
     /// The editor host protocol names pane-menu commands (`ClientMessage::Action`).
@@ -84,6 +87,7 @@ shell_actions! {
     Quit => Quit,
     Escape => Escape,
     ToggleMarkdownSource => ToggleMarkdownSource,
+    ManageExecutions => ManageExecutions,
 }
 
 pub fn bind_keys(cx: &mut App) {
@@ -122,6 +126,8 @@ pub fn app_menus() -> Vec<Menu> {
                 MenuItem::action(tr("shell.workspaceSwitcher.openFolder"), OpenFolder),
                 MenuItem::action(tr("native.menu.reload"), Reload),
                 MenuItem::action(tr("native.menu.closeFile"), CloseFile),
+                MenuItem::separator(),
+                MenuItem::action(tr("native.execution.title"), ManageExecutions),
             ],
         },
         ui::input::edit_menu(|id| tr(&format!("native.menu.edit.{id}")).into()),

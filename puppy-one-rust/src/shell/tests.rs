@@ -1253,3 +1253,35 @@ fn csv_references_use_real_workspace_and_follow_directory_rebinds(cx: &mut TestA
             .is_some_and(|(_, p)| p == std::path::Path::new("Target.md"))
     });
 }
+
+#[gpui::test]
+fn manage_running_sessions_lists_this_windows_hosts_and_terminates_them(cx: &mut TestAppContext) {
+    use crate::platform::host_budget::{Budget, Cleanup, Exceeded, Role};
+    let (view, cx) = setup(cx);
+    let owner = view.read_with(cx, |s, _| s.window_key.clone());
+    let lease = Budget::global()
+        .reserve("terminal:manage-test", owner, "/tmp/p", "terminal")
+        .unwrap();
+    let stopped = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let flag = stopped.clone();
+    lease.bind_process(u32::MAX - 7, Role::Utility, move |code| {
+        assert_eq!(code, Exceeded::Terminated);
+        flag.store(true, std::sync::atomic::Ordering::SeqCst);
+    });
+    command(&view, cx, Command::ManageExecutions);
+    view.read_with(cx, |s, _| {
+        assert!(matches!(s.modals.top(), Some(Modal::Executions)))
+    });
+    // The list comes from the budget, so it survives the tab.
+    let row = Budget::global()
+        .snapshot()
+        .into_iter()
+        .find(|r| r.key == "terminal:manage-test")
+        .unwrap();
+    assert_eq!(row.cleanup, Cleanup::Pending);
+    assert!(Budget::global().terminate("terminal:manage-test"));
+    assert!(stopped.load(std::sync::atomic::Ordering::SeqCst));
+    drop(lease);
+    command(&view, cx, Command::CloseExecutions);
+    view.read_with(cx, |s, _| assert!(s.modals.is_empty()));
+}

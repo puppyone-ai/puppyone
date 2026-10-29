@@ -59,10 +59,30 @@ impl Terminal {
             foreground: Arc::new(AtomicI32::new(0)),
         }
     }
-    pub fn spawn(root: PathBuf, executable: Option<PathBuf>, wake: Wake) -> Self {
+    /// Starts a PTY host under the process budget of `owner` (its window).
+    /// A refused reservation reports capacity instead of starting a shell.
+    pub fn spawn(root: PathBuf, executable: Option<PathBuf>, wake: Wake, owner: String) -> Self {
         let (tx, rx) = mpsc::sync_channel(64);
         let (out, events) = mpsc::sync_channel(128);
         let stop = Arc::new(AtomicBool::new(false));
+        static SEQUENCE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let key = format!("terminal:{}", SEQUENCE.fetch_add(1, Ordering::Relaxed));
+        let project = root.to_string_lossy().into_owned();
+        let lease =
+            match super::host_budget::Budget::global().reserve(key, owner, project, "terminal") {
+                Ok(lease) => lease,
+                Err(refusal) => {
+                    let _ = out.send(Event::Error(refusal.to_string()));
+                    wake.notify();
+                    return Self {
+                        tx,
+                        events,
+                        stop,
+                        pid: Arc::new(AtomicI32::new(0)),
+                        foreground: Arc::new(AtomicI32::new(0)),
+                    };
+                }
+            };
         let stopping = stop.clone();
         let pid = Arc::new(AtomicI32::new(0));
         let child_pid = pid.clone();
@@ -93,6 +113,18 @@ impl Terminal {
                 command.env("PATH", super::environment::search_path());
                 let mut child = ChildGuard(pair.slave.spawn_command(command)?);
                 child_pid.store(child.process_id().unwrap_or(0) as i32, Ordering::Release);
+                if let Some(pid) = child.process_id() {
+                    // Over its sustained budget the host stops like a close;
+                    // the reason reaches the tab before the exit.
+                    let (exceeded_stop, exceeded_out, exceeded_wake) =
+                        (stopping.clone(), out.clone(), wake.clone());
+                    lease.bind_process(pid, super::host_budget::Role::Utility, move |code| {
+                        let _ = exceeded_out.try_send(Event::Error(code.message().into()));
+                        exceeded_stop.store(true, Ordering::Relaxed);
+                        exceeded_wake.notify();
+                    });
+                }
+                lease.ready();
                 drop(pair.slave);
                 let mut reader = pair.master.try_clone_reader()?;
                 let mut writer = pair.master.take_writer()?;
@@ -160,6 +192,8 @@ impl Terminal {
                 foreground_pid.store(0, Ordering::Release);
                 Ok(())
             })();
+            // The child was waited for (or never started): release the slot.
+            drop(lease);
             if let Err(e) = result {
                 let _ = out.send(Event::Error(e.to_string()));
                 wake.notify();
@@ -213,6 +247,7 @@ mod tests {
             dir.path().into(),
             Some(PathBuf::from("/bin/sh")),
             Wake::default(),
+            "test".into(),
         );
         terminal.resize(33, 91);
         terminal

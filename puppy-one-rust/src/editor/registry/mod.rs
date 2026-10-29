@@ -141,6 +141,23 @@ pub fn resolve(document: &EditorDocument) -> Resolved {
     }
 }
 
+/// The resolved viewer's `resourcePolicy.maxSourceBytes` for `path`.
+pub fn source_budget(path: &str) -> u64 {
+    resolve(&EditorDocument::local(path))
+        .viewer
+        .definition
+        .resource_policy
+        .max_source_bytes
+}
+/// `formatByteLimit`: whole MB when exact, otherwise rounded-up KB.
+pub fn format_byte_limit(bytes: u64) -> String {
+    const MB: u64 = 1024 * 1024;
+    if bytes >= MB && bytes.is_multiple_of(MB) {
+        format!("{} MB", bytes / MB)
+    } else {
+        format!("{} KB", bytes.div_ceil(1024))
+    }
+}
 /// `getEditorSourceRequirement`: what the host reads to open a file.
 pub fn source_requirement(path: &str) -> Source {
     resolve(&EditorDocument::local(path)).viewer.source()
@@ -155,6 +172,16 @@ mod tests {
         resolve(&EditorDocument::local(path)).viewer.id
     }
 
+    #[test]
+    fn source_budgets_follow_the_product_manifest() {
+        assert_eq!(source_budget("a.md"), 16 * 1024 * 1024);
+        assert_eq!(source_budget("a.txt"), 16 * 1024 * 1024);
+        assert_eq!(source_budget("a.csv"), 8 * 1024 * 1024);
+        assert_eq!(source_budget("a.json"), 8 * 1024 * 1024);
+        assert_eq!(source_budget("a.html"), 4 * 1024 * 1024);
+        assert_eq!(format_byte_limit(8 * 1024 * 1024), "8 MB");
+        assert_eq!(format_byte_limit(1500), "2 KB");
+    }
     #[test]
     fn documents_resolve_to_the_product_viewers() {
         assert_eq!(viewer("notes/README.md"), "markdown");

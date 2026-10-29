@@ -145,8 +145,12 @@ pub struct Limits {
     pub directory_entries: usize,
 }
 impl Limits {
+    /// No provider may admit more text than the largest viewer budget.
+    pub const MAX_TEXT_BYTES: usize = 16 * 1024 * 1024;
+    /// The largest text viewer budget (Markdown and plain text, 16 MiB);
+    /// each viewer's own `maxSourceBytes` still applies at admission.
     pub const LOCAL: Self = Self {
-        text_bytes: 4 * 1024 * 1024,
+        text_bytes: 16 * 1024 * 1024,
         directory_entries: 2_000,
     };
     pub const CLOUD: Self = Self {

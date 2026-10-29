@@ -118,7 +118,7 @@ impl Workspace {
         provider.check_authority()?;
         let descriptor = provider.descriptor();
         if descriptor.limits.text_bytes == 0
-            || descriptor.limits.text_bytes > contracts::Limits::CLOUD.text_bytes
+            || descriptor.limits.text_bytes > contracts::Limits::MAX_TEXT_BYTES
             || descriptor.limits.directory_entries == 0
             || descriptor.limits.directory_entries > contracts::Limits::CLOUD.directory_entries
         {

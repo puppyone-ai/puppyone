@@ -100,7 +100,12 @@ impl TerminalView {
         })
         .detach();
         Self {
-            terminal: Terminal::spawn(root, executable, wake),
+            terminal: Terminal::spawn(
+                root,
+                executable,
+                wake,
+                format!("window:{:?}", window.window_handle().window_id()),
+            ),
             parser: vt100::Parser::new(24, 80, 5000),
             queries: terminal_queries::Queries::default(),
             focus: cx.focus_handle(),

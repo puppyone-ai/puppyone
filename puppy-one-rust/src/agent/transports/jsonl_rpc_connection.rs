@@ -71,6 +71,19 @@ impl Connection {
         let queued_reader = queued.clone();
         let connection_wake = wake.clone();
         thread::spawn(move || {
+            // Agent CLIs share the execution host budget with terminals.
+            static SEQUENCE: AtomicUsize = AtomicUsize::new(0);
+            let key = format!("agent:{}", SEQUENCE.fetch_add(1, Ordering::Relaxed));
+            let budget = crate::platform::host_budget::Budget::global();
+            let lease = match budget.reserve(key, "application", root.to_string_lossy(), "agent") {
+                Ok(lease) => lease,
+                Err(refusal) => {
+                    let _ = events_tx.send((Event::Error(refusal.to_string()), 0));
+                    let _ = events_tx.send((Event::Exited, 0));
+                    wake.notify();
+                    return;
+                }
+            };
             let mut command = Command::new(executable);
             command
                 .args(args)
@@ -90,6 +103,20 @@ impl Connection {
                 }
             };
             child_pid.store(child.id() as i32, Ordering::Release);
+            {
+                let (exceeded_stop, exceeded_events, exceeded_wake) =
+                    (stopped.clone(), events_tx.clone(), wake.clone());
+                lease.bind_process(
+                    child.id(),
+                    crate::platform::host_budget::Role::Utility,
+                    move |code| {
+                        let _ = exceeded_events.try_send((Event::Error(code.message().into()), 0));
+                        exceeded_stop.store(true, Ordering::Relaxed);
+                        exceeded_wake.notify();
+                    },
+                );
+                lease.ready();
+            }
             let stdout = child.stdout.take().unwrap();
             let stderr = child.stderr.take().unwrap();
             let mut stdin = child.stdin.take().unwrap();
@@ -209,6 +236,7 @@ impl Connection {
                 }
             }
             child_pid.store(0, Ordering::Release);
+            drop(lease);
             let _ = events_tx.send((Event::Exited, 0));
             wake.notify();
         });
