@@ -16,7 +16,8 @@ use gpui_kit::{base::h_flex, component::Sizable as _};
 
 /// `preferredWidth={240}` of the project menu.
 const PROJECT_MENU_WIDTH: f32 = 240.;
-const LOCATION_MENU_WIDTH: f32 = 232.;
+/// `preferredWidth={200}` of the location popover.
+const LOCATION_MENU_WIDTH: f32 = 200.;
 /// `DesktopTitlebarMenuLayer`'s gap below the trigger.
 const MENU_GAP: f32 = 2.;
 /// `.desktop-project-list` row gap.
@@ -34,11 +35,6 @@ impl Shell {
             "shell.workspaceSwitcher.openMenu",
             &[("workspace", self.project.clone().into())],
         );
-        let device = tr(if cfg!(target_os = "macos") {
-            "shell.workspaceSwitcher.location.thisMac"
-        } else {
-            "shell.workspaceSwitcher.location.thisComputer"
-        });
         let name = if self.project.is_empty() {
             tr("onboarding.action.openFolder").to_owned()
         } else {
@@ -70,15 +66,36 @@ impl Shell {
             .gap(px(2.))
             .child(self.header_popover(Popover::Project, project, cx))
             .when(cloud, |d| {
+                // `.desktop-titlebar-location-button`: the computer the
+                // screen shows and its readiness, then its name.
+                let (place, readiness) = self.header_location(cx);
+                let label = tr(match place {
+                    super::cloud_switch::Place::Local => "shell.workspaceSwitcher.location.local",
+                    super::cloud_switch::Place::Cloud => "shell.projectRuntime.label",
+                });
+                let stated = match readiness {
+                    super::cloud_switch::Readiness::Ready => label.to_owned(),
+                    super::cloud_switch::Readiness::Opening => tf(
+                        "shell.projectComputers.status.opening",
+                        &[("computer", label.into())],
+                    ),
+                    super::cloud_switch::Readiness::Failed => tf(
+                        "shell.projectComputers.status.failed",
+                        &[("computer", label.into())],
+                    ),
+                };
                 let location = Button::new("project-location")
                     .variant(ButtonVariant::Titlebar)
-                    .icon(Icon::product(crate::ui::components::ProductIcon::Local).large())
+                    .icon(Self::location_mark(place, readiness, cx.palette()).large())
+                    .label(label)
                     .accessibility_label(format!(
-                        "{device}, {}",
+                        "{stated}, {}",
                         tr("shell.workspaceSwitcher.projectDetails")
                     ))
-                    .tooltip(device)
-                    .w(px(theme::control()));
+                    .px(px(6.))
+                    .text_size(px(ty.content))
+                    .line_height(px(ty.line_height))
+                    .font_weight(FontWeight::MEDIUM);
                 d.child(self.header_popover(Popover::Location, location, cx))
             })
     }
@@ -126,7 +143,7 @@ impl Shell {
         if open {
             let fill: Box<dyn FnOnce(Menu) -> Menu> = match popover {
                 Popover::Project => Box::new(self.project_menu()),
-                Popover::Location => Box::new(self.location_menu()),
+                Popover::Location => Box::new(self.location_menu(cx)),
             };
             menu = menu.menu(move |surface, window, _| {
                 let max_height = (window.viewport_size().height - px(MENU_VIEWPORT_INSET))
@@ -225,33 +242,5 @@ impl Shell {
                 let path = path.clone();
                 let _ = open_host.update(cx, |s, cx| s.open_project(path, w, cx));
             })
-    }
-    /// Native authentication does not imply Cloud file-provider readiness.
-    fn location_menu(&self) -> impl FnOnce(Menu) -> Menu + 'static {
-        let device = tr(if cfg!(target_os = "macos") {
-            "shell.workspaceSwitcher.location.thisMac"
-        } else {
-            "shell.workspaceSwitcher.location.thisComputer"
-        });
-        let host = self.weak.clone();
-        let local = MenuItem::new(device)
-            .product_icon(crate::ui::components::ProductIcon::Local)
-            .selected(true)
-            .on_click(move |w, cx| {
-                let _ = host.update(cx, |s, cx| {
-                    s.popover = None;
-                    s.project_focus.focus(w, cx);
-                    cx.notify()
-                });
-            });
-        let cloud = MenuItem::new(tr("shell.projectOpen.inCloud"))
-            .product_icon(crate::ui::components::ProductIcon::Cloud)
-            .detail(tr("onboarding.error.cloudOpeningUnavailable"))
-            .disabled(true);
-        move |menu| {
-            menu.label(tr("shell.workspaceSwitcher.projectDetails"))
-                .item(local)
-                .item(cloud)
-        }
     }
 }

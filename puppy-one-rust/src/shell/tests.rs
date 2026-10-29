@@ -481,9 +481,9 @@ fn choosing_local_closes_popup_and_restores_trigger(cx: &mut TestAppContext) {
     draw(cx);
     draw(cx);
     let device = crate::localization::t(if cfg!(target_os = "macos") {
-        "shell.workspaceSwitcher.location.thisMac"
+        "shell.projectOpen.onMac"
     } else {
-        "shell.workspaceSwitcher.location.thisComputer"
+        "shell.projectOpen.onComputer"
     });
     let selector: &'static str = Box::leak(format!("menu-item:{device}").into_boxed_str());
     let row = cx
@@ -1401,5 +1401,180 @@ fn cloud_history_closes_outside_a_hosted_project(cx: &mut TestAppContext) {
     view.read_with(cx, |s, _| {
         assert!(!s.panes.right().open);
         assert_eq!(s.panes.content(), panes::RightContent::Workbench);
+    });
+}
+
+/// A Cloud API for one hosted Project root with a single file.
+fn cloud_project_responder() -> crate::cloud_auth::Responder {
+    std::sync::Arc::new(|request| {
+        let project = "project-a";
+        let path = request.path.as_str();
+        Ok(if path.ends_with("/repository-context") {
+            serde_json::json!({"code": 0, "data": {
+                "target": {"kind": "project_root", "project_id": project},
+                "project": {"id": project, "name": "Fixture Cloud",
+                            "capabilities": ["content.read", "content.write"]},
+                "scope_path": null}})
+        } else if path.ends_with("/workbench/files") {
+            serde_json::json!({"entries": [{"name": "cloud.md", "kind": "file", "size": 3}]})
+        } else if path.ends_with("/workbench") {
+            serde_json::json!({"workspace": {"id": "workspace-a", "project_id": project,
+                "generation": "9bb16f54-dfe9-4d26-8c68-c7b1ae97d859", "state": "running",
+                "target_ref": "refs/heads/main"}})
+        } else {
+            serde_json::json!({})
+        })
+    })
+}
+
+#[gpui::test]
+fn the_header_switches_a_linked_checkout_to_cloud_and_back_keeping_both_hosts(
+    cx: &mut TestAppContext,
+) {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().canonicalize().unwrap();
+    std::fs::write(root.join("local.md"), "# Local\n").unwrap();
+    let git = |args: &[&str]| {
+        assert!(
+            std::process::Command::new("git")
+                .args(args)
+                .current_dir(&root)
+                .status()
+                .unwrap()
+                .success()
+        )
+    };
+    git(&["init", "-q"]);
+    git(&[
+        "remote",
+        "add",
+        "origin",
+        "http://127.0.0.1:18080/git/project-a.git",
+    ]);
+    let (view, cx) = setup(cx);
+    let (broker, browser) =
+        crate::cloud_auth::responding_account_fixture(cloud_project_responder());
+    cx.update(|_, cx| {
+        crate::features::cloud_account::install_fixture(broker, browser, cx);
+    });
+    view.update(cx, |s, cx| {
+        s.preferences
+            .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
+    });
+    let settle = |view: &Entity<Shell>,
+                  cx: &mut VisualTestContext,
+                  what: &str,
+                  ready: &dyn Fn(&Shell, &App) -> bool| {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(8);
+        loop {
+            view.update_in(cx, |s, w, cx| s.receive(w, cx));
+            cx.run_until_parked();
+            cx.update(|w, cx| {
+                let _ = w.draw(cx);
+            });
+            if cx.update(|_, cx| ready(view.read(cx), cx)) {
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "{what} did not settle"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+    };
+    settle(&view, cx, "sign-in", &|_, cx| {
+        crate::features::cloud_account::has_account(cx)
+    });
+    view.update(cx, |s, _| {
+        s.files.begin(Intent::OpenFolder(root.clone()), &s.wake)
+    });
+    settle(&view, cx, "the local project", &|s, _| {
+        s.workspace_root().as_deref() == Some(root.as_path())
+    });
+    settle(&view, cx, "the association", &|s, cx| {
+        s.repository_cloud.read(cx).context.project() == Some("project-a")
+    });
+    // The Agent sidebar is open before the switch.
+    view.update(cx, |s, _| s.panes.toggle_workbench());
+    let local_key = view.read_with(cx, |s, _| s.files.workspace_key().unwrap().to_owned());
+    // Choose Cloud: preparation happens in place, the Header already names
+    // the Cloud Computer and the right sidebar closes.
+    view.update_in(cx, |s, w, cx| s.view_cloud(w, cx));
+    view.update_in(cx, |s, _, cx| {
+        assert!(!s.panes.right().open);
+        assert!(s.cloud_switch.is_some());
+        assert!(!s.modals.iter().any(|m| matches!(m, Modal::CloudSwitch)));
+        assert_eq!(
+            s.header_location(cx),
+            (cloud_switch::Place::Cloud, cloud_switch::Readiness::Opening)
+        );
+    });
+    settle(&view, cx, "the Cloud switch", &|s, _| {
+        s.hosted_project().as_deref() == Some("project-a")
+    });
+    view.update_in(cx, |s, _, cx| {
+        assert!(s.cloud_switch.is_none());
+        assert_eq!(s.project, "Fixture Cloud");
+        assert_eq!(
+            s.header_location(cx),
+            (cloud_switch::Place::Cloud, cloud_switch::Readiness::Ready)
+        );
+        assert_eq!(
+            s.retained_local.as_ref().map(|r| r.key.as_str()),
+            Some(local_key.as_str())
+        );
+    });
+    let cloud_key = view.read_with(cx, |s, _| s.files.workspace_key().unwrap().to_owned());
+    command(&view, cx, Command::LocationMenu);
+    draw(cx);
+    // Back to This Mac: the retained local host shows again, no I/O.
+    view.update_in(cx, |s, w, cx| s.view_local(w, cx));
+    view.read_with(cx, |s, _| {
+        assert_eq!(s.files.workspace_key(), Some(local_key.as_str()));
+        assert_eq!(
+            s.retained_cloud.as_ref().map(|r| r.key.as_str()),
+            Some(cloud_key.as_str())
+        );
+    });
+    settle(&view, cx, "the local host", &|s, _| {
+        s.workspace_root().as_deref() == Some(root.as_path())
+    });
+    // And Cloud again: the kept-alive Cloud host, without a new opening.
+    view.update_in(cx, |s, w, cx| s.view_cloud(w, cx));
+    view.read_with(cx, |s, _| {
+        assert!(s.cloud_switch.is_none());
+        assert_eq!(s.files.workspace_key(), Some(cloud_key.as_str()));
+    });
+}
+
+#[gpui::test]
+fn a_signed_out_switch_waits_in_a_dialog_and_escape_cancels_it(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    let (broker, browser) = crate::cloud_auth::account_fixture();
+    cx.update(|_, cx| {
+        let account = crate::features::cloud_account::install_fixture(broker, browser, cx);
+        account.update(cx, |a, _| a.sign_out());
+    });
+    view.update(cx, |s, cx| {
+        s.preferences
+            .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
+    });
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(4);
+    while cx.update(|_, cx| crate::features::cloud_account::has_account(cx)) {
+        cx.run_until_parked();
+        assert!(std::time::Instant::now() < deadline);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    view.update_in(cx, |s, w, cx| s.view_cloud(w, cx));
+    draw(cx);
+    view.update_in(cx, |s, _, cx| {
+        // Sign-in waits in the dialog; the Header stays on this computer.
+        assert!(s.modals.iter().any(|m| matches!(m, Modal::CloudSwitch)));
+        assert_eq!(s.header_location(cx).0, cloud_switch::Place::Local);
+    });
+    command(&view, cx, Command::Escape);
+    view.read_with(cx, |s, _| {
+        assert!(s.cloud_switch.is_none());
+        assert!(s.modals.is_empty());
     });
 }

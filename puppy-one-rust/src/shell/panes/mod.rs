@@ -146,6 +146,12 @@ impl Panes {
         };
         show
     }
+    /// Switching location (`closeWorkspaceSidebars`): the sidebar closes and
+    /// reopens on the workbench only when the person opens it.
+    pub fn close_right(&mut self) {
+        self.right.open = false;
+        self.content = RightContent::Workbench;
+    }
     /// History closed itself (Close, Back, or its scope ended): the sidebar
     /// closes and reopens on the workbench.
     pub fn close_cloud_history(&mut self) {

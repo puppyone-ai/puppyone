@@ -32,10 +32,16 @@ pub(super) struct TitleBar {
     actions: Vec<AnyElement>,
     centered: Option<AnyElement>,
     tabs: Option<AnyElement>,
+    cloud: bool,
 }
 impl TitleBar {
     pub fn new() -> Self {
         Self::default()
+    }
+    /// The Cloud Computer is on screen (`--po-cloud-header-bg`).
+    pub fn cloud(mut self, cloud: bool) -> Self {
+        self.cloud = cloud;
+        self
     }
     pub fn tabs(mut self, tabs: impl IntoElement) -> Self {
         self.tabs = Some(tabs.into_any_element());
@@ -94,7 +100,11 @@ impl RenderOnce for TitleBar {
             .size_full()
             .flex()
             .items_center()
-            .bg(t.header)
+            .bg(if self.cloud {
+                theme::cloud_header(&t)
+            } else {
+                t.header
+            })
             .border_b_1()
             .border_color(t.shell_divider)
             .child(

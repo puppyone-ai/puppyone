@@ -424,7 +424,7 @@ impl Shell {
     /// request-driven messages and Cancel.
     fn cloud_opening_overlay(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         use crate::workspace::cloud::opening::Phase;
-        let phase = (*self.files.cloud_phase.lock().unwrap())?;
+        let phase = self.files.cloud_opening()?;
         let t = cx.palette();
         let message = match phase {
             Phase::Checking | Phase::Connecting => "cloud.loading.startingWorkspace",

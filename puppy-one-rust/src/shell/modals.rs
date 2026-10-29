@@ -41,6 +41,9 @@ pub(super) enum Modal {
     },
     /// A notice; a later one replaces it.
     Error(String),
+    /// `CloudWorkspaceSwitchDialog`: sign-in, matching or recovery of a
+    /// Header switch to the Cloud Computer.
+    CloudSwitch,
 }
 
 /// Open modals, bottom to top.

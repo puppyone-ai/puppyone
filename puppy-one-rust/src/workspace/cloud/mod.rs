@@ -11,6 +11,7 @@ mod model;
 pub mod opening;
 pub mod publish;
 pub mod recovery;
+pub mod repository;
 #[cfg(test)]
 mod tests;
 use super::{Workspace, contracts::*, ports::*};
@@ -88,15 +89,41 @@ pub fn prepare_running(
     prepare_verified(broker, binding, context, scope, runtime)
 }
 
+/// Why an exact target was refused, before it becomes a provider error.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Refusal {
+    Auth(crate::cloud_auth::Error),
+    /// A malformed context, or one for another Project or Scope.
+    Invalid,
+    /// The account may not read the Project's content.
+    Unreadable,
+}
 fn authorize(
     broker: &Broker,
     binding: &Binding,
     target: &Target,
     scope: &Cancellation,
 ) -> Result<model::Context> {
-    let project = target.project()?;
-    scope.check().map_err(map_error)?;
-    broker.check_binding(binding).map_err(map_error)?;
+    authorize_target(broker, binding, target, scope).map_err(|refusal| match refusal {
+        Refusal::Auth(error) => map_error(error),
+        Refusal::Invalid => model::invalid(),
+        Refusal::Unreadable => Error::new(
+            ErrorKind::PermissionDenied,
+            "This account cannot read the Cloud project",
+        ),
+    })
+}
+/// `getCloudRepositoryContext`: `POST /projects/{id}/repository-context`
+/// for exactly `target`, checked against it.
+fn authorize_target(
+    broker: &Broker,
+    binding: &Binding,
+    target: &Target,
+    scope: &Cancellation,
+) -> std::result::Result<model::Context, Refusal> {
+    let project = target.project().map_err(|_| Refusal::Invalid)?;
+    scope.check().map_err(Refusal::Auth)?;
+    broker.check_binding(binding).map_err(Refusal::Auth)?;
     let query = ApiRequest {
         method: Method::POST,
         path: format!("/projects/{project}/repository-context"),
@@ -105,17 +132,17 @@ fn authorize(
     };
     let mut response = broker
         .request_scoped(binding, &query, scope)
-        .map_err(map_error)?;
+        .map_err(Refusal::Auth)?;
     if response["code"] != 0 {
-        return Err(model::invalid());
+        return Err(Refusal::Invalid);
     }
     let context: model::Context =
-        serde_json::from_value(response["data"].take()).map_err(|_| model::invalid())?;
+        serde_json::from_value(response["data"].take()).map_err(|_| Refusal::Invalid)?;
     if &context.target != target
         || context.project.id != project
         || context.scope_path.as_deref().is_some_and(|v| !v.is_empty())
     {
-        return Err(model::invalid());
+        return Err(Refusal::Invalid);
     }
     if !context
         .project
@@ -123,16 +150,13 @@ fn authorize(
         .iter()
         .any(|v| v == "content.read")
     {
-        return Err(Error::new(
-            ErrorKind::PermissionDenied,
-            "This account cannot read the Cloud project",
-        ));
+        return Err(Refusal::Unreadable);
     }
     if context.project.name.is_empty()
         || context.project.name.len() > 1024
         || context.project.name.chars().any(char::is_control)
     {
-        return Err(model::invalid());
+        return Err(Refusal::Invalid);
     }
     Ok(context)
 }

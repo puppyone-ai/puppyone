@@ -17,6 +17,7 @@ use std::path::PathBuf;
 mod bench;
 #[cfg(feature = "dev-capture")]
 mod capture_scenario;
+mod cloud_switch;
 mod command;
 mod create_new;
 mod editor_workbench;
@@ -76,6 +77,14 @@ pub struct Shell {
     source_control: Entity<crate::features::source_control::SourceControl>,
     /// The hosted Project's History sidebar (Cloud Header).
     cloud_history: Entity<crate::features::source_control::CloudHistory>,
+    /// The open checkout's Cloud association (Header location).
+    repository_cloud: Entity<crate::features::repository_cloud::RepositoryCloud>,
+    /// A Header switch to the Cloud Computer in progress.
+    cloud_switch: Option<cloud_switch::CloudSwitch>,
+    /// The local host kept alive while Cloud shows, and the Cloud host kept
+    /// alive while local shows.
+    retained_local: Option<cloud_switch::Retained>,
+    retained_cloud: Option<cloud_switch::Retained>,
     popover: Option<Popover>,
     /// Homepage requested from the project menu (`goToHomepage`).
     home: bool,
@@ -220,6 +229,10 @@ impl Shell {
             source_control: cx
                 .new(|cx| crate::features::source_control::SourceControl::new(window, cx)),
             cloud_history: cx.new(crate::features::source_control::CloudHistory::new),
+            repository_cloud: Self::new_repository_cloud(cx),
+            cloud_switch: None,
+            retained_local: None,
+            retained_cloud: None,
             popover: None,
             home: false,
             recent_projects: vec![],
@@ -366,6 +379,8 @@ impl Shell {
                 s.end_editor_resize(false, cx);
             } else {
                 cx.set_reduce_motion(crate::platform::accessibility::reduce_motion());
+                // A returning window may probe the Cloud association once.
+                s.repository_cloud.update(cx, |r, cx| r.probe(cx));
             }
         })
         .detach();
@@ -593,6 +608,7 @@ impl Shell {
             Some(Modal::Error(_)) => {
                 self.modals.remove(|m| matches!(m, Modal::Error(_)));
             }
+            Some(Modal::CloudSwitch) => self.cancel_cloud_switch(cx),
             None => {}
         }
     }
@@ -804,6 +820,9 @@ impl Shell {
                 self.home = true;
             }
             // With no dialog open, Escape closes a menu.
+            // Escape cancels an in-place Cloud preparation; the workbench
+            // behind it stays.
+            Command::Escape if self.cloud_switch.is_some() => self.cancel_cloud_switch(cx),
             // Escape inside History goes back (`CloudWorkspaceHistorySidebar`).
             Command::Escape
                 if self.panes.shows(RightContent::CloudHistory)
@@ -920,6 +939,16 @@ impl Shell {
         crate::platform::watchdog::activity("shell.receive");
         let previous = self.files.opened().map(|(id, _)| id.to_owned());
         self.files.poll(&self.wake);
+        // A Header switch shows its own recovery; any other Cloud opening
+        // (a hosted-only window) reports its failure copy.
+        if self.cloud_switch.is_none()
+            && let Some(failure) = self.files.take_cloud_failure()
+        {
+            self.show_error(crate::localization::t(&format!(
+                "cloud.message.{}",
+                failure.code
+            )));
+        }
         for (owner, outcome) in std::mem::take(&mut self.files.operation_results) {
             self.explorer
                 .update(cx, |e, cx| e.finish_op(&owner, outcome, cx));
@@ -1474,7 +1503,10 @@ impl Shell {
             )
         };
         let project = !home && !self.rail && (self.files.workspace.is_some() || self.fixture);
-        let mut bar = header::TitleBar::new();
+        // `.desktop-titlebar[data-workspace-kind="cloud"]`: the Header wears
+        // the Cloud colour wherever the screen shows the Cloud Computer.
+        let mut bar = header::TitleBar::new()
+            .cloud(!home && self.header_location(cx).0 == cloud_switch::Place::Cloud);
         if !home && !self.panes.explorer().open {
             bar = bar.leading(
                 IconButton::new("expand-explorer", "panel-left")
@@ -1627,6 +1659,8 @@ impl Render for Shell {
         self.sync_editor(window, cx);
         self.sync_explorer(window, cx);
         self.guard_cloud_history(cx);
+        self.sync_repository_cloud(cx);
+        self.advance_cloud_switch(cx);
         self.refresh_home_activity(cx);
         #[cfg(feature = "dev-capture")]
         let scenario_done = self.advance_capture_scenario(window, cx);
@@ -1799,6 +1833,7 @@ impl Shell {
                     .share_dialog(url.clone(), *copied, cx)
                     .into_any_element(),
                 Modal::Error(message) => error(self, message, cx),
+                Modal::CloudSwitch => self.cloud_switch_dialog(cx).into_any_element(),
             })
             .collect();
         if self.files.cloud_conflict() {

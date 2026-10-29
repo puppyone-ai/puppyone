@@ -49,6 +49,15 @@ pub fn control() -> f32 {
 pub fn opencode_mark_surface() -> Rgba {
     rgb(0x111418)
 }
+/// `--po-cloud-header-bg`: the theme's Header grey with a restrained
+/// product-blue tint in light mode, deep navy in dark.
+pub fn cloud_header(t: &Theme) -> Rgba {
+    if t.dark {
+        rgb(0x102a43)
+    } else {
+        mix(t.header, t.brand_blue, 0.85)
+    }
+}
 /// `.desktop-cloud-history-ref-badge.tag`: the graph's tag yellow.
 pub fn history_tag() -> Rgba {
     rgb(0xffd21f)

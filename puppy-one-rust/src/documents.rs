@@ -164,6 +164,8 @@ pub struct Documents {
     /// A Cloud opening in flight: its visible phase (`Waking up…` /
     /// `Taking out your files…`) and its cancellation.
     pub cloud_phase: Arc<std::sync::Mutex<Option<crate::workspace::cloud::opening::Phase>>>,
+    /// Why the last Cloud opening failed (`describeCloudOpeningFailure`).
+    pub cloud_failure: Arc<std::sync::Mutex<Option<crate::workspace::cloud::opening::Failure>>>,
     /// The newer Cloud document held back while unsaved input is preserved.
     deferred_document: Option<Document>,
     cloud_cancel: Option<crate::cloud_auth::Cancellation>,
@@ -218,6 +220,7 @@ impl Default for Documents {
             read_generation: 0,
             task_scope: "documents".into(),
             cloud_phase: Default::default(),
+            cloud_failure: Default::default(),
             deferred_document: None,
             cloud_cancel: None,
             watch: None,
@@ -747,6 +750,8 @@ impl Documents {
         self.cloud_cancel = Some(cancel.clone());
         let phase = self.cloud_phase.clone();
         *phase.lock().unwrap() = Some(opening::Phase::Checking);
+        let failure_slot = self.cloud_failure.clone();
+        *failure_slot.lock().unwrap() = None;
         let tx = self.tx.clone();
         let ctx = ctx.clone();
         crate::localization::spawn(move || {
@@ -770,10 +775,14 @@ impl Documents {
             }
             let completed = match result {
                 Ok(prepared) => prepared.into_parts(),
-                Err(failure) => Err(workspace::Error::new(
-                    workspace::ErrorKind::Unsupported,
-                    crate::localization::t(&format!("cloud.message.{}", failure.code)),
-                )),
+                Err(failure) => {
+                    let error = workspace::Error::new(
+                        workspace::ErrorKind::Unsupported,
+                        crate::localization::t(&format!("cloud.message.{}", failure.code)),
+                    );
+                    *failure_slot.lock().unwrap() = Some(failure);
+                    Err(error)
+                }
             };
             let _ = tx.send(Completed::Root(completed));
             ctx.notify();

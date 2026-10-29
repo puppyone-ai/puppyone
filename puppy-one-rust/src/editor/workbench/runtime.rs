@@ -61,6 +61,7 @@ pub struct Runtime {
     hosts: BTreeMap<String, Host>,
     active: Option<String>,
     preparing: Option<Documents>,
+    last_cloud_failure: Option<crate::workspace::cloud::opening::Failure>,
     serial: u64,
     navigation: u64,
     quitting: bool,
@@ -206,6 +207,59 @@ impl Runtime {
                 .map(|(_, p)| vec![p.to_owned()])
                 .unwrap_or_default(),
         }
+    }
+    /// Explicit Cloud opening in this window (`useCloudWorkspaceSwitch`):
+    /// prepared beside the visible host, which stays retained and keeps its
+    /// drafts; only a read root replaces what the window shows.
+    pub fn open_cloud(
+        &mut self,
+        broker: std::sync::Arc<crate::cloud_auth::Broker>,
+        binding: crate::cloud_auth::model::Binding,
+        project: String,
+        wake: &Wake,
+    ) {
+        if self.quitting {
+            return;
+        }
+        self.navigation += 1;
+        let mut preparing = Documents::default();
+        preparing.open_cloud(broker, binding, project, wake);
+        self.preparing = Some(preparing);
+        self.generation += 1;
+        wake.notify();
+    }
+    /// The visible phase of a Cloud opening in progress.
+    pub fn cloud_opening(&self) -> Option<crate::workspace::cloud::opening::Phase> {
+        self.preparing
+            .as_ref()
+            .and_then(|p| *p.cloud_phase.lock().unwrap())
+            .or(*self.scratch.cloud_phase.lock().unwrap())
+    }
+    /// Why the last Cloud opening failed, taken once.
+    pub fn take_cloud_failure(&mut self) -> Option<crate::workspace::cloud::opening::Failure> {
+        self.last_cloud_failure.take()
+    }
+    /// Cancel a Cloud opening: the current host stays as it was.
+    pub fn cancel_cloud(&mut self) {
+        if let Some(preparing) = &mut self.preparing
+            && preparing.cloud_phase.lock().unwrap().is_some()
+        {
+            preparing.cancel_cloud();
+            self.preparing = None;
+        }
+        self.scratch.cancel_cloud();
+        self.generation += 1;
+    }
+    /// Show a retained host again, without I/O (`returnToLocalWorkspace`,
+    /// a kept-alive Cloud host). `false` when it is not retained.
+    pub fn activate_host(&mut self, key: &str) -> bool {
+        if self.quitting || !self.hosts.contains_key(key) {
+            return false;
+        }
+        self.navigation += 1;
+        self.preparing = None;
+        self.activate_workspace(key.to_owned());
+        true
     }
     pub fn begin(&mut self, intent: Intent, wake: &Wake) {
         if self.quitting {
@@ -419,7 +473,13 @@ impl Runtime {
         if let Some(preparing) = &mut self.preparing {
             preparing.poll(wake);
             if let Some(error) = preparing.error.take() {
-                self.error = Some(error);
+                let failure = preparing.cloud_failure.lock().unwrap().take();
+                // A Header switch shows its own recovery; other openings
+                // report through the error dialog.
+                match failure {
+                    Some(failure) => self.last_cloud_failure = Some(failure),
+                    None => self.error = Some(error),
+                }
                 self.preparing = None;
             } else if let Some(rows) = preparing.tree_update.take() {
                 let ws = preparing.workspace.clone().unwrap();

@@ -40,7 +40,6 @@ struct MenuStyle {
     font: f32,
     line_height: f32,
     meta: f32,
-    meta_line_height: f32,
     padding: f32,
     item_height: f32,
     item_padding: f32,
@@ -73,7 +72,6 @@ impl MenuVariant {
                 font: m.ui.body,
                 line_height: 18.,
                 meta: m.ui.meta,
-                meta_line_height: 18.,
                 padding: 0.,
                 item_height: theme::control(),
                 item_padding: metric::MENU_ITEM_PADDING_INLINE,
@@ -96,7 +94,6 @@ impl MenuVariant {
             },
             line_height: if sidebar { m.left.line_height } else { 18. },
             meta: if sidebar { m.left.meta } else { m.ui.meta },
-            meta_line_height: if sidebar { m.left.line_height } else { 15. },
             padding: if self == Self::Project {
                 metric::PROJECT_MENU_SPACING
             } else {
@@ -173,6 +170,8 @@ pub struct MenuItem {
     selected: bool,
     disabled: bool,
     danger: bool,
+    /// Reads as an action (`data-cloud-action="create"`): accent text.
+    accent: bool,
     submenu: Option<SubmenuBuilder>,
     open_submenu: bool,
     on_click: Option<Handler>,
@@ -191,6 +190,7 @@ impl MenuItem {
             selected: false,
             disabled: false,
             danger: false,
+            accent: false,
             submenu: None,
             open_submenu: false,
             on_click: None,
@@ -253,6 +253,11 @@ impl MenuItem {
         self.disabled = disabled;
         self
     }
+    /// Accent text at rest and on hover (a create action among choices).
+    pub fn accent(mut self) -> Self {
+        self.accent = true;
+        self
+    }
     pub fn danger(mut self) -> Self {
         self.danger = true;
         self
@@ -279,7 +284,6 @@ enum MenuEntry {
     /// Rows `gap` apart (`.desktop-project-list`).
     List(Vec<MenuItem>, f32),
     Separator,
-    Label(SharedString),
 }
 
 /// A menu surface. Items run their handler, then `on_dismiss`.
@@ -327,11 +331,6 @@ impl Menu {
         self.entries.push(MenuEntry::Separator);
         self
     }
-    /// `.desktop-menu-section-label`.
-    pub fn label(mut self, text: impl Into<SharedString>) -> Self {
-        self.entries.push(MenuEntry::Label(text.into()));
-        self
-    }
     pub fn on_dismiss(mut self, handler: impl Fn(&mut Window, &mut App) + 'static) -> Self {
         self.on_dismiss = Some(Rc::new(handler));
         self
@@ -377,17 +376,6 @@ impl RenderOnce for Menu {
             surface = match entry {
                 MenuEntry::Separator if s.hide_separators => surface,
                 MenuEntry::Separator => surface.child(separator(t)),
-                MenuEntry::Label(text) => surface.child(
-                    div()
-                        .flex_shrink_0()
-                        .px(px(s.item_padding))
-                        .pb(px(4.))
-                        .text_size(px(s.meta))
-                        .line_height(px(s.meta_line_height))
-                        .font_weight(FontWeight::MEDIUM)
-                        .text_color(t.text_disabled)
-                        .child(text),
-                ),
                 MenuEntry::List(items, gap) => surface.child(
                     div()
                         .flex()
@@ -447,8 +435,11 @@ fn row(
     let disabled = item.disabled;
     let danger = item.danger;
     let lit = item.selected;
+    let accent = item.accent && !disabled;
     let resting = if danger {
         t.danger
+    } else if accent {
+        t.accent_text
     } else if lit {
         t.text
     } else if disabled {
@@ -456,7 +447,13 @@ fn row(
     } else {
         t.muted
     };
-    let hover_fg = if danger { t.danger } else { t.text };
+    let hover_fg = if danger {
+        t.danger
+    } else if accent {
+        t.accent_text
+    } else {
+        t.text
+    };
     let hover_bg = if danger {
         theme::alpha(t.danger, 0.10)
     } else {

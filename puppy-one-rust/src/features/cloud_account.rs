@@ -179,6 +179,17 @@ pub fn install_fixture(
     cx.set_global(CloudAccountService(account.clone()));
     account
 }
+/// The configured Cloud environment, signed in or not.
+pub fn environment(cx: &App) -> Option<Environment> {
+    let account = cx.try_global::<CloudAccountService>()?.0.read(cx);
+    account.snapshot.as_ref().map(|s| s.environment.clone())
+}
+/// Starts the browser sign-in (`CloudSignedOutRoute`).
+pub fn sign_in(cx: &App) {
+    if let Some(service) = cx.try_global::<CloudAccountService>() {
+        service.0.read(cx).sign_in();
+    }
+}
 pub fn has_account(cx: &App) -> bool {
     cx.try_global::<CloudAccountService>().is_some_and(|s| {
         s.0.read(cx)

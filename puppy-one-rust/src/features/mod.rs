@@ -5,6 +5,7 @@ pub mod create_new;
 pub mod desktop_agent;
 pub mod flags;
 pub mod model_connections;
+pub mod repository_cloud;
 pub mod settings;
 pub mod source_control;
 pub mod terminal;
