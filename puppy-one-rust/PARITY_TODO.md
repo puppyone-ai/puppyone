@@ -82,6 +82,16 @@
 
 仍未完成（第四轮后）：Cloud 预览资源（Office/数据库临时文件、HTML data URL 投影）、Scope、MissingCloudProjectRecovery、发布流程与价值页、Cloud Agent、服务管理页、Billing；浮动提示的其余使用方（保存状态浮层、文件操作提示）；首页 Cloud 行与浮动提示的像素流程；HTML 可视化编辑、Context Map、App 预览；右侧栏、设置与账户付费的剩余项。
 
+- [x] 第五轮（`a377a14b`..`cd428fc0`，10 个提交）：一套 Cloud 连接配置（`VITE_*` 名称、打包 `desktop-cloud.json`、回环白名单）与请求级账号核对（C-2.1、C-2.4）；打开失败恢复提示（详情、重试，C-5.5、C-5.7）；Cloud 预览资源（数据库私有副本拒绝 sidecar、HTML 按 64 个 / 4 MiB 预算，协议后台读取，C-6.5）；隐藏宿主释放订阅（C-6.7）；文件夹读取失败独占一行、Git 确认对话框、原生文本撤销预算（S-2、G-10）；ICU `select` 与系统区域日期（S-17）；Rail 重命名/取消关联（S-10）；首次发布（`cloud_publication`：journal v2、检查点、幂等键、URL 范围凭据助手、`--force-with-lease`、ls-remote 对账、清理，C-11）与关联目标消失时替换（C-4.5）；首次登录页（C-2.2）；PuppyOne 算力（余额、试用、充值、托管推理，P-1–P-3）；GitHub/GitLab 导入（S-8）。均未做像素对比。
+- [x] 第六轮（`43f8a1f7`..`929d61b5`，7 个提交）：
+  - 模型连接详情：服务模型目录（Ollama tags/ps/show、LM Studio `/api/v1/models`、OpenAI `/models`）与逐个模型的“验证 Agent 支持”（`puppyone_connection_check` 两步工具往返，60 秒超时）（S-21）。证据：`ollama_catalog_marks_loaded_models_and_their_context`、`a_model_passes_after_calling_the_check_tool_and_replying`。
+  - HTML Edit 模式（V-HTML-3）：产品 `HtmlVisualSurface` 由 `tools/import-html-visual.mjs` 打包为 `assets/web/html-visual.{js,css}`（源码哈希回执 `html-visual.json`，`verify.py` 的 `html-visual` 项检查漂移），在 WebView 里运行，浮层也在页内；页内镜像是产品的 `CodeMirrorDocumentModel`，本地改动以 UTF-16 变更 + 代次发给原生代码编辑器，撤销/重做走原生历史并以外部更新整体重置；`puppyone-local:` 资源协议只服务资源；IPC 只接受入口页 frame；图片导入写入同目录（`platform::webview::import_image`）。gpui-base 补丁 `replay_undo`。真实 WKWebView 窗口验证了加载、桥接握手和双向消息（lab `editor-html-edit`）。证据：`html_edit_mode_applies_page_edits_to_the_source_and_its_history`、`utf16_changes_apply_to_the_mirror_or_are_refused`。
+  - 代码查看器撤销历史按 `DOCUMENT_HISTORY_POLICY`（200 条 / 8 MiB，gpui-base 补丁 `set_history_retention`）（V-CODE-4）。
+  - 改扩展名换查看器（E-2）、按资源范围排队的文件操作（E-3）、Finder → Pane / 终端、Explorer → 终端 / Agent 输入框（E-4 部分）、保存状态条与可重试的保存失败提示（E-6）。证据：`a_new_extension_moves_the_working_copy_to_its_viewer`、`file_operations_queue_by_resource_scope`、`finder_drops_open_only_one_file_of_this_workspace`、`a_failed_autosave_is_a_pane_status_with_retry_not_a_dialog`。
+  - 本轮新界面都**没有**像素对比。
+
+仍未完成（第六轮后）：Cloud Agent、服务管理页、Billing、Scope、历史图、Share 缩略图、真实后端验收；从应用拖到外部、WebView Pane 的 Finder 拖放；Context Map、App 预览；右侧栏（G-1–G-8、G-11–G-13）与设置（S-3–S-5、S-7、S-9、S-12–S-15、S-18–S-20、S-22）的剩余项；全部新界面的像素流程。
+
 （第一轮记录）仍未完成：HTML/Office/音视频/数据库/Context Map/App 预览查看器；代码编辑器装饰与冲突横幅；Cloud 全部界面；各处像素对比流程；右侧栏、设置与账户付费的剩余项。完整清单与状态见桌面迁移清单第 2 版。
 
 ## 1. 基础设施
