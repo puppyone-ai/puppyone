@@ -647,6 +647,16 @@ impl Theme {
 }
 
 /// `app-shell/layout/desktopPaneLayout.ts` pane contract.
+/// Engine-rendered document pages (PDF): paper and the page drop shadow of
+/// Chromium's viewer. Content colours come from the document itself.
+pub mod document_page {
+    pub fn paper() -> gpui::Hsla {
+        gpui::white()
+    }
+    pub fn shadow() -> gpui::Hsla {
+        gpui::hsla(0., 0., 0., 0.3)
+    }
+}
 pub mod pane {
     pub const DEFAULT_EXPLORER_WIDTH: f32 = 320.;
     pub const MIN_EXPLORER_WIDTH: f32 = 220.;

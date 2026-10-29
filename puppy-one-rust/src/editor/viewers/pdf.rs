@@ -391,9 +391,9 @@ impl Render for PdfView {
                         .flex_none()
                         .w(px(w))
                         .h(px(h))
-                        .bg(gpui::white())
+                        .bg(theme::document_page::paper())
                         .shadow(vec![BoxShadow {
-                            color: hsla(0., 0., 0., 0.3),
+                            color: theme::document_page::shadow(),
                             offset: point(px(0.), px(1.)),
                             blur_radius: px(4.),
                             spread_radius: px(0.),
