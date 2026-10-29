@@ -177,6 +177,8 @@ pub struct Preferences {
     /// account and API (`catalog::history::scope`).
     pub project_open_history:
         std::collections::BTreeMap<String, Vec<crate::workspace::cloud::catalog::history::Entry>>,
+    /// `puppyone.desktop.firstRunSignInCompleted.v1`.
+    pub first_run_sign_in_completed: bool,
 }
 impl Default for Preferences {
     fn default() -> Self {
@@ -204,6 +206,7 @@ impl Default for Preferences {
             experimental: Experimental::default(),
             recent_projects: vec![],
             project_open_history: Default::default(),
+            first_run_sign_in_completed: false,
         }
     }
 }

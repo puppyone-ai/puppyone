@@ -1718,6 +1718,7 @@ impl Render for Shell {
         self.advance_cloud_switch(cx);
         self.refresh_home_activity(cx);
         self.sync_open_history(cx);
+        self.sync_first_run(cx);
         #[cfg(feature = "dev-capture")]
         let scenario_done = self.advance_capture_scenario(window, cx);
         #[cfg(not(feature = "dev-capture"))]
@@ -1768,7 +1769,11 @@ impl Render for Shell {
         });
         let home = self.home_visible();
         if home {
-            root = root.child(self.home_view(cx));
+            root = root.child(if self.first_run_sign_in(cx) {
+                self.first_run_view(cx)
+            } else {
+                self.home_view(cx)
+            });
         }
         // A closing pane stays painted, clipped to its frame, until it has closed.
         if (self.panes.explorer().open || panes.left_clip.is_some()) && !home {

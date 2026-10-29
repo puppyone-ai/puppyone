@@ -2251,3 +2251,38 @@ fn a_vanished_cloud_project_is_replaced_only_after_a_second_404(cx: &mut TestApp
         .unwrap();
     assert!(String::from_utf8_lossy(&remotes.stdout).trim().is_empty());
 }
+
+#[gpui::test]
+fn first_run_offers_sign_in_once_on_an_empty_launch(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    let (broker, browser) = crate::cloud_auth::account_fixture();
+    let account = cx.update(|_, cx| {
+        let account = crate::features::cloud_account::install_fixture(broker, browser, cx);
+        account.update(cx, |a, _| a.sign_out());
+        account
+    });
+    view.update(cx, |s, cx| {
+        s.preferences.update(cx, |p, _| {
+            p.loaded = true;
+            p.state.experimental.cloud_workspace = true;
+        })
+    });
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(4);
+    while cx.update(|_, cx| crate::features::cloud_account::has_account(cx)) {
+        cx.run_until_parked();
+        assert!(std::time::Instant::now() < deadline);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    draw(cx);
+    view.read_with(cx, |s, cx| assert!(s.first_run_sign_in(cx)));
+    // Continue locally completes it for good.
+    view.update(cx, |s, cx| {
+        s.complete_first_run(cx);
+        s.sync_first_run(cx);
+    });
+    view.read_with(cx, |s, cx| {
+        assert!(!s.first_run_sign_in(cx));
+        assert!(s.preferences.read(cx).state.first_run_sign_in_completed);
+    });
+    let _ = account;
+}

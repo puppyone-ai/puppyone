@@ -37,6 +37,7 @@ use std::{
 };
 
 mod create_project;
+mod first_run;
 pub(super) use create_project::CreateProject;
 
 /// `--onboarding-column-width`.
