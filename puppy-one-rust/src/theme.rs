@@ -309,6 +309,29 @@ pub fn shade(c: Rgba, weight: f32) -> Rgba {
 pub fn on_solid() -> Rgba {
     rgb(0xffffff)
 }
+/// `--agent-presence-accent` (`agent-file-presence.css`): the reading tint,
+/// or the writing one (`[data-kind="writing"]`).
+pub fn presence_accent(accent: Rgba, writing: bool) -> Rgba {
+    if writing {
+        mix(rgb(0xdb8b31), accent, 0.78)
+    } else {
+        mix(accent, rgb(0x7da8ff), 0.72)
+    }
+}
+/// `--po-elevation-low`: `0 2px 4px -2px`, the shadow at 32% (28% dark).
+pub fn elevation_low(t: &Theme) -> gpui::BoxShadow {
+    gpui::BoxShadow {
+        inset: false,
+        color: alpha(t.shadow, if t.dark { 0.28 } else { 0.32 }).into(),
+        offset: gpui::point(gpui::px(0.), gpui::px(2.)),
+        blur_radius: gpui::px(4.),
+        spread_radius: gpui::px(-2.),
+    }
+}
+/// Chromium's checked native checkbox with `accent-color`: (fill, mark).
+pub fn native_checkbox_checked(accent: Rgba) -> (Rgba, Rgba) {
+    (accent, rgb(0xffffff))
+}
 /// Chromium's unchecked native checkbox: (fill, border) in the colour scheme.
 pub fn native_checkbox(dark: bool) -> (Rgba, Rgba) {
     if dark {

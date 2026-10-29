@@ -227,7 +227,7 @@ impl Shell {
         let launch = windows::take_launch(cx);
         let preferences = windows::shared_preferences(fixture, cx);
         let mut s = Self {
-            window_key: format!("window:{:?}", window.window_handle().window_id()),
+            window_key: crate::features::agent_presence::owner(window),
             cloud_catalog: crate::features::cloud_catalog::global(cx),
             cloud_project: None,
             cloud_authority: None,
@@ -268,7 +268,12 @@ impl Shell {
             recent_projects: vec![],
             home_scroll: ScrollHandle::new(),
             weak: cx.weak_entity(),
-            explorer: cx.new(|cx| Explorer::new(fixture, preferences.clone(), cx)),
+            explorer: {
+                let owner = crate::features::agent_presence::owner(window);
+                cx.new(|cx| {
+                    Explorer::new(fixture, preferences.clone(), cx).with_presence_owner(owner)
+                })
+            },
             homepage: Default::default(),
             task_ui: TaskUi::new(preferences.clone(), window, cx),
             preferences,
@@ -308,6 +313,10 @@ impl Shell {
         };
         s.files.task_scope = s.window_key.clone();
         s.native_hosts.insert(0, s.native.clone());
+        // Agent file presence over the editor panes.
+        if let Some(presence) = crate::features::agent_presence::store(cx) {
+            cx.observe(&presence, |_, _, cx| cx.notify()).detach();
+        }
         // Captures can start on a task dialog.
         match std::env::var("PUPPYONE_CAPTURE_SURFACE").as_deref() {
             Ok("settings") => s.modals.open(Modal::Task(Task::Settings)),

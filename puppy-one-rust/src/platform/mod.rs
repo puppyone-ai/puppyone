@@ -1,4 +1,5 @@
 pub mod accessibility;
+pub mod agent_activity;
 pub mod database;
 pub mod desktop;
 pub mod editor_state_storage;
@@ -23,3 +24,14 @@ pub mod text_rendering;
 pub mod ui_state_store;
 pub mod watchdog;
 pub mod webview;
+
+/// The native product's data directory, separate from the Electron product's
+/// (`PUPPYONE_RUST_DATA_DIR` isolates tests and captures).
+pub fn data_dir() -> std::path::PathBuf {
+    std::env::var_os("PUPPYONE_RUST_DATA_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| {
+            std::path::PathBuf::from(std::env::var_os("HOME").unwrap_or_default())
+                .join("Library/Application Support/PuppyOne GPUI")
+        })
+}

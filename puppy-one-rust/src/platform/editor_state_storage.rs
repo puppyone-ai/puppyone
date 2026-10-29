@@ -18,13 +18,7 @@ pub struct Storage {
 }
 impl Storage {
     pub fn native() -> Self {
-        let base = std::env::var_os("PUPPYONE_RUST_DATA_DIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| {
-                PathBuf::from(std::env::var_os("HOME").unwrap_or_default())
-                    .join("Library/Application Support/PuppyOne GPUI")
-            });
-        Self::at(base.join("editor-workbench"))
+        Self::at(super::data_dir().join("editor-workbench"))
     }
     pub fn at(base: PathBuf) -> Self {
         let (tx, commands) = mpsc::sync_channel(64);

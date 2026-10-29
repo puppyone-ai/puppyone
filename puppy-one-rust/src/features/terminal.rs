@@ -221,9 +221,11 @@ pub struct TerminalView {
     drop_failed: bool,
 }
 impl TerminalView {
+    /// `launcher`: `shell`, or the local Agent id whose CLI `executable` is.
     pub fn new(
         root: PathBuf,
         executable: Option<PathBuf>,
+        launcher: &'static str,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -291,8 +293,9 @@ impl TerminalView {
         let terminal = Terminal::spawn(
             root,
             executable,
+            launcher,
             wake,
-            format!("window:{:?}", window.window_handle().window_id()),
+            crate::features::agent_presence::owner(window),
         );
         let view = Self::assemble(terminal, agent, true, cx);
         cx.on_focus(&view.focus, window, |s, _, cx| {

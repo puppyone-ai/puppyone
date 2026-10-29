@@ -78,6 +78,48 @@ pub struct LocalAgents {
     /// Local agent ids hidden from Chat/Terminal launchers.
     pub hidden_agent_ids: Vec<String>,
     pub chat_history_discovery: bool,
+    /// `localAgentsSettings.setupSuggestions`.
+    pub setup_suggestions: SetupSuggestions,
+}
+/// `LocalAgentSetupPreferences`: Agent suggestions from installed apps.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SetupSuggestions {
+    pub enabled: bool,
+    pub dismissed_setup_ids: Vec<String>,
+    /// Setup id → milliseconds since the epoch.
+    pub snoozed_until: std::collections::BTreeMap<String, u64>,
+}
+impl Default for SetupSuggestions {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            dismissed_setup_ids: vec![],
+            snoozed_until: Default::default(),
+        }
+    }
+}
+/// `LOCAL_AGENT_INSTALLATION_IDS`.
+pub const LOCAL_AGENT_INSTALLATION_IDS: [&str; 8] = [
+    "codex",
+    "claude",
+    "cursor",
+    "opencode",
+    "pi",
+    "workbuddy-china",
+    "workbuddy-international",
+    "hermes",
+];
+impl SetupSuggestions {
+    /// `normalizeSetupPreferences`: known ids only, without duplicates.
+    pub fn normalized(mut self) -> Self {
+        let known = |id: &str| LOCAL_AGENT_INSTALLATION_IDS.contains(&id);
+        let mut seen = std::collections::HashSet::new();
+        self.dismissed_setup_ids
+            .retain(|id| known(id) && seen.insert(id.clone()));
+        self.snoozed_until.retain(|id, _| known(id));
+        self
+    }
 }
 
 /// `ExperimentalSettings` except `enableProjectSwitcherRail`, which keeps its
@@ -174,6 +216,9 @@ pub struct Preferences {
     pub create_new: MenuSettings,
     pub files: FilesVisibility,
     pub local_agents: LocalAgents,
+    /// `agentFileActivityIndicatorsEnabled`: show which files a Hooked
+    /// terminal Agent reads and writes. Turned on when a Hook is installed.
+    pub agent_file_activity_indicators: bool,
     pub experimental: Experimental,
     pub recent_projects: Vec<RecentProject>,
     /// `puppyone.project-open-location:{scope}`: successful openings per
@@ -207,6 +252,7 @@ impl Default for Preferences {
             create_new: MenuSettings::default(),
             files: FilesVisibility::default(),
             local_agents: LocalAgents::default(),
+            agent_file_activity_indicators: false,
             experimental: Experimental::default(),
             recent_projects: vec![],
             project_open_history: Default::default(),
@@ -234,6 +280,8 @@ impl Preferences {
         }
         p.version = 2;
         p.create_new.normalize();
+        p.local_agents.setup_suggestions =
+            std::mem::take(&mut p.local_agents.setup_suggestions).normalized();
         p.file_icon_theme = crate::file_kind::parse_theme(Some(&p.file_icon_theme))
             .unwrap_or(crate::file_kind::default_theme())
             .into();

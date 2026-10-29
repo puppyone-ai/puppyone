@@ -202,6 +202,37 @@ impl Explorer {
             )
             .into_any_element()
     }
+    fn file_presence(
+        &self,
+        index: usize,
+        relative: &std::path::Path,
+        cx: &App,
+    ) -> Option<crate::ui::components::FilePresence> {
+        use crate::ui::components::{FilePresence, PresenceVariant};
+        if !self
+            .preferences
+            .read(cx)
+            .state
+            .agent_file_activity_indicators
+        {
+            return None;
+        }
+        let root = self.workspace.as_ref()?.local_root()?;
+        let store = crate::features::agent_presence::store(cx)?;
+        let projection = store
+            .read(cx)
+            .projection(&self.presence_owner, root, relative)?;
+        Some(
+            FilePresence::new(
+                ("tree-row-presence", index),
+                PresenceVariant::Explorer,
+                projection.primary.provider,
+            )
+            .reading(projection.primary.reading)
+            .active(projection.primary.active)
+            .more(projection.additional),
+        )
+    }
     fn tree_row(
         &mut self,
         index: usize,
@@ -239,6 +270,12 @@ impl Explorer {
                     cx,
                 ),
             );
+        }
+        // `AgentFilePresence variant="explorer"` on local files.
+        if !item.folder
+            && let Some(presence) = self.file_presence(index, &item.path, cx)
+        {
+            row = row.presence(presence);
         }
         let path = item.path.clone();
         row = row.action(

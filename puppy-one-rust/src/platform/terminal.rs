@@ -62,13 +62,22 @@ impl Terminal {
     }
     /// Starts a PTY host under the process budget of `owner` (its window).
     /// A refused reservation reports capacity instead of starting a shell.
-    pub fn spawn(root: PathBuf, executable: Option<PathBuf>, wake: Wake, owner: String) -> Self {
+    /// `launcher` is the terminal's launcher (`shell` or a local Agent id):
+    /// with that Agent's Hook enabled the session reports file activity.
+    pub fn spawn(
+        root: PathBuf,
+        executable: Option<PathBuf>,
+        launcher: &'static str,
+        wake: Wake,
+        owner: String,
+    ) -> Self {
         let (tx, rx) = mpsc::sync_channel(64);
         let (out, events) = mpsc::sync_channel(128);
         let stop = Arc::new(AtomicBool::new(false));
         static SEQUENCE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let key = format!("terminal:{}", SEQUENCE.fetch_add(1, Ordering::Relaxed));
         let project = root.to_string_lossy().into_owned();
+        let activity_owner = owner.clone();
         let lease =
             match super::host_budget::Budget::global().reserve(key, owner, project, "terminal") {
                 Ok(lease) => lease,
@@ -90,6 +99,15 @@ impl Terminal {
         let foreground = Arc::new(AtomicI32::new(0));
         let foreground_pid = foreground.clone();
         std::thread::spawn(move || {
+            // `prepareTerminalSession`, off the UI thread (it reads the
+            // Agents' Hook configuration).
+            let activity_session = uuid::Uuid::new_v4().to_string();
+            let activity = super::agent_activity::host::Host::global().prepare_terminal_session(
+                &activity_session,
+                launcher,
+                &root,
+                &activity_owner,
+            );
             let result = (|| -> anyhow::Result<()> {
                 let pair = native_pty_system().openpty(PtySize {
                     rows: 24,
@@ -112,6 +130,9 @@ impl Terminal {
                 command.env("TERM", "xterm-256color");
                 command.env("COLORTERM", "truecolor");
                 command.env("PATH", super::environment::search_path());
+                for (key, value) in &activity {
+                    command.env(key, value);
+                }
                 let mut child = ChildGuard(pair.slave.spawn_command(command)?);
                 child_pid.store(child.process_id().unwrap_or(0) as i32, Ordering::Release);
                 if let Some(pid) = child.process_id() {
@@ -193,8 +214,13 @@ impl Terminal {
                 foreground_pid.store(0, Ordering::Release);
                 Ok(())
             })();
-            // The child was waited for (or never started): release the slot.
+            // The child was waited for (or never started): release the slot
+            // and end the session's file activity (`onExit`).
             drop(lease);
+            if !activity.is_empty() {
+                super::agent_activity::host::Host::global()
+                    .close_terminal_session(&activity_session);
+            }
             if let Err(e) = result {
                 let _ = out.send(Event::Error(e.to_string()));
                 wake.notify();
@@ -247,6 +273,7 @@ mod tests {
         let terminal = Terminal::spawn(
             dir.path().into(),
             Some(PathBuf::from("/bin/sh")),
+            "shell",
             Wake::default(),
             "test".into(),
         );

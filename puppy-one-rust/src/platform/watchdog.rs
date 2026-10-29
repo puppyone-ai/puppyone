@@ -48,13 +48,7 @@ fn log_path() -> PathBuf {
     if let Some(path) = LOG_OVERRIDE.lock().unwrap().clone() {
         return path;
     }
-    std::env::var_os("PUPPYONE_RUST_DATA_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            PathBuf::from(std::env::var_os("HOME").unwrap_or_default())
-                .join("Library/Application Support/PuppyOne GPUI")
-        })
-        .join("diagnostics/main-thread-stalls.jsonl")
+    super::data_dir().join("diagnostics/main-thread-stalls.jsonl")
 }
 fn record(kind: &str, millis: u64, activity: &str) {
     let path = log_path();

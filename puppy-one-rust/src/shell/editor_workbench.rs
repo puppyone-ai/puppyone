@@ -140,6 +140,47 @@ impl Shell {
                 .into_any_element(),
         )
     }
+    /// `AgentFilePresence` over a local document's pane (top 8px, 38px from
+    /// the end, clear of the pane handle).
+    fn file_presence(&self, slot: u64, cx: &App) -> Option<AnyElement> {
+        use crate::ui::components::{FilePresence, PresenceVariant};
+        if !self
+            .preferences
+            .read(cx)
+            .state
+            .agent_file_activity_indicators
+        {
+            return None;
+        }
+        let files = self.files.slot(slot)?;
+        let root = files.workspace.as_ref()?.local_root()?;
+        let relative = match (&files.document, &files.resource) {
+            (Some(document), _) => document.relative.as_path(),
+            (None, Some(resource)) => resource.relative.as_path(),
+            (None, None) => return None,
+        };
+        let store = crate::features::agent_presence::store(cx)?;
+        let projection = store
+            .read(cx)
+            .projection(&self.window_key, root, relative)?;
+        Some(
+            div()
+                .absolute()
+                .top(px(8.))
+                .right(px(38.))
+                .child(
+                    FilePresence::new(
+                        ("editor-presence", slot as usize),
+                        PresenceVariant::Editor,
+                        projection.primary.provider,
+                    )
+                    .reading(projection.primary.reading)
+                    .active(projection.primary.active)
+                    .more(projection.additional),
+                )
+                .into_any_element(),
+        )
+    }
     pub(super) fn focus_editor_slot(&mut self, slot: u64) {
         let pane = self.files.state().and_then(|state| {
             state
@@ -510,6 +551,9 @@ impl Shell {
                     view = view.child(editor.clone());
                     if let Some(chip) = slot.and_then(|slot| self.save_chip(slot, cx)) {
                         view = view.child(chip);
+                    }
+                    if let Some(presence) = slot.and_then(|slot| self.file_presence(slot, cx)) {
+                        view = view.child(presence);
                     }
                 } else {
                     let close = id.clone();

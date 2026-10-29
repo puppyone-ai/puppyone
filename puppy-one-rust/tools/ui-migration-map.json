@@ -396,14 +396,59 @@
         "src/features/local-agents/setup/localAgentSelection.ts",
         "src/features/local-agents/setup/localAgentSetupPreferences.ts",
         "src/features/local-agents/setup/useLocalAgentSetup.ts",
-        "src/features/local-agents/installation/localAgentInventoryClient.ts"
+        "src/features/local-agents/installation/localAgentInventoryClient.ts",
+        "src/features/local-agents/setup/LocalAgentHooksSettingsView.tsx"
       ],
       "targets": [
         "src/features/agent_settings.rs",
         "src/agent/connections/local_agent_inventory.rs",
-        "src/features/settings/preference_types.rs"
+        "src/features/settings/preference_types.rs",
+        "src/platform/agent_activity/registration.rs",
+        "src/platform/agent_activity/host.rs",
+        "src/ui/components/checkbox.rs"
       ],
-      "remaining": "Detected agents with persisted show/hide, rescan, empty/error states and history discovery are native; the Launcher honours hidden agents. The Hooks and setup-guide sections depend on Electron installation/activity services and are hidden, as the Web does when those services are unsupported."
+      "remaining": "Detected agents with persisted show/hide, rescan, empty/error states and history discovery are native; the Launcher honours hidden agents. Hooks: the enrollment snapshot, one change at a time, the loading/empty/error-with-Retry rows and the file-activity preference sync are native over src/platform/agent_activity (local-agents 98.9% / 98.9%). The setup-guide section and activation are not ported yet.",
+      "evidence": [
+        "test:a_hook_checkbox_installs_the_hook_and_turns_on_file_activity",
+        "test:enabling_adds_only_owned_entries_and_disabling_restores_the_file",
+        "artifact:settings-native/local-agents-dark.png"
+      ]
+    },
+    {
+      "name": "Agent file presence",
+      "status": "partial",
+      "sources": [
+        "src/features/desktop-agent-presence/AgentFilePresence.tsx",
+        "src/features/desktop-agent-presence/agent-file-presence.css",
+        "src/features/desktop-agent-presence/agentActivity.ts",
+        "src/features/desktop-agent-presence/agentActivityApi.ts",
+        "src/features/desktop-agent-presence/agentActivityStore.ts"
+      ],
+      "targets": [
+        "src/features/agent_presence.rs",
+        "src/ui/components/agent_presence.rs",
+        "src/ui/components/sidebar.rs",
+        "src/shell/explorer/rows.rs",
+        "src/shell/editor_workbench.rs",
+        "src/platform/agent_activity/mod.rs",
+        "src/platform/agent_activity/host.rs",
+        "src/platform/agent_activity/service.rs"
+      ],
+      "evidence": [
+        "test:claims_project_onto_their_window_and_file",
+        "test:an_enabled_hook_reports_a_terminal_agents_file_reads_to_its_window",
+        "test:initials_and_easing_follow_the_product"
+      ],
+      "remaining": "The per-window store (four-second linger, writing before reading, running before finished, newest first), the editor and Explorer pills (initials, eye/hand, +N, breathing border, dimmed when settled, the 68px row reserve with the row's own actions only on hover) and the indicators preference are native. The process-wide host replaces the IPC subscribe/snapshot. Pixel comparison of the pills is pending."
+    },
+    {
+      "name": "Agent file-activity permission styles (unused)",
+      "status": "excluded",
+      "sources": [
+        "src/features/desktop-agent-presence/agent-file-activity-permission.css"
+      ],
+      "targets": [],
+      "reason": "No component renders the .desktop-agent-activity-permission-* classes (grep over src, packages and electron at 6dee919d); the stylesheet is not imported."
     },
     {
       "name": "Model Connections settings",

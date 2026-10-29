@@ -6,6 +6,7 @@
 //! for the occasional layout override, and colours from the active
 //! [`Appearance`](crate::ui::appearance::Appearance). Feature code composes
 //! these; it does not draw controls of its own.
+mod agent_presence;
 mod button;
 mod checkbox;
 mod dialog;
@@ -21,8 +22,9 @@ mod sidebar;
 mod spinner;
 mod switch;
 
+pub use agent_presence::{FilePresence, PresenceVariant};
 pub use button::{Button, ButtonVariant, IconButton};
-pub use checkbox::Checkbox;
+pub use checkbox::{Checkbox, native_checkbox};
 pub use dialog::Dialog;
 pub use icon::{FileIcon, Icon, ProductIcon};
 pub use menu::{Menu, MenuItem, MenuRow, MenuVariant};

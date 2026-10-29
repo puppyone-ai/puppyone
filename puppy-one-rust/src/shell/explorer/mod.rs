@@ -103,6 +103,8 @@ pub(in crate::shell) struct Explorer {
     /// Showing the built-in fixture rows (visual captures and tests).
     fixture: bool,
     preferences: Entity<PreferencesStore>,
+    /// The window whose terminals' Agent file activity rows show.
+    presence_owner: String,
     host: Host,
     weak: WeakEntity<Self>,
     focus: FocusHandle,
@@ -163,6 +165,9 @@ impl Explorer {
         .detach();
         // Icon theme and Create New configuration are read when painting.
         cx.observe(&preferences, |_, _, cx| cx.notify()).detach();
+        if let Some(presence) = crate::features::agent_presence::store(cx) {
+            cx.observe(&presence, |_, _, cx| cx.notify()).detach();
+        }
         let mut explorer = Self {
             tree: if fixture {
                 Tree::fixture()
@@ -172,6 +177,7 @@ impl Explorer {
             workspace: None,
             fixture,
             preferences,
+            presence_owner: String::new(),
             host: Host::default(),
             weak: cx.weak_entity(),
             focus: cx.focus_handle(),
@@ -193,6 +199,11 @@ impl Explorer {
         };
         explorer.apply_visibility(cx);
         explorer
+    }
+    /// The owner window (`agent_presence::owner`).
+    pub fn with_presence_owner(mut self, owner: String) -> Self {
+        self.presence_owner = owner;
+        self
     }
     fn apply_visibility(&mut self, cx: &mut Context<Self>) {
         let files = &self.preferences.read(cx).state.files;

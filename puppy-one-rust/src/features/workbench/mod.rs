@@ -438,7 +438,7 @@ impl Workbench {
             }
             RetainedItem::Terminal { .. } => {
                 let label = super::terminal::path_label(&root);
-                let view = cx.new(|cx| TerminalView::new(root, None, window, cx));
+                let view = cx.new(|cx| TerminalView::new(root, None, "shell", window, cx));
                 cx.observe(&view, |_, _, cx| cx.notify()).detach();
                 Content::Terminal(view, label, None)
             }
@@ -568,8 +568,9 @@ impl Workbench {
                 // project folder; the launcher shows as its icon.
                 let label = super::terminal::path_label(&root);
                 let runtime = installation.as_ref().map(|i| i.runtime);
+                let launcher = installation.as_ref().map_or("shell", |i| i.id);
                 let exe = installation.map(|i| i.executable);
-                let view = cx.new(|cx| TerminalView::new(root, exe, window, cx));
+                let view = cx.new(|cx| TerminalView::new(root, exe, launcher, window, cx));
                 cx.observe(&view, |_, _, cx| cx.notify()).detach();
                 Content::Terminal(view, label, runtime)
             };

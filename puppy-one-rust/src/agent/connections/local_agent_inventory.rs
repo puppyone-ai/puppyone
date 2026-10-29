@@ -105,6 +105,10 @@ pub const LOCAL_AGENTS: &[LocalAgent] = &[
     },
 ];
 
+/// The runtime of a local Agent id (`claude`, `opencode`, …).
+pub fn runtime_for(id: &str) -> Option<Runtime> {
+    LOCAL_AGENTS.iter().find(|a| a.id == id).map(|a| a.runtime)
+}
 fn locate(agent: &LocalAgent, dirs: &[PathBuf]) -> Option<PathBuf> {
     match &agent.locator {
         Locator::Path(names) => names.iter().find_map(|name| {

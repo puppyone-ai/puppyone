@@ -30,6 +30,12 @@ mod web_host;
 mod workspace;
 use gpui::*;
 fn main() {
+    // An Agent CLI's Hook runs this executable as its bridge: forward the
+    // event and exit before any UI or single-instance work starts.
+    if std::env::args().nth(1).as_deref() == Some(platform::agent_activity::hook::FLAG) {
+        platform::agent_activity::hook::run();
+        return;
+    }
     platform::text_rendering::match_product_font_smoothing();
     let application = gpui_kit::application().with_assets(assets::Assets);
     // Dock click with no window: the last active project (`activate`).
@@ -69,6 +75,8 @@ fn main() {
         ui::input::bind_keys(cx);
         ui::form_input::bind_keys(cx);
         shell::bind_keys(cx);
+        // Hooked terminal Agents' file activity, for every window.
+        features::agent_presence::init(cx);
         editor::actions::bind_keys(cx);
         editor::view::bind_keys(cx);
         editor::csv::bind_keys(cx);

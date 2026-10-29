@@ -26,6 +26,7 @@ mod keys {
     pub const EXPERIMENTAL: &str = "puppyone.desktop.experimental";
     pub const FILES: &str = "puppyone.desktop.filesVisibility";
     pub const LOCAL_AGENTS: &str = "puppyone.desktop.localAgents";
+    pub const AGENT_FILE_ACTIVITY: &str = "puppyone.desktop.agentFileActivityIndicators";
     pub const GIT_SIDEBAR_LAYOUT: &str = "puppyone.desktop.gitSidebarLayout";
     pub const TITLEBAR_ACTIONS: &str = "puppyone.desktop.titlebarActions";
     pub const FIRST_RUN_SIGN_IN: &str = "puppyone.desktop.firstRunSignInCompleted.v1";
@@ -109,7 +110,30 @@ pub fn import(data: &ElectronData) -> Preferences {
         if let Some(Value::Bool(on)) = agents.get("chatHistoryDiscoveryEnabled") {
             p.local_agents.chat_history_discovery = *on;
         }
+        // `normalizeSetupPreferences`: on unless switched off.
+        if let Some(setup) = agents.get("setupSuggestions").filter(|v| v.is_object()) {
+            let suggestions = &mut p.local_agents.setup_suggestions;
+            suggestions.enabled = setup.get("enabled") != Some(&Value::Bool(false));
+            suggestions.dismissed_setup_ids = setup
+                .get("dismissedSetupIds")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect();
+            suggestions.snoozed_until = setup
+                .get("snoozedUntil")
+                .and_then(Value::as_object)
+                .into_iter()
+                .flatten()
+                .filter_map(|(id, until)| Some((id.clone(), until.as_u64()?)))
+                .collect();
+            *suggestions = std::mem::take(suggestions).normalized();
+        }
     }
+    // `parseAgentFileActivityIndicatorsEnabled`: off unless stored "true".
+    p.agent_file_activity_indicators = get(keys::AGENT_FILE_ACTIVITY) == Some("true");
     p.git_sidebar_layout = match get(keys::GIT_SIDEBAR_LAYOUT) {
         Some("dividers") => GitSidebarLayout::Dividers,
         _ => GitSidebarLayout::Cards,
@@ -347,8 +371,10 @@ mod tests {
             (
                 keys::LOCAL_AGENTS,
                 r#"{"hiddenTerminalAgentIds":["pi","codex","pi"],"enabledAgentIds":["claude"],
-                    "chatHistoryDiscoveryEnabled":true}"#,
+                    "chatHistoryDiscoveryEnabled":true,"setupSuggestions":{"enabled":false,
+                    "dismissedSetupIds":["codex","nope","codex"],"snoozedUntil":{"cursor":5,"x":1,"pi":-1}}}"#,
             ),
+            (keys::AGENT_FILE_ACTIVITY, "true"),
             (keys::EXPLORER_WIDTH, "wide"),
         ]));
         assert_eq!(p.theme_mode, ThemeMode::Light);
@@ -363,6 +389,11 @@ mod tests {
         assert_eq!(p.files.exclude_patterns, ["**/.git"]);
         assert_eq!(p.local_agents.hidden_agent_ids, ["codex", "pi"]);
         assert!(p.local_agents.chat_history_discovery);
+        let setup = &p.local_agents.setup_suggestions;
+        assert!(!setup.enabled);
+        assert_eq!(setup.dismissed_setup_ids, ["codex"]);
+        assert_eq!(setup.snoozed_until, [("cursor".to_owned(), 5)].into());
+        assert!(p.agent_file_activity_indicators);
         assert_eq!(
             p.explorer_width,
             Preferences::default().explorer_width,

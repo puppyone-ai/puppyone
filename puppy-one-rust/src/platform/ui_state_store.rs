@@ -21,13 +21,7 @@ struct WriteCommand {
 }
 static WORKER: OnceLock<SyncSender<WriteCommand>> = OnceLock::new();
 fn path(root: &Path) -> PathBuf {
-    let base = std::env::var_os("PUPPYONE_RUST_DATA_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            PathBuf::from(std::env::var_os("HOME").unwrap_or_default())
-                .join("Library/Application Support/PuppyOne GPUI")
-        });
-    base.join("workbench").join(format!(
+    super::data_dir().join("workbench").join(format!(
         "{}.json",
         blake3::hash(root.to_string_lossy().as_bytes()).to_hex()
     ))

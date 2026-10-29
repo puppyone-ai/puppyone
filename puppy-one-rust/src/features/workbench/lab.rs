@@ -101,7 +101,8 @@ impl Workbench {
                 "close-dialog" => self.request_close_confirmation(chat, cx),
                 "terminal-activity" => {
                     let view = cx.new(|cx| {
-                        let mut view = TerminalView::new(std::env::temp_dir(), None, window, cx);
+                        let mut view =
+                            TerminalView::new(std::env::temp_dir(), None, "shell", window, cx);
                         view.lab_busy_agent();
                         view
                     });
@@ -187,7 +188,7 @@ impl Workbench {
     }
     /// An inactive shell tab; its PTY lives in a scratch directory.
     fn lab_terminal(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Content {
-        let view = cx.new(|cx| TerminalView::new(std::env::temp_dir(), None, window, cx));
+        let view = cx.new(|cx| TerminalView::new(std::env::temp_dir(), None, "shell", window, cx));
         Content::Terminal(view, crate::localization::t("terminal.title").into(), None)
     }
 }

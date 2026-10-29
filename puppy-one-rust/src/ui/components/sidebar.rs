@@ -50,6 +50,7 @@ pub struct SidebarRow {
     label: Option<SharedString>,
     children: Vec<AnyElement>,
     actions: Vec<AnyElement>,
+    presence: Option<AnyElement>,
     selected: bool,
     open: bool,
     disabled: bool,
@@ -69,6 +70,7 @@ impl SidebarRow {
             label: None,
             children: vec![],
             actions: vec![],
+            presence: None,
             selected: false,
             open: false,
             disabled: false,
@@ -98,6 +100,13 @@ impl SidebarRow {
     /// Row actions (24px [`RowActionButton`]s), revealed on hover or while open.
     pub fn action(mut self, action: impl IntoElement) -> Self {
         self.actions.push(action.into_any_element());
+        self
+    }
+    /// An Agent's file presence, first in the actions
+    /// (`.tree-row-actions:has(.desktop-agent-file-presence)`): it always
+    /// shows, and the row's own actions appear only while hovered.
+    pub fn presence(mut self, presence: impl IntoElement) -> Self {
+        self.presence = Some(presence.into_any_element());
         self
     }
     /// Cut to the clipboard: the glyph and label fade.
@@ -194,10 +203,12 @@ impl RenderOnce for SidebarRow {
         } else {
             theme::ty().left.content
         };
-        let has_actions = !self.actions.is_empty();
+        let has_presence = self.presence.is_some();
+        let has_actions = !self.actions.is_empty() || has_presence;
         // `--tree-row-action-reserve`: the content's end padding while the
-        // actions show (one 24px button 32px, two 56px).
+        // actions show (one 24px button 32px, two 56px, with a presence 68px).
         let reserve = match self.actions.len() {
+            _ if has_presence => 68.,
             0 => metric::SIDEBAR_ROW_CONTENT_RIGHT,
             1 => 32.,
             _ => 56.,
@@ -276,6 +287,22 @@ impl RenderOnce for SidebarRow {
             }))
             .children(self.children);
         if has_actions {
+            let actions: Vec<AnyElement> = if has_presence {
+                let hover = group.clone();
+                self.actions
+                    .into_iter()
+                    .map(|action| {
+                        div()
+                            .flex()
+                            .invisible()
+                            .group_hover(hover.clone(), |s| s.visible())
+                            .child(action)
+                            .into_any_element()
+                    })
+                    .collect()
+            } else {
+                self.actions
+            };
             row = row.child(
                 div()
                     .absolute()
@@ -285,8 +312,11 @@ impl RenderOnce for SidebarRow {
                     .flex()
                     .items_center()
                     .gap(px(metric::TREE_ROW_ACTION_GAP))
-                    .when(!open, |d| d.invisible().group_hover(group, |s| s.visible()))
-                    .children(self.actions),
+                    .when(!open && !has_presence, |d| {
+                        d.invisible().group_hover(group, |s| s.visible())
+                    })
+                    .children(self.presence)
+                    .children(actions),
             );
         }
         row.refine_style(&self.style)
