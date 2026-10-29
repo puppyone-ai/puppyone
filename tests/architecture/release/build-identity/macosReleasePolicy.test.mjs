@@ -127,6 +127,12 @@ describe("continuous integration workflow", () => {
     )).toEqual(expect.arrayContaining([
       expect.stringMatching(/pinned to full commit SHAs/),
     ]));
+    expect(inspectContinuousIntegrationWorkflow(
+      workflow.replace(", cloud-email-sign-in]", "]").replace('\n          test "$CLOUD_EMAIL_SIGN_IN_RESULT" = success', ""),
+    )).toEqual(expect.arrayContaining([
+      expect.stringMatching(/Cloud email sign-in/),
+      expect.stringMatching(/email sign-in through the paired Cloud must pass/),
+    ]));
   });
 });
 
