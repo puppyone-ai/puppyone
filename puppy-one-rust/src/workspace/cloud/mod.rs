@@ -1,11 +1,14 @@
 //! Live workbench adapter. No checkout mirror, Git fallback, UI, credentials or
 //! execution owner. This stage only prepares an already-running workbench;
 //! explicit allocation/resume and visible navigation belong to the later owner.
+pub mod catalog;
 mod client;
 mod events;
 pub mod failure;
+pub mod locator;
 mod model;
 pub mod opening;
+pub mod recovery;
 #[cfg(test)]
 mod tests;
 use super::{Workspace, contracts::*, ports::*};
