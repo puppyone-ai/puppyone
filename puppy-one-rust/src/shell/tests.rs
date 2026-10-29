@@ -1730,3 +1730,141 @@ fn the_homepage_merges_a_linked_checkout_and_remembers_where_it_opened(cx: &mut 
         assert_eq!(s.matching_checkout(cx).as_deref(), Some(linked.as_path()));
     });
 }
+
+#[gpui::test]
+fn signing_out_revokes_the_hosted_selection_and_returns_home(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    let (broker, browser) =
+        crate::cloud_auth::responding_account_fixture(cloud_project_responder());
+    let account =
+        cx.update(|_, cx| crate::features::cloud_account::install_fixture(broker, browser, cx));
+    view.update(cx, |s, cx| {
+        s.preferences
+            .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
+    });
+    let settle = |view: &Entity<Shell>,
+                  cx: &mut VisualTestContext,
+                  what: &str,
+                  ready: &dyn Fn(&Shell, &App) -> bool| {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(8);
+        loop {
+            view.update_in(cx, |s, w, cx| s.receive(w, cx));
+            cx.run_until_parked();
+            cx.update(|w, cx| {
+                let _ = w.draw(cx);
+            });
+            if cx.update(|_, cx| ready(view.read(cx), cx)) {
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "{what} did not settle"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+    };
+    settle(&view, cx, "sign-in", &|_, cx| {
+        crate::features::cloud_account::has_account(cx)
+    });
+    view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
+    settle(&view, cx, "the hosted Project", &|s, _| {
+        s.hosted_project().as_deref() == Some("project-a")
+    });
+    // Signing out revokes it: no hosted Project, the Homepage shows, and
+    // nothing is left to reuse under another session.
+    cx.update(|_, cx| account.update(cx, |a, _| a.sign_out()));
+    settle(&view, cx, "the revocation", &|s, _| {
+        s.hosted_project().is_none() && s.cloud_project.is_none()
+    });
+    view.read_with(cx, |s, _| {
+        assert!(s.home);
+        assert!(s.retained_cloud.is_none());
+        assert!(s.cloud_authority.is_none());
+    });
+}
+
+#[gpui::test]
+fn turning_cloud_off_cancels_an_opening_in_flight(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    // A responder that never answers the root read keeps the opening going.
+    let responder: crate::cloud_auth::Responder = std::sync::Arc::new(|request| {
+        if request.path.ends_with("/workbench/files") {
+            std::thread::sleep(std::time::Duration::from_millis(400));
+        }
+        cloud_project_responder()(request)
+    });
+    let (broker, browser) = crate::cloud_auth::responding_account_fixture(responder);
+    cx.update(|_, cx| {
+        crate::features::cloud_account::install_fixture(broker, browser, cx);
+    });
+    view.update(cx, |s, cx| {
+        s.preferences
+            .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
+    });
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(4);
+    while !cx.update(|_, cx| crate::features::cloud_account::has_account(cx)) {
+        cx.run_until_parked();
+        assert!(std::time::Instant::now() < deadline);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
+    view.read_with(cx, |s, _| assert!(s.files.cloud_opening().is_some()));
+    view.update(cx, |s, cx| {
+        s.preferences
+            .update(cx, |p, _| p.state.experimental.cloud_workspace = false)
+    });
+    draw(cx);
+    view.read_with(cx, |s, _| {
+        assert!(s.files.cloud_opening().is_none());
+        assert!(s.cloud_authority.is_none());
+    });
+    // The late root never commits.
+    std::thread::sleep(std::time::Duration::from_millis(600));
+    view.update_in(cx, |s, w, cx| s.receive(w, cx));
+    cx.run_until_parked();
+    view.read_with(cx, |s, _| assert!(s.hosted_project().is_none()));
+}
+
+#[gpui::test]
+fn the_same_cloud_target_joins_its_pending_opening(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    let roots = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let counted = roots.clone();
+    let responder: crate::cloud_auth::Responder = std::sync::Arc::new(move |request| {
+        if request.path.ends_with("/repository-context") {
+            counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            std::thread::sleep(std::time::Duration::from_millis(150));
+        }
+        cloud_project_responder()(request)
+    });
+    let (broker, browser) = crate::cloud_auth::responding_account_fixture(responder);
+    cx.update(|_, cx| {
+        crate::features::cloud_account::install_fixture(broker, browser, cx);
+    });
+    view.update(cx, |s, cx| {
+        s.preferences
+            .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
+    });
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(4);
+    while !cx.update(|_, cx| crate::features::cloud_account::has_account(cx)) {
+        cx.run_until_parked();
+        assert!(std::time::Instant::now() < deadline);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    // A second click on the same Project joins the pending opening.
+    view.update(cx, |s, cx| {
+        s.open_cloud("project-a".into(), cx);
+        s.open_cloud("project-a".into(), cx);
+    });
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(8);
+    while view.read_with(cx, |s, _| s.hosted_project().is_none()) {
+        view.update_in(cx, |s, w, cx| s.receive(w, cx));
+        cx.run_until_parked();
+        assert!(
+            std::time::Instant::now() < deadline,
+            "opening did not settle"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    assert_eq!(roots.load(std::sync::atomic::Ordering::SeqCst), 1);
+}

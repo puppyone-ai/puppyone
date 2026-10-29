@@ -222,11 +222,19 @@ impl Runtime {
             return;
         }
         self.navigation += 1;
+        self.revoke_preparing();
         let mut preparing = Documents::default();
         preparing.open_cloud(broker, binding, project, wake);
         self.preparing = Some(preparing);
         self.generation += 1;
         wake.notify();
+    }
+    /// A newer selection replaces the one being prepared: a Cloud opening in
+    /// flight is cancelled, never left to finish unobserved.
+    fn revoke_preparing(&mut self) {
+        if let Some(mut previous) = self.preparing.take() {
+            previous.cancel_cloud();
+        }
     }
     /// The visible phase of a Cloud opening in progress.
     pub fn cloud_opening(&self) -> Option<crate::workspace::cloud::opening::Phase> {
@@ -257,9 +265,18 @@ impl Runtime {
             return false;
         }
         self.navigation += 1;
-        self.preparing = None;
+        self.revoke_preparing();
         self.activate_workspace(key.to_owned());
         true
+    }
+    /// Show no host (the Homepage covers the workspace chrome): a revoked
+    /// Cloud selection. Retained hosts keep their drafts; nothing is closed
+    /// or saved here.
+    pub fn deactivate(&mut self) {
+        self.navigation += 1;
+        self.revoke_preparing();
+        self.active = None;
+        self.generation += 1;
     }
     pub fn begin(&mut self, intent: Intent, wake: &Wake) {
         if self.quitting {
@@ -280,11 +297,12 @@ impl Runtime {
                     })
                     .map(|(key, _)| key.clone())
                 {
-                    self.preparing = None;
+                    self.revoke_preparing();
                     self.activate_workspace(key);
                     wake.notify();
                     return;
                 }
+                self.revoke_preparing();
                 let mut preparing = Documents::default();
                 preparing.begin(Intent::OpenFolder(path), wake);
                 self.preparing = Some(preparing);
@@ -348,7 +366,7 @@ impl Runtime {
                     );
                     return;
                 }
-                self.preparing = None;
+                self.revoke_preparing();
                 self.quitting = true;
                 self.allow_quit = false;
                 for id in self.retained_slots() {

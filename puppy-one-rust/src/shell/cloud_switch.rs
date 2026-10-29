@@ -58,7 +58,7 @@ pub(super) struct Retained {
     pub project: Option<(String, String)>,
 }
 
-fn account_key(cx: &App) -> Option<String> {
+pub(super) fn account_key(cx: &App) -> Option<String> {
     crate::features::cloud_account::broker_and_binding(cx)
         .map(|(_, b)| format!("{}\n{}\n{}", b.user, b.epoch, b.environment.api()))
 }
@@ -170,12 +170,52 @@ impl Shell {
             {
                 self.retained_local = Some(local);
                 self.cloud_project = association.project().map(str::to_owned);
+                self.cloud_authority = account_key(cx);
                 self.receive(window, cx);
                 return;
             }
         }
         self.cloud_switch = Some(CloudSwitch::default());
         self.advance_cloud_switch(cx);
+    }
+    /// `useAccountCloudWorkspace`'s authority: signing out, another account,
+    /// a new session generation, another API or Cloud turned off revokes
+    /// the hosted selection — the opening in flight, a kept-alive Cloud host
+    /// and the Cloud on screen, which returns to its local host or the
+    /// Homepage. A Header switch intent keeps waiting; signing in again may
+    /// continue it for the same checkout.
+    pub(super) fn guard_cloud_authority(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let current = if self.cloud_enabled(cx) {
+            account_key(cx)
+        } else {
+            None
+        };
+        if self.cloud_authority.is_none() || self.cloud_authority == current {
+            return;
+        }
+        self.cloud_authority = None;
+        self.files.cancel_cloud();
+        if let Some(switch) = &mut self.cloud_switch {
+            switch.preparing = None;
+        }
+        self.retained_cloud = None;
+        self.modals.remove(|m| matches!(m, Modal::Share { .. }));
+        if self.hosted_project().is_some() {
+            self.close_workspace_sidebars(window, cx);
+            match self.retained_local.take() {
+                Some(local) if self.files.activate_host(&local.key) => {}
+                Some(Retained {
+                    root: Some(root), ..
+                }) => self.files.begin(Intent::OpenFolder(root), &self.wake),
+                _ => {
+                    self.files.deactivate();
+                    self.home = true;
+                }
+            }
+            self.receive(window, cx);
+        }
+        self.cloud_project = None;
+        cx.notify();
     }
     /// The visible host, to keep alive while the other location shows.
     fn visible_host(&self) -> Option<Retained> {
@@ -270,6 +310,7 @@ impl Shell {
         {
             self.retained_local = Some(local);
             self.cloud_project = Some(project.clone());
+            self.cloud_authority = account_key(cx);
             self.files
                 .open_cloud(broker, binding, project.clone(), &self.wake);
             switch.preparing = Some(project);

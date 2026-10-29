@@ -61,6 +61,9 @@ pub struct Shell {
     pub(super) cloud_catalog: Entity<crate::features::cloud_catalog::CloudCatalog>,
     /// The hosted Project this window opened (links, Share, History).
     cloud_project: Option<String>,
+    /// The account (user, session generation, API) the Cloud this window
+    /// opened, prepares or keeps alive belongs to.
+    cloud_authority: Option<String>,
     /// Launch without a project: open the last active one once preferences load.
     restore_last: bool,
     project: String,
@@ -207,6 +210,7 @@ impl Shell {
             window_key: format!("window:{:?}", window.window_handle().window_id()),
             cloud_catalog: crate::features::cloud_catalog::global(cx),
             cloud_project: None,
+            cloud_authority: None,
             restore_last: false,
             project: if fixture {
                 "puppyone".into()
@@ -1262,7 +1266,18 @@ impl Shell {
         }
     }
     pub(super) fn open_cloud(&mut self, project: String, cx: &mut Context<Self>) {
+        // `ProjectNavigation.select`: the same target while it is pending
+        // joins that opening; another one replaces it.
+        let account = cloud_switch::account_key(cx);
+        if self.files.cloud_opening().is_some()
+            && self.cloud_project.as_deref() == Some(project.as_str())
+            && self.cloud_authority == account
+            && account.is_some()
+        {
+            return;
+        }
         self.cloud_project = Some(project.clone());
+        self.cloud_authority = account;
         let Some((broker, binding)) = crate::features::cloud_account::broker_and_binding(cx) else {
             self.show_error(crate::localization::t(
                 "cloud.message.project-sign-in-required",
@@ -1660,6 +1675,7 @@ impl Render for Shell {
         self.sync_explorer(window, cx);
         self.guard_cloud_history(cx);
         self.sync_repository_cloud(cx);
+        self.guard_cloud_authority(window, cx);
         self.advance_cloud_switch(cx);
         self.refresh_home_activity(cx);
         self.sync_open_history(cx);
