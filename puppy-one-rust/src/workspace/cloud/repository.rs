@@ -94,6 +94,7 @@ pub enum Precheck {
 pub fn precheck<'a>(
     urls: impl IntoIterator<Item = &'a str> + Clone,
     api: Option<&str>,
+    hosted_git_origin: Option<&str>,
     signed_in: bool,
 ) -> Precheck {
     let identities: std::collections::BTreeSet<_> = urls
@@ -116,7 +117,7 @@ pub fn precheck<'a>(
     let Some(found) = locator::canonical_locator(urls) else {
         return Precheck::Decided(Context::LocalOnly);
     };
-    if !locator::is_trusted_project_locator(&found.origin, api, None) {
+    if !locator::is_trusted_project_locator(&found.origin, api, hosted_git_origin) {
         return Precheck::Decided(Context::WrongHost {
             origin: found.origin,
         });
@@ -184,25 +185,30 @@ mod tests {
     fn remotes_decide_before_any_request() {
         let none: [&str; 1] = ["https://github.com/a/b.git"];
         assert_eq!(
-            precheck(none, Some(API), true),
+            precheck(none, Some(API), None, true),
             Precheck::Decided(Context::LocalOnly)
         );
-        let found = precheck([PROJECT], Some(API), true);
+        let found = precheck([PROJECT], Some(API), None, true);
         let Precheck::Authorize(project) = found else {
             panic!("{found:?}")
         };
         assert_eq!(project, "0d3b7a4e-1f2a-4b5c-8d9e-0123456789ab");
         assert_eq!(
-            precheck([PROJECT], Some(API), false),
+            precheck([PROJECT], Some(API), None, false),
             Precheck::Decided(Context::WrongAccount)
         );
         assert!(matches!(
-            precheck([PROJECT], Some("https://api.example.test/api/v1"), true),
+            precheck(
+                [PROJECT],
+                Some("https://api.example.test/api/v1"),
+                None,
+                true
+            ),
             Precheck::Decided(Context::WrongHost { .. })
         ));
         let other = "https://api.puppyone.ai/git/11111111-1f2a-4b5c-8d9e-0123456789ab.git";
         assert_eq!(
-            precheck([PROJECT, other], Some(API), true),
+            precheck([PROJECT, other], Some(API), None, true),
             Precheck::Decided(Context::LocatorConflict)
         );
     }

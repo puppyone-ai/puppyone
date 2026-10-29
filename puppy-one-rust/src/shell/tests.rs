@@ -1934,3 +1934,83 @@ fn a_failed_cloud_subscription_offers_retry_which_rebinds_the_same_host(cx: &mut
         assert_eq!(s.hosted_project().as_deref(), Some("project-a"));
     });
 }
+
+#[gpui::test]
+fn a_failed_opening_offers_its_recovery_and_retry_repeats_that_opening(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    let attempts = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let counted = attempts.clone();
+    let responder: crate::cloud_auth::Responder = std::sync::Arc::new(move |request| {
+        if request.path.ends_with("/repository-context")
+            && counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 0
+        {
+            return Err(crate::cloud_auth::Error::Response(503, None));
+        }
+        cloud_project_responder()(request)
+    });
+    let (broker, browser) = crate::cloud_auth::responding_account_fixture(responder);
+    cx.update(|_, cx| {
+        crate::features::cloud_account::install_fixture(broker, browser, cx);
+    });
+    view.update(cx, |s, cx| {
+        s.preferences
+            .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
+    });
+    let settle = |view: &Entity<Shell>,
+                  cx: &mut VisualTestContext,
+                  what: &str,
+                  ready: &dyn Fn(&Shell, &App) -> bool| {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(8);
+        loop {
+            view.update_in(cx, |s, w, cx| s.receive(w, cx));
+            cx.run_until_parked();
+            cx.update(|w, cx| {
+                let _ = w.draw(cx);
+            });
+            if cx.update(|_, cx| ready(view.read(cx), cx)) {
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "{what} did not settle"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+    };
+    settle(&view, cx, "sign-in", &|_, cx| {
+        crate::features::cloud_account::has_account(cx)
+    });
+    view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
+    settle(&view, cx, "the recovery", &|s, _| {
+        s.modals
+            .iter()
+            .any(|m| matches!(m, Modal::CloudRecovery { .. }))
+    });
+    view.update(cx, |s, cx| {
+        let Some(Modal::CloudRecovery { project, failure }) = s.modals.top() else {
+            panic!("no recovery")
+        };
+        let (project, failure) = (project.clone(), failure.clone());
+        assert_eq!(project, "project-a");
+        // 5xx: the service is unavailable, retry; the status is a detail.
+        assert_eq!(failure.code, "service-unavailable");
+        assert_eq!(failure.status, Some(503));
+        assert!(matches!(
+            failure.recovery,
+            crate::workspace::cloud::opening::Recovery::Retry
+        ));
+        s.recovery_details = true;
+        cx.notify();
+    });
+    draw(cx);
+    // Retry repeats the same opening, which now succeeds.
+    view.update(cx, |s, cx| {
+        s.modals
+            .remove(|m| matches!(m, Modal::CloudRecovery { .. }));
+        s.open_cloud("project-a".into(), cx);
+    });
+    settle(&view, cx, "the retried opening", &|s, _| {
+        s.hosted_project().as_deref() == Some("project-a")
+    });
+    assert_eq!(attempts.load(std::sync::atomic::Ordering::SeqCst), 2);
+}

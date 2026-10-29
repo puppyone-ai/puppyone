@@ -1,6 +1,6 @@
 //! Explicit user opening is the only owner allowed to wake compute. File
 //! reads, watches, readiness checks and status polling never allocate/resume.
-use super::{Prepared, Target, authorize, model, prepare_verified};
+use super::{Prepared, Target, model, prepare_verified};
 use crate::{
     cloud_auth::{
         Broker, Cancellation, Error as AuthError,
@@ -32,20 +32,35 @@ pub struct Failure {
     pub code: &'static str,
     pub recovery: Recovery,
     pub status: Option<u16>,
+    /// The allowlisted server reason code, for collapsed Details.
+    pub reason: Option<&'static str>,
 }
 impl Failure {
-    fn new(code: &'static str, recovery: Recovery) -> Self {
+    pub fn new(code: &'static str, recovery: Recovery) -> Self {
         Self {
             code,
             recovery,
             status: None,
+            reason: None,
         }
     }
     /// `describeCloudOpeningFailure(cause, "workspace")`.
     fn auth(error: AuthError) -> Self {
-        use super::failure::{Action, Stage, describe, from_auth};
+        Self::staged(error, super::failure::Stage::Workspace)
+    }
+    /// The exact-target authorization (`getCloudRepositoryContext`) fails at
+    /// the project stage: a 5xx there is the service, not the workspace.
+    fn project(refusal: super::Refusal) -> Self {
+        match refusal {
+            super::Refusal::Auth(error) => Self::staged(error, super::failure::Stage::Project),
+            super::Refusal::Invalid => Self::new("project-response-mismatch", Recovery::None),
+            super::Refusal::Unreadable => Self::new("project-access-denied", Recovery::None),
+        }
+    }
+    fn staged(error: AuthError, stage: super::failure::Stage) -> Self {
+        use super::failure::{Action, describe, from_auth};
         let (status, reason, retryable) = from_auth(&error);
-        let described = describe(status, reason, retryable, Stage::Workspace);
+        let described = describe(status, reason, retryable, stage);
         Self {
             code: described.code,
             recovery: match described.action {
@@ -54,6 +69,7 @@ impl Failure {
                 Action::None => Recovery::None,
             },
             status: described.status,
+            reason: described.reason,
         }
     }
     fn provider(error: Error) -> Self {
@@ -160,7 +176,8 @@ pub fn prepare(
 ) -> Result<Prepared, Failure> {
     progress(Phase::Checking);
     let scope = cancel.child();
-    let context = authorize(&broker, &binding, &target, &scope).map_err(Failure::provider)?;
+    let context =
+        super::authorize_target(&broker, &binding, &target, &scope).map_err(Failure::project)?;
     let project = target.project().map_err(Failure::provider)?;
     let mut status = request(&broker, &binding, &scope, project, Method::GET, false)?;
     let current = if status["workspace"].is_null() {

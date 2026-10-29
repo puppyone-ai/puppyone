@@ -44,6 +44,11 @@ pub(super) enum Modal {
     /// `CloudWorkspaceSwitchDialog`: sign-in, matching or recovery of a
     /// Header switch to the Cloud Computer.
     CloudSwitch,
+    /// `CloudWorkspaceRecovery` for a Homepage or dedicated-window opening.
+    CloudRecovery {
+        project: String,
+        failure: crate::workspace::cloud::opening::Failure,
+    },
 }
 
 /// Open modals, bottom to top.

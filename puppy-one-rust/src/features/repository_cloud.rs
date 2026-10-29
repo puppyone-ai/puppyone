@@ -104,7 +104,9 @@ impl RepositoryCloud {
             return;
         };
         let account = crate::features::cloud_account::broker_and_binding(cx);
-        let api = crate::features::cloud_account::environment(cx).map(|e| e.api().to_owned());
+        let environment = crate::features::cloud_account::environment(cx);
+        let api = environment.as_ref().map(|e| e.api().to_owned());
+        let hosted_git_origin = environment.as_ref().and_then(|e| e.hosted_git_origin());
         let cancel = Cancellation::default();
         self.cancel = Some(cancel.clone());
         let epoch = self.epoch;
@@ -124,6 +126,7 @@ impl RepositoryCloud {
             match repository::precheck(
                 urls.iter().map(String::as_str),
                 api.as_deref(),
+                hosted_git_origin.as_deref(),
                 account.is_some(),
             ) {
                 Precheck::Decided(context) => Ok(context),

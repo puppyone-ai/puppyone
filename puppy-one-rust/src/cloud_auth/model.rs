@@ -87,11 +87,53 @@ impl Environment {
             web: web.origin().ascii_serialization(),
         })
     }
+    /// `loadDesktopCloudConfiguration`: the development environment
+    /// (`VITE_DESKTOP_CLOUD_API_URL` / `VITE_DESKTOP_CLOUD_WEB_URL`, the
+    /// names the TS build uses; `PUPPYONE_CLOUD_*` stays accepted), else the
+    /// packaged public `desktop-cloud.json` (`schemaVersion: 1`). Missing or
+    /// invalid configuration fails closed — there is no production fallback.
     pub fn configured() -> Result<Self> {
+        let var = |names: [&str; 2]| names.iter().find_map(|n| std::env::var(n).ok());
+        if let (Some(api), Some(web)) = (
+            var(["VITE_DESKTOP_CLOUD_API_URL", "PUPPYONE_CLOUD_API_URL"]),
+            var(["VITE_DESKTOP_CLOUD_WEB_URL", "PUPPYONE_CLOUD_WEB_URL"]),
+        ) {
+            return Self::new(&api, &web);
+        }
+        let exe = std::env::current_exe().map_err(|_| Error::Configuration)?;
+        let dir = exe.parent().ok_or(Error::Configuration)?;
+        [
+            dir.join("../Resources/desktop-cloud.json"),
+            dir.join("desktop-cloud.json"),
+        ]
+        .iter()
+        .find_map(|path| std::fs::read(path).ok())
+        .ok_or(Error::Configuration)
+        .and_then(|bytes| Self::from_packaged(&bytes))
+    }
+    /// `dist/desktop-cloud.json`: `{schemaVersion: 1, apiBase, webOrigin}`.
+    pub fn from_packaged(bytes: &[u8]) -> Result<Self> {
+        let value: serde_json::Value =
+            serde_json::from_slice(bytes).map_err(|_| Error::Configuration)?;
+        if value["schemaVersion"] != 1 {
+            return Err(Error::Configuration);
+        }
         Self::new(
-            &std::env::var("PUPPYONE_CLOUD_API_URL").map_err(|_| Error::Configuration)?,
-            &std::env::var("PUPPYONE_CLOUD_WEB_URL").map_err(|_| Error::Configuration)?,
+            value["apiBase"].as_str().ok_or(Error::Configuration)?,
+            value["webOrigin"].as_str().ok_or(Error::Configuration)?,
         )
+    }
+    /// `VITE_DESKTOP_CLOUD_GIT_ORIGIN`: the hosted Git origin a loopback
+    /// development API may trust; never consulted for a non-loopback API.
+    pub fn hosted_git_origin(&self) -> Option<String> {
+        let api = Url::parse(&self.api).ok()?;
+        if !matches!(api.host_str(), Some("localhost" | "127.0.0.1")) {
+            return None;
+        }
+        std::env::var("VITE_DESKTOP_CLOUD_GIT_ORIGIN")
+            .ok()
+            .map(|v| v.trim().to_owned())
+            .filter(|v| !v.is_empty())
     }
     pub fn api_url(&self, path: &str, query: &[(String, String)]) -> Result<Url> {
         if !path.starts_with('/')
@@ -114,7 +156,9 @@ impl Environment {
 pub(super) fn endpoint(value: &str, official: bool) -> Result<Url> {
     let url = Url::parse(value).map_err(|_| Error::Configuration)?;
     let host = url.host_str().ok_or(Error::Configuration)?;
-    let local = matches!(host, "localhost" | "127.0.0.1" | "[::1]");
+    // `normalizeCloudApiBaseUrl`: the PuppyOne host family over HTTPS, or
+    // explicit loopback development (`localhost`, `127.0.0.1`).
+    let local = matches!(host, "localhost" | "127.0.0.1");
     if !url.username().is_empty()
         || url.password().is_some()
         || url.query().is_some()
@@ -386,5 +430,42 @@ mod request_policy_tests {
             };
             assert_eq!(request.timeout(), Duration::from_secs(seconds), "{path}");
         }
+    }
+}
+
+#[cfg(test)]
+mod configuration_tests {
+    use super::Environment;
+
+    #[test]
+    fn endpoints_follow_the_desktop_allowlist() {
+        assert!(Environment::new("https://api.puppyone.ai/api/v1", "https://puppyone.ai").is_ok());
+        assert!(Environment::new("http://127.0.0.1:9090/api/v1", "http://localhost:3000").is_ok());
+        for (api, web) in [
+            // Official hosts need HTTPS; other hosts are never Cloud.
+            ("http://api.puppyone.ai/api/v1", "https://puppyone.ai"),
+            ("https://api.example.com/api/v1", "https://puppyone.ai"),
+            // `normalizeCloudApiBaseUrl` admits localhost and 127.0.0.1 only.
+            ("http://[::1]:9090/api/v1", "http://localhost:3000"),
+            // Paths, credentials and queries are rejected.
+            ("https://api.puppyone.ai/v2", "https://puppyone.ai"),
+            ("https://api.puppyone.ai/api/v1", "https://puppyone.ai/app"),
+            ("https://user@api.puppyone.ai/api/v1", "https://puppyone.ai"),
+            ("https://api.puppyone.ai/api/v1?x=1", "https://puppyone.ai"),
+        ] {
+            assert!(Environment::new(api, web).is_err(), "{api} {web}");
+        }
+    }
+
+    #[test]
+    fn the_packaged_configuration_is_public_and_versioned() {
+        let ok = br#"{"schemaVersion":1,"apiBase":"https://api.puppyone.ai/api/v1","webOrigin":"https://puppyone.ai"}"#;
+        let environment = Environment::from_packaged(ok).unwrap();
+        assert_eq!(environment.api(), "https://api.puppyone.ai/api/v1");
+        assert_eq!(environment.web(), "https://puppyone.ai");
+        assert!(Environment::from_packaged(br#"{"schemaVersion":2,"apiBase":"https://api.puppyone.ai/api/v1","webOrigin":"https://puppyone.ai"}"#).is_err());
+        assert!(Environment::from_packaged(b"{}").is_err());
+        // The hosted Git mapping is only for a loopback API.
+        assert_eq!(environment.hosted_git_origin(), None);
     }
 }

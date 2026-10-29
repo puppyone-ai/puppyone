@@ -229,6 +229,9 @@ impl Shell {
             _ => (&[][..], &catalog.activity),
         };
         let api = account.as_ref().map(|b| b.environment.api().to_owned());
+        let hosted_git_origin = account
+            .as_ref()
+            .and_then(|b| b.environment.hosted_git_origin());
         let millis = |t: SystemTime| {
             t.duration_since(UNIX_EPOCH)
                 .ok()
@@ -253,7 +256,13 @@ impl Shell {
                         .get(&p.path)
                         .cloned()
                         .flatten()
-                        .filter(|l| locator::is_trusted_git_origin(&l.origin, api, None))
+                        .filter(|l| {
+                            locator::is_trusted_git_origin(
+                                &l.origin,
+                                api,
+                                hosted_git_origin.as_deref(),
+                            )
+                        })
                 }),
             })
             .collect();

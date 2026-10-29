@@ -66,6 +66,8 @@ pub struct Shell {
     cloud_authority: Option<String>,
     /// `workspaceSurfaceError`: the workspace's change subscription failed.
     workspace_notice: Option<String>,
+    /// A Cloud recovery's Details disclosure is open.
+    recovery_details: bool,
     /// Launch without a project: open the last active one once preferences load.
     restore_last: bool,
     project: String,
@@ -214,6 +216,7 @@ impl Shell {
             cloud_project: None,
             cloud_authority: None,
             workspace_notice: None,
+            recovery_details: false,
             restore_last: false,
             project: if fixture {
                 "puppyone".into()
@@ -619,6 +622,10 @@ impl Shell {
                 self.modals.remove(|m| matches!(m, Modal::Error(_)));
             }
             Some(Modal::CloudSwitch) => self.cancel_cloud_switch(cx),
+            Some(Modal::CloudRecovery { .. }) => {
+                self.modals
+                    .remove(|m| matches!(m, Modal::CloudRecovery { .. }));
+            }
             None => {}
         }
     }
@@ -954,10 +961,13 @@ impl Shell {
         if self.cloud_switch.is_none()
             && let Some(failure) = self.files.take_cloud_failure()
         {
-            self.show_error(crate::localization::t(&format!(
-                "cloud.message.{}",
-                failure.code
-            )));
+            self.recovery_details = false;
+            self.modals
+                .remove(|m| matches!(m, Modal::CloudRecovery { .. }));
+            self.modals.open(Modal::CloudRecovery {
+                project: self.cloud_project.clone().unwrap_or_default(),
+                failure,
+            });
         }
         for (owner, outcome) in std::mem::take(&mut self.files.operation_results) {
             self.explorer
@@ -1948,6 +1958,9 @@ impl Shell {
                     .into_any_element(),
                 Modal::Error(message) => error(self, message, cx),
                 Modal::CloudSwitch => self.cloud_switch_dialog(cx).into_any_element(),
+                Modal::CloudRecovery { project, failure } => self
+                    .cloud_open_recovery_dialog(project, failure, cx)
+                    .into_any_element(),
             })
             .collect();
         if self.files.cloud_conflict() {

@@ -295,11 +295,10 @@ impl Shell {
                 return;
             }
             if self.files.cloud_opening().is_none() {
-                switch.failure = self.files.take_cloud_failure().or(Some(Failure {
-                    code: "workspace-open-failed",
-                    recovery: Recovery::Retry,
-                    status: None,
-                }));
+                switch.failure = self
+                    .files
+                    .take_cloud_failure()
+                    .or(Some(Failure::new("workspace-open-failed", Recovery::Retry)));
                 switch.preparing = None;
             }
         } else if switch.failure.is_none()
@@ -413,11 +412,181 @@ impl Shell {
         }
         move |menu| menu.item(local).item(cloud)
     }
+    /// `CloudWorkspaceRecovery`: the failure's title (or `fallback`), one
+    /// explanation, and collapsed Details with the HTTP status and the
+    /// allowlisted reason code. Server prose never reaches the copy.
+    pub(super) fn cloud_recovery(
+        &self,
+        id: &'static str,
+        failure: &Failure,
+        fallback: &str,
+        local_state: bool,
+        cx: &mut Context<Self>,
+    ) -> Div {
+        let t = cx.palette();
+        let m = theme::ty();
+        let title = crate::workspace::cloud::failure::title(failure.code)
+            .map(tr)
+            .unwrap_or(fallback);
+        let open = self.recovery_details;
+        let diagnostic = failure.status.is_some() || failure.reason.is_some();
+        let detail_row = |label: &str, value: String| {
+            h_flex()
+                .gap(px(12.))
+                .child(div().flex_shrink_0().child(label.to_owned()))
+                .child(div().min_w_0().child(value))
+        };
+        v_flex()
+            .w_full()
+            .gap(px(8.))
+            .child(
+                div()
+                    .text_size(px(m.ui.section_title))
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(t.text)
+                    .child(title.to_owned()),
+            )
+            .child(
+                div()
+                    .text_size(px(m.ui.body))
+                    .line_height(relative(1.5))
+                    .text_color(t.muted)
+                    .child(tr(&format!("cloud.message.{}", failure.code)).to_owned()),
+            )
+            .when(diagnostic || local_state, |d| {
+                d.child(
+                    v_flex()
+                        .text_size(px(m.ui.caption))
+                        .text_color(t.subtle)
+                        .child(
+                            h_flex()
+                                .id((id, 0usize))
+                                .gap(px(4.))
+                                .py(px(4.))
+                                .cursor(theme::clickable_cursor())
+                                .hover(|s| s.text_color(t.text))
+                                .on_click(cx.listener(|s, _, _, cx| {
+                                    s.recovery_details = !s.recovery_details;
+                                    cx.notify();
+                                }))
+                                .child(
+                                    Icon::product(ProductIcon::Disclosure)
+                                        .with_size(px(12.))
+                                        .rotate(if open {
+                                            std::f32::consts::FRAC_PI_2
+                                        } else {
+                                            0.
+                                        }),
+                                )
+                                .child(tr("cloud.common.details")),
+                        )
+                        .when(open, |d| {
+                            d.child(
+                                v_flex()
+                                    .gap(px(4.))
+                                    .my(px(8.))
+                                    .when_some(failure.status, |d, status| {
+                                        d.child(detail_row(
+                                            tr("cloud.recovery.responseStatus"),
+                                            crate::localization::tf(
+                                                "cloud.recovery.httpStatus",
+                                                &[("status", status.to_string().into())],
+                                            ),
+                                        ))
+                                    })
+                                    .when_some(failure.reason, |d, reason| {
+                                        d.child(detail_row(
+                                            tr("cloud.recovery.errorCode"),
+                                            reason.to_owned(),
+                                        ))
+                                    })
+                                    .when(local_state, |d| {
+                                        d.child(tr("cloud.recovery.localStatePreserved"))
+                                    }),
+                            )
+                        }),
+                )
+            })
+    }
+    /// The recovery dialog of a Homepage or dedicated-window opening: Retry
+    /// repeats that opening, Account opens Account settings.
+    pub(super) fn cloud_open_recovery_dialog(
+        &self,
+        project: &str,
+        failure: &Failure,
+        cx: &mut Context<Self>,
+    ) -> Dialog {
+        let host = cx.weak_entity();
+        let project = project.to_owned();
+        let mut dialog = Dialog::new("cloud-open-recovery")
+            .width(440.)
+            .focus_handle(self.modal_focus.clone())
+            .on_close(move |_, cx| {
+                let _ = host.update(cx, |s, cx| {
+                    s.modals
+                        .remove(|m| matches!(m, Modal::CloudRecovery { .. }));
+                    cx.notify();
+                });
+            })
+            .child(self.cloud_recovery(
+                "cloud-open",
+                failure,
+                tr("cloud.recovery.title"),
+                false,
+                cx,
+            ));
+        let close = Button::new("cloud-open-close")
+            .variant(ButtonVariant::Secondary)
+            .label(tr("common.action.close"))
+            .on_click(cx.listener(|s, _, _, cx| {
+                s.modals
+                    .remove(|m| matches!(m, Modal::CloudRecovery { .. }));
+                cx.notify();
+            }));
+        dialog = match failure.recovery {
+            Recovery::Retry => dialog.footer(close).footer(
+                Button::new("cloud-open-retry")
+                    .variant(ButtonVariant::Solid)
+                    .icon(Icon::new("refresh-cw").with_size(px(13.)))
+                    .label(tr("cloud.common.retry"))
+                    .on_click(cx.listener(move |s, _, _, cx| {
+                        s.modals
+                            .remove(|m| matches!(m, Modal::CloudRecovery { .. }));
+                        s.open_cloud(project.clone(), cx);
+                    })),
+            ),
+            Recovery::Account => dialog.footer(close).footer(
+                Button::new("cloud-open-account")
+                    .variant(ButtonVariant::Solid)
+                    .label(tr("settings.sidebar.account"))
+                    .on_click(cx.listener(|s, _, w, cx| {
+                        s.modals
+                            .remove(|m| matches!(m, Modal::CloudRecovery { .. }));
+                        s.command(Command::Settings, w, cx);
+                        s.task_ui.settings.update(cx, |settings, cx| {
+                            settings.select_page(crate::features::settings::Page::Account, cx)
+                        });
+                    })),
+            ),
+            // Unconfigured providers and pending cleanup only offer Close.
+            Recovery::None => dialog.footer(close),
+        };
+        dialog
+    }
     /// `CloudWorkspaceSwitchDialog` with `RepositoryCloudSwitchGate`.
     pub(super) fn cloud_switch_dialog(&self, cx: &mut Context<Self>) -> Dialog {
         let t = cx.palette();
         let m = theme::ty();
         let switch = self.cloud_switch.clone().unwrap_or_default();
+        let recovery = switch.failure.as_ref().map(|failure| {
+            self.cloud_recovery(
+                "cloud-switch",
+                failure,
+                tr("cloud.opening.failedTitle"),
+                true,
+                cx,
+            )
+        });
         let association = self.repository_cloud.read(cx).context.clone();
         let signed_in = crate::features::cloud_account::has_account(cx);
         let paragraph = |text: String, color: Rgba| {
@@ -474,17 +643,9 @@ impl Shell {
                 }))
         };
         if let Some(failure) = &switch.failure {
-            dialog = dialog.child(
-                v_flex()
-                    .gap(px(8.))
-                    .child(heading(tr("cloud.opening.failedTitle")))
-                    .child(paragraph(
-                        tr(&format!("cloud.message.{}", failure.code)).to_owned(),
-                        t.muted,
-                    )),
-            );
+            dialog = dialog.children(recovery);
             match failure.recovery {
-                Recovery::Retry => dialog = dialog.footer(retry("cloud.common.tryAgain")),
+                Recovery::Retry => dialog = dialog.footer(retry("cloud.common.retry")),
                 Recovery::Account => dialog = dialog.footer(account()),
                 Recovery::None => {}
             }

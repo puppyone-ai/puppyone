@@ -135,7 +135,7 @@ CSV 的引用标签/按钮和 ⌘ 点击已经接入实际宿主。Markdown 的�
 
 `src/cloud_auth/` 是唯一原生账号权威：复用现有 Web `/login`、PKCE S256 和 IP-loopback 回调，以及邮箱登录的顶层表单 POST。HTTP 禁止重定向并限制响应大小；本地认证请求不经过代理。`features/cloud_account.rs` 仅把无凭证快照交给 Settings，系统浏览器只有在用户发起且请求仍有效时才打开。Cloud 工作区、计费/订阅和文件服务没有随登录一起启用。
 
-正常构建必须显式设置 **`PUPPYONE_CLOUD_API_URL`**（以 `/api/v1` 结束）和 **`PUPPYONE_CLOUD_WEB_URL`**（origin）。允许官方 `puppyone.ai` 域族 HTTPS，或显式 loopback HTTP 开发环境；无生产默认值，不读取 TS 的 `.env`、登录文件或凭证。缺配置或平台不支持时登录不可用。截图/lab 不启动认证服务。
+Cloud 端点与 TS 同名：开发时设置 **`VITE_DESKTOP_CLOUD_API_URL`**（以 `/api/v1` 结束）和 **`VITE_DESKTOP_CLOUD_WEB_URL`**（origin），旧名 `PUPPYONE_CLOUD_API_URL` / `PUPPYONE_CLOUD_WEB_URL` 仍可用；打包版本读取可执行文件旁（macOS 为 `Contents/Resources/`）的公开 `desktop-cloud.json`（`{schemaVersion: 1, apiBase, webOrigin}`，与 TS 的 `dist/desktop-cloud.json` 相同）。只允许官方 `puppyone.ai` 域族 HTTPS，或 `localhost` / `127.0.0.1` 的 HTTP 开发环境；loopback API 可以用 `VITE_DESKTOP_CLOUD_GIT_ORIGIN` 显式信任一个 HTTPS 托管 Git origin。无生产默认值，不读取 TS 的 `.env`、登录文件或凭证。缺配置或平台不支持时登录不可用。截图/lab 不启动认证服务。
 
 macOS 使用独立的 `Puppyone Native Cloud Auth` Keychain service，按原生数据目录区分 profile；只持久化 refresh credential，access token 留在服务内存。恢复与按需刷新 singleflight；账号/环境/退出/取消的代次撤销阻断旧请求和迟到写入。退出先尝试清理本地凭据，再以 `scope=local` 尝试远端撤销；远端未确认与 Keychain 删除失败分别明确显示，不能假装完全退出。正常关闭接入 Shell 的现有退出屏障，等待凭据修改与回滚；失败时阻止关闭并恢复文档输入和监听，不依赖 GPUI 的 200ms 最后清理钩子。普通关闭保留已确认登录，不等于退出账号；强制终止/崩溃不在清理保证内。不确定的业务写入不自动重放。
 
