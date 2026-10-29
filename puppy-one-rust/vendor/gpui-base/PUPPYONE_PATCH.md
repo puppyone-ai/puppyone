@@ -1,6 +1,6 @@
 # gpui-base 0.8.0, patched for PuppyOne
 
-This is the crates.io release of `gpui-base` 0.8.0 with two additions, used
+This is the crates.io release of `gpui-base` 0.8.0 with three additions, used
 through `[patch.crates-io]` in `puppy-one-rust/Cargo.toml`. Nothing else
 differs from the published source.
 
@@ -43,6 +43,19 @@ history can be replayed without dispatching an action to a focused element.
 +        self.replay_history(!redo, window, cx);
 +    }
 ```
+
+## The patch: history retention
+
+The product bounds every document's undo history with
+`DOCUMENT_HISTORY_POLICY` (200 entries, 8 MiB of text counted in UTF-16
+bytes, newest kept; an entry larger than the whole budget is not kept). The
+upstream undo manager keeps 1000 transactions and no byte budget.
+`InputBaseState::set_history_retention(transactions, bytes)` sets such a
+retention: `UndoManager` tracks each transaction's weight (removed plus
+inserted text, UTF-16 bytes) incrementally and drops the oldest undo entries,
+then redo entries, after every push. Without it (the default) nothing
+changes. The code viewer sets the product policy
+(`src/editor/viewers/code/mod.rs`, tests in `code/tests.rs`).
 
 ## Upgrading
 

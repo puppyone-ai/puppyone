@@ -3238,6 +3238,12 @@ impl<M: InputModeKind> InputBaseState<M> {
         self.replay_history(false, window, cx);
     }
 
+    /// PuppyOne patch: bound the undo history to `transactions` entries and
+    /// `bytes` of retained text (UTF-16 bytes), newest first.
+    pub fn set_history_retention(&mut self, transactions: usize, bytes: usize) {
+        self.undo_manager.set_retention(transactions, bytes);
+    }
+
     /// PuppyOne patch: replay the undo history directly, for an editor that
     /// another view of the same document drives while it is not in the
     /// element tree (actions only reach focused, rendered inputs).

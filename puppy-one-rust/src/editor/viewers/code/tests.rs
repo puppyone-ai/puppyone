@@ -245,3 +245,31 @@ fn conflict_banner_resolves_blocks_as_an_undoable_local_edit(cx: &mut TestAppCon
     view.update_in(cx, |v, w, cx| v.history(false, w, cx));
     view.read_with(cx, |v, _| assert_eq!(v.committed, text));
 }
+
+#[gpui::test]
+fn undo_history_keeps_the_policy_s_newest_entries(cx: &mut TestAppContext) {
+    let (view, _, cx) = setup(cx, "notes.txt", "");
+    // Separate edits (not adjacent typing): the oldest beyond 200 are gone.
+    for i in 0..(super::HISTORY_ENTRIES + 5) {
+        view.update_in(cx, |v, w, cx| {
+            assert!(v.edit_utf16(&[(0..0, format!("{}\n", i % 10))], w, cx));
+        });
+    }
+    for _ in 0..(super::HISTORY_ENTRIES + 5) {
+        view.update_in(cx, |v, w, cx| v.replay(false, w, cx));
+    }
+    assert_eq!(text(&view, cx), "4\n3\n2\n1\n0\n");
+}
+
+#[gpui::test]
+fn an_edit_beyond_the_history_byte_budget_is_not_undoable(cx: &mut TestAppContext) {
+    let (view, _, cx) = setup(cx, "notes.txt", "");
+    view.update_in(cx, |v, w, cx| {
+        assert!(v.edit_utf16(&[(0..0, "small\n".into())], w, cx));
+        // 4.5 Mi UTF-16 units are 9 MiB of retained text.
+        let big = "x".repeat(super::HISTORY_BYTES / 2 + 512 * 1024);
+        assert!(v.edit_utf16(&[(6..6, big)], w, cx));
+        v.replay(false, w, cx);
+    });
+    assert!(text(&view, cx).len() > super::HISTORY_BYTES / 2);
+}

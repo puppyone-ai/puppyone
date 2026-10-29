@@ -18,6 +18,8 @@ pub(crate) enum EditIntent {
 struct UndoTransaction {
     intent: EditIntent,
     changes: Vec<Change>,
+    /// PuppyOne patch: retained text in UTF-16 bytes (see `set_retention`).
+    weight: usize,
     /// How many changes the most recently appended batch contributed. A batch
     /// is one logical edit with one change per cursor. Only a following batch
     /// of the same length can coalesce into this transaction.
@@ -71,6 +73,23 @@ pub(crate) struct UndoManager {
     pending: Option<PendingTransaction>,
     pending_intent: Option<EditIntent>,
     coalescing_boundary: bool,
+    /// PuppyOne patch: `(max transactions, max UTF-16 bytes)` kept across
+    /// undo and redo, newest first (`DOCUMENT_HISTORY_POLICY`).
+    retention: Option<(usize, usize)>,
+    /// Total `weight` of both stacks.
+    weight: usize,
+}
+
+/// UTF-16 bytes of a batch's removed and inserted text, the way the
+/// product's history policy counts them.
+fn batch_weight(changes: &[Change]) -> usize {
+    changes
+        .iter()
+        .map(|c| {
+            let units = |t: &str| t.chars().map(char::len_utf16).sum::<usize>();
+            (units(&c.old_text) + units(&c.new_text)) * 2
+        })
+        .sum()
 }
 
 impl UndoManager {
@@ -83,6 +102,33 @@ impl UndoManager {
             pending: None,
             pending_intent: None,
             coalescing_boundary: false,
+            retention: None,
+            weight: 0,
+        }
+    }
+
+    /// PuppyOne patch: keep at most `transactions` entries and `bytes` of
+    /// retained text across undo and redo, dropping the oldest first. An
+    /// entry larger than the whole budget is not kept.
+    pub(super) fn set_retention(&mut self, transactions: usize, bytes: usize) {
+        self.retention = Some((transactions, bytes));
+        self.trim();
+    }
+
+    fn trim(&mut self) {
+        let Some((transactions, bytes)) = self.retention else {
+            return;
+        };
+        while (self.undo_transactions.len() + self.redo_transactions.len() > transactions
+            || self.weight > bytes)
+            && !self.undo_transactions.is_empty()
+        {
+            let dropped = self.undo_transactions.remove(0);
+            self.weight -= dropped.weight;
+        }
+        while self.weight > bytes && !self.redo_transactions.is_empty() {
+            let dropped = self.redo_transactions.remove(0);
+            self.weight -= dropped.weight;
         }
     }
 
@@ -185,7 +231,13 @@ impl UndoManager {
             return;
         }
 
+        self.weight -= self
+            .redo_transactions
+            .iter()
+            .map(|t| t.weight)
+            .sum::<usize>();
         self.redo_transactions.clear();
+        let added = batch_weight(&changes);
         let can_coalesce = !self.coalescing_boundary
             && intent != EditIntent::Atomic
             && self.undo_transactions.last().is_some_and(|previous| {
@@ -202,6 +254,8 @@ impl UndoManager {
                 .expect("coalescing requires a previous transaction");
             previous.last_batch_len = changes.len();
             previous.recorded_changes += changes.len();
+            previous.weight += added;
+            self.weight += added;
             // Adjacent single-cursor keystrokes form one contiguous insertion.
             // Keep it as one change so undo and redo replay it as a single
             // edit rather than once per keystroke.
@@ -213,17 +267,22 @@ impl UndoManager {
                     .truncate(change.old_range.start - last.new_range.start);
                 last.new_text.push_str(&change.new_text);
                 last.new_range.end = change.new_range.end;
+                self.trim();
                 return;
             }
             previous.changes.extend(changes);
+            self.trim();
             return;
         }
 
         if self.undo_transactions.len() >= MAX_UNDO_TRANSACTIONS {
-            self.undo_transactions.remove(0);
+            let dropped = self.undo_transactions.remove(0);
+            self.weight -= dropped.weight;
         }
+        self.weight += added;
         self.undo_transactions.push(UndoTransaction {
             intent,
+            weight: added,
             last_batch_len: changes.len(),
             recorded_changes: changes.len(),
             changes,
@@ -233,6 +292,7 @@ impl UndoManager {
             auto_closed_pairs_after: None,
         });
         self.coalescing_boundary = intent == EditIntent::Atomic;
+        self.trim();
     }
 
     /// Record the cursors around the transaction being built, or around the
@@ -332,6 +392,7 @@ impl UndoManager {
     pub(super) fn clear(&mut self) {
         self.undo_transactions.clear();
         self.redo_transactions.clear();
+        self.weight = 0;
         self.transaction_depth = 0;
         self.pending = None;
         self.pending_intent = None;
@@ -562,6 +623,27 @@ mod tests {
 
         assert_eq!(manager.undo().unwrap().changes.len(), 1);
         assert_eq!(manager.undo().unwrap().changes.len(), 1);
+    }
+
+    #[test]
+    fn retention_keeps_the_newest_entries_within_the_byte_budget() {
+        let mut manager = UndoManager::new();
+        manager.set_retention(3, 40);
+        for offset in 0..5 {
+            manager.record_transaction(typing_change(offset, "a"), EditIntent::Atomic);
+        }
+        // Three entries of 2 bytes each remain.
+        for _ in 0..3 {
+            assert!(manager.undo().is_some());
+        }
+        assert!(manager.undo().is_none());
+        // A large entry evicts older ones; one over the budget is not kept.
+        manager.record_transaction(typing_change(0, &"b".repeat(15)), EditIntent::Atomic);
+        manager.record_transaction(typing_change(15, &"c".repeat(4)), EditIntent::Atomic);
+        assert_eq!(manager.undo().unwrap().changes[0].new_text, "c".repeat(4));
+        assert!(manager.undo().is_some());
+        manager.record_transaction(typing_change(0, &"d".repeat(30)), EditIntent::Atomic);
+        assert!(manager.undo().is_none());
     }
 
     #[test]

@@ -22,6 +22,10 @@ use crate::{
 use gpui::{prelude::*, *};
 use gpui_kit::component::input::{Editor, EditorState, InputEvent, TabSize};
 
+/// `DOCUMENT_HISTORY_POLICY.maxEntries` / `maxBytes` (UTF-16 bytes).
+pub const HISTORY_ENTRIES: usize = 200;
+pub const HISTORY_BYTES: usize = 8 * 1024 * 1024;
+
 pub struct CodeView {
     pub(super) field: Entity<EditorState>,
     language: Language,
@@ -76,7 +80,9 @@ impl CodeView {
             this.refresh_passive(cx);
         });
         field.update(cx, |s, _| {
-            s.set_gutter_metrics(Some(style::gutter(request.dark, request.scale)))
+            s.set_gutter_metrics(Some(style::gutter(request.dark, request.scale)));
+            // `DOCUMENT_HISTORY_POLICY`: 200 entries, 8 MiB of UTF-16 text.
+            s.set_history_retention(HISTORY_ENTRIES, HISTORY_BYTES);
         });
         let find = find::CodeFind::new(&field, cx);
         let passive = field.update(cx, |s, cx| {
