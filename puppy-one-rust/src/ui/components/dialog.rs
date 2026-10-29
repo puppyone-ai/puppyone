@@ -21,6 +21,8 @@ pub struct Dialog {
     title: Option<SharedString>,
     leading: Option<(Icon, Hsla)>,
     inset: Option<f32>,
+    header_bottom: Option<f32>,
+    body_inline: Option<f32>,
     body_padding: (f32, f32),
     body: Vec<AnyElement>,
     footer: Vec<AnyElement>,
@@ -37,6 +39,8 @@ impl Dialog {
             title: None,
             leading: None,
             inset: None,
+            header_bottom: None,
+            body_inline: None,
             body_padding: (12., 18.),
             body: Vec::new(),
             footer: Vec::new(),
@@ -69,6 +73,16 @@ impl Dialog {
         self
     }
     /// The body's top and bottom padding (12 / 18 by default).
+    /// The header's bottom padding (8px; launchers use 10px).
+    pub fn header_bottom(mut self, bottom: f32) -> Self {
+        self.header_bottom = Some(bottom);
+        self
+    }
+    /// The body's inline padding, without moving the header (24px).
+    pub fn body_inline(mut self, inline: f32) -> Self {
+        self.body_inline = Some(inline);
+        self
+    }
     pub fn body_padding(mut self, top: f32, bottom: f32) -> Self {
         self.body_padding = (top, bottom);
         self
@@ -124,7 +138,11 @@ impl RenderOnce for Dialog {
                 .gap(px(16.))
                 .pt(px(self.inset.unwrap_or(14.)))
                 .px(px(self.inset.unwrap_or(20.)))
-                .pb(px(if self.inset.is_some() { 10. } else { 8. }))
+                .pb(px(self.header_bottom.unwrap_or(if self.inset.is_some() {
+                    10.
+                } else {
+                    8.
+                })))
                 .child(
                     div()
                         .flex()
@@ -190,7 +208,7 @@ impl RenderOnce for Dialog {
                     .overflow_y_scroll()
                     .track_scroll(&body_scroll)
                     .pt(px(self.body_padding.0))
-                    .px(px(self.inset.unwrap_or(24.)))
+                    .px(px(self.body_inline.or(self.inset).unwrap_or(24.)))
                     .pb(px(self.body_padding.1))
                     .text_size(px(theme::ty().ui.meta))
                     .line_height(px(20.))

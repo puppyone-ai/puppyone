@@ -301,9 +301,14 @@ fn failed_open_keeps_previous_visible_workspace_and_folder_never_enters_catalog(
     workspace(&mut r, &wake, temp.path().into());
     let a = open(&mut r, &wake, "a.md");
     r.begin(Intent::OpenFolder(temp.path().join("absent")), &wake);
-    wait(&mut r, &wake, |r| r.error.is_some());
+    // A Project that cannot open names itself (`ProjectNavigationFailure`).
+    wait(&mut r, &wake, |r| r.root_failure.is_some());
+    assert_eq!(
+        r.root_failure.take().map(|(path, _)| path),
+        Some(temp.path().join("absent"))
+    );
+    assert!(r.error.is_none());
     assert_eq!(r.active_slot(), a);
-    r.error = None;
     r.begin(Intent::OpenFile("folder.md".into()), &wake);
     wait(&mut r, &wake, |r| r.error.is_some());
     assert_eq!(r.active_slot(), a);

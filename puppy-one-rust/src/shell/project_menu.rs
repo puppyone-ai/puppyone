@@ -186,10 +186,10 @@ impl Shell {
         let home = MenuItem::new(tr("shell.workspaceSwitcher.home"))
             .icon_sized(Icon::new("arrow-left").with_size(px(15.)).stroke(2.))
             .on_click(action(Command::Home));
-        // `onCreateProject`: the native project entry is a folder picker.
+        // `onCreateProject`: the Project entry launcher.
         let create = MenuItem::new(tr("shell.workspaceSwitcher.createNew"))
             .icon_sized(Icon::new("plus").with_size(px(15.)).stroke(2.))
-            .on_click(action(Command::OpenFolder));
+            .on_click(action(Command::CreateNew));
         move |menu| {
             let menu = menu.item(home);
             let menu = if projects.is_empty() {

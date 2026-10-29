@@ -11,7 +11,8 @@
 //! `forget:<absolute path>` (a recent project), `create-project:<name>`
 //! (the create dialog with a fixed name), `git-diff:<path>` /
 //! `git-diff-staged:<path>` (a change's diff in Changes), `git-history`,
-//! `git-commit:<index>` (a History commit), `explorer-drag:<x>` (drag the
+//! `git-commit:<index>` (a History commit), `project-entry` (the Project
+//! entry launcher), `explorer-drag:<x>` (drag the
 //! Explorer's edge to `x` and release). The capture waits
 //! for the homepage's project activity and an open diff.
 use super::*;
@@ -28,6 +29,7 @@ enum Step {
     CreateProject(String),
     GitDiff(String, bool),
     GitHistory,
+    ProjectEntry,
     GitCommit(usize),
     Open(PathBuf),
     NodeMenu(PathBuf),
@@ -55,6 +57,7 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "git-diff" => Step::GitDiff(arg.to_string(), false),
                 "git-diff-staged" => Step::GitDiff(arg.to_string(), true),
                 "git-history" => Step::GitHistory,
+                "project-entry" => Step::ProjectEntry,
                 "git-commit" => Step::GitCommit(arg.parse().ok()?),
                 "open" => Step::Open(path()),
                 "node-menu" => Step::NodeMenu(path()),
@@ -187,6 +190,7 @@ impl Shell {
                 }
             }
             Step::GitHistory => self.source_control.update(cx, |s, cx| s.open_history(cx)),
+            Step::ProjectEntry => self.open_project_entry(cx),
             Step::ExplorerDrag(x) => {
                 let at = |x: f32| point(px(x), px(400.));
                 self.begin_pane_drag(super::Side::Start, at(self.layout.editor.x), cx);

@@ -78,6 +78,8 @@ pub struct Shell {
     publish_reported: Option<String>,
     /// Launch without a project: open the last active one once preferences load.
     restore_last: bool,
+    /// The launch's last Project is opening (`RestoringWorkspaceScreen`).
+    restoring_open: bool,
     project: String,
     dark: bool,
     locale: Locale,
@@ -235,6 +237,7 @@ impl Shell {
             cloud_publish: Self::new_cloud_publish(cx),
             publish_reported: None,
             restore_last: false,
+            restoring_open: false,
             project: if fixture {
                 "puppyone".into()
             } else {
@@ -323,6 +326,9 @@ impl Shell {
                         && s.files.workspace.is_none()
                     {
                         s.open_project(path, w, cx);
+                        // Only an opening that started holds the screen (the
+                        // Project may already show in another window).
+                        s.restoring_open = s.files.opening_root();
                     }
                 }
             },
@@ -639,6 +645,11 @@ impl Shell {
             Some(Modal::About) => {
                 self.modals.remove(|m| matches!(m, Modal::About));
             }
+            Some(Modal::ProjectEntry) => self.close_project_entry(cx),
+            Some(Modal::ProjectFailure { .. }) => {
+                self.modals
+                    .remove(|m| matches!(m, Modal::ProjectFailure { .. }));
+            }
             Some(Modal::Share { .. }) => {
                 self.modals.remove(|m| matches!(m, Modal::Share { .. }));
             }
@@ -827,6 +838,22 @@ impl Shell {
             }
             Command::Quit => self.files.begin(Intent::Quit, &self.wake),
             Command::OpenFolder => self.pick_workspace(window, cx),
+            Command::CreateNew => self.open_project_entry(cx),
+            Command::RetryProjectOpen => {
+                let failed = self.modals.iter().find_map(|m| match m {
+                    Modal::ProjectFailure { path, .. } => Some(path.clone()),
+                    _ => None,
+                });
+                self.modals
+                    .remove(|m| matches!(m, Modal::ProjectFailure { .. }));
+                if let Some(path) = failed {
+                    self.open_project(path, window, cx);
+                }
+            }
+            Command::CloseProjectFailure => {
+                self.modals
+                    .remove(|m| matches!(m, Modal::ProjectFailure { .. }));
+            }
             Command::ToggleExplorer => {
                 self.panes.toggle_explorer();
                 self.persist_panes(cx);
@@ -984,6 +1011,15 @@ impl Shell {
         crate::platform::watchdog::activity("shell.receive");
         let previous = self.files.opened().map(|(id, _)| id.to_owned());
         self.files.poll(&self.wake);
+        if let Some((path, message)) = self.files.root_failure.take() {
+            self.restoring_open = false;
+            self.modals
+                .remove(|m| matches!(m, Modal::ProjectFailure { .. }));
+            self.modals.open(Modal::ProjectFailure { path, message });
+        }
+        if self.restoring_open && self.files.workspace.is_some() {
+            self.restoring_open = false;
+        }
         // A Header switch shows its own recovery; any other Cloud opening
         // (a hosted-only window) reports its failure copy.
         if self.cloud_switch.is_none()
@@ -1448,7 +1484,7 @@ impl Shell {
             IconButton::new("rail-plus", "plus")
                 .label(crate::localization::t("shell.workspaceSwitcher.addProject"))
                 .size(px(theme::control()))
-                .on_click(cx.listener(|s, _, w, cx| s.command(Command::OpenFolder, w, cx))),
+                .on_click(cx.listener(|s, _, w, cx| s.command(Command::CreateNew, w, cx))),
         )
     }
     /// `.po-pane-edge-resize-handle` + `.po-pane-edge-chrome`: an 8px
@@ -2035,6 +2071,10 @@ impl Shell {
                     .into_any_element(),
                 Modal::Executions => self.executions_dialog(cx).into_any_element(),
                 Modal::About => self.about_dialog(cx).into_any_element(),
+                Modal::ProjectEntry => self.project_entry_dialog(cx).into_any_element(),
+                Modal::ProjectFailure { message, .. } => {
+                    self.project_failure_dialog(message, cx).into_any_element()
+                }
                 Modal::Share { url, copied } => self
                     .share_dialog(url.clone(), *copied, cx)
                     .into_any_element(),

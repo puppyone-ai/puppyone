@@ -25,6 +25,14 @@ pub(super) enum Modal {
     CreateEntry(Entity<CreateEntryDialog>),
     /// The homepage's "Create a project".
     CreateProject(CreateProject),
+    /// `ProjectEntryLauncherDialog`: create, open a folder, or import.
+    ProjectEntry,
+    /// `ProjectNavigationFailure`: a local Project that could not open, and
+    /// why; Retry opens it again.
+    ProjectFailure {
+        path: std::path::PathBuf,
+        message: String,
+    },
     /// `OnboardingImportDialog`: clone a repository into a new project.
     ImportRepository(super::home::ImportRepository),
     /// Rename or change the file type of an Explorer entry.

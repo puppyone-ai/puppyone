@@ -64,6 +64,10 @@ pub struct Runtime {
     hosts: BTreeMap<String, Host>,
     active: Option<String>,
     preparing: Option<Documents>,
+    /// The local folder `preparing` opens, so its failure names it.
+    preparing_root: Option<PathBuf>,
+    /// `ProjectNavigationFailure`: a local Project that could not open.
+    pub root_failure: Option<(PathBuf, String)>,
     last_cloud_failure: Option<crate::workspace::cloud::opening::Failure>,
     /// A host was activated: subscribe its hosted documents on next poll.
     resume_cloud: bool,
@@ -242,7 +246,12 @@ impl Runtime {
     }
     /// A newer selection replaces the one being prepared: a Cloud opening in
     /// flight is cancelled, never left to finish unobserved.
+    /// A local folder is being opened.
+    pub fn opening_root(&self) -> bool {
+        self.preparing_root.is_some()
+    }
     fn revoke_preparing(&mut self) {
+        self.preparing_root = None;
         if let Some(mut previous) = self.preparing.take() {
             previous.cancel_cloud();
         }
@@ -316,6 +325,7 @@ impl Runtime {
                 }
                 self.revoke_preparing();
                 let mut preparing = Documents::default();
+                self.preparing_root = Some(path.clone());
                 preparing.begin(Intent::OpenFolder(path), wake);
                 self.preparing = Some(preparing);
             }
@@ -540,9 +550,10 @@ impl Runtime {
                 let failure = preparing.cloud_failure.lock().unwrap().take();
                 // A Header switch shows its own recovery; other openings
                 // report through the error dialog.
-                match failure {
-                    Some(failure) => self.last_cloud_failure = Some(failure),
-                    None => self.error = Some(error),
+                match (failure, self.preparing_root.take()) {
+                    (Some(failure), _) => self.last_cloud_failure = Some(failure),
+                    (None, Some(root)) => self.root_failure = Some((root, error)),
+                    (None, None) => self.error = Some(error),
                 }
                 self.preparing = None;
             } else if let Some(rows) = preparing.tree_update.take() {
@@ -589,6 +600,7 @@ impl Runtime {
                     );
                 }
                 self.preparing = None;
+                self.preparing_root = None;
                 self.activate_workspace(key);
             }
         }

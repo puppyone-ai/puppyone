@@ -39,6 +39,7 @@ use std::{
 mod create_project;
 mod first_run;
 mod import_repository;
+pub(in crate::shell) mod project_entry;
 pub(super) use create_project::CreateProject;
 pub(super) use import_repository::ImportRepository;
 
@@ -327,6 +328,9 @@ impl Shell {
         }
     }
     pub(super) fn home_view(&self, cx: &mut Context<Self>) -> Div {
+        if self.restoring() {
+            return self.restoring_view(cx);
+        }
         let t = cx.palette();
         let items = self.project_items(cx);
         let has_projects = !items.is_empty();
@@ -745,39 +749,14 @@ impl Shell {
     /// into a new local project.
     fn import_action(&self, t: Theme, busy: bool, cx: &mut Context<Self>) -> Button {
         let label = tr("onboarding.action.importFromApps");
-        let badge = |mark: &'static str| {
-            // `.onboarding-entry-import-brand-badge`: a 20px disc ringed in
-            // the canvas colour, overlapping its neighbour by 6px.
-            div()
-                .flex()
-                .flex_shrink_0()
-                .size(px(20.))
-                .items_center()
-                .justify_center()
-                .rounded_full()
-                .border_1()
-                .border_color(t.canvas)
-                .bg(theme::mix(t.muted, t.canvas, 0.12))
-                .child(img(mark).size(px(14.)))
-        };
         Button::new("home-import")
             .variant(ButtonVariant::Entry)
             .icon("download")
             .label(label)
             .disabled(busy)
             .on_click(cx.listener(|s, _, w, cx| s.begin_import(w, cx)))
-            .trailing(
-                h_flex()
-                    .ml(px(-2.))
-                    // `.onboarding-entry-import:disabled` dims the preview.
-                    .when(busy, |d| d.opacity(0.3))
-                    .child(badge(if t.dark {
-                        "integrations/github-inverse.svg"
-                    } else {
-                        "integrations/github.svg"
-                    }))
-                    .child(badge("integrations/gitlab.svg").ml(px(-6.))),
-            )
+            // `.onboarding-entry-import-brand-badge`, ringed in the canvas.
+            .trailing(project_entry::import_badges(t, t.canvas, busy).ml(px(-2.)))
     }
     /// `removeProject`: confirm, then forget the project (its files stay).
     fn confirm_remove_project(

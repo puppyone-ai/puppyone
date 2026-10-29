@@ -22,6 +22,11 @@ pub enum Command {
     QuitWithProcesses,
     CancelProcessQuit,
     OpenFolder,
+    /// `openProjectLauncher`: the Project entry launcher.
+    CreateNew,
+    /// `ProjectNavigationFailure` → Retry / Close.
+    RetryProjectOpen,
+    CloseProjectFailure,
     ToggleExplorer,
     ToggleRightSidebar,
     Settings,

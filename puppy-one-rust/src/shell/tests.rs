@@ -2358,3 +2358,72 @@ fn finder_drops_open_only_one_file_of_this_workspace(cx: &mut TestAppContext) {
         }
     });
 }
+
+#[gpui::test]
+fn create_new_opens_the_project_entry_launcher_and_hands_off(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    command(&view, cx, Command::CreateNew);
+    view.read_with(cx, |s, _| {
+        assert!(matches!(s.modals.top(), Some(Modal::ProjectEntry)))
+    });
+    // Escape closes the launcher without choosing.
+    command(&view, cx, Command::Escape);
+    view.read_with(cx, |s, _| assert!(s.modals.is_empty()));
+    command(&view, cx, Command::CreateNew);
+    view.update_in(cx, |s, w, cx| {
+        s.choose_project_entry(super::home::project_entry::Route::Create, w, cx)
+    });
+    view.read_with(cx, |s, _| {
+        assert!(!s.modals.iter().any(|m| matches!(m, Modal::ProjectEntry)));
+        assert!(matches!(s.modals.top(), Some(Modal::CreateProject(_))));
+    });
+    command(&view, cx, Command::Escape);
+    command(&view, cx, Command::CreateNew);
+    view.update_in(cx, |s, w, cx| {
+        s.choose_project_entry(super::home::project_entry::Route::Import, w, cx)
+    });
+    view.read_with(cx, |s, _| {
+        assert!(matches!(s.modals.top(), Some(Modal::ImportRepository(_))))
+    });
+}
+
+#[gpui::test]
+fn a_project_that_cannot_open_reports_why_and_retries(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    let missing = temp.path().join("gone");
+    let (view, cx) = setup(cx);
+    view.update_in(cx, |s, w, cx| s.open_project(missing.clone(), w, cx));
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    loop {
+        view.update_in(cx, |s, w, cx| s.receive(w, cx));
+        cx.run_until_parked();
+        if view.read_with(cx, |s, _| {
+            s.modals
+                .iter()
+                .any(|m| matches!(m, Modal::ProjectFailure { .. }))
+        }) {
+            break;
+        }
+        assert!(std::time::Instant::now() < deadline, "no failure dialog");
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+    view.read_with(cx, |s, _| {
+        let Some(Modal::ProjectFailure { path, message }) = s.modals.top() else {
+            panic!("the failure is the top dialog")
+        };
+        assert_eq!(path, &missing);
+        assert!(!message.is_empty());
+        // Not the generic error dialog.
+        assert!(s.files.error.is_none());
+    });
+    // Retry opens the same folder again.
+    command(&view, cx, Command::RetryProjectOpen);
+    view.read_with(cx, |s, _| {
+        assert!(
+            !s.modals
+                .iter()
+                .any(|m| matches!(m, Modal::ProjectFailure { .. }))
+        );
+        assert!(s.files.opening_root());
+    });
+}
