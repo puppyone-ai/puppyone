@@ -14,11 +14,29 @@ describe("integration branch quality gates", () => {
       "app-checks",
       "platform-contracts",
       "windows-package",
+      "cloud-email-sign-in",
     ]));
     expect(workflow.jobs["app-checks"].strategy.matrix.os).toEqual(expect.arrayContaining(["ubuntu-24.04", "macos-14"]));
     const linuxSetup = workflow.jobs["app-checks"].steps.find(step => step.name === "Prepare Linux display and multilingual fonts");
     expect(linuxSetup.if).toBe("runner.os == 'Linux'");
     expect(workflow.jobs["windows-package"]["runs-on"]).toBe("windows-2025");
+  });
+
+  it("signs in with email through the paired Cloud Web before Build can pass", () => {
+    const signIn = workflow.jobs["cloud-email-sign-in"];
+    const [reusable, reusableRef] = signIn.uses.split("@");
+    expect(reusable).toBe("puppyone-ai/puppyone-cloud/.github/workflows/desktop-login-e2e.yml");
+    // The check's own code must come from the same Cloud ref as the workflow.
+    expect(signIn.with.harness_ref).toBe(reusableRef);
+    // Test this commit, not the branch it targets.
+    expect(signIn.with.desktop_ref).toBe("${{ github.event.pull_request.head.sha || github.sha }}");
+    // Stable pairs with production (main), everything else with Qubits.
+    expect(signIn.with.cloud_ref).toBe("${{ (github.base_ref || github.ref_name) == 'main' && 'main' || 'qubits' }}");
+    expect(signIn.if).toBeUndefined();
+    expect(signIn["continue-on-error"]).toBeUndefined();
+    const gate = workflow.jobs.build.steps.find(step => step.name === "Require every pre-release check group");
+    expect(gate.env.CLOUD_EMAIL_SIGN_IN_RESULT).toBe("${{ needs.cloud-email-sign-in.result }}");
+    expect(gate.run).toContain('test "$CLOUD_EMAIL_SIGN_IN_RESULT" = success');
   });
 
   it("requires updater P0 checks on every native platform in the contracts matrix", () => {

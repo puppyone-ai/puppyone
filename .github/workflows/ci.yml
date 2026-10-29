@@ -252,11 +252,25 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+  cloud-email-sign-in:
+    # A person signs in to this Desktop commit with email through the paired
+    # Cloud Web (qubits <-> qubits, main <-> main): real Main auth service, the
+    # Web's release image served as deployed, local auth-only Supabase. Cloud
+    # owns the check so both repositories run the same one. Keep the @ref and
+    # harness_ref equal.
+    name: Cloud email sign-in
+    uses: puppyone-ai/puppyone-cloud/.github/workflows/desktop-login-e2e.yml@qubits
+    with:
+      desktop_repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+      desktop_ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      cloud_ref: ${{ (github.base_ref || github.ref_name) == 'main' && 'main' || 'qubits' }}
+      harness_ref: qubits
+
   build:
     # Preserve the protected branch's existing required check name.
     name: Build
     if: always()
-    needs: [source-checks, app-checks, platform-contracts, windows-package]
+    needs: [source-checks, app-checks, platform-contracts, windows-package, cloud-email-sign-in]
     runs-on: ubuntu-24.04
     steps:
       - name: Require every pre-release check group
@@ -265,8 +279,10 @@ jobs:
           APP_RESULT: ${{ needs.app-checks.result }}
           PLATFORM_RESULT: ${{ needs.platform-contracts.result }}
           WINDOWS_PACKAGE_RESULT: ${{ needs.windows-package.result }}
+          CLOUD_EMAIL_SIGN_IN_RESULT: ${{ needs.cloud-email-sign-in.result }}
         run: |
           test "$SOURCE_RESULT" = success
           test "$APP_RESULT" = success
           test "$PLATFORM_RESULT" = success
           test "$WINDOWS_PACKAGE_RESULT" = success
+          test "$CLOUD_EMAIL_SIGN_IN_RESULT" = success
