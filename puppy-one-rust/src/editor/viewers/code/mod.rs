@@ -75,6 +75,9 @@ impl CodeView {
             this.sync(w, cx);
             this.refresh_passive(cx);
         });
+        field.update(cx, |s, _| {
+            s.set_gutter_metrics(Some(style::gutter(request.dark, request.scale)))
+        });
         let find = find::CodeFind::new(&field, cx);
         let passive = field.update(cx, |s, cx| {
             s.create_range_decorations_collection(Vec::new(), cx)
@@ -499,6 +502,9 @@ impl ViewerSurface for CodeSurface {
             v.field.update(cx, |s, cx| s.set_readonly(read_only, cx));
             if (v.dark, v.scale) != (dark, scale) {
                 style::project(dark, scale, cx);
+                v.field.update(cx, |s, _| {
+                    s.set_gutter_metrics(Some(style::gutter(dark, scale)))
+                });
             }
             v.dark = dark;
             v.scale = scale;

@@ -1,0 +1,9 @@
+{
+  "comment": "Editor pixel scenarios: references from tools/reference-editor.mjs (real EditorPaneShell + viewer, 1060x760 (the 1059 px editor area of a 1280x800 window, rounded to the even width macOS gives the lab window)), native from the lab (editor-<scenario>) via tools/capture-workbench.py --suite editor.",
+  "scenarios": [
+    {"scenario": "code", "width": 1060, "height": 760},
+    {"scenario": "json", "width": 1060, "height": 760},
+    {"scenario": "md", "width": 1060, "height": 760},
+    {"scenario": "csv", "width": 1060, "height": 760}
+  ]
+}

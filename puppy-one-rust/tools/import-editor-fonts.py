@@ -46,6 +46,10 @@ BOLD_SLOTS = {450: 600, 500: 600}
 # mark ("PuppyOne Geist Mono Inline") therefore has 875 units per em: at
 # 0.875 × size it renders exactly Geist Mono at `size`.
 INLINE_CODE_UPEM = 875
+# The code viewer's family (400) also carries its token weights
+# (`code-editor.css`): functions at 550 as its Medium face, keywords at 600
+# as its SemiBold face, so a highlight weight selects real outlines.
+CODE_FACES = {'medium': (550, 'Medium', 500), 'semibold': (600, 'SemiBold', 600)}
 
 
 def rename(font, family, style, weight, italic, bold=False):
@@ -86,9 +90,10 @@ def oblique(font):
     font['glyf'].compile(font)
 
 
-def build(source, family, weight, italic, slot=None, upem=None, name=None):
+def build(source, family, weight, italic, slot=None, upem=None, name=None, face=None):
     """`slot`: build `weight` outlines as the Bold face of family `slot`;
-    `upem`/`name`: rescale the em and use the family `name` (inline code)."""
+    `upem`/`name`: rescale the em and use the family `name` (inline code);
+    `face`: (style, weight class) of an extra face in the 400 family."""
     font = TTFont(io.BytesIO(source))
     font = instantiateVariableFont(font, {'wght': weight}, inplace=False)
     font.flavor = None
@@ -96,7 +101,9 @@ def build(source, family, weight, italic, slot=None, upem=None, name=None):
         oblique(font)
     if upem is not None:
         font['head'].unitsPerEm = upem
-    if name is not None:
+    if face is not None:
+        rename(font, f'{family} 400', face[0], face[1], False)
+    elif name is not None:
         bold = slot is not None
         style = ('Bold ' if bold else '') + ('Oblique' if italic else ('' if bold else 'Regular'))
         rename(font, name, style.strip(), 700 if bold else weight, italic, bold=bold)
@@ -126,6 +133,8 @@ def main():
         for weight in spec['oblique']:
             files[f'geist-{slug}-{weight}-oblique.ttf'] = build(source, family, weight, True)
         if slug == 'mono':
+            for key, (weight, style, weight_class) in CODE_FACES.items():
+                files[f'geist-mono-400-{key}.ttf'] = build(source, family, weight, False, face=(style, weight_class))
             inline = 'PuppyOne Geist Mono Inline'
             files['geist-mono-inline.ttf'] = build(source, family, 500, False, upem=INLINE_CODE_UPEM, name=inline)
             files['geist-mono-inline-oblique.ttf'] = build(source, family, 500, True, upem=INLINE_CODE_UPEM, name=inline)

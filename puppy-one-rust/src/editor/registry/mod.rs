@@ -17,6 +17,7 @@
 mod builtin;
 mod contribution;
 mod manifest;
+pub mod normalize;
 pub mod packs;
 mod surface;
 

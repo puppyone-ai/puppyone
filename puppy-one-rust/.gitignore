@@ -1,4 +1,5 @@
 /target/
 /artifacts/
 **/__pycache__/
-/vendor/
+/vendor/*
+!/vendor/gpui-base/

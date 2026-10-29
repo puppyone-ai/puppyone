@@ -465,3 +465,56 @@ fn installed_packs_render_placeholder_documents_through_the_host_port(cx: &mut T
     open(&view, cx, "4", "scene/model.glb");
     assert_eq!(rendered(), vec!["a.glb"]);
 }
+
+#[gpui::test]
+fn json_shows_formatted_but_saves_only_after_an_edit(cx: &mut TestAppContext) {
+    let raw = r#"{"name":"puppyone","count":42}"#;
+    let (view, _, cx) = setup(cx, "data/sample.json", raw);
+    let snapshot = |view: &Entity<DocumentEditor>, cx: &mut VisualTestContext, request| {
+        view.update_in(cx, |v, w, cx| {
+            v.receive(
+                &HostMessage::Snapshot {
+                    request,
+                    freeze: false,
+                },
+                w,
+                cx,
+            )
+        })
+    };
+    view.update_in(cx, |v, _, cx| {
+        let shown = v.surface.as_ref().unwrap().text(cx).unwrap();
+        assert_eq!(shown, "{\n  \"name\": \"puppyone\",\n  \"count\": 42\n}");
+        // The untouched view stands for the raw text: nothing to save.
+        assert_eq!(v.text(cx).as_deref(), Some(raw));
+    });
+    let replies = snapshot(&view, cx, 3);
+    assert!(matches!(replies.as_slice(), [ClientMessage::Snapshot { text, .. }] if text == raw));
+    // The same document re-sent (after a save elsewhere) keeps the view.
+    view.update_in(cx, |v, w, cx| {
+        v.receive(
+            &HostMessage::Open {
+                id: "doc-1".into(),
+                name: "data/sample.json".into(),
+                text: raw.into(),
+                revision: 0,
+                external: false,
+            },
+            w,
+            cx,
+        );
+    });
+    // An edit makes the formatted text the document.
+    view.update_in(cx, |v, w, cx| {
+        let formatted = v.surface.as_ref().unwrap().text(cx).unwrap();
+        v.surface
+            .as_ref()
+            .unwrap()
+            .replace_text(&formatted.replace("42", "43"), w, cx);
+    });
+    let replies = snapshot(&view, cx, 4);
+    assert!(matches!(
+        replies.as_slice(),
+        [ClientMessage::Snapshot { text, .. }] if text == "{\n  \"name\": \"puppyone\",\n  \"count\": 43\n}"
+    ));
+}

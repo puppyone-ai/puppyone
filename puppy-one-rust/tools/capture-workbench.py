@@ -25,7 +25,8 @@ root = Path(__file__).resolve().parents[1]
 # suite → (scenario file, native lab case prefix)
 SUITES = {"workbench": ("tools/workbench-scenarios.json", ""),
           "settings": ("tools/settings-scenarios.json", "settings-"),
-          "cloud": ("tools/cloud-scenarios.json", "cloud-")}
+          "cloud": ("tools/cloud-scenarios.json", "cloud-"),
+          "editor": ("tools/editor-scenarios.json", "editor-")}
 
 parser = argparse.ArgumentParser()
 parser.add_argument("only", nargs="*")

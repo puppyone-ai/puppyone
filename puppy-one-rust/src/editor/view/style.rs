@@ -58,6 +58,9 @@ pub fn font_bytes() -> Vec<std::borrow::Cow<'static, [u8]>> {
         "geist-sans-500-bold.ttf",
         "geist-sans-500-bold-oblique.ttf",
         "geist-mono-400.ttf",
+        // The code viewer's token weights in its family (`code-editor.css`).
+        "geist-mono-400-medium.ttf",
+        "geist-mono-400-semibold.ttf",
         "geist-mono-450.ttf",
         "geist-mono-450-oblique.ttf",
         "geist-mono-inline-reading.ttf",

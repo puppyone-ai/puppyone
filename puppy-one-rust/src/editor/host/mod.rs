@@ -67,6 +67,9 @@ pub struct DocumentEditor {
     /// pack runtime is not part of the build.
     extensions: Option<ExtensionHost>,
     references: Option<crate::editor::navigation::ReferenceContext>,
+    /// `normalizeContent`: the text the surface was given and the raw text
+    /// it stands for, until the person edits.
+    displayed: Option<(String, String)>,
 }
 
 impl EventEmitter<ClientMessage> for DocumentEditor {}
@@ -93,6 +96,7 @@ impl DocumentEditor {
             bounds: None,
             extensions: None,
             references: None,
+            displayed: None,
         }
     }
 
@@ -211,8 +215,14 @@ impl DocumentEditor {
         });
     }
 
+    /// The document text: the raw text while the surface still shows its
+    /// untouched normalization, else what the surface holds.
     fn text(&self, cx: &App) -> Option<String> {
-        self.surface.as_ref().and_then(|s| s.text(cx))
+        let shown = self.surface.as_ref().and_then(|s| s.text(cx))?;
+        Some(match &self.displayed {
+            Some((normalized, raw)) if *normalized == shown => raw.clone(),
+            _ => shown,
+        })
     }
 
     pub fn receive(
@@ -231,6 +241,8 @@ impl DocumentEditor {
                 external,
             } => {
                 let viewer = registry::resolve(&EditorDocument::local(name)).viewer.id;
+                let normalized = registry::normalize::normalize(viewer, text);
+                let shown = normalized.as_deref().unwrap_or(text);
                 let same = self
                     .session
                     .as_ref()
@@ -240,14 +252,16 @@ impl DocumentEditor {
                     if self.text(cx).as_ref() != Some(text) || *external {
                         // External change of the open document: replace its text.
                         if let Some(surface) = &self.surface {
-                            surface.replace_text(text, window, cx);
+                            surface.replace_text(shown, window, cx);
                         }
+                        self.displayed = normalized.clone().map(|n| (n, text.clone()));
                     }
                     // Otherwise the same document re-sent (after a save): keep history.
                     let session = self.session.as_ref().unwrap();
                     (session.viewer, session.editable)
                 } else {
-                    self.open_surface(id, name, SurfaceInput::Text(text), window, cx)
+                    self.displayed = normalized.clone().map(|n| (n, text.clone()));
+                    self.open_surface(id, name, SurfaceInput::Text(shown), window, cx)
                 };
                 self.session = Some(Session {
                     id: id.clone(),
@@ -261,6 +275,7 @@ impl DocumentEditor {
                 replies.push(ClientMessage::Loaded { id: id.clone() });
             }
             HostMessage::OpenResource { id, name, path } => {
+                self.displayed = None;
                 let (viewer, editable) =
                     self.open_surface(id, name, SurfaceInput::Resource(path), window, cx);
                 self.session = Some(Session {
@@ -275,6 +290,7 @@ impl DocumentEditor {
                 replies.push(ClientMessage::Loaded { id: id.clone() });
             }
             HostMessage::Clear => {
+                self.displayed = None;
                 self.session = None;
                 self.surface = None;
                 self.subscription = None;

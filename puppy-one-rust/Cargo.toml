@@ -8,6 +8,8 @@ publish = false
 [dependencies]
 url = "2.5"
 gpui-kit = { version = "=0.8.0" }
+# The code gutter metrics patch (vendor/gpui-base/PUPPYONE_PATCH.md).
+gpui-base = { version = "=0.8.0" }
 # GPUI Kit's tree-sitter highlighter for Markdown code blocks, with the
 # grammars of the languages the product highlights
 # (shared-ui/src/editor/code/codeLanguageSupport.ts; JSON comes with the base).
@@ -80,3 +82,8 @@ incremental = false
 strip = true
 lto = "thin"
 codegen-units = 1
+
+[patch.crates-io]
+# The product code gutter (CodeMirror `.cm-lineNumbers` / `.cm-foldGutter`);
+# see vendor/gpui-base/PUPPYONE_PATCH.md.
+gpui-base = { path = "vendor/gpui-base" }

@@ -8,6 +8,25 @@ use gpui::*;
 use gpui_kit::component::{Theme as KitTheme, highlighter::HighlightTheme};
 use std::sync::Arc;
 
+/// `.cm-lineNumbers .cm-gutterElement` (36 px border box, 8 / 9 px paddings,
+/// the hint size, 34% text; the active one in the text colour at 500), the
+/// 16 px `.cm-foldGutter` and `.cm-line`'s 8 px inset, outside which the
+/// active line's background never reaches.
+pub fn gutter(dark: bool, scale: Scale) -> gpui_base::input::GutterMetrics {
+    let p = Theme::new(dark);
+    gpui_base::input::GutterMetrics {
+        number_width: px(36.),
+        number_padding_left: px(8.),
+        number_padding_right: px(9.),
+        number_font_size: px(scale.metrics().ui.hint),
+        number_color: Hsla::from(theme::alpha(p.text, 0.34)),
+        active_number_color: Hsla::from(p.text),
+        active_number_weight: FontWeight::MEDIUM,
+        fold_width: px(16.),
+        text_inset: px(8.),
+    }
+}
+
 pub fn project(dark: bool, scale: Scale, cx: &mut App) {
     theme::sync_kit(dark, None, cx);
     let p = Theme::new(dark);
@@ -40,11 +59,20 @@ pub fn project(dark: bool, scale: Scale, cx: &mut App) {
             theme::mix(p.purple, p.text, 0.72),
         ),
     ] {
+        // `.cm-code-keyword { font-weight: 600 }`, `.cm-code-function
+        // { font-weight: 550 }`: the code family's SemiBold and Medium
+        // (550) faces.
+        let weight = match names[0] {
+            "keyword" => Some(600),
+            "function" => Some(500),
+            _ => None,
+        };
         for name in names {
-            syntax.insert(
-                (*name).into(),
-                serde_json::json!({"color": Hsla::from(color)}),
-            );
+            let mut style = serde_json::json!({"color": Hsla::from(color)});
+            if let Some(weight) = weight {
+                style["font_weight"] = weight.into();
+            }
+            syntax.insert((*name).into(), style);
         }
     }
     let projected: HighlightTheme = serde_json::from_value(serde_json::json!({

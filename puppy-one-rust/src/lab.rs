@@ -9,6 +9,8 @@
 //!   backdrop (`tools/settings-scenarios.json`).
 //! - `cloud-<scenario>-<mode>`: Cloud surfaces over `fixtures/cloud-history.json`
 //!   (`tools/cloud-scenarios.json`).
+//! - `editor-<scenario>-<mode>`: one editor pane over a `fixtures/editor`
+//!   document (`tools/editor-scenarios.json`, `tools/reference-editor.mjs`).
 use crate::{
     features::{
         settings::{Page, SettingsWorkspaceSurface, preferences_store::PreferencesStore},
@@ -22,6 +24,7 @@ use std::path::PathBuf;
 enum Surface {
     Assets(Entity<crate::ui::asset_gallery::AssetGallery>),
     CloudHistory(Entity<crate::features::source_control::CloudHistory>),
+    Editor(Entity<crate::editor::host::DocumentEditor>),
     Gallery(Entity<crate::ui::gallery::Gallery>),
     Workbench(Entity<Workbench>),
     Settings(Entity<SettingsWorkspaceSurface>),
@@ -85,7 +88,41 @@ impl Lab {
         // References render with the account available and signed out.
         crate::features::cloud_account::install_offline(cx);
         let gallery = scenario.strip_prefix("gallery");
-        let surface = if let Some(cloud) = scenario.strip_prefix("cloud-") {
+        let editor_file = scenario.strip_prefix("editor-").and_then(|case| {
+            Some(match case {
+                "code" => ("sample.ts", include_str!("../fixtures/editor/sample.ts")),
+                "json" => (
+                    "sample.json",
+                    include_str!("../fixtures/editor/sample.json"),
+                ),
+                "md" => ("sample.md", include_str!("../fixtures/editor/sample.md")),
+                "csv" => ("sample.csv", include_str!("../fixtures/editor/sample.csv")),
+                _ => return None,
+            })
+        });
+        let surface = if let Some((name, text)) = editor_file {
+            // `tools/reference-editor.mjs`: one active pane (EditorPaneShell)
+            // over the same in-memory fixture document.
+            let editor = cx.new(|cx| {
+                let mut editor = crate::editor::host::DocumentEditor::new(cx);
+                editor.workbench = true;
+                editor.gate(false, dark, window, cx);
+                editor.receive(
+                    &crate::documents::HostMessage::Open {
+                        id: format!("reference:{name}"),
+                        name: name.to_owned(),
+                        text: text.to_owned(),
+                        revision: 1,
+                        external: false,
+                    },
+                    window,
+                    cx,
+                );
+                editor
+            });
+            cx.observe(&editor, |_, _, cx| cx.notify()).detach();
+            Surface::Editor(editor)
+        } else if let Some(cloud) = scenario.strip_prefix("cloud-") {
             // `tools/cloud-scenarios.json` over `fixtures/cloud-history.json`.
             let data: serde_json::Value =
                 serde_json::from_str(include_str!("../fixtures/cloud-history.json"))
@@ -188,6 +225,7 @@ impl Render for Lab {
             Surface::Assets(gallery) => root.child(gallery.clone()),
             Surface::Workbench(workbench) => root.bg(t.auxiliary()).child(workbench.clone()),
             Surface::CloudHistory(history) => root.bg(t.auxiliary()).child(history.clone()),
+            Surface::Editor(editor) => root.bg(t.canvas).child(editor.clone()),
             Surface::Settings(settings) => {
                 // The product page body is `--po-canvas`; the task backdrop
                 // and the dialog sit over it exactly as in the shell.

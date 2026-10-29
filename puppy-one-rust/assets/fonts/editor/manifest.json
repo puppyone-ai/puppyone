@@ -2,6 +2,8 @@
  "source": "product public/fonts/geist (SIL OFL 1.1)",
  "skew": 0.25,
  "files": {
+  "geist-mono-400-medium.ttf": "0c7988eaaf2ff3e83e012dc66ff1ca658f87e5431b3b172f1faa9697b639e39b",
+  "geist-mono-400-semibold.ttf": "7a14c16730e432509684a2e92471f6a23e17fbe788ac2308d547366fb2b29af8",
   "geist-mono-400.ttf": "88fcd24e6764cad7cf0974c2e39d994b4185d9707ba3b6a6b1b4625128bdbd91",
   "geist-mono-450-oblique.ttf": "c767d0ee505db6ad6277c935539e93480b3f01919d84b4eb58954c7d0ba9455b",
   "geist-mono-450.ttf": "3c829ccc34299c678fef4af63bc8dda4a262845e7c61f37323674490c3b0040f",
@@ -38,6 +40,8 @@
   "geist-sans-700.ttf": "5727bcfc2adedc96146d9b302c0afea2b969e725f3cea9229915870820668e19"
  },
  "zeroAdvance": {
+  "geist-mono-400-medium.ttf": 0.6,
+  "geist-mono-400-semibold.ttf": 0.6,
   "geist-mono-400.ttf": 0.6,
   "geist-mono-450-oblique.ttf": 0.6,
   "geist-mono-450.ttf": 0.6,
