@@ -3,6 +3,7 @@
 //! implements `ViewerSurface` and knows nothing of the registry or the host.
 pub mod code;
 pub mod csv;
+pub mod database;
 pub mod external;
 pub mod html;
 pub mod image;

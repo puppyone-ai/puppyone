@@ -43,6 +43,7 @@ notify = { version = "=8.2.0", default-features = false, features = ["macos_fsev
 image = { version = "=0.25.10", default-features = false }
 tempfile = "3"
 pdfium-render = { version = "=0.9.4", default-features = false, features = ["pdfium_latest", "thread_safe", "image_025"] }
+rusqlite = { version = "0.37", features = ["bundled"] }
 sysinfo = { version = "=0.31.4", default-features = false, features = ["system"] }
 
 [target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]

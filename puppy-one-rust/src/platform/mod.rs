@@ -1,4 +1,5 @@
 pub mod accessibility;
+pub mod database;
 pub mod desktop;
 pub mod editor_state_storage;
 pub mod environment;
