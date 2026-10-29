@@ -103,6 +103,7 @@ pub struct Receipt {
     errors: Vec<String>,
     select: Option<PathBuf>,
 }
+#[derive(Default)]
 pub struct Outcome {
     pub listings: Vec<(PathBuf, workspace::Result<Vec<Node>>)>,
     pub moved: Vec<(PathBuf, PathBuf)>,

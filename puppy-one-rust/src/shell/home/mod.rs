@@ -333,6 +333,9 @@ impl Shell {
                             // `DesktopMenuIconButton.onboarding-project-remove`.
                             IconButton::new(("home-project-remove", index), "unlink")
                                 .label(remove_label.clone())
+                                // The tooltip says the files stay (`removeHint`);
+                                // the accessible name keeps the project.
+                                .tooltip(tr("onboarding.projects.removeHint"))
                                 .with_size(px(22.))
                                 .rounded(px(5.))
                                 .color(t.text_disabled)

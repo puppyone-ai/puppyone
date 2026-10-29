@@ -17,11 +17,18 @@ impl Explorer {
         }
         self.refresh = None;
         self.op = true;
+        // `DataWorkspace`: import and move clear the previous operation error
+        // and report their own failure above the tree.
+        self.op_inline = matches!(op, FileOp::Move(..) | FileOp::Import(..));
+        if self.op_inline {
+            self.operation_error = None;
+        }
         cx.emit(ExplorerEvent::ResourceOperation(op));
         cx.notify();
     }
     pub(in crate::shell) fn operation_failed(&mut self, cx: &mut Context<Self>) {
         self.op = false;
+        self.op_inline = false;
         cx.notify();
     }
     pub(in crate::shell) fn finish_op(
@@ -35,7 +42,9 @@ impl Explorer {
             .as_ref()
             .and_then(|ws| ws.resource_id(Path::new("")).ok())
             .map(|id| crate::editor::workbench::catalog::resource_key(&id));
-        let tree = if active.as_deref() == Some(owner) {
+        let is_active = active.as_deref() == Some(owner);
+        let inline = is_active && std::mem::take(&mut self.op_inline);
+        let tree = if is_active {
             self.op = false;
             Some(&mut self.tree)
         } else if let Some(saved) = self.retained.get_mut(owner) {
@@ -61,11 +70,23 @@ impl Explorer {
                 tree.select(&path, false, false);
             }
         }
-        if let Some(error) = outcome.error {
+        if let Some(error) = outcome.error.clone()
+            && inline
+        {
+            self.operation_error = Some(error.into());
+        } else if let Some(error) = outcome.error {
             cx.emit(ExplorerEvent::Error(tf(
                 "workspace.node.error.operationFailedDetail",
                 &[("detail", error.into())],
             )));
+        }
+        cx.notify();
+    }
+    /// `onRetryFolder(null)`: dismiss the operation error and reread the root.
+    pub(super) fn retry_root(&mut self, cx: &mut Context<Self>) {
+        self.operation_error = None;
+        if self.workspace.is_some() {
+            cx.emit(ExplorerEvent::LoadChildren(PathBuf::new()));
         }
         cx.notify();
     }

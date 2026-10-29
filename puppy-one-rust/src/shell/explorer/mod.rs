@@ -102,6 +102,12 @@ pub(in crate::shell) struct Explorer {
     menu: Option<ExplorerMenu>,
     /// The running file operation.
     op: bool,
+    /// The running operation reports its failure above the tree
+    /// (`DataWorkspace` import and move), not in a dialog.
+    op_inline: bool,
+    /// `operationError`: a failed import or move, shown above the tree;
+    /// folder load failures stay on their own rows.
+    operation_error: Option<SharedString>,
     retained: std::collections::BTreeMap<String, RetainedExplorer>,
     refresh: Option<Task<()>>,
     references:
@@ -161,6 +167,8 @@ impl Explorer {
             clipboard: None,
             menu: None,
             op: false,
+            op_inline: false,
+            operation_error: None,
             retained: Default::default(),
             refresh: None,
             references: Default::default(),
@@ -278,6 +286,9 @@ impl Explorer {
             return;
         }
         let visibility = self.tree.visibility.clone();
+        // The banner belongs to the project whose operation failed.
+        self.operation_error = None;
+        self.op_inline = false;
         let empty = RetainedExplorer {
             tree: Tree {
                 roots,
@@ -358,6 +369,11 @@ impl Explorer {
         cx: &mut Context<Self>,
     ) {
         match children {
+            // The root reread of `retry_root`.
+            Ok(nodes) if path.as_os_str().is_empty() => self.tree.refresh_children(path, nodes),
+            Err(error) if path.as_os_str().is_empty() => {
+                self.operation_error = Some(error.to_string().into())
+            }
             Ok(nodes) => self.tree.attach_children(path, nodes),
             Err(error) => self.tree.fail_children(path, error.to_string()),
         }
@@ -529,6 +545,7 @@ impl Render for Explorer {
         let t = cx.palette();
         let loading = self.tree.rows.is_empty() && (self.host.folder_busy || self.host.picking);
         let empty = self.tree.rows.is_empty() && !loading && self.workspace.is_some();
+        let operation_error = self.operation_error.clone().filter(|_| !loading);
         let count = self.tree.rows.len() + usize::from(self.workspace.is_some() || self.fixture);
         let tree = div()
             .id("explorer-tree")
@@ -590,7 +607,12 @@ impl Render for Explorer {
             .flex()
             .flex_col()
             .bg(t.sidebar)
-            .when(loading || empty, |d| {
+            .children(
+                operation_error
+                    .clone()
+                    .map(|error| self.operation_error_banner(error, empty, t, cx)),
+            )
+            .when((loading || empty) && operation_error.is_none(), |d| {
                 d.child(
                     div()
                         .px(px(
@@ -612,6 +634,64 @@ impl Render for Explorer {
     }
 }
 impl Explorer {
+    /// `.explorer-tree-error-banner` above a tree with rows, or the root meta
+    /// row of an empty tree: the failed import or move with its Retry.
+    fn operation_error_banner(
+        &self,
+        error: SharedString,
+        empty: bool,
+        t: Theme,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let retry = div()
+            .id("explorer-operation-retry")
+            .flex_shrink_0()
+            .ml(px(8.))
+            .text_color(t.text)
+            .cursor(theme::clickable_cursor())
+            .child(tr("common.action.retry"))
+            .on_click(cx.listener(|s, _, _, cx| {
+                cx.stop_propagation();
+                s.retry_root(cx);
+            }));
+        let text = div().min_w_0().child(error);
+        if empty {
+            // `ExplorerTreeMetaRow depth={0}` with `role="alert"`.
+            return div()
+                .flex()
+                .items_center()
+                .px(px(
+                    metric::SIDEBAR_ROW_LEFT_GAP + metric::TREE_ROW_CONTENT_LEFT
+                ))
+                .pt(px(12.))
+                .text_size(px(theme::ty().left.meta))
+                .text_color(t.danger)
+                .child(text)
+                .child(retry)
+                .into_any_element();
+        }
+        div()
+            .id("explorer-operation-error")
+            .flex()
+            .flex_none()
+            .items_start()
+            .mt(px(6.))
+            .mb(px(4.))
+            .ml(px(metric::SIDEBAR_ROW_LEFT_GAP))
+            .mr(px(metric::SIDEBAR_ROW_RIGHT_GAP))
+            .px(px(8.))
+            .py(px(6.))
+            .border_1()
+            .border_color(theme::alpha(t.danger, 0.24))
+            .rounded(px(metric::SIDEBAR_ROW_RADIUS))
+            .bg(theme::mix(t.danger, t.sidebar, 0.08))
+            .text_color(t.danger)
+            .text_size(px(theme::ty().left.meta))
+            .line_height(relative(1.4))
+            .child(text.flex_1())
+            .child(retry)
+            .into_any_element()
+    }
     /// `.explorer-tree-shell::after` with the navigation at the bottom: while rows
     /// remain below the viewport the tree fades into the footer, which has no
     /// divider. Read at paint time so the fade follows every scroll frame.
