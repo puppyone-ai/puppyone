@@ -105,3 +105,71 @@ fn function_key_text_from_an_input_method_is_not_field_text(cx: &mut TestAppCont
     cx.simulate_input("x");
     assert_eq!(input.read_with(cx, |i, _| i.text().to_owned()), "axb");
 }
+
+#[gpui::test]
+fn mentions_insert_at_the_caret_as_atomic_tokens(cx: &mut TestAppContext) {
+    let (input, cx) = setup(cx, true, 1000);
+    let draw = |cx: &mut VisualTestContext| {
+        cx.update(|w, cx| {
+            let _ = w.draw(cx);
+        })
+    };
+    // The caret sits after "fix " with text following.
+    input.update(cx, |i, cx| {
+        i.restore(
+            crate::ui::input::InputSnapshot {
+                text: "fix please".into(),
+                marks: vec![],
+                anchor: 4,
+                cursor: 4,
+            },
+            cx,
+        )
+    });
+    draw(cx);
+    input.update_in(cx, |i, w, cx| {
+        assert!(i.insert_tokens(
+            &[
+                ("r1".into(), "@a.md".into()),
+                ("r2".into(), "@docs/b.md".into())
+            ],
+            w,
+            cx
+        ));
+    });
+    draw(cx);
+    input.read_with(cx, |i, cx| {
+        // No space before (whitespace precedes), one between, one after.
+        assert_eq!(i.text(), "fix @a.md @docs/b.md please");
+        assert_eq!(i.token_ids(cx), ["r1", "r2"]);
+    });
+    // After a word, the mention is separated from it; at the end nothing
+    // follows.
+    cx.simulate_keystrokes("cmd-down");
+    cx.simulate_input("x");
+    input.update_in(cx, |i, w, cx| {
+        assert!(i.insert_tokens(&[("r3".into(), "@c.md".into())], w, cx));
+    });
+    draw(cx);
+    input.read_with(cx, |i, cx| {
+        assert_eq!(i.text(), "fix @a.md @docs/b.md pleasex @c.md");
+        assert_eq!(i.token_ids(cx), ["r1", "r2", "r3"]);
+    });
+    // A mention deletes as one unit.
+    cx.simulate_keystrokes("backspace");
+    draw(cx);
+    input.read_with(cx, |i, cx| {
+        assert_eq!(i.text(), "fix @a.md @docs/b.md pleasex ");
+        assert_eq!(i.token_ids(cx), ["r1", "r2"]);
+    });
+    // A restored draft brings its tokens back.
+    let content = InputContent::new("see @a.md")
+        .with_token(4..9, InlineToken::new("r1", "@a.md"))
+        .unwrap();
+    input.update(cx, |i, cx| i.restore_content(content, cx));
+    draw(cx);
+    input.read_with(cx, |i, cx| {
+        assert_eq!(i.text(), "see @a.md");
+        assert_eq!(i.token_ids(cx), ["r1"]);
+    });
+}

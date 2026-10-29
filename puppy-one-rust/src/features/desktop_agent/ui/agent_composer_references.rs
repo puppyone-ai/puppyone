@@ -1,9 +1,9 @@
 //! Composer references (`AgentVisualAttachmentList` + `AgentPromptEditor`
 //! mentions, `styles/composer.css`): images sit on the 40px attachment
 //! shelf above the editor; every other reference is an atomic `@path`
-//! mention at the start of the prompt. Kit's editor cannot host inline
-//! widgets, so mentions lead the editor's first line and Backspace on an
-//! empty prompt removes the last one, like deleting an atomic range.
+//! mention inserted at the caret — one of the editor's inline tokens, so it
+//! edits, selects, deletes and undoes as a unit, and deleting it drops the
+//! reference.
 use super::*;
 use crate::agent::domain::reference_input::{Reference, ReferenceContent};
 use crate::ui::appearance::ActiveAppearance;
@@ -148,55 +148,102 @@ impl AgentChat {
         }
         Some(shelf)
     }
-    /// `.desktop-agent-prompt-mention` chips for path references, plus a
-    /// resolving chip while new references are being read.
+    /// `.desktop-agent-prompt-mention`: the chip a mention token renders as.
+    pub(super) fn token_renderer() -> crate::ui::form_input::TokenRenderer {
+        std::rc::Rc::new(|token, _, cx| {
+            let a = super::agent_theme::AgentTheme::new(&cx.palette());
+            mention_chip(&a, token.token().label().to_string(), false)
+                .when(token.is_selected(), |d| {
+                    d.bg(crate::theme::alpha(a.accent, 0.16))
+                })
+                .into_any_element()
+        })
+    }
+    /// `AgentPromptEditor`: new path references become mentions at the
+    /// caret; images stay on the shelf.
+    pub(super) fn insert_mentions(
+        &mut self,
+        added: &[Reference],
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let tokens: Vec<(String, String)> = added
+            .iter()
+            .filter(|r| !matches!(r.content, ReferenceContent::Image { .. }))
+            .map(|r| (r.id.clone(), self.mention_text(r)))
+            .collect();
+        self.composer
+            .update(cx, |i, cx| i.insert_tokens(&tokens, window, cx));
+    }
+    /// A mention deleted from the prompt takes its reference with it.
+    pub(super) fn reconcile_mentions(&mut self, cx: &App) {
+        let present = self.composer.read(cx).token_ids(cx);
+        self.session.references.retain(|r| {
+            matches!(r.content, ReferenceContent::Image { .. }) || present.contains(&r.id)
+        });
+    }
+    /// A draft's text with its mentions as tokens again: each path
+    /// reference claims its `@path` text, in order.
+    pub(super) fn draft_content(
+        &self,
+        text: &str,
+        references: &[Reference],
+    ) -> gpui_kit::component::input::InputContent {
+        use gpui_kit::component::input::{InlineToken, InputContent};
+        let mut content = InputContent::new(text.to_owned());
+        let mut from = 0;
+        for r in references
+            .iter()
+            .filter(|r| !matches!(r.content, ReferenceContent::Image { .. }))
+        {
+            let mention = self.mention_text(r);
+            if let Some(at) = text[from..].find(&mention).map(|i| i + from) {
+                let range = at..at + mention.len();
+                if let Ok(next) = content
+                    .clone()
+                    .with_token(range.clone(), InlineToken::new(r.id.clone(), mention))
+                {
+                    content = next;
+                    from = range.end;
+                }
+            }
+        }
+        content
+    }
+    /// The resolving chip while new references are being read.
     pub(super) fn render_mentions(&self, cx: &App) -> Vec<AnyElement> {
         let t = cx.palette();
         let a = super::agent_theme::AgentTheme::new(&t);
-        let chip = |label: String, resolving: bool| {
-            div()
-                .flex_shrink_0()
-                .mt(px(0.5))
-                .px(px(4.))
-                .rounded(px(4.))
-                .border_1()
-                .border_color(crate::theme::mix(a.accent, a.border_subtle, 0.36))
-                .bg(crate::theme::alpha(a.accent, 0.16 * 0.58))
-                .text_color(crate::theme::mix(a.accent, a.text, 0.78))
-                .text_size(px(14.))
-                .line_height(px(18.))
-                .font_weight(FontWeight(450.))
-                .whitespace_nowrap()
-                .when(resolving, |d| d.opacity(0.68))
-                .child(label)
+        self.attachment_rx
+            .is_some()
+            .then(|| {
+                mention_chip(
+                    &a,
+                    crate::localization::t("agent.reference.resolving").into(),
+                    true,
+                )
                 .into_any_element()
-        };
-        let mut chips: Vec<AnyElement> = self
-            .session
-            .references
-            .iter()
-            .filter(|r| !matches!(r.content, ReferenceContent::Image { .. }))
-            .map(|r| chip(self.mention_text(r), false))
-            .collect();
-        if self.attachment_rx.is_some() {
-            chips.push(chip(
-                crate::localization::t("agent.reference.resolving").into(),
-                true,
-            ));
-        }
-        chips
+            })
+            .into_iter()
+            .collect()
     }
-    /// Backspace on an empty prompt deletes the mention before the caret.
-    pub(super) fn remove_last_mention(&mut self) -> bool {
-        let Some(index) = self
-            .session
-            .references
-            .iter()
-            .rposition(|r| !matches!(r.content, ReferenceContent::Image { .. }))
-        else {
-            return false;
-        };
-        self.session.references.remove(index);
-        true
-    }
+}
+
+/// `.desktop-agent-prompt-mention` (and the resolving placeholder).
+fn mention_chip(a: &super::agent_theme::AgentTheme, label: String, resolving: bool) -> Div {
+    div()
+        .flex_shrink_0()
+        .mt(px(0.5))
+        .px(px(4.))
+        .rounded(px(4.))
+        .border_1()
+        .border_color(crate::theme::mix(a.accent, a.border_subtle, 0.36))
+        .bg(crate::theme::alpha(a.accent, 0.16 * 0.58))
+        .text_color(crate::theme::mix(a.accent, a.text, 0.78))
+        .text_size(px(14.))
+        .line_height(px(18.))
+        .font_weight(FontWeight(450.))
+        .whitespace_nowrap()
+        .when(resolving, |d| d.opacity(0.68))
+        .child(label)
 }

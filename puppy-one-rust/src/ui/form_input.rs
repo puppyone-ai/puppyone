@@ -4,8 +4,13 @@ pub use super::input::InputSnapshot;
 use crate::ui::appearance::ActiveAppearance;
 use gpui::{prelude::*, *};
 use gpui_kit::component::input::{
-    Input, InputEvent as KitEvent, InputState, Textarea, TextareaState,
+    InlineToken, InlineTokenContext, Input, InputContent, InputEvent as KitEvent, InputState,
+    Textarea, TextareaState,
 };
+use std::rc::Rc;
+
+/// How an atomic inline token renders (a prompt mention's chip).
+pub type TokenRenderer = Rc<dyn Fn(&InlineTokenContext, &mut Window, &mut App) -> AnyElement>;
 #[derive(Clone, Debug)]
 pub enum InputEvent {
     Changed,
@@ -38,6 +43,10 @@ pub struct TextInput {
     pub prompt_text: Option<(f32, f32)>,
     /// Draw the placeholder in this colour (Kit's follows the global theme).
     pub placeholder_color: Option<Rgba>,
+    /// Atomic inline tokens (prompt mentions) render through this.
+    pub token_renderer: Option<TokenRenderer>,
+    /// Text with tokens to install at the next render (a restored draft).
+    pending_content: Option<InputContent>,
     max_chars: usize,
     _subscriptions: Vec<Subscription>,
 }
@@ -106,6 +115,8 @@ impl TextInput {
             prompt_text: None,
             placeholder_color: None,
             min_height: 22.,
+            token_renderer: None,
+            pending_content: None,
             max_chars,
             _subscriptions: vec![subscription],
         }
@@ -142,6 +153,70 @@ impl TextInput {
             cx,
         );
     }
+    /// `AgentPromptEditor`'s mention insertion: atomic tokens at the caret
+    /// (replacing a selection), a space between them, one before unless
+    /// whitespace precedes and one after unless whitespace or the end
+    /// follows; the caret lands after them. `(id, text)` per token.
+    pub fn insert_tokens(
+        &mut self,
+        tokens: &[(String, String)],
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        if tokens.is_empty() {
+            return true;
+        }
+        dispatch!(&self.field, |s| s.update(cx, |s, cx| {
+            let value = s.value().to_string();
+            let range = s.selected_range();
+            let before = value[..range.start].chars().next_back();
+            let after = value[range.end..].chars().next();
+            if !range.is_empty() {
+                use gpui::EntityInputHandler as _;
+                let utf16 = |byte: usize| value[..byte].encode_utf16().count();
+                s.replace_text_in_range(Some(utf16(range.start)..utf16(range.end)), "", window, cx);
+            }
+            if before.is_some_and(|c| !c.is_whitespace()) {
+                s.insert(" ", window, cx);
+            }
+            for (index, (id, text)) in tokens.iter().enumerate() {
+                if index > 0 {
+                    s.insert(" ", window, cx);
+                }
+                let at = s.cursor();
+                if s.replace_range_with_token(
+                    at..at,
+                    InlineToken::new(id.clone(), text.clone()),
+                    window,
+                    cx,
+                )
+                .is_err()
+                {
+                    return false;
+                }
+            }
+            if after.is_some_and(|c| !c.is_whitespace()) {
+                s.insert(" ", window, cx);
+            }
+            true
+        }))
+    }
+    /// The ids of the tokens in the text, in order.
+    pub fn token_ids(&self, cx: &App) -> Vec<String> {
+        dispatch!(&self.field, |s| s
+            .read(cx)
+            .tokens()
+            .iter()
+            .map(|span| span.token().id().to_string())
+            .collect())
+    }
+    /// Replace the value with text that carries tokens; the caret ends it.
+    pub fn restore_content(&mut self, content: InputContent, cx: &mut Context<Self>) {
+        self.pending = None;
+        self.value = content.text().clone();
+        self.pending_content = Some(content);
+        cx.notify();
+    }
     pub fn clear(&mut self, cx: &mut Context<Self>) {
         self.restore(
             InputSnapshot {
@@ -161,6 +236,13 @@ impl Focusable for TextInput {
 }
 impl Render for TextInput {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if let Some(content) = self.pending_content.take() {
+            dispatch!(&self.field, |s| s.update(cx, |s, cx| {
+                let end = content.text().len();
+                s.set_value(content, window, cx);
+                s.set_selected_range(end..end, cx);
+            }));
+        }
         if let Some(value) = self.pending.take() {
             dispatch!(&self.field, |s| s.update(cx, |s, cx| {
                 s.set_value(value.text, window, cx);
@@ -186,6 +268,9 @@ impl Render for TextInput {
         let t = cx.palette();
         let control = match &self.field {
             Field::Single(s) => Input::new(s)
+                .when_some(self.token_renderer.clone(), |input, render| {
+                    input.token(move |token, window, cx| render(token, window, cx))
+                })
                 .appearance(self.appearance)
                 .w_full()
                 .when_some(self.prompt_text, |input, (size, line)| {
@@ -194,6 +279,9 @@ impl Render for TextInput {
                 })
                 .into_any_element(),
             Field::Multi(s) => Textarea::new(s)
+                .when_some(self.token_renderer.clone(), |area, render| {
+                    area.token(move |token, window, cx| render(token, window, cx))
+                })
                 .appearance(self.appearance)
                 .w_full()
                 .when_some(self.prompt_text, |area, (size, line)| {

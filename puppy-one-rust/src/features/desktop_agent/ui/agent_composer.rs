@@ -251,15 +251,6 @@ impl AgentChat {
                     .min_h(px(size * 1.5 + 24.))
                     .text_size(px(size))
                     .line_height(px(size * 1.5))
-                    .capture_key_down(cx.listener(|s, e: &KeyDownEvent, _, cx| {
-                        if e.keystroke.key == "backspace"
-                            && s.composer.read(cx).text().is_empty()
-                            && s.remove_last_mention()
-                        {
-                            cx.stop_propagation();
-                            cx.notify();
-                        }
-                    }))
                     .map(|d| {
                         if mentions.is_empty() {
                             d.child(self.composer.clone())

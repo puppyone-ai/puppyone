@@ -25,10 +25,13 @@ impl Prompt {
             references: vec![],
         }
     }
+    /// The prompt as shown in the transcript: path references are already
+    /// inline as `@path` mentions, so only media are listed after it.
     pub fn display(&self) -> String {
         let names = self
             .references
             .iter()
+            .filter(|r| matches!(r.content, ReferenceContent::Image { .. }))
             .map(|r| format!("📎 {}", r.name))
             .collect::<Vec<_>>()
             .join("\n");

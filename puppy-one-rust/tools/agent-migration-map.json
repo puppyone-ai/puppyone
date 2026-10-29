@@ -238,7 +238,7 @@
         "src/agent/domain/reference_input.rs",
         "src/features/desktop_agent/infrastructure/native/native_attachment_client.rs"
       ],
-      "remaining": "Explicit picker/drop snapshots with MIME/UTF-8/size checks and provider-capability gates exist. Product attachment grants, durable binary assets, deduplication, full mention/reference navigation and all lifetime policies remain pending."
+      "remaining": "Explicit picker/drop snapshots with MIME/UTF-8/size checks and provider-capability gates exist. Path references are atomic @path mentions inserted at the caret as the composer's inline tokens (spacing as AgentPromptEditor), deleting one drops its reference, and drafts restore them; images stay on the attachment shelf. Product attachment grants, durable binary assets, deduplication, mention navigation and all lifetime policies remain pending."
     },
     {
       "name": "Session catalog and capacity",

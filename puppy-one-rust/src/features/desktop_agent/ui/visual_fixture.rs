@@ -274,6 +274,10 @@ impl AgentChat {
                     bytes: 0,
                 },
             ];
+            // The product fixture's draft: `@README.md ` with its mention.
+            let content = view.draft_content("@README.md ", &view.session.references);
+            view.composer
+                .update(cx, |i, cx| i.restore_content(content, cx));
         }
         if scenario == "chat-tool-expanded" {
             view.rail_selected

@@ -138,7 +138,7 @@ impl AgentChat {
         cx.spawn_in(window, async move |this, cx| {
             while rx.recv().await.is_ok() {
                 if this
-                    .update_in(cx, |s, _, cx| {
+                    .update_in(cx, |s, window, cx| {
                         let before = s.session.snapshot().revision;
 
                         s.session.poll();
@@ -159,7 +159,17 @@ impl AgentChat {
                             s.attachment_rx = None;
                             match result {
                                 Ok(refs) if s.attachment_thread == s.session.snapshot().thread => {
-                                    s.session.stage(refs)
+                                    let known: Vec<String> =
+                                        s.session.references.iter().map(|r| r.id.clone()).collect();
+                                    s.session.stage(refs);
+                                    let added: Vec<_> = s
+                                        .session
+                                        .references
+                                        .iter()
+                                        .filter(|r| !known.contains(&r.id))
+                                        .cloned()
+                                        .collect();
+                                    s.insert_mentions(&added, window, cx);
                                 }
                                 Ok(_) => {
                                     s.session.draft_error = Some(
@@ -198,13 +208,15 @@ impl AgentChat {
             i.min_height = size * 1.5;
             i.appearance = false;
             i.submit_on_enter = true;
+            i.token_renderer = Some(Self::token_renderer());
         });
         cx.subscribe_in(
             &composer,
             window,
             |s, _, event: &crate::ui::form_input::InputEvent, window, cx| {
-                if matches!(event, crate::ui::form_input::InputEvent::Submit) {
-                    s.send(window, cx);
+                match event {
+                    crate::ui::form_input::InputEvent::Submit => s.send(window, cx),
+                    crate::ui::form_input::InputEvent::Changed => s.reconcile_mentions(cx),
                 }
                 cx.notify();
             },
@@ -313,6 +325,18 @@ impl AgentChat {
         }
     }
     fn set_draft(&mut self, text: String, cx: &mut Context<Self>) {
+        // Mentions come back as tokens.
+        if self.session.references.iter().any(|r| {
+            !matches!(
+                r.content,
+                crate::agent::domain::reference_input::ReferenceContent::Image { .. }
+            )
+        }) {
+            let content = self.draft_content(&text, &self.session.references);
+            self.composer
+                .update(cx, |i, cx| i.restore_content(content, cx));
+            return;
+        }
         let end = text.len();
         let marks = vec![crate::ui::input::Mark::default(); text.chars().count()];
         self.composer.update(cx, |i, cx| {
