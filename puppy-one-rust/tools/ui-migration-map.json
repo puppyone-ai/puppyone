@@ -19,7 +19,28 @@
     "packages/shared-ui/src/data",
     "packages/shared-ui/src/styles",
     "src/features/editor-workbench",
-    "packages/shared-ui/src/editor"
+    "packages/shared-ui/src/editor",
+    "src/lib",
+    "src/app",
+    "src/features/cloud",
+    "src/features/automation",
+    "src/features/changes",
+    "src/features/plugins",
+    "src/features/payments",
+    "src/features/project-reach",
+    "src/features/project-import",
+    "src/features/project-appearance",
+    "src/features/updates",
+    "src/features/viewer-packs",
+    "src/features/native-surfaces",
+    "src/features/desktop-agent-presence",
+    "src/features/telemetry",
+    "src/features/flags",
+    "src/features/external-apps",
+    "src/features/session-transport",
+    "src/features/build-info",
+    "src/features/markdown",
+    "src/features/workbench-interactions"
   ],
   "excluded_patterns": [
     {
@@ -401,14 +422,14 @@
         "src/components/DesktopWindowChrome.tsx",
         "src/features/app-shell/DesktopTitlebarActions.tsx",
         "src/features/app-shell/DesktopTitlebarContext.tsx",
-        "src/features/app-shell/DesktopTitlebarMenuLayer.tsx",
+        "src/components/DesktopTitlebarMenuLayer.tsx",
         "src/features/app-shell/headerElements.tsx",
         "src/features/app-shell/useGitPresentation.ts",
         "src/features/source-control/gitTitlebarStatus.ts",
         "src/features/app-shell/header-editor-columns.css",
         "src/styles/titlebar.css",
         "src/styles/window-chrome.css",
-        "src/features/app-shell/layout/desktopPaneLayout.ts"
+        "src/lib/desktopPaneLayout.ts"
       ],
       "targets": [
         "src/shell/header.rs",
@@ -426,17 +447,17 @@
       "status": "partial",
       "sources": [
         "src/features/app-shell/DesktopWorkspaceSwitcher.tsx",
-        "src/features/app-shell/DesktopProjectLocationSwitcher.tsx",
+        "src/components/DesktopProjectLocationSwitcher.tsx",
         "src/features/app-shell/DesktopProjectMenuItem.tsx",
         "src/features/app-shell/ProjectMenuHeader.tsx",
         "src/features/app-shell/ProjectSwitcherRail.tsx",
         "src/features/app-shell/projectSwitcherRailGeometry.ts",
         "src/features/app-shell/project-switcher-rail.css",
-        "src/features/app-shell/useProjectOpenHistory.ts",
+        "src/lib/useProjectOpenHistory.ts",
         "src/features/app-shell/useProjectSwitcherSurface.ts",
         "src/components/DesktopMenu.tsx",
         "src/styles/menus.css",
-        "src/features/app-shell/useAnchoredOverlayPosition.ts"
+        "src/components/useAnchoredOverlayPosition.ts"
       ],
       "targets": [
         "src/shell/project_menu.rs",
@@ -464,7 +485,7 @@
         "src/components/onboarding/OnboardingBrandLockup.tsx",
         "src/components/onboarding/HomeProjectIcon.tsx",
         "src/components/brand/PuppyBrandMark.tsx",
-        "src/features/app-shell/workspaceHomeModel.ts",
+        "src/lib/workspaceHomeModel.ts",
         "src/styles/onboarding.css",
         "src/components/OnboardingProjectEntryDialog.tsx",
         "src/styles/onboarding-entry-dialog.css"
@@ -563,7 +584,7 @@
       "sources": [
         "src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchLauncher.tsx",
         "src/features/app-shell/auxiliary-workbench/auxiliary-workbench-launcher.css",
-        "src/features/app-shell/auxiliary-workbench/WorkbenchLauncherState.ts",
+        "src/lib/workbench/WorkbenchLauncherState.ts",
         "src/features/desktop-terminal/ui/TerminalLauncher.tsx",
         "src/features/desktop-terminal/ui/LauncherDiscoveryFeedback.tsx",
         "src/components/brand/AgentLauncherIcon.tsx",
@@ -600,9 +621,9 @@
         "src/features/app-shell/auxiliary-workbench/layout/interactions/workbenchContentDropTarget.ts",
         "src/features/app-shell/auxiliary-workbench/layout/interactions/workbenchTabBarDropTarget.ts",
         "src/features/app-shell/auxiliary-workbench/auxiliary-workbench.css",
-        "src/features/app-shell/auxiliary-workbench/ProjectWorkbenchStore.ts",
+        "src/lib/workbench/ProjectWorkbenchStore.ts",
         "src/features/app-shell/auxiliary-workbench/useAuxiliaryWorkbench.ts",
-        "src/features/app-shell/auxiliary-workbench/types.ts",
+        "src/lib/workbench/types.ts",
         "src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchCloseDialog.tsx",
         "src/features/app-shell/auxiliary-workbench/useAuxiliaryWorkbenchCloseCoordinator.ts",
         "src/features/app-shell/auxiliary-workbench/auxiliary-workbench-close-dialog.css"

@@ -3,18 +3,20 @@
   "sources": {
     "desktop": {
       "repository": "puppyone",
-      "head": "d2ddc4b903636442ea81b3fb454a24c6f96696f4",
-      "checkout": "../../puppyone-qubits",
+      "head": "9c500b3d88a3bda35b77acf05d9cf3637631eec4",
+      "checkout": "../../puppyone",
       "inputs": {
-        "src/features/cloud/files/cloudWorkspaceClient.ts": "33c56d7a16a08371e6d0471d876366822995f04133bce41462786038531c944b",
-        "src/features/cloud/files/cloudDataPort.ts": "fdd1477623e39086f965c495138dcb82d894b902ab83af6fc13674c3017222d0",
+        "src/features/cloud/files/cloudWorkspaceClient.ts": "b039b590d1240ecda7c8f436055bd6d8de53090ff72e725e5f269787fec24969",
+        "src/features/cloud/files/cloudDataPort.ts": "171b55e43ea6b9df7d9e3f7cd4a3e5a537f39167ca19084cf8f22e38ae4d8176",
         "electron/main/cloud-workspace-file.mjs": "edd03aa65e91b35304e682e51b007598986f2a2de85852ed969e2817f0b511b1",
         "electron/main/cloud-workspace-events.mjs": "8ce3c36c3c8e5e4741d4149063977218f3e480651a31ff03913e00faae296b63",
         "src/features/cloud/project/context/projectCloudContext.ts": "8e074c79ef2491f3f1dd3e19e6ac9119244e9704da34a1779703eb80a15a4210",
         "src/features/cloud/files/cloudWorkspaceOpening.ts": "74fa5980b2a105d3298015f7e54edb66ed6c0fc884127e4408004707a754d544",
         "src/features/cloud/cloudOpeningFailure.ts": "1bea1d344e4725ae3b99f524228f0ef04a31e6d7c7ffa40761a870d55e5ecb5c",
-        "shared/repositoryContract.js": "871c7849497345fc9510005906f1e4a7e7857fbf095161d2d76ad7d25a7a6952"
-      }
+        "shared/repositoryContract.js": "871c7849497345fc9510005906f1e4a7e7857fbf095161d2d76ad7d25a7a6952",
+        "src/features/cloud/files/contracts.ts": "f2a816bbf2348dc55fae2e1e671d0eaaea8f2e63854a36a57403d48cf90596a0"
+      },
+      "review20261029": "Repinned 2026-10-29 to v0.4.0 (main). Reviewed drift: EditorPaneActionsMenu.tsx import path only; DataWorkspace.tsx adds operationError (ported natively as R-8); cloudDataPort.ts/cloudWorkspaceClient.ts type-only (CloudWorkbench moved to files/contracts.ts, now pinned)."
     },
     "cloud": {
       "repository": "puppyone-cloud",

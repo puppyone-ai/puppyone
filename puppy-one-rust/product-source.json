@@ -1,4 +1,4 @@
 {
-  "checkout": "../../puppyone-qubits",
-  "scope": "Web product source reference; this does not integrate the native worktree"
+  "checkout": "../../puppyone",
+  "scope": "Web product source reference (v0.4.0 main); this does not integrate the native worktree"
 }

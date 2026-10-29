@@ -1,5 +1,5 @@
 {
-  "sourceCommit": "d2ddc4b903636442ea81b3fb454a24c6f96696f4",
+  "sourceCommit": "9c500b3d88a3bda35b77acf05d9cf3637631eec4",
   "inputs": {
     "packages/shared-ui/src/icons/productIcons.tsx": "5d7091884cb5840c491a24e5ac4a3a4e923366374ad3f2c73e68b9ed5a946a05",
     "node_modules/lucide-react/package.json": "fc04d9363ba3f8403287b181f66fd6a276c9cc9e2a0b3836ac46d64f6807079c",
@@ -13,14 +13,14 @@
     "packages/shared-ui/src/styles/loading-mark.css": "733f198e5b1bf3cc347fa325d8d0b44a26031b9a6c4ab6525383063c9218fb50",
     "packages/shared-ui/src/styles/loading-placeholder.css": "5bcd91ef6774350439c70d427abc50c37af9f5cd769db124e37a4c00a4005c4f",
     "src/components/loading/index.tsx": "52928c939b4704294ee1e11513bca7dc41359bc6b929a7d112000248c9f62b32",
-    "locales/renderer/en/settings.json": "f1c5ca3ce375e9cfd7666b10445fb774e02d01392ef081384da11ef3e9ab800b",
-    "locales/renderer/zh-Hans/settings.json": "d8407a36e779b800e4d41d8c4926de1a64da2ef2a348c9f6d65d4b17de44302f",
-    "locales/renderer/ja/settings.json": "2d75c99808935613cc6b5bfb1968987f1e174b8043c54cc74b23ede02b9b804a",
-    "locales/renderer/ko/settings.json": "a3dc75d0d19638e4b26876ed9bf119e2bbc145090e27470e023b4edf8323c08d",
-    "locales/renderer/de/settings.json": "9c7f82b56778473b8ce1719e4f57f5241a0c772d9baa598c6a81dc09408f0d04",
-    "locales/renderer/fr/settings.json": "fae0c49a3c7d779566a288fc9720f49a9bb84a6a6ec769e678d18bba47c4956c",
-    "locales/renderer/es/settings.json": "ba78050ed07e11193ca8b197ddbe88749105ca59a73caaa5422ce8aa1c8cf780",
-    "locales/renderer/pt-BR/settings.json": "eba7b99636afb7636d9cfff194ec111ba0042d6a803c719f7b3ae8e337286f26"
+    "locales/renderer/en/settings.json": "5b1daa24f04f71306e41da4f44c55d53e914bb5ef31fc1a0fa26391ca02f3d4e",
+    "locales/renderer/zh-Hans/settings.json": "d737d281fbe3e4e213eace3365e8304a28714ef476311b5867138a815126e3da",
+    "locales/renderer/ja/settings.json": "39cff2bfe729b69dcdd83d499141a8b6ea86fdff6d0cc015ede20adb63f2c0d0",
+    "locales/renderer/ko/settings.json": "542b0d2e0236b4017e64c4784b017b0575345f8550cc015fa53adcaaff8d92f7",
+    "locales/renderer/de/settings.json": "5425b66406ae781622256a141bc31128fb9efbcb283e5d73ff015dba6573f7b5",
+    "locales/renderer/fr/settings.json": "1d1e482de19512aefccd42ff461b04cbf8c31e9ffd40daaa4221dd9f4045e51d",
+    "locales/renderer/es/settings.json": "ae74b09118cb0c4f5d52c990c0edac7e64cce5d4be2e091c312ec9e67316ef84",
+    "locales/renderer/pt-BR/settings.json": "890bc5ab06b1013e88f413be8075ad9161181f3d10340349441e3d86636c998c"
   },
   "icons": {
     "home": {

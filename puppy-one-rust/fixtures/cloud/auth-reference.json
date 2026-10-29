@@ -1,6 +1,6 @@
 {
   "repository": "puppyone",
-  "head": "d2ddc4b903636442ea81b3fb454a24c6f96696f4",
+  "head": "9c500b3d88a3bda35b77acf05d9cf3637631eec4",
   "note": "Dirty reference; hashes identify actual inputs. Native implementation does not import existing credentials. Hosted acceptance is separate.",
   "inputs": {
     "electron/cloud-auth-service.mjs": "34d05c4f9dafe412ce6414de62505810b8d799bf40aa1a9bdf7dcef58cad275d",
@@ -11,5 +11,6 @@
     "electron/main/cloud-configuration.mjs": "25647e9f5276b11341b723c10be938c932ad192bbbcb2630d24142d415989856",
     "shared/cloudEndpoint.js": "b7676b210b309bdd05b296791d3b84cd8381df95f65a28164254cdd2a1da3a0c",
     "tests/unit/cloud/auth/electron.cloud-auth-service.test.mjs": "7819485b1bb7a9f12d2c23ad5194cd3be21b82d285cd5cc988893377a62d3a02"
-  }
+  },
+  "review20261029": "Repinned 2026-10-29 to v0.4.0 (main). Reviewed drift: EditorPaneActionsMenu.tsx import path only; DataWorkspace.tsx adds operationError (ported natively as R-8); cloudDataPort.ts/cloudWorkspaceClient.ts type-only (CloudWorkbench moved to files/contracts.ts, now pinned)."
 }

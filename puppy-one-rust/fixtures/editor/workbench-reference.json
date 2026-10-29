@@ -1,6 +1,6 @@
 {
-  "commit": "d2ddc4b903636442ea81b3fb454a24c6f96696f4",
-  "checkout": "../../puppyone-qubits",
+  "commit": "9c500b3d88a3bda35b77acf05d9cf3637631eec4",
+  "checkout": "../../puppyone",
   "note": "Actual dirty working-tree inputs, read-only reference. No claim that recorded HEAD alone reproduces these bytes.",
   "inputs": {
     "src/styles/titlebar.css": "234fb182d6b0cc04cfb7d2bc1c603704d15a1f807b0ed8dccbd3fe930cc26715",
@@ -45,7 +45,7 @@
     "src/features/editor-workbench/interactions/useInteractionTermination.ts": "b3e678ccc7a245ea00239da5a941676b096e06cc8715d19e46eda71357e73e68",
     "src/features/editor-workbench/interactions/useSplitResizeGesture.ts": "26a6cd75a691c2a4ec52f8c809cc33fae45b84e6ae768591d1eb153ec4e0a77b",
     "src/features/editor-workbench/layout/DesktopEditorSplitView.tsx": "98e404845da8f6986520c3835fc07bdb5751f97acea02e6dd046ecf69f03c63e",
-    "src/features/editor-workbench/layout/EditorPaneActionsMenu.tsx": "e477c7907e12f1afd110dfad9bdfbc5406bcd71619fddefe731e0bdc1fe26fdd",
+    "src/features/editor-workbench/layout/EditorPaneActionsMenu.tsx": "991f8255de73903533196db11cd465bf0f497cc0e63dc36343c062ccba1205d5",
     "src/features/editor-workbench/layout/EditorPaneChrome.tsx": "089073c6064114d15e7870407f6e22b6d46f9be0a20dbe2879fa986786a2a02e",
     "src/features/editor-workbench/layout/EditorPaneShell.tsx": "57e784ae65c8a35257cca1e2d0ae4b4ec1ae8040c88883dd08f2b624c75d6bf7",
     "src/features/editor-workbench/layout/EditorSplitResizeHandle.tsx": "a9bbd345723d3eb712d01cd027afd9af009d80acf63bfef3b387018df142ccc7",
@@ -64,16 +64,13 @@
     "tests/unit/workbench/layout/editorWorkbenchPersistence.test.ts": "7e1d41fd32e8a109febbcc0f35a5c9ffdc2be18c106f7545ba56390b523d575a",
     "tests/unit/workbench/layout/workbenchSplitTreeModel.test.ts": "91696e90edd09aa8ce2f08334a8ff5de5639d6d39b0fb88b81de3a6670f11d1d",
     "tests/unit/workbench/tabs/editorGroupModel.test.ts": "842c659f050560265ce071103d0cb4895e123342498e784328c62bec6fd0927d",
-    "packages/shared-ui/src/data/DataWorkspace.tsx": "d9fff4671ce79ccf1b931857ccbb84958cfc01fb949360a6e1d99ef33263fc3d",
+    "packages/shared-ui/src/data/DataWorkspace.tsx": "9e624cb63605f75dc1f6b2002bddc555e14ca39cb157b367840c9dfe9d5118d2",
     "src/features/data-workspace/fileClipboard.ts": "cb4c5d290cf83ce890bc40abf7227d67c58fc23079491ea10b9e90bb6cc3e513"
   },
-  "dirtyInputs": [
-    " M src/styles/titlebar.css",
-    " M packages/shared-ui/src/data/DataWorkspace.tsx"
-  ],
   "additionalInputReview": "Titlebar CSS/chrome added after inspecting their actual bytes for Editor tab metrics; existing 59 input hashes unchanged.",
   "reviewedAdditions20261028": [
     "packages/shared-ui/src/data/DataWorkspace.tsx",
     "src/features/data-workspace/fileClipboard.ts"
-  ]
+  ],
+  "review20261029": "Repinned 2026-10-29 to v0.4.0 (main). Reviewed drift: EditorPaneActionsMenu.tsx import path only; DataWorkspace.tsx adds operationError (ported natively as R-8); cloudDataPort.ts/cloudWorkspaceClient.ts type-only (CloudWorkbench moved to files/contracts.ts, now pinned)."
 }

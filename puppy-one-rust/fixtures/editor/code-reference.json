@@ -1,6 +1,6 @@
 {
-  "checkout": "../../puppyone-qubits",
-  "commit": "d2ddc4b903636442ea81b3fb454a24c6f96696f4",
+  "checkout": "../../puppyone",
+  "commit": "9c500b3d88a3bda35b77acf05d9cf3637631eec4",
   "inputs": {
     "node_modules/@codemirror/autocomplete/dist/index.js": "2796fb2771a559ee9fbaa65367b96105368dd9ded1bb686df0e005be48801dcd",
     "node_modules/@codemirror/lang-css/dist/index.js": "0a7e271ad65f99f43f34a7169acf67ec3ad016f4c7818904b3e34a5c89f40916",
@@ -33,5 +33,6 @@
     "packages/shared-ui/src/editor/find/codeMirrorFindAdapter.ts": "4732fc2ea9996674ea5fcf41f8bb4a96619606c004ab95cf65a4c6d76269d0f0",
     "packages/shared-ui/src/editor/viewers/code/CodeMirrorCodeEditor.tsx": "9536acfa483370cf39c317a235c47e0136ba9527d1041c3402990534237f2e0e",
     "packages/shared-ui/src/styles/editor/code-editor.css": "408fb2bb7b3140f371a36e25444972bd9ef5b90a2fa58da392601166acbd6381"
-  }
+  },
+  "review20261029": "Repinned 2026-10-29 to v0.4.0 (main). Reviewed drift: EditorPaneActionsMenu.tsx import path only; DataWorkspace.tsx adds operationError (ported natively as R-8); cloudDataPort.ts/cloudWorkspaceClient.ts type-only (CloudWorkbench moved to files/contracts.ts, now pinned)."
 }

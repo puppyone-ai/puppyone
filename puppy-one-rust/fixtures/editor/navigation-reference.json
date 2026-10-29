@@ -1,6 +1,6 @@
 {
-  "checkout": "../../puppyone-qubits",
-  "commit": "d2ddc4b903636442ea81b3fb454a24c6f96696f4",
+  "checkout": "../../puppyone",
+  "commit": "9c500b3d88a3bda35b77acf05d9cf3637631eec4",
   "locale": "en-US",
   "icu": "78.2",
   "inputs": {
@@ -15,5 +15,6 @@
     "packages/shared-ui/src/editor/markdown/core/links/wikiLinkModel.ts": "6b28c3a5817776d8b752c8a8714c0471a4f3e84aec0942f3307a15ecc1a98b2b",
     "packages/shared-ui/src/editor/markdown/platform/policy/markdownUrlPolicy.ts": "5673221c39f33799cea3d3f3aac76af3ecc66afe12e995a8b8820dfd77059e4b",
     "packages/shared-ui/src/editor/markdown/shared/inlineTokenScan.ts": "5d056db16ae51b5c29138860b11f9b0efd23f7be3f5245284767b9dfc3886d11"
-  }
+  },
+  "review20261029": "Repinned 2026-10-29 to v0.4.0 (main). Reviewed drift: EditorPaneActionsMenu.tsx import path only; DataWorkspace.tsx adds operationError (ported natively as R-8); cloudDataPort.ts/cloudWorkspaceClient.ts type-only (CloudWorkbench moved to files/contracts.ts, now pinned)."
 }

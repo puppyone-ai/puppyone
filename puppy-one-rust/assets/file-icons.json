@@ -1,6 +1,6 @@
 {
  "schema": 2,
- "sourceCommit": "d2ddc4b903636442ea81b3fb454a24c6f96696f4",
+ "sourceCommit": "9c500b3d88a3bda35b77acf05d9cf3637631eec4",
  "inputs": {
   "packages/shared-ui/src/file/fileIconThemeRegistry.tsx": "b590dd4ff86744262452b06f60aa6a8d0bd35a6f9cfcb4dc4c2ecbbbb3ff47d8",
   "packages/shared-ui/src/file/fileIconTypes.ts": "430e51f0160fb2c431c9ecc12cc2fdd03c4db70d3087f66a5cd8a4ec7515a61c",
