@@ -1,0 +1,8 @@
+{
+  "comment": "Cloud pixel scenarios shared by tools/reference-workbench.mjs (PUPPYONE_REFERENCE_SUITE=cloud) and tools/capture-workbench.py --suite cloud; data in fixtures/cloud-history.json. 560 px is the default right sidebar width.",
+  "scenarios": [
+    {"scenario": "history-list", "width": 560, "height": 760},
+    {"scenario": "history-detail", "width": 560, "height": 760, "click": ".desktop-history-row"},
+    {"scenario": "history-empty", "width": 560, "height": 760}
+  ]
+}

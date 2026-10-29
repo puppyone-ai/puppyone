@@ -329,13 +329,19 @@ fn header_card(file: &FileDiff, p: &DiffPalette, closed: bool) -> Div {
         .rounded_tr(px(6.))
         .when(closed, |d| d.rounded_bl(px(6.)).rounded_br(px(6.)))
         .overflow_hidden()
-        .bg(p.header_bg)
+        // `.desktop-file-diff` (code ground, the border) around
+        // `.desktop-file-diff-header` (header ground).
+        .bg(p.code_bg)
         .child(
             h_flex()
+                .bg(p.header_bg)
                 .min_h(px(32.))
                 .px(px(10.))
                 .gap(px(8.))
                 .when(!closed, |d| d.border_b_1())
+                // `[data-content-mode="metadata"]`: 7 px above and below
+                // the name (a 35 px card).
+                .when(closed, |d| d.py(px(7.)))
                 .border_color(t.border_subtle)
                 .text_color(t.muted)
                 .child(

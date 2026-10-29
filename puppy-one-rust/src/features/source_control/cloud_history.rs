@@ -212,6 +212,8 @@ pub enum CloudHistoryEvent {
 
 pub struct CloudHistory {
     scope: Option<Scope>,
+    /// The Project and Web origin for "View code changes".
+    link: Option<(String, String)>,
     /// `activeRequestRef`: a result for an older request is dropped.
     request: u64,
     page: Option<(String, u64)>,
@@ -301,6 +303,7 @@ impl CloudHistory {
         cx.on_release(|s: &mut Self, cx| s.release(cx)).detach();
         Self {
             scope: None,
+            link: None,
             request: 0,
             page: None,
             history: None,
@@ -341,6 +344,15 @@ impl CloudHistory {
             return false;
         };
         self.close(cx);
+        self.link = Some((
+            scope.project.clone(),
+            scope
+                .binding
+                .environment
+                .web()
+                .trim_end_matches('/')
+                .to_owned(),
+        ));
         self.scope = Some(scope);
         self.load(cx);
         true
@@ -362,6 +374,7 @@ impl CloudHistory {
     pub fn close(&mut self, cx: &mut Context<Self>) {
         self.release(cx);
         self.scope = None;
+        self.link = None;
         self.request += 1;
         self.detail_request += 1;
         self.history = None;
@@ -769,11 +782,7 @@ impl CloudHistory {
             .filter(|l| !(head && l.name == "HEAD"))
             .cloned()
             .collect();
-        let project = self.scope.as_ref().map(|s| s.project.clone());
-        let web = self
-            .scope
-            .as_ref()
-            .map(|s| s.binding.environment.web().trim_end_matches('/').to_owned());
+        let (project, web) = self.link.clone().unzip();
         let commit_id = commit.id.clone();
         let author = if commit.who.is_empty() {
             tr("cloud.graph.author.cloud").to_owned()
@@ -795,6 +804,7 @@ impl CloudHistory {
                     .min_w_0()
                     .truncate()
                     .text_size(px(m.ui.heading))
+                    .line_height(relative(theme::NORMAL_LINE_HEIGHT))
                     .font_weight(FontWeight(650.))
                     .text_color(t.text)
                     .child(commit.id.chars().take(8).collect::<String>()),
@@ -872,6 +882,7 @@ impl CloudHistory {
                     .gap_x(px(10.))
                     .gap_y(px(4.))
                     .text_size(px(m.right.meta))
+                    .line_height(relative(theme::NORMAL_LINE_HEIGHT))
                     .text_color(t.muted)
                     .child(author)
                     .child(time)
@@ -888,6 +899,7 @@ impl CloudHistory {
                 .gap(px(8.))
                 .mb(px(16.))
                 .text_size(px(m.ui.meta))
+                .line_height(relative(theme::NORMAL_LINE_HEIGHT))
                 .font_weight(FontWeight::SEMIBOLD)
                 .text_color(t.subtle)
                 .child(tf(
@@ -971,6 +983,43 @@ impl CloudHistory {
                 )
                 .into_any_element(),
         )
+    }
+}
+
+/// The pixel lab (`cloud-history-*`): the product fixture's page and
+/// detail, without a session or reads (`tools/reference-cloud-entry.tsx`).
+#[cfg(feature = "dev-capture")]
+impl CloudHistory {
+    pub fn lab_fixture(
+        &mut self,
+        scenario: &str,
+        data: &serde_json::Value,
+        cx: &mut Context<Self>,
+    ) {
+        let page = &data[if scenario == "history-empty" {
+            "empty"
+        } else {
+            "page"
+        }];
+        let project = data["page"]["project_id"]
+            .as_str()
+            .unwrap_or_default()
+            .to_owned();
+        let web = data["web"].as_str().unwrap_or_default().to_owned();
+        self.link = Some((project.clone(), web));
+        if let Ok(history) = model::parse_page(page, &project, false) {
+            self.adopt(history);
+        }
+        if scenario == "history-detail"
+            && let Some(first) = self.commits.first().map(|c| c.id.clone())
+        {
+            self.selected = Some(first.clone());
+            self.detail = Some(first.clone());
+            self.detail_state = model::parse_detail(&data["detail"], &first)
+                .ok()
+                .map(Detail::Ready);
+        }
+        cx.notify();
     }
 }
 

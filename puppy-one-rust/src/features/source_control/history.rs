@@ -173,6 +173,9 @@ pub(super) trait TimelineHost: Sized + 'static {
 
 /// The local time now, for day grouping.
 pub(super) fn now() -> i64 {
+    if let Some(clock) = crate::lab::clock() {
+        return clock;
+    }
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_secs() as i64)
@@ -197,7 +200,20 @@ fn timeline_row<H: TimelineHost>(host: &H, index: usize, cx: &mut Context<H>) ->
             label,
             collapsed,
         }) => date_row(index, key, label, *collapsed, cx),
-        Some(TimelineRow::Commit(commit)) => commit_row(host, *commit, cx),
+        Some(TimelineRow::Commit(commit)) => {
+            // `.desktop-history-row { margin: 2px 0 }`: between two commits
+            // of a day the margins add up (32 px apart); before a day
+            // heading the row ends after 30.
+            let before_commit = matches!(
+                host.timeline_rows().get(index + 1),
+                Some(TimelineRow::Commit(_))
+            );
+            div()
+                .w_full()
+                .when(before_commit, |d| d.pb(px(2.)))
+                .child(commit_row(host, *commit, cx))
+                .into_any_element()
+        }
         None => return div().into_any_element(),
     };
     // `.desktop-history-list` inline padding, with the stable scrollbar

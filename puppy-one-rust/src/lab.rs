@@ -7,6 +7,8 @@
 //! - `gallery[-dialog]-<mode>`: the component library (`ui::gallery`).
 //! - `settings-<section>-<mode>`: `SettingsDialog` on one page over the task
 //!   backdrop (`tools/settings-scenarios.json`).
+//! - `cloud-<scenario>-<mode>`: Cloud surfaces over `fixtures/cloud-history.json`
+//!   (`tools/cloud-scenarios.json`).
 use crate::{
     features::{
         settings::{Page, SettingsWorkspaceSurface, preferences_store::PreferencesStore},
@@ -19,6 +21,7 @@ use std::path::PathBuf;
 
 enum Surface {
     Assets(Entity<crate::ui::asset_gallery::AssetGallery>),
+    CloudHistory(Entity<crate::features::source_control::CloudHistory>),
     Gallery(Entity<crate::ui::gallery::Gallery>),
     Workbench(Entity<Workbench>),
     Settings(Entity<SettingsWorkspaceSurface>),
@@ -34,6 +37,12 @@ pub struct Lab {
     frames: u32,
 }
 
+static CLOCK: std::sync::OnceLock<i64> = std::sync::OnceLock::new();
+/// The fixture's fixed time (seconds) in the pixel lab, so relative times and
+/// day groups match the reference's clock.
+pub fn clock() -> Option<i64> {
+    CLOCK.get().copied()
+}
 /// True in the pixel lab: finite attention animations render at rest, as
 /// the reference finishes them before capturing (`tools/reference-workbench.mjs`).
 pub fn settled() -> bool {
@@ -76,7 +85,20 @@ impl Lab {
         // References render with the account available and signed out.
         crate::features::cloud_account::install_offline(cx);
         let gallery = scenario.strip_prefix("gallery");
-        let surface = if scenario == "assets" {
+        let surface = if let Some(cloud) = scenario.strip_prefix("cloud-") {
+            // `tools/cloud-scenarios.json` over `fixtures/cloud-history.json`.
+            let data: serde_json::Value =
+                serde_json::from_str(include_str!("../fixtures/cloud-history.json"))
+                    .expect("Cloud fixture");
+            let _ = CLOCK.set(data["now"].as_i64().unwrap_or_default() / 1000);
+            let history = cx.new(|cx| {
+                let mut history = crate::features::source_control::CloudHistory::new(cx);
+                history.lab_fixture(cloud, &data, cx);
+                history
+            });
+            cx.observe(&history, |_, _, cx| cx.notify()).detach();
+            Surface::CloudHistory(history)
+        } else if scenario == "assets" {
             Surface::Assets(cx.new(|_| crate::ui::asset_gallery::AssetGallery))
         } else if let Some(rest) = gallery {
             let dialog = rest == "-dialog";
@@ -165,6 +187,7 @@ impl Render for Lab {
             Surface::Gallery(gallery) => root.child(gallery.clone()),
             Surface::Assets(gallery) => root.child(gallery.clone()),
             Surface::Workbench(workbench) => root.bg(t.auxiliary()).child(workbench.clone()),
+            Surface::CloudHistory(history) => root.bg(t.auxiliary()).child(history.clone()),
             Surface::Settings(settings) => {
                 // The product page body is `--po-canvas`; the task backdrop
                 // and the dialog sit over it exactly as in the shell.

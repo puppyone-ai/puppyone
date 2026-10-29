@@ -24,7 +24,8 @@ from PIL import Image
 root = Path(__file__).resolve().parents[1]
 # suite → (scenario file, native lab case prefix)
 SUITES = {"workbench": ("tools/workbench-scenarios.json", ""),
-          "settings": ("tools/settings-scenarios.json", "settings-")}
+          "settings": ("tools/settings-scenarios.json", "settings-"),
+          "cloud": ("tools/cloud-scenarios.json", "cloud-")}
 
 parser = argparse.ArgumentParser()
 parser.add_argument("only", nargs="*")

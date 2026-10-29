@@ -3,6 +3,7 @@
 //   workbench — right sidebar (tabs, launcher, Agent Chat); fixtures mirror
 //               src/features/workbench/lab.rs
 //   settings  — SettingsDialog, one page per case; fixtures mirror src/lab.rs
+//   cloud     — Cloud surfaces (History sidebar); data shared with src/lab.rs
 //
 //   <product>/node_modules/.bin/electron tools/reference-workbench.mjs
 //   PUPPYONE_REFERENCE_SUITE=settings ... for the Settings suite.
@@ -26,6 +27,11 @@ const SUITES = {
     scope: 'real product SettingsDialog; offline fixture services',
     elements: '.desktop-settings-dialog, .desktop-settings-dialog *, .desktop-settings-dialog-backdrop',
     // Required at import time; the page is offline, so it is never reached.
+    env: {VITE_DESKTOP_CLOUD_API_URL: 'https://api.puppyone.ai'}},
+  cloud: {entry: 'tools/reference-cloud-entry.tsx', scenarios: 'tools/cloud-scenarios.json',
+    scope: 'real product Cloud surfaces; offline fixture Cloud bridge',
+    elements: '.desktop-git-history-sidebar, .desktop-git-history-sidebar *, #desktop-overlay-root *',
+    data: 'fixtures/cloud-history.json',
     env: {VITE_DESKTOP_CLOUD_API_URL: 'https://api.puppyone.ai'}},
 };
 const suiteName = process.env.PUPPYONE_REFERENCE_SUITE ?? 'workbench';
@@ -51,7 +57,8 @@ async function run() {
   for (const c of cases) {
     if (only && !only.includes(c.id)) continue;
     const fixture = {id: c.id, mode: c.mode, locale: 'en', width: c.width, height: c.height};
-    const page = `window.__catalogs=${JSON.stringify(catalogMap)};\n${script}`;
+    const data = suite.data ? await readFile(path.join(root, suite.data), 'utf8') : 'null';
+    const page = `window.__catalogs=${JSON.stringify(catalogMap)};window.__fixtureData=${data};\n${script}`;
     const win = await openPage(profile, {width: c.width, height: c.height, mode: c.mode, fixture, script: page, style});
     try {
       await win.webContents.executeJavaScript(`(async()=>{await document.fonts.ready;
