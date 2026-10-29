@@ -124,7 +124,7 @@ pub(super) fn git(
         root,
         input,
         Duration::from_secs(
-            if args.first() == Some(&"pull") || args.first() == Some(&"push") {
+            if matches!(args.first(), Some(&"pull" | &"push" | &"fetch")) {
                 120
             } else {
                 60
@@ -271,6 +271,15 @@ pub fn operate(root: &Path, op: &Operation, cancel: &AtomicBool) -> Result<Snaps
         args.extend(paths.iter().copied());
     }
     git(root, &args, input, cancel)?;
+    status(root, cancel)
+}
+/// `fetchWorkspaceGit`: refresh `remote`'s tracking refs (`--prune`); the
+/// working tree and the index are untouched.
+pub fn fetch(root: &Path, remote: &str, cancel: &AtomicBool) -> Result<Snapshot, String> {
+    if remote.is_empty() || remote.starts_with('-') {
+        return Err(crate::localization::t("native.git.pathOutside").into());
+    }
+    git(root, &["fetch", "--prune", "--quiet", remote], None, cancel)?;
     status(root, cancel)
 }
 /// `buildDefaultCommitMessage`: names the one staged file, counts several.

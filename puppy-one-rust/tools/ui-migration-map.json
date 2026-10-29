@@ -1266,6 +1266,31 @@
         "test:titles_follow_the_product_protocols",
         "test:output_lapses_and_refresh_bursts_are_ignored"
       ]
+    },
+    {
+      "name": "Git refresh scheduling",
+      "status": "ported",
+      "sources": [
+        "src/features/source-control/gitRefreshScheduler.ts",
+        "src/features/source-control/remoteRefreshPolicy.ts",
+        "src/features/source-control/repositoryRefreshPolicy.ts",
+        "src/features/source-control/useGitRepositoryLifecycle.ts"
+      ],
+      "targets": [
+        "src/features/source_control/refresh.rs",
+        "src/features/source_control/mod.rs",
+        "src/platform/git_watch.rs",
+        "src/platform/git.rs",
+        "src/shell.rs",
+        "src/shell/explorer/mod.rs"
+      ],
+      "evidence": [
+        "test:reads_follow_invalidations_and_the_metadata_watch_not_a_clock",
+        "test:ref_changes_invalidate_and_lock_files_do_not",
+        "test:remote_fetches_need_focus_a_gap_and_an_upstream",
+        "test:metadata_noise_is_filtered_like_the_product"
+      ],
+      "note": "No status polling: reads come from debounced invalidations (250 ms) of the working tree (the root watcher) and the repository metadata (an OS watcher on the Git, common and refs directories, lock files, objects and cookies filtered, 120 ms bursts), from focus once 5 s stale, and from mutations. The upstream's remote is fetched silently (--prune) while focused: on first status (15 s gap), every 180 s and on focus once 60 s stale; a local-only branch never touches the network. Not ported: the per-workspace snapshot cache and the watcher's re-arm backoff (notify re-subscribes itself)."
     }
   ]
 }

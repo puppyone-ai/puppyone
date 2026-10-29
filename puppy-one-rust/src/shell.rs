@@ -357,6 +357,10 @@ impl Shell {
                 ExplorerEvent::Error(error) => s.show_error(error.clone()),
                 ExplorerEvent::WatchFailed(error) => s.workspace_notice = Some(error.clone()),
                 ExplorerEvent::WatchRecovered => s.workspace_notice = None,
+                // `onWorkspaceActivity` → `invalidateGitStatus("working-tree")`.
+                ExplorerEvent::ContentChanged => {
+                    s.source_control.update(cx, |sc, cx| sc.invalidate(cx));
+                }
                 ExplorerEvent::CopyLink { path, folder } => s.copy_cloud_link(path, *folder, cx),
             }
             s.receive(window, cx);
@@ -411,7 +415,10 @@ impl Shell {
         .detach();
         // Leaving the window abandons a pane drag (`blur` cancels).
         cx.observe_window_activation(window, |s, window, cx| {
-            if !window.is_window_active() {
+            let active = window.is_window_active();
+            s.source_control
+                .update(cx, |sc, cx| sc.set_focused(active, cx));
+            if !active {
                 s.editor_drop = None;
                 s.end_pane_drag(false, cx);
                 s.end_editor_resize(false, cx);

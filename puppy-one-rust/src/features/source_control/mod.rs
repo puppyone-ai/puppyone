@@ -8,6 +8,7 @@
 mod cloud_history;
 mod diff;
 mod history;
+mod refresh;
 
 pub use cloud_history::{CloudHistory, CloudHistoryEvent};
 
@@ -45,6 +46,10 @@ use std::{
 
 enum ResultValue {
     Status(Result<Snapshot, String>),
+    /// A silent remote fetch, then the status (`refreshGitStatusWithFetch`).
+    Fetched(Result<Snapshot, String>),
+    /// The repository metadata watcher (`git-metadata-watch-service`).
+    Watching(Option<crate::platform::git_watch::GitWatch>),
     History(Result<History, String>, u64),
     Diff(Result<Vec<FileDiff>, String>, u64),
 }
@@ -227,6 +232,16 @@ pub struct SourceControl {
     queued_operation: Option<Operation>,
     dirty: bool,
     last_refresh: Instant,
+    /// Refresh scheduling (`gitRefreshScheduler`, `remoteRefreshPolicy`):
+    /// the metadata watcher and its flag, the pending debounce, window
+    /// focus, and the remote fetch's last attempt and loop.
+    git_watch: Option<crate::platform::git_watch::GitWatch>,
+    metadata_changed: Arc<AtomicBool>,
+    debounce: Option<Task<()>>,
+    focused: bool,
+    fetching: bool,
+    last_fetch: Option<Instant>,
+    remote_loop: Option<Task<()>>,
     history_open: bool,
     history_ticket: u64,
     history_cancel: Arc<AtomicBool>,
@@ -298,6 +313,13 @@ impl SourceControl {
             queued_operation: None,
             dirty: false,
             last_refresh: Instant::now(),
+            git_watch: None,
+            metadata_changed: Arc::new(AtomicBool::new(false)),
+            debounce: None,
+            focused: true,
+            fetching: false,
+            last_fetch: None,
+            remote_loop: None,
             history_open: false,
             history_ticket: 0,
             history_cancel: Arc::new(AtomicBool::new(false)),
@@ -342,7 +364,89 @@ impl SourceControl {
         self.collapsed_days.clear();
         self.rebuild_timeline();
         self.sections.clear();
+        self.fetching = false;
+        self.last_fetch = None;
+        self.debounce = None;
+        // Repository metadata invalidates through its own watcher; Git
+        // resolves the directories, so the watch starts on a worker.
+        self.git_watch = None;
+        let (flag, wake) = (self.metadata_changed.clone(), self.wake.clone());
+        self.task(move |root, _| {
+            ResultValue::Watching(
+                crate::platform::git_watch::watch(&root, refresh::metadata_noise, move || {
+                    flag.store(true, Ordering::Relaxed);
+                    wake.notify();
+                })
+                .ok(),
+            )
+        });
+        // `REMOTE_FETCH_INTERVAL_MS`: the sync remote while focused.
+        self.remote_loop = Some(cx.spawn(async move |this, cx| {
+            loop {
+                cx.background_executor()
+                    .timer(refresh::REMOTE_INTERVAL)
+                    .await;
+                if this
+                    .update(cx, |s, cx| s.request_fetch(refresh::REMOTE_INTERVAL, cx))
+                    .is_err()
+                {
+                    break;
+                }
+            }
+        }));
         self.refresh(cx);
+    }
+    /// Something may have changed in the repository (the working tree or
+    /// its metadata): read the status once the burst settles
+    /// (`GIT_REFRESH_DEBOUNCE_MS`).
+    pub fn invalidate(&mut self, cx: &mut Context<Self>) {
+        if self.root.is_none() || self.debounce.is_some() {
+            return;
+        }
+        self.debounce = Some(cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(refresh::DEBOUNCE).await;
+            let _ = this.update(cx, |s, cx| {
+                s.debounce = None;
+                s.refresh(cx);
+            });
+        }));
+    }
+    /// Window focus: a stale status is read again (`GIT_FOCUS_STALE_MS`) and
+    /// the sync remote is fetched once it is stale too.
+    pub fn set_focused(&mut self, focused: bool, cx: &mut Context<Self>) {
+        self.focused = focused;
+        if !focused || self.root.is_none() {
+            return;
+        }
+        if self.last_refresh.elapsed() >= refresh::FOCUS_STALE {
+            self.refresh(cx);
+        }
+        self.request_fetch(refresh::REMOTE_FOCUS_STALE, cx);
+    }
+    /// A silent fetch of the upstream's remote, past `gap` since the last
+    /// attempt; never for a local-only branch, never while unfocused.
+    fn request_fetch(&mut self, gap: Duration, cx: &mut Context<Self>) {
+        let Some(remote) = self
+            .snapshot
+            .as_ref()
+            .and_then(|s| refresh::remote_target(s.upstream.as_deref()))
+            .map(str::to_owned)
+        else {
+            return;
+        };
+        if self.fetching
+            || !refresh::should_fetch_remote(
+                self.focused,
+                self.last_fetch.map(|at| at.elapsed()),
+                gap,
+            )
+        {
+            return;
+        }
+        self.fetching = true;
+        self.last_fetch = Some(Instant::now());
+        self.task(move |root, cancel| ResultValue::Fetched(git::fetch(&root, &remote, cancel)));
+        cx.notify();
     }
     fn task(&self, work: impl FnOnce(PathBuf, &AtomicBool) -> ResultValue + Send + 'static) {
         self.task_with(self.cancel.clone(), work);
@@ -394,7 +498,10 @@ impl SourceControl {
         self.task(move |root, cancel| ResultValue::Status(git::operate(&root, &op, cancel)));
         cx.notify();
     }
-    fn poll(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    fn poll(&mut self, _: &mut Window, cx: &mut Context<Self>) {
+        if self.metadata_changed.swap(false, Ordering::Relaxed) {
+            self.invalidate(cx);
+        }
         while let Ok((epoch, result)) = self.rx.try_recv() {
             if epoch != self.epoch {
                 continue;
@@ -426,6 +533,19 @@ impl SourceControl {
                         }
                     }
                 }
+                ResultValue::Watching(watch) => self.git_watch = watch,
+                // Silent: a failed fetch keeps the last status.
+                ResultValue::Fetched(result) => {
+                    self.fetching = false;
+                    if let Ok(snapshot) = result
+                        && !self.busy
+                        && self.snapshot.as_ref() != Some(&snapshot)
+                    {
+                        self.sections = project_sections(&snapshot);
+                        self.snapshot = Some(snapshot);
+                        self.last_refresh = Instant::now();
+                    }
+                }
                 ResultValue::History(result, ticket) => {
                     if ticket == self.history_ticket {
                         match result {
@@ -452,15 +572,13 @@ impl SourceControl {
         {
             self.operation(operation, cx);
         }
-        if self.root.is_some()
-            && (self.dirty
-                || (window.is_window_active()
-                    && self.last_refresh.elapsed() > Duration::from_secs(3)))
-        {
+        // No polling: reads come from invalidations, focus and mutations.
+        if self.root.is_some() && self.dirty {
             self.refresh(cx);
         }
-        if self.root.is_some() {
-            self.wake.after(Duration::from_secs(3));
+        // `requestFetch(REMOTE_FETCH_MIN_GAP_MS)` once a remote is known.
+        if self.last_fetch.is_none() {
+            self.request_fetch(refresh::REMOTE_MIN_GAP, cx);
         }
         cx.notify();
     }
@@ -1486,6 +1604,67 @@ mod tests {
             assert!(
                 matches!(s.detail.as_ref().unwrap().files, Some(Ok(ref files)) if files.is_empty())
             );
+        });
+    }
+    #[gpui::test]
+    fn reads_follow_invalidations_and_the_metadata_watch_not_a_clock(cx: &mut TestAppContext) {
+        // Real Git and an OS watcher behind the scheduler.
+        cx.executor().allow_parking();
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().canonicalize().unwrap();
+        let cancel = AtomicBool::new(false);
+        git::operate(&root, &Operation::Init, &cancel).unwrap();
+        std::fs::write(root.join("a.md"), "a").unwrap();
+        let (view, cx) = cx.add_window_view(SourceControl::new);
+        let has = |s: &SourceControl, path: &str| {
+            s.snapshot
+                .as_ref()
+                .is_some_and(|snap| snap.changes.iter().any(|c| c.path == path))
+        };
+        let settle = |cx: &mut VisualTestContext, done: &dyn Fn(&SourceControl) -> bool| {
+            let deadline = Instant::now() + Duration::from_secs(5);
+            loop {
+                cx.run_until_parked();
+                cx.executor().advance_clock(Duration::from_millis(50));
+                if view.read_with(cx, |s, _| done(s)) {
+                    return;
+                }
+                assert!(Instant::now() < deadline, "the status never arrived");
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        };
+        view.update(cx, |s, cx| s.set_workspace(root.clone(), cx));
+        settle(cx, &|s| has(s, "a.md") && s.git_watch.is_some());
+        // Nothing reads the repository on a clock.
+        std::fs::write(root.join("b.md"), "b").unwrap();
+        for _ in 0..20 {
+            cx.run_until_parked();
+            cx.executor().advance_clock(Duration::from_millis(500));
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        view.read_with(cx, |s, _| assert!(!has(s, "b.md")));
+        // A burst of invalidations reads once.
+        view.update(cx, |s, cx| {
+            s.invalidate(cx);
+            assert!(s.debounce.is_some());
+            s.invalidate(cx);
+        });
+        settle(cx, &|s| has(s, "b.md"));
+        // An index change from outside (a terminal's `git add`) arrives
+        // through the metadata watch alone.
+        assert!(
+            std::process::Command::new("/usr/bin/git")
+                .arg("-C")
+                .arg(&root)
+                .args(["add", "b.md"])
+                .status()
+                .unwrap()
+                .success()
+        );
+        settle(cx, &|s| {
+            s.snapshot
+                .as_ref()
+                .is_some_and(|snap| snap.changes.iter().any(|c| c.path == "b.md" && c.staged()))
         });
     }
     #[gpui::test]

@@ -89,6 +89,9 @@ pub(in crate::shell) enum ExplorerEvent {
     WatchFailed(String),
     /// A later change arrived: the subscription works again.
     WatchRecovered,
+    /// The working tree changed under the granted root (the root watcher's
+    /// invalidation, `.git` internals excluded): repository status is stale.
+    ContentChanged,
     /// A notice.
     Error(String),
 }
@@ -365,6 +368,7 @@ impl Explorer {
                     match s.watch.as_ref().and_then(|(sub, _)| sub.next()) {
                         Some(WatchEvent::Invalidated) => {
                             cx.emit(ExplorerEvent::WatchRecovered);
+                            cx.emit(ExplorerEvent::ContentChanged);
                             if !s.op {
                                 s.refresh_loaded_folders(cx);
                             }

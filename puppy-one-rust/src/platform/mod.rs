@@ -7,6 +7,7 @@ pub mod environment;
 pub mod git;
 pub mod git_diff;
 pub mod git_history;
+pub mod git_watch;
 pub mod host_budget;
 pub mod image_transcode;
 pub mod locale_format;
