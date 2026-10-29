@@ -180,12 +180,66 @@ impl Explorer {
                 })),
         )
     }
+    /// `ExplorerTreeMetaRow` with a retry path: the failed folder's line,
+    /// indented one step past its children (`--depth` + one indent), the
+    /// failure in danger and Retry in the text colour.
+    fn status_row(
+        &mut self,
+        index: usize,
+        item: crate::model::Row,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let t = cx.palette();
+        let width = self.host.frame.w - 2. * metric::SIDEBAR_ROW_LEFT_GAP;
+        let indent = ((item.depth + 1) as f32 * metric::TREE_INDENT).min((width - 64.).max(0.));
+        let folder = item.status_of().map(PathBuf::from).unwrap_or_default();
+        div()
+            .id(("tree-status-row", index))
+            .flex()
+            .items_center()
+            .mx(px(metric::SIDEBAR_ROW_LEFT_GAP))
+            .my(px(1.))
+            .h(px(theme::control()))
+            .pl(px(metric::SIDEBAR_ROW_CONTENT_LEFT + indent))
+            .pr(px(metric::SIDEBAR_ROW_CONTENT_RIGHT))
+            .gap(px(8.))
+            .min_w_0()
+            .text_size(px(theme::ty().left.meta))
+            .font_weight(FontWeight(520.))
+            .text_color(t.subtle)
+            .child(
+                div()
+                    .min_w_0()
+                    .truncate()
+                    .text_color(t.danger)
+                    .child(SharedString::from(item.error.clone().unwrap_or_default())),
+            )
+            .child(
+                div()
+                    .id(("tree-row-retry", index))
+                    .flex_shrink_0()
+                    .px(px(4.))
+                    .rounded(px(metric::SIDEBAR_ROW_RADIUS))
+                    .text_color(t.text)
+                    .hover(move |d| d.bg(t.hover))
+                    .cursor(theme::clickable_cursor())
+                    .child(tr("common.action.retry"))
+                    .on_click(cx.listener(move |s, _, _, cx| {
+                        cx.stop_propagation();
+                        s.retry_folder(&folder, cx);
+                    })),
+            )
+            .into_any_element()
+    }
     fn tree_row(
         &mut self,
         index: usize,
         item: crate::model::Row,
         cx: &mut Context<Self>,
     ) -> AnyElement {
+        if item.status {
+            return self.status_row(index, item, cx);
+        }
         let t = cx.palette();
         let selected = self.tree.selected == item.path || self.tree.selection.contains(&item.path);
         let lit = self
@@ -197,40 +251,6 @@ impl Explorer {
             .row_body(("tree-row", index), &item, turn, cx)
             .selected(selected)
             .open(lit.is_some());
-        if let Some(error) = item.error.clone() {
-            let retry = item.path.clone();
-            row = row.child(
-                div()
-                    .flex()
-                    .items_center()
-                    .flex_shrink(1.)
-                    .min_w_0()
-                    .gap(px(6.))
-                    .text_size(px(theme::ty().left.meta))
-                    .child(
-                        div()
-                            .min_w_0()
-                            .truncate()
-                            .text_color(t.danger)
-                            .child(SharedString::from(error)),
-                    )
-                    .child(
-                        div()
-                            .id(("tree-row-retry", index))
-                            .flex_shrink_0()
-                            .px(px(4.))
-                            .rounded(px(metric::SIDEBAR_ROW_RADIUS))
-                            .text_color(t.text)
-                            .hover(move |d| d.bg(t.hover))
-                            .cursor(theme::clickable_cursor())
-                            .child(tr("common.action.retry"))
-                            .on_click(cx.listener(move |s, _, _, cx| {
-                                cx.stop_propagation();
-                                s.set_expanded(&retry, true, cx);
-                            })),
-                    ),
-            );
-        }
         // `.tree-row-actions`: "+" on folders, then "⋮".
         if item.folder {
             let parent = item.path.clone();

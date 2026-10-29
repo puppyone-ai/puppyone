@@ -234,7 +234,6 @@ pub struct SourceControl {
     collapsed: std::collections::HashSet<Panel>,
     selection: u64,
     detail: Option<Detail>,
-    confirm: Option<Operation>,
     layout: crate::features::settings::preference_types::GitSidebarLayout,
     icon_theme: String,
     #[cfg(test)]
@@ -300,7 +299,6 @@ impl SourceControl {
             collapsed: Default::default(),
             selection: 0,
             detail: None,
-            confirm: None,
             layout: Default::default(),
             icon_theme: "default".into(),
             #[cfg(test)]
@@ -325,7 +323,6 @@ impl SourceControl {
         self.queued_operation = None;
         self.history_open = false;
         self.detail = None;
-        self.confirm = None;
         self.history = History::default();
         self.history_loaded = false;
         self.collapsed_days.clear();
@@ -689,10 +686,9 @@ impl SourceControl {
             row.action(
                 row_action(("discard", index), "undo-2", discard_label)
                     .danger()
-                    .on_click(cx.listener(move |s, _, _, cx| {
+                    .on_click(cx.listener(move |s, _, window, cx| {
                         cx.stop_propagation();
-                        s.confirm = Some(Operation::Discard(discard.clone()));
-                        cx.notify();
+                        s.confirm_discard(discard.clone(), window, cx);
                     })),
             )
         })
@@ -874,10 +870,8 @@ impl SourceControl {
                             primary,
                             self.busy,
                         )
-                        .on_click(cx.listener(|s, _, _, cx| {
-                            s.confirm = Some(Operation::Pull);
-                            cx.notify();
-                        })),
+                        // `handlePullGit` runs without a confirmation.
+                        .on_click(cx.listener(|s, _, _, cx| s.operation(Operation::Pull, cx))),
                     ),
             )
             .child(
@@ -916,10 +910,8 @@ impl SourceControl {
                 primary == Some(PrimarySlot::Committed),
                 self.busy,
             )
-            .on_click(cx.listener(|s, _, _, cx| {
-                s.confirm = Some(Operation::Push);
-                cx.notify();
-            }));
+            // `handlePushGit` runs without a confirmation.
+            .on_click(cx.listener(|s, _, _, cx| s.operation(Operation::Push, cx)));
             let header = self.section_header(
                 Panel::Committed,
                 snapshot.ahead as usize,
@@ -1085,73 +1077,28 @@ impl SourceControl {
             .text_color(t.subtle)
             .child(text.into())
     }
-    fn confirm_view(&self, op: &Operation, cx: &mut Context<Self>) -> Div {
-        let t = cx.palette();
-        let target = self
-            .snapshot
-            .as_ref()
-            .and_then(|s| s.upstream.clone())
-            .unwrap_or_else(|| tr("native.git.upstream").to_owned());
-        let (label, action, tone) = match op {
-            Operation::Discard(c) => (
-                tf(
-                    "source-control.dialog.discard.path",
-                    &[("path", c.path.clone().into())],
-                ),
-                tr("source-control.action.discard").to_owned(),
-                ButtonVariant::OutlineDanger,
+    /// `handleDiscardGitPaths`: the system confirmation (`window.confirm`)
+    /// before the change is thrown away.
+    fn confirm_discard(&mut self, change: Change, window: &mut Window, cx: &mut Context<Self>) {
+        let answer = window.prompt(
+            PromptLevel::Warning,
+            &tf(
+                "source-control.dialog.discard.path",
+                &[("path", change.path.clone().into())],
             ),
-            Operation::Push => (
-                tf("native.git.pushConfirm", &[("target", target.into())]),
-                tr("source-control.sync.push").to_owned(),
-                ButtonVariant::OutlinePrimary,
-            ),
-            Operation::Pull => (
-                tf("native.git.pullConfirm", &[("target", target.into())]),
-                tr("source-control.sync.pull").to_owned(),
-                ButtonVariant::OutlinePrimary,
-            ),
-            _ => (
-                tr("source-control.sync.continueTitle").to_owned(),
-                tr("source-control.sync.continue").to_owned(),
-                ButtonVariant::OutlinePrimary,
-            ),
-        };
-        v_flex()
-            .mx(px(metric::SIDEBAR_ROW_LEFT_GAP))
-            .mt(px(metric::SIDEBAR_LIST_PADDING_BLOCK))
-            .p(px(12.))
-            .gap(px(12.))
-            .rounded(px(8.))
-            .border_1()
-            .border_color(t.border_subtle)
-            .bg(theme::alpha(t.control, 0.36))
-            .text_size(px(theme::ty().left.content))
-            .text_color(t.muted)
-            .child(label)
-            .child(
-                h_flex()
-                    .gap(px(8.))
-                    .justify_end()
-                    .child(
-                        Button::new("git-cancel")
-                            .label(tr("common.action.cancel"))
-                            .on_click(cx.listener(|s, _, _, cx| {
-                                s.confirm = None;
-                                cx.notify();
-                            })),
-                    )
-                    .child(
-                        Button::new("git-confirm")
-                            .variant(tone)
-                            .label(action)
-                            .on_click(cx.listener(|s, _, _, cx| {
-                                if let Some(op) = s.confirm.take() {
-                                    s.operation(op, cx);
-                                }
-                            })),
-                    ),
-            )
+            None,
+            &[
+                tr("source-control.action.discard"),
+                tr("common.action.cancel"),
+            ],
+            cx,
+        );
+        cx.spawn(async move |this, cx| {
+            if answer.await == Ok(0) {
+                let _ = this.update(cx, |s, cx| s.operation(Operation::Discard(change), cx));
+            }
+        })
+        .detach();
     }
     /// `WorkingFileActions`: open the file, stage or unstage it, discard it.
     fn working_actions(&self, selection: &Selection, cx: &mut Context<Self>) -> Div {
@@ -1197,9 +1144,8 @@ impl SourceControl {
                         .variant(ButtonVariant::GitActionDanger)
                         .label(tr("source-control.action.discard"))
                         .disabled(self.busy)
-                        .on_click(cx.listener(move |s, _, _, cx| {
-                            s.confirm = Some(Operation::Discard(change.clone()));
-                            cx.notify();
+                        .on_click(cx.listener(move |s, _, window, cx| {
+                            s.confirm_discard(change.clone(), window, cx);
                         })),
                 );
         }
@@ -1392,9 +1338,6 @@ impl Render for SourceControl {
             );
         }
         let pane = pane.child(header);
-        if let Some(op) = self.confirm.clone() {
-            return pane.child(self.confirm_view(&op, cx));
-        }
         if self.detail.is_some() {
             return pane.child(self.detail_view(cx));
         }

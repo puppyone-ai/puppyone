@@ -517,7 +517,7 @@ impl Explorer {
         if self.host.picking || self.host.documents_busy || self.host.folder_busy {
             return;
         }
-        let Some(item) = self.tree.rows.get(index).cloned() else {
+        let Some(item) = self.tree.rows.get(index).cloned().filter(|r| !r.status) else {
             return;
         };
         self.tree.selected = item.path.clone();
@@ -541,6 +541,13 @@ impl Explorer {
             .iter()
             .find(|r| &r.path == selected && r.folder)
             .map(|r| r.path.clone())
+    }
+    /// `onRetryFolder`: read a failed folder again.
+    pub fn retry_folder(&mut self, path: &Path, cx: &mut Context<Self>) {
+        if self.tree.retry_folder(path) {
+            cx.emit(ExplorerEvent::LoadChildren(path.to_owned()));
+        }
+        cx.notify();
     }
     /// Expands or collapses `path`, reading it first if it never was.
     pub fn set_expanded(&mut self, path: &Path, expanded: bool, cx: &mut Context<Self>) {

@@ -19,6 +19,8 @@ use std::time::{Duration, Instant};
 pub const GROUP_DELAY: Duration = Duration::from_millis(500);
 /// Bound on retained steps (product `DOCUMENT_HISTORY_POLICY.maxEntries`).
 pub const MAX_STEPS: usize = 200;
+/// Bound on retained change bytes (`DOCUMENT_HISTORY_POLICY.maxBytes`).
+pub const MAX_BYTES: usize = 8 * 1024 * 1024;
 
 #[derive(Clone, Debug)]
 struct Step {
@@ -109,6 +111,7 @@ impl History {
             step.forwards.push(applied.changes.clone());
             step.selection_after = after.selection;
             step.at = now;
+            self.trim();
         } else {
             self.push(Step {
                 inverses: vec![inverse],
@@ -124,8 +127,21 @@ impl History {
 
     fn push(&mut self, step: Step) {
         self.undo.push(step);
-        if self.undo.len() > MAX_STEPS {
-            self.undo.remove(0);
+        self.trim();
+    }
+    /// `trimHistory`: the newest steps are kept within both the step and
+    /// the byte budget; the oldest undo steps go first, then the furthest
+    /// redo steps.
+    fn trim(&mut self) {
+        let weight = |s: &Step| s.forwards.iter().map(ChangeSet::weight).sum::<usize>();
+        let mut bytes: usize = self.undo.iter().chain(&self.redo).map(weight).sum();
+        while self.undo.len() + self.redo.len() > MAX_STEPS || bytes > MAX_BYTES {
+            let dropped = if !self.undo.is_empty() {
+                self.undo.remove(0)
+            } else {
+                self.redo.remove(0)
+            };
+            bytes -= weight(&dropped);
         }
     }
 
@@ -238,6 +254,32 @@ mod tests {
         );
         let applied = state.apply(tr).unwrap();
         history.record(&applied, state, now);
+    }
+    #[test]
+    fn history_keeps_the_newest_steps_within_the_byte_budget() {
+        let mut state = EditorState::new("");
+        let mut history = History::default();
+        let t0 = Instant::now();
+        // Each paste is its own step of 1 MiB (2 MiB by the policy's count).
+        let block = "x".repeat(1024 * 1024);
+        for n in 0..6 {
+            let applied = state
+                .apply(Transaction::edit(
+                    ChangeSet::replace(state.doc.len()..state.doc.len(), &block),
+                    None,
+                    UserEvent::Paste,
+                ))
+                .unwrap();
+            history.record(&applied, &state, t0 + Duration::from_secs(n));
+        }
+        // 8 MiB keeps the four newest steps.
+        assert_eq!(history.undo.len(), 4);
+        let mut undone = 0;
+        while history.step(&mut state, false) {
+            undone += 1;
+        }
+        assert_eq!(undone, 4);
+        assert_eq!(state.doc.len(), 2 * block.len());
     }
     #[test]
     fn typing_groups_and_commands_split_steps() {

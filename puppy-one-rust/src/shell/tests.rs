@@ -672,6 +672,7 @@ fn large_tree_uses_gpui_virtual_rows(cx: &mut TestAppContext) {
                 display: format!("{i}"),
                 extension: None,
                 error: None,
+                status: false,
             })
             .collect();
         cx.notify();
@@ -714,6 +715,7 @@ fn sidebar_tree_fades_into_the_footer_only_while_rows_remain_below(cx: &mut Test
                 display: format!("{i}"),
                 extension: None,
                 error: None,
+                status: false,
             })
             .collect();
         cx.notify();

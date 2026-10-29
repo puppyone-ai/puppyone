@@ -51,13 +51,23 @@ impl Explorer {
     ) -> Stateful<Div> {
         tree.on_action(cx.listener(|s, _: &SelectNext, _, cx| {
             let len = s.tree.rows.len();
-            let next = s
-                .selected_index()
-                .map_or(0, |i| (i + 1).min(len.saturating_sub(1)));
+            // Status rows are not entries; the selection steps over them.
+            let mut next = s.selected_index().map_or(0, |i| i + 1);
+            while s.tree.rows.get(next).is_some_and(|r| r.status) {
+                next += 1;
+            }
+            if next >= len {
+                return;
+            }
             s.select_index(next, cx)
         }))
         .on_action(cx.listener(|s, _: &SelectPrevious, _, cx| {
-            let previous = s.selected_index().map_or(0, |i| i.saturating_sub(1));
+            let Some(mut previous) = s.selected_index().map(|i| i.saturating_sub(1)) else {
+                return s.select_index(0, cx);
+            };
+            while previous > 0 && s.tree.rows.get(previous).is_some_and(|r| r.status) {
+                previous -= 1;
+            }
             s.select_index(previous, cx)
         }))
         .on_action(cx.listener(|s, _: &SelectFirst, _, cx| s.select_index(0, cx)))
@@ -129,7 +139,7 @@ impl Explorer {
     }
     /// Selects a row, keeps it in view and opens it when it is a file.
     fn select_index(&mut self, index: usize, cx: &mut Context<Self>) {
-        let Some(row) = self.tree.rows.get(index).cloned() else {
+        let Some(row) = self.tree.rows.get(index).cloned().filter(|r| !r.status) else {
             return;
         };
         self.tree.select(&row.path, false, false);

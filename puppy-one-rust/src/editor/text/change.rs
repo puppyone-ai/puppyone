@@ -22,6 +22,14 @@ pub struct ChangeSet {
 }
 
 impl ChangeSet {
+    /// `historyChangeBytes`: what a step retains, as CodeMirror counts it
+    /// (replaced plus inserted length, two bytes per unit).
+    pub fn weight(&self) -> usize {
+        self.changes
+            .iter()
+            .map(|c| (c.range.len() + c.insert.len()) * 2)
+            .sum()
+    }
     /// Changes must not overlap; they are sorted by start.
     pub fn new(mut changes: Vec<Change>) -> Self {
         changes.retain(|c| !(c.range.is_empty() && c.insert.is_empty()));

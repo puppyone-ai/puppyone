@@ -42,8 +42,22 @@ pub struct Row {
     pub display: String,
     /// Extension shown only when a sibling shares the same primary name.
     pub extension: Option<String>,
-    /// Folder whose children could not be read; the row offers Retry.
+    /// The read failure of the folder this status row stands under.
     pub error: Option<String>,
+    /// `ExplorerVisibleMetaRow` with `retryPath`: the failed folder's own
+    /// line under it (error text and Retry). Its `path` is synthetic and
+    /// never selected, opened or dragged; [`Row::status_of`] names the folder.
+    pub status: bool,
+}
+impl Row {
+    /// The folder a status row reports on.
+    pub fn status_of(&self) -> Option<&Path> {
+        self.status.then(|| self.path.parent()).flatten()
+    }
+}
+/// A status row's path: a child no real entry can have.
+fn status_path(folder: &Path) -> PathBuf {
+    folder.join("\u{0}error")
 }
 
 /// Explorer visibility (`createExplorerDataPort`): with hidden files shown no
@@ -225,9 +239,25 @@ impl Tree {
                     depth,
                     display: display.clone(),
                     extension: if shared { extension.clone() } else { None },
-                    error: n.error.clone(),
+                    error: None,
+                    status: false,
                 });
                 if n.expanded {
+                    // `buildExplorerVisibleRows`: the failure first, then
+                    // whatever children are still known.
+                    if let Some(error) = &n.error {
+                        rows.push(Row {
+                            path: status_path(&n.path),
+                            name: String::new(),
+                            folder: false,
+                            expanded: false,
+                            depth: depth + 1,
+                            display: error.clone(),
+                            extension: None,
+                            error: Some(error.clone()),
+                            status: true,
+                        });
+                    }
                     visit(&n.children, depth + 1, visibility, rows);
                 }
             }
@@ -261,14 +291,24 @@ impl Tree {
         }
         self.rebuild();
     }
-    /// A child read failed: keep the folder collapsed and record the error on
-    /// its row so it can be retried in place (`onRetryFolder`).
+    /// A child read failed: the folder stays open and shows the failure on
+    /// its own line beneath it, with Retry (`folderErrors`, `onRetryFolder`).
     pub fn fail_children(&mut self, path: &Path, error: String) {
         if let Some(node) = self.find_mut(path).filter(|node| node.folder) {
-            node.expanded = false;
+            node.expanded = true;
             node.error = Some(error);
         }
         self.rebuild();
+    }
+    /// `onRetryFolder`: forget the failure and read the folder again.
+    pub fn retry_folder(&mut self, path: &Path) -> bool {
+        let Some(node) = self.find_mut(path).filter(|node| node.folder) else {
+            return false;
+        };
+        node.error = None;
+        node.expanded = true;
+        self.rebuild();
+        true
     }
     /// Replace a folder's children after a mutation without changing its
     /// expansion; descendants that were loaded keep their own children.
@@ -300,7 +340,7 @@ impl Tree {
             if !n.folder {
                 return false;
             }
-            if !n.loaded {
+            if !n.loaded && !n.expanded {
                 // Admission first, expansion second: never project a temporary
                 // empty subtree while the filesystem worker is still reading.
                 true
@@ -437,14 +477,22 @@ mod tests {
         tree.rebuild();
         assert!(tree.toggle(Path::new("folder")));
         tree.fail_children(Path::new("folder"), "denied".into());
-        assert_eq!(tree.rows.len(), 1);
-        assert!(!tree.rows[0].expanded);
-        assert_eq!(tree.rows[0].error.as_deref(), Some("denied"));
-        // Retry asks for a read again; success clears the error.
-        assert!(tree.set_expanded(Path::new("folder"), true));
-        tree.attach_children(Path::new("folder"), vec![]);
+        // The folder stays open; its failure is the line beneath it.
+        assert_eq!(tree.rows.len(), 2);
         assert!(tree.rows[0].expanded);
-        assert_eq!(tree.rows[0].error, None);
+        assert!(!tree.rows[0].status);
+        assert!(tree.rows[1].status);
+        assert_eq!(tree.rows[1].depth, 1);
+        assert_eq!(tree.rows[1].error.as_deref(), Some("denied"));
+        assert_eq!(tree.rows[1].status_of(), Some(Path::new("folder")));
+        assert_eq!(tree.index_of(Path::new("folder")), Some(0));
+        // Collapsing hides it; Retry reads again and success clears it.
+        assert!(!tree.toggle(Path::new("folder")));
+        assert_eq!(tree.rows.len(), 1);
+        assert!(tree.retry_folder(Path::new("folder")));
+        tree.attach_children(Path::new("folder"), vec![]);
+        assert_eq!(tree.rows.len(), 1);
+        assert!(tree.rows[0].expanded);
     }
     #[test]
     fn first_expansion_waits_for_loaded_children_and_empty_has_no_fake_row() {

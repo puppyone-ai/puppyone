@@ -299,6 +299,7 @@ mod tests {
             display: path.into(),
             extension: None,
             error: None,
+            status: false,
         }
     }
 
