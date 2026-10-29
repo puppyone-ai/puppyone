@@ -14,6 +14,10 @@ pub struct DocumentEditingSession {
     pending: Option<Snapshot>,
     sequence: u64,
     receipt: Option<Snapshot>,
+    /// Cloud persistence keeps unsaved input over newer remote content.
+    pub cloud: bool,
+    /// The deferred remote baseline (`externalBaseline`).
+    pub external: Option<String>,
 }
 impl DocumentEditingSession {
     pub fn new(id: String, baseline: String, revision: u64) -> Self {
@@ -29,12 +33,38 @@ impl DocumentEditingSession {
             pending: None,
             sequence: 0,
             receipt: None,
+            cloud: false,
+            external: None,
         }
+    }
+    /// The draft held while a Cloud baseline is deferred is never written.
+    pub fn conflicted(&self) -> bool {
+        self.external.is_some()
+    }
+    /// `reloadExternalBaseline`: the person discards edits for the remote text.
+    pub fn reload_external(&mut self) -> Option<String> {
+        let text = self.external.take()?;
+        self.adopt(text.clone());
+        Some(text)
+    }
+    fn defer(&mut self, text: String) {
+        self.epoch += 1;
+        self.external = Some(text);
+        self.pending = None;
+        self.dirty = true;
+        self.needs_snapshot = false;
+        self.error = Some("external-conflict".into());
     }
     /// Lifecycle/appearance events never call this. A revision notification is
     /// cheap; serialization is deferred to the next foreground event turn.
     pub fn local_edit(&mut self, revision: u64, dirty: bool) {
         if revision < self.revision {
+            return;
+        }
+        if self.external.is_some() {
+            // Edits continue on the preserved draft; nothing is written.
+            self.revision = revision;
+            self.dirty = true;
             return;
         }
         if revision > self.revision {
@@ -47,6 +77,11 @@ impl DocumentEditingSession {
         }
     }
     pub fn enqueue(&mut self, snapshot: Snapshot) {
+        if self.external.is_some() {
+            self.revision = self.revision.max(snapshot.revision);
+            self.needs_snapshot = false;
+            return;
+        }
         if snapshot.revision < self.revision {
             self.needs_snapshot = true;
             return;
@@ -92,12 +127,19 @@ impl DocumentEditingSession {
         if text == self.baseline {
             return StorageObservation::Baseline;
         }
+        if self.external.as_deref() == Some(text) {
+            return StorageObservation::Deferred;
+        }
         if self
             .active
             .as_ref()
             .is_some_and(|c| c.epoch == self.epoch && c.snapshot.text == text)
         {
             return StorageObservation::OwnWrite;
+        }
+        if self.cloud && (self.dirty || self.active.is_some()) {
+            self.defer(text.to_owned());
+            return StorageObservation::Deferred;
         }
         self.adopt(text.to_owned());
         StorageObservation::Adopted
@@ -111,6 +153,7 @@ impl DocumentEditingSession {
         self.needs_snapshot = false;
         self.dirty = false;
         self.error = None;
+        self.external = None;
     }
     /// `updated` is a conditional-write rejection carrying a verified disk
     /// snapshot. It is ordinary storage reconciliation, never a conflict dialog.
@@ -127,6 +170,12 @@ impl DocumentEditingSession {
             return Completion::Retired;
         }
         match result {
+            // Converged: the remote already holds exactly this draft (a
+            // retried uncertain write that had landed).
+            Ok((text, true)) if self.cloud && text != commit.snapshot.text => {
+                self.defer(text);
+                Completion::Deferred
+            }
             Ok((text, true)) => {
                 self.adopt(text);
                 Completion::Adopted

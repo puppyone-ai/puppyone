@@ -164,6 +164,8 @@ pub struct Documents {
     /// A Cloud opening in flight: its visible phase (`Waking up…` /
     /// `Taking out your files…`) and its cancellation.
     pub cloud_phase: Arc<std::sync::Mutex<Option<crate::workspace::cloud::opening::Phase>>>,
+    /// The newer Cloud document held back while unsaved input is preserved.
+    deferred_document: Option<Document>,
     cloud_cancel: Option<crate::cloud_auth::Cancellation>,
     /// The editor task scope (its window): reads are admitted there and
     /// retired when the window closes.
@@ -216,6 +218,7 @@ impl Default for Documents {
             read_generation: 0,
             task_scope: "documents".into(),
             cloud_phase: Default::default(),
+            deferred_document: None,
             cloud_cancel: None,
             watch: None,
             observation_pending: false,
@@ -249,11 +252,14 @@ impl Documents {
     fn ensure_session(&mut self, ctx: &Wake) {
         if let Some(doc) = &self.document {
             if self.session.as_ref().is_none_or(|s| s.id != doc.id) {
-                self.session = Some(DocumentEditingSession::new(
-                    doc.id.clone(),
-                    doc.text.clone(),
-                    self.revision,
-                ));
+                let mut session =
+                    DocumentEditingSession::new(doc.id.clone(), doc.text.clone(), self.revision);
+                // Hosted documents keep unsaved input over newer Cloud content.
+                session.cloud = self
+                    .workspace
+                    .as_ref()
+                    .is_some_and(|ws| ws.local_root().is_none());
+                self.session = Some(session);
                 self.autosave_request = None;
                 self.read_generation += 1;
                 self.observing = false;
@@ -773,6 +779,26 @@ impl Documents {
             ctx.notify();
         });
     }
+    /// A Cloud conflict is waiting for "Discard edits and reload".
+    pub fn cloud_conflict(&self) -> bool {
+        self.session.as_ref().is_some_and(|s| s.conflicted())
+    }
+    /// `reloadExternalBaseline`: replace the preserved draft with the newer
+    /// Cloud content the person chose to keep.
+    pub fn reload_cloud_baseline(&mut self) {
+        let Some(session) = self.session.as_mut() else {
+            return;
+        };
+        if session.reload_external().is_none() {
+            return;
+        }
+        if let Some(doc) = self.deferred_document.take() {
+            self.document = Some(doc);
+        }
+        self.error = None;
+        self.sync_state();
+        self.show_storage_update();
+    }
     pub fn cancel_cloud(&mut self) {
         if let Some(cancel) = self.cloud_cancel.take() {
             cancel.cancel();
@@ -905,6 +931,11 @@ impl Documents {
                         Completion::Failed(error) => {
                             self.error = Some(error);
                         }
+                        Completion::Deferred => {
+                            self.deferred_document = result.ok().map(|r| r.document);
+                            self.error =
+                                Some(crate::localization::t("editor.session.cloudConflict").into());
+                        }
                         Completion::Retired => {}
                     }
                 }
@@ -936,6 +967,12 @@ impl Documents {
                                 self.error = None;
                                 self.sync_state();
                                 self.show_storage_update();
+                            }
+                            StorageObservation::Deferred => {
+                                self.deferred_document = Some(doc);
+                                self.error = Some(
+                                    crate::localization::t("editor.session.cloudConflict").into(),
+                                );
                             }
                         },
                         Err(error) => self.error = Some(error.to_string()),

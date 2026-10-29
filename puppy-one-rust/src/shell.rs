@@ -808,6 +808,10 @@ impl Shell {
                 self.modals.remove(|m| matches!(m, Modal::Error(_)));
                 self.files.error = None;
             }
+            Command::ReloadCloudBaseline => {
+                self.files.reload_cloud_baseline();
+                self.receive(window, cx);
+            }
             Command::ManageExecutions => {
                 self.popover = None;
                 self.modals.remove(|m| matches!(m, Modal::Executions));
@@ -1056,16 +1060,8 @@ impl Shell {
                     explorer.reference_context(workspace, path)
                 })
             });
-            // Cloud dirty-draft / unknown-outcome policy (C-6.6) is not yet
-            // native: hosted documents stay read-only until it is.
-            let cloud = self
-                .files
-                .workspace
-                .as_ref()
-                .is_some_and(|ws| ws.local_root().is_none());
             let blocked = modal
                 || home
-                || cloud
                 || !visible.contains(slot)
                 || self
                     .files
@@ -1654,7 +1650,30 @@ impl Shell {
                 Modal::Error(message) => error(self, message, cx),
             })
             .collect();
-        if let Some(message) = &self.files.error {
+        if self.files.cloud_conflict() {
+            // `FloatingNotice` with `editor.session.discardAndReload`: the
+            // preserved draft stays until the person chooses to reload.
+            layer.push(
+                self.simple_modal(
+                    tr("editor.session.saveFailed"),
+                    tr("editor.session.cloudConflict"),
+                    vec![
+                        (
+                            tr("common.action.close"),
+                            Command::ClearError,
+                            ButtonVariant::Secondary,
+                        ),
+                        (
+                            tr("editor.session.discardAndReload"),
+                            Command::ReloadCloudBaseline,
+                            ButtonVariant::SolidDanger,
+                        ),
+                    ],
+                    cx,
+                )
+                .into_any_element(),
+            );
+        } else if let Some(message) = &self.files.error {
             layer.push(error(self, message, cx));
         }
         layer

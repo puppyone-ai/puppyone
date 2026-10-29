@@ -39,6 +39,8 @@ pub enum Command {
     ClearError,
     RetryFileOperation,
     Changes,
+    /// The Cloud conflict notice's "Discard edits and reload".
+    ReloadCloudBaseline,
     /// File → Manage Running Sessions (`file.manageExecutions`).
     ManageExecutions,
     /// File/Dock → New Window (`file.newWindow`, ⌘N).

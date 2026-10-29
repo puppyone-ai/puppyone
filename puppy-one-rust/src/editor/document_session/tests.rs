@@ -133,3 +133,59 @@ fn real_return_to_historical_disk_bytes_is_an_external_update() {
     assert_eq!(s.baseline, "base");
     assert!(s.drained());
 }
+
+#[test]
+fn cloud_conflicts_preserve_the_draft_until_discard_and_reload() {
+    let mut s = DocumentEditingSession::new("d".into(), "base".into(), 0);
+    s.cloud = true;
+    s.local_edit(1, true);
+    s.enqueue(Snapshot {
+        revision: 1,
+        text: "mine".into(),
+    });
+    let commit = s.next_commit().unwrap();
+    // The conditional write is rejected with newer remote content.
+    let completion = s.complete(commit.sequence, Ok(("theirs".into(), true)));
+    assert_eq!(completion, Completion::Deferred);
+    assert!(s.conflicted() && s.dirty);
+    assert_eq!(s.baseline, "base");
+    // Further edits are kept but never written while the conflict stands.
+    s.local_edit(2, true);
+    s.enqueue(Snapshot {
+        revision: 2,
+        text: "mine 2".into(),
+    });
+    assert!(s.next_commit().is_none());
+    // Discard and reload adopts the remote text.
+    assert_eq!(s.reload_external().as_deref(), Some("theirs"));
+    assert!(!s.conflicted() && !s.dirty);
+    assert_eq!(s.baseline, "theirs");
+}
+
+#[test]
+fn cloud_observations_defer_under_unsaved_input_and_converged_writes_adopt() {
+    let mut s = DocumentEditingSession::new("d".into(), "base".into(), 0);
+    s.cloud = true;
+    // Clean documents follow the remote like local ones.
+    assert_eq!(s.observe("remote 1"), StorageObservation::Adopted);
+    s.local_edit(2, true);
+    assert_eq!(s.observe("remote 2"), StorageObservation::Deferred);
+    assert!(s.conflicted());
+    // A retried uncertain write that had landed converges instead.
+    let mut t = DocumentEditingSession::new("e".into(), "base".into(), 0);
+    t.cloud = true;
+    t.local_edit(1, true);
+    t.enqueue(Snapshot {
+        revision: 1,
+        text: "mine".into(),
+    });
+    let commit = t.next_commit().unwrap();
+    assert_eq!(
+        t.complete(commit.sequence, Ok(("mine".into(), true))),
+        Completion::Adopted
+    );
+    // Local documents remain disk-first.
+    let mut l = DocumentEditingSession::new("f".into(), "base".into(), 0);
+    l.local_edit(1, true);
+    assert_eq!(l.observe("disk"), StorageObservation::Adopted);
+}
