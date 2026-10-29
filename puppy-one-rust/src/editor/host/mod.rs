@@ -325,7 +325,39 @@ impl DocumentEditor {
                 }
             }
             HostMessage::Rebind { id, name, resource } => {
-                if let Some(session) = &mut self.session
+                let next = registry::resolve(&EditorDocument::local(name)).viewer;
+                let switch = self
+                    .session
+                    .as_ref()
+                    .is_some_and(|session| &session.id == id && session.viewer.id != next.id);
+                if switch {
+                    // A new extension with another viewer (`resolveEditorViewer`
+                    // on the renamed document): the working copy moves to it
+                    // with its text and baseline. An incompatible
+                    // representation cannot keep the old undo branch
+                    // (`DocumentModelOwner.activate`); the same viewer below
+                    // keeps its surface, history and view state.
+                    let input = match resource {
+                        Some(resource) => Some((SurfaceInput::Resource(resource), None)),
+                        None => self
+                            .text(cx)
+                            .map(|text| (SurfaceInput::Text(""), Some(text))),
+                    };
+                    if let Some((input, text)) = input {
+                        let (viewer, editable) = match &text {
+                            Some(text) => {
+                                self.displayed = None;
+                                self.open_surface(id, name, SurfaceInput::Text(text), window, cx)
+                            }
+                            None => self.open_surface(id, name, input, window, cx),
+                        };
+                        if let Some(session) = &mut self.session {
+                            session.name = label(name);
+                            session.viewer = viewer;
+                            session.editable = editable;
+                        }
+                    }
+                } else if let Some(session) = &mut self.session
                     && &session.id == id
                 {
                     session.name = label(name);

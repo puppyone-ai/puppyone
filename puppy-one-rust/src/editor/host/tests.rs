@@ -589,3 +589,61 @@ fn html_edit_mode_applies_page_edits_to_the_source_and_its_history(cx: &mut Test
         assert_eq!(v.contribution(cx).segmented.unwrap().value, "preview")
     });
 }
+
+#[gpui::test]
+fn a_new_extension_moves_the_working_copy_to_its_viewer(cx: &mut TestAppContext) {
+    let (view, messages, cx) = setup(cx, "notes/draft.txt", "# Title\n");
+    let code = view.update(cx, |v, _| {
+        v.surface.as_ref().unwrap().code_editor().unwrap()
+    });
+    view.update_in(cx, |v, w, cx| {
+        assert!(
+            v.surface
+                .as_ref()
+                .unwrap()
+                .edit_utf16(&[(8..8, "more\n".into())], w, cx)
+        );
+    });
+    cx.run_until_parked();
+    // Same viewer (plain text to TypeScript): surface and history stay.
+    view.update_in(cx, |v, w, cx| {
+        v.receive(
+            &HostMessage::Rebind {
+                id: "doc-1".into(),
+                name: "notes/draft.ts".into(),
+                resource: None,
+            },
+            w,
+            cx,
+        );
+    });
+    let same = view.update(cx, |v, _| {
+        v.surface.as_ref().unwrap().code_editor().unwrap()
+    });
+    assert_eq!(same.entity_id(), code.entity_id());
+    // Markdown: its own viewer over the unsaved text, still dirty.
+    view.update_in(cx, |v, w, cx| {
+        v.receive(
+            &HostMessage::Rebind {
+                id: "doc-1".into(),
+                name: "notes/draft.md".into(),
+                resource: None,
+            },
+            w,
+            cx,
+        );
+    });
+    cx.run_until_parked();
+    view.update(cx, |v, cx| {
+        assert_eq!(v.session.as_ref().unwrap().viewer.id, "markdown");
+        assert_eq!(v.session.as_ref().unwrap().name, "draft.md");
+        assert_eq!(v.text(cx).as_deref(), Some("# Title\nmore\n"));
+        assert_eq!(v.session.as_ref().unwrap().baseline, "# Title\n");
+    });
+    assert!(
+        messages
+            .borrow()
+            .iter()
+            .any(|m| matches!(m, ClientMessage::Dirty { dirty: true, .. }))
+    );
+}
