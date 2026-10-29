@@ -45,6 +45,9 @@ pub(super) enum RightContent {
     Workbench,
     /// Changes (source control), opened from the Header.
     Changes,
+    /// A hosted Project's History, opened from the Cloud Header
+    /// (`CloudWorkspaceHistorySidebar`). It and the Agent replace each other.
+    CloudHistory,
 }
 
 /// The pane layout as stored (`sidebarCollapsed`, `explorerWidth`,
@@ -124,11 +127,32 @@ impl Panes {
     pub fn toggle_explorer(&mut self) {
         self.explorer.open = !self.explorer.open;
     }
-    /// ⌘J and the Header's Agent entry: from Changes, switch to the
-    /// workbench; otherwise open or close the sidebar on it.
+    /// ⌘J and the Header's Agent entry: from Changes or History, switch to
+    /// the workbench; otherwise open or close the sidebar on it.
     pub fn toggle_workbench(&mut self) {
-        self.right.open = self.content == RightContent::Changes || !self.right.open;
+        self.right.open = self.content != RightContent::Workbench || !self.right.open;
         self.content = RightContent::Workbench;
+    }
+    /// The Cloud Header's History: open the sidebar on it (closing the
+    /// Agent), or close it when it already shows. Returns whether History
+    /// shows now.
+    pub fn toggle_cloud_history(&mut self) -> bool {
+        let show = !self.shows(RightContent::CloudHistory);
+        self.right.open = show;
+        self.content = if show {
+            RightContent::CloudHistory
+        } else {
+            RightContent::Workbench
+        };
+        show
+    }
+    /// History closed itself (Close, Back, or its scope ended): the sidebar
+    /// closes and reopens on the workbench.
+    pub fn close_cloud_history(&mut self) {
+        if self.content == RightContent::CloudHistory {
+            self.right.open = false;
+            self.content = RightContent::Workbench;
+        }
     }
     /// The Header's Changes: open the sidebar on Changes, or close it when it
     /// already shows them (it then reopens on the workbench). Returns whether
@@ -324,6 +348,18 @@ mod tests {
         assert!(!panes.toggle_changes());
         assert!(!panes.right().open);
         assert_eq!(panes.content(), RightContent::Workbench);
+        // History and the Agent replace each other; closing History leaves
+        // the sidebar closed on the workbench.
+        assert!(panes.toggle_cloud_history());
+        panes.toggle_workbench();
+        assert!(panes.shows(RightContent::Workbench));
+        assert!(panes.toggle_cloud_history());
+        assert!(panes.shows(RightContent::CloudHistory));
+        panes.close_cloud_history();
+        assert!(!panes.right().open);
+        assert_eq!(panes.content(), RightContent::Workbench);
+        assert!(panes.toggle_cloud_history());
+        assert!(!panes.toggle_cloud_history());
     }
 
     #[test]

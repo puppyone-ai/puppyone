@@ -1363,13 +1363,43 @@ fn cloud_share_dialog_copies_the_captured_link(cx: &mut TestAppContext) {
             copied: None,
         });
         s.command(Command::CopyShareLink, w, cx);
-        assert!(matches!(s.modals.top(), Some(Modal::Share { copied: Some(true), .. })));
+        assert!(matches!(
+            s.modals.top(),
+            Some(Modal::Share {
+                copied: Some(true),
+                ..
+            })
+        ));
     });
     let copied = cx.read_from_clipboard().and_then(|c| c.text());
-    assert_eq!(copied.as_deref(), Some("https://app.puppyone.ai/0d3b7a4e-1f2a-4b5c-8d9e-0123456789ab/docs/"));
+    assert_eq!(
+        copied.as_deref(),
+        Some("https://app.puppyone.ai/0d3b7a4e-1f2a-4b5c-8d9e-0123456789ab/docs/")
+    );
     cx.update(|w, cx| {
         let _ = w.draw(cx);
     });
     command(&view, cx, Command::CloseShare);
     view.read_with(cx, |s, _| assert!(s.modals.is_empty()));
+}
+
+#[gpui::test]
+fn cloud_history_closes_outside_a_hosted_project(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    // No hosted Project: the Header command does nothing.
+    command(&view, cx, Command::CloudHistory);
+    view.read_with(cx, |s, _| {
+        assert!(!s.panes.shows(panes::RightContent::CloudHistory))
+    });
+    // A History sidebar left without its scope closes on the next frame.
+    view.update(cx, |s, _| {
+        assert!(s.panes.toggle_cloud_history());
+    });
+    cx.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+    view.read_with(cx, |s, _| {
+        assert!(!s.panes.right().open);
+        assert_eq!(s.panes.content(), panes::RightContent::Workbench);
+    });
 }

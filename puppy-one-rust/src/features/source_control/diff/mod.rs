@@ -290,8 +290,16 @@ fn change(status: Status, t: &Theme) -> (&'static str, Rgba) {
     }
 }
 
+/// `GitFileDiffSurface contentMode="metadata"` (Cloud History, which has
+/// paths but no bodies): the header alone as a closed card, without its rule.
+pub fn metadata(file: &FileDiff, p: &DiffPalette) -> Div {
+    header_card(file, p, true)
+}
 /// `GitFileDiffSurface`'s header: identity, change badge, line totals.
 fn header(file: &FileDiff, p: &DiffPalette) -> Div {
+    header_card(file, p, false)
+}
+fn header_card(file: &FileDiff, p: &DiffPalette, closed: bool) -> Div {
     let t = p.t;
     let m = theme::ty();
     let (label, tone) = change(file.status, &t);
@@ -315,10 +323,11 @@ fn header(file: &FileDiff, p: &DiffPalette) -> Div {
     });
     div()
         .border_1()
-        .border_b_0()
+        .when(!closed, |d| d.border_b_0())
         .border_color(t.border_subtle)
         .rounded_tl(px(6.))
         .rounded_tr(px(6.))
+        .when(closed, |d| d.rounded_bl(px(6.)).rounded_br(px(6.)))
         .overflow_hidden()
         .bg(p.header_bg)
         .child(
@@ -326,7 +335,7 @@ fn header(file: &FileDiff, p: &DiffPalette) -> Div {
                 .min_h(px(32.))
                 .px(px(10.))
                 .gap(px(8.))
-                .border_b_1()
+                .when(!closed, |d| d.border_b_1())
                 .border_color(t.border_subtle)
                 .text_color(t.muted)
                 .child(

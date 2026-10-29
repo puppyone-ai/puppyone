@@ -49,6 +49,10 @@ pub fn control() -> f32 {
 pub fn opencode_mark_surface() -> Rgba {
     rgb(0x111418)
 }
+/// `.desktop-cloud-history-ref-badge.tag`: the graph's tag yellow.
+pub fn history_tag() -> Rgba {
+    rgb(0xffd21f)
+}
 /// `--po-control-size-large`.
 pub fn control_large() -> f32 {
     control() + 2.

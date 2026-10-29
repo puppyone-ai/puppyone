@@ -405,6 +405,20 @@ fn relative_past_in(code: &str, n: i64, unit: TimeUnit) -> String {
     }
 }
 
+/// `Intl.RelativeTimeFormat(locale, { numeric: "auto" }).format(0, "second")`.
+pub fn relative_now() -> &'static str {
+    let code = CURRENT.with(|c| c.borrow().clone());
+    match code.as_str() {
+        "zh-Hans" => "现在",
+        "ja" => "今",
+        "ko" => "지금",
+        "de" => "jetzt",
+        "fr" => "maintenant",
+        "es" => "ahora",
+        "pt-BR" => "agora",
+        _ => "now",
+    }
+}
 /// `Intl.RelativeTimeFormat(locale, { numeric: "auto" }).format(n, "day")`
 /// for today (0) and yesterday (-1).
 pub fn relative_day(offset: i64) -> String {

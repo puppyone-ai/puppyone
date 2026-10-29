@@ -168,6 +168,17 @@ pub fn broker_and_binding(cx: &App) -> Option<(Arc<Broker>, crate::cloud_auth::m
     let binding = account.snapshot.as_ref()?.account.as_ref()?.binding.clone();
     Some((account.broker.clone()?, binding))
 }
+/// Tests: sign this app in through a fixture broker.
+#[cfg(test)]
+pub fn install_fixture(
+    broker: Arc<Broker>,
+    browser: async_channel::Receiver<crate::cloud_auth::BrowserEvent>,
+    cx: &mut App,
+) -> Entity<CloudAccount> {
+    let account = cx.new(|cx| CloudAccount::attach(broker, browser, cx));
+    cx.set_global(CloudAccountService(account.clone()));
+    account
+}
 pub fn has_account(cx: &App) -> bool {
     cx.try_global::<CloudAccountService>().is_some_and(|s| {
         s.0.read(cx)

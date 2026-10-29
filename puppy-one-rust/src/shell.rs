@@ -74,6 +74,8 @@ pub struct Shell {
     modals: Modals,
     workbench: Entity<crate::features::workbench::Workbench>,
     source_control: Entity<crate::features::source_control::SourceControl>,
+    /// The hosted Project's History sidebar (Cloud Header).
+    cloud_history: Entity<crate::features::source_control::CloudHistory>,
     popover: Option<Popover>,
     /// Homepage requested from the project menu (`goToHomepage`).
     home: bool,
@@ -217,6 +219,7 @@ impl Shell {
             workbench: cx.new(|cx| crate::features::workbench::Workbench::new(window, cx)),
             source_control: cx
                 .new(|cx| crate::features::source_control::SourceControl::new(window, cx)),
+            cloud_history: cx.new(crate::features::source_control::CloudHistory::new),
             popover: None,
             home: false,
             recent_projects: vec![],
@@ -403,6 +406,14 @@ impl Shell {
             cx.notify();
         })
         .detach();
+        // History's Close and Back leave the sidebar closed on the workbench.
+        cx.subscribe_in(&s.cloud_history, window, |s, _, event, window, cx| {
+            let crate::features::source_control::CloudHistoryEvent::Close = event;
+            s.close_cloud_history(cx);
+            s.focus.focus(window, cx);
+            cx.notify();
+        })
+        .detach();
         cx.subscribe_in(&s.native, window, |s, _, event, window, cx| {
             // Pane menu commands (open in default app, close) are the shell's.
             if let ClientMessage::Action { action } = event {
@@ -517,6 +528,9 @@ impl Shell {
         self.workbench
             .update(cx, |w, cx| w.set_preferences(hidden, cx));
         let (layout, icons) = (p.git_sidebar_layout, p.file_icon_theme.clone());
+        let history_icons = icons.clone();
+        self.cloud_history
+            .update(cx, |h, cx| h.set_icon_theme(history_icons, cx));
         self.source_control
             .update(cx, |s, cx| s.set_presentation(layout, icons, cx));
         self.rail = p.project_switcher_rail;
@@ -790,6 +804,17 @@ impl Shell {
                 self.home = true;
             }
             // With no dialog open, Escape closes a menu.
+            // Escape inside History goes back (`CloudWorkspaceHistorySidebar`).
+            Command::Escape
+                if self.panes.shows(RightContent::CloudHistory)
+                    && self
+                        .cloud_history
+                        .read(cx)
+                        .focus_handle()
+                        .contains_focused(window, cx) =>
+            {
+                self.cloud_history.update(cx, |h, cx| h.back(cx));
+            }
             Command::Escape => {
                 let closed = self.explorer.update(cx, |e, cx| e.dismiss_menu(cx));
                 if !closed && self.popover.take().is_some() {
@@ -833,6 +858,27 @@ impl Shell {
             Command::CloseShare => {
                 self.modals.remove(|m| matches!(m, Modal::Share { .. }));
                 self.focus.focus(window, cx);
+            }
+            Command::CloudHistory => {
+                let Some(project) = self.hosted_project() else {
+                    return;
+                };
+                self.popover = None;
+                if self.panes.toggle_cloud_history() {
+                    let opened = self.cloud_history.update(cx, |h, cx| h.open(&project, cx));
+                    if opened {
+                        self.cloud_history
+                            .read(cx)
+                            .focus_handle()
+                            .clone()
+                            .focus(window, cx);
+                    } else {
+                        self.close_cloud_history(cx);
+                    }
+                } else {
+                    self.cloud_history.update(cx, |h, cx| h.close(cx));
+                    self.focus.focus(window, cx);
+                }
             }
             Command::ReloadCloudBaseline => {
                 self.files.reload_cloud_baseline();
@@ -1119,6 +1165,32 @@ impl Shell {
         self.cloud_catalog
             .update(cx, |c, cx| c.ensure(enabled, retry, cx));
     }
+    /// The hosted Project this window shows (a Cloud workspace, no local root).
+    fn hosted_project(&self) -> Option<String> {
+        self.files
+            .workspace
+            .as_ref()
+            .filter(|ws| ws.local_root().is_none())
+            .and(self.cloud_project.clone())
+    }
+    fn close_cloud_history(&mut self, cx: &mut Context<Self>) {
+        self.panes.close_cloud_history();
+        self.cloud_history.update(cx, |h, cx| h.close(cx));
+    }
+    /// `useCloudWorkspaceSidebar`: History lives only in the scope it opened
+    /// in (Project, account, session generation, API) and only while the
+    /// sidebar is open; anything else closes it and drops its reads.
+    fn guard_cloud_history(&mut self, cx: &mut Context<Self>) {
+        if self.panes.content() != RightContent::CloudHistory {
+            return;
+        }
+        let project = self.hosted_project();
+        let valid =
+            self.panes.right().open && self.cloud_history.read(cx).matches(project.as_deref(), cx);
+        if !valid {
+            self.close_cloud_history(cx);
+        }
+    }
     /// Explicit Cloud opening of a hosted Project root in this window.
     /// `cloudWorkspaceShareResource`: the selected folder, else the active
     /// document, else the authorized root.
@@ -1389,7 +1461,15 @@ impl Shell {
             let p = &self.preferences.read(cx).state;
             (
                 p.experimental.centered_project_in_header,
-                !home && self.files.workspace.is_some() && p.header_changes,
+                // A hosted Project has no local Git: its Header tools are
+                // Share, History and the Agent (`CloudWorkspaceHeaderTools`).
+                !home
+                    && self
+                        .files
+                        .workspace
+                        .as_ref()
+                        .is_some_and(|ws| ws.local_root().is_some())
+                    && p.header_changes,
                 !home && p.header_terminal,
             )
         };
@@ -1419,19 +1499,22 @@ impl Shell {
                     .on_click(cx.listener(|s, _, w, cx| s.command(Command::Changes, w, cx))),
             );
         }
-        if self.cloud_project.is_some()
-            && self
-                .files
-                .workspace
-                .as_ref()
-                .is_some_and(|ws| ws.local_root().is_none())
-        {
+        let hosted = self.hosted_project().is_some();
+        if hosted {
             bar = bar.action(
                 header::share_entry()
                     .on_click(cx.listener(|s, _, w, cx| s.command(Command::ShareCloud, w, cx))),
             );
+            // Ready once the account is signed in; the hosted opening only
+            // admits Project roots, so History never widens a Scope.
+            use gpui_kit::base::Disableable as _;
+            bar = bar.action(
+                header::history_entry(self.panes.shows(RightContent::CloudHistory))
+                    .disabled(!crate::features::cloud_account::has_account(cx))
+                    .on_click(cx.listener(|s, _, w, cx| s.command(Command::CloudHistory, w, cx))),
+            );
         }
-        if changes && agent {
+        if (changes || hosted) && agent {
             bar = bar.divider(cx);
         }
         if agent {
@@ -1543,6 +1626,7 @@ impl Render for Shell {
         }
         self.sync_editor(window, cx);
         self.sync_explorer(window, cx);
+        self.guard_cloud_history(cx);
         self.refresh_home_activity(cx);
         #[cfg(feature = "dev-capture")]
         let scenario_done = self.advance_capture_scenario(window, cx);
@@ -1612,16 +1696,22 @@ impl Render for Shell {
         if (self.panes.right().open || panes.right_clip.is_some()) && !home {
             // The 8px sash overlays the pane edge (`.po-pane-edge-resize-handle`);
             // content starts at the divider like the product's.
-            let auxiliary = at(self.layout.auxiliary).bg(t.auxiliary()).child(
-                if self.panes.content() == RightContent::Changes {
-                    self.source_control
-                        .clone()
-                        .cached(fill())
-                        .into_any_element()
-                } else {
-                    self.workbench.clone().cached(fill()).into_any_element()
-                },
-            );
+            let auxiliary =
+                at(self.layout.auxiliary)
+                    .bg(t.auxiliary())
+                    .child(match self.panes.content() {
+                        RightContent::Changes => self
+                            .source_control
+                            .clone()
+                            .cached(fill())
+                            .into_any_element(),
+                        RightContent::CloudHistory => {
+                            self.cloud_history.clone().cached(fill()).into_any_element()
+                        }
+                        RightContent::Workbench => {
+                            self.workbench.clone().cached(fill()).into_any_element()
+                        }
+                    });
             root = root.child(clipped(panes.right_clip, w, h, auxiliary));
         }
         if self.rail && !home {

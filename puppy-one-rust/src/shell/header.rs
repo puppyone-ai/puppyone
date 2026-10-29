@@ -316,6 +316,18 @@ pub(super) fn share_entry() -> Button {
         .tooltip(tr("shell.titlebar.share"))
 }
 
+/// `desktop-titlebar-cloud-tool` History: a 15 px clock, pressed while the
+/// sidebar shows it.
+pub(super) fn history_entry(open: bool) -> Button {
+    use gpui_kit::component::Sizable as _;
+    Button::new("cloud-history")
+        .variant(ButtonVariant::Titlebar)
+        .icon(Icon::new("history").with_size(px(15.)))
+        .accessibility_label(tr("source-control.history.title"))
+        .tooltip(tr("source-control.history.title"))
+        .selected(open)
+}
+
 /// Account settings entry; signing in does not enable Cloud project opening.
 pub(super) fn account_entry(has_account: bool) -> Button {
     let ty = theme::ty().header;

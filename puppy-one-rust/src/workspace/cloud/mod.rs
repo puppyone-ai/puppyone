@@ -5,6 +5,7 @@ pub mod catalog;
 mod client;
 mod events;
 pub mod failure;
+pub mod history;
 pub mod locator;
 mod model;
 pub mod opening;

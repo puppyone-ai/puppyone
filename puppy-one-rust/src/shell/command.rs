@@ -43,6 +43,8 @@ pub enum Command {
     ShareCloud,
     CloseShare,
     CopyShareLink,
+    /// Cloud Header → History (`CloudWorkspaceHeaderTools`).
+    CloudHistory,
     /// The Cloud conflict notice's "Discard edits and reload".
     ReloadCloudBaseline,
     /// File → Manage Running Sessions (`file.manageExecutions`).

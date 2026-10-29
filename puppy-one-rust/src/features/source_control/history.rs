@@ -43,10 +43,10 @@ pub(super) enum TimelineRow {
     Commit(usize),
 }
 
-type Day = (i32, u32, u32);
+pub(super) type Day = (i32, u32, u32);
 
 /// The local calendar day of a Unix time.
-fn local_day(secs: i64) -> Day {
+pub(super) fn local_day(secs: i64) -> Day {
     #[cfg(unix)]
     {
         // SAFETY: `localtime_r` writes only into `tm`.
@@ -158,13 +158,302 @@ fn compact(value: u64) -> String {
     }
 }
 
+/// A view that shows the History timeline: the local Git History, and the
+/// Cloud History sidebar, which maps Cloud commits to the same summaries
+/// (`CloudWorkspaceHistorySidebar` → `GitHistoryTimeline`).
+pub(super) trait TimelineHost: Sized + 'static {
+    fn timeline_rows(&self) -> &[TimelineRow];
+    fn timeline_commits(&self) -> &[CommitSummary];
+    /// The commit whose detail is open.
+    fn selected_commit(&self) -> Option<&str>;
+    fn timeline_icon_theme(&self) -> &str;
+    fn toggle_day(&mut self, key: &str, cx: &mut Context<Self>);
+    fn open_commit(&mut self, index: usize, cx: &mut Context<Self>);
+}
+
+/// The local time now, for day grouping.
+pub(super) fn now() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs() as i64)
+}
+
+/// The virtual timeline list of `host`.
+pub(super) fn timeline_list<H: TimelineHost>(state: ListState, cx: &mut Context<H>) -> List {
+    let host = cx.weak_entity();
+    list(state, move |i, _, cx| {
+        host.update(cx, |s, cx| timeline_row(s, i, cx))
+            .unwrap_or_else(|_| div().into_any_element())
+    })
+    .flex_1()
+    .min_h_0()
+}
+
+fn timeline_row<H: TimelineHost>(host: &H, index: usize, cx: &mut Context<H>) -> AnyElement {
+    let content = match host.timeline_rows().get(index) {
+        Some(TimelineRow::Space(height)) => return div().h(px(*height)).into_any_element(),
+        Some(TimelineRow::Date {
+            key,
+            label,
+            collapsed,
+        }) => date_row(index, key, label, *collapsed, cx),
+        Some(TimelineRow::Commit(commit)) => commit_row(host, *commit, cx),
+        None => return div().into_any_element(),
+    };
+    // `.desktop-history-list` inline padding, with the stable scrollbar
+    // gutter on the trailing side.
+    div()
+        .w_full()
+        .pl(px(10.))
+        .pr(px(10. + SCROLLBAR_GUTTER))
+        .child(content)
+        .into_any_element()
+}
+/// `.desktop-history-date-group`: a disclosure, the day, a hairline.
+fn date_row<H: TimelineHost>(
+    index: usize,
+    key: &str,
+    label: &str,
+    collapsed: bool,
+    cx: &mut Context<H>,
+) -> AnyElement {
+    let t = cx.palette();
+    let m = theme::ty();
+    let key = key.to_owned();
+    // A commit row's 2px top margin collapses out of its list row, so a
+    // day heading is followed by 2px before the commit.
+    h_flex()
+        .id(("history-day", index))
+        .w_full()
+        .h(px(DATE_ROW))
+        .mb(px(2.))
+        .px(px(2.))
+        .gap(px(7.))
+        .cursor(theme::clickable_cursor())
+        .text_color(t.muted)
+        .child(
+            Icon::product(crate::ui::components::ProductIcon::Disclosure)
+                .with_size(px(13.))
+                .color(t.muted)
+                .rotate(if collapsed {
+                    0.
+                } else {
+                    std::f32::consts::FRAC_PI_2
+                }),
+        )
+        .child(
+            div()
+                .flex_shrink_0()
+                .truncate()
+                .text_size(px(m.left.content))
+                .line_height(px(m.left.line_height))
+                .child(label.to_owned()),
+        )
+        .child(div().flex_1().h(px(1.)).bg(theme::alpha(t.divider, 0.72)))
+        .on_click(cx.listener(move |s, _, _, cx| s.toggle_day(&key, cx)))
+        .into_any_element()
+}
+/// `GitHistoryRow`.
+fn commit_row<H: TimelineHost>(host: &H, index: usize, cx: &mut Context<H>) -> AnyElement {
+    let t = cx.palette();
+    let m = theme::ty();
+    let commit = &host.timeline_commits()[index];
+    let (_, added, deleted) = totals(&commit.changes);
+    let visible = commit.changes.len().min(VISIBLE_FILES);
+    let hidden = commit.changes.len() - visible;
+    let height = COMMIT_BASE_ROW + (visible + usize::from(hidden > 0)) as f32 * FILE_ROW;
+    let group = SharedString::from(format!("history-row-{index}"));
+    let selected = host.selected_commit() == Some(commit.id.as_str());
+    let message = if commit.message.is_empty() {
+        tr("source-control.commit.noMessage").to_owned()
+    } else {
+        commit.message.clone()
+    };
+    let stat = (added > 0 || deleted > 0).then(|| {
+        h_flex()
+            .flex_shrink_0()
+            .gap(px(4.))
+            .pr(px(metric::SIDEBAR_ROW_CONTENT_RIGHT))
+            .text_size(px(m.ui.micro))
+            .when(added > 0, |d| {
+                d.child(
+                    div()
+                        .text_color(theme::mix(t.success, t.subtle, 0.52))
+                        .child(format!("+{}", compact(added))),
+                )
+            })
+            .when(deleted > 0, |d| {
+                d.child(
+                    div()
+                        .text_color(theme::mix(t.danger, t.subtle, 0.52))
+                        .child(format!("-{}", compact(deleted))),
+                )
+            })
+    });
+    let icon_theme = host.timeline_icon_theme().to_owned();
+    let files = (visible > 0).then(|| {
+        v_flex()
+            .w_full()
+            .min_w_0()
+            .pr(px(metric::SIDEBAR_ROW_CONTENT_RIGHT))
+            .text_size(px(m.right.meta))
+            .line_height(px(FILE_ROW))
+            .text_color(t.subtle)
+            .children(
+                commit.changes[..visible]
+                    .iter()
+                    .map(|change| file_preview(change, &icon_theme, t)),
+            )
+            .when(hidden > 0, |d| {
+                d.child(
+                    div()
+                        .h(px(FILE_ROW))
+                        .pl(px(18.))
+                        .truncate()
+                        .text_color(t.text_disabled)
+                        .child(format!(
+                            "+{}",
+                            tf("source-control.commit.files", &[("count", hidden.into())])
+                        )),
+                )
+            })
+    });
+    div()
+        .w_full()
+        .pb(px(4.))
+        .child(
+            h_flex()
+                .id(("history-commit", index))
+                .w_full()
+                .group(group.clone())
+                .h(px(height - 4.))
+                .items_start()
+                .overflow_hidden()
+                .pl(px(20.))
+                .rounded(px(metric::SIDEBAR_ROW_RADIUS))
+                .cursor(theme::clickable_cursor())
+                .text_color(t.muted)
+                .when(selected, |d| d.bg(t.selected).text_color(t.text))
+                .when(!selected, |d| {
+                    d.hover(move |s| s.bg(t.hover).text_color(t.text))
+                })
+                .child(
+                    v_flex()
+                        .flex_1()
+                        .min_w_0()
+                        .h_full()
+                        .justify_center()
+                        .gap(px(2.))
+                        .overflow_hidden()
+                        .child(
+                            h_flex()
+                                .w_full()
+                                .min_w_0()
+                                .gap(px(8.))
+                                .child(
+                                    div()
+                                        .flex_1()
+                                        .min_w_0()
+                                        .truncate()
+                                        .text_size(px(m.left.content))
+                                        .line_height(px(m.left.line_height))
+                                        .text_color(if selected { t.text } else { t.muted })
+                                        .group_hover(group, move |s| s.text_color(t.text))
+                                        .child(message),
+                                )
+                                .children(stat),
+                        )
+                        .children(files),
+                )
+                .on_click(cx.listener(move |s, _, _, cx| s.open_commit(index, cx))),
+        )
+        .into_any_element()
+}
+/// `GitHistoryFilePreview`: icon, an added / deleted marker, the path.
+fn file_preview(change: &CommitChange, icon_theme: &str, t: crate::theme::Theme) -> Div {
+    let path = match (&change.old_path, change.status) {
+        (Some(old), Status::Renamed) => format!("{old} → {}", change.path),
+        _ => change.path.clone(),
+    };
+    let marker = match change.status {
+        Status::Added => Some(("+", theme::mix(t.success, t.subtle, 0.48))),
+        Status::Deleted => Some(("\u{2212}", theme::mix(t.danger, t.subtle, 0.48))),
+        _ => None,
+    };
+    let deleted = change.status == Status::Deleted;
+    h_flex()
+        .w_full()
+        .h(px(FILE_ROW))
+        .min_w_0()
+        .gap(px(4.))
+        .overflow_hidden()
+        .child(
+            div()
+                .flex_none()
+                .size(px(14.))
+                .flex()
+                .items_center()
+                .justify_center()
+                .opacity(0.72)
+                .child(FileIcon::file(change.path.clone(), icon_theme.to_owned()).size_px(14.)),
+        )
+        .children(marker.map(|(text, color)| {
+            div()
+                .flex_none()
+                .font_weight(FontWeight(650.))
+                .text_color(color)
+                .child(text)
+        }))
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .truncate()
+                .when(deleted, |d| d.text_color(t.text_disabled).line_through())
+                .child(path),
+        )
+}
+
+impl TimelineHost for SourceControl {
+    fn timeline_rows(&self) -> &[TimelineRow] {
+        &self.timeline
+    }
+    fn timeline_commits(&self) -> &[CommitSummary] {
+        &self.history.commits
+    }
+    fn selected_commit(&self) -> Option<&str> {
+        match self.detail.as_ref().map(|d| &d.kind) {
+            Some(DetailKind::Commit(c)) => Some(c.id.as_str()),
+            _ => None,
+        }
+    }
+    fn timeline_icon_theme(&self) -> &str {
+        &self.icon_theme
+    }
+    fn toggle_day(&mut self, key: &str, cx: &mut Context<Self>) {
+        if !self.collapsed_days.remove(key) {
+            self.collapsed_days.insert(key.to_owned());
+        }
+        self.rebuild_timeline();
+        cx.notify();
+    }
+    fn open_commit(&mut self, index: usize, cx: &mut Context<Self>) {
+        let Some(commit) = self.history.commits.get(index).cloned() else {
+            return;
+        };
+        let id = commit.id.clone();
+        self.open_detail(
+            DetailKind::Commit(commit),
+            move |root, cancel| git_diff::commit_detail(&root, &id, cancel),
+            cx,
+        );
+    }
+}
+
 impl SourceControl {
     /// Rebuild the timeline after new history or a collapsed day.
     pub(super) fn rebuild_timeline(&mut self) {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |d| d.as_secs() as i64);
-        self.timeline = timeline(&self.history.commits, &self.collapsed_days, now);
+        self.timeline = timeline(&self.history.commits, &self.collapsed_days, now());
         self.timeline_list.reset(self.timeline.len());
     }
     /// `GitHistoryTimeline`.
@@ -180,258 +469,7 @@ impl SourceControl {
             )
             .into_any_element();
         }
-        let host = cx.weak_entity();
-        list(self.timeline_list.clone(), move |i, _, cx| {
-            host.update(cx, |s, cx| s.timeline_row(i, cx))
-                .unwrap_or_else(|_| div().into_any_element())
-        })
-        .flex_1()
-        .min_h_0()
-        .into_any_element()
-    }
-    fn timeline_row(&self, index: usize, cx: &mut Context<Self>) -> AnyElement {
-        let content = match self.timeline.get(index) {
-            Some(TimelineRow::Space(height)) => return div().h(px(*height)).into_any_element(),
-            Some(TimelineRow::Date {
-                key,
-                label,
-                collapsed,
-            }) => self.date_row(index, key, label, *collapsed, cx),
-            Some(TimelineRow::Commit(commit)) => self.commit_row(*commit, cx),
-            None => return div().into_any_element(),
-        };
-        // `.desktop-history-list` inline padding, with the stable scrollbar
-        // gutter on the trailing side.
-        div()
-            .w_full()
-            .pl(px(10.))
-            .pr(px(10. + SCROLLBAR_GUTTER))
-            .child(content)
-            .into_any_element()
-    }
-    /// `.desktop-history-date-group`: a disclosure, the day, a hairline.
-    fn date_row(
-        &self,
-        index: usize,
-        key: &str,
-        label: &str,
-        collapsed: bool,
-        cx: &mut Context<Self>,
-    ) -> AnyElement {
-        let t = cx.palette();
-        let m = theme::ty();
-        let key = key.to_owned();
-        // A commit row's 2px top margin collapses out of its list row, so a
-        // day heading is followed by 2px before the commit.
-        h_flex()
-            .id(("history-day", index))
-            .w_full()
-            .h(px(DATE_ROW))
-            .mb(px(2.))
-            .px(px(2.))
-            .gap(px(7.))
-            .cursor(theme::clickable_cursor())
-            .text_color(t.muted)
-            .child(
-                Icon::product(crate::ui::components::ProductIcon::Disclosure)
-                    .with_size(px(13.))
-                    .color(t.muted)
-                    .rotate(if collapsed {
-                        0.
-                    } else {
-                        std::f32::consts::FRAC_PI_2
-                    }),
-            )
-            .child(
-                div()
-                    .flex_shrink_0()
-                    .truncate()
-                    .text_size(px(m.left.content))
-                    .line_height(px(m.left.line_height))
-                    .child(label.to_owned()),
-            )
-            .child(div().flex_1().h(px(1.)).bg(theme::alpha(t.divider, 0.72)))
-            .on_click(cx.listener(move |s, _, _, cx| {
-                if !s.collapsed_days.remove(&key) {
-                    s.collapsed_days.insert(key.clone());
-                }
-                s.rebuild_timeline();
-                cx.notify();
-            }))
-            .into_any_element()
-    }
-    /// `GitHistoryRow`.
-    fn commit_row(&self, index: usize, cx: &mut Context<Self>) -> AnyElement {
-        let t = cx.palette();
-        let m = theme::ty();
-        let commit = &self.history.commits[index];
-        let (_, added, deleted) = totals(&commit.changes);
-        let visible = commit.changes.len().min(VISIBLE_FILES);
-        let hidden = commit.changes.len() - visible;
-        let height = COMMIT_BASE_ROW + (visible + usize::from(hidden > 0)) as f32 * FILE_ROW;
-        let group = SharedString::from(format!("history-row-{index}"));
-        let selected = matches!(
-            self.detail.as_ref().map(|d| &d.kind),
-            Some(DetailKind::Commit(c)) if c.id == commit.id
-        );
-        let message = if commit.message.is_empty() {
-            tr("source-control.commit.noMessage").to_owned()
-        } else {
-            commit.message.clone()
-        };
-        let stat = (added > 0 || deleted > 0).then(|| {
-            h_flex()
-                .flex_shrink_0()
-                .gap(px(4.))
-                .pr(px(metric::SIDEBAR_ROW_CONTENT_RIGHT))
-                .text_size(px(m.ui.micro))
-                .when(added > 0, |d| {
-                    d.child(
-                        div()
-                            .text_color(theme::mix(t.success, t.subtle, 0.52))
-                            .child(format!("+{}", compact(added))),
-                    )
-                })
-                .when(deleted > 0, |d| {
-                    d.child(
-                        div()
-                            .text_color(theme::mix(t.danger, t.subtle, 0.52))
-                            .child(format!("-{}", compact(deleted))),
-                    )
-                })
-        });
-        let files = (visible > 0).then(|| {
-            v_flex()
-                .w_full()
-                .min_w_0()
-                .pr(px(metric::SIDEBAR_ROW_CONTENT_RIGHT))
-                .text_size(px(m.right.meta))
-                .line_height(px(FILE_ROW))
-                .text_color(t.subtle)
-                .children(
-                    commit.changes[..visible]
-                        .iter()
-                        .map(|change| self.file_preview(change, cx)),
-                )
-                .when(hidden > 0, |d| {
-                    d.child(
-                        div()
-                            .h(px(FILE_ROW))
-                            .pl(px(18.))
-                            .truncate()
-                            .text_color(t.text_disabled)
-                            .child(format!(
-                                "+{}",
-                                tf("source-control.commit.files", &[("count", hidden.into())])
-                            )),
-                    )
-                })
-        });
-        let commit = commit.clone();
-        div()
-            .w_full()
-            .pb(px(4.))
-            .child(
-                h_flex()
-                    .id(("history-commit", index))
-                    .w_full()
-                    .group(group.clone())
-                    .h(px(height - 4.))
-                    .items_start()
-                    .overflow_hidden()
-                    .pl(px(20.))
-                    .rounded(px(metric::SIDEBAR_ROW_RADIUS))
-                    .cursor(theme::clickable_cursor())
-                    .text_color(t.muted)
-                    .when(selected, |d| d.bg(t.selected).text_color(t.text))
-                    .when(!selected, |d| {
-                        d.hover(move |s| s.bg(t.hover).text_color(t.text))
-                    })
-                    .child(
-                        v_flex()
-                            .flex_1()
-                            .min_w_0()
-                            .h_full()
-                            .justify_center()
-                            .gap(px(2.))
-                            .overflow_hidden()
-                            .child(
-                                h_flex()
-                                    .w_full()
-                                    .min_w_0()
-                                    .gap(px(8.))
-                                    .child(
-                                        div()
-                                            .flex_1()
-                                            .min_w_0()
-                                            .truncate()
-                                            .text_size(px(m.left.content))
-                                            .line_height(px(m.left.line_height))
-                                            .text_color(if selected { t.text } else { t.muted })
-                                            .group_hover(group, move |s| s.text_color(t.text))
-                                            .child(message),
-                                    )
-                                    .children(stat),
-                            )
-                            .children(files),
-                    )
-                    .on_click(cx.listener(move |s, _, _, cx| {
-                        let id = commit.id.clone();
-                        s.open_detail(
-                            DetailKind::Commit(commit.clone()),
-                            move |root, cancel| git_diff::commit_detail(&root, &id, cancel),
-                            cx,
-                        );
-                    })),
-            )
-            .into_any_element()
-    }
-    /// `GitHistoryFilePreview`: icon, an added / deleted marker, the path.
-    fn file_preview(&self, change: &CommitChange, cx: &mut Context<Self>) -> Div {
-        let t = cx.palette();
-        let path = match (&change.old_path, change.status) {
-            (Some(old), Status::Renamed) => format!("{old} → {}", change.path),
-            _ => change.path.clone(),
-        };
-        let marker = match change.status {
-            Status::Added => Some(("+", theme::mix(t.success, t.subtle, 0.48))),
-            Status::Deleted => Some(("\u{2212}", theme::mix(t.danger, t.subtle, 0.48))),
-            _ => None,
-        };
-        let deleted = change.status == Status::Deleted;
-        h_flex()
-            .w_full()
-            .h(px(FILE_ROW))
-            .min_w_0()
-            .gap(px(4.))
-            .overflow_hidden()
-            .child(
-                div()
-                    .flex_none()
-                    .size(px(14.))
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .opacity(0.72)
-                    .child(
-                        FileIcon::file(change.path.clone(), self.icon_theme.clone()).size_px(14.),
-                    ),
-            )
-            .children(marker.map(|(text, color)| {
-                div()
-                    .flex_none()
-                    .font_weight(FontWeight(650.))
-                    .text_color(color)
-                    .child(text)
-            }))
-            .child(
-                div()
-                    .flex_1()
-                    .min_w_0()
-                    .truncate()
-                    .when(deleted, |d| d.text_color(t.text_disabled).line_through())
-                    .child(path),
-            )
+        timeline_list(self.timeline_list.clone(), cx).into_any_element()
     }
     /// `GitCommitDetail`'s summary: the message and `HEAD`, the copyable id,
     /// the change totals.

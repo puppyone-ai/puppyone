@@ -5,8 +5,11 @@
 //! `source-control/styles/*`. Git runs through `platform/git.rs` on a worker.
 //! A selected change opens its file diff in place (`WorkingFileDetail` over
 //! the format-aware `diff` registry).
+mod cloud_history;
 mod diff;
 mod history;
+
+pub use cloud_history::{CloudHistory, CloudHistoryEvent};
 
 use crate::{
     localization::{t as tr, tf},

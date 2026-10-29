@@ -6,6 +6,8 @@ use std::sync::{
 use std::time::{Duration, Instant};
 
 type Hook = Arc<dyn Fn() + Send + Sync>;
+/// Answers API requests in place of the fixed `{"ok":true}`.
+pub(crate) type Responder = Arc<dyn Fn(&ApiRequest) -> Result<serde_json::Value> + Send + Sync>;
 #[derive(Default)]
 pub(super) struct MemoryStore {
     pub saved: Mutex<Option<Credential>>,
@@ -51,6 +53,7 @@ pub(super) struct FakeRemote {
     wrong_user: AtomicBool,
     fail_initialize: AtomicBool,
     fail_logout: AtomicBool,
+    responder: Mutex<Option<Responder>>,
 }
 impl Default for FakeRemote {
     fn default() -> Self {
@@ -69,6 +72,7 @@ impl Default for FakeRemote {
             wrong_user: AtomicBool::new(false),
             fail_initialize: AtomicBool::new(false),
             fail_logout: AtomicBool::new(false),
+            responder: Mutex::default(),
         }
     }
 }
@@ -131,8 +135,17 @@ impl Remote for FakeRemote {
             Ok(())
         }
     }
-    fn request(&self, session: &Session, _: &ApiRequest, _: &Fence) -> Result<serde_json::Value> {
+    fn request(
+        &self,
+        session: &Session,
+        request: &ApiRequest,
+        _: &Fence,
+    ) -> Result<serde_json::Value> {
         self.requests.fetch_add(1, Ordering::SeqCst);
+        let responder = self.responder.lock().unwrap().clone();
+        if let Some(responder) = responder {
+            return responder(request);
+        }
         let hook = self.request_hook.lock().unwrap().clone();
         if let Some(hook) = hook {
             hook();
@@ -208,6 +221,19 @@ pub(crate) fn account_fixture() -> (
         Arc::new(FakeRemote::default()),
         Arc::new(MemoryStore::default()),
     );
+    login(&pair.0, "alice").unwrap();
+    pair
+}
+/// A signed-in account whose API answers come from `responder`.
+pub(crate) fn responding_account_fixture(
+    responder: Responder,
+) -> (
+    Arc<Broker>,
+    async_channel::Receiver<super::service::BrowserEvent>,
+) {
+    let remote = FakeRemote::default();
+    *remote.responder.lock().unwrap() = Some(responder);
+    let pair = Broker::new(env(), Arc::new(remote), Arc::new(MemoryStore::default()));
     login(&pair.0, "alice").unwrap();
     pair
 }
