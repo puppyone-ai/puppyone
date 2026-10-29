@@ -10,7 +10,10 @@
         "src/features/cloud/files/cloudDataPort.ts": "fdd1477623e39086f965c495138dcb82d894b902ab83af6fc13674c3017222d0",
         "electron/main/cloud-workspace-file.mjs": "edd03aa65e91b35304e682e51b007598986f2a2de85852ed969e2817f0b511b1",
         "electron/main/cloud-workspace-events.mjs": "8ce3c36c3c8e5e4741d4149063977218f3e480651a31ff03913e00faae296b63",
-        "src/features/cloud/project/context/projectCloudContext.ts": "8e074c79ef2491f3f1dd3e19e6ac9119244e9704da34a1779703eb80a15a4210"
+        "src/features/cloud/project/context/projectCloudContext.ts": "8e074c79ef2491f3f1dd3e19e6ac9119244e9704da34a1779703eb80a15a4210",
+        "src/features/cloud/files/cloudWorkspaceOpening.ts": "74fa5980b2a105d3298015f7e54edb66ed6c0fc884127e4408004707a754d544",
+        "src/features/cloud/cloudOpeningFailure.ts": "1bea1d344e4725ae3b99f524228f0ef04a31e6d7c7ffa40761a870d55e5ecb5c",
+        "shared/repositoryContract.js": "871c7849497345fc9510005906f1e4a7e7857fbf095161d2d76ad7d25a7a6952"
       }
     },
     "cloud": {

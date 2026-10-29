@@ -16,6 +16,141 @@ use std::{
     thread,
 };
 const GENERATION: &str = "9bb16f54-dfe9-4d26-8c68-c7b1ae97d859";
+
+fn opening_row(state: &str) -> Value {
+    json!({"id":"workspace-a","project_id":"project-a","generation":GENERATION,"state":state,"operation":null})
+}
+fn explicit_open(
+    f: &Fixture,
+    cancel: &Cancellation,
+    progress: impl FnMut(opening::Phase),
+) -> std::result::Result<Prepared, opening::Failure> {
+    opening::prepare(
+        f.broker.clone(),
+        f.binding.clone(),
+        Target::ProjectRoot {
+            project_id: "project-a".into(),
+        },
+        cancel,
+        false,
+        progress,
+    )
+}
+
+#[test]
+fn explicit_opening_reuses_running_workbench_and_reads_files_before_handoff() {
+    let f = Fixture::new();
+    let mut phases = Vec::new();
+    let prepared = explicit_open(&f, &Cancellation::default(), |p| phases.push(p)).unwrap();
+    let (workspace, root) = prepared.into_parts().unwrap();
+    assert_eq!(
+        phases,
+        vec![opening::Phase::Checking, opening::Phase::Files]
+    );
+    assert!(!root.is_empty());
+    assert!(workspace.local_root().is_none());
+    assert_eq!(f.state.count("POST", "/workbench"), 0);
+    assert_eq!(f.state.count("GET", "/workbench"), 1);
+    assert_eq!(f.state.count("GET", "/files"), 1);
+}
+
+#[test]
+fn explicit_opening_wakes_once_and_only_observes_pending_operation() {
+    let f = Fixture::new();
+    f.state
+        .opening_status
+        .lock()
+        .unwrap()
+        .extend([opening_row("paused"), opening_row("running")]);
+    let mut pending = opening_row("starting");
+    pending["operation"] = json!({"pending":true,"deadline":null,"error":null,"retryable":true});
+    *f.state.opening_reply.lock().unwrap() = Some(pending);
+    let mut phases = Vec::new();
+    let prepared = explicit_open(&f, &Cancellation::default(), |p| phases.push(p)).unwrap();
+    assert_eq!(
+        phases,
+        vec![
+            opening::Phase::Checking,
+            opening::Phase::Connecting,
+            opening::Phase::Files
+        ]
+    );
+    assert_eq!(f.state.count("POST", "/workbench"), 1);
+    assert_eq!(f.state.count("GET", "/workbench"), 2);
+    assert!(
+        f.state
+            .requests
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|(m, p)| m == "GET" && p.ends_with("workbench?wait_seconds=20"))
+    );
+    assert!(prepared.into_parts().is_ok());
+}
+
+#[test]
+fn explicit_opening_recovery_and_access_denial_never_wake() {
+    for retained in ["retained", "cleanup_pending"] {
+        let f = Fixture::new();
+        *f.state.runtime.lock().unwrap() = Some(opening_row(retained));
+        let error = explicit_open(&f, &Cancellation::default(), |_| {})
+            .err()
+            .unwrap();
+        assert_eq!(error.code, "workspace-recovery-required");
+        assert_eq!(error.recovery, opening::Recovery::None);
+        assert_eq!(f.state.count("POST", "/workbench"), 0);
+    }
+    let f = Fixture::new();
+    *f.state.context.lock().unwrap() = Some(
+        json!({"target":{"kind":"project_root","project_id":"project-a"},"project":{"id":"project-a","name":"Fixture","capabilities":[]},"scope_path":null}),
+    );
+    assert_eq!(
+        explicit_open(&f, &Cancellation::default(), |_| {})
+            .err()
+            .unwrap()
+            .recovery,
+        opening::Recovery::None
+    );
+    assert_eq!(f.state.count("GET", "/workbench"), 0);
+}
+
+#[test]
+fn explicit_opening_generation_replacement_and_deadline_fail_before_files() {
+    for expired in [false, true] {
+        let f = Fixture::new();
+        let mut replaced = opening_row("running");
+        replaced["generation"] = json!(uuid::Uuid::new_v4().to_string());
+        f.state
+            .opening_status
+            .lock()
+            .unwrap()
+            .extend([opening_row("paused"), replaced]);
+        let mut pending = opening_row("starting");
+        pending["operation"] = json!({"pending":true,"deadline":if expired {Some("2000-01-01T00:00:00Z")} else {None},"error":null,"retryable":true});
+        *f.state.opening_reply.lock().unwrap() = Some(pending);
+        assert!(explicit_open(&f, &Cancellation::default(), |_| {}).is_err());
+        assert_eq!(f.state.count("GET", "/files"), 0);
+        assert_eq!(f.state.count("POST", "/workbench"), 1);
+        assert_eq!(
+            f.state.count("GET", "/workbench"),
+            if expired { 1 } else { 2 }
+        );
+    }
+}
+
+#[test]
+fn explicit_opening_cancelled_at_files_cannot_deliver_a_provider() {
+    let f = Fixture::new();
+    let cancel = Cancellation::default();
+    let result = explicit_open(&f, &cancel, |phase| {
+        if phase == opening::Phase::Files {
+            cancel.cancel()
+        }
+    });
+    assert!(result.is_err());
+    assert_eq!(f.state.count("GET", "/files"), 0);
+}
+
 struct Gate {
     held: AtomicBool,
     arrived: AtomicUsize,
@@ -65,6 +200,8 @@ struct State {
     file_failure: Mutex<Option<(u16, &'static str)>>,
     context: Mutex<Option<Value>>,
     runtime: Mutex<Option<Value>>,
+    opening_status: Mutex<std::collections::VecDeque<Value>>,
+    opening_reply: Mutex<Option<Value>>,
     file_reply: Mutex<Option<Value>>,
 }
 impl State {
@@ -90,6 +227,8 @@ impl State {
             file_failure: Mutex::new(None),
             context: Mutex::new(None),
             runtime: Mutex::new(None),
+            opening_status: Mutex::default(),
+            opening_reply: Mutex::new(None),
             file_reply: Mutex::new(None),
         }
     }
@@ -279,6 +418,11 @@ fn connection(mut stream: TcpStream, state: Arc<State>, origin: &str) {
     assert!(authorized);
     assert!(!raw_path.contains("synthetic"));
     if path.ends_with("/repository-context") {
+        assert!(
+            String::from_utf8_lossy(&raw)
+                .to_ascii_lowercase()
+                .contains("\r\nx-puppyone-repository-contract: 2\r\n")
+        );
         assert_eq!(method, "POST");
         assert_eq!(
             body["target"],
@@ -294,8 +438,18 @@ fn connection(mut stream: TcpStream, state: Arc<State>, origin: &str) {
         return;
     }
     if path.ends_with("/workbench") {
+        if method == "POST" {
+            let value = state
+                .opening_reply
+                .lock()
+                .unwrap()
+                .clone()
+                .expect("only explicit opening fixtures permit wake");
+            reply(&mut stream, 200, value);
+            return;
+        }
         assert_eq!(method, "GET", "provider must never allocate/wake compute");
-        let value = state.runtime.lock().unwrap().clone().unwrap_or_else(|| json!({"id":"workspace-a","project_id":"project-a","generation":GENERATION,"state":"running","target_ref":"refs/heads/main"}));
+        let value = state.opening_status.lock().unwrap().pop_front().or_else(|| state.runtime.lock().unwrap().clone()).unwrap_or_else(|| json!({"id":"workspace-a","project_id":"project-a","generation":GENERATION,"state":"running","target_ref":"refs/heads/main"}));
         reply(&mut stream, 200, json!({"workspace":value}));
         return;
     }

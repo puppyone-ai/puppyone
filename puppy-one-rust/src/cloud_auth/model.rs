@@ -295,7 +295,88 @@ pub struct ApiRequest {
     pub body: Option<serde_json::Value>,
 }
 impl ApiRequest {
+    fn project_endpoint(&self, endpoint: &str) -> bool {
+        self.path
+            .strip_prefix("/projects/")
+            .and_then(|p| p.split_once('/'))
+            .is_some_and(|(project, tail)| !project.is_empty() && tail == endpoint)
+    }
     pub fn read_only(&self) -> bool {
-        self.method == reqwest::Method::GET || self.method == reqwest::Method::HEAD
+        self.method == reqwest::Method::GET
+            || self.method == reqwest::Method::HEAD
+            || (self.method == reqwest::Method::POST && self.project_endpoint("repository-context"))
+    }
+    /// Opening/status have a server-side wait. Keep ordinary APIs bounded to
+    /// 15 s, while allowing the explicit workbench handshake to finish.
+    pub fn timeout(&self) -> Duration {
+        let workbench = self.project_endpoint("workbench");
+        if workbench && self.method == reqwest::Method::POST {
+            Duration::from_secs(120)
+        } else if workbench
+            && self.method == reqwest::Method::GET
+            && self
+                .query
+                .iter()
+                .any(|(k, v)| k == "wait_seconds" && v == "20")
+        {
+            Duration::from_secs(25)
+        } else {
+            Duration::from_secs(15)
+        }
+    }
+}
+
+#[cfg(test)]
+mod request_policy_tests {
+    use super::ApiRequest;
+    use reqwest::Method;
+    use std::time::Duration;
+
+    #[test]
+    fn only_exact_context_resolution_posts_can_be_retried_as_reads() {
+        for (path, read_only) in [
+            ("/projects/project-a/repository-context", true),
+            ("/projects/project-a/workbench", false),
+            ("/projects/project-a/workbench/file", false),
+            ("/projects/project-a/nested/repository-context", false),
+            ("/projects//repository-context", false),
+        ] {
+            let request = ApiRequest {
+                method: Method::POST,
+                path: path.into(),
+                query: Vec::new(),
+                body: None,
+            };
+            assert_eq!(request.read_only(), read_only, "{path}");
+        }
+    }
+
+    #[test]
+    fn workbench_wait_budget_does_not_extend_file_or_account_requests() {
+        for (path, method, wait, seconds) in [
+            ("/projects/project-a/workbench", Method::POST, false, 120),
+            ("/projects/project-a/workbench", Method::GET, true, 25),
+            ("/projects/project-a/workbench", Method::GET, false, 15),
+            ("/projects/project-a/workbench/file", Method::GET, true, 15),
+            (
+                "/projects/project-a/nested/workbench",
+                Method::POST,
+                false,
+                15,
+            ),
+            ("/user/profile", Method::GET, true, 15),
+        ] {
+            let request = ApiRequest {
+                method,
+                path: path.into(),
+                query: if wait {
+                    vec![("wait_seconds".into(), "20".into())]
+                } else {
+                    Vec::new()
+                },
+                body: None,
+            };
+            assert_eq!(request.timeout(), Duration::from_secs(seconds), "{path}");
+        }
     }
 }

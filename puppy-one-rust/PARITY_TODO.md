@@ -36,7 +36,7 @@
 | --- | --- | --- |
 | 文件操作 `[~]` | 原 Working Copy/Entity 重绑定；隐藏文档与目录后代保存屏障；复制源 flush；未知回执只对账；移动后 Undo 写回新路径 | 改扩展名的 viewer 转换与历史连续性；与 TS 等价的按资源范围并发队列；所有格式与跨 Root 操作 |
 | 工作区与 Explorer `[~]` | 本地树/选择/滚动/剪贴板保活及重核；目录移动保留子树；同工作区单文件边缘拖放及目标生命周期隔离 | 完整每 Pane 视图状态、跨 Root composition；目录订阅；外部原生拖放；键盘/可访问性与 OS/像素验收 |
-| Cloud 完整链路 `[ ]` | 继承已验证认证和 running Provider 底座；入口仍禁用 | 项目选择→创建/唤醒→opening/polling/recovery→双入口切换→Editor；草稿/未知保存结果、权限/viewer budget 与执行隔离；真实测试环境验收 |
+| Cloud 完整链路 `[ ]` | 认证和 running Provider；显式 opening/polling 协议、项目/generation/期限/取消校验与根目录准入；入口仍禁用 | 项目选择/创建与 opening 可见流程→双入口切换→Editor；完整错误分类、并发打开合并、草稿/未知结果、权限/viewer budget 与执行隔离；真实测试环境验收 |
 | 文件查看器 `[~]` | Markdown、CSV、图片；代码/JSON 原生语法编辑、行号/折叠/缩进/括号补全、多光标/撤销；同实例语言重绑；产品查找及 Unicode 规范化 | 代码括号匹配/选词高亮/尾空格装饰、严格几何/字体与历史预算；HTML 实际预览；Context Map/PuppyFlow；App/PDF/数据库/Office/音视频的完整 TS 能力与失败态 |
 | Markdown 高级功能 `[~]` | 原生基础格式、代码块及表格；真实工作区元数据解析；CSV 引用打开；Markdown/Wiki 点击与当前文档标题跳转 | 数学公式、Mermaid、图片/视频、HTML/MDX；表格列宽、backlinks/资源预览；跨文档 heading 与 HTML id、引用视觉/可访问性；多 Root URI 和不同系统 locale 排序 |
 

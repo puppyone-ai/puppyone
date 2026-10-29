@@ -98,6 +98,9 @@ pub(super) struct Runtime {
 pub(super) struct Operation {
     pub pending: bool,
     pub error: Option<String>,
+    pub deadline: Option<String>,
+    #[serde(default)]
+    pub retryable: bool,
 }
 impl Runtime {
     pub fn ready(&self, project: &str) -> Result<()> {

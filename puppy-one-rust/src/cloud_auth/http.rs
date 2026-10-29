@@ -85,10 +85,19 @@ impl Http {
         }
     }
     fn send(&self, request: reqwest::RequestBuilder, limit: usize, fence: &Fence) -> Result<Value> {
+        self.send_with_timeout(request, limit, fence, Duration::from_secs(15))
+    }
+    fn send_with_timeout(
+        &self,
+        request: reqwest::RequestBuilder,
+        limit: usize,
+        fence: &Fence,
+        timeout: Duration,
+    ) -> Result<Value> {
         runtime().block_on(async {
             let mut cancelled = fence.control.changes.subscribe();
             fence.check()?;
-            let remaining = fence.deadline.map(|d| d.saturating_duration_since(Instant::now())).unwrap_or(Duration::from_secs(15)).min(Duration::from_secs(15));
+            let remaining = fence.deadline.map(|d| d.saturating_duration_since(Instant::now())).unwrap_or(timeout).min(timeout);
             let operation = async {
                 let response = request.header("Cache-Control", "no-store").send().await.map_err(|_| Error::Unavailable)?;
                 let status = response.status().as_u16();
@@ -277,11 +286,13 @@ impl Remote for Http {
         let mut http = self
             .client(&url)
             .request(request.method.clone(), url)
-            .bearer_auth(&session.access.0);
+            .bearer_auth(&session.access.0)
+            .header("X-PuppyOne-Repository-Contract", "2")
+            .timeout(request.timeout());
         if let Some(body) = &request.body {
             http = http.json(body);
         }
-        self.send(http, 12 * 1024 * 1024, fence)
+        self.send_with_timeout(http, 12 * 1024 * 1024, fence, request.timeout())
     }
     fn stream(
         &self,

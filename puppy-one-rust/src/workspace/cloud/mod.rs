@@ -4,6 +4,7 @@
 mod client;
 mod events;
 mod model;
+pub mod opening;
 #[cfg(test)]
 mod tests;
 use super::{Workspace, contracts::*, ports::*};
@@ -65,6 +66,31 @@ pub fn prepare_running(
     let scope = cancel.child();
     scope.check().map_err(map_error)?;
     broker.check_binding(&binding).map_err(map_error)?;
+    let context = authorize(&broker, &binding, &target, &scope)?;
+    let status = ApiRequest {
+        method: Method::GET,
+        path: format!("/projects/{project}/workbench"),
+        query: Vec::new(),
+        body: None,
+    };
+    let mut response = broker
+        .request_scoped(&binding, &status, &scope)
+        .map_err(map_error)?;
+    let runtime: model::Runtime =
+        serde_json::from_value(response["workspace"].take()).map_err(|_| model::invalid())?;
+    runtime.ready(&project)?;
+    prepare_verified(broker, binding, context, scope, runtime)
+}
+
+fn authorize(
+    broker: &Broker,
+    binding: &Binding,
+    target: &Target,
+    scope: &Cancellation,
+) -> Result<model::Context> {
+    let project = target.project()?;
+    scope.check().map_err(map_error)?;
+    broker.check_binding(binding).map_err(map_error)?;
     let query = ApiRequest {
         method: Method::POST,
         path: format!("/projects/{project}/repository-context"),
@@ -72,14 +98,14 @@ pub fn prepare_running(
         body: Some(json!({"target": target})),
     };
     let mut response = broker
-        .request_scoped(&binding, &query, &scope)
+        .request_scoped(binding, &query, scope)
         .map_err(map_error)?;
     if response["code"] != 0 {
         return Err(model::invalid());
     }
     let context: model::Context =
         serde_json::from_value(response["data"].take()).map_err(|_| model::invalid())?;
-    if context.target != target
+    if &context.target != target
         || context.project.id != project
         || context.scope_path.as_deref().is_some_and(|v| !v.is_empty())
     {
@@ -102,17 +128,17 @@ pub fn prepare_running(
     {
         return Err(model::invalid());
     }
-    let status = ApiRequest {
-        method: Method::GET,
-        path: format!("/projects/{project}/workbench"),
-        query: Vec::new(),
-        body: None,
-    };
-    let mut response = broker
-        .request_scoped(&binding, &status, &scope)
-        .map_err(map_error)?;
-    let runtime: model::Runtime =
-        serde_json::from_value(response["workspace"].take()).map_err(|_| model::invalid())?;
+    Ok(context)
+}
+
+fn prepare_verified(
+    broker: Arc<Broker>,
+    binding: Binding,
+    context: model::Context,
+    scope: Cancellation,
+    runtime: model::Runtime,
+) -> Result<Prepared> {
+    let project = context.target.project()?.to_owned();
     runtime.ready(&project)?;
     let api = url::Url::parse(binding.environment.api()).map_err(|_| model::invalid())?;
     let authority = &api[url::Position::BeforeHost..url::Position::AfterPort];

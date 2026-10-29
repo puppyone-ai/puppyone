@@ -86,6 +86,8 @@ python3 tools/verify-ui-assets.py --binary /path/to/dev-capture/puppy-one-rust -
 
 **Provider 底座不是 Cloud 已接通**：原生登录由独立认证服务承接；HTTP/SSE 文件 Provider 的协议切片见第三步；Cloud 导航与保活、云端草稿处理仍未启用；本地多文档工作台已接入，范围与缺口见下一节。TS 参考输入的 HEAD 与脏工作树哈希见 `fixtures/workspace/provider-reference.json`。完整契约归 [Native Host and Lifecycle](https://github.com/puppyone-ai/puppy-issues/blob/main/document/puppyone-desktop/platform/rust-native-frontend/host-and-lifecycle.md#native-workspace-provider-foundation)。
 
+Cloud 显式打开的协议切片位于 `workspace/cloud/opening.rs`：Checking → Connecting → Files，已运行工作区复用，显式打开最多发送一次 wake POST，后续只 GET 观察；核对项目/generation、服务期限、取消和根目录读取后才交付一次性 Prepared。认证请求携带 repository contract 2；workbench 长轮询允许 25 秒、显式启动允许 120 秒，普通 API 仍为 15 秒。此切片仅经回环服务验证，尚未接入菜单/主页，错误分类、并发打开合并、Cloud 草稿与未知结果恢复仍需补齐，不能视为 Cloud 完整 1:1 流程完成。
+
 ## Retained Editor workbench（迁移进行中，不是全量完成）
 
 `editor/workbench/{catalog,layout,runtime}.rs` 分别持有打开文档目录/MRU、递归 Pane 树和保活工作区；Shell 使用这些实际运行时，不是另一个演示页。每份 Working Copy 继续使用现有 `Documents` / `DocumentEditingSession` 保存队列，按稳定资源身份去重；标签和 Pane 焦点切换不读文件、不执行保存屏障。
