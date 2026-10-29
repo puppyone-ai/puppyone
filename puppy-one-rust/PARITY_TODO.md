@@ -1,6 +1,6 @@
 # Rust 前端与 Web 产品对齐 TODO
 
-参考实现：`../../puppyone-qubits`（`product-source.json`）。本清单跟踪原生产品迁移；本轮要求的五个 1:1 复刻领域统一列于 §0.3，后文保留各模块的详细验收项。
+参考实现：`../../puppyone`（v0.4.0，`product-source.json`）。本清单跟踪原生产品迁移；本轮要求的五个 1:1 复刻领域统一列于 §0.3，后文保留各模块的详细验收项。
 状态：`[ ]` 未开始 · `[~]` 部分完成（写明缺什么）· `[x]` 完成并有测试/截图证据。
 
 ## 0. 工作方法
@@ -54,6 +54,21 @@
 - [x] `tools/verify.py` 18 项全部通过：`dev-capture` **448 passed / 9 ignored**，fmt、边界、TS 参考、资产、Clippy、release、CPU 帧预算及现行编辑器专项 **46 passed**。运行前后源文件哈希一致；共享 `CARGO_TARGET_DIR` 的 release 哈希取自 Cargo 实际输出目录。收据：`artifacts/gpui-verification/result.json`、`artifacts/native-editor-verification/result.json`。
 
 此前各日期下“localization / native probe 尚未解决”是当时记录，现由本节更新。§0.3 的五个完整领域仍未通过整体验收；没有把 Cloud、缺失查看器、Markdown 高级功能、跨 Root 或严格像素验收归档或改成完成。
+
+### 0.5 2026-10-29 夜间批次（基准 v0.4.0）
+
+参考实现改为 `../../puppyone`（v0.4.0，`9c500b3d`）。本批完成并有测试：
+
+- [x] 基准升级：6 份参考夹具复核漂移后重新固定；映射审计扩大到 cloud/automation/payments 等 21 个根（未登记数相应增加，见审计输出）。
+- [x] Explorer 导入/移动失败横幅（`operationError`）与首页取消关联提示（`removeHint`）。证据：`failed_import_or_move_shows_above_the_tree_and_retry_rereads_the_root`。
+- [x] 运行底座：`platform::tasks`（EditorTaskScheduler 策略 v1）、`platform::host_budget`（itemHostBudgetDefaults，终端与 Agent CLI 接入）、File → Manage Running Sessions、`platform::watchdog`（主线程 250 ms 卡顿记录、worker panic 兜底、崩溃记录）、每查看器 `maxSourceBytes` 准入（本地文本上限升至 16 MiB）。
+- [x] 多窗口：`shell::windows`（New Window、项目只在一个窗口、菜单跟随当前窗口、Quit 逐窗口屏障、共享偏好、恢复上次项目、Finder 打开文件夹）；本地目录订阅（FSEvents）。证据：`windows_share_preferences_and_one_project_lives_in_one_window`、`external_changes_reread_loaded_folders_through_the_directory_subscription`。
+- [x] 应用菜单按 `native-menu-service` 补齐（About、Check for Updates、Services、Hide、Window、Help、Close Window）。
+- [x] PDF 查看器（PDFium，`tools/fetch-pdfium.py`）与 AVIF（ImageIO 转码）。内容为引擎渲染，接近即可；外框与状态未做像素对比。
+- [x] 账户与 Cloud 拆分（#83 #89）：`features::flags`、Settings Account/Plan 分组、首页 Sign in 跟随 Cloud。
+- [x] Cloud 协议/模型：`workspace::cloud::{failure, locator, catalog, recovery, publish}`（打开失败分类、remote 定位与可信 origin、资源链接、首页目录合并排序、仓库关联重试、首次发布状态轴）。**界面尚未接入，C-6.6 草稿策略未做，Cloud 编辑仍不得开放。**
+
+仍未完成：HTML/Office/音视频/数据库/Context Map/App 预览查看器；代码编辑器装饰与冲突横幅；Cloud 全部界面；各处像素对比流程；右侧栏、设置与账户付费的剩余项。完整清单与状态见桌面迁移清单第 2 版。
 
 ## 1. 基础设施
 

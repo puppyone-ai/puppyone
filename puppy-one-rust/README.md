@@ -88,6 +88,14 @@ python3 tools/verify-ui-assets.py --binary /path/to/dev-capture/puppy-one-rust -
 
 Cloud 显式打开的协议切片位于 `workspace/cloud/opening.rs`：Checking → Connecting → Files，已运行工作区复用，显式打开最多发送一次 wake POST，后续只 GET 观察；核对项目/generation、服务期限、取消和根目录读取后才交付一次性 Prepared。认证请求携带 repository contract 2；workbench 长轮询允许 25 秒、显式启动允许 120 秒，普通 API 仍为 15 秒。此切片仅经回环服务验证，尚未接入菜单/主页，错误分类、并发打开合并、Cloud 草稿与未知结果恢复仍需补齐，不能视为 Cloud 完整 1:1 流程完成。
 
+## 运行底座与多窗口（2026-10-29）
+
+- **多窗口**：`shell::windows` 管理所有窗口。File/Dock → New Window（⌘N）；已在某窗口打开的项目会切到那个窗口；菜单动作跟随当前窗口；Quit 让每个窗口各自走关闭屏障；偏好由所有窗口共享；无参数启动和 Dock 重新打开时恢复上次项目；Finder "Open With" 交给 `on_open_urls`。
+- **一个窗口不能拖死全部**：GPUI 所有窗口共用一个前台线程。`platform::tasks` 按 TS `EDITOR_TASK_POLICY` v1 准入编辑器任务（窗口关闭时停止准入并等待退出）；`platform::host_budget` 按 `itemHostBudgetDefaults` 监督终端和 Agent CLI 进程（数量、内存、持续 CPU）；File → Manage Running Sessions 不依赖标签页；`platform::watchdog` 记录前台超过 250 ms 的卡顿、worker panic 和崩溃到 `diagnostics/main-thread-stalls.jsonl`。
+- **查看器准入**：内容型查看器按各自 `maxSourceBytes`（Markdown/文本 16 MiB、CSV/JSON 8 MiB、HTML 4 MiB）。
+- **PDF**：`platform::pdf` + `editor::viewers::pdf`，引擎为 PDFium（`python3 tools/fetch-pdfium.py` 安装到 `vendor/pdfium`，打包时进入 `Frameworks`）。没有引擎时显示资源不可用。
+- **Cloud 模型**：`workspace::cloud::{failure, locator, catalog, recovery, publish}` 已移植并测试，界面仍禁用。
+
 ## Retained Editor workbench（迁移进行中，不是全量完成）
 
 `editor/workbench/{catalog,layout,runtime}.rs` 分别持有打开文档目录/MRU、递归 Pane 树和保活工作区；Shell 使用这些实际运行时，不是另一个演示页。每份 Working Copy 继续使用现有 `Documents` / `DocumentEditingSession` 保存队列，按稳定资源身份去重；标签和 Pane 焦点切换不读文件、不执行保存屏障。
