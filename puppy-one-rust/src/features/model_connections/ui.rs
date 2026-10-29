@@ -76,6 +76,12 @@ pub struct ModelConnections {
     /// Reachable local services from the last discovery, and a pending one.
     candidates: Vec<client::Candidate>,
     discover_rx: Option<std::sync::mpsc::Receiver<Vec<client::Candidate>>>,
+    /// The service catalog of the shown connection (`catalogs`).
+    catalog: Option<(String, Result<Vec<client::CatalogModel>, String>)>,
+    catalog_rx: Option<std::sync::mpsc::Receiver<Result<Vec<client::CatalogModel>, String>>>,
+    /// Agent tool round trips that passed, by route; one in flight.
+    verified: std::collections::BTreeMap<String, bool>,
+    verify_rx: Option<(String, std::sync::mpsc::Receiver<Result<(), String>>)>,
     wake: Wake,
 }
 impl EventEmitter<Saved> for ModelConnections {}
@@ -109,6 +115,10 @@ impl ModelConnections {
             rx: result,
             candidates: vec![],
             discover_rx: None,
+            catalog: None,
+            catalog_rx: None,
+            verified: Default::default(),
+            verify_rx: None,
             wake,
         }
     }
@@ -116,6 +126,22 @@ impl ModelConnections {
         if let Some(found) = self.discover_rx.as_ref().and_then(|rx| rx.try_recv().ok()) {
             self.discover_rx = None;
             self.candidates = found;
+            cx.notify();
+        }
+        if let Some(result) = self.catalog_rx.as_ref().and_then(|rx| rx.try_recv().ok()) {
+            self.catalog_rx = None;
+            if let PageState::Detail(id) = &self.page {
+                self.catalog = Some((id.clone(), result));
+            }
+            cx.notify();
+        }
+        if let Some((route, result)) = self
+            .verify_rx
+            .as_ref()
+            .and_then(|(route, rx)| rx.try_recv().ok().map(|r| (route.clone(), r)))
+        {
+            self.verify_rx = None;
+            self.verified.insert(route, result.is_ok());
             cx.notify();
         }
         let Ok(result) = self.rx.try_recv() else {
@@ -155,6 +181,7 @@ impl ModelConnections {
                 self.load_form(c, cx)
             }
             PageState::Add(_) => self.load_form(None, cx),
+            PageState::Detail(id) => self.read_catalog(id.clone()),
             _ => {}
         }
         self.page = page;
@@ -437,6 +464,122 @@ impl ModelConnections {
             cx.notify();
         }
     }
+    /// Read the service's model catalog for `id`.
+    fn read_catalog(&mut self, id: String) {
+        if let Some(connection) = self.items.iter().find(|c| c.id == id).cloned() {
+            self.catalog = None;
+            self.catalog_rx = Some(client::catalog(connection, self.wake.clone()));
+        }
+    }
+    /// The models to list: the service catalog when it was read, else the
+    /// configured model so it can still be verified.
+    fn listed_models(&self, item: &ModelConnection) -> Vec<client::CatalogModel> {
+        match &self.catalog {
+            Some((id, Ok(models))) if *id == item.id && !models.is_empty() => models.clone(),
+            _ if item.model.is_empty() => vec![],
+            _ => vec![client::CatalogModel {
+                id: item.model.clone(),
+                name: item.model.clone(),
+                loaded: None,
+                tools: None,
+                images: None,
+                context: None,
+            }],
+        }
+    }
+    /// `catalog.status` of the shown connection, when not ready.
+    fn catalog_status(&self, item: &ModelConnection) -> Option<String> {
+        if self.catalog_rx.is_some() {
+            return Some(tr("settings.modelConnections.status.refreshing").to_string());
+        }
+        match &self.catalog {
+            Some((id, Err(code))) if *id == item.id => Some(format!(
+                "{} · {}",
+                tr("settings.modelConnections.status.failed"),
+                tf(
+                    "settings.modelConnections.error",
+                    &[("code", code.clone().into())]
+                )
+            )),
+            Some((id, Ok(_))) if *id == item.id => None,
+            _ => Some(tr("settings.modelConnections.status.unread").to_string()),
+        }
+    }
+    /// One `.model-connections-model` row: identity (name, verification
+    /// label) and the Verify action.
+    fn model_row(
+        &self,
+        item: &ModelConnection,
+        model: &client::CatalogModel,
+        index: usize,
+        t: Theme,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let route = format!("{}/{}", item.id, model.id);
+        let label = tr(if self.verified.get(&route) == Some(&true) {
+            "settings.modelConnections.verified"
+        } else if model.tools == Some(true) {
+            "settings.modelConnections.advertised"
+        } else {
+            "settings.modelConnections.unverified"
+        });
+        let loaded = match model.loaded {
+            Some(true) => Some(tr("settings.modelConnections.loaded")),
+            Some(false) => Some(tr("settings.modelConnections.notLoaded")),
+            None => None,
+        };
+        let verifying = self.verify_rx.as_ref().is_some_and(|(r, _)| *r == route);
+        let mut connection = item.clone();
+        connection.model = model.id.clone();
+        h_flex()
+            .w_full()
+            .min_w_0()
+            .min_h(px(42.))
+            .justify_between()
+            .gap(px(18.))
+            .px(px(10.))
+            .child(
+                v_flex()
+                    .min_w_0()
+                    .child(
+                        div()
+                            .truncate()
+                            .text_size(px(theme::ty().ui.label))
+                            .font_weight(FontWeight::MEDIUM)
+                            .text_color(t.text)
+                            .child(model.name.clone()),
+                    )
+                    .child(
+                        div()
+                            .truncate()
+                            .text_size(px(theme::ty().ui.caption))
+                            .text_color(t.subtle)
+                            .child(match loaded {
+                                Some(loaded) => format!("{label} · {loaded}"),
+                                None => label.to_string(),
+                            }),
+                    ),
+            )
+            .child(
+                Button::new(("verify-model", index))
+                    .label(tr(if verifying {
+                        "settings.modelConnections.working"
+                    } else {
+                        "settings.modelConnections.verify"
+                    }))
+                    .disabled(self.busy || self.verify_rx.is_some())
+                    .on_click(cx.listener(move |s, _, _, cx| {
+                        if s.verify_rx.is_none() {
+                            s.verify_rx = Some((
+                                connection.route(),
+                                client::verify(connection.clone(), s.wake.clone()),
+                            ));
+                            cx.notify();
+                        }
+                    })),
+            )
+            .into_any_element()
+    }
     fn detail(&self, id: &str, t: Theme, cx: &mut Context<Self>) -> Div {
         let Some(item) = self.items.iter().find(|c| c.id == id).cloned() else {
             return div();
@@ -457,15 +600,34 @@ impl ModelConnections {
             })
             .label(tr("settings.modelConnections.refresh"))
             .disabled(self.busy)
-            .on_click(cx.listener(|s, _, _, cx| s.reload(cx)));
-        let models: Vec<AnyElement> = if item.model.is_empty() {
-            vec![MutedRow::new(tr("settings.modelConnections.modelsEmpty")).into_any_element()]
-        } else {
-            vec![
-                ValueRow::new(item.model.clone(), tr("settings.modelConnections.loaded"))
-                    .into_any_element(),
-            ]
+            .on_click(cx.listener(|s, _, _, cx| {
+                s.reload(cx);
+                if let PageState::Detail(id) = &s.page {
+                    s.read_catalog(id.clone());
+                }
+            }));
+        let listed = self.listed_models(&item);
+        let model_count = listed.len();
+        let mut models: Vec<AnyElement> = listed
+            .iter()
+            .enumerate()
+            .map(|(index, model)| self.model_row(&item, model, index, t, cx))
+            .collect();
+        if models.is_empty() {
+            models.push(
+                MutedRow::new(tr("settings.modelConnections.modelsEmpty")).into_any_element(),
+            );
+        }
+        let status = self.catalog_status(&item);
+        let hint = |text: SharedString| {
+            div()
+                .px(px(10.))
+                .text_size(px(theme::ty().ui.caption))
+                .text_color(t.subtle)
+                .child(text)
         };
+        let verify = (model_count > 0)
+            .then(|| hint(tr("settings.modelConnections.verificationHelp").into()));
         let remove: AnyElement = if self.confirm_remove {
             v_flex()
                 .gap(px(8.))
@@ -560,12 +722,14 @@ impl ModelConnections {
                     SettingsCategory::new(format!(
                         "{} {}",
                         tr("settings.modelConnections.models"),
-                        usize::from(!item.model.is_empty())
+                        model_count
                     ))
                     .action(refresh)
+                    .children(status.map(|s| hint(s.into()).into_any_element()))
                     .children(models),
                 ),
             )
+            .children(verify)
             .child(remove)
     }
     fn form(&self, t: Theme, cx: &mut Context<Self>) -> Div {
