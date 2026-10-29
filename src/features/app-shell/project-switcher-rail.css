@@ -636,12 +636,6 @@ body.desktop-project-switcher-resizing * {
   opacity: 0.3;
 }
 
-/* The place switch is a menu section: the surface already owns the insets. */
-.desktop-project-row-actions-location {
-  display: grid;
-  min-width: 0;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .desktop-project-switcher-rail-button {
     transition-property: background-color, color;

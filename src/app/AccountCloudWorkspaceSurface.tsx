@@ -59,8 +59,8 @@ export function useAccountCloudWorkspacePresentation({ workbench, onOpenSettings
   };
 }
 
-/** Hosted-only surface used when no local repository is open. Repository-linked
- * switching embeds the presentation above in the retained local shell instead. */
+/** Cloud project surface used when no local folder is open. With a local folder
+ * open, the retained local shell embeds the presentation above instead. */
 export function AccountCloudWorkspaceSurface({ workbench, presentation, active, appearance, onHome, context, session, apiBaseUrl, onSessionChange, projectItems, pendingProject, onSelectProject, onSelectCloudProject, onCreateProject, projectRail, agent: suppliedAgent, sidebar: suppliedSidebar }: {
   workbench: NativeCloudWorkbench;
   presentation: AccountCloudWorkspacePresentation;
@@ -68,7 +68,6 @@ export function AccountCloudWorkspaceSurface({ workbench, presentation, active, 
   agent?: ReturnType<typeof useCloudAgentWorkspace>;
   sidebar?: CloudWorkspaceSidebarController;
   appearance: ResolvedSurfaceAppearance;
-  onLocal: () => void;
   onHome: () => void;
   projectItems: readonly ProjectHomeItem[];
   pendingProject?: ProjectNavigationTarget | null;
@@ -100,15 +99,12 @@ export function AccountCloudWorkspaceSurface({ workbench, presentation, active, 
   const sidebar = suppliedSidebar ?? ownSidebar;
   const { service } = workbench;
   if (!service || !workbench.visited) return null;
-  const localProject = projectItems.find(item => item.cloudProjectId === service.workspace.projectId && item.localPath);
   // The rail states the Project it is switching between, so the hosted Header
   // repeats neither the name nor the place while the rail is present.
   const projectContext = !active || projectRail ? null : <DesktopTitlebarContext open={menuOpen} refObject={menuRef}
         titlebarLabel={service.workspace.name} workspace={service.workspace} workspaceFolders={[service.folder]}
-        multiRootWorkspacesEnabled={false} projectLocation={{ current: "cloud", localAvailable: Boolean(localProject), cloudState: "available" }}
-        cloudProject={{ id: service.workspace.projectId!, name: service.workspace.name }}
+        multiRootWorkspacesEnabled={false}
         onClose={() => setMenuOpen(false)} onToggle={() => setMenuOpen((current) => !current)}
-        onViewLocal={localProject ? () => { setMenuOpen(false); onSelectProject(localProject.localPath); } : undefined}
         projectItems={projectItems} pendingProject={pendingProject} onSelectProject={onSelectProject} onSelectCloudProject={onSelectCloudProject}
         onCreateProject={onCreateProject} onHome={onHome}
         menuAlignment={centered ? "center" : "start"} />;

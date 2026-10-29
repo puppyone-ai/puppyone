@@ -76,8 +76,9 @@ describe("Header project reach bindings", () => {
     expect(declaration("reachStatedInHeader")).toBe("Boolean(projectReach) && !railOwnsProject");
     expect(attribute("DesktopTitlebarActions", "shareEnabled"))
       .toBe("!cloudHeaderActive && shareOnboardingEnabled && !reachStatedInHeader");
-    expect(attribute("DesktopWorkspaceContent", "cloudLocationControls"))
-      .toContain("!projectReachEnabled");
+    // No other Header or Cloud dialog control switches the project's place.
+    expect(source).not.toContain("cloudLocationControls");
+    expect(source).not.toContain("DesktopProjectLocationControls");
   });
 
   it("keeps repository distance out of the Header's changes entry", () => {
@@ -87,7 +88,6 @@ describe("Header project reach bindings", () => {
 
   it("leaves the established Header components free of the experiment", () => {
     for (const file of [
-      "src/components/DesktopProjectLocationSwitcher.tsx",
       "src/features/app-shell/DesktopTitlebarActions.tsx",
       "src/features/app-shell/headerElements.tsx",
       "src/features/source-control/gitTitlebarStatus.ts",

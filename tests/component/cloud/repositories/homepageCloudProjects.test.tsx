@@ -35,12 +35,11 @@ let openAccount: ReturnType<typeof vi.fn<() => void>>;
 type Request = Parameters<NonNullable<typeof window.puppyoneDesktop>["requestCloudSessionApi"]>[0];
 let bridge: ReturnType<typeof vi.fn<(request: Request) => unknown>>;
 const appearance = createTestSurfaceAppearance();
-function Harness({ currentSession = session, visible = true, enabled = true, library = false, localItems = [local], activeLocalPath }: {
-  currentSession?: DesktopCloudSession | null; visible?: boolean; enabled?: boolean; library?: boolean; localItems?: RecentWorkspaceHomeItem[]; activeLocalPath?: string;
+function Harness({ currentSession = session, visible = true, enabled = true, library = false, localItems = [local] }: {
+  currentSession?: DesktopCloudSession | null; visible?: boolean; enabled?: boolean; library?: boolean; localItems?: RecentWorkspaceHomeItem[];
 }) {
   account = useAccountCloudWorkspace({ enabled, session: currentSession, apiBaseUrl: API });
-  home = useHomepageCloudProjects({ enabled, visible: visible && !account.active, session: currentSession, apiBaseUrl: API, local: localItems,
-    activeLocalPath, activeCloudProjectId: account.active && account.context.status === "resolved" ? account.context.projectId : undefined });
+  home = useHomepageCloudProjects({ enabled, visible: visible && !account.active, session: currentSession, apiBaseUrl: API, local: localItems });
   const Home = library ? AssetLibraryHome : MinimalOnboarding;
   return visible && !account.active ? <Home appearance={appearance} projectItems={home.items}
     onChooseWorkspace={async () => {}}
@@ -80,45 +79,35 @@ beforeEach(() => {
 afterEach(async () => { await act(async () => root.unmount()); document.body.innerHTML = ""; localStorage.clear(); vi.unstubAllEnvs(); });
 
 describe("inline Homepage Cloud projects", () => {
-  it("remembers only a successful Cloud opening and reopens the single merged project there", async () => {
+  it("lists a linked folder and its Cloud project as two entries that each open their own project (ADR-001)", async () => {
     await render();
-    await click('[data-cloud-project-id="a"] .onboarding-project-open');
-    await click('[role="dialog"] [data-project-location="cloud"]');
-    expect(account.active).toBe(true);
-    await act(async () => account.useLocal());
-    const rows = document.querySelectorAll('[data-cloud-project-id="a"]');
-    expect(rows).toHaveLength(1);
-    expect(rows[0]?.textContent).toContain("Last opened on Cloud Computer");
+    const localRow = document.querySelector('[data-linked-cloud-project-id="a"]')!;
+    const cloudRow = document.querySelector('[data-cloud-project-id="a"]')!;
+    expect(localRow).not.toBe(cloudRow);
+    expect(localRow.getAttribute("data-project-location")).toBe("local");
+    expect(cloudRow.getAttribute("data-project-location")).toBe("cloud");
+    expect(cloudRow.textContent).toContain("Cloud project");
+    expect(document.body.textContent).not.toMatch(/Last opened on|Opening options/);
+    await click('[data-linked-cloud-project-id="a"] .onboarding-project-row');
+    expect(openLocal).toHaveBeenCalledWith("/fixture/local");
+    expect(account.active).toBe(false);
     await click('[data-cloud-project-id="a"] .onboarding-project-row');
     expect(account.active).toBe(true);
-    expect(openLocal).not.toHaveBeenCalled();
+    expect(account.context.projectId).toBe("a");
+    expect(openLocal).toHaveBeenCalledOnce();
   });
 
-  it("keeps failed openings out of the preference and scopes successful choices to the account", async () => {
+  it("never remembers where a project was last opened", async () => {
     await render();
-    bridge.mockRejectedValueOnce(new Error("Offline"));
-    await click('[data-cloud-project-id="a"] .onboarding-project-open');
-    await click('[role="dialog"] [data-project-location="cloud"]');
-    expect(home.items.find(item => item.cloudProjectId === "a")?.lastOpenedLocation).toBeUndefined();
-    await act(async () => account.retry());
-    expect(account.active).toBe(true);
-    await render({ currentSession: { ...session, user_id: "bob", session_generation: "two" } });
-    expect(home.items.find(item => item.cloudProjectId === "a")?.lastOpenedLocation).toBeUndefined();
     await click('[data-cloud-project-id="a"] .onboarding-project-row');
+    await act(async () => account.useLocal());
+    await render();
+    expect(Object.keys(localStorage).some((key) => key.startsWith("puppyone.project-open-location"))).toBe(false);
+    await click('[data-linked-cloud-project-id="a"] .onboarding-project-row');
     expect(openLocal).toHaveBeenCalledWith("/fixture/local");
   });
 
-  it("remembers a successful return to the same local project", async () => {
-    await render();
-    await click('[data-cloud-project-id="a"] .onboarding-project-open');
-    await click('[role="dialog"] [data-project-location="cloud"]');
-    await act(async () => account.useLocal());
-    await render({ activeLocalPath: "/fixture/local" });
-    expect(home.items.find(item => item.cloudProjectId === "a")?.lastOpenedLocation).toBe("local");
-    await click('[data-cloud-project-id="a"] .onboarding-project-row');
-    expect(openLocal).toHaveBeenCalledWith("/fixture/local");
-  });
-  it("automatically loads after login, merges by trusted ID, and has no browse button, picker or create form", async () => {
+  it("automatically loads after login, links by trusted ID, and has no browse button, picker or create form", async () => {
     await render({ currentSession: null });
     expect(bridge).not.toHaveBeenCalled();
     expect(document.querySelectorAll(".onboarding-project-row-wrap")).toHaveLength(1);
@@ -128,10 +117,11 @@ describe("inline Homepage Cloud projects", () => {
     expect(signIn?.querySelector("svg")).toBeNull();
     expect(signIn?.textContent).toBe("Sign in");
     await render();
-    expect(document.querySelectorAll(".onboarding-project-row-wrap")).toHaveLength(2);
+    expect(document.querySelectorAll(".onboarding-project-row-wrap")).toHaveLength(3);
     expect(document.querySelector(".onboarding-project-group")).toBeNull();
-    expect(document.querySelector('[data-cloud-project-id="a"] [data-project-location="linked"]')).toBeTruthy();
-    expect(document.querySelector('[data-cloud-project-id="b"] [data-project-location="cloud"]')).toBeTruthy();
+    expect(document.querySelector('[data-linked-cloud-project-id="a"] .onboarding-project-icon[data-project-location="linked"]')).toBeTruthy();
+    expect(document.querySelector('[data-cloud-project-id="a"] .onboarding-project-icon[data-project-location="cloud"]')).toBeTruthy();
+    expect(document.querySelector('[data-cloud-project-id="b"] .onboarding-project-icon[data-project-location="cloud"]')).toBeTruthy();
     expect(document.querySelectorAll('[data-cloud-project-id="a"]')).toHaveLength(1);
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     expect(document.body.textContent).not.toContain("Browse Cloud projects");
@@ -155,12 +145,13 @@ describe("inline Homepage Cloud projects", () => {
     expect(document.querySelector(".homepage-cloud-sign-in")?.textContent).toBe("Sign in");
   });
 
-  it("opens a merged row locally by default, while its explicit Cloud action authorizes the exact ID", async () => {
+  it("opens a linked folder locally, while its Cloud project mark opens that other project by its exact ID", async () => {
     await render(); bridge.mockClear();
-    await click('[data-cloud-project-id="a"] .onboarding-project-row');
+    await click('[data-linked-cloud-project-id="a"] .onboarding-project-row');
     expect(openLocal).toHaveBeenCalledWith("/fixture/local"); expect(bridge).not.toHaveBeenCalled();
-    await click('[data-cloud-project-id="a"] .onboarding-project-open');
-    await click('[role="dialog"] [data-project-location="cloud"]');
+    const link = document.querySelector<HTMLButtonElement>('[data-linked-cloud-project-id="a"] .onboarding-project-cloud-link')!;
+    expect(link.getAttribute("aria-label")).toBe("Open Cloud project \u2068Project a\u2069");
+    await act(async () => link.click());
     expect(account.active).toBe(true); expect(account.context.projectId).toBe("a");
     expect(JSON.parse(bridge.mock.calls[0][0].body!).target).toEqual({ kind: "project_root", project_id: "a" });
     expect(bridge.mock.calls.every(([request]) => request.method === "GET" || request.path.endsWith("/repository-context"))).toBe(true);
@@ -322,13 +313,13 @@ describe("inline Homepage Cloud projects", () => {
     await render(); expect(document.querySelectorAll(".onboarding-project-row-wrap")).toHaveLength(56);
   });
 
-  it("projects the same Cloud catalog and dual actions into the optional library view", async () => {
+  it("projects the same two-project catalog into the optional library view", async () => {
     await render({ library: true });
-    expect(document.querySelectorAll(".asset-library-card")).toHaveLength(2);
+    expect(document.querySelectorAll(".asset-library-card")).toHaveLength(3);
     expect(document.querySelector(".asset-library-project-group")).toBeNull();
-    await click('.asset-library-project-open[aria-label="Opening options for Project a"]');
-    await click('[role="dialog"] [data-project-location="cloud"]');
+    await click('[data-linked-cloud-project-id="a"] .asset-library-project-cloud-link');
     expect(account.context.projectId).toBe("a");
+    expect(openLocal).not.toHaveBeenCalled();
   });
 });
 
@@ -341,20 +332,23 @@ describe("Homepage identity and modification order", () => {
     { puppyoneGitRemote: { origin: "https://cloud-fixture.puppyone.ai", projectId: "another" } },
     { puppyoneGitRemote: { origin: "https://cloud-fixture.puppyone.ai", projectId: "a", scopeId: "docs" } },
     { hydrationState: "metadata" as const }, { hydrationState: "error" as const },
-  ])("does not merge by name, config ID, stale metadata, a foreign origin or Scope (%j)", (patch) => {
+  ])("does not link by name, config ID, stale metadata, a foreign origin or Scope (%j)", (patch) => {
     const items = build([{ ...local, workspace: { ...local.workspace, projectId: "a", ...patch } }]);
     expect(items).toHaveLength(2);
     expect(items.find((item) => item.cloudProjectId)?.localPath).toBe("");
-    expect(items.find((item) => item.localPath)?.cloudProjectId).toBeUndefined();
+    expect(items.find((item) => item.localPath)).not.toHaveProperty("cloudProjectId");
+    expect(items.find((item) => item.localPath)).not.toHaveProperty("linkedCloudProject");
   });
   it("does not treat a local locator as proof of account access", () => {
-    expect(build([local], [project("other")]).find((item) => item.localPath)?.cloudProjectId).toBeUndefined();
+    expect(build([local], [project("other")]).find((item) => item.localPath)?.linkedCloudProject).toBeUndefined();
   });
-  it("keeps multiple checkouts distinct, merging the most recently modified one only", () => {
+  it("never merges a folder into its Cloud project; every checkout keeps its own entry and link", () => {
     const next = { ...local, workspace: { ...local.workspace, id: "next", path: "/fixture/next", lastModifiedAt: "2026-02-01T00:00:00Z" } };
-    const items = build([local, next]); expect(items).toHaveLength(2);
-    expect(items[0]).toMatchObject({ cloudProjectId: "a", localPath: "/fixture/next" });
-    expect(items[1].localPath).toBe("/fixture/local");
+    const items = build([local, next]); expect(items).toHaveLength(3);
+    expect(items.filter((item) => item.localPath).map((item) => [item.localPath, item.linkedCloudProject]))
+      .toEqual([["/fixture/next", { id: "a", name: "Project a" }], ["/fixture/local", { id: "a", name: "Project a" }]]);
+    expect(items.find((item) => item.cloudProjectId === "a")).toMatchObject({ localPath: "", label: "Project a" });
+    expect(items.every((item) => !(item.localPath && item.cloudProjectId))).toBe(true);
   });
   it("sorts the entire list by modification, without location rank or opening-time fallback", () => {
     const activity = new Map([["z", "2026-03-01T00:00:00Z"]]);
@@ -362,13 +356,13 @@ describe("Homepage identity and modification order", () => {
       lastModifiedAt: "2026-05-01T00:00:00Z" }, lastOpenedAt: "2025-01-01T00:00:00Z" };
     const reopened = { ...local, lastOpenedAt: "2099-01-01T00:00:00Z" };
     const items = buildHomepageProjects({ local: [localOnly, reopened], cloud: [project("b"), project("z"), project("a")], apiBaseUrl: API, activity });
-    expect(items.map((item) => item.cloudProjectId ?? "local")).toEqual(["local", "z", "a", "b"]);
+    expect(items.map((item) => item.cloudProjectId ?? "local")).toEqual(["local", "z", "local", "a", "b"]);
   });
-  it("uses the later actual update of a merged project, with unknown/invalid dates last", () => {
+  it("dates each entry by its own updates, with unknown/invalid dates last", () => {
     const items = buildHomepageProjects({ local: [local], cloud: [{ ...project("a"), updated_at: "2026-06-01T00:00:00Z" },
       { ...project("b"), updated_at: "not-a-date" }], apiBaseUrl: API });
-    expect(items[0].lastModifiedAt).toBe("2026-06-01T00:00:00.000Z");
-    expect(items[1].lastModifiedAt).toBeNull();
+    expect(items.map((item) => [item.cloudProjectId ?? "local", item.lastModifiedAt])).toEqual([
+      ["a", "2026-06-01T00:00:00.000Z"], ["local", "2026-01-01T00:00:00Z"], ["b", null]]);
     expect(latestProjectModifiedAt(null, undefined, "invalid")).toBeNull();
   });
 });

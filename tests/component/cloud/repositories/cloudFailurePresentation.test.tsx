@@ -2,43 +2,42 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { CloudWorkspaceRecovery } from "../../../../src/features/cloud/workbench/CloudWorkspaceRecovery";
-import { RepositoryCloudSwitchGate } from "../../../../src/features/cloud/workbench/RepositoryCloudSwitchGate";
+import { LocalFolderCloudNotice } from "../../../../src/features/cloud/project/LocalFolderCloudNotice";
+import { resolveLocalFolderCloudNotice } from "../../../../src/features/cloud/project/localFolderCloudNoticeState";
 import { describeCloudConnectionFailure } from "../../../../src/features/cloud/cloudOpeningFailure";
 import { cloudMessage } from "../../../../src/features/cloud/cloudPresentation";
+import type { ProjectCloudContext } from "../../../../src/features/cloud/project/context";
 import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root, host: HTMLDivElement;
+const actions = { onOpenCloudProject: vi.fn(), onSignIn: vi.fn(), onPutInCloud: vi.fn(), onRetry: vi.fn(), onDismiss: vi.fn() };
 beforeEach(() => { host = document.createElement("div"); document.body.append(host); root = createRoot(host); });
-afterEach(async () => { await act(async () => root.unmount()); host.remove(); });
+afterEach(async () => { await act(async () => root.unmount()); host.remove(); vi.clearAllMocks(); });
+async function render(context: ProjectCloudContext) {
+  const notice = resolveLocalFolderCloudNotice(context)!;
+  await act(async () => root.render(withTestLocalization(<LocalFolderCloudNotice notice={notice} {...actions} />)));
+}
+const buttons = () => [...host.querySelectorAll<HTMLButtonElement>("button")].map((button) => button.textContent || button.getAttribute("aria-label"));
 
-it("shows a readable server-side cause, with technical evidence collapsed", async () => {
-  const retry = vi.fn();
+it("states a readable server-side cause in the folder's notice, without technical detail", async () => {
   const message = describeCloudConnectionFailure({ status: 503, code: "project_authorization_unreachable" })!;
-  await act(async () => root.render(withTestLocalization(<CloudWorkspaceRecovery
-    message={{ ...message, detail: "https://private-db secret" }} onRetry={retry} showLocalState />)));
-  expect(host.querySelector("strong")?.textContent).toBe("Can’t verify access yet");
-  expect(host.querySelector("p")?.textContent).toBe("Cloud couldn’t connect to its access-check service. Try again shortly.");
-  expect(host.querySelector("details")?.open).toBe(false);
-  expect(host.querySelector("details")?.textContent).toContain("HTTP 503");
+  await render({ status: "temporarily-unavailable", projectId: "p", message: { ...message, detail: "https://private-db secret" } });
+  expect(host.textContent).toContain("This folder’s Cloud project can’t be reached right now. "
+    + "Cloud couldn’t connect to its access-check service. Try again shortly.");
   expect(host.textContent).not.toMatch(/secret|private-db/);
-  await act(async () => host.querySelector("button")!.click());
-  expect(retry).toHaveBeenCalledOnce();
+  const retry = [...host.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === "Retry")!;
+  await act(async () => retry.click());
+  expect(actions.onRetry).toHaveBeenCalledOnce();
 });
 
 it.each(["wrong-account", "not-authorized"] as const)("offers an appropriate action for %s instead of a retry loop", async (status) => {
-  const account = vi.fn(), retry = vi.fn();
-  const apiBaseUrl = "https://cloud.example/api/v1";
-  await act(async () => root.render(withTestLocalization(<RepositoryCloudSwitchGate
-    apiBaseUrl={apiBaseUrl} onRetry={retry} onOpenAccount={account}
-    context={{ status, projectId: "p", message: cloudMessage(status === "wrong-account" ? "remote-sign-in" : "remote-not-authorized") }}
-    authState={{ status: "signed-in", apiBaseUrl, session: { user_id: "u", user_email: "a@example.com", api_base_url: apiBaseUrl,
-      session_generation: "one", expires_at: 4102444800, expires_in: 3600, status: "authenticated" } }} />)));
-  expect(host.textContent).not.toContain("Retry");
+  await render({ status, projectId: "p", message: cloudMessage(status === "wrong-account" ? "remote-sign-in" : "remote-not-authorized") });
+  expect(buttons()).not.toContain("Retry");
   if (status === "wrong-account") {
-    await act(async () => host.querySelector("button")!.click());
-    expect(account).toHaveBeenCalledOnce();
-  } else expect(host.querySelector("button")).toBeNull();
-  expect(retry).not.toHaveBeenCalled();
+    const signIn = [...host.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === "Sign in")!;
+    await act(async () => signIn.click());
+    expect(actions.onSignIn).toHaveBeenCalledOnce();
+  } else expect(buttons().filter((label) => label !== "Dismiss")).toHaveLength(0);
+  expect(actions.onRetry).not.toHaveBeenCalled();
 });

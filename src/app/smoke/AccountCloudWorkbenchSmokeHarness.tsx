@@ -157,6 +157,6 @@ function AccountCloudFixture() {
       onSelectCloudProject={(id) => void account.openTarget({ kind: "project_root", project_id: id })}
       onCreateProject={() => {}} workbench={workbench} presentation={presentation} active={account.active}
       context={account.context} session={session} apiBaseUrl={API} onSessionChange={setSession}
-      appearance={appearance} onLocal={account.useLocal} onHome={account.useLocal} />
+      appearance={appearance} onHome={account.useLocal} />
   </SurfaceAppearanceProvider>;
 }

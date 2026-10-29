@@ -29,17 +29,9 @@ export type ProjectActionSurface = "menu" | "rename" | "unlink" | null;
 
 const PROJECT_ACTION_MENU_WIDTH = 288;
 const PROJECT_ACTION_MENU_ESTIMATED_HEIGHT = 180;
-/** Two place rows and their divider, so the first frame lands where it stays. */
-const PROJECT_ACTION_LOCATION_ESTIMATED_HEIGHT = 82;
 
 export type ProjectRowActionsProps = Readonly<{
   workspace: Workspace;
-  /**
-   * The Local / Cloud switch, present only on the open Project's row. The
-   * place a Project is worked on is a fact about that Project, so it is
-   * chosen where the Project is, not in the Header.
-   */
-  locationControls?: ReactNode;
   surface: ProjectActionSurface;
   onSurfaceChange: (surface: ProjectActionSurface) => void;
   onRenameProject?: (path: string, name: string) => Promise<void>;
@@ -48,7 +40,6 @@ export type ProjectRowActionsProps = Readonly<{
 
 export function ProjectRowActions({
   workspace,
-  locationControls,
   surface,
   onSurfaceChange,
   onRenameProject,
@@ -126,8 +117,7 @@ export function ProjectRowActions({
       anchor.getBoundingClientRect(),
       {
         menuWidth: PROJECT_ACTION_MENU_WIDTH,
-        estimatedHeight: PROJECT_ACTION_MENU_ESTIMATED_HEIGHT
-          + (locationControls ? PROJECT_ACTION_LOCATION_ESTIMATED_HEIGHT : 0),
+        estimatedHeight: PROJECT_ACTION_MENU_ESTIMATED_HEIGHT,
       },
     ));
     onSurfaceChange(surface === "menu" ? null : "menu");
@@ -195,19 +185,6 @@ export function ProjectRowActions({
             onPointerDown={(event) => event.stopPropagation()}
           >
             <ProjectMenuHeader key={workspace.path} name={workspace.name} path={workspace.path} />
-            {locationControls && (
-              <>
-                {/* Choosing a place acts on the open Project, so the session
-                    ends with the choice instead of outliving it. */}
-                <div
-                  className="desktop-project-row-actions-location"
-                  onClick={() => onSurfaceChange(null)}
-                >
-                  {locationControls}
-                </div>
-                <DesktopMenuSeparator />
-              </>
-            )}
             {onRenameProject && (
               <DesktopMenuItem
                 icon={<Pencil size={14} />}

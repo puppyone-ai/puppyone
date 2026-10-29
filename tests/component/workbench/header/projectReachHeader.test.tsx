@@ -269,162 +269,28 @@ describe("Header project reach", () => {
   });
 });
 
-describe("Header reach fork", () => {
-  const reach: ProjectReachControlProps = { state: resolveProjectReachState({ share: "published", shares: [], destinations }) };
-
-  /** Each computer row as [computer, name, second line, trailing], in panel order. */
-  const computers = (panel: Element) => [...panel.querySelectorAll<HTMLButtonElement>(".desktop-project-computer")]
-    .map((row) => [
-      row.dataset.projectComputer,
-      row.querySelector(".desktop-menu-item-label")?.textContent,
-      row.querySelector(".desktop-menu-item-detail")?.textContent ?? null,
-      row.querySelector(".desktop-menu-item-trailing")?.textContent ?? null,
-    ]);
-  const computer = (panel: Element, kind: "local" | "cloud") =>
-    panel.querySelector<HTMLButtonElement>(`.desktop-project-computer[data-project-computer="${kind}"]`)!;
-
-  it("lists the project's two computers, marks the current one, and switches from the other", async () => {
-    const onCloud = vi.fn();
-    await render(<DesktopTitlebarContext {...projectProps} projectReach={reach}
-      projectLocation={{ current: "local", localAvailable: true, cloudState: "available" }}
-      cloudProject={{ id: "project-1" }} onViewLocal={noOp} onViewCloud={onCloud} />);
-    const panel = openPanel();
-    // One project, two computers, in one group above who can reach it.
-    expect(panel.firstElementChild?.className).toBe("desktop-project-computers");
-    expect(computers(panel)).toEqual([
-      ["local", "This Mac", null, ""],
-      ["cloud", "Cloud Computer", null, "Switch"],
-    ]);
-    const mac = computer(panel, "local");
-    expect(mac.getAttribute("aria-current")).toBe("true");
-    expect(mac.classList.contains("selected")).toBe(true);
-    expect(mac.querySelector(".lucide-check")).not.toBeNull();
-    // The current computer is a fact, not an action.
-    expect(mac.getAttribute("aria-disabled")).toBe("true");
-    expect(panel.querySelector(".desktop-project-reach-card")).toBeNull();
-    act(() => computer(panel, "cloud").click());
-    expect(onCloud).toHaveBeenCalledOnce();
-    expect(document.querySelector(".desktop-project-reach-menu")).toBeNull();
+describe("Header reach without a location switch (ADR-001)", () => {
+  const reachAt = (place: "this-device" | "cloud"): ProjectReachControlProps => ({
+    state: resolveProjectReachState({ share: "published", shares: [], destinations, place }),
+    onInvitePerson: noOp, onConnectAgent: noOp,
   });
-
-  it("explains the Cloud Computer once, on the row that sets it up", async () => {
-    const onCloud = vi.fn();
-    await render(<DesktopTitlebarContext {...projectProps} projectReach={reach}
-      projectLocation={{ current: "local", localAvailable: true, cloudState: "unavailable" }}
-      onViewLocal={noOp} onViewCloud={onCloud} />);
-    const panel = openPanel();
-    expect(computers(panel)[1]).toEqual(["cloud", "Cloud Computer", "Agents keep working when this Mac is off.", "Set up"]);
-    // The only sentence in the group, and only in this state.
-    expect(panel.querySelectorAll(".desktop-project-computers .desktop-menu-item-detail")).toHaveLength(1);
-    act(() => computer(panel, "cloud").click());
-    expect(onCloud).toHaveBeenCalledOnce();
-  });
-
-  it("asks for sign-in on the Cloud Computer row when signed out", async () => {
-    await render(<DesktopTitlebarContext {...projectProps} projectReach={reach}
-      projectLocation={{ current: "local", localAvailable: true, cloudState: "signed-out" }}
-      cloudProject={{ id: "project-1" }} onViewLocal={noOp} onViewCloud={noOp} />);
-    expect(computers(openPanel())[1]).toEqual(["cloud", "Cloud Computer", null, "Sign in"]);
-  });
-
   const button = () => container.querySelector<HTMLButtonElement>(".desktop-titlebar-reach-button")!;
 
-  it("names the computer the screen moved to at once, with a spinner until it is ready", async () => {
-    const onLocal = vi.fn();
-    await render(<DesktopTitlebarContext {...projectProps} projectReach={reach}
-      projectLocation={{ current: "local", requested: "cloud", headerLocation: "cloud", loading: true, localAvailable: true, cloudState: "available" }}
-      onViewLocal={onLocal} onViewCloud={noOp} />);
-    // The tint and the loading surface are the Cloud Computer's, so the name is too.
-    expect(button().textContent).toBe("Cloud Computer");
-    expect(button().getAttribute("aria-busy")).toBe("true");
-    expect(button().querySelector(".lucide-loader-circle.animate-spin")).not.toBeNull();
-    expect(button().querySelector(".desktop-cloud-icon, .lucide-laptop")).toBeNull();
-    expect(button().getAttribute("aria-label")).toMatch(/^Opening Cloud Computer\. /);
-    expect(button().closest("[data-tooltip]")?.getAttribute("data-tooltip")).toBe("Opening Cloud Computer");
-    const panel = openPanel();
-    expect(computers(panel)).toEqual([
-      ["local", "This Mac", null, "Switch"],
-      ["cloud", "Cloud Computer", "Opening…", null],
-    ]);
-    const cloud = computer(panel, "cloud");
-    expect([cloud.getAttribute("aria-current"), cloud.getAttribute("aria-busy"), cloud.getAttribute("aria-disabled")])
-      .toEqual(["true", "true", "true"]);
-    expect(cloud.classList.contains("selected")).toBe(true);
-    expect(cloud.querySelector(".lucide-loader-circle")).not.toBeNull();
-    expect(cloud.querySelector(".lucide-check")).toBeNull();
-    // Going back is the other computer's row.
-    act(() => computer(panel, "local").click());
-    expect(onLocal).toHaveBeenCalledOnce();
-  });
+  it.each([["this-device", "This Mac"], ["cloud", "Cloud Computer"]] as const)(
+    "states where the open project is (%s) and offers who can reach it, never another computer", async (place, label) => {
+      await render(<DesktopTitlebarContext {...projectProps} projectReach={reachAt(place)} />);
+      expect(button().textContent).toBe(label);
+      const panel = openPanel();
+      expect(panel.querySelector(".desktop-project-computers, .desktop-project-computer")).toBeNull();
+      expect(panel.querySelector(`.desktop-project-reach-card[data-reach-place="${place}"]`)).not.toBeNull();
+      expect([...panel.querySelectorAll(".desktop-project-reach-action")].map((row) => row.textContent))
+        .toEqual(["Invite a person", "Connect an agent"]);
+    });
 
-  it("keeps the name and shows a warning when the computer could not be opened", async () => {
-    const onLocal = vi.fn();
-    await render(<DesktopTitlebarContext {...projectProps} projectReach={reach}
-      projectLocation={{ current: "local", requested: "cloud", headerLocation: "cloud", failed: true, localAvailable: true, cloudState: "available" }}
-      onViewLocal={onLocal} onViewCloud={noOp} />);
-    expect(button().textContent).toBe("Cloud Computer");
-    expect(button().hasAttribute("aria-busy")).toBe(false);
-    expect(button().querySelector(".lucide-triangle-alert")).not.toBeNull();
-    expect(button().getAttribute("data-computer-status")).toBe("failed");
-    expect(button().getAttribute("aria-label")).toMatch(/^Couldn’t open Cloud Computer\. /);
-    const panel = openPanel();
-    // The screen owns retrying; the row only states it.
-    expect(computers(panel)).toEqual([
-      ["local", "This Mac", null, "Switch"],
-      ["cloud", "Cloud Computer", "Couldn’t open", null],
-    ]);
-    expect(computer(panel, "cloud").getAttribute("aria-disabled")).toBe("true");
-    expect(computer(panel, "cloud").querySelector(".lucide-triangle-alert")).not.toBeNull();
-    act(() => computer(panel, "local").click());
-    expect(onLocal).toHaveBeenCalledOnce();
-  });
-
-  it("keeps the user's computer while a destination waits behind sign-in or setup, and lets them cancel", async () => {
-    const onLocal = vi.fn();
-    await render(<DesktopTitlebarContext {...projectProps} projectReach={reach}
-      projectLocation={{ current: "local", requested: "cloud", headerLocation: "local", loading: true, localAvailable: true, cloudState: "available" }}
-      onViewLocal={onLocal} onViewCloud={noOp} />);
-    // The screen has not moved, so neither has the name.
-    expect(button().textContent).toBe("This Mac");
-    expect(button().querySelector(".lucide-loader-circle")).toBeNull();
-    const panel = openPanel();
-    expect(computers(panel)).toEqual([
-      ["local", "This Mac", null, ""],
-      ["cloud", "Cloud Computer", "Opening…", "Cancel"],
-    ]);
-    expect(computer(panel, "local").getAttribute("aria-current")).toBe("true");
-    expect(computer(panel, "cloud").getAttribute("aria-busy")).toBe("true");
-    // Cancelling is staying on the computer the project is already on.
-    act(() => computer(panel, "cloud").click());
-    expect(onLocal).toHaveBeenCalledOnce();
-  });
-
-  it("marks the Cloud Computer as current, and a Mac the project is not on yet as unavailable", async () => {
-    await render(<DesktopTitlebarContext {...projectProps} projectReach={reach}
-      projectLocation={{ current: "cloud", localAvailable: false, cloudState: "available" }} onViewLocal={noOp} />);
-    expect(container.querySelector(".desktop-titlebar-reach-button")?.textContent).toBe("Cloud Computer");
-    expect(container.querySelector(".desktop-titlebar-reach-button .desktop-cloud-icon")).not.toBeNull();
-    const panel = openPanel();
-    expect(computers(panel)).toEqual([
-      ["local", "This Mac", "Not on this Mac yet", null],
-      ["cloud", "Cloud Computer", null, ""],
-    ]);
-    expect(computer(panel, "local").getAttribute("aria-disabled")).toBe("true");
-    expect(computer(panel, "cloud").getAttribute("aria-current")).toBe("true");
-  });
-
-  it("keeps the established location control until the experience is handed to the Header", async () => {
-    await render(<DesktopTitlebarContext {...projectProps}
-      projectLocation={{ current: "local", localAvailable: true, cloudState: "available" }} onViewCloud={noOp} />);
-    expect(container.querySelector(".desktop-titlebar-location-button")).not.toBeNull();
+  it("renders no reach or location control until the experience is handed to the Header", async () => {
+    await render(<DesktopTitlebarContext {...projectProps} />);
     expect(container.querySelector(".desktop-titlebar-reach-button")).toBeNull();
-  });
-
-  it("replaces it at the same render entry, leaving no second location control behind", async () => {
-    await render(<DesktopTitlebarContext {...projectProps} projectReach={reach}
-      projectLocation={{ current: "local", localAvailable: true, cloudState: "available" }} onViewCloud={noOp} />);
-    expect(container.querySelector(".desktop-titlebar-reach-button")).not.toBeNull();
-    expect(container.querySelector(".desktop-titlebar-location-button")).toBeNull();
-    expect(container.querySelector(".desktop-project-location-controls")).toBeNull();
+    expect(container.querySelector(".desktop-titlebar-location-button, .desktop-project-location-controls")).toBeNull();
   });
 });
+

@@ -100,7 +100,6 @@ export type ExperimentalSettings = {
   enableCloudWorkspace: boolean;
   enableEditorTabsInHeader: boolean;
   enableCenteredProjectInHeader: boolean;
-  enableProjectLocationIconsInHeader: boolean;
   enableProjectReach: boolean;
   enableShareOnboarding: boolean;
   enableWorkbenchTabsInHeader: boolean;
@@ -193,7 +192,6 @@ export const DEFAULT_EXPERIMENTAL_SETTINGS: ExperimentalSettings = {
   enableCloudWorkspace: false,
   enableEditorTabsInHeader: false,
   enableCenteredProjectInHeader: false,
-  enableProjectLocationIconsInHeader: false,
   /**
    * Second path for "who can reach this project": the Header reach entry, the
    * single-screen invite/connect form and review-first incoming changes. Off by
@@ -453,7 +451,6 @@ export function parseExperimentalSettings(value: string | null | undefined): Exp
       enableCloudWorkspace: parsed.enableCloudWorkspace === true,
       enableEditorTabsInHeader: parsed.enableEditorTabsInHeader === true,
       enableCenteredProjectInHeader: parsed.enableCenteredProjectInHeader === true,
-      enableProjectLocationIconsInHeader: parsed.enableProjectLocationIconsInHeader === true,
       enableProjectReach: parsed.enableProjectReach === true,
       enableShareOnboarding: parsed.enableShareOnboarding !== false,
       enableWorkbenchTabsInHeader: parsed.enableWorkbenchTabsInHeader === true,

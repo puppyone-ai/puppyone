@@ -1,11 +1,9 @@
-import { type ComponentProps, type ReactNode, type RefObject } from "react";
+import { type ReactNode, type RefObject } from "react";
 import { useLocalization } from "@puppyone/localization";
 import { UserPlus, Plug } from "lucide-react";
 import { DesktopMenuItem } from "../../../components/DesktopMenu";
-import type { DesktopProjectLocationControls } from "../../../components/DesktopProjectLocationSwitcher";
 import { DesktopTitlebarMenuLayer } from "../../../components/DesktopTitlebarMenuLayer";
 import type { ReachState } from "./projectReachHeader";
-import { ProjectComputers } from "./ProjectComputers";
 import { ReachPlaceMark, useReachSummary } from "./reachPresentation";
 import { LocalIcon } from "@puppyone/shared-ui";
 
@@ -18,8 +16,6 @@ import { LocalIcon } from "@puppyone/shared-ui";
  */
 export type ReachPanelContext = Readonly<{
   state: ReachState;
-  /** The location menu uses the existing navigation controller; people remain a sharing-only entry. */
-  opening?: ComponentProps<typeof DesktopProjectLocationControls>;
   /** The share domain's readers list, including its own stop action. */
   readers?: ReactNode;
   onInvitePerson?: () => void;
@@ -35,7 +31,7 @@ export function ReachPanel({ anchor, open, onDismiss, context }: {
   context: ReachPanelContext;
 }) {
   const { t } = useLocalization();
-  const { state, readers, opening, onInvitePerson, onConnectAgent, onGetCopy } = context;
+  const { state, readers, onInvitePerson, onConnectAgent, onGetCopy } = context;
   const summary = useReachSummary(state);
   return (
     <DesktopTitlebarMenuLayer
@@ -45,19 +41,15 @@ export function ReachPanel({ anchor, open, onDismiss, context }: {
       dismissOnFocusExit={false}
       className="desktop-project-reach-menu"
       gap={2}
-      // With the computers on top the panel fits its rows, so a short label
-      // does not leave a wide empty gutter; the CSS cap wraps any sentence.
-      preferredWidth={opening ? 216 : 252}
+      preferredWidth={252}
       preferredMaxHeight={420}
-      widthMode={opening ? "content" : "fixed"}
+      widthMode="fixed"
       alignment="start"
       role="dialog"
-      ariaLabel={t(opening ? "shell.projectRuntime.panelLabel" : "shell.projectReach.panelLabel")}
+      ariaLabel={t("shell.projectReach.panelLabel")}
     >
-      <div className="desktop-project-reach-panel" data-reach-entry={opening ? "computers" : "reach"}>
-        {opening
-          ? <ProjectComputers {...opening} onDismiss={onDismiss} />
-          : <ReachPlaceCard state={state} summary={summary} />}
+      <div className="desktop-project-reach-panel" data-reach-entry="reach">
+        <ReachPlaceCard state={state} summary={summary} />
         {state.kind === "not-on-this-device" ? null : readers}
         {state.kind === "not-on-this-device" && <ReachDeviceDetail />}
         {state.kind === "not-on-this-device"
@@ -68,7 +60,7 @@ export function ReachPanel({ anchor, open, onDismiss, context }: {
   );
 }
 
-/** Sharing-only entries retain the existing compact access summary. */
+/** Where the project is and who can reach it, as one compact statement. */
 function ReachPlaceCard({ state, summary }: { state: ReachState; summary: string }) {
   return (
     <div

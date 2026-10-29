@@ -2,16 +2,14 @@
 import '../../../../src/styles/cascade.css';
 import '../../../../src/cloud-globals.css';
 import '../../../../src/styles.css';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { LocalizationProvider, useLocalization } from '@puppyone/localization/react';
 import english from '../../../../src/localization/catalog-loaders/en';
-import { CloudWorkspaceSwitchDialog } from '../../../../src/features/cloud/workbench/CloudWorkspaceSwitchDialog';
-import { useCloudWorkspaceSwitch } from '../../../../src/features/cloud/workbench/useCloudWorkspaceSwitch';
-import type { NativeCloudDataService } from '../../../../src/features/cloud/files/cloudDataPort';
+import { CloudDialog } from '../../../../src/features/cloud/CloudDialog';
 import { CloudSignedOutRoute } from '../../../../src/features/cloud/auth/CloudSignedOutRoute';
+import { LocalFolderCloudNotice } from '../../../../src/features/cloud/project/LocalFolderCloudNotice';
 import type { DesktopCloudAuthState } from '../../../../src/lib/cloudSession';
-import { DesktopCloudSignInCta } from '../../../../src/features/cloud/auth/DesktopCloudSignInCta';
 import { DesktopHelpLauncher } from '../../../../src/features/app-shell/DesktopHelpLauncher';
 import { LanguageSettingRow } from '../../../../src/features/settings/LanguageSetting';
 import { CloudNewAutomationDialog } from '../../../../src/features/automation/AutomationCreateDialog';
@@ -31,7 +29,6 @@ import { CloudOrganizationTeamPage } from '../../../../src/features/cloud/organi
 import { CloudProjectSettingsSection } from '../../../../src/features/cloud/sections/settings/SettingsSection';
 import { AccessPointCatalogPage } from '../../../../src/features/cloud/access-points/components/AccessPointCatalogPage';
 import { CloudServiceUnavailable } from '../../../../src/features/cloud/components/CloudServiceUnavailable';
-import { CloudWorkspaceRecovery } from '../../../../src/features/cloud/workbench/CloudWorkspaceRecovery';
 import { CloudProjectRecoveryState } from '../../../../src/features/cloud/states/CloudProjectRecoveryState';
 import { VersionControlSetupState } from '../../../../src/features/source-control/VersionControlSetupState';
 import { GitOperationErrorDialog } from '../../../../src/features/source-control/operationDialogs';
@@ -125,18 +122,16 @@ const installation = new LocalAgentActivationStore({
   plan: async () => ({ planId: 'fixture', setupId: 'claude', displayName: 'Claude Code', mode: 'automatic', version: 'fixture', publisher: 'Fixture publisher', surface: 'chat' }),
 } as unknown as ConstructorParameters<typeof LocalAgentActivationStore>[0]);
 const root = createRoot(document.getElementById('root')!);
-const cloudService = { dataPort: { listChildren: () => defer('preflight') } } as unknown as NativeCloudDataService;
+const signedOut = <CloudSignedOutRoute activeSection="contents" authState={{ status: 'signed-out', apiBaseUrl: session.api_base_url }}
+  apiBaseUrl={session.api_base_url} loadingLabel="Restoring…" />;
+/** A linked folder's sign-in happens in its Cloud dialog; the folder stays shown throughout (ADR-001). */
 function AuthenticationSwitch() {
   const [signedIn, setSignedIn] = useState(false);
-  const [active, setActive] = useState(false);
-  const commit = useCallback(() => setActive(true), []);
+  const [open, setOpen] = useState(false);
   useEffect(() => { const listener = (state: DesktopCloudAuthState) => setSignedIn(state.status === 'authenticated'); authListeners.add(listener); return () => { authListeners.delete(listener); }; }, []);
-  const controller = useCloudWorkspaceSwitch({ enabled: true, scope: 'fixture-project', session: signedIn ? session : null,
-    service: signedIn ? cloudService : null, providerError: null, initializationPending: false, onCommit: commit });
-  return <><button onClick={controller.request}>Open Cloud</button><input aria-label="Local draft" defaultValue="Unsaved fixture draft" />
-    <output data-current-provider={active ? 'cloud' : 'local'}>{active ? 'Cloud project' : 'Local project'}</output>
-    <CloudWorkspaceSwitchDialog controller={controller} authenticationRequired={!signedIn} gate={<CloudSignedOutRoute compact activeSection="contents"
-      authState={{ status: 'signed-out', apiBaseUrl: session.api_base_url }} apiBaseUrl={session.api_base_url} loadingLabel="Restoring…" />} /></>;
+  return <><button onClick={() => setOpen(true)}>Open Cloud</button><input aria-label="Local draft" defaultValue="Unsaved fixture draft" />
+    <output data-current-provider="local">Local project</output>
+    {open && !signedIn && <CloudDialog sidebar={null} main={signedOut} onClose={() => setOpen(false)} />}</>;
 }
 function Destination() {
   const [path, setPath] = useState('imports/github');
@@ -161,7 +156,7 @@ function walletManaged(): ModelConnectionSnapshot['managed'] {
 function surface() {
   switch (scene) {
     case 'authentication': return <AuthenticationSwitch />;
-    case 'sign-in': return <DesktopCloudSignInCta signingIn={variant === 'pending'} error={variant === 'error' ? 'Sign-in failed. Try again.' : null} onSignIn={noop} />;
+    case 'sign-in': return signedOut;
     case 'feedback': return <DesktopHelpLauncher />;
     case 'language': return <div className="desktop-settings-view"><LanguageSettingRow /></div>;
     case 'automation': return <CloudNewAutomationDialog projectId={project.id} cloudSession={session} apiBaseUrl={session.api_base_url}
@@ -188,7 +183,8 @@ function surface() {
     case 'team': return <CloudOrganizationTeamPage session={session} apiBaseUrl={session.api_base_url} onSessionChange={noop} accountEmail={session.user_email} onOpen={noop} />;
     case 'settings': return <CloudProjectSettingsSection project={project} cloudSession={session} apiBaseUrl={session.api_base_url} loading={false} matchesRepositoryRemote removeRemoteAction={{ onRemove: noop }} onRefresh={refresh} onSessionChange={noop} onSelectSection={noop} />;
     case 'connect': return <AccessPointCatalogPage routeKind="all" selectedKind="all" rows={[]} totalRowCount={0} loading={false} selectedRowId={null} query="" statusFilter="all" canManage onKindChange={noop} onQueryChange={noop} onStatusFilterChange={noop} onOpenRow={noop} onCreate={noop} />;
-    case 'recovery': return <><CloudWorkspaceRecovery message="Could not open this project." onRetry={noop} showLocalState /><CloudProjectRecoveryState message="Access was denied." remoteLabel="https://fixture.example/git/project" onRetry={noop} onUseAnotherAccount={noop} onOpenGitDetails={noop} /><CloudServiceUnavailable title="Connect" onRetry={noop} /></>;
+    case 'recovery': return <><LocalFolderCloudNotice notice={{ kind: 'unreachable', cause: null }} onOpenCloudProject={noop} onSignIn={noop}
+      onRetry={noop} onDismiss={noop} /><CloudProjectRecoveryState message="Access was denied." remoteLabel="https://fixture.example/git/project" onRetry={noop} onUseAnotherAccount={noop} onOpenGitDetails={noop} /><CloudServiceUnavailable title="Connect" onRetry={noop} /></>;
     case 'git': return variant === 'error' ? <GitOperationErrorDialog error={{ operation: 'push', workspacePath: '/fixture', code: 'push', detail: 'Push rejected', raw: 'fixture: permission denied' }} onClose={noop} /> : <VersionControlSetupState enabling={variant === 'pending'} operationError={null} onEnable={noop} />;
     case 'import': return <OnboardingImportDialog onClose={noop} onImportSource={async () => false} onConnectSource={async () => ({ connectionId: 'fixture' })} onListResources={async () => ({ items: [], nextCursor: null })} onCancelImport={async () => ({ cancelled: true })} onImportProgress={() => noop} />;
     case 'share': return <ShareWizardDialog workspaceName="Project" initialTargetId={null} initialPath="" session={null} apiBaseUrl={session.api_base_url} projectContext={{ status: 'local-only', projectId: null }}

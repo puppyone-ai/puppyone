@@ -214,7 +214,7 @@ for (const token of [
 }
 if (
   !auxiliarySource.includes('typeof children === "function"')
-  || !appSource.includes('const localRightSidebarActive = !cloudWorkspaceActive && !repositoryCloudSwitch.pending;')
+  || !appSource.includes('const localRightSidebarActive = !cloudWorkspaceActive;')
   || !appSource.includes('active={presentation.contentVisible && localRightSidebarActive && rightSidebarSurface === "chat"}')
   || appSource.includes("active={rightSidebarOpen}")
 ) {

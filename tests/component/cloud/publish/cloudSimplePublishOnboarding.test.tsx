@@ -59,7 +59,9 @@ describe("simple Cloud publish onboarding", () => {
 
     act(() => primary?.click());
     const dialog = document.querySelector<HTMLElement>("#desktop-overlay-root [role='dialog']");
-    expect(dialog?.textContent).toContain("May upload");
+    // The confirmation says the Cloud project is a separate project (ADR-001).
+    expect(dialog?.textContent).toContain("Git-tracked files");
+    expect(dialog?.textContent).toContain("this folder stays a separate project on this computer");
     expect(container.querySelector("[role='dialog']")).toBeNull();
     expect(onPublishWorkspace).not.toHaveBeenCalled();
 

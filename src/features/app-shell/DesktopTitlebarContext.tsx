@@ -1,40 +1,32 @@
 import type { ReactNode } from "react";
-import type { DesktopProjectCloudCopy, DesktopProjectLocation } from "../../components/DesktopProjectLocationSwitcher";
-import { DesktopProjectLocationSwitcher } from "../../components/DesktopProjectLocationSwitcher";
 import { DesktopWorkspaceSwitcher, type DesktopWorkspaceSwitcherProps } from "./DesktopWorkspaceSwitcher";
 import { ProjectReachControl, type ProjectReachControlProps } from "./project-reach";
 
 /**
- * Project navigation and provider selection are independent Header controls.
+ * Project navigation, and on the project reach path who can reach the project.
+ *
+ * A local folder and its Cloud project are two projects (puppy-issues ADR-001),
+ * so the Header never switches one project between this computer and the
+ * Cloud: going to the other project is a row in the project menu.
  *
  * The Header states the Project only while it is the Project switcher surface.
  * When the Project rail takes that role its host renders no context at all,
  * so this component never has to describe a Project it does not own.
  */
-export function DesktopTitlebarContext({ projectLocation, cloudProject, onViewLocal, onViewCloud, projectReach, locationActivity, ...project }: DesktopTitlebarContextProps) {
-  const projectMenuOpen = project.open;
+export function DesktopTitlebarContext({ projectReach, locationActivity, ...project }: DesktopTitlebarContextProps) {
   return <div className="desktop-titlebar-context">
     <DesktopWorkspaceSwitcher {...project} />
-    {projectReach
-      ? <ProjectReachControl {...projectReach} projectMenuOpen={projectMenuOpen} onOpen={project.onClose}
-        opening={{ projectLocation, cloudProject, onViewLocal, onViewCloud }} />
-      : <DesktopProjectLocationSwitcher projectLocation={projectLocation} cloudProject={cloudProject}
-        onViewLocal={onViewLocal} onViewCloud={onViewCloud}
-        projectMenuOpen={projectMenuOpen} onOpen={project.onClose} />}
+    {projectReach && <ProjectReachControl {...projectReach} projectMenuOpen={project.open} onOpen={project.onClose} />}
     {locationActivity}
   </div>;
 }
 
 export type DesktopTitlebarContextProps = DesktopWorkspaceSwitcherProps & {
-  projectLocation?: DesktopProjectLocation;
-  cloudProject?: DesktopProjectCloudCopy;
-  onViewLocal?: () => void;
-  onViewCloud?: () => void;
-  /** Present only on the project reach path; absent keeps the established control. */
+  /** Present only on the project reach path. */
   projectReach?: ProjectReachControlProps | null;
   /**
    * Work on the project's place that outlives its dialog, such as a first
-   * publish to Cloud, stated beside the place it changes.
+   * publish to Cloud, stated beside the project it changes.
    */
   locationActivity?: ReactNode;
 };

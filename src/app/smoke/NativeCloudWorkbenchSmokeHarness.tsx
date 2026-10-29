@@ -11,18 +11,19 @@ import { CloudWorkspaceHeaderTools } from "../../features/cloud/workbench/CloudW
 import { captureCloudWorkspaceShareResource } from "../../features/cloud/share/cloudWorkspaceShareResource";
 import { DesktopWorkspaceLocationSurface } from "../../features/app-shell/DesktopWorkspaceLocationSurface";
 import { useDesktopPreference, useDesktopPreferenceEffects, initializeDesktopPreferences } from "../../features/settings";
-import { useCloudWorkspaceSwitch } from "../../features/cloud/workbench/useCloudWorkspaceSwitch";
-import { CloudWorkspaceSwitchDialog } from "../../features/cloud/workbench/CloudWorkspaceSwitchDialog";
-import { DesktopCloudWorkspacePreparation } from "../DesktopCloudWorkspacePreparation";
-import { RepositoryCloudSwitchGate } from "../../features/cloud/workbench/RepositoryCloudSwitchGate";
-import { MissingCloudProjectRecovery } from "../../features/cloud/workbench/MissingCloudProjectRecovery";
+import { CloudDialog } from "../../features/cloud/CloudDialog";
+import { CloudSignedOutRoute } from "../../features/cloud/auth/CloudSignedOutRoute";
+import { LocalFolderCloudNotice } from "../../features/cloud/project/LocalFolderCloudNotice";
+import { resolveLocalFolderCloudEntry, resolveLocalFolderCloudNotice } from "../../features/cloud/project/localFolderCloudNoticeState";
+import { MissingCloudProjectReplacement } from "../../features/cloud/project/MissingCloudProjectReplacement";
 import { CloudLocalOnlyWorkspace } from "../../features/cloud/initialization/CloudInitializationView";
+import type { ProjectHomeItem } from "../../lib/workspaceHomeModel";
 import { cloudMessage } from "../../features/cloud/cloudPresentation";
 import type { ProjectCloudContext } from "../../features/cloud/project/context/projectCloudContext";
 import { useLocalization } from "@puppyone/localization/react";
 import type { AppLanguagePreference } from "@puppyone/localization/core";
 import type { DesktopCloudAuthState } from "../../lib/cloudSession";
-import { useNativeCloudWorkbench } from "../../features/cloud/workbench/useNativeCloudWorkbench";
+import { useNativeCloudWorkbench, type NativeCloudWorkbench } from "../../features/cloud/workbench/useNativeCloudWorkbench";
 import { DesktopCloudFileWorkspace } from "../../features/cloud/workbench/DesktopCloudFileWorkspace";
 import { DesktopDataWorkspaceSurface, type DesktopDataWorkspaceSurfaceProps } from "../../features/app-shell/DesktopDataWorkspaceSurface";
 import { resolveWorkspaceSurface } from "../../features/app-shell/workspace-surfaces/workspaceSurfaceRegistry";
@@ -55,13 +56,16 @@ const session: DesktopCloudSession = { api_base_url: API, user_id: "fixture-user
   session_generation: "fixture-session", status: "authenticated", expires_at: Date.now() + 3_600_000, expires_in: 3600 };
 const context = { status: "resolved" as const, projectId: "11111111-1111-4111-8111-111111111111", projectName: "Native workspace",
   target: { kind: "project_root" as const, project_id: "11111111-1111-4111-8111-111111111111" }, capabilities: ["content.read", "content.write", "access_surface.manage"] };
-function resolveSmokeRepositoryContext(localOnly: boolean, wrongHost: boolean, missing: boolean): ProjectCloudContext {
-  if (missing) return { status: "not-found", projectId: context.projectId, message: cloudMessage("remote-not-found") };
+/** The local folder's own association, resolved the way the app resolves it. */
+function resolveSmokeRepositoryContext(localOnly: boolean, wrongHost: boolean, missing: boolean, signedIn: boolean): ProjectCloudContext {
+  if (localOnly) return { status: "local-only", projectId: null };
   if (wrongHost) return { status: "wrong-host", projectId: context.projectId,
     message: cloudMessage("remote-wrong-host", { origin: "http://api.puppyone.ai" }) };
-  if (localOnly) return { status: "local-only", projectId: null };
+  if (!signedIn) return { status: "wrong-account", projectId: context.projectId, message: cloudMessage("remote-sign-in") };
+  if (missing) return { status: "not-found", projectId: context.projectId, message: cloudMessage("remote-not-found") };
   return context;
 }
+const cloudRemote = `${API.replace("/api/v1", "")}/git/${context.projectId}.git`;
 const cloudFiles = new Map([
   ["readme.txt", "CLOUD_FILE_BODY"], ["cloud-only.md", "# Cloud only"], ["records/sample.csv", "Name,Value\nCloud,42"],
   ["notes.md", "# Cloud note\n\n![Cloud diagram](/assets/diagram.svg)"],
@@ -165,6 +169,7 @@ declare global {
     state: () => { location: string; cloudWrites: typeof cloudWrites; localWrites: typeof localWrites; requests: string[]; publishRequests: typeof publishRequests; detachRequests: typeof detachRequests; agent: ReturnType<typeof agentFixture.state> };
     editAgent: typeof editCloudAgentPrompt;
     selectLocation: (location: "local" | "cloud") => void;
+    requestCloud: () => void;
     edit: (location: "local" | "cloud", text: string) => void;
     openCloudFile: (path: string) => Promise<void>;
     addCloudFixtures: (entries: Array<{ path: string; mimeType: string; content?: string; content_base64?: string }>) => void;
@@ -186,7 +191,13 @@ declare global {
   }; }
 }
 
-/** No network or real workspace bytes: exercises production file and editor hosts. */
+/**
+ * No network or real workspace bytes: exercises production file and editor hosts.
+ *
+ * A local folder and its Cloud project are two projects (puppy-issues ADR-001).
+ * The window shows one of them; the Cloud project opens as its own project in
+ * the retained shell, from the project menu or from the folder's notice.
+ */
 export function NativeCloudWorkbenchSmokeHarness() {
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const { setLanguagePreference } = useLocalization();
@@ -195,9 +206,12 @@ export function NativeCloudWorkbenchSmokeHarness() {
   const [repositoryLocalOnly, setRepositoryLocalOnly] = useState(false);
   const [repositoryWrongHost, setRepositoryWrongHost] = useState(false);
   const [repositoryMissing, setRepositoryMissing] = useState(false);
-  const repositoryContext = resolveSmokeRepositoryContext(repositoryLocalOnly, repositoryWrongHost, repositoryMissing);
-  const repositoryUnavailable = repositoryContext.status !== "resolved";
+  const repositoryContext = resolveSmokeRepositoryContext(repositoryLocalOnly, repositoryWrongHost, repositoryMissing,
+    cloudSessionAvailable);
   const [publishLoading, setPublishLoading] = useState(false);
+  const [cloudDialogOpen, setCloudDialogOpen] = useState(false);
+  const [replacingMissingProject, setReplacingMissingProject] = useState(false);
+  const [noticeDismissed, setNoticeDismissed] = useState(false);
   const location = cloudSelected && cloudSessionAvailable ? "cloud" : "local";
   useEffect(() => { if (!cloudSessionAvailable) setCloudSelected(false); }, [cloudSessionAvailable]);
   const [centeredProject, setCenteredProject] = useState(true);
@@ -213,12 +227,22 @@ export function NativeCloudWorkbenchSmokeHarness() {
     active: location === "cloud", filesVisibilitySettings: filesVisibilitySettings });
   const agent = useCloudAgentWorkspace({ context, session: activeSession, apiBaseUrl: API,
     active: location === "cloud", onPublication: workbench.refresh });
-  const commitCloud = useCallback(() => setCloudSelected(true), []);
-  const controller = useCloudWorkspaceSwitch({ enabled: true, scope: localWorkspace.id,
-    session: activeSession, service: workbench.service,
-    providerError: workbench.error, initializationPending: repositoryUnavailable || publishLoading, onCommit: commitCloud });
   const cloudSidebar = useCloudWorkspaceSidebar({ context, session: activeSession, apiBaseUrl: API, active: location === "cloud", agent });
-  const sidebar = useSmokeLocationSidebars(location, controller.pending, cloudSidebar);
+  const sidebar = useSmokeLocationSidebars(location, cloudSidebar);
+  const closeSidebars = sidebar.close;
+  const openCloudProject = useCallback(() => {
+    closeSidebars();
+    setCloudDialogOpen(false);
+    setCloudSelected(true);
+  }, [closeSidebars]);
+  const openLocalFolder = useCallback(() => { closeSidebars(); setCloudSelected(false); }, [closeSidebars]);
+  // The sidebar's Cloud entry for this folder, resolved exactly as the app does.
+  const requestCloud = useCallback(() => {
+    const entry = resolveLocalFolderCloudEntry(repositoryContext, { signedIn: cloudSessionAvailable, publishPending: publishLoading });
+    if (entry.kind === "open") openCloudProject();
+    else if (entry.kind === "explain") setNoticeDismissed(false);
+    else setCloudDialogOpen(true);
+  }, [cloudSessionAvailable, openCloudProject, publishLoading, repositoryContext]);
   const localPort = useMemo<DataPort>(() => withEditorDocumentOperations({
     listChildren: async () => localNodes,
     resolveNode: async (path) => localNodes.find((node) => node.path === path) ?? null,
@@ -254,13 +278,12 @@ export function NativeCloudWorkbenchSmokeHarness() {
     resolveWorkspaceResource: resolveLocal, workspaceRefreshToken: { sequence: 0, entries: [] },
     workspaceAtomicRefreshToken: 0, workspaceSurfaceError: null, sidebarCreateMenuOpen: false,
   };
-  const preparingInPlace = cloudSessionAvailable && !repositoryUnavailable && !publishLoading;
-  const headerLocation = (preparingInPlace ? controller.requestedLocation : undefined) ?? location;
   useEffect(() => {
     window.__nativeCloudWorkbenchSmoke = {
       state: () => ({ location, cloudWrites, localWrites, requests, publishRequests, detachRequests, agent: agentFixture.state() }),
       editAgent: editCloudAgentPrompt,
-      selectLocation: (next) => { if (next === "cloud") controller.request(); else { controller.cancel(); setCloudSelected(false); } },
+      selectLocation: (next) => { if (next === "cloud") openCloudProject(); else openLocalFolder(); },
+      requestCloud,
       openCloudFile: async (path) => {
         if (!workbench.service) throw new Error("Cloud fixture is unavailable.");
         const resource = createWorkspaceResourceUri(workbench.service.folder.uri, path);
@@ -282,8 +305,8 @@ export function NativeCloudWorkbenchSmokeHarness() {
       },
       setCloudToolsAvailable: (available) => { cloudToolsAvailable = available; },
       setCloudSessionAvailable, setSidebarCollapsed, setCenteredProject, setRepositoryLocalOnly, setRepositoryWrongHost,
-      setRepositoryMissing: (missing) => { cloudProjectMissing = missing; setRepositoryMissing(missing); },
-      finishPublish: () => { setPublishLoading(false); setRepositoryLocalOnly(false); },
+      setRepositoryMissing: (missing) => { cloudProjectMissing = missing; setRepositoryMissing(missing); setNoticeDismissed(false); },
+      finishPublish: () => { setPublishLoading(false); setRepositoryLocalOnly(false); setNoticeDismissed(false); },
       setLoginAppearance: async (nextTheme, locale) => { setTheme(nextTheme); await setLanguagePreference(locale); },
       resetLogin: () => { for (const listener of authStateListeners) listener({ status: "signed-out", session: null }); },
       failLogin: () => { for (const listener of authErrorListeners) listener({ message: "Fixture browser sign-in failed. Try again." }); },
@@ -292,87 +315,117 @@ export function NativeCloudWorkbenchSmokeHarness() {
       finishCloudRead: () => { cloudReadBarrier = null; finishCloudRead?.(); finishCloudRead = null; },
     };
     return () => { delete window.__nativeCloudWorkbenchSmoke; };
-  }, [location, setLanguagePreference, setSidebarCollapsed, workbench, controller]);
-  const projectSwitcher = <DesktopTitlebarContext open={menuOpen} refObject={menuRef} titlebarLabel={localWorkspace.name}
-        workspace={localWorkspace} workspaceFolders={[]} multiRootWorkspacesEnabled={false}
-        projectLocation={{ current: location, requested: controller.requestedLocation, headerLocation, loading: controller.pending && !controller.error,
-          failed: controller.pending && Boolean(controller.error),
-          localAvailable: true, cloudState: "available" }} cloudProject={{ id: context.projectId }}
+  }, [location, openCloudProject, openLocalFolder, requestCloud, setLanguagePreference, setSidebarCollapsed, workbench]);
+  // The account catalog: the folder, linked to its Cloud project, and that
+  // Cloud project as its own entry while this account can reach it.
+  const linked = repositoryContext.status === "resolved";
+  const projectItems: ProjectHomeItem[] = [
+    { id: `local:${localWorkspace.path}`, label: localWorkspace.name, localPath: localWorkspace.path,
+      ...(linked ? { linkedCloudProject: { id: context.projectId, name: context.projectName } } : {}) },
+    ...(cloudSessionAvailable && !repositoryMissing
+      ? [{ id: `cloud:${context.projectId}`, label: context.projectName, localPath: "", cloudProjectId: context.projectId }] : []),
+  ];
+  const projectSwitcher = <DesktopTitlebarContext open={menuOpen} refObject={menuRef} multiRootWorkspacesEnabled={false}
+        projectItems={projectItems} {...smokeHeaderProject(location === "cloud" ? workbench.service : null)}
         onClose={() => setMenuOpen(false)} onToggle={() => setMenuOpen((current) => !current)}
-        onViewLocal={() => { sidebar.close(); controller.cancel(); setCloudSelected(false); }}
-        onViewCloud={() => { sidebar.close(); controller.request(); }} />;
+        onSelectProject={openLocalFolder} onSelectCloudProject={openCloudProject} />;
+  const noticeState = resolveLocalFolderCloudNotice(repositoryContext);
+  const cloudProjectNotice = noticeState && !noticeDismissed ? <LocalFolderCloudNotice notice={noticeState}
+    onOpenCloudProject={openCloudProject} onSignIn={requestCloud}
+    onPutInCloud={() => setReplacingMissingProject(true)} onRetry={noop}
+    onDismiss={() => setNoticeDismissed(true)} /> : undefined;
+  // The Cloud dialog's own content for this folder: sign in first, then the
+  // existing first publish. A linked folder has nothing to do here.
+  const publishing = repositoryContext.status === "local-only" || publishLoading;
+  const cloudDialogAvailable = !cloudSessionAvailable || publishing;
+  useEffect(() => { if (!cloudDialogAvailable) setCloudDialogOpen(false); }, [cloudDialogAvailable]);
+
   return <div className={`app-shell${theme === "dark" ? " dark" : ""}`} data-po-appearance-root="true" data-native-cloud-smoke-ready="true">
     <DesktopOverlayPortal theme={theme}>{null}</DesktopOverlayPortal>
     <DesktopCloudShell onGoHome={noop} workspaceLocation={location} leftSidebarCollapsed={sidebarCollapsed} leftSidebarWidth={explorerWidth}
       rightSidebarOpen={sidebar.open}
       rightSidebarWidth={360} resizableRightSidebar
       onRightSidebarOpenChange={sidebar.setOpen}
-      rightSidebar={pane => <SmokeAgentSidebar location={location} pending={controller.pending} agent={agent} cloudSidebar={cloudSidebar} revisionKey={String(workbench.refreshToken.sequence)} contentVisible={pane.contentVisible} />}
-      requestedWorkspaceLocation={headerLocation}
+      rightSidebar={pane => <SmokeAgentSidebar location={location} agent={agent} cloudSidebar={cloudSidebar} revisionKey={String(workbench.refreshToken.sequence)} contentVisible={pane.contentVisible} />}
       onLeftSidebarExpand={() => setSidebarCollapsed(false)}
       {...getProjectHeaderSlots(centeredProject, projectSwitcher)}
       titlebarActions={<>
-        {headerLocation === "cloud" && <CloudWorkspaceHeaderTools context={location === "cloud" ? context : null}
+        {location === "cloud" && <CloudWorkspaceHeaderTools context={context}
           getShareResource={() => captureCloudWorkspaceShareResource(workbench)}
           session={activeSession} apiBaseUrl={API} onSessionChange={noop}
           agentOpen={agent.open} onToggleAgent={cloudSidebar.toggleAgent}
           historyOpen={cloudSidebar.historyOpen} onToggleHistory={cloudSidebar.toggleHistory} />}
         <DesktopTitlebarActions terminalSidebarOpen={sidebar.localOpen}
-        terminalToolEnabled={headerLocation === "local"} gitChangesAvailable={headerLocation === "local"}
+        terminalToolEnabled={location === "local"} gitChangesAvailable={location === "local"}
         onToggleTerminal={sidebar.toggleLocal} onToggleGitChanges={noop} />
       </>}
       >
       <DesktopWorkspaceLocationSurface location={location}
-        preparation={controller.pending && preparingInPlace ? <DesktopCloudWorkspacePreparation controller={controller} /> : undefined}
-        local={<DesktopDataWorkspaceSurface {...commonSurfaceProps} />}
+        local={<DesktopDataWorkspaceSurface {...commonSurfaceProps} cloudProjectNotice={cloudProjectNotice} />}
         cloud={<DesktopCloudFileWorkspace workbench={workbench} surfaceProps={commonSurfaceProps}
           providerStateContent={null} />} />
     </DesktopCloudShell>
-    <CloudWorkspaceSwitchDialog controller={controller} authenticationRequired={!cloudSessionAvailable}
-      preparingInPlace={preparingInPlace}
-      gate={<RepositoryCloudSwitchGate apiBaseUrl={API} onRetry={controller.retry}
-        context={repositoryContext}
-        initializationPending={publishLoading}
-        missingProjectRecovery={repositoryContext.status === "not-found" ? <MissingCloudProjectRecovery
-          context={repositoryContext} session={session} apiBaseUrl={API} onRetry={controller.retry}
-          status={{ remotes: [{ name: "puppyone", fetchUrl: `${API.replace('/api/v1', '')}/git/${context.projectId}.git`,
-            pushUrl: `${API.replace('/api/v1', '')}/git/${context.projectId}.git`, branches: [] }] }}
-          onRemoveCloudRemote={async remotes => {
-            detachRequests.push(remotes.map(remote => remote.name));
-            cloudProjectMissing = false; setRepositoryMissing(false); setRepositoryLocalOnly(true);
-          }} /> : undefined}
-        authState={cloudSessionAvailable ? { status: "signed-in", apiBaseUrl: API, session } : { status: "signed-out", apiBaseUrl: API }}
-        publishEntry={<CloudLocalOnlyWorkspace activeSection="contents" workspace={localWorkspace}
-          accountEmail={session.user_email} branchName="main" totalCommits={1} localChangeCount={0}
-          isGitRepository hasHeadCommit hasCurrentBranch publishLoading={publishLoading}
-          organizations={[{ id: "fixture-org", name: "Fixture team" }]}
-          selectedOrganizationId="fixture-org" organizationStatus="ready"
-          onPublishWorkspace={(organizationId) => { publishRequests.push(organizationId); setPublishLoading(true); }} />} />} />
+    {cloudDialogOpen && cloudDialogAvailable && <CloudDialog sidebar={null}
+      main={<SmokeCloudDialogContent signedIn={cloudSessionAvailable} publishLoading={publishLoading}
+        onPublish={(organizationId) => { publishRequests.push(organizationId); setPublishLoading(true); }} />}
+      onClose={() => setCloudDialogOpen(false)} />}
+    {replacingMissingProject && repositoryContext.status === "not-found" && <MissingCloudProjectReplacement
+      context={repositoryContext} session={session} apiBaseUrl={API}
+      status={{ remotes: [{ name: "puppyone", fetchUrl: cloudRemote, pushUrl: cloudRemote, branches: [] }] }}
+      onCancel={() => setReplacingMissingProject(false)}
+      onRemoveCloudRemote={async remotes => {
+        detachRequests.push(remotes.map(remote => remote.name));
+        cloudProjectMissing = false; setRepositoryMissing(false); setRepositoryLocalOnly(true);
+      }}
+      onDone={(outcome) => { setReplacingMissingProject(false); if (outcome === "replaced") setCloudDialogOpen(true); }} />}
   </div>;
 }
 
-function useSmokeLocationSidebars(location: "local" | "cloud", pending: boolean, sidebar: CloudWorkspaceSidebarController) {
+/** The Header names the project in front, with that project's own folder. */
+function smokeHeaderProject(hosted: NativeCloudWorkbench["service"] | null) {
+  return hosted
+    ? { titlebarLabel: hosted.workspace.name, workspace: hosted.workspace, workspaceFolders: [hosted.folder] }
+    : { titlebarLabel: localWorkspace.name, workspace: localWorkspace, workspaceFolders: [localFolder] };
+}
+
+/** The Cloud dialog's content for this folder: sign in first, then the existing first publish. */
+function SmokeCloudDialogContent({ signedIn, publishLoading, onPublish }: {
+  signedIn: boolean;
+  publishLoading: boolean;
+  onPublish: (organizationId?: string) => void;
+}) {
+  if (!signedIn) return <CloudSignedOutRoute activeSection="initialize" apiBaseUrl={API}
+    loadingLabel="" authState={{ status: "signed-out", apiBaseUrl: API }} />;
+  return <CloudLocalOnlyWorkspace activeSection="initialize" workspace={localWorkspace}
+    accountEmail={session.user_email} branchName="main" totalCommits={1} localChangeCount={0}
+    isGitRepository hasHeadCommit hasCurrentBranch publishLoading={publishLoading}
+    organizations={[{ id: "fixture-org", name: "Fixture team" }]}
+    selectedOrganizationId="fixture-org" organizationStatus="ready"
+    onPublishWorkspace={onPublish} />;
+}
+
+function useSmokeLocationSidebars(location: "local" | "cloud", sidebar: CloudWorkspaceSidebarController) {
   const [localOpen, setLocalOpen] = useState(false);
-  const localActive = location === "local" && !pending;
+  const localActive = location === "local";
+  const closeCloudSidebar = sidebar.close;
   return {
     localOpen: localOpen && localActive,
     open: location === "cloud" ? sidebar.open : localOpen && localActive,
     setOpen: location === "cloud" ? sidebar.setOpen : (open: boolean) => { if (!open || localActive) setLocalOpen(open); },
     toggleLocal: () => { if (localActive) setLocalOpen(open => !open); },
-    close: () => { setLocalOpen(false); sidebar.close(); },
+    close: useCallback(() => { setLocalOpen(false); closeCloudSidebar(); }, [closeCloudSidebar]),
   };
 }
 
-function SmokeAgentSidebar({ location, pending, agent, cloudSidebar, revisionKey, contentVisible }: {
+function SmokeAgentSidebar({ location, agent, cloudSidebar, revisionKey, contentVisible }: {
   location: "local" | "cloud";
-  pending: boolean;
   agent: ReturnType<typeof useCloudAgentWorkspace>;
   cloudSidebar: CloudWorkspaceSidebarController;
   revisionKey: string;
   contentVisible: boolean;
 }) {
   const { t } = useLocalization();
-  const localActive = location === "local" && !pending;
+  const localActive = location === "local";
   return <div className="desktop-right-sidebar-stack">
     <div className={`desktop-right-sidebar-surface ${location === "cloud" ? "is-active" : ""}`} aria-hidden={location !== "cloud"}>
       <CloudWorkspaceSidebar sidebar={cloudSidebar} agent={agent} context={context} session={session} apiBaseUrl={API}

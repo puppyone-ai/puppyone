@@ -7062,25 +7062,7 @@
   {
     "type": "dependency",
     "from": "src/features/app-shell/DesktopWorkspaceContent.tsx",
-    "to": "src/features/cloud/workbench/CloudWorkspaceSwitchDialog.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-app-shell"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/app-shell/DesktopWorkspaceContent.tsx",
     "to": "src/features/cloud/workbench/DesktopCloudFileWorkspace.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-app-shell"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/app-shell/DesktopWorkspaceContent.tsx",
-    "to": "src/features/cloud/workbench/useCloudWorkspaceSwitch.ts",
     "rule": {
       "severity": "error",
       "name": "public-domain-entry-src-features-app-shell"
@@ -7207,15 +7189,6 @@
     "type": "dependency",
     "from": "src/features/app-shell/RestoringWorkspaceScreen.tsx",
     "to": "src/features/appearance/AppearanceRuntime.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-app-shell"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/app-shell/workspace-surfaces/useWorkspaceSurfaceContent.tsx",
-    "to": "src/features/cloud/auth/index.ts",
     "rule": {
       "severity": "error",
       "name": "public-domain-entry-src-features-app-shell"
