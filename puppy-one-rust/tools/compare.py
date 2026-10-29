@@ -5,8 +5,19 @@ Requires Pillow + numpy. --check fails until EVERY outer region is pixel-identic
 import argparse
 import json
 from pathlib import Path
+import io
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageCms
+
+
+def srgb(image):
+    """OS captures carry the display's ICC profile and Chromium its own;
+    compare colours, not encoded bytes: convert both to sRGB first."""
+    profile = image.info.get("icc_profile")
+    if profile:
+        return ImageCms.profileToProfile(image.convert("RGB"), ImageCms.ImageCmsProfile(io.BytesIO(profile)),
+                                         ImageCms.createProfile("sRGB"), outputMode="RGB")
+    return image.convert("RGB")
 
 parser = argparse.ArgumentParser()
 parser.add_argument("reference", type=Path)
@@ -15,8 +26,8 @@ parser.add_argument("--check", action="store_true")
 parser.add_argument("--surface", choices=["settings", "project", "feedback", "agent"],
                     help="Use actual reference-shell component regions; requires identical viewport/DPR")
 args = parser.parse_args()
-a = np.asarray(Image.open(args.reference).convert("RGB"), dtype=np.int16)
-b = np.asarray(Image.open(args.native).convert("RGB"), dtype=np.int16)
+a = np.asarray(srgb(Image.open(args.reference)), dtype=np.int16)
+b = np.asarray(srgb(Image.open(args.native)), dtype=np.int16)
 if a.shape != b.shape:
     raise SystemExit(f"Size mismatch: reference {a.shape}, native {b.shape}")
 if args.surface:

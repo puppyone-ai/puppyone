@@ -18,8 +18,20 @@ import sys
 import tempfile
 from pathlib import Path
 
+import io
+
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageCms
+
+
+def srgb(image):
+    """OS captures carry the display's ICC profile and Chromium its own;
+    compare colours, not encoded bytes: convert both to sRGB first."""
+    profile = image.info.get("icc_profile")
+    if profile:
+        return ImageCms.profileToProfile(image.convert("RGB"), ImageCms.ImageCmsProfile(io.BytesIO(profile)),
+                                         ImageCms.createProfile("sRGB"), outputMode="RGB")
+    return image.convert("RGB")
 
 root = Path(__file__).resolve().parents[1]
 # suite → (scenario file, native lab case prefix)
@@ -67,8 +79,8 @@ for case in selected:
     if not ref_path.exists() or not nat_path.exists():
         report["cases"][case["id"]] = {"error": "missing reference or native capture"}
         continue
-    a = np.asarray(Image.open(ref_path).convert("RGB"), dtype=np.int16)
-    b = np.asarray(Image.open(nat_path).convert("RGB"), dtype=np.int16)
+    a = np.asarray(srgb(Image.open(ref_path)), dtype=np.int16)
+    b = np.asarray(srgb(Image.open(nat_path)), dtype=np.int16)
     if a.shape != b.shape:
         report["cases"][case["id"]] = {"error": f"size mismatch {a.shape} vs {b.shape}"}
         continue

@@ -3,8 +3,19 @@
 connected clusters of >tolerance pixels on a coarse grid, largest first,
 in CSS px. python3 tools/diff-hotspots.py REF.png NATIVE.png [--cell 8] [--top 20]"""
 import argparse
+import io
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageCms
+
+
+def srgb(image):
+    """OS captures carry the display's ICC profile and Chromium its own;
+    compare colours, not encoded bytes: convert both to sRGB first."""
+    profile = image.info.get("icc_profile")
+    if profile:
+        return ImageCms.profileToProfile(image.convert("RGB"), ImageCms.ImageCmsProfile(io.BytesIO(profile)),
+                                         ImageCms.createProfile("sRGB"), outputMode="RGB")
+    return image.convert("RGB")
 from collections import deque
 
 p = argparse.ArgumentParser()
@@ -14,8 +25,8 @@ p.add_argument("--top", type=int, default=20)
 p.add_argument("--tolerance", type=int, default=8)
 p.add_argument("--scale", type=float, default=2)
 a = p.parse_args()
-r = np.asarray(Image.open(a.reference).convert("RGB"), dtype=np.int16)
-n = np.asarray(Image.open(a.native).convert("RGB"), dtype=np.int16)
+r = np.asarray(srgb(Image.open(a.reference)), dtype=np.int16)
+n = np.asarray(srgb(Image.open(a.native)), dtype=np.int16)
 changed = np.abs(r - n).max(axis=2) > a.tolerance
 c = a.cell
 h, w = changed.shape[0] // c, changed.shape[1] // c
