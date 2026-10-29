@@ -147,6 +147,10 @@ impl Workbench {
                 let content = self.project()?.content.get(&tab)?;
                 let title = self.tab_title(tab, content, cx);
                 let status = self.tab_status(tab, content, t.muted, cx);
+                let mut item = MenuItem::new(title.clone());
+                if let Some(detail) = content.detail(cx) {
+                    item = item.detail(detail);
+                }
                 let close_label = crate::localization::tf(
                     "terminal.closeSession",
                     &[("title", title.clone().into())],
@@ -154,8 +158,7 @@ impl Workbench {
                 let activate = cx.weak_entity();
                 let close = cx.weak_entity();
                 Some(
-                    MenuItem::new(title)
-                        .icon_element(status)
+                    item.icon_element(status)
                         .trailing(
                             IconButton::new(
                                 ("overflow-close", tab),

@@ -46,6 +46,24 @@ impl Content {
             _ => false,
         }
     }
+    /// Whether this item counts against the chat (`true`) or terminal cap.
+    fn is_kind(&self, chat: bool) -> bool {
+        match self {
+            Self::Chat(_) | Self::Retained(RetainedItem::Chat { .. }) => chat,
+            Self::Terminal(..) | Self::Retained(RetainedItem::Terminal { .. }) => !chat,
+            _ => false,
+        }
+    }
+    /// `AuxiliaryWorkbenchItemSnapshot.detail` for the overflow menu.
+    fn detail(&self, cx: &App) -> Option<String> {
+        match self {
+            Self::Terminal(view, title, _) => Some(format!(
+                "{title} — {}",
+                crate::localization::t(view.read(cx).status().label_key())
+            )),
+            _ => None,
+        }
+    }
     fn title(&self, cx: &App) -> String {
         match self {
             Self::Launcher => crate::localization::t("workspace.workbench.newTab").into(),
@@ -416,9 +434,10 @@ impl Workbench {
                 Content::Chat(view)
             }
             RetainedItem::Terminal { .. } => {
+                let label = super::terminal::path_label(&root);
                 let view = cx.new(|cx| TerminalView::new(root, None, window, cx));
                 cx.observe(&view, |_, _, cx| cx.notify()).detach();
-                Content::Terminal(view, crate::localization::t("terminal.title").into(), None)
+                Content::Terminal(view, label, None)
             }
             RetainedItem::Launcher => Content::Launcher,
         };
@@ -456,6 +475,13 @@ impl Workbench {
     }
     fn project_mut(&mut self) -> Option<&mut Project> {
         self.root.as_ref().and_then(|r| self.projects.get_mut(r))
+    }
+    /// `ProjectWorkbenchStore.canCreate`: a contribution's `maximumItems`
+    /// (8 Agent Chats, 32 terminals per project).
+    fn can_create(&self, chat: bool) -> bool {
+        let limit = if chat { 8 } else { 32 };
+        self.project()
+            .is_none_or(|p| p.content.values().filter(|c| c.is_kind(chat)).count() < limit)
     }
     fn add(&mut self, group: Id, cx: &mut Context<Self>) {
         if let Some(p) = self.project_mut() {
@@ -507,6 +533,9 @@ impl Workbench {
         let chat = installation
             .as_ref()
             .is_some_and(|i| i.chat && self.chat_mode);
+        if !self.can_create(chat) {
+            return;
+        }
         // `launchError`: a refused creation stays on the launcher with its reason.
         if chat && !crate::agent::runtime::session_lease::Lease::available(&root) {
             self.launch_errors.insert(
@@ -532,10 +561,9 @@ impl Workbench {
                 .detach();
                 Content::Chat(view)
             } else {
-                let label = installation
-                    .as_ref()
-                    .map(|i| i.label.clone())
-                    .unwrap_or_else(|| crate::localization::t("terminal.title").into());
+                // `TerminalWorkbenchContribution`: the tab is titled by the
+                // project folder; the launcher shows as its icon.
+                let label = super::terminal::path_label(&root);
                 let runtime = installation.as_ref().map(|i| i.runtime);
                 let exe = installation.map(|i| i.executable);
                 let view = cx.new(|cx| TerminalView::new(root, exe, window, cx));
@@ -1074,6 +1102,44 @@ mod tests {
         });
         cx.update(|w, cx| {
             let _ = w.draw(cx);
+        });
+    }
+    #[gpui::test]
+    fn contributions_stop_at_their_maximum_items(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        cx.update(gpui_kit::init);
+        let (view, cx) = cx.add_window_view(Workbench::new);
+        view.update_in(cx, |s, window, cx| {
+            s.set_workspace(PathBuf::from("/project"), cx);
+            let p = s.project_mut().unwrap();
+            for n in 0..32 {
+                let id = p.layout.add(0);
+                p.content.insert(
+                    id,
+                    Content::Retained(RetainedItem::Terminal {
+                        title: format!("t{n}"),
+                        runtime: None,
+                    }),
+                );
+            }
+            assert!(!s.can_create(false), "32 terminals per project");
+            assert!(s.can_create(true));
+            // The shell launcher refuses rather than starting a 33rd PTY.
+            s.launch(0, None, None, false, window, cx);
+            assert_eq!(s.project().unwrap().content.len(), 32);
+            let p = s.project_mut().unwrap();
+            for n in 0..8 {
+                let id = p.layout.add(0);
+                p.content.insert(
+                    id,
+                    Content::Retained(RetainedItem::Chat {
+                        runtime: crate::agent::runtime::agent_runtime_registry::Runtime::Codex,
+                        thread: None,
+                        title: format!("c{n}"),
+                    }),
+                );
+            }
+            assert!(!s.can_create(true), "8 Agent Chats per project");
         });
     }
     #[gpui::test]

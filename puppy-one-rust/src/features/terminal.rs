@@ -21,6 +21,36 @@ mod interaction;
 #[path = "terminal_queries.rs"]
 mod terminal_queries;
 use interaction::{CellPoint, Link, MouseAction, MouseModifiers, Selection};
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SessionStatus {
+    Running,
+    Exited,
+    Error,
+}
+impl SessionStatus {
+    pub fn label_key(self) -> &'static str {
+        match self {
+            Self::Running => "terminal.status.running",
+            Self::Exited => "terminal.status.exited",
+            Self::Error => "terminal.status.error",
+        }
+    }
+}
+/// `terminalPathLabel`: a session's tab title is its folder's name.
+pub fn path_label(path: &std::path::Path) -> String {
+    let value = path.to_string_lossy();
+    let value = value.trim();
+    if value.is_empty() {
+        return "—".into();
+    }
+    let trimmed = value.trim_end_matches(['/', '\\']);
+    let trimmed = if trimmed.is_empty() { value } else { trimmed };
+    trimmed
+        .split(['/', '\\'])
+        .rfind(|s| !s.is_empty())
+        .unwrap_or(trimmed)
+        .to_owned()
+}
 /// `.desktop-terminal-session` padding: `14px 0 16px 16px`.
 const PAD_TOP: f32 = 14.;
 const PAD_LEFT: f32 = 16.;
@@ -452,6 +482,14 @@ impl TerminalView {
         self.activity = TerminalActivity::new(true);
         self.activity.note_title("⠋ claude");
         self.running = true;
+    }
+    /// The session status (`DesktopTerminalSessionStatus` past `starting`).
+    pub fn status(&self) -> SessionStatus {
+        match (self.running, self.failure.is_some()) {
+            (true, _) => SessionStatus::Running,
+            (false, true) => SessionStatus::Error,
+            (false, false) => SessionStatus::Exited,
+        }
     }
     /// `TerminalSessionHeaderStatus`: an Agent CLI that is running and busy.
     pub fn agent_active(&self) -> bool {
@@ -1275,10 +1313,26 @@ mod tests {
     use core::prelude::v1::test;
 
     #[test]
+    fn a_session_is_titled_by_its_folder() {
+        use std::path::Path;
+        assert_eq!(path_label(Path::new("/Users/me/project/")), "project");
+        assert_eq!(path_label(Path::new("/Users/me/project")), "project");
+        assert_eq!(path_label(Path::new("C:\\work\\site\\")), "site");
+        assert_eq!(path_label(Path::new("/")), "/");
+        assert_eq!(path_label(Path::new("")), "—");
+    }
+
+    #[test]
     fn cells_follow_xterm_for_menlo_at_one_and_two_device_pixels() {
         // Menlo 13px: "W" advances 7.8267; ascent 12.0669, descent 3.0659.
-        assert_eq!(cell_metrics(7.82666, 12.066895, 3.065918, 2.), (7.5, 18.5, 14.));
-        assert_eq!(cell_metrics(7.82666, 12.066895, 3.065918, 1.), (7., 18., 14.));
+        assert_eq!(
+            cell_metrics(7.82666, 12.066895, 3.065918, 2.),
+            (7.5, 18.5, 14.)
+        );
+        assert_eq!(
+            cell_metrics(7.82666, 12.066895, 3.065918, 1.),
+            (7., 18., 14.)
+        );
     }
 
     #[test]
@@ -1329,7 +1383,10 @@ mod tests {
         // Hovering underlines the link and points.
         cx.simulate_mouse_move(at(0., 6.), None, Modifiers::none());
         view.read_with(cx, |s, _| {
-            assert_eq!(s.hover_link.as_ref().map(|l| l.url.as_str()), Some("https://example.com/x"))
+            assert_eq!(
+                s.hover_link.as_ref().map(|l| l.url.as_str()),
+                Some("https://example.com/x")
+            )
         });
         // A drag across the second link selects it instead of opening it.
         cx.simulate_mouse_down(at(1., 0.), MouseButton::Left, Modifiers::none());

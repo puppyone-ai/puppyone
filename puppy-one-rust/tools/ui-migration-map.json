@@ -700,10 +700,10 @@
       "name": "Terminal surface",
       "status": "partial",
       "sources": [
-        "src/features/desktop-terminal/ui/TerminalSessionView.tsx",
-        "src/features/desktop-terminal/ui/TerminalSessionHost.tsx",
+        "src/features/desktop-terminal/interactions/terminalResourceDrop.ts",
         "src/features/desktop-terminal/runtime/terminalAppearance.ts",
         "src/features/desktop-terminal/runtime/terminalRuntime.ts",
+        "src/features/desktop-terminal/ui/TerminalSessionView.tsx",
         "src/features/desktop-terminal/ui/styles/terminal-surface.css",
         "src/features/desktop-terminal/ui/styles/xterm-adapter.css"
       ],
@@ -725,7 +725,8 @@
         "test:the_grid_fits_inside_the_session_padding_like_fit_addon",
         "test:the_thumb_tracks_the_scrollback_offset",
         "test:a_click_on_a_link_opens_it_and_a_selection_does_not",
-        "test:the_product_definitions_cover_frames_blocks_shades_and_powerline"
+        "test:the_product_definitions_cover_frames_blocks_shades_and_powerline",
+        "test:dropped_paths_are_quoted_for_the_shell_or_refused"
       ],
       "remaining": "Terminal colours come from the pack. The font is the product's Terminal Mono stack; cells follow xterm's WebGL renderer (the W advance floored to device pixels; Blink's whole-pixel font box, x1.24, floored; glyphs on the cell grid on device pixels), with the session padding (14/0/16/16), FitAddon's fit, 6000 lines of scrollback, weight 450/700, the blinking block cursor, the unfocused outline and xterm's cursor initialisation, box drawing/blocks/shades/Powerline from the product's xterm definitions (tools/import-xterm-glyphs.mjs), the hovered link's underline and click activation, the default-style scrollbar (12px lane, 8px thumb while hovered or 900 ms after a scroll), grey system lines for exits and launch failures and the top notice stack. Pixel suite `terminal`: 95.3% with identical geometry; xterm's canvas rasterises glyphs with macOS font smoothing, GPUI without. Not ported: the classic-interface scrollbar (P3 interface styles), xterm checkpoint restore and Unicode 11 width tables (vt100 uses unicode-width)."
     },
@@ -1164,6 +1165,96 @@
         "test:a_vanished_cloud_project_is_replaced_only_after_a_second_404"
       ],
       "remaining": "The coordinator (journal v2 with v1 migration, idempotent creation, keychain secret, URL-scoped secure helper, immutable push with lease, remote-truth reconciliation, explicit cleanup) and the activation / running / resume pictures are native. The push receipt endpoint (readInitialPushReceipt) is not consulted (ls-remote only); the transfer meter, the hero artwork and pixel comparison are not ported; acceptance against a real Cloud Git host is pending."
+    },
+    {
+      "name": "Terminal legacy session hosts (unreachable)",
+      "status": "excluded",
+      "sources": [
+        "src/features/desktop-terminal/interactions/terminalContentDropTarget.ts",
+        "src/features/desktop-terminal/interactions/terminalTabBarDropTarget.ts",
+        "src/features/desktop-terminal/interactions/terminalTabMovePreview.ts",
+        "src/features/desktop-terminal/interactions/useTerminalDerivedDragClickSuppression.ts",
+        "src/features/desktop-terminal/interactions/useTerminalSplitResizeGesture.ts",
+        "src/features/desktop-terminal/interactions/useTerminalTabMoveDrag.ts",
+        "src/features/desktop-terminal/layout/TerminalGroupPane.tsx",
+        "src/features/desktop-terminal/layout/TerminalGroupViewport.tsx",
+        "src/features/desktop-terminal/layout/TerminalSplitResizeHandle.tsx",
+        "src/features/desktop-terminal/layout/session-host/TerminalSessionHostSlot.tsx",
+        "src/features/desktop-terminal/layout/session-host/usePersistentTerminalSessionHosts.ts",
+        "src/features/desktop-terminal/layout/useTerminalPaneContentHandleReveal.ts",
+        "src/features/desktop-terminal/model/terminalSessionHeaderLayout.ts",
+        "src/features/desktop-terminal/model/terminalTabMove.ts",
+        "src/features/desktop-terminal/runtime/TerminalRuntimeLookup.ts",
+        "src/features/desktop-terminal/runtime/useTerminalAppearanceSync.ts",
+        "src/features/desktop-terminal/ui/TerminalSessionHost.tsx",
+        "src/features/desktop-terminal/ui/session-header/TerminalSessionHeader.tsx",
+        "src/features/desktop-terminal/ui/session-header/TerminalSessionOverflowMenu.tsx",
+        "src/features/desktop-terminal/ui/session-header/TerminalSessionTab.tsx",
+        "src/features/desktop-terminal/ui/session-header/terminalSessionHeaderIds.ts",
+        "src/features/desktop-terminal/ui/session-header/types.ts",
+        "src/features/desktop-terminal/ui/session-header/useTerminalSessionHeaderController.ts",
+        "src/features/desktop-terminal/ui/session-header/useTerminalSessionHeaderLayout.ts",
+        "src/features/desktop-terminal/workbench/TerminalWorkbenchCreationFailure.tsx",
+        "src/features/desktop-terminal/workbench/TerminalWorkbenchHeader.tsx",
+        "src/features/desktop-terminal/workbench/TerminalWorkbenchHeader.types.ts",
+        "src/features/desktop-terminal/workbench/TerminalWorkbenchItemHostSlot.tsx",
+        "src/features/desktop-terminal/workbench/TerminalWorkbenchOverflowMenu.tsx",
+        "src/features/desktop-terminal/workbench/TerminalWorkbenchTab.tsx",
+        "src/features/desktop-terminal/workbench/TerminalWorkbenchViewport.tsx"
+      ],
+      "targets": [],
+      "reason": "Not reachable from the product entry at v0.4.0 (import walk from every non-test, non-harness module): the terminal-owned session header, overflow, tab moves, split groups and session hosts survive only for the visual-smoke harnesses. Production terminals are Auxiliary Workbench items (TerminalWorkbenchContribution), so their tabs, overflow, moves and splits are the shared workbench ones (src/features/workbench)."
+    },
+    {
+      "name": "Terminal workbench item",
+      "status": "ported",
+      "sources": [
+        "src/features/desktop-terminal/featureGate.ts",
+        "src/features/desktop-terminal/model/terminalClosePolicy.ts",
+        "src/features/desktop-terminal/model/terminalLaunchers.ts",
+        "src/features/desktop-terminal/model/terminalPath.ts",
+        "src/features/desktop-terminal/model/terminalSessionHeader.ts",
+        "src/features/desktop-terminal/model/terminalSessions.ts",
+        "src/features/desktop-terminal/model/terminalSplitConstraints.ts",
+        "src/features/desktop-terminal/runtime/TerminalControlQueue.ts",
+        "src/features/desktop-terminal/runtime/TerminalRuntimePool.ts",
+        "src/features/desktop-terminal/runtime/terminalSessionBridge.ts",
+        "src/features/desktop-terminal/workbench/TerminalWorkbenchContribution.tsx",
+        "src/features/desktop-terminal/workbench/projectTerminalRuntimes.ts",
+        "src/features/desktop-terminal/ui/desktop-terminal.css"
+      ],
+      "targets": [
+        "src/features/workbench/mod.rs",
+        "src/features/workbench/menus.rs",
+        "src/features/workbench/close_dialog.rs",
+        "src/features/workbench/auxiliary_workbench_launcher.rs",
+        "src/features/terminal.rs",
+        "src/platform/terminal.rs"
+      ],
+      "evidence": [
+        "test:a_session_is_titled_by_its_folder",
+        "test:contributions_stop_at_their_maximum_items",
+        "test:project_switch_retains_tabs_without_starting_a_process"
+      ],
+      "note": "Terminal items are titled by the project folder with the launcher as their icon; the overflow detail is 'folder — status'; a starting or running session confirms before closing; 32 terminals per project; sessions live per project and survive project switches; the PTY bridge, its control queue and process budget are platform::terminal. The terminal feature gate is the header's terminal preference. Of terminalSessions.ts production uses only the session types (its reducer serves the unreachable legacy hosts)."
+    },
+    {
+      "name": "Terminal activity",
+      "status": "ported",
+      "sources": [
+        "src/features/desktop-terminal/runtime/terminalActivity.ts",
+        "src/features/desktop-terminal/ui/TerminalActivityGrid.tsx",
+        "src/features/desktop-terminal/ui/terminal-activity-grid.css",
+        "src/features/desktop-terminal/ui/session-header/TerminalSessionHeaderStatus.tsx"
+      ],
+      "targets": [
+        "src/features/terminal_activity.rs",
+        "src/features/workbench/header.rs"
+      ],
+      "evidence": [
+        "test:titles_follow_the_product_protocols",
+        "test:output_lapses_and_refresh_bursts_are_ignored"
+      ]
     }
   ]
 }

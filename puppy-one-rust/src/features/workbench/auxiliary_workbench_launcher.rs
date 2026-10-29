@@ -35,6 +35,7 @@ impl Workbench {
         identity: LauncherIdentity,
         label: SharedString,
         group: SharedString,
+        available: bool,
         cx: &App,
     ) -> gpui_kit::base::Button {
         let t = cx.palette();
@@ -52,8 +53,13 @@ impl Workbench {
             .border_color(theme::alpha(t.border, 0.))
             .rounded(px(theme::metric::CONTROL_RADIUS))
             .text_color(t.muted)
-            .cursor(theme::clickable_cursor())
-            .hover(move |b| b.bg(t.hover).text_color(t.text))
+            // `:disabled`: a contribution at its `maximumItems`.
+            .disabled(!available)
+            .when(available, |b| {
+                b.cursor(theme::clickable_cursor())
+                    .hover(move |b| b.bg(t.hover).text_color(t.text))
+            })
+            .when(!available, |b| b.opacity(0.52))
             .child(
                 launcher_icon(identity, false, t.dark, t.muted)
                     .group_hover(group, |s| s.opacity(1.)),
@@ -78,6 +84,7 @@ impl Workbench {
         let t = cx.palette();
         let m = theme::ty();
         let visible = self.visible_installations();
+        let (chats, terminals) = (self.can_create(true), self.can_create(false));
         let mut external = v_flex().gap(px(1.));
         for (i, installation) in visible.iter().filter(|i| !i.bundled()).cloned().enumerate() {
             let terminal = installation.clone();
@@ -88,6 +95,7 @@ impl Workbench {
                     LauncherIdentity::Runtime(installation.runtime),
                     installation.label.clone().into(),
                     row_group,
+                    if installation.chat { chats } else { terminals },
                     cx,
                 )
                 .on_click(cx.listener(move |s, _, w, cx| {
@@ -119,6 +127,7 @@ impl Workbench {
                     LauncherIdentity::Runtime(installation.runtime),
                     installation.label.clone().into(),
                     format!("launch-bundled-{group}-{i}").into(),
+                    if installation.chat { chats } else { terminals },
                     cx,
                 )
                 .on_click(cx.listener(move |s, _, w, cx| {
@@ -133,6 +142,7 @@ impl Workbench {
                 LauncherIdentity::Shell,
                 tr("terminal.title").into(),
                 format!("open-shell-{group}").into(),
+                terminals,
                 cx,
             )
             .on_click(cx.listener(move |s, _, w, cx| s.launch(group, tab, None, false, w, cx)));
