@@ -33,6 +33,8 @@ pub struct Launch {
     pub workspace: Option<PathBuf>,
     /// The process arguments apply to the first window only.
     pub from_args: bool,
+    /// A hosted-only Project to open (`openCloudProjectInNewWindow`).
+    pub cloud: Option<String>,
 }
 struct PendingLaunch(Option<Launch>);
 impl Global for PendingLaunch {}
@@ -48,6 +50,7 @@ pub(super) fn take_launch(cx: &mut App) -> Launch {
         None => Launch {
             workspace: None,
             from_args: first,
+            cloud: None,
         },
     }
 }
@@ -164,10 +167,29 @@ pub fn window_options(bounds: Bounds<Pixels>, focus: bool) -> WindowOptions {
 }
 /// Opens a shell window; `workspace` opens that project, `None` the Homepage.
 pub fn open(workspace: Option<PathBuf>, cx: &mut App) -> anyhow::Result<AnyWindowHandle> {
-    cx.set_global(PendingLaunch(Some(Launch {
-        workspace,
-        from_args: false,
-    })));
+    open_with(
+        Launch {
+            workspace,
+            from_args: false,
+            cloud: None,
+        },
+        cx,
+    )
+}
+/// Hosted-only Homepage rows open in a dedicated window; the window intent
+/// carries only the Project id (no tokens or synthetic local paths).
+pub fn open_cloud(project: String, cx: &mut App) -> anyhow::Result<AnyWindowHandle> {
+    open_with(
+        Launch {
+            workspace: None,
+            from_args: false,
+            cloud: Some(project),
+        },
+        cx,
+    )
+}
+fn open_with(launch: Launch, cx: &mut App) -> anyhow::Result<AnyWindowHandle> {
+    cx.set_global(PendingLaunch(Some(launch)));
     // New windows cascade from the active one.
     let origin = cx
         .active_window()

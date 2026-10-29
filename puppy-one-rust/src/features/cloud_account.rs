@@ -161,6 +161,13 @@ impl Drop for CloudAccount {
         }
     }
 }
+/// The broker and the signed-in binding, for Cloud requests made on the
+/// account's behalf (catalog, opening). `None` while signed out.
+pub fn broker_and_binding(cx: &App) -> Option<(Arc<Broker>, crate::cloud_auth::model::Binding)> {
+    let account = cx.try_global::<CloudAccountService>()?.0.read(cx);
+    let binding = account.snapshot.as_ref()?.account.as_ref()?.binding.clone();
+    Some((account.broker.clone()?, binding))
+}
 pub fn has_account(cx: &App) -> bool {
     cx.try_global::<CloudAccountService>().is_some_and(|s| {
         s.0.read(cx)

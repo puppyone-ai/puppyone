@@ -267,6 +267,7 @@ impl Shell {
         .pb(px(bottom))
         .px(px(metric::UTILITY_PADDING_INLINE))
         .child(launcher)
+        .children(self.cloud_opening_overlay(cx))
         .when(self.files.folder_busy, |d| {
             // OnboardingProjectLoading: the chosen project's request is
             // pending, not the native folder picker. Shared area figure.
@@ -309,54 +310,55 @@ impl Shell {
     fn project_list(&self, busy: bool, cx: &mut Context<Self>) -> Stateful<Div> {
         let t = cx.palette();
         let now = SystemTime::now();
-        let rows =
-            self.home_projects()
-                .into_iter()
-                .enumerate()
-                .map(|(index, (project, changed))| {
-                    let name = project_name(project);
-                    let path = project.path.clone();
-                    let remove = project.path.clone();
-                    let remove_label = tf(
-                        "onboarding.projects.removeFor",
-                        &[("project", name.clone().into())],
-                    );
-                    let mut item = MenuItem::new(name.clone())
-                        .icon_sized(
-                            Icon::product(crate::ui::components::ProductIcon::Folder)
-                                .small()
-                                .stroke(1.85),
-                        )
-                        .detail(parent_for_display(&project.path))
-                        .disabled(busy)
-                        .hover_trailing(
-                            // `DesktopMenuIconButton.onboarding-project-remove`.
-                            IconButton::new(("home-project-remove", index), "unlink")
-                                .label(remove_label.clone())
-                                // The tooltip says the files stay (`removeHint`);
-                                // the accessible name keeps the project.
-                                .tooltip(tr("onboarding.projects.removeHint"))
-                                .with_size(px(22.))
-                                .rounded(px(5.))
-                                .color(t.text_disabled)
-                                .danger()
-                                .on_click(cx.listener(move |s, _, w, cx| {
-                                    cx.stop_propagation();
-                                    s.confirm_remove_project(remove.clone(), w, cx);
-                                })),
-                        )
-                        .on_click({
-                            let host = cx.weak_entity();
-                            move |w, cx| {
-                                let _ =
-                                    host.update(cx, |s, cx| s.open_project(path.clone(), w, cx));
-                            }
-                        });
-                    if let Some(changed) = changed {
-                        item = item.trailing_text(modification_time(changed, now));
-                    }
-                    MenuRow::new(("home-project", index), item).variant(MenuVariant::Homepage)
-                });
+        let rows = self
+            .home_projects()
+            .into_iter()
+            .enumerate()
+            .map(|(index, (project, changed))| {
+                let name = project_name(project);
+                let path = project.path.clone();
+                let remove = project.path.clone();
+                let remove_label = tf(
+                    "onboarding.projects.removeFor",
+                    &[("project", name.clone().into())],
+                );
+                let mut item = MenuItem::new(name.clone())
+                    .icon_sized(
+                        Icon::product(crate::ui::components::ProductIcon::Folder)
+                            .small()
+                            .stroke(1.85),
+                    )
+                    .detail(parent_for_display(&project.path))
+                    .disabled(busy)
+                    .hover_trailing(
+                        // `DesktopMenuIconButton.onboarding-project-remove`.
+                        IconButton::new(("home-project-remove", index), "unlink")
+                            .label(remove_label.clone())
+                            // The tooltip says the files stay (`removeHint`);
+                            // the accessible name keeps the project.
+                            .tooltip(tr("onboarding.projects.removeHint"))
+                            .with_size(px(22.))
+                            .rounded(px(5.))
+                            .color(t.text_disabled)
+                            .danger()
+                            .on_click(cx.listener(move |s, _, w, cx| {
+                                cx.stop_propagation();
+                                s.confirm_remove_project(remove.clone(), w, cx);
+                            })),
+                    )
+                    .on_click({
+                        let host = cx.weak_entity();
+                        move |w, cx| {
+                            let _ = host.update(cx, |s, cx| s.open_project(path.clone(), w, cx));
+                        }
+                    });
+                if let Some(changed) = changed {
+                    item = item.trailing_text(modification_time(changed, now));
+                }
+                MenuRow::new(("home-project", index), item).variant(MenuVariant::Homepage)
+            })
+            .collect::<Vec<_>>();
+        let cloud = self.cloud_rows(busy, cx);
         v_flex()
             .id("home-projects")
             .w_full()
@@ -366,6 +368,112 @@ impl Shell {
             .gap(px(2.))
             .overflow_y_scroll()
             .children(rows)
+            .children(cloud)
+    }
+    /// Hosted-only Projects from the account catalog: outline Cloud icon,
+    /// last activity, opening in a dedicated window. Local rows keep their
+    /// own list; account status never becomes a row.
+    fn cloud_rows(&self, busy: bool, cx: &mut Context<Self>) -> Vec<AnyElement> {
+        use crate::features::cloud_catalog::State;
+        let t = cx.palette();
+        let catalog = self.cloud_catalog.read(cx);
+        let State::Ready(entries) = &catalog.state else {
+            return vec![];
+        };
+        let mut entries: Vec<_> = entries
+            .iter()
+            .map(|e| {
+                let modified = crate::workspace::cloud::catalog::latest([
+                    e.updated,
+                    catalog.activity.get(&e.id).copied(),
+                ]);
+                (e.clone(), modified)
+            })
+            .collect();
+        entries.sort_by(|(a, at), (b, bt)| bt.cmp(at).then_with(|| a.name.cmp(&b.name)));
+        let now = SystemTime::now();
+        entries
+            .into_iter()
+            .enumerate()
+            .map(|(index, (entry, modified))| {
+                let id = entry.id.clone();
+                let mut item = MenuItem::new(entry.name.clone())
+                    .icon_sized(
+                        Icon::product(crate::ui::components::ProductIcon::Cloud)
+                            .small()
+                            .stroke(1.85)
+                            .color(t.accent),
+                    )
+                    .detail(tr("shell.projectOpen.inCloud"))
+                    .disabled(busy)
+                    .on_click(move |_, cx| {
+                        let _ = super::windows::open_cloud(id.clone(), cx);
+                    });
+                if let Some(ms) = modified.filter(|m| *m > 0) {
+                    let changed =
+                        std::time::UNIX_EPOCH + std::time::Duration::from_millis(ms as u64);
+                    item = item.trailing_text(modification_time(changed, now));
+                }
+                MenuRow::new(("home-cloud-project", index), item)
+                    .variant(MenuVariant::Homepage)
+                    .into_any_element()
+            })
+            .collect()
+    }
+    /// The page loading overlay of an explicit Cloud opening: the two
+    /// request-driven messages and Cancel.
+    fn cloud_opening_overlay(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        use crate::workspace::cloud::opening::Phase;
+        let phase = (*self.files.cloud_phase.lock().unwrap())?;
+        let t = cx.palette();
+        let message = match phase {
+            Phase::Checking | Phase::Connecting => "cloud.loading.startingWorkspace",
+            Phase::Files => "cloud.loading.files",
+        };
+        Some(
+            div()
+                .absolute()
+                .top(px(metric::CHROME_HEIGHT))
+                .bottom_0()
+                .left_0()
+                .right_0()
+                .occlude()
+                .flex()
+                .items_center()
+                .justify_center()
+                .bg(theme::alpha(t.canvas, 0.84))
+                .child(
+                    v_flex()
+                        .items_center()
+                        .gap(px(16.))
+                        .child(
+                            h_flex()
+                                .items_center()
+                                .gap(px(10.))
+                                .child(
+                                    crate::ui::loading::LoadingMark::new("cloud-opening")
+                                        .size(crate::ui::loading::LoaderSize::Md)
+                                        .tone(crate::ui::loading::Tone::Neutral),
+                                )
+                                .child(
+                                    div()
+                                        .text_size(px(theme::ty().ui.body))
+                                        .text_color(t.text)
+                                        .child(tr(message)),
+                                ),
+                        )
+                        .child(
+                            Button::new("cloud-opening-cancel")
+                                .variant(ButtonVariant::Secondary)
+                                .label(tr("common.action.cancel"))
+                                .on_click(cx.listener(|s, _, _, cx| {
+                                    s.files.cancel_cloud();
+                                    cx.notify();
+                                })),
+                        ),
+                )
+                .into_any_element(),
+        )
     }
     /// `OnboardingCreateProjectAction`: the default path in the empty state.
     fn create_action(&self, prominent: bool, busy: bool, cx: &mut Context<Self>) -> Button {

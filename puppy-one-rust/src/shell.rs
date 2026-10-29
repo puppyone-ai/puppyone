@@ -56,6 +56,8 @@ pub enum Popover {
 pub struct Shell {
     /// This window's budget owner (`ownerId`), shared with its hosts.
     window_key: String,
+    /// The shared Cloud account catalog (Homepage / Header rows).
+    pub(super) cloud_catalog: Entity<crate::features::cloud_catalog::CloudCatalog>,
     /// Launch without a project: open the last active one once preferences load.
     restore_last: bool,
     project: String,
@@ -153,6 +155,7 @@ impl Shell {
             .map(|s| s.0.clone())
         {
             cx.observe(&account, |s, _, cx| {
+                s.refresh_cloud_catalog(false, cx);
                 s.wake.notify();
                 cx.notify();
             })
@@ -189,6 +192,7 @@ impl Shell {
         let preferences = windows::shared_preferences(fixture, cx);
         let mut s = Self {
             window_key: format!("window:{:?}", window.window_handle().window_id()),
+            cloud_catalog: crate::features::cloud_catalog::global(cx),
             restore_last: false,
             project: if fixture {
                 "puppyone".into()
@@ -263,6 +267,7 @@ impl Shell {
             window,
             |s, _, _: &crate::features::settings::preferences_store::PreferencesChanged, w, cx| {
                 s.apply_preferences(w, cx);
+                s.refresh_cloud_catalog(false, cx);
                 if s.restore_last && s.preferences.read(cx).loaded {
                     s.restore_last = false;
                     if let Some(path) = windows::last_active_project(cx)
@@ -460,6 +465,11 @@ impl Shell {
             s.restore_last = true;
         }
         windows::register(window.window_handle(), cx.weak_entity(), cx);
+        cx.observe(&s.cloud_catalog, |_, _, cx| cx.notify())
+            .detach();
+        if let Some(project) = launch.cloud.clone() {
+            s.open_cloud(project, cx);
+        }
         // Until preferences load: the default Sub Theme in the start-up mode.
         crate::ui::appearance::Appearance::default()
             .with_dark(s.dark)
@@ -1042,8 +1052,16 @@ impl Shell {
                     explorer.reference_context(workspace, path)
                 })
             });
+            // Cloud dirty-draft / unknown-outcome policy (C-6.6) is not yet
+            // native: hosted documents stay read-only until it is.
+            let cloud = self
+                .files
+                .workspace
+                .as_ref()
+                .is_some_and(|ws| ws.local_root().is_none());
             let blocked = modal
                 || home
+                || cloud
                 || !visible.contains(slot)
                 || self
                     .files
@@ -1068,6 +1086,23 @@ impl Shell {
             self.native
                 .update(cx, |editor, cx| editor.focus_document(window, cx));
         }
+    }
+    /// `useHomepageCloudProjects`: load or revalidate the account catalog.
+    pub(super) fn refresh_cloud_catalog(&mut self, retry: bool, cx: &mut Context<Self>) {
+        let enabled = crate::features::flags::cloud_enabled(&self.preferences, cx);
+        self.cloud_catalog
+            .update(cx, |c, cx| c.ensure(enabled, retry, cx));
+    }
+    /// Explicit Cloud opening of a hosted Project root in this window.
+    pub(super) fn open_cloud(&mut self, project: String, cx: &mut Context<Self>) {
+        let Some((broker, binding)) = crate::features::cloud_account::broker_and_binding(cx) else {
+            self.show_error(crate::localization::t(
+                "cloud.message.project-sign-in-required",
+            ));
+            return;
+        };
+        self.files.open_cloud(broker, binding, project, &self.wake);
+        cx.notify();
     }
     /// The local project this window shows.
     pub fn workspace_root(&self) -> Option<PathBuf> {

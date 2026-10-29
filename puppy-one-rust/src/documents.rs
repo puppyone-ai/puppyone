@@ -161,6 +161,10 @@ pub type PresentationKey = (
     Option<String>,
 );
 pub struct Documents {
+    /// A Cloud opening in flight: its visible phase (`Waking up…` /
+    /// `Taking out your files…`) and its cancellation.
+    pub cloud_phase: Arc<std::sync::Mutex<Option<crate::workspace::cloud::opening::Phase>>>,
+    cloud_cancel: Option<crate::cloud_auth::Cancellation>,
     /// The editor task scope (its window): reads are admitted there and
     /// retired when the window closes.
     pub task_scope: String,
@@ -211,6 +215,8 @@ impl Default for Documents {
             observing: false,
             read_generation: 0,
             task_scope: "documents".into(),
+            cloud_phase: Default::default(),
+            cloud_cancel: None,
             watch: None,
             observation_pending: false,
             tx,
@@ -718,6 +724,60 @@ impl Documents {
                 self.phase = Phase::Prepared;
             }
         }
+    }
+    /// Explicit Cloud opening (Homepage/Header): authorize the exact Project
+    /// root, wake or reuse its workspace, read the root, then commit it like
+    /// a local folder. Cancellation and failures keep the current workspace.
+    pub fn open_cloud(
+        &mut self,
+        broker: Arc<crate::cloud_auth::Broker>,
+        binding: crate::cloud_auth::model::Binding,
+        project_id: String,
+        ctx: &Wake,
+    ) {
+        use crate::workspace::cloud::{Target, opening};
+        self.cancel_cloud();
+        let cancel = crate::cloud_auth::Cancellation::default();
+        self.cloud_cancel = Some(cancel.clone());
+        let phase = self.cloud_phase.clone();
+        *phase.lock().unwrap() = Some(opening::Phase::Checking);
+        let tx = self.tx.clone();
+        let ctx = ctx.clone();
+        crate::localization::spawn(move || {
+            let progress_phase = phase.clone();
+            let progress_ctx = ctx.clone();
+            let result = opening::prepare(
+                broker,
+                binding,
+                Target::ProjectRoot { project_id },
+                &cancel,
+                false,
+                move |p| {
+                    *progress_phase.lock().unwrap() = Some(p);
+                    progress_ctx.notify();
+                },
+            );
+            *phase.lock().unwrap() = None;
+            if cancel.check().is_err() {
+                ctx.notify();
+                return;
+            }
+            let completed = match result {
+                Ok(prepared) => prepared.into_parts(),
+                Err(failure) => Err(workspace::Error::new(
+                    workspace::ErrorKind::Unsupported,
+                    crate::localization::t(&format!("cloud.message.{}", failure.code)),
+                )),
+            };
+            let _ = tx.send(Completed::Root(completed));
+            ctx.notify();
+        });
+    }
+    pub fn cancel_cloud(&mut self) {
+        if let Some(cancel) = self.cloud_cancel.take() {
+            cancel.cancel();
+        }
+        *self.cloud_phase.lock().unwrap() = None;
     }
     pub fn load_children(&mut self, path: PathBuf, ctx: &Wake) {
         let Some(ws) = self.workspace.clone() else {

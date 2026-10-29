@@ -587,13 +587,6 @@ impl Broker {
     }
     /// Internal native consumer API: no caller receives an access token. Non-read
     /// requests are never automatically replayed, including after a 401.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "Unscoped convenience for non-workspace consumers; the live Provider uses request_scoped"
-        )
-    )]
     pub fn request(&self, binding: &Binding, request: &ApiRequest) -> Result<serde_json::Value> {
         self.request_scoped(binding, request, &super::Cancellation::default())
     }
