@@ -1061,5 +1061,12 @@
   "home.openLinkedCloudProject": "Abrir o projeto do Cloud {project}",
   "home.linkedCloudProjectHint": "{project} é o projeto do Cloud desta pasta, um projeto separado. As alterações só passam de um para o outro quando você as envia.",
   "localFolderNotice.missingNoAction": "O projeto do Cloud desta pasta não está mais disponível.",
-  "initialize.separateProjectNote": "Cria o projeto do Cloud {name} a partir dos arquivos desta pasta rastreados pelo Git. Pessoas e agentes trabalham nesse projeto do Cloud; esta pasta continua sendo um projeto separado neste computador, e as alterações só passam de um para o outro quando você as envia."
+  "initialize.separateProjectNote": "Cria o projeto do Cloud {name} a partir dos arquivos desta pasta rastreados pelo Git. Pessoas e agentes trabalham nesse projeto do Cloud; esta pasta continua sendo um projeto separado neste computador, e as alterações só passam de um para o outro quando você as envia.",
+  "placeMenu.label": "Onde este projeto está",
+  "placeMenu.putInCloud": "Colocar no Cloud",
+  "placeMenu.continuePutInCloud": "Continuar colocando no Cloud",
+  "placeMenu.putInCloudDetail.mac": "Os agentes continuam trabalhando com este Mac desligado.",
+  "placeMenu.putInCloudDetail.computer": "Os agentes continuam trabalhando com este computador desligado.",
+  "placeMenu.openFolder.mac": "Abrir a pasta neste Mac",
+  "placeMenu.openFolder.computer": "Abrir a pasta neste computador"
 }

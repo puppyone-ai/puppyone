@@ -1061,5 +1061,12 @@
   "home.openLinkedCloudProject": "Cloud プロジェクト {project} を開く",
   "home.linkedCloudProjectHint": "{project} はこのフォルダー専用の Cloud プロジェクトで、別のプロジェクトです。変更はあなたが送信したときだけ両者の間で移動します。",
   "localFolderNotice.missingNoAction": "このフォルダーの Cloud プロジェクトは利用できなくなりました。",
-  "initialize.separateProjectNote": "このフォルダーで Git が追跡しているファイルから Cloud プロジェクト「{name}」を作成します。メンバーとエージェントはその Cloud プロジェクトで作業し、このフォルダーはこのコンピューター上の別のプロジェクトのままです。変更はあなたが送信したときだけ両者の間で移動します。"
+  "initialize.separateProjectNote": "このフォルダーで Git が追跡しているファイルから Cloud プロジェクト「{name}」を作成します。メンバーとエージェントはその Cloud プロジェクトで作業し、このフォルダーはこのコンピューター上の別のプロジェクトのままです。変更はあなたが送信したときだけ両者の間で移動します。",
+  "placeMenu.label": "このプロジェクトの場所",
+  "placeMenu.putInCloud": "Cloud に置く",
+  "placeMenu.continuePutInCloud": "Cloud への配置を続ける",
+  "placeMenu.putInCloudDetail.mac": "この Mac の電源を切っても、エージェントは動き続けます。",
+  "placeMenu.putInCloudDetail.computer": "このコンピューターの電源を切っても、エージェントは動き続けます。",
+  "placeMenu.openFolder.mac": "この Mac のフォルダーを開く",
+  "placeMenu.openFolder.computer": "このコンピューターのフォルダーを開く"
 }

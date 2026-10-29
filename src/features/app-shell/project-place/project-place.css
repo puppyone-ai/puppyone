@@ -1,0 +1,115 @@
+@layer features {
+  /* The place control sits beside the project trigger and uses the Header's
+     own control tokens, so it reads as part of the Header, not a widget. */
+  .desktop-titlebar-place-wrap {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    height: 100%;
+  }
+
+  .desktop-titlebar-place-button {
+    display: inline-flex;
+    box-sizing: border-box;
+    align-items: center;
+    justify-content: center;
+    gap: var(--desktop-titlebar-workspace-icon-label-gap);
+    height: var(--desktop-titlebar-control-height);
+    padding: 0 var(--desktop-titlebar-workspace-inline-padding);
+    border: 0;
+    border-radius: var(--desktop-toolbar-action-radius);
+    background: transparent;
+    color: var(--desktop-titlebar-text-muted);
+    font-family: var(--desktop-titlebar-context-font-family);
+    font-size: var(--desktop-titlebar-context-font-size);
+    font-weight: var(--desktop-titlebar-context-font-weight);
+    line-height: var(--desktop-titlebar-context-line-height);
+    white-space: nowrap;
+  }
+
+  .desktop-titlebar-place-button .desktop-titlebar-workspace-mark {
+    display: grid;
+    width: var(--desktop-titlebar-workspace-icon-slot-size);
+    height: var(--desktop-titlebar-workspace-icon-slot-size);
+    flex: 0 0 var(--desktop-titlebar-workspace-icon-slot-size);
+    place-items: center;
+    color: inherit;
+  }
+
+  .desktop-titlebar-place-button .desktop-titlebar-workspace-mark > svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .desktop-titlebar-place-button:hover,
+  .desktop-titlebar-place-button[aria-expanded="true"] {
+    background: var(--desktop-titlebar-hover);
+    color: var(--desktop-titlebar-text);
+  }
+
+  .desktop-titlebar-place-button:focus-visible {
+    outline: 1px solid var(--desktop-titlebar-focus);
+    outline-offset: -1px;
+  }
+
+  .desktop-project-place-menu {
+    --desktop-project-menu-spacing: 3px;
+    --po-menu-padding: var(--desktop-project-menu-spacing);
+    --po-menu-bg: var(--po-header);
+    --po-menu-border: var(--po-shell-divider);
+    --interface-menu-background: var(--po-header);
+    display: flex;
+    max-width: 320px;
+    flex-direction: column;
+    /* This container receives initial dialog focus; rows own the focus ring. */
+    outline: none;
+  }
+
+  .desktop-project-place-rows {
+    display: grid;
+    min-width: 0;
+    gap: 2px;
+  }
+
+  .desktop-project-place-row .desktop-menu-item-icon {
+    opacity: 1;
+  }
+
+  .desktop-project-place-mark {
+    display: grid;
+    place-items: center;
+    color: inherit;
+  }
+
+  /* The current place is a fact, not an action. */
+  .desktop-project-place-row[aria-current="true"] {
+    cursor: default;
+  }
+
+  /* The action that reaches the Cloud carries the product blue, as the
+     first-publish entry always has. */
+  .desktop-project-place-row .desktop-project-place-mark[data-project-place="cloud"] {
+    color: var(--po-brand-blue, var(--po-accent-text));
+  }
+
+  /* An action with a second line stacks it under its name. */
+  .desktop-project-place-row:has(.desktop-menu-item-detail) {
+    height: auto;
+    min-height: var(--po-menu-item-height);
+    align-items: flex-start;
+    padding-block: 6px;
+  }
+
+  .desktop-project-place-row:has(.desktop-menu-item-detail) .desktop-menu-item-body {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+  }
+
+  .desktop-project-place-row .desktop-menu-item-detail {
+    line-height: var(--po-menu-meta-line-height, 16px);
+    white-space: normal;
+    text-wrap: pretty;
+  }
+}

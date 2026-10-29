@@ -1061,5 +1061,12 @@
   "home.openLinkedCloudProject": "Ouvrir le projet Cloud {project}",
   "home.linkedCloudProjectHint": "{project} est le projet Cloud propre à ce dossier, un projet distinct. Les modifications ne passent de l’un à l’autre que lorsque vous les envoyez.",
   "localFolderNotice.missingNoAction": "Le projet Cloud de ce dossier n’est plus disponible.",
-  "initialize.separateProjectNote": "Crée le projet Cloud {name} à partir des fichiers de ce dossier suivis par Git. Les personnes et les agents travaillent dans ce projet Cloud ; ce dossier reste un projet distinct sur cet ordinateur, et les modifications ne passent de l’un à l’autre que lorsque vous les envoyez."
+  "initialize.separateProjectNote": "Crée le projet Cloud {name} à partir des fichiers de ce dossier suivis par Git. Les personnes et les agents travaillent dans ce projet Cloud ; ce dossier reste un projet distinct sur cet ordinateur, et les modifications ne passent de l’un à l’autre que lorsque vous les envoyez.",
+  "placeMenu.label": "Où se trouve ce projet",
+  "placeMenu.putInCloud": "Mettre dans le Cloud",
+  "placeMenu.continuePutInCloud": "Continuer la mise dans le Cloud",
+  "placeMenu.putInCloudDetail.mac": "Les agents continuent quand ce Mac est éteint.",
+  "placeMenu.putInCloudDetail.computer": "Les agents continuent quand cet ordinateur est éteint.",
+  "placeMenu.openFolder.mac": "Ouvrir le dossier sur ce Mac",
+  "placeMenu.openFolder.computer": "Ouvrir le dossier sur cet ordinateur"
 }

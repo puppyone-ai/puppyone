@@ -1061,5 +1061,12 @@
   "home.openLinkedCloudProject": "Cloud 프로젝트 {project} 열기",
   "home.linkedCloudProjectHint": "{project}은(는) 이 폴더의 Cloud 프로젝트로, 별도의 프로젝트입니다. 변경 사항은 직접 보낼 때만 둘 사이를 오갑니다.",
   "localFolderNotice.missingNoAction": "이 폴더의 Cloud 프로젝트를 더 이상 사용할 수 없습니다.",
-  "initialize.separateProjectNote": "이 폴더에서 Git이 추적하는 파일로 Cloud 프로젝트 {name}을(를) 만듭니다. 팀원과 에이전트는 그 Cloud 프로젝트에서 작업하며, 이 폴더는 이 컴퓨터의 별도 프로젝트로 남습니다. 변경 사항은 직접 보낼 때만 둘 사이를 오갑니다."
+  "initialize.separateProjectNote": "이 폴더에서 Git이 추적하는 파일로 Cloud 프로젝트 {name}을(를) 만듭니다. 팀원과 에이전트는 그 Cloud 프로젝트에서 작업하며, 이 폴더는 이 컴퓨터의 별도 프로젝트로 남습니다. 변경 사항은 직접 보낼 때만 둘 사이를 오갑니다.",
+  "placeMenu.label": "이 프로젝트의 위치",
+  "placeMenu.putInCloud": "Cloud에 올리기",
+  "placeMenu.continuePutInCloud": "Cloud에 계속 올리기",
+  "placeMenu.putInCloudDetail.mac": "이 Mac을 꺼도 에이전트가 계속 일합니다.",
+  "placeMenu.putInCloudDetail.computer": "이 컴퓨터를 꺼도 에이전트가 계속 일합니다.",
+  "placeMenu.openFolder.mac": "이 Mac의 폴더 열기",
+  "placeMenu.openFolder.computer": "이 컴퓨터의 폴더 열기"
 }

@@ -1,4 +1,5 @@
 import { useDesktopPreference, useDesktopAppearance } from "../features/settings";
+import { resolveProjectPlaceMenu } from "../features/app-shell/project-place/projectPlaceMenuState";
 import { useRef, useState, type ComponentProps, type ReactNode } from "react";
 import { createWorkspaceResourceUri } from "@puppyone/shared-ui";
 import { DesktopCloudShell } from "../components/DesktopCloudShell";
@@ -99,11 +100,17 @@ export function AccountCloudWorkspaceSurface({ workbench, presentation, active, 
   const sidebar = suppliedSidebar ?? ownSidebar;
   const { service } = workbench;
   if (!service || !workbench.visited) return null;
+  // A Cloud project is its own project; a folder linked to it is another one.
+  const linkedFolder = projectItems.find((item) => item.localPath && item.linkedCloudProject?.id === service.workspace.projectId);
+  const placeMenu = { menu: resolveProjectPlaceMenu({ place: "cloud", unhosted: false, publishPending: false, notice: null,
+    missingReplaceable: false, linkedFolder: linkedFolder ? { path: linkedFolder.localPath, name: linkedFolder.label } : null }),
+  handlers: { onPutInCloud: noop, onOpenCloudProject: noop, onSignIn: noop, onPutInCloudAgain: noop,
+    onOpenLocalFolder: (path: string) => onSelectProject(path) } };
   // The rail states the Project it is switching between, so the hosted Header
   // repeats neither the name nor the place while the rail is present.
   const projectContext = !active || projectRail ? null : <DesktopTitlebarContext open={menuOpen} refObject={menuRef}
         titlebarLabel={service.workspace.name} workspace={service.workspace} workspaceFolders={[service.folder]}
-        multiRootWorkspacesEnabled={false}
+        multiRootWorkspacesEnabled={false} placeMenu={placeMenu}
         onClose={() => setMenuOpen(false)} onToggle={() => setMenuOpen((current) => !current)}
         projectItems={projectItems} pendingProject={pendingProject} onSelectProject={onSelectProject} onSelectCloudProject={onSelectCloudProject}
         onCreateProject={onCreateProject} onHome={onHome}
