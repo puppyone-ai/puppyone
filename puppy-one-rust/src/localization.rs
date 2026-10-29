@@ -2,7 +2,8 @@
 //! authority or a replacement for the product's persisted locale service.
 //!
 //! Messages use the ICU subset that the product catalogs actually contain:
-//! `{arg}`, `{arg, number}` and `{arg, plural, =N {…} one {…} other {…}}` with `#`.
+//! `{arg}`, `{arg, number}`, `{arg, plural, =N {…} one {…} other {…}}` with `#`
+//! and `{arg, select, key {…} other {…}}`.
 use serde_json::Value;
 use std::sync::OnceLock;
 
@@ -290,6 +291,20 @@ fn placeholder(body: &str, args: &[(&str, Arg)], code: &str) -> String {
                 .map(|(_, v)| render(v, args, code, Some(*n)))
                 .unwrap_or_default()
         }
+        // `{gender, select, female {…} other {…}}`: the exact key, else other.
+        (Some("select"), Some(value)) => {
+            let key = match value {
+                Arg::Text(text) => text.clone(),
+                Arg::Number(n) => n.to_string(),
+            };
+            let branches = branches(parts.next().unwrap_or_default());
+            branches
+                .iter()
+                .find(|(k, _)| *k == key)
+                .or_else(|| branches.iter().find(|(k, _)| *k == "other"))
+                .map(|(_, v)| render(v, args, code, None))
+                .unwrap_or_default()
+        }
         (_, Some(Arg::Text(text))) => text.clone(),
         _ => format!("{{{name}}}"),
     }
@@ -551,6 +566,13 @@ mod tests {
                 .contains('1')
         );
         assert_eq!(format_message("{x}", &[], "en"), "{x}");
+        // `select`: the matching branch, else `other`; nested arguments render.
+        let select = "{kind, select, folder {Folder {name}} file {File} other {Item}}";
+        let kind =
+            |k: &str| format_message(select, &[("kind", k.into()), ("name", "docs".into())], "en");
+        assert_eq!(kind("folder"), "Folder docs");
+        assert_eq!(kind("file"), "File");
+        assert_eq!(kind("link"), "Item");
         let langs = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
         assert_eq!(resolve_system(&langs(&["zh-Hans-CN", "en"])), "zh-Hans");
         assert_eq!(resolve_system(&langs(&["pt-PT"])), "pt-BR");

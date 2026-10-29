@@ -686,29 +686,8 @@ fn spinning(
 }
 
 /// `formatHistoryDate`: `Intl.DateTimeFormat(undefined, { month: "short",
-/// day: "numeric", hour: "numeric", minute: "2-digit" })` for an en-US
-/// system locale, in local time ("Jan 15, 3:55 PM").
+/// day: "numeric", hour: "numeric", minute: "2-digit" })` — the system's
+/// region, in local time.
 pub fn format_history_date(unix_ms: i64) -> String {
-    const MONTHS: [&str; 12] = [
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-    ];
-    let seconds = unix_ms.div_euclid(1000) as libc::time_t;
-    let mut tm: libc::tm = unsafe { std::mem::zeroed() };
-    // SAFETY: `localtime_r` writes only into the provided `tm`.
-    if unsafe { libc::localtime_r(&seconds, &mut tm) }.is_null() {
-        return String::new();
-    }
-    let hour = match tm.tm_hour % 12 {
-        0 => 12,
-        h => h,
-    };
-    let meridiem = if tm.tm_hour < 12 { "AM" } else { "PM" };
-    format!(
-        "{} {}, {}:{:02} {}",
-        MONTHS[tm.tm_mon.clamp(0, 11) as usize],
-        tm.tm_mday,
-        hour,
-        tm.tm_min,
-        meridiem
-    )
+    crate::platform::locale_format::month_day_time(unix_ms)
 }
