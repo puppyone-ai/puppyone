@@ -85,7 +85,7 @@ fn unknown_resource_result_blocks_its_paths_but_allows_unrelated_navigation() {
     );
     std::fs::remove_file(root.path().join("b.md")).unwrap();
     r.retry_operation(&Wake::default());
-    wait(&mut r, |r| r.mutation.is_none());
+    wait(&mut r, |r| r.operations_idle());
     assert!(!r.slot(slot).unwrap().busy());
     assert!(root.path().join("a.md").exists());
     assert!(
@@ -141,7 +141,7 @@ fn resource_barrier_waits_for_composition_and_cannot_be_stolen_by_close() {
         &Wake::default(),
     );
     snapshots(&mut r, |_| "中文组字".into());
-    wait(&mut r, |r| r.mutation.is_none());
+    wait(&mut r, |r| r.operations_idle());
     assert_eq!(
         std::fs::read_to_string(root.path().join("b.md")).unwrap(),
         "中文组字"
@@ -286,7 +286,7 @@ fn copying_a_directory_flushes_hidden_working_copies_without_replacing_them() {
     )
     .unwrap();
     snapshots(&mut r, |path| format!("edited {path}"));
-    wait(&mut r, |r| r.mutation.is_none());
+    wait(&mut r, |r| r.operations_idle());
     let outcome = r.operation_results.pop().unwrap().1;
     assert!(outcome.error.is_none(), "{:?}", outcome.error);
     let copy = outcome.select.unwrap();
@@ -330,7 +330,7 @@ fn failed_snapshot_cancels_the_mutation_and_thaws_every_affected_document() {
             "original".into()
         }
     });
-    wait(&mut r, |r| r.mutation.is_none());
+    wait(&mut r, |r| r.operations_idle());
     assert!(r.operation_results.last().unwrap().1.error.is_some());
     assert_eq!(r.state(), Some(&state));
     assert!(
@@ -369,7 +369,7 @@ fn move_rebinds_its_original_project_even_if_another_project_is_active() {
     wait(&mut r, |r| r.active.as_ref() != Some(&owner));
     let current = r.active.clone();
     snapshots(&mut r, |_| "saved before moving".into());
-    wait(&mut r, |r| r.mutation.is_none());
+    wait(&mut r, |r| r.operations_idle());
     assert_eq!(r.active, current);
     assert_eq!(
         r.slot(slot).unwrap().opened().unwrap().1,
@@ -403,7 +403,7 @@ fn a_destination_with_an_open_working_copy_rejects_the_move_before_freezing() {
         )
         .is_err()
     );
-    assert!(r.mutation.is_none());
+    assert!(r.operations_idle());
     assert!(!r.busy());
     for name in ["a.md", "b.md"] {
         assert_eq!(
@@ -573,4 +573,89 @@ fn cancelling_a_window_close_thaws_all_retained_pending_snapshot_barriers() {
         3
     );
     assert!(!r.allow_quit);
+}
+#[test]
+fn file_operations_queue_by_resource_scope() {
+    use super::super::resource_operations::Operation;
+    let root = tempfile::tempdir().unwrap();
+    for name in ["a.md", "other.md", "spare.md"] {
+        std::fs::write(root.path().join(name), name).unwrap();
+    }
+    let mut r = Runtime::default();
+    open_root(&mut r, root.path());
+    open(&mut r, "a.md");
+    let rename = |path: &str, name: &str| Operation::Rename {
+        path: path.into(),
+        name: name.into(),
+    };
+    // The first rename waits for its open document's snapshot; a rename of
+    // its destination waits behind it, a disjoint delete runs at once.
+    r.resource_operation(rename("a.md", "b.md"), &Wake::default())
+        .unwrap();
+    r.resource_operation(rename("b.md", "c.md"), &Wake::default())
+        .unwrap();
+    r.resource_operation(Operation::Delete(vec!["other.md".into()]), &Wake::default())
+        .unwrap();
+    assert_eq!((r.mutations.len(), r.queued.len()), (2, 1));
+    assert!(r.mutation_blocks(std::path::Path::new("b.md")));
+    assert!(!r.mutation_blocks(std::path::Path::new("spare.md")));
+    // Each prepared operation drains the open document again.
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !r.operations_idle() {
+        snapshots(&mut r, |path| format!("saved {path}"));
+        r.poll(&Wake::default());
+        assert!(Instant::now() < deadline, "{:?}", r.error);
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    let errors: Vec<_> = r
+        .operation_results
+        .iter()
+        .filter_map(|(_, o)| o.error.clone())
+        .collect();
+    assert!(errors.is_empty(), "{errors:?}");
+    assert_eq!(r.operation_results.len(), 3);
+    assert_eq!(
+        std::fs::read_to_string(root.path().join("c.md")).unwrap(),
+        "saved b.md"
+    );
+    assert!(!root.path().join("b.md").exists() && !root.path().join("other.md").exists());
+    assert_eq!(
+        r.opened().map(|(_, p)| p.to_path_buf()),
+        Some("c.md".into())
+    );
+}
+#[test]
+fn an_unreconciled_operation_refuses_overlapping_ones_only() {
+    use super::super::resource_operations::Operation;
+    let root = tempfile::tempdir().unwrap();
+    for name in ["a.md", "b.md", "unrelated.md"] {
+        std::fs::write(root.path().join(name), name).unwrap();
+    }
+    let mut r = Runtime::default();
+    open_root(&mut r, root.path());
+    open(&mut r, "a.md");
+    // The destination exists: the provider's answer is not a clean refusal
+    // the runtime can trust, so the outcome stays unknown (see above).
+    r.resource_operation(
+        Operation::Rename {
+            path: "a.md".into(),
+            name: "b.md".into(),
+        },
+        &Wake::default(),
+    )
+    .unwrap();
+    snapshots(&mut r, |path| path.into());
+    wait(&mut r, |r| r.can_retry_operation());
+    let error = r
+        .resource_operation(Operation::Delete(vec!["a.md".into()]), &Wake::default())
+        .unwrap_err();
+    assert!(error.contains("reconciled first"), "{error}");
+    r.resource_operation(
+        Operation::Delete(vec!["unrelated.md".into()]),
+        &Wake::default(),
+    )
+    .unwrap();
+    wait(&mut r, |r| r.mutations.len() == 1 && r.queued.is_empty());
+    assert!(!root.path().join("unrelated.md").exists());
+    assert!(r.can_retry_operation());
 }

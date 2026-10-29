@@ -55,7 +55,10 @@ impl Host {
 }
 #[derive(Default)]
 pub struct Runtime {
-    mutation: Option<operations::Mutation>,
+    /// Running and unreconciled file operations, and those waiting for an
+    /// overlapping one (`ResourceOperationQueue`).
+    mutations: Vec<operations::Mutation>,
+    queued: std::collections::VecDeque<operations::Queued>,
     pub operation_results: Vec<(String, super::resource_operations::Outcome)>,
     scratch: Documents,
     hosts: BTreeMap<String, Host>,
@@ -363,7 +366,7 @@ impl Runtime {
                 self.close_slot(id, wake);
             }
             Intent::Quit => {
-                if self.mutation.is_some() {
+                if !self.operations_idle() {
                     self.error = Some(
                         "Finish or reconcile the pending file operation before closing".into(),
                     );
@@ -672,7 +675,7 @@ impl Runtime {
         if quit_failed {
             self.cancel_quit(wake);
         }
-        self.poll_mutation(wake);
+        self.poll_mutations(wake);
         self.poll_metadata(wake);
         self.persist_metadata(wake, self.quitting);
         if self.quitting {
