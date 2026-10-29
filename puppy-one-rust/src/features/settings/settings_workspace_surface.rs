@@ -136,6 +136,8 @@ impl SettingsWorkspaceSurface {
             let all = Visibility {
                 local_workspace: true,
                 other_app_imports: true,
+                cloud_enabled: true,
+                account_available: true,
             };
             if let Some(item) = groups(all)
                 .into_iter()
@@ -195,6 +197,8 @@ impl SettingsWorkspaceSurface {
                 .state
                 .experimental
                 .other_app_imports,
+            cloud_enabled: crate::features::flags::cloud_enabled(&self.preferences, cx),
+            account_available: crate::features::flags::account_available(cx),
         }
     }
     /// Copy text and show transient feedback on the triggering control.
@@ -233,8 +237,15 @@ impl Render for SettingsWorkspaceSurface {
             self.capture_page = None;
             self.select_page(page, cx);
         }
-        if !available(self.page, self.visibility(cx)) {
-            self.page = Page::General;
+        // An unavailable page falls back to Account where the build has
+        // accounts, else General (`App.tsx`).
+        let visibility = self.visibility(cx);
+        if !available(self.page, visibility) {
+            self.page = if visibility.account_available {
+                Page::Account
+            } else {
+                Page::General
+            };
         }
         let content = if !self.preferences.read(cx).loaded {
             SettingsSection::new(tr(self.page.title()))

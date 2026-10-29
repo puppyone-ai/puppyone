@@ -33,6 +33,10 @@ pub struct Group {
 pub struct Visibility {
     pub local_workspace: bool,
     pub other_app_imports: bool,
+    /// `useCloudEnabled()`: Plan and the "Cloud" heading.
+    pub cloud_enabled: bool,
+    /// `useAccountAvailable()`: Account, with or without Cloud.
+    pub account_available: bool,
 }
 impl Page {
     /// `SettingsSectionHeader` title of the page.
@@ -82,13 +86,23 @@ pub fn groups(visibility: Visibility) -> Vec<Group> {
             "flask-conical",
         ),
     ]);
+    // An account is not Cloud: Account wherever the build has accounts,
+    // under a PuppyOne heading while Cloud is off; Plan waits for Cloud.
+    let mut account = vec![];
+    if visibility.account_available {
+        account.push(item(Account, "settings.sidebar.account", "user-round"));
+    }
+    if visibility.cloud_enabled {
+        account.push(item(Plan, "settings.sidebar.seats", "credit-card"));
+    }
     let mut groups = vec![
         Group {
-            key: "settings.sidebar.cloud",
-            items: vec![
-                item(Account, "settings.sidebar.account", "user-round"),
-                item(Plan, "settings.sidebar.seats", "credit-card"),
-            ],
+            key: if visibility.cloud_enabled {
+                "settings.sidebar.cloud"
+            } else {
+                "settings.sidebar.puppyone"
+            },
+            items: account,
         },
         Group {
             key: "settings.sidebar.desktopApp",
@@ -113,6 +127,7 @@ pub fn groups(visibility: Visibility) -> Vec<Group> {
             ],
         });
     }
+    groups.retain(|g| !g.items.is_empty());
     groups
 }
 /// `isSettingsSectionAvailable`: an unavailable page falls back to General.
@@ -125,6 +140,26 @@ pub fn available(page: Page, visibility: Visibility) -> bool {
 mod tests {
     use super::*;
     #[test]
+    fn account_follows_the_build_and_plan_follows_cloud() {
+        let off = Visibility {
+            account_available: true,
+            ..Default::default()
+        };
+        assert_eq!(groups(off)[0].key, "settings.sidebar.puppyone");
+        assert!(available(Page::Account, off) && !available(Page::Plan, off));
+        let on = Visibility {
+            cloud_enabled: true,
+            ..off
+        };
+        assert_eq!(groups(on)[0].key, "settings.sidebar.cloud");
+        assert!(available(Page::Plan, on));
+        // No account in this build: the group disappears.
+        assert_eq!(
+            groups(Visibility::default())[0].key,
+            "settings.sidebar.desktopApp"
+        );
+    }
+    #[test]
     fn project_and_import_pages_follow_visibility() {
         let none = Visibility::default();
         assert!(!available(Page::Git, none));
@@ -132,6 +167,8 @@ mod tests {
         let all = Visibility {
             local_workspace: true,
             other_app_imports: true,
+            cloud_enabled: true,
+            account_available: true,
         };
         assert!(available(Page::Git, all) && available(Page::OtherAppImports, all));
         assert_eq!(groups(all)[0].key, "settings.sidebar.cloud");

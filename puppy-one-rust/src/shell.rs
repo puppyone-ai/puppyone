@@ -1327,7 +1327,9 @@ impl Shell {
                 ),
             );
         }
-        if home {
+        // `cloudAccountStatus` follows Cloud: with the experiment off the
+        // Homepage shows no Sign in (the account stays in Settings).
+        if home && crate::features::flags::cloud_enabled(&self.preferences, cx) {
             // Account identity is public state, not permission to open Cloud files.
             bar = bar.action(
                 header::account_entry(crate::features::cloud_account::has_account(cx)).on_click(
