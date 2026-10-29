@@ -99,6 +99,9 @@
   - Git：仓库子目录作为项目时与 TS 一致地管理整个仓库，操作只作用于文件夹内（G-13 / D-5）。
   - 像素流程：`capture-workbench` / `compare` / `diff-hotspots` 先按 ICC 转 sRGB；Settings 15 页 96.3–99.7%（S-13）。
   - 项目入口：`ProjectEntryLauncherDialog`、`ProjectNavigationFailure`、`RestoringWorkspaceScreen`（S-7）。
+  - Electron 数据导入：首次启动读取 `desktop-workspace-state.json`、`desktop-locale-preference.json` 与 `localStorage`（rusty-leveldb，副本读取），按产品解析器映射为原生偏好；凭据不读（PL-3）。
+  - Git 刷新调度：无轮询；工作区与元数据（`platform::git_watch`）失效防抖、聚焦超 5 秒刷新、上游静默 fetch（G-11）。
+  - Agent 输入框：`@path` 提及为 Kit 原子内联标记，插在光标处，删除即移除引用，草稿恢复标记（G-5）。
 （第一轮记录）仍未完成：HTML/Office/音视频/数据库/Context Map/App 预览查看器；代码编辑器装饰与冲突横幅；Cloud 全部界面；各处像素对比流程；右侧栏、设置与账户付费的剩余项。完整清单与状态见桌面迁移清单第 2 版。
 
 ## 1. 基础设施
