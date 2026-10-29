@@ -1,7 +1,7 @@
 //! Native web content hosts (`wry` child WebViews) for viewers; the
 //! protocol, path policy and MIME table live in `platform::webview`.
 #![cfg_attr(not(any(target_os = "macos", target_os = "windows")), allow(dead_code))]
-use crate::platform::webview::{Content, SCHEME, entry_url, respond};
+use crate::platform::webview::{Content, LOCAL_SCHEME, SCHEME, entry_url, respond, respond_local};
 use std::{
     borrow::Cow,
     cell::{Cell, RefCell},
@@ -34,12 +34,20 @@ impl WebHost {
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     pub fn new(window: &gpui::Window, content: Content, dark: bool) -> Result<Self, String> {
         let served = content.clone();
+        let local = content.clone();
         let background = if dark {
             (24, 24, 27, 255)
         } else {
             (255, 255, 255, 255)
         };
-        let view = wry::WebViewBuilder::new()
+        let mut builder = wry::WebViewBuilder::new();
+        if let Some(ipc) = content.ipc.clone() {
+            builder = builder.with_ipc_handler(move |request: wry::http::Request<String>| {
+                let url = request.uri().to_string();
+                ipc.accept(&url, request.into_body());
+            });
+        }
+        let view = builder
             .with_url(entry_url())
             .with_incognito(true)
             .with_devtools(false)
@@ -63,8 +71,25 @@ impl WebHost {
                     );
                 });
             })
+            .with_asynchronous_custom_protocol(LOCAL_SCHEME.into(), move |_, request, responder| {
+                let served = local.clone();
+                let path = request.uri().path().to_owned();
+                std::thread::spawn(move || {
+                    let (status, mime, body) = respond_local(&served, &path);
+                    responder.respond(
+                        wry::http::Response::builder()
+                            .status(status)
+                            .header("Content-Type", mime)
+                            .header("Cache-Control", "no-store")
+                            .body(Cow::<'static, [u8]>::Owned(body))
+                            .unwrap_or_else(|_| wry::http::Response::new(Cow::Borrowed(&[][..]))),
+                    );
+                });
+            })
             .with_navigation_handler(|url| {
-                if url.starts_with(SCHEME) || url == "about:blank" {
+                // `about:srcdoc` is inline content the page already holds
+                // (the HTML visual editor's sandboxed projection frame).
+                if url.starts_with(SCHEME) || url == "about:blank" || url == "about:srcdoc" {
                     return true;
                 }
                 if url.starts_with("https://") || url.starts_with("http://") {
@@ -115,6 +140,14 @@ impl WebHost {
     pub fn reload(&self) {
         #[cfg(any(target_os = "macos", target_os = "windows"))]
         let _ = self.state.view.load_url(&entry_url());
+    }
+    /// Runs trusted host script in the entry document (a message to the
+    /// page's own receiver; never document content).
+    pub fn evaluate(&self, script: &str) {
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        let _ = self.state.view.evaluate_script(script);
+        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+        let _ = script;
     }
 }
 

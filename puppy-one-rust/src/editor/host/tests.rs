@@ -518,3 +518,74 @@ fn json_shows_formatted_but_saves_only_after_an_edit(cx: &mut TestAppContext) {
         [ClientMessage::Snapshot { text, .. }] if text == "{\n  \"name\": \"puppyone\",\n  \"count\": 43\n}"
     ));
 }
+
+#[gpui::test]
+fn html_edit_mode_applies_page_edits_to_the_source_and_its_history(cx: &mut TestAppContext) {
+    let text = "<!doctype html><html><head></head><body><h1>Hello</h1></body></html>";
+    let (view, messages, cx) = setup(cx, "site/page.html", text);
+    let deliver = |view: &Entity<DocumentEditor>, cx: &mut VisualTestContext, body: &str| {
+        let delivered = view.update(cx, |v, _| {
+            v.surface.as_ref().unwrap().html_visual_deliver(body)
+        });
+        cx.run_until_parked();
+        delivered
+    };
+    let text_of = |view: &Entity<DocumentEditor>, cx: &mut VisualTestContext| {
+        view.update(cx, |v, cx| v.surface.as_ref().unwrap().text(cx).unwrap())
+    };
+    view.update_in(cx, |v, w, cx| {
+        let c = v.contribution(cx);
+        let segmented = c.segmented.expect("html modes");
+        assert_eq!(
+            segmented.options.iter().map(|o| o.id).collect::<Vec<_>>(),
+            ["preview", "edit", "source"]
+        );
+        v.run_pane_action(Action::Segment("edit"), w, cx);
+        assert_eq!(v.contribution(cx).segmented.unwrap().value, "edit");
+    });
+    // Edits wait for the page to boot; then one replaces "Hello" (UTF-16
+    // offsets of the mirror) and joins the source history.
+    let from = text.find("Hello").unwrap();
+    let edit = |generation: u64| {
+        format!(
+            r#"{{"type":"edit","generation":{generation},"edits":[{{"from":{from},"to":{},"insert":"Hi 😀"}}]}}"#,
+            from + 5
+        )
+    };
+    assert!(deliver(&view, cx, &edit(1)));
+    assert_eq!(text_of(&view, cx), text);
+    assert!(deliver(&view, cx, r#"{"type":"ready"}"#));
+    assert!(deliver(&view, cx, &edit(1)));
+    let edited = text.replace("Hello", "Hi 😀");
+    assert_eq!(text_of(&view, cx), edited);
+    assert!(
+        messages
+            .borrow()
+            .iter()
+            .any(|m| matches!(m, ClientMessage::Dirty { dirty: true, .. }))
+    );
+    // Undo from the page runs the source history and resets the mirror
+    // under a new generation; edits on the old one are dropped.
+    assert!(deliver(
+        &view,
+        cx,
+        r#"{"type":"history","direction":"undo"}"#
+    ));
+    assert_eq!(text_of(&view, cx), text);
+    assert!(deliver(&view, cx, &edit(1)));
+    assert_eq!(text_of(&view, cx), text);
+    // A source change while editing reaches the page the same way.
+    view.update_in(cx, |v, w, cx| {
+        v.surface
+            .as_ref()
+            .unwrap()
+            .replace_text("<p>From disk</p>", w, cx)
+    });
+    cx.run_until_parked();
+    assert_eq!(text_of(&view, cx), "<p>From disk</p>");
+    // A page that cannot map the document returns to Interact.
+    assert!(deliver(&view, cx, r#"{"type":"unavailable"}"#));
+    view.update(cx, |v, cx| {
+        assert_eq!(v.contribution(cx).segmented.unwrap().value, "preview")
+    });
+}

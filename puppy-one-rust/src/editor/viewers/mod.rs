@@ -6,6 +6,7 @@ pub mod csv;
 pub mod database;
 pub mod external;
 pub mod html;
+pub mod html_visual;
 pub mod image;
 pub mod media;
 pub mod office;

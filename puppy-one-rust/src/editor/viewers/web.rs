@@ -39,6 +39,16 @@ impl WebFrame {
             host.reload();
         }
     }
+    /// Runs host script in the page; `false` before the engine exists.
+    pub fn evaluate(&self, script: &str) -> bool {
+        match &self.host {
+            Some(host) => {
+                host.evaluate(script);
+                true
+            }
+            None => false,
+        }
+    }
 }
 impl Render for WebFrame {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {

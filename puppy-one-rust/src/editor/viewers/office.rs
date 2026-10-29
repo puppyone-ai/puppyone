@@ -209,6 +209,7 @@ impl OfficeView {
                 ("pptx-renderer.js", PPTX),
                 ("xlsx.full.min.js", XLSX),
             ],
+            ipc: None,
         };
         self.frame = Some(cx.new(|_| WebFrame::new(Some(content), false)));
     }

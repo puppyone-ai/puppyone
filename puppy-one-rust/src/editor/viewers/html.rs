@@ -4,10 +4,11 @@
 //! owns the text, undo and saves). The pane menu's "HTML view mode"
 //! segmented control switches between them; an empty page offers Source.
 //!
-//! Visual editing (the product's Edit mode) maps elements back to source
-//! offsets with its own compiler; it is not offered here yet, as the product
-//! itself hides Edit when a document cannot be mapped.
-use super::{code, web::WebFrame};
+//! Edit (`HtmlVisualSurface`, `html_visual`) is offered while the document
+//! is editable; the page maps elements back to source offsets with the
+//! product's compiler and falls back to Interact with "unsupported" when it
+//! cannot.
+use super::{code, html_visual, web::WebFrame};
 use crate::{
     editor::{
         registry::{
@@ -23,7 +24,11 @@ use crate::{
     ui::appearance::ActiveAppearance,
 };
 use gpui::{prelude::*, *};
-use std::{cell::Cell, path::PathBuf, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    path::PathBuf,
+    rc::Rc,
+};
 
 const INTERACTION_CSS: &str = include_str!("../../../assets/web/html-preview-interaction.css");
 /// `html-artifact` resourcePolicy.maxSourceBytes.
@@ -32,11 +37,12 @@ const BUDGET: u64 = 4 * 1024 * 1024;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Mode {
     Preview,
+    Edit,
     Source,
 }
 
 pub fn open(request: &SurfaceRequest, window: &mut Window, cx: &mut App) -> Box<dyn ViewerSurface> {
-    let source = code::open(request, window, cx);
+    let source: Rc<dyn ViewerSurface> = Rc::from(code::open(request, window, cx));
     let text = match request.input {
         SurfaceInput::Text(text) => text.to_owned(),
         _ => String::new(),
@@ -58,7 +64,11 @@ pub fn open(request: &SurfaceRequest, window: &mut Window, cx: &mut App) -> Box<
         mode: Rc::new(Cell::new(Mode::Preview)),
         folder,
         assets,
-        dark: request.dark,
+        dark: Cell::new(request.dark),
+        name: request.name.to_owned(),
+        read_only: Cell::new(false),
+        visual: Rc::new(RefCell::new(None)),
+        notice: Rc::new(RefCell::new(None)),
     })
 }
 
@@ -112,41 +122,147 @@ fn content(text: &str, folder: Option<PathBuf>, source: Option<Source>) -> Conte
         entry: Entry::Html(preview_html(text)),
         max_bytes: BUDGET,
         assets: vec![],
+        ipc: None,
     }
 }
 
 struct HtmlSurface {
-    source: Box<dyn ViewerSurface>,
+    source: Rc<dyn ViewerSurface>,
     frame: Entity<WebFrame>,
     empty: Entity<EmptyPage>,
     is_empty: Rc<Cell<bool>>,
     mode: Rc<Cell<Mode>>,
     folder: Option<PathBuf>,
     assets: Option<Source>,
-    dark: bool,
+    dark: Cell<bool>,
+    name: String,
+    read_only: Cell<bool>,
+    /// The Edit page while Edit mode is shown.
+    visual: Rc<RefCell<Option<html_visual::Session>>>,
+    /// `editor.html.unsupported` after Edit could not map the document.
+    notice: Rc<RefCell<Option<SharedString>>>,
 }
 impl HtmlSurface {
     fn refresh_preview(&self, cx: &mut App) {
-        let text = self.source.text(cx).unwrap_or_default();
-        self.is_empty.set(is_empty_page(&text));
-        let content = content(&text, self.folder.clone(), self.assets.clone());
-        self.frame
-            .update(cx, |f, cx| f.set_content(Some(content), cx));
+        refresh_preview(
+            &*self.source,
+            &self.frame,
+            &self.is_empty,
+            &self.folder,
+            &self.assets,
+            cx,
+        );
     }
+    /// `canVisualEdit`: an editable HTML document.
+    fn can_visual_edit(&self) -> bool {
+        let lower = self.name.to_ascii_lowercase();
+        !self.read_only.get() && (lower.ends_with(".html") || lower.ends_with(".htm"))
+    }
+    fn start_visual(&self, window: &mut Window, cx: &mut App) -> bool {
+        let text = self.source.text(cx).unwrap_or_default();
+        if !html_visual::admits(&self.name, &text) {
+            *self.notice.borrow_mut() = Some(t("editor.html.unsupported").into());
+            return false;
+        }
+        let unavailable: html_visual::Unavailable = {
+            let (mode, visual, notice) =
+                (self.mode.clone(), self.visual.clone(), self.notice.clone());
+            let (source, frame, is_empty) = (
+                self.source.clone(),
+                self.frame.clone(),
+                self.is_empty.clone(),
+            );
+            let (folder, assets) = (self.folder.clone(), self.assets.clone());
+            Rc::new(move |window, cx| {
+                if mode.get() != Mode::Edit {
+                    return;
+                }
+                refresh_preview(&*source, &frame, &is_empty, &folder, &assets, cx);
+                mode.set(Mode::Preview);
+                *notice.borrow_mut() = Some(t("editor.html.unsupported").into());
+                // Dropping the session closes its page after this message.
+                let visual = visual.clone();
+                window.on_next_frame(move |_, _| drop(visual.borrow_mut().take()));
+                window.refresh();
+            })
+        };
+        let session = html_visual::Session::start(
+            html_visual::Params {
+                text,
+                name: self.name.clone(),
+                folder: self.folder.clone(),
+                assets: self.assets.clone(),
+                dark: self.dark.get(),
+                enabled: !self.read_only.get(),
+                budget: BUDGET,
+            },
+            self.source.clone(),
+            unavailable,
+            window,
+            cx,
+        );
+        *self.visual.borrow_mut() = Some(session);
+        true
+    }
+}
+fn refresh_preview(
+    source: &dyn ViewerSurface,
+    frame: &Entity<WebFrame>,
+    is_empty: &Cell<bool>,
+    folder: &Option<PathBuf>,
+    assets: &Option<Source>,
+    cx: &mut App,
+) {
+    let text = source.text(cx).unwrap_or_default();
+    is_empty.set(is_empty_page(&text));
+    let content = content(&text, folder.clone(), assets.clone());
+    frame.update(cx, |f, cx| f.set_content(Some(content), cx));
 }
 impl ViewerSurface for HtmlSurface {
     fn element(&self) -> AnyElement {
-        match self.mode.get() {
-            Mode::Source => self.source.element(),
+        let body = match self.mode.get() {
+            Mode::Source => return self.source.element(),
+            Mode::Edit => match self.visual.borrow().as_ref() {
+                Some(session) => session.frame.clone().into_any_element(),
+                None => div().size_full().into_any_element(),
+            },
             Mode::Preview if self.is_empty.get() => self.empty.clone().into_any_element(),
-            Mode::Preview => div()
-                .size_full()
-                .child(self.frame.clone())
-                .into_any_element(),
-        }
+            Mode::Preview => self.frame.clone().into_any_element(),
+        };
+        // Native web content draws above the window: the notice sits in
+        // flow above it instead of floating over it.
+        let notice = self.notice.borrow().clone().map(|text| {
+            let notice = self.notice.clone();
+            div().flex_shrink_0().p(px(8.)).child(
+                crate::ui::components::FloatingNotice::new("html-editor-notice", text)
+                    .tone(crate::ui::components::NoticeTone::Danger)
+                    .on_dismiss(move |window, _| {
+                        notice.borrow_mut().take();
+                        window.refresh();
+                    }),
+            )
+        });
+        div()
+            .size_full()
+            .flex()
+            .flex_col()
+            .children(notice)
+            .child(div().flex_1().min_h_0().child(body))
+            .into_any_element()
     }
     fn subscribe(&self, events: SurfaceEvents, cx: &mut App) -> Option<Subscription> {
-        self.source.subscribe(events, cx)
+        // Source edits reach an open Edit page as a new mirror.
+        let (visual, source) = (self.visual.clone(), self.source.clone());
+        let forward: SurfaceEvents = Rc::new(move |event, cx| {
+            if matches!(event, crate::editor::registry::SurfaceEvent::Changed)
+                && let Some(text) = source.text(cx)
+                && let Some(session) = visual.borrow().as_ref()
+            {
+                session.sync(&text, cx);
+            }
+            events(event, cx)
+        });
+        self.source.subscribe(forward, cx)
     }
     fn text(&self, cx: &App) -> Option<String> {
         self.source.text(cx)
@@ -157,21 +273,48 @@ impl ViewerSurface for HtmlSurface {
     fn replace_text(&self, text: &str, window: &mut Window, cx: &mut App) {
         self.source.replace_text(text, window, cx);
         // External changes reach the running page too (disk-first).
-        if self.mode.get() == Mode::Preview {
-            self.refresh_preview(cx);
+        match self.mode.get() {
+            Mode::Preview => self.refresh_preview(cx),
+            Mode::Edit => {
+                let text = self.source.text(cx).unwrap_or_default();
+                if let Some(session) = self.visual.borrow().as_ref() {
+                    session.sync(&text, cx);
+                }
+            }
+            Mode::Source => {}
         }
     }
     fn rebind_name(&self, name: &str, cx: &mut App) {
         self.source.rebind_name(name, cx);
     }
     fn undo(&self, redo: bool, window: &mut Window, cx: &mut App) {
-        if self.mode.get() == Mode::Source {
-            self.source.undo(redo, window, cx);
+        match self.mode.get() {
+            Mode::Source => self.source.undo(redo, window, cx),
+            Mode::Edit => {
+                if let Some(session) = self.visual.borrow().as_ref() {
+                    session.history(redo, &*self.source, window, cx);
+                }
+            }
+            Mode::Preview => {}
         }
     }
     fn apply(&self, read_only: bool, dark: bool, scale: Scale, window: &mut Window, cx: &mut App) {
         self.source.apply(read_only, dark, scale, window, cx);
-        let _ = self.dark;
+        self.read_only.set(read_only);
+        let restyle = self.dark.replace(dark) != dark;
+        if self.mode.get() == Mode::Edit {
+            if read_only {
+                // `!canVisualEdit` leaves Edit for Interact.
+                self.refresh_preview(cx);
+                self.mode.set(Mode::Preview);
+                self.visual.borrow_mut().take();
+            } else if restyle {
+                self.visual.borrow_mut().take();
+                self.start_visual(window, cx);
+            } else if let Some(session) = self.visual.borrow().as_ref() {
+                session.set_enabled(true, cx);
+            }
+        }
     }
     fn command(&self, name: &str, window: &mut Window, cx: &mut App) {
         if name == "html-reload" {
@@ -183,44 +326,63 @@ impl ViewerSurface for HtmlSurface {
     fn focus_handle(&self, cx: &App) -> Option<FocusHandle> {
         match self.mode.get() {
             Mode::Source => self.source.focus_handle(cx),
-            Mode::Preview => None,
+            Mode::Preview | Mode::Edit => None,
         }
     }
-    /// `html-view-mode`: Interact | Source (`HtmlViewMenu`).
+    /// `html-view-mode`: Interact | Edit | Source (`HtmlViewMenu`).
     fn pane(&self, cx: &App) -> PaneEntries {
         let mut entries = match self.mode.get() {
             Mode::Source => self.source.pane(cx),
-            Mode::Preview => PaneEntries::default(),
+            Mode::Preview | Mode::Edit => PaneEntries::default(),
         };
+        let mut options = vec![Segment {
+            id: "preview",
+            icon: "mouse-pointer-2",
+            label: t("editor.html.interact").into(),
+        }];
+        if self.can_visual_edit() {
+            options.push(Segment {
+                id: "edit",
+                icon: "pencil",
+                label: t("editor.html.edit").into(),
+            });
+        }
+        options.push(Segment {
+            id: "source",
+            icon: "editor-mode-source",
+            label: t("editor.mode.source").into(),
+        });
         entries.segmented = Some(Segmented {
             label: t("editor.html.mode").into(),
-            options: vec![
-                Segment {
-                    id: "preview",
-                    icon: "mouse-pointer-2",
-                    label: t("editor.html.interact").into(),
-                },
-                Segment {
-                    id: "source",
-                    icon: "editor-mode-source",
-                    label: t("editor.mode.source").into(),
-                },
-            ],
+            options,
             value: match self.mode.get() {
                 Mode::Preview => "preview",
+                Mode::Edit => "edit",
                 Mode::Source => "source",
             },
         });
         entries
     }
     fn pane_segment(&self, id: &'static str, window: &mut Window, cx: &mut App) {
-        let next = if id == "source" {
-            Mode::Source
-        } else {
-            Mode::Preview
+        let next = match id {
+            "source" => Mode::Source,
+            "edit" => Mode::Edit,
+            _ => Mode::Preview,
         };
-        if next == self.mode.get() {
+        if next == self.mode.get() || next == Mode::Edit && !self.can_visual_edit() {
             return;
+        }
+        self.notice.borrow_mut().take();
+        if self.source.composing(cx) {
+            *self.notice.borrow_mut() = Some(t("editor.html.finishComposition").into());
+            return;
+        }
+        if next == Mode::Edit {
+            if !self.start_visual(window, cx) {
+                return;
+            }
+        } else {
+            self.visual.borrow_mut().take();
         }
         if next == Mode::Preview {
             self.refresh_preview(cx);
@@ -234,6 +396,17 @@ impl ViewerSurface for HtmlSurface {
     }
     fn pane_item(&self, id: &'static str, window: &mut Window, cx: &mut App) {
         self.source.pane_item(id, window, cx);
+    }
+    #[cfg(test)]
+    fn html_visual_deliver(&self, body: &str) -> bool {
+        self.visual
+            .borrow()
+            .as_ref()
+            .is_some_and(|s| s.deliver(body))
+    }
+    #[cfg(test)]
+    fn code_editor(&self) -> Option<Entity<code::CodeView>> {
+        self.source.code_editor()
     }
 }
 

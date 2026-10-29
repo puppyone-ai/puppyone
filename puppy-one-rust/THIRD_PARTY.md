@@ -51,3 +51,17 @@ license ships as `PDFIUM_LICENSE.txt`. `pdfium-render` (MIT/Apache-2.0) binds it
 copied by `tools/import-web-vendor.py`: docx-preview 0.4.0 (Apache-2.0),
 JSZip 3.10.1 (MIT), @aiden0z/pptx-renderer 1.2.4 (Apache-2.0) and SheetJS
 xlsx 0.20.3 (Apache-2.0). They run only inside the sandboxed preview WebView.
+
+## HTML visual editor bundle
+
+`assets/web/html-visual.{js,css}` is the product's HTML visual editor
+(`HtmlVisualSurface` and the shared-ui primitives it uses) bundled against
+the product checkout by `tools/import-html-visual.mjs`, with a source-hash
+receipt in `assets/web/html-visual.json`. It includes React 18.3.1 and
+react-dom (MIT), scheduler (MIT), parse5 8.0.0 (MIT) with entities 7.0.1
+(BSD-2-Clause), PostCSS 8.5 (MIT) with nanoid, picocolors and source-map-js
+(MIT / ISC / BSD-3-Clause), @codemirror/state, view, commands and language
+and @lezer/common and highlight (MIT) with style-mod, w3c-keyname and crelt
+(MIT), intl-messageformat (BSD-3-Clause) with the @formatjs parsers (MIT),
+lucide-react (ISC) and tslib (0BSD). License comments are kept at the end of
+the script. It runs only in the HTML viewer's Edit-mode WebView.

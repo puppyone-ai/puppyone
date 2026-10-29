@@ -807,6 +807,26 @@
       "remaining": "Native table, source mode, structure operations, column widths, references and find (PARITY_TODO N9). Workspace reference resolution through the product link graph is not ported."
     },
     {
+      "name": "HTML viewer (Interact, Edit, Source)",
+      "status": "partial",
+      "sources": [
+        "packages/shared-ui/src/editor/viewers/html/**"
+      ],
+      "targets": [
+        "src/editor/viewers/html.rs",
+        "src/editor/viewers/html_visual.rs",
+        "tools/html-visual-entry.tsx",
+        "tools/import-html-visual.mjs"
+      ],
+      "evidence": [
+        "test:html_edit_mode_applies_page_edits_to_the_source_and_its_history",
+        "test:utf16_changes_apply_to_the_mirror_or_are_refused",
+        "test:the_entry_page_boots_the_bundle_without_letting_text_close_its_script",
+        "test:previews_carry_the_interaction_stylesheet_and_empty_pages_are_recognised"
+      ],
+      "remaining": "Interact runs the page in the system WebView; Edit runs the product's HtmlVisualSurface (source index, edit compiler, projection, frame bridge, toolbar, block rail, text input) bundled from the product into the WebView, with the native code editor owning text, history and saves; Source is the native code editor. Not pixel-compared; the Edit page's toolbar uses the bundled Geist Sans and the active Sub Theme tokens. Cloud documents cannot import images (no provider write); the standalone options menu (HtmlViewMenu) is the pane menu instead."
+    },
+    {
       "name": "Viewer registry",
       "status": "partial",
       "sources": [
@@ -817,7 +837,7 @@
         "src/editor/host/mod.rs",
         "src/file_kind.rs"
       ],
-      "remaining": "Markdown (.md, .mdx, .markdown) and CSV / TSV open in their native editors, every other text file in the native plain-text editor. HTML, PDF, media, Office, database, context-map, app and PuppyFlow viewers have no native implementation.",
+      "remaining": "Markdown and CSV / TSV open in their native editors, other text files in the native code editor; HTML, PDF, image, audio/video, Office and database documents open in their viewers. Context-map, app and PuppyFlow viewers have no native implementation.",
       "evidence": [
         "test:classification_and_display_follow_the_product_registry"
       ]

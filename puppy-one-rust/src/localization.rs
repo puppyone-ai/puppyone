@@ -110,6 +110,18 @@ where
     // failing reader cannot take every window down.
     crate::platform::watchdog::spawn_contained("worker", work, |_| {})
 }
+/// The current locale's messages whose keys start with one of `prefixes`
+/// (English where a translation is missing), for bundled product web views.
+pub fn messages(prefixes: &[&str]) -> serde_json::Map<String, Value> {
+    let locale = current();
+    data()["catalogs"]["en"]
+        .as_object()
+        .into_iter()
+        .flatten()
+        .filter(|(key, _)| prefixes.iter().any(|p| key.starts_with(p)))
+        .map(|(key, _)| (key.clone(), Value::String(locale.text(key).to_owned())))
+        .collect()
+}
 /// Parameter-free message in the current locale.
 pub fn t(key: &str) -> &'static str {
     current().text(key)

@@ -97,6 +97,10 @@ impl Lab {
                 ),
                 "md" => ("sample.md", include_str!("../fixtures/editor/sample.md")),
                 "csv" => ("sample.csv", include_str!("../fixtures/editor/sample.csv")),
+                "html-edit" => (
+                    "sample.html",
+                    include_str!("../fixtures/editor/sample.html"),
+                ),
                 _ => return None,
             })
         });
@@ -152,6 +156,11 @@ impl Lab {
                     window,
                     cx,
                 );
+                // The HTML viewer's Edit mode (a real WebView; check it
+                // with a window screenshot, not PUPPYONE_SCREENSHOT).
+                if scenario == "editor-html-edit" {
+                    editor.lab_pane_segment("edit", window, cx);
+                }
                 editor
             });
             cx.observe(&editor, |_, _, cx| cx.notify()).detach();
@@ -220,6 +229,8 @@ impl Lab {
 
 impl Render for Lab {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // Native web content shows after a drawn frame, as in the shell.
+        crate::web_host::frame_drawn(window);
         // Let lists measure and images decode before the OS capture.
         self.frames += 1;
         if self.frames == 1 {

@@ -1,6 +1,6 @@
 # gpui-base 0.8.0, patched for PuppyOne
 
-This is the crates.io release of `gpui-base` 0.8.0 with one addition, used
+This is the crates.io release of `gpui-base` 0.8.0 with two additions, used
 through `[patch.crates-io]` in `puppy-one-rust/Cargo.toml`. Nothing else
 differs from the published source.
 
@@ -19,6 +19,30 @@ viewer (`src/editor/viewers/code/style.rs::gutter`) sets it.
 
 Verified by `tools/capture-workbench.py --suite editor` against the product
 pane (`tools/reference-editor.mjs`).
+
+## The patch: `replay_undo`
+
+The HTML viewer's Edit mode (`src/editor/viewers/html_visual.rs`) edits the
+document through the code editor while that editor is not rendered; its
+undo and redo must run the same history. `InputBaseState::replay_undo(redo,
+window, cx)` is the `Undo` / `Redo` action handlers' body made public, so the
+history can be replayed without dispatching an action to a focused element.
+
+```diff
+--- registry/gpui-base-0.8.0/src/input/base/state.rs
++++ vendor/gpui-base/src/input/base/state.rs
+@@ pub(super) fn redo
+     pub(super) fn redo(&mut self, _: &Redo, window: &mut Window, cx: &mut Context<Self>) {
+         self.replay_history(false, window, cx);
+     }
++
++    /// PuppyOne patch: replay the undo history directly, for an editor that
++    /// another view of the same document drives while it is not in the
++    /// element tree (actions only reach focused, rendered inputs).
++    pub fn replay_undo(&mut self, redo: bool, window: &mut Window, cx: &mut Context<Self>) {
++        self.replay_history(!redo, window, cx);
++    }
+```
 
 ## Upgrading
 

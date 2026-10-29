@@ -405,6 +405,35 @@ impl CodeView {
             });
         }
     }
+    /// Another view's local edit (the HTML visual editor): applied through
+    /// the input handler so it joins this editor's undo history.
+    fn edit_utf16(
+        &mut self,
+        edits: &[(std::ops::Range<usize>, String)],
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        if self.read_only || self.composing {
+            return false;
+        }
+        self.field.update(cx, |s, cx| {
+            for (range, text) in edits.iter().rev() {
+                EntityInputHandler::replace_text_in_range(s, Some(range.clone()), text, window, cx);
+            }
+        });
+        self.sync(window, cx);
+        true
+    }
+    /// Undo or redo while another view (the HTML visual editor) is shown:
+    /// the same history, without taking focus.
+    fn replay(&mut self, redo: bool, window: &mut Window, cx: &mut Context<Self>) {
+        if self.read_only || self.composing {
+            return;
+        }
+        self.field
+            .update(cx, |s, cx| s.replay_undo(redo, window, cx));
+        self.sync(window, cx);
+    }
     fn history(&mut self, redo: bool, window: &mut Window, cx: &mut Context<Self>) {
         if self.read_only {
             return;
@@ -481,6 +510,15 @@ impl ViewerSurface for CodeSurface {
     fn replace_text(&self, text: &str, window: &mut Window, cx: &mut App) {
         self.view.update(cx, |v, cx| v.replace(text, window, cx));
     }
+    fn edit_utf16(
+        &self,
+        edits: &[(std::ops::Range<usize>, String)],
+        window: &mut Window,
+        cx: &mut App,
+    ) -> bool {
+        self.view
+            .update(cx, |v, cx| v.edit_utf16(edits, window, cx))
+    }
     fn rebind_name(&self, name: &str, cx: &mut App) {
         self.view.update(cx, |v, cx| v.rebind(name, cx));
     }
@@ -488,8 +526,12 @@ impl ViewerSurface for CodeSurface {
         self.view.update(cx, |v, cx| v.history(redo, window, cx));
     }
     fn command(&self, name: &str, window: &mut Window, cx: &mut App) {
-        if matches!(name, "undo" | "redo") {
-            self.undo(name == "redo", window, cx);
+        match name {
+            "undo" | "redo" => self.undo(name == "redo", window, cx),
+            "replay-undo" | "replay-redo" => self
+                .view
+                .update(cx, |v, cx| v.replay(name == "replay-redo", window, cx)),
+            _ => {}
         }
     }
     fn apply(&self, read_only: bool, dark: bool, scale: Scale, window: &mut Window, cx: &mut App) {

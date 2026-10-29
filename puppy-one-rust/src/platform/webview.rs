@@ -15,6 +15,10 @@
 use std::path::{Component, Path, PathBuf};
 
 pub const SCHEME: &str = "puppyone-preview";
+/// The product's resource scheme (`puppyone-local:`): the same granted
+/// resources, never the entry page or bundled scripts. The HTML visual
+/// editor's projection admits only this scheme and `https:`.
+pub const LOCAL_SCHEME: &str = "puppyone-local";
 const ENTRY: &str = "__entry__";
 
 /// Relative resources that do not live in a local folder (a Cloud
@@ -83,6 +87,24 @@ pub struct Content {
     pub max_bytes: u64,
     /// Bundled renderer scripts served at `__assets__/{name}`.
     pub assets: Vec<(&'static str, &'static [u8])>,
+    /// Messages the trusted entry page posts (`window.ipc.postMessage`);
+    /// `None` gives the page no message channel at all.
+    pub ipc: Option<Ipc>,
+}
+/// The receiving end of a page's messages.
+#[derive(Clone)]
+pub struct Ipc(pub async_channel::Sender<String>);
+impl std::fmt::Debug for Ipc {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Ipc")
+    }
+}
+impl Ipc {
+    /// Accept a message only from the entry document itself, not a frame
+    /// inside it (WebKit exposes message handlers to every frame).
+    pub fn accept(&self, frame_url: &str, body: String) -> bool {
+        frame_url == entry_url() && self.0.try_send(body).is_ok()
+    }
 }
 #[derive(Clone, Debug)]
 pub enum Entry {
@@ -164,6 +186,14 @@ fn percent_decode(value: &str) -> Option<String> {
     String::from_utf8(out).ok()
 }
 
+/// The response for `path` under [`LOCAL_SCHEME`]: resources only.
+pub fn respond_local(content: &Content, path: &str) -> (u16, &'static str, Vec<u8>) {
+    let trimmed = path.trim_start_matches('/');
+    if trimmed == ENTRY || trimmed.is_empty() || trimmed.starts_with("__assets__/") {
+        return (404, "text/plain", b"Not found".to_vec());
+    }
+    respond(content, path)
+}
 /// The response for `path` under `content` (status, mime, body).
 pub fn respond(content: &Content, path: &str) -> (u16, &'static str, Vec<u8>) {
     let path = path.trim_start_matches('/');
@@ -260,6 +290,43 @@ pub fn url_for(relative: &str) -> String {
 pub fn entry_url() -> String {
     format!("{SCHEME}://local/{ENTRY}")
 }
+/// `url_for` under [`LOCAL_SCHEME`].
+pub fn local_url_for(relative: &str) -> String {
+    url_for(relative).replacen(SCHEME, LOCAL_SCHEME, 1)
+}
+/// `createDocumentAssetImportPort`: an image imported beside a document
+/// as `image-<uuid>.<png|jpg|gif|webp>`, at most 20 MiB, whose bytes match
+/// its extension. Never replaces an existing file.
+pub fn import_image(folder: &Path, name: &str, bytes: &[u8]) -> Result<(), String> {
+    use std::io::Write;
+    let valid = regex::Regex::new(
+        r"^image-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(png|jpg|gif|webp)$",
+    )
+    .map_err(|e| e.to_string())?;
+    let Some(extension) = valid.captures(name).and_then(|c| c.get(1)) else {
+        return Err("invalid-image-name".into());
+    };
+    let kind = if bytes.starts_with(&[137, 80, 78, 71, 13, 10, 26, 10]) {
+        "png"
+    } else if bytes.starts_with(&[255, 216, 255]) {
+        "jpg"
+    } else if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") {
+        "gif"
+    } else if bytes.len() >= 12 && bytes.starts_with(b"RIFF") && &bytes[8..12] == b"WEBP" {
+        "webp"
+    } else {
+        ""
+    };
+    if bytes.is_empty() || bytes.len() > 20 * 1024 * 1024 || kind != extension.as_str() {
+        return Err("invalid-image".into());
+    }
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(folder.join(name))
+        .map_err(|e| e.to_string())?;
+    file.write_all(bytes).map_err(|e| e.to_string())
+}
 
 #[cfg(test)]
 mod tests {
@@ -285,6 +352,7 @@ mod tests {
             entry: Entry::Html("<p>hi</p>".into()),
             max_bytes: 32,
             assets: vec![("r.js", b"x()")],
+            ipc: None,
         };
         assert_eq!(
             respond(&content, "/__assets__/r.js").1,
@@ -305,6 +373,36 @@ mod tests {
             "puppyone-preview://local/assets/a%20b.css"
         );
         assert_eq!(mime_for(Path::new("x.MP4")), "video/mp4");
+        // The resource scheme never serves the page or its scripts.
+        assert_eq!(respond_local(&content, "/__entry__").0, 404);
+        assert_eq!(respond_local(&content, "/__assets__/r.js").0, 404);
+        assert_eq!(respond_local(&content, "/assets/a%20b.css").0, 200);
+        assert_eq!(
+            local_url_for("a b.html"),
+            "puppyone-local://local/a%20b.html"
+        );
+    }
+
+    #[test]
+    fn imported_images_are_new_files_whose_bytes_match_their_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let png = [137u8, 80, 78, 71, 13, 10, 26, 10, 0, 0];
+        let name = "image-0c9d3f1e-6a1b-4f2e-9c3d-1a2b3c4d5e6f.png";
+        import_image(dir.path(), name, &png).unwrap();
+        assert_eq!(std::fs::read(dir.path().join(name)).unwrap(), png);
+        // No replacement, no other names, no mislabelled bytes.
+        assert!(import_image(dir.path(), name, &png).is_err());
+        assert!(import_image(dir.path(), "../x.png", &png).is_err());
+        assert!(
+            import_image(
+                dir.path(),
+                "image-0c9d3f1e-6a1b-4f2e-9c3d-1a2b3c4d5e70.jpg",
+                &png
+            )
+            .is_err()
+        );
+        let entry = Ipc(async_channel::unbounded().0);
+        assert!(!entry.accept("about:srcdoc", "{}".into()));
     }
 
     struct Memory;
@@ -327,6 +425,7 @@ mod tests {
             entry: Entry::Html("<p>hi</p>".into()),
             max_bytes: 64,
             assets: vec![],
+            ipc: None,
         };
         assert_eq!(respond(&content, "/style.css").0, 200);
         assert_eq!(respond(&content, "/../style.css").0, 404);

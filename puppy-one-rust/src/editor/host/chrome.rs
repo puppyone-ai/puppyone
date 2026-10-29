@@ -100,6 +100,15 @@ impl DocumentEditor {
     }
 
     /// Run a pane menu entry (`runAndClose` for commands).
+    #[cfg(feature = "dev-capture")]
+    pub fn lab_pane_segment(
+        &mut self,
+        id: &'static str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.run_pane_action(Action::Segment(id), window, cx);
+    }
     pub(super) fn run_pane_action(
         &mut self,
         action: Action,

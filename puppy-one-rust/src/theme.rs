@@ -421,6 +421,7 @@ struct Pack {
     name: String,
     light: Theme,
     dark: Theme,
+    tokens: [Vec<(String, String)>; 2],
 }
 fn packs() -> &'static [Pack] {
     static PACKS: std::sync::OnceLock<Vec<Pack>> = std::sync::OnceLock::new();
@@ -433,11 +434,20 @@ fn packs() -> &'static [Pack] {
             serde_json::from_str(include_str!("../assets/themes.json")).expect("generated themes");
         file.packs
             .into_iter()
-            .map(|p| Pack {
-                light: Theme::from_tokens(&p.light, false),
-                dark: Theme::from_tokens(&p.dark, true),
-                id: p.id,
-                name: p.name,
+            .map(|p| {
+                let sorted = |tokens: &std::collections::HashMap<String, String>| {
+                    let mut out: Vec<_> =
+                        tokens.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+                    out.sort();
+                    out
+                };
+                Pack {
+                    light: Theme::from_tokens(&p.light, false),
+                    dark: Theme::from_tokens(&p.dark, true),
+                    tokens: [sorted(&p.light), sorted(&p.dark)],
+                    id: p.id,
+                    name: p.name,
+                }
             })
             .collect()
     })
@@ -457,6 +467,11 @@ pub fn pack_id() -> &'static str {
 pub const DEFAULT_PACK: &str = "default.neutral";
 pub fn pack_choices() -> impl Iterator<Item = (&'static str, &'static str)> {
     packs().iter().map(|p| (p.id.as_str(), p.name.as_str()))
+}
+/// The active Sub Theme's compiled tokens (`--po-<name>` values), for web
+/// content that draws product components with the app's palette.
+pub fn pack_tokens(dark: bool) -> &'static [(String, String)] {
+    &packs()[PACK.with(|p| p.get())].tokens[usize::from(dark)]
 }
 /// Palette of a specific pack, for previews.
 pub fn pack_theme(id: &str, dark: bool) -> Theme {

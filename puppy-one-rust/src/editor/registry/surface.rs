@@ -84,6 +84,17 @@ pub trait ViewerSurface {
     }
     /// The file changed on disk: show its new text in place.
     fn replace_text(&self, _text: &str, _window: &mut Window, _cx: &mut App) {}
+    /// Applies local edits (UTF-16 ranges of the current text, ascending
+    /// and disjoint) as one user change with history; `false` when the
+    /// surface cannot take them (read-only, composing, not text).
+    fn edit_utf16(
+        &self,
+        _edits: &[(std::ops::Range<usize>, String)],
+        _window: &mut Window,
+        _cx: &mut App,
+    ) -> bool {
+        false
+    }
     fn rebind_name(&self, _name: &str, _cx: &mut App) {}
     fn rebind_resource(&self, _resource: &crate::workspace::PreviewResource, _cx: &mut App) {}
     fn undo(&self, _redo: bool, _window: &mut Window, _cx: &mut App) {}
@@ -128,6 +139,11 @@ pub trait ViewerSurface {
     #[cfg(test)]
     fn code_editor(&self) -> Option<gpui::Entity<crate::editor::viewers::code::CodeView>> {
         None
+    }
+    /// A message from the HTML Edit page, as its WebView would post it.
+    #[cfg(test)]
+    fn html_visual_deliver(&self, _body: &str) -> bool {
+        false
     }
     #[cfg(test)]
     fn csv_editor(&self) -> Option<gpui::Entity<crate::editor::csv::CsvEditor>> {

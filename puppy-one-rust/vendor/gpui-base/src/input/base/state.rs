@@ -3238,6 +3238,13 @@ impl<M: InputModeKind> InputBaseState<M> {
         self.replay_history(false, window, cx);
     }
 
+    /// PuppyOne patch: replay the undo history directly, for an editor that
+    /// another view of the same document drives while it is not in the
+    /// element tree (actions only reach focused, rendered inputs).
+    pub fn replay_undo(&mut self, redo: bool, window: &mut Window, cx: &mut Context<Self>) {
+        self.replay_history(!redo, window, cx);
+    }
+
     fn replay_history(&mut self, undo: bool, window: &mut Window, cx: &mut Context<Self>) {
         if !self.is_editable() {
             return;
