@@ -182,6 +182,7 @@ fn header_count(count: usize) -> String {
 pub(super) struct ChangesButton {
     status: GitTitlebarStatus,
     selected: bool,
+    coachmark: bool,
     on_click: Option<ClickHandler>,
 }
 impl ChangesButton {
@@ -189,8 +190,14 @@ impl ChangesButton {
         Self {
             status,
             selected: false,
+            coachmark: false,
             on_click: None,
         }
+    }
+    /// Lit while its introduction shows.
+    pub fn coachmark(mut self, coachmark: bool) -> Self {
+        self.coachmark = coachmark;
+        self
     }
     pub fn on_click(
         mut self,
@@ -286,7 +293,11 @@ impl RenderOnce for ChangesButton {
         }
         let label = self.label();
         Button::new("changes")
-            .variant(ButtonVariant::Titlebar)
+            .variant(if self.coachmark {
+                ButtonVariant::TitlebarCoachmark
+            } else {
+                ButtonVariant::Titlebar
+            })
             .accessibility_label(label.clone())
             .tooltip(label)
             .selected(self.selected)

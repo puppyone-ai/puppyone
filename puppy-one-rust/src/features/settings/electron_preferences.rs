@@ -27,6 +27,7 @@ mod keys {
     pub const FILES: &str = "puppyone.desktop.filesVisibility";
     pub const LOCAL_AGENTS: &str = "puppyone.desktop.localAgents";
     pub const AGENT_FILE_ACTIVITY: &str = "puppyone.desktop.agentFileActivityIndicators";
+    pub const HEADER_COACHMARKS: &str = "puppyone.desktop.headerCoachmarks.v1";
     pub const GIT_SIDEBAR_LAYOUT: &str = "puppyone.desktop.gitSidebarLayout";
     pub const TITLEBAR_ACTIONS: &str = "puppyone.desktop.titlebarActions";
     pub const FIRST_RUN_SIGN_IN: &str = "puppyone.desktop.firstRunSignInCompleted.v1";
@@ -134,6 +135,11 @@ pub fn import(data: &ElectronData) -> Preferences {
     }
     // `parseAgentFileActivityIndicatorsEnabled`: off unless stored "true".
     p.agent_file_activity_indicators = get(keys::AGENT_FILE_ACTIVITY) == Some("true");
+    // `readHeaderCoachmarkProgress`.
+    if let Some(progress) = object(keys::HEADER_COACHMARKS) {
+        p.header_coachmarks.agent = progress.get("agent") == Some(&Value::Bool(true));
+        p.header_coachmarks.changes = progress.get("changes") == Some(&Value::Bool(true));
+    }
     p.git_sidebar_layout = match get(keys::GIT_SIDEBAR_LAYOUT) {
         Some("dividers") => GitSidebarLayout::Dividers,
         _ => GitSidebarLayout::Cards,
@@ -375,6 +381,7 @@ mod tests {
                     "dismissedSetupIds":["codex","nope","codex"],"snoozedUntil":{"cursor":5,"x":1,"pi":-1}}}"#,
             ),
             (keys::AGENT_FILE_ACTIVITY, "true"),
+            (keys::HEADER_COACHMARKS, r#"{"agent":true,"changes":"yes"}"#),
             (keys::EXPLORER_WIDTH, "wide"),
         ]));
         assert_eq!(p.theme_mode, ThemeMode::Light);
@@ -394,6 +401,10 @@ mod tests {
         assert_eq!(setup.dismissed_setup_ids, ["codex"]);
         assert_eq!(setup.snoozed_until, [("cursor".to_owned(), 5)].into());
         assert!(p.agent_file_activity_indicators);
+        assert_eq!(
+            (p.header_coachmarks.agent, p.header_coachmarks.changes),
+            (true, false)
+        );
         assert_eq!(
             p.explorer_width,
             Preferences::default().explorer_width,

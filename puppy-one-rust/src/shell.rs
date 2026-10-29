@@ -19,6 +19,7 @@ mod bench;
 mod capture_scenario;
 mod cloud_publish;
 mod cloud_switch;
+mod coachmarks;
 mod command;
 mod create_new;
 mod editor_workbench;
@@ -109,6 +110,10 @@ pub struct Shell {
     /// The Homepage project list's scroller.
     home_scroll: ScrollHandle,
     weak: WeakEntity<Shell>,
+    /// Header introductions (`useHeaderCoachmarks`), and how many projects
+    /// this window has entered (`workspaceEntryIntent`).
+    coachmarks: coachmarks::Coachmarks,
+    workspace_entries: u64,
     /// The workspace tree on the left.
     explorer: Entity<Explorer>,
     homepage: home::Homepage,
@@ -268,6 +273,8 @@ impl Shell {
             recent_projects: vec![],
             home_scroll: ScrollHandle::new(),
             weak: cx.weak_entity(),
+            coachmarks: Default::default(),
+            workspace_entries: 0,
             explorer: {
                 let owner = crate::features::agent_presence::owner(window);
                 cx.new(|cx| {
@@ -1066,6 +1073,7 @@ impl Shell {
                     .update(cx, |s, cx| s.set_workspace(root.to_owned(), cx));
             }
             self.project = ws.name().to_owned();
+            self.workspace_entries += 1;
             self.fixture = false;
             self.modals.remove(|m| matches!(m, Modal::Error(_)));
             self.home = false;
@@ -1614,11 +1622,13 @@ impl Shell {
         if changes {
             use gpui_kit::base::Selectable as _;
             let status = header::GitTitlebarStatus::of(self.source_control.read(cx));
-            bar = bar.action(
-                header::ChangesButton::new(status)
-                    .selected(self.panes.shows(RightContent::Changes))
-                    .on_click(cx.listener(|s, _, w, cx| s.command(Command::Changes, w, cx))),
-            );
+            let introduced = self.coachmarks.active == Some(coachmarks::Coachmark::Changes);
+            let button = header::ChangesButton::new(status)
+                .selected(self.panes.shows(RightContent::Changes))
+                .coachmark(introduced)
+                .on_click(cx.listener(|s, _, w, cx| s.command(Command::Changes, w, cx)))
+                .into_any_element();
+            bar = bar.action(self.coachmark_anchor(coachmarks::Coachmark::Changes, button, cx));
         }
         let hosted = self.hosted_project().is_some();
         if hosted {
@@ -1639,11 +1649,12 @@ impl Shell {
             bar = bar.divider(cx);
         }
         if agent {
-            bar = bar.action(
-                header::agent_entry(self.panes.shows(RightContent::Workbench)).on_click(
-                    cx.listener(|s, _, w, cx| s.command(Command::ToggleRightSidebar, w, cx)),
-                ),
-            );
+            let introduced = self.coachmarks.active == Some(coachmarks::Coachmark::Agent);
+            let button = header::agent_entry(self.panes.shows(RightContent::Workbench))
+                .when(introduced, |b| b.variant(ButtonVariant::TitlebarCoachmark))
+                .on_click(cx.listener(|s, _, w, cx| s.command(Command::ToggleRightSidebar, w, cx)))
+                .into_any_element();
+            bar = bar.action(self.coachmark_anchor(coachmarks::Coachmark::Agent, button, cx));
         }
         // `cloudAccountStatus` follows Cloud: with the experiment off the
         // Homepage shows no Sign in (the account stays in Settings).
@@ -1755,6 +1766,7 @@ impl Render for Shell {
         self.refresh_home_activity(cx);
         self.sync_open_history(cx);
         self.sync_first_run(cx);
+        self.sync_coachmarks(cx);
         #[cfg(feature = "dev-capture")]
         let scenario_done = self.advance_capture_scenario(window, cx);
         #[cfg(not(feature = "dev-capture"))]
@@ -1867,6 +1879,9 @@ impl Render for Shell {
             root = root.children(self.notices(w));
         }
         root = root.children(self.project_actions_menu(cx));
+        if !home && self.modals.is_empty() {
+            root = root.children(self.coachmark_overlay(w, cx));
+        }
         root.children(self.modal_layer(w, h, cx))
     }
 }

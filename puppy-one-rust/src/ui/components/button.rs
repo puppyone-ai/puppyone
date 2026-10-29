@@ -60,6 +60,13 @@ pub enum ButtonVariant {
     /// `.project-open-menu-button`: hint type in the muted colour, the hover
     /// backplate while hovered or expanded.
     Quiet,
+    /// A Header entry while its introduction shows
+    /// (`[data-coachmark-active="true"] > .desktop-titlebar-action`).
+    TitlebarCoachmark,
+    /// `.po-button.po-button--neutral`.
+    Pattern,
+    /// `.po-button.po-button--primary` (`.desktop-header-coachmark-button`).
+    PatternPrimary,
 }
 impl ButtonVariant {
     fn outlined(self) -> bool {
@@ -242,6 +249,27 @@ fn paint(variant: ButtonVariant, selected: bool, open: bool, disabled: bool, t: 
             hover_bg: t.control_hover,
             hover_fg: t.text,
         },
+        ButtonVariant::TitlebarCoachmark => Paint {
+            border: None,
+            bg: t.accent,
+            fg: t.text_inverse,
+            hover_bg: t.accent,
+            hover_fg: t.text_inverse,
+        },
+        ButtonVariant::Pattern => Paint {
+            border: None,
+            bg: t.control,
+            fg: t.text,
+            hover_bg: t.hover,
+            hover_fg: t.text,
+        },
+        ButtonVariant::PatternPrimary => Paint {
+            border: None,
+            bg: t.accent,
+            fg: t.text_inverse,
+            hover_bg: theme::mix(t.accent, t.canvas, 0.88),
+            hover_fg: t.text_inverse,
+        },
         ButtonVariant::Titlebar if selected || open => Paint {
             border: None,
             bg: t.selected,
@@ -404,6 +432,10 @@ impl RenderOnce for Button {
             ButtonVariant::GitAction | ButtonVariant::GitActionDanger
         );
         let raised = variant == ButtonVariant::Raised;
+        let pattern = matches!(
+            variant,
+            ButtonVariant::Pattern | ButtonVariant::PatternPrimary
+        );
         let quiet = variant == ButtonVariant::Quiet;
         // Outline and Git file actions: 13px icon at stroke 2; filled Git
         // actions: 15px at 2.25; entries: 14px at 1.85.
@@ -464,7 +496,7 @@ impl RenderOnce for Button {
                 _ => 6.,
             }))
             .h(height(
-                if (dialog || entry || raised) && self.size == Size::Medium {
+                if (dialog || entry || raised || pattern) && self.size == Size::Medium {
                     Size::Large
                 } else if git && self.size == Size::Medium {
                     Size::Small
@@ -474,6 +506,8 @@ impl RenderOnce for Button {
             ))
             .px(px(if dialog {
                 14.
+            } else if pattern {
+                10.
             } else if quiet {
                 6.
             } else if raised {
@@ -484,11 +518,13 @@ impl RenderOnce for Button {
                 7.
             }))
             .when(entry, |b| b.justify_start())
-            .rounded(px(if outlined || dialog || entry || raised || quiet {
-                metric::CONTROL_RADIUS
-            } else {
-                metric::TOOLBAR_ACTION_RADIUS
-            }))
+            .rounded(px(
+                if outlined || dialog || entry || raised || quiet || pattern {
+                    metric::CONTROL_RADIUS
+                } else {
+                    metric::TOOLBAR_ACTION_RADIUS
+                },
+            ))
             .when_some(p.border, |b, border| b.border_1().border_color(border))
             .bg(p.bg)
             .text_color(p.fg)
@@ -512,6 +548,11 @@ impl RenderOnce for Button {
             .when(raised, |b| {
                 b.text_size(px(theme::ty().ui.body))
                     .font_weight(FontWeight::SEMIBOLD)
+            })
+            // `.po-button`: meta type at 650.
+            .when(pattern, |b| {
+                b.text_size(px(theme::ty().ui.meta))
+                    .font_weight(FontWeight(650.))
             })
             // `padding: 4px 6px` around the hint line.
             .when(quiet, |b| {

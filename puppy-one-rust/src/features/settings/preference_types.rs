@@ -81,6 +81,13 @@ pub struct LocalAgents {
     /// `localAgentsSettings.setupSuggestions`.
     pub setup_suggestions: SetupSuggestions,
 }
+/// `HeaderCoachmarkProgress`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct HeaderCoachmarks {
+    pub agent: bool,
+    pub changes: bool,
+}
 /// `LocalAgentSetupPreferences`: Agent suggestions from installed apps.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -219,6 +226,8 @@ pub struct Preferences {
     /// `agentFileActivityIndicatorsEnabled`: show which files a Hooked
     /// terminal Agent reads and writes. Turned on when a Hook is installed.
     pub agent_file_activity_indicators: bool,
+    /// `puppyone.desktop.headerCoachmarks.v1`: introductions acknowledged.
+    pub header_coachmarks: HeaderCoachmarks,
     pub experimental: Experimental,
     pub recent_projects: Vec<RecentProject>,
     /// `puppyone.project-open-location:{scope}`: successful openings per
@@ -253,6 +262,7 @@ impl Default for Preferences {
             files: FilesVisibility::default(),
             local_agents: LocalAgents::default(),
             agent_file_activity_indicators: false,
+            header_coachmarks: HeaderCoachmarks::default(),
             experimental: Experimental::default(),
             recent_projects: vec![],
             project_open_history: Default::default(),

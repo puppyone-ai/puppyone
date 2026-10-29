@@ -1430,6 +1430,25 @@
         "test:metadata_noise_is_filtered_like_the_product"
       ],
       "note": "No status polling: reads come from debounced invalidations (250 ms) of the working tree (the root watcher) and the repository metadata (an OS watcher on the Git, common and refs directories, lock files, objects and cookies filtered, 120 ms bursts), from focus once 5 s stale, and from mutations. The upstream's remote is fetched silently (--prune) while focused: on first status (15 s gap), every 180 s and on focus once 60 s stale; a local-only branch never touches the network. Not ported: the per-workspace snapshot cache and the watcher's re-arm backoff (notify re-subscribes itself)."
+    },
+    {
+      "name": "Header coachmarks",
+      "status": "partial",
+      "sources": [
+        "src/features/app-shell/HeaderFeatureCoachmark.tsx",
+        "src/features/app-shell/headerCoachmarks.ts"
+      ],
+      "targets": [
+        "src/shell/coachmarks.rs",
+        "src/shell/header.rs",
+        "src/ui/components/button.rs",
+        "src/features/settings/preference_types.rs"
+      ],
+      "evidence": [
+        "test:the_agent_is_introduced_once_and_changes_wait_their_turn",
+        "test:an_open_agent_needs_no_introduction_and_the_experiment_repeats_them"
+      ],
+      "remaining": "useHeaderCoachmarks (once per project entry for the Agent, on the first local change for Changes, Changes queued behind the Agent, acknowledged by opening either panel, persisted as puppyone.desktop.headerCoachmarks.v1 and imported, repeated by enableAlwaysShowOnboardingCoachmarks) and the overlay (320px, end-aligned 10px below its entry, the accent-lit entry, glyph tile, title, body, Later / primary; outside press dismisses) are native. Not ported: Escape dismissal (GPUI keys need focus, the overlay takes none), the toolbar-placement variant, pixel comparison against the product overlay."
     }
   ]
 }
