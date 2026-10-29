@@ -511,7 +511,10 @@ impl Service {
                 }
             });
         };
-        let result = (|| -> Result<(), ErrorCode> {
+        // The terminal status is published under the same lock that ends the
+        // task, so an action that reads it (Check after SetupRequired, Start
+        // after Ready) never finds the task still marked running.
+        let result = (|| -> Result<Status, ErrorCode> {
             check()?;
             let mut found = self.ports.resolve(route.id)?;
             check()?;
@@ -541,8 +544,7 @@ impl Service {
                 }
             }
             if !found {
-                step(INSTALL, StepState::Pending, Some(Status::SetupRequired));
-                return Ok(());
+                return Ok(Status::SetupRequired);
             }
             // Discovery is the authority; version, account and protocol are
             // checked when the Agent starts.
@@ -559,27 +561,33 @@ impl Service {
                 }
             }
             check()?;
-            step(VERIFY, StepState::Complete, Some(Status::Ready));
-            Ok(())
+            Ok(Status::Ready)
         })();
         let mut state = self.state.lock().unwrap();
-        if let Err(code) = result {
-            if cancel.load(Ordering::Relaxed) {
+        if let Some(task) = state.tasks.iter_mut().find(|t| t.operation_id == id) {
+            task.running = false;
+        }
+        match result {
+            Ok(Status::SetupRequired) => self.emit(&mut state, id, |op| {
+                op.steps[INSTALL] = StepState::Pending;
+                op.status = Status::SetupRequired;
+            }),
+            Ok(status) => self.emit(&mut state, id, |op| {
+                op.steps[VERIFY] = StepState::Complete;
+                op.status = status;
+            }),
+            Err(_) if cancel.load(Ordering::Relaxed) => {
                 self.emit(&mut state, id, |op| {
                     reset_running(op, StepState::Pending);
                     op.status = Status::Cancelled;
                     op.error = None;
                 });
-            } else {
-                self.emit(&mut state, id, |op| {
-                    reset_running(op, StepState::Failed);
-                    op.status = Status::Failed;
-                    op.error = Some(code);
-                });
             }
-        }
-        if let Some(task) = state.tasks.iter_mut().find(|t| t.operation_id == id) {
-            task.running = false;
+            Err(code) => self.emit(&mut state, id, |op| {
+                reset_running(op, StepState::Failed);
+                op.status = Status::Failed;
+                op.error = Some(code);
+            }),
         }
         let installed = op(&state, id).is_some_and(|o| o.installed);
         drop(state);

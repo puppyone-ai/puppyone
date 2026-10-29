@@ -112,6 +112,8 @@
   - 工作台（G-4）：会话头布局动效 200ms；拖动预览放在指针左 18px、下 12px；从 History 打开的对话恢复失败时，标签退回启动页，并弹出“重试/关闭”提示。React 渲染错误边界登记为排除，并写明原因。
   - 引用附件（G-6）：工作区内是活引用，每次发送重新校验并读取；工作区外的文件复制成私有快照（SHA-256，归属单个对话，去重，30 分钟过期，移除或关闭对话即撤销，清理已退出进程的暂存目录）；上限 32 个，单个和总计各 25 MB。
   - 编辑器外框像素（E-5 部分）：新增 `md-menu`、`csv-menu`、`md-source`、`md-find` 四个用例；删掉了产品里没有的“拆分编辑器”菜单项。
+  - Header 功能引导（S-5 部分）：移植 `useHeaderCoachmarks`。Agent 入口每次进入项目时引导；Changes 在第一次出现本地改动时引导，排在 Agent 之后。打开对应面板即算确认，确认结果持久保存，并从 Electron 的 `puppyone.desktop.headerCoachmarks.v1` 导入。缺 Esc 关闭和像素对比。
+  - 子主题（S-14）：`platform::themes` 移植产品的主题服务（Themes 文件夹、单文件 / `theme.css` 目录 / `theme.json` 包、全部契约与编译检查）。用产品自己的服务跑 `fixtures/themes/folder` 生成 oracle，原生结果的主题和诊断与之完全一致。安装主题的 Application 目标叠在 Neutral 上投影为原生调色板；内置主题的投影与 `assets/themes.json` 逐字节相同。浅色和深色分别记住所选主题；缺失或不兼容时画 Neutral。外观页：已安装主题、缺失主题项、打开 Themes 文件夹、添加主题（生成 `custom-theme` 并选中）、内容字体覆盖提示、目录错误与加载问题。菜单栏 Theme 菜单（单选项、打开 Themes 文件夹）。只有 Application 目标原生绘制：Markdown/CSV 目标仍按 Neutral 显示（属于附录 B 的原生编辑器）；`@media`/`@supports` 只校验不求值。产品的“调色板”是界面风格（Windows XP）的属性，随界面风格放在 P3（D-6）；强制颜色模式只在 Windows 高对比度下出现，macOS 不适用。
 （第一轮记录）仍未完成：HTML/Office/音视频/数据库/Context Map/App 预览查看器；代码编辑器装饰与冲突横幅；Cloud 全部界面；各处像素对比流程；右侧栏、设置与账户付费的剩余项。完整清单与状态见桌面迁移清单第 2 版。
 
 ## 1. 基础设施
@@ -362,4 +364,4 @@ python3 tools/audit-ui-migration.py
 
 ## 10. 明确不在本轮范围
 
-需要 Cloud 服务或平台服务、当前没有原生实现的功能保持如实提示，不伪造：Plan 计费、Host Server、自动更新下载、Feedback 上传、Share/Reach、子主题包安装、Windows XP 界面风格。Account 登录须显式配置原生 API/Web 环境；服务实现与本地协议测试不等于真实账号验收。
+需要 Cloud 服务或平台服务、当前没有原生实现的功能保持如实提示，不伪造：Plan 计费、Host Server、自动更新下载、Feedback 上传、Share/Reach、Windows XP 界面风格。Account 登录须显式配置原生 API/Web 环境；服务实现与本地协议测试不等于真实账号验收。
