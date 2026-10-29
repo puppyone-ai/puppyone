@@ -25,6 +25,8 @@ pub(super) enum Modal {
     CreateEntry(Entity<CreateEntryDialog>),
     /// The homepage's "Create a project".
     CreateProject(CreateProject),
+    /// `OnboardingImportDialog`: clone a repository into a new project.
+    ImportRepository(super::home::ImportRepository),
     /// Rename or change the file type of an Explorer entry.
     Rename(Rename),
     /// Quit while Agent or terminal processes still run.
@@ -88,6 +90,9 @@ impl Modals {
         self.0.last()
     }
     /// Bottom to top, the order they paint in.
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Modal> {
+        self.0.iter_mut()
+    }
     pub fn iter(&self) -> impl Iterator<Item = &Modal> {
         self.0.iter()
     }

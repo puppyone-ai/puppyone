@@ -38,7 +38,9 @@ use std::{
 
 mod create_project;
 mod first_run;
+mod import_repository;
 pub(super) use create_project::CreateProject;
+pub(super) use import_repository::ImportRepository;
 
 /// `--onboarding-column-width`.
 const COLUMN_WIDTH: f32 = 440.;
@@ -403,7 +405,7 @@ impl Shell {
                     .disabled(busy)
                     .on_click(cx.listener(|s, _, w, cx| s.command(Command::OpenFolder, w, cx))),
             )
-            .child(self.import_action(t));
+            .child(self.import_action(t, busy, cx));
         let launcher = v_flex()
             .w(px(COLUMN_WIDTH))
             .max_w_full()
@@ -734,9 +736,9 @@ impl Shell {
             .disabled(busy)
             .on_click(cx.listener(|s, _, w, cx| s.begin_create_project(w, cx)))
     }
-    /// `ImportAction` with its GitHub and GitLab preview. Importing (cloning
-    /// a repository) is not native yet, so the action is shown disabled.
-    fn import_action(&self, t: Theme) -> Button {
+    /// `ImportAction` with its GitHub and GitLab preview: clone a repository
+    /// into a new local project.
+    fn import_action(&self, t: Theme, busy: bool, cx: &mut Context<Self>) -> Button {
         let label = tr("onboarding.action.importFromApps");
         let badge = |mark: &'static str| {
             // `.onboarding-entry-import-brand-badge`: a 20px disc ringed in
@@ -757,16 +759,13 @@ impl Shell {
             .variant(ButtonVariant::Entry)
             .icon("download")
             .label(label)
-            .disabled(true)
-            .tooltip(tf(
-                "settings.sidebar.notAvailable",
-                &[("section", label.into())],
-            ))
+            .disabled(busy)
+            .on_click(cx.listener(|s, _, w, cx| s.begin_import(w, cx)))
             .trailing(
                 h_flex()
                     .ml(px(-2.))
                     // `.onboarding-entry-import:disabled` dims the preview.
-                    .opacity(0.3)
+                    .when(busy, |d| d.opacity(0.3))
                     .child(badge(if t.dark {
                         "integrations/github-inverse.svg"
                     } else {

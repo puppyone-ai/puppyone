@@ -618,6 +618,7 @@ impl Shell {
                 }
             }
             Some(Modal::CreateProject(_)) => self.close_create_project(window, cx),
+            Some(Modal::ImportRepository(_)) => self.close_import(window, cx),
             Some(Modal::Rename(_)) => self.cancel_rename(window, cx),
             Some(Modal::ConfirmQuit) => {
                 self.modals.remove(|m| matches!(m, Modal::ConfirmQuit));
@@ -1961,6 +1962,9 @@ impl Shell {
                     .into_any_element(),
                 Modal::CreateProject(create) => {
                     self.create_project_dialog(create, cx).into_any_element()
+                }
+                Modal::ImportRepository(import) => {
+                    self.import_dialog(import, cx).into_any_element()
                 }
                 Modal::Rename(rename) => self.rename_dialog(rename, cx).into_any_element(),
                 Modal::ConfirmQuit => self

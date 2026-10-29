@@ -52,7 +52,7 @@ fn validate_name(value: &str) -> Result<&str, &'static str> {
     Ok(name)
 }
 /// `Documents/PuppyOne`, created if missing.
-fn default_location() -> Option<PathBuf> {
+pub(super) fn default_location() -> Option<PathBuf> {
     let documents = std::env::var_os("HOME").map(|home| PathBuf::from(home).join("Documents"))?;
     let folder = documents.join(DEFAULT_FOLDER);
     std::fs::create_dir_all(&folder).ok()?;

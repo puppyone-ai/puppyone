@@ -2286,3 +2286,32 @@ fn first_run_offers_sign_in_once_on_an_empty_launch(cx: &mut TestAppContext) {
     });
     let _ = account;
 }
+
+#[gpui::test]
+fn an_unsupported_repository_url_is_refused_before_cloning(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    let parent = temp.path().canonicalize().unwrap();
+    let (view, cx) = setup(cx);
+    view.update_in(cx, |s, w, cx| s.begin_import(w, cx));
+    // An unsupported URL is refused before anything runs.
+    view.update_in(cx, |s, w, cx| {
+        let Some(Modal::ImportRepository(import)) = s.modals.top() else {
+            panic!("no import dialog")
+        };
+        let url = import.url.clone();
+        url.update(cx, |i, cx| {
+            i.set_text(String::from("https://example.com/a/b"), cx)
+        });
+        s.submit_import(w, cx);
+    });
+    draw(cx);
+    view.read_with(cx, |s, _| {
+        assert!(
+            s.modals
+                .iter()
+                .any(|m| matches!(m, Modal::ImportRepository(_)))
+        );
+        assert!(s.workspace_root().is_none());
+    });
+    let _ = parent;
+}

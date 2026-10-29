@@ -14,6 +14,7 @@ pub mod pdf;
 pub mod preference_storage;
 pub mod process;
 pub mod project_activity;
+pub mod repository_import;
 pub mod tasks;
 pub mod terminal;
 pub mod text_rendering;
