@@ -94,6 +94,7 @@ fn content(text: &str, folder: Option<PathBuf>) -> Content {
         root: folder,
         entry: Entry::Html(preview_html(text)),
         max_bytes: BUDGET,
+        assets: vec![],
     }
 }
 

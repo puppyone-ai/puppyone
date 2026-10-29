@@ -7,6 +7,7 @@ pub mod external;
 pub mod html;
 pub mod image;
 pub mod media;
+pub mod office;
 pub mod pdf;
 pub mod placeholder;
 pub mod text;

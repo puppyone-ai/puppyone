@@ -10,7 +10,7 @@ use super::contribution::{
     Presentation::{Native, Unavailable},
     Profile, ProviderPolicy, SemanticInput, ViewerImplementation, ViewerMatch,
 };
-use crate::editor::viewers::{code, csv, html, image, media, pdf, placeholder, text};
+use crate::editor::viewers::{code, csv, html, image, media, office, pdf, placeholder, text};
 
 fn yes(_: &ViewerMatch, _: &str) -> bool {
     true
@@ -109,7 +109,7 @@ pub fn contributions() -> Vec<ViewerImplementation> {
             policy: None,
             matches: |m| viewer(m, "office-preview"),
             editable: None,
-            presentation: Unavailable,
+            presentation: Native(office::open),
         },
         ViewerImplementation {
             id: "audio-preview",

@@ -112,6 +112,7 @@ fn open(request: &SurfaceRequest, kind: Kind, cx: &mut App) -> Box<dyn ViewerSur
                 &theme::css_hex(palette.inset),
             )),
             max_bytes: kind.budget(),
+            assets: vec![],
         };
         cx.new(|_| WebFrame::new(Some(content), request.dark))
     });

@@ -44,3 +44,10 @@ of Chromium's PDF viewer), loaded at runtime from the app bundle's
 `Frameworks/libpdfium.dylib`. Builds come from bblanchon/pdfium-binaries
 (`chromium/8125`, pinned with its SHA-256 by `tools/fetch-pdfium.py`); the
 license ships as `PDFIUM_LICENSE.txt`. `pdfium-render` (MIT/Apache-2.0) binds it.
+
+## Browser renderers for Office previews
+
+`assets/web/vendor/` carries the exact builds the Electron product uses,
+copied by `tools/import-web-vendor.py`: docx-preview 0.4.0 (Apache-2.0),
+JSZip 3.10.1 (MIT), @aiden0z/pptx-renderer 1.2.4 (Apache-2.0) and SheetJS
+xlsx 0.20.3 (Apache-2.0). They run only inside the sandboxed preview WebView.

@@ -26,6 +26,8 @@ pub struct Content {
     pub entry: Entry,
     /// Per-resource byte budget.
     pub max_bytes: u64,
+    /// Bundled renderer scripts served at `__assets__/{name}`.
+    pub assets: Vec<(&'static str, &'static [u8])>,
 }
 #[derive(Clone, Debug)]
 pub enum Entry {
@@ -114,6 +116,12 @@ pub fn respond(content: &Content, path: &str) -> (u16, &'static str, Vec<u8>) {
         let Entry::Html(html) = &content.entry;
         return (200, "text/html; charset=utf-8", html.clone().into_bytes());
     }
+    if let Some(name) = path.strip_prefix("__assets__/") {
+        return match content.assets.iter().find(|(n, _)| *n == name) {
+            Some((n, bytes)) => (200, mime_for(Path::new(n)), bytes.to_vec()),
+            None => (404, "text/plain", b"Not found".to_vec()),
+        };
+    }
     match content.root.as_deref().and_then(|root| resolve(root, path)) {
         Some(file) => serve(content, &file),
         None => (404, "text/plain", b"Not found".to_vec()),
@@ -186,7 +194,13 @@ mod tests {
             root: Some(dir.path().into()),
             entry: Entry::Html("<p>hi</p>".into()),
             max_bytes: 32,
+            assets: vec![("r.js", b"x()")],
         };
+        assert_eq!(
+            respond(&content, "/__assets__/r.js").1,
+            "text/javascript; charset=utf-8"
+        );
+        assert_eq!(respond(&content, "/__assets__/missing.js").0, 404);
         assert_eq!(respond(&content, "/__entry__").0, 200);
         let (status, mime, body) = respond(&content, "/assets/a%20b.css");
         assert_eq!(
