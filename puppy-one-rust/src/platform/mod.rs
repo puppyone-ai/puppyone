@@ -6,6 +6,7 @@ pub mod git;
 pub mod git_diff;
 pub mod git_history;
 pub mod host_budget;
+pub mod pdf;
 pub mod preference_storage;
 pub mod process;
 pub mod project_activity;

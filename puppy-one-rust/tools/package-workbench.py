@@ -76,6 +76,13 @@ def package(path, name, identifier, environment=None):
     executable.parent.mkdir(parents=True, exist_ok=True)
     resources.mkdir(parents=True, exist_ok=True)
     shutil.copy2(binary, executable)
+    # PDFium (tools/fetch-pdfium.py): the PDF viewer looks in ../Frameworks.
+    pdfium = root / 'vendor/pdfium/lib/libpdfium.dylib'
+    if pdfium.is_file():
+        frameworks = contents / 'Frameworks'
+        frameworks.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(pdfium, frameworks / pdfium.name)
+        shutil.copy2(root / 'vendor/pdfium/LICENSE', resources / 'PDFIUM_LICENSE.txt')
     for source, destination in [
         (root / 'README.md', 'README.md'),
         (root / 'THIRD_PARTY.md', 'THIRD_PARTY.md'),

@@ -10,7 +10,7 @@ use super::contribution::{
     Presentation::{Native, Unavailable},
     Profile, ProviderPolicy, SemanticInput, ViewerImplementation, ViewerMatch,
 };
-use crate::editor::viewers::{code, csv, image, placeholder, text};
+use crate::editor::viewers::{code, csv, image, pdf, placeholder, text};
 
 fn yes(_: &ViewerMatch, _: &str) -> bool {
     true
@@ -95,7 +95,7 @@ pub fn contributions() -> Vec<ViewerImplementation> {
             policy: None,
             matches: |m| kind(m, "pdf") || viewer(m, "pdf-preview"),
             editable: None,
-            presentation: Unavailable,
+            presentation: Native(pdf::open),
         },
         ViewerImplementation {
             id: "database-preview",

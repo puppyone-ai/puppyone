@@ -5,5 +5,6 @@ pub mod code;
 pub mod csv;
 pub mod external;
 pub mod image;
+pub mod pdf;
 pub mod placeholder;
 pub mod text;

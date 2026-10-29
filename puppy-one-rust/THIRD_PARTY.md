@@ -36,3 +36,11 @@ are upstream; the continuous document retains its host-owned editing model.
 
 Both Cargo lockfiles pin the full dependency graph. This is an unpublished local
 experiment; a distributable package still needs a complete dependency-notice audit.
+
+## PDFium
+
+The PDF viewer renders pages with PDFium (BSD-3-Clause / Apache-2.0, the engine
+of Chromium's PDF viewer), loaded at runtime from the app bundle's
+`Frameworks/libpdfium.dylib`. Builds come from bblanchon/pdfium-binaries
+(`chromium/8125`, pinned with its SHA-256 by `tools/fetch-pdfium.py`); the
+license ships as `PDFIUM_LICENSE.txt`. `pdfium-render` (MIT/Apache-2.0) binds it.

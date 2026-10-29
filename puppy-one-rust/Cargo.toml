@@ -40,6 +40,8 @@ icu_normalizer = "=2.3.0"
 chrono = { version = "=0.4.45", default-features = false, features = ["std"] }
 regex = "1.13.1"
 notify = { version = "=8.2.0", default-features = false, features = ["macos_fsevent"] }
+image = { version = "=0.25.10", default-features = false }
+pdfium-render = { version = "=0.9.4", default-features = false, features = ["pdfium_latest", "thread_safe", "image_025"] }
 sysinfo = { version = "=0.31.4", default-features = false, features = ["system"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]

@@ -70,6 +70,7 @@ fn main() {
         editor::actions::bind_keys(cx);
         editor::view::bind_keys(cx);
         editor::csv::bind_keys(cx);
+        editor::viewers::pdf::bind_keys(cx);
         editor::host::bind_keys(cx);
         features::desktop_agent::bind_keys(cx);
         cx.set_menus(shell::app_menus());
