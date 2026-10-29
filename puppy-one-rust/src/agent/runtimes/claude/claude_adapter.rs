@@ -297,6 +297,39 @@ impl Session {
                     _ => {}
                 }
             }
+            // `auth_status`: Claude Code's sign-in progress as a system notice.
+            "auth_status" => {
+                let error = v["error"].as_str().filter(|e| !e.is_empty());
+                let output: Vec<&str> = v["output"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(Value::as_str)
+                    .collect();
+                let message = error.map(str::to_owned).unwrap_or_else(|| {
+                    if output.is_empty() {
+                        "Claude Code authentication is in progress.".into()
+                    } else {
+                        output.join("\n")
+                    }
+                });
+                let status = if error.is_some() {
+                    "failed"
+                } else if v["isAuthenticating"] == true {
+                    "running"
+                } else {
+                    "completed"
+                };
+                self.snapshot.provider_activity(ProviderActivity {
+                    id: "claude:authentication".into(),
+                    kind: ActivityKind::System,
+                    label: redact_secret_text(&message),
+                    status: status.into(),
+                    category: Some("authentication".into()),
+                    source: None,
+                    sequence: 0,
+                });
+            }
             "system" => {
                 if v["subtype"] == "init" {
                     if let Some(id) = v["session_id"].as_str() {
@@ -754,6 +787,35 @@ fn args(id: &str, resume: bool, fork: bool) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn sign_in_progress_is_one_system_notice() {
+        let (c, _rx, _) = Connection::harness();
+        let mut s = Session::connected(
+            c,
+            PathBuf::new(),
+            PathBuf::from("/tmp"),
+            false,
+            Wake::default(),
+        );
+        s.handle(json!({"type":"auth_status","isAuthenticating":true,"output":["Opening browser","Bearer abcdefghijklmnop"]}));
+        let a = &s.snapshot.activities;
+        assert_eq!(a.len(), 1);
+        assert_eq!(
+            (a[0].id.as_str(), a[0].status.as_str()),
+            ("claude:authentication", "running")
+        );
+        assert_eq!(a[0].label, "Opening browser\nBearer [redacted]");
+        assert_eq!(a[0].category.as_deref(), Some("authentication"));
+        s.handle(json!({"type":"auth_status","isAuthenticating":false,"error":"Login expired"}));
+        assert_eq!(s.snapshot.activities.len(), 1);
+        assert_eq!(s.snapshot.activities[0].status, "failed");
+        s.handle(json!({"type":"auth_status","isAuthenticating":false}));
+        assert_eq!(s.snapshot.activities[0].status, "completed");
+        assert_eq!(
+            s.snapshot.activities[0].label,
+            "Claude Code authentication is in progress."
+        );
+    }
     #[test]
     fn permissions_keep_original_tool_input_and_resolve_once() {
         let (c, rx, _) = Connection::harness();

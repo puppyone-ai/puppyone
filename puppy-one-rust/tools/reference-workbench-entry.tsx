@@ -34,6 +34,7 @@ import { TerminalRuntime } from "PRODUCT/src/features/desktop-terminal/runtime/t
 import { readTerminalAppearance } from "PRODUCT/src/features/desktop-terminal/runtime/terminalAppearance";
 import { AgentFilePresence } from "PRODUCT/src/features/desktop-agent-presence/AgentFilePresence";
 import { AgentActivityStore } from "PRODUCT/src/features/desktop-agent-presence/agentActivityStore";
+import { AgentProviderActivities } from "PRODUCT/src/features/desktop-agent/ui/AgentProviderActivities";
 import "PRODUCT/src/features/desktop-agent/ui/desktop-agent.css";
 import "PRODUCT/src/features/desktop-terminal/ui/desktop-terminal.css";
 
@@ -145,7 +146,7 @@ const COMPLETED_TURNS: Turn[] = [
 ];
 
 function projectionFor(id: string) {
-  if (id === "chat-empty" || id === "tabs-narrow" || id === "close-dialog" || id === "chat-references" || id === "chat-picker") return createEmptyAgentDisplay();
+  if (id === "chat-empty" || id === "tabs-narrow" || id === "close-dialog" || id === "chat-references" || id === "chat-picker" || id === "chat-activities") return createEmptyAgentDisplay();
   if (id === "chat-transcript" || id === "chat-tool-expanded") return display(transcriptParts(false), COMPLETED_TURNS, null);
   // Running: turn 2 is still working, its tools are live and no summary exists.
   const parts = transcriptParts(true).filter((part) => part.id !== "assistant:2");
@@ -190,12 +191,21 @@ function translate(key: string, values?: Record<string, unknown>) {
   return message.replace(/\{(\w+)\}/gu, (_match, name) => String(values?.[name] ?? ""));
 }
 
+// chat-activities: provider notices as `classifyProviderActivity` makes
+// them (src/features/desktop_agent/ui/visual_fixture.rs has the same four).
+const ACTIVITIES = [
+  { id: "a1", kind: "system", label: "Signing in to Codex…", status: "running", detail: { category: "authentication" } },
+  { id: "a2", kind: "notification", label: "The lint-rules extension failed to load.", status: "failed", detail: { source: "Pi extension", severity: "error" } },
+  { id: "a3", kind: "notification", label: "Formatter installed.", status: "completed", detail: { source: "Pi extension", severity: "info" } },
+  { id: "a4", kind: "notification", label: "Workspace indexed: 128 files.", status: "completed", detail: { source: "Pi extension", severity: "info" } },
+];
+
 function FixtureChat() {
   const t = translate;
   const [draft, setDraft] = useState(scenario === "chat-references" ? "@README.md " : "");
   const projection = useMemo(() => projectionFor(scenario), []);
   const running = projection.runningTurnId !== null && projection.runningTurnId !== undefined;
-  const empty = scenario === "chat-empty" || scenario === "tabs-narrow" || scenario === "close-dialog" || scenario === "chat-references" || scenario === "chat-picker";
+  const empty = scenario === "chat-empty" || scenario === "tabs-narrow" || scenario === "close-dialog" || scenario === "chat-references" || scenario === "chat-picker" || scenario === "chat-activities";
   const withReferences = scenario === "chat-references";
   const approval = scenario === "chat-approval" ? APPROVAL : null;
   const question = scenario === "chat-question" ? QUESTION : null;
@@ -207,6 +217,7 @@ function FixtureChat() {
     dock={<>
       {approval && <AgentApprovalDock approval={approval as never} queueLength={1} resolving={false} runtimeLabel="Codex" onResolve={() => {}} />}
       {question && <AgentQuestionDock request={question as never} queueLength={1} resolving={false} onResolve={() => {}} />}
+      {scenario === "chat-activities" && <AgentProviderActivities activities={ACTIVITIES as never} />}
       <AgentComposer
         draft={draft} onDraftChange={setDraft} disabled={Boolean(approval || question)}
         running={running} stopping={false} submitting={false}

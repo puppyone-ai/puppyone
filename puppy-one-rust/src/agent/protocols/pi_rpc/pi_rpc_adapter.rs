@@ -460,7 +460,35 @@ impl Session {
                         kind,
                     });
                 } else if method == "notify" {
-                    self.snapshot.notice = v["message"].as_str().map(str::to_owned);
+                    // `#handleExtensionNotice`: a bounded provider notification.
+                    let message = v["message"].as_str().unwrap_or("").trim();
+                    let message = if message.is_empty() {
+                        "Pi extension notification".to_owned()
+                    } else {
+                        redact_secret_text(message)
+                    };
+                    let id = v["id"]
+                        .as_str()
+                        .filter(|id| !id.is_empty())
+                        .map_or_else(|| uuid::Uuid::new_v4().to_string(), str::to_owned);
+                    self.snapshot.provider_activity(ProviderActivity {
+                        id: format!("pi:extension:{id}"),
+                        kind: ActivityKind::Notification,
+                        label: message,
+                        status: match v["notifyType"].as_str() {
+                            Some("error") => "failed",
+                            Some("warning") => "warning",
+                            _ => "completed",
+                        }
+                        .into(),
+                        category: None,
+                        source: Some("Pi extension".into()),
+                        sequence: 0,
+                    });
+                } else if method == "setTitle"
+                    && let Some(title) = v["title"].as_str()
+                {
+                    self.snapshot.title = title.chars().take(200).collect();
                 }
             }
             "auto_compaction_start" | "compaction_start" => {
@@ -678,6 +706,43 @@ fn args(id: Option<&str>) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn extension_notices_are_bounded_provider_notifications() {
+        let (connection, _rx, _) = Connection::harness();
+        let mut s = Session::connected(
+            connection,
+            PathBuf::new(),
+            PathBuf::from("/tmp"),
+            false,
+            Wake::default(),
+        );
+        s.handle(json!({"type":"extension_ui_request","method":"notify","id":"n1","message":"Indexed with token=abcdef0123456789","notifyType":"warning"}));
+        s.handle(json!({"type":"extension_ui_request","method":"notify","id":"n2","message":"  "}));
+        s.handle(json!({"type":"extension_ui_request","method":"setTitle","title":"Refactor"}));
+        let a = &s.snapshot.activities;
+        assert_eq!(a.len(), 2);
+        assert_eq!(
+            (a[0].id.as_str(), a[0].status.as_str()),
+            ("pi:extension:n1", "warning")
+        );
+        assert_eq!(a[0].label, "Indexed with token=[redacted]");
+        assert_eq!(a[0].source.as_deref(), Some("Pi extension"));
+        assert_eq!(
+            (a[1].label.as_str(), a[1].status.as_str()),
+            ("Pi extension notification", "completed")
+        );
+        assert!(s.snapshot.notice.is_none());
+        assert_eq!(s.snapshot.title, "Refactor");
+        // The newest 32 remain; the same id updates in place.
+        for i in 0..40 {
+            s.handle(json!({"type":"extension_ui_request","method":"notify","id":format!("x{i}"),"message":"m"}));
+        }
+        assert_eq!(s.snapshot.activities.len(), MAX_PROVIDER_ACTIVITIES);
+        assert_eq!(s.snapshot.activities[0].id, "pi:extension:x8");
+        s.handle(json!({"type":"extension_ui_request","method":"notify","id":"x39","message":"again","notifyType":"error"}));
+        assert_eq!(s.snapshot.activities.len(), MAX_PROVIDER_ACTIVITIES);
+        assert_eq!(s.snapshot.activities.last().unwrap().status, "failed");
+    }
     #[test]
     fn modern_pi_waits_through_retries_and_preserves_final_model_errors() {
         let (connection, rx, _) = Connection::harness();

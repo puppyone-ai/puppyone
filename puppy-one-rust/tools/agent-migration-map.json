@@ -275,6 +275,22 @@
         "src/features/desktop_agent/ui/agent_chat_tab_panel.rs"
       ],
       "remaining": "Bounded virtual rows, native Markdown/table/code rendering, copy, previews, slash suggestions and per-thread drafts are implemented. Full renderer registry, Mermaid, inline assets, advanced autocomplete, accessibility and OS visual verification remain pending."
+    },
+    {
+      "name": "Provider activities",
+      "status": "partial",
+      "sources": [
+        "src/features/desktop-agent/ui/AgentProviderActivities.tsx",
+        "src/features/desktop-agent/ui/styles/provider-activities.css",
+        "electron/main/agent/domain/transcript/provider-activity-policy.mjs"
+      ],
+      "targets": [
+        "src/features/desktop_agent/ui/agent_provider_activities.rs",
+        "src/agent/domain/agent_session_model.rs",
+        "src/agent/protocols/pi_rpc/pi_rpc_adapter.rs",
+        "src/agent/runtimes/claude/claude_adapter.rs"
+      ],
+      "remaining": "Provider notices are a bounded snapshot list (32, updated by id, labels 4000 characters, secrets redacted): Pi extension notify (severity as status, the extension as source) and Claude auth_status (system, authentication). The dock shows running/failed/warning lines and the rest under a closed Notifications N disclosure with source tooltips (chat-activities 98.9%). Compaction stays a status notice until the transcript renders system activities (G-3); the legacy :extension: activity normalisation has no native journal to read."
     }
   ]
 }

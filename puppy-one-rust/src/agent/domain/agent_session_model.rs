@@ -142,6 +142,62 @@ pub fn parse_rfc3339_ms(value: &str) -> Option<i64> {
     Some(((days * 24 + hour) * 60 + minute - offset) * 60_000 + second * 1000 + millis)
 }
 
+/// `AgentActivityKind` of a provider notice.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ActivityKind {
+    /// `provider.notification` (extension notices).
+    Notification,
+    /// `provider.activity` (provider status such as authentication).
+    System,
+}
+/// A provider notice (`classifyProviderActivity`): bounded, live metadata
+/// beside the transcript, never a transcript row.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ProviderActivity {
+    pub id: String,
+    pub kind: ActivityKind,
+    pub label: String,
+    /// `running`, `completed`, `failed`, `warning` or `cancelled`.
+    pub status: String,
+    /// A system activity's category (`authentication`, `compaction`, `status`).
+    pub category: Option<String>,
+    /// Where a notification came from (its tooltip).
+    pub source: Option<String>,
+    pub sequence: u64,
+}
+/// `MAX_PROVIDER_ACTIVITIES`.
+pub const MAX_PROVIDER_ACTIVITIES: usize = 32;
+/// `redactSecretText` (`agent-events.mjs`): API keys, bearer tokens,
+/// `key=value` credentials and provider token shapes become `[redacted]`.
+pub fn redact_secret_text(value: &str) -> String {
+    use std::sync::OnceLock;
+    static PATTERNS: OnceLock<Vec<(regex::Regex, &'static str)>> = OnceLock::new();
+    let patterns = PATTERNS.get_or_init(|| {
+        [
+            (r"\bsk-[A-Za-z0-9_-]{12,}\b", "[redacted]"),
+            (r"(?i)\b(Bearer\s+)[A-Za-z0-9._~+/-]{12,}", "${1}[redacted]"),
+            (
+                r"(?i)\b(api[_-]?key|access[_-]?token|refresh[_-]?token|auth[_-]?token|id[_-]?token|token|authorization|password|client[_-]?secret|secret[_-]?access[_-]?key|private[_-]?key)(\s*[:=]\s*)[^\s,;]+",
+                "${1}${2}[redacted]",
+            ),
+            (
+                r"\b([A-Z][A-Z0-9_]*(?:_API_KEY|_ACCESS_TOKEN|_REFRESH_TOKEN|_AUTH_TOKEN|_ID_TOKEN|_SESSION_TOKEN|_CLIENT_SECRET|_SECRET_ACCESS_KEY|_PRIVATE_KEY|_PASSWORD|_CREDENTIALS?))(\s*=\s*)[^\s,;]+",
+                "${1}${2}[redacted]",
+            ),
+            (r"\bAIza[0-9A-Za-z_-]{20,}\b", "[redacted]"),
+            (r"\bgh[pousr]_[A-Za-z0-9]{20,}\b", "[redacted]"),
+        ]
+        .into_iter()
+        .map(|(pattern, replacement)| (regex::Regex::new(pattern).unwrap(), replacement))
+        .collect()
+    });
+    patterns
+        .iter()
+        .fold(value.to_owned(), |text, (pattern, replacement)| {
+            pattern.replace_all(&text, *replacement).into_owned()
+        })
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct HistoryEntry {
     pub id: String,
@@ -163,6 +219,9 @@ pub struct SessionSnapshot {
     pub account: String,
     pub commands: Vec<(String, String)>,
     pub notice: Option<String>,
+    /// Provider notices (`projection.activities` outside the transcript).
+    #[serde(default)]
+    pub activities: Vec<ProviderActivity>,
     pub thread: Option<String>,
     pub turn: Option<String>,
     pub state: State,
@@ -220,6 +279,7 @@ impl SessionSnapshot {
             account: String::new(),
             commands: vec![],
             notice: None,
+            activities: vec![],
             thread: None,
             turn: None,
             state: State::Starting,
@@ -236,6 +296,23 @@ impl SessionSnapshot {
             usage: String::new(),
             title: runtime.into(),
             revision: 0,
+        }
+    }
+    /// Adds or updates a provider notice by id, keeping the newest
+    /// `MAX_PROVIDER_ACTIVITIES` (`pruneProviderActivities`). Labels are
+    /// bounded to 4000 characters as in the product.
+    pub fn provider_activity(&mut self, mut activity: ProviderActivity) {
+        activity.label = activity.label.chars().take(4_000).collect();
+        self.revision += 1;
+        activity.sequence = self.revision;
+        match self.activities.iter_mut().find(|a| a.id == activity.id) {
+            Some(existing) => *existing = activity,
+            None => self.activities.push(activity),
+        }
+        if self.activities.len() > MAX_PROVIDER_ACTIVITIES {
+            self.activities.sort_by_key(|a| a.sequence);
+            let excess = self.activities.len() - MAX_PROVIDER_ACTIVITIES;
+            self.activities.drain(..excess);
         }
     }
     pub fn fail(&mut self, error: impl Into<String>) {
@@ -383,6 +460,24 @@ pub fn bounded_text(mut text: String, limit: usize) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn secrets_follow_the_product_patterns() {
+        for (input, output) in [
+            ("key sk-abcdefghijklmnopq end", "key [redacted] end"),
+            // As in the product: the bearer value, then the header's word.
+            (
+                "Authorization: Bearer abc.def-ghi_jklmno",
+                "Authorization: [redacted] [redacted]",
+            ),
+            ("api_key=12345 next", "api_key=[redacted] next"),
+            ("OPENAI_API_KEY=xyz", "OPENAI_API_KEY=[redacted]"),
+            ("AIzaSyA1234567890abcdefghij", "[redacted]"),
+            ("ghp_abcdefghijklmnopqrstuv", "[redacted]"),
+            ("nothing secret here", "nothing secret here"),
+        ] {
+            assert_eq!(super::redact_secret_text(input), output, "{input}");
+        }
+    }
     use super::parse_rfc3339_ms;
     use core::prelude::v1::test;
 

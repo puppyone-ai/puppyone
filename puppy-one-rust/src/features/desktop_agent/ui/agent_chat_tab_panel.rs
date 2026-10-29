@@ -8,6 +8,8 @@ mod agent_composer;
 mod agent_composer_references;
 #[path = "agent_history.rs"]
 mod agent_history;
+#[path = "agent_provider_activities.rs"]
+mod agent_provider_activities;
 #[path = "agent_session_control_picker.rs"]
 mod agent_session_control_picker;
 #[path = "agent_status.rs"]
@@ -492,6 +494,7 @@ impl Render for AgentChat {
         // `.desktop-agent-dock-region`: 12px padding, 8px between its cards.
         let card = self.render_interaction(window, cx);
         let commands = self.render_commands(cx);
+        let activities = self.render_provider_activities(window, cx);
         let composer = self.render_composer(window, cx);
         pane.child(
             v_flex()
@@ -502,6 +505,7 @@ impl Render for AgentChat {
                 .gap(px(8.))
                 .children(card)
                 .children(commands)
+                .children(activities)
                 .child(composer),
         )
     }

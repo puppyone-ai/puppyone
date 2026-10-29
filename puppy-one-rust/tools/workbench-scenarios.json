@@ -17,6 +17,11 @@
       "height": 760
     },
     {
+      "scenario": "chat-activities",
+      "width": 420,
+      "height": 760
+    },
+    {
       "scenario": "chat-transcript",
       "width": 420,
       "height": 860

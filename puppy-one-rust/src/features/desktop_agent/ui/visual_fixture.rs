@@ -107,7 +107,58 @@ impl AgentChat {
         snapshot.capabilities.models = true;
         snapshot.capabilities.modes = true;
         let running = matches!(scenario, "chat-running" | "chat-approval" | "chat-question");
-        let empty = matches!(scenario, "chat-empty" | "chat-references" | "chat-picker");
+        let empty = matches!(
+            scenario,
+            "chat-empty" | "chat-references" | "chat-picker" | "chat-activities"
+        );
+        if scenario == "chat-activities" {
+            // `tools/reference-workbench-entry.tsx` `ACTIVITIES`.
+            use crate::agent::domain::agent_session_model::{ActivityKind, ProviderActivity};
+            for (id, kind, label, status, category, source) in [
+                (
+                    "a1",
+                    ActivityKind::System,
+                    "Signing in to Codex…",
+                    "running",
+                    Some("authentication"),
+                    None,
+                ),
+                (
+                    "a2",
+                    ActivityKind::Notification,
+                    "The lint-rules extension failed to load.",
+                    "failed",
+                    None,
+                    Some("Pi extension"),
+                ),
+                (
+                    "a3",
+                    ActivityKind::Notification,
+                    "Formatter installed.",
+                    "completed",
+                    None,
+                    Some("Pi extension"),
+                ),
+                (
+                    "a4",
+                    ActivityKind::Notification,
+                    "Workspace indexed: 128 files.",
+                    "completed",
+                    None,
+                    Some("Pi extension"),
+                ),
+            ] {
+                snapshot.provider_activity(ProviderActivity {
+                    id: id.into(),
+                    kind,
+                    label: label.into(),
+                    status: status.into(),
+                    category: category.map(str::to_owned),
+                    source: source.map(str::to_owned),
+                    sequence: 0,
+                });
+            }
+        }
         if !empty {
             let status = if running { "running" } else { "completed" };
             snapshot.upsert("user:1", "You", LAB_USER_1, "");
