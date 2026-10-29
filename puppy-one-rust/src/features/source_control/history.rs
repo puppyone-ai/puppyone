@@ -173,6 +173,8 @@ pub(super) trait TimelineHost: Sized + 'static {
 
 /// The local time now, for day grouping.
 pub(super) fn now() -> i64 {
+    // The pixel lab pins the fixture's clock; product builds have no lab.
+    #[cfg(feature = "dev-capture")]
     if let Some(clock) = crate::lab::clock() {
         return clock;
     }
