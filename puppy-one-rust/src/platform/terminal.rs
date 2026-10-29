@@ -47,7 +47,8 @@ pub struct Terminal {
     foreground: Arc<AtomicI32>,
 }
 impl Terminal {
-    #[cfg(test)]
+    /// A session with no PTY behind it (tests and lab fixtures).
+    #[cfg(any(test, feature = "dev-capture"))]
     pub fn disconnected_for_test() -> Self {
         let (tx, _) = mpsc::sync_channel(1);
         let (_, events) = mpsc::sync_channel(1);

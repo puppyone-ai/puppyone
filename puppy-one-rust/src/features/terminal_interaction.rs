@@ -241,8 +241,22 @@ pub fn mouse_report(
     }
 }
 
-/// Explicit Cmd-click links only: no output-driven navigation or local-file execution.
-pub fn link_at(screen: &Screen, point: CellPoint) -> Option<String> {
+/// A web link on screen (`WebLinksAddon`): its URL and first and last cells.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Link {
+    pub url: String,
+    pub start: CellPoint,
+    pub end: CellPoint,
+}
+impl Link {
+    pub fn contains(&self, row: u16, col: u16) -> bool {
+        (self.start.row, self.start.col) <= (row, col) && (row, col) <= (self.end.row, self.end.col)
+    }
+}
+
+/// The http(s) link under a cell: activated by the user only, never by
+/// output, and never a local file.
+pub fn link_at(screen: &Screen, point: CellPoint) -> Option<Link> {
     let (rows, cols) = screen.size();
     let mut start = point.row;
     while start > 0 && screen.row_wrapped(start - 1) {
@@ -254,6 +268,8 @@ pub fn link_at(screen: &Screen, point: CellPoint) -> Option<String> {
     }
     let mut text = String::new();
     let mut offset = None;
+    // The byte at which each visible cell's text begins.
+    let mut cells: Vec<(usize, CellPoint)> = Vec::new();
     for row in start..=end {
         for col in 0..cols {
             let cell = screen.cell(row, col)?;
@@ -265,6 +281,7 @@ pub fn link_at(screen: &Screen, point: CellPoint) -> Option<String> {
                 });
             }
             if !cell.is_wide_continuation() {
+                cells.push((text.len(), CellPoint { row, col }));
                 let value = cell.contents();
                 text.push_str(if value.is_empty() { " " } else { &value });
             }
@@ -281,9 +298,9 @@ pub fn link_at(screen: &Screen, point: CellPoint) -> Option<String> {
         .char_indices()
         .find(|(_, c)| delimiter(*c))
         .map_or(text.len(), |(i, _)| offset + i);
-    let candidate = text[left..right]
-        .trim_start_matches(['(', '[', '{'])
-        .trim_end_matches(['.', ',', ';', '!', '?']);
+    let opened = text[left..right].trim_start_matches(['(', '[', '{']);
+    let begin = right - opened.len();
+    let candidate = opened.trim_end_matches(['.', ',', ';', '!', '?']);
     let mut candidate = candidate.to_string();
     for (open, close) in [('(', ')'), ('[', ']'), ('{', '}')] {
         while candidate.ends_with(close)
@@ -293,11 +310,25 @@ pub fn link_at(screen: &Screen, point: CellPoint) -> Option<String> {
         }
     }
     let url = reqwest::Url::parse(&candidate).ok()?;
-    (matches!(url.scheme(), "http" | "https")
+    if !(matches!(url.scheme(), "http" | "https")
         && url.host_str().is_some()
         && url.username().is_empty()
         && url.password().is_none())
-    .then_some(candidate)
+    {
+        return None;
+    }
+    let cell_of = |byte: usize| {
+        cells
+            .iter()
+            .rev()
+            .find(|(at, _)| *at <= byte)
+            .map(|(_, cell)| *cell)
+    };
+    Some(Link {
+        start: cell_of(begin)?,
+        end: cell_of(begin + candidate.len() - 1)?,
+        url: candidate,
+    })
 }
 
 /// `quoteTerminalPaths`: dropped paths as literal arguments for the shell,
@@ -443,10 +474,15 @@ mod tests {
         let mut parser = vt100::Parser::new(6, 20, 0);
         parser
             .process(b"see (https://example.com/a).\r\nfile:///etc/passwd\r\njavascript:alert(1)");
+        let link = link_at(parser.screen(), CellPoint { row: 1, col: 3 }).unwrap();
+        assert_eq!(link.url, "https://example.com/a");
+        // The span skips the bracket and the trailing `).`, across the wrap.
         assert_eq!(
-            link_at(parser.screen(), CellPoint { row: 1, col: 3 }).as_deref(),
-            Some("https://example.com/a")
+            (link.start, link.end),
+            (CellPoint { row: 0, col: 5 }, CellPoint { row: 1, col: 5 })
         );
+        assert!(link.contains(0, 19) && link.contains(1, 0));
+        assert!(!link.contains(0, 4) && !link.contains(1, 6));
         assert!(link_at(parser.screen(), CellPoint { row: 2, col: 5 }).is_none());
         assert!(link_at(parser.screen(), CellPoint { row: 3, col: 5 }).is_none());
     }

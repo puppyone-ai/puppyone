@@ -10,10 +10,10 @@ import { LocalizationProvider } from "@puppyone/localization/react";
 import { bidiIsolate } from "@puppyone/localization/core";
 import { initializeDesktopPreferences } from "PRODUCT/src/preferencesStore";
 import { AuxiliaryWorkbenchPanel } from "PRODUCT/src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel";
-import { ProjectWorkbenchStore } from "PRODUCT/src/features/app-shell/auxiliary-workbench/ProjectWorkbenchStore";
+import { ProjectWorkbenchStore } from "PRODUCT/src/lib/workbench/ProjectWorkbenchStore";
 import { AuxiliaryWorkbenchLauncher } from "PRODUCT/src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchLauncher";
 import { AGENT_CHAT_CREATION_RECIPES } from "PRODUCT/src/features/app-shell/auxiliary-workbench/agentChatCreationRecipes";
-import { DesktopOverlayPortal } from "PRODUCT/src/features/app-shell/DesktopOverlayPortal";
+import { DesktopOverlayPortal } from "PRODUCT/src/components/DesktopOverlayPortal";
 import { resolveAppearance } from "PRODUCT/src/features/appearance/resolveAppearance";
 import { resolveSurfaceAppearance, SurfaceAppearanceProvider } from "PRODUCT/src/features/appearance/AppearanceRuntime";
 import { DEFAULT_TYPOGRAPHY_PREFERENCES, resolveTypography } from "PRODUCT/src/features/typography";
@@ -29,6 +29,9 @@ import { AgentChatHistoryBrowser } from "PRODUCT/src/features/desktop-agent/work
 import { AgentConversationHistory } from "PRODUCT/src/features/desktop-agent/ui/AgentConversationHistory";
 import { createAgentChatCloseAdapter } from "PRODUCT/src/features/desktop-agent/workbench/agentChatCloseAdapter";
 import { TerminalSessionHeaderStatus } from "PRODUCT/src/features/desktop-terminal/ui/session-header/TerminalSessionHeaderStatus";
+import { TerminalSessionView } from "PRODUCT/src/features/desktop-terminal/ui/TerminalSessionView";
+import { TerminalRuntime } from "PRODUCT/src/features/desktop-terminal/runtime/terminalRuntime";
+import { readTerminalAppearance } from "PRODUCT/src/features/desktop-terminal/runtime/terminalAppearance";
 import "PRODUCT/src/features/desktop-agent/ui/desktop-agent.css";
 import "PRODUCT/src/features/desktop-terminal/ui/desktop-terminal.css";
 
@@ -37,6 +40,7 @@ declare global {
     fixture: { id: string; mode: "light" | "dark"; locale: string; width: number; height: number };
     __catalogs: Record<string, Record<string, string>>;
     __referenceReady?: boolean;
+    __fixtureData: unknown;
   }
 }
 
@@ -244,6 +248,32 @@ function FixtureHistory({ context }: { context: Record<string, unknown> }) {
   </div>;
 }
 
+// terminal: the production runtime and xterm over an offline PTY bridge that
+// streams fixtures/terminal-session.ansi once the session starts (the native
+// lab replays the same bytes after its first fit).
+const TERMINAL_SESSION = "reference-terminal";
+function FixtureTerminal({ presented }: { presented: boolean }) {
+  const [runtime] = useState(() => {
+    const listeners = new Set<(event: { id: string; instanceId: string; data: string }) => void>();
+    const bridge = {
+      createTerminal: async () => {
+        setTimeout(() => listeners.forEach((listener) => listener({
+          id: TERMINAL_SESSION, instanceId: "reference", data: String(window.__fixtureData) })), 50);
+        return { instanceId: "reference", shell: "/bin/zsh", inputShell: "zsh" };
+      },
+      writeTerminal: async () => {}, resizeTerminal: async () => {}, updateTerminalAppearance: async () => {},
+      closeTerminal: async () => {}, openExternalUrl: async () => {},
+      onTerminalData: (listener: never) => { listeners.add(listener); return () => { listeners.delete(listener); }; },
+      onTerminalExit: () => () => {},
+    };
+    return new TerminalRuntime({ bridge: bridge as never,
+      appearance: readTerminalAppearance(document.querySelector<HTMLElement>(".desktop-right-sidebar") ?? document.body),
+      sessionId: TERMINAL_SESSION, launcherId: "shell", workspacePath: "/reference/project",
+      getMessageFormatter: () => translate as never, onStatus: () => {} } as never);
+  });
+  return <TerminalSessionView runtime={runtime} workspacePath="/reference/project" presented={presented} focused={false} />;
+}
+
 function Fixture() {
   const [store] = useState(() => new ProjectWorkbenchStore({ projectId: "reference", rootPath: "/reference/project", generation: "reference" }));
   const appearance = useMemo(() => resolveSurfaceAppearance({
@@ -272,7 +302,9 @@ function Fixture() {
       ...chat, kind: "terminal", label: "Terminal", createLabel: "Terminal",
       initialSnapshot: { ...chat.initialSnapshot, title: "Terminal", accessibleLabel: "Terminal", iconKey: "shell" },
       creationRecipes: [{ id: "shell", label: "Terminal", iconKey: "shell", status: "available" }],
-      renderItem: () => <div className="desktop-terminal-session" />,
+      renderItem: scenario === "terminal"
+        ? (context: { presentation: { presented: boolean } }) => <FixtureTerminal presented={context.presentation.presented} />
+        : () => <div className="desktop-terminal-session" />,
       // Production terminals report their status through TerminalSessionHeaderStatus.
       renderStatus: () => <TerminalSessionHeaderStatus className="desktop-terminal-tab-status" runtime={null}
         session={{ launcherId: "shell", status: "running" } as never} />,
@@ -288,16 +320,18 @@ function Fixture() {
         const codex = AGENT_CHAT_CREATION_RECIPES.find((recipe) => recipe.id === "codex")!;
         const chat = await store.create("agent-chat", null, codex as never);
         const shell = (contributions[0] as { creationRecipes: never[] }).creationRecipes[0];
-        await store.create("terminal", null, shell);
+        const terminalItem = await store.create("terminal", null, shell);
         store.createLauncher(null, "New tab");
         if (scenario === "tabs-narrow") {
           await store.create("agent-chat", null, AGENT_CHAT_CREATION_RECIPES.find((recipe) => recipe.id === "claude") as never);
           await store.create("terminal", null, shell);
         }
-        if (chat) store.dispatch({ type: "activate", itemId: chat } as never);
+        const active = scenario === "terminal" ? terminalItem : chat;
+        if (active) store.dispatch({ type: "activate", itemId: active } as never);
       }
       if (cancelled) return;
-      await new Promise((resolve) => setTimeout(resolve, 400));
+      // The terminal's scrollbar shows for 900 ms after output scrolls it.
+      await new Promise((resolve) => setTimeout(resolve, scenario === "terminal" ? 1600 : 400));
       window.__referenceReady = true;
     }, 0);
     return () => { cancelled = true; clearTimeout(timer); };

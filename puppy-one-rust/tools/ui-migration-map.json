@@ -96,16 +96,23 @@
         "src/features/typography/fontCatalog.ts",
         "src/features/typography/typographyRuntime.ts",
         "src/styles/typography/foundations.css",
+        "src/styles/typography/locales.css",
         "src/styles/typography/roles.css"
       ],
       "targets": [
+        "src/theme.rs",
         "src/typography.rs",
-        "src/theme.rs"
+        "src/typography/fonts.rs",
+        "src/ui/fonts.rs"
       ],
       "evidence": [
-        "test:medium_literals_follow_the_product_role_table"
+        "test:medium_literals_follow_the_product_role_table",
+        "test:the_product_defaults_are_geist_for_code_and_the_system_stack_for_terminals",
+        "test:script_fallbacks_follow_the_content_language",
+        "test:the_terminal_takes_the_first_installed_system_mono",
+        "test:the_active_stacks_follow_the_locale_and_selection"
       ],
-      "remaining": "TYPOGRAPHY_SCALE_METRICS and the UI role sizes follow the three scales. Font selection from the font catalog, per-locale font stacks (locales.css) and Geist Mono for code/terminal are not ported; bundled Geist Sans and Open Sans are used."
+      "remaining": "TYPOGRAPHY_SCALE_METRICS and the UI role sizes follow the three scales. The font catalog (five built-in entries, role resolution with product fallbacks, id normalisation), the locales.css script stacks and their GPUI projection (the first installed family plus a cascade of the installed rest, as Chromium walks font-family) are native: the interface is Geist, code Geist Mono, the terminal the Terminal Mono stack (SF Mono where installed, else Menlo), each over the content language's CJK faces. Not ported: reading the stored puppyone.desktop.typography value with its legacy migrations (part of the Electron preference import, PL-3) and Sub Theme content fonts (S-14)."
     },
     {
       "name": "Appearance preferences and runtime",
@@ -701,18 +708,26 @@
         "src/features/desktop-terminal/ui/styles/xterm-adapter.css"
       ],
       "targets": [
+        "assets/terminal-glyphs.json",
         "src/features/terminal.rs",
+        "src/features/terminal_glyphs.rs",
         "src/features/terminal_interaction.rs",
         "src/features/terminal_queries.rs",
         "src/platform/terminal.rs",
-        "src/theme.rs"
+        "src/theme.rs",
+        "tools/import-xterm-glyphs.mjs"
       ],
       "evidence": [
         "test:terminal_keys_preserve_navigation_modifiers_and_control_bytes",
         "test:selection_preserves_wide_characters_reverse_drag_and_soft_wrap",
-        "test:split_queries_and_clipboard_are_handled_safely"
+        "test:split_queries_and_clipboard_are_handled_safely",
+        "test:cells_follow_xterm_for_menlo_at_one_and_two_device_pixels",
+        "test:the_grid_fits_inside_the_session_padding_like_fit_addon",
+        "test:the_thumb_tracks_the_scrollback_offset",
+        "test:a_click_on_a_link_opens_it_and_a_selection_does_not",
+        "test:the_product_definitions_cover_frames_blocks_shades_and_powerline"
       ],
-      "remaining": "Terminal colours come from the pack (--po-terminal-bg/fg/cursor and the 16 ANSI colours). The terminal uses Menlo instead of --po-font-terminal (Geist Mono); the activity grid and resource drop are not ported."
+      "remaining": "Terminal colours come from the pack. The font is the product's Terminal Mono stack; cells follow xterm's WebGL renderer (the W advance floored to device pixels; Blink's whole-pixel font box, x1.24, floored; glyphs on the cell grid on device pixels), with the session padding (14/0/16/16), FitAddon's fit, 6000 lines of scrollback, weight 450/700, the blinking block cursor, the unfocused outline and xterm's cursor initialisation, box drawing/blocks/shades/Powerline from the product's xterm definitions (tools/import-xterm-glyphs.mjs), the hovered link's underline and click activation, the default-style scrollbar (12px lane, 8px thumb while hovered or 900 ms after a scroll), grey system lines for exits and launch failures and the top notice stack. Pixel suite `terminal`: 95.3% with identical geometry; xterm's canvas rasterises glyphs with macOS font smoothing, GPUI without. Not ported: the classic-interface scrollbar (P3 interface styles), xterm checkpoint restore and Unicode 11 width tables (vt100 uses unicode-width)."
     },
     {
       "name": "Shared overlays, dialogs and tooltips",

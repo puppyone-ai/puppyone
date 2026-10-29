@@ -87,6 +87,8 @@ pub struct FloatingNotice {
     tone: NoticeTone,
     actions: Vec<NoticeAction>,
     on_dismiss: Option<Handler>,
+    /// `--po-floating-notice-font-size` / `-line-height` overrides.
+    text: Option<(f32, f32)>,
 }
 impl FloatingNotice {
     pub fn new(id: impl Into<ElementId>, message: impl Into<SharedString>) -> Self {
@@ -96,7 +98,14 @@ impl FloatingNotice {
             tone: NoticeTone::Neutral,
             actions: vec![],
             on_dismiss: None,
+            text: None,
         }
+    }
+    /// The host surface's type role (a terminal speaks in the Right
+    /// Sidebar meta size).
+    pub fn text(mut self, size: f32, line_height: f32) -> Self {
+        self.text = Some((size, line_height));
+        self
     }
     pub fn tone(mut self, tone: NoticeTone) -> Self {
         self.tone = tone;
@@ -126,7 +135,7 @@ impl RenderOnce for FloatingNotice {
                 theme::mix(tone, t.border, 0.36),
             )
         };
-        let line = 18.;
+        let (size, line) = self.text.unwrap_or((theme::ty().ui.meta, 18.));
         let dismissible = self.on_dismiss.is_some();
         let mini = theme::control_mini();
         let id = self.id.clone();
@@ -146,7 +155,7 @@ impl RenderOnce for FloatingNotice {
             .bg(surface)
             .shadow(crate::ui::components::MenuVariant::Default.shadow(t))
             .text_color(t.text)
-            .text_size(px(theme::ty().ui.meta))
+            .text_size(px(size))
             .line_height(px(line))
             .font_weight(FontWeight::NORMAL)
             .occlude()
@@ -240,6 +249,8 @@ pub enum NoticePlacement {
     TopEnd,
     /// Newest at the bottom (`column-reverse`).
     BottomEnd,
+    /// Across the top, notices stretched to the inline insets.
+    Top,
 }
 
 /// `.po-floating-notice-stack`: one anchored column per surface so
@@ -271,6 +282,15 @@ impl NoticeStack {
 }
 impl RenderOnce for NoticeStack {
     fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
+        if self.placement == NoticePlacement::Top {
+            return v_flex()
+                .absolute()
+                .top(px(self.top))
+                .left(px(self.end))
+                .right(px(self.end))
+                .gap(px(8.))
+                .children(self.notices);
+        }
         let column = v_flex()
             .absolute()
             .right(px(self.end))
@@ -279,7 +299,7 @@ impl RenderOnce for NoticeStack {
             .gap(px(8.));
         match self.placement {
             NoticePlacement::TopEnd => column.top(px(self.top)).children(self.notices),
-            NoticePlacement::BottomEnd => column
+            NoticePlacement::BottomEnd | NoticePlacement::Top => column
                 .bottom(px(self.top))
                 .children(self.notices.into_iter().rev()),
         }

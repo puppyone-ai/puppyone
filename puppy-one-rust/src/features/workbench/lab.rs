@@ -45,6 +45,7 @@ impl Workbench {
                 || scenario == "split"
                 || scenario == "close-dialog"
                 || scenario == "terminal-activity"
+                || scenario == "terminal"
             {
                 "chat-empty"
             } else {
@@ -69,6 +70,15 @@ impl Workbench {
                 project.content.insert(shell, self.lab_terminal(window, cx));
             }
             project.layout.activate(0, chat);
+            if scenario == "terminal" {
+                let view = cx.new(TerminalView::lab_fixture);
+                cx.observe(&view, |_, _, cx| cx.notify()).detach();
+                project.content.insert(
+                    terminal,
+                    Content::Terminal(view, crate::localization::t("terminal.title").into(), None),
+                );
+                project.layout.activate(0, terminal);
+            }
             // Native-only interaction states (no product reference): a tab
             // moving within the bar, split previews and a resolved split.
             match scenario {

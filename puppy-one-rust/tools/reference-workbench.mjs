@@ -57,7 +57,10 @@ async function run() {
   for (const c of cases) {
     if (only && !only.includes(c.id)) continue;
     const fixture = {id: c.id, mode: c.mode, locale: 'en', width: c.width, height: c.height};
-    const data = suite.data ? await readFile(path.join(root, suite.data), 'utf8') : 'null';
+    // A scenario may bring its own data; non-JSON files arrive as a string.
+    const dataFile = c.data ?? suite.data;
+    const raw = dataFile ? await readFile(path.join(root, dataFile), 'utf8') : null;
+    const data = raw === null ? 'null' : dataFile.endsWith('.json') ? raw : JSON.stringify(raw);
     const page = `window.__catalogs=${JSON.stringify(catalogMap)};window.__fixtureData=${data};\n${script}`;
     const win = await openPage(profile, {width: c.width, height: c.height, mode: c.mode, fixture, script: page, style});
     try {

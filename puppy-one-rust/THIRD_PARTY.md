@@ -65,3 +65,12 @@ and @lezer/common and highlight (MIT) with style-mod, w3c-keyname and crelt
 (MIT), intl-messageformat (BSD-3-Clause) with the @formatjs parsers (MIT),
 lucide-react (ISC) and tslib (0BSD). License comments are kept at the end of
 the script. It runs only in the HTML viewer's Edit-mode WebView.
+
+## Terminal custom glyphs
+
+`assets/terminal-glyphs.json` holds xterm.js's custom glyph definitions
+(box drawing, block elements, shade patterns and Powerline symbols) as
+`tools/import-xterm-glyphs.mjs` extracts them from the product's
+`@xterm/addon-webgl` 0.19.0 (MIT, Copyright (c) 2017-2019 The xterm.js
+authors), with the bundle's SHA-256 recorded in the file. The native
+terminal draws them in `src/features/terminal_glyphs.rs`.

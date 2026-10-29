@@ -1,2 +1,4 @@
 # Keep source and generated artifacts byte-stable across every build runner.
 * text=auto eol=lf
+# Terminal fixtures are raw PTY byte streams; their CRLFs are content.
+*.ansi binary
