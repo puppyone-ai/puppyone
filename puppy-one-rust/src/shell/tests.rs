@@ -1285,3 +1285,51 @@ fn manage_running_sessions_lists_this_windows_hosts_and_terminates_them(cx: &mut
     command(&view, cx, Command::CloseExecutions);
     view.read_with(cx, |s, _| assert!(s.modals.is_empty()));
 }
+
+#[gpui::test]
+fn windows_share_preferences_and_one_project_lives_in_one_window(cx: &mut TestAppContext) {
+    let (first, vcx) = setup(cx);
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().canonicalize().unwrap();
+    first.update(vcx, |s, _| {
+        s.files.begin(Intent::OpenFolder(root.clone()), &s.wake)
+    });
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while first.read_with(vcx, |s, _| s.workspace_root().is_none()) {
+        assert!(std::time::Instant::now() < deadline);
+        vcx.run_until_parked();
+        first.update_in(vcx, |s, w, cx| s.receive(w, cx));
+    }
+    let first_handle = vcx.window_handle();
+    // A second window registers beside the first.
+    let mut second = None;
+    let (_, vcx2) = cx.add_window_view(|w, cx| {
+        let view = cx.new(|cx| Shell::new(w, cx));
+        second = Some(view.clone());
+        gpui_kit::base::Root::new(view, w, cx)
+    });
+    let second = second.unwrap();
+    vcx2.update(|_, cx| {
+        assert_eq!(windows::count(cx), 2);
+        assert!(!windows::quitting(cx));
+    });
+    let second_handle = vcx2.window_handle();
+    vcx2.update(|_, cx| {
+        assert_eq!(
+            windows::window_showing(&root, second_handle, cx),
+            Some(first_handle)
+        );
+        assert_eq!(windows::window_showing(&root, first_handle, cx), None);
+    });
+    // Opening the project in the second window reveals the first instead.
+    second.update_in(vcx2, |s, w, cx| s.open_project(root.clone(), w, cx));
+    second.read_with(vcx2, |s, _| assert!(s.workspace_root().is_none()));
+    // ⌘N from either window opens another (deferred) window; Quit marks
+    // every window closing through its own barrier.
+    vcx2.update(|_, cx| {
+        windows::quit_all(cx);
+        assert!(windows::quitting(cx));
+        windows::cancel_quit(cx);
+        assert!(!windows::quitting(cx));
+    });
+}

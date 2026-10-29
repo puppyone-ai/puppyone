@@ -117,3 +117,35 @@ fn failed_import_or_move_shows_above_the_tree_and_retry_rereads_the_root(cx: &mu
         assert!(e.operation_error.is_some());
     });
 }
+#[gpui::test]
+fn external_changes_reread_loaded_folders_through_the_directory_subscription(
+    cx: &mut TestAppContext,
+) {
+    cx.executor().allow_parking();
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("a.md"), "a").unwrap();
+    let ws = Workspace::open(dir.path()).unwrap();
+    let preferences = cx.new(|_| PreferencesStore::memory());
+    let explorer = cx.new(|cx| Explorer::new(false, preferences, cx));
+    explorer.update(cx, |e, cx| {
+        e.load_workspace(ws.clone(), ws.list(Path::new("")).unwrap(), cx)
+    });
+    explorer.read_with(cx, |e, _| assert!(e.watch.is_some()));
+    // Give FSEvents a moment to arm before the external write.
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    std::fs::write(dir.path().join("from-agent.md"), "x").unwrap();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(8);
+    loop {
+        cx.run_until_parked();
+        if explorer.read_with(cx, |e, _| {
+            e.tree.index_of(Path::new("from-agent.md")).is_some()
+        }) {
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the tree never saw the external file"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+}

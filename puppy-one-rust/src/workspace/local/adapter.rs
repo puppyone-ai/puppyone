@@ -118,6 +118,64 @@ impl ResourcePort for LocalProvider {
     }
 }
 impl ResourceWatchPort for LocalProvider {
+    /// `useWorkbenchWorkspaceContentWatch`: one recursive OS watcher on the
+    /// granted root. Bursts coalesce into one reset; `.git` internals do not
+    /// invalidate the tree. Dropping the subscription stops the watcher.
+    fn watch_root(&self, notify: Notify) -> Result<WatchSubscription> {
+        use notify::{RecursiveMode, Watcher};
+        let root = self.inner.absolute(std::path::Path::new(""))?;
+        let events = Arc::new(Mutex::new(None));
+        let pending = events.clone();
+        let (tx, rx) = mpsc::channel::<()>();
+        let filtered = root.clone();
+        let mut watcher =
+            notify::recommended_watcher(move |result: notify::Result<notify::Event>| {
+                let relevant = match &result {
+                    Ok(event) => event.paths.iter().any(|p| {
+                        !p.strip_prefix(&filtered)
+                            .unwrap_or(p)
+                            .components()
+                            .any(|c| c.as_os_str() == ".git")
+                    }),
+                    Err(_) => true,
+                };
+                if relevant {
+                    let _ = tx.send(());
+                }
+            })
+            .map_err(|e| Error::new(ErrorKind::Io, e.to_string()))?;
+        watcher
+            .watch(&root, RecursiveMode::Recursive)
+            .map_err(|e| Error::new(ErrorKind::Io, e.to_string()))?;
+        let (stop_tx, stop) = mpsc::channel::<()>();
+        crate::localization::spawn(move || {
+            // Owns the watcher: dropping it here stops the OS subscription.
+            let _watcher = watcher;
+            loop {
+                match rx.recv_timeout(Duration::from_millis(250)) {
+                    Ok(()) => {
+                        // Coalesce the burst, then publish one reset.
+                        while rx.recv_timeout(Duration::from_millis(120)).is_ok() {}
+                        if let Ok(mut slot) = pending.lock() {
+                            *slot = Some(WatchEvent::Invalidated);
+                        }
+                        notify();
+                    }
+                    Err(mpsc::RecvTimeoutError::Disconnected) => return,
+                    Err(mpsc::RecvTimeoutError::Timeout) => {}
+                }
+                if !matches!(stop.try_recv(), Err(mpsc::TryRecvError::Empty)) {
+                    return;
+                }
+            }
+        });
+        Ok(WatchSubscription {
+            events,
+            cancel: WatchCancellation::new(move || {
+                let _ = stop_tx.send(());
+            }),
+        })
+    }
     fn watch(
         &self,
         path: &RelativePath,

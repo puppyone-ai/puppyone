@@ -413,13 +413,6 @@ impl Workspace {
         ))?;
         self.register_watch(inner)
     }
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "Cloud tree observation is wired with navigation in the later workspace-host stage"
-        )
-    )]
     pub fn watch_root(&self, notify: Notify) -> Result<Subscription> {
         self.admit(self.capabilities().watch)?;
         self.register_watch(self.finish(self.provider.watch_root(notify))?)

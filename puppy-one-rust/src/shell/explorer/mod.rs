@@ -108,6 +108,8 @@ pub(in crate::shell) struct Explorer {
     /// `operationError`: a failed import or move, shown above the tree;
     /// folder load failures stay on their own rows.
     operation_error: Option<SharedString>,
+    /// Directory subscription of the shown workspace (dropped on switch).
+    watch: Option<(crate::workspace::Subscription, Task<()>)>,
     retained: std::collections::BTreeMap<String, RetainedExplorer>,
     refresh: Option<Task<()>>,
     references:
@@ -169,6 +171,7 @@ impl Explorer {
             op: false,
             op_inline: false,
             operation_error: None,
+            watch: None,
             retained: Default::default(),
             refresh: None,
             references: Default::default(),
@@ -309,6 +312,10 @@ impl Explorer {
             clipboard: std::mem::replace(&mut self.clipboard, restored.clipboard),
             op: std::mem::replace(&mut self.op, restored.op),
         };
+        self.watch = None;
+        if !self.fixture || cfg!(test) {
+            self.subscribe_tree(&workspace, cx);
+        }
         if let Some(old) = self.workspace.replace(workspace) {
             self.retained.insert(key(&old), previous);
         }
@@ -320,6 +327,36 @@ impl Explorer {
             self.refresh_loaded_folders(cx);
         }
         cx.notify();
+    }
+    /// Directory subscription: external changes (Agents, terminals, other
+    /// apps) reread the loaded folders; one reset per coalesced burst.
+    fn subscribe_tree(&mut self, workspace: &Arc<Workspace>, cx: &mut Context<Self>) {
+        let (tx, rx) = async_channel::bounded::<()>(1);
+        let notify: crate::workspace::ports::Notify = Arc::new(move || {
+            let _ = tx.try_send(());
+        });
+        let Ok(subscription) = workspace.watch_root(notify) else {
+            return;
+        };
+        let task = cx.spawn(async move |this, cx| {
+            while rx.recv().await.is_ok() {
+                let alive = this.update(cx, |s, cx| {
+                    let invalidated = s.watch.as_ref().is_some_and(|(sub, _)| {
+                        matches!(
+                            sub.next(),
+                            Some(crate::workspace::ports::WatchEvent::Invalidated)
+                        )
+                    });
+                    if invalidated && !s.op {
+                        s.refresh_loaded_folders(cx);
+                    }
+                });
+                if alive.is_err() {
+                    break;
+                }
+            }
+        });
+        self.watch = Some((subscription, task));
     }
     fn refresh_loaded_folders(&mut self, cx: &mut Context<Self>) {
         let Some(workspace) = self.workspace.clone() else {

@@ -29,8 +29,9 @@ mod panes;
 mod project_menu;
 mod rename;
 pub(crate) mod tasks;
+pub mod windows;
 use command::on_shell_actions;
-pub use command::{Command, app_menus, bind_keys, on_global_shell_actions};
+pub use command::{Command, app_menus, bind_keys, dock_menu, on_global_shell_actions};
 use explorer::{Explorer, ExplorerEvent, Host};
 use footer::SidebarFooter;
 use modals::{Modal, Modals, Task};
@@ -53,6 +54,8 @@ pub enum Popover {
 pub struct Shell {
     /// This window's budget owner (`ownerId`), shared with its hosts.
     window_key: String,
+    /// Launch without a project: open the last active one once preferences load.
+    restore_last: bool,
     project: String,
     dark: bool,
     locale: Locale,
@@ -134,7 +137,8 @@ impl Shell {
                 if s.files.allow_quit {
                     s.preferences.read(cx).drained()
                         && !s.modals.create_entry().is_some_and(|f| f.read(cx).busy())
-                        && crate::features::cloud_account::close_ready(cx)
+                        && (windows::count(cx) > 1
+                            || crate::features::cloud_account::close_ready(cx))
                 } else {
                     s.command(Command::Quit, window, cx);
                     false
@@ -178,15 +182,12 @@ impl Shell {
             }
         })
         .detach();
-        let preferences = cx.new(|cx| {
-            if fixture {
-                crate::features::settings::preferences_store::PreferencesStore::memory()
-            } else {
-                crate::features::settings::preferences_store::PreferencesStore::new(cx)
-            }
-        });
+        // One preference owner for every window; per-window state stays here.
+        let launch = windows::take_launch(cx);
+        let preferences = windows::shared_preferences(fixture, cx);
         let mut s = Self {
             window_key: format!("window:{:?}", window.window_handle().window_id()),
+            restore_last: false,
             project: if fixture {
                 "puppyone".into()
             } else {
@@ -260,6 +261,14 @@ impl Shell {
             window,
             |s, _, _: &crate::features::settings::preferences_store::PreferencesChanged, w, cx| {
                 s.apply_preferences(w, cx);
+                if s.restore_last && s.preferences.read(cx).loaded {
+                    s.restore_last = false;
+                    if let Some(path) = windows::last_active_project(cx)
+                        && s.files.workspace.is_none()
+                    {
+                        s.open_project(path, w, cx);
+                    }
+                }
             },
         )
         .detach();
@@ -404,14 +413,14 @@ impl Shell {
             }
         })
         .detach();
-        let mut args = if cfg!(test) {
+        let mut args = if cfg!(test) || !launch.from_args {
             vec![]
         } else {
             std::env::args_os().skip(1).collect::<Vec<_>>()
         }
         .into_iter();
-        let mut workspace = if cfg!(test) {
-            None
+        let mut workspace = if cfg!(test) || !launch.from_args {
+            launch.workspace.clone()
         } else {
             std::env::var_os("PUPPYONE_WORKSPACE").map(PathBuf::from)
         };
@@ -444,7 +453,11 @@ impl Shell {
         }
         if let Some(path) = workspace {
             s.files.begin(Intent::OpenFolder(path), &s.wake);
+        } else if launch.from_args && !fixture && !cfg!(test) {
+            // `readLastActiveWorkspaceComposition`: the last active project.
+            s.restore_last = true;
         }
+        windows::register(window.window_handle(), cx.weak_entity(), cx);
         // Until preferences load: the default Sub Theme in the start-up mode.
         crate::ui::appearance::Appearance::default()
             .with_dark(s.dark)
@@ -565,7 +578,7 @@ impl Shell {
                 match result {
                     Ok(Ok(Some(paths))) => {
                         if let Some(path) = paths.into_iter().next() {
-                            s.files.begin(Intent::OpenFolder(path), &s.wake);
+                            s.open_project(path, w, cx);
                         }
                     }
                     Ok(Err(e)) => s.show_error(e.to_string()),
@@ -579,6 +592,16 @@ impl Shell {
         .detach();
     }
     pub fn command(&mut self, command: Command, window: &mut Window, cx: &mut Context<Self>) {
+        if command == Command::QuitApp {
+            windows::quit_all(cx);
+            return;
+        }
+        if command == Command::NewWindow {
+            cx.defer(|cx| {
+                let _ = windows::open(None, cx);
+            });
+            return;
+        }
         if command == Command::Quit {
             self.end_editor_resize(false, cx);
         }
@@ -598,6 +621,7 @@ impl Shell {
             }
             Command::CancelProcessQuit => {
                 self.modals.remove(|m| matches!(m, Modal::ConfirmQuit));
+                windows::cancel_quit(cx);
                 cx.notify();
                 return;
             }
@@ -830,19 +854,25 @@ impl Shell {
             if let Some(error) = self.preferences.read(cx).error.clone() {
                 self.show_error(error);
                 self.files.cancel_quit(&self.wake);
+                windows::cancel_quit(cx);
                 self.sync_editor(window, cx);
             }
             return;
         }
         if self.files.allow_quit {
-            match crate::features::cloud_account::prepare_close(cx) {
-                Ok(true) => {}
-                Ok(false) => return,
-                Err(error) => {
-                    self.files.cancel_quit(&self.wake);
-                    self.sync_editor(window, cx);
-                    self.show_error(error.to_string());
-                    return;
+            // The account owner is process-wide: only the last window drains
+            // it; closing one of several windows leaves it running.
+            if windows::count(cx) <= 1 {
+                match crate::features::cloud_account::prepare_close(cx) {
+                    Ok(true) => {}
+                    Ok(false) => return,
+                    Err(error) => {
+                        self.files.cancel_quit(&self.wake);
+                        windows::cancel_quit(cx);
+                        self.sync_editor(window, cx);
+                        self.show_error(error.to_string());
+                        return;
+                    }
                 }
             }
             self.workbench.update(cx, |s, cx| s.shutdown(cx));
@@ -851,6 +881,7 @@ impl Shell {
             let scheduler = crate::platform::tasks::Scheduler::global();
             let _hold = scheduler.hold_admission();
             let _ = scheduler.retire(&self.window_key, None, None);
+            windows::unregister(window.window_handle(), cx);
             window.remove_window();
         }
     }
@@ -1000,6 +1031,13 @@ impl Shell {
                 .update(cx, |editor, cx| editor.focus_document(window, cx));
         }
     }
+    /// The local project this window shows.
+    pub fn workspace_root(&self) -> Option<PathBuf> {
+        self.files
+            .workspace
+            .as_ref()
+            .and_then(|ws| ws.local_root().map(PathBuf::from))
+    }
     /// Switch to a remembered project (`onSelectProject`).
     pub(super) fn open_project(
         &mut self,
@@ -1008,6 +1046,12 @@ impl Shell {
         cx: &mut Context<Self>,
     ) {
         self.popover = None;
+        let canonical = path.canonicalize().unwrap_or_else(|_| path.clone());
+        if let Some(other) = windows::window_showing(&canonical, window.window_handle(), cx) {
+            // `createOrRevealWindow`: one project, one window.
+            let _ = other.update(cx, |_, w, _| w.activate_window());
+            return;
+        }
         if self
             .files
             .workspace

@@ -14,7 +14,11 @@ pub enum Command {
     CloseFile,
     /// Editor pane menu "Open in default app".
     OpenExternal,
+    /// Close this window through its barrier (window close button, or one
+    /// window's share of an app quit).
     Quit,
+    /// ⌘Q / app menu Quit: every window closes through its own barrier.
+    QuitApp,
     QuitWithProcesses,
     CancelProcessQuit,
     OpenFolder,
@@ -37,6 +41,8 @@ pub enum Command {
     Changes,
     /// File → Manage Running Sessions (`file.manageExecutions`).
     ManageExecutions,
+    /// File/Dock → New Window (`file.newWindow`, ⌘N).
+    NewWindow,
     CloseExecutions,
 }
 impl Command {
@@ -84,10 +90,16 @@ shell_actions! {
     Save => Save,
     Reload => Reload,
     CloseFile => CloseFile,
-    Quit => Quit,
+    Quit => QuitApp,
     Escape => Escape,
     ToggleMarkdownSource => ToggleMarkdownSource,
     ManageExecutions => ManageExecutions,
+    NewWindow => NewWindow,
+}
+
+/// The Dock menu (`createDockMenuTemplate`).
+pub fn dock_menu() -> Vec<MenuItem> {
+    vec![MenuItem::action(tr("native.dock.newWindow"), NewWindow)]
 }
 
 pub fn bind_keys(cx: &mut App) {
@@ -101,6 +113,7 @@ pub fn bind_keys(cx: &mut App) {
             KeyBinding::new(&key("s"), Save, None),
             KeyBinding::new(&key("w"), CloseFile, None),
             KeyBinding::new(&key("q"), Quit, None),
+            KeyBinding::new(&key("n"), NewWindow, None),
         ]);
     }
     cx.bind_keys([KeyBinding::new("escape", Escape, None)]);
@@ -123,6 +136,8 @@ pub fn app_menus() -> Vec<Menu> {
             disabled: false,
             name: tr("native.menu.file").into(),
             items: vec![
+                MenuItem::action(tr("native.dock.newWindow"), NewWindow),
+                MenuItem::separator(),
                 MenuItem::action(tr("shell.workspaceSwitcher.openFolder"), OpenFolder),
                 MenuItem::action(tr("native.menu.reload"), Reload),
                 MenuItem::action(tr("native.menu.closeFile"), CloseFile),

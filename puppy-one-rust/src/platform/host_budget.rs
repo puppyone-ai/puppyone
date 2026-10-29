@@ -558,7 +558,10 @@ mod tests {
 
     #[test]
     fn renderer_hosts_use_the_renderer_memory_budget() {
-        let b = Budget::new(Policy { renderer_rss: 100 * MIB, ..POLICY });
+        let b = Budget::new(Policy {
+            renderer_rss: 100 * MIB,
+            ..POLICY
+        });
         let lease = b.reserve("web", "w", "p", "html").unwrap();
         let hit = Arc::new(AtomicUsize::new(0));
         let h = hit.clone();
@@ -566,7 +569,14 @@ mod tests {
             assert_eq!(code, Exceeded::Memory);
             h.fetch_add(1, Ordering::SeqCst);
         });
-        b.sample(&[Metric { pid: 5, rss: 150 * MIB, cpu_percent: 0. }], Instant::now());
+        b.sample(
+            &[Metric {
+                pid: 5,
+                rss: 150 * MIB,
+                cpu_percent: 0.,
+            }],
+            Instant::now(),
+        );
         assert_eq!(hit.load(Ordering::SeqCst), 1);
     }
 

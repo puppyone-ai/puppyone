@@ -94,13 +94,6 @@ impl Drop for WatchSubscription {
     }
 }
 pub trait ResourceWatchPort: Send + Sync {
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "Provider root observation precedes Cloud navigation wiring"
-        )
-    )]
     fn watch_root(&self, _notify: Notify) -> Result<WatchSubscription> {
         Err(Error::unsupported())
     }

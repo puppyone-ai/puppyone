@@ -133,7 +133,12 @@
       "native.execution.state.pending": "This instance has not been terminated.",
       "native.execution.state.running": "Termination accepted. Waiting for resource exit confirmation.",
       "native.execution.state.unconfirmed": "Cleanup is unconfirmed. Resource ownership is retained; you can retry.",
-      "native.execution.state.confirmed": "Resources have exited."
+      "native.execution.state.confirmed": "Resources have exited.",
+      "native.dock.newWindow": "New Window",
+      "native.menu.theme": "Theme",
+      "native.menu.theme.pack": "Visual Variant",
+      "native.menu.theme.openFolder": "Open Themes Folder",
+      "native.menu.checkForUpdates": "Check for Updates…"
     },
     "zh-Hans": {
       "native.agent.fork": "分叉对话",
@@ -267,7 +272,12 @@
       "native.execution.state.pending": "此实例尚未终止。",
       "native.execution.state.running": "终止已受理，正在确认资源退出。",
       "native.execution.state.unconfirmed": "尚未确认清理完成；资源仍由应用管理，可以重试。",
-      "native.execution.state.confirmed": "资源已退出。"
+      "native.execution.state.confirmed": "资源已退出。",
+      "native.dock.newWindow": "新建窗口",
+      "native.menu.theme": "主题",
+      "native.menu.theme.pack": "视觉变体",
+      "native.menu.theme.openFolder": "打开主题文件夹",
+      "native.menu.checkForUpdates": "检查更新…"
     },
     "ja": {
       "native.agent.fork": "会話をフォーク",
@@ -401,7 +411,12 @@
       "native.execution.state.pending": "このインスタンスはまだ終了されていません。",
       "native.execution.state.running": "終了を受け付けました。リソースの終了確認を待っています。",
       "native.execution.state.unconfirmed": "後処理が未確認です。リソースの管理は維持されています。再試行できます。",
-      "native.execution.state.confirmed": "リソースの終了を確認しました。"
+      "native.execution.state.confirmed": "リソースの終了を確認しました。",
+      "native.dock.newWindow": "新規ウインドウ",
+      "native.menu.theme": "テーマ",
+      "native.menu.theme.pack": "ビジュアルバリエーション",
+      "native.menu.theme.openFolder": "テーマフォルダーを開く",
+      "native.menu.checkForUpdates": "アップデートを確認…"
     },
     "ko": {
       "native.agent.fork": "대화 포크",
@@ -535,7 +550,12 @@
       "native.execution.state.pending": "이 인스턴스는 아직 종료되지 않았습니다.",
       "native.execution.state.running": "종료 요청을 수락했습니다. 리소스 종료 확인을 기다리는 중입니다.",
       "native.execution.state.unconfirmed": "정리가 확인되지 않았습니다. 리소스 소유권은 유지되며 다시 시도할 수 있습니다.",
-      "native.execution.state.confirmed": "리소스 종료를 확인했습니다."
+      "native.execution.state.confirmed": "리소스 종료를 확인했습니다.",
+      "native.dock.newWindow": "새 윈도우",
+      "native.menu.theme": "테마",
+      "native.menu.theme.pack": "비주얼 변형",
+      "native.menu.theme.openFolder": "테마 폴더 열기",
+      "native.menu.checkForUpdates": "업데이트 확인…"
     },
     "es": {
       "native.agent.fork": "Bifurcar conversación",
@@ -669,7 +689,12 @@
       "native.execution.state.pending": "Esta instancia aún no se ha terminado.",
       "native.execution.state.running": "Terminación aceptada. Esperando confirmar la liberación de recursos.",
       "native.execution.state.unconfirmed": "La limpieza no está confirmada. Los recursos siguen asignados; puedes reintentar.",
-      "native.execution.state.confirmed": "Los recursos se han liberado."
+      "native.execution.state.confirmed": "Los recursos se han liberado.",
+      "native.dock.newWindow": "Nueva ventana",
+      "native.menu.theme": "Tema",
+      "native.menu.theme.pack": "Variante visual",
+      "native.menu.theme.openFolder": "Abrir carpeta de temas",
+      "native.menu.checkForUpdates": "Buscar actualizaciones…"
     },
     "pt-BR": {
       "native.agent.fork": "Bifurcar conversa",
@@ -803,7 +828,12 @@
       "native.execution.state.pending": "Esta instância ainda não foi encerrada.",
       "native.execution.state.running": "Encerramento aceito. Aguardando confirmação da liberação de recursos.",
       "native.execution.state.unconfirmed": "A limpeza não foi confirmada. Os recursos continuam sob gerenciamento; você pode tentar novamente.",
-      "native.execution.state.confirmed": "Os recursos foram liberados."
+      "native.execution.state.confirmed": "Os recursos foram liberados.",
+      "native.dock.newWindow": "Nova janela",
+      "native.menu.theme": "Tema",
+      "native.menu.theme.pack": "Variante visual",
+      "native.menu.theme.openFolder": "Abrir pasta de temas",
+      "native.menu.checkForUpdates": "Buscar atualizações…"
     },
     "fr": {
       "native.agent.fork": "Dupliquer la conversation",
@@ -937,7 +967,12 @@
       "native.execution.state.pending": "Cette instance n’a pas été terminée.",
       "native.execution.state.running": "Terminaison acceptée. En attente de confirmation de la libération des ressources.",
       "native.execution.state.unconfirmed": "Le nettoyage n’est pas confirmé. Les ressources restent attribuées ; vous pouvez réessayer.",
-      "native.execution.state.confirmed": "Les ressources ont été libérées."
+      "native.execution.state.confirmed": "Les ressources ont été libérées.",
+      "native.dock.newWindow": "Nouvelle fenêtre",
+      "native.menu.theme": "Thème",
+      "native.menu.theme.pack": "Variante visuelle",
+      "native.menu.theme.openFolder": "Ouvrir le dossier des thèmes",
+      "native.menu.checkForUpdates": "Rechercher les mises à jour…"
     },
     "de": {
       "native.agent.fork": "Unterhaltung abzweigen",
@@ -1071,7 +1106,12 @@
       "native.execution.state.pending": "Diese Instanz wurde noch nicht beendet.",
       "native.execution.state.running": "Beendigung angenommen. Ressourcenfreigabe wird bestätigt.",
       "native.execution.state.unconfirmed": "Bereinigung nicht bestätigt. Die Ressourcen bleiben zugeordnet; du kannst es erneut versuchen.",
-      "native.execution.state.confirmed": "Die Ressourcen wurden freigegeben."
+      "native.execution.state.confirmed": "Die Ressourcen wurden freigegeben.",
+      "native.dock.newWindow": "Neues Fenster",
+      "native.menu.theme": "Theme",
+      "native.menu.theme.pack": "Visuelle Variante",
+      "native.menu.theme.openFolder": "Theme-Ordner öffnen",
+      "native.menu.checkForUpdates": "Nach Updates suchen…"
     }
   }
 }
