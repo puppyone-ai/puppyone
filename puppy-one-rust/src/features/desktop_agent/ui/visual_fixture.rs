@@ -316,6 +316,7 @@ impl AgentChat {
                         data: LAB_IMAGE_PNG.into(),
                     },
                     bytes: 256,
+                    origin: Default::default(),
                 },
                 Reference {
                     id: "ref-file".into(),
@@ -323,6 +324,7 @@ impl AgentChat {
                     source: "README.md".into(),
                     content: ReferenceContent::Text(String::new()),
                     bytes: 0,
+                    origin: Default::default(),
                 },
             ];
             // The product fixture's draft: `@README.md ` with its mention.

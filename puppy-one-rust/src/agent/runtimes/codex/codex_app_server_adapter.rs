@@ -1206,6 +1206,7 @@ mod tests {
                 source: "explicit test fixture".into(),
                 bytes: 18,
                 content: ReferenceContent::Text("GPUI_REFERENCE_OK".into()),
+                origin: Default::default(),
             }],
         });
         wait(&mut resumed, |s| s.snapshot.state == State::Idle);

@@ -5,6 +5,23 @@ pub enum ReferenceContent {
     Text(String),
     Image { mime: String, data: String },
 }
+/// Where a reference's content comes from at each turn.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Origin {
+    /// Captured once (pasted or built in).
+    #[default]
+    Snapshot,
+    /// A live workspace file or folder, authorized and read for every turn.
+    Workspace {
+        path: std::path::PathBuf,
+        folder: bool,
+    },
+    /// A private copy of a file from outside the workspace.
+    Staged {
+        snapshot: std::path::PathBuf,
+        digest: String,
+    },
+}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Reference {
     pub id: String,
@@ -12,6 +29,8 @@ pub struct Reference {
     pub source: String,
     pub content: ReferenceContent,
     pub bytes: usize,
+    #[serde(default)]
+    pub origin: Origin,
 }
 #[derive(Clone, Debug, Default)]
 pub struct Prompt {

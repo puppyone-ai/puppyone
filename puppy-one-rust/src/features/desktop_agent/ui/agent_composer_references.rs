@@ -139,7 +139,7 @@ impl AgentChat {
                             .hover(move |s| s.bg(action_hover))
                             .tooltip(crate::ui::components::tooltip(remove))
                             .on_click(cx.listener(move |s, _, _, cx| {
-                                s.session.references.retain(|r| r.id != id);
+                                s.session.remove_references(|r| r.id != id);
                                 cx.notify();
                             }))
                             .child(Icon::new("x").xsmall().stroke(2.).color(a.text_muted)),
@@ -178,7 +178,7 @@ impl AgentChat {
     /// A mention deleted from the prompt takes its reference with it.
     pub(super) fn reconcile_mentions(&mut self, cx: &App) {
         let present = self.composer.read(cx).token_ids(cx);
-        self.session.references.retain(|r| {
+        self.session.remove_references(|r| {
             matches!(r.content, ReferenceContent::Image { .. }) || present.contains(&r.id)
         });
     }

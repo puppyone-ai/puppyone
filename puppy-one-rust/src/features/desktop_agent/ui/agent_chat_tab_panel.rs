@@ -242,12 +242,13 @@ impl AgentChat {
             },
         )
         .detach();
-        let session = AgentSessionController::new(create(
+        let mut session = AgentSessionController::new(create(
             installation.clone(),
             root.clone(),
             history,
             wake.clone(),
         ));
+        session.root = Some(root.clone());
         let transcript = ListState::new(0, ListAlignment::Top, px(300.));
         let weak = cx.entity().downgrade();
         transcript.set_scroll_handler(move |event, _, cx| {
@@ -416,7 +417,13 @@ impl AgentChat {
             return;
         }
         self.attachment_thread = self.session.snapshot().thread.clone();
-        self.attachment_rx = Some(native_attachment_client::stage(paths, self.wake.clone()));
+        self.attachment_rx = Some(native_attachment_client::stage(
+            paths,
+            self.root.clone(),
+            self.session.owner.clone(),
+            self.session.references.clone(),
+            self.wake.clone(),
+        ));
         cx.notify();
     }
     /// `addFromComputer` / `addFromWorkspace`: both stage through the same

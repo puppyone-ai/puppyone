@@ -234,11 +234,12 @@
         "electron/main/agent/runtimes/codex/codex-reference-input.mjs"
       ],
       "targets": [
-        "src/agent/infrastructure/attachments.rs",
         "src/agent/domain/reference_input.rs",
+        "src/agent/infrastructure/attachments.rs",
+        "src/features/desktop_agent/application/agent_session_controller.rs",
         "src/features/desktop_agent/infrastructure/native/native_attachment_client.rs"
       ],
-      "remaining": "Explicit picker/drop snapshots with MIME/UTF-8/size checks and provider-capability gates exist. Path references are atomic @path mentions inserted at the caret as the composer's inline tokens (spacing as AgentPromptEditor), deleting one drops its reference, and drafts restore them; images stay on the attachment shelf. Product attachment grants, durable binary assets, deduplication, mention navigation and all lifetime policies remain pending."
+      "remaining": "Explicit picker/drop snapshots with MIME/UTF-8/size checks and provider-capability gates exist. Path references are atomic @path mentions inserted at the caret as the composer's inline tokens, deleting one drops its reference, and drafts restore them; images stay on the attachment shelf. Authorization (agent-reference-authorization.mjs): workspace files and folders are live references, re-canonicalised, kept inside the workspace, checked for kind and size and read again for every turn; a failure keeps the draft with the product's message. Grants and lifetime (agent-attachment-store.mjs): files from outside the workspace are copied into a private per-process staging directory with a SHA-256 digest, owned by one conversation, deduplicated by name/size/digest, renewed when used, expired after 30 minutes, revoked when removed from the draft or when the conversation closes; staging of exited processes is swept. Limits: 32 references, 25 MB each and in total (text inlined by native runtimes stays at 1 MiB). Not ported: inline (pasted) attachment bytes, per-turn leases (native turns read the bytes at send), workspace resource URIs (Cloud) and mention navigation."
     },
     {
       "name": "Session catalog and capacity",

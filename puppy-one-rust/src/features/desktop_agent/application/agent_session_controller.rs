@@ -47,6 +47,10 @@ pub fn now_ms() -> u64 {
 
 pub struct AgentSessionController {
     client: Box<dyn AgentRuntimePort>,
+    /// This conversation's attachment owner (its staged snapshots).
+    pub owner: String,
+    /// The workspace its live references must stay inside.
+    pub root: Option<std::path::PathBuf>,
     pub references: Vec<Reference>,
     pub draft_error: Option<String>,
     pending: Option<Prompt>,
@@ -57,10 +61,18 @@ pub struct AgentSessionController {
     /// Finished turns keyed by the user message that started them.
     pub turn_timings: HashMap<String, TurnTiming>,
 }
+/// `revokeOwner`: a closed conversation's attachments go with it.
+impl Drop for AgentSessionController {
+    fn drop(&mut self) {
+        crate::agent::infrastructure::attachments::revoke_owner(&self.owner);
+    }
+}
 impl AgentSessionController {
     pub fn new(client: Box<dyn AgentRuntimePort>) -> Self {
         Self {
             client,
+            owner: uuid::Uuid::new_v4().to_string(),
+            root: None,
             references: vec![],
             draft_error: None,
             pending: None,
@@ -148,10 +160,17 @@ impl AgentSessionController {
         {
             return false;
         }
-        let prompt = Prompt {
-            text,
-            references: self.references.clone(),
-        };
+        // `authorizeAgentReferences`: live references are checked and read
+        // again, snapshots must be intact; a failure keeps the draft.
+        let mut references = self.references.clone();
+        if let Err(error) = crate::agent::infrastructure::attachments::authorize(
+            &mut references,
+            self.root.as_deref(),
+        ) {
+            self.draft_error = Some(error);
+            return false;
+        }
+        let prompt = Prompt { text, references };
         self.pending = Some(prompt.clone());
         self.client.submit(prompt);
         self.observe_turn();
@@ -202,6 +221,14 @@ impl AgentSessionController {
         }
     }
 
+    /// Drops draft references, revoking their staged snapshots.
+    pub fn remove_references(&mut self, keep: impl Fn(&Reference) -> bool) {
+        let (kept, removed): (Vec<_>, Vec<_>) = std::mem::take(&mut self.references)
+            .into_iter()
+            .partition(|r| keep(r));
+        self.references = kept;
+        crate::agent::infrastructure::attachments::revoke(&removed);
+    }
     pub fn stage(&mut self, refs: Vec<Reference>) {
         let caps = &self.snapshot().capabilities;
         if refs.iter().any(|r| {
@@ -220,8 +247,8 @@ impl AgentSessionController {
                 .iter()
                 .chain(&refs)
                 .map(|r| r.bytes)
-                .sum::<usize>()
-                > 16 * 1024 * 1024
+                .sum::<usize>() as u64
+                > crate::agent::infrastructure::attachments::MAX_TOTAL_REFERENCE_BYTES
         {
             self.draft_error =
                 Some(crate::localization::t("agent.reference.error.reference-limit").into());
