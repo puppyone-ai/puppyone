@@ -524,3 +524,23 @@ fn hosted_documents_read_relative_assets_through_their_provider() {
     let id = local.document.as_ref().unwrap().id.clone();
     assert!(crate::editor::registry::document_source(&id).is_none());
 }
+
+#[test]
+fn a_hidden_document_releases_its_subscription_and_revalidates_when_shown() {
+    let (temp, mut d, ctx) = setup();
+    d.ensure_session(&ctx);
+    assert!(d.watching());
+    d.pause_watch();
+    assert!(!d.watching());
+    // A change while hidden is not observed...
+    std::fs::write(temp.path().join("a.md"), "changed while hidden").unwrap();
+    // ...and showing the document again subscribes and rereads once.
+    d.resume_watch(&ctx);
+    assert!(d.watching());
+    let deadline = Instant::now() + Duration::from_secs(4);
+    while d.document.as_ref().unwrap().text != "changed while hidden" {
+        d.poll(&ctx);
+        assert!(Instant::now() < deadline, "{:?}", d.error);
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}

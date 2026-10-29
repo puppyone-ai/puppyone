@@ -62,6 +62,8 @@ pub struct Runtime {
     active: Option<String>,
     preparing: Option<Documents>,
     last_cloud_failure: Option<crate::workspace::cloud::opening::Failure>,
+    /// A host was activated: subscribe its hosted documents on next poll.
+    resume_cloud: bool,
     serial: u64,
     navigation: u64,
     quitting: bool,
@@ -275,6 +277,7 @@ impl Runtime {
     pub fn deactivate(&mut self) {
         self.navigation += 1;
         self.revoke_preparing();
+        self.pause_hidden_cloud();
         self.active = None;
         self.generation += 1;
     }
@@ -427,10 +430,41 @@ impl Runtime {
         self.generation += 1;
     }
     fn activate_workspace(&mut self, key: String) {
+        self.pause_hidden_cloud();
         let host = &self.hosts[&key];
         self.tree_update = Some(host.rows.clone());
         self.active = Some(key);
+        self.resume_cloud = true;
         self.generation += 1;
+    }
+    /// The visible host leaves the screen: a hosted one releases its
+    /// document subscriptions (Agent runs are not this host's to stop).
+    fn pause_hidden_cloud(&mut self) {
+        if let Some(host) = self.active.as_ref().and_then(|key| self.hosts.get_mut(key))
+            && host
+                .empty
+                .workspace
+                .as_ref()
+                .is_some_and(|ws| ws.local_root().is_none())
+        {
+            for slot in host.slots.values_mut() {
+                slot.files.pause_watch();
+            }
+        }
+    }
+    /// A hosted host shows again: subscribe and revalidate its documents.
+    fn resume_visible_cloud(&mut self, wake: &Wake) {
+        if let Some(host) = self.active.as_ref().and_then(|key| self.hosts.get_mut(key))
+            && host
+                .empty
+                .workspace
+                .as_ref()
+                .is_some_and(|ws| ws.local_root().is_none())
+        {
+            for slot in host.slots.values_mut() {
+                slot.files.resume_watch(wake);
+            }
+        }
     }
     pub fn client_for(&mut self, slot: SlotId, message: ClientMessage, wake: &Wake) {
         // Hidden slots may acknowledge snapshots and save, but cannot navigate.
@@ -482,6 +516,9 @@ impl Runtime {
         }
     }
     pub fn poll(&mut self, wake: &Wake) {
+        if std::mem::take(&mut self.resume_cloud) {
+            self.resume_visible_cloud(wake);
+        }
         self.poll_metadata(wake);
         self.scratch.poll(wake);
         if self.active.is_none() {

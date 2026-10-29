@@ -311,6 +311,24 @@ impl Documents {
             }
         }
     }
+    /// Leaving a hosted workspace releases this document's subscription
+    /// (`DesktopCloudFileWorkspace` unmounts its watch); the draft stays.
+    pub fn pause_watch(&mut self) {
+        self.watch = None;
+        self.observing = false;
+    }
+    /// Showing it again subscribes again and revalidates once, since
+    /// changes while hidden were not observed.
+    pub fn resume_watch(&mut self, ctx: &Wake) {
+        if self.watch.is_none() && self.document.is_some() && self.session.is_some() {
+            self.observation_pending = true;
+            self.start_watch(ctx);
+        }
+    }
+    #[cfg(test)]
+    pub fn watching(&self) -> bool {
+        self.watch.is_some()
+    }
     pub fn operation_ready(&self) -> bool {
         matches!(self.phase, Phase::Prepared)
     }
