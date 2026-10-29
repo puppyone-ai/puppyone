@@ -28,12 +28,16 @@ const entry = "document.querySelector('[data-cloud-workspace-tool=agent]')";
 const composer = "document.querySelector('.desktop-cloud-agent-sidebar .cm-content')";
 const send = "document.querySelector('.desktop-cloud-agent-sidebar .desktop-agent-composer-action')";
 const rightPane = "document.querySelector('.desktop-right-sidebar')";
+// A local folder and its Cloud project are two projects (puppy-issues ADR-001):
+// moving between them is choosing the other project's row in the project menu.
 async function selectLocation(location) {
-  if (!await evaluate(`Boolean(document.querySelector('button[data-project-location=${location}]'))`)) {
-    await evaluate("document.querySelector('.desktop-titlebar-location-button').click()");
+  const row = `.desktop-project-menu .desktop-project-switcher-row[data-project-location=${location}]`;
+  if (!await evaluate(`Boolean(document.querySelector('${row}'))`)) {
+    await evaluate("document.querySelector('.desktop-titlebar-workspace-button').click()");
   }
-  await waitFor(`Boolean(document.querySelector('button[data-project-location=${location}]'))`);
-  await evaluate(`document.querySelector('button[data-project-location=${location}]').click()`);
+  await waitFor(`Boolean(document.querySelector('${row}'))`);
+  await evaluate(`document.querySelector('${row}').querySelector('button').click()`);
+  await waitFor("!document.querySelector('.desktop-project-menu')");
 }
 async function settleSidebar() {
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
@@ -108,25 +112,14 @@ async function checkWorkbench(api, mode) {
 async function checkLocationRoundTrip(api) {
   await selectLocation("local");
   await waitFor(`${api}.state().location === 'local' && ${rightPane}.dataset.paneCollapsed === 'true'`);
-  await evaluate("document.querySelector('.desktop-titlebar-location-button').click()");
   await evaluate("document.querySelector('.desktop-titlebar-terminal').click()");
   await waitFor(`${rightPane}.dataset.paneCollapsed === 'false'`);
-  await evaluate(`${api}.holdCloudRead()`);
   await selectLocation("cloud");
-  await waitFor(`${entry}?.disabled && ${rightPane}.dataset.paneCollapsed === 'true'`);
-  assert(await evaluate(`${api}.state().location === 'local' && document.querySelector('[data-native-local-agent]').getAttribute('aria-hidden') === 'true'`),
-    "Requesting Cloud must collapse and hide Local sidebar before file access completes");
-  await evaluate("document.querySelector('button[data-project-location=local]').click()");
-  await waitFor("!document.querySelector('[data-cloud-workspace-tool=agent]')");
-  await evaluate(`${api}.finishCloudRead()`);
-  await evaluate("new Promise(resolve => setTimeout(resolve, 300))");
-  assert(await evaluate(`${api}.state().location === 'local' && ${rightPane}.dataset.paneCollapsed === 'true'`),
-    "Cancelling Cloud must retain a closed Local pane and fence the delayed response");
-  await evaluate("document.querySelector('button[data-project-location=cloud]').click()");
   await waitFor(`${api}.state().location === 'cloud' && !${entry}.disabled`);
+  assert(await evaluate("document.querySelector('[data-native-local-agent]').getAttribute('aria-hidden') === 'true'"),
+    "Opening the Cloud project must hide the folder's Local sidebar");
   assert(await evaluate(`${entry}.getAttribute('aria-expanded') === 'false' && ${rightPane}.dataset.paneCollapsed === 'true'`),
     "Returning to a previously opened Cloud Agent must keep the pane closed");
-  await evaluate("document.querySelector('.desktop-titlebar-location-button').click()");
   await evaluate(`${entry}.click()`);
   await waitFor(`${composer}?.textContent.includes('Keep this draft')`);
   assert(await evaluate("document.querySelector('[data-native-local-agent]').getAttribute('aria-hidden') === 'true'"),
@@ -149,16 +142,10 @@ async function exercise(mode) {
   } else {
     await evaluate("document.querySelector('.desktop-titlebar-terminal').click()");
     await waitFor(`${rightPane}.dataset.paneCollapsed === 'false'`);
-    await evaluate(`${api}.holdCloudRead()`);
-    await evaluate("document.querySelector('.desktop-titlebar-location-button').click()");
-    await waitFor("Boolean(document.querySelector('button[data-project-location=cloud]'))");
-    await evaluate("document.querySelector('button[data-project-location=cloud]').click()");
-    await waitFor(`${entry}?.disabled && ${rightPane}.dataset.paneCollapsed === 'true'`);
-    assert(await evaluate(`${api}.state().location === 'local'`), "Local pane closes before Cloud commits");
-    await evaluate(`${api}.finishCloudRead()`);
-    await waitFor(`${api}.state().location === 'cloud'`);
-    await evaluate("document.querySelector('.desktop-titlebar-location-button').click()");
-    await waitFor("!document.querySelector('.desktop-project-location-menu')");
+    await selectLocation("cloud");
+    await waitFor(`${api}.state().location === 'cloud' && ${rightPane}.dataset.paneCollapsed === 'true'`);
+    assert(await evaluate("document.querySelector('[data-native-local-agent]').getAttribute('aria-hidden') === 'true'"),
+      "The folder's Local pane closes when its Cloud project opens");
     await evaluate(`${api}.openCloudFile('readme.txt')`);
   }
   await waitFor(`Boolean(${entry}) && !${entry}.disabled`);
@@ -211,11 +198,10 @@ async function exercise(mode) {
   if (!hosted) {
     await selectLocation("local");
     await waitFor(`${api}.state().location === 'local' && ${rightPane}.dataset.paneCollapsed === 'true'`);
-    assert(await evaluate(`${api}.state().agent.states[1] === 'running'`), "Changing location must not stop the remote task");
-    await evaluate("document.querySelector('button[data-project-location=cloud]').click()");
+    assert(await evaluate(`${api}.state().agent.states[1] === 'running'`), "Going to the folder must not stop the remote task");
+    await selectLocation("cloud");
     await waitFor(`${api}.state().location === 'cloud' && !${entry}.disabled`);
     assert(await evaluate(`${entry}.getAttribute('aria-expanded') === 'false'`), "A running task must not reopen the Cloud pane on return");
-    await evaluate("document.querySelector('.desktop-titlebar-location-button').click()");
     await evaluate(`${entry}.click()`);
     await waitFor(`${send}?.classList.contains('is-stop')`);
   }
@@ -238,7 +224,6 @@ async function exercise(mode) {
         await selectLocation("cloud");
         await waitFor(`${api}.state().location === 'cloud' && !${entry}.disabled`);
         assert(await evaluate(`${entry}.getAttribute('aria-expanded') === 'false'`), "Cloud chat remains closed after each return");
-        await evaluate("document.querySelector('.desktop-titlebar-location-button').click()");
       }
       await evaluate(`${entry}.click()`);
       await waitFor(`Boolean(${composer})`);

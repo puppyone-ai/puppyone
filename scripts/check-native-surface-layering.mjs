@@ -143,10 +143,6 @@ for (const token of [
 for (const [owner, file, token] of [
   ["src/features/app-shell/DesktopDataWorkspaceSurface.tsx", "src/features/app-shell/DesktopDataWorkspaceSurface.tsx",
     "explorerResizeHandleRef={explorerFrame.resizeHandleRef}"],
-  // The Cloud domain cannot reach into the shell, so the composition root
-  // supplies the window's frame to the Cloud preparation surface.
-  ["src/app/DesktopCloudWorkspacePreparation.tsx", "src/features/cloud/workbench/CloudWorkspacePreparation.tsx",
-    "<DataWorkspaceFrame {...explorerFrame}"],
 ]) {
   if (!read(owner).includes("useDesktopExplorerFrame()") || !read(file).includes(token)) {
     errors.push(`Desktop Explorer surface does not stand in the window's Explorer frame (${file})`);

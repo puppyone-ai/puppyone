@@ -7,7 +7,6 @@ import {
   LocalIcon,
   resolveAgentBrand,
 } from "@puppyone/shared-ui";
-import { ProjectComputerStatusGlyph, type ProjectComputerStatus } from "../../../components/DesktopProjectLocationSwitcher";
 import { useDesktopPlatformCapabilities } from "../../../platform";
 import type { ReachMember, ReachPlace, ReachState } from "./projectReachHeader";
 
@@ -19,10 +18,8 @@ import type { ReachMember, ReachPlace, ReachState } from "./projectReachHeader";
  */
 
 /** The committed runtime location, using a device or hosted-server mark. */
-export function ReachPlaceMark({ place, className, size, tone = "outline", strokeWidth = 1.65, status = "ready" }: {
+export function ReachPlaceMark({ place, className, size, tone = "outline", strokeWidth = 1.65 }: {
   place: ReachPlace;
-  /** A computer that is still opening, or could not be opened, shows that in place of its drawing. */
-  status?: ProjectComputerStatus;
   /** The host's own mark slot, so the Header and the menu size it alike. */
   className: string;
   size: number;
@@ -38,19 +35,16 @@ export function ReachPlaceMark({ place, className, size, tone = "outline", strok
       className={`desktop-project-reach-place ${className}`}
       data-reach-place={place}
       data-reach-tone={tone}
-      data-computer-status={status === "ready" ? undefined : status}
       aria-hidden="true"
     >
-      {status === "ready"
-        ? <PlaceDrawing place={place} size={size} strokeWidth={strokeWidth} />
-        : <ProjectComputerStatusGlyph status={status} size={size} strokeWidth={strokeWidth} />}
+      <PlaceDrawing place={place} size={size} strokeWidth={strokeWidth} />
     </span>
   );
 }
 
 /**
  * Each place is drawn with its product icon, the same mark the project rail,
- * the location switcher and the first-push introduction use, so the place
+ * the homepage and the first-push introduction use, so the place
  * reads as one thing wherever it appears.
  */
 function PlaceDrawing({ place, size, strokeWidth }: {

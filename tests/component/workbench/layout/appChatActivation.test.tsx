@@ -13,7 +13,6 @@ import { withTestLocalization } from "../../../support/react/localization";
 
 const state = vi.hoisted(() => ({
   cloudActive: false,
-  cloudRequested: false,
   contentVisible: true,
   sidebarSurface: "chat" as RightSidebarSurface,
   noop: () => {},
@@ -36,10 +35,7 @@ vi.mock("../../../../src/components/DesktopCloudShell", () => ({
   ),
 }));
 vi.mock("../../../../src/features/app-shell/DesktopTitlebarContext", () => ({
-  DesktopTitlebarContext: ({ onViewCloud, onViewLocal }: ComponentProps<typeof DesktopTitlebarContext>) => <>
-    <button data-location-test="cloud" onClick={onViewCloud}>Cloud</button>
-    <button data-location-test="local" onClick={onViewLocal}>Local</button>
-  </>,
+  DesktopTitlebarContext: ({ titlebarLabel }: ComponentProps<typeof DesktopTitlebarContext>) => <span>{titlebarLabel}</span>,
 }));
 vi.mock("../../../../src/features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel", () => ({
   AuxiliaryWorkbenchPanel: ({ active }: { active: boolean }) => <><input data-chat-active={String(active)} defaultValue="draft" /><EditorAppearanceProbe /></>,
@@ -59,11 +55,6 @@ vi.mock("../../../../src/app/AccountCloudWorkspaceSurface", () => ({
   AccountCloudWorkspaceSurface: () => null,
   useAccountCloudWorkspacePresentation: () => ({}),
 }));
-vi.mock("../../../../src/features/cloud/workbench/useRepositoryCloudWorkspaceSwitch", () => ({
-  useRepositoryCloudWorkspaceSwitch: () => ({ pending: state.cloudRequested,
-    requestedLocation: state.cloudRequested ? "cloud" : undefined,
-    request: () => { state.cloudRequested = true; }, cancel: () => { state.cloudRequested = false; } }),
-}));
 vi.mock("../../../../src/features/cloud/workbench/useHomepageCloudProjects", () => ({ useHomepageCloudProjects: () => ({ items: [] }) }));
 vi.mock("../../../../src/features/cloud/hooks/useDesktopCloudSession", () => ({
   useDesktopCloudSession: () => ({ cloudSession: null, cloudAuthStatus: "anonymous", cloudSessionRestoring: false }),
@@ -76,7 +67,6 @@ vi.mock("../../../../src/features/cloud/project/context", async (importOriginal)
   ...await importOriginal<typeof import("../../../../src/features/cloud/project/context")>(),
   useCurrentRepositoryCloudContext: () => ({ status: "signed-out" }),
   getResolvedCloudProjectId: () => null,
-  getProjectCloudLocationState: () => "signed-out",
 }));
 vi.mock("../../../../src/features/cloud/initialization/useCloudInitialization", () => ({ useCloudInitialization: () => ({}) }));
 vi.mock("../../../../src/features/cloud/share", () => ({
@@ -122,7 +112,6 @@ vi.mock("../../../../src/features/updates", () => ({ useDesktopUpdates: () => ({
 let root: Root | null = null;
 beforeEach(() => {
   state.cloudActive = false;
-  state.cloudRequested = false;
   state.contentVisible = true;
   state.sidebarSurface = "chat";
   window.localStorage.clear();
@@ -154,28 +143,6 @@ async function render() {
 }
 
 describe("App Chat activation", () => {
-  it.each(["chat", "changes", "history"] as const)("collapses %s immediately on a Cloud request and keeps it closed on cancellation", async surface => {
-    state.sidebarSurface = surface;
-    desktopPreferencesStore.getState().setExperimentalSettings(s => ({ ...s, enableCloudWorkspace: true }));
-    const chat = await render();
-    chat.value = "unsaved local draft";
-    chat.focus();
-    await act(async () => document.querySelector<HTMLButtonElement>('[data-location-test="cloud"]')!.click());
-    expect(state.cloudActive).toBe(false);
-    expect(state.cloudRequested).toBe(true);
-    expect(desktopPreferencesStore.getState().rightSidebarOpen).toBe(false);
-    expect(document.querySelector('[data-sidebar-open]')?.getAttribute('data-sidebar-open')).toBe("false");
-    expect(chat.dataset.chatActive).toBe("false");
-    expect(chat.closest('.desktop-right-sidebar-surface')?.getAttribute('aria-hidden')).toBe("true");
-    expect(document.activeElement).not.toBe(chat);
-    await act(async () => document.querySelector<HTMLButtonElement>('[data-location-test="local"]')!.click());
-    expect(state.cloudRequested).toBe(false);
-    expect(desktopPreferencesStore.getState().rightSidebarOpen).toBe(false);
-    expect(await render()).toBe(chat);
-    expect(chat.value).toBe("unsaved local draft");
-    expect(document.querySelector('[data-sidebar-open]')?.getAttribute('data-sidebar-open')).toBe("false");
-  });
-
   it.each(["chat", "changes", "history"] as const)("requires visible local Chat when the selected surface is %s", async (surface) => {
     state.sidebarSurface = surface;
     for (const cloudActive of [false, true]) {

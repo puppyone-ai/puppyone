@@ -42,9 +42,9 @@ try {
     }
     throw new Error("Header fixture did not mount");
   }
-  for (const width of [996, 640]) for (const centered of [false, true]) for (const inline of [false, true]) for (const mode of ["empty-host", "none", "files", "overflow", "chat", "terminal"]) {
+  for (const width of [996, 640]) for (const centered of [false, true]) for (const mode of ["empty-host", "none", "files", "overflow", "chat", "terminal"]) {
     window.setContentSize(width, 600);
-    await window.loadURL(`${base}?mode=${mode}&cloud=true&inline=${inline}&centered=${centered}`);
+    await window.loadURL(`${base}?mode=${mode}&cloud=true&centered=${centered}`);
     await ready();
     const result = await evaluate(`(() => {
       const fill = document.querySelector('.desktop-titlebar-drag-fill');
@@ -68,8 +68,8 @@ try {
         controlsExcluded: buttons.every(el => getComputedStyle(el).getPropertyValue('-webkit-app-region') === 'no-drag'),
         emptyCenterBlocked: blocked(rect.left + rect.width / 2, y) };
     })()`);
-    observations.push({ ...result, centered, inline });
-    assert(result.fillWidth >= 32, `No usable drag space (${centered}, ${inline}): ${JSON.stringify(result)}`);
+    observations.push({ ...result, centered });
+    assert(result.fillWidth >= 32, `No usable drag space (${centered}): ${JSON.stringify(result)}`);
     assert.deepEqual(result.blocked, [], `Header blank space is excluded: ${JSON.stringify(result)}`);
     assert(result.controlsExcluded, `Header buttons must remain clickable: ${JSON.stringify(result)}`);
     if (!centered && ["empty-host", "none"].includes(mode)) assert.deepEqual(result.emptyCenterBlocked, []);
@@ -77,7 +77,7 @@ try {
   console.log(JSON.stringify({ ok: true, observations }));
   if (manual) {
     window.setContentSize(996, 600);
-    await window.loadURL(`${base}?mode=empty-host&cloud=true&inline=true`);
+    await window.loadURL(`${base}?mode=empty-host&cloud=true`);
     await ready();
     const record = async () => {
       const bounds = window.getBounds();

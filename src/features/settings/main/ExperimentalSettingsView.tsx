@@ -24,8 +24,6 @@ export function ExperimentalSettingsView() {
         { messageKey: "projectReach", settingKey: "enableProjectReach" },
         { messageKey: "projectHeaderAlignment", settingKey: "enableCenteredProjectInHeader",
           choices: [{ messageKey: "left", value: false }, { messageKey: "center", value: true }] },
-        { messageKey: "projectLocationIconsInHeader", settingKey: "enableProjectLocationIconsInHeader",
-          choices: [{ messageKey: "menu", value: false }, { messageKey: "header", value: true }] },
         { messageKey: "workbenchTabsInHeader", settingKey: "enableWorkbenchTabsInHeader",
           choices: [{ messageKey: "sidebar", value: false }, { messageKey: "header", value: true }] },
         { messageKey: "shareOnboarding", settingKey: "enableShareOnboarding" },

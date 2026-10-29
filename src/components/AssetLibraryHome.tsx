@@ -3,8 +3,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import { useWorkspaceFolderDrop } from "../features/app-shell/useWorkspaceFolderDrop";
 import type { MinimalOnboardingProps } from "./MinimalOnboarding";
-import { projectOpeningLocation, type ProjectHomeItem } from "../lib/workspaceHomeModel";
-import { ProjectOpenMenu, useProjectOpenCaption } from "./onboarding/ProjectOpenMenu";
+import { projectHomeItemLocation, type ProjectHomeItem } from "../lib/workspaceHomeModel";
+import { LinkedCloudProjectButton, useProjectHomeItemCaption } from "./onboarding/LinkedCloudProjectButton";
 import { HomeProjectIcon } from "./onboarding/HomeProjectIcon";
 import { DesktopWindowChrome } from "./DesktopWindowChrome";
 import { InlineLoading } from "./loading";
@@ -119,13 +119,13 @@ export function AssetLibraryHome({
           {items.map((item) => (
             <ProjectAssetCard
               key={item.id}
-              onOpenCloud={item.cloudProjectId && onOpenCloudProject ? () => onOpenCloudProject(item.cloudProjectId!) : undefined}
-              onOpenLocal={item.localPath ? () => void openPath(item.localPath) : undefined}
+              onOpenLinkedCloudProject={item.linkedCloudProject && onOpenCloudProject
+                ? () => onOpenCloudProject(item.linkedCloudProject!.id) : undefined}
               item={item}
               busy={busy}
               opening={openingPath === item.localPath}
               activity={formatActivity(item.lastModifiedAt, "", formatDate, formatRelativeTime)}
-              onOpen={() => projectOpeningLocation(item) === "cloud" && item.cloudProjectId
+              onOpen={() => item.cloudProjectId
                 ? onOpenCloudProject?.(item.cloudProjectId) : void openPath(item.localPath)}
             />
           ))}
@@ -145,47 +145,48 @@ export function AssetLibraryHome({
 
 function ProjectAssetCard({
   item,
-  onOpenCloud,
-  onOpenLocal,
+  onOpenLinkedCloudProject,
   busy,
   opening,
   activity,
   onOpen,
 }: {
   item: ProjectHomeItem;
-  onOpenCloud?: () => void;
-  onOpenLocal?: () => void;
+  /** A local folder's own Cloud project is another project; this opens it. */
+  onOpenLinkedCloudProject?: () => void;
   busy: boolean;
   opening: boolean;
   activity: string;
   onOpen: () => void;
 }) {
   const { t } = useLocalization();
-  const caption = useProjectOpenCaption(item);
+  const caption = useProjectHomeItemCaption(item);
+  const location = projectHomeItemLocation(item);
   const name = item.label || item.localPath.split("/").at(-1) || t("onboarding.projects.untitled");
   return (
-    <article className={`asset-library-card ${opening ? "is-opening" : ""}`}>
+    <article className={`asset-library-card ${opening ? "is-opening" : ""}`} data-project-location={location}
+      data-linked-cloud-project-id={item.linkedCloudProject?.id}>
       <button
         className="asset-library-card-main"
         type="button"
         disabled={busy}
         aria-busy={opening || undefined}
-        aria-label={t(projectOpeningLocation(item) === "cloud" ? "cloud.home.openCloud" : "cloud.home.openLocal", { project: bidiIsolate(name) })}
+        aria-label={t(location === "cloud" ? "cloud.home.openCloud" : "cloud.home.openLocal", { project: bidiIsolate(name) })}
         onClick={onOpen}
       >
         <span className="asset-library-card-cover" data-signature="0" aria-hidden="true"><span className="asset-library-card-monogram">{name.slice(0, 2).toUpperCase()}</span></span>
         <span className="asset-library-card-body">
           <bdi className="asset-library-card-title">{name}</bdi>
           <span className="asset-library-card-footer">
-            <span className="asset-library-card-location local">
+            <span className={`asset-library-card-location ${location}`}>
               <HomeProjectIcon item={item} /><span>{caption}</span>
             </span>
             <span className="asset-library-card-meta">{activity}</span>
           </span>
         </span>
       </button>
-      {onOpenCloud && item.cloudProjectId && <ProjectOpenMenu name={name} projectId={item.cloudProjectId} busy={busy} className="asset-library-project-open"
-        onLocal={onOpenLocal} onCloud={onOpenCloud} />}
+      {item.linkedCloudProject && onOpenLinkedCloudProject && <LinkedCloudProjectButton project={item.linkedCloudProject}
+        busy={busy} className="asset-library-project-cloud-link" onOpen={onOpenLinkedCloudProject} />}
     </article>
   );
 }

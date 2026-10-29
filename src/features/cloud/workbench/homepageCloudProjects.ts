@@ -5,27 +5,29 @@ import { latestProjectModifiedAt } from "./homepageCloudActivity";
 
 const time = (value?: string | null) => value && Number.isFinite(Date.parse(value)) ? Date.parse(value) : 0;
 
-/** One flat list: location affects the icon/actions, never the sort rank. */
+/**
+ * One flat list in which a local folder and its Cloud project are two entries
+ * (puppy-issues ADR-001). A local folder whose Git remote names a Cloud project
+ * in this account's catalog carries a link to it; it is never merged into it.
+ * Location affects the icon and actions, never the sort rank.
+ */
 export function buildHomepageProjects({ local, cloud, apiBaseUrl, activity = new Map() }: {
   local: readonly RecentWorkspaceHomeItem[];
   cloud: readonly DesktopCloudProject[];
   apiBaseUrl: string;
   activity?: ReadonlyMap<string, string>;
 }): ProjectHomeItem[] {
-  const remaining = new Map(cloud.map((project) => [project.id, project]));
-  // Keep distinct checkouts. Prefer the most recently modified matching checkout.
-  const items: ProjectHomeItem[] = [...local].sort((a, b) => time(b.workspace.lastModifiedAt) - time(a.workspace.lastModifiedAt)
-    || a.workspace.path.localeCompare(b.workspace.path)).map(({ workspace }) => {
+  const catalog = new Map(cloud.map((project) => [project.id, project]));
+  const items: ProjectHomeItem[] = local.map(({ workspace }) => {
     const remote = workspace.puppyoneGitRemote;
-    // A scoped checkout is not the same workspace as the catalog's project root.
-    const match = remote && !remote.scopeId && workspace.hydrationState === "ready"
-      && isTrustedCloudGitOrigin(remote.origin, apiBaseUrl) ? remaining.get(remote.projectId) : undefined;
-    if (match) remaining.delete(match.id);
+    // A scoped checkout is not linked to the catalog's project root.
+    const linked = remote && !remote.scopeId && workspace.hydrationState === "ready"
+      && isTrustedCloudGitOrigin(remote.origin, apiBaseUrl) ? catalog.get(remote.projectId) : undefined;
     return { id: `local:${workspace.path}`, label: workspace.name, localPath: workspace.path,
-      lastModifiedAt: latestProjectModifiedAt(workspace.lastModifiedAt, match?.updated_at, match && activity.get(match.id)),
-      ...(match ? { cloudProjectId: match.id } : {}) };
+      lastModifiedAt: workspace.lastModifiedAt ?? null,
+      ...(linked ? { linkedCloudProject: { id: linked.id, name: linked.name } } : {}) };
   });
-  for (const project of remaining.values()) {
+  for (const project of cloud) {
     items.push({ id: `cloud:${project.id}`, label: project.name, localPath: "", cloudProjectId: project.id,
       lastModifiedAt: latestProjectModifiedAt(project.updated_at, activity.get(project.id)) });
   }

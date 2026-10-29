@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 
 const cloud = '.desktop-terminal-contribution-host[aria-hidden="false"] .desktop-cloud-agent-sidebar';
 const cloudEntry = "[data-cloud-workspace-tool=agent]";
-const location = name => `button[data-project-location=${name}]`;
+// A local folder and its Cloud project are two projects (puppy-issues ADR-001):
+// the folder's notice opens its Cloud project; the project menu returns to it.
+const openCloudProject = "[...document.querySelectorAll('.desktop-local-folder-cloud-notice button')].find(button => button.textContent === 'Open Cloud project')";
 // CodeMirror renders its placeholder inside the empty cm-line.
 const draftText = `Array.from(document.querySelectorAll('${cloud} .cm-content .cm-line:not(:has(.cm-placeholder))')).map(x=>x.textContent).join('\\n')`;
 
@@ -100,13 +102,17 @@ export async function connectCloudAgentLiveDriver(options) {
       await wait(`document.querySelector('.desktop-titlebar-workspace-name')?.textContent===${q(options.workspace)}`, "selected project");
     },
     async selectLocation(name) {
-      if (!await evaluate(`!!document.querySelector(${q(location(name))})`)) await click(".desktop-titlebar-location-button");
-      if (name === "cloud") assert.ok(await evaluate(`document.querySelector(${q(location(name))})?.dataset.cloudAction!=='create'`), "Use an already hosted repository; this test never publishes a project");
-      await click(location(name));
+      if (name === "cloud") {
+        assert.ok(await evaluate(`!!(${openCloudProject})`), "Use an already hosted folder; this test never publishes a project");
+        await evaluate(`(${openCloudProject}).click()`);
+      } else {
+        await click(".desktop-titlebar-workspace-button");
+        const folder = `[...document.querySelectorAll('.desktop-project-menu .desktop-project-switcher-row[data-project-location=local]')].find(row => row.textContent.trim().startsWith(${q(options.workspace)}))`;
+        assert.ok(await evaluate(`!!(${folder})`), "The selected folder must be in the project menu");
+        await evaluate(`(${folder}).querySelector('button').click()`);
+      }
       await wait(name === "cloud" ? `!!document.querySelector('${cloudEntry}') && !document.querySelector('${cloudEntry}').disabled`
-        : `!document.querySelector('${cloudEntry}')`, `${name} location committed`);
-      // Popup presentation and header-icons presentation share the same tabs.
-      if (await evaluate("!!document.querySelector('.desktop-project-location-menu')")) await click(".desktop-titlebar-location-button");
+        : `!document.querySelector('${cloudEntry}')`, `${name} project shown`);
     },
     async assertClosed() {
       assert.equal(await evaluate("document.querySelector('.desktop-right-sidebar')?.dataset.paneCollapsed"), "true", "Location switch must close the right sidebar");

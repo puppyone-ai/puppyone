@@ -39,11 +39,11 @@ async function exercise(hosted) {
     await waitFor("Boolean(document.querySelector('[data-cloud-project-id=alpha] .onboarding-project-row'))");
     await evaluate("document.querySelector('[data-cloud-project-id=alpha] .onboarding-project-row').click()");
   } else {
-    await evaluate("document.querySelector('.desktop-titlebar-location-button').click()");
-    await waitFor("Boolean(document.querySelector('button[data-project-location=cloud]'))");
-    await evaluate("document.querySelector('button[data-project-location=cloud]').click()");
+    // The folder's Cloud project is its own project in the project menu (ADR-001).
+    await evaluate("document.querySelector('.desktop-titlebar-workspace-button').click()");
+    await waitFor("Boolean(document.querySelector('.desktop-project-menu .desktop-project-switcher-row[data-project-location=cloud]'))");
+    await evaluate("document.querySelector('.desktop-project-menu .desktop-project-switcher-row[data-project-location=cloud]').querySelector('button').click()");
     await waitFor(`${api}.state().location === 'cloud'`);
-    await evaluate("document.querySelector('.desktop-titlebar-location-button').click()");
   }
   await waitFor(`${button("history")} && !${button("history")}.disabled`);
   assert(await evaluate("!document.querySelector('[data-cloud-workspace-tool=automation], [data-cloud-workspace-tool=connect]')"), "Retired entries must not be visible");

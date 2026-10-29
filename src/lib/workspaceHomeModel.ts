@@ -6,19 +6,30 @@ export type RecentWorkspaceHomeItem = {
   lastOpenedAt?: string | null;
 };
 
+/**
+ * One project on the Homepage and in project navigation. A local folder and
+ * its Cloud project are two projects (puppy-issues ADR-001), so an entry is
+ * either a local folder (`localPath`) or a Cloud project (`cloudProjectId`),
+ * never both.
+ */
 export type ProjectHomeItem = {
   id: string;
   label: string;
-  /** Empty for a hosted-only entry; never a synthetic local path. */
+  /** Empty for a Cloud project; never a synthetic local path. */
   localPath: string;
+  /** Present only on a Cloud project's own entry. */
   cloudProjectId?: string;
-  lastOpenedLocation?: "local" | "cloud";
+  /**
+   * A local folder's link to the Cloud project it was put in the Cloud as.
+   * Only a mark and a way to open that other project; never merges them.
+   */
+  linkedCloudProject?: Readonly<{ id: string; name: string }>;
   lastModifiedAt?: string | null;
   lastOpenedAt?: string | null;
 };
 
-export function projectOpeningLocation(item: ProjectHomeItem): "local" | "cloud" {
-  return item.cloudProjectId && (item.lastOpenedLocation === "cloud" || !item.localPath) ? "cloud" : "local";
+export function projectHomeItemLocation(item: ProjectHomeItem): "local" | "cloud" {
+  return item.localPath ? "local" : "cloud";
 }
 
 export function mergeWorkspaceLists(current: Workspace[], incoming: Workspace[]) {

@@ -437,7 +437,7 @@ describe("Project switcher rail", () => {
     const linked = workspace("linked", "Linked", "/projects/linked");
     const items: ProjectHomeItem[] = [
       { id: "local:local", label: "Local", localPath: local.path },
-      { id: "local:linked", label: "Linked", localPath: linked.path, cloudProjectId: "linked-cloud" },
+      { id: "local:linked", label: "Linked", localPath: linked.path, linkedCloudProject: { id: "linked-cloud", name: "Linked" } },
       { id: "cloud:hosted", label: "Hosted", localPath: "", cloudProjectId: "hosted" },
     ];
     const selectLocal = vi.fn(), selectCloud = vi.fn();
@@ -456,7 +456,8 @@ describe("Project switcher rail", () => {
     expect(rows[0]?.querySelector('[data-project-location="local"] [data-product-icon="local"]')).not.toBeNull();
     expect(rows[1]?.querySelector('[data-project-location="linked"] .onboarding-project-cloud-badge')).not.toBeNull();
     expect(rows[2]?.querySelector('[data-project-location="cloud"] .desktop-cloud-icon')).not.toBeNull();
-    expect(rows[1]?.getAttribute("aria-label")).toContain("Local folder + Cloud project");
+    // A folder with its own Cloud project is still only a local folder here.
+    expect(rows[1]?.getAttribute("aria-label")).toBe("Project: \u2068Linked\u2069 · Local folder");
     // Read the rendered attribute: the DOM test environment does not reflect `draggable`.
     expect(rows[2]?.getAttribute("draggable")).toBe("false");
     expect(rows[2]?.closest(".desktop-project-switcher-rail-project-row")?.querySelector(".desktop-project-switcher-row-action")).toBeNull();
@@ -505,7 +506,7 @@ describe("Project switcher rail", () => {
     const linked = workspace("linked", "Linked", "/projects/linked");
     const items: ProjectHomeItem[] = [
       { id: "local:local", label: "Local", localPath: local.path },
-      { id: "local:linked", label: "Linked", localPath: linked.path, cloudProjectId: "linked-cloud" },
+      { id: "local:linked", label: "Linked", localPath: linked.path, linkedCloudProject: { id: "linked-cloud", name: "Linked" } },
       { id: "cloud:hosted", label: "Hosted", localPath: "", cloudProjectId: "hosted" },
     ];
     const host = document.createElement("div");
@@ -524,57 +525,38 @@ describe("Project switcher rail", () => {
     expect(host.querySelector(".desktop-project-switcher-rail-place .desktop-cloud-icon")).not.toBeNull();
     expect(host.querySelector(".desktop-project-switcher-rail-place")?.getAttribute("aria-hidden")).toBe("true");
 
-    // Working on the linked Project in the Cloud moves the place with it.
+    // Opening a Cloud project never moves the place onto a local folder's row.
     await act(async () => root?.render(renderRail(true, "linked-cloud")));
     expect([...host.querySelectorAll<HTMLElement>(".desktop-project-switcher-rail-project-row")]
-      .map((row) => Boolean(row.querySelector(".desktop-project-switcher-rail-place")))).toEqual([false, true, true]);
+      .map((row) => Boolean(row.querySelector(".desktop-project-switcher-rail-place")))).toEqual([false, false, true]);
 
     await act(async () => root?.render(renderRail(false)));
     expect(host.querySelector(".desktop-project-switcher-rail-place")).toBeNull();
   });
 
-  it("derives a row's place from the Project itself and the surface it is open on", () => {
+  it("derives a row's place from the Project itself, never from what the window shows", () => {
     const localOnly: ProjectHomeItem = { id: "local:a", label: "A", localPath: "/projects/a" };
+    const linked: ProjectHomeItem = { ...localOnly, linkedCloudProject: { id: "b", name: "B" } };
     const hosted: ProjectHomeItem = { id: "cloud:b", label: "B", localPath: "", cloudProjectId: "b" };
-    expect(resolveProjectRowPlace(localOnly, false)).toBe("local");
-    expect(resolveProjectRowPlace(localOnly, true)).toBe("cloud");
-    expect(resolveProjectRowPlace(hosted, false)).toBe("cloud");
+    expect(resolveProjectRowPlace(localOnly)).toBe("local");
+    expect(resolveProjectRowPlace(linked)).toBe("local");
+    expect(resolveProjectRowPlace(hosted)).toBe("cloud");
   });
 
-  it("carries the Local / Cloud switch in the open Project's row menu only", async () => {
+  it("offers no Local / Cloud switch in the open Project's row menu", async () => {
     const active = workspace("active", "Alpha", "/projects/alpha");
-    const beta = workspace("beta", "Beta", "/projects/beta");
     const host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
-
     await act(async () => root?.render(withTestLocalization(
-      <ProjectSwitcherRail
-        activeWorkspace={active}
-        activeProjectLocationControls={<button type="button" data-testid="place-switch">This Mac</button>}
-        expanded
-        recentWorkspaces={[{ workspace: beta }]}
-        projectItems={localCatalog(active, [{ workspace: beta }])}
-        onCreateNew={() => undefined}
-        onRenameProject={async () => undefined}
-        onSelectProject={() => undefined}
-        onUnlinkProject={async () => undefined}
-      />,
+      <ProjectSwitcherRail activeWorkspace={active} expanded recentWorkspaces={[]}
+        projectItems={localCatalog(active, [])} onCreateNew={() => undefined}
+        onRenameProject={async () => undefined} onSelectProject={() => undefined} onUnlinkProject={async () => undefined} />,
     )));
-
-    const actions = host.querySelectorAll<HTMLButtonElement>(".desktop-project-switcher-row-action");
-    await act(async () => actions[1]?.click());
-    expect(document.body.querySelector("[data-testid='place-switch']")).toBeNull();
-
-    await act(async () => actions[0]?.click());
+    await act(async () => host.querySelector<HTMLButtonElement>(".desktop-project-switcher-row-action")?.click());
     const menu = document.body.querySelector<HTMLElement>(".desktop-project-row-actions-menu");
-    const place = menu?.querySelector<HTMLButtonElement>("[data-testid='place-switch']");
-    expect(place).not.toBeNull();
-    expect(place?.closest(".desktop-project-row-actions-location")).not.toBeNull();
-
-    // Choosing a place acts on the open Project, so the session ends with it.
-    await act(async () => place?.click());
-    expect(document.body.querySelector(".desktop-project-row-actions-menu")).toBeNull();
+    expect(menu).not.toBeNull();
+    expect(menu?.querySelector(".desktop-project-row-actions-location, [data-project-location]")).toBeNull();
   });
 
   it("omits hints for Project initials and expanded labels while hinting the icon-only create action", async () => {

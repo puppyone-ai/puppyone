@@ -163,7 +163,7 @@ describe("Sidebar architecture", () => {
     expect(appSource).toContain("renderLeadingRail={railOwnsProject");
   });
 
-  it("gives the Project one surface: the rail states name, place and switching", () => {
+  it("gives the Project one surface: the rail states name, place and switching between projects", () => {
     // One reader of the experiment, one name for the decision it makes.
     expect(projectSwitcherSurfaceSource).toContain("experimentalSettings.enableProjectSwitcherRail");
     expect(appSource).toContain('const railOwnsProject = useProjectSwitcherSurface() === "rail"');
@@ -176,9 +176,11 @@ describe("Sidebar architecture", () => {
       expect(source).not.toContain("projectMenuEnabled");
     }
 
-    // Place belongs to the row, and the switch to that row's own menu.
+    // Place belongs to the row. A local folder and its Cloud project are two
+    // rows (ADR-001), so no row menu switches one project between them.
     expect(projectSwitcherRailCss).toContain(".desktop-project-switcher-rail-place");
-    expect(appSource).toContain("activeProjectLocationControls={projectLocation && (");
+    expect(appSource).not.toContain("activeProjectLocationControls");
+    expect(railSource).not.toContain("activeProjectLocationControls");
 
     // The rail is the Project list, so it offers no way back to Homepage.
     expect(railSource).not.toContain("onHome");

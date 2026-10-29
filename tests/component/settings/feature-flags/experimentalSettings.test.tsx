@@ -20,25 +20,27 @@ afterEach(() => {
 });
 
 describe("Experimental settings", () => {
-  it("persists exclusive location and chat placement choices independently and restores the original defaults", () => {
+  it("persists exclusive project switcher and chat placement choices independently and restores the original defaults", () => {
     const host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
     act(() => root?.render(withTestLocalization(<ExperimentalSettingsView />)));
-    const locationGroup = host.querySelector('[role="group"][aria-label="Local / Cloud switch position"]')!;
+    const locationGroup = host.querySelector('[role="group"][aria-label="Project switcher position"]')!;
     const chatGroup = host.querySelector('[role="group"][aria-label="Chat tabs position"]')!;
     const [menu, locationHeader] = [...locationGroup.querySelectorAll<HTMLButtonElement>("button")];
     const [sidebar, chatHeader] = [...chatGroup.querySelectorAll<HTMLButtonElement>("button")];
-    expect([menu.textContent, locationHeader.textContent]).toEqual(["Menu", "Header"]);
+    expect([menu.textContent, locationHeader.textContent]).toEqual(["Header menu", "Sidebar"]);
+    // The retired Local / Cloud switch has no setting (ADR-001).
+    expect(host.querySelector('[role="group"][aria-label="Local / Cloud switch position"]')).toBeNull();
     expect([sidebar.textContent, chatHeader.textContent]).toEqual(["Sidebar", "Header"]);
     expect(menu.getAttribute("aria-pressed")).toBe("true");
     expect(sidebar.getAttribute("aria-pressed")).toBe("true");
     expect(locationGroup.closest(".desktop-settings-subsection")?.querySelector("h3")?.textContent).toBe("Header & layout");
     act(() => locationHeader.click());
-    expect(store.getState().experimentalSettings).toEqual({ ...DEFAULT_EXPERIMENTAL_SETTINGS, enableProjectLocationIconsInHeader: true });
+    expect(store.getState().experimentalSettings).toEqual({ ...DEFAULT_EXPERIMENTAL_SETTINGS, enableProjectSwitcherRail: true });
     act(() => chatHeader.click());
     expect(store.getState().experimentalSettings).toEqual({ ...DEFAULT_EXPERIMENTAL_SETTINGS,
-      enableProjectLocationIconsInHeader: true, enableWorkbenchTabsInHeader: true });
+      enableProjectSwitcherRail: true, enableWorkbenchTabsInHeader: true });
     act(() => initializeDesktopPreferences());
     expect(locationHeader.getAttribute("aria-pressed")).toBe("true");
     expect(menu.getAttribute("aria-pressed")).toBe("false");

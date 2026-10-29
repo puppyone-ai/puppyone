@@ -3,9 +3,9 @@
      marks, a count, and the words "only you" when nobody else is there.
 
      Every value here comes from the Header's own control tokens, the same ones
-     `.desktop-titlebar-location-button` and `.desktop-titlebar-workspace-button`
-     use. This control sits between those two, so it has to share their height,
-     type scale, icon slot and hover color exactly; anything it invents reads as
+     `.desktop-titlebar-workspace-button` uses. This control sits beside it, so
+     it has to share its height, type scale, icon slot and hover color exactly;
+     anything it invents reads as
      a foreign widget dropped into the Header. */
   .desktop-titlebar-reach-wrap {
     display: flex;
@@ -71,13 +71,6 @@
 
   .desktop-project-reach-place {
     color: inherit;
-  }
-
-  /* A computer that could not be opened takes the Header's one warning hue,
-     the same as an unfinished publish beside it. A computer that is still
-     opening keeps the place's own foreground: it is not an alert. */
-  .desktop-project-reach-place[data-computer-status="failed"] {
-    color: var(--po-warning, currentColor);
   }
 
   /* The place is the Header's visible answer, so it is set exactly like the
@@ -215,75 +208,7 @@
     padding: var(--desktop-project-menu-spacing, 3px);
   }
 
-  /* The computers panel sizes to its rows; this cap is where a sentence
-     (a first-use note, a reader's address) wraps instead of widening it. */
-  .desktop-project-reach-panel[data-reach-entry="computers"] {
-    max-width: 304px;
-  }
-
-  /* The two computers the project runs on: the project menu's own rows in one
-     framed group, so where the project runs reads as one thing, apart from
-     who can reach it below. */
-  .desktop-project-computers {
-    display: grid;
-    min-width: 0;
-    gap: 2px;
-    margin-bottom: 4px;
-    padding: var(--desktop-project-menu-spacing, 3px);
-    border: 1px solid var(--po-border);
-    border-radius: calc(var(--po-menu-radius, 8px) - var(--desktop-project-menu-spacing, 3px));
-  }
-
-  .desktop-project-computer .desktop-menu-item-icon {
-    opacity: 1;
-  }
-
-  .desktop-project-computer-mark {
-    display: grid;
-    place-items: center;
-    color: inherit;
-  }
-
-  /* The current computer is a fact, not an action: it keeps the selected
-     look without inviting a click. */
-  .desktop-project-computer[aria-current="true"] {
-    cursor: default;
-  }
-
-  .desktop-project-computer[aria-current="true"] .desktop-menu-item-trailing {
-    display: grid;
-    color: var(--po-text-muted);
-  }
-
-  /* The action word sits where the check sits on the current row, and comes
-     forward on hover like the row does. */
-  .desktop-project-computer:is(:hover, :focus-visible):not([aria-disabled="true"]) .desktop-menu-item-trailing {
-    color: var(--po-text-muted);
-  }
-
-  /* A row with a second line (the one-time hint before the Cloud Computer is
-     set up, or a computer the project is not on yet) stacks it under the
-     name instead of squeezing both onto one line. */
-  .desktop-project-computer:has(.desktop-menu-item-detail) {
-    height: auto;
-    min-height: var(--po-menu-item-height);
-    align-items: flex-start;
-    padding-block: 6px;
-  }
-
-  .desktop-project-computer:has(.desktop-menu-item-detail) .desktop-menu-item-body {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1px;
-  }
-
-  .desktop-project-computer .desktop-menu-item-detail {
-    line-height: var(--po-menu-meta-line-height, 16px);
-    white-space: normal;
-    text-wrap: pretty;
-  }
-
-  /* The sharing-only panel keeps its compact access summary. */
+  /* Where the project is and who can reach it, as one compact statement. */
   .desktop-project-reach-card {
     display: flex;
     min-width: 0;

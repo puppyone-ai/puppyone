@@ -5,7 +5,7 @@ import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import { DesktopMenuIconButton, DesktopMenuItem } from "../../components/DesktopMenu";
 import { HomeProjectIcon } from "../../components/onboarding/HomeProjectIcon";
 import { writeClipboardText } from "../../lib/clipboard";
-import { getProjectName, type ProjectHomeItem } from "../../lib/workspaceHomeModel";
+import { getProjectName, projectHomeItemLocation, type ProjectHomeItem } from "../../lib/workspaceHomeModel";
 
 export function DesktopProjectMenuItem({ project, selected, pending = false, onSelect }: {
   project: ProjectHomeItem;
@@ -37,7 +37,9 @@ export function DesktopProjectMenuItem({ project, selected, pending = false, onS
   };
 
   return <div>
-    <div className="desktop-project-switcher-row" data-has-local-path={Boolean(path) || undefined}>
+    <div className="desktop-project-switcher-row" data-has-local-path={Boolean(path) || undefined}
+      data-project-location={projectHomeItemLocation(project)}
+      data-linked-cloud-project-id={project.linkedCloudProject?.id}>
       <DesktopMenuItem
         icon={<HomeProjectIcon item={project} />}
         label={<bdi>{name}</bdi>}

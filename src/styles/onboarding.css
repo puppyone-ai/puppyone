@@ -500,7 +500,13 @@
   inset-block-end: -3px;
 }
 
-.onboarding-project-open {
+/* A local folder that has its own Cloud project is the quieter of the two
+   entries: the Cloud project is where people and agents work. */
+.onboarding-project-row-wrap.has-cloud-project:not(:hover, :focus-within) .onboarding-project-row .desktop-menu-item-label {
+  color: var(--po-text-subtle);
+}
+
+.onboarding-project-cloud-link {
   position: absolute;
   inset-inline-end: 34px;
   top: 50%;
@@ -509,17 +515,15 @@
   transform: translateY(-50%);
 }
 
-.onboarding-project-row-wrap:hover .onboarding-project-open,
-.onboarding-project-row-wrap:focus-within .onboarding-project-open,
-.onboarding-project-open[aria-expanded="true"] {
+.onboarding-project-row-wrap:hover .onboarding-project-cloud-link,
+.onboarding-project-row-wrap:focus-within .onboarding-project-cloud-link {
   opacity: 1;
   pointer-events: auto;
 }
 
-.onboarding-project-row-wrap:has(.onboarding-project-open):hover .onboarding-project-row,
-.onboarding-project-row-wrap:has(.onboarding-project-open):focus-within .onboarding-project-row,
-.onboarding-project-row-wrap:has(.onboarding-project-open[aria-expanded="true"]) .onboarding-project-row {
-  padding-inline-end: 112px;
+.onboarding-project-row-wrap:has(.onboarding-project-cloud-link):hover .onboarding-project-row,
+.onboarding-project-row-wrap:has(.onboarding-project-cloud-link):focus-within .onboarding-project-row {
+  padding-inline-end: 132px;
 }
 
 .homepage-cloud-account {
@@ -655,7 +659,6 @@ span.homepage-cloud-feedback {
 
 .onboarding-project-row-wrap:hover .desktop-menu-item-trailing,
 .onboarding-project-row-wrap:focus-within .desktop-menu-item-trailing,
-.onboarding-project-row-wrap:has(.onboarding-project-open[aria-expanded="true"]) .desktop-menu-item-trailing,
 .onboarding-project-row-wrap.is-removing .desktop-menu-item-trailing {
   opacity: 0;
 }
@@ -730,7 +733,7 @@ span.homepage-cloud-feedback {
 }
 
 @media (hover: none) {
-  .onboarding-project-open,
+  .onboarding-project-cloud-link,
   .onboarding-project-remove {
     opacity: 1;
     pointer-events: auto;
@@ -741,8 +744,8 @@ span.homepage-cloud-feedback {
   }
 }
 
-/* Opening choices use the same quiet control geometry as the project list. */
-.project-open-menu-button {
+/* A link to another project uses the same quiet control geometry as the project list. */
+.project-cloud-link-button {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -755,16 +758,18 @@ span.homepage-cloud-feedback {
   font-size: var(--po-text-size-hint, 12px);
   white-space: nowrap;
 }
-.project-open-menu-button:hover,
-.project-open-menu-button[aria-expanded="true"] {
+.project-cloud-link-button:hover {
   color: var(--po-text);
   background: var(--po-hover);
 }
-.project-open-menu-button:focus-visible {
+.project-cloud-link-button:focus-visible {
   outline: 1px solid var(--po-accent);
   outline-offset: -1px;
 }
-.asset-library-project-open {
+.project-cloud-link-button svg {
+  color: var(--po-brand-blue);
+}
+.asset-library-project-cloud-link {
   position: absolute;
   inset-inline-end: 8px;
   top: 8px;

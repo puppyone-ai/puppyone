@@ -83,23 +83,11 @@ export function useAccountCloudWorkspace({ enabled, session, apiBaseUrl }: {
       }
     } finally { if (requestId.current === id) setOpeningTarget(null); }
   }, [apiBaseUrl]);
-  // The repository switch controller has already authorized this exact target
-  // and read its root. Commit it without opening or fetching the account catalog.
-  const activatePrepared = useCallback((resolved: ResolvedContext, expectedSession: DesktopCloudSession, prepared?: CloudWorkspaceHandoff) => {
-    const captured = current.current;
-    if (!captured.authority || !captured.session
-      || captured.session.user_id !== expectedSession.user_id
-      || captured.session.session_generation !== expectedSession.session_generation
-      || captured.session.api_base_url !== expectedSession.api_base_url) return;
-    cancel();
-    setSelection({ authority: captured.authority, context: resolved, prepared });
-    setLocation("cloud");
-  }, [cancel]);
   const useLocal = useCallback(() => { cancel(); setLocation("local"); }, [cancel]);
   return {
     active, context, prepared: selection?.authority === authority ? selection?.prepared : undefined,
     openingTarget, opening: Boolean(openingTarget), error, failure,
-    cancel, useLocal, openTarget, activatePrepared,
+    cancel, useLocal, openTarget,
     retry: () => { if (lastAttempt.current) return openTarget(lastAttempt.current); },
   };
 }

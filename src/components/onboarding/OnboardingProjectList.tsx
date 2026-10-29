@@ -5,13 +5,13 @@ import type { DragEvent as ReactDragEvent } from "react";
 import {
   getProjectName,
   getWorkspaceParentPathForDisplay,
-  projectOpeningLocation,
+  projectHomeItemLocation,
   type ProjectHomeItem,
 } from "../../lib/workspaceHomeModel";
 import { DesktopMenuIconButton, DesktopMenuItem } from "../DesktopMenu";
 import { InlineLoading } from "../loading";
 import { HomeProjectIcon } from "./HomeProjectIcon";
-import { ProjectOpenMenu, ProjectOpenCaption } from "./ProjectOpenMenu";
+import { LinkedCloudProjectButton, ProjectHomeItemCaption } from "./LinkedCloudProjectButton";
 
 type OnboardingProjectListProps = {
   items: ProjectHomeItem[];
@@ -51,18 +51,21 @@ export function OnboardingProjectList({
     >
       {items.map((item) => {
         const name = getProjectName(item, t("onboarding.projects.untitled"));
-        const location = projectOpeningLocation(item);
+        const location = projectHomeItemLocation(item);
         const removing = removingPath === item.localPath;
         const dragging = draggingPath === item.localPath;
+        const linked = item.linkedCloudProject;
         return (
-          <div key={item.id} className={`onboarding-project-row-wrap ${item.cloudProjectId && item.localPath ? "has-cloud" : ""} ${removing ? "is-removing" : ""} ${dragging ? "is-dragging" : ""}`}
-            data-cloud-project-id={item.cloudProjectId}>
+          <div key={item.id} className={`onboarding-project-row-wrap ${linked ? "has-cloud-project" : ""} ${removing ? "is-removing" : ""} ${dragging ? "is-dragging" : ""}`}
+            data-project-location={location}
+            data-cloud-project-id={item.cloudProjectId}
+            data-linked-cloud-project-id={linked?.id}>
             <DesktopMenuItem
               className="onboarding-project-row"
               role="button"
               icon={<HomeProjectIcon item={item} />}
               label={<bdi>{name}</bdi>}
-              detail={item.cloudProjectId ? <ProjectOpenCaption item={item} />
+              detail={location === "cloud" ? <ProjectHomeItemCaption item={item} />
                 : <bdi dir="ltr">{getWorkspaceParentPathForDisplay(item.localPath)}</bdi>}
               trailing={formatModificationTime(item.lastModifiedAt, t, formatRelativeTime)}
               disabled={busy}
@@ -73,11 +76,9 @@ export function OnboardingProjectList({
               onDragStart={(event) => onDragStart(event, item)}
               onDragEnd={onDragEnd}
             />
-            {item.cloudProjectId && onOpenCloudProject && <ProjectOpenMenu name={name} busy={busy}
-              projectId={item.cloudProjectId}
-              className="onboarding-project-open"
-              onLocal={item.localPath ? () => onOpen(item.localPath) : undefined}
-              onCloud={() => onOpenCloudProject(item.cloudProjectId!)} />}
+            {linked && onOpenCloudProject && <LinkedCloudProjectButton project={linked} busy={busy}
+              className="onboarding-project-cloud-link"
+              onOpen={() => onOpenCloudProject(linked.id)} />}
             {onRemove && item.localPath && (
               <Tooltip content={t("onboarding.projects.removeHint")}><DesktopMenuIconButton
                 className="onboarding-project-remove"

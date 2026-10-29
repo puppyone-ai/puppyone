@@ -3,20 +3,17 @@ import { listCloudProjects, type DesktopCloudProject, type DesktopCloudSession }
 import type { RecentWorkspaceHomeItem } from "../../../lib/workspaceHomeModel";
 import { buildHomepageProjects } from "./homepageCloudProjects";
 import { loadCloudProjectActivity } from "./homepageCloudActivity";
-import { useProjectOpenHistory } from "../../../lib/useProjectOpenHistory";
 
 type Catalog = { authority: string; projects: DesktopCloudProject[]; status: "loading" | "ready" | "error";
   activity?: ReadonlyMap<string, string> };
 
 /** One account-scoped catalog shared by Homepage, Header and Sidebar navigation. */
-export function useHomepageCloudProjects({ visible, enabled, session, apiBaseUrl, local, activeLocalPath, activeCloudProjectId }: {
+export function useHomepageCloudProjects({ visible, enabled, session, apiBaseUrl, local }: {
   visible: boolean;
   enabled: boolean;
   session: DesktopCloudSession | null;
   apiBaseUrl: string;
   local: readonly RecentWorkspaceHomeItem[];
-  activeLocalPath?: string;
-  activeCloudProjectId?: string;
 }) {
   const authority = enabled && session ? JSON.stringify([apiBaseUrl, session.user_id, session.session_generation]) : null;
   const current = useRef({ authority, session });
@@ -42,11 +39,7 @@ export function useHomepageCloudProjects({ visible, enabled, session, apiBaseUrl
     return () => { cancelled = true; };
   }, [apiBaseUrl, authority, visible, reload]);
   const scoped = authority && catalog?.authority === authority ? catalog : null;
-  const items = useProjectOpenHistory({
-    scope: enabled && session ? JSON.stringify([apiBaseUrl, session.user_id]) : null,
-    items: buildHomepageProjects({ local, cloud: scoped?.projects ?? [], apiBaseUrl, activity: scoped?.activity }),
-    activeLocalPath, activeCloudProjectId,
-  });
+  const items = buildHomepageProjects({ local, cloud: scoped?.projects ?? [], apiBaseUrl, activity: scoped?.activity });
   return {
     items,
     status: !authority ? "signed-out" as const : scoped?.status ?? "loading" as const,

@@ -7,15 +7,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAccountCloudWorkspace, type AccountCloudWorkspace } from "../../../../src/features/cloud/workbench/useAccountCloudWorkspace";
 import { useNativeCloudWorkbench, type NativeCloudWorkbench } from "../../../../src/features/cloud/workbench/useNativeCloudWorkbench";
 import { useHomepageCloudProjects } from "../../../../src/features/cloud/workbench/useHomepageCloudProjects";
-import { useRepositoryCloudWorkspaceSwitch } from "../../../../src/features/cloud/workbench/useRepositoryCloudWorkspaceSwitch";
-import { CloudWorkspaceSwitchDialog } from "../../../../src/features/cloud/workbench/CloudWorkspaceSwitchDialog";
-import { RepositoryCloudSwitchGate } from "../../../../src/features/cloud/workbench/RepositoryCloudSwitchGate";
 import { cloudCache } from "../../../../src/features/cloud/cache/cloudCache";
 import type { DesktopCloudSession } from "../../../../src/lib/cloudApi";
-import { getProjectCloudLocationState, type ProjectCloudContext } from "../../../../src/features/cloud/project/context/projectCloudContext";
+import type { ProjectCloudContext } from "../../../../src/features/cloud/project/context/projectCloudContext";
 import { cloudMessage } from "../../../../src/features/cloud/cloudPresentation";
-import { useCurrentRepositoryCloudContext } from "../../../../src/features/cloud/project/context/useCurrentRepositoryCloudContext";
-import { gitStatus } from "../../../support/source-control/gitFixtures";
 import { withTestLocalization } from "../../../support/react/localization";
 import { retireAllDocumentInputs, getDocumentInputRuntime } from "../../../../packages/shared-ui/src/editor/resource/DocumentInputRuntime";
 import { getOrCreateDocumentWorkingCopy, closeAllDocumentWorkingCopies } from "../../../../packages/shared-ui/src/editor/document-session/documentWorkingCopies";
@@ -28,38 +23,23 @@ const project = (id: string) => ({ id, name: `Project ${id}`, org_id: "org", cap
 let root: Root;
 let account: AccountCloudWorkspace;
 let homepage: ReturnType<typeof useHomepageCloudProjects>;
-let header: ReturnType<typeof useRepositoryCloudWorkspaceSwitch>;
-const associated = (id: string): ProjectCloudContext => ({ status: "resolved", projectId: id, projectName: `Project ${id}`,
-  target: { kind: "project_root", project_id: id }, capabilities: ["content.read", "content.write"] });
 let workbench: NativeCloudWorkbench;
 type Request = Parameters<NonNullable<typeof window.puppyoneDesktop>["requestCloudSessionApi"]>[0];
 let bridge: ReturnType<typeof vi.fn<(request: Request) => unknown>>;
 let localWrite: ReturnType<typeof vi.fn>;
 let generation: string;
-const localFolder = { id: "local-a", path: "/fixture/header-local", name: "Local A", status: "recording" as const };
-const localGit = gitStatus({ remotes: [{ name: "puppyone", fetchUrl: "https://cloud-fixture.puppyone.ai/git/a.git",
-  pushUrl: "https://cloud-fixture.puppyone.ai/git/a.git", branches: [] }] });
-const ignoreSessionChange = () => {};
-function Harness({ currentSession = session, enabled = true, homeVisible = false, association = { status: "local-only", projectId: null }, scope = "local-folder", resolveAssociation = false, initializationPending = false }: {
-  currentSession?: DesktopCloudSession | null; enabled?: boolean; homeVisible?: boolean; association?: ProjectCloudContext; scope?: string; resolveAssociation?: boolean;
-  initializationPending?: boolean;
+// A local folder's association never reaches account navigation: a linked
+// folder's Cloud project opens as its own project (puppy-issues ADR-001).
+function Harness({ currentSession = session, enabled = true, homeVisible = false }: {
+  currentSession?: DesktopCloudSession | null; enabled?: boolean; homeVisible?: boolean; association?: ProjectCloudContext;
 }) {
   account = useAccountCloudWorkspace({ enabled, session: currentSession, apiBaseUrl: API });
   homepage = useHomepageCloudProjects({ enabled, visible: homeVisible && !account.active, session: currentSession, apiBaseUrl: API, local: [] });
-  const derivedContext = useCurrentRepositoryCloudContext({ workspace: resolveAssociation ? localFolder : null,
-    activeGitStatus: localGit, activeCloudSession: currentSession, cloudEnabled: enabled,
-    desktopCloudApiBaseUrl: API, resolutionInputsLoading: false, updateCloudSession: ignoreSessionChange });
-  const headerContext = resolveAssociation ? derivedContext : association;
-  header = useRepositoryCloudWorkspaceSwitch({ enabled, scope, context: headerContext, session: currentSession,
-    apiBaseUrl: API, onPrepared: account.activatePrepared, initializationPending });
   workbench = useNativeCloudWorkbench({ context: account.context, session: currentSession, apiBaseUrl: API,
     prepared: account.prepared,
     active: account.active, filesVisibilitySettings: { showHiddenFiles: true, excludePatterns: [] } });
   return <><div data-active={account.active} data-project={account.context.projectId ?? ""} />
     {homeVisible && !account.active && homepage.items.map((item) => <span key={item.id}>{item.label}</span>)}
-    <CloudWorkspaceSwitchDialog controller={header} authenticationRequired={!currentSession}
-      gate={<RepositoryCloudSwitchGate context={headerContext} apiBaseUrl={API} onRetry={header.retry}
-        authState={currentSession ? { status: "signed-in", apiBaseUrl: API, session: currentSession } : { status: "signed-out", apiBaseUrl: API }} />} />
   </>;
 }
 async function render(props: Parameters<typeof Harness>[0] = {}) {
@@ -98,11 +78,6 @@ afterEach(async () => {
 });
 
 describe("account-owned Cloud workspaces on the existing API", () => {
-  it("does not confuse login state with repository Cloud availability", () => {
-    expect(getProjectCloudLocationState({ status: "local-only", projectId: null }, true)).toBe("unavailable");
-    expect(getProjectCloudLocationState({ status: "wrong-account", projectId: "a", message: cloudMessage("remote-sign-in") }, false)).toBe("signed-out");
-    expect(getProjectCloudLocationState(associated("a"), true)).toBe("available");
-  });
   it("opens an authorized hosted project without any local workspace or Git remote", async () => {
     await render({ homeVisible: true });
     expect(document.body.textContent).toContain("Project a");
@@ -177,24 +152,6 @@ describe("account-owned Cloud workspaces on the existing API", () => {
     expect(account.error).toBeNull();
     expect(bridge.mock.calls.some(([request]) => request.path.includes("repository-context"))).toBe(false);
     await open("b"); expect(account.context.projectId).toBe("b");
-  });
-
-  it("keeps Header failure scoped, and automatically lists projects only on the Homepage", async () => {
-    const actual = bridge.getMockImplementation()!;
-    bridge.mockImplementation(async (request) => {
-      if (request.path.includes("/missing/")) throw Object.assign(new Error("Not found"), { status: 404 });
-      return actual(request);
-    });
-    await render({ association: associated("missing") });
-    await act(async () => header.request());
-    expect(account.active).toBe(false);
-    expect(header.pending).toBe(true); expect(header.error?.code).toBe("workspace-service-unavailable");
-    expect(homepage.items).toHaveLength(0);
-    expect(bridge.mock.calls.some(([request]) => request.path.startsWith("/projects/?"))).toBe(false);
-    await act(async () => header.cancel());
-    await render({ homeVisible: true });
-    expect(homepage.items).toHaveLength(2);
-    await open("a"); expect(account.active).toBe(true);
   });
 
   it("lists projects after sign-in without selecting a project implicitly", async () => {
@@ -307,109 +264,6 @@ describe("account-owned Cloud workspaces on the existing API", () => {
     text = "New edit";
     await copy.session.requestSave(); detach();
     expect(bridge.mock.calls.findLast(([request]) => request.method === "PUT")![0].expectedSession.generation).toBe("two");
-  });
-
-  it("Header opens the associated ID, never a previously selected unrelated project", async () => {
-    await render({ association: associated("a") });
-    await open("b"); await act(async () => account.useLocal()); bridge.mockClear();
-    await act(async () => header.request());
-    expect(account.active).toBe(true); expect(account.context.projectId).toBe("a");
-    expect(header.pending).toBe(false);
-    expect(document.querySelector(".desktop-cloud-account-picker")).toBeNull();
-    expect(bridge.mock.calls.every(([request]) => request.path.startsWith("/projects/a/workbench/"))).toBe(true);
-  });
-
-  it("Header retains its exact repository intent across login and asynchronous association resolution", async () => {
-    await render({ currentSession: null, association: { status: "wrong-account", projectId: "a", message: cloudMessage("remote-sign-in") } });
-    await act(async () => header.request());
-    expect(document.querySelector("[data-cloud-sign-in-action]")).toBeTruthy();
-    expect(bridge).not.toHaveBeenCalled();
-    await render({ association: { status: "resolving", projectId: null } });
-    expect(header.pending).toBe(true); expect(account.active).toBe(false); expect(bridge).not.toHaveBeenCalled();
-    await render({ association: associated("a") });
-    expect(account.context.projectId).toBe("a"); expect(account.active).toBe(true);
-    expect(header.pending).toBe(false);
-    expect(bridge.mock.calls.every(([request]) => request.path.startsWith("/projects/a/workbench/"))).toBe(true);
-  });
-
-  it("waits for the first upload before opening a newly associated Cloud project", async () => {
-    const association = associated("a");
-    await render({ association, initializationPending: true });
-    await act(async () => header.request());
-    expect(account.active).toBe(false);
-    expect(header.pending).toBe(true);
-    expect(bridge).not.toHaveBeenCalled();
-    await render({ association });
-    expect(account.active).toBe(true);
-    expect(account.context.projectId).toBe("a");
-    expect(header.pending).toBe(false);
-    expect(bridge.mock.calls.every(([request]) => request.path.startsWith("/projects/a/workbench/"))).toBe(true);
-  });
-
-  it("hands the prepared Header root to the workbench without repeating readiness", async () => {
-    const requests = vi.fn(window.puppyoneDesktop!.requestCloudSessionApi);
-    window.puppyoneDesktop!.requestCloudSessionApi = requests;
-    await render({ association: associated("a") });
-    await act(async () => header.request());
-    expect(account.active).toBe(true);
-    await act(async () => { await workbench.dataPort!.listChildren(null); });
-    const calls = requests.mock.calls.map(([request]) => request);
-    expect(calls.filter(request => request.path.endsWith("/workbench"))).toHaveLength(1);
-    expect(calls.filter(request => request.path.includes("/workbench/files?"))).toHaveLength(1);
-    expect(calls.some(request => request.method === "POST")).toBe(false);
-  });
-
-  it("resolves the canonical remote after login through the real context loader before Header commit", async () => {
-    const authorization = deferred<unknown>(); const actual = bridge.getMockImplementation()!;
-    bridge.mockImplementation((request) => request.path.endsWith("/repository-context") ? authorization.promise : actual(request));
-    await render({ currentSession: null, resolveAssociation: true });
-    await act(async () => header.request()); expect(bridge).not.toHaveBeenCalled();
-    await render({ resolveAssociation: true });
-    expect(header.pending).toBe(true); expect(account.active).toBe(false);
-    expect(bridge.mock.calls[0][0].path).toBe("/projects/a/repository-context");
-    expect(JSON.parse(bridge.mock.calls[0][0].body!).target).toEqual({ kind: "project_root", project_id: "a" });
-    await act(async () => authorization.resolve({ project: project("a"), target: { kind: "project_root", project_id: "a" } }));
-    expect(account.context.projectId).toBe("a"); expect(account.active).toBe(true);
-    expect(header.pending).toBe(false);
-    expect(bridge.mock.calls.some(([request]) => request.path.startsWith("/projects/?") || request.path === "/organizations/")).toBe(false);
-  });
-
-  it.each(["local-only", "wrong-host", "not-authorized", "not-found"])("Header never falls back to a catalog when association is %s", async (status) => {
-    const association = status === "local-only" ? { status, projectId: null }
-      : { status, projectId: "a", message: cloudMessage("remote-unresolvable") };
-    await render({ association: association as ProjectCloudContext });
-    await act(async () => header.request());
-    expect(header.pending).toBe(true);
-    expect(document.querySelector("[role=alert]")).toBeTruthy();
-    expect(document.querySelector(".desktop-cloud-account-projects")).toBeNull();
-    expect(bridge).not.toHaveBeenCalled();
-  });
-
-  it("closing Header sign-in cancels late authenticated navigation", async () => {
-    await render({ currentSession: null }); await act(async () => header.request());
-    await act(async () => header.cancel()); await render({ association: associated("a") });
-    expect(header.pending).toBe(false); expect(account.active).toBe(false);
-    expect(bridge).not.toHaveBeenCalled();
-  });
-
-  it("changing the local repository cancels a pending Header file preflight", async () => {
-    const pending = deferred<unknown>(); const actual = bridge.getMockImplementation()!;
-    bridge.mockImplementation((request) => request.path.startsWith("/projects/a/workbench/") ? pending.promise : actual(request));
-    await render({ association: associated("a"), scope: "local-a" });
-    await act(async () => header.request());
-    await render({ association: associated("b"), scope: "local-b" });
-    await act(async () => pending.resolve({ entries: [], ...nativeSnapshot("late") }));
-    expect(account.active).toBe(false); expect(header.pending).toBe(false);
-    expect(bridge.mock.calls.some(([request]) => request.path.startsWith("/projects/b/workbench/"))).toBe(false);
-  });
-
-  it("rejects a scoped target instead of broadening it to a complete live workspace", async () => {
-    const association: ProjectCloudContext = { status: "resolved", projectId: "a", target: { kind: "scope", project_id: "a", scope_id: "scope-a" },
-      scopePath: "docs", capabilities: ["content.read"] };
-    await render({ association }); await act(async () => header.request());
-    expect(account.active).toBe(false);
-    expect(header.error).toBeTruthy();
-    expect(bridge).not.toHaveBeenCalled();
   });
 
   it("does not fetch organizations or create or publish projects from the Homepage", async () => {

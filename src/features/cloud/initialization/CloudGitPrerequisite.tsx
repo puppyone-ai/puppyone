@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { useLocalization } from "@puppyone/localization/react";
+import { bidiIsolate } from "@puppyone/localization";
 import type {
   CloudPublishErrorCode,
   CloudPublishProgressStage,
@@ -128,6 +129,11 @@ export function CloudGitPrerequisite({
 
       {confirmationOpen && (
         <CloudPublishConfirmationDialog
+          // A local folder and its Cloud project are two projects (puppy-issues
+          // ADR-001); the confirmation says so before the new one exists.
+          description={projectName
+            ? t("cloud.initialize.separateProjectNote", { name: bidiIsolate(projectName) })
+            : undefined}
           onCancel={() => setConfirmationOpen(false)}
           onConfirm={() => {
             setConfirmationOpen(false);

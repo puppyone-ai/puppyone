@@ -1,6 +1,5 @@
 import { useDesktopPreference } from "../../settings";
 import { useMemo, type ReactNode } from "react";
-import { getCloudAuthSession } from "../../cloud/auth";
 import { CloudFileWorkspaceGate } from "../../cloud/workbench/CloudFileWorkspaceGate";
 import type { CloudServiceMainViewProps } from "../../cloud/types";
 import { type Workspace } from "@puppyone/shared-ui";
@@ -59,15 +58,12 @@ export type DesktopWorkspaceCloudSurfaceController = {
   onOpenGitSettings: () => void;
   onSelectSection: (section: CloudWorkspaceSection) => void;
   onStartPuppyoneBackup: (organizationId?: string) => void;
-  onCreateCloudVersion?: (organizationId?: string) => void;
 };
 
 export type WorkspaceSurfaceContentResult = {
   availableSurfaceIds: readonly WorkspaceSurfaceId[];
   cloudSurface: WorkspaceSurfaceContent;
   cloudFileState: ReactNode;
-  cloudSwitchGate: ReactNode;
-  cloudSwitchAuthenticationRequired: boolean;
   gitEnabled: boolean;
   resolvedActiveView: WorkspaceSurfaceId;
   resolvedSurface: ResolvedWorkspaceSurface;
@@ -242,10 +238,7 @@ export function useWorkspaceSurfaceContent({
   return {
     availableSurfaceIds,
     cloudSurface: cloudServiceSurface,
-    cloudSwitchAuthenticationRequired: getCloudAuthSession(cloudAuthState) === null,
     cloudFileState: <CloudFileWorkspaceGate {...cloudViewProps} />,
-    cloudSwitchGate: <CloudFileWorkspaceGate {...cloudViewProps} compactSignIn
-      onStartPuppyoneBackup={cloud.onCreateCloudVersion ?? cloud.onStartPuppyoneBackup} />,
     gitEnabled,
     resolvedActiveView,
     resolvedSurface: resolveWorkspaceSurface({ capabilities: surfaceCapabilities, adapters, requestedId: requestedSurfaceId }),

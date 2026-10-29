@@ -58,8 +58,6 @@ describe("product icon architecture", () => {
       "src/features/source-control/components.tsx",
       "src/features/source-control/GitHistoryTimeline.tsx",
       "src/features/automation/AutomationControls.tsx",
-      "src/features/cloud/workbench/RepositoryCloudSwitchGate.tsx",
-      "src/features/cloud/workbench/CloudWorkspaceRecovery.tsx",
     ];
     for (const file of disclosureSites) {
       expect(readFileSync(path.join(repositoryRoot, file), "utf8"), file).toContain("<DisclosureIcon");

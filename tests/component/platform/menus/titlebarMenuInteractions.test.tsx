@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createWorkspaceFolder } from "../../../../packages/shared-ui/src/core/workbenchWorkspace";
 import { DesktopTitlebarContext } from "../../../../src/features/app-shell/DesktopTitlebarContext";
 import { DesktopWorkspaceSwitcher } from "../../../../src/features/app-shell/DesktopWorkspaceSwitcher";
-import { DesktopProjectLocationSwitcher } from "../../../../src/components/DesktopProjectLocationSwitcher";
 import { initializeDesktopPreferences } from "../../../../src/preferencesStore";
 import { withTestLocalization } from "../../../support/react/localization";
 import { writeClipboardText } from "../../../../src/lib/clipboard";
@@ -38,8 +37,6 @@ function clickText(label: string) {
   if (!button) throw new Error(`Missing ${label}`);
   act(() => button.click());
 }
-function locationButton(kind: string) { return menu(".desktop-project-location-menu").querySelector<HTMLButtonElement>(`button[data-project-location="${kind}"]`)!; }
-function openLocation() { act(() => container.querySelector<HTMLButtonElement>(".desktop-titlebar-location-button")!.click()); }
 const projectProps = { open: true, refObject: createRef<HTMLDivElement>(), workspace, titlebarLabel: workspace.name,
   workspaceFolders: [], multiRootWorkspacesEnabled: false, onClose: noOp, onToggle: noOp };
 
@@ -48,8 +45,7 @@ describe("combined Home and project menu", () => {
   // the rail takes that role its hosts render no context at all, so this
   // component has no second, menu-less presentation to cover.
   it("states the Project with one menu trigger and no silent identity variant", async () => {
-    await render(<DesktopTitlebarContext {...projectProps} open={false} availableProjects={[workspace, second]}
-      projectLocation={{ current: "local", localAvailable: true, cloudState: "available" }} />);
+    await render(<DesktopTitlebarContext {...projectProps} open={false} availableProjects={[workspace, second]} />);
     expect(container.querySelector(".desktop-titlebar-workspace-label")).toBeNull();
     const trigger = container.querySelector<HTMLButtonElement>(".desktop-titlebar-workspace-button")!;
     expect(trigger.tagName).toBe("BUTTON");
@@ -172,56 +168,37 @@ describe("combined Home and project menu", () => {
   });
 });
 
-describe("independent Local / Cloud menu", () => {
-  it.each([["macos", "This Mac"], ["windows", "This computer"], ["linux", "This computer"], [null, "This computer"]] as const)(
-    "shows Local in the Header and the device label inside the popup (%s)", async (platform, label) => {
-      device.platform = platform;
-      await render(<DesktopProjectLocationSwitcher projectLocation={{ current: "local", localAvailable: true, cloudState: "available" }} onViewCloud={noOp} />);
-      expect(container.querySelector(".desktop-titlebar-location-button")?.textContent).toBe("Local");
-      openLocation();
-      expect(menu(".desktop-project-location-menu").textContent).toBe(`Open on ${label}Open on Cloud Computer`);
-      expect(menu(".desktop-project-location-menu").getAttribute("role")).toBe("dialog");
-      expect(locationButton("local").getAttribute("aria-current")).toBe("true");
-    });
+describe("a local folder and its Cloud project in the project menu (ADR-001)", () => {
+  const linkedItems = [
+    { id: "local:one", label: workspace.name, localPath: workspace.path, linkedCloudProject: { id: "cloud-one", name: workspace.name } },
+    { id: "cloud:cloud-one", label: workspace.name, localPath: "", cloudProjectId: "cloud-one" },
+  ];
 
-  it.each(["unavailable", "available", "signed-out", "resolving", "attention"] as const)(
-    "routes the Cloud action without prematurely changing the committed location (%s)", async cloudState => {
-      const cloud = vi.fn();
-      await render(<DesktopProjectLocationSwitcher projectLocation={{ current: "local", localAvailable: true, cloudState }} onViewCloud={cloud} />);
-      openLocation(); const popup = menu(".desktop-project-location-menu");
-      expect(locationButton("cloud").textContent).toBe("Open on Cloud Computer");
-      expect(Boolean(locationButton("cloud").querySelector('[data-puppy-loader]'))).toBe(cloudState === "resolving");
-      act(() => locationButton("cloud").click());
-      expect(cloud).toHaveBeenCalledOnce();
-      expect(menu(".desktop-project-location-menu")).toBe(popup);
-      expect(locationButton("local").getAttribute("aria-pressed")).toBe("true");
-    });
+  it("lists them as two projects and opens the Cloud one as its own project", async () => {
+    const select = vi.fn(), selectCloud = vi.fn();
+    await render(<DesktopTitlebarContext {...projectProps} projectItems={linkedItems}
+      onSelectProject={select} onSelectCloudProject={selectCloud} />);
+    const rows = [...menu().querySelectorAll<HTMLElement>(".desktop-project-switcher-row")];
+    expect(rows.map((row) => row.dataset.projectLocation)).toEqual(["local", "cloud"]);
+    expect(rows[0]!.dataset.linkedCloudProjectId).toBe("cloud-one");
+    expect(rows[0]!.querySelector('.onboarding-project-icon[data-project-location="linked"]')).not.toBeNull();
+    expect(rows[1]!.querySelector('.onboarding-project-icon[data-project-location="cloud"]')).not.toBeNull();
+    expect(menu().querySelectorAll('[aria-current="page"]')).toHaveLength(1);
+    act(() => rows[1]!.querySelector<HTMLButtonElement>("button")!.click());
+    expect(selectCloud).toHaveBeenCalledExactlyOnceWith("cloud-one");
+    expect(select).not.toHaveBeenCalled();
+  });
 
-  it("switches Local / Cloud without remounting the project trigger or discarding the local draft", async () => {
-    function Harness() {
-      const [cloud, setCloud] = useState(false);
-      const [open, setOpen] = useState(false);
-      return <><input defaultValue="Unsaved local draft" /><DesktopTitlebarContext {...projectProps}
-        open={open} onToggle={() => setOpen(v => !v)} onClose={() => setOpen(false)}
-        projectLocation={{ current: cloud ? "cloud" : "local", localAvailable: true, cloudState: "available" }}
-        availableProjects={[workspace, second]} onViewCloud={() => setCloud(true)} onViewLocal={() => setCloud(false)} /></>;
-    }
-    await render(<Harness />);
-    const input = container.querySelector("input"), project = container.querySelector<HTMLButtonElement>(".desktop-titlebar-workspace-button")!;
-    openLocation(); const popup = menu(".desktop-project-location-menu");
-    act(() => locationButton("cloud").click());
-    expect(container.querySelector(".desktop-titlebar-location-button")?.textContent).toBe("Cloud Computer");
-    expect(container.querySelector(".desktop-titlebar-location-button .desktop-cloud-icon")).not.toBeNull();
-    expect(container.querySelector(".desktop-titlebar-workspace-button")).toBe(project);
-    act(() => locationButton("local").click());
-    expect(menu(".desktop-project-location-menu")).toBe(popup);
-    expect(container.querySelector("input")).toBe(input);
-    expect(input?.value).toBe("Unsaved local draft");
-    act(() => project.click());
-    expect(document.querySelector(".desktop-project-location-menu")).toBeNull();
-    expect(menu()).not.toBeNull();
-    openLocation();
-    expect(document.querySelector(".desktop-project-menu")).toBeNull();
-    expect(menu(".desktop-project-location-menu")).not.toBeNull();
+  it("has no Header control that switches one project between this computer and the Cloud", async () => {
+    await render(<DesktopTitlebarContext {...projectProps} open={false} projectItems={linkedItems} />);
+    expect(container.querySelector(".desktop-titlebar-location-button, .desktop-project-location-controls")).toBeNull();
+    expect(container.querySelectorAll("button")).toHaveLength(1);
+  });
+
+  it("marks the open Cloud project, not the folder, while the Cloud project is shown", async () => {
+    const cloudWorkspace = { ...workspace, id: "cloud-one", path: "puppyone-cloud:cloud-one", projectId: "cloud-one" };
+    await render(<DesktopTitlebarContext {...projectProps} workspace={cloudWorkspace} projectItems={linkedItems} />);
+    const current = menu().querySelector<HTMLElement>('[aria-current="page"]')!;
+    expect(current.closest<HTMLElement>(".desktop-project-switcher-row")?.dataset.projectLocation).toBe("cloud");
   });
 });
