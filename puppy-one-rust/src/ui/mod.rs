@@ -3,6 +3,7 @@ pub mod appearance;
 #[cfg(feature = "dev-capture")]
 pub mod asset_gallery;
 pub mod components;
+pub mod fonts;
 pub mod form_input;
 mod fractional_text;
 #[cfg(feature = "dev-capture")]

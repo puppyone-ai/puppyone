@@ -1,5 +1,5 @@
-//! The active appearance — colour mode, Sub Theme palette, text-size preset
-//! and pointer style — as a GPUI global.
+//! The active appearance — colour mode, Sub Theme palette, text-size preset,
+//! font selection and pointer style — as a GPUI global.
 //!
 //! Components read it through [`ActiveAppearance`] (`cx.palette()`,
 //! `cx.is_dark()`) instead of receiving a palette from their caller. There is
@@ -20,6 +20,8 @@ pub struct Appearance {
     pub scale: Scale,
     pub pointer_cursors: bool,
     pub loading_style: crate::ui::loading::LoadingStyle,
+    /// Code, terminal and editor-content fonts (`ui::fonts` resolves them).
+    pub fonts: crate::typography::fonts::Selection,
     /// The pack's palette in this colour mode.
     pub palette: Theme,
 }
@@ -37,6 +39,7 @@ impl Appearance {
             scale,
             pointer_cursors,
             loading_style: Default::default(),
+            fonts: Default::default(),
             palette: theme::pack_theme(pack, dark),
         }
     }
@@ -44,10 +47,15 @@ impl Appearance {
         self.loading_style = style;
         self
     }
+    pub fn with_fonts(mut self, fonts: crate::typography::fonts::Selection) -> Self {
+        self.fonts = fonts;
+        self
+    }
     /// The same appearance in another colour mode.
     pub fn with_dark(&self, dark: bool) -> Self {
         Self::new(dark, &self.pack, self.scale, self.pointer_cursors)
             .with_loading(self.loading_style)
+            .with_fonts(self.fonts.clone())
     }
     /// Install as the active appearance. Returns whether anything changed;
     /// windows refresh on their next frame.
@@ -59,12 +67,14 @@ impl Appearance {
                 current.scale,
                 current.pointer_cursors,
                 current.loading_style,
+                &current.fonts,
             ) != (
                 self.dark,
                 &self.pack,
                 self.scale,
                 self.pointer_cursors,
                 self.loading_style,
+                &self.fonts,
             )
         });
         theme::set_scale(self.scale);
@@ -72,6 +82,7 @@ impl Appearance {
         theme::set_pointer_cursors(self.pointer_cursors);
         theme::sync_kit(self.dark, window, cx);
         cx.set_global(self);
+        super::fonts::install(cx);
         changed
     }
 }

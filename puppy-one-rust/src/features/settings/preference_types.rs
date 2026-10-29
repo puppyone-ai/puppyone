@@ -152,6 +152,9 @@ pub struct Preferences {
     /// Default-interface Sub Theme id (`default.neutral`, …).
     pub theme_pack: String,
     pub text_scale: crate::typography::Scale,
+    /// The font half of `puppyone.desktop.typography` (no picker in the
+    /// product; legacy and imported preferences still select).
+    pub fonts: crate::typography::fonts::Selection,
     pub file_icon_theme: String,
     pub show_file_icons: bool,
     pub git_sidebar_layout: GitSidebarLayout,
@@ -189,6 +192,7 @@ impl Default for Preferences {
             theme_mode: ThemeMode::System,
             theme_pack: "default.neutral".into(),
             text_scale: crate::typography::Scale::Medium,
+            fonts: Default::default(),
             file_icon_theme: "default".into(),
             show_file_icons: true,
             git_sidebar_layout: GitSidebarLayout::Cards,

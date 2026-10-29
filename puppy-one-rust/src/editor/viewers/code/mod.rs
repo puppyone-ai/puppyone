@@ -342,7 +342,10 @@ impl CodeView {
                                 .p(px(8.))
                                 .rounded(px(5.))
                                 .bg(p.inset)
-                                .font_family("PuppyOne Geist Mono 400")
+                                .font(crate::ui::fonts::font(
+                                    crate::typography::fonts::Role::Code,
+                                    cx,
+                                ))
                                 .text_size(px(ty.ui.meta))
                                 .child(content.to_owned()),
                         )
@@ -482,7 +485,10 @@ impl Render for CodeView {
                     .bordered(false)
                     .readonly(self.read_only)
                     .h_full()
-                    .font_family("PuppyOne Geist Mono 400")
+                    .font(crate::ui::fonts::font(
+                        crate::typography::fonts::Role::Code,
+                        cx,
+                    ))
                     .text_size(px(self.scale.metrics().editor.code))
                     .line_height(px(20.)),
             )

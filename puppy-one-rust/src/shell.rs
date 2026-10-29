@@ -568,6 +568,7 @@ impl Shell {
         }
         crate::ui::appearance::Appearance::new(self.dark, &p.theme_pack, scale, p.pointer_cursors)
             .with_loading(p.loading_style)
+            .with_fonts(p.fonts.normalized())
             .apply(Some(window), cx);
         self.recent_projects = p.recent_projects.clone();
         let hidden = p.local_agents.hidden_agent_ids.clone();
@@ -1749,8 +1750,10 @@ impl Render for Shell {
             .id("gpui-shell")
             .relative()
             .size_full()
-            .font_family("Geist")
-            .font_weight(FontWeight::NORMAL)
+            .font(crate::ui::fonts::font(
+                crate::typography::fonts::Role::Ui,
+                cx,
+            ))
             .text_size(px(theme::font_size(theme::FONT)))
             .text_color(t.text)
             .track_focus(&self.focus)

@@ -14,8 +14,9 @@ for path in primitives:
     for pattern, message in [
         (r"\b(?:wry|rfd|cap_std|muda|tokio)\s*::", "native authority/runtime imported by a UI primitive"),
         (r"\bstd\s*::\s*(?:fs|process|thread|net)\b", "I/O or worker ownership inside a UI primitive"),
-        # String, file-glyph and product-asset catalogs are leaf data modules UI may read.
-        (r"crate\s*::\s*(?!ui\b|theme\b|localization\b|file_kind\b|asset_catalog\b)\w+",
+        # String, file-glyph, product-asset and type/font catalogs are leaf data
+        # modules UI may read.
+        (r"crate\s*::\s*(?!ui\b|theme\b|localization\b|file_kind\b|asset_catalog\b|typography\b)\w+",
          "reverse dependency from UI into composition/features"),
         (r"\b(?:rgb|rgba|hsla)\s*\(", "local palette instead of semantic theme input"),
     ]:

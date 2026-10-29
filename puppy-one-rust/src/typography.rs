@@ -1,6 +1,7 @@
 //! Three product text presets; no editor content, window or storage dependency.
 //! Metrics mirror `TYPOGRAPHY_SCALE_METRICS` in `src/features/typography/fontCatalog.ts`.
 use serde::{Deserialize, Serialize};
+pub mod fonts;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Scale {
