@@ -484,3 +484,65 @@ fn revocation_interrupts_http_wait_and_deadline_fails_closed() {
         Some(Error::Expired)
     );
 }
+#[test]
+fn managed_inference_posts_once_with_its_key_and_streams_the_reply() {
+    let seen = Arc::new(Mutex::new(Vec::<(String, String, String)>::new()));
+    let record = seen.clone();
+    let server = Server::new(move |_| {
+        Arc::new(move |method, path, headers, body| {
+            let key = headers
+                .iter()
+                .find(|(k, _)| k.eq_ignore_ascii_case("idempotency-key"))
+                .map(|(_, v)| v.to_string())
+                .unwrap_or_default();
+            record.lock().unwrap().push((
+                format!("{method} {path}"),
+                key,
+                String::from_utf8_lossy(body).into_owned(),
+            ));
+            Response {
+                status: 200,
+                body: "data: {\"choices\":[{\"delta\":{\"content\":\"hi\"}}]}\n\ndata: [DONE]\n\n"
+                    .into(),
+                extra: String::new(),
+            }
+        })
+    });
+    let env = server.environment();
+    let session = Session::from_reply(
+        env.clone(),
+        AuthReply {
+            user: AuthUser {
+                id: "u".into(),
+                email: "u@example.test".into(),
+            },
+            access_token: Secret("synthetic-access".into()),
+            refresh_token: Secret("synthetic-refresh".into()),
+            expires_in: 3600,
+        },
+    )
+    .unwrap();
+    let control = Control::new();
+    let mut received = Vec::new();
+    Http::new()
+        .unwrap()
+        .completion(
+            &session,
+            &serde_json::json!({"model": "m", "messages": []}),
+            "11111111-1111-4111-8111-111111111111",
+            &control.fence(),
+            &mut |event| {
+                if let super::StreamEvent::Data(bytes) = event {
+                    received.extend_from_slice(bytes);
+                }
+                Ok(())
+            },
+        )
+        .unwrap();
+    assert!(String::from_utf8_lossy(&received).contains("[DONE]"));
+    let seen = seen.lock().unwrap();
+    assert_eq!(seen.len(), 1, "never retried");
+    assert_eq!(seen[0].0, "POST /api/v1/ai/chat/completions");
+    assert_eq!(seen[0].1, "11111111-1111-4111-8111-111111111111");
+    assert!(seen[0].2.contains("\"model\":\"m\""));
+}

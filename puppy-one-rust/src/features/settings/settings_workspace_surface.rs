@@ -49,6 +49,8 @@ pub struct SettingsWorkspaceSurface {
     /// layout: product scrollbars then reserve their 12px gutter.
     content_scroll: ScrollHandle,
     content_overflows: bool,
+    /// The wallet's 30 s reread while Account shows.
+    compute_timer: Option<Task<()>>,
     /// Screenshot-only page request, applied once the page becomes available
     /// (project pages wait for the asynchronously opened folder).
     capture_page: Option<Page>,
@@ -60,13 +62,45 @@ impl SettingsWorkspaceSurface {
         if matches!(page, Page::Git | Page::Host) {
             self.repository.update(cx, |r, cx| r.refresh(cx));
         }
+        if page == Page::Account {
+            self.refresh_compute(cx);
+        }
         cx.notify();
+    }
+    /// `AccountAICredits`: read the wallet when Account shows, then every
+    /// 30 s while it stays on screen.
+    pub(super) fn refresh_compute(&mut self, cx: &mut Context<Self>) {
+        if !self.preferences.read(cx).state.experimental.payments {
+            return;
+        }
+        let compute = crate::features::managed_compute::global(cx);
+        compute.update(cx, |c, cx| c.refresh(false, cx));
+        if self.compute_timer.is_none() {
+            self.compute_timer = Some(cx.spawn(async move |this, cx| {
+                loop {
+                    cx.background_executor()
+                        .timer(std::time::Duration::from_secs(30))
+                        .await;
+                    let alive = this.update(cx, |s, cx| {
+                        if s.page == Page::Account {
+                            crate::features::managed_compute::global(cx)
+                                .update(cx, |c, cx| c.refresh(true, cx));
+                        }
+                    });
+                    if alive.is_err() {
+                        break;
+                    }
+                }
+            }));
+        }
     }
     pub fn new(
         preferences: Entity<PreferencesStore>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
+        let compute = crate::features::managed_compute::global(cx);
+        cx.observe(&compute, |_, _, cx| cx.notify()).detach();
         cx.subscribe(&preferences, |s, _, _: &PreferencesChanged, cx| {
             s.sync_patterns(cx);
             cx.notify()
@@ -125,6 +159,7 @@ impl SettingsWorkspaceSurface {
                 .new(|cx| crate::ui::form_input::TextInput::new("", false, 200, window, cx)),
             content_scroll: ScrollHandle::new(),
             content_overflows: false,
+            compute_timer: None,
             capture_page: None,
         };
         s.sync_patterns(cx);

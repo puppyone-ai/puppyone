@@ -534,6 +534,8 @@ impl Shell {
     fn apply_preferences(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         use crate::features::settings::preference_types::ThemeMode;
         let p = self.preferences.read(cx).state.clone();
+        // The built-in Agent offers PuppyOne compute only while Payments is on.
+        crate::cloud_auth::set_payments(p.experimental.payments);
         self.dark = match p.theme_mode {
             ThemeMode::Dark => true,
             ThemeMode::Light => false,

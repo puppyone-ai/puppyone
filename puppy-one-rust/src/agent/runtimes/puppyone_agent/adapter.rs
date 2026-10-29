@@ -273,6 +273,9 @@ impl Engine {
             Ok(c) => self.connections = c,
             Err(e) => self.snapshot.error = Some(e),
         };
+        // PuppyOne compute after the person's own connections (Payments on,
+        // signed in, credit available).
+        self.connections.extend(configuration::managed());
         self.snapshot.models = self
             .connections
             .iter()

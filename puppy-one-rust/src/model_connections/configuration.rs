@@ -15,6 +15,10 @@ pub struct ModelConnection {
     #[serde(default)]
     pub credential_id: Option<String>,
     pub generation: String,
+    /// PuppyOne compute (`sourceKind: "managed"`): read-only, inferred
+    /// through the signed-in account, never a stored credential.
+    #[serde(default, skip_serializing)]
+    pub managed: bool,
 }
 impl ModelConnection {
     fn credential_reference(&self) -> Option<&str> {
@@ -64,6 +68,108 @@ impl ModelConnection {
             Err(crate::localization::t("native.modelConnections.noCredentialStorage").into())
         }
     }
+}
+/// The managed connection (`withManagedConnection`): one PuppyOne entry per
+/// catalog model while Payments is on, the account is signed in and the
+/// wallet has credit. The directory is reused for a minute.
+pub fn managed() -> Vec<ModelConnection> {
+    use std::sync::Mutex;
+    use std::time::{Duration, Instant};
+    /// Account key, read time, catalog models and whether credit remains.
+    type Directory = (String, Instant, Vec<(String, String)>, bool);
+    static CACHE: Mutex<Option<Directory>> = Mutex::new(None);
+    let Some((broker, binding)) = crate::cloud_auth::current() else {
+        return vec![];
+    };
+    let key = format!(
+        "{}\n{}\n{}",
+        binding.user,
+        binding.epoch,
+        binding.environment.api()
+    );
+    let fresh = CACHE
+        .lock()
+        .ok()
+        .and_then(|c| c.clone())
+        .filter(|(k, at, _, _)| *k == key && at.elapsed() < Duration::from_secs(60));
+    let (models, available) = match fresh {
+        Some((_, _, models, available)) => (models, available),
+        None => {
+            let get = |path: &str| {
+                broker
+                    .request(
+                        &binding,
+                        &crate::cloud_auth::model::ApiRequest {
+                            idempotency_key: None,
+                            method: reqwest::Method::GET,
+                            path: path.into(),
+                            query: vec![],
+                            body: None,
+                        },
+                    )
+                    .ok()
+                    .map(|v| {
+                        if v.get("code").is_some() && v.get("data").is_some() {
+                            v["data"].clone()
+                        } else {
+                            v
+                        }
+                    })
+            };
+            let models: Vec<(String, String)> = get("/ai/catalog")
+                .and_then(|c| c["models"].as_array().cloned())
+                .unwrap_or_default()
+                .iter()
+                .filter_map(|m| {
+                    Some((
+                        m["id"].as_str()?.to_owned(),
+                        m["name"].as_str().unwrap_or_default().to_owned(),
+                    ))
+                })
+                .collect();
+            let available = get("/ai/balance")
+                .and_then(|b| b["available_micro_usd"].as_i64())
+                .is_some_and(|a| a > 0);
+            if let Ok(mut cache) = CACHE.lock() {
+                *cache = Some((key.clone(), Instant::now(), models.clone(), available));
+            }
+            (models, available)
+        }
+    };
+    if !available {
+        return vec![];
+    }
+    // A stable identity per account and service (`mc_…` in the product).
+    let id = {
+        use sha2::Digest as _;
+        let digest = sha2::Sha256::digest(
+            format!(
+                "puppyone-managed:{}:{}",
+                binding.environment.api(),
+                binding.user
+            )
+            .as_bytes(),
+        );
+        let mut bytes = [0u8; 16];
+        bytes.copy_from_slice(&digest[..16]);
+        uuid::Builder::from_random_bytes(bytes)
+            .into_uuid()
+            .to_string()
+    };
+    models
+        .into_iter()
+        .map(|(model, _)| ModelConnection {
+            id: id.clone(),
+            name: "PuppyOne".into(),
+            endpoint: format!("{}/ai", binding.environment.api()),
+            model,
+            images: false,
+            authenticated: false,
+            credential_id: None,
+            generation: format!("managed-{}", binding.epoch),
+            managed: true,
+        })
+        .collect()
 }
 pub fn data_dir() -> PathBuf {
     std::env::var_os("PUPPYONE_RUST_DATA_DIR")
@@ -244,6 +350,7 @@ mod tests {
             authenticated: true,
             credential_id: Some("old-key".into()),
             generation: "revision-1".into(),
+            managed: false,
         };
         assert!(check_generation(Some(&old), "revision-1").is_ok());
         assert!(check_generation(Some(&old), "revision-0").is_err());
@@ -273,6 +380,7 @@ mod tests {
             authenticated: false,
             credential_id: None,
             generation: "g".into(),
+            managed: false,
         };
         assert!(c.validate().is_ok());
         for endpoint in [

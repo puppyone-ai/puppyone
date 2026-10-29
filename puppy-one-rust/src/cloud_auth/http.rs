@@ -38,6 +38,17 @@ pub(super) trait Remote: Send + Sync {
     ) -> Result<()> {
         Err(Error::Unsupported)
     }
+    /// `openAgentStream`: one managed inference POST, streamed back.
+    fn completion(
+        &self,
+        _session: &Session,
+        _body: &Value,
+        _request_id: &str,
+        _fence: &Fence,
+        _sink: &mut StreamSink<'_>,
+    ) -> Result<()> {
+        Err(Error::Unsupported)
+    }
 }
 #[derive(Clone)]
 struct Config {
@@ -300,6 +311,47 @@ impl Remote for Http {
             http = http.header("Idempotency-Key", key);
         }
         self.send_with_timeout(http, 12 * 1024 * 1024, fence, request.timeout())
+    }
+    fn completion(
+        &self,
+        session: &Session,
+        body: &Value,
+        request_id: &str,
+        fence: &Fence,
+        sink: &mut StreamSink<'_>,
+    ) -> Result<()> {
+        let url = session
+            .credential
+            .environment
+            .api_url("/ai/chat/completions", &[])?;
+        let http = self
+            .client(&url)
+            .post(url)
+            .bearer_auth(&session.access.0)
+            .header("Idempotency-Key", request_id)
+            .header("X-Request-Id", request_id)
+            .json(body)
+            .timeout(Duration::from_secs(210));
+        runtime().block_on(async {
+            let mut changed = fence.control.changes.subscribe(); fence.check()?;
+            let operation = async {
+                let response = tokio::time::timeout(Duration::from_secs(30), http.send()).await.map_err(|_| Error::OutcomeUnknown)?.map_err(|_| Error::Unavailable)?;
+                let status = response.status().as_u16();
+                if status != 200 { return Err(response_error(status, &Value::Null)); }
+                fence.check()?; sink(StreamEvent::Connected)?;
+                let mut body = response.bytes_stream();
+                while let Some(part) = tokio::time::timeout(Duration::from_secs(120), body.next()).await.map_err(|_| Error::OutcomeUnknown)? {
+                    let part = part.map_err(|_| Error::OutcomeUnknown)?;
+                    fence.check()?; sink(StreamEvent::Data(&part))?;
+                }
+                Ok(())
+            };
+            tokio::select! {
+                _ = changed.changed() => Err(Error::SessionChanged),
+                _ = async { if let Some(cancel) = &fence.cancel { cancel.cancelled().await; } else { std::future::pending::<()>().await; } } => Err(Error::Cancelled),
+                result = operation => result,
+            }
+        })
     }
     fn stream(
         &self,

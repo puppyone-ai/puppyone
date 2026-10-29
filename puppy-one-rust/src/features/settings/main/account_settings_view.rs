@@ -171,13 +171,20 @@ impl SettingsWorkspaceSurface {
             .line_height(px(m.ui.caption * 1.4))
             .text_color(t.subtle)
             .child(tr("settings.account.localFreeNote"));
+        let prefs = &self.preferences.read(cx).state.experimental;
+        let payments = prefs.payments;
+        let cloud_on = crate::features::flags::cloud_enabled(&self.preferences, cx);
+        let credits = (payments && account.is_some() && status == Status::Authenticated)
+            .then(|| self.compute_credits(!cloud_on, t, cx));
         SettingsSection::new(tr(Page::Account.title()))
             .child(identity)
             .child(sign_in)
             .when(self.cloud.is_some(), |section| {
                 section.child(session_details)
             })
-            .when(account.is_none(), |section| {
+            // The Plan line describes the Cloud Computer plan: Payments and
+            // Cloud both on.
+            .when(payments && cloud_on && account.is_none(), |section| {
                 section.child(
                     SettingsSubsection::new()
                         .lead(true)
@@ -189,6 +196,70 @@ impl SettingsWorkspaceSurface {
                             .action(upgrade),
                         )
                         .child(note),
+                )
+            })
+            .children(credits)
+            .into_any_element()
+    }
+    /// `AccountAICredits`: the available balance; without Cloud (no Plan
+    /// page) Account also sells the top-up packs.
+    fn compute_credits(&self, top_up: bool, t: Theme, cx: &mut Context<Self>) -> AnyElement {
+        use crate::features::managed_compute::{Reason, global, money};
+        let compute = global(cx);
+        let state = compute.read(cx);
+        let reason = state.reason(true);
+        let value = match reason {
+            Reason::Loading | Reason::GatewayUnavailable => "—".to_owned(),
+            _ => money(state.balance.map_or(0, |b| b.available_micro_usd)),
+        };
+        let pending = state.pending;
+        let packs = state
+            .catalog
+            .as_ref()
+            .map(|c| c.packs.clone())
+            .unwrap_or_default();
+        let failed = state.failed;
+        let mut actions = h_flex().gap(px(6.));
+        if top_up {
+            for (index, pack) in packs.into_iter().enumerate() {
+                let id = pack.id.clone();
+                actions = actions.child(
+                    Button::new(("compute-top-up", index))
+                        .variant(ButtonVariant::OutlinePrimary)
+                        .label(tf(
+                            "agent.compute.topUp",
+                            &[("amount", money(pack.price_cents * 10_000).into())],
+                        ))
+                        .disabled(pending)
+                        .on_click(cx.listener(move |_, _, _, cx| {
+                            let id = id.clone();
+                            global(cx).update(cx, |c, cx| c.checkout(id, cx));
+                        })),
+                );
+            }
+            actions = actions.child(
+                Button::new("compute-refresh")
+                    .label(tr("agent.compute.refreshBalance"))
+                    .disabled(pending)
+                    .on_click(cx.listener(|_, _, _, cx| {
+                        global(cx).update(cx, |c, cx| c.refresh(true, cx));
+                    })),
+            );
+        }
+        let mut row = ValueRow::new(tr("agent.compute.availableBalance"), value);
+        if top_up {
+            row = row.action(actions);
+        }
+        SettingsSubsection::new()
+            .child(row)
+            .when(failed, |d| {
+                d.child(
+                    div()
+                        .px(px(10.))
+                        .pt(px(6.))
+                        .text_size(px(theme::ty().ui.meta))
+                        .text_color(t.danger)
+                        .child(tr("agent.compute.paymentUnavailable")),
                 )
             })
             .into_any_element()

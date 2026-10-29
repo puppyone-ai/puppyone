@@ -680,6 +680,33 @@ impl Broker {
             }
         }
     }
+    /// Managed inference (`openAgentStream`): a single POST of the Chat
+    /// Completions `body`, its stream delivered to `sink`. Never retried —
+    /// a lost response may still have been charged.
+    pub fn completion(
+        &self,
+        binding: &Binding,
+        body: &serde_json::Value,
+        request_id: &str,
+        cancel: &super::Cancellation,
+        sink: &mut super::transport::StreamSink<'_>,
+    ) -> Result<()> {
+        let mut fence = self.authorized(binding)?;
+        fence.cancel = Some(cancel.clone());
+        fence.check()?;
+        let session = self.session_for(binding, None)?;
+        self.remote
+            .completion(&session, body, request_id, &fence, sink)
+    }
+    /// The signed-in account's binding, for owners outside the UI (the
+    /// built-in Agent's managed compute).
+    pub fn signed_in_binding(&self) -> Option<Binding> {
+        self.updates
+            .borrow()
+            .account
+            .as_ref()
+            .map(|a| a.binding.clone())
+    }
     #[cfg_attr(
         not(test),
         expect(

@@ -204,6 +204,7 @@ impl ModelConnections {
             authenticated: self.authenticated || self.secret.is_some(),
             credential_id: None,
             generation: self.generation.clone(),
+            managed: false,
         };
         self.rx = client::save(connection, self.secret.take(), self.wake.clone());
         self.busy = true;

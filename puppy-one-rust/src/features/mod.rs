@@ -5,6 +5,7 @@ pub mod cloud_publish;
 pub mod create_new;
 pub mod desktop_agent;
 pub mod flags;
+pub mod managed_compute;
 pub mod model_connections;
 pub mod repository_cloud;
 pub mod settings;

@@ -390,6 +390,7 @@ fn native_puppyone_http_approval_resume_fork_stop_and_binding() {
         authenticated: false,
         credential_id: None,
         generation: String::new(),
+        managed: false,
     };
     configuration::save(c.clone(), None).unwrap();
     assert!(

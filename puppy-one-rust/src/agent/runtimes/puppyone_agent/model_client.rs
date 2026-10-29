@@ -26,6 +26,10 @@ pub async fn complete(
     mut delta: impl FnMut(&str, &str),
 ) -> Result<Completion, String> {
     connection.validate()?;
+    let body = json!({"model":connection.model,"messages":context,"tools":tool_schema,"stream":true,"stream_options":{"include_usage":true}});
+    if connection.managed {
+        return complete_managed(body, delta).await;
+    }
     let mut request = reqwest::Client::builder()
         .redirect_policy(reqwest::redirect::Policy::none())
         .connect_timeout(std::time::Duration::from_secs(15))
@@ -39,7 +43,6 @@ pub async fn complete(
     if let Some(secret) = connection.credential()? {
         request = request.bearer_auth(secret);
     }
-    let body = json!({"model":connection.model,"messages":context,"tools":tool_schema,"stream":true,"stream_options":{"include_usage":true}});
     let response = request.json(&body).send().await.map_err(
         |_| "Model request failed before a response. Check the configured endpoint and connection.",
     )?;
@@ -50,24 +53,93 @@ pub async fn complete(
         ));
     }
     let mut stream = response.bytes_stream();
-    let mut buffer = Vec::new();
-    let mut result = Completion::default();
-    let mut calls: BTreeMap<usize, Value> = BTreeMap::new();
-    let mut done = false;
-    let mut total = 0usize;
+    let mut parser = Parser::default();
     while let Some(chunk) = stream.next().await {
         let chunk =
             chunk.map_err(|_| "Model stream was interrupted; the request was not replayed")?;
-        total += chunk.len();
-        if total > 16 * 1024 * 1024 {
+        if parser.feed(&chunk, &mut delta)? {
+            break;
+        }
+    }
+    parser.finish()
+}
+
+/// PuppyOne compute (`openAgentStream`): the signed-in account's broker
+/// sends the request once; its stream feeds the same parser. A lost
+/// response is not replayed — it may already have been charged.
+async fn complete_managed(
+    body: Value,
+    mut delta: impl FnMut(&str, &str),
+) -> Result<Completion, String> {
+    let (broker, binding) = crate::cloud_auth::current().ok_or_else(|| {
+        crate::localization::t("settings.account.signedOutDetailCompute").to_owned()
+    })?;
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Result<Vec<u8>, String>>();
+    let cancel = crate::cloud_auth::Cancellation::default();
+    let guard = cancel.clone();
+    std::thread::spawn(move || {
+        let request_id = uuid::Uuid::new_v4().to_string();
+        let sink_tx = tx.clone();
+        let result = broker.completion(&binding, &body, &request_id, &cancel, &mut |event| {
+            if let crate::cloud_auth::StreamEvent::Data(bytes) = event
+                && sink_tx.send(Ok(bytes.to_vec())).is_err()
+            {
+                return Err(crate::cloud_auth::Error::Cancelled);
+            }
+            Ok(())
+        });
+        if let Err(error) = result {
+            let _ = tx.send(Err(match error {
+                crate::cloud_auth::Error::Http(402)
+                | crate::cloud_auth::Error::Response(402, _) => {
+                    crate::localization::t("agent.compute.paymentUnavailable").to_owned()
+                }
+                crate::cloud_auth::Error::Cancelled => "Turn stopped".to_owned(),
+                _ => {
+                    "PuppyOne compute did not complete the request; it was not replayed".to_owned()
+                }
+            }));
+        }
+    });
+    // Dropping the turn cancels the request.
+    struct Stop(crate::cloud_auth::Cancellation);
+    impl Drop for Stop {
+        fn drop(&mut self) {
+            self.0.cancel();
+        }
+    }
+    let _stop = Stop(guard);
+    let mut parser = Parser::default();
+    while let Some(chunk) = rx.recv().await {
+        if parser.feed(&chunk?, &mut delta)? {
+            break;
+        }
+    }
+    parser.finish()
+}
+
+/// The bounded OpenAI Chat Completions event stream.
+#[derive(Default)]
+struct Parser {
+    buffer: Vec<u8>,
+    result: Completion,
+    calls: BTreeMap<usize, Value>,
+    done: bool,
+    total: usize,
+}
+impl Parser {
+    /// `Ok(true)` once the stream sent `[DONE]`.
+    fn feed(&mut self, chunk: &[u8], delta: &mut impl FnMut(&str, &str)) -> Result<bool, String> {
+        self.total += chunk.len();
+        if self.total > 16 * 1024 * 1024 {
             return Err("Model output exceeded the turn limit".into());
         }
-        buffer.extend_from_slice(&chunk);
-        if buffer.len() > 2 * 1024 * 1024 {
+        self.buffer.extend_from_slice(chunk);
+        if self.buffer.len() > 2 * 1024 * 1024 {
             return Err("Model event exceeded its frame limit".into());
         }
-        while let Some(end) = buffer.iter().position(|c| *c == b'\n') {
-            let line = buffer.drain(..=end).collect::<Vec<_>>();
+        while let Some(end) = self.buffer.iter().position(|c| *c == b'\n') {
+            let line = self.buffer.drain(..=end).collect::<Vec<_>>();
             let line = std::str::from_utf8(&line)
                 .map_err(|_| "Invalid UTF-8 model stream")?
                 .trim();
@@ -75,8 +147,8 @@ pub async fn complete(
                 continue;
             };
             if data == "[DONE]" {
-                done = true;
-                break;
+                self.done = true;
+                return Ok(true);
             }
             if data.is_empty() {
                 continue;
@@ -87,15 +159,15 @@ pub async fn complete(
                 return Err("The model endpoint reported an inference error".into());
             }
             if !v["usage"].is_null() {
-                result.usage = v["usage"].clone();
+                self.result.usage = v["usage"].clone();
             }
             let d = &v["choices"][0]["delta"];
             if let Some(t) = d["content"].as_str() {
-                result.text.push_str(t);
+                self.result.text.push_str(t);
                 delta("text", t);
             }
             if let Some(t) = d["reasoning_content"].as_str() {
-                result.reasoning.push_str(t);
+                self.result.reasoning.push_str(t);
                 delta("reasoning", t);
             }
             for call in d["tool_calls"].as_array().into_iter().flatten() {
@@ -105,15 +177,13 @@ pub async fn complete(
                 if index >= 32 {
                     return Err("Too many tool calls in one model response".into());
                 }
-                let entry = calls.entry(index).or_insert_with(
+                let entry = self.calls.entry(index).or_insert_with(
                     || json!({"id":"","type":"function","function":{"name":"","arguments":""}}),
                 );
-                for key in ["id"] {
-                    if let Some(t) = call[key].as_str() {
-                        let mut value = entry[key].as_str().unwrap_or("").to_owned();
-                        value.push_str(t);
-                        entry[key] = json!(value);
-                    }
+                if let Some(t) = call["id"].as_str() {
+                    let mut value = entry["id"].as_str().unwrap_or("").to_owned();
+                    value.push_str(t);
+                    entry["id"] = json!(value);
                 }
                 for key in ["name", "arguments"] {
                     if let Some(t) = call["function"][key].as_str() {
@@ -124,20 +194,49 @@ pub async fn complete(
                 }
             }
         }
-        if done {
-            break;
+        Ok(false)
+    }
+    fn finish(mut self) -> Result<Completion, String> {
+        if !self.done {
+            return Err(
+                "Model stream ended without a completion receipt; nothing was replayed".into(),
+            );
         }
-    }
-    if !done {
-        return Err("Model stream ended without a completion receipt; nothing was replayed".into());
-    }
-    result.calls = calls.into_values().collect();
-    let mut ids = std::collections::HashSet::new();
-    for call in &result.calls {
-        let id = call["id"].as_str().unwrap_or("");
-        if id.is_empty() || !ids.insert(id) {
-            return Err("Model returned ambiguous tool identities".into());
+        self.result.calls = std::mem::take(&mut self.calls).into_values().collect();
+        let mut ids = std::collections::HashSet::new();
+        for call in &self.result.calls {
+            let id = call["id"].as_str().unwrap_or("");
+            if id.is_empty() || !ids.insert(id) {
+                return Err("Model returned ambiguous tool identities".into());
+            }
         }
+        Ok(self.result)
     }
-    Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::prelude::v1::test;
+
+    #[test]
+    fn the_stream_parser_assembles_text_and_tool_calls_across_chunks() {
+        let mut parser = Parser::default();
+        let mut deltas = vec![];
+        let mut sink = |kind: &str, text: &str| deltas.push((kind.to_owned(), text.to_owned()));
+        let events = concat!(
+            "data: {\"choices\":[{\"delta\":{\"content\":\"Hel\"}}]}\n",
+            "data: {\"choices\":[{\"delta\":{\"content\":\"lo\",\"tool_calls\":[{\"index\":0,\"id\":\"c1\",\"function\":{\"name\":\"read\",\"arguments\":\"{}\"}}]}}]}\n",
+            "data: [DONE]\n"
+        );
+        let (a, b) = events.split_at(30);
+        assert!(!parser.feed(a.as_bytes(), &mut sink).unwrap());
+        assert!(parser.feed(b.as_bytes(), &mut sink).unwrap());
+        let completion = parser.finish().unwrap();
+        assert_eq!(completion.text, "Hello");
+        assert_eq!(completion.calls.len(), 1);
+        assert_eq!(deltas.len(), 2);
+        // No receipt: nothing is assumed.
+        assert!(Parser::default().finish().is_err());
+    }
 }
