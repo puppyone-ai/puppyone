@@ -29,6 +29,20 @@ impl Render for TabDrag {
     }
 }
 impl Shell {
+    /// A Finder drop that names one file of this window's local workspace,
+    /// as a workspace path (folders and anything outside are not admitted).
+    pub(super) fn external_document(&self, paths: &ExternalPaths, cx: &App) -> Option<PathBuf> {
+        let [path] = paths.paths() else {
+            return None;
+        };
+        let root = self.workspace_root()?;
+        let relative = path.strip_prefix(&root).ok()?;
+        let normal = relative
+            .components()
+            .all(|c| matches!(c, std::path::Component::Normal(_)));
+        (normal && !relative.as_os_str().is_empty() && !self.explorer.read(cx).is_folder(relative))
+            .then(|| relative.to_path_buf())
+    }
     pub(super) fn focus_editor_slot(&mut self, slot: u64) {
         let pane = self.files.state().and_then(|state| {
             state
@@ -229,7 +243,9 @@ impl Shell {
                 let pane = id.clone();
                 let target = id.clone();
                 let file_target = id.clone();
+                let external_target = id.clone();
                 let preview_target = id.clone();
+                let external_preview = id.clone();
                 let mut view = at(rect)
                     .id(SharedString::from(id.clone()))
                     .overflow_hidden()
@@ -273,6 +289,59 @@ impl Shell {
                             }
                         },
                     ))
+                    .on_drag_move(cx.listener(
+                        move |s, event: &DragMoveEvent<ExternalPaths>, _, cx| {
+                            let inside = event.bounds.contains(&event.event.position)
+                                && !s.modal()
+                                && s.external_document(event.drag(cx), cx).is_some();
+                            let preview = inside.then(|| {
+                                let point = event.event.position - event.bounds.origin;
+                                let (direction, placement) =
+                                    crate::editor::workbench::layout::drop_edge(
+                                        f32::from(point.x),
+                                        f32::from(point.y),
+                                        f32::from(event.bounds.size.width),
+                                        f32::from(event.bounds.size.height),
+                                    );
+                                EditorDrop {
+                                    pane: external_preview.clone(),
+                                    direction,
+                                    placement,
+                                }
+                            });
+                            let ours = s
+                                .editor_drop
+                                .as_ref()
+                                .is_some_and(|p| p.pane == external_preview);
+                            if preview.is_some() && s.editor_drop != preview
+                                || preview.is_none() && ours
+                            {
+                                s.editor_drop = preview;
+                                cx.notify();
+                            }
+                        },
+                    ))
+                    .on_drop(cx.listener(move |s, paths: &ExternalPaths, w, cx| {
+                        // `claimEditorDropDocument`: one file of this local
+                        // workspace opens; anything else is not admitted.
+                        s.editor_drop = None;
+                        let Some(path) = s.external_document(paths, cx).filter(|_| !s.modal())
+                        else {
+                            return;
+                        };
+                        let p = w.mouse_position();
+                        let (direction, placement) = crate::editor::workbench::layout::drop_edge(
+                            f32::from(p.x) - s.layout.editor.x - rect.x,
+                            f32::from(p.y) - s.layout.editor.y - rect.y,
+                            rect.w,
+                            rect.h,
+                        );
+                        s.files
+                            .open_at_edge(path, &external_target, direction, placement, &s.wake);
+                        s.receive(w, cx);
+                        cx.stop_propagation();
+                        cx.notify();
+                    }))
                     .on_drop(cx.listener(move |s, drag: &explorer::DragNodes, w, cx| {
                         s.editor_drop = None;
                         if !drag.single_file || !drag.belongs_to(&s.files.workspace) || s.modal() {

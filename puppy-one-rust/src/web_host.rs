@@ -86,6 +86,10 @@ impl WebHost {
                     );
                 });
             })
+            // OS file drags over web content never load the file into the
+            // page (`acquireNativeSurfaceOcclusionLease` keeps them for the
+            // pane in the product).
+            .with_drag_drop_handler(|_| true)
             .with_navigation_handler(|url| {
                 // `about:srcdoc` is inline content the page already holds
                 // (the HTML visual editor's sandboxed projection frame).

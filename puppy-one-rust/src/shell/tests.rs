@@ -2315,3 +2315,46 @@ fn an_unsupported_repository_url_is_refused_before_cloning(cx: &mut TestAppConte
     });
     let _ = parent;
 }
+
+#[gpui::test]
+fn finder_drops_open_only_one_file_of_this_workspace(cx: &mut TestAppContext) {
+    let (view, vcx) = setup(cx);
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().canonicalize().unwrap();
+    std::fs::create_dir(root.join("docs")).unwrap();
+    std::fs::write(root.join("docs/a.md"), "a").unwrap();
+    std::fs::write(root.join("b.md"), "b").unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    view.update(vcx, |s, _| {
+        s.files.begin(Intent::OpenFolder(root.clone()), &s.wake)
+    });
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while view.read_with(vcx, |s, cx| {
+        s.workspace_root().is_none()
+            || !s
+                .explorer
+                .read(cx)
+                .tree()
+                .is_folder(std::path::Path::new("docs"))
+    }) {
+        assert!(std::time::Instant::now() < deadline);
+        vcx.run_until_parked();
+        view.update_in(vcx, |s, w, cx| s.receive(w, cx));
+    }
+    let drop = |paths: Vec<std::path::PathBuf>| ExternalPaths(paths.into());
+    view.read_with(vcx, |s, cx| {
+        assert_eq!(
+            s.external_document(&drop(vec![root.join("docs/a.md")]), cx),
+            Some("docs/a.md".into())
+        );
+        // Folders, several files and files outside the project are not admitted.
+        for paths in [
+            vec![root.join("docs")],
+            vec![root.join("docs/a.md"), root.join("b.md")],
+            vec![outside.path().join("c.md")],
+            vec![root.clone()],
+        ] {
+            assert_eq!(s.external_document(&drop(paths), cx), None);
+        }
+    });
+}

@@ -300,6 +300,48 @@ pub fn link_at(screen: &Screen, point: CellPoint) -> Option<String> {
     .then_some(candidate)
 }
 
+/// `quoteTerminalPaths`: dropped paths as literal arguments for the shell,
+/// separated by spaces, with no Enter or control bytes. Shells whose quoting
+/// cannot be trusted fail closed.
+pub fn quote_paths(paths: &[std::path::PathBuf], shell: &str) -> Result<String, &'static str> {
+    let name = shell
+        .rsplit(['/', '\\'])
+        .next()
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let name = name.strip_suffix(".exe").unwrap_or(&name);
+    let posix = matches!(name, "sh" | "bash" | "zsh" | "dash" | "ksh" | "fish");
+    let powershell = matches!(name, "powershell" | "pwsh");
+    if !posix && !powershell && name != "cmd" {
+        return Err("The terminal shell does not support path insertion.");
+    }
+    let mut quoted = Vec::with_capacity(paths.len());
+    for path in paths {
+        let path = path.to_str().ok_or("A path is not valid text.")?;
+        if path.is_empty() || path.chars().any(|c| c.is_control()) {
+            return Err("A path contains terminal control characters.");
+        }
+        quoted.push(if powershell {
+            format!("'{}'", path.replace('\'', "''"))
+        } else if name == "fish" {
+            format!("'{}'", path.replace('\\', "\\\\").replace('\'', "\\'"))
+        } else if name == "cmd" {
+            if path.contains(['%', '!', '"']) {
+                return Err("This path cannot be inserted literally into cmd.");
+            }
+            format!("\"{path}\"")
+        } else if path
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || "_@%+=:,./-".contains(c))
+        {
+            path.to_owned()
+        } else {
+            format!("'{}'", path.replace('\'', "'\\''"))
+        });
+    }
+    Ok(quoted.join(" "))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -407,5 +449,33 @@ mod tests {
         );
         assert!(link_at(parser.screen(), CellPoint { row: 2, col: 5 }).is_none());
         assert!(link_at(parser.screen(), CellPoint { row: 3, col: 5 }).is_none());
+    }
+
+    #[test]
+    fn dropped_paths_are_quoted_for_the_shell_or_refused() {
+        use std::path::PathBuf;
+        let paths = [
+            PathBuf::from("/tmp/plain-file.md"),
+            PathBuf::from("/tmp/it's here.md"),
+        ];
+        assert_eq!(
+            super::quote_paths(&paths, "/bin/zsh").unwrap(),
+            "/tmp/plain-file.md '/tmp/it'\\''s here.md'"
+        );
+        assert_eq!(
+            super::quote_paths(&paths[1..], "/opt/homebrew/bin/fish").unwrap(),
+            "'/tmp/it\\'s here.md'"
+        );
+        assert_eq!(
+            super::quote_paths(&paths[1..], "pwsh").unwrap(),
+            "'/tmp/it''s here.md'"
+        );
+        assert_eq!(
+            super::quote_paths(&[PathBuf::from("C:\\a b")], "cmd.exe").unwrap(),
+            "\"C:\\a b\""
+        );
+        assert!(super::quote_paths(&[PathBuf::from("C:\\100%")], "cmd").is_err());
+        assert!(super::quote_paths(&[PathBuf::from("/tmp/a\nb")], "bash").is_err());
+        assert!(super::quote_paths(&paths, "claude").is_err());
     }
 }

@@ -43,6 +43,10 @@ pub struct TerminalView {
     activity: TerminalActivity,
     activity_timer: bool,
     title: String,
+    /// The shell hosting the session (`inputShell`), for path quoting.
+    shell: String,
+    /// `terminal.dropFailed` after a refused drop, until dismissed.
+    drop_failed: bool,
 }
 impl TerminalView {
     pub fn new(
@@ -122,6 +126,32 @@ impl TerminalView {
             activity: TerminalActivity::new(agent),
             activity_timer: false,
             title: String::new(),
+            // Agent CLIs run inside the same login shell host.
+            shell: std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into()),
+            drop_failed: false,
+        }
+    }
+    /// `resolveTerminalDropPaths` + `quoteTerminalPaths`: dropped files and
+    /// workspace entries become literal arguments at the prompt (no Enter).
+    pub fn insert_paths(
+        &mut self,
+        paths: Option<Vec<PathBuf>>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let quoted = paths
+            .filter(|paths| !paths.is_empty() && self.running)
+            .and_then(|paths| interaction::quote_paths(&paths, &self.shell).ok());
+        match quoted {
+            Some(text) => {
+                self.drop_failed = false;
+                self.input(text.into_bytes(), cx);
+                self.focus.focus(window, cx);
+            }
+            None => {
+                self.drop_failed = true;
+                cx.notify();
+            }
         }
     }
     /// Dev-capture: an Agent CLI whose title reports work.
@@ -429,10 +459,46 @@ impl Render for TerminalView {
                             })),
                     ),
             )
+            .when(self.drop_failed, |d| {
+                d.child(
+                    div().flex_shrink_0().px(px(8.)).pb(px(6.)).child(
+                        crate::ui::components::FloatingNotice::new(
+                            "terminal-drop-failed",
+                            tr("terminal.dropFailed"),
+                        )
+                        .tone(crate::ui::components::NoticeTone::Danger)
+                        .on_dismiss({
+                            let entity = cx.entity();
+                            move |_, cx| {
+                                entity.update(cx, |s, cx| {
+                                    s.drop_failed = false;
+                                    cx.notify();
+                                })
+                            }
+                        }),
+                    ),
+                )
+            })
             .child(
                 div()
                     .id("terminal-surface")
                     .relative()
+                    .drag_over::<ExternalPaths>(move |s, _, _, _| {
+                        s.bg(crate::theme::alpha(t.accent, 0.06))
+                    })
+                    .drag_over::<crate::ui::resource_drag::ResourceDrag>(move |s, _, _, _| {
+                        s.bg(crate::theme::alpha(t.accent, 0.06))
+                    })
+                    .on_drop(cx.listener(|s, paths: &ExternalPaths, window, cx| {
+                        s.insert_paths(Some(paths.paths().to_vec()), window, cx);
+                        cx.stop_propagation();
+                    }))
+                    .on_drop(cx.listener(
+                        |s, drag: &crate::ui::resource_drag::ResourceDrag, window, cx| {
+                            s.insert_paths(drag.local_paths(), window, cx);
+                            cx.stop_propagation();
+                        },
+                    ))
                     .flex_1()
                     .min_h_0()
                     .overflow_hidden()
@@ -754,9 +820,21 @@ mod tests {
             activity: TerminalActivity::new(false),
             activity_timer: false,
             title: String::new(),
+            shell: "/bin/zsh".into(),
+            drop_failed: false,
         });
         cx.update(|w, cx| {
             let _ = w.draw(cx);
+        });
+        // A drop on an exited session, or from a workspace without local
+        // paths, is refused with the product notice.
+        view.update_in(cx, |s, w, cx| {
+            s.insert_paths(Some(vec!["/tmp/a.md".into()]), w, cx);
+            assert!(s.drop_failed);
+            s.drop_failed = false;
+            s.insert_paths(None, w, cx);
+            assert!(s.drop_failed);
+            s.drop_failed = false;
         });
         let origin = view.update(cx, |s, cx| {
             s.parser.process(b"hello world");

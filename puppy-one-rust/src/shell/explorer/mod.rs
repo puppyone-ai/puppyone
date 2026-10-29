@@ -509,6 +509,10 @@ impl Explorer {
     pub fn tree(&self) -> &Tree {
         &self.tree
     }
+    /// The listed entry at `path` is a folder.
+    pub fn is_folder(&self, path: &std::path::Path) -> bool {
+        self.tree.is_folder(path)
+    }
 
     // ------------------------------------------------------------------ rows
     /// `onActivate`: a folder opens or closes, a file opens in the editor.

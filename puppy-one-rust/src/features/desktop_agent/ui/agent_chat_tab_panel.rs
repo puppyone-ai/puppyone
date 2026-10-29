@@ -431,6 +431,14 @@ impl Render for AgentChat {
             .on_drop(
                 cx.listener(|s, paths: &ExternalPaths, _, cx| s.stage(paths.paths().to_vec(), cx)),
             )
+            // Explorer entries are references through the same ingestion.
+            .on_drop(
+                cx.listener(|s, drag: &crate::ui::resource_drag::ResourceDrag, _, cx| {
+                    if let Some(paths) = drag.local_paths() {
+                        s.stage(paths, cx);
+                    }
+                }),
+            )
             .on_action(cx.listener(|s, _: &SendMessage, w, cx| s.send(w, cx)))
             .children(self.render_header(cx))
             .child(self.render_status(cx));

@@ -11,6 +11,7 @@ pub mod ime;
 pub mod input;
 pub mod loading;
 pub mod motion;
+pub mod resource_drag;
 mod tracked_text;
 pub use fractional_text::fractional_text;
 pub use tracked_text::tracked_text;

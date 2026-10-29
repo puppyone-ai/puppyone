@@ -10,37 +10,8 @@ use gpui_kit::{
     component::Sizable as _,
 };
 
-/// Entries being dragged within the Explorer.
-#[derive(Clone)]
-pub(in crate::shell) struct DragNodes {
-    pub single_file: bool,
-    pub paths: Vec<PathBuf>,
-    pub label: SharedString,
-    pub workspace: Option<Arc<Workspace>>,
-}
-impl DragNodes {
-    pub fn belongs_to(&self, workspace: &Option<Arc<Workspace>>) -> bool {
-        self.workspace
-            .as_ref()
-            .zip(workspace.as_ref())
-            .is_some_and(|(a, b)| Arc::ptr_eq(a, b))
-    }
-}
-impl Render for DragNodes {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let t = cx.palette();
-        div()
-            .px(px(10.))
-            .py(px(6.))
-            .rounded(px(6.))
-            .bg(t.menu_bg)
-            .border_1()
-            .border_color(t.border)
-            .text_color(t.text)
-            .text_size(px(theme::ty().left.content))
-            .child(self.label.clone())
-    }
-}
+/// Entries being dragged from the Explorer.
+pub(in crate::shell) use crate::ui::resource_drag::ResourceDrag as DragNodes;
 
 impl Explorer {
     /// One stride of the virtual list: a row inside its 1px block margins
