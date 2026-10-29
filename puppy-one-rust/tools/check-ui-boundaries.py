@@ -64,6 +64,15 @@ for base in ['src/features/settings/main', 'src/shell', 'src/shell.rs']:
         if re.search(r'\b(?:access_token|refresh_token|code_verifier)\b|bearer_auth|security_framework::|cloud_auth::(?:Broker|http|store)', source):
             errors.append(f'{path.relative_to(root)}: account view bypasses the public auth projection')
 
+# The first-publication service (like `cloud_auth`) owns Git, keychain and its
+# journal; it never depends on presentation or reads credentials itself.
+for path in (root / 'src/cloud_publication').rglob('*.rs'):
+    if path.name == 'tests.rs':
+        continue
+    source = path.read_text()
+    if re.search(r'\bgpui\s*::|crate::(?:features|shell|ui|editor)|bearer_auth|\b(?:access_token|refresh_token)\b|reqwest::(?:Client|RequestBuilder|blocking)', source):
+        errors.append(f'{path.relative_to(root)}: publication service depends on presentation or credentials')
+
 # Live Cloud files consume admitted auth transport, not credentials, a private
 # HTTP client, local mirrors or a second presentation/save owner.
 for path in (root / 'src/workspace/cloud').rglob('*.rs'):

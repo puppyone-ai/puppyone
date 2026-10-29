@@ -17,6 +17,7 @@ use std::path::PathBuf;
 mod bench;
 #[cfg(feature = "dev-capture")]
 mod capture_scenario;
+mod cloud_publish;
 mod cloud_switch;
 mod command;
 mod create_new;
@@ -71,6 +72,10 @@ pub struct Shell {
     recovery_details: bool,
     /// `ProjectRowActions` of a remembered Project, at the pointer.
     project_actions: Option<(PathBuf, Point<Pixels>)>,
+    /// The first publication of this window's checkout.
+    cloud_publish: Entity<crate::features::cloud_publish::CloudPublish>,
+    /// The published Project the association was last refreshed for.
+    publish_reported: Option<String>,
     /// Launch without a project: open the last active one once preferences load.
     restore_last: bool,
     project: String,
@@ -221,6 +226,8 @@ impl Shell {
             workspace_notice: None,
             recovery_details: false,
             project_actions: None,
+            cloud_publish: Self::new_cloud_publish(cx),
+            publish_reported: None,
             restore_last: false,
             project: if fixture {
                 "puppyone".into()
@@ -1706,6 +1713,7 @@ impl Render for Shell {
         self.sync_explorer(window, cx);
         self.guard_cloud_history(cx);
         self.sync_repository_cloud(cx);
+        self.sync_cloud_publish(cx);
         self.guard_cloud_authority(window, cx);
         self.advance_cloud_switch(cx);
         self.refresh_home_activity(cx);

@@ -345,6 +345,8 @@ pub struct ApiRequest {
     pub path: String,
     pub query: Vec<(String, String)>,
     pub body: Option<serde_json::Value>,
+    /// `Idempotency-Key` of a retried creation (`requestIdempotent`).
+    pub idempotency_key: Option<String>,
 }
 impl ApiRequest {
     fn project_endpoint(&self, endpoint: &str) -> bool {
@@ -394,6 +396,7 @@ mod request_policy_tests {
             ("/projects//repository-context", false),
         ] {
             let request = ApiRequest {
+                idempotency_key: None,
                 method: Method::POST,
                 path: path.into(),
                 query: Vec::new(),
@@ -419,6 +422,7 @@ mod request_policy_tests {
             ("/user/profile", Method::GET, true, 15),
         ] {
             let request = ApiRequest {
+                idempotency_key: None,
                 method,
                 path: path.into(),
                 query: if wait {

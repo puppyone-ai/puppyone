@@ -2061,3 +2061,193 @@ fn the_rail_offers_rename_and_unlink_for_a_remembered_project(cx: &mut TestAppCo
         assert!(s.preferences.read(cx).state.recent_projects.is_empty())
     });
 }
+
+#[gpui::test]
+fn an_unlinked_checkout_publishes_from_the_header_switch(cx: &mut TestAppContext) {
+    use crate::cloud_publication::tests::{Fake, coordinator};
+    let (temp, fake) = Fake::new();
+    let root = temp.path().canonicalize().unwrap();
+    std::fs::write(root.join("a.md"), "# A\n").unwrap();
+    std::process::Command::new("git")
+        .args(["init", "-q", "-b", "main"])
+        .current_dir(&root)
+        .status()
+        .unwrap();
+    let (view, cx) = setup(cx);
+    let responder: crate::cloud_auth::Responder = std::sync::Arc::new(|request| {
+        if request.path.ends_with("/organizations/") {
+            return Ok(serde_json::json!({"code": 0, "data": [{"id": "org-1", "name": "Mine"}]}));
+        }
+        cloud_project_responder()(request)
+    });
+    let (broker, browser) = crate::cloud_auth::responding_account_fixture(responder);
+    cx.update(|_, cx| {
+        crate::features::cloud_account::install_fixture(broker, browser, cx);
+        let fake = fake.clone();
+        crate::features::cloud_publish::install_factory(
+            std::sync::Arc::new(move |_, _| coordinator(&fake).0),
+            cx,
+        );
+    });
+    view.update(cx, |s, cx| {
+        s.preferences
+            .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
+    });
+    let settle = |view: &Entity<Shell>,
+                  cx: &mut VisualTestContext,
+                  what: &str,
+                  ready: &dyn Fn(&Shell, &App) -> bool| {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(8);
+        loop {
+            view.update_in(cx, |s, w, cx| s.receive(w, cx));
+            cx.run_until_parked();
+            cx.update(|w, cx| {
+                let _ = w.draw(cx);
+            });
+            if cx.update(|_, cx| ready(view.read(cx), cx)) {
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "{what} did not settle"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+    };
+    settle(&view, cx, "sign-in", &|_, cx| {
+        crate::features::cloud_account::has_account(cx)
+    });
+    view.update(cx, |s, _| {
+        s.files.begin(Intent::OpenFolder(root.clone()), &s.wake)
+    });
+    settle(&view, cx, "the local project", &|s, _| {
+        s.workspace_root().as_deref() == Some(root.as_path())
+    });
+    // No Cloud remote: choosing Cloud shows the activation page.
+    view.update_in(cx, |s, w, cx| s.view_cloud(w, cx));
+    settle(&view, cx, "the organization", &|s, cx| {
+        s.modals.iter().any(|m| matches!(m, Modal::CloudSwitch))
+            && s.cloud_publish.read(cx).selected.as_deref() == Some("org-1")
+    });
+    // Upload to Cloud runs the publication; the dialog can go to the
+    // background while the Header states the run.
+    view.update(cx, |s, cx| {
+        s.cloud_publish.update(cx, |p, cx| {
+            p.start(crate::cloud_publication::Action::Initialize, cx)
+        })
+    });
+    settle(&view, cx, "the publication", &|s, cx| {
+        let p = s.cloud_publish.read(cx);
+        if let Some(error) = p.outcome.as_ref().and_then(|o| o.error.as_ref()) {
+            panic!("{error:?}");
+        }
+        p.published.as_deref() == Some("project-a")
+    });
+    view.read_with(cx, |s, cx| {
+        assert_eq!(
+            s.cloud_publish.read(cx).header_status(),
+            Some(crate::features::cloud_publish::HeaderStatus::Completed)
+        );
+        assert!(
+            crate::cloud_publication::journal::Journal::in_git_dir(&fake.git_dir)
+                .read()
+                .unwrap()
+                .is_none()
+        );
+    });
+}
+
+#[gpui::test]
+fn a_vanished_cloud_project_is_replaced_only_after_a_second_404(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().canonicalize().unwrap();
+    std::fs::write(root.join("a.md"), "# A\n").unwrap();
+    let git = |args: &[&str]| {
+        assert!(
+            std::process::Command::new("git")
+                .args(args)
+                .current_dir(&root)
+                .status()
+                .unwrap()
+                .success()
+        )
+    };
+    git(&["init", "-q", "-b", "main"]);
+    let url = "http://127.0.0.1:18080/git/project-a.git";
+    git(&["remote", "add", "puppyone", url]);
+    let authorizations = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let counted = authorizations.clone();
+    let responder: crate::cloud_auth::Responder = std::sync::Arc::new(move |request| {
+        if request.path.ends_with("/repository-context") {
+            counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            return Err(crate::cloud_auth::Error::Http(404));
+        }
+        cloud_project_responder()(request)
+    });
+    let (view, cx) = setup(cx);
+    let (broker, browser) = crate::cloud_auth::responding_account_fixture(responder);
+    cx.update(|_, cx| {
+        crate::features::cloud_account::install_fixture(broker, browser, cx);
+    });
+    view.update(cx, |s, cx| {
+        s.preferences
+            .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
+    });
+    let settle = |view: &Entity<Shell>,
+                  cx: &mut VisualTestContext,
+                  what: &str,
+                  ready: &dyn Fn(&Shell, &App) -> bool| {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(8);
+        loop {
+            view.update_in(cx, |s, w, cx| s.receive(w, cx));
+            cx.run_until_parked();
+            cx.update(|w, cx| {
+                let _ = w.draw(cx);
+            });
+            if cx.update(|_, cx| ready(view.read(cx), cx)) {
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "{what} did not settle"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+    };
+    settle(&view, cx, "sign-in", &|_, cx| {
+        crate::features::cloud_account::has_account(cx)
+    });
+    view.update(cx, |s, _| {
+        s.files.begin(Intent::OpenFolder(root.clone()), &s.wake)
+    });
+    settle(&view, cx, "the missing association", &|s, cx| {
+        matches!(
+            s.repository_cloud.read(cx).context,
+            crate::workspace::cloud::repository::Context::NotFound { .. }
+        )
+    });
+    view.update_in(cx, |s, w, cx| s.view_cloud(w, cx));
+    view.update(cx, |s, cx| s.begin_replace(cx));
+    settle(&view, cx, "the reviewed remote", &|s, _| {
+        s.cloud_switch
+            .as_ref()
+            .and_then(|c| c.replace.as_ref())
+            .is_some_and(|r| r.url.as_deref() == Some(url))
+    });
+    let before = authorizations.load(std::sync::atomic::Ordering::SeqCst);
+    view.update(cx, |s, cx| s.confirm_replace("project-a".into(), cx));
+    settle(&view, cx, "the local detach", &|s, cx| {
+        matches!(
+            s.repository_cloud.read(cx).context,
+            crate::workspace::cloud::repository::Context::LocalOnly
+        )
+    });
+    // Authorized once more before anything local changed.
+    assert!(authorizations.load(std::sync::atomic::Ordering::SeqCst) > before);
+    let remotes = std::process::Command::new("git")
+        .args(["remote"])
+        .current_dir(&root)
+        .output()
+        .unwrap();
+    assert!(String::from_utf8_lossy(&remotes.stdout).trim().is_empty());
+}

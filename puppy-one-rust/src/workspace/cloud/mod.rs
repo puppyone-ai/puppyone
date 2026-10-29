@@ -75,6 +75,7 @@ pub fn prepare_running(
     broker.check_binding(&binding).map_err(map_error)?;
     let context = authorize(&broker, &binding, &target, &scope)?;
     let status = ApiRequest {
+        idempotency_key: None,
         method: Method::GET,
         path: format!("/projects/{project}/workbench"),
         query: Vec::new(),
@@ -125,6 +126,7 @@ fn authorize_target(
     scope.check().map_err(Refusal::Auth)?;
     broker.check_binding(binding).map_err(Refusal::Auth)?;
     let query = ApiRequest {
+        idempotency_key: None,
         method: Method::POST,
         path: format!("/projects/{project}/repository-context"),
         query: Vec::new(),

@@ -48,6 +48,11 @@ pub const REASONS: &[&str] = &[
     "workbench_access_denied",
     "workbench_requires_recovery",
     "workbench_preparing",
+    // First publication (`mapCloudMutationError`, cleanup refusal).
+    "initialization_not_abandonable",
+    "organization_required",
+    "schema_migration_required",
+    "service_upgrade_required",
 ];
 /// The allowlisted spelling of `code`, if any.
 pub fn allowlisted(code: &str) -> Option<&'static str> {

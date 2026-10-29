@@ -96,6 +96,7 @@ impl Shell {
                     .line_height(px(ty.line_height))
                     .font_weight(FontWeight::MEDIUM);
                 d.child(self.header_popover(Popover::Location, location, cx))
+                    .children(self.publish_header_mark(cx))
             })
     }
     /// `trigger` and the header popover it opens.

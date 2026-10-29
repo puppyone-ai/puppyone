@@ -7,6 +7,7 @@ mod assets;
 mod bench;
 mod capture;
 mod cloud_auth;
+mod cloud_publication;
 mod documents;
 mod editor;
 mod features;

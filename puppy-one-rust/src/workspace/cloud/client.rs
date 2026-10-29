@@ -71,6 +71,7 @@ impl Shared {
             query.push(("path".into(), model::path(path, true)?.into()));
         }
         Ok(ApiRequest {
+            idempotency_key: None,
             method,
             path: format!("/projects/{}/workbench{suffix}", self.runtime.project_id),
             query,

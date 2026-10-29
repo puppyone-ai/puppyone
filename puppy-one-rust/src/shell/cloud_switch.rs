@@ -48,6 +48,17 @@ pub(super) struct CloudSwitch {
     /// Preparing in place for this Project.
     preparing: Option<String>,
     failure: Option<Failure>,
+    /// "Continue in background": the intent waits without its dialog.
+    pub hidden: bool,
+    /// `MissingCloudProjectRecovery`: replacing a vanished Project's remote.
+    pub replace: Option<Replace>,
+}
+#[derive(Clone, Debug, Default)]
+pub(super) struct Replace {
+    /// The `puppyone` remote as reviewed when Replace was chosen.
+    pub url: Option<String>,
+    pub busy: bool,
+    pub failed: bool,
 }
 /// A host kept alive while the other location shows.
 #[derive(Clone, Debug, PartialEq)]
@@ -314,7 +325,7 @@ impl Shell {
                 .open_cloud(broker, binding, project.clone(), &self.wake);
             switch.preparing = Some(project);
         }
-        let dialog = switch.preparing.is_none();
+        let dialog = switch.preparing.is_none() && !switch.hidden;
         self.cloud_switch = Some(switch);
         let shown = self.modals.iter().any(|m| matches!(m, Modal::CloudSwitch));
         if dialog && !shown {
@@ -677,15 +688,11 @@ impl Shell {
             Association::Resolving | Association::Resolved { .. } => {
                 dialog.child(loading(tr("cloud.loading.matchingProject")))
             }
-            Association::LocalOnly => dialog.child(
-                v_flex()
-                    .gap(px(8.))
-                    .child(heading(tr("cloud.state.localOnly")))
-                    .child(paragraph(
-                        tr("cloud.state.localOnlyDescription").to_owned(),
-                        t.muted,
-                    )),
-            ),
+            // `CloudProjectActivation` → the first publication.
+            Association::LocalOnly => self.publish_dialog(dialog, cx),
+            Association::NotFound { project } => {
+                self.missing_project_dialog(dialog, project.clone(), cx)
+            }
             Association::WrongHost { .. } => {
                 let detail = association
                     .message()

@@ -263,6 +263,7 @@ fn binding(broker: &Broker) -> Binding {
 }
 fn request(method: reqwest::Method) -> ApiRequest {
     ApiRequest {
+        idempotency_key: None,
         method,
         path: "/projects/p/workbench".into(),
         query: Vec::new(),

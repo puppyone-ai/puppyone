@@ -292,6 +292,13 @@ impl Remote for Http {
         if let Some(body) = &request.body {
             http = http.json(body);
         }
+        if let Some(key) = request.idempotency_key.as_deref().filter(|k| {
+            !k.is_empty()
+                && k.len() <= 128
+                && k.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+        }) {
+            http = http.header("Idempotency-Key", key);
+        }
         self.send_with_timeout(http, 12 * 1024 * 1024, fence, request.timeout())
     }
     fn stream(

@@ -103,6 +103,7 @@ fn request(
         .request_scoped(
             binding,
             &ApiRequest {
+                idempotency_key: None,
                 method,
                 path: format!("/projects/{project}/workbench"),
                 query: if wait {

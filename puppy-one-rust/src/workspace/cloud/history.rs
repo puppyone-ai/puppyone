@@ -129,6 +129,7 @@ pub fn page_request(project: &str, cursor: Option<&str>) -> Option<ApiRequest> {
     }
     query.push(("summary".to_owned(), "true".to_owned()));
     Some(ApiRequest {
+        idempotency_key: None,
         method: Method::GET,
         path: format!("/content/{project}/commits"),
         query,
@@ -139,6 +140,7 @@ pub fn page_request(project: &str, cursor: Option<&str>) -> Option<ApiRequest> {
 pub fn detail_request(project: &str, commit: &str) -> Option<ApiRequest> {
     let project = path_segment(project)?;
     Some(ApiRequest {
+        idempotency_key: None,
         method: Method::GET,
         path: format!("/content/{project}/commit-detail"),
         query: vec![("commit_id".to_owned(), commit.to_owned())],

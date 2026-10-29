@@ -168,9 +168,10 @@ struct WorkspaceAssets {
 impl crate::platform::webview::ResourceSource for WorkspaceAssets {
     fn read(&self, relative: &std::path::Path) -> Option<Vec<u8>> {
         let path = self.base.join(relative);
+        // Hosted providers answer with bytes; a local file is never read here.
         match self.workspace.resource(&path).ok()?.data().ok()? {
             workspace::PreviewData::Bytes { bytes, .. } => Some(bytes.to_vec()),
-            workspace::PreviewData::LocalFile(file) => std::fs::read(file).ok(),
+            workspace::PreviewData::LocalFile(_) => None,
         }
     }
 }

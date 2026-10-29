@@ -73,23 +73,6 @@ fn bytes_name(resource: &Option<PreviewResource>) -> String {
         .unwrap_or_else(|| "db".into());
     format!("source.{ext}")
 }
-/// `fs.mkdtemp` + `writeFile(…, {mode: 0o400})`.
-fn private_copy(
-    name: &str,
-    bytes: &[u8],
-) -> std::io::Result<(tempfile::TempDir, std::path::PathBuf)> {
-    let dir = tempfile::Builder::new()
-        .prefix("puppyone-cloud-preview-")
-        .tempdir()?;
-    let path = dir.path().join(name);
-    crate::platform::webview::write_private(&path, bytes)?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o400))?;
-    }
-    Ok((dir, path))
-}
 impl DatabaseView {
     fn new(resource: Option<PreviewResource>) -> Self {
         Self {
@@ -118,7 +101,7 @@ impl DatabaseView {
             // revision by the provider) become a private, read-only
             // temporary copy that lives as long as this preview.
             Some(PreviewData::Bytes { bytes, .. }) => {
-                match private_copy(&bytes_name(&self.resource), bytes) {
+                match crate::platform::webview::private_copy(&bytes_name(&self.resource), bytes) {
                     Ok((dir, path)) => {
                         self._temporary = Some(dir);
                         path

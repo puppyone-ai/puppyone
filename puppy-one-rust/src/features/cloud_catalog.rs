@@ -89,6 +89,7 @@ impl CloudCatalog {
         self.state = State::Loading;
         cx.notify();
         let request = ApiRequest {
+            idempotency_key: None,
             method: Method::GET,
             path: "/projects/".into(),
             query: vec![("include_access_counts".into(), "false".into())],
@@ -135,6 +136,7 @@ impl CloudCatalog {
                     .into_iter()
                     .filter_map(|id| {
                         let request = ApiRequest {
+                            idempotency_key: None,
                             method: Method::GET,
                             path: format!("/content/{id}/commits"),
                             query: vec![

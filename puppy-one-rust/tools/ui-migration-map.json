@@ -1090,6 +1090,45 @@
         "test:a_failed_cloud_subscription_offers_retry_which_rebinds_the_same_host"
       ],
       "remaining": "The hosted shell reuses the native Explorer, editor and viewers; authority changes revoke the selection, reopening rebinds retained Working Copies, and a failed subscription shows the workspace notice with Retry. Cloud preview resources (Office/database temp files, HTML data-URL projection), Scope targets and real-backend acceptance remain; the floating notices are not pixel-compared."
+    },
+    {
+      "name": "Cloud first publication",
+      "status": "partial",
+      "sources": [
+        "src/features/cloud/initialization/CloudPublishRunning.tsx",
+        "src/features/cloud/initialization/CloudPublishResume.tsx",
+        "src/features/cloud/initialization/CloudPublishProgressIndicator.tsx",
+        "src/features/cloud/initialization/CloudPublishHeaderStatus.tsx",
+        "src/features/cloud/initialization/useCloudPublishHeaderStatus.ts",
+        "src/features/cloud/initialization/useCloudInitialization.ts",
+        "src/features/cloud/initialization/CloudGitPrerequisite.tsx",
+        "src/features/cloud/initialization/CloudInitializationView.tsx",
+        "src/features/cloud/initialization/cloudInitializationModel.ts",
+        "src/features/cloud/initialization/initialization.css",
+        "src/features/cloud/initialization/cloud-publish-header-status.css",
+        "src/features/cloud/components/CloudProjectActivation.tsx",
+        "src/features/cloud/components/cloud-project-activation.css",
+        "src/features/cloud/workbench/MissingCloudProjectRecovery.tsx"
+      ],
+      "targets": [
+        "src/cloud_publication/mod.rs",
+        "src/cloud_publication/journal.rs",
+        "src/cloud_publication/git.rs",
+        "src/cloud_publication/api.rs",
+        "src/cloud_publication/vault.rs",
+        "src/features/cloud_publish.rs",
+        "src/shell/cloud_publish.rs",
+        "src/workspace/cloud/publish.rs"
+      ],
+      "evidence": [
+        "test:a_first_publication_walks_every_checkpoint_and_leaves_nothing_behind",
+        "test:an_uncertain_push_is_never_replayed_blindly_and_a_landed_one_reconciles",
+        "test:cleanup_deletes_only_the_empty_project_and_a_refusal_keeps_everything",
+        "test:the_managed_helper_round_trips_the_secret_and_restores_the_previous_config",
+        "test:an_unlinked_checkout_publishes_from_the_header_switch",
+        "test:a_vanished_cloud_project_is_replaced_only_after_a_second_404"
+      ],
+      "remaining": "The coordinator (journal v2 with v1 migration, idempotent creation, keychain secret, URL-scoped secure helper, immutable push with lease, remote-truth reconciliation, explicit cleanup) and the activation / running / resume pictures are native. The push receipt endpoint (readInitialPushReceipt) is not consulted (ls-remote only); the transfer meter, the hero artwork and pixel comparison are not ported; acceptance against a real Cloud Git host is pending."
     }
   ]
 }

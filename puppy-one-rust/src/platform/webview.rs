@@ -225,6 +225,21 @@ pub fn write_private(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     }
     Ok(())
 }
+/// `fs.mkdtemp` + `writeFile(…, {mode: 0o400})`: a private, read-only copy
+/// of provider bytes in its own temporary directory, removed with it.
+pub fn private_copy(name: &str, bytes: &[u8]) -> std::io::Result<(tempfile::TempDir, PathBuf)> {
+    let dir = tempfile::Builder::new()
+        .prefix("puppyone-cloud-preview-")
+        .tempdir()?;
+    let path = dir.path().join(name);
+    write_private(&path, bytes)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o400))?;
+    }
+    Ok((dir, path))
+}
 /// The URL of a path inside the served root.
 pub fn url_for(relative: &str) -> String {
     let encoded: Vec<String> = relative
