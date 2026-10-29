@@ -223,3 +223,25 @@ fn code_find_starts_at_selection_and_updates_after_edits(cx: &mut TestAppContext
         total: 2
     }));
 }
+
+#[gpui::test]
+fn conflict_banner_resolves_blocks_as_an_undoable_local_edit(cx: &mut TestAppContext) {
+    use super::conflicts;
+    let text = "a\n<<<<<<< HEAD\nmine\n=======\ntheirs\n>>>>>>> feature\nb";
+    let (view, events, cx) = setup(cx, "notes.txt", text);
+    cx.update(|w, cx| {
+        let _ = w.draw(cx);
+    });
+    view.read_with(cx, |v, _| {
+        assert_eq!(conflicts::parse(&v.committed).len(), 1)
+    });
+    view.update_in(cx, |v, w, cx| {
+        let resolved = conflicts::resolve_all(&v.committed, conflicts::Side::Theirs);
+        v.resolve_conflicts(resolved, w, cx);
+    });
+    view.read_with(cx, |v, _| assert_eq!(v.committed, "a\ntheirs\nb"));
+    assert!(events.borrow().contains(&SurfaceEvent::Changed));
+    // Undo restores the markers.
+    view.update_in(cx, |v, w, cx| v.history(false, w, cx));
+    view.read_with(cx, |v, _| assert_eq!(v.committed, text));
+}

@@ -1,6 +1,7 @@
 //! Native source-code surface. Kit owns the rope, history, selections,
 //! indentation, parser, folds and scrolling; this adapter owns the product
 //! language/appearance and the retained document snapshot/IME contract.
+pub mod conflicts;
 mod find;
 mod input;
 mod style;
@@ -29,6 +30,8 @@ pub struct CodeView {
     find: find::CodeFind,
     dark: bool,
     scale: Scale,
+    /// `ConflictMarkerBanner`: the block list is expanded.
+    conflicts_expanded: bool,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -75,6 +78,7 @@ impl CodeView {
             find,
             dark: request.dark,
             scale: request.scale,
+            conflicts_expanded: false,
             _subscriptions: vec![changed, observed],
         }
     }
@@ -120,6 +124,205 @@ impl CodeView {
             self.refresh_find(false, cx);
         }
         cx.notify();
+    }
+    /// A conflict resolution is an ordinary local edit (undoable, saved).
+    fn resolve_conflicts(&mut self, resolved: String, window: &mut Window, cx: &mut Context<Self>) {
+        if self.read_only || resolved == self.committed {
+            return;
+        }
+        let whole = 0..self.committed.encode_utf16().count();
+        self.field.update(cx, |s, cx| {
+            s.replace_text_in_range(Some(whole), &resolved, window, cx)
+        });
+        self.sync(window, cx);
+        cx.notify();
+    }
+    fn conflict_banner(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        use crate::localization::{t, tf};
+        use crate::ui::appearance::ActiveAppearance;
+        let blocks = conflicts::parse(&self.committed);
+        if blocks.is_empty() {
+            return None;
+        }
+        let p = cx.palette();
+        let ty = crate::theme::ty();
+        let button = |id: ElementId, label: String| {
+            div()
+                .id(id)
+                .px(px(8.))
+                .py(px(4.))
+                .rounded(px(5.))
+                .bg(p.control)
+                .text_color(p.text)
+                .text_size(px(ty.ui.meta))
+                .hover(move |d| d.bg(p.control_hover))
+                .cursor(crate::theme::clickable_cursor())
+                .child(label)
+        };
+        let mut row = div()
+            .flex()
+            .flex_wrap()
+            .items_center()
+            .gap(px(12.))
+            .child(
+                div()
+                    .px(px(8.))
+                    .py(px(2.))
+                    .rounded(px(4.))
+                    .bg(p.warning)
+                    .text_color(p.text_inverse)
+                    .text_size(px(ty.ui.caption))
+                    .child(t("editor.conflict.badge")),
+            )
+            .child(tf(
+                "editor.conflict.summary",
+                &[("count", (blocks.len() as i64).into())],
+            ));
+        if !self.read_only {
+            row = row
+                .child(
+                    button(
+                        "conflict-keep-ours".into(),
+                        t("editor.conflict.keepServer").into(),
+                    )
+                    .on_click(cx.listener(|v, _, w, cx| {
+                        let resolved = conflicts::resolve_all(&v.committed, conflicts::Side::Ours);
+                        v.resolve_conflicts(resolved, w, cx);
+                    })),
+                )
+                .child(
+                    button(
+                        "conflict-keep-theirs".into(),
+                        t("editor.conflict.keepIncoming").into(),
+                    )
+                    .on_click(cx.listener(|v, _, w, cx| {
+                        let resolved =
+                            conflicts::resolve_all(&v.committed, conflicts::Side::Theirs);
+                        v.resolve_conflicts(resolved, w, cx);
+                    })),
+                );
+        }
+        row = row.child(
+            button(
+                "conflict-toggle".into(),
+                t(if self.conflicts_expanded {
+                    "editor.conflict.hideBlocks"
+                } else {
+                    "editor.conflict.showBlocks"
+                })
+                .into(),
+            )
+            .on_click(cx.listener(|v, _, _, cx| {
+                v.conflicts_expanded = !v.conflicts_expanded;
+                cx.notify();
+            })),
+        );
+        let mut banner = div()
+            .flex_none()
+            .mx(px(12.))
+            .my(px(8.))
+            .px(px(14.))
+            .py(px(10.))
+            .flex()
+            .flex_col()
+            .gap(px(10.))
+            .border_1()
+            .border_color(crate::theme::alpha(p.warning, 0.32))
+            .rounded(px(8.))
+            .bg(crate::theme::alpha(p.warning, 0.12))
+            .text_color(p.text)
+            .text_size(px(ty.ui.body))
+            .child(row);
+        if self.conflicts_expanded {
+            let total = blocks.len();
+            for (index, block) in blocks.iter().enumerate() {
+                let side = |side: conflicts::Side,
+                            label: &str,
+                            content: &str,
+                            cx: &mut Context<Self>| {
+                    let mut title = div()
+                        .flex()
+                        .items_center()
+                        .justify_between()
+                        .text_size(px(ty.ui.meta))
+                        .text_color(p.muted)
+                        .child(label.to_owned());
+                    if !self.read_only {
+                        title = title.child(
+                            button(
+                                ElementId::Name(format!("conflict-pick-{index}-{side:?}").into()),
+                                t("editor.conflict.pick").into(),
+                            )
+                            .on_click(cx.listener(
+                                move |v, _, w, cx| {
+                                    let resolved =
+                                        conflicts::resolve_one(&v.committed, index, side);
+                                    v.resolve_conflicts(resolved, w, cx);
+                                },
+                            )),
+                        );
+                    }
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .flex()
+                        .flex_col()
+                        .gap(px(6.))
+                        .child(title)
+                        .child(
+                            div()
+                                .p(px(8.))
+                                .rounded(px(5.))
+                                .bg(p.inset)
+                                .font_family("PuppyOne Geist Mono 400")
+                                .text_size(px(ty.ui.meta))
+                                .child(content.to_owned()),
+                        )
+                };
+                let ours_label = if block.ours_label.is_empty() {
+                    t("editor.conflict.current").to_owned()
+                } else {
+                    block.ours_label.clone()
+                };
+                let theirs_label = if block.theirs_label.is_empty() {
+                    t("editor.conflict.incoming").to_owned()
+                } else {
+                    block.theirs_label.clone()
+                };
+                banner = banner.child(
+                    div()
+                        .flex()
+                        .flex_col()
+                        .gap(px(6.))
+                        .child(
+                            div()
+                                .text_size(px(ty.ui.meta))
+                                .text_color(p.subtle)
+                                .child(tf(
+                                    "editor.conflict.blockPosition",
+                                    &[
+                                        ("index", ((index + 1) as i64).into()),
+                                        ("total", (total as i64).into()),
+                                        ("line", ((block.start + 1) as i64).into()),
+                                    ],
+                                )),
+                        )
+                        .child(
+                            div()
+                                .flex()
+                                .gap(px(10.))
+                                .child(side(conflicts::Side::Ours, &ours_label, &block.ours, cx))
+                                .child(side(
+                                    conflicts::Side::Theirs,
+                                    &theirs_label,
+                                    &block.theirs,
+                                    cx,
+                                )),
+                        ),
+                );
+            }
+        }
+        Some(banner.into_any_element())
     }
     fn rebind(&mut self, name: &str, cx: &mut Context<Self>) {
         let format =
@@ -169,9 +372,13 @@ impl Render for CodeView {
         )
         .absolute()
         .size_full();
+        let banner = self.conflict_banner(cx);
         div()
             .relative()
             .size_full()
+            .flex()
+            .flex_col()
+            .children(banner)
             .child(
                 Editor::new(&self.field)
                     .appearance(false)
