@@ -8,6 +8,7 @@ pub mod failure;
 pub mod locator;
 mod model;
 pub mod opening;
+pub mod publish;
 pub mod recovery;
 #[cfg(test)]
 mod tests;
