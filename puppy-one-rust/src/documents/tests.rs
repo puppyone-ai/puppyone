@@ -499,3 +499,28 @@ fn a_rebind_holds_newer_remote_text_back_under_unsaved_input() {
     assert_eq!(*memory.text.lock().unwrap(), "remote edit");
     assert_eq!(d.document.as_ref().unwrap().text, "original");
 }
+
+#[test]
+fn hosted_documents_read_relative_assets_through_their_provider() {
+    use crate::{platform::webview::ResourceSource, workspace::testing::Memory};
+    let memory = Arc::new(Memory::new("memory://actor/project/"));
+    let ws = Workspace::from_provider(memory.clone()).unwrap();
+    let ctx = Wake::default();
+    let mut d = Documents {
+        workspace: Some(ws),
+        ..Default::default()
+    };
+    d.begin(Intent::OpenFile("note.md".into()), &ctx);
+    wait(&mut d, &ctx);
+    assert!(d.error.is_none(), "{:?}", d.error);
+    let id = d.document.as_ref().expect("a text document").id.clone();
+    let source = crate::editor::registry::document_source(&id).expect("a provider source");
+    assert!(source.read(Path::new("logo.png")).is_some());
+    assert!(crate::editor::registry::document_folder(&id).is_none());
+    // A local document keeps its folder and has no provider source.
+    let (_temp, mut local, ctx) = setup();
+    local.begin(Intent::OpenFile("a.md".into()), &ctx);
+    wait(&mut local, &ctx);
+    let id = local.document.as_ref().unwrap().id.clone();
+    assert!(crate::editor::registry::document_source(&id).is_none());
+}

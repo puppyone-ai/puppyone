@@ -157,6 +157,25 @@ pub fn set_document_folder(id: &str, folder: Option<std::path::PathBuf>) {
         }
     });
 }
+thread_local! {
+    static SOURCES: std::cell::RefCell<std::collections::HashMap<String, crate::platform::webview::Source>> =
+        std::cell::RefCell::new(Default::default());
+}
+/// Where a document without a local folder (a Cloud document) reads its
+/// relative resources.
+pub fn set_document_source(id: &str, source: Option<crate::platform::webview::Source>) {
+    SOURCES.with(|f| match source {
+        Some(source) => {
+            f.borrow_mut().insert(id.to_owned(), source);
+        }
+        None => {
+            f.borrow_mut().remove(id);
+        }
+    });
+}
+pub fn document_source(id: &str) -> Option<crate::platform::webview::Source> {
+    SOURCES.with(|f| f.borrow().get(id).cloned())
+}
 pub fn document_folder(id: &str) -> Option<std::path::PathBuf> {
     FOLDERS.with(|f| f.borrow().get(id).cloned())
 }

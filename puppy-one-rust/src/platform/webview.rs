@@ -17,11 +17,66 @@ use std::path::{Component, Path, PathBuf};
 pub const SCHEME: &str = "puppyone-preview";
 const ENTRY: &str = "__entry__";
 
+/// Relative resources that do not live in a local folder (a Cloud
+/// document's assets): `relative` is decoded and has only normal components.
+pub trait ResourceSource: Send + Sync {
+    fn read(&self, relative: &Path) -> Option<Vec<u8>>;
+}
+/// A shared source, for [`Content`].
+#[derive(Clone)]
+pub struct Source(pub std::sync::Arc<dyn ResourceSource>);
+impl ResourceSource for Source {
+    fn read(&self, relative: &Path) -> Option<Vec<u8>> {
+        self.0.read(relative)
+    }
+}
+impl std::fmt::Debug for Source {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Source")
+    }
+}
+/// `projectCloudHtml`'s budgets for one projection: at most
+/// `max_references` distinct resources and `max_bytes` in total.
+pub struct Budgeted<S> {
+    inner: S,
+    max_references: usize,
+    max_bytes: u64,
+    used: std::sync::Mutex<(std::collections::HashSet<PathBuf>, u64)>,
+}
+impl<S> Budgeted<S> {
+    pub fn new(inner: S, max_references: usize, max_bytes: u64) -> Self {
+        Self {
+            inner,
+            max_references,
+            max_bytes,
+            used: Default::default(),
+        }
+    }
+}
+impl<S: ResourceSource> ResourceSource for Budgeted<S> {
+    fn read(&self, relative: &Path) -> Option<Vec<u8>> {
+        {
+            let mut used = self.used.lock().ok()?;
+            if !used.0.contains(relative) {
+                if used.0.len() >= self.max_references {
+                    return None;
+                }
+                used.0.insert(relative.to_path_buf());
+            }
+        }
+        let bytes = self.inner.read(relative)?;
+        let mut used = self.used.lock().ok()?;
+        used.1 += bytes.len() as u64;
+        (used.1 <= self.max_bytes).then_some(bytes)
+    }
+}
 /// What a host serves.
 #[derive(Clone, Debug)]
 pub struct Content {
     /// Granted folder for relative resources (`None`: entry only).
     pub root: Option<PathBuf>,
+    /// Relative resources from a provider instead of a folder.
+    pub source: Option<Source>,
     /// The entry document (generated HTML).
     pub entry: Entry,
     /// Per-resource byte budget.
@@ -122,6 +177,25 @@ pub fn respond(content: &Content, path: &str) -> (u16, &'static str, Vec<u8>) {
             None => (404, "text/plain", b"Not found".to_vec()),
         };
     }
+    if let (None, Some(source)) = (&content.root, &content.source) {
+        let Some(relative) = percent_decode(path)
+            .map(PathBuf::from)
+            .filter(|p| p.components().all(|c| matches!(c, Component::Normal(_))))
+        else {
+            return (404, "text/plain", b"Not found".to_vec());
+        };
+        return match source.0.read(&relative) {
+            Some(bytes) if bytes.len() as u64 <= content.max_bytes => {
+                (200, mime_for(&relative), bytes)
+            }
+            Some(_) => (
+                413,
+                "text/plain",
+                b"Resource exceeds its preview budget".to_vec(),
+            ),
+            None => (404, "text/plain", b"Not found".to_vec()),
+        };
+    }
     match content.root.as_deref().and_then(|root| resolve(root, path)) {
         Some(file) => serve(content, &file),
         None => (404, "text/plain", b"Not found".to_vec()),
@@ -192,6 +266,7 @@ mod tests {
         .unwrap();
         let content = Content {
             root: Some(dir.path().into()),
+            source: None,
             entry: Entry::Html("<p>hi</p>".into()),
             max_bytes: 32,
             assets: vec![("r.js", b"x()")],
@@ -215,5 +290,34 @@ mod tests {
             "puppyone-preview://local/assets/a%20b.css"
         );
         assert_eq!(mime_for(Path::new("x.MP4")), "video/mp4");
+    }
+
+    struct Memory;
+    impl ResourceSource for Memory {
+        fn read(&self, relative: &Path) -> Option<Vec<u8>> {
+            match relative.to_str()? {
+                "style.css" => Some(b"body{}".to_vec()),
+                "img/a.png" => Some(vec![0; 10]),
+                "img/b.png" => Some(vec![0; 10]),
+                _ => None,
+            }
+        }
+    }
+
+    #[test]
+    fn a_provider_source_serves_normal_paths_within_its_budgets() {
+        let content = Content {
+            root: None,
+            source: Some(Source(std::sync::Arc::new(Budgeted::new(Memory, 2, 15)))),
+            entry: Entry::Html("<p>hi</p>".into()),
+            max_bytes: 64,
+            assets: vec![],
+        };
+        assert_eq!(respond(&content, "/style.css").0, 200);
+        assert_eq!(respond(&content, "/../style.css").0, 404);
+        // The second distinct resource fits the reference budget but the
+        // total crosses 15 bytes; a third is past the reference budget.
+        assert_eq!(respond(&content, "/img/a.png").0, 404);
+        assert_eq!(respond(&content, "/img/b.png").0, 404);
     }
 }

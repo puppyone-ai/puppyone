@@ -1109,3 +1109,29 @@ fn parser_handles_fragmented_utf8_crlf_and_bounded_reset_only_frames() {
         Err(auth::Error::Unavailable)
     );
 }
+#[test]
+fn database_previews_refuse_active_sidecars_and_keep_one_snapshot() {
+    let f = Fixture::new();
+    let sqlite = b"SQLite format 3\0rest".to_vec();
+    f.state
+        .files
+        .lock()
+        .unwrap()
+        .insert("data.sqlite".into(), Some(sqlite.clone()));
+    let ws = f.open();
+    let preview = ws.resource(p("data.sqlite")).unwrap();
+    match preview.data().unwrap() {
+        PreviewData::Bytes { bytes, .. } => assert_eq!(&bytes[..], &sqlite[..]),
+        other => panic!("{other:?}"),
+    }
+    // A write-ahead log beside it means the database needs recovery.
+    f.state
+        .files
+        .lock()
+        .unwrap()
+        .insert("data.sqlite-wal".into(), Some(vec![1, 2, 3]));
+    let refused = ws.resource(p("data.sqlite")).unwrap_err();
+    assert_eq!(refused.kind, ErrorKind::Unsupported);
+    // Other files are not checked for sidecars.
+    assert!(ws.resource(p("image.png")).is_ok());
+}

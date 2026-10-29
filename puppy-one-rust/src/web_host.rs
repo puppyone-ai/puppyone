@@ -46,14 +46,22 @@ impl WebHost {
             .with_clipboard(true)
             .with_visible(false)
             .with_background_color(background)
-            .with_custom_protocol(SCHEME.into(), move |_, request| {
-                let (status, mime, body) = respond(&served, request.uri().path());
-                wry::http::Response::builder()
-                    .status(status)
-                    .header("Content-Type", mime)
-                    .header("Cache-Control", "no-store")
-                    .body(Cow::Owned(body))
-                    .unwrap_or_else(|_| wry::http::Response::new(Cow::Borrowed(&[][..])))
+            // Resources are read off the main thread: a folder read or a
+            // Cloud provider request never stalls drawing.
+            .with_asynchronous_custom_protocol(SCHEME.into(), move |_, request, responder| {
+                let served = served.clone();
+                let path = request.uri().path().to_owned();
+                std::thread::spawn(move || {
+                    let (status, mime, body) = respond(&served, &path);
+                    responder.respond(
+                        wry::http::Response::builder()
+                            .status(status)
+                            .header("Content-Type", mime)
+                            .header("Cache-Control", "no-store")
+                            .body(Cow::<'static, [u8]>::Owned(body))
+                            .unwrap_or_else(|_| wry::http::Response::new(Cow::Borrowed(&[][..]))),
+                    );
+                });
             })
             .with_navigation_handler(|url| {
                 if url.starts_with(SCHEME) || url == "about:blank" {

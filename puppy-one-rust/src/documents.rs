@@ -160,6 +160,20 @@ enum Completed {
     /// A preview resolved again under a new lease of its storage.
     ResourceRebound(PathBuf, workspace::Result<workspace::PreviewResource>),
 }
+/// Resources of a hosted document through its workspace provider.
+struct WorkspaceAssets {
+    workspace: Arc<Workspace>,
+    base: PathBuf,
+}
+impl crate::platform::webview::ResourceSource for WorkspaceAssets {
+    fn read(&self, relative: &std::path::Path) -> Option<Vec<u8>> {
+        let path = self.base.join(relative);
+        match self.workspace.resource(&path).ok()?.data().ok()? {
+            workspace::PreviewData::Bytes { bytes, .. } => Some(bytes.to_vec()),
+            workspace::PreviewData::LocalFile(file) => std::fs::read(file).ok(),
+        }
+    }
+}
 pub type PresentationKey = (
     Option<(String, blake3::Hash)>,
     u64,
@@ -446,6 +460,19 @@ impl Documents {
             .and_then(|ws| ws.absolute(&doc.relative).ok())
             .and_then(|p| p.parent().map(PathBuf::from));
         crate::editor::registry::set_document_folder(&doc.id, folder);
+        // A hosted document's relative resources come from its provider,
+        // resolved beside the document and never outside the workspace.
+        let source = self
+            .workspace
+            .as_ref()
+            .filter(|ws| ws.local_root().is_none() && ws.capabilities().preview)
+            .map(|ws| {
+                crate::platform::webview::Source(Arc::new(WorkspaceAssets {
+                    workspace: ws.clone(),
+                    base: doc.relative.parent().map(PathBuf::from).unwrap_or_default(),
+                }))
+            });
+        crate::editor::registry::set_document_source(&doc.id, source);
         HostMessage::Open {
             id: doc.id.clone(),
             name: doc.relative.to_string_lossy().into_owned(),

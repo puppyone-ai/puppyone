@@ -12,12 +12,12 @@ use crate::{
     editor::{
         registry::{
             PaneEntries, SurfaceEvents, SurfaceInput, SurfaceRequest, ViewerSurface,
-            document_folder,
+            document_folder, document_source,
         },
         workbench::pane::{Segment, Segmented},
     },
     localization::t,
-    platform::webview::{Content, Entry},
+    platform::webview::{Budgeted, Content, Entry, Source},
     theme,
     typography::Scale,
     ui::appearance::ActiveAppearance,
@@ -42,7 +42,13 @@ pub fn open(request: &SurfaceRequest, window: &mut Window, cx: &mut App) -> Box<
         _ => String::new(),
     };
     let folder = document_folder(request.id);
-    let frame = cx.new(|_| WebFrame::new(Some(content(&text, folder.clone())), request.dark));
+    let assets = document_source(request.id);
+    let frame = cx.new(|_| {
+        WebFrame::new(
+            Some(content(&text, folder.clone(), assets.clone())),
+            request.dark,
+        )
+    });
     let empty = cx.new(|_| EmptyPage);
     Box::new(HtmlSurface {
         source,
@@ -51,6 +57,7 @@ pub fn open(request: &SurfaceRequest, window: &mut Window, cx: &mut App) -> Box<
         is_empty: Rc::new(Cell::new(is_empty_page(&text))),
         mode: Rc::new(Cell::new(Mode::Preview)),
         folder,
+        assets,
         dark: request.dark,
     })
 }
@@ -89,8 +96,18 @@ pub fn is_empty_page(text: &str) -> bool {
     .fold(lower, |acc, tag| acc.replace(tag, ""));
     stripped.trim().is_empty()
 }
-fn content(text: &str, folder: Option<PathBuf>) -> Content {
+/// `projectCloudHtml`: a hosted document's assets come through its
+/// provider, at most 64 references and 4 MiB per projection.
+const MAX_REFERENCES: usize = 64;
+fn content(text: &str, folder: Option<PathBuf>, source: Option<Source>) -> Content {
     Content {
+        source: source.filter(|_| folder.is_none()).map(|source| {
+            Source(std::sync::Arc::new(Budgeted::new(
+                source,
+                MAX_REFERENCES,
+                BUDGET,
+            )))
+        }),
         root: folder,
         entry: Entry::Html(preview_html(text)),
         max_bytes: BUDGET,
@@ -105,13 +122,14 @@ struct HtmlSurface {
     is_empty: Rc<Cell<bool>>,
     mode: Rc<Cell<Mode>>,
     folder: Option<PathBuf>,
+    assets: Option<Source>,
     dark: bool,
 }
 impl HtmlSurface {
     fn refresh_preview(&self, cx: &mut App) {
         let text = self.source.text(cx).unwrap_or_default();
         self.is_empty.set(is_empty_page(&text));
-        let content = content(&text, self.folder.clone());
+        let content = content(&text, self.folder.clone(), self.assets.clone());
         self.frame
             .update(cx, |f, cx| f.set_content(Some(content), cx));
     }

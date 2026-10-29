@@ -54,6 +54,41 @@ pub struct DatabaseView {
     busy: bool,
     epoch: u64,
     scroll: ScrollHandle,
+    /// The private copy of Cloud bytes; removed with the preview.
+    _temporary: Option<tempfile::TempDir>,
+}
+/// `source.{ext}` keeps the engine's extension; the name never comes from
+/// a path segment.
+fn bytes_name(resource: &Option<PreviewResource>) -> String {
+    let ext = resource
+        .as_ref()
+        .and_then(|r| {
+            r.identity
+                .path
+                .as_path()
+                .extension()
+                .map(|e| e.to_string_lossy().to_lowercase())
+        })
+        .filter(|e| e.chars().all(|c| c.is_ascii_alphanumeric()))
+        .unwrap_or_else(|| "db".into());
+    format!("source.{ext}")
+}
+/// `fs.mkdtemp` + `writeFile(…, {mode: 0o400})`.
+fn private_copy(
+    name: &str,
+    bytes: &[u8],
+) -> std::io::Result<(tempfile::TempDir, std::path::PathBuf)> {
+    let dir = tempfile::Builder::new()
+        .prefix("puppyone-cloud-preview-")
+        .tempdir()?;
+    let path = dir.path().join(name);
+    crate::platform::webview::write_private(&path, bytes)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o400))?;
+    }
+    Ok((dir, path))
 }
 impl DatabaseView {
     fn new(resource: Option<PreviewResource>) -> Self {
@@ -68,6 +103,7 @@ impl DatabaseView {
             busy: true,
             epoch: 0,
             scroll: ScrollHandle::new(),
+            _temporary: None,
         }
     }
     fn reload(&mut self, cx: &mut Context<Self>) {
@@ -78,9 +114,22 @@ impl DatabaseView {
         let epoch = self.epoch;
         let path = match self.resource.as_ref().and_then(|r| r.data().ok()) {
             Some(PreviewData::LocalFile(path)) => path.clone(),
-            // Cloud bytes need a private temporary copy; the product prepares
-            // one in Main. Until then this source is unavailable here.
-            _ => {
+            // Cloud bytes (already checked for sidecars and a stable
+            // revision by the provider) become a private, read-only
+            // temporary copy that lives as long as this preview.
+            Some(PreviewData::Bytes { bytes, .. }) => {
+                match private_copy(&bytes_name(&self.resource), bytes) {
+                    Ok((dir, path)) => {
+                        self._temporary = Some(dir);
+                        path
+                    }
+                    Err(_) => {
+                        self.fail(Failure::Unavailable, cx);
+                        return;
+                    }
+                }
+            }
+            None => {
                 self.fail(Failure::Unavailable, cx);
                 return;
             }

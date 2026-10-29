@@ -105,6 +105,7 @@ fn open(request: &SurfaceRequest, kind: Kind, cx: &mut App) -> Box<dyn ViewerSur
     let frame = resolved.as_ref().map(|s| {
         let content = Content {
             root: Some(s.folder.clone()),
+            source: None,
             entry: Entry::Html(media_page(
                 kind,
                 &url_for(&s.file),

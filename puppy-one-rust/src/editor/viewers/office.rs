@@ -200,6 +200,7 @@ impl OfficeView {
         };
         let content = Content {
             root: Some(PathBuf::from(&folder)),
+            source: None,
             entry: Entry::Html(html),
             max_bytes: BUDGET,
             assets: vec![

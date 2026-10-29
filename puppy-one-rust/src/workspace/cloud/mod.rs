@@ -325,14 +325,59 @@ impl DocumentStoragePort for Cloud {
 }
 impl ResourcePort for Cloud {
     fn preview(&self, path: &RelativePath) -> Result<PreviewData> {
-        let file = self.shared.file(path)?;
         let name = model::path(path, false)?;
+        // `downloadWorkspace` for a database: no active sidecar before or
+        // after the read, and the same revision twice; anything else is not
+        // a consistent snapshot to decode.
+        let database = DATABASE_EXTENSIONS
+            .iter()
+            .any(|ext| name.to_ascii_lowercase().ends_with(ext));
+        if database {
+            self.reject_sidecars(path)?;
+        }
+        let file = self.shared.file(path)?;
+        if database {
+            self.reject_sidecars(path)?;
+            if self.shared.file(path)?.digest != file.digest {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    crate::localization::t("editor.database.expired"),
+                ));
+            }
+        }
         Ok(PreviewData::Bytes {
             mime: crate::formats::preferred_mime(name)
                 .unwrap_or("application/octet-stream")
                 .into(),
             bytes: file.bytes,
         })
+    }
+}
+/// `database-candidate` extensions (`fileFormats.json`).
+const DATABASE_EXTENSIONS: [&str; 6] = [".db", ".db3", ".sqlite", ".sqlite3", ".duckdb", ".ddb"];
+impl Cloud {
+    /// `workspaceSidecars`: `-wal`, `-shm`, `-journal` or `.wal` beside the
+    /// database means it needs recovery, never a partial snapshot.
+    fn reject_sidecars(&self, path: &RelativePath) -> Result<()> {
+        let parent =
+            RelativePath::new(path.as_path().parent().unwrap_or(std::path::Path::new("")))?;
+        let name = path
+            .as_path()
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let entries = self.shared.list(&parent)?;
+        let active = ["-wal", "-shm", "-journal", ".wal"].iter().any(|suffix| {
+            let sidecar = format!("{name}{suffix}");
+            entries.iter().any(|e| e.name == sidecar)
+        });
+        if active {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                crate::localization::t("editor.database.recovery"),
+            ));
+        }
+        Ok(())
     }
 }
 impl ResourceWatchPort for Cloud {
