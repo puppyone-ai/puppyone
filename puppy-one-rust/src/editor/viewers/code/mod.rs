@@ -2,6 +2,7 @@
 //! indentation, parser, folds and scrolling; this adapter owns the product
 //! language/appearance and the retained document snapshot/IME contract.
 pub mod conflicts;
+mod decorate;
 mod find;
 mod input;
 mod style;
@@ -32,6 +33,9 @@ pub struct CodeView {
     scale: Scale,
     /// `ConflictMarkerBanner`: the block list is expanded.
     conflicts_expanded: bool,
+    /// Bracket, selection-match and trailing-space decorations.
+    passive: gpui_kit::component::input::RangeDecorationCollection,
+    passive_key: Option<(usize, std::ops::Range<usize>, usize)>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -63,11 +67,18 @@ impl CodeView {
                 this.finish_composition(w, cx);
             }
             this.sync(w, cx);
+            this.refresh_passive(cx);
         });
         // Kit marks provisional IME edits with notify, not Change. Track them
         // before the host can ask for a snapshot, without publishing drafts.
-        let observed = cx.observe_in(&field, window, |this, _, w, cx| this.sync(w, cx));
+        let observed = cx.observe_in(&field, window, |this, _, w, cx| {
+            this.sync(w, cx);
+            this.refresh_passive(cx);
+        });
         let find = find::CodeFind::new(&field, cx);
+        let passive = field.update(cx, |s, cx| {
+            s.create_range_decorations_collection(Vec::new(), cx)
+        });
         style::project(request.dark, request.scale, cx);
         Self {
             field,
@@ -79,6 +90,8 @@ impl CodeView {
             dark: request.dark,
             scale: request.scale,
             conflicts_expanded: false,
+            passive,
+            passive_key: None,
             _subscriptions: vec![changed, observed],
         }
     }
@@ -124,6 +137,52 @@ impl CodeView {
             self.refresh_find(false, cx);
         }
         cx.notify();
+    }
+    /// `bracketMatching`, `highlightSelectionMatches`, `highlightTrailingWhitespace`.
+    fn refresh_passive(&mut self, cx: &mut Context<Self>) {
+        use gpui_kit::component::input::{RangeDecoration, RangeDecorationStyle};
+        let (cursor, selection, len) = {
+            let s = self.field.read(cx);
+            (s.cursor(), s.selected_range(), s.text().len())
+        };
+        let key = (cursor, selection.clone(), len);
+        if self.passive_key.as_ref() == Some(&key) {
+            return;
+        }
+        self.passive_key = Some(key);
+        let text = self.committed.clone();
+        let p = crate::theme::Theme::new(self.dark);
+        let fill = |r: std::ops::Range<usize>, c: Rgba, a: f32| {
+            RangeDecoration::new(r)
+                .with_style(RangeDecorationStyle::Fill)
+                .with_color(crate::theme::alpha(c, a).into())
+        };
+        let frame = |r: std::ops::Range<usize>, c: Rgba, a: f32| {
+            RangeDecoration::new(r).with_color(crate::theme::alpha(c, a).into())
+        };
+        let mut marks = vec![];
+        for r in decorate::trailing_whitespace(&text) {
+            marks.push(fill(r, p.danger, 0.20));
+        }
+        for r in decorate::selection_matches(&text, selection.clone()) {
+            marks.push(fill(r, p.accent, 0.10));
+        }
+        if selection.is_empty() {
+            match decorate::brackets(&text, cursor) {
+                Some(decorate::Brackets::Matched(a, b)) => {
+                    for r in [a, b] {
+                        marks.push(fill(r.clone(), p.accent, 0.18));
+                        marks.push(frame(r, p.accent, 0.38));
+                    }
+                }
+                Some(decorate::Brackets::Unmatched(r)) => {
+                    marks.push(fill(r.clone(), p.danger, 0.16));
+                    marks.push(frame(r, p.danger, 0.40));
+                }
+                None => {}
+            }
+        }
+        self.passive.set(marks, cx);
     }
     /// A conflict resolution is an ordinary local edit (undoable, saved).
     fn resolve_conflicts(&mut self, resolved: String, window: &mut Window, cx: &mut Context<Self>) {
