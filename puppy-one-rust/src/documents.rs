@@ -151,6 +151,14 @@ enum Completed {
         result: workspace::Result<Document>,
     },
     Children(Arc<Workspace>, PathBuf, workspace::Result<Vec<Node>>),
+    /// The Working Copy read afresh under a new lease of its storage.
+    Rebound {
+        id: String,
+        generation: u64,
+        result: workspace::Result<Document>,
+    },
+    /// A preview resolved again under a new lease of its storage.
+    ResourceRebound(PathBuf, workspace::Result<workspace::PreviewResource>),
 }
 pub type PresentationKey = (
     Option<(String, blake3::Hash)>,
@@ -304,6 +312,47 @@ impl Documents {
             .retain(|m| !matches!(m, HostMessage::Snapshot { freeze: true, .. }));
         self.thaw();
         self.start_watch(ctx);
+    }
+    /// `rebindRetainedDocuments`: the same storage under a new provider
+    /// lease (the same account reopened the Project). The draft, baseline
+    /// and pending state stay with this Working Copy; the document is read
+    /// afresh and reconciled like a storage observation — newer remote text
+    /// under unsaved input is held back — and a failed write is not retried.
+    pub fn rebind_workspace(&mut self, ws: Arc<Workspace>, ctx: &Wake) {
+        if self
+            .workspace
+            .as_ref()
+            .is_some_and(|current| Arc::ptr_eq(current, &ws))
+        {
+            return;
+        }
+        self.workspace = Some(ws.clone());
+        self.watch = None;
+        self.observing = false;
+        self.observation_pending = false;
+        self.read_generation += 1;
+        let tx = self.tx.clone();
+        let ctx = ctx.clone();
+        if let (Some(doc), Some(session)) = (self.document.clone(), self.session.as_ref()) {
+            let id = session.id.clone();
+            let generation = self.read_generation;
+            crate::localization::spawn(move || {
+                let result = ws.adopt(&doc);
+                let _ = tx.send(Completed::Rebound {
+                    id,
+                    generation,
+                    result,
+                });
+                ctx.notify();
+            });
+        } else if let Some(resource) = &self.resource {
+            let relative = resource.relative.clone();
+            crate::localization::spawn(move || {
+                let result = ws.resource(&relative);
+                let _ = tx.send(Completed::ResourceRebound(relative, result));
+                ctx.notify();
+            });
+        }
     }
     pub fn rebind_document(&mut self, document: Document) {
         debug_assert!(self.operation_ready());
@@ -985,6 +1034,50 @@ impl Documents {
                             }
                         },
                         Err(error) => self.error = Some(error.to_string()),
+                    }
+                }
+                Completed::Rebound {
+                    id,
+                    generation,
+                    result,
+                } => {
+                    if generation != self.read_generation
+                        || !self.session.as_ref().is_some_and(|s| s.id == id)
+                    {
+                        continue;
+                    }
+                    match result {
+                        Ok(doc) => match self.session.as_mut().unwrap().observe(&doc.text) {
+                            StorageObservation::Deferred => {
+                                self.deferred_document = Some(doc);
+                                self.error = Some(
+                                    crate::localization::t("editor.session.cloudConflict").into(),
+                                );
+                            }
+                            observation => {
+                                // Saves and watches continue under the new lease.
+                                self.document = Some(doc);
+                                if matches!(observation, StorageObservation::Adopted) {
+                                    self.error = None;
+                                    self.sync_state();
+                                    self.show_storage_update();
+                                }
+                                self.start_watch(ctx);
+                            }
+                        },
+                        Err(error) => self.error = Some(error.to_string()),
+                    }
+                }
+                Completed::ResourceRebound(relative, result) => {
+                    if self
+                        .resource
+                        .as_ref()
+                        .is_some_and(|r| r.relative == relative)
+                    {
+                        match result {
+                            Ok(preview) => self.rebind_resource(relative, preview),
+                            Err(error) => self.error = Some(error.to_string()),
+                        }
                     }
                 }
                 Completed::Resource(relative, Ok(preview)) => {

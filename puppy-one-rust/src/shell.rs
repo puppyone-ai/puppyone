@@ -64,6 +64,8 @@ pub struct Shell {
     /// The account (user, session generation, API) the Cloud this window
     /// opened, prepares or keeps alive belongs to.
     cloud_authority: Option<String>,
+    /// `workspaceSurfaceError`: the workspace's change subscription failed.
+    workspace_notice: Option<String>,
     /// Launch without a project: open the last active one once preferences load.
     restore_last: bool,
     project: String,
@@ -211,6 +213,7 @@ impl Shell {
             cloud_catalog: crate::features::cloud_catalog::global(cx),
             cloud_project: None,
             cloud_authority: None,
+            workspace_notice: None,
             restore_last: false,
             project: if fixture {
                 "puppyone".into()
@@ -323,6 +326,8 @@ impl Shell {
                     s.begin_rename(path.clone(), *change_type, window, cx)
                 }
                 ExplorerEvent::Error(error) => s.show_error(error.clone()),
+                ExplorerEvent::WatchFailed(error) => s.workspace_notice = Some(error.clone()),
+                ExplorerEvent::WatchRecovered => s.workspace_notice = None,
                 ExplorerEvent::CopyLink { path, folder } => s.copy_cloud_link(path, *folder, cx),
             }
             s.receive(window, cx);
@@ -574,7 +579,8 @@ impl Shell {
     }
     /// A dialog takes the window: the modal layer, or the Documents error.
     fn modal(&self) -> bool {
-        !self.modals.is_empty() || self.files.error.is_some()
+        // A held-back Cloud conflict is a floating notice, not a dialog.
+        !self.modals.is_empty() || (self.files.error.is_some() && !self.files.cloud_conflict())
     }
     /// A notice over everything else; a later one replaces it.
     fn show_error(&mut self, error: impl Into<String>) {
@@ -584,7 +590,7 @@ impl Shell {
     /// error, then the top of the modal layer. Creating an entry is not
     /// abandoned midway.
     fn dismiss_modal(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.files.error.take().is_some() {
+        if !self.files.cloud_conflict() && self.files.error.take().is_some() {
             return;
         }
         match self.modals.top() {
@@ -1781,10 +1787,101 @@ impl Render for Shell {
                 root = root.child(self.collapsed_right_edge(w, cx));
             }
         }
+        if !home {
+            root = root.children(self.notices(w));
+        }
         root.children(self.modal_layer(w, h, cx))
     }
 }
 impl Shell {
+    /// `FloatingNoticeStack`s over the workspace: the workspace surface
+    /// notice (`.desktop-workspace-notice-stack`: 12px below the top, 16px
+    /// in from the editor's end) and the document session's held-back Cloud
+    /// conflict (`.editor-notice-stack`: 48px / 12px).
+    fn notices(&self, w: f32) -> Vec<AnyElement> {
+        use crate::{
+            localization::t as tr,
+            ui::components::{
+                FloatingNotice, NoticeAction, NoticePlacement, NoticeStack, NoticeTone,
+            },
+        };
+        let editor = self.layout.editor;
+        let end = w - editor.right();
+        let mut layers = vec![];
+        if let Some(message) = &self.workspace_notice {
+            let host = self.weak.clone();
+            let dismiss = self.weak.clone();
+            layers.push(
+                NoticeStack::new(
+                    NoticePlacement::TopEnd,
+                    editor.y + 12.,
+                    end + 16.,
+                    (editor.w - 40.).min(400.),
+                )
+                .child(
+                    FloatingNotice::new("workspace-notice", message.clone())
+                        .tone(NoticeTone::Warning)
+                        .action(NoticeAction::new(
+                            "workspace-notice-retry",
+                            tr("common.action.retry"),
+                            move |_, cx| {
+                                let _ = host.update(cx, |s, cx| s.retry_workspace_surface(cx));
+                            },
+                        ))
+                        .on_dismiss(move |_, cx| {
+                            let _ = dismiss.update(cx, |s, cx| {
+                                s.workspace_notice = None;
+                                cx.notify();
+                            });
+                        }),
+                )
+                .into_any_element(),
+            );
+        }
+        if self.files.cloud_conflict() {
+            let host = self.weak.clone();
+            layers.push(
+                NoticeStack::new(
+                    NoticePlacement::TopEnd,
+                    editor.y + 48.,
+                    end + 12.,
+                    (editor.w - 24.).min(420.),
+                )
+                .child(
+                    FloatingNotice::new(
+                        "editor-session-notice",
+                        tr("editor.session.cloudConflict"),
+                    )
+                    .tone(NoticeTone::Danger)
+                    .action(
+                        NoticeAction::new(
+                            "editor-session-reload",
+                            tr("editor.session.discardAndReload"),
+                            move |w, cx| {
+                                let _ = host.update(cx, |s, cx| {
+                                    s.command(Command::ReloadCloudBaseline, w, cx)
+                                });
+                            },
+                        )
+                        .emphasis(),
+                    ),
+                )
+                .into_any_element(),
+            );
+        }
+        layers
+    }
+    /// `resumeWorkspace`: a hosted Project opens again explicitly (its
+    /// retained documents rebind to the new lease); a local folder
+    /// subscribes again. Both reread what the Explorer has loaded.
+    fn retry_workspace_surface(&mut self, cx: &mut Context<Self>) {
+        self.workspace_notice = None;
+        match self.hosted_project() {
+            Some(project) => self.open_cloud(project, cx),
+            None => self.explorer.update(cx, |e, cx| e.resubscribe(cx)),
+        }
+        cx.notify();
+    }
     /// The modal layer, bottom to top, with the Documents error above it.
     fn modal_layer(&self, w: f32, h: f32, cx: &mut Context<Self>) -> Vec<AnyElement> {
         use crate::localization::t as tr;
@@ -1854,28 +1951,7 @@ impl Shell {
             })
             .collect();
         if self.files.cloud_conflict() {
-            // `FloatingNotice` with `editor.session.discardAndReload`: the
-            // preserved draft stays until the person chooses to reload.
-            layer.push(
-                self.simple_modal(
-                    tr("editor.session.saveFailed"),
-                    tr("editor.session.cloudConflict"),
-                    vec![
-                        (
-                            tr("common.action.close"),
-                            Command::ClearError,
-                            ButtonVariant::Secondary,
-                        ),
-                        (
-                            tr("editor.session.discardAndReload"),
-                            Command::ReloadCloudBaseline,
-                            ButtonVariant::SolidDanger,
-                        ),
-                    ],
-                    cx,
-                )
-                .into_any_element(),
-            );
+            // Shown as the editor's floating notice (`notices`).
         } else if let Some(message) = &self.files.error {
             layer.push(error(self, message, cx));
         }

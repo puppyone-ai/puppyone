@@ -242,6 +242,15 @@ impl Workspace {
         current.id = document.id.clone();
         Ok(current)
     }
+    /// A Working Copy kept from an earlier lease of the same storage (the
+    /// same account's Project root, reopened): read it afresh under this
+    /// lease. The caller reconciles the text; nothing is written or replayed.
+    pub fn adopt(&self, previous: &Document) -> Result<Document> {
+        self.check_identity(&previous.identity)?;
+        let mut current = self.read_resource(&previous.identity)?;
+        current.id = previous.id.clone();
+        Ok(current)
+    }
     /// Verify the moved address before changing a retained Working Copy's
     /// binding. A lost receipt may be reconciled, never blindly replayed.
     pub fn rebind(&self, document: &Document, path: &Path) -> Result<Document> {

@@ -432,3 +432,70 @@ fn a_referenced_workspace_path_opens_that_file() {
     assert!(d.error.is_none(), "{:?}", d.error);
     assert_eq!(d.document.as_ref().unwrap().relative, Path::new("b.md"));
 }
+
+#[test]
+fn a_new_lease_of_the_same_storage_rebinds_the_working_copy_and_keeps_saving() {
+    use crate::workspace::testing::Memory;
+    let memory = Arc::new(Memory::new("memory://actor/project/"));
+    let first = Workspace::from_provider(memory.clone()).unwrap();
+    let ctx = Wake::default();
+    let mut d = Documents {
+        workspace: Some(first.clone()),
+        ..Default::default()
+    };
+    d.begin(Intent::OpenFile("note.md".into()), &ctx);
+    wait(&mut d, &ctx);
+    let id = d.document.as_ref().unwrap().id.clone();
+    // The first lease ends (signing out); the same storage opens again.
+    first.revoke();
+    let second = Workspace::from_provider(memory.clone()).unwrap();
+    d.rebind_workspace(second.clone(), &ctx);
+    let deadline = Instant::now() + Duration::from_secs(4);
+    while second.observe(d.document.as_ref().unwrap()).is_err() {
+        d.poll(&ctx);
+        assert!(Instant::now() < deadline, "{:?}", d.error);
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    // The same Working Copy, now saving through the new lease.
+    assert_eq!(d.document.as_ref().unwrap().id, id);
+    d.begin(Intent::Save, &ctx);
+    snapshot(&mut d, &ctx, "after rebind");
+    wait(&mut d, &ctx);
+    assert!(d.error.is_none(), "{:?}", d.error);
+    assert_eq!(*memory.text.lock().unwrap(), "after rebind");
+}
+
+#[test]
+fn a_rebind_holds_newer_remote_text_back_under_unsaved_input() {
+    use crate::workspace::testing::Memory;
+    let memory = Arc::new(Memory::new("memory://actor/project/"));
+    let first = Workspace::from_provider(memory.clone()).unwrap();
+    let ctx = Wake::default();
+    let mut d = Documents {
+        workspace: Some(first.clone()),
+        ..Default::default()
+    };
+    d.begin(Intent::OpenFile("note.md".into()), &ctx);
+    wait(&mut d, &ctx);
+    d.client(
+        ClientMessage::Dirty {
+            id: d.document.as_ref().unwrap().id.clone(),
+            revision: 1,
+            dirty: true,
+        },
+        &ctx,
+    );
+    // Someone else changed the file while this lease was gone.
+    *memory.text.lock().unwrap() = "remote edit".into();
+    first.revoke();
+    d.rebind_workspace(Workspace::from_provider(memory.clone()).unwrap(), &ctx);
+    let deadline = Instant::now() + Duration::from_secs(4);
+    while !d.cloud_conflict() {
+        d.poll(&ctx);
+        assert!(Instant::now() < deadline, "{:?}", d.error);
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    // The draft is kept; nothing was written over the remote text.
+    assert_eq!(*memory.text.lock().unwrap(), "remote edit");
+    assert_eq!(d.document.as_ref().unwrap().text, "original");
+}

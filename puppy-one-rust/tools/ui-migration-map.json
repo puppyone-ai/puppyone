@@ -1061,6 +1061,35 @@
         "artifact:cloud-native"
       ],
       "remaining": "The history graph (HistoryGraphVisual, cloudTopology) and the services-page two-pane History view are not ported."
+    },
+    {
+      "name": "Cloud file workspace",
+      "status": "partial",
+      "sources": [
+        "src/features/cloud/workbench/DesktopCloudFileWorkspace.tsx",
+        "src/features/cloud/workbench/useNativeCloudWorkbench.ts",
+        "src/features/cloud/workbench/useAccountCloudWorkspace.ts",
+        "src/features/cloud/workbench/CloudFileWorkspaceGate.tsx",
+        "src/app/AccountCloudWorkspaceSurface.tsx"
+      ],
+      "targets": [
+        "src/shell.rs",
+        "src/shell/cloud_switch.rs",
+        "src/editor/workbench/runtime.rs",
+        "src/documents.rs",
+        "src/workspace.rs",
+        "src/shell/explorer/mod.rs",
+        "src/ui/components/notice.rs"
+      ],
+      "evidence": [
+        "test:signing_out_revokes_the_hosted_selection_and_returns_home",
+        "test:turning_cloud_off_cancels_an_opening_in_flight",
+        "test:the_same_cloud_target_joins_its_pending_opening",
+        "test:a_new_lease_of_the_same_storage_rebinds_the_working_copy_and_keeps_saving",
+        "test:a_rebind_holds_newer_remote_text_back_under_unsaved_input",
+        "test:a_failed_cloud_subscription_offers_retry_which_rebinds_the_same_host"
+      ],
+      "remaining": "The hosted shell reuses the native Explorer, editor and viewers; authority changes revoke the selection, reopening rebinds retained Working Copies, and a failed subscription shows the workspace notice with Retry. Cloud preview resources (Office/database temp files, HTML data-URL projection), Scope targets and real-backend acceptance remain; the floating notices are not pixel-compared."
     }
   ]
 }

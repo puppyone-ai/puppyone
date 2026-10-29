@@ -502,6 +502,25 @@ impl Runtime {
             } else if let Some(rows) = preparing.tree_update.take() {
                 let ws = preparing.workspace.clone().unwrap();
                 let key = resource_key(&ws.resource_id(std::path::Path::new("")).unwrap());
+                // The same storage reopened under a new lease (the same
+                // account's Project root): its retained Working Copies are
+                // rebound, never replaced, and keep their drafts.
+                if let Some(host) = self.hosts.get_mut(&key)
+                    && host
+                        .empty
+                        .workspace
+                        .as_ref()
+                        .is_none_or(|current| !std::sync::Arc::ptr_eq(current, &ws))
+                {
+                    if let Some(previous) = host.empty.workspace.take() {
+                        previous.revoke();
+                    }
+                    host.empty = Documents::in_workspace(ws.clone());
+                    host.rows = rows.clone();
+                    for slot in host.slots.values_mut() {
+                        slot.files.rebind_workspace(ws.clone(), wake);
+                    }
+                }
                 if !self.hosts.contains_key(&key) {
                     self.hosts.insert(
                         key.clone(),

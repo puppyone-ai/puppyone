@@ -1868,3 +1868,69 @@ fn the_same_cloud_target_joins_its_pending_opening(cx: &mut TestAppContext) {
     }
     assert_eq!(roots.load(std::sync::atomic::Ordering::SeqCst), 1);
 }
+
+#[gpui::test]
+fn a_failed_cloud_subscription_offers_retry_which_rebinds_the_same_host(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    // The fixture transport has no event stream: the subscription fails.
+    let (broker, browser) =
+        crate::cloud_auth::responding_account_fixture(cloud_project_responder());
+    cx.update(|_, cx| {
+        crate::features::cloud_account::install_fixture(broker, browser, cx);
+    });
+    view.update(cx, |s, cx| {
+        s.preferences
+            .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
+    });
+    let settle = |view: &Entity<Shell>,
+                  cx: &mut VisualTestContext,
+                  what: &str,
+                  ready: &dyn Fn(&Shell, &App) -> bool| {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(8);
+        loop {
+            view.update_in(cx, |s, w, cx| s.receive(w, cx));
+            cx.run_until_parked();
+            cx.update(|w, cx| {
+                let _ = w.draw(cx);
+            });
+            if cx.update(|_, cx| ready(view.read(cx), cx)) {
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "{what} did not settle"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+    };
+    settle(&view, cx, "sign-in", &|_, cx| {
+        crate::features::cloud_account::has_account(cx)
+    });
+    view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
+    settle(&view, cx, "the hosted Project", &|s, _| {
+        s.hosted_project().as_deref() == Some("project-a")
+    });
+    settle(&view, cx, "the workspace notice", &|s, _| {
+        s.workspace_notice.is_some()
+    });
+    // A notice floats; it is not a dialog.
+    view.read_with(cx, |s, _| assert!(!s.modal()));
+    let (key, first) = view.read_with(cx, |s, _| {
+        (
+            s.files.workspace_key().unwrap().to_owned(),
+            s.files.workspace.clone().unwrap(),
+        )
+    });
+    view.update(cx, |s, cx| s.retry_workspace_surface(cx));
+    settle(&view, cx, "the rebound host", &|s, _| {
+        s.files
+            .workspace
+            .as_ref()
+            .is_some_and(|ws| !std::sync::Arc::ptr_eq(ws, &first))
+    });
+    // The same retained host, bound to the new lease.
+    view.read_with(cx, |s, _| {
+        assert_eq!(s.files.workspace_key(), Some(key.as_str()));
+        assert_eq!(s.hosted_project().as_deref(), Some("project-a"));
+    });
+}

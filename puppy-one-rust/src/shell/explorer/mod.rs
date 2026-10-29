@@ -84,6 +84,11 @@ pub(in crate::shell) enum ExplorerEvent {
     Rename { path: PathBuf, change_type: bool },
     /// Cloud Explorer "Copy Link": the hosted resource URL of `path`.
     CopyLink { path: PathBuf, folder: bool },
+    /// The directory subscription failed (`service.watch`'s failure): the
+    /// workspace notice offers Retry.
+    WatchFailed(String),
+    /// A later change arrived: the subscription works again.
+    WatchRecovered,
     /// A notice.
     Error(String),
 }
@@ -287,7 +292,20 @@ impl Explorer {
             )
         };
         let next = key(&workspace);
-        if self.workspace.as_ref().is_some_and(|ws| key(ws) == next) {
+        if let Some(current) = self.workspace.clone()
+            && key(&current) == next
+        {
+            // The same storage under a new lease: keep the tree, bind it to
+            // the new provider and revalidate what is loaded.
+            if !Arc::ptr_eq(&current, &workspace) {
+                self.workspace = Some(workspace.clone());
+                self.watch = None;
+                if !self.fixture || cfg!(test) {
+                    self.subscribe_tree(&workspace, cx);
+                }
+                self.refresh_loaded_folders(cx);
+                cx.notify();
+            }
             return;
         }
         let visibility = self.tree.visibility.clone();
@@ -343,14 +361,18 @@ impl Explorer {
         let task = cx.spawn(async move |this, cx| {
             while rx.recv().await.is_ok() {
                 let alive = this.update(cx, |s, cx| {
-                    let invalidated = s.watch.as_ref().is_some_and(|(sub, _)| {
-                        matches!(
-                            sub.next(),
-                            Some(crate::workspace::ports::WatchEvent::Invalidated)
-                        )
-                    });
-                    if invalidated && !s.op {
-                        s.refresh_loaded_folders(cx);
+                    use crate::workspace::ports::WatchEvent;
+                    match s.watch.as_ref().and_then(|(sub, _)| sub.next()) {
+                        Some(WatchEvent::Invalidated) => {
+                            cx.emit(ExplorerEvent::WatchRecovered);
+                            if !s.op {
+                                s.refresh_loaded_folders(cx);
+                            }
+                        }
+                        Some(WatchEvent::Failed(error)) => {
+                            cx.emit(ExplorerEvent::WatchFailed(error.to_string()))
+                        }
+                        None => {}
                     }
                 });
                 if alive.is_err() {
@@ -359,6 +381,16 @@ impl Explorer {
             }
         });
         self.watch = Some((subscription, task));
+    }
+    /// Retry after a failed subscription: subscribe again and reread what is
+    /// loaded.
+    pub fn resubscribe(&mut self, cx: &mut Context<Self>) {
+        let Some(workspace) = self.workspace.clone() else {
+            return;
+        };
+        self.watch = None;
+        self.subscribe_tree(&workspace, cx);
+        self.refresh_loaded_folders(cx);
     }
     fn refresh_loaded_folders(&mut self, cx: &mut Context<Self>) {
         let Some(workspace) = self.workspace.clone() else {
