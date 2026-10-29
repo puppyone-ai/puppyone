@@ -229,6 +229,51 @@ impl Shell {
                     ),
             )
     }
+    /// About PuppyOne: brand mark, name and version (`role: "about"`).
+    pub(super) fn about_dialog(&self, cx: &mut Context<Self>) -> Dialog {
+        let t = cx.palette();
+        let host = cx.weak_entity();
+        let version = crate::localization::tf(
+            "native.about.version",
+            &[("version", env!("CARGO_PKG_VERSION").into())],
+        );
+        Dialog::new("about")
+            .width(320.)
+            .focus_handle(self.modal_focus.clone())
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .items_center()
+                    .gap(px(8.))
+                    .py(px(8.))
+                    .child(
+                        img(SharedString::from(if t.dark {
+                            "brand/puppy-dark-onboarding.svg"
+                        } else {
+                            "brand/puppy-lite.svg"
+                        }))
+                        .size(px(48.))
+                        .object_fit(ObjectFit::Contain),
+                    )
+                    .child(
+                        div()
+                            .text_size(px(theme::ty().ui.title))
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .text_color(t.text)
+                            .child("PuppyOne"),
+                    )
+                    .child(
+                        div()
+                            .text_size(px(theme::ty().ui.meta))
+                            .text_color(t.subtle)
+                            .child(version),
+                    ),
+            )
+            .on_close(move |w, cx| {
+                let _ = host.update(cx, |s, cx| s.command(Command::CloseAbout, w, cx));
+            })
+    }
     pub(super) fn settings_view(
         &self,
         w: f32,

@@ -138,7 +138,18 @@
       "native.menu.theme": "Theme",
       "native.menu.theme.pack": "Visual Variant",
       "native.menu.theme.openFolder": "Open Themes Folder",
-      "native.menu.checkForUpdates": "Check for Updates…"
+      "native.menu.checkForUpdates": "Check for Updates…",
+      "native.menu.about": "About PuppyOne",
+      "native.menu.services": "Services",
+      "native.menu.hide": "Hide PuppyOne",
+      "native.menu.hideOthers": "Hide Others",
+      "native.menu.showAll": "Show All",
+      "native.menu.window": "Window",
+      "native.menu.minimize": "Minimize",
+      "native.menu.zoom": "Zoom",
+      "native.menu.help": "Help",
+      "native.menu.closeWindow": "Close Window",
+      "native.about.version": "Version {version}"
     },
     "zh-Hans": {
       "native.agent.fork": "分叉对话",
@@ -277,7 +288,18 @@
       "native.menu.theme": "主题",
       "native.menu.theme.pack": "视觉变体",
       "native.menu.theme.openFolder": "打开主题文件夹",
-      "native.menu.checkForUpdates": "检查更新…"
+      "native.menu.checkForUpdates": "检查更新…",
+      "native.menu.about": "关于 PuppyOne",
+      "native.menu.services": "服务",
+      "native.menu.hide": "隐藏 PuppyOne",
+      "native.menu.hideOthers": "隐藏其他",
+      "native.menu.showAll": "全部显示",
+      "native.menu.window": "窗口",
+      "native.menu.minimize": "最小化",
+      "native.menu.zoom": "缩放",
+      "native.menu.help": "帮助",
+      "native.menu.closeWindow": "关闭窗口",
+      "native.about.version": "版本 {version}"
     },
     "ja": {
       "native.agent.fork": "会話をフォーク",
@@ -416,7 +438,18 @@
       "native.menu.theme": "テーマ",
       "native.menu.theme.pack": "ビジュアルバリエーション",
       "native.menu.theme.openFolder": "テーマフォルダーを開く",
-      "native.menu.checkForUpdates": "アップデートを確認…"
+      "native.menu.checkForUpdates": "アップデートを確認…",
+      "native.menu.about": "PuppyOne について",
+      "native.menu.services": "サービス",
+      "native.menu.hide": "PuppyOne を隠す",
+      "native.menu.hideOthers": "ほかを隠す",
+      "native.menu.showAll": "すべてを表示",
+      "native.menu.window": "ウインドウ",
+      "native.menu.minimize": "しまう",
+      "native.menu.zoom": "拡大/縮小",
+      "native.menu.help": "ヘルプ",
+      "native.menu.closeWindow": "ウインドウを閉じる",
+      "native.about.version": "バージョン {version}"
     },
     "ko": {
       "native.agent.fork": "대화 포크",
@@ -555,7 +588,18 @@
       "native.menu.theme": "테마",
       "native.menu.theme.pack": "비주얼 변형",
       "native.menu.theme.openFolder": "테마 폴더 열기",
-      "native.menu.checkForUpdates": "업데이트 확인…"
+      "native.menu.checkForUpdates": "업데이트 확인…",
+      "native.menu.about": "PuppyOne 정보",
+      "native.menu.services": "서비스",
+      "native.menu.hide": "PuppyOne 가리기",
+      "native.menu.hideOthers": "기타 가리기",
+      "native.menu.showAll": "모두 보기",
+      "native.menu.window": "윈도우",
+      "native.menu.minimize": "최소화",
+      "native.menu.zoom": "확대/축소",
+      "native.menu.help": "도움말",
+      "native.menu.closeWindow": "윈도우 닫기",
+      "native.about.version": "버전 {version}"
     },
     "es": {
       "native.agent.fork": "Bifurcar conversación",
@@ -694,7 +738,18 @@
       "native.menu.theme": "Tema",
       "native.menu.theme.pack": "Variante visual",
       "native.menu.theme.openFolder": "Abrir carpeta de temas",
-      "native.menu.checkForUpdates": "Buscar actualizaciones…"
+      "native.menu.checkForUpdates": "Buscar actualizaciones…",
+      "native.menu.about": "Acerca de PuppyOne",
+      "native.menu.services": "Servicios",
+      "native.menu.hide": "Ocultar PuppyOne",
+      "native.menu.hideOthers": "Ocultar otros",
+      "native.menu.showAll": "Mostrar todo",
+      "native.menu.window": "Ventana",
+      "native.menu.minimize": "Minimizar",
+      "native.menu.zoom": "Zoom",
+      "native.menu.help": "Ayuda",
+      "native.menu.closeWindow": "Cerrar ventana",
+      "native.about.version": "Versión {version}"
     },
     "pt-BR": {
       "native.agent.fork": "Bifurcar conversa",
@@ -833,7 +888,18 @@
       "native.menu.theme": "Tema",
       "native.menu.theme.pack": "Variante visual",
       "native.menu.theme.openFolder": "Abrir pasta de temas",
-      "native.menu.checkForUpdates": "Buscar atualizações…"
+      "native.menu.checkForUpdates": "Buscar atualizações…",
+      "native.menu.about": "Sobre o PuppyOne",
+      "native.menu.services": "Serviços",
+      "native.menu.hide": "Ocultar PuppyOne",
+      "native.menu.hideOthers": "Ocultar Outros",
+      "native.menu.showAll": "Mostrar Tudo",
+      "native.menu.window": "Janela",
+      "native.menu.minimize": "Minimizar",
+      "native.menu.zoom": "Zoom",
+      "native.menu.help": "Ajuda",
+      "native.menu.closeWindow": "Fechar Janela",
+      "native.about.version": "Versão {version}"
     },
     "fr": {
       "native.agent.fork": "Dupliquer la conversation",
@@ -972,7 +1038,18 @@
       "native.menu.theme": "Thème",
       "native.menu.theme.pack": "Variante visuelle",
       "native.menu.theme.openFolder": "Ouvrir le dossier des thèmes",
-      "native.menu.checkForUpdates": "Rechercher les mises à jour…"
+      "native.menu.checkForUpdates": "Rechercher les mises à jour…",
+      "native.menu.about": "À propos de PuppyOne",
+      "native.menu.services": "Services",
+      "native.menu.hide": "Masquer PuppyOne",
+      "native.menu.hideOthers": "Masquer les autres",
+      "native.menu.showAll": "Tout afficher",
+      "native.menu.window": "Fenêtre",
+      "native.menu.minimize": "Réduire",
+      "native.menu.zoom": "Réduire/agrandir",
+      "native.menu.help": "Aide",
+      "native.menu.closeWindow": "Fermer la fenêtre",
+      "native.about.version": "Version {version}"
     },
     "de": {
       "native.agent.fork": "Unterhaltung abzweigen",
@@ -1111,7 +1188,18 @@
       "native.menu.theme": "Theme",
       "native.menu.theme.pack": "Visuelle Variante",
       "native.menu.theme.openFolder": "Theme-Ordner öffnen",
-      "native.menu.checkForUpdates": "Nach Updates suchen…"
+      "native.menu.checkForUpdates": "Nach Updates suchen…",
+      "native.menu.about": "Über PuppyOne",
+      "native.menu.services": "Dienste",
+      "native.menu.hide": "PuppyOne ausblenden",
+      "native.menu.hideOthers": "Andere ausblenden",
+      "native.menu.showAll": "Alle einblenden",
+      "native.menu.window": "Fenster",
+      "native.menu.minimize": "Im Dock ablegen",
+      "native.menu.zoom": "Zoomen",
+      "native.menu.help": "Hilfe",
+      "native.menu.closeWindow": "Fenster schließen",
+      "native.about.version": "Version {version}"
     }
   }
 }

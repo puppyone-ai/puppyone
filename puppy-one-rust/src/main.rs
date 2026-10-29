@@ -140,6 +140,7 @@ fn main() {
         .detach();
         // One foreground serves every window: beat for the stall watcher.
         platform::watchdog::start();
+        platform::watchdog::install_crash_hook();
         cx.spawn(async move |cx| {
             loop {
                 platform::watchdog::beat();
@@ -185,6 +186,7 @@ fn main() {
         cx.on_action(|_: &ui::input::Redo, cx| to_active(shell::Command::Redo, cx));
         shell::on_global_shell_actions(cx, to_active);
         cx.set_dock_menu(shell::dock_menu());
+        shell::on_app_actions(cx);
         cx.on_window_closed(|cx, _| {
             if cx.windows().is_empty() {
                 cx.quit();

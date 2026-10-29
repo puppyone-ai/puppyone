@@ -32,6 +32,8 @@ pub(super) enum Modal {
     /// `createItemLifecycleManager`: running Agent/terminal hosts of this
     /// window, listed from the host budget (not from their tabs).
     Executions,
+    /// App menu → About PuppyOne (`role: "about"`).
+    About,
     /// A notice; a later one replaces it.
     Error(String),
 }

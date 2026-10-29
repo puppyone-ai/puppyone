@@ -43,6 +43,14 @@ pub enum Command {
     ManageExecutions,
     /// File/Dock → New Window (`file.newWindow`, ⌘N).
     NewWindow,
+    /// App menu → About PuppyOne.
+    About,
+    CloseAbout,
+    /// App menu → Check for Updates… (grouped with About).
+    CheckForUpdates,
+    /// Window menu.
+    Minimize,
+    Zoom,
     CloseExecutions,
 }
 impl Command {
@@ -95,6 +103,12 @@ shell_actions! {
     ToggleMarkdownSource => ToggleMarkdownSource,
     ManageExecutions => ManageExecutions,
     NewWindow => NewWindow,
+    About => About,
+    CheckForUpdates => CheckForUpdates,
+    Minimize => Minimize,
+    Zoom => Zoom,
+    CloseWindow => Quit,
+    OpenHelp => Feedback,
 }
 
 /// The Dock menu (`createDockMenuTemplate`).
@@ -116,6 +130,11 @@ pub fn bind_keys(cx: &mut App) {
             KeyBinding::new(&key("n"), NewWindow, None),
         ]);
     }
+    cx.bind_keys([
+        KeyBinding::new("cmd-h", HideApp, None),
+        KeyBinding::new("alt-cmd-h", HideOtherApps, None),
+        KeyBinding::new("cmd-m", Minimize, None),
+    ]);
     cx.bind_keys([KeyBinding::new("escape", Escape, None)]);
     super::explorer::bind_keys(cx);
 }
@@ -123,11 +142,22 @@ pub fn bind_keys(cx: &mut App) {
 /// Native menu bar in the current locale; rebuilt when the locale changes.
 pub fn app_menus() -> Vec<Menu> {
     vec![
+        // `createApplicationMenuTemplate`: About and Check for Updates
+        // together, then Settings, the system items and Quit.
         Menu {
             disabled: false,
             name: "PuppyOne".into(),
             items: vec![
+                MenuItem::action(tr("native.menu.about"), About),
+                MenuItem::action(tr("native.menu.checkForUpdates"), CheckForUpdates),
+                MenuItem::separator(),
                 MenuItem::action(tr("native.menu.settings"), OpenSettings),
+                MenuItem::separator(),
+                MenuItem::os_submenu(tr("native.menu.services"), SystemMenuType::Services),
+                MenuItem::separator(),
+                MenuItem::action(tr("native.menu.hide"), HideApp),
+                MenuItem::action(tr("native.menu.hideOthers"), HideOtherApps),
+                MenuItem::action(tr("native.menu.showAll"), ShowAllApps),
                 MenuItem::separator(),
                 MenuItem::action(tr("native.menu.quit"), Quit),
             ],
@@ -143,6 +173,7 @@ pub fn app_menus() -> Vec<Menu> {
                 MenuItem::action(tr("native.menu.closeFile"), CloseFile),
                 MenuItem::separator(),
                 MenuItem::action(tr("native.execution.title"), ManageExecutions),
+                MenuItem::action(tr("native.menu.closeWindow"), CloseWindow),
             ],
         },
         ui::input::edit_menu(|id| tr(&format!("native.menu.edit.{id}")).into()),
@@ -155,5 +186,26 @@ pub fn app_menus() -> Vec<Menu> {
                 ToggleMarkdownSource,
             )],
         },
+        Menu {
+            disabled: false,
+            name: tr("native.menu.window").into(),
+            items: vec![
+                MenuItem::action(tr("native.menu.minimize"), Minimize),
+                MenuItem::action(tr("native.menu.zoom"), Zoom),
+            ],
+        },
+        Menu {
+            disabled: false,
+            name: tr("native.menu.help").into(),
+            items: vec![MenuItem::action(tr("shell.feedback.label"), OpenHelp)],
+        },
     ]
+}
+// App-level visibility commands need no window.
+actions!(shell, [HideApp, HideOtherApps, ShowAllApps]);
+/// The application-scoped menu actions (hide/show).
+pub fn on_app_actions(cx: &mut App) {
+    cx.on_action(|_: &HideApp, cx| cx.hide());
+    cx.on_action(|_: &HideOtherApps, cx| cx.hide_other_apps());
+    cx.on_action(|_: &ShowAllApps, cx| cx.unhide_other_apps());
 }

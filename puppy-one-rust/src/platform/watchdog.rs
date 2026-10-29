@@ -118,6 +118,29 @@ pub fn start() {
     });
 }
 
+/// Records any panic (thread, message, location) before the default report;
+/// a foreground panic still ends the process, but leaves its cause behind.
+pub fn install_crash_hook() {
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let thread = std::thread::current();
+        let name = thread.name().unwrap_or("unnamed").to_owned();
+        let message = info
+            .payload()
+            .downcast_ref::<&str>()
+            .map(|s| (*s).to_owned())
+            .or_else(|| info.payload().downcast_ref::<String>().cloned())
+            .unwrap_or_default();
+        let location = info
+            .location()
+            .map(|l| format!("{}:{}", l.file(), l.line()))
+            .unwrap_or_default();
+        let label: &'static str =
+            Box::leak(format!("{name}: {message} @ {location}").into_boxed_str());
+        record("panic", 0, label);
+        previous(info);
+    }));
+}
 /// Runs `work` on a named worker thread; a panic is reported to `on_panic`
 /// with its message instead of unwinding into the process.
 pub fn spawn_contained<F, P>(name: &str, work: F, on_panic: P) -> std::thread::JoinHandle<()>

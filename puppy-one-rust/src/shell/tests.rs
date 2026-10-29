@@ -1333,3 +1333,18 @@ fn windows_share_preferences_and_one_project_lives_in_one_window(cx: &mut TestAp
         assert!(!windows::quitting(cx));
     });
 }
+
+#[gpui::test]
+fn app_menu_about_and_check_for_updates_follow_the_product_menu(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx);
+    let menus = app_menus();
+    let names: Vec<String> = menus.iter().map(|m| m.name.to_string()).collect();
+    assert_eq!(names.first().map(String::as_str), Some("PuppyOne"));
+    assert!(names.len() >= 6, "app, file, edit, format, view, window, help: {names:?}");
+    command(&view, cx, Command::About);
+    view.read_with(cx, |s, _| assert!(matches!(s.modals.top(), Some(Modal::About))));
+    command(&view, cx, Command::CloseAbout);
+    view.read_with(cx, |s, _| assert!(s.modals.is_empty()));
+    command(&view, cx, Command::CheckForUpdates);
+    view.read_with(cx, |s, _| assert_eq!(s.modals.task(), Some(Task::Settings)));
+}

@@ -31,7 +31,9 @@ mod rename;
 pub(crate) mod tasks;
 pub mod windows;
 use command::on_shell_actions;
-pub use command::{Command, app_menus, bind_keys, dock_menu, on_global_shell_actions};
+pub use command::{
+    Command, app_menus, bind_keys, dock_menu, on_app_actions, on_global_shell_actions,
+};
 use explorer::{Explorer, ExplorerEvent, Host};
 use footer::SidebarFooter;
 use modals::{Modal, Modals, Task};
@@ -554,6 +556,9 @@ impl Shell {
             Some(Modal::Executions) => {
                 self.modals.remove(|m| matches!(m, Modal::Executions));
             }
+            Some(Modal::About) => {
+                self.modals.remove(|m| matches!(m, Modal::About));
+            }
             Some(Modal::Error(_)) => {
                 self.modals.remove(|m| matches!(m, Modal::Error(_)));
             }
@@ -595,6 +600,39 @@ impl Shell {
         if command == Command::QuitApp {
             windows::quit_all(cx);
             return;
+        }
+        match command {
+            Command::Minimize => {
+                window.minimize_window();
+                return;
+            }
+            Command::Zoom => {
+                window.zoom_window();
+                return;
+            }
+            Command::About => {
+                self.popover = None;
+                self.modals.remove(|m| matches!(m, Modal::About));
+                self.modals.open(Modal::About);
+                self.modal_focus.focus(window, cx);
+                cx.notify();
+                return;
+            }
+            Command::CloseAbout => {
+                self.modals.remove(|m| matches!(m, Modal::About));
+                self.focus.focus(window, cx);
+                cx.notify();
+                return;
+            }
+            // Check for Updates: the General page owns update status.
+            Command::CheckForUpdates => {
+                self.task_ui.settings.update(cx, |s, cx| {
+                    s.select_page(crate::features::settings::Page::General, cx)
+                });
+                self.command(Command::Settings, window, cx);
+                return;
+            }
+            _ => {}
         }
         if command == Command::NewWindow {
             cx.defer(|cx| {
@@ -1546,6 +1584,7 @@ impl Shell {
                     )
                     .into_any_element(),
                 Modal::Executions => self.executions_dialog(cx).into_any_element(),
+                Modal::About => self.about_dialog(cx).into_any_element(),
                 Modal::Error(message) => error(self, message, cx),
             })
             .collect();
