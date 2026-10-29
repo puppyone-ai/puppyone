@@ -93,6 +93,23 @@
     color: var(--po-brand-blue, var(--po-accent-text));
   }
 
+  /* Inviting a person and connecting an agent are part of going to the
+     Cloud: they sit indented under its action, aligned with its label.
+     The compound selector outranks the shared menu row padding, which lives
+     in the same layer. */
+  .desktop-menu-item.desktop-project-place-subrow {
+    padding-inline-start: calc(var(--po-menu-item-padding-inline) + 15px + var(--po-menu-item-gap));
+    color: var(--po-text-muted);
+  }
+
+  .desktop-project-place-subrow .desktop-menu-item-icon {
+    opacity: 1;
+  }
+
+  .desktop-project-place-rows > .desktop-menu-separator {
+    margin-block: 2px;
+  }
+
   /* An action with a second line stacks it under its name. */
   .desktop-project-place-row:has(.desktop-menu-item-detail) {
     height: auto;

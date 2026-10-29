@@ -1065,8 +1065,6 @@
   "placeMenu.label": "项目所在位置",
   "placeMenu.putInCloud": "放到 Cloud 上",
   "placeMenu.continuePutInCloud": "继续放到 Cloud 上",
-  "placeMenu.putInCloudDetail.mac": "Mac 关机后，Agent 也能继续工作。",
-  "placeMenu.putInCloudDetail.computer": "电脑关机后，Agent 也能继续工作。",
   "placeMenu.openFolder.mac": "打开这台 Mac 上的文件夹",
   "placeMenu.openFolder.computer": "打开这台电脑上的文件夹"
 }

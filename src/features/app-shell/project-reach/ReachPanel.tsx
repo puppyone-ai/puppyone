@@ -50,15 +50,24 @@ export function ReachPanel({ anchor, open, onDismiss, context, placeMenu }: {
       role="dialog"
       ariaLabel={t("shell.projectReach.panelLabel")}
     >
-      <div className="desktop-project-reach-panel" data-reach-entry="reach">
-        {placeMenu?.menu.action && <ProjectPlaceRows {...placeMenu} onDismiss={onDismiss} />}
-        <ReachPlaceCard state={state} summary={summary} />
-        {state.kind === "not-on-this-device" ? null : readers}
-        {state.kind === "not-on-this-device" && <ReachDeviceDetail />}
-        {state.kind === "not-on-this-device"
-          ? <ReachDeviceCopy onGetCopy={onGetCopy} />
-          : <ReachActions onInvitePerson={onInvitePerson} onConnectAgent={onConnectAgent} />}
-      </div>
+      {placeMenu
+        // The place menu states where the project is and carries inviting and
+        // connecting under its Cloud action, so no separate reach statement
+        // or second pair of actions repeats it. Who already has access stays.
+        ? <div className="desktop-project-reach-panel" data-reach-entry="place">
+          <ProjectPlaceRows menu={placeMenu.menu} onDismiss={onDismiss}
+            handlers={{ ...placeMenu.handlers, onInvitePerson: placeMenu.handlers.onInvitePerson ?? onInvitePerson,
+              onConnectAgent: placeMenu.handlers.onConnectAgent ?? onConnectAgent }} />
+          {readers}
+        </div>
+        : <div className="desktop-project-reach-panel" data-reach-entry="reach">
+          <ReachPlaceCard state={state} summary={summary} />
+          {state.kind === "not-on-this-device" ? null : readers}
+          {state.kind === "not-on-this-device" && <ReachDeviceDetail />}
+          {state.kind === "not-on-this-device"
+            ? <ReachDeviceCopy onGetCopy={onGetCopy} />
+            : <ReachActions onInvitePerson={onInvitePerson} onConnectAgent={onConnectAgent} />}
+        </div>}
     </DesktopTitlebarMenuLayer>
   );
 }

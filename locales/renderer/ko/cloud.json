@@ -1065,8 +1065,6 @@
   "placeMenu.label": "이 프로젝트의 위치",
   "placeMenu.putInCloud": "Cloud에 올리기",
   "placeMenu.continuePutInCloud": "Cloud에 계속 올리기",
-  "placeMenu.putInCloudDetail.mac": "이 Mac을 꺼도 에이전트가 계속 일합니다.",
-  "placeMenu.putInCloudDetail.computer": "이 컴퓨터를 꺼도 에이전트가 계속 일합니다.",
   "placeMenu.openFolder.mac": "이 Mac의 폴더 열기",
   "placeMenu.openFolder.computer": "이 컴퓨터의 폴더 열기"
 }

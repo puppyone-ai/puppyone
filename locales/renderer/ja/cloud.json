@@ -1065,8 +1065,6 @@
   "placeMenu.label": "このプロジェクトの場所",
   "placeMenu.putInCloud": "Cloud に置く",
   "placeMenu.continuePutInCloud": "Cloud への配置を続ける",
-  "placeMenu.putInCloudDetail.mac": "この Mac の電源を切っても、エージェントは動き続けます。",
-  "placeMenu.putInCloudDetail.computer": "このコンピューターの電源を切っても、エージェントは動き続けます。",
   "placeMenu.openFolder.mac": "この Mac のフォルダーを開く",
   "placeMenu.openFolder.computer": "このコンピューターのフォルダーを開く"
 }

@@ -1903,6 +1903,11 @@ function AppContent() {
       onSignIn: () => { if (activeCloudSession) openSettingsDialog("account"); else openCloudWorkspace(); },
       onPutInCloudAgain: () => setReplacingMissingCloudProject(true),
       onOpenLocalFolder: (path: string) => { void selectProject(path); },
+      // Inviting and connecting are part of putting a folder in the Cloud.
+      ...(shareOnboardingEnabled ? {
+        onInvitePerson: () => openShareWizard("person", "", "invite"),
+        onConnectAgent: () => openShareWizard(null, "", "connect"),
+      } : {}),
     },
   } : null;
   const titlebarContext = railOwnsProject ? null : (
