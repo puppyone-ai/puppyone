@@ -453,15 +453,17 @@ pub fn menu(
         .occlude()
         .flex()
         .flex_col()
+        .relative()
         .max_w(pane.size.width - px(16.))
         .max_h(px(MENU_MAX_HEIGHT))
-        .overflow_y_scroll()
-        .track_scroll(&chrome.scroll)
-        .p(px(metric::MENU_PADDING))
         .border_1()
         .border_color(t_.border)
         .rounded(px(metric::MENU_RADIUS))
-        .bg(t_.menu_bg)
+        // `background-clip: padding-box`; the rows scroll in an inner layer.
+        .child(crate::ui::components::menu::padding_box_fill(
+            metric::MENU_RADIUS,
+            t_.menu_bg,
+        ))
         .shadow(vec![shadow])
         .text_color(t_.text)
         .on_key_down(move |e: &KeyDownEvent, window, cx| on_key(e, window, cx))
@@ -475,17 +477,27 @@ pub fn menu(
                 dismiss(false, window, cx);
             }
         })
-        .child(primary)
-        .when(any, |d| {
-            d.child(
-                div()
-                    .mt(px(4.))
-                    .pt(px(4.))
-                    .border_t_1()
-                    .border_color(t_.divider)
-                    .child(secondary),
-            )
-        })
+        .child(
+            div()
+                .id("desktop-editor-pane-menu-rows")
+                .flex()
+                .flex_col()
+                .min_h_0()
+                .p(px(metric::MENU_PADDING))
+                .overflow_y_scroll()
+                .track_scroll(&chrome.scroll)
+                .child(primary)
+                .when(any, |d| {
+                    d.child(
+                        div()
+                            .mt(px(4.))
+                            .pt(px(4.))
+                            .border_t_1()
+                            .border_color(t_.divider)
+                            .child(secondary),
+                    )
+                }),
+        )
         .child(crate::ui::scrollbar::vertical(
             "desktop-editor-pane-menu-scrollbar",
             &chrome.scroll,

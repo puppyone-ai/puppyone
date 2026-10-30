@@ -185,7 +185,11 @@ impl Render for TableMenu {
             .border_1()
             .border_color(t.border)
             .rounded(px(metric::MENU_RADIUS))
-            .bg(t.menu_bg)
+            .relative()
+            .child(crate::ui::components::menu::padding_box_fill(
+                metric::MENU_RADIUS,
+                t.menu_bg,
+            ))
             .shadow(MenuVariant::Default.shadow(t))
             .on_key_down(cx.listener(|this, e: &KeyDownEvent, _, cx| this.key(e, cx)))
             .on_mouse_down_out(cx.listener(|_, _, _, cx| {

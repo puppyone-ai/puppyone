@@ -457,7 +457,10 @@ impl CsvEditor {
                             .border_1()
                             .border_color(t.border)
                             .rounded(px(metric::MENU_RADIUS))
-                            .bg(t.menu_bg)
+                            .child(crate::ui::components::menu::padding_box_fill(
+                                metric::MENU_RADIUS,
+                                t.menu_bg,
+                            ))
                             .shadow(MenuVariant::Default.shadow(t))
                             .on_key_down(cx.listener(|this, e: &KeyDownEvent, window, cx| {
                                 this.picker_key(e, window, cx)

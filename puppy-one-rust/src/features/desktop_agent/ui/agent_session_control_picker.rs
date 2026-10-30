@@ -201,7 +201,11 @@ impl AgentChat {
             .rounded(px(crate::theme::metric::MENU_RADIUS))
             .border_1()
             .border_color(t.border)
-            .bg(t.menu_bg)
+            .relative()
+            .child(crate::ui::components::menu::padding_box_fill(
+                crate::theme::metric::MENU_RADIUS,
+                t.menu_bg,
+            ))
             .shadow(vec![BoxShadow {
                 inset: false,
                 color: crate::theme::alpha(t.shadow, if t.dark { 0.28 } else { 0.32 }).into(),

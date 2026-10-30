@@ -385,21 +385,17 @@ impl RenderOnce for Menu {
         let dismiss = self.on_dismiss.clone();
         let id = self.id.clone();
         let scroll = crate::ui::scrollbar::handle(child_id(&id, "scroll"), window, cx);
+        // The rows scroll inside; the frame keeps the border, the shadow and
+        // the fill clipped to its padding box (`background-clip`).
         let mut surface = div()
-            .id(self.id)
+            .id(child_id(&id, "rows"))
             .flex()
             .flex_col()
+            .flex_shrink(1.)
+            .min_h_0()
             .p(px(s.padding))
-            .border_1()
-            .border_color(border)
-            .rounded(px(metric::MENU_RADIUS))
-            .bg(background)
-            .shadow(self.variant.shadow(t))
-            .text_color(t.text)
-            .max_h(max_height)
             .overflow_y_scroll()
-            .track_scroll(&scroll)
-            .occlude();
+            .track_scroll(&scroll);
         for (index, entry) in self.entries.into_iter().enumerate() {
             surface = match entry {
                 MenuEntry::Separator if s.hide_separators => surface,
@@ -430,7 +426,20 @@ impl RenderOnce for Menu {
                 )),
             };
         }
-        surface
+        div()
+            .id(self.id)
+            .relative()
+            .flex()
+            .flex_col()
+            .border_1()
+            .border_color(border)
+            .rounded(px(metric::MENU_RADIUS))
+            .shadow(self.variant.shadow(t))
+            .text_color(t.text)
+            .max_h(max_height)
+            .occlude()
+            .child(padding_box_fill(metric::MENU_RADIUS, background))
+            .child(surface)
             .child(crate::ui::scrollbar::vertical(
                 child_id(&id, "scrollbar"),
                 &scroll,
@@ -797,7 +806,8 @@ fn h_row() -> Div {
 /// menu surface `radius` round, kept inside its 1px border so a translucent
 /// border shows the backdrop, not the fill. GPUI paints borders over the
 /// background; give the surface no `bg` and this as its first child. Not for
-/// a scroller: an absolute child counts as its content.
+/// a scroller: an absolute child counts as its content (`Menu` scrolls an
+/// inner layer).
 pub fn padding_box_fill(radius: f32, fill: Rgba) -> Div {
     div().absolute().inset_0().rounded(px(radius - 1.)).bg(fill)
 }
