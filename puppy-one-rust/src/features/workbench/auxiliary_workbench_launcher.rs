@@ -171,14 +171,25 @@ impl Workbench {
             tr("agent.history.title"),
         )
         .bg(t.auxiliary())
-        .on_click(cx.listener(move |s, _, window, cx| s.open_history(group, tab, window, cx)));
+        .on_click(cx.listener(move |s, _, window, cx| {
+            // Cloud: the hosted Agent's own history (`CloudAgentHistory`).
+            if s.cloud.is_some() {
+                s.chat_mode = true;
+                s.launch(group, tab, Some(cloud_installation()), true, window, cx);
+            } else {
+                s.open_history(group, tab, window, cx)
+            }
+        }));
+        let cloud = self.cloud.is_some();
 
         let mut entries = v_flex().gap(px(1.)).child(external);
-        let feedback = self.scanning
+        // `discoveryPhase="ready"`: no local discovery in Cloud.
+        let scanning = self.scanning && !cloud;
+        let feedback = scanning
             && self
                 .scan_started
                 .is_some_and(|start| start.elapsed() >= FEEDBACK_DELAY);
-        if self.scanning && !feedback {
+        if scanning && !feedback {
             // Re-render once the indicator delay has passed.
             let wake = self.wake.clone();
             wake.after(FEEDBACK_DELAY);
@@ -206,10 +217,11 @@ impl Workbench {
         }
         // `agentSetup`: suggested and running activations, between the
         // detected Agents and the bundled one.
-        if let Some(setup) = self.setup_section(cx) {
+        if !cloud && let Some(setup) = self.setup_section(cx) {
             entries = entries.child(setup);
         }
-        entries = entries.child(bundled).child(shell);
+        // `terminalEnabled={false}`: a Cloud launcher offers no shell.
+        entries = entries.child(bundled).when(!cloud, |e| e.child(shell));
 
         // `.desktop-terminal-launcher-error`.
         let error = self.launch_errors.get(&group).map(|message| {
@@ -255,9 +267,13 @@ impl Workbench {
                     .font_weight(FontWeight::MEDIUM)
                     .text_color(t.subtle)
                     .whitespace_nowrap()
-                    .child(tr("terminal.launcher.localTitle")),
+                    .child(tr(if cloud {
+                        "cloud.home.cloud"
+                    } else {
+                        "terminal.launcher.localTitle"
+                    })),
             )
-            .child(scan);
+            .when(!cloud, |h| h.child(scan));
         let history = div()
             .absolute()
             .top(px(-9.))

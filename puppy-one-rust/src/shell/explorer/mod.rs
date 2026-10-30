@@ -407,6 +407,10 @@ impl Explorer {
         self.subscribe_tree(&workspace, cx);
         self.refresh_loaded_folders(cx);
     }
+    /// A Cloud publication: reread what is loaded (`onPublication`).
+    pub fn refresh_published(&mut self, cx: &mut Context<Self>) {
+        self.refresh_loaded_folders(cx);
+    }
     fn refresh_loaded_folders(&mut self, cx: &mut Context<Self>) {
         let Some(workspace) = self.workspace.clone() else {
             return;

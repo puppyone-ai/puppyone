@@ -353,6 +353,13 @@ impl Documents {
             }
         }
     }
+    /// A hosted Agent's accepted publication: revalidate once, as a watch
+    /// invalidation would (a saved editor rereads; a draft is kept).
+    pub fn observe_publication(&mut self) {
+        if self.document.is_some() {
+            self.observation_pending = true;
+        }
+    }
     /// Leaving a hosted workspace releases this document's subscription
     /// (`DesktopCloudFileWorkspace` unmounts its watch); the draft stays.
     pub fn pause_watch(&mut self) {

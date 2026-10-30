@@ -18,22 +18,41 @@ pub(super) struct CloseCopy {
     title: String,
     detail: &'static str,
     action: &'static str,
+    /// `{ kind: "blocked" }`: only "Keep chat open".
+    blocked: bool,
+}
+
+#[cfg(test)]
+impl CloseCopy {
+    pub(super) fn is_blocked(&self) -> bool {
+        self.blocked
+    }
 }
 
 impl Workbench {
     pub(super) fn close_copy(&self, tab: Id, cx: &App) -> Option<CloseCopy> {
         let content = self.project()?.content.get(&tab)?;
         let title = content.title(cx);
+        if self.close_blocked {
+            return Some(CloseCopy {
+                title: tr("cloud.agent.pendingTitle").into(),
+                detail: tr("cloud.agent.pendingDetail"),
+                action: tr("agent.closeDialog.keepOpen"),
+                blocked: true,
+            });
+        }
         Some(match content {
             Content::Terminal(..) => CloseCopy {
                 title: tf("terminal.closeDialog.title", &[("title", title.into())]),
                 detail: tr("terminal.closeDialog.detail"),
                 action: tr("terminal.closeDialog.confirm"),
+                blocked: false,
             },
             _ => CloseCopy {
                 title: tf("agent.closeDialog.activeTitle", &[("title", title.into())]),
                 detail: tr("agent.closeDialog.activeDetail"),
                 action: tr("common.action.close"),
+                blocked: false,
             },
         })
     }
@@ -48,6 +67,7 @@ impl Workbench {
     }
     pub(super) fn dismiss_close(&mut self, cx: &mut Context<Self>) {
         self.confirm = None;
+        self.close_blocked = false;
         cx.notify();
     }
     /// Whether the window-level close dialog is up (gates native surfaces).
@@ -165,7 +185,11 @@ impl Workbench {
                 .border_color(theme::alpha(t.border, 0.))
                 .text_color(t.muted)
                 .on_click(cx.listener(|s, _, _, cx| s.dismiss_close(cx)))
-                .child(tr("common.action.cancel")),
+                .child(if copy.blocked {
+                    copy.action
+                } else {
+                    tr("common.action.cancel")
+                }),
             self.close_keyboard && self.close_choice == 0,
         );
         let confirm = ring(
@@ -192,7 +216,7 @@ impl Workbench {
             // clips children to the rect, not the 10px corners, so it is not
             // repainted here.
             .child(cancel)
-            .child(confirm);
+            .when(!copy.blocked, |f| f.child(confirm));
         let surface = v_flex()
             .id("workbench-close-dialog")
             .w(px(width))

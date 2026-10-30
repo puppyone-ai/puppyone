@@ -434,6 +434,15 @@ impl Shell {
                     });
                     s.command(Command::Settings, w, cx);
                 }
+                // A hosted run's accepted changes: reread the Cloud tree and
+                // revalidate the open document (a draft is kept).
+                crate::features::workbench::WorkbenchEvent::CloudPublished => {
+                    if s.hosted_project().is_some() {
+                        s.explorer.update(cx, |e, cx| e.refresh_published(cx));
+                        s.files.observe_publication();
+                        s.receive(w, cx);
+                    }
+                }
             },
         )
         .detach();
@@ -1141,6 +1150,10 @@ impl Shell {
                     .update(cx, |s, cx| s.set_workspace(root.to_owned(), cx));
                 self.source_control
                     .update(cx, |s, cx| s.set_workspace(root.to_owned(), cx));
+            } else if let Some(target) = ws.agent_target() {
+                // `CloudAgentSidebar`: the hosted Agent, not this machine's.
+                self.workbench
+                    .update(cx, |s, cx| s.set_cloud_workspace(target, cx));
             }
             self.project = ws.name().to_owned();
             self.workspace_entries += 1;

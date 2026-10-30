@@ -123,7 +123,7 @@ impl AgentChat {
             native_agent_client::create,
         )
     }
-    fn with_client_factory(
+    pub(crate) fn with_client_factory(
         installation: Installation,
         root: PathBuf,
         history: bool,
@@ -418,6 +418,9 @@ impl AgentChat {
         self.composer.update(cx, |i, cx| i.clear(cx));
         self.composer.focus_handle(cx).focus(window, cx);
         cx.notify();
+    }
+    pub fn can_release(&self) -> bool {
+        self.session.can_release()
     }
     pub fn busy(&self) -> bool {
         self.session.busy()

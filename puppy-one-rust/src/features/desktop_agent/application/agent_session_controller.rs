@@ -127,6 +127,10 @@ impl AgentSessionController {
     pub fn snapshot(&self) -> &SessionSnapshot {
         self.client.snapshot()
     }
+    /// `canClose`: a hosted submission without a confirmed receipt stays.
+    pub fn can_release(&self) -> bool {
+        self.client.can_release()
+    }
     pub fn busy(&self) -> bool {
         self.snapshot().busy()
     }

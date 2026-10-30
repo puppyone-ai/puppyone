@@ -23,4 +23,9 @@ pub trait AgentRuntimePort {
     fn new_thread(&mut self);
     fn resolve(&mut self, id: &Value, response: Resolution);
     fn select_model(&mut self, model: Option<String>);
+    /// Whether the view may be released now: a hosted submission whose
+    /// receipt is unconfirmed keeps its tab (`canClose`).
+    fn can_release(&self) -> bool {
+        true
+    }
 }

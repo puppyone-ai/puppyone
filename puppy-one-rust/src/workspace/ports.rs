@@ -10,6 +10,11 @@ use std::{
 
 pub trait DataPort: Send + Sync {
     fn descriptor(&self) -> Descriptor;
+    /// The hosted Agent target of a Cloud workspace (its Project, running
+    /// workbench and account binding); local folders have none.
+    fn agent_target(&self) -> Option<super::cloud::agent::AgentTarget> {
+        None
+    }
     /// Local admission is checked by the facade. Remote authority additionally
     /// expires on account, service, permission or runtime-generation changes.
     fn check_authority(&self) -> Result<()> {

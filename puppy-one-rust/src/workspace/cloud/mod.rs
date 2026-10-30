@@ -1,6 +1,7 @@
 //! Live workbench adapter. No checkout mirror, Git fallback, UI, credentials or
 //! execution owner. This stage only prepares an already-running workbench;
 //! explicit allocation/resume and visible navigation belong to the later owner.
+pub mod agent;
 pub mod catalog;
 mod client;
 mod events;
@@ -238,6 +239,15 @@ impl Drop for Cloud {
 impl DataPort for Cloud {
     fn descriptor(&self) -> Descriptor {
         self.shared.descriptor.clone()
+    }
+    fn agent_target(&self) -> Option<agent::AgentTarget> {
+        Some(agent::AgentTarget {
+            broker: self.shared.broker.clone(),
+            binding: self.shared.binding.clone(),
+            project: self.shared.runtime.project_id.clone(),
+            workbench: self.shared.runtime.id.clone(),
+            storage: self.shared.descriptor.storage.as_str().to_owned(),
+        })
     }
     fn check_authority(&self) -> Result<()> {
         self.shared.check()

@@ -1524,11 +1524,11 @@ fn the_header_switches_a_linked_checkout_to_cloud_and_back_keeping_both_hosts(
             (cloud_switch::Place::Cloud, cloud_switch::Readiness::Opening)
         );
     });
+    // The switch ends on the frame after the Project shows.
     settle(&view, cx, "the Cloud switch", &|s, _| {
-        s.hosted_project().as_deref() == Some("project-a")
+        s.hosted_project().as_deref() == Some("project-a") && s.cloud_switch.is_none()
     });
     view.update_in(cx, |s, _, cx| {
-        assert!(s.cloud_switch.is_none());
         assert_eq!(s.project, "Fixture Cloud");
         assert_eq!(
             s.header_location(cx),
@@ -2552,18 +2552,18 @@ fn escape_acknowledges_the_header_introduction_wherever_focus_is(cx: &mut TestAp
     });
 }
 
+struct Linked {
+    root: std::path::PathBuf,
+    _temp: tempfile::TempDir,
+    /// Signs the fixture account in again.
+    relogin: Box<dyn Fn()>,
+}
 /// A Git checkout linked to `project-a` on a signed-in fixture account with
 /// Cloud on; `responder` answers the Cloud API.
 fn linked_checkout(
     cx: &mut TestAppContext,
     responder: crate::cloud_auth::Responder,
-) -> (
-    Entity<Shell>,
-    &mut VisualTestContext,
-    std::path::PathBuf,
-    tempfile::TempDir,
-    std::sync::Arc<crate::cloud_auth::Broker>,
-) {
+) -> (Entity<Shell>, &mut VisualTestContext, Linked) {
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path().canonicalize().unwrap();
     std::fs::write(root.join("local.md"), "# Local\n").unwrap();
@@ -2602,7 +2602,16 @@ fn linked_checkout(
     settle_cloud(&view, cx, "the local project", &|s, _| {
         s.workspace_root().as_deref() == Some(root.as_path())
     });
-    (view, cx, root, temp, kept)
+    let relogin = Box::new(move || crate::cloud_auth::relogin(&kept, "alice"));
+    (
+        view,
+        cx,
+        Linked {
+            root,
+            _temp: temp,
+            relogin,
+        },
+    )
 }
 fn settle_cloud(
     view: &Entity<Shell>,
@@ -2647,7 +2656,7 @@ fn a_refused_association_leaves_the_account_catalog_usable(cx: &mut TestAppConte
         }
         base(request)
     }));
-    let (view, cx, root, _temp, _broker) = linked_checkout(cx, responder);
+    let (view, cx, Linked { root, _temp, .. }) = linked_checkout(cx, responder);
     settle_cloud(&view, cx, "the refusal", &|s, cx| {
         s.repository_cloud.read(cx).context
             == crate::workspace::cloud::repository::Context::NotAuthorized
@@ -2684,7 +2693,7 @@ fn a_failed_header_switch_stays_local_with_its_recovery_in_place(cx: &mut TestAp
         }
         base(request)
     }));
-    let (view, cx, root, _temp, _broker) = linked_checkout(cx, responder);
+    let (view, cx, Linked { root, _temp, .. }) = linked_checkout(cx, responder);
     settle_cloud(&view, cx, "the association", &|s, cx| {
         s.repository_cloud.read(cx).context.project() == Some("project-a")
     });
@@ -2777,7 +2786,7 @@ fn signing_out_after_a_link_gates_the_header_and_signing_in_finds_the_same_proje
     cx: &mut TestAppContext,
 ) {
     use crate::workspace::cloud::repository::{CloudState, Context};
-    let (view, cx, _root, _temp, broker) =
+    let (view, cx, Linked { relogin, _temp, .. }) =
         linked_checkout(cx, with_catalog(cloud_project_responder()));
     settle_cloud(&view, cx, "the association", &|s, cx| {
         s.repository_cloud.read(cx).context.project() == Some("project-a")
@@ -2788,7 +2797,7 @@ fn signing_out_after_a_link_gates_the_header_and_signing_in_finds_the_same_proje
         !signed_in
             && s.repository_cloud.read(cx).context.cloud_state(signed_in) == CloudState::SignedOut
     });
-    crate::cloud_auth::relogin(&broker, "alice");
+    relogin();
     settle_cloud(&view, cx, "signing in", &|_, cx| {
         crate::features::cloud_account::has_account(cx)
     });
@@ -2802,5 +2811,53 @@ fn signing_out_after_a_link_gates_the_header_and_signing_in_finds_the_same_proje
             Context::LocalOnly | Context::NotFound { .. }
         ));
         assert!(s.cloud_publish.read(cx).outcome.is_none());
+    });
+}
+
+/// C-10.1/10.2: in Cloud the right sidebar's workbench is the hosted Agent —
+/// one Puppyone Agent recipe, no local discovery or shell — and opening it
+/// sends nothing; back on This Mac the local workbench returns.
+#[gpui::test]
+fn the_hosted_project_gets_the_cloud_agent_workbench_and_this_mac_gets_its_own(
+    cx: &mut TestAppContext,
+) {
+    let agent_requests = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let base = cloud_project_responder();
+    let responder = with_catalog({
+        let agent_requests = agent_requests.clone();
+        std::sync::Arc::new(move |request| {
+            if request.path.starts_with("/agents") {
+                agent_requests.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            }
+            base(request)
+        })
+    });
+    let (view, cx, Linked { root, _temp, .. }) = linked_checkout(cx, responder);
+    settle_cloud(&view, cx, "the association", &|s, cx| {
+        s.repository_cloud.read(cx).context.project() == Some("project-a")
+    });
+    view.read_with(cx, |s, cx| assert!(!s.workbench.read(cx).cloud_location()));
+    view.update_in(cx, |s, w, cx| s.view_cloud(w, cx));
+    settle_cloud(&view, cx, "the hosted Agent", &|s, cx| {
+        s.hosted_project().as_deref() == Some("project-a") && s.workbench.read(cx).cloud_location()
+    });
+    view.read_with(cx, |s, cx| {
+        let offered = s.workbench.read(cx).visible_installations();
+        assert_eq!(offered.len(), 1);
+        assert_eq!(
+            offered[0].label,
+            crate::features::desktop_agent::infrastructure::cloud::LABEL
+        );
+    });
+    // Opening the Agent sidebar sends nothing.
+    view.update(cx, |s, _| s.panes.toggle_workbench());
+    draw(cx);
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    draw(cx);
+    assert_eq!(agent_requests.load(std::sync::atomic::Ordering::SeqCst), 0);
+    view.update_in(cx, |s, w, cx| s.view_local(w, cx));
+    settle_cloud(&view, cx, "the local workbench", &|s, cx| {
+        s.workspace_root().as_deref() == Some(root.as_path())
+            && !s.workbench.read(cx).cloud_location()
     });
 }

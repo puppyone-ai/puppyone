@@ -140,6 +140,10 @@ impl Workspace {
             },
         }))
     }
+    /// The hosted Agent target (`useCloudAgentWorkspace`): Cloud only.
+    pub fn agent_target(&self) -> Option<cloud::agent::AgentTarget> {
+        self.provider.agent_target()
+    }
     pub fn local_root(&self) -> Option<&Path> {
         self.descriptor.local_root.as_deref()
     }

@@ -120,6 +120,24 @@ impl Render for DragTab {
 #[derive(Clone, Debug)]
 pub enum WorkbenchEvent {
     OpenModelConnections,
+    /// A hosted Agent run's changes were accepted (`onPublication`).
+    CloudPublished,
+}
+/// The hosted Agent location (`CloudAgentSidebar`): a target's Hub.
+struct CloudLocation {
+    hub: std::sync::Arc<crate::features::desktop_agent::infrastructure::cloud::Hub>,
+}
+/// `CLOUD_AGENT_LABEL`'s creation recipe: the only runtime a Cloud launcher
+/// offers (no local discovery, no terminal).
+fn cloud_installation() -> Installation {
+    use crate::features::desktop_agent::infrastructure::cloud;
+    Installation {
+        runtime: crate::agent::runtime::agent_runtime_registry::Runtime::PuppyOne,
+        id: cloud::INSTALLATION_ID,
+        label: cloud::LABEL.into(),
+        executable: PathBuf::new(),
+        chat: true,
+    }
 }
 impl EventEmitter<WorkbenchEvent> for Workbench {}
 pub struct Workbench {
@@ -178,6 +196,14 @@ pub struct Workbench {
     owner: String,
     /// `creationFailure`: a History conversation that could not be opened.
     creation_failure: Option<CreationFailure>,
+    /// The hosted location shown, and the Hubs of the targets seen (by
+    /// storage, account binding and workbench).
+    cloud: Option<CloudLocation>,
+    cloud_hubs:
+        HashMap<String, std::sync::Arc<crate::features::desktop_agent::infrastructure::cloud::Hub>>,
+    cloud_published: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    /// The close dialog refuses (an unconfirmed Cloud submission).
+    close_blocked: bool,
 }
 struct CreationFailure {
     tab: Id,
@@ -200,6 +226,11 @@ impl Workbench {
                 if this
                     .update_in(cx, |s, _, cx| {
                         s.restore_results(cx);
+                        if s.cloud_published
+                            .swap(false, std::sync::atomic::Ordering::SeqCst)
+                        {
+                            cx.emit(WorkbenchEvent::CloudPublished);
+                        }
                         if let Ok(found) = s.scan_rx.try_recv() {
                             s.installations = found;
                             s.scanning = false;
@@ -256,6 +287,10 @@ impl Workbench {
             setup: None,
             owner: crate::features::agent_presence::owner(window),
             creation_failure: None,
+            cloud: None,
+            cloud_hubs: HashMap::new(),
+            cloud_published: Default::default(),
+            close_blocked: false,
         }
     }
     #[cfg(feature = "dev-capture")]
@@ -282,7 +317,10 @@ impl Workbench {
     }
     /// Installations offered by launchers: detected agents the user has not
     /// hidden, then the bundled Built-in Agent (never hidden).
-    fn visible_installations(&self) -> Vec<Installation> {
+    pub(crate) fn visible_installations(&self) -> Vec<Installation> {
+        if self.cloud.is_some() {
+            return vec![cloud_installation()];
+        }
         self.installations
             .iter()
             .filter(|i| i.bundled() || !self.hidden_agents.iter().any(|h| h == i.id))
@@ -305,6 +343,84 @@ impl Workbench {
         cx.notify();
     }
     pub fn set_workspace(&mut self, root: PathBuf, cx: &mut Context<Self>) {
+        self.cloud = None;
+        self.attach(root, cx);
+    }
+    /// The hosted Project's Agent (`useCloudAgentWorkspace`): tabs persist
+    /// per API, account and target; one Hub per binding and workbench.
+    pub fn set_cloud_workspace(
+        &mut self,
+        target: crate::workspace::cloud::agent::AgentTarget,
+        cx: &mut Context<Self>,
+    ) {
+        use crate::features::desktop_agent::infrastructure::cloud::Hub;
+        use crate::workspace::cloud::agent::{BrokerTransport, Client};
+        let identity = format!(
+            "{}#{}#{}#{}",
+            target.storage, target.binding.instance, target.binding.epoch, target.workbench
+        );
+        let (flag, wake) = (self.cloud_published.clone(), self.wake.clone());
+        let hub = self
+            .cloud_hubs
+            .entry(identity)
+            .or_insert_with(|| {
+                let transport = std::sync::Arc::new(BrokerTransport {
+                    broker: target.broker.clone(),
+                    binding: target.binding.clone(),
+                    cancel: Default::default(),
+                });
+                Hub::new(
+                    Client::new(transport, target.project.clone(), target.workbench.clone()),
+                    target.storage.clone(),
+                    crate::features::desktop_agent::infrastructure::cloud::storage_dir(),
+                    Box::new(move || {
+                        flag.store(true, std::sync::atomic::Ordering::SeqCst);
+                        wake.notify();
+                    }),
+                )
+            })
+            .clone();
+        let root = PathBuf::from(format!(
+            "puppyone-cloud-agent-{}",
+            blake3::hash(target.storage.as_bytes()).to_hex()
+        ));
+        self.cloud = Some(CloudLocation { hub });
+        self.attach(root, cx);
+    }
+    /// Whether the hosted Agent is shown.
+    #[cfg(test)]
+    pub fn cloud_location(&self) -> bool {
+        self.cloud.is_some()
+    }
+    /// A hosted chat for `tab`: its receipts persist under the tab id.
+    fn cloud_chat(
+        &self,
+        tab: Id,
+        root: PathBuf,
+        history: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Option<Entity<AgentChat>> {
+        let hub = self.cloud.as_ref()?.hub.clone();
+        let key = format!("tab:{tab}");
+        Some(cx.new(|cx| {
+            AgentChat::with_client_factory(
+                cloud_installation(),
+                root,
+                history,
+                window,
+                cx,
+                move |_, _, history, wake| {
+                    Box::new(
+                        crate::features::desktop_agent::infrastructure::cloud::CloudAgentRuntime::new(
+                            hub, &key, history, wake,
+                        ),
+                    )
+                },
+            )
+        }))
+    }
+    fn attach(&mut self, root: PathBuf, cx: &mut Context<Self>) {
         if !self.projects.contains_key(&root) {
             self.projects.insert(
                 root.clone(),
@@ -432,6 +548,17 @@ impl Workbench {
     ) {
         let root = self.root.clone().unwrap();
         let content = match item {
+            RetainedItem::Chat { thread, .. } if self.cloud.is_some() => {
+                let Some(view) = self.cloud_chat(tab, root, thread.is_some(), window, cx) else {
+                    return;
+                };
+                if let Some(id) = thread {
+                    view.update(cx, |v, _| v.resume_when_ready(id));
+                }
+                cx.observe(&view, |_, _, cx| cx.notify()).detach();
+                cx.subscribe(&view, Self::chat_event).detach();
+                Content::Chat(view)
+            }
             RetainedItem::Chat {
                 runtime, thread, ..
             } => {
@@ -518,7 +645,21 @@ impl Workbench {
         cx.notify();
     }
     fn close(&mut self, id: Id, force: bool, cx: &mut Context<Self>) {
-        if !force
+        if force && self.close_blocked {
+            return;
+        }
+        // A hosted chat never stops its run on close; an unconfirmed
+        // submission keeps the tab until its receipt is recovered.
+        if self.cloud.is_some() {
+            let content = self.project().and_then(|p| p.content.get(&id));
+            if let Some(Content::Chat(chat)) = content
+                && !chat.read(cx).can_release()
+            {
+                self.close_blocked = true;
+                self.request_close_confirmation(id, cx);
+                return;
+            }
+        } else if !force
             && self
                 .project()
                 .and_then(|p| p.content.get(&id))
@@ -533,6 +674,7 @@ impl Workbench {
         }
         self.history.remove(&id);
         self.confirm = None;
+        self.close_blocked = false;
         cx.notify();
     }
     fn launch(
@@ -554,6 +696,30 @@ impl Workbench {
                 Some(Content::Launcher)
             )
         {
+            return;
+        }
+        // Cloud: the hosted Agent only, no session lease of this machine.
+        if self.cloud.is_some() {
+            if !installation.as_ref().is_some_and(|i| i.chat) || !self.can_create(true) {
+                return;
+            }
+            self.launch_errors.remove(&group);
+            let Some(id) = self
+                .project_mut()
+                .map(|p| tab.unwrap_or_else(|| p.layout.add(group)))
+            else {
+                return;
+            };
+            let Some(view) = self.cloud_chat(id, root, history, window, cx) else {
+                return;
+            };
+            cx.observe(&view, |_, _, cx| cx.notify()).detach();
+            cx.subscribe(&view, Self::chat_event).detach();
+            if let Some(p) = self.project_mut() {
+                p.content.insert(id, Content::Chat(view));
+                p.layout.activate(group, id);
+            }
+            cx.notify();
             return;
         }
         let chat = installation
@@ -1241,6 +1407,127 @@ impl Render for Workbench {
 mod tests {
     use super::*;
     use core::prelude::v1::test;
+    /// `{ kind: "blocked" }` and "closing never stops": an unconfirmed
+    /// submission keeps its tab; a confirmed running one closes unasked.
+    #[gpui::test]
+    fn a_hosted_chat_with_an_unconfirmed_submission_cannot_close(cx: &mut TestAppContext) {
+        use crate::{
+            cloud_auth::{Cancellation, model::ApiRequest},
+            features::desktop_agent::infrastructure::cloud::Hub,
+            workspace::cloud::agent::{Client, Error, Event, Transport},
+        };
+        use serde_json::{Value, json};
+        use std::sync::{
+            Arc, Mutex,
+            atomic::{AtomicBool, Ordering},
+        };
+        #[derive(Default)]
+        struct Script {
+            accept: AtomicBool,
+            paths: Mutex<Vec<String>>,
+        }
+        impl Transport for Script {
+            fn request(&self, request: ApiRequest) -> Result<Value, Error> {
+                self.paths.lock().unwrap().push(request.path.clone());
+                let failure = |status, unknown| Error {
+                    status,
+                    unknown,
+                    message: "scripted".into(),
+                };
+                if !self.accept.load(Ordering::SeqCst) {
+                    return Err(failure(None, true));
+                }
+                if request.path.starts_with("/agents/requests/") {
+                    return Err(failure(Some(404), false));
+                }
+                let id = request
+                    .body
+                    .map_or("req".into(), |b| b["request_id"].clone());
+                Ok(
+                    json!({"id": "run-1", "project_id": "project-a", "workbench_id": "wb-1",
+                    "agent_id": "agent-1", "session_id": "session-1", "request_id": id,
+                    "prompt": "hello", "state": "running", "sequence": 1}),
+                )
+            }
+            fn events(&self, _: &str, _: u64, _: &Cancellation) -> Result<Vec<Event>, Error> {
+                std::thread::sleep(std::time::Duration::from_millis(20));
+                Ok(vec![])
+            }
+        }
+        cx.executor().allow_parking();
+        cx.update(gpui_kit::init);
+        let script = Arc::new(Script::default());
+        let dir = tempfile::tempdir().unwrap();
+        let hub = Hub::new(
+            Client::new(script.clone(), "project-a".into(), "wb-1".into()),
+            "puppyone-cloud://test/blocked".into(),
+            dir.path().to_path_buf(),
+            Box::new(|| {}),
+        );
+        let (view, cx) = cx.add_window_view(Workbench::new);
+        view.update_in(cx, |s, w, cx| {
+            s.cloud = Some(CloudLocation { hub });
+            s.attach(
+                PathBuf::from(format!("cloud-test-{}", uuid::Uuid::new_v4())),
+                cx,
+            );
+            s.project_mut().unwrap().loading = false;
+            s.launch(0, None, Some(cloud_installation()), false, w, cx);
+        });
+        let (tab, chat) = view.read_with(cx, |s, _| {
+            s.project()
+                .unwrap()
+                .content
+                .iter()
+                .find_map(|(id, c)| match c {
+                    Content::Chat(chat) => Some((*id, chat.clone())),
+                    _ => None,
+                })
+                .expect("a hosted chat")
+        });
+        let settle = |cx: &mut VisualTestContext, what: &str, ready: &dyn Fn(&App) -> bool| {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+            while !cx.update(|_, cx| ready(cx)) {
+                cx.run_until_parked();
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "{what} did not settle"
+                );
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+        };
+        chat.update(cx, |c, _| c.session.send("hello".into()));
+        settle(cx, "the lost receipt", &|cx| !chat.read(cx).can_release());
+        view.update(cx, |s, cx| {
+            s.close(tab, false, cx);
+            assert_eq!(s.confirm, Some(tab));
+            assert!(s.close_copy(tab, cx).unwrap().is_blocked());
+            // A forced close cannot get past the refusal.
+            s.close(tab, true, cx);
+            assert!(s.project().unwrap().content.contains_key(&tab));
+            s.dismiss_close(cx);
+        });
+        // The retry confirms; the running tab now closes without asking.
+        script.accept.store(true, Ordering::SeqCst);
+        chat.update(cx, |c, _| {
+            c.session.poll();
+            c.session.send("hello".into());
+        });
+        settle(cx, "the confirmation", &|cx| chat.read(cx).can_release());
+        view.update(cx, |s, cx| {
+            s.close(tab, false, cx);
+            assert_eq!(s.confirm, None);
+            assert!(!s.project().unwrap().content.contains_key(&tab));
+        });
+        assert!(
+            !script
+                .paths
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|p| p.ends_with("/stop"))
+        );
+    }
     #[gpui::test]
     fn project_switch_retains_tabs_without_starting_a_process(cx: &mut TestAppContext) {
         // This integration fixture includes real discovery/storage workers.
