@@ -15,6 +15,13 @@ let window;
 const errors = [];
 const assert = (value, message) => { if (!value) throw new Error(message); };
 const evaluate = code => window.webContents.executeJavaScript(code, true);
+// History is the hosted project's own record, so it lives in the project's place menu.
+async function openHistory(menuCapture) {
+  await evaluate("document.querySelector('.desktop-titlebar-place-button').click()");
+  await waitFor("Boolean(document.querySelector('[data-project-place-row=history]'))");
+  if (menuCapture) await capture(menuCapture);
+  await evaluate("document.querySelector('[data-project-place-row=history]').click()");
+}
 async function waitFor(expression) {
   const until = Date.now() + 15000;
   while (Date.now() < until) {
@@ -47,7 +54,7 @@ async function exercise(hosted) {
     await evaluate("document.querySelector('.desktop-project-menu .desktop-project-switcher-row[data-project-location=cloud]').querySelector('button').click()");
     await waitFor(`${api}.state().location === 'cloud'`);
   }
-  await waitFor(`${button("history")} && !${button("history")}.disabled`);
+  await waitFor(`${button("share")} && !${button("share")}.disabled`);
   assert(await evaluate("!document.querySelector('[data-cloud-workspace-tool=automation], [data-cloud-workspace-tool=connect]')"), "Retired entries must not be visible");
   if (!hosted) {
     await evaluate(`${api}.setLoginAppearance('light', 'en')`);
@@ -96,7 +103,7 @@ async function exercise(hosted) {
   await evaluate(`${api}.editAgent('Keep this draft')`);
   for (const theme of ["light", "dark"]) {
     await evaluate(hosted ? `${api}.setTheme('${theme}')` : `${api}.setLoginAppearance('${theme}', 'en')`);
-    await evaluate(`${button("history")}.click()`);
+    await openHistory(`${mode}-place-menu-${theme}`);
     await waitFor("document.querySelector('.desktop-cloud-workspace-history')?.textContent.includes('Update research notes')");
     assert(await evaluate(`${button("agent")}.getAttribute('aria-expanded') === 'false'`), "History owns the auxiliary pane");
     await evaluate("new Promise(resolve => setTimeout(resolve, 350))");
@@ -109,7 +116,7 @@ async function exercise(hosted) {
     await evaluate(`${button("agent")}.click()`);
     await waitFor("document.querySelector('.desktop-cloud-agent-sidebar .cm-content')?.textContent.includes('Keep this draft')");
   }
-  await evaluate(`${button("history")}.click()`);
+  await openHistory();
   await waitFor("Boolean(document.querySelector('.desktop-cloud-workspace-history'))");
   await evaluate("document.querySelector('.desktop-cloud-workspace-history button[aria-label=Close]').click()");
   await waitFor("document.querySelector('.desktop-right-sidebar').dataset.paneCollapsed === 'true'");

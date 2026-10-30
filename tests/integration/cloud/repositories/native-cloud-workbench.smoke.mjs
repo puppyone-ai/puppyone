@@ -430,8 +430,8 @@ app.whenReady().then(async () => {
       && animation.effect.getTiming().duration === 260
       && animation.animationName === 'desktop-cloud-header-expand';
   })()`), 'Header blue must expand from its lower-right center over 260ms while the Cloud project opens');
-  assert(await evaluate("document.querySelector('.desktop-titlebar')?.dataset.workspaceKind === 'cloud' && !document.querySelector('.desktop-titlebar-terminal:not([data-cloud-workspace-tool]), .desktop-titlebar-changes') && document.querySelectorAll('[data-cloud-workspace-tool]').length === 3"),
-    'Opening the Cloud project must give the Header that project and its three Cloud tools, without the folder actions');
+  assert(await evaluate("document.querySelector('.desktop-titlebar')?.dataset.workspaceKind === 'cloud' && !document.querySelector('.desktop-titlebar-terminal:not([data-cloud-workspace-tool]), .desktop-titlebar-changes') && document.querySelectorAll('[data-cloud-workspace-tool]').length === 2"),
+    'Opening the Cloud project must give the Header that project and its Cloud tools, without the folder actions');
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await writeFile(path.join(artifacts, 'cloud-header-switch.png'), (await window.webContents.capturePage()).toPNG());
   await evaluate("window.__nativeCloudWorkbenchSmoke.finishCloudRead()");
@@ -590,7 +590,7 @@ app.whenReady().then(async () => {
   assert(await evaluate("[...document.querySelectorAll('[data-cloud-workspace-tool]')].every(button => !button.disabled) && !window.__nativeCloudWorkbenchSmoke.state().requests.some(path => path.includes('/mcp-endpoints') || path.includes('/synchronize'))"),
     'Cloud tool pages must load only when the user opens a ready CTA');
   assert(await evaluate("!document.querySelector('[data-cloud-workspace-tool=automation], [data-cloud-workspace-tool=connect]')"),
-    'Cloud Header exposes Share, History and Agent');
+    'Cloud Header exposes Share and Agent');
   await waitFor("Boolean(document.querySelector('.desktop-titlebar-reach-people .desktop-project-reach-mark[data-reach-activity=working]'))");
   assert(await evaluate(`(() => {
     const people = document.querySelector('.desktop-titlebar-reach-people').getBoundingClientRect();
@@ -607,7 +607,9 @@ app.whenReady().then(async () => {
   assert((await workspaceRequests()).length === beforeSharing, 'Sharing a URL must not issue Cloud API requests');
   await captureSettledDialog('cloud-share', '.desktop-cloud-workspace-share');
   await evaluate("document.querySelector('.desktop-cloud-workspace-share .desktop-dialog-icon-button').click()");
-  await evaluate("document.querySelector('[data-cloud-workspace-tool=history]').click()");
+  await evaluate("document.querySelector('.desktop-titlebar-place-button').click()");
+  await waitFor("Boolean(document.querySelector('[data-project-place-row=history]'))");
+  await evaluate("document.querySelector('[data-project-place-row=history]').click()");
   await waitFor("document.querySelector('.desktop-cloud-workspace-history')?.textContent.includes('Update research notes')");
   const beforeDetail = (await workspaceRequests()).length;
   await evaluate("document.querySelector('.desktop-cloud-workspace-history .desktop-history-row').click()");
@@ -624,7 +626,7 @@ app.whenReady().then(async () => {
       if ((await state()).location !== location) await selectLocation(location);
       if (location === "cloud") await captureCloudReady(`${theme}-${width}`);
       const sample = await headerPresentation(location);
-      assert(await evaluate(`document.querySelectorAll('[data-cloud-workspace-tool]').length === ${location === 'cloud' ? 3 : 0}`),
+      assert(await evaluate(`document.querySelectorAll('[data-cloud-workspace-tool]').length === ${location === 'cloud' ? 2 : 0}`),
         'Cloud CTAs must follow the active environment in both themes and widths');
       if (location === 'cloud') assert(await evaluate(`(() => {
         const project = document.querySelector('.desktop-titlebar-centered-context').getBoundingClientRect();
