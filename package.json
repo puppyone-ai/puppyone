@@ -45,6 +45,8 @@
     "dev": "npm run build:native-drag && npm run build:native-templates && npm run prepare:desktop-build:dev && node scripts/dev-electron.mjs",
     "dev:local-cloud": "npm run dev -- --local-cloud=preview",
     "dev:qubits": "VITE_DESKTOP_CLOUD_API_URL=https://qubits-api.puppyone.ai/api/v1 VITE_DESKTOP_CLOUD_WEB_URL=https://qubits-try.puppyone.ai VITE_DESKTOP_CLOUD_GIT_ORIGIN= npm run dev",
+    "dev:website-demo": "vite --config vite.website-demo.config.ts --host 127.0.0.1 --port 5190 --strictPort",
+    "build:website-demo": "vite build --config vite.website-demo.build.config.ts",
     "dev:local-cloud:web": "npm run dev -- --local-cloud=dev",
     "dev:agent-sandbox": "node scripts/dev-agent-sandbox.mjs",
     "dev:update-preview": "VITE_DESKTOP_UPDATE_PREVIEW=downloaded VITE_DESKTOP_UPDATE_PREVIEW_VERSION=0.3.0-preview.1 VITE_DESKTOP_CLOUD_API_URL=https://api.puppyone.ai/api/v1 VITE_DESKTOP_CLOUD_WEB_URL=https://try.puppyone.ai npm run dev",

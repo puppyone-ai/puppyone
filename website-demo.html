@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en" dir="ltr" data-po-scrollbar-mode="product">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>puppyone website demo</title>
+    <script src="/interface-style-bootstrap.js"></script>
+    <script src="/sub-theme-bootstrap.js"></script>
+    <script src="/initial-theme.js"></script>
+    <link rel="stylesheet" href="/initial-shell.css" />
+    <style>
+      /* macOS draws these in the real app; the demo paints them in the same place. */
+      .website-demo-traffic-lights {
+        position: fixed; top: 14px; left: 14px; z-index: 2147483647;
+        display: flex; gap: 8px; pointer-events: none;
+      }
+      .website-demo-traffic-lights i { width: 12px; height: 12px; border-radius: 50%; }
+      .website-demo-traffic-lights i:nth-child(1) { background: #ff5f57; }
+      .website-demo-traffic-lights i:nth-child(2) { background: #febc2e; }
+      .website-demo-traffic-lights i:nth-child(3) { background: #28c840; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/website-demo/main.ts"></script>
+  </body>
+</html>
