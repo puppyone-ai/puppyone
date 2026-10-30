@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { Check, Copy, X } from "lucide-react";
+import { ArrowDownToLine, Check, Copy, X } from "lucide-react";
 import { Tooltip } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
@@ -7,6 +7,8 @@ import { writeClipboardText } from "../../../lib/clipboard";
 import { agentConnectMessage, createAgentLink, listAgentLinks, removeConnectedAgent,
   stopSharingWithAgents, type AgentAdmission, type AgentLinkInventory } from "./agentLinks";
 import { workspaceAgentStatus, type WorkspaceAgent } from "./useWorkspaceAgents";
+import { CloudWorkspaceHandoff } from "../agent-review/CloudWorkspaceHandoff";
+import { useWorkspaceHandoff } from "../agent-review/useWorkspaceHandoff";
 
 /** While the dialog is open, an Agent the owner just allowed appears on its own. */
 const REFRESH_MS = 5_000;
@@ -42,6 +44,7 @@ export function CloudWorkspaceAgentShare({ projectId, projectName, session, apiB
   const [status, setStatus] = useState<keyof typeof COPY_LABEL>("idle");
   const [inventory, setInventory] = useState(EMPTY);
   const [changeFailed, setChangeFailed] = useState(false);
+  const handoff = useWorkspaceHandoff({ session, projectId, apiBaseUrl });
   const mounted = useRef(true);
   const options = useRef<Partial<Record<AgentAdmission, HTMLButtonElement | null>>>({});
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -137,6 +140,12 @@ export function CloudWorkspaceAgentShare({ projectId, projectName, session, apiB
           <span className="desktop-cloud-agent-lamp" data-active={live?.active || undefined} aria-hidden="true" />
           <span className="desktop-cloud-agent-name" dir="auto">{agent.name}</span>
           {facts.some(Boolean) && <span className="desktop-cloud-agent-expiry">{facts.filter(Boolean).join(" · ")}</span>}
+          {agent.branch && <Tooltip content={t("cloud.handoff.bringIn")}>
+            <button type="button" aria-label={t("cloud.handoff.bringInFrom", { name: agent.name })}
+              disabled={handoff.pending} onClick={() => void handoff.bringIn(agent.branch ?? null)}>
+              <ArrowDownToLine size={14} aria-hidden="true" />
+            </button>
+          </Tooltip>}
           <Tooltip content={t("cloud.share.agent.remove")}>
             <button type="button" aria-label={`${t("cloud.share.agent.remove")} ${agent.name}`}
               onClick={() => void change(() => removeConnectedAgent(session, projectId, agent.grant_id, apiBaseUrl))}>
@@ -148,5 +157,6 @@ export function CloudWorkspaceAgentShare({ projectId, projectName, session, apiB
       </ul>}
     </div>}
     {changeFailed && <p role="alert">{t("cloud.share.agent.changeFailed")}</p>}
+    <CloudWorkspaceHandoff handoff={handoff} />
   </section>;
 }

@@ -9,6 +9,8 @@ export type ConnectedAgent = Readonly<{
   grant_id: string;
   connected_at: string;
   expires_at: string | null;
+  /** The branch this Agent's machine saves to; absent from an older Cloud. */
+  branch?: string;
 }>;
 export type AgentLinkInventory = Readonly<{
   links: readonly Readonly<{ id: string; admission: AgentAdmission; expires_at: string }>[];
@@ -33,7 +35,7 @@ function invitationSecret() {
   return "pai_" + btoa(String.fromCharCode(...bytes)).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
 }
 
-/** The link addresses the project's current hosted workspace, which the owner has open. */
+/** The owner's workspace proves who may share; an admitted Agent gets a machine of its own. */
 export async function createAgentLink(session: DesktopCloudSession, projectId: string,
   admission: AgentAdmission, apiBaseUrl: string): Promise<string> {
   const { workspace } = await cloudApiRequest<{ workspace: { id: string } | null }>(
