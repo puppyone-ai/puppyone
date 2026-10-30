@@ -339,6 +339,9 @@ impl Client {
     pub fn new(transport: Arc<dyn Transport>) -> Self {
         Self { transport }
     }
+    pub fn transport(&self) -> Arc<dyn Transport> {
+        self.transport.clone()
+    }
     fn send(
         &self,
         method: Method,

@@ -42,6 +42,8 @@ pub enum Section {
     Team,
     /// `openCloudShare`: where the Header's Share lands.
     Share,
+    /// Behind `flags::CLOUD_BILLING`.
+    Billing,
 }
 impl Section {
     fn catalog(self) -> Option<Catalog> {
@@ -64,6 +66,7 @@ impl Section {
             Self::Settings => "settings",
             Self::Team => "cloud-team",
             Self::Share => "share",
+            Self::Billing => "cloud-billing",
         }
     }
     fn title(self) -> String {
@@ -226,6 +229,7 @@ pub struct CloudServices {
     /// The open Create access form.
     creating: Option<Create>,
     folder_epoch: u64,
+    billing: billing::BillingPage,
     /// The Share wizard, and the issue or receipt watch that may report.
     share_flow: Option<ShareFlow>,
     share_epoch: u64,
@@ -260,6 +264,7 @@ impl CloudServices {
             confirm_delete: None,
             creating: None,
             folder_epoch: 0,
+            billing: Default::default(),
             share_flow: None,
             share_epoch: 0,
             stop_failed: false,
@@ -315,6 +320,7 @@ impl CloudServices {
         self.share_flow = None;
         self.share_epoch += 1;
         self.stop_failed = false;
+        self.billing.reset();
         self.notice = None;
         self.busy = false;
     }
@@ -338,8 +344,17 @@ impl CloudServices {
         cx.notify();
     }
     fn enter(&mut self, section: Section, cx: &mut Context<Self>) {
-        if section == Section::Team && self.team.organizations.is_empty() && !self.team.loading {
+        if matches!(section, Section::Team | Section::Billing)
+            && self.team.organizations.is_empty()
+            && !self.team.loading
+        {
             self.load_team(cx);
+        }
+        if section == Section::Billing
+            && self.team.selected.is_some()
+            && self.billing.membership == billing::Membership::Unknown
+        {
+            self.load_billing(cx);
         }
         if section == Section::Settings {
             self.fill_settings(cx);
@@ -423,6 +438,11 @@ impl CloudServices {
         self.team_epoch += 1;
         let epoch = self.team_epoch;
         self.team.selected = Some(id.clone());
+        // Another Organization is another billing context.
+        self.billing.reset();
+        if self.section == Section::Billing {
+            self.load_billing(cx);
+        }
         self.team.members.clear();
         self.team.entitlements = None;
         self.team.seats = None;
@@ -970,10 +990,13 @@ impl CloudServices {
                     (Section::Cli, Icon::new("square-terminal")),
                 ],
             ),
-            (
-                "cloud.sidebar.organizationGroup",
-                vec![(Section::Team, Icon::new("users"))],
-            ),
+            ("cloud.sidebar.organizationGroup", {
+                let mut entries = vec![(Section::Team, Icon::new("users"))];
+                if crate::features::flags::CLOUD_BILLING {
+                    entries.push((Section::Billing, Icon::new("credit-card")));
+                }
+                entries
+            }),
         ];
         for (group, entries) in groups {
             nav = nav.child(
@@ -1020,6 +1043,7 @@ impl CloudServices {
             Section::Settings => self.settings(t, cx),
             Section::Team => self.team(t, cx),
             Section::Share => self.share_page(t, cx),
+            Section::Billing => self.billing_view(t, cx),
             _ => self.access(t, cx),
         };
         v_flex()
@@ -2359,17 +2383,19 @@ impl CloudServices {
             }))
             .into_any_element()
     }
-    fn team(&mut self, t: Theme, cx: &mut Context<Self>) -> AnyElement {
-        let ty = theme::ty().ui;
-        let team = self.team.clone();
-        let web = cloud_account::environment(cx).map(|e| e.web().to_owned());
-        let mut page = v_flex().gap(px(12.)).child(self.heading(t));
-        if team.organizations.len() > 1 {
-            page = page.child(h_flex().gap(px(6.)).children(
-                team.organizations.iter().enumerate().map(|(index, org)| {
+    /// `CloudOrganizationSelector`: only when there is a choice to make.
+    fn organization_chooser(&self, cx: &mut Context<Self>) -> Option<Div> {
+        (self.team.organizations.len() > 1).then(|| {
+            let selected = self.team.selected.clone();
+            let buttons: Vec<_> = self
+                .team
+                .organizations
+                .iter()
+                .enumerate()
+                .map(|(index, org)| {
                     let id = org.id.clone();
                     Button::new(("cloud-org", index))
-                        .variant(if team.selected.as_deref() == Some(org.id.as_str()) {
+                        .variant(if selected.as_deref() == Some(org.id.as_str()) {
                             ButtonVariant::Solid
                         } else {
                             ButtonVariant::Secondary
@@ -2378,9 +2404,17 @@ impl CloudServices {
                         .on_click(
                             cx.listener(move |s, _, _, cx| s.select_organization(id.clone(), cx)),
                         )
-                }),
-            ));
-        }
+                })
+                .collect();
+            h_flex().gap(px(6.)).children(buttons)
+        })
+    }
+    fn team(&mut self, t: Theme, cx: &mut Context<Self>) -> AnyElement {
+        let ty = theme::ty().ui;
+        let team = self.team.clone();
+        let web = cloud_account::environment(cx).map(|e| e.web().to_owned());
+        let mut page = v_flex().gap(px(12.)).child(self.heading(t));
+        page = page.children(self.organization_chooser(cx));
         let invite = Button::new("cloud-invite")
             .variant(ButtonVariant::Solid)
             .icon(Icon::new("mail").with_size(px(14.)))
@@ -2572,5 +2606,6 @@ impl CloudServices {
     }
 }
 
+mod billing;
 #[cfg(test)]
 mod tests;

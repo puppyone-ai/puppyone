@@ -3,6 +3,7 @@
 //! explicit allocation/resume and visible navigation belong to the later owner.
 pub mod access_points;
 pub mod agent;
+pub mod billing;
 pub mod catalog;
 mod client;
 mod events;

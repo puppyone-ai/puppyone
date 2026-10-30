@@ -11,6 +11,8 @@
 use crate::features::settings::preferences_store::PreferencesStore;
 use gpui::{App, Entity};
 
+/// `cloudBilling`: off in this build, as in the product.
+pub const CLOUD_BILLING: bool = false;
 pub fn account_available(cx: &App) -> bool {
     cx.has_global::<crate::features::cloud_account::CloudAccountService>()
 }

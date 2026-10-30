@@ -511,3 +511,205 @@ fn stopping_a_share_deletes_its_endpoint_and_a_failure_changes_nothing(cx: &mut 
     view.read_with(cx, |s, _| assert_eq!(s.share_rows().len(), 1));
     assert_eq!(f.count("DELETE", "/mcp-endpoints/e1"), 1);
 }
+
+/// A billing Cloud: one quote, then an operation the test ends.
+struct Billed {
+    keys: Mutex<Vec<(String, Option<String>)>>,
+    owner: std::sync::atomic::AtomicBool,
+    confirm_fails: std::sync::atomic::AtomicBool,
+    finished: std::sync::atomic::AtomicBool,
+}
+impl Billed {
+    fn new() -> Arc<Self> {
+        Arc::new(Self {
+            keys: Mutex::default(),
+            owner: std::sync::atomic::AtomicBool::new(true),
+            confirm_fails: std::sync::atomic::AtomicBool::new(false),
+            finished: std::sync::atomic::AtomicBool::new(false),
+        })
+    }
+    fn answer(&self, r: &ApiRequest) -> services::Result<Value> {
+        use std::sync::atomic::Ordering;
+        self.keys
+            .lock()
+            .unwrap()
+            .push((r.path.clone(), r.idempotency_key.clone()));
+        let quote = json!({"quote_id": "q", "org_id": "org-1", "target_plan_id": "team",
+            "target_seats": 2, "currency": "USD", "delta_amount_cents": 2000,
+            "target_amount_cents": 4000, "application_mode": "checkout",
+            "expires_at": "2099-01-01T00:00:00Z"});
+        let operation = |state: &str, terminal: bool| {
+            json!({"id": "op", "org_id": "org-1", "kind": "checkout", "state": state,
+                "terminal": terminal, "quote_id": "q", "target_plan_id": "team",
+                "target_seat_quantity": 2})
+        };
+        Ok(match r.path.as_str() {
+            "/organizations/" => json!([{"id": "org-1", "name": "One"}]),
+            "/organizations/org-1/access" => json!({"org_id": "org-1",
+                "can_manage_billing": self.owner.load(Ordering::SeqCst)}),
+            "/billing/catalog" => json!({"schema_version": "1.0", "plans": [
+                {"id": "team", "name": "Team", "public": true, "purchasable": true,
+                 "currency": "USD", "price_per_seat_cents": 2000,
+                 "seats": {"minimum": 2, "maximum": 10}}]}),
+            "/billing/organizations/org-1/summary" => json!({"org_id": "org-1",
+                "plan_id": if self.finished.load(Ordering::SeqCst) { "team" } else { "free" },
+                "status": "active", "seat_quantity": 1}),
+            "/billing/organizations/org-1/operations" => json!([]),
+            "/billing/organizations/org-1/plan/quote" => quote,
+            "/billing/organizations/org-1/checkout" => {
+                if self.confirm_fails.load(Ordering::SeqCst) {
+                    return Err(services::Error::Unknown);
+                }
+                json!({"checkout_id": "c", "checkout_url": "https://pay.example.com/c",
+                    "quote": quote, "operation": operation("pending", false)})
+            }
+            "/billing/organizations/org-1/operations/op" => {
+                if self.finished.load(Ordering::SeqCst) {
+                    operation("succeeded", true)
+                } else {
+                    operation("processing", false)
+                }
+            }
+            _ => cloud("p")(r)?,
+        })
+    }
+}
+struct BilledTransport(Arc<Billed>);
+impl services::Transport for BilledTransport {
+    fn request(&self, request: ApiRequest) -> services::Result<Value> {
+        self.0.answer(&request)
+    }
+}
+fn open_billing(
+    cx: &mut TestAppContext,
+    billed: Arc<Billed>,
+) -> (Entity<CloudServices>, &mut VisualTestContext) {
+    cx.executor().allow_parking();
+    cx.update(gpui_kit::init);
+    let mut entity = None;
+    let (_, cx) = cx.add_window_view(|w, cx| {
+        let view = cx.new(|cx| CloudServices::new(w, cx));
+        entity = Some(view.clone());
+        gpui_kit::base::Root::new(view, w, cx)
+    });
+    let view = entity.unwrap();
+    view.update(cx, |s, cx| {
+        s.open_with(
+            Client::new(Arc::new(BilledTransport(billed))),
+            "p".into(),
+            Section::Billing,
+            cx,
+        )
+    });
+    (view, cx)
+}
+
+#[gpui::test]
+fn a_non_owner_sees_no_prices_and_requests_none(cx: &mut TestAppContext) {
+    let billed = Billed::new();
+    billed
+        .owner
+        .store(false, std::sync::atomic::Ordering::SeqCst);
+    let (view, cx) = open_billing(cx, billed.clone());
+    let loaded = view.clone();
+    settle(cx, "the membership", &|cx| {
+        loaded.read_with(cx, |s, _| {
+            s.billing.membership == billing::Membership::Member
+        })
+    });
+    draw(cx);
+    assert!(
+        !billed
+            .keys
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|(p, _)| p == "/billing/catalog"),
+        "a member reads no catalog"
+    );
+}
+
+#[gpui::test]
+fn success_is_the_servers_word_and_a_retry_keeps_its_key(cx: &mut TestAppContext) {
+    use std::sync::atomic::Ordering;
+    let billed = Billed::new();
+    billed.confirm_fails.store(true, Ordering::SeqCst);
+    let (view, cx) = open_billing(cx, billed.clone());
+    let loaded = view.clone();
+    settle(cx, "the owner's page", &|cx| {
+        loaded.read_with(cx, |s, _| {
+            s.billing.membership == billing::Membership::Owner
+        })
+    });
+    draw(cx);
+    let plan = view.read_with(cx, |s, _| {
+        s.billing.catalog.as_ref().unwrap().plans[0].clone()
+    });
+    view.update(cx, |s, cx| s.request_quote(plan, cx));
+    let loaded = view.clone();
+    settle(cx, "the quote", &|cx| {
+        loaded.read_with(cx, |s, _| s.billing.quote.is_some())
+    });
+    draw(cx);
+    // A lost confirmation keeps the quote and its key.
+    view.update(cx, |s, cx| s.confirm_quote(cx));
+    let loaded = view.clone();
+    settle(cx, "the failure", &|cx| {
+        loaded.read_with(cx, |s, _| s.billing.error.is_some() && !s.billing.acting)
+    });
+    billed.confirm_fails.store(false, Ordering::SeqCst);
+    view.update(cx, |s, cx| s.confirm_quote(cx));
+    let loaded = view.clone();
+    settle(cx, "the operation", &|cx| {
+        loaded.read_with(cx, |s, _| s.billing.polling.is_some())
+    });
+    let keys: Vec<_> = billed
+        .keys
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|(p, _)| p.ends_with("/checkout"))
+        .map(|(_, k)| k.clone().unwrap())
+        .collect();
+    assert_eq!(keys.len(), 2);
+    assert_eq!(keys[0], keys[1]);
+    // Opening the browser changed nothing: the plan is still the old one.
+    view.read_with(cx, |s, _| {
+        assert_eq!(s.billing.summary.as_ref().unwrap().plan_id, "free");
+    });
+    draw(cx);
+    // The server's terminal state is what ends it.
+    billed.finished.store(true, Ordering::SeqCst);
+    cx.executor()
+        .advance_clock(std::time::Duration::from_secs(5));
+    let loaded = view.clone();
+    settle(cx, "the new plan", &|cx| {
+        cx.executor()
+            .advance_clock(std::time::Duration::from_secs(5));
+        loaded.read_with(cx, |s, _| {
+            s.billing.polling.is_none()
+                && s.billing
+                    .summary
+                    .as_ref()
+                    .is_some_and(|x| x.plan_id == "team")
+        })
+    });
+}
+
+#[gpui::test]
+fn another_organization_clears_the_quote_and_its_keys(cx: &mut TestAppContext) {
+    let billed = Billed::new();
+    let (view, cx) = open_billing(cx, billed.clone());
+    let loaded = view.clone();
+    settle(cx, "the owner's page", &|cx| {
+        loaded.read_with(cx, |s, _| {
+            s.billing.membership == billing::Membership::Owner
+        })
+    });
+    view.update(cx, |s, cx| {
+        let first = s.billing.keys.key("intent", "scope");
+        s.select_organization("org-1".into(), cx);
+        assert!(s.billing.quote.is_none() && s.billing.catalog.is_none());
+        assert_ne!(s.billing.keys.key("intent", "scope"), first);
+    });
+}
