@@ -290,6 +290,8 @@ pub struct BrokerTransport {
     pub broker: Arc<Broker>,
     pub binding: Binding,
     pub cancel: Cancellation,
+    /// How long one read waits for events (`maxWaitMs`).
+    pub wait: Duration,
 }
 impl Transport for BrokerTransport {
     fn request(&self, request: ApiRequest) -> Result<Value> {
@@ -309,8 +311,9 @@ impl Transport for BrokerTransport {
         let expired = Arc::new(AtomicBool::new(false));
         let timer = {
             let (read, expired) = (read.clone(), expired.clone());
+            let wait = self.wait;
             std::thread::spawn(move || {
-                let deadline = std::time::Instant::now() + BATCH_WAIT;
+                let deadline = std::time::Instant::now() + wait;
                 while std::time::Instant::now() < deadline {
                     if read.check().is_err() {
                         return;

@@ -368,6 +368,7 @@ impl Workbench {
                     broker: target.broker.clone(),
                     binding: target.binding.clone(),
                     cancel: Default::default(),
+                    wait: crate::workspace::cloud::agent::BATCH_WAIT,
                 });
                 Hub::new(
                     Client::new(transport, target.project.clone(), target.workbench.clone()),

@@ -454,6 +454,26 @@ fn connection(mut stream: TcpStream, state: Arc<State>, origin: &str) {
         return;
     }
     let query: HashMap<_, _> = url.query_pairs().into_owned().collect();
+    if method == "GET" && path.contains("/agents/runs/") {
+        let _ = stream.write_all(
+            b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n",
+        );
+        if path.contains("run-idle") {
+            while !state.stop.load(Ordering::SeqCst) && stream.write_all(b": keepalive\n\n").is_ok()
+            {
+                thread::sleep(Duration::from_millis(10));
+            }
+            return;
+        }
+        let _ = stream.write_all(b"id: 4\nevent: delta\ndata: {\"n\":4}\n\n");
+        let _ = stream.write_all(b"id: 5\nevent: delta\ndata: {\"n\":5}\n\n");
+        let _ = stream.write_all(b": keepalive\n\n");
+        // The connection stays open: the read ends itself.
+        while !state.stop.load(Ordering::SeqCst) && stream.write_all(b": keepalive\n\n").is_ok() {
+            thread::sleep(Duration::from_millis(10));
+        }
+        return;
+    }
     assert_eq!(
         query.get("generation").map(String::as_str),
         Some(GENERATION)
@@ -1179,4 +1199,37 @@ fn viewers_admit_the_smaller_of_their_own_budget_and_the_cloud_text_bound() {
     );
     assert!(ws.read(p("big.md")).is_err());
     assert_eq!(ws.read(p("live.md")).unwrap().text, "live before Git\n");
+}
+#[test]
+fn a_bounded_event_read_ends_at_its_heartbeat_or_its_deadline_without_touching_the_run() {
+    use super::agent::{BrokerTransport, Transport};
+    let f = Fixture::new();
+    let transport = BrokerTransport {
+        broker: f.broker.clone(),
+        binding: f.binding.clone(),
+        cancel: Cancellation::default(),
+        wait: Duration::from_millis(300),
+    };
+    let cancel = Cancellation::default();
+    // Events, then a heartbeat: the batch ends over a connection left open.
+    let started = Instant::now();
+    let events = transport.events("run-1", 3, &cancel).unwrap();
+    assert_eq!(events.iter().map(|e| e.id).collect::<Vec<_>>(), vec![4, 5]);
+    assert_eq!(events[1].data, json!({"n": 5}));
+    assert!(started.elapsed() < Duration::from_millis(250));
+    // Only heartbeats: an empty batch at the deadline, not an error.
+    let started = Instant::now();
+    assert!(transport.events("run-idle", 0, &cancel).unwrap().is_empty());
+    assert!(started.elapsed() >= Duration::from_millis(280));
+    // The caller's cancellation is not a deadline.
+    cancel.cancel();
+    assert!(transport.events("run-idle", 0, &cancel).is_err());
+    assert!(
+        f.state
+            .requests
+            .lock()
+            .unwrap()
+            .iter()
+            .all(|(m, p)| m == "GET" || !p.contains("/stop"))
+    );
 }
