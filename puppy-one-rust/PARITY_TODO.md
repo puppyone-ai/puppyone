@@ -167,6 +167,7 @@
 - [x] P1-15 General：版本号行；更新行带图标
 - [x] P1-16 Other App Imports 页（受 Experimental 开关控制）。证据：`project_and_import_pages_follow_visibility`
 - [~] P1-17 Model Connections：列表 → 配置 → 详情的流程与文案已做。缺：本地服务发现、工具支持验证、托管连接
+- [x] P1-19 Header 功能引导（`9c0e9267`、`e0d9c03d`，S-5）：`useHeaderCoachmarks` 的触发、确认、排队和持久化；Esc 在 Shell 层拦截，焦点在哪都能关，且不阻止按键继续传；对话框打开时浮层隐藏。像素 `coachmark-agent` / `-changes` 99.89%。证据：`escape_acknowledges_the_header_introduction_wherever_focus_is`、`the_agent_is_introduced_once_and_changes_wait_their_turn`
 - [x] P1-18 隐私、反馈与首页开场（`47154780`，S-20 / S-9）
   - 遥测（`electron/main/telemetry`、`shared/desktop-telemetry-*`）：只有打包的 Stable 构建在看过一次性说明后发送两种有界匿名事件（首次运行、每日活跃）；开发、未打包和非 Stable 构建保持 Basic 默认值、从不发送。偏好/身份/生命周期/队列四个原子 JSON 存储，HMAC 按月轮换 ID，只保留 7 个日历日、不存时刻，留存 ID 限 100 天。关闭即清空队列和本地身份。固定的 HTTPS 上报地址，可重试失败退避、被拒批次丢弃、不记录载荷。Electron 的选择导入一次；窗口获得焦点记前台活动。Privacy 开关接真实状态（加载、写入、失败文案）
   - Help → Feedback（`DesktopHelpLauncher`）：留言（2000 个 UTF-16 码元）和邮箱必填；截图可选文件、拖放或粘贴图片（嗅探类型、源文件上限 20 MiB、大图重新编码）；发送中/已发送/失败，失败后编辑即重新可发；提交到产品同一个表单地址，不带工作区和账号数据。和产品一样只有关闭按钮能关（背景、Esc、⌘W、再点 Help 都不关）
@@ -244,6 +245,8 @@
 - 历史日期按 en-US 格式（`Jan 15, 3:55 PM`）在本地时区显示；产品使用系统区域的 `Intl.DateTimeFormat`。
 - 聚焦分组的 1px 内阴影在产品中被不透明子层完全覆盖（参考图像素验证），不移植。
 - 拖拽 pill 的 `--po-surface` 在产品主题中未定义，产品实际为透明底；Rust 同样透明，且不画外阴影（GPUI 会把阴影画到透明主体下方）。
+- 菜单面板的 `background-clip: padding-box`（`menus.css`）：GPUI 把边框画在底色上，半透明边框叠在菜单底色上而不是背后的页面，浅色下边框约深 12 个色阶。Header 引导卡片已用 `menu::padding_box_fill` 改到边框以内（`e0d9c03d`）。**待做**：通用 `Menu` 的面板本身就是滚动容器，绝对定位的底色层会算进内容尺寸、撑大滚动范围，要先拆成外层（边框、阴影、底色）加内层滚动再套用。底色层改法会让 GPUI 在透明边框环下面多画出一点阴影（CSS 会裁掉），实测在容差以内。
+- Kit 按钮的 650 字重文字比 Chromium 宽 1–2px（Header 引导的 Later / 主按钮），导致按钮整体左移 2–3px。
 
 ## 6. 验证
 
