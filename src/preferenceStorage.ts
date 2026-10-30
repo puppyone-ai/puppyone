@@ -45,6 +45,7 @@ export const PROJECT_SWITCHER_EXPANDED_STORAGE_KEY = "puppyone.desktop.projectSw
 export const PROJECT_SWITCHER_WIDTH_STORAGE_KEY = "puppyone.desktop.projectSwitcherWidth";
 export const RIGHT_SIDEBAR_WIDTH_STORAGE_KEY = "puppyone.desktop.rightSidebarWidth";
 export const RIGHT_SIDEBAR_SURFACE_STORAGE_KEY = "puppyone.desktop.rightSidebarSurface";
+export const HOMEPAGE_PROJECT_LAYOUT_STORAGE_KEY = "puppyone.desktop.homepageProjectLayout";
 export const AGENT_ROUTING_PREFERENCES_STORAGE_KEY = "puppyone.desktop.agentRoutingPreferences.v1";
 export const REACH_LAST_AGENT_STORAGE_KEY = "puppyone.desktop.reachLastAgent";
 /** @deprecated Migrated into AGENT_ROUTING_PREFERENCES_STORAGE_KEY. */
@@ -52,6 +53,8 @@ export const AGENT_PREFERRED_RUNTIME_STORAGE_KEY = "puppyone.desktop.agentPrefer
 /** @deprecated Migrated into AGENT_ROUTING_PREFERENCES_STORAGE_KEY. */
 export const AGENT_PREFERRED_MODEL_STORAGE_KEY = "puppyone.desktop.agentPreferredModel";
 export type RightSidebarSurface = "chat" | "changes" | "history";
+export const HOMEPAGE_PROJECT_LAYOUTS = ["list", "icons", "cards"] as const;
+export type HomepageProjectLayout = typeof HOMEPAGE_PROJECT_LAYOUTS[number];
 
 export function readInitialDiffMarkers(storage: Pick<Storage, "getItem"> = defaultPreferenceStorage()): DiffMarkers {
   if (typeof window === "undefined") return parseDiffMarkers(null);
@@ -144,6 +147,12 @@ export function readInitialRightSidebarSurface(storage: Pick<Storage, "getItem">
   if (typeof window === "undefined") return "chat";
   const stored = storage.getItem(RIGHT_SIDEBAR_SURFACE_STORAGE_KEY);
   return stored === "history" || stored === "changes" ? stored : "chat";
+}
+
+export function readInitialHomepageProjectLayout(storage: Pick<Storage, "getItem"> = defaultPreferenceStorage()): HomepageProjectLayout {
+  if (typeof window === "undefined") return "list";
+  const stored = storage.getItem(HOMEPAGE_PROJECT_LAYOUT_STORAGE_KEY);
+  return HOMEPAGE_PROJECT_LAYOUTS.find((layout) => layout === stored) ?? "list";
 }
 
 export function readInitialAgentPreferredModel(storage: Pick<Storage, "getItem"> = defaultPreferenceStorage()): string | null {

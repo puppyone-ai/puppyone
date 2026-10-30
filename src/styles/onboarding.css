@@ -691,6 +691,198 @@ span.homepage-cloud-feedback {
   white-space: nowrap;
 }
 
+/* Icons and Cards rearrange the same projects: the page keeps its skeleton and
+   fixed insets, and only leaves the reading column for a wider one. */
+.onboarding-homepage:has(.onboarding-project-list:not([data-project-layout="list"])) {
+  --onboarding-column-width: 100%;
+  /* Top-aligned like a long list, so switching layouts leaves the title in place. */
+  justify-content: flex-start;
+  width: min(920px, 100%);
+}
+
+.onboarding-homepage:has(.onboarding-project-list:not([data-project-layout="list"])) .onboarding-entry-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+}
+
+.onboarding-project-list:is([data-project-layout="icons"], [data-project-layout="cards"]) {
+  /* A grid has no trailing column to protect; it lines up with the page's rules. */
+  scrollbar-gutter: auto;
+}
+
+.onboarding-project-list[data-project-layout="icons"] {
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 4px;
+}
+
+.onboarding-project-list[data-project-layout="cards"] {
+  grid-template-columns: repeat(auto-fill, minmax(216px, 1fr));
+  gap: 8px;
+}
+
+.onboarding-project-layout-switch {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--desktop-titlebar-button-gap);
+  margin-inline-end: 6px;
+}
+
+.onboarding-project-tile {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  border-radius: var(--desktop-control-radius);
+  background: transparent;
+  color: var(--po-text-muted);
+  font-family: var(--po-font-sans);
+  cursor: var(--po-clickable-cursor, default);
+  transition:
+    border-color 130ms ease-out,
+    background 130ms ease-out,
+    color 130ms ease-out,
+    opacity 130ms ease-out;
+}
+
+.onboarding-project-list[data-project-layout="icons"] .onboarding-project-tile {
+  align-content: start;
+  justify-items: center;
+  gap: 4px;
+  padding: 12px 6px 10px;
+  text-align: center;
+}
+
+.onboarding-project-list[data-project-layout="cards"] .onboarding-project-tile {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-content: start;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border-color: var(--po-border);
+  text-align: start;
+}
+
+/* Inset, because the scrolling list would clip the ring other Homepage controls use. */
+.onboarding-project-tile:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--po-accent) 36%, transparent);
+  outline-offset: -2px;
+}
+
+.onboarding-project-tile:disabled {
+  cursor: default;
+}
+
+.onboarding-project-list[data-project-layout="icons"] .onboarding-project-icon {
+  width: 40px;
+  height: 40px;
+  margin-block-end: 4px;
+}
+
+.onboarding-project-list[data-project-layout="icons"] .onboarding-project-icon:not(.is-cloud) > svg:first-child {
+  fill: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.onboarding-project-list[data-project-layout="cards"] .onboarding-project-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.onboarding-project-tile-name {
+  min-width: 0;
+  overflow: hidden;
+  color: inherit;
+  font-size: var(--onboarding-row-font-size);
+  font-weight: var(--onboarding-row-font-weight);
+  line-height: var(--onboarding-row-line-height);
+}
+
+.onboarding-project-list[data-project-layout="icons"] .onboarding-project-tile-name {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.onboarding-project-list[data-project-layout="cards"] .onboarding-project-tile-name {
+  grid-column: 2 / -1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onboarding-project-tile-place {
+  grid-column: 1 / 3;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--po-text-subtle);
+  font-size: var(--po-text-size-hint, 12px);
+  font-weight: 500;
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onboarding-project-tile-time {
+  color: var(--po-text-subtle);
+  font-size: var(--po-text-size-hint, 12px);
+  font-weight: 500;
+  white-space: nowrap;
+  transition: opacity 100ms ease;
+}
+
+.onboarding-project-row-wrap:hover .onboarding-project-tile:not(:disabled),
+.onboarding-project-row-wrap:focus-within .onboarding-project-tile:not(:disabled),
+.onboarding-project-row-wrap.is-removing .onboarding-project-tile {
+  background: var(--po-hover);
+  color: var(--po-text);
+}
+
+.onboarding-project-row-wrap.is-dragging .onboarding-project-tile {
+  background: var(--po-hover);
+  color: var(--po-text);
+  opacity: 0.62;
+}
+
+.onboarding-project-row-wrap.has-cloud-project:not(:hover, :focus-within) .onboarding-project-tile-name {
+  color: var(--po-text-subtle);
+}
+
+/* Row actions keep their hover-or-focus reveal; a tile only gives them new corners. */
+.onboarding-project-tile ~ .onboarding-project-remove {
+  top: 6px;
+  transform: none;
+}
+
+/* As in a row, the link to a folder's Cloud project takes the time's place. */
+.onboarding-project-tile ~ .onboarding-project-cloud-link {
+  top: auto;
+  transform: none;
+}
+
+.onboarding-project-row-wrap.has-cloud-project:is(:hover, :focus-within) .onboarding-project-tile-time {
+  opacity: 0;
+}
+
+.onboarding-project-list[data-project-layout="icons"] .onboarding-project-tile ~ .onboarding-project-cloud-link {
+  inset-block-end: 7px;
+  inset-inline: 0;
+  width: fit-content;
+  margin-inline: auto;
+}
+
+.onboarding-project-list[data-project-layout="cards"] .onboarding-project-row-wrap:is(:hover, :focus-within) .onboarding-project-tile-name {
+  padding-inline-end: 24px;
+}
+
+.onboarding-project-list[data-project-layout="cards"] .onboarding-project-tile ~ .onboarding-project-cloud-link {
+  inset-block-end: 9px;
+  inset-inline: auto 8px;
+}
+
 .onboarding-homepage-error {
   flex: 0 0 auto;
   width: min(520px, 100%);

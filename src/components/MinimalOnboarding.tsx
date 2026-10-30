@@ -39,6 +39,7 @@ import {
   OnboardingEntryActions,
 } from "./onboarding/OnboardingEntryActions";
 import { OnboardingHomeLayout } from "./onboarding/OnboardingHomeLayout";
+import { OnboardingProjectLayoutSwitch } from "./onboarding/OnboardingProjectLayoutSwitch";
 import { OnboardingProjectList } from "./onboarding/OnboardingProjectList";
 import { isHomepageProjectOpening, OnboardingProjectLoading } from "./onboarding/OnboardingProjectLoading";
 import { OnboardingTelemetryDisclosure } from "./onboarding/OnboardingTelemetryDisclosure";
@@ -109,6 +110,8 @@ export function MinimalOnboarding({
   const ownProjectEntryFlow = useProjectEntryFlow();
   const projectEntryFlow = projectEntryController ?? ownProjectEntryFlow;
   const enableOtherAppImports = useDesktopPreference(s => s.experimentalSettings.enableOtherAppImports);
+  const projectLayout = useDesktopPreference(s => s.homepageProjectLayout);
+  const setProjectLayout = useDesktopPreference(s => s.setHomepageProjectLayout);
   const importPreviewBrands = resolveImportPreviewBrands({ enableOtherAppImports });
   const items = useMemo(
     () => (projectItems ?? recentWorkspaces.map(({ workspace }) => ({
@@ -248,7 +251,10 @@ export function MinimalOnboarding({
       onDragLeave={folderDrop.onDragLeave}
       onDrop={folderDrop.onDrop}
     >
-      <DesktopWindowChrome actions={cloudAccountStatus} />
+      <DesktopWindowChrome actions={<>
+        <OnboardingProjectLayoutSwitch available={hasProjects} layout={projectLayout} disabled={openingProject} onChange={setProjectLayout} />
+        {cloudAccountStatus}
+      </>} />
       <section
         ref={homepageRef}
         className="onboarding-homepage"
@@ -262,6 +268,7 @@ export function MinimalOnboarding({
           primary={hasProjects ? (
             <OnboardingProjectList
               items={items}
+              layout={projectLayout}
               onOpenCloudProject={onOpenCloudProject}
               busy={busy}
               openingPath={openingPath}
