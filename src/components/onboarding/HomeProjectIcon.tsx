@@ -21,12 +21,12 @@ export function HomeProjectIcon({ item }: { item: ProjectHomeItem }) {
   );
 }
 
-/** The same three places as one folder outline, told apart by where its cloud sits. */
+/** The same three places in ink alone: hollow, hollow with a cloud, or solid. */
 export function ProjectFolder({ item }: { item: ProjectHomeItem }) {
   const location = projectIconLocation(item);
   return (
     <span className={`onboarding-project-folder is-${location}`} data-project-location={location} aria-hidden="true">
-      <ProjectFolderGlyph mark={location === "local" ? undefined : location} />
+      <ProjectFolderGlyph cloud={location !== "local"} />
     </span>
   );
 }

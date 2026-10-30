@@ -1,33 +1,18 @@
 import { CLOUD_ICON_PATH } from "@puppyone/shared-ui";
 
-const CLOUD_MARK = {
-  cloud: { className: "project-folder-cloud", transform: "translate(13.2 12.2) scale(0.9)" },
-  linked: { className: "project-folder-cloud is-corner", transform: "translate(31 23) scale(0.5)" },
-} as const;
-
 /**
- * The website's folder in its monochrome form: a back with its tab and a lighter
- * front, both mixed from the page. The viewBox is the drawing's own bounds, so the
- * folder stands exactly on the edge it is aligned to.
- *
- * Every folder keeps this one outline; the product's solid cloud says where a
- * project lives from inside it. On the front, the way macOS marks Documents and
- * Downloads, the project is in the Cloud. In the corner, it is a local folder with
- * its own Cloud project. The mark is solid and blue so that it still reads at a
- * glance across a full page of folders.
+ * One hairline folder, drawn 1:1 so its line lands on the pixel grid. With `cloud`
+ * it carries the product's solid cloud. The stylesheet inverts the pair for a Cloud
+ * project, so ink alone says where a project lives.
  */
-export function ProjectFolderGlyph({ mark }: { mark?: keyof typeof CLOUD_MARK }) {
+export function ProjectFolderGlyph({ cloud = false }: { cloud?: boolean }) {
   return (
-    <svg className="project-folder-glyph" viewBox="4 3 40 32" aria-hidden="true" focusable="false">
+    <svg className="project-folder-glyph" width="30" height="24" viewBox="0 0 30 24" aria-hidden="true" focusable="false">
       <path
-        className="project-folder-back"
-        d="M4 6.5A3.5 3.5 0 0 1 7.5 3h10.3c.9 0 1.8.4 2.4 1.1L22.7 7h17.8A3.5 3.5 0 0 1 44 10.5v21a3.5 3.5 0 0 1-3.5 3.5h-33A3.5 3.5 0 0 1 4 31.5z"
+        className="project-folder-outline"
+        d="M3.5.5h6.4c.8 0 1.6.4 2.1 1l1.4 1.9c.5.6 1.2 1 2 1h11.1a3 3 0 0 1 3 3v13.1a3 3 0 0 1-3 3h-23a3 3 0 0 1-3-3v-17a3 3 0 0 1 3-3z"
       />
-      <path
-        className="project-folder-front"
-        d="M4 14.5A3.5 3.5 0 0 1 7.5 11h33a3.5 3.5 0 0 1 3.5 3.5v17a3.5 3.5 0 0 1-3.5 3.5h-33A3.5 3.5 0 0 1 4 31.5z"
-      />
-      {mark && <path {...CLOUD_MARK[mark]} d={CLOUD_ICON_PATH} />}
+      {cloud && <path className="project-folder-cloud" d={CLOUD_ICON_PATH} transform="translate(6.6 6.1) scale(0.7)" />}
     </svg>
   );
 }

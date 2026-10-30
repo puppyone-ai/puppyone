@@ -423,16 +423,17 @@ async function runSmoke() {
   }
 }
 
-// The Grid keeps the list's column and stands on its left edge. Both center by content,
-// so the page moves vertically only by the difference in their heights.
+// The Grid is a matrix exactly as wide as the list's column, with whole cells and its
+// folders on the action icons' edge. Both center by content, so the page moves
+// vertically only by the difference in their heights.
 async function validateProjectGrid() {
   const frame = `(() => {
     const edges = selector => { const r = document.querySelector(selector).getBoundingClientRect(); return { left:r.left, right:r.right, top:r.top }; };
     return { brand:edges('.onboarding-brand-lockup'), rule:edges('.onboarding-home-primary'),
-      layoutSwitch:edges('.onboarding-project-layout-switch'), listTop:edges('.onboarding-project-list').top };
+      layoutSwitch:edges('.onboarding-project-layout-switch') };
   })()`;
   for (const theme of ["dark", "light"]) {
-    for (const [width, height, count, columns] of [[900, 680, 40, 4], [1200, 900, 3, 3], [1200, 900, 12, 4], [640, 535, 40, 4], [470, 535, 12, 3]]) {
+    for (const [width, height, count, columns] of [[900, 680, 40, 3], [1200, 900, 3, 3], [1200, 900, 12, 3], [640, 535, 40, 3], [470, 535, 12, 3]]) {
       window.setContentSize(width, height);
       const url = new URL(`http://127.0.0.1:${server.httpServer.address().port}/tests/fixtures/workspace/projects/onboarding-home.html`);
       url.searchParams.set("state", "projects"); url.searchParams.set("count", String(count)); url.searchParams.set("theme", theme);
@@ -451,20 +452,28 @@ async function validateProjectGrid() {
       const context = `grid/${theme}/${width}x${height}/${count}`;
       const across = ({ brand, rule, layoutSwitch }) => [brand.left, brand.right, rule.left, rule.right, layoutSwitch.left, layoutSwitch.right];
       assert.deepEqual(across(grid), across(list), `${context}: switching layouts never moves the column`);
-      if (count === 40) assert.deepEqual(grid, list, `${context}: nothing moves while both fill the page`);
-      assert.ok(Math.abs(grid.brand.top - list.brand.top) <= 80, `${context}: the title stays near its place (${list.brand.top} to ${grid.brand.top})`);
+      if (count === 40) assert.deepEqual(grid, list, `${context}: the title, rules and switch hold still while both fill the page`);
+      assert.ok(Math.abs(grid.brand.top - list.brand.top) <= 40, `${context}: the title stays near its place (${list.brand.top} to ${grid.brand.top})`);
       const snapshot = await evaluate(`(() => {
         const element = document.querySelector('.onboarding-project-list');
         const folders = [...document.querySelectorAll('.onboarding-project-folder')].map(folder => folder.getBoundingClientRect());
+        const cells = [...document.querySelectorAll('.onboarding-project-row-wrap')].map(cell => cell.getBoundingClientRect());
+        const icon = document.querySelector('[data-onboarding-action=open] .po-button__icon svg').getBoundingClientRect();
         return { scrollWidth:element.scrollWidth, clientWidth:element.clientWidth, scrollHeight:element.scrollHeight, clientHeight:element.clientHeight,
-          folderLefts:[...new Set(folders.map(folder => folder.left))], rowTops:[...new Set(folders.map(folder => folder.top))],
+          folderLefts:[...new Set(folders.map(folder => folder.left))], iconLeft:icon.left,
+          cellLefts:[...new Set(cells.map(cell => cell.left))], cellRight:Math.max(...cells.map(cell => cell.right)),
+          cellWidths:[...new Set(cells.map(cell => cell.width))], cellHeights:[...new Set(cells.map(cell => cell.height))],
+          sectionPadding:getComputedStyle(document.querySelector('.onboarding-home-primary')).paddingTop,
           thumb:getComputedStyle(element, '::-webkit-scrollbar-thumb').backgroundColor };
       })()`);
       assert.equal(snapshot.scrollWidth, snapshot.clientWidth, `${context}: the Grid never scrolls sideways`);
       assert.equal(snapshot.folderLefts.length, columns, `${context}: equal columns for this width`);
-      assert.equal(snapshot.folderLefts[0], grid.rule.left, `${context}: the first column stands on the rules' left edge`);
-      const pitches = snapshot.folderLefts.slice(1).map((left, index) => left - snapshot.folderLefts[index]);
-      assert.ok(pitches.every(pitch => Math.abs(pitch - pitches[0]) < 0.01), `${context}: evenly spaced columns`);
+      assert.equal(snapshot.folderLefts[0], snapshot.iconLeft, `${context}: folders stand on the action icons' edge`);
+      assert.equal(snapshot.cellLefts[0], grid.rule.left, `${context}: the matrix starts on the rules' left edge`);
+      assert.ok(Math.abs(snapshot.cellWidths[0] - (grid.rule.right - grid.rule.left) / columns) < 0.1, `${context}: equal columns divide the rules' width`);
+      assert.deepEqual(snapshot.cellHeights, [112], `${context}: every row is one height`);
+      assert.equal(snapshot.sectionPadding, '0px', `${context}: the rules are the matrix's outer edge`);
+      if (count >= columns) assert.ok(Math.abs(snapshot.cellRight - grid.rule.right) < 0.1, `${context}: the matrix ends on the rules' right edge`);
       const overflows = snapshot.scrollHeight > snapshot.clientHeight;
       if (overflows) assert.notEqual(snapshot.thumb, 'rgba(0, 0, 0, 0)', `${context}: more projects below are always signalled`);
       await writeFile(path.join(screenshots, `grid-${theme}-${width}x${height}-${count}.png`), (await window.capturePage()).toPNG());
