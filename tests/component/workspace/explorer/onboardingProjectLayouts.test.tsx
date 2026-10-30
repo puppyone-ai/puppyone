@@ -7,7 +7,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MinimalOnboarding, type MinimalOnboardingProps } from "../../../../src/components/MinimalOnboarding";
 import type { ProjectHomeItem } from "../../../../src/lib/workspaceHomeModel";
-import { HOMEPAGE_DESKTOP_POSITIONS_STORAGE_KEY, HOMEPAGE_PROJECT_LAYOUT_STORAGE_KEY } from "../../../../src/preferenceStorage";
+import { HOMEPAGE_PROJECT_LAYOUT_STORAGE_KEY } from "../../../../src/preferenceStorage";
 import { desktopPreferencesStore as preferences, initializeDesktopPreferences } from "../../../../src/preferencesStore";
 import { renderWithTestLocalization } from "../../../support/react/localization";
 import { createTestSurfaceAppearance } from "../../../support/react/surfaceAppearance";
@@ -145,11 +145,23 @@ describe("Homepage project layouts", () => {
     expect(project(container, "cloud").querySelector(".onboarding-project-remove")).toBeNull();
   });
 
-  it("drags a project out of the list, and moves it on the Grid", () => {
+  it.each(LAYOUTS)("drags a local project out of the %s layout", (layout) => {
     const { container } = renderHome();
-    expect(project(container, "local").querySelector(OPEN.list)?.getAttribute("draggable")).toBe("true");
+    pick(container, layout);
+    expect(project(container, "local").querySelector(OPEN[layout])?.getAttribute("draggable")).toBe("true");
+    expect(project(container, "cloud").querySelector(OPEN[layout])?.getAttribute("draggable")).toBe("false");
+  });
+
+  it("flows the Grid in the list's own order, with nothing placed by hand", () => {
+    const { container } = renderHome();
+    const names = (layout: "list" | "grid") => [...container.querySelectorAll(OPEN[layout])]
+      .map((element) => element.getAttribute("aria-label"));
+    const order = names("list");
     pick(container, "grid");
-    expect(project(container, "local").querySelector(OPEN.grid)?.getAttribute("draggable")).not.toBe("true");
+    expect(names("grid")).toEqual(order);
+    const list = container.querySelector(".onboarding-project-list")!;
+    expect([...list.children].every((child) => child.classList.contains("onboarding-project-row-wrap"))).toBe(true);
+    expect([...list.children].every((child) => !child.hasAttribute("style"))).toBe(true);
   });
 
   it.each(LAYOUTS)("labels each project for what opening it does in the %s layout", (layout) => {
@@ -165,13 +177,17 @@ describe("Homepage project layouts", () => {
     const { container } = renderHome();
     pick(container, "grid");
     expect(container.querySelector(".onboarding-project-tile .onboarding-project-icon")).toBeNull();
-    const folder = (id: "local" | "linked" | "cloud") => project(container, id).querySelector(".onboarding-project-folder")!;
-    expect(folder("local").querySelector(".project-folder-cloud")).toBeNull();
-    expect(folder("local").querySelector(".onboarding-project-cloud-badge")).toBeNull();
-    expect(folder("cloud").querySelector(".project-folder-cloud")).not.toBeNull();
-    expect(folder("cloud").querySelector(".onboarding-project-cloud-badge")).toBeNull();
-    expect(folder("linked").querySelector(".project-folder-cloud")).toBeNull();
-    expect(folder("linked").querySelector(".onboarding-project-cloud-badge")).not.toBeNull();
+    const cloudMark = (id: "local" | "linked" | "cloud") => project(container, id).querySelector(".onboarding-project-folder .project-folder-cloud");
+    expect(cloudMark("local")).toBeNull();
+    expect(cloudMark("cloud")?.classList.contains("is-corner")).toBe(false);
+    expect(cloudMark("linked")?.classList.contains("is-corner")).toBe(true);
+  });
+
+  it("draws every folder to one outline, with nothing overhanging its edge", () => {
+    const { container } = renderHome();
+    pick(container, "grid");
+    expect(container.querySelector(".onboarding-project-folder .onboarding-project-cloud-badge")).toBeNull();
+    expect(container.querySelectorAll(".onboarding-project-folder > *")).toHaveLength(projectItems.length);
   });
 
   it("keeps every folder neutral and leaves the blue to the cloud alone", () => {
@@ -191,94 +207,5 @@ describe("Homepage project layouts", () => {
     expect(tile?.textContent).toBe("notes");
     expect(tile?.getAttribute("data-tooltip")).toBe("~/project · 3 days ago");
     expect(project(container, "cloud").querySelector(".onboarding-project-tile")?.getAttribute("data-tooltip")).toBe("Cloud project");
-  });
-
-  describe("moving projects on the Grid", () => {
-    const pointer = (type: string, target: Element, x: number, y: number) => act(() => {
-      target.dispatchEvent(new PointerEvent(type, { bubbles: true, button: 0, pointerId: 1, clientX: x, clientY: y }));
-    });
-    const drag = (container: HTMLElement, id: "local" | "linked" | "cloud", dx: number, dy: number) => {
-      const tile = project(container, id).querySelector(".onboarding-project-tile")!;
-      pointer("pointerdown", tile, 100, 100);
-      pointer("pointermove", tile, 100 + dx, 100 + dy);
-      pointer("pointerup", tile, 100 + dx, 100 + dy);
-    };
-    const at = (container: HTMLElement, id: "local" | "linked" | "cloud") => {
-      const [, x, y] = /translate\((-?\d+)px, (-?\d+)px\)/.exec(project(container, id).style.transform)!;
-      return { x: Number(x), y: Number(y) };
-    };
-    const onGrid = (overrides: Partial<MinimalOnboardingProps> = {}) => {
-      const home = renderHome(overrides);
-      pick(home.container, "grid");
-      return home;
-    };
-
-    it("leaves a project where it was put, across launches", () => {
-      const { container } = onGrid();
-      const start = at(container, "cloud");
-      drag(container, "cloud", 40, 300);
-      expect(at(container, "cloud")).toEqual({ x: start.x + 40, y: start.y + 300 });
-      act(() => { root?.unmount(); root = null; });
-      initializeDesktopPreferences();
-      expect(at(renderHome().container, "cloud")).toEqual({ x: start.x + 40, y: start.y + 300 });
-    });
-
-    it("freezes everything on the first move, so an update cannot rearrange it", () => {
-      const { container } = onGrid();
-      drag(container, "local", 0, 300);
-      expect(Object.keys(JSON.parse(localStorage.getItem(HOMEPAGE_DESKTOP_POSITIONS_STORAGE_KEY)!)).sort())
-        .toEqual(projectItems.map((item) => item.id).sort());
-    });
-
-    it("writes nothing until something has been moved", () => {
-      onGrid();
-      expect(localStorage.getItem(HOMEPAGE_DESKTOP_POSITIONS_STORAGE_KEY)).toBeNull();
-    });
-
-    it("opens on a click, and never on a drag", async () => {
-      const { container, props } = onGrid();
-      const tile = project(container, "local").querySelector<HTMLButtonElement>(".onboarding-project-tile")!;
-      drag(container, "local", 0, 300);
-      await act(async () => tile.click());
-      expect(props.onOpenWorkspacePath).not.toHaveBeenCalled();
-      await act(async () => {
-        tile.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, pointerId: 1, clientX: 5, clientY: 5 }));
-        tile.click();
-      });
-      expect(props.onOpenWorkspacePath).toHaveBeenCalledWith(local.localPath);
-    });
-
-    it("stays inside the desktop however far it is dragged", () => {
-      const { container } = onGrid();
-      drag(container, "cloud", 5000, -5000);
-      expect(at(container, "cloud")).toEqual({ x: 760 - 104, y: 0 });
-      drag(container, "cloud", -5000, 5000);
-      expect(at(container, "cloud")).toEqual({ x: 0, y: 490 });
-    });
-
-    it("never lands on top of another project", () => {
-      const { container } = onGrid();
-      const target = at(container, "local");
-      const start = at(container, "cloud");
-      drag(container, "cloud", target.x - start.x, target.y - start.y);
-      const end = at(container, "cloud");
-      expect(Math.abs(end.x - target.x) >= 104 || Math.abs(end.y - target.y) >= 92).toBe(true);
-    });
-
-    it("stays put while a project is opening", () => {
-      localStorage.setItem(HOMEPAGE_PROJECT_LAYOUT_STORAGE_KEY, "grid");
-      initializeDesktopPreferences();
-      const { container } = renderHome({ cloudOpening: true });
-      const start = at(container, "cloud");
-      drag(container, "cloud", 40, 300);
-      expect(at(container, "cloud")).toEqual(start);
-    });
-
-    it("ignores a stored layout it cannot read", () => {
-      localStorage.setItem(HOMEPAGE_DESKTOP_POSITIONS_STORAGE_KEY, "{broken");
-      initializeDesktopPreferences();
-      const { container } = onGrid();
-      expect(at(container, "local")).toEqual({ x: 1, y: 0 });
-    });
   });
 });
