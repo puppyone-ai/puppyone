@@ -200,6 +200,9 @@ pub struct Documents {
     pub cloud_phase: Arc<std::sync::Mutex<Option<crate::workspace::cloud::opening::Phase>>>,
     /// Why the last Cloud opening failed (`describeCloudOpeningFailure`).
     pub cloud_failure: Arc<std::sync::Mutex<Option<crate::workspace::cloud::opening::Failure>>>,
+    /// The Cloud opening that may still report progress; a cancelled one
+    /// never writes over its successor.
+    cloud_run: Arc<std::sync::atomic::AtomicU64>,
     /// The newer Cloud document held back while unsaved input is preserved.
     deferred_document: Option<Document>,
     cloud_cancel: Option<crate::cloud_auth::Cancellation>,
@@ -262,6 +265,7 @@ impl Default for Documents {
             task_scope: "documents".into(),
             cloud_phase: Default::default(),
             cloud_failure: Default::default(),
+            cloud_run: Default::default(),
             deferred_document: None,
             cloud_cancel: None,
             watch: None,
@@ -892,6 +896,9 @@ impl Documents {
         self.cloud_cancel = Some(cancel.clone());
         let phase = self.cloud_phase.clone();
         *phase.lock().unwrap() = Some(opening::Phase::Checking);
+        use std::sync::atomic::Ordering;
+        let run = self.cloud_run.fetch_add(1, Ordering::SeqCst) + 1;
+        let current = self.cloud_run.clone();
         let failure_slot = self.cloud_failure.clone();
         *failure_slot.lock().unwrap() = None;
         let tx = self.tx.clone();
@@ -906,11 +913,14 @@ impl Documents {
                 &cancel,
                 false,
                 move |p| {
-                    *progress_phase.lock().unwrap() = Some(p);
+                    if current.load(Ordering::SeqCst) == run {
+                        *progress_phase.lock().unwrap() = Some(p);
+                    }
                     progress_ctx.notify();
                 },
             );
-            *phase.lock().unwrap() = None;
+            // The phase ends where the result is applied: until then a
+            // finished opening without a workspace is not a failure.
             if cancel.check().is_err() {
                 ctx.notify();
                 return;
@@ -954,6 +964,8 @@ impl Documents {
         if let Some(cancel) = self.cloud_cancel.take() {
             cancel.cancel();
         }
+        self.cloud_run
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         *self.cloud_phase.lock().unwrap() = None;
     }
     pub fn load_children(&mut self, path: PathBuf, ctx: &Wake) {
@@ -1022,6 +1034,7 @@ impl Documents {
         while let Ok(message) = self.rx.try_recv() {
             match message {
                 Completed::Root(Ok((ws, rows))) => {
+                    *self.cloud_phase.lock().unwrap() = None;
                     if let Some(previous) = self.workspace.replace(ws) {
                         previous.revoke();
                     }
@@ -1192,9 +1205,13 @@ impl Documents {
                     self.status = "Opened".into();
                     self.show_document();
                 }
-                Completed::Root(Err(error))
-                | Completed::File(Err(error))
-                | Completed::Resource(_, Err(error)) => self.fail(error.to_string()),
+                Completed::Root(Err(error)) => {
+                    *self.cloud_phase.lock().unwrap() = None;
+                    self.fail(error.to_string())
+                }
+                Completed::File(Err(error)) | Completed::Resource(_, Err(error)) => {
+                    self.fail(error.to_string())
+                }
                 Completed::Children(ws, path, result) => {
                     if self
                         .workspace
