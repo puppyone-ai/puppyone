@@ -33,6 +33,7 @@ pub struct SettingsWorkspaceSurface {
     pub(super) models: Entity<crate::features::model_connections::ModelConnections>,
     pub(super) agents: Entity<crate::features::agent_settings::AgentSettings>,
     pub(super) cloud: Option<Entity<crate::features::cloud_account::CloudAccount>>,
+    pub(super) plan_page: super::main::plan_settings_view::PlanPage,
     pub(super) repository: Entity<RepositorySettings>,
     pub(super) patterns: Entity<crate::ui::form_input::TextInput>,
     /// Transient "Copied" feedback keyed by the copied control.
@@ -65,6 +66,9 @@ impl SettingsWorkspaceSurface {
         }
         if page == Page::Account {
             self.refresh_compute(cx);
+        }
+        if page == Page::Plan {
+            self.load_plan(cx);
         }
         cx.notify();
     }
@@ -146,6 +150,7 @@ impl SettingsWorkspaceSurface {
             cx.observe(cloud, |_, _, cx| cx.notify()).detach();
         }
         let mut s = Self {
+            plan_page: Default::default(),
             cloud,
             preferences,
             root: None,

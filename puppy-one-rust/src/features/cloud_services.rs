@@ -156,6 +156,18 @@ pub struct Team {
 pub struct Close;
 impl EventEmitter<Close> for CloudServices {}
 
+/// The signed-in account's billing requests (Settings → Plan).
+pub fn billing_client(cx: &App) -> Option<crate::workspace::cloud::billing::Client> {
+    let (broker, binding) = cloud_account::broker_and_binding(cx)?;
+    Some(crate::workspace::cloud::billing::Client::new(Arc::new(
+        services::BrokerTransport {
+            broker,
+            binding,
+            cancel: Default::default(),
+        },
+    )))
+}
+
 /// `pollIntervalMs` while a share waits for its first read.
 const RECEIPT_POLL: std::time::Duration = std::time::Duration::from_secs(5);
 

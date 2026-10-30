@@ -39,6 +39,19 @@ pub struct Plan {
     pub price_per_seat_cents: Option<i64>,
     #[serde(default)]
     pub seats: SeatPolicy,
+    #[serde(default)]
+    pub per_seat_limits: HashMap<String, Value>,
+    #[serde(default)]
+    pub fixed_limits: HashMap<String, Value>,
+}
+impl Plan {
+    /// `planStorageBytes`: what one person gets, if the plan says.
+    pub fn storage_bytes(&self) -> Option<u64> {
+        self.per_seat_limits
+            .get("storage.max_bytes")
+            .or_else(|| self.fixed_limits.get("storage.max_bytes"))
+            .and_then(Value::as_u64)
+    }
 }
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct Catalog {
@@ -55,6 +68,41 @@ pub struct Summary {
     pub pending_plan_id: Option<String>,
     #[serde(default)]
     pub cancel_at_period_end: bool,
+    #[serde(default)]
+    pub current_period_end: Option<String>,
+    #[serde(default)]
+    pub portal_available: bool,
+}
+impl Summary {
+    /// `NOT_HELD`: free, a checkout not yet paid, or revoked.
+    pub fn held(&self) -> bool {
+        !matches!(
+            self.status.as_str(),
+            "free" | "checkout_pending" | "revoked"
+        )
+    }
+}
+#[derive(Clone, Debug, Default, PartialEq, Deserialize)]
+pub struct Storage {
+    #[serde(default)]
+    pub logical_bytes: u64,
+    #[serde(default)]
+    pub limit_bytes: Option<u64>,
+}
+#[derive(Clone, Debug, Default, PartialEq, Deserialize)]
+pub struct Usage {
+    #[serde(default)]
+    pub storage: Storage,
+}
+/// `catalogPersonalOffer`: one plan is sold, the cheapest public paid one. A
+/// purchase cannot start without it: an amount charged comes from the
+/// billing authority, never from a number the client rendered.
+pub fn personal_offer(catalog: &Catalog) -> Option<&Plan> {
+    catalog
+        .plans
+        .iter()
+        .filter(|p| p.public && p.price_per_seat_cents.is_some_and(|c| c > 0))
+        .min_by_key(|p| p.price_per_seat_cents)
 }
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct Quote {
@@ -257,6 +305,17 @@ impl Client {
         }
         Ok(summary)
     }
+    pub fn usage(&self, org: &str) -> Result<Usage> {
+        decode(self.send(Method::GET, Self::path(org, "usage")?, None, None)?)
+    }
+    pub fn organizations(&self) -> Result<Vec<String>> {
+        let rows: Vec<Value> =
+            decode(self.send(Method::GET, "/organizations/".into(), None, None)?)?;
+        Ok(rows
+            .iter()
+            .filter_map(|o| o["id"].as_str().map(str::to_owned))
+            .collect())
+    }
     pub fn operations(&self, org: &str) -> Result<Vec<Operation>> {
         let rows: Vec<Operation> =
             decode(self.send(Method::GET, Self::path(org, "operations")?, None, None)?)?;
@@ -451,6 +510,29 @@ mod tests {
         assert_eq!(clamp_seats(5, &plan), 5);
         assert_eq!(poll_delay(0), Duration::from_secs(2));
         assert_eq!(poll_delay(99), Duration::from_secs(30));
+    }
+
+    #[test]
+    fn the_offer_is_the_cheapest_public_paid_plan_and_holding_is_the_servers_word() {
+        let catalog: Catalog = serde_json::from_value(json!({"schema_version": "1.0", "plans": [
+            {"id": "free", "name": "F", "public": true, "price_per_seat_cents": 0},
+            {"id": "team", "name": "T", "public": true, "price_per_seat_cents": 4000},
+            {"id": "personal", "name": "P", "public": true, "price_per_seat_cents": 1900,
+             "per_seat_limits": {"storage.max_bytes": 1024}},
+            {"id": "secret", "name": "S", "public": false, "price_per_seat_cents": 100}]}))
+        .unwrap();
+        let offer = personal_offer(&catalog).unwrap();
+        assert_eq!(offer.id, "personal");
+        assert_eq!(offer.storage_bytes(), Some(1024));
+        let summary = |status: &str| -> Summary {
+            serde_json::from_value(
+                json!({"org_id": "o", "plan_id": "personal", "status": status,
+                "seat_quantity": 1}),
+            )
+            .unwrap()
+        };
+        assert!(summary("active").held() && summary("past_due").held());
+        assert!(!summary("checkout_pending").held() && !summary("free").held());
     }
 
     #[test]

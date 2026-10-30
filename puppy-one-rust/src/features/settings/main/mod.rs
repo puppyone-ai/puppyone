@@ -7,6 +7,7 @@ mod file_settings_views;
 mod general_settings_view;
 mod local_project_settings_view;
 mod other_app_imports_settings_view;
+pub(super) mod plan_settings_view;
 mod privacy_settings_view;
 mod repository_settings_views;
 mod typography_settings_view;

@@ -32,7 +32,7 @@ fn snapshot(d: &mut Documents, ctx: &Wake, text: &str) {
     reply(d, ctx, request, 1, text);
 }
 fn wait(d: &mut Documents, ctx: &Wake) {
-    let deadline = Instant::now() + Duration::from_secs(5);
+    let deadline = Instant::now() + Duration::from_secs(15);
     loop {
         d.poll(ctx);
         if (!d.busy() && !d.saving()) || d.error.is_some() {

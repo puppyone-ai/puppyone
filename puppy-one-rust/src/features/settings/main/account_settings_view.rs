@@ -10,12 +10,6 @@ use crate::{
 use gpui::{prelude::*, *};
 use gpui_kit::base::{Disableable as _, h_flex, v_flex};
 
-/// `resolvePersonalOffer` without a catalogue: Personal, $19 a month, 10 GB
-/// and one Cloud Computer.
-const OFFER_PRICE: &str = "$19";
-const OFFER_STORAGE: &str = "10 GB";
-const INCLUDED_COMPUTERS: usize = 1;
-
 impl SettingsWorkspaceSurface {
     pub(super) fn account(&self, t: Theme, cx: &mut Context<Self>) -> AnyElement {
         use crate::features::cloud_account::Status;
@@ -262,52 +256,6 @@ impl SettingsWorkspaceSurface {
                         .child(tr("agent.compute.paymentUnavailable")),
                 )
             })
-            .into_any_element()
-    }
-    pub(super) fn plan(&self, _: Theme, cx: &mut Context<Self>) -> AnyElement {
-        let signed_in = self
-            .cloud
-            .as_ref()
-            .and_then(|s| s.read(cx).snapshot.as_ref())
-            .is_some_and(|s| s.account.is_some());
-        let subscribe = Button::new("subscribe")
-            .variant(ButtonVariant::OutlinePrimary)
-            .label(tr(if signed_in {
-                "settings.account.openBilling"
-            } else {
-                "settings.seats.signInToSubscribe"
-            }))
-            .disabled(signed_in)
-            // Buying needs an account, and Account owns the one sign-in flow.
-            .on_click(cx.listener(|s, _, _, cx| s.select_page(Page::Account, cx)));
-        SettingsSection::new(tr(Page::Plan.title()))
-            .child(
-                SettingsSubsection::new().lead(true).child(
-                    ValueRow::new(
-                        tr("settings.seats.planName"),
-                        tf(
-                            "settings.plan.monthlyFor",
-                            &[("amount", OFFER_PRICE.into())],
-                        ),
-                    )
-                    .action(subscribe),
-                ),
-            )
-            .child(
-                SettingsSubsection::new()
-                    .title(tr("settings.seats.includesTitle"))
-                    .child(ValueRow::new(
-                        tr("settings.seats.storageTitle"),
-                        OFFER_STORAGE,
-                    ))
-                    .child(ValueRow::new(
-                        tr("settings.seats.computerTitle"),
-                        tf(
-                            "settings.seats.computerCount",
-                            &[("count", INCLUDED_COMPUTERS.into())],
-                        ),
-                    )),
-            )
             .into_any_element()
     }
 }
