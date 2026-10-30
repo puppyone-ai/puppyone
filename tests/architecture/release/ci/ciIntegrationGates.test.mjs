@@ -16,7 +16,7 @@ describe("integration branch quality gates", () => {
       "windows-package",
       "cloud-email-sign-in",
     ]));
-    expect(workflow.jobs["app-checks"].strategy.matrix.os).toEqual(expect.arrayContaining(["ubuntu-24.04", "macos-14"]));
+    expect(workflow.jobs["app-checks"].strategy.matrix.os).toEqual(expect.arrayContaining(["ubuntu-24.04", "macos-15"]));
     const linuxSetup = workflow.jobs["app-checks"].steps.find(step => step.name === "Prepare Linux display and multilingual fonts");
     expect(linuxSetup.if).toBe("runner.os == 'Linux'");
     expect(workflow.jobs["windows-package"]["runs-on"]).toBe("windows-2025");
