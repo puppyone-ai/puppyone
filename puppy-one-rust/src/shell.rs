@@ -389,6 +389,7 @@ impl Shell {
                     s.source_control.update(cx, |sc, cx| sc.invalidate(cx));
                 }
                 ExplorerEvent::CopyLink { path, folder } => s.copy_cloud_link(path, *folder, cx),
+                ExplorerEvent::Share { path } => s.share_folder(path, window, cx),
             }
             s.receive(window, cx);
             cx.notify();
@@ -1041,26 +1042,7 @@ impl Shell {
                 self.modals.remove(|m| matches!(m, Modal::Error(_)));
                 self.files.error = None;
             }
-            Command::CloudServices => {
-                self.popover = None;
-                let project = self
-                    .repository_cloud
-                    .read(cx)
-                    .context
-                    .project()
-                    .map(str::to_owned);
-                match project {
-                    Some(project) => {
-                        use crate::features::cloud_services::Section;
-                        self.cloud_services
-                            .update(cx, |s, cx| s.open(project, Section::Share, cx));
-                        self.modals.open(Modal::CloudServices);
-                        self.modal_focus.focus(window, cx);
-                    }
-                    // No Cloud Project yet: the value page and its publisher.
-                    None => self.view_cloud(window, cx),
-                }
-            }
+            Command::CloudServices => self.open_cloud_share(String::new(), window, cx),
             Command::ShareCloud => {
                 // One snapshot when Share opens owns the copied locator: the
                 // selected folder, else the active document, else the root.
@@ -1395,6 +1377,45 @@ impl Shell {
             .as_ref()
             .filter(|ws| ws.local_root().is_none())
             .and(self.cloud_project.clone())
+    }
+    /// `openShareWizard`: the open Project's Share section, starting from
+    /// `path` (empty is the whole Project). A hosted Project is its own;
+    /// a checkout's is the one it resolved to.
+    fn open_cloud_share(&mut self, path: String, window: &mut Window, cx: &mut Context<Self>) {
+        self.popover = None;
+        let project = self.hosted_project().or_else(|| {
+            let cloud = self.repository_cloud.read(cx);
+            cloud.context.project().map(str::to_owned)
+        });
+        match project {
+            Some(project) => {
+                use crate::features::cloud_services::Section;
+                self.cloud_services.update(cx, |s, cx| {
+                    s.open(project, Section::Share, cx);
+                    s.start_from(path, cx);
+                });
+                self.modals.open(Modal::CloudServices);
+                self.modal_focus.focus(window, cx);
+            }
+            // No Cloud Project yet: the value page and its publisher.
+            None => self.view_cloud(window, cx),
+        }
+    }
+    /// "Share with…": `providerPath`, the folder relative to the Project.
+    fn share_folder(
+        &mut self,
+        path: &std::path::Path,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !crate::features::flags::share_enabled(&self.preferences, cx) {
+            return;
+        }
+        let path: Vec<_> = path
+            .components()
+            .map(|part| part.as_os_str().to_string_lossy())
+            .collect();
+        self.open_cloud_share(path.join("/"), window, cx);
     }
     fn close_cloud_history(&mut self, cx: &mut Context<Self>) {
         self.panes.close_cloud_history();
@@ -1750,13 +1771,7 @@ impl Shell {
         let share = !home
             && !hosted
             && self.workspace_root().is_some()
-            && crate::features::flags::cloud_enabled(&self.preferences, cx)
-            && self
-                .preferences
-                .read(cx)
-                .state
-                .experimental
-                .share_onboarding;
+            && crate::features::flags::share_enabled(&self.preferences, cx);
         if share {
             bar = bar.action(
                 header::share_entry()

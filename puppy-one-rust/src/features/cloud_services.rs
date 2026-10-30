@@ -96,6 +96,8 @@ pub struct Details {
     pub scopes: Vec<Scope>,
     pub surfaces: Vec<Surface>,
     pub endpoints: Vec<McpEndpoint>,
+    /// The list above was not read, which is not the same as being empty.
+    endpoints_failed: bool,
     pub identity: Option<Identity>,
     pub failed: bool,
 }
@@ -110,6 +112,8 @@ impl Details {
                 result.ok()
             }};
         }
+        let endpoints = client.mcp_endpoints(id);
+        let endpoints_failed = endpoints.is_err();
         let mut details = Self {
             project: read!(client.project(id)),
             dashboard: read!(client.dashboard(id)),
@@ -117,7 +121,8 @@ impl Details {
             history: read!(read_history(client, id)),
             scopes: read!(client.scopes(id)).unwrap_or_default(),
             surfaces: read!(client.surfaces(id)).unwrap_or_default(),
-            endpoints: read!(client.mcp_endpoints(id)).unwrap_or_default(),
+            endpoints: read!(endpoints).unwrap_or_default(),
+            endpoints_failed,
             identity: read!(client.identity(id)),
             failed: false,
         };
@@ -201,6 +206,22 @@ fn target_label(target: &share::Target) -> String {
     )
 }
 
+/// `visibleFolders`: the Project's top level, led by the folder the share
+/// started from when that is deeper.
+fn scope_folders(details: &Details, initial: &str) -> Vec<String> {
+    let mut folders: Vec<String> = details
+        .tree
+        .iter()
+        .flat_map(|tree| tree.entries.iter())
+        .filter(|e| e.kind == "folder")
+        .map(|e| e.path.clone())
+        .collect();
+    if !initial.is_empty() && !folders.iter().any(|f| f == initial) {
+        folders.insert(0, initial.to_owned());
+    }
+    folders
+}
+
 /// `CreateAccessDialog`'s draft.
 #[derive(Clone, Debug)]
 struct Create {
@@ -251,6 +272,18 @@ pub struct CloudServices {
     billing: billing::BillingPage,
     /// The Share wizard, and the issue or receipt watch that may report.
     share_flow: Option<ShareFlow>,
+    /// `initialPath`: the folder the next share starts from; empty is the
+    /// Project. Only the Explorer sets it.
+    share_path: String,
+    /// The wizard's `readers` step.
+    share_readers: bool,
+    /// `useProjectShareActivity`: the share awaited, with its Project. It
+    /// outlives the wizard and this dialog.
+    pending_share: Option<(String, share::Pending)>,
+    /// Ends the reread that watches `pending_share`.
+    pending_epoch: u64,
+    /// Drops a share list that a newer read or Project replaced.
+    shares_epoch: u64,
     share_epoch: u64,
     stop_failed: bool,
     scope_name: Entity<TextInput>,
@@ -290,6 +323,11 @@ impl CloudServices {
             folder_epoch: 0,
             billing: Default::default(),
             share_flow: None,
+            share_path: String::new(),
+            share_readers: false,
+            pending_share: None,
+            pending_epoch: 0,
+            shares_epoch: 0,
             share_epoch: 0,
             stop_failed: false,
             scope_name: field(false, window, cx),
@@ -322,12 +360,43 @@ impl CloudServices {
         cx: &mut Context<Self>,
     ) {
         self.reset();
+        if self
+            .pending_share
+            .as_ref()
+            .is_some_and(|(owner, _)| *owner != project)
+        {
+            self.pending_share = None;
+        }
         self.client = Some(client);
         self.project = Some(project);
         self.section = section;
         self.refresh(cx);
         self.enter(section, cx);
+        self.watch_pending(cx);
         cx.notify();
+    }
+    /// `openShareWizard(null, path)`: the next share starts from `path`, past
+    /// the readers an empty path would show first.
+    pub fn start_from(&mut self, path: String, cx: &mut Context<Self>) {
+        self.share_path = path;
+        self.share_readers = false;
+        cx.notify();
+    }
+    #[cfg(test)]
+    pub fn share_start(&self) -> &str {
+        &self.share_path
+    }
+    /// `enabled` of `useProjectShareActivity`, and the effect that leaves the
+    /// Share section when onboarding ends. An account ending ends a wait too.
+    pub fn sync_sharing(&mut self, enabled: bool, cx: &mut Context<Self>) {
+        if enabled {
+            return;
+        }
+        self.pending_share = None;
+        self.pending_epoch += 1;
+        if self.project.is_some() && self.section == Section::Share {
+            self.select(Section::Contents, cx);
+        }
     }
     fn reset(&mut self) {
         self.epoch += 1;
@@ -342,9 +411,13 @@ impl CloudServices {
         self.creating = None;
         self.folder_epoch += 1;
         self.share_flow = None;
+        self.share_path.clear();
+        self.share_readers = false;
         self.expanded = None;
         self.scope_edit = None;
         self.share_epoch += 1;
+        self.shares_epoch += 1;
+        self.pending_epoch += 1;
         self.stop_failed = false;
         self.billing.reset();
         self.notice = None;
@@ -363,6 +436,8 @@ impl CloudServices {
         self.confirm_delete = None;
         self.creating = None;
         self.share_flow = None;
+        self.share_path.clear();
+        self.share_readers = false;
         self.expanded = None;
         self.scope_edit = None;
         self.share_epoch += 1;
@@ -403,8 +478,18 @@ impl CloudServices {
                 if s.epoch != epoch {
                     return;
                 }
+                let mut details = details;
+                // `useProjectShares`: a failed read keeps what was known, so
+                // one bad answer neither empties the list nor ends a wait.
+                if let Some(known) = s.details.take() {
+                    if details.endpoints_failed {
+                        details.endpoints = known.endpoints;
+                    }
+                    details.dashboard = details.dashboard.or(known.dashboard);
+                }
                 s.details = Some(details);
                 s.loading = false;
+                s.settle_pending(cx);
                 if s.section == Section::Settings {
                     s.fill_settings(cx);
                 }
@@ -864,7 +949,7 @@ impl CloudServices {
     fn begin_share(&mut self, target: share::Target, cx: &mut Context<Self>) {
         self.share_flow = Some(ShareFlow {
             target,
-            path: String::new(),
+            path: self.share_path.clone(),
             mode: "r",
             phase: SharePhase::Choose,
         });
@@ -900,14 +985,14 @@ impl CloudServices {
             let (endpoint, issued_at) = (existing.id.clone(), existing.created_at.clone());
             self.set_share_phase(
                 SharePhase::Ready {
-                    endpoint: Some(endpoint),
+                    endpoint: Some(endpoint.clone()),
                     key: None,
-                    issued_at,
+                    issued_at: issued_at.clone(),
                     reused: true,
                 },
                 cx,
             );
-            self.watch_receipt(cx);
+            self.await_first_read(target, endpoint, issued_at, cx);
             return;
         }
         self.set_share_phase(SharePhase::Issuing, cx);
@@ -928,20 +1013,21 @@ impl CloudServices {
                 }
                 match result {
                     Ok(endpoint) => {
+                        let issued_at =
+                            chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
                         s.set_share_phase(
                             SharePhase::Ready {
-                                endpoint: Some(endpoint.id),
+                                endpoint: Some(endpoint.id.clone()),
                                 key: endpoint.api_key,
-                                issued_at: Some(
-                                    chrono::Utc::now()
-                                        .to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
-                                ),
+                                issued_at: Some(issued_at.clone()),
                                 reused: false,
                             },
                             cx,
                         );
+                        // The read starts first: the list before it has no
+                        // such share, and that must not end the wait.
                         s.refresh(cx);
-                        s.watch_receipt(cx);
+                        s.await_first_read(target, endpoint.id, Some(issued_at), cx);
                     }
                     Err(_) => s.set_share_phase(SharePhase::Failed, cx),
                 }
@@ -972,22 +1058,68 @@ impl CloudServices {
             issued_at.as_deref(),
         )
     }
-    /// `pollIntervalMs`: reread while waiting for the first read.
-    fn watch_receipt(&mut self, cx: &mut Context<Self>) {
+    /// `closeShareWizard`: the next share starts over from the whole Project.
+    fn finish_share(&mut self, cx: &mut Context<Self>) {
         self.share_epoch += 1;
-        let epoch = self.share_epoch;
+        self.share_flow = None;
+        self.share_path.clear();
+        cx.notify();
+    }
+    /// `onIssued`: the wait outlives the wizard. A share with no issue time
+    /// cannot be awaited.
+    fn await_first_read(
+        &mut self,
+        target: share::Target,
+        endpoint: String,
+        issued_at: Option<String>,
+        cx: &mut Context<Self>,
+    ) {
+        let (Some(project), Some(issued_at)) = (self.project.clone(), issued_at) else {
+            return;
+        };
+        let pending = share::Pending {
+            target,
+            endpoint,
+            issued_at,
+        };
+        self.pending_share = Some((project, pending));
+        self.settle_pending(cx);
+        self.watch_pending(cx);
+    }
+    /// The effect in `useProjectShareActivity`, with one difference: only a
+    /// list that was actually read can end a wait. Time ends it regardless.
+    fn settle_pending(&mut self, cx: &mut Context<Self>) {
+        let Some((_, pending)) = &self.pending_share else {
+            return;
+        };
+        let read = !self.loading && self.details.as_ref().is_some_and(|d| !d.endpoints_failed);
+        if pending.expired(chrono::Utc::now()) || (read && !pending.live(&self.share_rows())) {
+            self.pending_share = None;
+            self.pending_epoch += 1;
+            cx.notify();
+        }
+    }
+    /// `pollIntervalMs`: reread while a share is awaited and this dialog is
+    /// open; opening it again picks the wait back up.
+    fn watch_pending(&mut self, cx: &mut Context<Self>) {
+        self.pending_epoch += 1;
+        if self.pending_share.is_none() {
+            return;
+        }
+        let epoch = self.pending_epoch;
         cx.spawn(async move |this, cx| {
             loop {
                 cx.background_executor().timer(RECEIPT_POLL).await;
                 let waiting = this
                     .update(cx, |s, cx| {
-                        let waiting = s.share_epoch == epoch
-                            && s.share_flow.as_ref().is_some_and(|flow| {
-                                matches!(flow.phase, SharePhase::Ready { .. })
-                                    && !s.share_connected(flow)
-                            });
+                        if s.pending_epoch != epoch {
+                            return false;
+                        }
+                        s.settle_pending(cx);
+                        // Ending a wait moves the epoch.
+                        let waiting = s.pending_epoch == epoch;
                         if waiting {
-                            s.refresh(cx);
+                            s.reload_shares(cx);
                         }
                         waiting
                     })
@@ -996,6 +1128,39 @@ impl CloudServices {
                     break;
                 }
             }
+        })
+        .detach();
+    }
+    /// `useProjectShares.reload`: only what a share's state needs, so a wait
+    /// never touches the page being edited or an action in flight.
+    fn reload_shares(&mut self, cx: &mut Context<Self>) {
+        let (Some(client), Some(project)) = (self.client.clone(), self.project.clone()) else {
+            return;
+        };
+        self.shares_epoch += 1;
+        let epoch = self.shares_epoch;
+        let task = cx.background_spawn(async move {
+            (client.mcp_endpoints(&project), client.dashboard(&project))
+        });
+        cx.spawn(async move |this, cx| {
+            let (endpoints, dashboard) = task.await;
+            this.update(cx, |s, cx| {
+                if s.shares_epoch != epoch {
+                    return;
+                }
+                if let Some(details) = &mut s.details {
+                    details.endpoints_failed = endpoints.is_err();
+                    if let Ok(endpoints) = endpoints {
+                        details.endpoints = endpoints;
+                    }
+                    if let Ok(dashboard) = dashboard {
+                        details.dashboard = Some(dashboard);
+                    }
+                }
+                s.settle_pending(cx);
+                cx.notify();
+            })
+            .ok();
         })
         .detach();
     }
@@ -1950,15 +2115,13 @@ impl CloudServices {
         if let Some(flow) = self.share_flow.clone() {
             return self.share_wizard(flow, &details, t, cx);
         }
+        if self.share_readers {
+            return self.share_readers_step(t, cx);
+        }
         let name = details
             .project
             .as_ref()
             .map_or(String::new(), |p| p.name.clone());
-        let readers: Vec<share::Share> = self
-            .share_rows()
-            .into_iter()
-            .filter(|s| s.active())
-            .collect();
         let mut page = v_flex()
             .gap(px(12.))
             .child(
@@ -1974,108 +2137,7 @@ impl CloudServices {
                     .text_color(t.muted)
                     .child(tf("cloud.share.readers.title", &[("project", name.into())])),
             );
-        if readers.is_empty() {
-            page = page.child(
-                div()
-                    .text_size(px(ty.meta))
-                    .text_color(t.muted)
-                    .child(tr("cloud.share.reach.readers.empty")),
-            );
-        }
-        for (index, reader) in readers.into_iter().enumerate() {
-            let confirming = self.confirm_delete.as_deref() == Some(reader.id.as_str());
-            let (ask, stop) = (reader.id.clone(), reader.id.clone());
-            let place = if reader.path.is_empty() {
-                tr("cloud.share.reach.readers.wholeProject").to_owned()
-            } else {
-                access::path_label(&reader.path)
-            };
-            let can = tr(if reader.readonly {
-                "cloud.share.reach.readers.canRead"
-            } else {
-                "cloud.share.reach.readers.canChange"
-            });
-            let seen = reader.last_seen.as_deref().map_or(
-                tr("cloud.share.reach.readers.neverRead").to_owned(),
-                |at| {
-                    let day: String = at.chars().take(10).collect();
-                    tf(
-                        "cloud.share.reach.readers.lastRead",
-                        &[("time", day.into())],
-                    )
-                },
-            );
-            let mut row = h_flex()
-                .gap(px(8.))
-                .p(px(10.))
-                .border_1()
-                .border_color(t.border)
-                .rounded(px(8.))
-                .child(
-                    v_flex()
-                        .flex_1()
-                        .min_w_0()
-                        .child(
-                            div()
-                                .text_size(px(ty.meta))
-                                .font_weight(FontWeight::MEDIUM)
-                                .text_color(t.text)
-                                .child(reader.name.clone()),
-                        )
-                        .child(
-                            div()
-                                .text_size(px(ty.caption))
-                                .text_color(t.muted)
-                                .child(format!("{place} · {can} · {seen}")),
-                        )
-                        .when(confirming, |d| {
-                            d.child(div().text_size(px(ty.caption)).text_color(t.danger).child(
-                                if self.stop_failed {
-                                    tr("cloud.share.reach.readers.stopFailed").to_owned()
-                                } else {
-                                    tf(
-                                        "cloud.share.reach.readers.stopConsequence",
-                                        &[("name", reader.name.clone().into())],
-                                    )
-                                },
-                            ))
-                        }),
-                );
-            if confirming {
-                row = row
-                    .child(
-                        Button::new(("cloud-share-keep", index))
-                            .variant(ButtonVariant::Secondary)
-                            .label(tr("cloud.share.reach.readers.keep"))
-                            .on_click(cx.listener(|s, _, _, cx| {
-                                s.confirm_delete = None;
-                                s.stop_failed = false;
-                                cx.notify();
-                            })),
-                    )
-                    .child(
-                        Button::new(("cloud-share-stop", index))
-                            .variant(ButtonVariant::SolidDanger)
-                            .label(tr("cloud.share.reach.readers.stop"))
-                            .disabled(self.busy)
-                            .on_click(
-                                cx.listener(move |s, _, _, cx| s.stop_share(stop.clone(), cx)),
-                            ),
-                    );
-            } else {
-                row = row.child(
-                    Button::new(("cloud-share-ask", index))
-                        .variant(ButtonVariant::Secondary)
-                        .label(tr("cloud.share.reach.readers.stop"))
-                        .on_click(cx.listener(move |s, _, _, cx| {
-                            s.stop_failed = false;
-                            s.confirm_delete = Some(ask.clone());
-                            cx.notify();
-                        })),
-                );
-            }
-            page = page.child(row);
-        }
+        page = page.child(self.share_status_card(t, cx));
         page = page.child(
             div()
                 .pt(px(8.))
@@ -2143,13 +2205,7 @@ impl CloudServices {
             .child(heading);
         match flow.phase.clone() {
             SharePhase::Choose => {
-                let folders: Vec<String> = details
-                    .tree
-                    .iter()
-                    .flat_map(|tree| tree.entries.iter())
-                    .filter(|e| e.kind == "folder")
-                    .map(|e| e.path.clone())
-                    .collect();
+                let folders = scope_folders(details, &self.share_path);
                 let option = |id: (&'static str, usize),
                               path: String,
                               text: String,
@@ -2300,6 +2356,7 @@ impl CloudServices {
                         ),
                     ));
                 }
+                let landed = connected || flow.target.channel == share::Channel::Link;
                 let environment = cloud_account::environment(cx);
                 if flow.target.channel == share::Channel::Mcp {
                     let server = environment
@@ -2372,16 +2429,31 @@ impl CloudServices {
                         .on_click(move |_, _, cx| cx.open_url(url))
                 }))
                 .child(
-                    h_flex().justify_end().child(
-                        Button::new("cloud-share-done")
-                            .variant(ButtonVariant::Solid)
-                            .label(tr("cloud.share.action.done"))
-                            .on_click(cx.listener(|s, _, _, cx| {
-                                s.share_epoch += 1;
-                                s.share_flow = None;
-                                cx.notify();
-                            })),
-                    ),
+                    h_flex()
+                        .justify_end()
+                        .gap(px(8.))
+                        .child(
+                            Button::new("cloud-share-another")
+                                .variant(ButtonVariant::Secondary)
+                                .label(tr("cloud.share.action.shareAnother"))
+                                .on_click(cx.listener(|s, _, _, cx| {
+                                    s.share_epoch += 1;
+                                    s.share_flow = None;
+                                    s.share_readers =
+                                        s.share_rows().iter().any(share::Share::active);
+                                    cx.notify();
+                                })),
+                        )
+                        .child(
+                            Button::new("cloud-share-done")
+                                .variant(if landed {
+                                    ButtonVariant::Solid
+                                } else {
+                                    ButtonVariant::Secondary
+                                })
+                                .label(tr("cloud.share.action.done"))
+                                .on_click(cx.listener(|s, _, _, cx| s.finish_share(cx))),
+                        ),
                 )
                 .into_any_element()
             }
@@ -2950,7 +3022,10 @@ fn graph_cell(row: &graph::Row, width: f32, t: Theme) -> impl IntoElement {
 
 /// The pixel lab's answers (`shell-cloud-services-*`).
 #[cfg(feature = "dev-capture")]
-struct LabCloud;
+struct LabCloud {
+    /// Two readers, one of them scoped to a folder.
+    shared: bool,
+}
 #[cfg(feature = "dev-capture")]
 impl services::Transport for LabCloud {
     fn request(
@@ -2984,6 +3059,14 @@ impl services::Transport for LabCloud {
             p if p.ends_with("/access-point") => {
                 json!({"project_id": "lab", "url": "https://api.puppyone.ai/git/lab.git", "scopes": []})
             }
+            "/mcp-endpoints" if self.shared => json!([
+                {"id": "e1", "project_id": "lab", "name": "Claude", "status": "active", "path": "",
+                 "created_at": "2026-10-20T08:00:00Z",
+                 "accesses": [{"path": "", "readonly": true}]},
+                {"id": "e2", "project_id": "lab", "name": "A bot in Slack with a long name",
+                 "status": "active", "path": "plans/2026/launch",
+                 "created_at": "2026-10-20T08:00:00Z",
+                 "accesses": [{"path": "plans/2026/launch", "readonly": false}]}]),
             "/mcp-endpoints" => json!([]),
             "/projects/lab" => json!({"id": "lab", "name": "Launch notes",
                 "updated_at": "2026-10-20T08:00:00Z", "visibility": "org",
@@ -3008,10 +3091,28 @@ impl CloudServices {
     /// The pixel lab's dialog on `section`.
     #[cfg(feature = "dev-capture")]
     pub fn lab(&mut self, section: Section, cx: &mut Context<Self>) {
-        self.open_with(Client::new(Arc::new(LabCloud)), "lab".into(), section, cx);
+        let client = Client::new(Arc::new(LabCloud { shared: false }));
+        self.open_with(client, "lab".into(), section, cx);
+    }
+    /// `shell-cloud-services-share-{waiting,readers}`.
+    #[cfg(feature = "dev-capture")]
+    pub fn lab_share(&mut self, waiting: bool, cx: &mut Context<Self>) {
+        let client = Client::new(Arc::new(LabCloud { shared: true }));
+        self.open_with(client, "lab".into(), Section::Share, cx);
+        if waiting {
+            let pending = share::Pending {
+                target: share::TARGETS[2],
+                endpoint: "e1".into(),
+                issued_at: chrono::Utc::now().to_rfc3339(),
+            };
+            self.pending_share = Some(("lab".into(), pending));
+        } else {
+            self.share_readers = true;
+        }
     }
 }
 
 mod billing;
+mod share_status;
 #[cfg(test)]
 mod tests;

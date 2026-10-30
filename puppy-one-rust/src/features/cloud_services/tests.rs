@@ -701,6 +701,305 @@ fn stopping_a_share_deletes_its_endpoint_and_a_failure_changes_nothing(cx: &mut 
     assert_eq!(f.count("DELETE", "/mcp-endpoints/e1"), 1);
 }
 
+/// A shared Project whose answers the test steers.
+#[derive(Default)]
+struct Awaited {
+    created: std::sync::atomic::AtomicUsize,
+    /// `e1` has been read.
+    read: std::sync::atomic::AtomicBool,
+    /// The share list fails.
+    down: std::sync::atomic::AtomicBool,
+    /// `e1` no longer exists.
+    gone: std::sync::atomic::AtomicBool,
+}
+fn awaited_cloud(state: Arc<Awaited>) -> Arc<Fake> {
+    use std::sync::atomic::Ordering::SeqCst;
+    fake(move |r| {
+        let list = r.path == "/mcp-endpoints" && r.method == reqwest::Method::GET;
+        if list && state.down.load(SeqCst) {
+            return Err(services::Error::Status(503));
+        }
+        if list && state.gone.load(SeqCst) {
+            return Ok(json!([]));
+        }
+        if r.method == reqwest::Method::DELETE {
+            state.gone.store(true, SeqCst);
+            return Ok(json!({}));
+        }
+        if state.read.load(SeqCst) && r.path.ends_with("/dashboard/resources") {
+            let at = chrono::Utc::now() + chrono::TimeDelta::minutes(1);
+            return Ok(json!({"project": {"id": "p", "name": "N"},
+                "resources": [{"resource_kind": "access", "kind": "mcp", "project_id": "p",
+                    "resource_id": "e1", "last_activity_at": at.to_rfc3339()}],
+                "nodes": {"total": 2, "folders": 1, "files": 1, "storage_bytes": 2048}}));
+        }
+        shared_cloud(r, &state.created)
+    })
+}
+/// A share just issued and handed over: its wizard closed, nothing read yet.
+fn awaiting(
+    cx: &mut TestAppContext,
+    state: Arc<Awaited>,
+) -> (Entity<CloudServices>, &mut VisualTestContext, Arc<Fake>) {
+    let f = awaited_cloud(state);
+    let (view, cx) = open(cx, f.clone(), Section::Share);
+    let loaded = view.clone();
+    settle(cx, "the details", &|cx| {
+        loaded.read_with(cx, |s, _| s.details.is_some())
+    });
+    view.update(cx, |s, cx| {
+        s.begin_share(share::TARGETS[2], cx);
+        s.issue_share(cx);
+    });
+    let loaded = view.clone();
+    settle(cx, "the issued share in the list", &|cx| {
+        loaded.read_with(cx, |s, _| {
+            !s.loading
+                && !s.share_rows().is_empty()
+                && matches!(
+                    s.share_flow.as_ref().map(|f| &f.phase),
+                    Some(SharePhase::Ready { key: Some(_), .. })
+                )
+        })
+    });
+    view.update(cx, |s, cx| s.finish_share(cx));
+    (view, cx, f)
+}
+fn status_of(view: &Entity<CloudServices>, cx: &mut VisualTestContext) -> share::Status {
+    view.read_with(cx, |s, _| share::status(&s.share_rows(), s.awaited()))
+}
+fn is_waiting(view: &Entity<CloudServices>, cx: &mut VisualTestContext) -> bool {
+    view.read_with(cx, |s, _| s.pending_share.is_some())
+}
+
+#[gpui::test]
+fn a_share_stays_awaited_after_its_wizard_closes_until_it_is_read(cx: &mut TestAppContext) {
+    let state = Arc::<Awaited>::default();
+    let (view, cx, _f) = awaiting(cx, state.clone());
+    assert_eq!(status_of(&view, cx), share::Status::Waiting);
+    draw(cx);
+    state.read.store(true, std::sync::atomic::Ordering::SeqCst);
+    view.update(cx, |s, cx| s.reload_shares(cx));
+    let loaded = view.clone();
+    settle(cx, "the first read", &|cx| !is_waiting(&loaded, cx));
+    assert_eq!(status_of(&view, cx), share::Status::Shared);
+    draw(cx);
+}
+
+/// `pollIntervalMs`: every five seconds, and not one read after the end.
+#[gpui::test]
+fn the_wait_rereads_on_its_interval_and_stops_with_the_wait(cx: &mut TestAppContext) {
+    let state = Arc::<Awaited>::default();
+    let (view, cx, f) = awaiting(cx, state.clone());
+    let lists = f.count("GET", "/mcp-endpoints");
+    let project_reads = f.count("GET", "/projects/p");
+    cx.executor().advance_clock(RECEIPT_POLL);
+    cx.run_until_parked();
+    assert_eq!(f.count("GET", "/mcp-endpoints"), lists + 1);
+    // Only the shares: a whole refresh would redo every page's read.
+    assert_eq!(f.count("GET", "/projects/p"), project_reads);
+    state.read.store(true, std::sync::atomic::Ordering::SeqCst);
+    cx.executor().advance_clock(RECEIPT_POLL);
+    cx.run_until_parked();
+    assert!(!is_waiting(&view, cx));
+    let ended = f.count("GET", "/mcp-endpoints");
+    cx.executor().advance_clock(RECEIPT_POLL * 4);
+    cx.run_until_parked();
+    assert_eq!(f.count("GET", "/mcp-endpoints"), ended);
+}
+
+/// One bad answer is not an answer: neither the reread nor a whole refresh
+/// may empty the list or end the wait. A real answer still does.
+#[gpui::test]
+fn a_failed_reread_keeps_the_list_and_the_wait(cx: &mut TestAppContext) {
+    use std::sync::atomic::Ordering::SeqCst;
+    let state = Arc::<Awaited>::default();
+    let (view, cx, _f) = awaiting(cx, state.clone());
+    state.down.store(true, SeqCst);
+    view.update(cx, |s, cx| s.reload_shares(cx));
+    cx.run_until_parked();
+    view.update(cx, |s, cx| s.refresh(cx));
+    let loaded = view.clone();
+    settle(cx, "the failed refresh", &|cx| {
+        loaded.read_with(cx, |s, _| !s.loading)
+    });
+    view.read_with(cx, |s, _| {
+        assert!(s.details.as_ref().unwrap().failed);
+        assert_eq!(s.share_rows().len(), 1);
+    });
+    assert!(is_waiting(&view, cx));
+    assert_eq!(status_of(&view, cx), share::Status::Waiting);
+    state.down.store(false, SeqCst);
+    state.gone.store(true, SeqCst);
+    view.update(cx, |s, cx| s.reload_shares(cx));
+    let loaded = view.clone();
+    settle(cx, "the real answer", &|cx| !is_waiting(&loaded, cx));
+    assert_eq!(status_of(&view, cx), share::Status::Published);
+}
+
+/// The reread runs for minutes behind whatever the user went on to do.
+#[gpui::test]
+fn a_wait_rereads_only_the_shares_and_leaves_the_page_being_edited(cx: &mut TestAppContext) {
+    let state = Arc::<Awaited>::default();
+    let (view, cx, f) = awaiting(cx, state);
+    view.update(cx, |s, cx| {
+        s.select(Section::Settings, cx);
+        s.name.update(cx, |i, cx| i.set_text("Edited", cx));
+    });
+    let epoch = view.read_with(cx, |s, _| s.epoch);
+    let project_reads = f.count("GET", "/projects/p");
+    let lists = f.count("GET", "/mcp-endpoints");
+    view.update(cx, |s, cx| s.reload_shares(cx));
+    cx.run_until_parked();
+    assert_eq!(f.count("GET", "/mcp-endpoints"), lists + 1);
+    assert_eq!(f.count("GET", "/projects/p"), project_reads);
+    view.read_with(cx, |s, cx| {
+        assert_eq!(s.name.read(cx).text(), "Edited");
+        // A delete or a save in flight compares this; the reread leaves it.
+        assert_eq!(s.epoch, epoch);
+    });
+}
+
+#[gpui::test]
+fn a_wait_survives_the_dialog_but_not_its_project(cx: &mut TestAppContext) {
+    let state = Arc::<Awaited>::default();
+    let (view, cx, f) = awaiting(cx, state);
+    view.update(cx, |s, cx| s.close(cx));
+    assert!(is_waiting(&view, cx));
+    let again = f.clone();
+    view.update(cx, |s, cx| {
+        s.open_with(Client::new(again), "p".into(), Section::Share, cx)
+    });
+    let loaded = view.clone();
+    settle(cx, "the reopened details", &|cx| {
+        loaded.read_with(cx, |s, _| s.details.is_some() && !s.loading)
+    });
+    assert!(is_waiting(&view, cx));
+    view.update(cx, |s, cx| s.close(cx));
+    view.update(cx, |s, cx| {
+        s.open_with(Client::new(f), "q".into(), Section::Share, cx)
+    });
+    assert!(!is_waiting(&view, cx));
+}
+
+/// Opening starts from nothing, so a failed read there has an empty list to
+/// show. That says nothing about the share; only a real answer ends a wait.
+#[gpui::test]
+fn a_failed_read_on_reopening_does_not_end_the_wait(cx: &mut TestAppContext) {
+    use std::sync::atomic::Ordering::SeqCst;
+    let state = Arc::<Awaited>::default();
+    let (view, cx, f) = awaiting(cx, state.clone());
+    view.update(cx, |s, cx| s.close(cx));
+    state.down.store(true, SeqCst);
+    let again = f.clone();
+    view.update(cx, |s, cx| {
+        s.open_with(Client::new(again), "p".into(), Section::Share, cx)
+    });
+    let loaded = view.clone();
+    settle(cx, "the failed read", &|cx| {
+        loaded.read_with(cx, |s, _| s.details.is_some() && !s.loading)
+    });
+    view.read_with(cx, |s, _| assert!(s.share_rows().is_empty()));
+    assert!(is_waiting(&view, cx));
+    state.down.store(false, SeqCst);
+    view.update(cx, |s, cx| s.reload_shares(cx));
+    cx.run_until_parked();
+    assert_eq!(status_of(&view, cx), share::Status::Waiting);
+}
+
+/// `onIssued` carries the share's own creation time when it is reused.
+#[gpui::test]
+fn a_share_issued_long_ago_is_not_awaited_again(cx: &mut TestAppContext) {
+    let state = Arc::<Awaited>::default();
+    state.created.store(1, std::sync::atomic::Ordering::SeqCst);
+    let f = awaited_cloud(state);
+    let (view, cx) = open(cx, f, Section::Share);
+    let loaded = view.clone();
+    settle(cx, "the reader", &|cx| {
+        loaded.read_with(cx, |s, _| !s.share_rows().is_empty())
+    });
+    view.update(cx, |s, cx| {
+        s.begin_share(share::TARGETS[2], cx);
+        s.issue_share(cx);
+    });
+    view.read_with(cx, |s, _| {
+        assert!(matches!(
+            s.share_flow.as_ref().map(|f| &f.phase),
+            Some(SharePhase::Ready { reused: true, .. })
+        ))
+    });
+    assert!(!is_waiting(&view, cx));
+}
+
+#[gpui::test]
+fn revoking_the_awaited_share_ends_the_wait(cx: &mut TestAppContext) {
+    let state = Arc::<Awaited>::default();
+    let (view, cx, f) = awaiting(cx, state);
+    view.update(cx, |s, cx| {
+        s.share_readers = true;
+        cx.notify();
+    });
+    draw(cx);
+    view.update(cx, |s, cx| {
+        s.confirm_delete = Some("e1".into());
+        cx.notify();
+    });
+    draw(cx);
+    view.update(cx, |s, cx| s.stop_share("e1".into(), cx));
+    let loaded = view.clone();
+    settle(cx, "the ended wait", &|cx| !is_waiting(&loaded, cx));
+    assert_eq!(status_of(&view, cx), share::Status::Published);
+    draw(cx);
+    assert_eq!(f.count("DELETE", "/mcp-endpoints/e1"), 1);
+}
+
+#[gpui::test]
+fn turning_sharing_off_ends_the_wait_and_leaves_the_section(cx: &mut TestAppContext) {
+    let state = Arc::<Awaited>::default();
+    let (view, cx, _f) = awaiting(cx, state);
+    view.update(cx, |s, cx| s.sync_sharing(true, cx));
+    assert!(is_waiting(&view, cx));
+    view.read_with(cx, |s, _| assert_eq!(s.section, Section::Share));
+    view.update(cx, |s, cx| s.sync_sharing(false, cx));
+    assert!(!is_waiting(&view, cx));
+    view.read_with(cx, |s, _| assert_eq!(s.section, Section::Contents));
+}
+
+/// `openShareWizard(null, path)`: past the readers, and from that folder.
+#[gpui::test]
+fn a_folder_from_the_explorer_starts_the_share_there(cx: &mut TestAppContext) {
+    let state = Arc::<Awaited>::default();
+    state.created.store(1, std::sync::atomic::Ordering::SeqCst);
+    let (view, cx) = open(cx, awaited_cloud(state), Section::Share);
+    let loaded = view.clone();
+    settle(cx, "the reader", &|cx| {
+        loaded.read_with(cx, |s, _| !s.share_rows().is_empty())
+    });
+    view.update(cx, |s, cx| s.start_from("a/deep".into(), cx));
+    draw(cx);
+    view.read_with(cx, |s, _| {
+        assert!(!s.share_readers);
+        let details = s.details.as_ref().unwrap();
+        // Deeper than the top level: it leads the list instead of vanishing.
+        assert_eq!(scope_folders(details, "a/deep"), ["a/deep", "a"]);
+        assert_eq!(scope_folders(details, "a"), ["a"]);
+        assert_eq!(scope_folders(details, ""), ["a"]);
+    });
+    view.update(cx, |s, cx| s.begin_share(share::TARGETS[2], cx));
+    draw(cx);
+    view.read_with(cx, |s, _| {
+        assert_eq!(s.share_flow.as_ref().unwrap().path, "a/deep")
+    });
+    // Done ends that task: the next share is of the whole Project again.
+    view.update(cx, |s, cx| {
+        s.finish_share(cx);
+        s.begin_share(share::TARGETS[2], cx);
+    });
+    view.read_with(cx, |s, _| {
+        assert_eq!(s.share_flow.as_ref().unwrap().path, "")
+    });
+}
+
 /// A billing Cloud: one quote, then an operation the test ends.
 struct Billed {
     keys: Mutex<Vec<(String, Option<String>)>>,

@@ -278,7 +278,7 @@ fn status(kind: ChangeKind) -> Status {
     }
 }
 /// `formatRelativeTime` (Cloud): now, minutes, hours, days, then a date.
-fn relative_time(iso: &str, now: i64) -> Option<String> {
+pub(crate) fn relative_time(iso: &str, now: i64) -> Option<String> {
     let time = chrono::DateTime::parse_from_rfc3339(iso).ok()?.timestamp();
     let delta = (now - time).abs();
     let round = |unit: i64| (delta + unit / 2) / unit;

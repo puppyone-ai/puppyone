@@ -84,6 +84,8 @@ pub(in crate::shell) enum ExplorerEvent {
     Rename { path: PathBuf, change_type: bool },
     /// Cloud Explorer "Copy Link": the hosted resource URL of `path`.
     CopyLink { path: PathBuf, folder: bool },
+    /// "Share with…" on a folder: the share starts from `path`.
+    Share { path: PathBuf },
     /// The directory subscription failed (`service.watch`'s failure): the
     /// workspace notice offers Retry.
     WatchFailed(String),

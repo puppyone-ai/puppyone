@@ -226,7 +226,11 @@ impl Lab {
                 };
                 let view = cx.new(|cx| {
                     let mut view = CloudServices::new(window, cx);
-                    view.lab(section, cx);
+                    match page {
+                        "share-waiting" => view.lab_share(true, cx),
+                        "share-readers" => view.lab_share(false, cx),
+                        _ => view.lab(section, cx),
+                    }
                     view
                 });
                 cx.observe(&view, |_, _, cx| cx.notify()).detach();

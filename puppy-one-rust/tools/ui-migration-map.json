@@ -1281,7 +1281,7 @@
         "test:cloud_history_closes_outside_a_hosted_project",
         "artifact:cloud-native"
       ],
-      "remaining": "The history graph (HistoryGraphVisual, cloudTopology) and the services-page two-pane History view are not ported."
+      "remaining": "The hosted sidebar is native; the graph and the two-pane page are the services History group. No pixel comparison."
     },
     {
       "name": "Cloud file workspace",
@@ -1572,7 +1572,8 @@
       "targets": [
         "src/workspace/cloud/share.rs",
         "src/features/cloud_services.rs",
-        "src/shell/tasks.rs"
+        "src/shell/tasks.rs",
+        "src/features/cloud_services/share_status.rs"
       ],
       "evidence": [
         "test:a_share_issues_one_key_and_the_same_share_is_reused_without_another",
@@ -1580,7 +1581,7 @@
         "test:stopping_a_share_deletes_its_endpoint_and_a_failure_changes_nothing",
         "test:the_share_preview_uses_cached_entries_and_keeps_the_open_file"
       ],
-      "remaining": "The Header \"Waiting for…\" status is missing; the preview is drawn reduced, since GPUI cannot scale the real Explorer and Viewer; no pixel comparison."
+      "remaining": "The preview is drawn reduced, since GPUI cannot scale the real Explorer and Viewer. A checkout with no Cloud Project goes through the value page instead of signing in and publishing inside the wizard, so a folder chosen there is not carried across. The status dot does not pulse; no pixel comparison."
     },
     {
       "name": "Cloud organization and Billing",
@@ -1605,7 +1606,7 @@
         "test:another_organization_clears_the_quote_and_its_keys",
         "test:the_plan_page_reads_billing_only_with_payments_on_and_survives_an_outage"
       ],
-      "remaining": "Billing is behind cloudBilling (off). Never run against a real payment provider; seat quotes and member-activation operations have no native flow."
+      "remaining": "Billing is behind cloudBilling (off). Seat quotes and member activation are verified against a scripted server only, never a real payment provider."
     },
     {
       "name": "Cloud services History view and graph",
@@ -1737,7 +1738,7 @@
         "test:built_ins_exist_per_target_and_mcp_per_surface",
         "test:share_opens_the_linked_projects_services_and_signing_out_closes_them"
       ],
-      "remaining": "Scope exclude rules and MCP tool permissions (AccessMethodPermissions) are not editable; a pending first publication is not resumed from the dialog; no pixel comparison."
+      "remaining": "A pending first publication is not resumed from the dialog; no pixel comparison."
     },
     {
       "name": "Cloud sign-in surfaces",

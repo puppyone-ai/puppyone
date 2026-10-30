@@ -127,6 +127,7 @@ embedded! {
     "icons" / "server.svg",
     "icons" / "settings.svg",
     "icons" / "settings-compact.svg",
+    "icons" / "share-2.svg",
     "icons" / "shield-alert.svg",
     "icons" / "shield-check.svg",
     "icons" / "sparkles.svg",

@@ -228,6 +228,11 @@ impl Explorer {
             }),
         )
     }
+    #[cfg(test)]
+    pub(in crate::shell) fn open_menu_labels(&self, cx: &App) -> Vec<String> {
+        let menu = self.menu.as_ref().expect("an open menu");
+        self.menu_fill(menu, cx)(Menu::new("labels")).labels()
+    }
     fn menu_fill(&self, menu: &ExplorerMenu, cx: &App) -> MenuFill {
         match &menu.kind {
             MenuKind::Create { parent } => {
@@ -240,7 +245,8 @@ impl Explorer {
                     MenuAt::Pointer(p) => MenuAt::Pointer(*p),
                     _ => MenuAt::Row(primary.clone(), RowTrigger::Create),
                 };
-                self.node_menu(paths.clone(), primary.clone(), create_at)
+                let share = crate::features::flags::share_enabled(&self.preferences, cx);
+                self.node_menu(paths.clone(), primary.clone(), create_at, share)
             }
         }
     }
@@ -340,7 +346,13 @@ impl Explorer {
     }
 
     // ------------------------------------------------------------- node menu
-    fn node_menu(&self, paths: Vec<PathBuf>, primary: PathBuf, create_at: MenuAt) -> MenuFill {
+    fn node_menu(
+        &self,
+        paths: Vec<PathBuf>,
+        primary: PathBuf,
+        create_at: MenuAt,
+        share: bool,
+    ) -> MenuFill {
         let host = self.weak.clone();
         let act = move |f: Action| {
             let host = host.clone();
@@ -468,6 +480,17 @@ impl Explorer {
                         if let Err(e) = crate::platform::desktop::open(&path) {
                             cx.emit(ExplorerEvent::Error(e))
                         }
+                    }))),
+            ));
+        }
+        // `showShare`: one folder, in a local or a hosted Explorer alike.
+        if share && single && folder {
+            let path = primary.clone();
+            rows.push(Some(
+                MenuItem::new(tr("workspace.node.shareWith"))
+                    .icon("share-2")
+                    .on_click(act(Box::new(move |_, _, cx| {
+                        cx.emit(ExplorerEvent::Share { path: path.clone() })
                     }))),
             ));
         }

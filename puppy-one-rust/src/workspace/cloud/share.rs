@@ -154,6 +154,50 @@ pub fn has_receipt(share: Option<&Share>, issued_at: Option<&str>) -> bool {
         _ => true,
     }
 }
+/// `PENDING_SHARE_TTL_MS`: the backend may never report a read, so a wait
+/// ends instead of polling forever.
+const PENDING_TTL_MINUTES: i64 = 10;
+/// `PendingShare`: a share handed over and not read yet. It outlives the
+/// wizard that issued it, so the Share page keeps saying who is awaited.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Pending {
+    pub target: Target,
+    pub endpoint: String,
+    pub issued_at: String,
+}
+impl Pending {
+    /// `isPendingShareLive`: the share exists, is active, and has not been
+    /// read since it was issued.
+    pub fn live(&self, shares: &[Share]) -> bool {
+        let share = shares.iter().find(|s| s.id == self.endpoint);
+        share.is_some_and(Share::active) && !has_receipt(share, Some(&self.issued_at))
+    }
+    /// An unreadable time is already over, as `Number.isNaN(remaining)` is.
+    pub fn expired(&self, now: chrono::DateTime<chrono::Utc>) -> bool {
+        chrono::DateTime::parse_from_rfc3339(&self.issued_at).map_or(true, |issued| {
+            now >= issued + chrono::TimeDelta::minutes(PENDING_TTL_MINUTES)
+        })
+    }
+}
+/// `CloudShareStatusKind` as far as the Share page goes: it opens only for a
+/// resolved Project, so `local`, `signed-out` and `attention` lead elsewhere
+/// (`Command::CloudServices` sends those to the value page).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Status {
+    Published,
+    Shared,
+    Waiting,
+}
+/// `resolveCloudShareStatus` for a resolved Project with a loaded list.
+pub fn status(shares: &[Share], pending: Option<&Pending>) -> Status {
+    if pending.is_some_and(|p| p.live(shares)) {
+        Status::Waiting
+    } else if shares.iter().any(Share::active) {
+        Status::Shared
+    } else {
+        Status::Published
+    }
+}
 /// The active share a new request for the same target can reuse; its key
 /// was only shown when first issued.
 pub fn reusable<'a>(
@@ -172,6 +216,66 @@ mod tests {
     use super::*;
     use core::prelude::v1::test;
     use serde_json::json;
+
+    fn waiting_for(issued_at: &str) -> Pending {
+        Pending {
+            target: TARGETS[2],
+            endpoint: "e1".into(),
+            issued_at: issued_at.into(),
+        }
+    }
+    fn share(status: &str, last_seen: Option<&str>) -> Share {
+        Share {
+            id: "e1".into(),
+            name: "Claude".into(),
+            path: String::new(),
+            readonly: true,
+            status: status.into(),
+            created_at: None,
+            last_seen: last_seen.map(str::to_owned),
+        }
+    }
+
+    #[test]
+    fn a_wait_ends_with_the_first_read_or_with_the_share() {
+        let pending = waiting_for("2026-10-30T10:00:00Z");
+        assert!(pending.live(&[share("active", None)]));
+        // A read from before this issue is not this share's first read.
+        assert!(pending.live(&[share("active", Some("2026-10-30T09:59:59Z"))]));
+        assert!(!pending.live(&[share("active", Some("2026-10-30T10:00:00Z"))]));
+        assert!(!pending.live(&[share("disabled", None)]));
+        assert!(!pending.live(&[]));
+    }
+
+    #[test]
+    fn a_wait_ends_ten_minutes_after_the_issue() {
+        let at = |text: &str| {
+            chrono::DateTime::parse_from_rfc3339(text)
+                .unwrap()
+                .with_timezone(&chrono::Utc)
+        };
+        let pending = waiting_for("2026-10-30T10:00:00Z");
+        assert!(!pending.expired(at("2026-10-30T10:09:59Z")));
+        assert!(pending.expired(at("2026-10-30T10:10:00Z")));
+        assert!(waiting_for("not a time").expired(at("2026-10-30T10:00:00Z")));
+    }
+
+    #[test]
+    fn the_status_says_who_is_awaited_before_who_can_read() {
+        let pending = waiting_for("2026-10-30T10:00:00Z");
+        assert_eq!(status(&[], None), Status::Published);
+        assert_eq!(status(&[share("disabled", None)], None), Status::Published);
+        assert_eq!(status(&[share("active", None)], None), Status::Shared);
+        assert_eq!(
+            status(&[share("active", None)], Some(&pending)),
+            Status::Waiting
+        );
+        // The awaited share was read: it is simply shared now.
+        let read = share("active", Some("2026-10-30T10:01:00Z"));
+        assert_eq!(status(&[read], Some(&pending)), Status::Shared);
+        // A stale wait never outranks the list.
+        assert_eq!(status(&[], Some(&pending)), Status::Published);
+    }
 
     fn endpoint(id: &str, name: &str, status: &str) -> McpEndpoint {
         serde_json::from_value(

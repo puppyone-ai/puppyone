@@ -306,6 +306,20 @@ enum MenuEntry {
     Element(AnyElement),
 }
 
+#[cfg(test)]
+impl Menu {
+    /// What the menu offers, separators and blocks left out.
+    pub fn labels(&self) -> Vec<String> {
+        self.entries
+            .iter()
+            .flat_map(|entry| match entry {
+                MenuEntry::Item(item) => vec![item.label.to_string()],
+                MenuEntry::List(items, _) => items.iter().map(|i| i.label.to_string()).collect(),
+                _ => vec![],
+            })
+            .collect()
+    }
+}
 /// A menu surface. Items run their handler, then `on_dismiss`.
 #[derive(IntoElement)]
 pub struct Menu {

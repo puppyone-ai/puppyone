@@ -19,3 +19,7 @@ pub fn account_available(cx: &App) -> bool {
 pub fn cloud_enabled(preferences: &Entity<PreferencesStore>, cx: &App) -> bool {
     account_available(cx) && preferences.read(cx).state.experimental.cloud_workspace
 }
+/// `shareOnboardingEnabled`: Share on a local repository, and on Explorer folders.
+pub fn share_enabled(preferences: &Entity<PreferencesStore>, cx: &App) -> bool {
+    cloud_enabled(preferences, cx) && preferences.read(cx).state.experimental.share_onboarding
+}

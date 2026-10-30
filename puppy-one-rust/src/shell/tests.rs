@@ -2576,6 +2576,8 @@ fn linked_checkout(
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path().canonicalize().unwrap();
     std::fs::write(root.join("local.md"), "# Local\n").unwrap();
+    std::fs::create_dir(root.join("docs")).unwrap();
+    std::fs::write(root.join("docs/guide.md"), "# Guide\n").unwrap();
     for args in [
         &["init", "-q"][..],
         &[
@@ -3032,6 +3034,70 @@ fn share_opens_the_linked_projects_services_and_signing_out_closes_them(cx: &mut
     cx.update(|_, cx| crate::features::cloud_account::sign_out(cx));
     settle_cloud(&view, cx, "the closed dialog", &|s, _| {
         !s.modals.iter().any(|m| matches!(m, Modal::CloudServices))
+    });
+}
+
+/// C-14.3: "Share with…" on one folder opens the linked Project's Share
+/// section from that folder. A file, several rows, or onboarding off offer
+/// nothing, and nothing opens.
+#[gpui::test]
+fn share_with_on_a_folder_starts_the_share_from_it(cx: &mut TestAppContext) {
+    use explorer::MenuAt;
+    let (view, cx, Linked { _temp, .. }) =
+        linked_checkout(cx, with_catalog(cloud_project_responder()));
+    settle_cloud(&view, cx, "the association", &|s, cx| {
+        s.repository_cloud.read(cx).context.project() == Some("project-a")
+    });
+    let explorer = explorer_of(&view, cx);
+    settle_cloud(&view, cx, "the rows", &|s, cx| {
+        let rows = &s.explorer.read(cx).tree().rows;
+        rows.iter().any(|r| r.folder) && rows.iter().any(|r| !r.folder)
+    });
+    let share = crate::localization::t("workspace.node.shareWith").to_owned();
+    let (folder, file, path) = explorer.read_with(cx, |e, _| {
+        let rows = &e.tree().rows;
+        let folder = rows.iter().position(|r| r.folder).unwrap();
+        (
+            folder,
+            rows.iter().position(|r| !r.folder).unwrap(),
+            rows[folder].path.clone(),
+        )
+    });
+    assert_eq!(path, PathBuf::from("docs"));
+    let at = MenuAt::Pointer(point(px(100.), px(100.)));
+    let offers = |index: usize, cx: &mut VisualTestContext| {
+        let at = at.clone();
+        explorer.update(cx, |e, cx| {
+            e.open_node_menu(index, at, cx);
+            let labels = e.open_menu_labels(cx);
+            e.dismiss_menu(cx);
+            labels
+        })
+    };
+    assert!(offers(folder, cx).contains(&share));
+    assert!(!offers(file, cx).contains(&share));
+
+    let off = |view: &Entity<Shell>, on: bool, cx: &mut VisualTestContext| {
+        view.update(cx, |s, cx| {
+            s.preferences
+                .update(cx, |p, _| p.state.experimental.share_onboarding = on)
+        })
+    };
+    off(&view, false, cx);
+    assert!(!offers(folder, cx).contains(&share));
+    let shared = path.clone();
+    explorer.update(cx, |_, cx| cx.emit(ExplorerEvent::Share { path: shared }));
+    draw(cx);
+    view.read_with(cx, |s, _| {
+        assert!(!s.modals.iter().any(|m| matches!(m, Modal::CloudServices)));
+    });
+    off(&view, true, cx);
+
+    explorer.update(cx, |_, cx| cx.emit(ExplorerEvent::Share { path }));
+    draw(cx);
+    view.read_with(cx, |s, cx| {
+        assert!(s.modals.iter().any(|m| matches!(m, Modal::CloudServices)));
+        assert_eq!(s.cloud_services.read(cx).share_start(), "docs");
     });
 }
 

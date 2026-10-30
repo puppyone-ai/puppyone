@@ -104,6 +104,10 @@ impl Shell {
         {
             self.cloud_services.update(cx, |s, cx| s.close(cx));
         }
+        let sharing = crate::features::flags::share_enabled(&self.preferences, cx)
+            && crate::features::cloud_account::has_account(cx);
+        self.cloud_services
+            .update(cx, |s, cx| s.sync_sharing(sharing, cx));
         let root = if self.hosted_project().is_none() {
             self.workspace_root()
         } else {
