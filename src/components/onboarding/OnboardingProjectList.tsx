@@ -11,7 +11,7 @@ import {
 import type { HomepageProjectLayout } from "../../preferenceStorage";
 import { DesktopMenuIconButton, DesktopMenuItem } from "../DesktopMenu";
 import { InlineLoading } from "../loading";
-import { HomeProjectIcon } from "./HomeProjectIcon";
+import { HomeProjectIcon, ProjectFolder } from "./HomeProjectIcon";
 import { LinkedCloudProjectButton, ProjectHomeItemCaption, useProjectHomeItemCaption } from "./LinkedCloudProjectButton";
 
 type OnboardingProjectListProps = {
@@ -114,18 +114,17 @@ function ProjectTile({ layout, item, name, modified, ...button }: {
   modified: string | null;
 } & ButtonHTMLAttributes<HTMLButtonElement>) {
   const caption = useProjectHomeItemCaption(item);
-  const icons = layout === "icons";
   const place = projectHomeItemLocation(item) === "cloud" ? caption : getWorkspaceParentPathForDisplay(item.localPath);
+  const details = [place, modified].filter(Boolean).join(" · ");
   const tile = (
     <button type="button" className="onboarding-project-tile" {...button}>
-      <HomeProjectIcon item={item} size={icons ? 40 : 16} strokeWidth={icons ? 1.15 : 1.85} folder={icons} />
+      <ProjectFolder item={item} />
       <bdi className="onboarding-project-tile-name">{name}</bdi>
-      {!icons && <bdi className="onboarding-project-tile-place" dir="ltr">{place}</bdi>}
-      {modified && <span className="onboarding-project-tile-time">{modified}</span>}
+      {layout === "cards" && <bdi className="onboarding-project-tile-details" dir="ltr">{details}</bdi>}
     </button>
   );
-  // An icon has no room for its place, which still tells two same-named projects apart.
-  return icons ? <Tooltip content={place}>{tile}</Tooltip> : tile;
+  // A desktop icon is its name; the rest stays one hover away.
+  return layout === "icons" ? <Tooltip content={details}>{tile}</Tooltip> : tile;
 }
 
 function formatModificationTime(

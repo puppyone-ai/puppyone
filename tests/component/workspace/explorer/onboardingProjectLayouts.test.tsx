@@ -15,7 +15,7 @@ import { createTestSurfaceAppearance } from "../../../support/react/surfaceAppea
 
 const LAYOUTS = ["list", "icons", "cards"] as const;
 const OPEN = { list: ".onboarding-project-row", icons: ".onboarding-project-tile", cards: ".onboarding-project-tile" };
-const local: ProjectHomeItem = { id: "local", label: "notes", localPath: "/Users/me/project/notes", lastModifiedAt: null };
+const local: ProjectHomeItem = { id: "local", label: "notes", localPath: "/Users/me/project/notes", lastModifiedAt: new Date(Date.now() - 3 * 86_400_000).toISOString() };
 const linked: ProjectHomeItem = { id: "linked", label: "site", localPath: "/Users/me/project/site", linkedCloudProject: { id: "cloud-site", name: "site" } };
 const cloud: ProjectHomeItem = { id: "cloud", label: "shared", localPath: "", cloudProjectId: "cloud-shared" };
 const projectItems = [local, linked, cloud];
@@ -84,6 +84,12 @@ describe("Homepage project layouts", () => {
     }
   });
 
+  it("keeps the switch beside the title it answers, out of the Header", () => {
+    const { container } = renderHome();
+    expect(container.querySelector(".onboarding-brand-lockup .onboarding-project-layout-switch")).not.toBeNull();
+    expect(container.querySelector(".desktop-titlebar .onboarding-project-layout-switch")).toBeNull();
+  });
+
   it("names the switch and each layout for assistive technology", () => {
     const { container } = renderHome();
     const group = container.querySelector(".onboarding-project-layout-switch");
@@ -149,13 +155,29 @@ describe("Homepage project layouts", () => {
     expect(label("local")).not.toBe(label("cloud"));
   });
 
-  it("still tells same-named projects apart where an icon has no room for its place", () => {
+  it.each(["icons", "cards"] as const)("draws every project in the %s layout as a folder, blue in the Cloud", (layout) => {
+    const { container } = renderHome();
+    pick(container, layout);
+    expect(container.querySelector(".onboarding-project-tile .onboarding-project-icon")).toBeNull();
+    expect(project(container, "local").querySelector(".onboarding-project-folder")?.className).toContain("is-local");
+    expect(project(container, "linked").querySelector(".onboarding-project-folder")?.className).toContain("is-linked");
+    expect(project(container, "linked").querySelector(".onboarding-project-cloud-badge")).not.toBeNull();
+    expect(project(container, "cloud").querySelector(".onboarding-project-folder")?.className).toContain("is-cloud");
+  });
+
+  it("shows an icon as its name alone and keeps the rest one hover away", () => {
     const { container } = renderHome();
     pick(container, "icons");
-    expect(project(container, "local").querySelector(".onboarding-project-tile")?.getAttribute("data-tooltip")).toBe("~/project");
+    const tile = project(container, "local").querySelector(".onboarding-project-tile");
+    expect(tile?.textContent).toBe("notes");
+    expect(tile?.getAttribute("data-tooltip")).toBe("~/project · 3 days ago");
     expect(project(container, "cloud").querySelector(".onboarding-project-tile")?.getAttribute("data-tooltip")).toBe("Cloud project");
-    expect(project(container, "local").querySelector(".onboarding-project-tile-place")).toBeNull();
+  });
+
+  it("gives a card its place and time", () => {
+    const { container } = renderHome();
     pick(container, "cards");
-    expect(project(container, "local").querySelector(".onboarding-project-tile-place")?.textContent).toBe("~/project");
+    expect(project(container, "local").querySelector(".onboarding-project-tile-details")?.textContent).toBe("~/project · 3 days ago");
+    expect(project(container, "local").querySelector(".onboarding-project-tile")?.getAttribute("data-tooltip")).toBeNull();
   });
 });

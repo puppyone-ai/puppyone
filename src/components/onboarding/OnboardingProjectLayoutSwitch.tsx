@@ -5,7 +5,7 @@ import { HOMEPAGE_PROJECT_LAYOUTS, type HomepageProjectLayout } from "../../pref
 
 const LAYOUT_ICONS = { list: List, icons: FolderIcon, cards: LayoutGrid } as const;
 
-/** Homepage Header control for how projects are arranged, like a file browser's view buttons. */
+/** How the Homepage arranges its projects, beside the title they answer. */
 export function OnboardingProjectLayoutSwitch({ available, layout, disabled, onChange }: {
   /** There is nothing to arrange until there are projects. */
   available: boolean;
@@ -16,7 +16,7 @@ export function OnboardingProjectLayoutSwitch({ available, layout, disabled, onC
   const { t } = useLocalization();
   if (!available) return null;
   return (
-    <div className="onboarding-project-layout-switch" role="group" aria-label={t("onboarding.projects.layout.label")}>
+    <div className="desktop-theme-segment onboarding-project-layout-switch" role="group" aria-label={t("onboarding.projects.layout.label")}>
       {HOMEPAGE_PROJECT_LAYOUTS.map((option) => {
         const Icon = LAYOUT_ICONS[option];
         const label = t(`onboarding.projects.layout.${option}`);
@@ -24,7 +24,7 @@ export function OnboardingProjectLayoutSwitch({ available, layout, disabled, onC
           <Tooltip key={option} content={label}>
             <button
               type="button"
-              className="desktop-titlebar-action"
+              className={layout === option ? "active" : ""}
               data-project-layout-option={option}
               aria-label={label}
               aria-pressed={layout === option}

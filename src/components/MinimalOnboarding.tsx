@@ -251,10 +251,7 @@ export function MinimalOnboarding({
       onDragLeave={folderDrop.onDragLeave}
       onDrop={folderDrop.onDrop}
     >
-      <DesktopWindowChrome actions={<>
-        <OnboardingProjectLayoutSwitch available={hasProjects} layout={projectLayout} disabled={openingProject} onChange={setProjectLayout} />
-        {cloudAccountStatus}
-      </>} />
+      <DesktopWindowChrome actions={cloudAccountStatus} />
       <section
         ref={homepageRef}
         className="onboarding-homepage"
@@ -263,7 +260,9 @@ export function MinimalOnboarding({
         aria-busy={openingProject || undefined}
       >
         <OnboardingHomeLayout
-          brand={<OnboardingBrandLockup state={onboardingState} resolvedTheme={resolvedTheme} />}
+          brand={<OnboardingBrandLockup state={onboardingState} resolvedTheme={resolvedTheme} trailing={
+            <OnboardingProjectLayoutSwitch available={hasProjects} layout={projectLayout} disabled={openingProject} onChange={setProjectLayout} />
+          } />}
           primaryKind={hasProjects ? "projects" : "create"}
           primary={hasProjects ? (
             <OnboardingProjectList

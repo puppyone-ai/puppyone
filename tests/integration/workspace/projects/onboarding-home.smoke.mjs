@@ -209,7 +209,7 @@ async function runSmoke() {
             assert.equal(snapshot.importBadges[i].x - previous.x - previous.width, -6, `${context}: circular source badges overlap`);
           }
           assert.equal(snapshot.importText, importLabels[locale], `${context}: complete localized text`);
-          assert.equal(snapshot.brand.width, Math.min(440, width - 56), `${context}: column width fits within stable page insets`);
+          assert.equal(snapshot.brand.width, Math.min(state === 'empty' ? 440 : 520, width - 56), `${context}: column width fits within stable page insets`);
           assert.equal(snapshot.brand.x, snapshot.actions.x, `${context}: brand and actions share a left edge`);
           assert.equal(snapshot.brand.width, snapshot.actions.width, `${context}: shared content-column width`);
           assert.equal(snapshot.create.x, snapshot.actions.x, `${context}: no extra action-area left padding`);
