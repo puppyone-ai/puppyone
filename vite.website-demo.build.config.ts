@@ -1,15 +1,8 @@
 // Builds the website demo (website-demo.html) on its own, as static files in
 // dist-website-demo/: the real renderer over an in-memory folder, embedded by
 // the puppyone website's homepage. `npm run build:website-demo`.
-import { fileURLToPath, URL } from "node:url";
 import type { Plugin } from "vite";
-import baseConfig from "./vite.config";
-
-// Main's Agent actor imports randomUUID from node:crypto; the browser has its own.
-const alias = [
-  { find: /^node:crypto$/, replacement: fileURLToPath(new URL("./src/website-demo/shims/node-crypto.ts", import.meta.url)) },
-  ...((baseConfig.resolve?.alias as unknown[]) ?? []),
-];
+import demoConfig from "./vite.website-demo.config";
 
 // The desktop CSP assumes previews come from Electron's preview protocol. In
 // the browser demo, HTML previews are blob: documents that inherit this
@@ -43,15 +36,15 @@ const demoContentSecurityPolicyPlugin: Plugin = {
   },
 };
 
+// The demo reads no Cloud configuration, so it publishes no desktop-cloud.json.
+const DESKTOP_ONLY_PLUGINS = new Set(["puppyone-desktop-content-security-policy", "puppyone-desktop-cloud-configuration"]);
 const plugins = [
-  ...((baseConfig.plugins ?? []) as Plugin[]).filter((plugin) => plugin?.name !== "puppyone-desktop-content-security-policy"),
+  ...((demoConfig.plugins ?? []) as Plugin[]).filter((plugin) => !DESKTOP_ONLY_PLUGINS.has(plugin?.name)),
   demoContentSecurityPolicyPlugin,
 ];
 
 export default {
-  ...baseConfig,
+  ...demoConfig,
   plugins,
-  resolve: { ...baseConfig.resolve, alias },
-  cacheDir: ".vite-website-demo",
-  build: { ...(baseConfig.build ?? {}), outDir: "dist-website-demo", emptyOutDir: true, rollupOptions: { ...(baseConfig.build?.rollupOptions ?? {}), input: { "website-demo": "website-demo.html" } } },
+  build: { ...(demoConfig.build ?? {}), outDir: "dist-website-demo", emptyOutDir: true, rollupOptions: { ...(demoConfig.build?.rollupOptions ?? {}), input: { "website-demo": "website-demo.html" } } },
 };
