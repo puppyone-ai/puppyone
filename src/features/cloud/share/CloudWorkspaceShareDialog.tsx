@@ -3,19 +3,23 @@ import { Check, Copy, Link2 } from "lucide-react";
 import { Tooltip } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
 import { DesktopDialogCloseButton, DesktopDialogRoot, DesktopDialogSurface } from "../../../components/DesktopDialog";
-import { getDesktopCloudWebUrl } from "../../../lib/cloudApi";
+import { getDesktopCloudWebUrl, type DesktopCloudSession } from "../../../lib/cloudApi";
 import { writeClipboardText } from "../../../lib/clipboard";
 import { DesktopOverlayLayer } from "../../../components/DesktopOverlayPortal";
 import { workspaceResourceUrl } from "../files/workspaceResourceUrl";
 import type { ProjectCloudContext } from "../project/context";
+import { CloudWorkspaceAgentShare } from "./CloudWorkspaceAgentShare";
 import { CloudWorkspaceSharePreview, type SharePreviewEntry } from "./CloudWorkspaceSharePreview";
 import "./workspace-share.css";
 import type { CloudWorkspaceShareResource } from "./cloudWorkspaceShareResource";
 
-export function CloudWorkspaceShareDialog({ context, resource, previewEntries, onClose }: {
+export function CloudWorkspaceShareDialog({ context, resource, previewEntries, session, apiBaseUrl, onClose }: {
   context: Extract<ProjectCloudContext, { status: "resolved" }>;
   previewEntries?: readonly SharePreviewEntry[];
   resource?: CloudWorkspaceShareResource | null;
+  /** An Agent connects to the live workspace, which only the whole project can offer. */
+  session?: DesktopCloudSession;
+  apiBaseUrl?: string;
   onClose: () => void;
 }) {
   const { t } = useLocalization();
@@ -40,6 +44,10 @@ export function CloudWorkspaceShareDialog({ context, resource, previewEntries, o
           <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton label={t("common.action.close")} onClick={onClose} /></Tooltip>
         </header>
         <div className="desktop-dialog-body">
+          {session && apiBaseUrl && context.target.kind === "project_root" && <CloudWorkspaceAgentShare
+            projectId={context.projectId} projectName={context.projectName || context.projectId}
+            session={session} apiBaseUrl={apiBaseUrl} />}
+          {url && session && <h3 className="desktop-cloud-share-people">{t("cloud.share.people.title")}</h3>}
           {url && <div className="desktop-cloud-share-link">
             <input aria-label={t("cloud.share.handoff.link")} readOnly value={url} dir="ltr" onFocus={event => event.currentTarget.select()} />
             <Tooltip content={t(copyLabel)}>

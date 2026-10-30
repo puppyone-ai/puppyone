@@ -28,7 +28,7 @@ export function CloudWorkspaceHeaderTools(props: Props) {
   return <ScopedCloudWorkspaceHeaderTools key={scope} {...props} />;
 }
 
-function ScopedCloudWorkspaceHeaderTools({ context, session, getShareResource, historyOpen = false, onToggleHistory, agentOpen = false, onToggleAgent }: Props) {
+function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, getShareResource, historyOpen = false, onToggleHistory, agentOpen = false, onToggleAgent }: Props) {
   const { t } = useLocalization();
   const [sharing, setSharing] = useState(false);
   const [shareResource, setShareResource] = useState<CloudWorkspaceShareResource | null | undefined>();
@@ -66,7 +66,8 @@ function ScopedCloudWorkspaceHeaderTools({ context, session, getShareResource, h
       </Tooltip>
     </div>
     {sharing && context?.status === "resolved" && session && <Suspense fallback={null}>
-      <ShareDialog context={context} resource={shareResource} onClose={() => setSharing(false)} />
+      <ShareDialog context={context} resource={shareResource} session={session} apiBaseUrl={apiBaseUrl}
+        onClose={() => setSharing(false)} />
     </Suspense>}
   </>;
 }
