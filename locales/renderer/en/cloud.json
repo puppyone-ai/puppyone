@@ -227,6 +227,8 @@
   "loading.matchingProject": "Matching Cloud project…",
   "loading.startingWorkspace": "Waking up…",
   "loading.files": "Taking out your files…",
+  "loading.filesHint": "Putting your project’s files in place.",
+  "loading.startingWorkspaceHint": "Starting your hosted workspace. This can take up to a minute.",
   "loading.project": "Loading project…",
   "loading.session": "Restoring Cloud session…",
   "project.available": "Available",

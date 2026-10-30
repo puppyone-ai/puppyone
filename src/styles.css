@@ -29,6 +29,7 @@
 @import "./styles/sidebar/patterns.css" layer(patterns);
 @import "./styles/settings.css" layer(features);
 @import "./styles/entry-state.css" layer(patterns);
+@import "./features/cloud/workbench/cloud-workspace-preparation.css" layer(features);
 @import "./features/cloud/cloud-service.css" layer(features);
 @import "./styles/settings-controls.css" layer(features);
 @import "./features/source-control/source-control.css" layer(features);

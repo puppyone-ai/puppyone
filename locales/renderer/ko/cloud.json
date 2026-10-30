@@ -227,6 +227,8 @@
   "loading.matchingProject": "Cloud 프로젝트 일치 확인 중…",
   "loading.startingWorkspace": "깨어나는 중…",
   "loading.files": "파일을 꺼내는 중…",
+  "loading.filesHint": "프로젝트 파일을 준비하는 중입니다.",
+  "loading.startingWorkspaceHint": "호스팅 작업 공간을 시작하는 중입니다. 최대 1분 정도 걸릴 수 있습니다.",
   "loading.project": "프로젝트 불러오는 중…",
   "loading.session": "Cloud 세션 복원 중…",
   "project.available": "사용 가능",

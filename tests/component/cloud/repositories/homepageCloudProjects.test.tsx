@@ -212,6 +212,26 @@ describe("inline Homepage Cloud projects", () => {
     expect(Object.keys(localStorage).some((key) => key.startsWith("puppyone.cloud-project-history"))).toBe(false);
   });
 
+  it("publishes the project and its progress while the workspace prepares, and drops both on cancel", async () => {
+    await render(); const listing = deferred<unknown>();
+    bridge.mockImplementation(async (request) => {
+      if (request.path.endsWith("/repository-context")) return { project: project("b"), target: { kind: "project_root", project_id: "b" } };
+      if (request.path.includes("/workbench/files")) return listing.promise;
+      throw new Error(`Unexpected ${request.path}`);
+    });
+    await click('[data-cloud-project-id="b"] .onboarding-project-row');
+    expect(account.openingTarget?.project_id).toBe("b");
+    expect(account.preparation?.projectName).toBe("Project b");
+    expect(account.preparation?.progress?.getSnapshot()).toBe("files");
+    expect(account.active).toBe(false);
+    await act(async () => account.cancel());
+    expect(account.opening).toBe(false);
+    expect(account.preparation).toBeNull();
+    await act(async () => listing.resolve({ entries: [] }));
+    expect(account.active).toBe(false);
+    expect(account.preparation).toBeNull();
+  });
+
   it.each([false, true])("covers pending local opens and restores interaction after failure (cards=%s)", async library => {
     const pending = deferred<void>(); openLocal.mockReturnValueOnce(pending.promise);
     await render({ library, enabled: false });

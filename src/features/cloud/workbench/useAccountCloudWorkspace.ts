@@ -6,10 +6,13 @@ import type { ProjectCloudContext } from "../project/context/projectCloudContext
 import type { RepositoryTarget } from "../repositoryTarget";
 import { createCloudDataService } from "../files/cloudDataPort";
 import type { CloudWorkspaceHandoff } from "../files/cloudWorkspaceHandoff";
+import type { CloudWorkspaceOpeningProgress } from "../files/cloudWorkspaceOpening";
 import { CloudOpeningError, describeCloudOpeningFailure, type CloudOpeningFailure } from "../cloudOpeningFailure";
 
 type ResolvedContext = Extract<ProjectCloudContext, { status: "resolved" }>;
 type Selection = { authority: string; context: ResolvedContext; prepared?: CloudWorkspaceHandoff };
+/** What the pending open has learned so far; it never grants the project surface. */
+type Preparation = { projectName: string; progress?: CloudWorkspaceOpeningProgress };
 const LOCAL: ProjectCloudContext = { status: "local-only", projectId: null };
 
 /** Hosted selection only. Homepage listing and Header association own separate navigation surfaces. */
@@ -26,6 +29,7 @@ export function useAccountCloudWorkspace({ enabled, session, apiBaseUrl }: {
   const [selection, setSelection] = useState<Selection | null>(null);
   const [location, setLocation] = useState<"local" | "cloud">("local");
   const [openingTarget, setOpeningTarget] = useState<RepositoryTarget | null>(null);
+  const [preparation, setPreparation] = useState<Preparation | null>(null);
   const [failure, setFailure] = useState<CloudOpeningFailure | null>(null);
   const error = failure ? "open" as const : null;
   const lastAttempt = useRef<RepositoryTarget | null>(null);
@@ -37,6 +41,7 @@ export function useAccountCloudWorkspace({ enabled, session, apiBaseUrl }: {
     // Revoke pending UI work on sign-out, account changes and environment changes.
     requestId.current++;
     setOpeningTarget(null);
+    setPreparation(null);
     setFailure(null);
     setSelection(null);
     lastAttempt.current = null;
@@ -47,6 +52,7 @@ export function useAccountCloudWorkspace({ enabled, session, apiBaseUrl }: {
     requestId.current++;
     lastAttempt.current = null;
     setOpeningTarget(null);
+    setPreparation(null);
     setFailure(null);
   }, []);
   const openTarget = useCallback(async (target: RepositoryTarget, canCommit: () => boolean = () => true, reportFailure = false) => {
@@ -56,6 +62,7 @@ export function useAccountCloudWorkspace({ enabled, session, apiBaseUrl }: {
     const id = ++requestId.current;
     const isCurrent = () => requestId.current === id && current.current.authority === captured.authority && canCommit();
     setOpeningTarget(target);
+    setPreparation(null);
     setFailure(null);
     let stage: "project" | "workspace" = "project";
     try {
@@ -71,6 +78,7 @@ export function useAccountCloudWorkspace({ enabled, session, apiBaseUrl }: {
         capabilities: result.project.capabilities ?? [] };
       stage = "workspace";
       const provider = createCloudDataService({ context: resolved, session: captured.session, apiBaseUrl, isCurrent });
+      setPreparation({ projectName: resolved.projectName || resolved.projectId, progress: provider.openingProgress });
       await provider.dataPort.listChildren(null);
       if (!isCurrent()) return;
       setSelection({ authority: captured.authority, context: resolved, prepared: provider.handoff?.() });
@@ -81,12 +89,12 @@ export function useAccountCloudWorkspace({ enabled, session, apiBaseUrl }: {
         setFailure(openingFailure);
         if (reportFailure) throw new CloudOpeningError(openingFailure);
       }
-    } finally { if (requestId.current === id) setOpeningTarget(null); }
+    } finally { if (requestId.current === id) { setOpeningTarget(null); setPreparation(null); } }
   }, [apiBaseUrl]);
   const useLocal = useCallback(() => { cancel(); setLocation("local"); }, [cancel]);
   return {
     active, context, prepared: selection?.authority === authority ? selection?.prepared : undefined,
-    openingTarget, opening: Boolean(openingTarget), error, failure,
+    openingTarget, opening: Boolean(openingTarget), preparation, error, failure,
     cancel, useLocal, openTarget,
     retry: () => { if (lastAttempt.current) return openTarget(lastAttempt.current); },
   };

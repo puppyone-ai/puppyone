@@ -33,6 +33,7 @@ import {
 } from "./features/settings";
 import { CLOUD_HUB_ENTRY_SECTION, type CloudWorkspaceSection } from "./features/cloud";
 import { useAccountCloudWorkspace } from "./features/cloud/workbench/useAccountCloudWorkspace";
+import { CloudProjectOpeningSurface } from "./app/CloudProjectOpeningSurface";
 import { CloudWorkspaceHeaderTools } from "./features/cloud/workbench/CloudWorkspaceHeaderTools";
 import { captureCloudWorkspaceShareResource } from "./features/cloud/share/cloudWorkspaceShareResource";
 import { useCloudAgentWorkspace } from "./features/cloud/agent/useCloudAgentWorkspace";
@@ -1636,6 +1637,14 @@ function AppContent() {
     projectRail={railOwnsProject && hostedWorkspace ? { ...projectRailLayout,
       renderLeadingRail: ({ expanded }) => renderProjectRail(hostedWorkspace, expanded) } : undefined}
     onCreateProject={openProjectLauncher} /> : null;
+  const cancelCloudOpening = () => { projectNavigation.cancel(); accountCloud.cancel(); };
+  const openingCloudProjectId = !workspace && !cloudWorkspaceActive ? accountCloud.openingTarget?.project_id : undefined;
+  const cloudOpeningSurface = openingCloudProjectId ? <CloudProjectOpeningSurface appearance={surfaceAppearance}
+    projectName={projectCatalog.items.find((item) => item.cloudProjectId === openingCloudProjectId)?.label
+      ?? accountCloud.preparation?.projectName ?? ""}
+    progress={accountCloud.preparation?.progress} onCancel={cancelCloudOpening}
+    projectRail={railOwnsProject ? { ...projectRailLayout, renderLeadingRail: ({ expanded }) => renderProjectRail(
+      nativeCloudWorkbench.surfaceService.workspace, expanded, openingCloudProjectId) } : undefined} /> : null;
   const missingCloudProjectReplaceable = Boolean(activeCloudSession) && projectCloudContext.status === "not-found"
     && canReplaceMissingCloudProject(projectCloudContext, activeGitStatus, desktopCloudApiBaseUrl);
   const cloudProjectNoticeState = cloudEnabled && workspace && focusedWorkspace?.path === workspace.path
@@ -1744,16 +1753,18 @@ function AppContent() {
       onOpenFolder={() => void openFolder()}
     />
   </DesktopOverlayPortal>;
+  const homepageHidden = cloudWorkspaceActive || Boolean(cloudOpeningSurface);
   const themeRuntime = (content: ReactNode) => (
     <SurfaceAppearanceProvider value={surfaceAppearance}>
       <div
         className={`desktop-theme-bootstrap-surface ${resolvedTheme === "dark" ? "dark" : ""}`}
         {...surfaceAppearance.rootProps}
       >
-        <div hidden={cloudWorkspaceActive} style={{ display: cloudWorkspaceActive ? "none" : "contents" }}>
+        <div hidden={homepageHidden} style={{ display: homepageHidden ? "none" : "contents" }}>
           {content}
         </div>
         {accountCloudSurface}
+        {cloudOpeningSurface}
         {projectNavigationOverlay}
         {projectEntryOverlay}
         {settingsOverlay}
@@ -1792,7 +1803,7 @@ function AppContent() {
         projectItems={projectCatalog.items}
         onOpenCloudProject={selectCloudProject}
         cloudOpening={accountCloud.opening}
-        onCancelCloudOpening={() => { projectNavigation.cancel(); accountCloud.cancel(); }}
+        onCancelCloudOpening={cancelCloudOpening}
         cloudAccountStatus={cloudEnabled ? <HomepageCloudStatus status={projectCatalog.status} restoring={cloudSessionRestoring} empty={projectCatalog.items.length === 0}
           session={activeCloudSession} onOpenAccount={() => openSettingsDialog("account")}
           apiBaseUrl={desktopCloudApiBaseUrl} controller={accountCloud} onRetry={projectCatalog.refresh} /> : undefined}
