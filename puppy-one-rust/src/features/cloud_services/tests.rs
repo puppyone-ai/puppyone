@@ -1153,6 +1153,234 @@ fn a_run_that_cannot_start_does_not_leave_the_share_waiting(cx: &mut TestAppCont
     assert!(matches!(phase_of(&view, cx), SharePhase::Failed));
 }
 
+/// How a Project's History answers: two commits on the first page, one more
+/// after the cursor. The snapshot and the failure are the test's to change.
+struct Paged {
+    snapshot: Mutex<String>,
+    failure: Mutex<Option<u16>>,
+}
+impl Paged {
+    fn new() -> Arc<Self> {
+        Arc::new(Self {
+            snapshot: Mutex::new("a".repeat(64)),
+            failure: Mutex::new(None),
+        })
+    }
+    fn answer(&self, r: &ApiRequest) -> services::Result<Value> {
+        let commit = |id: char, parents: Vec<String>, message: &str| {
+            json!({"commit_id": id.to_string().repeat(40), "parent_ids": parents, "who": "Ada",
+                "message": message, "changes": []})
+        };
+        let id = |c: char| c.to_string().repeat(40);
+        let continued = r.query.iter().any(|(k, v)| k == "cursor" && v == "next");
+        if continued && let Some(status) = *self.failure.lock().unwrap() {
+            return Err(services::Error::Status(status));
+        }
+        let snapshot = self.snapshot.lock().unwrap().clone();
+        Ok(if continued {
+            json!({"project_id": "p", "snapshot_id": snapshot, "refs_included": false,
+                "graph_health": "complete", "unreadable_commit_ids": [], "has_more": false,
+                "next_cursor": null, "total": 3, "refs": [], "head_commit_id": id('c'),
+                "commits": [commit('a', vec![], "First")]})
+        } else {
+            json!({"project_id": "p", "snapshot_id": snapshot, "refs_included": true,
+                "graph_health": "complete", "unreadable_commit_ids": [], "has_more": true,
+                "next_cursor": "next", "total": 3, "refs": [], "head_commit_id": id('c'),
+                "commits": [commit('c', vec![id('b')], "Third"),
+                            commit('b', vec![id('a')], "Second")]})
+        })
+    }
+}
+fn paged_cloud(paged: Arc<Paged>) -> Arc<Fake> {
+    fake(move |r| {
+        if r.path.ends_with("/commits") {
+            return paged.answer(r);
+        }
+        cloud("p")(r)
+    })
+}
+fn commits_of(view: &Entity<CloudServices>, cx: &mut VisualTestContext) -> usize {
+    view.read_with(cx, |s, _| {
+        s.details
+            .as_ref()
+            .unwrap()
+            .history
+            .as_ref()
+            .unwrap()
+            .commits
+            .len()
+    })
+}
+fn open_history(
+    cx: &mut TestAppContext,
+    paged: Arc<Paged>,
+) -> (Entity<CloudServices>, &mut VisualTestContext, Arc<Fake>) {
+    let f = paged_cloud(paged);
+    let (view, cx) = open(cx, f.clone(), Section::History);
+    let loaded = view.clone();
+    settle(cx, "the first page", &|cx| {
+        loaded.read_with(cx, |s, _| s.details.is_some() && !s.loading)
+    });
+    (view, cx, f)
+}
+
+#[gpui::test]
+fn load_more_adds_the_next_page_and_a_refresh_keeps_it(cx: &mut TestAppContext) {
+    let (view, cx, _f) = open_history(cx, Paged::new());
+    assert_eq!(commits_of(&view, cx), 2);
+    draw(cx);
+    view.update(cx, |s, cx| s.load_more_history(cx));
+    let loaded = view.clone();
+    settle(cx, "the next page", &|cx| commits_of(&loaded, cx) == 3);
+    view.read_with(cx, |s, _| {
+        let history = s.details.as_ref().unwrap().history.as_ref().unwrap();
+        assert!(!history.more());
+        assert!(!s.history_loading_more);
+    });
+    draw(cx);
+    // Saving anything rereads the Project; that must not collapse the list.
+    view.update(cx, |s, cx| s.refresh(cx));
+    let loaded = view.clone();
+    settle(cx, "the refresh", &|cx| {
+        loaded.read_with(cx, |s, _| !s.loading)
+    });
+    assert_eq!(commits_of(&view, cx), 3);
+}
+
+#[gpui::test]
+fn a_page_that_fails_says_so_and_can_be_asked_for_again(cx: &mut TestAppContext) {
+    let paged = Paged::new();
+    *paged.failure.lock().unwrap() = Some(503);
+    let (view, cx, _f) = open_history(cx, paged.clone());
+    view.update(cx, |s, cx| s.load_more_history(cx));
+    let loaded = view.clone();
+    settle(cx, "the failure", &|cx| {
+        loaded.read_with(cx, |s, _| s.history_more_failed)
+    });
+    assert_eq!(commits_of(&view, cx), 2);
+    view.read_with(cx, |s, _| {
+        assert!(!s.history_loading_more);
+        let history = s.details.as_ref().unwrap().history.as_ref().unwrap();
+        assert!(history.more());
+    });
+    draw(cx);
+    *paged.failure.lock().unwrap() = None;
+    view.update(cx, |s, cx| s.load_more_history(cx));
+    view.read_with(cx, |s, _| assert!(!s.history_more_failed));
+    let loaded = view.clone();
+    settle(cx, "the next page", &|cx| commits_of(&loaded, cx) == 3);
+}
+
+/// Whichever way the server says the snapshot is over, the list starts again
+/// from a first page, not from a stale cursor.
+#[gpui::test]
+fn a_history_that_moved_starts_over_from_the_first_page(cx: &mut TestAppContext) {
+    let paged = Paged::new();
+    let (view, cx, f) = open_history(cx, paged.clone());
+    let first_reads = |f: &Fake| f.count("GET", "/content/p/commits");
+    let before = first_reads(&f);
+    *paged.snapshot.lock().unwrap() = "b".repeat(64);
+    view.update(cx, |s, cx| s.load_more_history(cx));
+    let loaded = view.clone();
+    settle(cx, "the new snapshot", &|cx| {
+        loaded.read_with(cx, |s, _| {
+            let history = s.details.as_ref().unwrap().history.as_ref().unwrap();
+            !s.loading && history.snapshot == "b".repeat(64)
+        })
+    });
+    assert_eq!(commits_of(&view, cx), 2);
+    // Next page, then the fresh first page.
+    assert_eq!(first_reads(&f), before + 2);
+    view.read_with(cx, |s, _| assert!(!s.history_more_failed));
+}
+
+/// A 409 keeps the snapshot id the list already has, so only the restart
+/// flag can stop the refresh from keeping the stale pages and their cursor.
+#[gpui::test]
+fn a_refused_cursor_restarts_even_on_the_same_snapshot(cx: &mut TestAppContext) {
+    let paged = Paged::new();
+    let (view, cx, f) = open_history(cx, paged.clone());
+    view.update(cx, |s, cx| s.load_more_history(cx));
+    let loaded = view.clone();
+    settle(cx, "the next page", &|cx| commits_of(&loaded, cx) == 3);
+    // The whole list is in: go back to a first page with a cursor to refuse.
+    view.update(cx, |s, cx| s.restart_history(cx));
+    let loaded = view.clone();
+    settle(cx, "the first page", &|cx| {
+        loaded.read_with(cx, |s, _| !s.loading) && commits_of(&loaded, cx) == 2
+    });
+    *paged.failure.lock().unwrap() = Some(409);
+    let before = f.count("GET", "/content/p/commits");
+    view.update(cx, |s, cx| s.load_more_history(cx));
+    let loaded = view.clone();
+    settle(cx, "the restart", &|cx| {
+        f.count("GET", "/content/p/commits") == before + 2
+            && loaded.read_with(cx, |s, _| !s.loading && !s.history_loading_more)
+    });
+    view.read_with(cx, |s, _| {
+        assert!(!s.history_more_failed);
+        assert!(!s.history_restart);
+    });
+    assert_eq!(commits_of(&view, cx), 2);
+}
+
+/// A page answered after the dialog moved on belongs to nobody: its failure
+/// must not be said about the next Project.
+#[gpui::test]
+fn a_late_page_is_not_the_next_projects_failure(cx: &mut TestAppContext) {
+    let paged = Paged::new();
+    *paged.failure.lock().unwrap() = Some(503);
+    let (view, cx, f) = open_history(cx, paged);
+    view.update(cx, |s, cx| {
+        s.load_more_history(cx);
+        s.close(cx);
+        s.open_with(Client::new(f), "p".into(), Section::History, cx);
+    });
+    let loaded = view.clone();
+    settle(cx, "the next opening", &|cx| {
+        loaded.read_with(cx, |s, _| s.details.is_some() && !s.loading)
+    });
+    cx.run_until_parked();
+    view.read_with(cx, |s, _| assert!(!s.history_more_failed));
+}
+
+/// Pressing twice, or while the Project rereads, asks for one page at most.
+#[gpui::test]
+fn load_more_asks_for_one_page_at_a_time(cx: &mut TestAppContext) {
+    let (view, cx, f) = open_history(cx, Paged::new());
+    let before = f.count("GET", "/content/p/commits");
+    view.update(cx, |s, cx| {
+        s.load_more_history(cx);
+        s.load_more_history(cx);
+    });
+    let loaded = view.clone();
+    settle(cx, "the next page", &|cx| commits_of(&loaded, cx) == 3);
+    assert_eq!(f.count("GET", "/content/p/commits"), before + 1);
+}
+
+/// New commits mean a new snapshot: a plain refresh shows them, and the pages
+/// of the old snapshot go rather than mixing with the new first page.
+#[gpui::test]
+fn a_refresh_on_a_new_snapshot_replaces_the_loaded_pages(cx: &mut TestAppContext) {
+    let paged = Paged::new();
+    let (view, cx, _f) = open_history(cx, paged.clone());
+    view.update(cx, |s, cx| s.load_more_history(cx));
+    let loaded = view.clone();
+    settle(cx, "the next page", &|cx| commits_of(&loaded, cx) == 3);
+    *paged.snapshot.lock().unwrap() = "b".repeat(64);
+    view.update(cx, |s, cx| s.refresh(cx));
+    let loaded = view.clone();
+    settle(cx, "the refresh", &|cx| {
+        loaded.read_with(cx, |s, _| !s.loading)
+    });
+    view.read_with(cx, |s, _| {
+        let history = s.details.as_ref().unwrap().history.as_ref().unwrap();
+        assert_eq!(history.snapshot, "b".repeat(64));
+        assert_eq!(history.commits.len(), 2);
+        assert!(history.more());
+    });
+}
+
 /// A billing Cloud: one quote, then an operation the test ends.
 struct Billed {
     keys: Mutex<Vec<(String, Option<String>)>>,

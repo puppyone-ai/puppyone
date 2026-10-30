@@ -146,6 +146,18 @@ fn read_history(client: &Client, id: &str) -> services::Result<history::History>
         .map_err(|_| services::Error::Invalid("history"))
 }
 
+/// The page after `cursor`, of the snapshot the first page began.
+fn read_history_page(
+    client: &Client,
+    id: &str,
+    cursor: &str,
+) -> services::Result<history::History> {
+    let request =
+        history::page_request(id, Some(cursor)).ok_or(services::Error::Invalid("history"))?;
+    history::parse_page(&client.raw(request)?, id, true)
+        .map_err(|_| services::Error::Invalid("history"))
+}
+
 /// `useCloudOrganizationData`.
 #[derive(Clone, Debug, Default)]
 pub struct Team {
@@ -289,6 +301,14 @@ pub struct CloudServices {
     pending_epoch: u64,
     /// Drops a share list that a newer read or Project replaced.
     shares_epoch: u64,
+    /// `loadingMore` of the History page.
+    history_loading_more: bool,
+    /// `history-load-more-failed`.
+    history_more_failed: bool,
+    /// Drops a page that a newer one or another Project replaced.
+    history_epoch: u64,
+    /// The next refresh starts the list over instead of keeping its pages.
+    history_restart: bool,
     /// The Project's first publication, as the Shell last reported it.
     publication: Publication,
     /// `publishRequestedRef`: this share asked for the run in progress, so
@@ -340,6 +360,10 @@ impl CloudServices {
             pending_share: None,
             pending_epoch: 0,
             shares_epoch: 0,
+            history_loading_more: false,
+            history_more_failed: false,
+            history_epoch: 0,
+            history_restart: false,
             publication: Publication::Clear,
             publish_requested: false,
             publish_failure: None,
@@ -487,6 +511,10 @@ impl CloudServices {
         self.shares_epoch += 1;
         self.pending_epoch += 1;
         self.publish_requested = false;
+        self.history_epoch += 1;
+        self.history_loading_more = false;
+        self.history_more_failed = false;
+        self.history_restart = false;
         self.stop_failed = false;
         self.billing.reset();
         self.notice = None;
@@ -555,7 +583,15 @@ impl CloudServices {
                         details.endpoints = known.endpoints;
                     }
                     details.dashboard = details.dashboard.or(known.dashboard);
+                    // Loaded pages stand until the history itself moves on.
+                    if !s.history_restart
+                        && let (Some(fresh), Some(loaded)) = (&details.history, &known.history)
+                        && fresh.snapshot == loaded.snapshot
+                    {
+                        details.history = known.history;
+                    }
                 }
+                s.history_restart = false;
                 s.details = Some(details);
                 s.loading = false;
                 s.settle_pending(cx);
@@ -567,6 +603,64 @@ impl CloudServices {
             .ok();
         })
         .detach();
+    }
+    /// `loadMore` of `useCloudHistoryData`: a page merges only into the
+    /// snapshot it continues. A snapshot that moved starts over from the
+    /// first page; any other failure says so and leaves the list as it was.
+    fn load_more_history(&mut self, cx: &mut Context<Self>) {
+        let (Some(client), Some(project)) = (self.client.clone(), self.project.clone()) else {
+            return;
+        };
+        let Some(current) = self.details.as_ref().and_then(|d| d.history.clone()) else {
+            return;
+        };
+        let Some(cursor) = current.next_cursor.clone().filter(|_| current.more()) else {
+            return;
+        };
+        if self.loading || self.history_loading_more {
+            return;
+        }
+        self.history_epoch += 1;
+        let epoch = self.history_epoch;
+        self.history_loading_more = true;
+        self.history_more_failed = false;
+        cx.notify();
+        let task =
+            cx.background_spawn(async move { read_history_page(&client, &project, &cursor) });
+        cx.spawn(async move |this, cx| {
+            let page = task.await;
+            this.update(cx, |s, cx| {
+                if s.history_epoch != epoch {
+                    return;
+                }
+                s.history_loading_more = false;
+                match page {
+                    Ok(page) => match history::merge(&current, page) {
+                        Ok(merged) => {
+                            if let Some(details) = &mut s.details
+                                && details
+                                    .history
+                                    .as_ref()
+                                    .is_some_and(|h| h.snapshot == current.snapshot)
+                            {
+                                details.history = Some(merged);
+                            }
+                        }
+                        Err(history::SnapshotChanged) => s.restart_history(cx),
+                    },
+                    // `isHistorySnapshotRestartError`.
+                    Err(services::Error::Status(409)) => s.restart_history(cx),
+                    Err(_) => s.history_more_failed = true,
+                }
+                cx.notify();
+            })
+            .ok();
+        })
+        .detach();
+    }
+    fn restart_history(&mut self, cx: &mut Context<Self>) {
+        self.history_restart = true;
+        self.refresh(cx);
     }
     fn fill_settings(&mut self, cx: &mut Context<Self>) {
         let Some(project) = self.details.as_ref().and_then(|d| d.project.clone()) else {
@@ -2735,6 +2829,7 @@ impl CloudServices {
         };
         let rows = graph::rows(&history);
         let width = graph::width(&rows);
+        let more = history.more();
         let list = v_flex()
             .id("cloud-history-list")
             .w(px(380.))
@@ -2782,7 +2877,28 @@ impl CloudServices {
                             .text_color(t.muted)
                             .child(label.name.clone())
                     }))
-            }));
+            }))
+            .when(self.history_more_failed, |list| {
+                list.child(
+                    div()
+                        .px(px(8.))
+                        .py(px(6.))
+                        .text_size(px(ty.caption))
+                        .text_color(t.danger)
+                        .child(tr("cloud.message.history-load-more-failed")),
+                )
+            })
+            .when(more, |list| {
+                list.child(
+                    h_flex().justify_center().py(px(8.)).child(
+                        Button::new("cloud-history-more")
+                            .variant(ButtonVariant::Secondary)
+                            .label(tr("cloud.common.loadMore"))
+                            .disabled(self.history_loading_more)
+                            .on_click(cx.listener(|s, _, _, cx| s.load_more_history(cx))),
+                    ),
+                )
+            });
         let detail = v_flex()
             .flex_1()
             .min_w_0()

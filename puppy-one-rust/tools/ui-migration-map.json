@@ -1632,7 +1632,7 @@
         "test:a_merge_opens_a_lane_and_closes_it_at_the_common_parent",
         "test:refs_become_markers_beside_the_graph_and_outside_heads_get_their_own_rows"
       ],
-      "remaining": "Local Git topology (gitTopology.ts) is not used in the dialog, and pagination of the graph is first page only; no pixel comparison."
+      "remaining": "Local Git topology (gitTopology.ts) is not used in the dialog; no pixel comparison."
     },
     {
       "name": "Cloud services dialog",
