@@ -782,8 +782,7 @@ impl Documents {
                 let ctx = ctx.clone();
                 // `EditorDocumentHost`: a content viewer admits at most its own
                 // `maxSourceBytes`, never more than the provider's text bound.
-                let budget = crate::editor::registry::source_budget(&path.to_string_lossy())
-                    .min(ws.text_limit() as u64);
+                let budget = read_budget(&path.to_string_lossy(), &ws);
                 let owner = crate::platform::tasks::Owner::new(
                     self.task_scope.clone(),
                     path.to_string_lossy(),
@@ -1257,5 +1256,11 @@ impl Documents {
         }
     }
 }
+/// `EditorDocumentHost` admission: the resolved viewer's `maxSourceBytes`,
+/// never more than the provider's text bound (8 MiB in Cloud).
+pub(crate) fn read_budget(path: &str, workspace: &crate::workspace::Workspace) -> u64 {
+    crate::editor::registry::source_budget(path).min(workspace.text_limit() as u64)
+}
+
 #[cfg(test)]
 mod tests;
