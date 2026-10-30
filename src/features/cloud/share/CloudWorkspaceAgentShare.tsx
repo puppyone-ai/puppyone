@@ -65,7 +65,8 @@ export function CloudWorkspaceAgentShare({ projectId, projectName, session, apiB
   const copy = async () => {
     setStatus("copying");
     try {
-      const url = await createAgentLink(session, projectId, admission, apiBaseUrl);
+      const url = await createAgentLink(session, projectId,
+        inventory.open_links_enabled ? admission : "sign_in", apiBaseUrl);
       await writeClipboardText(agentConnectMessage(projectName, url));
       if (!mounted.current) return;
       setStatus("copied");
@@ -95,8 +96,11 @@ export function CloudWorkspaceAgentShare({ projectId, projectName, session, apiB
   return <section className="desktop-cloud-agent-share" aria-label={t("cloud.share.agent.title")}>
     <h3>{t("cloud.share.agent.title")}</h3>
     {/* Both consequences stay on screen: this is a choice about who gets in, so
-        what each one means has to be readable before picking it, not after. */}
-    <div className="desktop-cloud-agent-options" role="radiogroup" aria-label={t("cloud.share.agent.title")}>
+        what each one means has to be readable before picking it, not after.
+        With open links closed there is no choice, so nothing asks for one. */}
+    {!inventory.open_links_enabled
+      ? <p className="desktop-cloud-agent-note">{t(OPTION_TEXT.sign_in.description)}</p>
+      : <div className="desktop-cloud-agent-options" role="radiogroup" aria-label={t("cloud.share.agent.title")}>
       {ADMISSIONS.map(option => <button key={option} type="button" role="radio"
         ref={element => { options.current[option] = element; }}
         aria-checked={admission === option} tabIndex={admission === option ? 0 : -1}
@@ -106,7 +110,7 @@ export function CloudWorkspaceAgentShare({ projectId, projectName, session, apiB
         <span className="desktop-cloud-agent-option-label">{t(OPTION_TEXT[option].label)}</span>
         <span className="desktop-cloud-agent-option-description">{t(OPTION_TEXT[option].description)}</span>
       </button>)}
-    </div>
+    </div>}
     <button type="button" className="desktop-dialog-button primary desktop-cloud-agent-share-copy"
       disabled={status === "copying"} onClick={() => void copy()}>
       {status === "copied" ? <Check size={15} aria-hidden="true" /> : <Copy size={15} aria-hidden="true" />}

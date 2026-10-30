@@ -17,7 +17,7 @@ const LINK = "https://cloud-fixture.puppyone.ai/agent/pai_fixture";
 const agent = { id: "c1", name: "Claude Code", admission: "sign_in", grant_id: "g1",
   connected_at: "2026-10-30T00:00:00Z", expires_at: null };
 let root: Root;
-let inventory: { links: unknown[]; connections: unknown[] };
+let inventory: { links: unknown[]; connections: unknown[]; open_links_enabled?: boolean };
 let created: { admission: string; workbench_id: string; secret: string }[];
 let denied: boolean;
 
@@ -52,7 +52,37 @@ beforeEach(() => {
 afterEach(() => { act(() => root.unmount()); document.body.replaceChildren(); vi.clearAllMocks(); });
 
 describe("Connecting an agent from Share", () => {
+  it("offers no choice while the deployment keeps open links closed", async () => {
+    await render();
+    expect(document.querySelector('[role="radiogroup"]')).toBeNull();
+    expect(document.querySelector('[data-agent-admission="link"]')).toBeNull();
+    expect(document.body.textContent).toContain("sign-in link");
+    await act(async () => primary().click());
+    expect(created[0].admission).toBe("sign_in");
+  });
+
+  it("keeps open links closed when an older server does not say", async () => {
+    inventory = { links: [], connections: [] };
+    await render();
+    expect(document.body.textContent).not.toContain("Any agent with the link");
+  });
+
+  it("falls back to sign-in when open links close while the dialog is open", async () => {
+    vi.useFakeTimers();
+    try {
+      inventory = { links: [], connections: [], open_links_enabled: true };
+      await render();
+      await act(async () => select('[data-agent-admission="link"]').click());
+      inventory = { links: [], connections: [], open_links_enabled: false };
+      await act(async () => { await vi.advanceTimersByTimeAsync(5_000); });
+      expect(document.querySelector('[data-agent-admission="link"]')).toBeNull();
+      await act(async () => primary().click());
+      expect(created[0].admission).toBe("sign_in");
+    } finally { vi.useRealTimers(); }
+  });
+
   it("defaults to the choice that needs the owner's sign-in and creates nothing until asked", async () => {
+    inventory = { links: [], connections: [], open_links_enabled: true };
     await render();
     expect(select('[data-agent-admission="sign_in"]').getAttribute("aria-checked")).toBe("true");
     expect(document.body.textContent).toContain("sign-in link");
@@ -99,6 +129,7 @@ describe("Connecting an agent from Share", () => {
   });
 
   it("states the risk of any agent with the link before it is chosen", async () => {
+    inventory = { links: [], connections: [], open_links_enabled: true };
     await render();
     expect(select('[data-agent-admission="link"]').textContent).toContain("run commands and edit every file");
     await act(async () => select('[data-agent-admission="link"]').click());
@@ -109,6 +140,7 @@ describe("Connecting an agent from Share", () => {
   });
 
   it("moves between the two choices with the arrow keys, as one tab stop", async () => {
+    inventory = { links: [], connections: [], open_links_enabled: true };
     await render();
     const approved = select('[data-agent-admission="sign_in"]');
     const anyone = select('[data-agent-admission="link"]');

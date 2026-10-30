@@ -12,6 +12,8 @@ export type ConnectedAgent = Readonly<{
 }>;
 export type AgentLinkInventory = Readonly<{
   links: readonly Readonly<{ id: string; admission: AgentAdmission; expires_at: string }>[];
+  /** The deployment decides whether a link may admit without sign-in. Absent means no. */
+  open_links_enabled?: boolean;
   connections: readonly ConnectedAgent[];
 }>;
 
