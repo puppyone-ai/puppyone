@@ -35,6 +35,7 @@ import { CLOUD_HUB_ENTRY_SECTION, type CloudWorkspaceSection } from "./features/
 import { useAccountCloudWorkspace } from "./features/cloud/workbench/useAccountCloudWorkspace";
 import { CloudProjectOpeningSurface } from "./app/CloudProjectOpeningSurface";
 import { CloudWorkspaceHeaderTools } from "./features/cloud/workbench/CloudWorkspaceHeaderTools";
+import { CloudWorkspaceAgentPeople } from "./app/CloudWorkspaceAgentPeople";
 import { captureCloudWorkspaceShareResource } from "./features/cloud/share/cloudWorkspaceShareResource";
 import { useCloudAgentWorkspace } from "./features/cloud/agent/useCloudAgentWorkspace";
 import { CloudWorkspaceSidebar } from "./features/cloud/workbench/CloudWorkspaceSidebar";
@@ -1964,7 +1965,8 @@ function AppContent() {
         getShareResource={() => captureCloudWorkspaceShareResource(nativeCloudWorkbench)}
         session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl} onSessionChange={updateCloudSession}
         historyOpen={cloudSidebar.historyOpen} onToggleHistory={cloudSidebar.toggleHistory}
-        agentOpen={cloudAgent.open} onToggleAgent={cloudWorkspaceActive ? cloudSidebar.toggleAgent : undefined} />}
+        agentOpen={cloudAgent.open} onToggleAgent={cloudWorkspaceActive ? cloudSidebar.toggleAgent : undefined}
+        renderPeople={people => <CloudWorkspaceAgentPeople {...people} />} />}
       {/* Who can reach the project sits where every application puts the
           people in a document: the right of the Header, ahead of the tools.
           It opens the same panel as the place control, so it is one entry

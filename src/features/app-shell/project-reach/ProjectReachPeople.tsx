@@ -19,12 +19,17 @@ import "./reach-header.css";
  * who has never shared anything, which is exactly what this product refuses
  * to do.
  */
-export type ProjectReachPeopleProps = ReachPanelContext;
+export type ProjectReachPeopleProps = ReachPanelContext & {
+  /** Where another surface already owns the list, the marks go there instead of to the panel. */
+  onOpen?: () => void;
+  /** Where the members work in the project rather than read it, "sees your version" is not true. */
+  statement?: string;
+};
 
 /** Enough faces to recognize the room; the rest are a count. */
 const VISIBLE_MEMBER_LIMIT = 3;
 
-export function ProjectReachPeople(context: ProjectReachPeopleProps) {
+export function ProjectReachPeople({ onOpen, statement, ...context }: ProjectReachPeopleProps) {
   const { t } = useLocalization();
   const { state } = context;
   const [open, setOpen] = useState(false);
@@ -41,16 +46,16 @@ export function ProjectReachPeople(context: ProjectReachPeopleProps) {
   const overflow = ordered.length - visible.length;
   return (
     <div className="desktop-titlebar-reach-people-wrap">
-      <Tooltip content={freshness}>
+      <Tooltip content={statement ?? freshness}>
         <button
           ref={anchor}
           type="button"
           className="desktop-titlebar-reach-people"
           data-reach-state={state.kind}
           aria-haspopup="dialog"
-          aria-expanded={open}
+          aria-expanded={onOpen ? undefined : open}
           aria-label={summary}
-          onClick={() => setOpen((value) => !value)}
+          onClick={onOpen ?? (() => setOpen((value) => !value))}
         >
           {visible.map((member) => <ReachMemberMark key={member.id} member={member} />)}
           {overflow > 0 && (

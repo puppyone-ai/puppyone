@@ -178,6 +178,7 @@
   "projectReach.freshness.waiting": "{name} ainda não abriu",
   "projectReach.freshness.reading": "{name} está lendo este projeto agora",
   "projectReach.freshness.writing": "{name} está fazendo alterações agora",
+  "projectReach.freshness.working": "{name} está trabalhando neste projeto agora",
   "projectReach.freshness.attention": "Não é possível confirmar o acesso agora",
   "projectReach.freshness.notOnThisDevice": "Você pode ler como está; para alterar, precisa de uma cópia aqui",
   "projectReach.invitePerson": "Convidar uma pessoa",

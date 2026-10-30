@@ -15,6 +15,15 @@ export type AgentLinkInventory = Readonly<{
   connections: readonly ConnectedAgent[];
 }>;
 
+/** One connection to the workspace. An Agent opens one for each command it runs. */
+export type AgentSession = Readonly<{
+  grant_id: string;
+  state: "active" | "stopping" | "closed";
+  created_at: string;
+  closed_at: string | null;
+  lease_until: string;
+}>;
+
 const projectPath = (projectId: string) => `/projects/${encodeURIComponent(projectId)}`;
 
 function invitationSecret() {
@@ -37,6 +46,10 @@ export async function createAgentLink(session: DesktopCloudSession, projectId: s
 
 export function listAgentLinks(session: DesktopCloudSession, projectId: string, apiBaseUrl: string) {
   return cloudApiRequest<AgentLinkInventory>(`${projectPath(projectId)}/agent-links`, session, undefined, {}, apiBaseUrl);
+}
+
+export function listAgentSessions(session: DesktopCloudSession, projectId: string, apiBaseUrl: string) {
+  return cloudApiRequest<readonly AgentSession[]>(`${projectPath(projectId)}/access/sessions`, session, undefined, {}, apiBaseUrl);
 }
 
 export function removeConnectedAgent(session: DesktopCloudSession, projectId: string, grantId: string, apiBaseUrl: string) {

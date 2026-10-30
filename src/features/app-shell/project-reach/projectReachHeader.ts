@@ -11,8 +11,10 @@ export type ReachPlace = "this-device" | "cloud";
  * Mirrors the Agent file-presence contract (`reading` / `writing`) so an active
  * destination can be stated as activity instead of a residency claim. The
  * presence domain owns the facts; this is only how the Header renders them.
+ * `working` is an Agent with a shell: the product knows it is there, not which
+ * of the two it is doing.
  */
-export type ReachActivityKind = "reading" | "writing";
+export type ReachActivityKind = "reading" | "writing" | "working";
 
 export type ReachActivity = Readonly<{ kind: ReachActivityKind; label: string }>;
 

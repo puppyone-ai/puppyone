@@ -58,6 +58,8 @@ const presentation = (location) => evaluate(`(async () => {
     footer: sample(".desktop-sidebar-footer-bar"), row: sample(".tree-row-content"), code: sample(".cm-editor") };
 })()`);
 const state = () => evaluate("window.__nativeCloudWorkbenchSmoke.state()");
+// The Header and Share keep the Agent list current by themselves, whatever else is happening.
+const workspaceRequests = async () => (await state()).requests.filter(path => !/\/(agent-links|access\/sessions)$/.test(path));
 const waitFor = async (expression) => {
   const deadline = Date.now() + 15_000;
   while (Date.now() < deadline) { if (await evaluate(expression)) return; await new Promise((resolve) => setTimeout(resolve, 50)); }
@@ -589,22 +591,28 @@ app.whenReady().then(async () => {
     'Cloud tool pages must load only when the user opens a ready CTA');
   assert(await evaluate("!document.querySelector('[data-cloud-workspace-tool=automation], [data-cloud-workspace-tool=connect]')"),
     'Cloud Header exposes Share, History and Agent');
-  const beforeSharing = (await state()).requests.length;
+  await waitFor("Boolean(document.querySelector('.desktop-titlebar-reach-people .desktop-project-reach-mark[data-reach-activity=working]'))");
+  assert(await evaluate(`(() => {
+    const people = document.querySelector('.desktop-titlebar-reach-people').getBoundingClientRect();
+    const share = document.querySelector('[data-cloud-workspace-tool=share]').getBoundingClientRect();
+    return people.height > 0 && people.right <= share.left && people.top >= 0 && people.bottom <= document.querySelector('.desktop-titlebar').getBoundingClientRect().bottom;
+  })()`), 'An active Agent stands in the Header ahead of Share, inside the Header');
+  const beforeSharing = (await workspaceRequests()).length;
   await evaluate("document.querySelector('[data-cloud-workspace-tool=share]').click()");
   await waitFor("Boolean(document.querySelector('.desktop-cloud-workspace-share input'))");
   // The link covers what the user is looking at (2b347d52): the canonical
   // project URL, narrowed to the open file when one is open.
   assert(await evaluate("/\\/11111111-1111-4111-8111-111111111111\\/(?:readme\\.txt)?$/.test(document.querySelector('.desktop-cloud-workspace-share input').value)"),
     'Workspace sharing must expose its canonical human URL for what is being viewed');
-  assert((await state()).requests.length === beforeSharing, 'Sharing a URL must not issue Cloud API requests');
+  assert((await workspaceRequests()).length === beforeSharing, 'Sharing a URL must not issue Cloud API requests');
   await captureSettledDialog('cloud-share', '.desktop-cloud-workspace-share');
   await evaluate("document.querySelector('.desktop-cloud-workspace-share .desktop-dialog-icon-button').click()");
   await evaluate("document.querySelector('[data-cloud-workspace-tool=history]').click()");
   await waitFor("document.querySelector('.desktop-cloud-workspace-history')?.textContent.includes('Update research notes')");
-  const beforeDetail = (await state()).requests.length;
+  const beforeDetail = (await workspaceRequests()).length;
   await evaluate("document.querySelector('.desktop-cloud-workspace-history .desktop-history-row').click()");
   await waitFor("Boolean(document.querySelector('.desktop-cloud-workspace-history .desktop-commit-detail'))");
-  assert((await state()).requests.length === beforeDetail, 'Commit details must reuse the history response');
+  assert((await workspaceRequests()).length === beforeDetail, 'Commit details must reuse the history response');
   await writeFile(path.join(artifacts, 'cloud-history.png'), (await window.webContents.capturePage()).toPNG());
   await evaluate("document.querySelector('.desktop-cloud-workspace-history button[aria-label=Close]').click()");
   for (const width of [1100, 640]) for (const theme of ["light", "dark"]) {

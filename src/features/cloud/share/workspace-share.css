@@ -44,7 +44,8 @@
   .desktop-cloud-agent-share-stop:focus-visible { outline: 2px solid var(--po-accent); outline-offset: 1px; }
   .desktop-cloud-agent-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
   .desktop-cloud-agent-list li { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: var(--po-control-size-compact); }
-  .desktop-cloud-agent-lamp { flex-shrink: 0; width: 6px; height: 6px; border-radius: 50%; background: var(--po-success); }
+  .desktop-cloud-agent-lamp { flex-shrink: 0; width: 6px; height: 6px; border-radius: 50%; background: var(--po-text-disabled); }
+  .desktop-cloud-agent-lamp[data-active] { background: var(--po-success); }
   .desktop-cloud-agent-name { flex: 1; min-width: 0; overflow: hidden; color: var(--po-text); font-size: var(--po-type-ui-meta, 13px); text-overflow: ellipsis; white-space: nowrap; }
   .desktop-cloud-agent-expiry { flex-shrink: 0; color: var(--po-text-muted); font-size: var(--po-type-ui-meta, 13px); }
   .desktop-cloud-agent-list button { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: var(--po-control-size-tight, 24px); height: var(--po-control-size-tight, 24px); margin-inline-end: -4px; border: 0; border-radius: 6px; background: transparent; color: var(--po-text-subtle); }

@@ -32,6 +32,8 @@ const button = tool => `document.querySelector('[data-cloud-workspace-tool=${too
 async function exercise(hosted) {
   const mode = hosted ? "account" : "native";
   const api = hosted ? "window.__accountCloudSmoke" : "window.__nativeCloudWorkbenchSmoke";
+  // The Header and Share keep the Agent list current by themselves, whatever else is happening.
+  const workspaceRequests = `${api}.state().requests.filter(path => !/\\/(agent-links|access\\/sessions)$/.test(path)).length`;
   await window.loadURL("about:blank");
   await window.loadURL(`${pathToFileURL(path.join(repo, "dist/index.html")).href}#${mode}-cloud-workbench-smoke`);
   await waitFor(`Boolean(${api})`);
@@ -51,11 +53,11 @@ async function exercise(hosted) {
     await evaluate(`${api}.setLoginAppearance('light', 'en')`);
     await evaluate("[...document.querySelectorAll('.data-content .tree-row.file')].find(row => row.getBoundingClientRect().width > 0 && row.dataset.explorerPath.endsWith('/cloud-only.md')).click()");
     await waitFor("[...document.querySelectorAll('.data-content .cm-content')].some(content => content.textContent.includes('Cloud only'))");
-    const before = await evaluate(`${api}.state().requests.length`);
+    const before = await evaluate(workspaceRequests);
     await evaluate(`${button("share")}.click()`);
     await waitFor("Boolean(document.querySelector('.desktop-cloud-workspace-share input'))");
     assert(await evaluate("document.querySelector('.desktop-cloud-workspace-share input').value === 'https://app-fixture.puppyone.ai/11111111-1111-4111-8111-111111111111/cloud-only.md'"), "Share must show the current document's human URL");
-    assert(await evaluate(`${api}.state().requests.length === ${before}`), "Sharing must make zero Cloud requests");
+    assert(await evaluate(`${workspaceRequests} === ${before}`), "Sharing must make zero Cloud requests");
     await waitFor("Boolean(document.querySelector('.desktop-cloud-share-preview-window'))");
     assert(await evaluate("Boolean(document.querySelector('.desktop-cloud-share-preview-window [data-explorer-path=\"puppyone-preview://share/notes.md\"]'))"), "Share preview uses cached real file names");
     assert(await evaluate("!document.querySelector('.desktop-cloud-share-preview-heading, .desktop-cloud-workspace-share .desktop-dialog-footer')"), "Share contains only link/copy row and preview illustration");
@@ -68,7 +70,7 @@ async function exercise(hosted) {
       const nativeStyles = await evaluate("(() => { const preview = document.querySelector('.desktop-cloud-share-preview-window .tree-row.file'); const actual = [...document.querySelectorAll('.data-content .tree-row.file')].find(row => !row.closest('.desktop-cloud-share-preview-window') && row.getBoundingClientRect().width > 0); const a = getComputedStyle(actual); const b = getComputedStyle(preview); return Object.fromEntries(['fontSize', 'fontWeight', 'lineHeight', 'height', 'borderRadius', 'color', 'paddingLeft', 'paddingRight'].map(key => [key, { actual:a[key], preview:b[key] }])); })()");
       assert(Object.values(nativeStyles).every(value => value.actual === value.preview), `Miniature rows inherit the exact ${theme} product Explorer styles before uniform scaling: ${JSON.stringify(nativeStyles)}`);
     }
-    assert(await evaluate(`${api}.state().requests.length === ${before}`), "Rendering the actual Viewer must add no Cloud requests");
+    assert(await evaluate(`${workspaceRequests} === ${before}`), "Rendering the actual Viewer must add no Cloud requests");
     window.setSize(640, 520);
     await evaluate("new Promise(resolve => setTimeout(resolve, 350))");
     assert(await evaluate("(() => { const r = document.querySelector('.desktop-cloud-workspace-share .desktop-cloud-share-copy').getBoundingClientRect(); return r.bottom <= innerHeight && r.width <= innerWidth; })()"), "Share copy action stays visible on a small window");

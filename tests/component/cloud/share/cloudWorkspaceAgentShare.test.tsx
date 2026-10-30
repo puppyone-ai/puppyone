@@ -23,9 +23,9 @@ let denied: boolean;
 
 const select = (selector: string) => document.querySelector<HTMLButtonElement>(selector)!;
 const primary = () => select(".desktop-cloud-agent-share-copy");
-const render = async () => {
+const render = async (props: Partial<Parameters<typeof CloudWorkspaceAgentShare>[0]> = {}) => {
   await act(async () => root.render(withTestLocalization(<CloudWorkspaceAgentShare projectId="project-1"
-    projectName="Launch plan" session={session} apiBaseUrl={API} />)));
+    projectName="Launch plan" session={session} apiBaseUrl={API} {...props} />)));
 };
 
 beforeEach(() => {
@@ -170,6 +170,27 @@ describe("Connecting an agent from Share", () => {
     expect(cloudApiRequest).toHaveBeenCalledWith("/projects/project-1/agent-links", session, undefined,
       { method: "DELETE" }, API);
     expect(document.querySelector(".desktop-cloud-agent-share-stop")).toBeNull();
+  });
+
+  it("agrees with the Header about who is active", async () => {
+    inventory = { links: [], connections: [agent, { ...agent, id: "c2", name: "Codex", grant_id: "g2" }] };
+    await render({ agents: [{ ...agent, admission: "sign_in", active: true, lastActiveAt: null, activityKnown: true },
+      { ...agent, admission: "sign_in", id: "c2", name: "Codex", grant_id: "g2", active: false, lastActiveAt: null, activityKnown: true }] });
+    const [busy, quiet] = document.querySelectorAll(".desktop-cloud-agent-list li");
+    expect(busy.textContent).toContain("Active now");
+    expect(busy.querySelector("[data-active]")).not.toBeNull();
+    expect(quiet.textContent).toContain("No recent activity");
+    expect(quiet.querySelector("[data-active]")).toBeNull();
+  });
+
+  it("tells the Header at once when a change is made here", async () => {
+    inventory = { links: [], connections: [agent] };
+    const onChanged = vi.fn();
+    await render({ onChanged });
+    await act(async () => primary().click());
+    expect(onChanged).toHaveBeenCalledTimes(1);
+    await act(async () => select(".desktop-cloud-agent-list button").click());
+    expect(onChanged).toHaveBeenCalledTimes(2);
   });
 
   it("offers nothing to stop when nothing is shared", async () => {

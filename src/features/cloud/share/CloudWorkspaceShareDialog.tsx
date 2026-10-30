@@ -12,14 +12,18 @@ import { CloudWorkspaceAgentShare } from "./CloudWorkspaceAgentShare";
 import { CloudWorkspaceSharePreview, type SharePreviewEntry } from "./CloudWorkspaceSharePreview";
 import "./workspace-share.css";
 import type { CloudWorkspaceShareResource } from "./cloudWorkspaceShareResource";
+import type { WorkspaceAgent } from "./useWorkspaceAgents";
 
-export function CloudWorkspaceShareDialog({ context, resource, previewEntries, session, apiBaseUrl, onClose }: {
+export function CloudWorkspaceShareDialog({ context, resource, previewEntries, session, apiBaseUrl, agents, onAgentsChanged, onClose }: {
   context: Extract<ProjectCloudContext, { status: "resolved" }>;
   previewEntries?: readonly SharePreviewEntry[];
   resource?: CloudWorkspaceShareResource | null;
   /** An Agent connects to the live workspace, which only the whole project can offer. */
   session?: DesktopCloudSession;
   apiBaseUrl?: string;
+  /** What the Header knows about each Agent, so the two never disagree. */
+  agents?: readonly WorkspaceAgent[];
+  onAgentsChanged?: () => void;
   onClose: () => void;
 }) {
   const { t } = useLocalization();
@@ -47,7 +51,7 @@ export function CloudWorkspaceShareDialog({ context, resource, previewEntries, s
         <div className="desktop-dialog-body">
           {connectsAgents && session && apiBaseUrl && <CloudWorkspaceAgentShare
             projectId={context.projectId} projectName={context.projectName || context.projectId}
-            session={session} apiBaseUrl={apiBaseUrl} />}
+            session={session} apiBaseUrl={apiBaseUrl} agents={agents} onChanged={onAgentsChanged} />}
           {url ? <section className="desktop-cloud-share-people">
             {connectsAgents && <h3>{t("cloud.share.people.title")}</h3>}
             {/* The address grants nothing, so a failed copy takes this line rather than adding one. */}

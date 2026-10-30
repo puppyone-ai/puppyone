@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Check, Copy, X } from "lucide-react";
 import { Tooltip } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
@@ -6,6 +6,7 @@ import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import { writeClipboardText } from "../../../lib/clipboard";
 import { agentConnectMessage, createAgentLink, listAgentLinks, removeConnectedAgent,
   stopSharingWithAgents, type AgentAdmission, type AgentLinkInventory } from "./agentLinks";
+import { workspaceAgentStatus, type WorkspaceAgent } from "./useWorkspaceAgents";
 
 /** While the dialog is open, an Agent the owner just allowed appears on its own. */
 const REFRESH_MS = 5_000;
@@ -25,13 +26,18 @@ const COPY_LABEL = {
   "not-owner": "cloud.share.agent.copy",
 } as const;
 
-export function CloudWorkspaceAgentShare({ projectId, projectName, session, apiBaseUrl }: {
+export function CloudWorkspaceAgentShare({ projectId, projectName, session, apiBaseUrl, agents, onChanged }: {
   projectId: string;
   projectName: string;
   session: DesktopCloudSession;
   apiBaseUrl: string;
+  agents?: readonly WorkspaceAgent[];
+  /** The Header states who is here, so it hears about a change at once rather than on its next poll. */
+  onChanged?: () => void;
 }) {
-  const { formatDate, t } = useLocalization();
+  const localization = useLocalization();
+  const { formatDate, t } = localization;
+  const activity = useMemo(() => new Map(agents?.map(agent => [agent.grant_id, agent])), [agents]);
   const [admission, setAdmission] = useState<AgentAdmission>("sign_in");
   const [status, setStatus] = useState<keyof typeof COPY_LABEL>("idle");
   const [inventory, setInventory] = useState(EMPTY);
@@ -64,13 +70,14 @@ export function CloudWorkspaceAgentShare({ projectId, projectName, session, apiB
       if (!mounted.current) return;
       setStatus("copied");
       void refresh();
+      onChanged?.();
     } catch (error) {
       if (mounted.current) setStatus((error as { status?: number }).status === 403 ? "not-owner" : "failed");
     }
   };
   const change = async (action: () => Promise<unknown>) => {
     setChangeFailed(false);
-    try { await action(); await refresh(); }
+    try { await action(); await refresh(); onChanged?.(); }
     catch { if (mounted.current) setChangeFailed(true); }
   };
   const choose = (next: AgentAdmission) => { setAdmission(next); setStatus("idle"); };
@@ -118,19 +125,22 @@ export function CloudWorkspaceAgentShare({ projectId, projectName, session, apiB
         </button>
       </div>
       {connections.length > 0 && <ul className="desktop-cloud-agent-list">
-        {connections.map(agent => <li key={agent.id}>
-          <span className="desktop-cloud-agent-lamp" aria-hidden="true" />
+        {connections.map(agent => {
+          const live = activity.get(agent.grant_id);
+          const facts = [live && workspaceAgentStatus(live, localization),
+            agent.expires_at && t("cloud.share.agent.expires", { date: formatDate(agent.expires_at, { month: "short", day: "numeric" }) })];
+          return <li key={agent.id}>
+          <span className="desktop-cloud-agent-lamp" data-active={live?.active || undefined} aria-hidden="true" />
           <span className="desktop-cloud-agent-name" dir="auto">{agent.name}</span>
-          {agent.expires_at && <span className="desktop-cloud-agent-expiry">
-            {t("cloud.share.agent.expires", { date: formatDate(agent.expires_at, { month: "short", day: "numeric" }) })}
-          </span>}
+          {facts.some(Boolean) && <span className="desktop-cloud-agent-expiry">{facts.filter(Boolean).join(" · ")}</span>}
           <Tooltip content={t("cloud.share.agent.remove")}>
             <button type="button" aria-label={`${t("cloud.share.agent.remove")} ${agent.name}`}
               onClick={() => void change(() => removeConnectedAgent(session, projectId, agent.grant_id, apiBaseUrl))}>
               <X size={14} aria-hidden="true" />
             </button>
           </Tooltip>
-        </li>)}
+        </li>;
+        })}
       </ul>}
     </div>}
     {changeFailed && <p role="alert">{t("cloud.share.agent.changeFailed")}</p>}
