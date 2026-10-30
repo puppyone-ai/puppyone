@@ -721,11 +721,10 @@ span.homepage-cloud-feedback {
 
 /* Monochrome, like the website's template folder. Both tones are mixed from the
    page, so the folder is lighter than a dark page and darker than a light one.
-   Nothing here is coloured, shadowed or graded. */
+   A folder is never coloured, shadowed or graded: blue belongs to the cloud alone. */
 .onboarding-project-folder {
   --folder-back: color-mix(in srgb, var(--po-text) 11%, var(--po-canvas));
   --folder-front: color-mix(in srgb, var(--po-text) 19%, var(--po-canvas));
-  --folder-cloud: color-mix(in srgb, var(--po-text) 60%, var(--po-canvas));
   position: relative;
   display: block;
   flex: 0 0 auto;
@@ -734,7 +733,6 @@ span.homepage-cloud-feedback {
 .onboarding-project-row-wrap:is(:hover, :focus-within) .onboarding-project-folder {
   --folder-back: color-mix(in srgb, var(--po-text) 15%, var(--po-canvas));
   --folder-front: color-mix(in srgb, var(--po-text) 26%, var(--po-canvas));
-  --folder-cloud: color-mix(in srgb, var(--po-text) 82%, var(--po-canvas));
 }
 
 .project-folder-glyph {
@@ -753,21 +751,18 @@ span.homepage-cloud-feedback {
   transition: fill 130ms ease-out;
 }
 
+/* Solid, so it survives a glance across the page; an outline does not. */
 .project-folder-cloud {
-  fill: none;
-  stroke: var(--folder-cloud);
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.7;
-  transition: stroke 130ms ease-out;
+  fill: var(--po-brand-blue);
 }
 
-/* A local folder that also has a Cloud project; the pressed cloud means it lives there. */
+/* A local folder that also has a Cloud project: the same blue cloud, off the folder's
+   front and cut out from it by the page, because the project itself lives here. */
 .onboarding-project-folder .onboarding-project-cloud-badge {
-  --po-surface: var(--po-canvas);
-  inset-block-end: -3px;
-  inset-inline-end: -3px;
-  color: var(--po-text-muted);
+  --po-surface: var(--po-brand-blue);
+  inset-block-end: -4px;
+  inset-inline-end: -4px;
+  color: var(--po-canvas);
 }
 
 .onboarding-project-tile {
@@ -824,10 +819,6 @@ span.homepage-cloud-feedback {
 
 .onboarding-project-tile ~ .onboarding-project-cloud-link > span {
   display: none;
-}
-
-.onboarding-project-tile ~ .onboarding-project-cloud-link svg {
-  color: inherit;
 }
 
 .onboarding-project-list[data-project-layout="icons"] {

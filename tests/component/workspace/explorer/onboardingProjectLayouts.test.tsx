@@ -169,12 +169,14 @@ describe("Homepage project layouts", () => {
     expect(folder("linked").querySelector(".onboarding-project-cloud-badge")).not.toBeNull();
   });
 
-  it("never asks anyone to learn what a colour means", () => {
+  it("keeps every folder neutral and leaves the blue to the cloud alone", () => {
     const css = readFileSync("src/styles/onboarding.css", "utf8");
-    const folders = css.slice(css.indexOf(".onboarding-project-folder {"), css.indexOf(".onboarding-project-tile {"));
-    expect(folders).not.toBe("");
-    expect(folders).not.toMatch(/is-cloud|is-local|brand-blue|--po-accent|#[0-9a-f]{3,8}\b|gradient|shadow|url\(/i);
-    expect(css).toMatch(/\.onboarding-project-tile ~ \.onboarding-project-cloud-link svg \{\s*color: inherit;/);
+    const start = css.indexOf(".onboarding-project-folder {");
+    const cloud = css.indexOf(".project-folder-cloud {");
+    expect(start).toBeGreaterThan(-1);
+    expect(cloud).toBeGreaterThan(start);
+    expect(css.slice(start, cloud)).not.toMatch(/is-cloud|is-local|brand-blue|--po-accent|#[0-9a-f]{3,8}\b|gradient|shadow|url\(/i);
+    expect(css.slice(cloud)).toMatch(/\.project-folder-cloud \{\s*fill: var\(--po-brand-blue\);/);
   });
 
   it("shows an icon as its name alone and keeps the rest one hover away", () => {
