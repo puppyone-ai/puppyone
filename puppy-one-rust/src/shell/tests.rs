@@ -3085,3 +3085,26 @@ fn an_opening_stays_open_until_its_result_is_applied(cx: &mut TestAppContext) {
     });
     view.read_with(cx, |s, _| assert!(s.files.cloud_opening().is_none()));
 }
+
+/// C-8.2: the preview comes from what is already loaded: no service files,
+/// at most eight entries, and the open document always among them.
+#[test]
+fn the_share_preview_uses_cached_entries_and_keeps_the_open_file() {
+    use crate::model::Node;
+    let node = |name: &str, folder: bool| {
+        serde_json::from_value::<Node>(serde_json::json!({"name": name, "folder": folder,
+            "expanded": false, "children": []}))
+        .unwrap()
+    };
+    let mut nodes = vec![
+        node(".git", true),
+        node(".DS_Store", false),
+        node("docs", true),
+    ];
+    nodes.extend((0..10).map(|i| node(&format!("{i}.md"), false)));
+    let entries = tasks::share_preview_entries(&nodes, Some("deep.md"));
+    assert_eq!(entries.len(), 9);
+    assert_eq!(entries[0], ("docs".to_owned(), true));
+    assert_eq!(entries[8], ("deep.md".to_owned(), false));
+    assert!(tasks::share_preview_entries(&[], None).is_empty());
+}

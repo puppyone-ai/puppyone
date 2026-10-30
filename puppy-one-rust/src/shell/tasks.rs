@@ -1,7 +1,11 @@
 use super::*;
 use crate::{
     features::settings::{SettingsWorkspaceSurface, preferences_store::PreferencesStore},
-    ui::components::{Button, ButtonVariant, Dialog},
+    ui::components::{Button, ButtonVariant, Dialog, Icon},
+};
+use gpui_kit::{
+    base::{h_flex, v_flex},
+    component::Sizable as _,
 };
 pub struct TaskUi {
     pub settings: Entity<SettingsWorkspaceSurface>,
@@ -16,6 +20,118 @@ impl TaskUi {
             settings: cx.new(|cx| SettingsWorkspaceSurface::new(preferences, window, cx)),
         }
     }
+}
+/// `CloudWorkspaceSharePreview`'s entries: what the Explorer already holds,
+/// without service files. Opening or copying a share sends no request.
+pub(super) fn share_preview_entries(
+    nodes: &[crate::model::Node],
+    open: Option<&str>,
+) -> Vec<(String, bool)> {
+    let mut entries: Vec<(String, bool)> = nodes
+        .iter()
+        .filter(|n| ![".DS_Store", "Thumbs.db", ".git"].contains(&n.name.as_str()))
+        .take(8)
+        .map(|n| (n.name.clone(), n.folder))
+        .collect();
+    if let Some(open) = open
+        && !entries.iter().any(|(name, _)| name == open)
+    {
+        entries.push((open.to_owned(), false));
+    }
+    entries
+}
+/// The reduced, inert illustration: half the Explorer's width and type beside
+/// the open document's first lines, fading out at the bottom. GPUI has no
+/// element transform, so it is drawn at this size; it takes no pointer.
+pub(crate) fn share_preview(
+    entries: Vec<(String, bool)>,
+    document: Option<(String, String)>,
+    t: Theme,
+) -> Div {
+    let line = |width: f32| {
+        div()
+            .h(px(6.))
+            .w(px(width))
+            .rounded(px(3.))
+            .bg(theme::alpha(t.muted, 0.16))
+    };
+    let open = document.as_ref().map(|(name, _)| name.clone());
+    let rail = if entries.is_empty() {
+        // `ExplorerTreeSkeleton`.
+        v_flex()
+            .gap(px(8.))
+            .p(px(8.))
+            .children([70., 92., 58., 84., 66.].map(line))
+    } else {
+        v_flex()
+            .p(px(4.))
+            .children(entries.into_iter().map(|(name, folder)| {
+                let active = open.as_deref() == Some(name.as_str());
+                h_flex()
+                    .h(px(14.))
+                    .px(px(4.))
+                    .gap(px(3.))
+                    .rounded(px(3.))
+                    .when(active, |d| d.bg(t.selected))
+                    .text_size(px(7.))
+                    .text_color(t.text)
+                    .child(
+                        (if folder {
+                            Icon::product(crate::ui::components::ProductIcon::Folder)
+                        } else {
+                            Icon::new("file")
+                        })
+                        .with_size(px(8.))
+                        .color(t.muted),
+                    )
+                    .child(div().min_w_0().truncate().child(name))
+            }))
+    };
+    let text =
+        document.map(|(_, text)| text.lines().take(24).map(str::to_owned).collect::<Vec<_>>());
+    let page = match text {
+        Some(lines) => v_flex()
+            .p(px(8.))
+            .gap(px(1.))
+            .text_size(px(7.))
+            .line_height(px(10.))
+            .text_color(t.text)
+            .children(lines.into_iter().map(|line| div().truncate().child(line))),
+        None => v_flex()
+            .p(px(10.))
+            .gap(px(8.))
+            .children([180., 240., 210., 150.].map(line)),
+    };
+    let fade = div()
+        .absolute()
+        .left_0()
+        .right_0()
+        .bottom_0()
+        .h(px(48.))
+        .bg(linear_gradient(
+            180.,
+            linear_color_stop(theme::alpha(t.overlay, 0.), 0.),
+            linear_color_stop(t.overlay, 1.),
+        ));
+    h_flex()
+        .relative()
+        .items_start()
+        .h(px(186.))
+        .overflow_hidden()
+        .border_1()
+        .border_color(t.border_subtle)
+        .rounded(px(8.))
+        .child(
+            div()
+                .w(px(120.))
+                .h_full()
+                .flex_shrink_0()
+                .border_r_1()
+                .border_color(t.border_subtle)
+                .child(rail),
+        )
+        .child(div().flex_1().min_w_0().overflow_hidden().child(page))
+        .child(fade)
 }
 /// `.desktop-settings-dialog-backdrop`: `color-mix(var(--po-backdrop) 84%,
 /// transparent)` (the product's 1.5px backdrop blur has no GPUI equivalent).
@@ -268,6 +384,19 @@ impl Shell {
                             .child(crate::localization::t("cloud.share.copyFailed")),
                     );
                 }
+                let document = self.files.document.as_ref().map(|d| {
+                    let name = d
+                        .relative
+                        .file_name()
+                        .map(|n| n.to_string_lossy().into_owned())
+                        .unwrap_or_default();
+                    (name, d.text.clone())
+                });
+                let entries = share_preview_entries(
+                    self.explorer.read(cx).root_nodes(),
+                    document.as_ref().map(|(name, _)| name.as_str()),
+                );
+                body = body.child(share_preview(entries, document, t));
             }
             None => {
                 body = body.child(

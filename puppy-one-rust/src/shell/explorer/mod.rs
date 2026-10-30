@@ -407,6 +407,10 @@ impl Explorer {
         self.subscribe_tree(&workspace, cx);
         self.refresh_loaded_folders(cx);
     }
+    /// The loaded top level, as the Share preview shows it.
+    pub fn root_nodes(&self) -> &[Node] {
+        &self.tree.roots
+    }
     /// A Cloud publication: reread what is loaded (`onPublication`).
     pub fn refresh_published(&mut self, cx: &mut Context<Self>) {
         self.refresh_loaded_folders(cx);

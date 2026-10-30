@@ -35,6 +35,8 @@ enum Surface {
     Settings(Entity<SettingsWorkspaceSurface>),
     Feedback(Entity<crate::features::feedback::Feedback>),
     Coachmark(crate::shell::coachmarks::Coachmark),
+    /// Cached entries, or the skeleton without them.
+    SharePreview(bool),
     CloudServices(Entity<crate::features::cloud_services::CloudServices>),
     Shell(Entity<crate::shell::Shell>),
 }
@@ -211,6 +213,8 @@ impl Lab {
                 });
                 cx.observe(&feedback, |_, _, cx| cx.notify()).detach();
                 Surface::Feedback(feedback)
+            } else if let Some(state) = shell.strip_prefix("share-preview-") {
+                Surface::SharePreview(state == "cached")
             } else if let Some(page) = shell.strip_prefix("cloud-services-") {
                 use crate::features::cloud_services::{CloudServices, Section};
                 let section = match page {
@@ -389,6 +393,28 @@ impl Render for Lab {
             // The dialog brings its own backdrop over the page body.
             Surface::Feedback(feedback) => root.bg(t.canvas).child(feedback.clone()),
             Surface::CloudServices(view) => root.bg(t.canvas).child(view.clone()),
+            Surface::SharePreview(cached) => {
+                let entries = if *cached {
+                    vec![
+                        ("plans".to_owned(), true),
+                        ("notes".to_owned(), true),
+                        ("README.md".to_owned(), false),
+                    ]
+                } else {
+                    vec![]
+                };
+                let document = cached.then(|| {
+                    (
+                        "README.md".to_owned(),
+                        "# Launch notes\n\nWhat ships on Friday, and who owns it.\n\n- Pricing page\n- Docs".to_owned(),
+                    )
+                });
+                root.bg(t.overlay).p(px(24.)).child(
+                    div()
+                        .w(px(472.))
+                        .child(crate::shell::tasks::share_preview(entries, document, t)),
+                )
+            }
             // The entry's box is fixed (`tools/reference-shell-entry.tsx`).
             Surface::Coachmark(id) => root.bg(t.canvas).child(crate::shell::coachmarks::overlay(
                 *id,
