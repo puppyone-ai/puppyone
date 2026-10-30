@@ -11,8 +11,8 @@
 //!   (`tools/cloud-scenarios.json`).
 //! - `editor-<scenario>-<mode>`: one editor pane over a `fixtures/editor`
 //!   document (`tools/editor-scenarios.json`, `tools/reference-editor.mjs`).
-//! - `shell-<scenario>-<mode>`: the feedback dialog, or a real shell on the
-//!   empty Homepage of a packaged Stable build that still owes the analytics
+//! - `shell-<scenario>-<mode>`: the feedback dialog, a Header introduction
+//!   below a fixed entry, or a real shell on the empty Homepage of a packaged Stable build that still owes the analytics
 //!   notice (`tools/shell-scenarios.json`).
 use crate::{
     features::{
@@ -34,6 +34,7 @@ enum Surface {
     Workbench(Entity<Workbench>),
     Settings(Entity<SettingsWorkspaceSurface>),
     Feedback(Entity<crate::features::feedback::Feedback>),
+    Coachmark(crate::shell::coachmarks::Coachmark),
     Shell(Entity<crate::shell::Shell>),
 }
 
@@ -209,6 +210,13 @@ impl Lab {
                 });
                 cx.observe(&feedback, |_, _, cx| cx.notify()).detach();
                 Surface::Feedback(feedback)
+            } else if let Some(feature) = shell.strip_prefix("coachmark-") {
+                use crate::shell::coachmarks::Coachmark;
+                Surface::Coachmark(if feature == "changes" {
+                    Coachmark::Changes
+                } else {
+                    Coachmark::Agent
+                })
             } else {
                 let shell_view = cx.new(|cx| {
                     let mut view = crate::shell::Shell::new(window, cx);
@@ -363,6 +371,16 @@ impl Render for Lab {
             Surface::Editor(editor) => root.bg(t.canvas).child(editor.clone()),
             // The dialog brings its own backdrop over the page body.
             Surface::Feedback(feedback) => root.bg(t.canvas).child(feedback.clone()),
+            // The entry's box is fixed (`tools/reference-shell-entry.tsx`).
+            Surface::Coachmark(id) => root.bg(t.canvas).child(crate::shell::coachmarks::overlay(
+                *id,
+                Bounds::new(point(px(1236.), px(6.)), size(px(28.), px(28.))),
+                f32::from(window.viewport_size().width),
+                t,
+                |_, _, _| {},
+                |_, _, _| {},
+                |_, _, _| {},
+            )),
             Surface::Shell(shell) => root.child(shell.clone()),
             Surface::Settings(settings) => {
                 // The product page body is `--po-canvas`; the task backdrop

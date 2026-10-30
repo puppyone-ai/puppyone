@@ -19,7 +19,7 @@ mod bench;
 mod capture_scenario;
 mod cloud_publish;
 mod cloud_switch;
-mod coachmarks;
+pub(crate) mod coachmarks;
 mod command;
 mod create_new;
 mod editor_workbench;
@@ -482,6 +482,19 @@ impl Shell {
             });
         })
         .detach();
+        // An open Header introduction closes on Escape wherever focus is
+        // (`dismissOnEscape`, a capturing document listener that lets the
+        // key go on).
+        {
+            let shell = cx.weak_entity();
+            cx.intercept_keystrokes(move |event, window, cx| {
+                if window.window_handle() != own || event.keystroke.key != "escape" {
+                    return;
+                }
+                let _ = shell.update(cx, |s, cx| s.dismiss_coachmark_on_escape(cx));
+            })
+            .detach();
+        }
         // Dev builds replay the Homepage intro (Alt+Shift+L, `KeyL`).
         if cfg!(debug_assertions) {
             let shell = cx.weak_entity();
@@ -1942,9 +1955,7 @@ impl Render for Shell {
             root = root.children(self.notices(w));
         }
         root = root.children(self.project_actions_menu(cx));
-        if !home && self.modals.is_empty() {
-            root = root.children(self.coachmark_overlay(w, cx));
-        }
+        root = root.children(self.coachmark_overlay(w, cx));
         root.children(self.modal_layer(w, h, cx))
     }
 }

@@ -7,6 +7,8 @@
 // - `feedback`: the dialog as it opens; `-filled` with a message, an email
 //   and `fixtures/feedback/screenshot.png`; `-sent` after Send succeeds;
 //   `-error` after Send fails (a message and an email, no screenshot).
+// - `coachmark-agent` / `-changes`: `HeaderFeatureCoachmark` open below an
+//   entry box fixed at (1236, 6) 28×28; only the overlay is compared.
 // - `home-empty`: after the intro, with the disclosure; `home-intro-*` hold
 //   the intro at `fixture.intro` milliseconds.
 import React, { useEffect } from "react";
@@ -22,6 +24,7 @@ import { resolveSurfaceAppearance, SurfaceAppearanceProvider } from "PRODUCT/src
 import { TypographyCatalogProvider, useTypographyCatalog, useTypographyRuntime } from "PRODUCT/src/features/typography";
 import { DesktopHelpLauncher } from "PRODUCT/src/features/app-shell/DesktopHelpLauncher";
 import { MinimalOnboarding } from "PRODUCT/src/components/MinimalOnboarding";
+import { HeaderFeatureCoachmark } from "PRODUCT/src/features/app-shell/HeaderFeatureCoachmark";
 
 declare global {
   interface Window {
@@ -35,6 +38,7 @@ declare global {
 const fixture = window.fixture;
 const scenario = fixture.id.replace(/-(dark|light)$/u, "");
 const FEEDBACK = scenario.startsWith("feedback");
+const COACHMARK = scenario.startsWith("coachmark-") ? (scenario.slice("coachmark-".length) as "agent" | "changes") : null;
 const noop = () => {};
 // A packaged Stable build before the first-run notice (`DesktopTelemetryState`).
 const TELEMETRY = { schemaVersion: 2, defaultLevel: "basic", level: "basic", effectiveLevel: "off", enabled: false,
@@ -99,7 +103,7 @@ async function prepareFeedback() {
   }
 }
 
-function Home() {
+function useFixtureAppearance() {
   const { resolvedAppearance, lightThemePreset, darkThemePreset } = useDesktopAppearance();
   const markdownPresentation = useDesktopPreference((s) => s.markdownPresentation);
   const pointerCursors = useDesktopPreference((s) => s.pointerCursors);
@@ -107,8 +111,23 @@ function Home() {
   const typographyPreferences = useDesktopPreference((s) => s.typographyPreferences);
   const catalog = useTypographyCatalog();
   const typography = useTypographyRuntime(typographyPreferences, catalog, fixture.locale);
-  const appearance = resolveSurfaceAppearance({ appearance: resolvedAppearance, typography, markdownPresentation,
+  return resolveSurfaceAppearance({ appearance: resolvedAppearance, typography, markdownPresentation,
     lightThemePreset, darkThemePreset, pointerCursors, diffMarkers } as never);
+}
+
+function Coachmark({ feature }: { feature: "agent" | "changes" }) {
+  const appearance = useFixtureAppearance();
+  return <SurfaceAppearanceProvider value={appearance}>
+    <div style={{ position: "fixed", left: 1236, top: 6, width: 28, height: 28 }}>
+      <HeaderFeatureCoachmark feature={feature} open onDismiss={noop} onPrimary={noop}>
+        <span style={{ display: "block", width: 28, height: 28 }} />
+      </HeaderFeatureCoachmark>
+    </div>
+  </SurfaceAppearanceProvider>;
+}
+
+function Home() {
+  const appearance = useFixtureAppearance();
   return <SurfaceAppearanceProvider value={appearance}>
     <MinimalOnboarding appearance={appearance} projectItems={[]}
       onChooseWorkspace={async () => {}}
@@ -126,6 +145,7 @@ function Fixture() {
     let cancelled = false;
     void (async () => {
       if (FEEDBACK) await prepareFeedback();
+      else if (COACHMARK) await wait(200);
       else if (fixture.intro !== null) {
         // Hold every intro animation at the same instant.
         await wait(0);
@@ -141,6 +161,7 @@ function Fixture() {
     })();
     return () => { cancelled = true; };
   }, []);
+  if (COACHMARK) return <Coachmark feature={COACHMARK} />;
   return FEEDBACK ? <DesktopHelpLauncher theme={fixture.mode} subThemeId="default.neutral" /> : <Home />;
 }
 

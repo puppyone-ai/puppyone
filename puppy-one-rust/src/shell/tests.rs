@@ -2506,3 +2506,48 @@ fn an_empty_homepage_plays_its_intro_then_shows_the_analytics_disclosure(cx: &mu
     draw(cx);
     view.update(cx, |s, _| assert!(s.homepage.intro.is_none()));
 }
+
+#[gpui::test]
+fn escape_acknowledges_the_header_introduction_wherever_focus_is(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    let (view, cx) = setup(cx);
+    view.update(cx, |s, _| {
+        s.files = Documents::default();
+        s.files.workspace = Some(crate::workspace::Workspace::open(temp.path()).unwrap());
+    });
+    // The entry is measured on one frame and introduced on the next.
+    draw(cx);
+    draw(cx);
+    view.update(cx, |s, _| {
+        assert_eq!(s.coachmarks.active, Some(coachmarks::Coachmark::Agent));
+        assert!(s.coachmark_shown());
+    });
+    // Nothing in the overlay holds focus; Escape still reaches it.
+    view.update_in(cx, |s, w, cx| s.focus.focus(w, cx));
+    cx.simulate_keystrokes("escape");
+    draw(cx);
+    view.update(cx, |s, cx| {
+        assert!(!s.coachmark_shown());
+        assert!(s.preferences.read(cx).state.header_coachmarks.agent);
+    });
+    // A dialog hides it, and Escape then answers the dialog, not the overlay.
+    let mut prefs = view.read_with(cx, |s, cx| s.preferences.read(cx).state.clone());
+    prefs.header_coachmarks.agent = false;
+    view.update(cx, |s, cx| {
+        s.preferences
+            .update(cx, |p, cx| p.change(|p| *p = prefs, cx));
+        s.coachmarks = Default::default();
+    });
+    draw(cx);
+    draw(cx);
+    view.update(cx, |s, _| assert!(s.coachmark_shown()));
+    command(&view, cx, Command::Settings);
+    view.update(cx, |s, _| assert!(!s.coachmark_shown()));
+    cx.simulate_keystrokes("escape");
+    draw(cx);
+    view.update(cx, |s, cx| {
+        assert!(s.modals.is_empty());
+        assert!(!s.preferences.read(cx).state.header_coachmarks.agent);
+        assert!(s.coachmark_shown());
+    });
+}

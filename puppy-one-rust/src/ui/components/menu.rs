@@ -792,3 +792,12 @@ pub(crate) fn child_id(parent: &ElementId, name: impl Into<SharedString>) -> Ele
 fn h_row() -> Div {
     div().flex().items_center()
 }
+
+/// `background-clip: padding-box` (`.desktop-menu-surface`): the fill of a
+/// menu surface `radius` round, kept inside its 1px border so a translucent
+/// border shows the backdrop, not the fill. GPUI paints borders over the
+/// background; give the surface no `bg` and this as its first child. Not for
+/// a scroller: an absolute child counts as its content.
+pub fn padding_box_fill(radius: f32, fill: Rgba) -> Div {
+    div().absolute().inset_0().rounded(px(radius - 1.)).bg(fill)
+}

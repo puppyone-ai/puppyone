@@ -155,7 +155,8 @@
   - 最近项目按最后修改时间排序（`readWorkspaceModifiedAt`：Git 提交时间 + 改动文件时间，非仓库扫描文件，超过 1024 项视为未知，后台线程读取，`src/platform/project_activity.rs`），每行显示上级目录（`~` 缩写）、相对时间（`Intl.RelativeTimeFormat` 规则，8 种语言）与悬停时的取消关联按钮（确认后移出列表）。行用 `MenuRow` + `MenuVariant::Homepage`
   - New empty project 打开创建对话框：默认名「My project XXXX」、默认位置 `~/Documents/PuppyOne`、名称规则同 `requireProjectName`、可改位置、创建空文件夹后打开；Open a folder；Header 右侧 Sign in（打开 Settings → Account）
   - 实测（1280×800，区域一致率，容差 8）：有项目深色 97.6% / 浅色 97.5%、空状态 99.2%、创建对话框 97.9%。剩余差异为亚像素字形位置与 Import
-  - 已知差异：Import（Git 克隆 / 云端来源）与模板链接以禁用态显示（悬停提示「not available」）；产品的首次启动遥测说明未移植
+  - 已知差异：Import（Git 克隆 / 云端来源）与模板链接以禁用态显示（悬停提示「not available」）
+  - 空态开场（`OnboardingEmptyStateIntro`）与遥测说明（`OnboardingTelemetryDisclosure`）见 P1-18
   - 证据：`project_names_and_folders_display_like_the_product`、`modification_times_round_down_to_minutes_hours_and_days`、`project_names_follow_the_product_rules`、`a_blank_project_is_a_new_empty_folder`、`a_repository_counts_its_commit_and_its_changes`、`relative_past_follows_intl_relative_time_format`；截图场景步骤 `home` / `remember:` / `forget:` / `create-project:`
 
 ### Settings
@@ -166,6 +167,13 @@
 - [x] P1-15 General：版本号行；更新行带图标
 - [x] P1-16 Other App Imports 页（受 Experimental 开关控制）。证据：`project_and_import_pages_follow_visibility`
 - [~] P1-17 Model Connections：列表 → 配置 → 详情的流程与文案已做。缺：本地服务发现、工具支持验证、托管连接
+- [x] P1-18 隐私、反馈与首页开场（`47154780`，S-20 / S-9）
+  - 遥测（`electron/main/telemetry`、`shared/desktop-telemetry-*`）：只有打包的 Stable 构建在看过一次性说明后发送两种有界匿名事件（首次运行、每日活跃）；开发、未打包和非 Stable 构建保持 Basic 默认值、从不发送。偏好/身份/生命周期/队列四个原子 JSON 存储，HMAC 按月轮换 ID，只保留 7 个日历日、不存时刻，留存 ID 限 100 天。关闭即清空队列和本地身份。固定的 HTTPS 上报地址，可重试失败退避、被拒批次丢弃、不记录载荷。Electron 的选择导入一次；窗口获得焦点记前台活动。Privacy 开关接真实状态（加载、写入、失败文案）
+  - Help → Feedback（`DesktopHelpLauncher`）：留言（2000 个 UTF-16 码元）和邮箱必填；截图可选文件、拖放或粘贴图片（嗅探类型、源文件上限 20 MiB、大图重新编码）；发送中/已发送/失败，失败后编辑即重新可发；提交到产品同一个表单地址，不带工作区和账号数据。和产品一样只有关闭按钮能关（背景、Esc、⌘W、再点 Help 都不关）
+  - 首页：1100ms 的开场遮罩（标题栏在遮罩之上；减少动态效果时跳过；开发构建 Alt+Shift+L 重放），结束后在右下角（24/16px）显示遥测说明，显示即记为已读
+  - 像素（`--suite shell`，真实 `DesktopHelpLauncher` / `MinimalOnboarding`）：反馈 99.45–99.79%，首页 99.73–99.99%
+  - 证据：`feedback_leaves_only_by_its_close_button_and_forgets_the_draft`、`an_empty_homepage_plays_its_intro_then_shows_the_analytics_disclosure`、`send_needs_a_message_and_an_email_and_a_failure_rearms_on_edit`、`a_pasted_image_becomes_the_screenshot_and_text_still_pastes`、`platform::telemetry::service` 24 项
+  - 滚动条修复（`ef10eefe`）：Kit 滚动条按父元素 100% 绝对布局，GPUI 滚动容器把绝对定位子元素也算进内容，带内边距的容器即使放得下也能多滚一段内边距，Settings 因此每页都留了 12px 滚动条槽。改成零尺寸盒子后 Settings 34 个用例中 22 个提升（Appearance 96.3→97.2%，Typography 98.2→98.6%），其余四个套件不变。证据：`a_padded_owner_scrolls_only_as_far_as_its_content`
 
 ### 右侧 Agent / 工作台
 - [x] P1-18 Agent 头部：Web 产品里 `AgentSurfaceHeader` 只在视觉冒烟 harness 中使用，实际由工作台 Tab 承担：品牌图标 + 标题，运行中叠加脉动圆点（`AuxiliaryWorkbenchStatus`）；会话菜单（新会话、History、压缩上下文、关闭连接 + Fork/Rename/Copy）在 Tab 右键菜单；诊断信息与产品的 `AgentPanelStatus` 一样，放在失败状态卡片里可展开（截图 `PUPPYONE_CAPTURE_SURFACE=agent-failed`）
@@ -364,4 +372,4 @@ python3 tools/audit-ui-migration.py
 
 ## 10. 明确不在本轮范围
 
-需要 Cloud 服务或平台服务、当前没有原生实现的功能保持如实提示，不伪造：Plan 计费、Host Server、自动更新下载、Feedback 上传、Share/Reach、Windows XP 界面风格。Account 登录须显式配置原生 API/Web 环境；服务实现与本地协议测试不等于真实账号验收。
+需要 Cloud 服务或平台服务、当前没有原生实现的功能保持如实提示，不伪造：Plan 计费、Host Server、自动更新下载、Share/Reach、Windows XP 界面风格。Account 登录须显式配置原生 API/Web 环境；服务实现与本地协议测试不等于真实账号验收。

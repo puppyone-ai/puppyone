@@ -235,22 +235,29 @@ impl Shell {
         }
         cx.notify();
     }
+    /// Whether an introduction is on screen (it waits for its entry's
+    /// measurement, and hides on the Homepage and under dialogs).
+    pub(super) fn coachmark_shown(&self) -> bool {
+        self.coachmarks.active.is_some()
+            && self.coachmarks.anchor.is_some()
+            && !self.home_visible()
+            && self.modals.is_empty()
+    }
+    /// `dismissOnEscape`: Escape acknowledges the introduction on screen.
+    pub(super) fn dismiss_coachmark_on_escape(&mut self, cx: &mut Context<Self>) {
+        if self.coachmark_shown()
+            && let Some(id) = self.coachmarks.active
+        {
+            self.acknowledge_coachmark(id, cx);
+        }
+    }
     /// `HeaderFeatureCoachmark`'s overlay: end-aligned below its entry.
     pub(super) fn coachmark_overlay(&self, w: f32, cx: &mut Context<Self>) -> Option<AnyElement> {
+        if !self.coachmark_shown() {
+            return None;
+        }
         let id = self.coachmarks.active?;
         let anchor = self.coachmarks.anchor?;
-        let t = cx.palette();
-        let ty = theme::ty();
-        let width = WIDTH.min(w - 2. * MARGIN);
-        let right = f32::from(anchor.origin.x + anchor.size.width);
-        let left = (right - width).clamp(MARGIN, (w - MARGIN - width).max(MARGIN));
-        let top = f32::from(anchor.origin.y + anchor.size.height) + GAP;
-        let key = id.key();
-        let text = |k: &str| crate::localization::t(&format!("shell.coachmark.{key}.{k}"));
-        let glyph: Icon = match id {
-            Coachmark::Agent => Icon::new("agent-entry"),
-            Coachmark::Changes => Icon::new("version-control"),
-        };
         let dismiss = cx.listener(move |s, _, _, cx| s.acknowledge_coachmark(id, cx));
         let primary = cx.listener(move |s, _, w, cx| {
             s.acknowledge_coachmark(id, cx);
@@ -265,90 +272,125 @@ impl Shell {
             }
         });
         let outside = cx.listener(move |s, _, _, cx| s.acknowledge_coachmark(id, cx));
-        // `.desktop-titlebar-menu.desktop-header-coachmark` on the header
-        // typography surface.
-        let surface = v_flex()
-            .id("header-coachmark")
-            .w(px(width))
-            .p(px(2. * metric::MENU_ITEM_PADDING_INLINE))
-            .gap(px(metric::MENU_ITEM_GAP + metric::MENU_PADDING))
-            .border_1()
-            .border_color(t.border)
-            .rounded(px(metric::MENU_RADIUS))
-            .bg(t.menu_bg)
-            .shadow(MenuVariant::Default.shadow(t))
-            .text_color(t.text)
-            .on_mouse_down_out(outside)
-            .child(
-                h_flex()
-                    .items_start()
-                    .gap(px(metric::MENU_ITEM_GAP))
-                    .child(
-                        div()
-                            .flex()
-                            .flex_shrink_0()
-                            .size(px(theme::control()))
-                            .items_center()
-                            .justify_center()
-                            .border_1()
-                            .border_color(t.border)
-                            .rounded(px(metric::CONTROL_RADIUS))
-                            .bg(t.control)
-                            .child(
-                                glyph
-                                    .with_size(px(metric::MENU_ICON_SLOT))
-                                    .stroke(1.9)
-                                    .color(t.accent),
-                            ),
-                    )
-                    .child(
-                        v_flex()
-                            .min_w_0()
-                            .gap(px(metric::MENU_PADDING))
-                            .child(
-                                div()
-                                    .text_size(px(ty.header.content))
-                                    .line_height(px(ty.header.line_height))
-                                    .font_weight(FontWeight::SEMIBOLD)
-                                    .child(text("title")),
-                            )
-                            .child(
-                                div()
-                                    .text_size(px(ty.header.meta))
-                                    .line_height(px(ty.header.meta_line_height))
-                                    .text_color(t.muted)
-                                    .child(text("body")),
-                            ),
-                    ),
-            )
-            .child(
-                h_flex()
-                    .justify_end()
-                    .gap(px(metric::MENU_ITEM_GAP))
-                    .child(
-                        Button::new("coachmark-dismiss")
-                            .variant(ButtonVariant::Pattern)
-                            .label(text("dismiss"))
-                            .on_click(dismiss),
-                    )
-                    .child(
-                        Button::new("coachmark-primary")
-                            .variant(ButtonVariant::PatternPrimary)
-                            .label(text("primary"))
-                            .on_click(primary),
-                    ),
-            );
-        Some(
-            deferred(
-                anchored()
-                    .position(point(px(left), px(top)))
-                    .position_mode(AnchoredPositionMode::Window)
-                    .child(surface),
-            )
-            .with_priority(1)
-            .into_any_element(),
-        )
+        Some(overlay(
+            id,
+            anchor,
+            w,
+            cx.palette(),
+            dismiss,
+            primary,
+            outside,
+        ))
     }
+}
+
+/// The overlay of `id` below `anchor` in a window `w` wide: Later, the
+/// primary action, and a press outside.
+pub(crate) fn overlay(
+    id: Coachmark,
+    anchor: Bounds<Pixels>,
+    w: f32,
+    t: Theme,
+    dismiss: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+    primary: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+    outside: impl Fn(&MouseDownEvent, &mut Window, &mut App) + 'static,
+) -> AnyElement {
+    let ty = theme::ty();
+    let width = WIDTH.min(w - 2. * MARGIN);
+    let right = f32::from(anchor.origin.x + anchor.size.width);
+    let left = (right - width).clamp(MARGIN, (w - MARGIN - width).max(MARGIN));
+    let top = f32::from(anchor.origin.y + anchor.size.height) + GAP;
+    let key = id.key();
+    let text = |k: &str| crate::localization::t(&format!("shell.coachmark.{key}.{k}"));
+    let glyph: Icon = match id {
+        Coachmark::Agent => Icon::new("agent-entry"),
+        Coachmark::Changes => Icon::new("version-control"),
+    };
+    // `.desktop-titlebar-menu.desktop-header-coachmark` on the header
+    // typography surface.
+    let surface = v_flex()
+        .id("header-coachmark")
+        .w(px(width))
+        .p(px(2. * metric::MENU_ITEM_PADDING_INLINE))
+        .gap(px(metric::MENU_ITEM_GAP + metric::MENU_PADDING))
+        .border_1()
+        .border_color(t.border)
+        .rounded(px(metric::MENU_RADIUS))
+        .relative()
+        .child(crate::ui::components::menu::padding_box_fill(
+            metric::MENU_RADIUS,
+            t.menu_bg,
+        ))
+        .shadow(MenuVariant::Default.shadow(t))
+        .text_color(t.text)
+        .on_mouse_down_out(outside)
+        .child(
+            h_flex()
+                .items_start()
+                .gap(px(metric::MENU_ITEM_GAP))
+                .child(
+                    div()
+                        .flex()
+                        .flex_shrink_0()
+                        .size(px(theme::control()))
+                        .items_center()
+                        .justify_center()
+                        .border_1()
+                        .border_color(t.border)
+                        .rounded(px(metric::CONTROL_RADIUS))
+                        .bg(t.control)
+                        .child(
+                            glyph
+                                .with_size(px(metric::MENU_ICON_SLOT))
+                                .stroke(1.9)
+                                .color(t.accent),
+                        ),
+                )
+                .child(
+                    v_flex()
+                        .min_w_0()
+                        .gap(px(metric::MENU_PADDING))
+                        .child(
+                            div()
+                                .text_size(px(ty.header.content))
+                                .line_height(px(ty.header.line_height))
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .child(text("title")),
+                        )
+                        .child(
+                            div()
+                                .text_size(px(ty.header.meta))
+                                .line_height(px(ty.header.meta_line_height))
+                                .text_color(t.muted)
+                                .child(text("body")),
+                        ),
+                ),
+        )
+        .child(
+            h_flex()
+                .justify_end()
+                .gap(px(metric::MENU_ITEM_GAP))
+                .child(
+                    Button::new("coachmark-dismiss")
+                        .variant(ButtonVariant::Pattern)
+                        .label(text("dismiss"))
+                        .on_click(dismiss),
+                )
+                .child(
+                    Button::new("coachmark-primary")
+                        .variant(ButtonVariant::PatternPrimary)
+                        .label(text("primary"))
+                        .on_click(primary),
+                ),
+        );
+    deferred(
+        anchored()
+            .position(point(px(left), px(top)))
+            .position_mode(AnchoredPositionMode::Window)
+            .child(surface),
+    )
+    .with_priority(1)
+    .into_any_element()
 }
 
 #[cfg(test)]
