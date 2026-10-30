@@ -47,7 +47,7 @@ pub(super) enum Readiness {
 pub(super) struct CloudSwitch {
     /// Preparing in place for this Project.
     preparing: Option<String>,
-    failure: Option<Failure>,
+    pub(super) failure: Option<Failure>,
     /// "Continue in background": the intent waits without its dialog.
     pub hidden: bool,
     /// `MissingCloudProjectRecovery`: replacing a vanished Project's remote.

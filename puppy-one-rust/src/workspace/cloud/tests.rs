@@ -1135,3 +1135,27 @@ fn database_previews_refuse_active_sidecars_and_keep_one_snapshot() {
     // Other files are not checked for sidecars.
     assert!(ws.resource(p("image.png")).is_ok());
 }
+#[test]
+fn one_provider_runs_its_mutations_one_at_a_time() {
+    let f = Fixture::new();
+    let ws = Arc::new(f.open());
+    let old = ws.read(p("live.md")).unwrap();
+    f.state.write.held.store(true, Ordering::SeqCst);
+    let saving = {
+        let ws = ws.clone();
+        thread::spawn(move || ws.save(&old, "first\n").map(|_| ()))
+    };
+    wait(|| f.state.write.arrived.load(Ordering::SeqCst) == 1);
+    let creating = {
+        let ws = ws.clone();
+        thread::spawn(move || ws.create_entry(p(""), "folder", true, "").map(|_| ()))
+    };
+    // The folder waits behind the save still on the wire.
+    thread::sleep(Duration::from_millis(150));
+    assert_eq!(f.state.count("POST", "/files"), 0);
+    f.state.write.release();
+    saving.join().unwrap().unwrap();
+    creating.join().unwrap().unwrap();
+    assert_eq!(f.state.count("POST", "/files"), 1);
+    assert_eq!(ws.read(p("live.md")).unwrap().text, "first\n");
+}

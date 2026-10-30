@@ -2551,3 +2551,218 @@ fn escape_acknowledges_the_header_introduction_wherever_focus_is(cx: &mut TestAp
         assert!(s.coachmark_shown());
     });
 }
+
+/// A Git checkout linked to `project-a` on a signed-in fixture account with
+/// Cloud on; `responder` answers the Cloud API.
+fn linked_checkout(
+    cx: &mut TestAppContext,
+    responder: crate::cloud_auth::Responder,
+) -> (
+    Entity<Shell>,
+    &mut VisualTestContext,
+    std::path::PathBuf,
+    tempfile::TempDir,
+) {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().canonicalize().unwrap();
+    std::fs::write(root.join("local.md"), "# Local\n").unwrap();
+    for args in [
+        &["init", "-q"][..],
+        &[
+            "remote",
+            "add",
+            "origin",
+            "http://127.0.0.1:18080/git/project-a.git",
+        ],
+    ] {
+        assert!(
+            std::process::Command::new("git")
+                .args(args)
+                .current_dir(&root)
+                .status()
+                .unwrap()
+                .success()
+        );
+    }
+    let (view, cx) = setup(cx);
+    let (broker, browser) = crate::cloud_auth::responding_account_fixture(responder);
+    cx.update(|_, cx| crate::features::cloud_account::install_fixture(broker, browser, cx));
+    view.update(cx, |s, cx| {
+        s.preferences
+            .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
+    });
+    settle_cloud(&view, cx, "sign-in", &|_, cx| {
+        crate::features::cloud_account::has_account(cx)
+    });
+    view.update(cx, |s, _| {
+        s.files.begin(Intent::OpenFolder(root.clone()), &s.wake)
+    });
+    settle_cloud(&view, cx, "the local project", &|s, _| {
+        s.workspace_root().as_deref() == Some(root.as_path())
+    });
+    (view, cx, root, temp)
+}
+fn settle_cloud(
+    view: &Entity<Shell>,
+    cx: &mut VisualTestContext,
+    what: &str,
+    ready: &dyn Fn(&Shell, &App) -> bool,
+) {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(8);
+    loop {
+        view.update_in(cx, |s, w, cx| s.receive(w, cx));
+        cx.run_until_parked();
+        cx.update(|w, cx| {
+            let _ = w.draw(cx);
+        });
+        if cx.update(|_, cx| ready(view.read(cx), cx)) {
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "{what} did not settle"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+}
+/// `GET /projects/` with `project-a`, else `fallback`.
+fn with_catalog(fallback: crate::cloud_auth::Responder) -> crate::cloud_auth::Responder {
+    std::sync::Arc::new(move |request| {
+        if request.path.contains("/projects/") && !request.path.contains("/projects/project-a") {
+            return Ok(serde_json::json!({"code": 0, "data": [
+                {"id": "project-a", "name": "Fixture Cloud", "updated_at": "2026-10-01T00:00:00Z"}]}));
+        }
+        fallback(request)
+    })
+}
+
+#[gpui::test]
+fn a_refused_association_leaves_the_account_catalog_usable(cx: &mut TestAppContext) {
+    let base = cloud_project_responder();
+    let responder = with_catalog(std::sync::Arc::new(move |request| {
+        if request.path.ends_with("/repository-context") {
+            return Err(crate::cloud_auth::Error::Http(403));
+        }
+        base(request)
+    }));
+    let (view, cx, root, _temp) = linked_checkout(cx, responder);
+    settle_cloud(&view, cx, "the refusal", &|s, cx| {
+        s.repository_cloud.read(cx).context
+            == crate::workspace::cloud::repository::Context::NotAuthorized
+    });
+    // The catalog still loads and lists the Cloud Project (merged by the
+    // checkout's trusted locator, not by the refused authorization).
+    settle_cloud(&view, cx, "the catalog", &|s, cx| {
+        s.project_items(cx)
+            .iter()
+            .any(|i| i.cloud_project.as_deref() == Some("project-a"))
+    });
+    view.update(cx, |s, cx| {
+        assert_eq!(s.workspace_root().as_deref(), Some(root.as_path()));
+        assert_eq!(
+            s.cloud_catalog.read(cx).state,
+            crate::features::cloud_catalog::State::Ready(vec![
+                crate::workspace::cloud::catalog::CloudEntry {
+                    id: "project-a".into(),
+                    name: "Fixture Cloud".into(),
+                    updated: Some(1_790_812_800_000),
+                }
+            ])
+        );
+        assert!(!s.modal());
+    });
+}
+
+#[gpui::test]
+fn a_failed_header_switch_stays_local_with_its_recovery_in_place(cx: &mut TestAppContext) {
+    let base = cloud_project_responder();
+    let responder = with_catalog(std::sync::Arc::new(move |request| {
+        if request.path.ends_with("/workbench/files") {
+            return Err(crate::cloud_auth::Error::Http(503));
+        }
+        base(request)
+    }));
+    let (view, cx, root, _temp) = linked_checkout(cx, responder);
+    settle_cloud(&view, cx, "the association", &|s, cx| {
+        s.repository_cloud.read(cx).context.project() == Some("project-a")
+    });
+    view.update_in(cx, |s, w, cx| s.view_cloud(w, cx));
+    settle_cloud(&view, cx, "the failure", &|s, _| {
+        s.cloud_switch.as_ref().is_some_and(|c| c.failure.is_some())
+    });
+    view.update(cx, |s, cx| {
+        // Still the local project, never the project picker or the Homepage.
+        assert_eq!(s.workspace_root().as_deref(), Some(root.as_path()));
+        assert!(!s.home_visible());
+        assert!(!s.modals.iter().any(|m| matches!(m, Modal::ProjectEntry)));
+        assert!(s.modals.iter().any(|m| matches!(m, Modal::CloudSwitch)));
+        assert!(s.hosted_project().is_none());
+        // The catalog is untouched.
+        assert!(
+            s.project_items(cx)
+                .iter()
+                .any(|i| i.cloud_project.as_deref() == Some("project-a"))
+        );
+    });
+}
+
+#[gpui::test]
+fn a_catalog_reload_keeps_an_open_failure_and_retry_reopens_that_project(cx: &mut TestAppContext) {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    let failing = std::sync::Arc::new(AtomicBool::new(true));
+    let base = cloud_project_responder();
+    let responder = with_catalog({
+        let failing = failing.clone();
+        std::sync::Arc::new(move |request| {
+            if failing.load(Ordering::SeqCst) && request.path.ends_with("/workbench/files") {
+                return Err(crate::cloud_auth::Error::Http(503));
+            }
+            base(request)
+        })
+    });
+    let (view, cx) = setup(cx);
+    let (broker, browser) = crate::cloud_auth::responding_account_fixture(responder);
+    cx.update(|_, cx| crate::features::cloud_account::install_fixture(broker, browser, cx));
+    view.update(cx, |s, cx| {
+        s.preferences
+            .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
+    });
+    settle_cloud(&view, cx, "the catalog", &|s, cx| {
+        matches!(
+            s.cloud_catalog.read(cx).state,
+            crate::features::cloud_catalog::State::Ready(_)
+        )
+    });
+    view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
+    settle_cloud(&view, cx, "the open failure", &|s, _| {
+        s.modals
+            .iter()
+            .any(|m| matches!(m, Modal::CloudRecovery { .. }))
+    });
+    // Reloading the catalog leaves the failure in place.
+    view.update(cx, |s, cx| s.refresh_cloud_catalog(true, cx));
+    settle_cloud(&view, cx, "the reloaded catalog", &|s, cx| {
+        matches!(
+            s.cloud_catalog.read(cx).state,
+            crate::features::cloud_catalog::State::Ready(_)
+        )
+    });
+    view.update(cx, |s, _| {
+        assert!(
+            s.modals.iter().any(
+                |m| matches!(m, Modal::CloudRecovery { project, .. } if project == "project-a")
+            )
+        );
+        assert!(s.hosted_project().is_none());
+    });
+    // Retry repeats that opening, not a list refresh.
+    failing.store(false, Ordering::SeqCst);
+    view.update(cx, |s, cx| {
+        s.modals
+            .remove(|m| matches!(m, Modal::CloudRecovery { .. }));
+        s.open_cloud("project-a".into(), cx);
+    });
+    settle_cloud(&view, cx, "the reopened project", &|s, _| {
+        s.hosted_project().as_deref() == Some("project-a")
+    });
+}
