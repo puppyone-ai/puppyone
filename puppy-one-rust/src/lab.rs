@@ -217,6 +217,7 @@ impl Lab {
                     "history" => Section::History,
                     "mcp" => Section::Mcp,
                     "settings" => Section::Settings,
+                    "share" => Section::Share,
                     _ => Section::Contents,
                 };
                 let view = cx.new(|cx| {

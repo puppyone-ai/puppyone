@@ -1053,7 +1053,7 @@ impl Shell {
                     Some(project) => {
                         use crate::features::cloud_services::Section;
                         self.cloud_services
-                            .update(cx, |s, cx| s.open(project, Section::Contents, cx));
+                            .update(cx, |s, cx| s.open(project, Section::Share, cx));
                         self.modals.open(Modal::CloudServices);
                         self.modal_focus.focus(window, cx);
                     }

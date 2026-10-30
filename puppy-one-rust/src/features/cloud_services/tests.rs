@@ -348,3 +348,166 @@ fn one_failed_resource_leaves_the_others_and_offers_retry(cx: &mut TestAppContex
         reads.count("GET", "/content/p/commits") == 2
     });
 }
+
+fn shared_cloud(
+    r: &ApiRequest,
+    created: &std::sync::atomic::AtomicUsize,
+) -> services::Result<Value> {
+    use std::sync::atomic::Ordering;
+    match r.path.as_str() {
+        "/mcp-endpoints" if r.method == reqwest::Method::POST => {
+            created.fetch_add(1, Ordering::SeqCst);
+            let body = r.body.clone().unwrap();
+            Ok(
+                json!({"id": "e1", "project_id": "p", "name": body["name"], "api_key": "pwk_once",
+                "status": "active", "path": body["path"], "accesses": body["accesses"]}),
+            )
+        }
+        "/mcp-endpoints" if created.load(Ordering::SeqCst) > 0 => Ok(json!([
+            {"id": "e1", "project_id": "p", "name": "Claude", "status": "active", "path": "",
+             "created_at": "2026-10-01T00:00:00Z",
+             "accesses": [{"path": "", "readonly": true}]}])),
+        _ => cloud("p")(r),
+    }
+}
+
+#[gpui::test]
+fn a_share_issues_one_key_and_the_same_share_is_reused_without_another(cx: &mut TestAppContext) {
+    let created = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let counter = created.clone();
+    let f = fake(move |r| shared_cloud(r, &counter));
+    let (view, cx) = open(cx, f.clone(), Section::Share);
+    let loaded = view.clone();
+    settle(cx, "the details", &|cx| {
+        loaded.read_with(cx, |s, _| s.details.is_some())
+    });
+    draw(cx);
+    let claude = share::TARGETS[2];
+    view.update(cx, |s, cx| {
+        s.begin_share(claude, cx);
+        s.issue_share(cx);
+    });
+    let loaded = view.clone();
+    settle(cx, "the issued key", &|cx| {
+        loaded.read_with(cx, |s, _| {
+            matches!(
+                s.share_flow.as_ref().map(|f| &f.phase),
+                Some(SharePhase::Ready { key: Some(_), .. })
+            )
+        })
+    });
+    draw(cx);
+    let loaded = view.clone();
+    settle(cx, "the new share in the list", &|cx| {
+        loaded.read_with(cx, |s, _| !s.share_rows().is_empty() && !s.loading)
+    });
+    // Asking again reuses the endpoint: nothing created, no key to show.
+    view.update(cx, |s, cx| {
+        s.begin_share(claude, cx);
+        s.issue_share(cx);
+        assert!(matches!(
+            s.share_flow.as_ref().map(|f| &f.phase),
+            Some(SharePhase::Ready {
+                key: None,
+                reused: true,
+                ..
+            })
+        ));
+    });
+    draw(cx);
+    assert_eq!(f.count("POST", "/mcp-endpoints"), 1);
+}
+
+#[gpui::test]
+fn a_link_target_never_creates_a_key(cx: &mut TestAppContext) {
+    let f = fake(cloud("p"));
+    let (view, cx) = open(cx, f.clone(), Section::Share);
+    let loaded = view.clone();
+    settle(cx, "the details", &|cx| {
+        loaded.read_with(cx, |s, _| s.details.is_some())
+    });
+    let person = share::TARGETS
+        .iter()
+        .copied()
+        .find(|t| t.id == "person")
+        .unwrap();
+    view.update(cx, |s, cx| {
+        s.begin_share(person, cx);
+        s.issue_share(cx);
+        assert!(matches!(
+            s.share_flow.as_ref().map(|f| &f.phase),
+            Some(SharePhase::Ready {
+                key: None,
+                endpoint: None,
+                ..
+            })
+        ));
+    });
+    draw(cx);
+    assert_eq!(f.count("POST", "/mcp-endpoints"), 0);
+}
+
+#[gpui::test]
+fn a_folder_share_makes_its_scope_first_and_a_failure_offers_retry(cx: &mut TestAppContext) {
+    let f = fake(|r| {
+        if r.path == "/mcp-endpoints" && r.method == reqwest::Method::POST {
+            return Err(services::Error::Status(503));
+        }
+        if r.path.ends_with("/scopes") && r.method == reqwest::Method::POST {
+            return Ok(
+                json!({"id": "s", "project_id": "p", "name": "docs", "path": "docs", "max_mode": "r"}),
+            );
+        }
+        cloud("p")(r)
+    });
+    let (view, cx) = open(cx, f.clone(), Section::Share);
+    let loaded = view.clone();
+    settle(cx, "the details", &|cx| {
+        loaded.read_with(cx, |s, _| s.details.is_some())
+    });
+    view.update(cx, |s, cx| {
+        s.begin_share(share::TARGETS[0], cx);
+        s.share_flow.as_mut().unwrap().path = "docs".into();
+        s.issue_share(cx);
+    });
+    let loaded = view.clone();
+    settle(cx, "the failure", &|cx| {
+        loaded.read_with(cx, |s, _| {
+            matches!(
+                s.share_flow.as_ref().map(|f| &f.phase),
+                Some(SharePhase::Failed)
+            )
+        })
+    });
+    draw(cx);
+    assert_eq!(f.count("POST", "/projects/p/scopes"), 1);
+}
+
+#[gpui::test]
+fn stopping_a_share_deletes_its_endpoint_and_a_failure_changes_nothing(cx: &mut TestAppContext) {
+    let created = Arc::new(std::sync::atomic::AtomicUsize::new(1));
+    let counter = created.clone();
+    let f = fake(move |r| {
+        if r.method == reqwest::Method::DELETE {
+            return Err(services::Error::Status(503));
+        }
+        shared_cloud(r, &counter)
+    });
+    let (view, cx) = open(cx, f.clone(), Section::Share);
+    let loaded = view.clone();
+    settle(cx, "the reader", &|cx| {
+        loaded.read_with(cx, |s, _| !s.share_rows().is_empty())
+    });
+    draw(cx);
+    view.update(cx, |s, cx| {
+        s.confirm_delete = Some("e1".into());
+        s.stop_share("e1".into(), cx);
+    });
+    let loaded = view.clone();
+    settle(cx, "the failure", &|cx| {
+        loaded.read_with(cx, |s, _| s.stop_failed && !s.busy)
+    });
+    draw(cx);
+    view.read_with(cx, |s, _| assert_eq!(s.share_rows().len(), 1));
+    assert_eq!(f.count("DELETE", "/mcp-endpoints/e1"), 1);
+}

@@ -18,6 +18,7 @@ use crate::{
         access_points::{self as access, Catalog, CommandId, Kind, Point, Status},
         graph, history,
         services::{self, Client, Dashboard, Identity, McpEndpoint, Project, Scope, Surface, Tree},
+        share,
     },
 };
 use gpui::{prelude::*, *};
@@ -39,6 +40,8 @@ pub enum Section {
     History,
     Settings,
     Team,
+    /// `openCloudShare`: where the Header's Share lands.
+    Share,
 }
 impl Section {
     fn catalog(self) -> Option<Catalog> {
@@ -60,6 +63,7 @@ impl Section {
             Self::History => "history",
             Self::Settings => "settings",
             Self::Team => "cloud-team",
+            Self::Share => "share",
         }
     }
     fn title(self) -> String {
@@ -71,7 +75,9 @@ impl Section {
     /// The permanent navigation entry a task page belongs to.
     fn nav(self) -> Section {
         match self {
-            Self::History | Self::Settings | Self::Access | Self::GitSync => Self::Contents,
+            Self::History | Self::Settings | Self::Access | Self::GitSync | Self::Share => {
+                Self::Contents
+            }
             other => other,
         }
     }
@@ -147,6 +153,38 @@ pub struct Team {
 pub struct Close;
 impl EventEmitter<Close> for CloudServices {}
 
+/// `pollIntervalMs` while a share waits for its first read.
+const RECEIPT_POLL: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// `ShareWizardDialog`'s state.
+#[derive(Clone, Debug)]
+struct ShareFlow {
+    target: share::Target,
+    /// The Project root (empty) or a folder.
+    path: String,
+    mode: &'static str,
+    phase: SharePhase,
+}
+#[derive(Clone, Debug)]
+enum SharePhase {
+    Choose,
+    Issuing,
+    Ready {
+        endpoint: Option<String>,
+        /// Only from a fresh issue; a reused share shows none.
+        key: Option<String>,
+        issued_at: Option<String>,
+        reused: bool,
+    },
+    Failed,
+}
+fn target_label(target: &share::Target) -> String {
+    target.brand.map_or_else(
+        || tr(&format!("cloud.share.target.{}.label", target.id)).to_owned(),
+        str::to_owned,
+    )
+}
+
 /// `CreateAccessDialog`'s draft.
 #[derive(Clone, Debug)]
 struct Create {
@@ -188,6 +226,10 @@ pub struct CloudServices {
     /// The open Create access form.
     creating: Option<Create>,
     folder_epoch: u64,
+    /// The Share wizard, and the issue or receipt watch that may report.
+    share_flow: Option<ShareFlow>,
+    share_epoch: u64,
+    stop_failed: bool,
     scope_name: Entity<TextInput>,
     notice: Option<SharedString>,
     busy: bool,
@@ -218,6 +260,9 @@ impl CloudServices {
             confirm_delete: None,
             creating: None,
             folder_epoch: 0,
+            share_flow: None,
+            share_epoch: 0,
+            stop_failed: false,
             scope_name: field(false, window, cx),
             notice: None,
             busy: false,
@@ -267,6 +312,9 @@ impl CloudServices {
         self.confirm_delete = None;
         self.creating = None;
         self.folder_epoch += 1;
+        self.share_flow = None;
+        self.share_epoch += 1;
+        self.stop_failed = false;
         self.notice = None;
         self.busy = false;
     }
@@ -282,6 +330,8 @@ impl CloudServices {
         self.section = section;
         self.confirm_delete = None;
         self.creating = None;
+        self.share_flow = None;
+        self.share_epoch += 1;
         self.notice = None;
         self.scroll.set_offset(point(px(0.), px(0.)));
         self.enter(section, cx);
@@ -509,7 +559,8 @@ impl CloudServices {
             .is_some_and(|s| s.max_mode != "rw");
         self.mutate(
             move |client| {
-                let endpoint = client.create_mcp_endpoint(&project, &view.path, readonly)?;
+                let endpoint =
+                    client.create_mcp_endpoint(&project, "MCP Server", &view.path, readonly)?;
                 Ok(endpoint.api_key.map(|key| (endpoint.id, key)))
             },
             cx,
@@ -621,12 +672,191 @@ impl CloudServices {
                 if !mcp {
                     return Ok(None);
                 }
-                let endpoint =
-                    client.create_mcp_endpoint(&project, &scope.path, scope.max_mode != "rw")?;
+                let endpoint = client.create_mcp_endpoint(
+                    &project,
+                    "MCP Server",
+                    &scope.path,
+                    scope.max_mode != "rw",
+                )?;
                 Ok(endpoint.api_key.map(|key| (endpoint.id, key)))
             },
             cx,
         );
+    }
+    fn share_rows(&self) -> Vec<share::Share> {
+        self.details
+            .as_ref()
+            .map(|d| share::shares(&d.endpoints, d.dashboard.as_ref()))
+            .unwrap_or_default()
+    }
+    fn begin_share(&mut self, target: share::Target, cx: &mut Context<Self>) {
+        self.share_flow = Some(ShareFlow {
+            target,
+            path: String::new(),
+            mode: "r",
+            phase: SharePhase::Choose,
+        });
+        cx.notify();
+    }
+    /// `ShareWizardDialog`'s issue step: a link needs no request; the same
+    /// active share is reused without a new key; otherwise the Scope exists
+    /// first, then the endpoint.
+    fn issue_share(&mut self, cx: &mut Context<Self>) {
+        let (Some(client), Some(project), Some(flow)) = (
+            self.client.clone(),
+            self.project.clone(),
+            self.share_flow.clone(),
+        ) else {
+            return;
+        };
+        let target = flow.target;
+        if target.channel == share::Channel::Link {
+            self.set_share_phase(
+                SharePhase::Ready {
+                    endpoint: None,
+                    key: None,
+                    issued_at: None,
+                    reused: false,
+                },
+                cx,
+            );
+            return;
+        }
+        let name = target_label(&target);
+        let (path, mode) = (flow.path.clone(), flow.mode);
+        if let Some(existing) = share::reusable(&self.share_rows(), &name, &path, mode == "r") {
+            let (endpoint, issued_at) = (existing.id.clone(), existing.created_at.clone());
+            self.set_share_phase(
+                SharePhase::Ready {
+                    endpoint: Some(endpoint),
+                    key: None,
+                    issued_at,
+                    reused: true,
+                },
+                cx,
+            );
+            self.watch_receipt(cx);
+            return;
+        }
+        self.set_share_phase(SharePhase::Issuing, cx);
+        self.share_epoch += 1;
+        let epoch = self.share_epoch;
+        let task = cx.background_spawn(async move {
+            if !path.is_empty() && !client.scopes(&project)?.iter().any(|s| s.path == path) {
+                let folder = path.rsplit('/').find(|p| !p.is_empty()).unwrap_or(&path);
+                client.create_scope(&project, folder, &path, mode)?;
+            }
+            client.create_mcp_endpoint(&project, &name, &path, mode == "r")
+        });
+        cx.spawn(async move |this, cx| {
+            let result = task.await;
+            this.update(cx, |s, cx| {
+                if s.share_epoch != epoch {
+                    return;
+                }
+                match result {
+                    Ok(endpoint) => {
+                        s.set_share_phase(
+                            SharePhase::Ready {
+                                endpoint: Some(endpoint.id),
+                                key: endpoint.api_key,
+                                issued_at: Some(
+                                    chrono::Utc::now()
+                                        .to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+                                ),
+                                reused: false,
+                            },
+                            cx,
+                        );
+                        s.refresh(cx);
+                        s.watch_receipt(cx);
+                    }
+                    Err(_) => s.set_share_phase(SharePhase::Failed, cx),
+                }
+            })
+            .ok();
+        })
+        .detach();
+    }
+    fn set_share_phase(&mut self, phase: SharePhase, cx: &mut Context<Self>) {
+        if let Some(flow) = &mut self.share_flow {
+            flow.phase = phase;
+        }
+        cx.notify();
+    }
+    /// Whether the issued share has been used since it was issued.
+    fn share_connected(&self, flow: &ShareFlow) -> bool {
+        let SharePhase::Ready {
+            endpoint: Some(endpoint),
+            issued_at,
+            ..
+        } = &flow.phase
+        else {
+            return false;
+        };
+        let rows = self.share_rows();
+        share::has_receipt(
+            rows.iter().find(|s| s.id == *endpoint),
+            issued_at.as_deref(),
+        )
+    }
+    /// `pollIntervalMs`: reread while waiting for the first read.
+    fn watch_receipt(&mut self, cx: &mut Context<Self>) {
+        self.share_epoch += 1;
+        let epoch = self.share_epoch;
+        cx.spawn(async move |this, cx| {
+            loop {
+                cx.background_executor().timer(RECEIPT_POLL).await;
+                let waiting = this
+                    .update(cx, |s, cx| {
+                        let waiting = s.share_epoch == epoch
+                            && s.share_flow.as_ref().is_some_and(|flow| {
+                                matches!(flow.phase, SharePhase::Ready { .. })
+                                    && !s.share_connected(flow)
+                            });
+                        if waiting {
+                            s.refresh(cx);
+                        }
+                        waiting
+                    })
+                    .unwrap_or(false);
+                if !waiting {
+                    break;
+                }
+            }
+        })
+        .detach();
+    }
+    fn stop_share(&mut self, id: String, cx: &mut Context<Self>) {
+        self.stop_failed = false;
+        let Some(client) = self.client.clone() else {
+            return;
+        };
+        if self.busy {
+            return;
+        }
+        self.busy = true;
+        let epoch = self.epoch;
+        let task = cx.background_spawn(async move { client.delete_mcp_endpoint(&id) });
+        cx.spawn(async move |this, cx| {
+            let result = task.await;
+            this.update(cx, |s, cx| {
+                if s.epoch != epoch {
+                    return;
+                }
+                s.busy = false;
+                match result {
+                    Ok(()) => {
+                        s.confirm_delete = None;
+                        s.refresh(cx);
+                    }
+                    Err(_) => s.stop_failed = true,
+                }
+                cx.notify();
+            })
+            .ok();
+        })
+        .detach();
     }
     fn copy(&mut self, value: String, cx: &mut Context<Self>) {
         cx.write_to_clipboard(ClipboardItem::new_string(value));
@@ -789,6 +1019,7 @@ impl CloudServices {
             Section::History => self.history(t, cx),
             Section::Settings => self.settings(t, cx),
             Section::Team => self.team(t, cx),
+            Section::Share => self.share_page(t, cx),
             _ => self.access(t, cx),
         };
         v_flex()
@@ -1279,6 +1510,452 @@ impl CloudServices {
             page = page.child(row);
         }
         page.into_any_element()
+    }
+    /// `CloudShareHome`: who can read the Project, and who else could.
+    fn share_page(&mut self, t: Theme, cx: &mut Context<Self>) -> AnyElement {
+        let ty = theme::ty().ui;
+        let Some(details) = self.details.clone() else {
+            return self.loading_row(t);
+        };
+        if let Some(flow) = self.share_flow.clone() {
+            return self.share_wizard(flow, &details, t, cx);
+        }
+        let name = details
+            .project
+            .as_ref()
+            .map_or(String::new(), |p| p.name.clone());
+        let readers: Vec<share::Share> = self
+            .share_rows()
+            .into_iter()
+            .filter(|s| s.active())
+            .collect();
+        let mut page = v_flex()
+            .gap(px(12.))
+            .child(
+                div()
+                    .text_size(px(ty.body + 2.))
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .text_color(t.text)
+                    .child(tr("cloud.share.location.shareAction")),
+            )
+            .child(
+                div()
+                    .text_size(px(ty.meta))
+                    .text_color(t.muted)
+                    .child(tf("cloud.share.readers.title", &[("project", name.into())])),
+            );
+        if readers.is_empty() {
+            page = page.child(
+                div()
+                    .text_size(px(ty.meta))
+                    .text_color(t.muted)
+                    .child(tr("cloud.share.reach.readers.empty")),
+            );
+        }
+        for (index, reader) in readers.into_iter().enumerate() {
+            let confirming = self.confirm_delete.as_deref() == Some(reader.id.as_str());
+            let (ask, stop) = (reader.id.clone(), reader.id.clone());
+            let place = if reader.path.is_empty() {
+                tr("cloud.share.reach.readers.wholeProject").to_owned()
+            } else {
+                access::path_label(&reader.path)
+            };
+            let can = tr(if reader.readonly {
+                "cloud.share.reach.readers.canRead"
+            } else {
+                "cloud.share.reach.readers.canChange"
+            });
+            let seen = reader.last_seen.as_deref().map_or(
+                tr("cloud.share.reach.readers.neverRead").to_owned(),
+                |at| {
+                    let day: String = at.chars().take(10).collect();
+                    tf(
+                        "cloud.share.reach.readers.lastRead",
+                        &[("time", day.into())],
+                    )
+                },
+            );
+            let mut row = h_flex()
+                .gap(px(8.))
+                .p(px(10.))
+                .border_1()
+                .border_color(t.border)
+                .rounded(px(8.))
+                .child(
+                    v_flex()
+                        .flex_1()
+                        .min_w_0()
+                        .child(
+                            div()
+                                .text_size(px(ty.meta))
+                                .font_weight(FontWeight::MEDIUM)
+                                .text_color(t.text)
+                                .child(reader.name.clone()),
+                        )
+                        .child(
+                            div()
+                                .text_size(px(ty.caption))
+                                .text_color(t.muted)
+                                .child(format!("{place} · {can} · {seen}")),
+                        )
+                        .when(confirming, |d| {
+                            d.child(div().text_size(px(ty.caption)).text_color(t.danger).child(
+                                if self.stop_failed {
+                                    tr("cloud.share.reach.readers.stopFailed").to_owned()
+                                } else {
+                                    tf(
+                                        "cloud.share.reach.readers.stopConsequence",
+                                        &[("name", reader.name.clone().into())],
+                                    )
+                                },
+                            ))
+                        }),
+                );
+            if confirming {
+                row = row
+                    .child(
+                        Button::new(("cloud-share-keep", index))
+                            .variant(ButtonVariant::Secondary)
+                            .label(tr("cloud.share.reach.readers.keep"))
+                            .on_click(cx.listener(|s, _, _, cx| {
+                                s.confirm_delete = None;
+                                s.stop_failed = false;
+                                cx.notify();
+                            })),
+                    )
+                    .child(
+                        Button::new(("cloud-share-stop", index))
+                            .variant(ButtonVariant::SolidDanger)
+                            .label(tr("cloud.share.reach.readers.stop"))
+                            .disabled(self.busy)
+                            .on_click(
+                                cx.listener(move |s, _, _, cx| s.stop_share(stop.clone(), cx)),
+                            ),
+                    );
+            } else {
+                row = row.child(
+                    Button::new(("cloud-share-ask", index))
+                        .variant(ButtonVariant::Secondary)
+                        .label(tr("cloud.share.reach.readers.stop"))
+                        .on_click(cx.listener(move |s, _, _, cx| {
+                            s.stop_failed = false;
+                            s.confirm_delete = Some(ask.clone());
+                            cx.notify();
+                        })),
+                );
+            }
+            page = page.child(row);
+        }
+        page = page.child(
+            div()
+                .pt(px(8.))
+                .text_size(px(ty.meta))
+                .font_weight(FontWeight::MEDIUM)
+                .text_color(t.text)
+                .child(tr("cloud.share.target.question")),
+        );
+        let mut grid = h_flex().flex_wrap().items_start().gap(px(8.));
+        for (index, target) in share::TARGETS.iter().copied().enumerate() {
+            grid = grid.child(
+                v_flex()
+                    .id(("cloud-share-target", index))
+                    .w(px(320.))
+                    .gap(px(2.))
+                    .p(px(10.))
+                    .border_1()
+                    .border_color(t.border)
+                    .rounded(px(8.))
+                    .hover(|d| d.bg(t.hover))
+                    .on_click(cx.listener(move |s, _, _, cx| s.begin_share(target, cx)))
+                    .child(
+                        div()
+                            .text_size(px(ty.meta))
+                            .font_weight(FontWeight::MEDIUM)
+                            .text_color(t.text)
+                            .child(target_label(&target)),
+                    )
+                    .child(
+                        div()
+                            .text_size(px(ty.caption))
+                            .text_color(t.muted)
+                            .child(tr(&format!("cloud.share.target.{}.preview", target.id))),
+                    ),
+            );
+        }
+        page.child(grid).into_any_element()
+    }
+    fn share_wizard(
+        &mut self,
+        flow: ShareFlow,
+        details: &Details,
+        t: Theme,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let ty = theme::ty().ui;
+        let label = target_label(&flow.target);
+        let heading = div()
+            .text_size(px(ty.body + 2.))
+            .font_weight(FontWeight::SEMIBOLD)
+            .text_color(t.text)
+            .child(label.clone());
+        let back = Button::new("cloud-share-back")
+            .variant(ButtonVariant::Secondary)
+            .icon(Icon::new("arrow-left").with_size(px(13.)).color(t.muted))
+            .label(tr("cloud.share.action.back"))
+            .on_click(cx.listener(|s, _, _, cx| {
+                s.share_epoch += 1;
+                s.share_flow = None;
+                cx.notify();
+            }));
+        let page = v_flex()
+            .gap(px(12.))
+            .child(h_flex().child(back))
+            .child(heading);
+        match flow.phase.clone() {
+            SharePhase::Choose => {
+                let folders: Vec<String> = details
+                    .tree
+                    .iter()
+                    .flat_map(|tree| tree.entries.iter())
+                    .filter(|e| e.kind == "folder")
+                    .map(|e| e.path.clone())
+                    .collect();
+                let option = |id: (&'static str, usize),
+                              path: String,
+                              text: String,
+                              cx: &mut Context<Self>| {
+                    let chosen = flow.path == path;
+                    Button::new(id)
+                        .variant(if chosen {
+                            ButtonVariant::Solid
+                        } else {
+                            ButtonVariant::Secondary
+                        })
+                        .label(text)
+                        .on_click(cx.listener(move |s, _, _, cx| {
+                            if let Some(flow) = &mut s.share_flow {
+                                flow.path = path.clone();
+                            }
+                            cx.notify();
+                        }))
+                };
+                let mut scope = h_flex().flex_wrap().gap(px(6.)).child(option(
+                    ("cloud-share-path", 0),
+                    String::new(),
+                    tr("cloud.share.scope.whole").to_owned(),
+                    cx,
+                ));
+                for (index, folder) in folders.into_iter().enumerate() {
+                    let text = access::path_label(&folder);
+                    scope = scope.child(option(("cloud-share-path", index + 1), folder, text, cx));
+                }
+                let page = page
+                    .child(
+                        div()
+                            .text_size(px(ty.meta))
+                            .font_weight(FontWeight::MEDIUM)
+                            .text_color(t.text)
+                            .child(tr("cloud.share.scope.question")),
+                    )
+                    .child(scope);
+                let page = if flow.target.channel == share::Channel::Mcp {
+                    let mode = |id: &'static str,
+                                value: &'static str,
+                                key: &str,
+                                cx: &mut Context<Self>| {
+                        Button::new(id)
+                            .variant(if flow.mode == value {
+                                ButtonVariant::Solid
+                            } else {
+                                ButtonVariant::Secondary
+                            })
+                            .label(tr(key))
+                            .on_click(cx.listener(move |s, _, _, cx| {
+                                if let Some(flow) = &mut s.share_flow {
+                                    flow.mode = value;
+                                }
+                                cx.notify();
+                            }))
+                    };
+                    let read = mode("cloud-share-read", "r", "cloud.share.scope.readOnly", cx);
+                    let write = mode("cloud-share-write", "rw", "cloud.share.scope.readWrite", cx);
+                    page.child(h_flex().gap(px(6.)).child(read).child(write))
+                } else {
+                    page
+                };
+                page.child(
+                    h_flex().justify_end().child(
+                        Button::new("cloud-share-next")
+                            .variant(ButtonVariant::Solid)
+                            .label(tr("cloud.share.action.next"))
+                            .on_click(cx.listener(|s, _, _, cx| s.issue_share(cx))),
+                    ),
+                )
+                .into_any_element()
+            }
+            SharePhase::Issuing => page
+                .child(div().text_size(px(ty.meta)).text_color(t.muted).child(tf(
+                    "cloud.share.publish.issuing",
+                    &[("target", label.clone().into())],
+                )))
+                .into_any_element(),
+            SharePhase::Failed => page
+                .child(
+                    div()
+                        .text_size(px(ty.meta))
+                        .text_color(t.danger)
+                        .child(tr("cloud.share.error.issueFailed")),
+                )
+                .child(
+                    h_flex().child(
+                        Button::new("cloud-share-retry")
+                            .variant(ButtonVariant::Secondary)
+                            .label(tr("cloud.share.action.retry"))
+                            .on_click(cx.listener(|s, _, _, cx| s.issue_share(cx))),
+                    ),
+                )
+                .into_any_element(),
+            SharePhase::Ready { key, reused, .. } => {
+                let connected = self.share_connected(&flow);
+                let copy_row =
+                    |id: &'static str, title: &str, value: String, cx: &mut Context<Self>| {
+                        let copied = value.clone();
+                        h_flex()
+                            .gap(px(8.))
+                            .child(
+                                v_flex()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .child(
+                                        div()
+                                            .text_size(px(ty.caption))
+                                            .text_color(t.muted)
+                                            .child(tr(title)),
+                                    )
+                                    .child(
+                                        div()
+                                            .text_size(px(ty.caption))
+                                            .font_family("Geist Mono")
+                                            .text_color(t.text)
+                                            .child(value),
+                                    ),
+                            )
+                            .child(
+                                Button::new(id)
+                                    .variant(ButtonVariant::Secondary)
+                                    .label(tr("cloud.share.action.copy"))
+                                    .on_click(
+                                        cx.listener(move |s, _, _, cx| s.copy(copied.clone(), cx)),
+                                    ),
+                            )
+                    };
+                let mut page = page.child(
+                    div()
+                        .text_size(px(ty.meta))
+                        .font_weight(FontWeight::MEDIUM)
+                        .text_color(t.text)
+                        .child(tf(
+                            "cloud.share.handoff.title",
+                            &[("target", label.clone().into())],
+                        )),
+                );
+                for step in 1..=flow.target.steps {
+                    page = page.child(div().text_size(px(ty.meta)).text_color(t.text).child(
+                        format!(
+                            "{step}. {}",
+                            tr(&format!(
+                                "cloud.share.handoff.{}.step{step}",
+                                flow.target.id
+                            ))
+                        ),
+                    ));
+                }
+                let environment = cloud_account::environment(cx);
+                if flow.target.channel == share::Channel::Mcp {
+                    let server = environment
+                        .as_ref()
+                        .map(|e| services::mcp_server_url(e.api()))
+                        .unwrap_or_default();
+                    page = page.child(copy_row(
+                        "cloud-share-url",
+                        "cloud.share.handoff.serverUrl",
+                        server,
+                        cx,
+                    ));
+                    page = match key {
+                        Some(key) => page.child(copy_row(
+                            "cloud-share-key",
+                            "cloud.share.handoff.apiKey",
+                            key,
+                            cx,
+                        )),
+                        None if reused => page.child(
+                            div()
+                                .text_size(px(ty.caption))
+                                .text_color(t.muted)
+                                .child(tr("cloud.share.handoff.apiKeyReused")),
+                        ),
+                        None => page,
+                    };
+                    page = page.child(div().text_size(px(ty.caption)).text_color(t.muted).child(
+                        tf(
+                            if connected {
+                                "cloud.share.receipt.connected"
+                            } else {
+                                "cloud.share.receipt.waiting"
+                            },
+                            &[("target", label.clone().into())],
+                        ),
+                    ));
+                } else if let Some(link) = environment.as_ref().and_then(|e| {
+                    let project = self.project.as_deref()?;
+                    crate::workspace::cloud::locator::resource_url(
+                        e.web(),
+                        project,
+                        &flow.path,
+                        true,
+                    )
+                    .ok()
+                }) {
+                    page = page
+                        .child(copy_row(
+                            "cloud-share-link",
+                            "cloud.share.handoff.link",
+                            link,
+                            cx,
+                        ))
+                        .child(
+                            div()
+                                .text_size(px(ty.caption))
+                                .text_color(t.muted)
+                                .child(tr("cloud.share.handoff.linkNote")),
+                        );
+                }
+                let docs = flow.target.docs;
+                page.children(docs.map(|url| {
+                    Button::new("cloud-share-docs")
+                        .variant(ButtonVariant::Secondary)
+                        .label(tf(
+                            "cloud.share.handoff.docs",
+                            &[("target", label.clone().into())],
+                        ))
+                        .on_click(move |_, _, cx| cx.open_url(url))
+                }))
+                .child(
+                    h_flex().justify_end().child(
+                        Button::new("cloud-share-done")
+                            .variant(ButtonVariant::Solid)
+                            .label(tr("cloud.share.action.done"))
+                            .on_click(cx.listener(|s, _, _, cx| {
+                                s.share_epoch += 1;
+                                s.share_flow = None;
+                                cx.notify();
+                            })),
+                    ),
+                )
+                .into_any_element()
+            }
+        }
     }
     /// `CreateAccessDialog`: a folder, a name and a permission.
     fn create_form(

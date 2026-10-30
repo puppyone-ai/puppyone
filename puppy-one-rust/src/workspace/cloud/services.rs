@@ -184,6 +184,17 @@ pub struct McpEndpoint {
     pub api_key: Option<String>,
     #[serde(default)]
     pub status: String,
+    #[serde(default)]
+    pub accesses: Vec<EndpointAccess>,
+    #[serde(default)]
+    pub created_at: Option<String>,
+}
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+pub struct EndpointAccess {
+    #[serde(default)]
+    pub path: String,
+    #[serde(default)]
+    pub readonly: Option<bool>,
 }
 /// `buildMcpServerUrl`: the public proxy, on the API's origin. The bearer
 /// credential travels apart from it, never in the URL.
@@ -470,15 +481,21 @@ impl Client {
         let url = format!("/projects/{}/scopes/{}", segment(project)?, segment(scope)?);
         self.send(Method::DELETE, url, vec![], None).map(|_| ())
     }
+    /// `deleteCloudMcpEndpoint`: what stopping a share is.
+    pub fn delete_mcp_endpoint(&self, id: &str) -> Result<()> {
+        let path = format!("/mcp-endpoints/{}", segment(id)?);
+        self.send(Method::DELETE, path, vec![], None).map(|_| ())
+    }
     /// `createCloudMcpEndpoint`: the one read that may carry the key; the
     /// caller shows it once. It never goes into a URL.
     pub fn create_mcp_endpoint(
         &self,
         project: &str,
+        name: &str,
         path: &str,
         readonly: bool,
     ) -> Result<McpEndpoint> {
-        let body = json!({"project_id": project, "path": path, "name": "MCP Server",
+        let body = json!({"project_id": project, "path": path, "name": name,
             "accesses": [{"path": path, "json_path": "", "readonly": readonly}]});
         let endpoint: McpEndpoint = decode(
             self.send(Method::POST, "/mcp-endpoints".into(), vec![], Some(body))?,
@@ -603,7 +620,7 @@ mod tests {
         let created = json!({"id": "e", "project_id": "p", "name": "MCP Server", "api_key": "k"});
         assert_eq!(
             client(created.clone())
-                .create_mcp_endpoint("p", "docs", true)
+                .create_mcp_endpoint("p", "MCP Server", "docs", true)
                 .unwrap()
                 .api_key
                 .as_deref(),
@@ -611,7 +628,7 @@ mod tests {
         );
         assert!(
             client(created)
-                .create_mcp_endpoint("q", "docs", true)
+                .create_mcp_endpoint("q", "MCP Server", "docs", true)
                 .is_err()
         );
     }
