@@ -131,8 +131,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding-block: 0 8px;
-  padding-inline: var(--agent-composer-toolbar-padding-inline);
+  padding-block: 0 var(--agent-composer-toolbar-inset);
+  padding-inline: var(--agent-composer-toolbar-padding-inline) var(--agent-composer-toolbar-inset);
   border: 0;
 }
 .desktop-agent-composer-picker {
@@ -149,6 +149,7 @@
 .desktop-agent-composer-picker .desktop-agent-picker-trigger {
   width: max-content;
   max-width: 100%;
+  height: var(--agent-composer-control-size);
   padding-block: 0;
   padding-inline: var(--agent-composer-picker-padding-inline);
   border: 0;
@@ -170,13 +171,13 @@
 .desktop-agent-composer-action {
   position: relative;
   display: grid;
-  width: var(--agent-control-size);
-  height: var(--agent-control-size);
+  width: var(--agent-composer-control-size);
+  height: var(--agent-composer-control-size);
   flex: 0 0 auto;
   place-items: center;
   padding: 0;
   border: 0;
-  border-radius: 50%;
+  border-radius: var(--agent-primary-action-radius);
   background: transparent;
   box-shadow: none;
   color: var(--agent-canvas);
@@ -185,8 +186,8 @@
 }
 .desktop-agent-composer-action::before {
   position: absolute;
-  inset: calc((var(--agent-control-size) - var(--agent-primary-action-visual-size)) / 2);
-  border-radius: 50%;
+  inset: calc((var(--agent-composer-control-size) - var(--agent-primary-action-visual-size)) / 2);
+  border-radius: inherit;
   background: var(--agent-text);
   content: "";
 }
@@ -289,8 +290,8 @@
 .desktop-agent-attachment-control { position: relative; display: grid; flex: 0 0 auto; }
 .desktop-agent-reference-trigger {
   display: grid;
-  width: var(--agent-control-size);
-  height: var(--agent-control-size);
+  width: var(--agent-composer-control-size);
+  height: var(--agent-composer-control-size);
   place-items: center;
   padding: 0;
   border: 0;
@@ -299,6 +300,9 @@
   color: var(--agent-text-subtle);
   cursor: var(--po-clickable-cursor, default);
 }
+/* Lucide's paperclip is drawn on a diagonal; stand it upright so it shares
+ * the vertical rhythm of the arrow and the picker labels. */
+.desktop-agent-reference-trigger > svg { transform: rotate(-45deg); }
 .desktop-agent-reference-trigger:hover:not(:disabled) { background: var(--agent-row-hover-surface); color: var(--agent-text-muted); }
 .desktop-agent-reference-trigger:disabled { cursor: default; color: var(--agent-text-subtle); opacity: 0.48; }
 .desktop-agent-command-menu {

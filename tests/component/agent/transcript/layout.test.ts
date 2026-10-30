@@ -82,9 +82,10 @@ describe("Desktop Agent renderer surfaces", () => {
     const composerSurface = container.querySelector(".desktop-agent-composer") as HTMLElement;
     const promptEditor = container.querySelector(".cm-content") as HTMLElement;
     expect(window.getComputedStyle(providerControl).height).toBe("calc(32px - 6px)");
-    expect(window.getComputedStyle(sendControl).width).toBe("32px");
-    expect(window.getComputedStyle(sendControl).height).toBe("32px");
-    expect(window.getComputedStyle(modelControl).height).toBe("32px");
+    // Composer controls use the Header control height (--po-control-size-compact).
+    expect(window.getComputedStyle(sendControl).width).toBe("calc(32px - 4px)");
+    expect(window.getComputedStyle(sendControl).height).toBe("calc(32px - 4px)");
+    expect(window.getComputedStyle(modelControl).height).toBe("calc(32px - 4px)");
     expect(window.getComputedStyle(composerSurface).cursor).not.toBe("text");
     expect(window.getComputedStyle(promptEditor).cursor).toBe("text");
   });
