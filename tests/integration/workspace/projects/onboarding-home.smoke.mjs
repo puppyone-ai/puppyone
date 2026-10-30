@@ -423,7 +423,7 @@ async function runSmoke() {
   }
 }
 
-// The Grid keeps the list's column, four cells across, with its actions on one quiet line.
+// The Grid keeps the list's column, four cells across, with three equal action keys under it.
 async function validateProjectGrid() {
   const settle = "new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))).then(() => Promise.all(document.getAnimations().map(animation => animation.finished)))";
   const column = `(() => { const edges = selector => { const r = document.querySelector(selector).getBoundingClientRect(); return [r.left, r.right]; };
@@ -452,12 +452,19 @@ async function validateProjectGrid() {
           columns:new Set(folders.map(folder => folder.left)).size, actionTops:new Set(actions.map(action => action.getBoundingClientRect().top)).size,
           actionIcons:actions.filter(action => action.querySelector('.po-button__icon') && getComputedStyle(action.querySelector('.po-button__icon')).display !== 'none').length,
           actionFont:getComputedStyle(actions[0].querySelector('.po-button__label')).fontSize,
+          actionWidths:new Set(actions.map(action => Math.round(action.getBoundingClientRect().width))).size,
+          actionEdges:[Math.round(actions[0].getBoundingClientRect().left), Math.round(actions[2].getBoundingClientRect().right)],
+          ruleEdges:(rule => [Math.round(rule.left), Math.round(rule.right)])(document.querySelector('.onboarding-home-primary').getBoundingClientRect()),
+          clippedLabels:actions.filter(action => { const label = action.querySelector('.po-button__label'); return label.scrollWidth > label.clientWidth; }).length,
           thumb:getComputedStyle(element, '::-webkit-scrollbar-thumb').backgroundColor };
       })()`);
       assert.equal(snapshot.sideways, 0, `${context}: the Grid never scrolls sideways`);
       assert.equal(snapshot.columns, Math.min(count, 4), `${context}: four cells across`);
       assert.equal(snapshot.actionTops, 1, `${context}: the actions share one line`);
-      assert.equal(snapshot.actionIcons, 0, `${context}: the actions are words alone`);
+      assert.equal(snapshot.actionIcons, 3, `${context}: the actions keep the list's icons`);
+      assert.equal(snapshot.actionWidths, 1, `${context}: the actions are equal keys`);
+      assert.deepEqual(snapshot.actionEdges, snapshot.ruleEdges, `${context}: the actions span the column`);
+      assert.equal(snapshot.clippedLabels, 0, `${context}: no action label is cut`);
       assert.equal(snapshot.actionFont, '12px', `${context}: the actions use the folders' type`);
       if (snapshot.overflows) assert.notEqual(snapshot.thumb, 'rgba(0, 0, 0, 0)', `${context}: more projects below are always signalled`);
       await writeFile(path.join(screenshots, `grid-${theme}-${width}x${height}-${count}.png`), (await window.capturePage()).toPNG());

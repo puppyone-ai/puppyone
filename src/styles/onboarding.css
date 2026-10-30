@@ -694,20 +694,45 @@ span.homepage-cloud-feedback {
 }
 
 /* Under a wall of folders the list's action rows would be a second page, so on the
-   Grid they become one quiet line in the folders' own type, centered like them. */
+   Grid they become three equal keys across the column: the layout switch's material,
+   the folders' own type, and the list's icons, whose slot also shows a folder opening. */
 .onboarding-homepage:has(.onboarding-project-list[data-project-layout="grid"]) .onboarding-entry-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 2px 18px;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  justify-items: stretch;
+  gap: 8px;
 }
 
 .onboarding-homepage:has(.onboarding-project-list[data-project-layout="grid"]) .onboarding-entry-action {
   --onboarding-row-font-size: var(--po-type-ui-caption, 12px);
   --onboarding-row-font-weight: var(--po-text-weight-regular, 400);
+  width: 100%;
+  justify-content: center;
+  gap: 6px;
+  padding-inline: 6px;
+  background: var(--po-control);
 }
 
-.onboarding-homepage:has(.onboarding-project-list[data-project-layout="grid"]) :is(.onboarding-entry-action .po-button__icon, .onboarding-entry-import-brands) {
+.onboarding-homepage:has(.onboarding-project-list[data-project-layout="grid"]) .onboarding-entry-action:is(:hover:not(:disabled), :focus-visible),
+.onboarding-shell.dragging .onboarding-homepage:has(.onboarding-project-list[data-project-layout="grid"]) .onboarding-entry-action[data-onboarding-action="open"] {
+  background: var(--po-control-hover);
+  color: var(--po-text);
+}
+
+.onboarding-homepage:has(.onboarding-project-list[data-project-layout="grid"]) .onboarding-entry-action .po-button__icon {
+  width: auto;
+  max-width: none;
+  flex-basis: auto;
+}
+
+.onboarding-homepage:has(.onboarding-project-list[data-project-layout="grid"]) .onboarding-entry-action .po-button__icon > svg {
+  width: 13px;
+  max-width: 13px;
+  height: 13px;
+  stroke-width: 1.6;
+}
+
+.onboarding-homepage:has(.onboarding-project-list[data-project-layout="grid"]) .onboarding-entry-import-brands {
   display: none;
 }
 
