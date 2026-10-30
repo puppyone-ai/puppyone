@@ -1927,6 +1927,7 @@ function AppContent() {
         onInvitePerson: () => openShareWizard("person", "", "invite"),
         onConnectAgent: () => openShareWizard(null, "", "connect"),
       } : {}),
+      ...(cloudWorkspaceActive && cloudSidebar.historyAvailable ? { onOpenHistory: cloudSidebar.openHistory } : {}),
     },
   } : null;
   const titlebarContext = railOwnsProject ? null : (
@@ -1971,7 +1972,6 @@ function AppContent() {
       {cloudHeaderActive && <CloudWorkspaceHeaderTools context={cloudWorkspaceActive ? accountCloud.context : null}
         getShareResource={() => captureCloudWorkspaceShareResource(nativeCloudWorkbench)}
         session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl} onSessionChange={updateCloudSession}
-        historyOpen={cloudSidebar.historyOpen} onToggleHistory={cloudSidebar.toggleHistory}
         agentOpen={cloudAgent.open} onToggleAgent={cloudWorkspaceActive ? cloudSidebar.toggleAgent : undefined}
         renderPeople={people => <CloudWorkspaceAgentPeople {...people} />} />}
       {/* Who can reach the project sits where every application puts the

@@ -33,18 +33,24 @@ describe("Cloud auxiliary pane ownership", () => {
     await render(); expect(sidebar.open).toBe(false);
     act(() => sidebar.toggleAgent()); expect(sidebar.open).toBe(true);
     expect(document.querySelector("[data-agent-open]")?.getAttribute("data-agent-open")).toBe("true");
-    act(() => sidebar.toggleHistory()); expect(sidebar.historyOpen).toBe(true);
+    act(() => sidebar.openHistory()); expect(sidebar.historyOpen).toBe(true);
     expect(document.querySelector("[data-agent-open]")?.getAttribute("data-agent-open")).toBe("false");
     act(() => sidebar.toggleAgent()); expect(sidebar.historyOpen).toBe(false); expect(sidebar.open).toBe(true);
     act(() => sidebar.setOpen(false)); expect(sidebar.open).toBe(false);
     expect(stopRun).not.toHaveBeenCalled();
   });
-  it("toggles History closed on a second click", async () => {
-    await render(); act(() => sidebar.toggleHistory()); expect(sidebar.open).toBe(true);
-    act(() => sidebar.toggleHistory()); expect(sidebar.open).toBe(false);
+  it("keeps History open when asked for it again; the panel owns its close", async () => {
+    await render(); act(() => sidebar.openHistory()); expect(sidebar.open).toBe(true);
+    act(() => sidebar.openHistory()); expect(sidebar.historyOpen).toBe(true);
+    act(() => sidebar.close()); expect(sidebar.open).toBe(false);
+  });
+  it("offers no History for a scoped target, which has no project-wide record", async () => {
+    await render({ context: { status: "resolved", projectId: "p", target: { kind: "scope", project_id: "p", scope_id: "s" } } });
+    expect(sidebar.historyAvailable).toBe(false);
+    act(() => sidebar.openHistory()); expect(sidebar.historyOpen).toBe(false);
   });
   it.each(["project", "account", "generation", "host", "local", "sign-out"])("clears History on %s change without reopening it on return", async change => {
-    await render(); act(() => sidebar.toggleHistory());
+    await render(); act(() => sidebar.openHistory());
     const changes: Record<string, Props> = {
       project: { context: { status: "resolved", projectId: "other", target: { kind: "project_root", project_id: "other" } } },
       account: { session: { ...session, user_id: "two" } }, generation: { session: { ...session, session_generation: "two" } },

@@ -26,7 +26,7 @@ afterEach(() => { act(() => root?.unmount()); root = null; document.body.replace
 async function render(props: Partial<Parameters<typeof CloudWorkspaceHeaderTools>[0]> = {}) {
   if (!root) { const host = document.createElement("div"); document.body.append(host); root = createRoot(host); }
   await act(async () => root?.render(withTestLocalization(<CloudWorkspaceHeaderTools
-    context={context()} session={session} apiBaseUrl={API} onSessionChange={vi.fn()} onToggleHistory={vi.fn()} {...props} />)));
+    context={context()} session={session} apiBaseUrl={API} onSessionChange={vi.fn()} {...props} />)));
 }
 const button = (tool: string) => document.querySelector<HTMLButtonElement>(`[data-cloud-workspace-tool="${tool}"]`)!;
 
@@ -41,33 +41,24 @@ describe("Cloud workspace Header tools", () => {
     expect(button("agent").getAttribute("aria-label")).toBe("Hide Agent");
     act(() => button("agent").click()); expect(toggle).toHaveBeenCalledTimes(2);
   });
-  it("replaces Automate and Connect with Share and History, disabled during preparation", async () => {
+  it("keeps only Share and Agent in the Header, disabled during preparation", async () => {
     await render({ context: null });
     expect(button("automation")).toBeNull();
     expect(button("connect")).toBeNull();
     expect(button("share").getAttribute("aria-label")).toBe("Share");
-    expect(button("history").getAttribute("aria-label")).toBe("History");
+    expect(button("history")).toBeNull();
     expect(button("share").disabled).toBe(true);
-    expect(button("history").disabled).toBe(true);
     await act(async () => button("share").click());
     expect(document.querySelector("[role=dialog]")).toBeNull();
     await render();
     expect(button("share").disabled).toBe(false);
-    expect(button("history").disabled).toBe(false);
+    expect(button("history")).toBeNull();
   });
 
-  it("toggles cloud History independently from the share dialog", async () => {
-    const toggle = vi.fn(); await render({ onToggleHistory: toggle });
-    act(() => button("history").click()); expect(toggle).toHaveBeenCalledTimes(1);
-    expect(document.querySelector("[role=dialog]")).toBeNull();
-    await render({ onToggleHistory: toggle, historyOpen: true });
-    expect(button("history").getAttribute("aria-pressed")).toBe("true");
-  });
-
-  it("does not read project-wide history for a scoped target", async () => {
-    await render({ context: { status: "resolved", projectId: "hosted-project",
-      target: { kind: "scope", project_id: "hosted-project", scope_id: "limited" } } });
-    expect(button("history").disabled).toBe(true);
+  it("states Share in its word alone, with no icon beside it", async () => {
+    await render();
+    expect(button("share").querySelector("svg")).toBeNull();
+    expect(button("share").textContent).toBe("Share");
   });
 
   it("opens sharing for the active hosted project and allows dismissal", async () => {

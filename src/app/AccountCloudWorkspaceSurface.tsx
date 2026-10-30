@@ -106,7 +106,8 @@ export function AccountCloudWorkspaceSurface({ workbench, presentation, active, 
   const placeMenu = { menu: resolveProjectPlaceMenu({ place: "cloud", unhosted: false, publishPending: false, notice: null,
     missingReplaceable: false, linkedFolder: linkedFolder ? { path: linkedFolder.localPath, name: linkedFolder.label } : null }),
   handlers: { onPutInCloud: noop, onOpenCloudProject: noop, onSignIn: noop, onPutInCloudAgain: noop,
-    onOpenLocalFolder: (path: string) => onSelectProject(path) } };
+    onOpenLocalFolder: (path: string) => onSelectProject(path),
+    ...(sidebar.historyAvailable ? { onOpenHistory: sidebar.openHistory } : {}) } };
   // The rail states the Project it is switching between, so the hosted Header
   // repeats neither the name nor the place while the rail is present.
   const projectContext = !active || projectRail ? null : <DesktopTitlebarContext open={menuOpen} refObject={menuRef}
@@ -125,7 +126,6 @@ export function AccountCloudWorkspaceSurface({ workbench, presentation, active, 
       titlebarActions={active && <CloudWorkspaceHeaderTools context={context} session={session}
         getShareResource={() => captureCloudWorkspaceShareResource(workbench)}
         apiBaseUrl={apiBaseUrl} onSessionChange={onSessionChange} agentOpen={agent.open} onToggleAgent={sidebar.toggleAgent}
-        historyOpen={sidebar.historyOpen} onToggleHistory={sidebar.toggleHistory}
         renderPeople={people => <CloudWorkspaceAgentPeople {...people} />} />}
       titlebarSidebarSlot={centered ? undefined : projectContext}
       titlebarCenteredSlot={centered ? projectContext : undefined}

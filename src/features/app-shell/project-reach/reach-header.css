@@ -107,7 +107,6 @@
     display: inline-flex;
     box-sizing: border-box;
     align-items: center;
-    gap: 4px;
     height: var(--desktop-titlebar-control-height);
     padding: 0 6px;
     border: 0;
@@ -133,19 +132,32 @@
   /* People are round, machines are square. An agent carries its own brand, so
      the shape is what still separates a person from a program; colour never
      has to. */
-  .desktop-project-reach-mark {
+  /* An identity is one round mark, for a person and an Agent alike. It is
+     opaque over the Header's own colour so that stacked marks stay separate
+     however the project tints it, and the ring is that colour too. */
+  .desktop-project-reach-mark,
+  .desktop-project-reach-count {
+    --reach-mark-ground: var(--desktop-titlebar-bg, var(--po-header));
+    position: relative;
     display: grid;
     box-sizing: border-box;
     flex: 0 0 auto;
     place-items: center;
-    overflow: hidden;
-    /* An identity is the account mark, for a person and an Agent alike. */
     border-radius: 50%;
-    background: var(--po-control);
-    color: var(--po-text);
+    background:
+      linear-gradient(color-mix(in srgb, currentColor 16%, transparent) 0 0),
+      var(--reach-mark-ground);
+    box-shadow: 0 0 0 1.5px var(--reach-mark-ground);
+    /* Present but not at work: nothing here asks to be read. */
+    color: var(--desktop-titlebar-text-muted, var(--po-text-muted));
     font-size: var(--po-type-ui-micro);
     line-height: 1;
     font-weight: var(--po-text-weight-medium, 500);
+  }
+
+  /* Stacked, as a room reads: the marks are one group, not a row of buttons. */
+  .desktop-titlebar-reach-people > * + * {
+    margin-inline-start: -5px;
   }
 
   /* A brand stays whole inside the circle; its corners are not the circle's to cut. */
@@ -153,16 +165,38 @@
   .desktop-project-reach-mark > svg {
     width: 62%;
     height: 62%;
+    opacity: 0.7;
   }
 
-  /* Lit means working in the project right now, and nothing else does. */
+  /* Lit means working in the project right now, and nothing else does: the
+     word comes up and the mark carries Share's own active lamp, which takes no
+     room from the mark beside it. */
   .desktop-project-reach-mark[data-reach-activity] {
-    box-shadow: 0 0 0 1.5px var(--po-accent);
+    z-index: 1;
+    color: var(--desktop-titlebar-text, var(--po-text));
+  }
+
+  .desktop-project-reach-mark[data-reach-activity]::after {
+    content: "";
+    position: absolute;
+    inset-block-end: -1px;
+    inset-inline-end: -1px;
+    box-sizing: content-box;
+    width: 6px;
+    height: 6px;
+    border: 1.5px solid var(--reach-mark-ground);
+    border-radius: 50%;
+    background: var(--po-success);
+  }
+
+  .desktop-project-reach-mark[data-reach-activity] > img,
+  .desktop-project-reach-mark[data-reach-activity] > svg {
+    opacity: 1;
   }
 
   .desktop-project-reach-count {
-    color: inherit;
-    line-height: inherit;
+    width: 22px;
+    height: 22px;
     font-variant-numeric: tabular-nums;
   }
 

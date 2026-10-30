@@ -227,8 +227,6 @@
   "loading.matchingProject": "Cloud-Projekt wird zugeordnet…",
   "loading.startingWorkspace": "Wache auf…",
   "loading.files": "Hole deine Dateien heraus…",
-  "loading.filesHint": "Deine Projektdateien werden bereitgelegt.",
-  "loading.startingWorkspaceHint": "Dein gehosteter Arbeitsbereich startet. Das kann bis zu einer Minute dauern.",
   "loading.project": "Projekt wird geladen…",
   "loading.session": "Cloud-Sitzung wird wiederhergestellt…",
   "project.available": "Verfügbar",
