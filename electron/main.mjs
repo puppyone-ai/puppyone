@@ -668,6 +668,7 @@ async function createWindow(options = {}) {
     initialWorkspaceId: options.initialWorkspaceId ?? null,
     initialWorkspacePaths,
     initialCloudProject: options.initialCloudProject ?? null,
+    initialOpenPath: options.initialOpenPath ?? null,
   }));
   lastFocusedWindowId = webContentsId;
 
@@ -1435,6 +1436,7 @@ async function getInitialWorkspaceResultForWindow(sender) {
       path: folders[0]?.path ?? null,
       workspace: workspaces[0] ?? null,
       workspaces,
+      initialOpenPath: state?.takeInitialOpenPath() ?? null,
       error: null,
     };
   } catch (error) {
@@ -1493,12 +1495,15 @@ async function createProjectForCurrentWindow(sender, request) {
       source: request.source,
       operationId: request.operationId,
       locale: request.locale ?? localeService.getSnapshot().locale,
+      numberIfTaken: request.numberIfTaken === true,
     });
     // Retain authority only for this committed operation, not another create.
     projectLocationGrants.bindCommittedOperation(sender, request.locationGrantId, request.operationId);
     try {
       assertOpen();
-      const result = await openWorkspaceInCurrentWindowNow(sender, project.path, {}, assertOpen);
+      const result = request.openInNewWindow === true
+        ? await openWorkspaceInNewWindow(project.path, { initialOpenPath: project.initialization.initialOpenPath })
+        : await openWorkspaceInCurrentWindowNow(sender, project.path, {}, assertOpen);
       return { initialization: project.initialization, opening: { status: "opened", result } };
     } catch (error) {
       return { initialization: project.initialization, opening: { status: "failed", message: error instanceof Error ? error.message : String(error) } };
@@ -1696,6 +1701,7 @@ async function openWorkspaceInNewWindow(folderPath, options = {}) {
   const canonicalPath = await canonicalizeWorkspacePath(workspace.path);
   const window = await createWindow({
     initialWorkspacePath: canonicalPath,
+    initialOpenPath: options.initialOpenPath,
   });
   const state = assignWindowWorkspace(window, workspace, canonicalPath, { cleanupPrevious: false });
   if (options.remember !== false) {

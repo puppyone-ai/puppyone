@@ -429,26 +429,27 @@ describe("project folder home", () => {
     expect(onImportSource).not.toHaveBeenCalled();
   });
 
-  it("with Cloud on, requires an explicit template preview and sign-in before marketplace creation", async () => {
-    // Marketplace templates need a PuppyOne account, so the link entry rides on Cloud.
-    preferences.getState().setExperimentalSettings((settings) => ({ ...settings, enableCloudWorkspace: true }));
-    const readText = vi.fn(async () => "https://www.puppyone.ai/t/b91aaade-bc9e-4dfd-8f23-11f06ec00301");
+  it("reads the clipboard only when asked, and hands a template link to its card", async () => {
+    const readText = vi.fn(async () => "not a link");
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { readText } });
-    const resolveTemplateLink = vi.fn(async () => ({ id: "b91aaade-bc9e-4dfd-8f23-11f06ec00301", releaseId: "b91aaade-bc9e-4dfd-8f23-11f06ec00101", name: "CRM", description: "Customers", version: "1.0.0", author: "Puppyone", locale: "en", shareUrl: "https://www.puppyone.ai/t/b91aaade-bc9e-4dfd-8f23-11f06ec00301" }));
+    const resolveTemplateLink = vi.fn(async () => ({ id: "b91aaade-bc9e-4dfd-8f23-11f06ec00301", releaseId: "b91aaade-bc9e-4dfd-8f23-11f06ec00101", name: "CRM", description: "Customers", version: "1.0.0", author: "PuppyOne", locale: "en", shareUrl: "https://www.puppyone.ai/t/b91aaade-bc9e-4dfd-8f23-11f06ec00301", fileCount: 3, icon: null, requiresSignIn: false }));
     window.puppyoneDesktop = { resolveTemplateLink } as unknown as NonNullable<typeof window.puppyoneDesktop>;
     const onCreateProject = vi.fn(createProjectResult);
     const location = vi.fn(async () => ({ grantId: "default", path: "/example/Projects" }));
     const container = renderHome({ onDefaultProjectLocation: location, onChooseProjectLocation: location, onCreateProject });
     await act(async () => container.querySelector<HTMLButtonElement>("[data-onboarding-action='create']")?.click());
     expect(readText).not.toHaveBeenCalled();
-    await act(async () => container.querySelector<HTMLInputElement>("input[type='checkbox']")?.click());
-    const submit = container.querySelector<HTMLButtonElement>("button[type='submit']");
-    expect(submit?.disabled).toBe(true);
-    await act(async () => [...container.querySelectorAll("button")].find(button => button.textContent === "Paste link")?.click());
+    const pasteButton = () => [...container.querySelectorAll("button")].find(button => button.textContent === "Paste template link");
+
+    await act(async () => { pasteButton()?.click(); await Promise.resolve(); });
     expect(readText).toHaveBeenCalledOnce();
+    expect(container.textContent).toContain("no template link on the clipboard");
+    expect(resolveTemplateLink).not.toHaveBeenCalled();
+
+    readText.mockResolvedValue("https://www.puppyone.ai/t/b91aaade-bc9e-4dfd-8f23-11f06ec00301");
+    await act(async () => { pasteButton()?.click(); await Promise.resolve(); await Promise.resolve(); });
     expect(resolveTemplateLink).toHaveBeenCalledOnce();
     expect(container.textContent).toContain("Customers");
-    expect(submit?.disabled).toBe(true);
     expect(onCreateProject).not.toHaveBeenCalled();
   });
 

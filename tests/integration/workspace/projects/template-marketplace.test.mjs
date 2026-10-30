@@ -7,7 +7,7 @@ import { parseTemplatePackage, validateDownloadDescriptor } from "../../../../lo
 import { createTemplateMarketplaceService } from "../../../../electron/main/template-marketplace-service.mjs";
 import { createProjectInitializationService } from "../../../../electron/main/project-initialization-service.mjs";
 import { materializeTemplate } from "../../../../local-api/templates/materialize.mjs";
-import { parseTemplateLink, resolveTemplateStoreOrigin } from "../../../../shared/desktop/template-link.mjs";
+import { looksLikeTemplateLink, parseTemplateLink, resolveTemplateStoreOrigin } from "../../../../shared/desktop/template-link.mjs";
 
 const { fixtures } = JSON.parse(await fs.readFile(new URL("../../../fixtures/workspace/projects/marketplace-packages.json", import.meta.url), "utf8"));
 const first = fixtures[0];
@@ -18,9 +18,12 @@ let root;
 beforeEach(async () => { root = await fs.mkdtemp(path.join(os.tmpdir(), "puppyone-marketplace-")); });
 afterEach(async () => { await fs.rm(root, { recursive: true, force: true }); });
 
-function serviceFixture(extra = {}) {
+const packagePath = `/api/templates/${descriptor.template_id}/package?release=${descriptor.release_id}`;
+const publicDescriptor = { ...descriptor, delivery: "github", download_url: packagePath };
+const signInRequired = () => Response.json({ error: { code: "AUTH_REQUIRED" } }, { status: 401 });
+function serviceFixture(extra = {}, store = signInRequired) {
   let session = { status: "authenticated", user_id: "template-user", session_generation: "session-1" };
-  const fetchImpl = vi.fn(async () => new Response(Buffer.from(first.zip, "base64")));
+  const fetchImpl = vi.fn(async (_url, init) => init?.method === "POST" ? store() : new Response(Buffer.from(first.zip, "base64")));
   const cloudAuthService = {
     readSession: async () => session,
     requestTemplateDownload: vi.fn(async () => structuredClone(descriptor)),
@@ -80,8 +83,10 @@ describe("Main-owned downloads and publication", () => {
     const request = { parentPath: root, name: "CRM", source, locale: "en", operationId: randomUUID() };
     const receipt = await initializer.initialize(request);
     expect(cloudAuthService.requestTemplateDownload).toHaveBeenCalledWith({ id: descriptor.template_id, releaseId: descriptor.release_id });
-    expect(fetchImpl.mock.calls[0][1]).toMatchObject({ redirect: "error" });
-    expect(fetchImpl.mock.calls[0][1].headers).toBeUndefined();
+    expect(fetchImpl.mock.calls[0][1]).toMatchObject({ method: "POST", redirect: "error" });
+    expect(JSON.stringify(fetchImpl.mock.calls[0][1].headers)).not.toMatch(/authorization/i);
+    expect(fetchImpl.mock.calls[1][1]).toMatchObject({ redirect: "error" });
+    expect(fetchImpl.mock.calls[1][1].headers).toBeUndefined();
     const readmePath = path.join(receipt.path, receipt.initialOpenPath);
     await fs.writeFile(readmePath, "user edits");
     expect(await initializer.initialize(request)).toEqual(receipt);
@@ -94,11 +99,62 @@ describe("Main-owned downloads and publication", () => {
     const { service, setSession, fetchImpl } = serviceFixture();
     setSession(null);
     await expect(service.resolveTemplate(source, "en")).rejects.toThrow(/Sign in/);
-    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(fetchImpl).toHaveBeenCalledOnce(); // Asked the store; downloaded nothing.
     const bad = serviceFixture({ requestTemplateDownload: async () => ({ ...descriptor, download_url: "https://example.com/stolen" }) });
     await expect(bad.service.resolveTemplate(source, "en")).rejects.toThrow(/destination/);
-    expect(bad.fetchImpl).not.toHaveBeenCalled();
+    expect(bad.fetchImpl).toHaveBeenCalledOnce();
     expect(await fs.readdir(root)).toEqual([]);
+  });
+
+  it("creates a public template with no account and survives a change of account", async () => {
+    const { service, fetchImpl, cloudAuthService, setSession } = serviceFixture({}, () => Response.json(publicDescriptor));
+    setSession(null);
+    const initializer = createProjectInitializationService({
+      resolveTemplate: service.resolveTemplate, validateSource: service.validateSource,
+      materialize: async args => {
+        setSession({ status: "authenticated", user_id: "someone-else", session_generation: "session-2" });
+        return materializeTemplate(args);
+      },
+    });
+    const receipt = await initializer.initialize({ parentPath: root, name: "CRM", source, locale: "en" });
+    expect(await fs.readFile(path.join(receipt.path, receipt.initialOpenPath), "utf8")).not.toBe("");
+    expect(cloudAuthService.requestTemplateDownload).not.toHaveBeenCalled();
+    expect(fetchImpl.mock.calls[0][0]).toBe(`${origin}/api/templates/${descriptor.template_id}/download`);
+    expect(JSON.parse(fetchImpl.mock.calls[0][1].body)).toEqual({ release_id: descriptor.release_id });
+    expect(JSON.stringify(fetchImpl.mock.calls[0][1].headers)).not.toMatch(/authorization/i);
+    expect(fetchImpl.mock.calls[1][0]).toBe(`${origin}${packagePath}`);
+  });
+
+  it("accepts the store's package address only for this template", async () => {
+    const destinations = [
+      `/api/templates/${randomUUID()}/package?release=${descriptor.release_id}`,
+      "/api/template-packages?key=packages/x",
+      "/somewhere-else",
+      `https://user:secret@www.puppyone.ai${packagePath}`,
+      `http://www.puppyone.ai${packagePath}`,
+      `https://www.puppyone.ai.example.com${packagePath}`,
+    ];
+    for (const download_url of destinations) {
+      const { service, fetchImpl } = serviceFixture({}, () => Response.json({ ...publicDescriptor, download_url }));
+      await expect(service.resolveTemplate(source, "en")).rejects.toThrow(/destination/);
+      expect(fetchImpl).toHaveBeenCalledOnce();
+    }
+    expect(await fs.readdir(root)).toEqual([]);
+  });
+
+  it("describes a template for the card and says when it needs an account", async () => {
+    const detail = { id: descriptor.template_id, release_id: descriptor.release_id, name: "CRM", description: "Customers", version: "1.0.0", author: "Puppyone", locale: "en", file_count: 12, icon: "🤝", delivery: "github" };
+    const link = `https://www.puppyone.ai/t/${descriptor.template_id}`;
+    const open = async (values) => createTemplateMarketplaceService({ origin, channel: "stable", cloudAuthService: {}, fetchImpl: vi.fn(async () => Response.json({ ...detail, ...values })) }).resolveLink(link, "en");
+    expect(await open({})).toMatchObject({ fileCount: 12, icon: "🤝", requiresSignIn: false });
+    expect(await open({ delivery: "managed", file_count: "12", icon: null })).toMatchObject({ fileCount: null, icon: null, requiresSignIn: true });
+  });
+
+  it("recognizes pasted template links without judging them", () => {
+    const id = descriptor.template_id;
+    for (const value of [`https://www.puppyone.ai/t/${id}`, `  https://www.puppyone.ai/t/${id}?release=${descriptor.release_id}\n`,
+      `http://127.0.0.1:3035/t/${id}`, `puppyone://templates/import?id=${id}&release=${descriptor.release_id}`]) expect(looksLikeTemplateLink(value)).toBe(true);
+    for (const value of ["", "hello", "https://www.puppyone.ai/templates", "sk-secret https://www.puppyone.ai/t/x", `see https://www.puppyone.ai/t/${id}`, null, "x".repeat(3000)]) expect(looksLikeTemplateLink(value)).toBe(false);
   });
 
   it("cancels publication when the user changes account during materialization", async () => {

@@ -73,4 +73,11 @@ describe("WindowWorkspaceState", () => {
       { path: "/repo/packages/ui", workspace: { id: "nested", name: "Nested" } },
     ])).toThrow(/overlapping Workspace Folder/i);
   });
+
+  it("opens a new window on its document once, so a reload does not reopen it", () => {
+    const state = new WindowWorkspaceState({ initialWorkspacePath: "/projects/CRM", initialOpenPath: "README.zh-CN.md" });
+    expect(state.takeInitialOpenPath()).toBe("README.zh-CN.md");
+    expect(state.takeInitialOpenPath()).toBeNull();
+    expect(new WindowWorkspaceState().takeInitialOpenPath()).toBeNull();
+  });
 });

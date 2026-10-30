@@ -412,8 +412,9 @@ export function useWorkspaceLifecycle({
             applyRecentProjectNames(initialComposition, getRecentWorkspaceItems(recentWorkspaces)),
             initialWorkspace.workspaceId,
             {
-              kind: "restored",
+              kind: initialWorkspace.initialOpenPath ? "created" : "restored",
               workspacePath: initialWorkspace.workspace?.path ?? initialComposition[0]?.path,
+              preferredOpenPath: initialWorkspace.initialOpenPath ?? null,
             },
           );
         } else if (initialWorkspace.error) {
