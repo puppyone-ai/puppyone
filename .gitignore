@@ -6,6 +6,8 @@ artifacts/terminal-preview/
 artifacts/release-checks/
 generated/
 .vite/
+.vite-website-demo/
+dist-website-demo/
 .vite-temp/
 .wrangler/
 coverage/
