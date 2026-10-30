@@ -115,7 +115,7 @@ describe("project template selection", () => {
     }));
     const onDefaultLocation = vi.fn(async () => ({ grantId: "location", path: "/projects" }));
     const onClose = vi.fn();
-    await act(async () => { root!.render(withTestLocalization(<StrictMode><OnboardingProjectEntryDialog templateLinks={false} onClose={onClose} onDefaultLocation={onDefaultLocation} onSubmit={onSubmit} /></StrictMode>)); await flush(); });
+    await act(async () => { root!.render(withTestLocalization(<StrictMode><OnboardingProjectEntryDialog onClose={onClose} onDefaultLocation={onDefaultLocation} onSubmit={onSubmit} /></StrictMode>)); await flush(); });
     expect(onDefaultLocation).toHaveBeenCalledOnce();
     expect(host.querySelector("select")).toBeNull();
     setName(host, "Notes");
@@ -134,7 +134,7 @@ describe("project template selection", () => {
       initialization: { ...receipt, operationId: request.operationId },
       opening: { status: "failed", message: "Window unavailable" },
     }));
-    await act(async () => { root!.render(withTestLocalization(<OnboardingProjectEntryDialog templateLinks={false} onClose={vi.fn()} onDefaultLocation={async () => ({ grantId: "location", path: "/projects" })} onSubmit={onSubmit} />)); await flush(); });
+    await act(async () => { root!.render(withTestLocalization(<OnboardingProjectEntryDialog onClose={vi.fn()} onDefaultLocation={async () => ({ grantId: "location", path: "/projects" })} onSubmit={onSubmit} />)); await flush(); });
     setName(host, "Notes");
     await act(async () => { host.querySelector<HTMLButtonElement>('button[type="submit"]')!.click(); await flush(); });
     expect(host.textContent).toContain("Project created at /projects/Notes");
