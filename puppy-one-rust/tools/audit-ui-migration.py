@@ -55,6 +55,15 @@ def git(*argv):
 
 
 roots = mapping['source_roots']
+
+
+def under(path, root):
+    """A root is a folder, or a `prefix*` so later files of a family are not missed."""
+    if root.endswith('*'):
+        return path.startswith(root[:-1])
+    return path == root or path.startswith(root.rstrip('/') + '/')
+
+
 files = sorted(p for p in git('ls-files', '-z', '--cached', '--others', '--exclude-standard',
                               '--', *roots).decode().split('\0') if p)
 head = git('rev-parse', 'HEAD').decode().strip()
@@ -98,7 +107,7 @@ for group in mapping['groups']:
     for item in group.get('evidence', []):
         check_evidence(name, item)
     for pattern in group['sources']:
-        if not any(pattern == r or pattern.startswith(r.rstrip('/') + '/') for r in roots):
+        if not any(under(pattern, r) for r in roots):
             errors.append(f"{name}: {pattern} is outside the source roots")
         matcher = glob_regex(pattern)
         matched = [f for f in files if matcher.match(f)]
@@ -135,7 +144,7 @@ for path in files:
 counts = Counter(e['status'] for e in entries)
 by_root = defaultdict(Counter)
 for e in entries:
-    by_root[next(r for r in roots if e['source'].startswith(r))][e['status']] += 1
+    by_root[next(r for r in roots if under(e['source'], r))][e['status']] += 1
 
 if args.max_pending is not None and counts['pending'] > args.max_pending:
     errors.append(f"{counts['pending']} pending sources exceed --max-pending {args.max_pending}")

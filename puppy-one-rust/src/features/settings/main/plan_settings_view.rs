@@ -60,6 +60,11 @@ fn money(cents: i64, currency: &str) -> String {
 }
 
 impl SettingsWorkspaceSurface {
+    /// Whether usage was read and belonged to this organization.
+    #[cfg(test)]
+    pub fn plan_usage_read(&self) -> bool {
+        self.plan_page.usage.is_some()
+    }
     /// Whether a plan is held, once the account's summary has been read.
     #[cfg(test)]
     pub fn plan_summary_held(&self) -> Option<bool> {
@@ -87,7 +92,11 @@ impl SettingsWorkspaceSurface {
                 .ok()
                 .and_then(|o| o.into_iter().next());
             let (summary, usage) = match &organization {
-                Some(org) => (client.summary(org).ok(), client.usage(org).ok()),
+                // Never one organization's money under another's name.
+                Some(org) => (
+                    client.summary(org).ok(),
+                    client.usage(org).ok().filter(|u| u.runtime.org_id == *org),
+                ),
                 None => (None, None),
             };
             (catalog, organization, summary, usage)

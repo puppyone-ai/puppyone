@@ -3264,6 +3264,44 @@ fn the_share_preview_uses_cached_entries_and_keeps_the_open_file() {
     assert!(tasks::share_preview_entries(&[], None).is_empty());
 }
 
+/// `useAccountPlan`: "Never show one organization's money under another's
+/// name." The server answering for the wrong organization shows nothing.
+#[gpui::test]
+fn the_plan_page_never_shows_another_organizations_usage(cx: &mut TestAppContext) {
+    use crate::features::settings::Page;
+    for (owner, shown) in [("org-1", true), ("org-2", false)] {
+        let responder: crate::cloud_auth::Responder = std::sync::Arc::new(move |request| {
+            Ok(match request.path.as_str() {
+                "/organizations/" => serde_json::json!([{"id": "org-1", "name": "One"}]),
+                "/billing/organizations/org-1/summary" => serde_json::json!({"org_id": "org-1",
+                    "plan_id": "personal", "status": "active", "seat_quantity": 1}),
+                "/billing/organizations/org-1/usage" => serde_json::json!({
+                    "runtime": {"org_id": owner, "available_units": 7},
+                    "storage": {"logical_bytes": 1024, "limit_bytes": 2048}}),
+                _ => serde_json::json!({}),
+            })
+        });
+        let (view, cx) = setup(cx);
+        let (broker, browser) = crate::cloud_auth::responding_account_fixture(responder);
+        cx.update(|_, cx| crate::features::cloud_account::install_fixture(broker, browser, cx));
+        settle_cloud(&view, cx, "sign-in", &|_, cx| {
+            crate::features::cloud_account::has_account(cx)
+        });
+        let settings = view.read_with(cx, |s, _| s.task_ui.settings.clone());
+        settings.update(cx, |s, cx| s.select_page(Page::Plan, cx));
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while settings
+            .read_with(cx, |s, _| s.plan_summary_held())
+            .is_none()
+        {
+            cx.run_until_parked();
+            assert!(std::time::Instant::now() < deadline);
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert_eq!(settings.read_with(cx, |s, _| s.plan_usage_read()), shown);
+    }
+}
+
 /// C-13.2: with payments off no price is read; with them on the account's
 /// plan is the server's, and an outage keeps the published offer.
 #[gpui::test]
@@ -3297,6 +3335,7 @@ fn the_plan_page_reads_billing_only_with_payments_on_and_survives_an_outage(
                     "plan_id": "personal", "status": "active", "seat_quantity": 1,
                     "portal_available": true}),
                 "/billing/organizations/org-1/usage" => serde_json::json!({
+                    "runtime": {"org_id": "org-1"},
                     "storage": {"logical_bytes": 1024, "limit_bytes": 2048}}),
                 _ => serde_json::json!({}),
             })

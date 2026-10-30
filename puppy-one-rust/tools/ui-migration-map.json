@@ -40,7 +40,10 @@
     "src/features/session-transport",
     "src/features/build-info",
     "src/features/markdown",
-    "src/features/workbench-interactions"
+    "src/features/workbench-interactions",
+    "electron/main/cloud-*",
+    "electron/main/ipc/cloud-*",
+    "electron/main/auth"
   ],
   "excluded_patterns": [
     {
@@ -1329,7 +1332,9 @@
         "src/features/cloud/initialization/cloud-publish-header-status.css",
         "src/features/cloud/components/CloudProjectActivation.tsx",
         "src/features/cloud/components/cloud-project-activation.css",
-        "src/features/cloud/workbench/MissingCloudProjectRecovery.tsx"
+        "src/features/cloud/workbench/MissingCloudProjectRecovery.tsx",
+        "electron/main/cloud-initialization/**",
+        "electron/main/cloud-publish-*"
       ],
       "targets": [
         "src/cloud_publication/mod.rs",
@@ -1349,7 +1354,7 @@
         "test:an_unlinked_checkout_publishes_from_the_header_switch",
         "test:a_vanished_cloud_project_is_replaced_only_after_a_second_404"
       ],
-      "remaining": "The coordinator (journal v2 with v1 migration, idempotent creation, keychain secret, URL-scoped secure helper, immutable push with lease, remote-truth reconciliation, explicit cleanup) and the activation / running / resume pictures are native. The push receipt endpoint (readInitialPushReceipt) is not consulted (ls-remote only); the transfer meter, the hero artwork and pixel comparison are not ported; acceptance against a real Cloud Git host is pending."
+      "remaining": "The coordinator (journal v2 with v1 migration, idempotent creation, keychain secret, URL-scoped secure helper, immutable push with lease, remote-truth reconciliation, explicit cleanup) and the activation / running / resume pictures are native. The push receipt endpoint (readInitialPushReceipt) is not consulted (ls-remote only); the transfer meter, the hero artwork and pixel comparison are not ported; the initialization telemetry is not ported; acceptance against a real Cloud Git host is pending."
     },
     {
       "name": "Terminal legacy session hosts (unreachable)",
@@ -1503,7 +1508,9 @@
       "name": "Cloud Automation route (experimental)",
       "status": "excluded",
       "sources": [
-        "src/features/cloud/sections/AutomationRouteSection.tsx"
+        "src/features/cloud/sections/AutomationRouteSection.tsx",
+        "src/lib/cloud/automationApi.ts",
+        "src/lib/cloud/synchronizeApi.ts"
       ],
       "reason": "Experimental enableCloudAutomation, off by default; not ported, awaiting a decision (C-14.1)."
     },
@@ -1806,6 +1813,80 @@
         "test:a_reopened_lease_rebinds_a_document_baseline_and_saves"
       ],
       "remaining": "Hosted acceptance with E2B and Fly providers (C-6.11, C-15.4)."
+    },
+    {
+      "name": "Cloud API client",
+      "status": "partial",
+      "sources": [
+        "src/lib/cloud/accessSurfacesApi.ts",
+        "src/lib/cloud/resourceDashboardApi.ts",
+        "src/lib/cloudApi.ts",
+        "electron/main/cloud-api-client.mjs",
+        "electron/main/cloud-configuration.mjs",
+        "electron/main/cloud-read-requests.mjs"
+      ],
+      "targets": [
+        "src/workspace/cloud/services.rs",
+        "src/workspace/cloud/client.rs",
+        "src/workspace/cloud/access_points.rs",
+        "src/workspace/cloud/billing.rs"
+      ],
+      "evidence": [
+        "test:a_dashboard_must_name_the_project_and_carry_no_credentials",
+        "test:an_access_inventory_is_exact_about_identity_and_target",
+        "test:identifiers_never_reach_a_path_unescaped"
+      ],
+      "remaining": "Verified against scripted transports only. cloudApi.ts also carries Automation and Project Reach calls, which follow their experimental features (C-14.1, C-14.2)."
+    },
+    {
+      "name": "Cloud session and sign-in (main process)",
+      "status": "partial",
+      "sources": [
+        "src/lib/cloudSession.ts",
+        "electron/main/auth/**"
+      ],
+      "targets": [
+        "src/cloud_auth/service.rs",
+        "src/cloud_auth/store.rs",
+        "src/cloud_auth/http.rs",
+        "src/cloud_auth/callback.rs",
+        "src/features/cloud_account.rs"
+      ],
+      "evidence": [
+        "test:twenty_requests_share_refresh_and_initialization_without_exposing_secrets"
+      ],
+      "remaining": "Browser OAuth, social sign-in, Keychain and several processes need real-environment acceptance (C-2.6)."
+    },
+    {
+      "name": "Cloud workspace streams and preview bytes (main process)",
+      "status": "partial",
+      "sources": [
+        "electron/main/cloud-workspace-events.mjs",
+        "electron/main/cloud-workspace-file.mjs",
+        "electron/main/cloud-preview-resource-service.mjs",
+        "electron/main/cloud-native-preview-service.mjs",
+        "electron/main/cloud-agent-event-reader.mjs"
+      ],
+      "targets": [
+        "src/workspace/cloud/events.rs",
+        "src/workspace/cloud/mod.rs",
+        "src/features/desktop_agent/infrastructure/cloud.rs"
+      ],
+      "evidence": [
+        "test:live_files_share_the_facade_without_a_local_root_or_git_fallback",
+        "test:content_integrity_and_foreign_revisions_fail_closed",
+        "test:a_lost_receipt_is_queried_then_resubmitted_with_the_same_uuid"
+      ],
+      "remaining": "Hosted acceptance with E2B and Fly providers (C-6.11, C-10.6, C-15.4)."
+    },
+    {
+      "name": "Cloud IPC",
+      "status": "excluded",
+      "sources": [
+        "electron/main/ipc/cloud-ipc.mjs",
+        "electron/main/ipc/cloud-publish-ipc.mjs"
+      ],
+      "reason": "Electron's process boundary. The native app is one process (D-1), so these calls go directly to the models."
     }
   ]
 }
