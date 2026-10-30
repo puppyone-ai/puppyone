@@ -6,8 +6,12 @@ import { CloudWorkspaceShareDialog } from "../../../../src/features/cloud/share/
 import { writeClipboardText } from "../../../../src/lib/clipboard";
 import { withTestLocalization } from "../../../support/react/localization";
 import type { CloudWorkspaceShareResource } from "../../../../src/features/cloud/share/cloudWorkspaceShareResource";
+import type { DesktopCloudSession } from "../../../../src/lib/cloudApi";
 
-vi.mock("../../../../src/lib/cloudApi", () => ({ getDesktopCloudWebUrl: () => "https://cloud-fixture.puppyone.ai/" }));
+vi.mock("../../../../src/lib/cloudApi", () => ({
+  getDesktopCloudWebUrl: () => "https://cloud-fixture.puppyone.ai/",
+  cloudApiRequest: vi.fn().mockResolvedValue({ links: [], connections: [] }),
+}));
 vi.mock("../../../../src/lib/clipboard", () => ({ writeClipboardText: vi.fn().mockResolvedValue(undefined) }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const projectId = "11111111-1111-4111-8111-111111111111";
@@ -54,6 +58,24 @@ describe("Cloud workspace link sharing", () => {
     expect(document.querySelector(".desktop-cloud-share-preview")?.querySelector(".desktop-cloud-share-preview-heading, .desktop-cloud-share-preview-brand")).toBeNull();
     expect(fetch).not.toHaveBeenCalled(); fetch.mockRestore();
   });
+  it("shows the address and the page it opens as one window, and says who can open it", async () => {
+    await render(undefined, [{ name: "Research.md", type: "markdown" }]);
+    const page = document.querySelector(".desktop-cloud-share-page")!;
+    expect(page.querySelector("input")).not.toBeNull();
+    expect(page.querySelector(".desktop-cloud-share-preview-window")).not.toBeNull();
+    expect(document.querySelector(".desktop-cloud-share-people p")?.textContent).toContain("already have access");
+  });
+  it("names the two kinds of visitor only when both are offered", async () => {
+    const heading = () => [...document.querySelectorAll("h3")].map(node => node.textContent);
+    await render();
+    expect(heading()).toEqual([]);
+    act(() => root?.unmount());
+    const host = document.createElement("div"); document.body.append(host); root = createRoot(host);
+    await act(async () => root!.render(withTestLocalization(<CloudWorkspaceShareDialog
+      context={{ status: "resolved", projectId, projectName: "Research", target: { kind: "project_root", project_id: projectId } }}
+      session={{ user_id: "alice" } as DesktopCloudSession} apiBaseUrl="https://cloud-fixture.puppyone.ai/api/v1" onClose={vi.fn()} />)));
+    expect(heading()).toEqual(["Connect an agent", "Link for people"]);
+  });
   it("preserves an authorized folder locator and encodes each path segment", async () => {
     await render("研究资料/Notes #1");
     await act(async () => copy().click());
@@ -82,8 +104,10 @@ describe("Cloud workspace link sharing", () => {
     vi.mocked(writeClipboardText).mockRejectedValueOnce(new Error("denied"));
     await render(); await act(async () => copy().click());
     expect(document.querySelector('[role="alert"]')?.textContent).toContain("Couldn’t copy the link");
+    expect(document.querySelector(".desktop-cloud-share-people")?.textContent).not.toContain("already have access");
     expect(document.querySelector("input")?.readOnly).toBe(true);
     await act(async () => copy().click());
     expect(document.querySelector('[role="alert"]')).toBeNull(); expect(copy().getAttribute("aria-label")).toBe("Copied");
+    expect(document.querySelector(".desktop-cloud-share-people")?.textContent).toContain("already have access");
   });
 });

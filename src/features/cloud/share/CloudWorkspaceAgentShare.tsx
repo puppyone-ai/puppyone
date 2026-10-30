@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { Check, Copy, X } from "lucide-react";
 import { Tooltip } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
@@ -9,7 +9,21 @@ import { agentConnectMessage, createAgentLink, listAgentLinks, removeConnectedAg
 
 /** While the dialog is open, an Agent the owner just allowed appears on its own. */
 const REFRESH_MS = 5_000;
+/** Long enough to read, short enough that the button is ready for a second Agent. */
+const COPIED_MS = 3_000;
 const EMPTY: AgentLinkInventory = { links: [], connections: [] };
+const ADMISSIONS = ["sign_in", "link"] as const;
+const OPTION_TEXT = {
+  sign_in: { label: "cloud.share.agent.signIn.label", description: "cloud.share.agent.signIn.description" },
+  link: { label: "cloud.share.agent.link.label", description: "cloud.share.agent.link.description" },
+} as const;
+const COPY_LABEL = {
+  idle: "cloud.share.agent.copy",
+  copying: "cloud.common.copying",
+  copied: "cloud.share.agent.copied",
+  failed: "cloud.share.agent.failed",
+  "not-owner": "cloud.share.agent.copy",
+} as const;
 
 export function CloudWorkspaceAgentShare({ projectId, projectName, session, apiBaseUrl }: {
   projectId: string;
@@ -17,12 +31,13 @@ export function CloudWorkspaceAgentShare({ projectId, projectName, session, apiB
   session: DesktopCloudSession;
   apiBaseUrl: string;
 }) {
-  const { t } = useLocalization();
+  const { formatDate, t } = useLocalization();
   const [admission, setAdmission] = useState<AgentAdmission>("sign_in");
-  const [status, setStatus] = useState<"idle" | "copying" | "copied" | "failed" | "not-owner">("idle");
+  const [status, setStatus] = useState<keyof typeof COPY_LABEL>("idle");
   const [inventory, setInventory] = useState(EMPTY);
   const [changeFailed, setChangeFailed] = useState(false);
   const mounted = useRef(true);
+  const options = useRef<Partial<Record<AgentAdmission, HTMLButtonElement | null>>>({});
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const refresh = useCallback(async () => {
     try {
@@ -35,6 +50,11 @@ export function CloudWorkspaceAgentShare({ projectId, projectName, session, apiB
     const timer = setInterval(() => void refresh(), REFRESH_MS);
     return () => clearInterval(timer);
   }, [refresh]);
+  useEffect(() => {
+    if (status !== "copied") return undefined;
+    const timer = setTimeout(() => setStatus("idle"), COPIED_MS);
+    return () => clearTimeout(timer);
+  }, [status]);
 
   const copy = async () => {
     setStatus("copying");
@@ -53,33 +73,57 @@ export function CloudWorkspaceAgentShare({ projectId, projectName, session, apiB
     try { await action(); await refresh(); }
     catch { if (mounted.current) setChangeFailed(true); }
   };
-  const sharing = inventory.links.length > 0 || inventory.connections.length > 0;
+  const choose = (next: AgentAdmission) => { setAdmission(next); setStatus("idle"); };
+  const moveChoice = (event: KeyboardEvent<HTMLButtonElement>) => {
+    const step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[event.key];
+    if (!step) return;
+    event.preventDefault();
+    const next = ADMISSIONS[(ADMISSIONS.indexOf(admission) + step + ADMISSIONS.length) % ADMISSIONS.length];
+    choose(next);
+    options.current[next]?.focus();
+  };
+  const { connections, links } = inventory;
+  const sharing = links.length > 0 || connections.length > 0;
 
   return <section className="desktop-cloud-agent-share" aria-label={t("cloud.share.agent.title")}>
     <h3>{t("cloud.share.agent.title")}</h3>
-    <div className="desktop-share-mode" role="radiogroup" aria-label={t("cloud.share.agent.title")}>
-      {(["sign_in", "link"] as const).map(option => <button key={option} type="button" role="radio"
-        aria-checked={admission === option} data-agent-admission={option}
-        className={`desktop-share-mode-option${admission === option ? " is-selected" : ""}`}
-        onClick={() => { setAdmission(option); setStatus("idle"); }}>
-        {t(option === "link" ? "cloud.share.agent.link.label" : "cloud.share.agent.signIn.label")}
+    {/* Both consequences stay on screen: this is a choice about who gets in, so
+        what each one means has to be readable before picking it, not after. */}
+    <div className="desktop-cloud-agent-options" role="radiogroup" aria-label={t("cloud.share.agent.title")}>
+      {ADMISSIONS.map(option => <button key={option} type="button" role="radio"
+        ref={element => { options.current[option] = element; }}
+        aria-checked={admission === option} tabIndex={admission === option ? 0 : -1}
+        data-agent-admission={option} className="desktop-cloud-agent-option"
+        onClick={() => choose(option)} onKeyDown={moveChoice}>
+        <span className="desktop-cloud-agent-option-mark" aria-hidden="true" />
+        <span className="desktop-cloud-agent-option-label">{t(OPTION_TEXT[option].label)}</span>
+        <span className="desktop-cloud-agent-option-description">{t(OPTION_TEXT[option].description)}</span>
       </button>)}
     </div>
-    <p className="desktop-cloud-agent-share-note">
-      {t(admission === "link" ? "cloud.share.agent.link.description" : "cloud.share.agent.signIn.description")}
-    </p>
-    <div className="desktop-cloud-agent-share-action">
-      <button type="button" className="desktop-dialog-button primary" disabled={status === "copying"}
-        onClick={() => void copy()}>{t("cloud.share.agent.copy")}</button>
-      <span role="status">{status === "copied" ? t("cloud.share.agent.copied") : ""}</span>
-    </div>
-    {status === "failed" && <p role="alert">{t("cloud.share.agent.failed")}</p>}
+    <button type="button" className="desktop-dialog-button primary desktop-cloud-agent-share-copy"
+      disabled={status === "copying"} onClick={() => void copy()}>
+      {status === "copied" ? <Check size={15} aria-hidden="true" /> : <Copy size={15} aria-hidden="true" />}
+      {t(COPY_LABEL[status])}
+    </button>
+    <span className="desktop-cloud-share-status" role="status">{status === "copied" ? t(COPY_LABEL.copied) : ""}</span>
+    {status === "failed" && <span className="desktop-cloud-share-status" role="alert">{t(COPY_LABEL.failed)}</span>}
     {status === "not-owner" && <p role="alert">{t("cloud.share.agent.notOwner")}</p>}
-    {inventory.connections.length > 0 && <>
-      <h4>{t("cloud.share.agent.connected")}</h4>
-      <ul className="desktop-cloud-agent-list">
-        {inventory.connections.map(agent => <li key={agent.id}>
-          <span dir="auto">{agent.name}</span>
+    {sharing && <div className="desktop-cloud-agent-reach">
+      <div className="desktop-cloud-agent-reach-header">
+        {connections.length > 0 && <h4>{t("cloud.share.agent.connected")}</h4>}
+        {links.length > 0 && <span>{t("cloud.share.agent.activeLinks", { count: links.length })}</span>}
+        <button type="button" className="desktop-cloud-agent-share-stop"
+          onClick={() => void change(() => stopSharingWithAgents(session, projectId, apiBaseUrl))}>
+          {t("cloud.share.agent.stop")}
+        </button>
+      </div>
+      {connections.length > 0 && <ul className="desktop-cloud-agent-list">
+        {connections.map(agent => <li key={agent.id}>
+          <span className="desktop-cloud-agent-lamp" aria-hidden="true" />
+          <span className="desktop-cloud-agent-name" dir="auto">{agent.name}</span>
+          {agent.expires_at && <span className="desktop-cloud-agent-expiry">
+            {t("cloud.share.agent.expires", { date: formatDate(agent.expires_at, { month: "short", day: "numeric" }) })}
+          </span>}
           <Tooltip content={t("cloud.share.agent.remove")}>
             <button type="button" aria-label={`${t("cloud.share.agent.remove")} ${agent.name}`}
               onClick={() => void change(() => removeConnectedAgent(session, projectId, agent.grant_id, apiBaseUrl))}>
@@ -87,12 +131,8 @@ export function CloudWorkspaceAgentShare({ projectId, projectName, session, apiB
             </button>
           </Tooltip>
         </li>)}
-      </ul>
-    </>}
-    {sharing && <button type="button" className="desktop-dialog-button desktop-cloud-agent-share-stop"
-      onClick={() => void change(() => stopSharingWithAgents(session, projectId, apiBaseUrl))}>
-      {t("cloud.share.agent.stop")}
-    </button>}
+      </ul>}
+    </div>}
     {changeFailed && <p role="alert">{t("cloud.share.agent.changeFailed")}</p>}
   </section>;
 }
