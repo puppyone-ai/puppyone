@@ -1742,6 +1742,7 @@ function AppContent() {
       onCancelImport={cancelImportSource}
       onImportProgress={onImportSourceProgress}
       onOpenFolder={() => void openFolder()}
+      projectIsOpen={Boolean(workspace) || cloudWorkspaceActive}
     />
   </DesktopOverlayPortal>;
   const themeRuntime = (content: ReactNode) => (

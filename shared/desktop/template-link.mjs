@@ -35,6 +35,15 @@ export function templateShareLink({ id, releaseId }, origin = TEMPLATE_STORE_ORI
   return `${origin}/t/${requireTemplateId(id)}${releaseId ? `?release=${requireTemplateId(releaseId)}` : ''}`;
 }
 
+/**
+ * A cheap test for pasted text. It opens no link and proves nothing: the Main
+ * process still parses whatever this lets through.
+ */
+export function looksLikeTemplateLink(value) {
+  if (typeof value !== 'string' || value.length > 2048) return false;
+  return /^(?:https?:\/\/[^\s/]+\/t\/[a-f0-9-]{36}(?:\?release=[a-f0-9-]{36})?|[a-z-]+:\/\/templates\/import\?\S+)$/i.test(value.trim());
+}
+
 function hasInvalidLinkParts(url) {
   return Boolean(url.username || url.password || url.hash || url.searchParams.getAll('release').length > 1);
 }

@@ -4,6 +4,9 @@ import { resolveProjectTemplate } from '../../local-api/templates/project-catalo
 
 const R2_HOST = '13db2d16c6f86490873850f62fff5741.r2.cloudflarestorage.com';
 const signedOut = () => new Error('Sign in to Puppyone before creating a project from this template.');
+// A public template owes nothing to an account, so a change of account cannot
+// cancel it. Every other plan stays bound to the session that downloaded it.
+const PUBLIC_DOWNLOAD = Object.freeze({ public: true });
 export function createTemplateMarketplaceService({ origin, channel, cloudAuthService, fetchImpl = globalThis.fetch, allowLocalDownloads = false }) {
   const sessions = new WeakMap();
   async function readJson(response) {
@@ -21,29 +24,58 @@ export function createTemplateMarketplaceService({ origin, channel, cloudAuthSer
     requireTemplateId(detail.release_id);
     return { id: ref.id, releaseId: detail.release_id, name: detail.name.slice(0, 200), description: detail.description.slice(0, 1000),
       version: String(detail.version).slice(0, 80), author: String(detail.author).slice(0, 200), locale: String(detail.locale).slice(0, 20),
+      fileCount: Number.isSafeInteger(detail.file_count) && detail.file_count >= 0 ? detail.file_count : null,
+      icon: typeof detail.icon === 'string' ? detail.icon.slice(0, 16) : null,
+      requiresSignIn: detail.delivery !== 'github',
       shareUrl: templateShareLink({ id: ref.id, releaseId: detail.release_id }, origin) };
+  }
+  // The store answers for a public template without an account. Only a template
+  // it will not hand out anonymously goes through the signed-in path.
+  async function requestPublicDownload(id, releaseId) {
+    const response = await fetchImpl(`${origin}/api/templates/${id}/download`, {
+      method: 'POST', redirect: 'error', signal: AbortSignal.timeout(60000),
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ release_id: releaseId }),
+    });
+    if (response.status === 401) { await response.body?.cancel(); return null; }
+    return readJson(response);
+  }
+  // A package comes from the store's own route for this template, or from the
+  // managed bucket. A descriptor cannot point the Desktop anywhere else.
+  function requireDownloadUrl(value, id) {
+    const url = new URL(value, origin);
+    const fromStore = url.origin === origin;
+    const allowed = (fromStore && url.pathname === `/api/templates/${id}/package`)
+      || (fromStore && allowLocalDownloads && url.pathname === '/api/template-packages')
+      || (url.protocol === 'https:' && url.hostname === R2_HOST && !url.port && url.pathname.startsWith('/puppyone-template-packages/'));
+    if (!allowed || url.username || url.password) throw new Error('Invalid template download destination.');
+    return url;
   }
   async function resolveTemplate(source, locale) {
     if (source?.kind !== 'template' || source.ref?.sourceId !== 'marketplace') return resolveProjectTemplate(source, locale);
     const id = requireTemplateId(source.ref.id); const releaseId = requireTemplateId(source.ref.releaseId);
-    const session = await cloudAuthService.readSession();
-    if (!session?.user_id || !session.session_generation) throw signedOut();
-    const descriptor = validateDownloadDescriptor(await cloudAuthService.requestTemplateDownload({ id, releaseId }), { id, releaseId });
-    const url = new URL(descriptor.download_url, origin);
-    const local = allowLocalDownloads && url.origin === origin && url.pathname === '/api/template-packages';
-    if (url.username || url.password || (!local && (url.protocol !== 'https:' || url.hostname !== R2_HOST || url.port
-      || !url.pathname.startsWith('/puppyone-template-packages/')))) throw new Error('Invalid template download destination.');
+    let owner = PUBLIC_DOWNLOAD;
+    let authorized = await requestPublicDownload(id, releaseId);
+    if (!authorized) {
+      const session = await cloudAuthService.readSession();
+      if (!session?.user_id || !session.session_generation) throw signedOut();
+      owner = { userId: session.user_id, generation: session.session_generation };
+      authorized = await cloudAuthService.requestTemplateDownload({ id, releaseId });
+    }
+    const descriptor = validateDownloadDescriptor(authorized, { id, releaseId });
+    const url = requireDownloadUrl(descriptor.download_url, id);
     const response = await fetchImpl(url.href, { redirect: 'error', signal: AbortSignal.timeout(60000) });
     if (!response.ok) throw new Error('Template download failed. Please retry.');
     const bytes = await readBounded(response, Math.min(descriptor.bundle_bytes, TEMPLATE_MAX_BYTES));
     const plan = await parseTemplatePackage(bytes, descriptor);
-    sessions.set(plan, { userId: session.user_id, generation: session.session_generation });
+    sessions.set(plan, owner);
     await validateSource(plan);
     return plan;
   }
   async function validateSource(plan) {
     if (plan.template?.sourceId !== 'marketplace') return;
-    const captured = sessions.get(plan); const current = await cloudAuthService.readSession();
+    const captured = sessions.get(plan);
+    if (captured === PUBLIC_DOWNLOAD) return;
+    const current = await cloudAuthService.readSession();
     if (!captured || !current || current.user_id !== captured.userId || current.session_generation !== captured.generation
       || ['signed-out', 'signing-out', 'signing-in'].includes(current.status)) throw signedOut();
   }

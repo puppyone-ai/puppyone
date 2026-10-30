@@ -123,13 +123,11 @@
   "entry.create.createdNote": "Projet créé dans {path}. Vous pouvez réessayer de l’ouvrir sans le recréer.",
   "entry.create.retryOpen": "Ouvrir le projet créé",
   "template.title": "Créer à partir d’un modèle",
-  "template.useLink": "Utiliser un lien de modèle",
-  "template.link": "Lien du modèle",
-  "template.paste": "Coller le lien",
-  "template.pasteFailed": "Collez le lien du modèle dans le champ.",
-  "template.preview": "Aperçu du modèle",
+  "template.paste": "Coller le lien du modèle",
+  "template.noLink": "Aucun lien de modèle dans le presse-papiers. Copiez-en un depuis la page d'un modèle.",
+  "template.fileCount": "{count, plural, one {# fichier} other {# fichiers}}",
+  "template.getCopy": "Obtenir une copie",
   "template.loading": "Chargement…",
   "template.signIn": "Se connecter pour utiliser ce modèle",
-  "template.signingIn": "Connexion…",
-  "template.linkPlaceholder": "https://www.puppyone.ai/t/…"
+  "template.signingIn": "Connexion…"
 }
