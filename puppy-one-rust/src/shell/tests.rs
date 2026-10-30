@@ -3002,3 +3002,86 @@ fn injected_opening_failures_reach_the_recovery_with_the_product_code(cx: &mut T
     let expected: Vec<_> = cases.iter().map(|(_, _, c, r)| (*c, *r)).collect();
     assert_eq!(seen, expected);
 }
+
+/// C-12: the local Header's Share opens the linked Project's services, and
+/// signing out ends them.
+#[gpui::test]
+fn share_opens_the_linked_projects_services_and_signing_out_closes_them(cx: &mut TestAppContext) {
+    let (view, cx, Linked { _temp, .. }) =
+        linked_checkout(cx, with_catalog(cloud_project_responder()));
+    settle_cloud(&view, cx, "the association", &|s, cx| {
+        s.repository_cloud.read(cx).context.project() == Some("project-a")
+    });
+    command(&view, cx, Command::CloudServices);
+    view.read_with(cx, |s, _| {
+        assert!(s.modals.iter().any(|m| matches!(m, Modal::CloudServices)));
+    });
+    // Escape answers it, like the product's dialog root.
+    command(&view, cx, Command::Escape);
+    view.read_with(cx, |s, _| assert!(s.modals.is_empty()));
+    command(&view, cx, Command::CloudServices);
+    cx.update(|_, cx| crate::features::cloud_account::sign_out(cx));
+    settle_cloud(&view, cx, "the closed dialog", &|s, _| {
+        !s.modals.iter().any(|m| matches!(m, Modal::CloudServices))
+    });
+}
+
+#[gpui::test]
+fn share_on_an_unlinked_checkout_shows_the_value_page(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().canonicalize().unwrap();
+    assert!(
+        std::process::Command::new("git")
+            .args(["init", "-q"])
+            .current_dir(&root)
+            .status()
+            .unwrap()
+            .success()
+    );
+    let (view, cx) = setup(cx);
+    let (broker, browser) =
+        crate::cloud_auth::responding_account_fixture(cloud_project_responder());
+    cx.update(|_, cx| crate::features::cloud_account::install_fixture(broker, browser, cx));
+    view.update(cx, |s, cx| {
+        s.preferences
+            .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
+    });
+    settle_cloud(&view, cx, "sign-in", &|_, cx| {
+        crate::features::cloud_account::has_account(cx)
+    });
+    view.update(cx, |s, _| {
+        s.files.begin(Intent::OpenFolder(root.clone()), &s.wake)
+    });
+    settle_cloud(&view, cx, "the local project", &|s, _| {
+        s.workspace_root().as_deref() == Some(root.as_path())
+    });
+    command(&view, cx, Command::CloudServices);
+    view.read_with(cx, |s, _| {
+        assert!(!s.modals.iter().any(|m| matches!(m, Modal::CloudServices)));
+        assert!(s.cloud_switch.is_some());
+    });
+}
+
+/// An opening is not over until its result is applied: between the worker
+/// finishing and the window taking the result, the Header switch must not
+/// read a finished opening without a Project as a failure.
+#[gpui::test]
+fn an_opening_stays_open_until_its_result_is_applied(cx: &mut TestAppContext) {
+    let (view, cx, Linked { _temp, .. }) =
+        linked_checkout(cx, with_catalog(cloud_project_responder()));
+    settle_cloud(&view, cx, "the association", &|s, cx| {
+        s.repository_cloud.read(cx).context.project() == Some("project-a")
+    });
+    view.update_in(cx, |s, w, cx| s.view_cloud(w, cx));
+    // The worker finishes while nothing on this thread runs.
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    view.update(cx, |s, cx| {
+        assert!(s.files.cloud_opening().is_some());
+        s.advance_cloud_switch(cx);
+        assert!(s.cloud_switch.as_ref().is_some_and(|c| c.failure.is_none()));
+    });
+    settle_cloud(&view, cx, "the Cloud switch", &|s, _| {
+        s.hosted_project().as_deref() == Some("project-a") && s.cloud_switch.is_none()
+    });
+    view.read_with(cx, |s, _| assert!(s.files.cloud_opening().is_none()));
+}

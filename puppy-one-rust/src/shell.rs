@@ -120,6 +120,7 @@ pub struct Shell {
     task_ui: TaskUi,
     /// Help → Feedback (`DesktopHelpLauncher`).
     feedback: Entity<crate::features::feedback::Feedback>,
+    cloud_services: Entity<crate::features::cloud_services::CloudServices>,
     preferences: Entity<crate::features::settings::preferences_store::PreferencesStore>,
     pending: bool,
     files: Documents,
@@ -286,6 +287,8 @@ impl Shell {
             homepage: Default::default(),
             task_ui: TaskUi::new(preferences.clone(), window, cx),
             feedback: cx.new(|cx| crate::features::feedback::Feedback::new(window, cx)),
+            cloud_services: cx
+                .new(|cx| crate::features::cloud_services::CloudServices::new(window, cx)),
             preferences,
             pending: false,
             files: if fixture {
@@ -565,6 +568,14 @@ impl Shell {
             cx.notify();
         })
         .detach();
+        cx.subscribe(
+            &s.cloud_services,
+            |s, _, _: &crate::features::cloud_services::Close, cx| {
+                s.modals.remove(|m| matches!(m, Modal::CloudServices));
+                cx.notify();
+            },
+        )
+        .detach();
         // Its close button is the only way out; the draft is already gone.
         cx.subscribe_in(
             &s.feedback,
@@ -757,6 +768,7 @@ impl Shell {
                 self.modals.remove(|m| matches!(m, Modal::Error(_)));
             }
             Some(Modal::CloudSwitch) => self.cancel_cloud_switch(cx),
+            Some(Modal::CloudServices) => self.cloud_services.update(cx, |s, cx| s.close(cx)),
             Some(Modal::RenameProject(_) | Modal::UnlinkProject(_)) => {
                 self.modals
                     .remove(|m| matches!(m, Modal::RenameProject(_) | Modal::UnlinkProject(_)));
@@ -1028,6 +1040,26 @@ impl Shell {
             Command::ClearError => {
                 self.modals.remove(|m| matches!(m, Modal::Error(_)));
                 self.files.error = None;
+            }
+            Command::CloudServices => {
+                self.popover = None;
+                let project = self
+                    .repository_cloud
+                    .read(cx)
+                    .context
+                    .project()
+                    .map(str::to_owned);
+                match project {
+                    Some(project) => {
+                        use crate::features::cloud_services::Section;
+                        self.cloud_services
+                            .update(cx, |s, cx| s.open(project, Section::Contents, cx));
+                        self.modals.open(Modal::CloudServices);
+                        self.modal_focus.focus(window, cx);
+                    }
+                    // No Cloud Project yet: the value page and its publisher.
+                    None => self.view_cloud(window, cx),
+                }
             }
             Command::ShareCloud => {
                 // One snapshot when Share opens owns the copied locator: the
@@ -1714,6 +1746,23 @@ impl Shell {
             bar = bar.action(self.coachmark_anchor(coachmarks::Coachmark::Changes, button, cx));
         }
         let hosted = self.hosted_project().is_some();
+        // `cloudEnabled && shareEnabled`: a local repository's Cloud services.
+        let share = !home
+            && !hosted
+            && self.workspace_root().is_some()
+            && crate::features::flags::cloud_enabled(&self.preferences, cx)
+            && self
+                .preferences
+                .read(cx)
+                .state
+                .experimental
+                .share_onboarding;
+        if share {
+            bar = bar.action(
+                header::share_entry()
+                    .on_click(cx.listener(|s, _, w, cx| s.command(Command::CloudServices, w, cx))),
+            );
+        }
         if hosted {
             bar = bar.action(
                 header::share_entry()
@@ -2169,6 +2218,7 @@ impl Shell {
                     .into_any_element(),
                 Modal::Error(message) => error(self, message, cx),
                 Modal::CloudSwitch => self.cloud_switch_dialog(cx).into_any_element(),
+                Modal::CloudServices => self.cloud_services.clone().into_any_element(),
                 Modal::RenameProject(rename) => {
                     self.project_rename_dialog(rename, cx).into_any_element()
                 }

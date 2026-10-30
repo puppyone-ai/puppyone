@@ -95,6 +95,15 @@ impl Shell {
     }
     pub(super) fn sync_cloud_publish(&mut self, cx: &mut Context<Self>) {
         let enabled = crate::features::flags::cloud_enabled(&self.preferences, cx);
+        // The services dialog ends with its account or with Cloud.
+        if self
+            .modals
+            .iter()
+            .any(|m| matches!(m, Modal::CloudServices))
+            && (!enabled || !crate::features::cloud_account::has_account(cx))
+        {
+            self.cloud_services.update(cx, |s, cx| s.close(cx));
+        }
         let root = if self.hosted_project().is_none() {
             self.workspace_root()
         } else {

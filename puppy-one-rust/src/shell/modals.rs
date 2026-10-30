@@ -44,6 +44,8 @@ pub(super) enum Modal {
     Executions,
     /// App menu → About PuppyOne (`role: "about"`).
     About,
+    /// `CloudDialog`: the linked Project's Cloud services.
+    CloudServices,
     /// `CloudWorkspaceShareDialog`: the captured resource URL and its copy state.
     Share {
         url: Option<String>,

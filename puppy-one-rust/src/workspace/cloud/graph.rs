@@ -1,8 +1,6 @@
 //! `graph/cloudTopology.ts` and `graph/shared.ts`: History rows with their
 //! lanes, from the commits' ancestry (newest first). Pure; colours index
 //! `CLOUD_GRAPH_COLORS`.
-//! The Cloud services History view paints these rows (C-12).
-#![cfg_attr(not(test), allow(dead_code))]
 use super::history::{Commit, History, RefKind};
 use std::collections::HashMap;
 

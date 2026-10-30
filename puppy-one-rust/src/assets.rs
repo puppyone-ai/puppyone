@@ -104,6 +104,7 @@ embedded! {
     "icons" / "list-tree.svg",
     "icons" / "loader-circle.svg",
     "icons" / "lock-keyhole.svg",
+    "icons" / "mail.svg",
     "icons" / "message-square.svg",
     "icons" / "minus.svg",
     "icons" / "monitor.svg",

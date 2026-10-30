@@ -35,6 +35,7 @@ enum Surface {
     Settings(Entity<SettingsWorkspaceSurface>),
     Feedback(Entity<crate::features::feedback::Feedback>),
     Coachmark(crate::shell::coachmarks::Coachmark),
+    CloudServices(Entity<crate::features::cloud_services::CloudServices>),
     Shell(Entity<crate::shell::Shell>),
 }
 
@@ -210,6 +211,21 @@ impl Lab {
                 });
                 cx.observe(&feedback, |_, _, cx| cx.notify()).detach();
                 Surface::Feedback(feedback)
+            } else if let Some(page) = shell.strip_prefix("cloud-services-") {
+                use crate::features::cloud_services::{CloudServices, Section};
+                let section = match page {
+                    "history" => Section::History,
+                    "mcp" => Section::Mcp,
+                    "settings" => Section::Settings,
+                    _ => Section::Contents,
+                };
+                let view = cx.new(|cx| {
+                    let mut view = CloudServices::new(window, cx);
+                    view.lab(section, cx);
+                    view
+                });
+                cx.observe(&view, |_, _, cx| cx.notify()).detach();
+                Surface::CloudServices(view)
             } else if let Some(feature) = shell.strip_prefix("coachmark-") {
                 use crate::shell::coachmarks::Coachmark;
                 Surface::Coachmark(if feature == "changes" {
@@ -371,6 +387,7 @@ impl Render for Lab {
             Surface::Editor(editor) => root.bg(t.canvas).child(editor.clone()),
             // The dialog brings its own backdrop over the page body.
             Surface::Feedback(feedback) => root.bg(t.canvas).child(feedback.clone()),
+            Surface::CloudServices(view) => root.bg(t.canvas).child(view.clone()),
             // The entry's box is fixed (`tools/reference-shell-entry.tsx`).
             Surface::Coachmark(id) => root.bg(t.canvas).child(crate::shell::coachmarks::overlay(
                 *id,

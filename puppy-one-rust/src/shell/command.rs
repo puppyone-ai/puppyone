@@ -46,6 +46,8 @@ pub enum Command {
     Changes,
     /// Cloud Header → Share (`CloudWorkspaceShareDialog`).
     ShareCloud,
+    /// Local Header → Share: the Cloud services dialog (`openCloudDialogAt`).
+    CloudServices,
     CloseShare,
     CopyShareLink,
     /// Cloud Header → History (`CloudWorkspaceHeaderTools`).

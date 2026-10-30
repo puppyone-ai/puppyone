@@ -319,6 +319,13 @@ pub fn success_contrast(dark: bool) -> Rgba {
 pub fn intro_curtain(dark: bool) -> Rgba {
     if dark { rgb(0xffffff) } else { rgb(0x000000) }
 }
+/// `CLOUD_GRAPH_COLORS`: the History graph's lanes, the same in both modes.
+pub fn history_graph_color(index: usize) -> Rgba {
+    const COLORS: [u32; 8] = [
+        0x4d9fff, 0xff7a1a, 0xb45cff, 0xff4fa3, 0xffd21f, 0x4fd6c2, 0x6bd46b, 0xff5c5c,
+    ];
+    rgb(COLORS[index % COLORS.len()])
+}
 /// `--agent-presence-accent` (`agent-file-presence.css`): the reading tint,
 /// or the writing one (`[data-kind="writing"]`).
 pub fn presence_accent(accent: Rgba, writing: bool) -> Rgba {
