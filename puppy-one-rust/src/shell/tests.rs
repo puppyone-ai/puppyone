@@ -2861,3 +2861,144 @@ fn the_hosted_project_gets_the_cloud_agent_workbench_and_this_mac_gets_its_own(
             && !s.workbench.read(cx).cloud_location()
     });
 }
+
+/// C-15.2: each injected failure reaches the Homepage opening's recovery
+/// with the product's code and action; the failure never navigates.
+#[gpui::test]
+fn injected_opening_failures_reach_the_recovery_with_the_product_code(cx: &mut TestAppContext) {
+    use crate::cloud_auth::{Error, ServiceCode};
+    use crate::workspace::cloud::opening::Recovery;
+    let cases: Vec<(&str, Error, &str, Recovery)> = vec![
+        (
+            "/workbench",
+            Error::Unavailable,
+            "connection-unreachable",
+            Recovery::Retry,
+        ),
+        (
+            "/workbench",
+            Error::Response(504, None),
+            "connection-timeout",
+            Recovery::Retry,
+        ),
+        (
+            "/workbench",
+            Error::Response(408, None),
+            "connection-timeout",
+            Recovery::Retry,
+        ),
+        // A generic 5xx names the service only at the project stage.
+        (
+            "/workbench",
+            Error::Response(503, None),
+            "workspace-open-failed",
+            Recovery::Retry,
+        ),
+        (
+            "/repository-context",
+            Error::Response(503, None),
+            "service-unavailable",
+            Recovery::Retry,
+        ),
+        (
+            "/workbench",
+            Error::Response(429, None),
+            "service-busy",
+            Recovery::Retry,
+        ),
+        (
+            "/workbench",
+            Error::Http(426),
+            "app-update-required",
+            Recovery::None,
+        ),
+        (
+            "/workbench",
+            Error::Http(402),
+            "workspace-plan-required",
+            Recovery::Account,
+        ),
+        (
+            "/workbench",
+            Error::Http(403),
+            "workspace-access-denied",
+            Recovery::None,
+        ),
+        (
+            "/workbench",
+            Error::Http(404),
+            "workspace-service-unavailable",
+            Recovery::None,
+        ),
+        (
+            "/repository-context",
+            Error::Http(404),
+            "project-unavailable",
+            Recovery::None,
+        ),
+        (
+            "/repository-context",
+            Error::Http(403),
+            "project-access-denied",
+            Recovery::None,
+        ),
+        (
+            "/repository-context",
+            Error::Response(503, Some("project_authorization_unavailable")),
+            "access-check-unavailable",
+            Recovery::Retry,
+        ),
+        (
+            "/workbench",
+            Error::Response(503, Some("database_schema_outdated")),
+            "service-updating",
+            Recovery::Retry,
+        ),
+        (
+            "/workbench",
+            Error::Service(409, ServiceCode::GenerationChanged),
+            "workspace-open-failed",
+            Recovery::Retry,
+        ),
+    ];
+    let (view, cx) = setup(cx);
+    view.update(cx, |s, cx| {
+        s.preferences
+            .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
+    });
+    let mut seen = vec![];
+    for (suffix, error, _, _) in &cases {
+        let base = cloud_project_responder();
+        let (suffix, error) = (*suffix, *error);
+        let responder: crate::cloud_auth::Responder = std::sync::Arc::new(move |request| {
+            if request.path.ends_with(suffix) {
+                return Err(error);
+            }
+            base(request)
+        });
+        let (broker, browser) = crate::cloud_auth::responding_account_fixture(responder);
+        cx.update(|_, cx| crate::features::cloud_account::install_fixture(broker, browser, cx));
+        settle_cloud(&view, cx, "sign-in", &|_, cx| {
+            crate::features::cloud_account::has_account(cx)
+        });
+        view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
+        settle_cloud(&view, cx, "the recovery", &|s, _| {
+            s.modals
+                .iter()
+                .any(|m| matches!(m, Modal::CloudRecovery { .. }))
+        });
+        view.update(cx, |s, _| {
+            let failure = s.modals.iter().find_map(|m| match m {
+                Modal::CloudRecovery { failure, .. } => Some(failure.clone()),
+                _ => None,
+            });
+            let failure = failure.unwrap();
+            seen.push((failure.code, failure.recovery));
+            assert!(s.hosted_project().is_none());
+            s.modals
+                .remove(|m| matches!(m, Modal::CloudRecovery { .. }));
+        });
+    }
+    let expected: Vec<_> = cases.iter().map(|(_, _, c, r)| (*c, *r)).collect();
+    assert_eq!(seen, expected);
+}

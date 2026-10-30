@@ -1,5 +1,27 @@
 //! Real loopback HTTP + streaming fixtures with synthetic auth and injected
 //! memory storage. Never a native vault, hosted project, browser or deployment.
+//!
+//! Provider, opening and event tests over a loopback Cloud.
+//!
+//! `workspace-state.md` acceptance matrix (C-15.1):
+//!
+//! | # | Row | Evidence |
+//! |---|---|---|
+//! | 1 | No local folder: sign in, list, open, read, write | `live_files_share_the_facade_without_a_local_root_or_git_fallback`, `shell::tests::a_catalog_reload_keeps_an_open_failure_and_retry_reopens_that_project` |
+//! | 2 | Missing, wrong-host or unauthorized association stays Local with scoped recovery | `shell::tests::a_refused_association_leaves_the_account_catalog_usable`, `shell::tests::a_failed_header_switch_stays_local_with_its_recovery_in_place`, `workspace::cloud::repository` |
+//! | 3 | A mismatched target or failed root read commits nothing | `exact_authorized_root_and_running_generation_are_required_before_handoff`, `shell::tests::a_failed_header_switch_stays_local_with_its_recovery_in_place` |
+//! | 4 | Cancel, a new selection, sign-out or another account: no late navigation or old-account mutation | `lease_revocation_interrupts_reads_and_rejects_late_mutation_receipts`, `explicit_opening_cancelled_at_files_cannot_deliver_a_provider`, `shell::tests::turning_cloud_off_cancels_an_opening_in_flight` |
+//! | 5 | The same account signing in again rebinds documents and saves | `a_reopened_lease_rebinds_a_document_baseline_and_saves`, `documents::tests::a_new_lease_of_the_same_storage_rebinds_the_working_copy_and_keeps_saving` |
+//! | 6 | Homepage listing, merge, order, Open menu, account frame, cancel and retry | `shell::tests::the_homepage_merges_a_linked_checkout_and_remembers_where_it_opened`, `workspace::cloud::catalog` |
+//! | 7 | Projects isolate content and drafts; Local restores | `content_integrity_and_foreign_revisions_fail_closed`, `shell::tests::the_header_switches_a_linked_checkout_to_cloud_and_back_keeping_both_hosts` |
+//! | 8 | Read-only grants and Scope hold; an outage never shows local bytes | `readonly_grants_and_invalid_paths_fail_before_mutation_dispatch`, `exact_authorized_root_and_running_generation_are_required_before_handoff`, `live_files_share_the_facade_without_a_local_root_or_git_fallback` |
+//!
+//! Failure injection (C-15.2): `shell::tests::injected_opening_failures_reach_the_recovery_with_the_product_code`
+//! (transport, timeouts, 5xx, reason codes, 402/403/404/426/429),
+//! `workspace::cloud::failure` (the full table), `service_generation_errors_are_not_misclassified_as_file_conflicts`
+//! and `reconnect_revalidates_without_wake_and_wrong_generation_retires_the_lease`
+//! (generation replaced), `non_sse_responses_fail_closed_and_transport_reconnects_are_bounded`
+//! and `streaming_auth_refresh_and_planned_renewal_do_not_exhaust_reconnect_budget` (SSE drops).
 use super::*;
 use crate::cloud_auth::{self as auth, Environment};
 use base64::{Engine, engine::general_purpose::STANDARD};
@@ -1231,5 +1253,28 @@ fn a_bounded_event_read_ends_at_its_heartbeat_or_its_deadline_without_touching_t
             .unwrap()
             .iter()
             .all(|(m, p)| m == "GET" || !p.contains("/stop"))
+    );
+}
+/// Matrix row 5: a document read under one lease saves under the next one
+/// for the same account, Project and workbench.
+#[test]
+fn a_reopened_lease_rebinds_a_document_baseline_and_saves() {
+    let f = Fixture::new();
+    let (first, shared) = f.scoped();
+    let document = first.read(p("live.md")).unwrap();
+    shared.retire();
+    assert!(first.save(&document, "stale lease\n").is_err());
+    let second = f.open();
+    // The old grant's handle is refused outright; `adopt` rereads it.
+    assert_eq!(
+        second.save(&document, "unadopted\n").unwrap_err().kind,
+        ErrorKind::ForeignResource
+    );
+    let adopted = second.adopt(&document).unwrap();
+    let saved = second.save(&adopted, "after reopening\n").unwrap();
+    assert!(!saved.updated);
+    assert_eq!(
+        f.state.files.lock().unwrap()["live.md"],
+        Some(b"after reopening\n".to_vec())
     );
 }
