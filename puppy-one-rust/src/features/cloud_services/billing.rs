@@ -4,7 +4,7 @@
 //! a late answer is dropped by the epoch. Success is what the server reports
 //! afterwards, never a browser return.
 use super::*;
-use crate::workspace::cloud::billing::{self, Catalog, Keys, Operation, Quote, Summary};
+use crate::workspace::cloud::billing::{self, Catalog, Keys, Operation, Quote, Summary, Usage};
 
 /// Member loading, member error, non-owner and owner are distinct.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -21,9 +21,12 @@ pub(super) struct BillingPage {
     pub membership: Membership,
     pub catalog: Option<Catalog>,
     pub summary: Option<Summary>,
+    pub usage: Option<Usage>,
     pub operations: Vec<Operation>,
     pub quote: Option<Quote>,
     pub quoted_operation: Option<String>,
+    /// The plan a quote was asked for; another answer is a boundary crossing.
+    pub requested_plan: Option<String>,
     pub seats: u64,
     pub acting: bool,
     pub error: Option<&'static str>,
@@ -40,7 +43,7 @@ impl BillingPage {
         };
     }
 }
-type Loaded = (Catalog, Summary, Vec<Operation>);
+type Loaded = (Catalog, Summary, Usage, Vec<Operation>);
 
 impl CloudServices {
     fn billing_client(&self) -> Option<billing::Client> {
@@ -51,6 +54,13 @@ impl CloudServices {
         let (Some(client), Some(org)) = (self.billing_client(), self.team.selected.clone()) else {
             return;
         };
+        let ended: Vec<Operation> = self
+            .billing
+            .operations
+            .iter()
+            .filter(|o| o.terminal && o.org_id == org)
+            .cloned()
+            .collect();
         self.billing.reset();
         self.billing.membership = Membership::Loading;
         let epoch = self.billing.epoch;
@@ -62,8 +72,12 @@ impl CloudServices {
             let loaded: Loaded = (
                 client.catalog()?,
                 client.summary(&org)?,
+                client.usage(&org)?,
                 client.operations(&org)?,
             );
+            if loaded.2.runtime.org_id != org {
+                return Err(services::Error::Invalid("billing"));
+            }
             services::Result::Ok(Some(loaded))
         });
         cx.spawn(async move |this, cx| {
@@ -73,11 +87,13 @@ impl CloudServices {
                     return;
                 }
                 match result {
-                    Ok(Some((catalog, summary, operations))) => {
+                    Ok(Some((catalog, summary, usage, operations))) => {
                         s.billing.membership = Membership::Owner;
                         s.billing.seats = summary.seat_quantity.max(1);
                         s.billing.catalog = Some(catalog);
                         s.billing.summary = Some(summary);
+                        s.billing.usage = Some(usage);
+                        let operations = billing::keep_ended(&ended, operations);
                         // An operation still in flight is watched, not repeated.
                         let resume = billing::resumable(&operations).map(|o| o.id.clone());
                         s.billing.operations = operations;
@@ -108,9 +124,72 @@ impl CloudServices {
         self.billing.acting = true;
         self.billing.error = None;
         self.billing.quote = None;
+        self.billing.quoted_operation = None;
+        self.billing.requested_plan = Some(plan.id.clone());
         let epoch = self.billing.epoch;
         let task =
             cx.background_spawn(async move { client.quote_plan(&org, &plan.id, seats, key) });
+        cx.spawn(async move |this, cx| {
+            let result = task.await;
+            this.update(cx, |s, cx| {
+                if s.billing.epoch != epoch {
+                    return;
+                }
+                s.billing.acting = false;
+                match result {
+                    Ok(quote) => {
+                        s.billing.keys.forget(&intent);
+                        s.billing.quote = Some(quote);
+                    }
+                    Err(_) => s.billing.error = Some("cloud.billing.quoteFailed"),
+                }
+                cx.notify();
+            })
+            .ok();
+        })
+        .detach();
+    }
+    /// `quoteSeats`: for a member change the server holds, or for the count
+    /// on the page. A count a member change needs settles that change.
+    pub(super) fn request_seat_quote(
+        &mut self,
+        requested: Option<Operation>,
+        cx: &mut Context<Self>,
+    ) {
+        let (Some(client), Some(org), Some(summary)) = (
+            self.billing_client(),
+            self.team.selected.clone(),
+            self.billing.summary.clone(),
+        ) else {
+            return;
+        };
+        if self.billing.acting || self.billing.polling.is_some() || !summary.seat_changes_available
+        {
+            return;
+        }
+        let seats = requested
+            .as_ref()
+            .and_then(|o| o.target_seat_quantity)
+            .unwrap_or(self.billing.seats.max(1));
+        let linked = requested.map(|o| o.id).or_else(|| {
+            billing::seat_operation(&self.billing.operations, seats).map(|o| o.id.clone())
+        });
+        let intent = format!(
+            "seat-quote:{org}:{seats}:{}",
+            linked.as_deref().unwrap_or("manual")
+        );
+        let key = self.billing.keys.key(&intent, "seat-quote");
+        self.billing.acting = true;
+        self.billing.error = None;
+        self.billing.quote = None;
+        self.billing.seats = seats;
+        self.billing.quoted_operation = linked.clone();
+        self.billing.requested_plan = Some(summary.plan_id);
+        let epoch = self.billing.epoch;
+        let task =
+            cx.background_spawn(
+                async move { client.quote_seats(&org, seats, linked.as_deref(), key) },
+            );
         cx.spawn(async move |this, cx| {
             let result = task.await;
             this.update(cx, |s, cx| {
@@ -193,8 +272,14 @@ impl CloudServices {
                         }
                         s.billing.operations.retain(|o| o.id != operation.id);
                         let id = operation.id.clone();
+                        let ended = operation.terminal;
                         s.billing.operations.push(operation);
-                        s.watch_operation(id, cx);
+                        // `mutationSucceeded`: what ended is reread, not watched.
+                        if ended {
+                            s.load_billing(cx);
+                        } else {
+                            s.watch_operation(id, cx);
+                        }
                     }
                     Err(services::Error::Invalid(_)) => {
                         s.billing.error = Some(billing::MISMATCH);
@@ -239,14 +324,20 @@ impl CloudServices {
                                 s.billing.operations.push(operation);
                                 if terminal {
                                     s.billing.polling = None;
+                                    s.load_billing(cx);
+                                    // What failed stays said through the reread.
                                     if failed {
                                         s.billing.error = Some("cloud.billing.changeFailed");
-                                        cx.notify();
-                                    } else {
-                                        s.load_billing(cx);
                                     }
+                                    cx.notify();
                                 }
                                 terminal
+                            }
+                            Err(services::Error::Invalid(billing::FOREIGN)) => {
+                                s.billing.polling = None;
+                                s.billing.error = Some(billing::MISMATCH);
+                                cx.notify();
+                                true
                             }
                             Err(services::Error::Status(401 | 403 | 404)) => {
                                 s.billing.polling = None;
@@ -365,6 +456,65 @@ impl CloudServices {
                 format!("{current} · {status} · {}", summary.seat_quantity),
             ));
         }
+        if let Some(summary) = &self.billing.summary {
+            if let Some(plan) = &summary.pending_plan_id {
+                page = page.child(text(
+                    t.muted.into(),
+                    tf(
+                        "cloud.billing.pendingPlan",
+                        &[("plan", plan.clone().into())],
+                    ),
+                ));
+            }
+            if summary.cancel_at_period_end {
+                page = page.child(text(
+                    t.muted.into(),
+                    tr("cloud.billing.cancelPending").into(),
+                ));
+            }
+        }
+        if let Some(usage) = &self.billing.usage {
+            let runtime = &usage.runtime;
+            let storage = usage.storage.limit_bytes.map_or(
+                tr("cloud.billing.unlimited").to_owned(),
+                |limit| {
+                    tf(
+                        "cloud.billing.storageLimit",
+                        &[("limit", format_bytes(limit).into())],
+                    )
+                },
+            );
+            page = page
+                .child(text(
+                    t.text.into(),
+                    format!(
+                        "{} · {}",
+                        tr("cloud.billing.runtimeUsage"),
+                        tf(
+                            "cloud.billing.runtimeAvailable",
+                            &[("count", runtime.available_units.into())]
+                        )
+                    ),
+                ))
+                .child(text(
+                    t.muted.into(),
+                    tf(
+                        "cloud.billing.runtimeDetail",
+                        &[
+                            ("consumed", runtime.consumed_units.into()),
+                            ("reserved", runtime.reserved_units.into()),
+                        ],
+                    ),
+                ))
+                .child(text(
+                    t.text.into(),
+                    format!(
+                        "{} · {} {storage}",
+                        tr("cloud.billing.storageUsage"),
+                        format_bytes(usage.storage.logical_bytes)
+                    ),
+                ));
+        }
         if self.billing.polling.is_some() {
             page = page.child(text(
                 t.muted.into(),
@@ -375,6 +525,11 @@ impl CloudServices {
             page = page.child(text(t.danger.into(), tr(error).into()));
         }
         let seats = self.billing.seats;
+        let seat_changes = self
+            .billing
+            .summary
+            .as_ref()
+            .is_some_and(|s| s.seat_changes_available);
         page = page.child(
             h_flex()
                 .gap(px(6.))
@@ -404,6 +559,13 @@ impl CloudServices {
                             s.billing.quote = None;
                             cx.notify();
                         })),
+                )
+                .child(
+                    Button::new("cloud-seats-quote")
+                        .variant(ButtonVariant::Secondary)
+                        .label(tr("cloud.billing.quoteSeatChange"))
+                        .disabled(busy || !seat_changes)
+                        .on_click(cx.listener(|s, _, _, cx| s.request_seat_quote(None, cx))),
                 ),
         );
         let plans: Vec<billing::Plan> = self
@@ -452,48 +614,138 @@ impl CloudServices {
             );
         }
         if let Some(quote) = self.billing.quote.clone() {
+            let expires = tf(
+                "cloud.billing.quoteExpires",
+                &[(
+                    "time",
+                    quote.expires_at.chars().take(10).collect::<String>().into(),
+                )],
+            );
+            let crossing =
+                billing::crosses_boundary(&quote, self.billing.requested_plan.as_deref());
             page = page.child(
-                h_flex()
+                v_flex()
                     .gap(px(8.))
                     .p(px(10.))
                     .border_1()
                     .border_color(t.border)
                     .rounded(px(8.))
                     .child(
+                        h_flex()
+                            .gap(px(8.))
+                            .child(
+                                v_flex()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .child(text(
+                                        t.text.into(),
+                                        tf(
+                                            "cloud.billing.quoteSummary",
+                                            &[
+                                                ("plan", quote.target_plan_id.clone().into()),
+                                                ("count", (quote.target_seats as i64).into()),
+                                            ],
+                                        ),
+                                    ))
+                                    .child(text(t.muted.into(), expires)),
+                            )
+                            .child(
+                                v_flex()
+                                    .items_end()
+                                    .child(text(
+                                        t.text.into(),
+                                        money(quote.target_amount_cents, &quote.currency),
+                                    ))
+                                    .child(text(
+                                        t.muted.into(),
+                                        tf(
+                                            "cloud.billing.quoteDelta",
+                                            &[(
+                                                "amount",
+                                                money(quote.delta_amount_cents, &quote.currency)
+                                                    .into(),
+                                            )],
+                                        ),
+                                    )),
+                            ),
+                    )
+                    .when(crossing, |d| {
+                        d.child(text(
+                            t.danger.into(),
+                            tf(
+                                "cloud.billing.boundaryChange",
+                                &[("plan", quote.target_plan_id.clone().into())],
+                            ),
+                        ))
+                    })
+                    .child(
+                        h_flex().justify_end().child(
+                            Button::new("cloud-quote-confirm")
+                                .variant(ButtonVariant::Solid)
+                                .label(tr("cloud.billing.confirmQuotedChange"))
+                                .disabled(busy)
+                                .on_click(cx.listener(|s, _, _, cx| s.confirm_quote(cx))),
+                        ),
+                    ),
+            );
+        }
+        let pending = billing::pending(&self.billing.operations);
+        if !pending.is_empty() {
+            let mut states: Vec<String> = vec![];
+            for operation in &pending {
+                let state = tr(&format!(
+                    "cloud.billing.operationStatus.{}",
+                    operation.state
+                ))
+                .to_owned();
+                if !states.contains(&state) {
+                    states.push(state);
+                }
+            }
+            let actionable = billing::actionable_seat(&self.billing.operations).cloned();
+            page = page.child(
+                h_flex()
+                    .gap(px(8.))
+                    .child(
                         v_flex()
                             .flex_1()
                             .min_w_0()
                             .child(text(
                                 t.text.into(),
-                                format!(
-                                    "{} · {}",
-                                    quote.target_plan_id,
-                                    money(quote.target_amount_cents, &quote.currency)
+                                tf(
+                                    "cloud.billing.pendingOperations",
+                                    &[("count", (pending.len() as i64).into())],
                                 ),
                             ))
-                            .child(text(
-                                t.muted.into(),
-                                money(quote.delta_amount_cents, &quote.currency),
-                            )),
+                            .child(text(t.muted.into(), states.join(" · "))),
                     )
-                    .child(
-                        Button::new("cloud-quote-confirm")
-                            .variant(ButtonVariant::Solid)
-                            .label(tr("cloud.billing.confirmQuotedChange"))
+                    .children(actionable.map(|operation| {
+                        Button::new("cloud-operation-quote")
+                            .variant(ButtonVariant::Secondary)
+                            .label(tr("cloud.billing.quoteSeatChange"))
                             .disabled(busy)
-                            .on_click(cx.listener(|s, _, _, cx| s.confirm_quote(cx))),
-                    ),
+                            .on_click(cx.listener(move |s, _, _, cx| {
+                                s.request_seat_quote(Some(operation.clone()), cx)
+                            }))
+                    })),
             );
         }
-        page.child(
-            h_flex().justify_end().child(
-                Button::new("cloud-billing-portal")
-                    .variant(ButtonVariant::Secondary)
-                    .label(tr("cloud.billing.managePortal"))
-                    .disabled(self.billing.acting)
-                    .on_click(cx.listener(|s, _, _, cx| s.open_portal(cx))),
-            ),
-        )
+        let portal = self
+            .billing
+            .summary
+            .as_ref()
+            .is_some_and(|s| s.portal_available);
+        page.when(portal, |page| {
+            page.child(
+                h_flex().justify_end().child(
+                    Button::new("cloud-billing-portal")
+                        .variant(ButtonVariant::Secondary)
+                        .label(tr("cloud.billing.managePortal"))
+                        .disabled(self.billing.acting)
+                        .on_click(cx.listener(|s, _, _, cx| s.open_portal(cx))),
+                ),
+            )
+        })
         .into_any_element()
     }
 }

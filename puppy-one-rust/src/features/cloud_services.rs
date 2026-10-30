@@ -16,7 +16,7 @@ use crate::{
     },
     workspace::cloud::{
         access_points::{self as access, Catalog, CommandId, Kind, Point, Status},
-        graph, history,
+        graph, history, permissions,
         services::{self, Client, Dashboard, Identity, McpEndpoint, Project, Scope, Surface, Tree},
         share,
     },
@@ -170,6 +170,7 @@ pub fn billing_client(cx: &App) -> Option<crate::workspace::cloud::billing::Clie
 
 /// `pollIntervalMs` while a share waits for its first read.
 const RECEIPT_POLL: std::time::Duration = std::time::Duration::from_secs(5);
+const DELETE_CONFIRM: std::time::Duration = std::time::Duration::from_secs(4);
 
 /// `ShareWizardDialog`'s state.
 #[derive(Clone, Debug)]
@@ -240,6 +241,12 @@ pub struct CloudServices {
     confirm_delete: Option<String>,
     /// The open Create access form.
     creating: Option<Create>,
+    /// The access point whose permissions are showing.
+    expanded: Option<String>,
+    /// The open `ScopeSettingsBlock`: its Scope and the mode being chosen.
+    scope_edit: Option<(String, &'static str)>,
+    scope_edit_name: Entity<TextInput>,
+    scope_exclude: Entity<TextInput>,
     folder_epoch: u64,
     billing: billing::BillingPage,
     /// The Share wizard, and the issue or receipt watch that may report.
@@ -275,6 +282,11 @@ impl CloudServices {
             issued: None,
             confirm_delete: None,
             creating: None,
+            expanded: None,
+            scope_edit: None,
+            scope_edit_name: field(false, window, cx),
+            scope_exclude: cx
+                .new(|cx| TextInput::new("dist\n.cache\n*.tmp", true, 4000, window, cx)),
             folder_epoch: 0,
             billing: Default::default(),
             share_flow: None,
@@ -330,6 +342,8 @@ impl CloudServices {
         self.creating = None;
         self.folder_epoch += 1;
         self.share_flow = None;
+        self.expanded = None;
+        self.scope_edit = None;
         self.share_epoch += 1;
         self.stop_failed = false;
         self.billing.reset();
@@ -349,6 +363,8 @@ impl CloudServices {
         self.confirm_delete = None;
         self.creating = None;
         self.share_flow = None;
+        self.expanded = None;
+        self.scope_edit = None;
         self.share_epoch += 1;
         self.notice = None;
         self.scroll.set_offset(point(px(0.), px(0.)));
@@ -516,6 +532,15 @@ impl CloudServices {
         action: impl FnOnce(&Client) -> services::Result<Option<(String, String)>> + Send + 'static,
         cx: &mut Context<Self>,
     ) {
+        self.mutate_or("cloud.settings.saveFailed", action, cx);
+    }
+    /// One change at a time; a failure reports `failed` and changes nothing.
+    fn mutate_or(
+        &mut self,
+        failed: &'static str,
+        action: impl FnOnce(&Client) -> services::Result<Option<(String, String)>> + Send + 'static,
+        cx: &mut Context<Self>,
+    ) {
         let Some(client) = self.client.clone() else {
             return;
         };
@@ -541,7 +566,7 @@ impl CloudServices {
                         }
                         s.refresh(cx);
                     }
-                    Err(_) => s.notice = Some(tr("cloud.settings.saveFailed").into()),
+                    Err(_) => s.notice = Some(tr(failed).into()),
                 }
                 cx.notify();
             })
@@ -581,7 +606,7 @@ impl CloudServices {
     }
     /// `handleCreateMcpEndpoint`: its key is shown here, once.
     fn create_mcp(&mut self, view: access::View, cx: &mut Context<Self>) {
-        let Some(project) = self.project.clone() else {
+        let Some(project) = self.project.clone().filter(|_| self.can_manage()) else {
             return;
         };
         let readonly = self
@@ -598,27 +623,142 @@ impl CloudServices {
             cx,
         );
     }
+    /// `canManage`: the capability the server granted on this Project.
+    fn can_manage(&self) -> bool {
+        self.details
+            .as_ref()
+            .and_then(|d| d.project.as_ref())
+            .is_some_and(|p| p.can("access_surface.manage"))
+    }
+    /// A delete needs a second press within four seconds.
+    fn arm_delete(&mut self, id: String, cx: &mut Context<Self>) {
+        self.confirm_delete = Some(id.clone());
+        cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(DELETE_CONFIRM).await;
+            this.update(cx, |s, cx| {
+                if s.confirm_delete.as_deref() == Some(id.as_str()) && !s.busy {
+                    s.confirm_delete = None;
+                    cx.notify();
+                }
+            })
+            .ok();
+        })
+        .detach();
+        cx.notify();
+    }
     fn delete_scope(&mut self, scope: String, cx: &mut Context<Self>) {
-        let Some(project) = self.project.clone() else {
+        let Some(project) = self.project.clone().filter(|_| self.can_manage()) else {
             return;
         };
-        self.mutate(
+        self.mutate_or(
+            "cloud.message.delete-access-failed",
             move |client| client.delete_scope(&project, &scope).map(|_| None),
             cx,
         );
     }
-    fn set_scope_mode(&mut self, scope: Scope, mode: &'static str, cx: &mut Context<Self>) {
-        self.mutate(
+    /// The settings of one Scope at a time, filled from what the server holds.
+    fn toggle_scope_settings(&mut self, scope: &Scope, cx: &mut Context<Self>) {
+        let open = self
+            .scope_edit
+            .as_ref()
+            .is_some_and(|(id, _)| *id == scope.id);
+        self.confirm_delete = None;
+        if open {
+            self.scope_edit = None;
+        } else {
+            self.fill_scope_form(scope, cx);
+        }
+        cx.notify();
+    }
+    fn fill_scope_form(&mut self, scope: &Scope, cx: &mut Context<Self>) {
+        let mode = if scope.max_mode == "rw" { "rw" } else { "r" };
+        self.scope_edit = Some((scope.id.clone(), mode));
+        self.scope_edit_name
+            .update(cx, |i, cx| i.set_text(&scope.name, cx));
+        self.scope_exclude
+            .update(cx, |i, cx| i.set_text(scope.exclude.join("\n"), cx));
+    }
+    fn scope_dirty(&self, scope: &Scope, cx: &App) -> bool {
+        let Some((id, mode)) = &self.scope_edit else {
+            return false;
+        };
+        *id == scope.id
+            && (self.scope_edit_name.read(cx).text().trim() != scope.name
+                || *mode != scope.max_mode
+                || permissions::parse_exclude(self.scope_exclude.read(cx).text()) != scope.exclude)
+    }
+    fn save_scope(&mut self, scope: Scope, cx: &mut Context<Self>) {
+        let Some((_, mode)) = self.scope_edit.clone().filter(|_| self.can_manage()) else {
+            return;
+        };
+        let typed = self.scope_edit_name.read(cx).text().trim().to_owned();
+        let name = if typed.is_empty() {
+            scope.name.clone()
+        } else {
+            typed
+        };
+        let exclude = permissions::parse_exclude(self.scope_exclude.read(cx).text());
+        self.mutate_or(
+            "cloud.message.save-scope-failed",
             move |client| {
                 client
-                    .update_scope(&scope.project_id, &scope.id, &scope.name, mode)
+                    .update_scope(&scope.project_id, &scope.id, &name, mode, &exclude)
                     .map(|_| None)
             },
             cx,
         );
     }
+    /// `handleUpdateAccessPointPermissions`: the whole record goes back with
+    /// its permissions replaced.
+    fn set_permissions(
+        &mut self,
+        point: &access::Point,
+        allowed: &permissions::Allowed,
+        cx: &mut Context<Self>,
+    ) {
+        let (Some(project), Some(details), Some(id)) = (
+            self.project.clone().filter(|_| self.can_manage()),
+            self.details.as_ref(),
+            point.surface.clone(),
+        ) else {
+            return;
+        };
+        let failed = "cloud.message.update-config-failed";
+        match point.kind {
+            Kind::Cli => {
+                let Some(surface) = details.surfaces.iter().find(|s| s.id == id) else {
+                    return;
+                };
+                let config = permissions::cli_config(&surface.config, allowed);
+                self.mutate_or(
+                    failed,
+                    move |client| {
+                        client
+                            .update_surface_config(&project, &id, config)
+                            .map(|_| None)
+                    },
+                    cx,
+                );
+            }
+            Kind::Mcp => {
+                let Some(endpoint) = details.endpoints.iter().find(|e| e.id == id) else {
+                    return;
+                };
+                let tools = permissions::mcp_config(&endpoint.tools_config, allowed);
+                self.mutate_or(
+                    failed,
+                    move |client| client.update_mcp_tools(&project, &id, tools).map(|_| None),
+                    cx,
+                );
+            }
+            Kind::Git => {}
+        }
+    }
     /// `CreateAccessDialog`: choosing a path reads its folders on demand.
     fn begin_create(&mut self, cx: &mut Context<Self>) {
+        if !self.can_manage() {
+            return;
+        }
         self.creating = Some(Create::default());
         self.read_folder(String::new(), cx);
         cx.notify();
@@ -1315,6 +1455,7 @@ impl CloudServices {
             return self.loading_row(t);
         };
         let id = self.project.clone().unwrap_or_default();
+        let manage = self.can_manage();
         let task = !matches!(self.section, Section::Mcp | Section::Cli);
         let server = cloud_account::environment(cx)
             .map(|e| services::mcp_server_url(e.api()))
@@ -1323,17 +1464,22 @@ impl CloudServices {
             .gap(px(12.))
             .when(task, |d| d.child(self.back(t, cx)));
         page = page.child(self.heading(t));
-        page = match self.creating.clone() {
+        page = match self.creating.clone().filter(|_| manage) {
             Some(create) => page.child(self.create_form(create, t, cx)),
-            None => page.child(
+            None if manage => page.child(
                 h_flex().justify_end().child(
                     Button::new("cloud-create-access")
                         .variant(ButtonVariant::Solid)
-                        .label(tr("cloud.access.create.action"))
+                        .label(tr(if catalog == Catalog::Mcp {
+                            "cloud.access.create.intent.agent.label"
+                        } else {
+                            "cloud.access.new"
+                        }))
                         .disabled(self.busy)
                         .on_click(cx.listener(|s, _, _, cx| s.begin_create(cx))),
                 ),
             ),
+            None => page,
         };
         for (index, point) in details.rows(&id, catalog).into_iter().enumerate() {
             let title = if !point.title.is_empty() {
@@ -1462,73 +1608,79 @@ impl CloudServices {
                         ),
                 );
             }
-            // A Scope's own settings (`ScopeSettingsBlock`); the Project root
-            // keeps its name and has none to delete.
+            if !point.placeholder && matches!(point.kind, Kind::Cli | Kind::Mcp) {
+                let open = self.expanded.as_deref() == Some(point.id.as_str());
+                let toggle = point.id.clone();
+                row = row.child(
+                    h_flex().justify_end().child(
+                        Button::new(("cloud-permissions", index))
+                            .variant(ButtonVariant::Secondary)
+                            .label(tr(match (open, point.kind) {
+                                (true, _) => "cloud.access.method.hideConfig",
+                                (false, Kind::Cli) => "cloud.access.method.cli.action",
+                                (false, _) => "cloud.access.method.mcp.viewConnection",
+                            }))
+                            .on_click(cx.listener(move |s, _, _, cx| {
+                                s.expanded = (s.expanded.as_deref() != Some(toggle.as_str()))
+                                    .then(|| toggle.clone());
+                                cx.notify();
+                            })),
+                    ),
+                );
+                if open {
+                    row = row.child(self.permissions_panel(&point, &details, manage, index, t, cx));
+                }
+            }
+            // A Scope's own settings; the Project root keeps its name and
+            // has nothing to change or delete, so it has none.
             if point.kind == Kind::Cli
+                && manage
                 && let Some(scope) = details
                     .scopes
                     .iter()
                     .find(|s| s.id == point.view.id)
                     .cloned()
             {
-                let confirming = self.confirm_delete.as_deref() == Some(scope.id.as_str());
-                let next = if scope.max_mode == "rw" { "r" } else { "rw" };
-                let (toggle, remove) = (scope.clone(), scope.id.clone());
-                row = row.child(
-                    h_flex()
-                        .justify_end()
-                        .gap(px(6.))
-                        .child(
-                            Button::new(("cloud-scope-mode", index))
+                let open = self
+                    .scope_edit
+                    .as_ref()
+                    .is_some_and(|(id, _)| *id == scope.id);
+                let toggle = scope.clone();
+                row =
+                    row.child(
+                        h_flex().justify_end().child(
+                            Button::new(("cloud-scope-settings", index))
                                 .variant(ButtonVariant::Secondary)
-                                .label(tr(if scope.max_mode == "rw" {
-                                    "cloud.scope.readWrite"
+                                .label(tr(if open {
+                                    "cloud.common.closeSettings"
                                 } else {
-                                    "cloud.scope.readOnly"
+                                    "cloud.common.openSettings"
                                 }))
-                                .disabled(self.busy)
                                 .on_click(cx.listener(move |s, _, _, cx| {
-                                    s.set_scope_mode(toggle.clone(), next, cx)
-                                })),
-                        )
-                        .child(
-                            Button::new(("cloud-scope-delete", index))
-                                .variant(if confirming {
-                                    ButtonVariant::SolidDanger
-                                } else {
-                                    ButtonVariant::Secondary
-                                })
-                                .label(tr(if confirming {
-                                    "cloud.common.confirmDelete"
-                                } else {
-                                    "cloud.scope.deleteHelp"
-                                }))
-                                .disabled(self.busy)
-                                .on_click(cx.listener(move |s, _, _, cx| {
-                                    if s.confirm_delete.as_deref() == Some(remove.as_str()) {
-                                        s.delete_scope(remove.clone(), cx);
-                                    } else {
-                                        s.confirm_delete = Some(remove.clone());
-                                        cx.notify();
-                                    }
+                                    s.toggle_scope_settings(&toggle, cx)
                                 })),
                         ),
-                );
+                    );
+                if open {
+                    row = row.child(self.scope_settings(&scope, t, cx));
+                }
             }
             if point.kind == Kind::Mcp {
                 if point.placeholder {
                     let view = point.view.clone();
-                    row = row.child(
-                        h_flex().justify_end().child(
-                            Button::new(("cloud-mcp-create", index))
-                                .variant(ButtonVariant::Solid)
-                                .label(tr("cloud.access.method.mcp.create"))
-                                .disabled(self.busy)
-                                .on_click(
-                                    cx.listener(move |s, _, _, cx| s.create_mcp(view.clone(), cx)),
-                                ),
-                        ),
-                    );
+                    row = row.when(manage, |row| {
+                        row.child(
+                            h_flex().justify_end().child(
+                                Button::new(("cloud-mcp-create", index))
+                                    .variant(ButtonVariant::Solid)
+                                    .label(tr("cloud.access.method.mcp.create"))
+                                    .disabled(self.busy)
+                                    .on_click(cx.listener(move |s, _, _, cx| {
+                                        s.create_mcp(view.clone(), cx)
+                                    })),
+                            ),
+                        )
+                    });
                 } else if !server.is_empty() {
                     let value = server.clone();
                     row = row.child(
@@ -1546,6 +1698,248 @@ impl CloudServices {
             page = page.child(row);
         }
         page.into_any_element()
+    }
+    /// `DesktopCloudPermissionPanel`. It shows what is allowed to everyone;
+    /// only someone who manages access can change it.
+    fn permissions_panel(
+        &self,
+        point: &access::Point,
+        details: &Details,
+        manage: bool,
+        row: usize,
+        t: Theme,
+        cx: &mut Context<Self>,
+    ) -> Div {
+        let ty = theme::ty().ui;
+        let mode = details
+            .scopes
+            .iter()
+            .find(|s| s.id == point.view.id)
+            .map_or("rw", |s| s.max_mode.as_str());
+        let surface = point.surface.as_deref();
+        let (title, groups, allowed, available, unavailable, footer) = if point.kind == Kind::Cli {
+            let connector = surface.and_then(|id| details.surfaces.iter().find(|s| s.id == id));
+            (
+                "cloud.access.permissions.title",
+                permissions::cli_groups(mode),
+                permissions::parse_cli(connector.map_or(&serde_json::Value::Null, |s| &s.config)),
+                connector.is_some(),
+                "cloud.access.permissions.cliUnavailable",
+                None,
+            )
+        } else {
+            let endpoint = surface.and_then(|id| details.endpoints.iter().find(|e| e.id == id));
+            (
+                "cloud.access.permissions.mcpTools",
+                permissions::mcp_groups(permissions::mcp_writable(
+                    endpoint.map_or(&[], |e| e.accesses.as_slice()),
+                    mode,
+                )),
+                permissions::parse_mcp(
+                    endpoint.map_or(&serde_json::Value::Null, |e| &e.tools_config),
+                ),
+                endpoint.is_some(),
+                "cloud.access.permissions.mcpUnavailable",
+                Some("cloud.access.permissions.mcpPolicyFooter"),
+            )
+        };
+        let can_update = manage && available;
+        let caption = |color: Hsla, text: SharedString| {
+            div()
+                .text_size(px(ty.caption))
+                .text_color(color)
+                .child(text)
+        };
+        let mut panel = v_flex().gap(px(8.)).child(
+            div()
+                .text_size(px(ty.meta))
+                .font_weight(FontWeight::MEDIUM)
+                .text_color(t.text)
+                .child(tr(title)),
+        );
+        for (index, group) in groups.into_iter().enumerate() {
+            let disabled = !can_update || self.busy || group.muted;
+            let meta = if group.muted {
+                tr("cloud.access.permissions.blockedByScope").to_owned()
+            } else {
+                tf(
+                    "cloud.access.permissions.groupMeta",
+                    &[
+                        ("allowed", (group.count(&allowed) as i64).into()),
+                        ("total", (group.keys.len() as i64).into()),
+                    ],
+                )
+            };
+            let next = group.toggled(&allowed);
+            let target = point.clone();
+            let all = Button::new(("cloud-permission-all", row * 8 + index))
+                .variant(if group.all(&allowed) {
+                    ButtonVariant::Solid
+                } else {
+                    ButtonVariant::Secondary
+                })
+                .label(tr("cloud.common.all"))
+                .disabled(disabled)
+                .on_click(cx.listener(move |s, _, _, cx| s.set_permissions(&target, &next, cx)));
+            let pills = group.keys.iter().enumerate().map(|(position, key)| {
+                let key = *key;
+                let enabled = !group.muted && allowed.contains(key);
+                let next = permissions::toggled(&allowed, key);
+                let target = point.clone();
+                Button::new(("cloud-permission", row * 256 + index * 32 + position))
+                    .variant(match (enabled, group.danger) {
+                        (true, true) => ButtonVariant::SolidDanger,
+                        (true, false) => ButtonVariant::Solid,
+                        _ => ButtonVariant::Secondary,
+                    })
+                    .label(key)
+                    .disabled(disabled)
+                    .on_click(cx.listener(move |s, _, _, cx| s.set_permissions(&target, &next, cx)))
+            });
+            panel = panel.child(
+                v_flex()
+                    .gap(px(6.))
+                    .child(
+                        h_flex()
+                            .gap(px(8.))
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .text_size(px(ty.caption))
+                                    .text_color(t.text)
+                                    .child(tr(group.title)),
+                            )
+                            .child(caption(t.muted.into(), meta.into()))
+                            .child(all),
+                    )
+                    .child(h_flex().flex_wrap().gap(px(4.)).children(pills)),
+            );
+        }
+        panel
+            .when(!can_update, |d| {
+                d.child(caption(t.muted.into(), tr(unavailable).into()))
+            })
+            .children(footer.map(|key| caption(t.muted.into(), tr(key).into())))
+    }
+    /// `CloudScopeSettingsBlock`.
+    fn scope_settings(&self, scope: &Scope, t: Theme, cx: &mut Context<Self>) -> Div {
+        let ty = theme::ty().ui;
+        let dirty = self.scope_dirty(scope, cx);
+        let mode = self.scope_edit.as_ref().map_or("r", |(_, mode)| *mode);
+        let label = |key: &'static str| {
+            div()
+                .text_size(px(ty.caption))
+                .text_color(t.muted)
+                .child(tr(key))
+        };
+        let mode_button = |id: &'static str, value: &'static str, key: &'static str| {
+            Button::new(id)
+                .variant(if mode == value {
+                    ButtonVariant::Solid
+                } else {
+                    ButtonVariant::Secondary
+                })
+                .label(tr(key))
+                .disabled(self.busy)
+                .on_click(cx.listener(move |s, _, _, cx| {
+                    if let Some(edit) = &mut s.scope_edit {
+                        edit.1 = value;
+                    }
+                    cx.notify();
+                }))
+        };
+        let read_only = mode_button("cloud-scope-read", "r", "cloud.scope.readOnly");
+        let read_write = mode_button("cloud-scope-write", "rw", "cloud.scope.readWrite");
+        let confirming = self.confirm_delete.as_deref() == Some(scope.id.as_str());
+        let (remove, discard, save) = (scope.id.clone(), scope.clone(), scope.clone());
+        v_flex()
+            .gap(px(8.))
+            .pt(px(4.))
+            .child(
+                h_flex()
+                    .gap(px(8.))
+                    .child(
+                        div()
+                            .flex_1()
+                            .text_size(px(ty.meta))
+                            .font_weight(FontWeight::MEDIUM)
+                            .text_color(t.text)
+                            .child(tr("cloud.common.settings")),
+                    )
+                    .when(dirty, |d| d.child(label("cloud.common.unsaved"))),
+            )
+            .child(label("cloud.common.name"))
+            .child(self.scope_edit_name.clone())
+            .child(label("cloud.common.permission"))
+            .child(h_flex().gap(px(6.)).child(read_only).child(read_write))
+            .child(label("cloud.scope.exclude"))
+            .child(self.scope_exclude.clone())
+            .child(label("cloud.scope.excludeHelp"))
+            .child(
+                h_flex()
+                    .gap(px(8.))
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .text_size(px(ty.caption))
+                            .text_color(t.danger)
+                            .child(tr("cloud.scope.deleteHelp")),
+                    )
+                    .child(
+                        Button::new("cloud-scope-delete")
+                            .variant(if confirming {
+                                ButtonVariant::SolidDanger
+                            } else {
+                                ButtonVariant::Secondary
+                            })
+                            .label(tr(if confirming {
+                                "cloud.common.confirmDelete"
+                            } else {
+                                "cloud.scope.deleteAccess"
+                            }))
+                            .disabled(self.busy)
+                            .on_click(cx.listener(move |s, _, _, cx| {
+                                if s.confirm_delete.as_deref() == Some(remove.as_str()) {
+                                    s.delete_scope(remove.clone(), cx);
+                                } else {
+                                    s.arm_delete(remove.clone(), cx);
+                                }
+                            })),
+                    ),
+            )
+            .when(dirty, |d| {
+                d.child(
+                    h_flex()
+                        .gap(px(6.))
+                        .justify_end()
+                        .child(label("cloud.common.unsavedChanges"))
+                        .child(
+                            Button::new("cloud-scope-discard")
+                                .variant(ButtonVariant::Secondary)
+                                .label(tr("cloud.common.discard"))
+                                .disabled(self.busy)
+                                .on_click(cx.listener(move |s, _, _, cx| {
+                                    s.fill_scope_form(&discard, cx);
+                                    cx.notify();
+                                })),
+                        )
+                        .child(
+                            Button::new("cloud-scope-save")
+                                .variant(ButtonVariant::Solid)
+                                .label(tr(if self.busy {
+                                    "cloud.common.saving"
+                                } else {
+                                    "cloud.common.saveChanges"
+                                }))
+                                .disabled(self.busy)
+                                .on_click(
+                                    cx.listener(move |s, _, _, cx| s.save_scope(save.clone(), cx)),
+                                ),
+                        ),
+                )
+            })
     }
     /// `CloudShareHome`: who can read the Project, and who else could.
     fn share_page(&mut self, t: Theme, cx: &mut Context<Self>) -> AnyElement {
@@ -2593,7 +2987,7 @@ impl services::Transport for LabCloud {
             "/mcp-endpoints" => json!([]),
             "/projects/lab" => json!({"id": "lab", "name": "Launch notes",
                 "updated_at": "2026-10-20T08:00:00Z", "visibility": "org",
-                "capabilities": ["project.settings.manage"]}),
+                "capabilities": ["project.settings.manage", "access_surface.manage"]}),
             p if p.contains("/commits") => json!({"project_id": "lab",
                 "snapshot_id": "a".repeat(64), "refs_included": true,
                 "graph_health": "complete", "unreadable_commit_ids": [],

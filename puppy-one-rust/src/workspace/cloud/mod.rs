@@ -13,6 +13,7 @@ pub mod history;
 pub mod locator;
 mod model;
 pub mod opening;
+pub mod permissions;
 pub mod publish;
 pub mod recovery;
 pub mod repository;

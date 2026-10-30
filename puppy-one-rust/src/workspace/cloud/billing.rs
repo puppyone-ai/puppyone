@@ -72,6 +72,12 @@ pub struct Summary {
     pub current_period_end: Option<String>,
     #[serde(default)]
     pub portal_available: bool,
+    #[serde(default)]
+    pub seat_changes_available: bool,
+    #[serde(default)]
+    pub catalog_version: Option<String>,
+    #[serde(default)]
+    pub source_revision: Option<u64>,
 }
 impl Summary {
     /// `NOT_HELD`: free, a checkout not yet paid, or revoked.
@@ -89,8 +95,22 @@ pub struct Storage {
     #[serde(default)]
     pub limit_bytes: Option<u64>,
 }
+/// `DesktopRuntimeBalance`: amounts the server counted, shown as they are.
+#[derive(Clone, Debug, Default, PartialEq, Deserialize)]
+pub struct Runtime {
+    #[serde(default)]
+    pub org_id: String,
+    #[serde(default)]
+    pub available_units: i64,
+    #[serde(default)]
+    pub reserved_units: i64,
+    #[serde(default)]
+    pub consumed_units: i64,
+}
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct Usage {
+    #[serde(default)]
+    pub runtime: Runtime,
     #[serde(default)]
     pub storage: Storage,
 }
@@ -119,6 +139,8 @@ pub struct Quote {
     /// `checkout | plan_change | seat_change`.
     pub application_mode: String,
     pub expires_at: String,
+    #[serde(default)]
+    pub details: Value,
 }
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct Operation {
@@ -146,6 +168,9 @@ pub struct Access {
 
 /// The rejection the view reports (`cloud.billing.*`).
 pub const MISMATCH: &str = "cloud.billing.organizationMismatch";
+/// `Error::Invalid` for an operation that is not the one asked for. Unlike a
+/// malformed answer, this one is not worth asking again.
+pub const FOREIGN: &str = "billing-foreign";
 pub const EXPIRED: &str = "cloud.billing.quoteExpired";
 
 /// `assertQuoteNotExpired`: an unreadable time is expired.
@@ -184,6 +209,52 @@ pub fn resumable(operations: &[Operation]) -> Option<&Operation> {
             "pending" | "processing" | "retryable_failed"
         ) && !o.terminal
     })
+}
+/// `loadSucceeded`: what was seen to end stays ended. A list that lags behind
+/// the operation would otherwise reopen it and start watching it again.
+pub fn keep_ended(observed: &[Operation], incoming: Vec<Operation>) -> Vec<Operation> {
+    incoming
+        .into_iter()
+        .map(|operation| {
+            observed
+                .iter()
+                .find(|o| o.id == operation.id && o.terminal && !operation.terminal)
+                .cloned()
+                .unwrap_or(operation)
+        })
+        .collect()
+}
+/// `pendingBillingOperations`.
+pub fn pending(operations: &[Operation]) -> Vec<&Operation> {
+    operations.iter().filter(|o| !o.terminal).collect()
+}
+fn member_seat(operation: &Operation) -> bool {
+    matches!(
+        operation.kind.as_str(),
+        "member_activation" | "member_deactivation"
+    )
+}
+/// `actionableSeatOperation`: a member change the server is waiting on the
+/// owner to pay for or release.
+pub fn actionable_seat(operations: &[Operation]) -> Option<&Operation> {
+    operations.iter().find(|o| {
+        !o.terminal
+            && member_seat(o)
+            && o.action_required
+            && o.target_seat_quantity.is_some_and(|seats| seats > 0)
+    })
+}
+/// A seat quote for exactly what a member change needs settles that change.
+pub fn seat_operation(operations: &[Operation], seats: u64) -> Option<&Operation> {
+    operations
+        .iter()
+        .find(|o| !o.terminal && member_seat(o) && o.target_seat_quantity == Some(seats))
+}
+/// Whether the quote lands somewhere other than what was asked for: the
+/// owner has to see that before confirming.
+pub fn crosses_boundary(quote: &Quote, requested_plan: Option<&str>) -> bool {
+    requested_plan != Some(quote.target_plan_id.as_str())
+        || quote.details["crosses_plan_boundary"] == Value::Bool(true)
 }
 /// `clampBillingSeats`.
 pub fn clamp_seats(value: u64, plan: &Plan) -> u64 {
@@ -328,7 +399,7 @@ impl Client {
         let path = Self::path(org, &format!("operations/{}", segment(id)?))?;
         let operation: Operation = decode(self.send(Method::GET, path, None, None)?)?;
         if operation.org_id != org || operation.id != id {
-            return Err(Error::Invalid("billing"));
+            return Err(Error::Invalid(FOREIGN));
         }
         Ok(operation)
     }
@@ -337,6 +408,29 @@ impl Client {
         let quote: Quote = decode(self.send(
             Method::POST,
             Self::path(org, "plan/quote")?,
+            Some(body),
+            Some(key),
+        )?)?;
+        if quote.org_id != org {
+            return Err(Error::Invalid("billing"));
+        }
+        Ok(quote)
+    }
+    /// `quoteCloudBillingSeats`, tied to the member change it settles.
+    pub fn quote_seats(
+        &self,
+        org: &str,
+        seats: u64,
+        operation: Option<&str>,
+        key: String,
+    ) -> Result<Quote> {
+        let mut body = json!({"seat_quantity": seats});
+        if let Some(operation) = operation {
+            body["operation_id"] = json!(operation);
+        }
+        let quote: Quote = decode(self.send(
+            Method::POST,
+            Self::path(org, "seats/quote")?,
             Some(body),
             Some(key),
         )?)?;
@@ -419,6 +513,44 @@ mod tests {
     }
     fn client(value: Value) -> Client {
         Client::new(Arc::new(Reply(value)))
+    }
+    fn lifecycle(id: &str, terminal: bool) -> Operation {
+        serde_json::from_value(json!({"id": id, "org_id": "o", "kind": "checkout",
+            "state": if terminal { "succeeded" } else { "processing" }, "terminal": terminal}))
+        .unwrap()
+    }
+    #[test]
+    fn a_lagging_list_does_not_reopen_what_ended() {
+        let ended = lifecycle("a", true);
+        let kept = keep_ended(
+            std::slice::from_ref(&ended),
+            vec![lifecycle("a", false), lifecycle("b", false)],
+        );
+        assert_eq!(kept, [ended.clone(), lifecycle("b", false)]);
+        assert!(resumable(&kept[..1]).is_none());
+        // A later word from the server is not older than what was seen.
+        let mut failed = ended.clone();
+        failed.state = "failed".into();
+        assert_eq!(keep_ended(&[ended], vec![failed.clone()]), [failed]);
+    }
+    #[test]
+    fn a_foreign_operation_is_told_from_a_malformed_one() {
+        let foreign = json!({"id": "a", "org_id": "other", "kind": "checkout",
+            "state": "processing", "terminal": false});
+        assert!(matches!(
+            client(foreign).operation("o", "a"),
+            Err(Error::Invalid(FOREIGN))
+        ));
+        let other = json!({"id": "b", "org_id": "o", "kind": "checkout",
+            "state": "processing", "terminal": false});
+        assert!(matches!(
+            client(other).operation("o", "a"),
+            Err(Error::Invalid(FOREIGN))
+        ));
+        assert!(matches!(
+            client(json!({"id": 1})).operation("o", "a"),
+            Err(Error::Invalid("billing"))
+        ));
     }
     fn quote() -> Quote {
         serde_json::from_value(

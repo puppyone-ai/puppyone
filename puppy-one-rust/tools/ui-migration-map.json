@@ -1484,6 +1484,327 @@
         "test:an_open_agent_needs_no_introduction_and_the_experiment_repeats_them"
       ],
       "remaining": "useHeaderCoachmarks (once per project entry for the Agent, on the first local change for Changes, Changes queued behind the Agent, acknowledged by opening either panel, persisted as puppyone.desktop.headerCoachmarks.v1 and imported, repeated by enableAlwaysShowOnboardingCoachmarks) and the overlay (320px, end-aligned 10px below its entry, the accent-lit entry, glyph tile, title, body, Later / primary; outside press dismisses) are native. Not ported: Escape dismissal (GPUI keys need focus, the overlay takes none), the toolbar-placement variant, pixel comparison against the product overlay."
+    },
+    {
+      "name": "Cloud Project Reach (experimental)",
+      "status": "excluded",
+      "sources": [
+        "src/features/cloud/share/project-reach/ProjectReachDialog.tsx",
+        "src/features/cloud/share/project-reach/ReachAddress.tsx",
+        "src/features/cloud/share/project-reach/ReachAgentChoice.tsx",
+        "src/features/cloud/share/project-reach/ReachHandoff.tsx",
+        "src/features/cloud/share/project-reach/projectReach.ts",
+        "src/features/cloud/share/project-reach/reach.css",
+        "src/features/cloud/share/project-reach/useProjectReachFlow.ts"
+      ],
+      "reason": "Experimental enableProjectReach, off by default; not ported, awaiting a decision (C-14.2)."
+    },
+    {
+      "name": "Cloud Automation route (experimental)",
+      "status": "excluded",
+      "sources": [
+        "src/features/cloud/sections/AutomationRouteSection.tsx"
+      ],
+      "reason": "Experimental enableCloudAutomation, off by default; not ported, awaiting a decision (C-14.1)."
+    },
+    {
+      "name": "Cloud Branches section",
+      "status": "excluded",
+      "sources": [
+        "src/features/cloud/sections/branches/BranchesSection.tsx",
+        "src/features/cloud/sections/branches/branches.css"
+      ],
+      "reason": "A route with no entry in the product: nothing navigates to it, so it has no native page."
+    },
+    {
+      "name": "Cloud Agent client",
+      "status": "partial",
+      "sources": [
+        "src/features/cloud/agent/CloudAgentController.ts",
+        "src/features/cloud/agent/CloudAgentConversation.tsx",
+        "src/features/cloud/agent/CloudAgentHistory.tsx",
+        "src/features/cloud/agent/CloudAgentLauncher.tsx",
+        "src/features/cloud/agent/CloudAgentSidebar.tsx",
+        "src/features/cloud/agent/CloudAgentSmokeFixture.ts",
+        "src/features/cloud/agent/CloudAgentWorkbench.ts",
+        "src/features/cloud/agent/cloud-agent-sidebar.css",
+        "src/features/cloud/agent/cloudAgentClient.ts",
+        "src/features/cloud/agent/cloudAgentProjection.ts",
+        "src/features/cloud/agent/lazy.tsx",
+        "src/features/cloud/agent/useCloudAgentWorkspace.ts"
+      ],
+      "targets": [
+        "src/workspace/cloud/agent.rs",
+        "src/features/desktop_agent/infrastructure/cloud.rs",
+        "src/features/workbench/mod.rs"
+      ],
+      "evidence": [
+        "test:a_lost_receipt_is_queried_then_resubmitted_with_the_same_uuid",
+        "test:closing_a_tab_never_stops_its_run",
+        "test:a_bounded_event_read_ends_at_its_heartbeat_or_its_deadline_without_touching_the_run",
+        "test:the_hosted_project_gets_the_cloud_agent_workbench_and_this_mac_gets_its_own"
+      ],
+      "remaining": "Verified over scripted and loopback services only: hosted acceptance and two windows on one session (C-10.6, ISSUE-112) need a real backend."
+    },
+    {
+      "name": "Cloud sharing",
+      "status": "partial",
+      "sources": [
+        "src/features/cloud/share/CloudShareContext.tsx",
+        "src/features/cloud/share/CloudShareHome.tsx",
+        "src/features/cloud/share/CloudShareStatusCard.tsx",
+        "src/features/cloud/share/CloudWorkspaceShareDialog.tsx",
+        "src/features/cloud/share/CloudWorkspaceSharePreview.tsx",
+        "src/features/cloud/share/ReadersList.tsx",
+        "src/features/cloud/share/ShareWizardDialog.tsx",
+        "src/features/cloud/share/cloudWorkspaceShareResource.ts",
+        "src/features/cloud/share/projectLocationStatus.ts",
+        "src/features/cloud/share/readers-list.css",
+        "src/features/cloud/share/share.css",
+        "src/features/cloud/share/shareHandoff.ts",
+        "src/features/cloud/share/shareStatus.ts",
+        "src/features/cloud/share/shareTargets.ts",
+        "src/features/cloud/share/useProjectShareActivity.ts",
+        "src/features/cloud/share/useProjectShareRevoke.ts",
+        "src/features/cloud/share/useProjectShares.ts",
+        "src/features/cloud/share/workspace-share.css"
+      ],
+      "targets": [
+        "src/workspace/cloud/share.rs",
+        "src/features/cloud_services.rs",
+        "src/shell/tasks.rs"
+      ],
+      "evidence": [
+        "test:a_share_issues_one_key_and_the_same_share_is_reused_without_another",
+        "test:a_link_target_never_creates_a_key",
+        "test:stopping_a_share_deletes_its_endpoint_and_a_failure_changes_nothing",
+        "test:the_share_preview_uses_cached_entries_and_keeps_the_open_file"
+      ],
+      "remaining": "The Header \"Waiting for…\" status is missing; the preview is drawn reduced, since GPUI cannot scale the real Explorer and Viewer; no pixel comparison."
+    },
+    {
+      "name": "Cloud organization and Billing",
+      "status": "partial",
+      "sources": [
+        "src/features/cloud/billing/cloudBillingApi.ts",
+        "src/features/cloud/billing/cloudBillingState.ts",
+        "src/features/cloud/billing/useCloudBillingController.ts",
+        "src/features/cloud/organization/CloudOrganizationBillingPage.tsx",
+        "src/features/cloud/organization/CloudOrganizationRouteOutlet.tsx",
+        "src/features/cloud/organization/CloudOrganizationTeamPage.tsx",
+        "src/features/cloud/organization/organization.css"
+      ],
+      "targets": [
+        "src/workspace/cloud/billing.rs",
+        "src/features/cloud_services/billing.rs",
+        "src/features/settings/main/plan_settings_view.rs"
+      ],
+      "evidence": [
+        "test:success_is_the_servers_word_and_a_retry_keeps_its_key",
+        "test:a_non_owner_sees_no_prices_and_requests_none",
+        "test:another_organization_clears_the_quote_and_its_keys",
+        "test:the_plan_page_reads_billing_only_with_payments_on_and_survives_an_outage"
+      ],
+      "remaining": "Billing is behind cloudBilling (off). Never run against a real payment provider; seat quotes and member-activation operations have no native flow."
+    },
+    {
+      "name": "Cloud services History view and graph",
+      "status": "partial",
+      "sources": [
+        "src/features/cloud/graph/HistoryGraphVisual.tsx",
+        "src/features/cloud/graph/cloudTopology.ts",
+        "src/features/cloud/graph/gitTopology.ts",
+        "src/features/cloud/graph/graph.css",
+        "src/features/cloud/graph/model.ts",
+        "src/features/cloud/graph/shared.ts",
+        "src/features/cloud/graph/types.ts",
+        "src/features/cloud/history/CloudHistorySidebar.tsx",
+        "src/features/cloud/history/CloudHistoryView.tsx",
+        "src/features/cloud/history/history.css",
+        "src/features/cloud/history/styles/sidebar.css"
+      ],
+      "targets": [
+        "src/workspace/cloud/graph.rs",
+        "src/features/cloud_services.rs"
+      ],
+      "evidence": [
+        "test:a_merge_opens_a_lane_and_closes_it_at_the_common_parent",
+        "test:refs_become_markers_beside_the_graph_and_outside_heads_get_their_own_rows"
+      ],
+      "remaining": "Local Git topology (gitTopology.ts) is not used in the dialog, and pagination of the graph is first page only; no pixel comparison."
+    },
+    {
+      "name": "Cloud services dialog",
+      "status": "partial",
+      "sources": [
+        "src/features/cloud/CloudDialog.tsx",
+        "src/features/cloud/CloudServiceMainView.tsx",
+        "src/features/cloud/CloudServiceSidebar.tsx",
+        "src/features/cloud/access-points/components/AccessPointCatalogPage.tsx",
+        "src/features/cloud/access-points/components/AccessPointEmptyState.tsx",
+        "src/features/cloud/access-points/components/AccessPointList.tsx",
+        "src/features/cloud/access-points/components/AccessPointManageDialog.tsx",
+        "src/features/cloud/access-points/components/AccessPointRow.tsx",
+        "src/features/cloud/access-points/components/AccessPointStatus.tsx",
+        "src/features/cloud/access-points/model/accessPoint.ts",
+        "src/features/cloud/access-points/model/accessPointAdapters.ts",
+        "src/features/cloud/access-points/model/accessPointKindRegistry.ts",
+        "src/features/cloud/access-points/model/accessPointSelectors.ts",
+        "src/features/cloud/access-points/pages/AccessPointRoutePage.tsx",
+        "src/features/cloud/access-points/pages/accessPointRoutes.ts",
+        "src/features/cloud/access-points/presentation/accessPointPresentation.ts",
+        "src/features/cloud/access-points/presentation/accessPointUiRegistry.tsx",
+        "src/features/cloud/access-points/styles/access-point-list.css",
+        "src/features/cloud/access-points/styles/catalog-page.css",
+        "src/features/cloud/access-points/styles/manage-dialog.css",
+        "src/features/cloud/cloud-service.css",
+        "src/features/cloud/cloudPresentation.ts",
+        "src/features/cloud/components/CloudActivationHero.tsx",
+        "src/features/cloud/components/CloudOverviewHostingIllustration.tsx",
+        "src/features/cloud/components/CloudPublishHeroMarks.tsx",
+        "src/features/cloud/components/CloudServiceUnavailable.tsx",
+        "src/features/cloud/components/McpLogoIcon.tsx",
+        "src/features/cloud/components/command-blocks.css",
+        "src/features/cloud/components/mcp-activation.css",
+        "src/features/cloud/components/service-unavailable.css",
+        "src/features/cloud/components/shared.css",
+        "src/features/cloud/components/shared.tsx",
+        "src/features/cloud/components/web-page.css",
+        "src/features/cloud/data/adaptCloudAggregateToAccessData.ts",
+        "src/features/cloud/data/cloudProjectDetails.ts",
+        "src/features/cloud/data/useCloudBranchesGitStatus.ts",
+        "src/features/cloud/data/useDesktopCloudData.ts",
+        "src/features/cloud/hooks/useCloudAuthController.ts",
+        "src/features/cloud/hooks/useDesktopCloudData.ts",
+        "src/features/cloud/hooks/useDesktopCloudSession.ts",
+        "src/features/cloud/navigation.ts",
+        "src/features/cloud/repositoryTarget.ts",
+        "src/features/cloud/routes/CloudProjectRouteOutlet.tsx",
+        "src/features/cloud/routes/CloudRouter.tsx",
+        "src/features/cloud/routes/cloudRouteIds.ts",
+        "src/features/cloud/routes/cloudRoutes.ts",
+        "src/features/cloud/sections/HistorySection.tsx",
+        "src/features/cloud/sections/access/AccessMethodCard.tsx",
+        "src/features/cloud/sections/access/AccessMethodPermissions.tsx",
+        "src/features/cloud/sections/access/CreateAccessDialog.tsx",
+        "src/features/cloud/sections/access/CreateAccessFolderTree.tsx",
+        "src/features/cloud/sections/access/CreateAccessIntentPicker.tsx",
+        "src/features/cloud/sections/access/CreateAccessMethodRow.tsx",
+        "src/features/cloud/sections/access/ScopeAccessDetail.tsx",
+        "src/features/cloud/sections/access/ScopeSettingsBlock.tsx",
+        "src/features/cloud/sections/access/access.css",
+        "src/features/cloud/sections/access/createAccessFlow.ts",
+        "src/features/cloud/sections/access/createAccessModel.ts",
+        "src/features/cloud/sections/access/styles/create-access-dialog.css",
+        "src/features/cloud/sections/access/styles/method-card.css",
+        "src/features/cloud/sections/access/styles/permissions.css",
+        "src/features/cloud/sections/access/styles/responsive.css",
+        "src/features/cloud/sections/access/styles/scope-detail.css",
+        "src/features/cloud/sections/access/styles/scope-settings.css",
+        "src/features/cloud/sections/access/useCreateAccessFolderEntries.ts",
+        "src/features/cloud/sections/overview/OverviewActions.tsx",
+        "src/features/cloud/sections/overview/OverviewDashboard.tsx",
+        "src/features/cloud/sections/overview/OverviewSection.tsx",
+        "src/features/cloud/sections/overview/overview.css",
+        "src/features/cloud/sections/overview/overviewMetrics.ts",
+        "src/features/cloud/sections/overview/styles/actions.css",
+        "src/features/cloud/sections/overview/styles/base.css",
+        "src/features/cloud/sections/overview/styles/dashboard-grid.css",
+        "src/features/cloud/sections/overview/styles/resource-cards.css",
+        "src/features/cloud/sections/overview/styles/responsive.css",
+        "src/features/cloud/sections/overview/styles/status-cards.css",
+        "src/features/cloud/sections/settings/SettingsSection.tsx",
+        "src/features/cloud/sections/settings/settings.css",
+        "src/features/cloud/shell/CloudSurfaceFrame.tsx",
+        "src/features/cloud/states.tsx",
+        "src/features/cloud/states/CloudProjectRecoveryState.tsx",
+        "src/features/cloud/states/CloudProjectWebSection.tsx",
+        "src/features/cloud/styles/primitives.css",
+        "src/features/cloud/styles/sidebar-shell.css",
+        "src/features/cloud/types.ts",
+        "src/features/cloud/utils.ts"
+      ],
+      "targets": [
+        "src/features/cloud_services.rs",
+        "src/workspace/cloud/services.rs",
+        "src/workspace/cloud/access_points.rs"
+      ],
+      "evidence": [
+        "test:the_homepage_counts_ready_access_and_every_page_renders",
+        "test:a_load_replaced_by_another_project_is_dropped",
+        "test:create_access_reads_folders_on_demand_and_refuses_a_path_with_access",
+        "test:creating_an_mcp_endpoint_shows_its_key_once_and_closing_forgets_it",
+        "test:built_ins_exist_per_target_and_mcp_per_surface",
+        "test:share_opens_the_linked_projects_services_and_signing_out_closes_them"
+      ],
+      "remaining": "Scope exclude rules and MCP tool permissions (AccessMethodPermissions) are not editable; a pending first publication is not resumed from the dialog; no pixel comparison."
+    },
+    {
+      "name": "Cloud sign-in surfaces",
+      "status": "partial",
+      "sources": [
+        "src/features/cloud/auth/CloudAuthCard.tsx",
+        "src/features/cloud/auth/CloudSignInView.tsx",
+        "src/features/cloud/auth/CloudSignedOutRoute.tsx",
+        "src/features/cloud/auth/DesktopCloudSignInCta.tsx",
+        "src/features/cloud/auth/FirstRunSignInScreen.tsx",
+        "src/features/cloud/auth/cloud-auth-card.css",
+        "src/features/cloud/auth/cloud-sign-in.css",
+        "src/features/cloud/auth/cloudAuthTypes.ts",
+        "src/features/cloud/auth/desktop-cloud-sign-in-cta.css",
+        "src/features/cloud/auth/first-run-sign-in.css",
+        "src/features/cloud/auth/resolveCloudAuthState.ts",
+        "src/features/cloud/auth/useCloudSessionForEnvironment.ts",
+        "src/features/cloud/auth/useFirstRunSignIn.ts"
+      ],
+      "targets": [
+        "src/features/cloud_account.rs",
+        "src/shell/cloud_switch.rs"
+      ],
+      "evidence": [
+        "test:a_signed_out_switch_waits_in_a_dialog_and_escape_cancels_it",
+        "test:signing_out_after_a_link_gates_the_header_and_signing_in_finds_the_same_project"
+      ],
+      "remaining": "Browser OAuth, social sign-in, Keychain and several processes need real-environment acceptance (C-2.6)."
+    },
+    {
+      "name": "Cloud workspace plumbing",
+      "status": "partial",
+      "sources": [
+        "src/features/cloud/cache/cloudCache.ts",
+        "src/features/cloud/environment/resolveCloudEnvironment.ts",
+        "src/features/cloud/files/cloudHtmlProjection.ts",
+        "src/features/cloud/initialization/CloudInitializationRoute.tsx",
+        "src/features/cloud/initialization/CloudLocalGitStatusError.tsx",
+        "src/features/cloud/initialization/CloudPublishConfirmationDialog.tsx",
+        "src/features/cloud/initialization/publishPreparation.ts",
+        "src/features/cloud/project/cloudProjectAccessData.ts",
+        "src/features/cloud/workbench/CloudConnectWorkspaceTool.tsx",
+        "src/features/cloud/workbench/CloudWorkspaceHeaderTools.tsx",
+        "src/features/cloud/workbench/CloudWorkspaceSidebar.tsx",
+        "src/features/cloud/workbench/CloudWorkspaceToolDialog.tsx",
+        "src/features/cloud/workbench/HomepageCloudStatus.tsx",
+        "src/features/cloud/workbench/cloudRepositorySmokeFixture.ts",
+        "src/features/cloud/workbench/pendingCloudDataService.ts",
+        "src/features/cloud/workbench/useCloudWorkspaceSidebar.ts",
+        "src/features/cloud/workbench/workspace-tools.css",
+        "src/features/cloud/workspace/cloudProjectResolution.ts",
+        "src/features/cloud/workspace/cloudPublishReadiness.ts",
+        "src/features/cloud/workspace/usePuppyoneCloudBackup.ts",
+        "src/features/cloud/workspace/workspaceCloudResolutionKey.ts"
+      ],
+      "targets": [
+        "src/workspace/cloud/mod.rs",
+        "src/shell/cloud_switch.rs",
+        "src/shell/cloud_publish.rs",
+        "src/features/repository_cloud.rs"
+      ],
+      "evidence": [
+        "test:a_failed_header_switch_stays_local_with_its_recovery_in_place",
+        "test:an_opening_stays_open_until_its_result_is_applied",
+        "test:a_reopened_lease_rebinds_a_document_baseline_and_saves"
+      ],
+      "remaining": "Hosted acceptance with E2B and Fly providers (C-6.11, C-15.4)."
     }
   ]
 }

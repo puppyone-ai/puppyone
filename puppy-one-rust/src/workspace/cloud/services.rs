@@ -186,6 +186,9 @@ pub struct McpEndpoint {
     pub status: String,
     #[serde(default)]
     pub accesses: Vec<EndpointAccess>,
+    /// Read and written through `permissions`; never interpreted here.
+    #[serde(default)]
+    pub tools_config: Value,
     #[serde(default)]
     pub created_at: Option<String>,
 }
@@ -470,12 +473,48 @@ impl Client {
         scope: &str,
         name: &str,
         mode: &str,
+        exclude: &[String],
     ) -> Result<Scope> {
-        let body = json!({"name": name, "max_mode": mode});
+        let body = json!({"name": name, "max_mode": mode, "exclude": exclude});
         let url = format!("/projects/{}/scopes/{}", segment(project)?, segment(scope)?);
         let updated: Scope = decode(self.send(Method::PATCH, url, vec![], Some(body))?, "scopes")?;
         if updated.project_id != project || updated.id != scope {
             return Err(Error::Invalid("scopes"));
+        }
+        Ok(updated)
+    }
+    /// `updateAccessSurface`: the answer must be this very surface.
+    pub fn update_surface_config(
+        &self,
+        project: &str,
+        surface: &str,
+        config: Value,
+    ) -> Result<Surface> {
+        let url = format!(
+            "/projects/{}/access/surfaces/{}",
+            segment(project)?,
+            segment(surface)?
+        );
+        let body = json!({"config": config});
+        let value = self.send(Method::PATCH, url, vec![], Some(body))?;
+        let mut rows = inventory(Value::Array(vec![value]), project)?;
+        match rows.pop() {
+            Some(row) if row.id == surface => Ok(row),
+            _ => Err(Error::Invalid("access")),
+        }
+    }
+    /// `updateCloudMcpEndpoint`: the tools of an endpoint of this Project.
+    pub fn update_mcp_tools(
+        &self,
+        project: &str,
+        endpoint: &str,
+        tools_config: Value,
+    ) -> Result<McpEndpoint> {
+        let url = format!("/mcp-endpoints/{}", segment(endpoint)?);
+        let body = json!({"tools_config": tools_config});
+        let updated: McpEndpoint = decode(self.send(Method::PUT, url, vec![], Some(body))?, "mcp")?;
+        if updated.id != endpoint || updated.project_id != project {
+            return Err(Error::Invalid("mcp"));
         }
         Ok(updated)
     }
@@ -652,9 +691,13 @@ mod tests {
         );
         assert!(
             client(scope.clone())
-                .update_scope("p", "s", "N", "r")
+                .update_scope("p", "s", "N", "r", &[])
                 .is_ok()
         );
-        assert!(client(scope).update_scope("p", "other", "N", "r").is_err());
+        assert!(
+            client(scope)
+                .update_scope("p", "other", "N", "r", &[])
+                .is_err()
+        );
     }
 }

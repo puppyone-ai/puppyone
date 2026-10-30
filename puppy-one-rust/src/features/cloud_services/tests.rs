@@ -57,7 +57,7 @@ fn cloud(id: &'static str) -> impl Fn(&ApiRequest) -> services::Result<Value> + 
                     {"commit_id": "a".repeat(40), "parent_ids": [], "who": "Ada",
                      "message": "First", "changes": []}]}),
             p if p.starts_with("/projects/") && p.matches('/').count() == 2 => {
-                project(id, &["project.settings.manage"])
+                project(id, &["project.settings.manage", "access_surface.manage"])
             }
             "/organizations/" => json!([{"id": "org-1", "name": "One"}]),
             p if p.ends_with("/members") => json!([
@@ -323,6 +323,195 @@ fn create_access_reads_folders_on_demand_and_refuses_a_path_with_access(cx: &mut
     });
 }
 
+type Sent = Arc<Mutex<Vec<Value>>>;
+/// `cloud`, with a configured CLI, a tool-limited endpoint and a Scope; every
+/// change's body is kept, and `refused` answers it with a failure instead.
+fn configured(
+    sent: Sent,
+    refused: bool,
+    capabilities: &'static [&'static str],
+) -> impl Fn(&ApiRequest) -> services::Result<Value> + Send + Sync {
+    let base = cloud("p");
+    move |r| {
+        let scope = json!({"id": "s1", "project_id": "p", "name": "Docs", "path": "docs",
+            "max_mode": "rw", "exclude": ["dist"]});
+        if r.method != reqwest::Method::GET {
+            sent.lock()
+                .unwrap()
+                .push(r.body.clone().unwrap_or_default());
+            if refused {
+                return Err(services::Error::Status(500));
+            }
+            return Ok(
+                if r.method == reqwest::Method::PATCH && r.path.contains("/scopes/") {
+                    scope
+                } else if r.method == reqwest::Method::PATCH {
+                    json!({"id": "c1", "project_id": "p", "kind": "cli",
+                    "target": {"kind": "project_root", "project_id": "p"}})
+                } else {
+                    json!({"id": "m1", "project_id": "p", "name": "MCP Server"})
+                },
+            );
+        }
+        match r.path.as_str() {
+            p if p.ends_with("/access/surfaces") => Ok(json!([
+                {"id": "m1", "project_id": "p", "kind": "mcp", "status": "active",
+                 "target": {"kind": "project_root", "project_id": "p"}},
+                {"id": "c1", "project_id": "p", "kind": "cli", "status": "active",
+                 "config": {"profile": "ops", "command_permissions": {"allowed": ["ls", "cat"]}},
+                 "target": {"kind": "project_root", "project_id": "p"}}])),
+            "/mcp-endpoints" => Ok(json!([{"id": "m1", "project_id": "p", "name": "MCP Server",
+                "tools_config": {"filesystem": {"allowed": ["fs_ls"]},
+                    "bound_tools": [{"tool_id": "t"}]}}])),
+            p if p.ends_with("/scopes") => Ok(json!([scope])),
+            p if p.starts_with("/projects/") && p.matches('/').count() == 2 => {
+                Ok(project("p", capabilities))
+            }
+            _ => base(r),
+        }
+    }
+}
+fn point(view: &Entity<CloudServices>, cx: &VisualTestContext, id: &str) -> access::Point {
+    view.read_with(cx, |s, _| {
+        s.details.as_ref().unwrap().rows("p", Catalog::All)
+    })
+    .into_iter()
+    .find(|p| p.id.ends_with(id) && p.surface.is_some())
+    .unwrap_or_else(|| panic!("no point {id}"))
+}
+const MANAGER: &[&str] = &["access_surface.manage"];
+
+#[gpui::test]
+fn a_permission_change_goes_back_with_the_rest_of_its_record(cx: &mut TestAppContext) {
+    let sent = Sent::default();
+    let f = fake(configured(sent.clone(), false, MANAGER));
+    let (view, cx) = open(cx, f.clone(), Section::Access);
+    let loaded = view.clone();
+    settle(cx, "the details", &|cx| {
+        loaded.read_with(cx, |s, _| s.details.is_some())
+    });
+    let cli = point(&view, cx, "cli:p");
+    assert_eq!(cli.surface.as_deref(), Some("c1"));
+    view.update(cx, |s, cx| {
+        s.expanded = Some(cli.id.clone());
+        s.set_permissions(&cli, &["ls"].into_iter().collect(), cx)
+    });
+    draw(cx);
+    let idle = view.clone();
+    settle(cx, "the CLI change", &|cx| {
+        idle.read_with(cx, |s, _| !s.busy && !s.loading)
+    });
+    assert_eq!(f.count("PATCH", "/projects/p/access/surfaces/c1"), 1);
+    assert_eq!(
+        sent.lock().unwrap().as_slice(),
+        [json!({"config": {"profile": "ops", "command_permissions": {"allowed": ["ls"]}}})]
+    );
+    sent.lock().unwrap().clear();
+
+    let mcp = point(&view, cx, "m1");
+    view.update(cx, |s, cx| {
+        s.set_permissions(&mcp, &["fs_cat"].into_iter().collect(), cx)
+    });
+    let idle = view.clone();
+    settle(cx, "the MCP change", &|cx| {
+        idle.read_with(cx, |s, _| !s.busy && !s.loading)
+    });
+    assert_eq!(f.count("PUT", "/mcp-endpoints/m1"), 1);
+    assert_eq!(
+        sent.lock().unwrap().as_slice(),
+        [
+            json!({"tools_config": {"version": 1, "filesystem": {"allowed": ["fs_cat"]},
+            "shell": {"enabled": false}, "custom_tools": [{"tool_id": "t"}]}})
+        ]
+    );
+}
+
+#[gpui::test]
+fn without_the_capability_access_can_be_read_but_not_changed(cx: &mut TestAppContext) {
+    let sent = Sent::default();
+    let f = fake(configured(
+        sent.clone(),
+        false,
+        &["project.settings.manage"],
+    ));
+    let (view, cx) = open(cx, f.clone(), Section::Access);
+    let loaded = view.clone();
+    settle(cx, "the details", &|cx| {
+        loaded.read_with(cx, |s, _| s.details.is_some())
+    });
+    let mcp = point(&view, cx, "m1");
+    view.update(cx, |s, cx| {
+        s.expanded = Some(mcp.id.clone());
+        s.begin_create(cx);
+        s.set_permissions(&mcp, &["fs_cat"].into_iter().collect(), cx);
+        s.create_mcp(access::views("p", &[])[0].clone(), cx);
+        s.delete_scope("s1".into(), cx);
+        s.scope_edit = Some(("s1".into(), "r"));
+        let scope = s.details.as_ref().unwrap().scopes[0].clone();
+        s.save_scope(scope, cx);
+    });
+    draw(cx);
+    cx.run_until_parked();
+    view.read_with(cx, |s, _| {
+        assert!(s.creating.is_none() && !s.busy);
+    });
+    assert!(sent.lock().unwrap().is_empty());
+}
+
+#[gpui::test]
+fn scope_settings_save_together_and_a_refusal_keeps_the_draft(cx: &mut TestAppContext) {
+    let sent = Sent::default();
+    let f = fake(configured(sent.clone(), true, MANAGER));
+    let (view, cx) = open(cx, f.clone(), Section::Access);
+    let loaded = view.clone();
+    settle(cx, "the details", &|cx| {
+        loaded.read_with(cx, |s, _| s.details.is_some())
+    });
+    let scope = view.read_with(cx, |s, _| s.details.as_ref().unwrap().scopes[0].clone());
+    assert_eq!(scope.exclude, ["dist"]);
+    view.update(cx, |s, cx| s.toggle_scope_settings(&scope, cx));
+    draw(cx);
+    view.read_with(cx, |s, cx| {
+        assert!(!s.scope_dirty(&scope, cx), "a form just opened is clean");
+    });
+    view.update(cx, |s, cx| {
+        s.scope_edit_name
+            .update(cx, |i, cx| i.set_text(" Guides ", cx));
+        s.scope_exclude
+            .update(cx, |i, cx| i.set_text("dist\n\n .cache \n", cx));
+        s.scope_edit.as_mut().unwrap().1 = "r";
+    });
+    draw(cx);
+    view.read_with(cx, |s, cx| assert!(s.scope_dirty(&scope, cx)));
+
+    // Discarding comes back to what the server holds.
+    view.update(cx, |s, cx| s.fill_scope_form(&scope, cx));
+    view.read_with(cx, |s, cx| assert!(!s.scope_dirty(&scope, cx)));
+    view.update(cx, |s, cx| {
+        s.scope_edit_name
+            .update(cx, |i, cx| i.set_text(" Guides ", cx));
+        s.scope_exclude
+            .update(cx, |i, cx| i.set_text("dist\n\n .cache \n", cx));
+        s.scope_edit.as_mut().unwrap().1 = "r";
+        s.save_scope(scope.clone(), cx);
+    });
+    let idle = view.clone();
+    settle(cx, "the refusal", &|cx| idle.read_with(cx, |s, _| !s.busy));
+    assert_eq!(
+        sent.lock().unwrap().as_slice(),
+        [json!({"name": "Guides", "max_mode": "r", "exclude": ["dist", ".cache"]})]
+    );
+    view.read_with(cx, |s, cx| {
+        assert!(s.notice.is_some(), "a refusal is reported");
+        assert!(s.scope_dirty(&scope, cx), "and the draft is still there");
+    });
+    assert_eq!(
+        f.count("PATCH", "/projects/p/scopes/s1"),
+        1,
+        "never replayed"
+    );
+}
+
 #[gpui::test]
 fn one_failed_resource_leaves_the_others_and_offers_retry(cx: &mut TestAppContext) {
     let f = fake(|r| {
@@ -518,6 +707,9 @@ struct Billed {
     owner: std::sync::atomic::AtomicBool,
     confirm_fails: std::sync::atomic::AtomicBool,
     finished: std::sync::atomic::AtomicBool,
+    /// The server allows seat changes and holds one waiting member change.
+    seats: std::sync::atomic::AtomicBool,
+    bodies: Mutex<Vec<(String, Value)>>,
 }
 impl Billed {
     fn new() -> Arc<Self> {
@@ -526,10 +718,28 @@ impl Billed {
             owner: std::sync::atomic::AtomicBool::new(true),
             confirm_fails: std::sync::atomic::AtomicBool::new(false),
             finished: std::sync::atomic::AtomicBool::new(false),
+            seats: std::sync::atomic::AtomicBool::new(false),
+            bodies: Mutex::default(),
         })
+    }
+    fn count(&self, path: &str) -> usize {
+        let keys = self.keys.lock().unwrap();
+        keys.iter().filter(|(p, _)| p == path).count()
+    }
+    fn sent(&self, path: &str) -> Vec<Value> {
+        let bodies = self.bodies.lock().unwrap();
+        bodies
+            .iter()
+            .filter(|(p, _)| p == path)
+            .map(|(_, body)| body.clone())
+            .collect()
     }
     fn answer(&self, r: &ApiRequest) -> services::Result<Value> {
         use std::sync::atomic::Ordering;
+        if let Some(body) = &r.body {
+            let mut bodies = self.bodies.lock().unwrap();
+            bodies.push((r.path.clone(), body.clone()));
+        }
         self.keys
             .lock()
             .unwrap()
@@ -553,9 +763,36 @@ impl Billed {
                  "seats": {"minimum": 2, "maximum": 10}}]}),
             "/billing/organizations/org-1/summary" => json!({"org_id": "org-1",
                 "plan_id": if self.finished.load(Ordering::SeqCst) { "team" } else { "free" },
-                "status": "active", "seat_quantity": 1}),
+                "status": "active", "seat_quantity": 1,
+                "seat_changes_available": self.seats.load(Ordering::SeqCst)}),
+            "/billing/organizations/org-1/usage" => json!({
+                "runtime": {"org_id": "org-1", "available_units": 10, "reserved_units": 1,
+                    "consumed_units": 2},
+                "storage": {"logical_bytes": 2048, "limit_bytes": null}}),
+            "/billing/organizations/org-1/operations" if self.seats.load(Ordering::SeqCst) => {
+                json!([{"id": "member", "org_id": "org-1", "kind": "member_activation",
+                    "state": "requires_action", "terminal": false, "action_required": true,
+                    "target_seat_quantity": 3}])
+            }
             "/billing/organizations/org-1/operations" => json!([]),
             "/billing/organizations/org-1/plan/quote" => quote,
+            "/billing/organizations/org-1/seats/quote" => {
+                let mut seat = quote.clone();
+                seat["quote_id"] = json!("sq");
+                seat["target_seats"] = json!(3);
+                seat["application_mode"] = json!("seat_change");
+                seat
+            }
+            "/billing/organizations/org-1/seats/change" => {
+                let mut seat = quote.clone();
+                seat["quote_id"] = json!("sq");
+                seat["target_seats"] = json!(3);
+                seat["application_mode"] = json!("seat_change");
+                seat["operation"] = json!({"id": "member", "org_id": "org-1",
+                    "kind": "member_activation", "state": "succeeded", "terminal": true,
+                    "quote_id": "sq", "target_plan_id": "team", "target_seat_quantity": 3});
+                seat
+            }
             "/billing/organizations/org-1/checkout" => {
                 if self.confirm_fails.load(Ordering::SeqCst) {
                     return Err(services::Error::Unknown);
@@ -584,6 +821,12 @@ fn open_billing(
     cx: &mut TestAppContext,
     billed: Arc<Billed>,
 ) -> (Entity<CloudServices>, &mut VisualTestContext) {
+    open_billing_over(cx, BilledTransport(billed))
+}
+fn open_billing_over(
+    cx: &mut TestAppContext,
+    transport: impl services::Transport + 'static,
+) -> (Entity<CloudServices>, &mut VisualTestContext) {
     cx.executor().allow_parking();
     cx.update(gpui_kit::init);
     let mut entity = None;
@@ -595,7 +838,7 @@ fn open_billing(
     let view = entity.unwrap();
     view.update(cx, |s, cx| {
         s.open_with(
-            Client::new(Arc::new(BilledTransport(billed))),
+            Client::new(Arc::new(transport)),
             "p".into(),
             Section::Billing,
             cx,
@@ -712,4 +955,201 @@ fn another_organization_clears_the_quote_and_its_keys(cx: &mut TestAppContext) {
         assert!(s.billing.quote.is_none() && s.billing.catalog.is_none());
         assert_ne!(s.billing.keys.key("intent", "scope"), first);
     });
+}
+
+#[gpui::test]
+fn a_waiting_member_change_is_settled_by_its_own_seat_quote(cx: &mut TestAppContext) {
+    use std::sync::atomic::Ordering;
+    let billed = Billed::new();
+    billed.seats.store(true, Ordering::SeqCst);
+    let (view, cx) = open_billing(cx, billed.clone());
+    let loaded = view.clone();
+    settle(cx, "the billing page", &|cx| {
+        loaded.read_with(cx, |s, _| {
+            s.billing.membership == billing::Membership::Owner
+        })
+    });
+    draw(cx);
+    let waiting = view.read_with(cx, |s, _| {
+        crate::workspace::cloud::billing::actionable_seat(&s.billing.operations).cloned()
+    });
+    view.update(cx, |s, cx| s.request_seat_quote(waiting, cx));
+    let quoted = view.clone();
+    settle(cx, "the seat quote", &|cx| {
+        quoted.read_with(cx, |s, _| s.billing.quote.is_some())
+    });
+    draw(cx);
+    let quote = "/billing/organizations/org-1/seats/quote";
+    assert_eq!(
+        billed.sent(quote),
+        [json!({"seat_quantity": 3, "operation_id": "member"})]
+    );
+    view.read_with(cx, |s, _| {
+        assert_eq!(s.billing.seats, 3, "the page shows what was quoted");
+        assert_eq!(s.billing.quoted_operation.as_deref(), Some("member"));
+    });
+    view.update(cx, |s, cx| s.confirm_quote(cx));
+    let change = "/billing/organizations/org-1/seats/change";
+    let done = billed.clone();
+    settle(cx, "the seat change", &|_| !done.sent(change).is_empty());
+    assert_eq!(
+        billed.sent(change),
+        [json!({"quote_id": "sq", "operation_id": "member"})]
+    );
+    let reread = billed.clone();
+    let page = view.clone();
+    settle(cx, "the reread", &|cx| {
+        reread.count("/billing/organizations/org-1/summary") == 2
+            && page.read_with(cx, |s, _| {
+                s.billing.membership == billing::Membership::Owner
+            })
+    });
+    assert_eq!(
+        billed.count("/billing/organizations/org-1/operations/member"),
+        0,
+        "what already ended is not watched"
+    );
+    view.read_with(cx, |s, _| {
+        assert!(s.billing.polling.is_none());
+        // The list still says it waits; what was seen to end stays ended.
+        assert!(crate::workspace::cloud::billing::actionable_seat(&s.billing.operations).is_none());
+    });
+}
+
+#[gpui::test]
+fn a_seat_count_a_member_change_needs_settles_that_change(cx: &mut TestAppContext) {
+    use std::sync::atomic::Ordering;
+    let billed = Billed::new();
+    billed.seats.store(true, Ordering::SeqCst);
+    let (view, cx) = open_billing(cx, billed.clone());
+    let loaded = view.clone();
+    settle(cx, "the billing page", &|cx| {
+        loaded.read_with(cx, |s, _| {
+            s.billing.membership == billing::Membership::Owner
+        })
+    });
+    view.update(cx, |s, cx| {
+        s.billing.seats = 3;
+        s.request_seat_quote(None, cx);
+    });
+    let quoted = view.clone();
+    settle(cx, "the seat quote", &|cx| {
+        quoted.read_with(cx, |s, _| s.billing.quote.is_some())
+    });
+    assert_eq!(
+        billed.sent("/billing/organizations/org-1/seats/quote"),
+        [json!({"seat_quantity": 3, "operation_id": "member"})]
+    );
+}
+
+#[gpui::test]
+fn seats_change_only_when_the_server_allows_it(cx: &mut TestAppContext) {
+    let billed = Billed::new();
+    let (view, cx) = open_billing(cx, billed.clone());
+    let loaded = view.clone();
+    settle(cx, "the billing page", &|cx| {
+        loaded.read_with(cx, |s, _| {
+            s.billing.membership == billing::Membership::Owner
+        })
+    });
+    draw(cx);
+    view.update(cx, |s, cx| s.request_seat_quote(None, cx));
+    cx.run_until_parked();
+    assert!(
+        billed
+            .sent("/billing/organizations/org-1/seats/quote")
+            .is_empty()
+    );
+    view.read_with(cx, |s, _| assert!(!s.billing.acting));
+}
+
+/// Billing, with one path answering something else.
+struct Rewrite(Arc<Billed>, &'static str, Value);
+impl services::Transport for Rewrite {
+    fn request(&self, request: ApiRequest) -> services::Result<Value> {
+        if request.path.ends_with(self.1) {
+            return Ok(self.2.clone());
+        }
+        self.0.answer(&request)
+    }
+}
+/// The owner's page, with a plan quoted and confirmed.
+fn confirm_a_plan(view: &Entity<CloudServices>, cx: &mut VisualTestContext) {
+    let loaded = view.clone();
+    settle(cx, "the billing page", &|cx| {
+        loaded.read_with(cx, |s, _| {
+            s.billing.membership == billing::Membership::Owner
+        })
+    });
+    let plan = view.read_with(cx, |s, _| {
+        s.billing.catalog.as_ref().unwrap().plans[0].clone()
+    });
+    view.update(cx, |s, cx| s.request_quote(plan, cx));
+    let quoted = view.clone();
+    settle(cx, "the quote", &|cx| {
+        quoted.read_with(cx, |s, _| s.billing.quote.is_some())
+    });
+    view.update(cx, |s, cx| s.confirm_quote(cx));
+}
+
+#[gpui::test]
+fn usage_of_another_organization_fails_the_page(cx: &mut TestAppContext) {
+    let foreign = json!({"runtime": {"org_id": "org-2"}, "storage": {}});
+    let (view, cx) = open_billing_over(cx, Rewrite(Billed::new(), "/usage", foreign));
+    let failed = view.clone();
+    settle(cx, "the failure", &|cx| {
+        failed.read_with(cx, |s, _| {
+            s.billing.membership == billing::Membership::Failed
+        })
+    });
+    view.read_with(cx, |s, _| {
+        assert!(s.billing.summary.is_none() && s.billing.usage.is_none());
+    });
+    draw(cx);
+}
+
+#[gpui::test]
+fn an_operation_of_another_organization_ends_the_watch(cx: &mut TestAppContext) {
+    let foreign = json!({"id": "op", "org_id": "org-2", "kind": "checkout",
+        "state": "processing", "terminal": false});
+    let (view, cx) = open_billing_over(cx, Rewrite(Billed::new(), "/operations/op", foreign));
+    confirm_a_plan(&view, cx);
+    let ended = view.clone();
+    settle(cx, "the mismatch", &|cx| {
+        cx.executor()
+            .advance_clock(std::time::Duration::from_secs(5));
+        ended.read_with(cx, |s, _| s.billing.error.is_some())
+    });
+    view.read_with(cx, |s, _| {
+        assert_eq!(
+            s.billing.error,
+            Some(crate::workspace::cloud::billing::MISMATCH)
+        );
+        assert!(s.billing.polling.is_none(), "the watch ended");
+    });
+}
+
+#[gpui::test]
+fn a_failed_operation_stays_said_through_the_reread(cx: &mut TestAppContext) {
+    let billed = Billed::new();
+    let failed = json!({"id": "op", "org_id": "org-1", "kind": "checkout", "state": "failed",
+        "terminal": true, "quote_id": "q", "target_plan_id": "team",
+        "target_seat_quantity": 2});
+    let (view, cx) = open_billing_over(cx, Rewrite(billed.clone(), "/operations/op", failed));
+    confirm_a_plan(&view, cx);
+    let reread = billed.clone();
+    let page = view.clone();
+    settle(cx, "the reread", &|cx| {
+        cx.executor()
+            .advance_clock(std::time::Duration::from_secs(5));
+        reread.count("/billing/organizations/org-1/summary") == 2
+            && page.read_with(cx, |s, _| {
+                s.billing.membership == billing::Membership::Owner
+            })
+    });
+    view.read_with(cx, |s, _| {
+        assert_eq!(s.billing.error, Some("cloud.billing.changeFailed"));
+        assert!(s.billing.polling.is_none());
+    });
+    draw(cx);
 }
