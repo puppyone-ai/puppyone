@@ -191,6 +191,17 @@ pub fn sign_in(cx: &App) {
         service.0.read(cx).sign_in();
     }
 }
+/// The account's sign-in status, once the Broker has reported one.
+pub fn status(cx: &App) -> Option<crate::cloud_auth::Status> {
+    let account = cx.try_global::<CloudAccountService>()?.0.read(cx);
+    account.snapshot.as_ref().map(|s| s.status)
+}
+#[cfg(test)]
+pub fn sign_out(cx: &App) {
+    if let Some(service) = cx.try_global::<CloudAccountService>() {
+        service.0.read(cx).sign_out();
+    }
+}
 pub fn has_account(cx: &App) -> bool {
     cx.try_global::<CloudAccountService>().is_some_and(|s| {
         s.0.read(cx)

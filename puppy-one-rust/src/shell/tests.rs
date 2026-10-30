@@ -2562,6 +2562,7 @@ fn linked_checkout(
     &mut VisualTestContext,
     std::path::PathBuf,
     tempfile::TempDir,
+    std::sync::Arc<crate::cloud_auth::Broker>,
 ) {
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path().canonicalize().unwrap();
@@ -2586,6 +2587,7 @@ fn linked_checkout(
     }
     let (view, cx) = setup(cx);
     let (broker, browser) = crate::cloud_auth::responding_account_fixture(responder);
+    let kept = broker.clone();
     cx.update(|_, cx| crate::features::cloud_account::install_fixture(broker, browser, cx));
     view.update(cx, |s, cx| {
         s.preferences
@@ -2600,7 +2602,7 @@ fn linked_checkout(
     settle_cloud(&view, cx, "the local project", &|s, _| {
         s.workspace_root().as_deref() == Some(root.as_path())
     });
-    (view, cx, root, temp)
+    (view, cx, root, temp, kept)
 }
 fn settle_cloud(
     view: &Entity<Shell>,
@@ -2645,7 +2647,7 @@ fn a_refused_association_leaves_the_account_catalog_usable(cx: &mut TestAppConte
         }
         base(request)
     }));
-    let (view, cx, root, _temp) = linked_checkout(cx, responder);
+    let (view, cx, root, _temp, _broker) = linked_checkout(cx, responder);
     settle_cloud(&view, cx, "the refusal", &|s, cx| {
         s.repository_cloud.read(cx).context
             == crate::workspace::cloud::repository::Context::NotAuthorized
@@ -2682,7 +2684,7 @@ fn a_failed_header_switch_stays_local_with_its_recovery_in_place(cx: &mut TestAp
         }
         base(request)
     }));
-    let (view, cx, root, _temp) = linked_checkout(cx, responder);
+    let (view, cx, root, _temp, _broker) = linked_checkout(cx, responder);
     settle_cloud(&view, cx, "the association", &|s, cx| {
         s.repository_cloud.read(cx).context.project() == Some("project-a")
     });
@@ -2764,5 +2766,41 @@ fn a_catalog_reload_keeps_an_open_failure_and_retry_reopens_that_project(cx: &mu
     });
     settle_cloud(&view, cx, "the reopened project", &|s, _| {
         s.hosted_project().as_deref() == Some("project-a")
+    });
+}
+
+/// §15 "User signs out after link": the Header shows the sign-in gate, and
+/// signing in again resolves the same Project instead of offering to
+/// create one.
+#[gpui::test]
+fn signing_out_after_a_link_gates_the_header_and_signing_in_finds_the_same_project(
+    cx: &mut TestAppContext,
+) {
+    use crate::workspace::cloud::repository::{CloudState, Context};
+    let (view, cx, _root, _temp, broker) =
+        linked_checkout(cx, with_catalog(cloud_project_responder()));
+    settle_cloud(&view, cx, "the association", &|s, cx| {
+        s.repository_cloud.read(cx).context.project() == Some("project-a")
+    });
+    cx.update(|_, cx| crate::features::cloud_account::sign_out(cx));
+    settle_cloud(&view, cx, "the sign-in gate", &|s, cx| {
+        let signed_in = crate::features::cloud_account::has_account(cx);
+        !signed_in
+            && s.repository_cloud.read(cx).context.cloud_state(signed_in) == CloudState::SignedOut
+    });
+    crate::cloud_auth::relogin(&broker, "alice");
+    settle_cloud(&view, cx, "signing in", &|_, cx| {
+        crate::features::cloud_account::has_account(cx)
+    });
+    settle_cloud(&view, cx, "the same Project", &|s, cx| {
+        crate::features::cloud_account::has_account(cx)
+            && s.repository_cloud.read(cx).context.project() == Some("project-a")
+    });
+    view.read_with(cx, |s, cx| {
+        assert!(!matches!(
+            s.repository_cloud.read(cx).context,
+            Context::LocalOnly | Context::NotFound { .. }
+        ));
+        assert!(s.cloud_publish.read(cx).outcome.is_none());
     });
 }

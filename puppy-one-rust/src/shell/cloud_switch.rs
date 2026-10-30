@@ -25,7 +25,7 @@ use crate::{
     },
 };
 use gpui_kit::{
-    base::{h_flex, v_flex},
+    base::{Disableable as _, h_flex, v_flex},
     component::Sizable as _,
 };
 
@@ -662,9 +662,14 @@ impl Shell {
             }
             return dialog;
         }
-        if !signed_in {
+        let session = crate::workspace::cloud::publish::Session::of(
+            crate::features::cloud_account::status(cx),
+            signed_in,
+        );
+        if session != crate::workspace::cloud::publish::Session::SignedIn {
             // `CloudSignedOutRoute compact`: sign in, then the same intent
-            // continues for this checkout.
+            // continues for this checkout; one browser round trip at a time.
+            let waiting = session == crate::workspace::cloud::publish::Session::SigningIn;
             return dialog
                 .child(
                     v_flex()
@@ -678,7 +683,12 @@ impl Shell {
                 .footer(
                     Button::new("cloud-switch-sign-in")
                         .variant(ButtonVariant::Solid)
-                        .label(tr("cloud.auth.signIn"))
+                        .disabled(waiting)
+                        .label(tr(if waiting {
+                            "cloud.auth.desktopWaiting"
+                        } else {
+                            "cloud.auth.signIn"
+                        }))
                         .on_click(
                             cx.listener(|_, _, _, cx| crate::features::cloud_account::sign_in(cx)),
                         ),

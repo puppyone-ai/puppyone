@@ -212,6 +212,10 @@ fn login(broker: &Broker, user: &str) -> Result<()> {
         &broker.control.fence(),
     )
 }
+/// Signs `user` in again on a fixture broker (the browser round trip done).
+pub(crate) fn relogin(broker: &Broker, user: &str) {
+    login(broker, user).unwrap();
+}
 pub(crate) fn account_fixture() -> (
     Arc<Broker>,
     async_channel::Receiver<super::service::BrowserEvent>,

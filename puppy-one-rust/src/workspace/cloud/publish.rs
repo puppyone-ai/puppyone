@@ -6,6 +6,27 @@
 //! Project never offers deletion as push compensation.
 #![cfg_attr(not(test), allow(dead_code))]
 
+/// `session`: the sign-in gate is rendered before any projection, so a
+/// derived state is always `SignedIn` (`deriveCloudInitializationState`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Session {
+    SignedOut,
+    SigningIn,
+    SignedIn,
+}
+impl Session {
+    /// The account's sign-in state: a browser round trip in flight is
+    /// `SigningIn`.
+    pub fn of(status: Option<crate::cloud_auth::Status>, signed_in: bool) -> Self {
+        if signed_in {
+            Self::SignedIn
+        } else if status == Some(crate::cloud_auth::Status::SigningIn) {
+            Self::SigningIn
+        } else {
+            Self::SignedOut
+        }
+    }
+}
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Project {
     Absent,
@@ -120,6 +141,7 @@ pub struct Facts {
 }
 #[derive(Clone, Debug, PartialEq)]
 pub struct State {
+    pub session: Session,
     pub project: Project,
     pub push: Push,
     pub local: Local,
@@ -209,6 +231,7 @@ pub fn derive(record: &Record, facts: &Facts) -> State {
         actions
     };
     State {
+        session: Session::SignedIn,
         project,
         push,
         local,

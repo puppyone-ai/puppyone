@@ -1,6 +1,23 @@
 //! The first-publication failure matrix (`initialization-and-first-push.md`
 //! §15) over a scripted Cloud and Git, plus the real `git` CLI for what needs
 //! no network: remote inspection, preflight and the managed credential helper.
+//!
+//! | §15 row | Evidence |
+//! |---|---|
+//! | Sign-in canceled | `shell::tests::a_signed_out_switch_waits_in_a_dialog_and_escape_cancels_it` |
+//! | Project create response lost | `a_lost_creation_response_is_retried_with_the_same_idempotency_key` |
+//! | Credential response lost | `a_lost_credential_response_replays_the_same_secret` |
+//! | Remote appears at another URL | `an_existing_puppyone_remote_is_refused_before_anything_is_created`, `issued_remotes_must_be_canonical_and_trusted` |
+//! | Working tree becomes dirty | `an_upload_finishes_its_pinned_commit_while_the_checkout_drifts` |
+//! | HEAD advances during upload | `an_upload_finishes_its_pinned_commit_while_the_checkout_drifts`, `a_retry_after_an_uncertain_push_keeps_its_exact_commit_even_if_head_moved` |
+//! | User switches branch during upload | `an_upload_finishes_its_pinned_commit_while_the_checkout_drifts` |
+//! | Push times out after acceptance | `an_uncertain_push_is_never_replayed_blindly_and_a_landed_one_reconciles` |
+//! | Push fails before acceptance | `a_restart_reconciles_the_pending_operation_and_derives_its_actions`, `workspace::cloud::publish` derivation |
+//! | Remote main changes concurrently | `a_concurrent_remote_main_is_a_conflict_not_an_overwrite` |
+//! | Desktop restarts | `a_restart_reconciles_the_pending_operation_and_derives_its_actions` |
+//! | User signs out after link | `shell::tests::signing_out_after_a_link_gates_the_header_and_signing_in_finds_the_same_project` |
+//! | Cleanup fails | `cleanup_deletes_only_the_empty_project_and_a_refusal_keeps_everything`, `workspace::cloud::publish` derivation |
+//! | Project deleted elsewhere | `detaching_a_missing_project_removes_only_the_reviewed_remote`, `shell::tests::a_vanished_cloud_project_is_replaced_only_after_a_second_404` |
 use super::{
     api::{CloudOps, Credential, Organization},
     git::{Cli, GitOps, Identity, Remote, Status},
@@ -42,6 +59,14 @@ struct FakeState {
     revokes: usize,
     cleaned: bool,
     finalized: bool,
+    dirty: bool,
+    /// The credential is issued but its response is lost, once.
+    credential_lost: bool,
+    /// Every secret a credential was requested with.
+    secrets: Vec<String>,
+    /// The checkout drifts while the upload runs: dirty files, a later
+    /// commit and another branch.
+    drift_during_push: bool,
 }
 impl Fake {
     pub(crate) fn new() -> (tempfile::TempDir, Arc<Self>) {
@@ -75,7 +100,7 @@ impl GitOps for Fake {
             head: Some(s.head.clone()),
             branch: Some(s.branch.clone()),
             commits: 1,
-            dirty: false,
+            dirty: s.dirty,
         }))
     }
     fn remote(&self, _: &Path) -> Result<Remote, PublishError> {
@@ -122,6 +147,11 @@ impl GitOps for Fake {
     }
     fn push(&self, _: &Path, record: &Record, _: &str) -> Result<(), PublishError> {
         self.with(|s| {
+            if s.drift_during_push {
+                s.dirty = true;
+                s.head = NEXT.into();
+                s.branch = "feature".into();
+            }
             if let Some(code) = s.push_failures.pop_front() {
                 if s.push_lands {
                     s.cloud_main = Some(record.attempt.commit_oid.clone());
@@ -173,7 +203,18 @@ impl CloudOps for Fake {
     fn issue_credential(&self, record: &Record, secret: &str) -> Result<Credential, PublishError> {
         assert!(secret.starts_with("pwg_"));
         assert_eq!(record.project_id.as_deref(), Some("project-a"));
-        self.with(|s| s.credentials += 1);
+        let lost = self.with(|s| {
+            s.credentials += 1;
+            s.secrets.push(secret.to_owned());
+            std::mem::take(&mut s.credential_lost)
+        });
+        if lost {
+            return Err(PublishError::new(
+                Code::CredentialFailed,
+                "response lost",
+                true,
+            ));
+        }
         Ok(Credential {
             id: "credential-1".into(),
             username: api::GIT_USERNAME.into(),
@@ -636,4 +677,73 @@ fn detaching_a_missing_project_removes_only_the_reviewed_remote() {
     );
     git::detach(root, URL).unwrap();
     assert_eq!(Cli { helper: None }.remote(root).unwrap(), Remote::Missing);
+}
+
+/// §15 "Credential response lost": the retry replays the same secret, so
+/// Cloud reconciles one credential instead of minting another.
+#[test]
+fn a_lost_credential_response_replays_the_same_secret() {
+    let (temp, fake) = Fake::new();
+    fake.with(|s| s.credential_lost = true);
+    let (c, vault) = coordinator(&fake);
+    let first = c.start(&request(temp.path()), &mut |_| {});
+    assert_eq!(
+        first.error.as_ref().map(|e| e.code),
+        Some(Code::CredentialFailed)
+    );
+    assert_eq!(pending(&fake).unwrap().checkpoint, "project-created");
+    let second = c.start(&request(temp.path()), &mut |_| {});
+    assert!(second.ok, "{:?}", second.error);
+    let secrets = fake.with(|s| s.secrets.clone());
+    assert_eq!(secrets.len(), 2);
+    assert_eq!(secrets[0], secrets[1]);
+    // One Project, and nothing left behind once main is confirmed.
+    assert_eq!(fake.with(|s| s.creates), 1);
+    assert!(vault.0.lock().unwrap().is_empty());
+    assert!(pending(&fake).is_none());
+}
+
+/// §15 "Working tree becomes dirty", "HEAD advances during upload" and
+/// "User switches branch during upload": the pinned attempt finishes; the
+/// target never follows the checkout.
+#[test]
+fn an_upload_finishes_its_pinned_commit_while_the_checkout_drifts() {
+    let (temp, fake) = Fake::new();
+    fake.with(|s| s.drift_during_push = true);
+    let (c, _) = coordinator(&fake);
+    let outcome = c.start(&request(temp.path()), &mut |_| {});
+    assert!(outcome.ok, "{:?}", outcome.error);
+    assert_eq!(fake.with(|s| s.cloud_main.clone()).as_deref(), Some(COMMIT));
+    assert!(fake.with(|s| s.finalized));
+}
+
+/// §15 "Desktop restarts": a new coordinator over the same journal and
+/// vault reconciles the Project and remote ref and derives its actions.
+#[test]
+fn a_restart_reconciles_the_pending_operation_and_derives_its_actions() {
+    let (temp, fake) = Fake::new();
+    fake.with(|s| s.push_failures.push_back(Code::PushFailed));
+    let (c, vault) = coordinator(&fake);
+    assert!(!c.start(&request(temp.path()), &mut |_| {}).ok);
+    drop(c);
+    let restarted = Coordinator {
+        git: fake.clone(),
+        cloud: fake.clone(),
+        vault: vault.clone(),
+    };
+    let state = restarted.state(&request(temp.path()));
+    let derived = state.state.expect("a pending operation is projected");
+    assert_eq!(derived.project, publish::Project::Empty);
+    assert_eq!(derived.push, publish::Push::Failed);
+    assert!(derived.actions.contains(&publish::Action::RetryPush));
+    let retry = restarted.start(
+        &Request {
+            action: Action::RetryPush,
+            ..request(temp.path())
+        },
+        &mut |_| {},
+    );
+    assert!(retry.ok, "{:?}", retry.error);
+    assert_eq!(fake.with(|s| s.cloud_main.clone()).as_deref(), Some(COMMIT));
+    assert_eq!(fake.with(|s| s.creates), 1);
 }
