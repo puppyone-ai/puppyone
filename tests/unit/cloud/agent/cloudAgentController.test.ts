@@ -179,6 +179,16 @@ describe("Cloud Agent durable client", () => {
     for (const state of ["outcome_unknown", "conflict"] as const) {
       expect(projectCloudAgentRuns([run({ state, snapshot: { text: "Unconfirmed result" } })]).terminalState).toBeNull();
     }
-    chat.newChat(); expect(chat.getSnapshot().sessionId).not.toBeNull();
+  });
+
+  it("starts another chat while one keeps running on the shared workspace", async () => {
+    vi.useFakeTimers(); const chat = controller(); await chat.load();
+    handle = async request => run({ request_id: JSON.parse(request.body!).request_id });
+    await chat.submit("Edit notes");
+    expect(chat.getSnapshot().sessionId).not.toBeNull();
+    chat.newChat();
+    expect(chat.getSnapshot()).toMatchObject({ sessionId: null, runs: [], draft: "" });
+    await chat.submit("A second agent");
+    expect(chat.getSnapshot().sessionId).not.toBeNull();
   });
 });

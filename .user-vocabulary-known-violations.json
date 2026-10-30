@@ -104,7 +104,6 @@
     "locales/renderer/en/cloud.json activation.project.agentsDetail Permission",
     "locales/renderer/en/cloud.json activation.project.localNote Local",
     "locales/renderer/en/cloud.json activation.project.publish Upload",
-    "locales/renderer/en/cloud.json agent.conflict Conflict",
     "locales/renderer/en/cloud.json agent.permissionDenied Permission",
     "locales/renderer/en/cloud.json auth.getCloud Local",
     "locales/renderer/en/cloud.json auth.gitSyncDetails Sync",

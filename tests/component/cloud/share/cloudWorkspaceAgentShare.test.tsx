@@ -131,7 +131,7 @@ describe("Connecting an agent from Share", () => {
   it("states the risk of any agent with the link before it is chosen", async () => {
     inventory = { links: [], connections: [], open_links_enabled: true };
     await render();
-    expect(select('[data-agent-admission="link"]').textContent).toContain("run commands and edit every file");
+    expect(select('[data-agent-admission="link"]').textContent).toContain("gets its own copy of the project");
     await act(async () => select('[data-agent-admission="link"]').click());
     expect(select('[data-agent-admission="link"]').getAttribute("aria-checked")).toBe("true");
     expect(select('[data-agent-admission="sign_in"]').textContent).toContain("sign-in link");
@@ -193,6 +193,30 @@ describe("Connecting an agent from Share", () => {
     expect(document.querySelector(".desktop-cloud-agent-reach-header h4")).toBeNull();
     expect(document.querySelector(".desktop-cloud-agent-list")).toBeNull();
     expect(document.querySelector(".desktop-cloud-agent-share-stop")).not.toBeNull();
+  });
+
+  it("brings in an agent's work from its own branch", async () => {
+    inventory = { links: [], connections: [{ ...agent, branch: "refs/heads/agents/one" }] };
+    const synced: unknown[] = [];
+    const serve = vi.mocked(cloudApiRequest).getMockImplementation()!;
+    vi.mocked(cloudApiRequest).mockImplementation(async (path, ...rest) => {
+      if (path === "/projects/project-1/workbench") return { workspace: { generation: "g-1", state: "running" } };
+      if (path === "/projects/project-1/workbench/sync") {
+        synced.push(JSON.parse(String(rest[2]?.body)));
+        return { status: "merged" };
+      }
+      return serve(path, ...rest);
+    });
+    await render();
+    await act(async () => select('button[aria-label="Bring in changes from Claude Code"]').click());
+    expect(synced).toEqual([{ generation: "g-1", source_ref: "refs/heads/agents/one" }]);
+    expect(document.body.textContent).toContain("The changes are in your workspace");
+  });
+
+  it("offers nothing to bring in from an older server that names no branch", async () => {
+    inventory = { links: [], connections: [agent] };
+    await render();
+    expect(document.querySelector('button[aria-label^="Bring in changes from"]')).toBeNull();
   });
 
   it("stops every link and connected agent at once", async () => {

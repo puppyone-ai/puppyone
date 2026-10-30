@@ -123,14 +123,15 @@ export class CloudAgentController {
       return false;
     } finally { if (revision === this.revision) this.patch({ submitting: false }); }
   };
+  /** Every chat is its own Run on the shared Workspace, so one still running stays running. */
   newChat = () => {
-    if (this.state.submitting || this.state.pending || cloudRunActive(this.state.runs.at(-1))) return;
+    if (this.state.submitting || this.state.pending) return;
     this.revision++;
     this.patch({ sessionId: null, runs: [], draft: "", error: null, loading: false });
     this.save();
   };
   async selectSession(session: CloudAgentSession) {
-    if (this.state.submitting || this.state.pending || cloudRunActive(this.state.runs.at(-1))) return;
+    if (this.state.submitting || this.state.pending) return;
     this.revision++;
     this.patch({ sessionId: session.id, agentId: session.agent_id, runs: [], draft: "", error: null });
     this.save();
