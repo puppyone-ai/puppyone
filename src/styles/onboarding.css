@@ -693,6 +693,21 @@ span.homepage-cloud-feedback {
   white-space: nowrap;
 }
 
+/* The Grid rearranges the same projects on the same plain page: the skeleton,
+   rules and fixed insets stay, and only the column widens. */
+.onboarding-homepage:has(.onboarding-project-list:not([data-project-layout="list"])) {
+  --onboarding-column-width: 100%;
+  /* Top-aligned like a long list, so switching layouts leaves the title in place. */
+  justify-content: flex-start;
+  width: min(760px, 100%);
+}
+
+.onboarding-homepage:has(.onboarding-project-list:not([data-project-layout="list"])) .onboarding-entry-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+}
+
 .onboarding-project-layout-switch {
   margin-inline-start: auto;
 }
@@ -704,102 +719,65 @@ span.homepage-cloud-feedback {
   padding: 0;
 }
 
-/* Ink alone says where a project lives, at the page's full contrast, so it reads at
-   a glance with no colour: hollow on this computer, a cloud inside when it also has
-   a Cloud project, solid when it lives in the Cloud. */
+/* Monochrome, like the website's template folder. Both tones are mixed from the
+   page, so the folder is lighter than a dark page and darker than a light one.
+   A folder is never coloured, shadowed or graded: blue belongs to the cloud alone. */
 .onboarding-project-folder {
-  --folder-line: color-mix(in srgb, var(--po-text) 42%, var(--po-canvas));
+  --folder-back: color-mix(in srgb, var(--po-text) 11%, var(--po-canvas));
+  --folder-front: color-mix(in srgb, var(--po-text) 19%, var(--po-canvas));
+  position: relative;
   display: block;
   flex: 0 0 auto;
 }
 
-.onboarding-project-row-wrap:is(:hover, :focus-within) .onboarding-project-folder,
-.onboarding-project-folder.is-cloud {
-  --folder-line: var(--po-text);
+.onboarding-project-row-wrap:is(:hover, :focus-within) .onboarding-project-folder {
+  --folder-back: color-mix(in srgb, var(--po-text) 15%, var(--po-canvas));
+  --folder-front: color-mix(in srgb, var(--po-text) 26%, var(--po-canvas));
 }
 
 .project-folder-glyph {
   display: block;
-  overflow: visible;
+  width: 100%;
+  height: 100%;
 }
 
-.project-folder-outline {
-  fill: none;
-  stroke: var(--folder-line);
-  stroke-width: 1;
-  transition: stroke 130ms ease-out;
+.project-folder-back {
+  fill: var(--folder-back);
+  transition: fill 130ms ease-out;
 }
 
+.project-folder-front {
+  fill: var(--folder-front);
+  transition: fill 130ms ease-out;
+}
+
+/* Solid, so it survives a glance across the page; an outline does not. */
 .project-folder-cloud {
-  fill: var(--po-text);
+  fill: var(--po-brand-blue);
 }
 
-.onboarding-project-folder.is-cloud .project-folder-outline {
-  fill: var(--po-text);
+/* A local folder that also has a Cloud project: the same blue cloud, off the folder's
+   front and cut out from it by the page, because the project itself lives here. */
+.onboarding-project-folder .onboarding-project-cloud-badge {
+  --po-surface: var(--po-brand-blue);
+  inset-block-end: -4px;
+  inset-inline-end: -4px;
+  color: var(--po-canvas);
 }
 
-.onboarding-project-folder.is-cloud .project-folder-cloud {
-  fill: var(--po-canvas);
-}
-
-/* The Grid is the list's projects in the list's order and column, ruled into a
-   matrix: the page's two rules are its outer edge, so they meet the section with no
-   inset, and only what sits between them changes. */
-.onboarding-home-primary:has(.onboarding-project-list[data-project-layout="grid"]) {
-  container-type: inline-size;
-  padding-block: 0;
-}
-
-.onboarding-project-list[data-project-layout="grid"] {
-  --project-cell-height: 112px;
-  --project-cell-inset-block: 14px;
-  /* Folders stand on the same edge as the action icons below. */
-  --project-cell-inset-inline: calc(var(--po-menu-item-padding-inline) + 2px);
-  --project-column: calc(100cqw / 3);
-  --project-rule: var(--po-border-subtle);
-  /* A hairline thumb, hung in its lane outside the column so the matrix keeps the
-     rules' exact width. */
-  --po-scrollbar-thumb-active-inset: calc((var(--po-scrollbar-size) - 2px) / 2);
-  --po-scrollbar-presentation-thumb: color-mix(in srgb, var(--po-text) 28%, transparent);
-  --po-scrollbar-presentation-thumb-hover: color-mix(in srgb, var(--po-text) 46%, transparent);
-  width: calc(100% + var(--po-scrollbar-size));
-  grid-template-columns: repeat(3, var(--project-column));
-  grid-auto-rows: var(--project-cell-height);
-  gap: 0;
-  /* Drawn on the area rather than the cells, so the matrix stays whole when the last
-     row is not full. Row rules start below the first row and stop above the page's
-     rule, which is why no line ever doubles up. */
-  background:
-    repeating-linear-gradient(to bottom, var(--project-rule) 0 1px, transparent 1px var(--project-cell-height))
-      0 var(--project-cell-height) / 100cqw 100% no-repeat local,
-    linear-gradient(var(--project-rule), var(--project-rule))
-      calc(var(--project-column) - 1px) 0 / 1px 100% no-repeat local,
-    linear-gradient(var(--project-rule), var(--project-rule))
-      calc(var(--project-column) * 2 - 1px) 0 / 1px 100% no-repeat local;
-}
-
-/* The folder keeps the top of the cell and the name its foot, so a long name grows
-   up into the space between them and every baseline stays on the row. */
 .onboarding-project-tile {
-  position: relative;
-  display: flex;
+  display: grid;
   width: 100%;
   height: 100%;
   min-width: 0;
   box-sizing: border-box;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: space-between;
-  padding: var(--project-cell-inset-block) var(--project-cell-inset-inline);
   border: 0;
-  border-radius: 0;
+  border-radius: var(--desktop-control-radius);
   background: transparent;
-  color: var(--po-text);
+  color: var(--po-text-muted);
   font-family: var(--po-font-sans);
-  text-align: start;
   cursor: var(--po-clickable-cursor, default);
-  user-select: none;
-  transition: background 130ms ease-out;
+  transition: color 130ms ease-out;
 }
 
 .onboarding-project-tile:disabled {
@@ -807,13 +785,13 @@ span.homepage-cloud-feedback {
 }
 
 .onboarding-project-tile:focus-visible {
-  outline: 1px solid var(--po-focus-ring);
-  outline-offset: -1px;
+  outline: 2px solid color-mix(in srgb, var(--po-accent) 36%, transparent);
+  outline-offset: -2px;
 }
 
 .onboarding-project-row-wrap:is(:hover, :focus-within) .onboarding-project-tile:not(:disabled),
 .onboarding-project-row-wrap.is-removing .onboarding-project-tile {
-  background: color-mix(in srgb, var(--po-text) 3%, transparent);
+  color: var(--po-text);
 }
 
 .onboarding-project-row-wrap.is-dragging .onboarding-project-tile {
@@ -821,42 +799,16 @@ span.homepage-cloud-feedback {
 }
 
 .onboarding-project-tile-name {
-  display: -webkit-box;
-  max-width: 100%;
   min-width: 0;
   overflow: hidden;
-  overflow-wrap: anywhere;
   color: inherit;
-  font-size: var(--po-type-ui-hint, 13px);
-  font-weight: 450;
-  letter-spacing: -0.006em;
-  line-height: 18px;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
 }
 
-/* Centered on the folder beside it. */
-.onboarding-project-tile-time {
-  position: absolute;
-  top: calc(var(--project-cell-inset-block) + 4px);
-  inset-inline-end: var(--project-cell-inset-inline);
-  max-width: calc(100% - 30px - var(--project-cell-inset-inline) * 2 - 8px);
-  overflow: hidden;
+.onboarding-project-row-wrap.has-cloud-project:not(:hover, :focus-within) .onboarding-project-tile-name {
   color: var(--po-text-subtle);
-  font-size: var(--po-type-ui-caption, 12px);
-  font-variant-numeric: tabular-nums;
-  line-height: 16px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  transition: opacity 100ms ease;
 }
 
-/* Like the list's time, it gives its place to the actions that replace it. */
-.onboarding-project-row-wrap:has(.onboarding-project-remove, .onboarding-project-cloud-link):is(:hover, :focus-within, .is-removing) .onboarding-project-tile-time {
-  opacity: 0;
-}
-
-/* A cell has no room for the link's label; its tooltip still says what it opens. */
+/* A tile has no room for the link's label; its tooltip still says what it opens. */
 .onboarding-project-tile ~ .onboarding-project-cloud-link {
   width: 24px;
   min-width: 0;
@@ -869,21 +821,49 @@ span.homepage-cloud-feedback {
   display: none;
 }
 
-.onboarding-project-tile ~ .onboarding-project-cloud-link svg {
-  color: inherit;
+.onboarding-project-list[data-project-layout="grid"] {
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 6px 4px;
+  scrollbar-gutter: auto;
+}
+
+.onboarding-project-list[data-project-layout="grid"] .onboarding-project-tile {
+  align-content: start;
+  justify-items: center;
+  gap: 8px;
+  padding: 10px 4px 6px;
+  text-align: center;
+}
+
+.onboarding-project-list[data-project-layout="grid"] .onboarding-project-folder {
+  width: 44px;
+  height: 35px;
+}
+
+/* Two lines are always reserved, so every row keeps the same rhythm. */
+.onboarding-project-list[data-project-layout="grid"] .onboarding-project-tile-name {
+  display: -webkit-box;
+  max-width: 100%;
+  min-height: 32px;
+  overflow-wrap: anywhere;
+  font-size: var(--po-type-ui-caption, 12px);
+  font-weight: 400;
+  line-height: 16px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .onboarding-project-list[data-project-layout="grid"] :is(.onboarding-project-remove, .onboarding-project-cloud-link) {
-  top: var(--project-cell-inset-block);
+  top: 4px;
   transform: none;
 }
 
 .onboarding-project-list[data-project-layout="grid"] .onboarding-project-remove {
-  inset-inline-end: calc(var(--project-cell-inset-inline) - 5px);
+  inset-inline-end: 4px;
 }
 
 .onboarding-project-list[data-project-layout="grid"] .onboarding-project-cloud-link {
-  inset-inline-end: calc(var(--project-cell-inset-inline) + 21px);
+  inset-inline: 4px auto;
 }
 
 .onboarding-homepage-error {
@@ -934,8 +914,7 @@ span.homepage-cloud-feedback {
     pointer-events: auto;
   }
 
-  .onboarding-project-row .desktop-menu-item-trailing,
-  .onboarding-project-row-wrap:has(.onboarding-project-remove, .onboarding-project-cloud-link) .onboarding-project-tile-time {
+  .onboarding-project-row .desktop-menu-item-trailing {
     opacity: 0;
   }
 }

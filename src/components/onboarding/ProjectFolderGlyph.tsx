@@ -1,18 +1,24 @@
 import { CLOUD_ICON_PATH } from "@puppyone/shared-ui";
 
 /**
- * One hairline folder, drawn 1:1 so its line lands on the pixel grid. With `cloud`
- * it carries the product's solid cloud. The stylesheet inverts the pair for a Cloud
- * project, so ink alone says where a project lives.
+ * The website's folder in its monochrome form: a back with its tab and a lighter
+ * front, both mixed from the page. A Cloud project is the same folder with the
+ * product's solid cloud on its front, the way macOS marks Documents and Downloads.
+ * The mark says where it lives, and it is solid and blue so that it still reads
+ * at a glance across a full page of folders.
  */
 export function ProjectFolderGlyph({ cloud = false }: { cloud?: boolean }) {
   return (
-    <svg className="project-folder-glyph" width="30" height="24" viewBox="0 0 30 24" aria-hidden="true" focusable="false">
+    <svg className="project-folder-glyph" viewBox="0 0 48 38" aria-hidden="true" focusable="false">
       <path
-        className="project-folder-outline"
-        d="M3.5.5h6.4c.8 0 1.6.4 2.1 1l1.4 1.9c.5.6 1.2 1 2 1h11.1a3 3 0 0 1 3 3v13.1a3 3 0 0 1-3 3h-23a3 3 0 0 1-3-3v-17a3 3 0 0 1 3-3z"
+        className="project-folder-back"
+        d="M4 6.5A3.5 3.5 0 0 1 7.5 3h10.3c.9 0 1.8.4 2.4 1.1L22.7 7h17.8A3.5 3.5 0 0 1 44 10.5v21a3.5 3.5 0 0 1-3.5 3.5h-33A3.5 3.5 0 0 1 4 31.5z"
       />
-      {cloud && <path className="project-folder-cloud" d={CLOUD_ICON_PATH} transform="translate(6.6 6.1) scale(0.7)" />}
+      <path
+        className="project-folder-front"
+        d="M4 14.5A3.5 3.5 0 0 1 7.5 11h33a3.5 3.5 0 0 1 3.5 3.5v17a3.5 3.5 0 0 1-3.5 3.5h-33A3.5 3.5 0 0 1 4 31.5z"
+      />
+      {cloud && <path className="project-folder-cloud" d={CLOUD_ICON_PATH} transform="translate(11.4 9.9) scale(1.05)" />}
     </svg>
   );
 }

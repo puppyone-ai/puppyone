@@ -179,40 +179,29 @@ describe("Homepage project layouts", () => {
     expect(container.querySelector(".onboarding-project-tile .onboarding-project-icon")).toBeNull();
     const folder = (id: "local" | "linked" | "cloud") => project(container, id).querySelector(".onboarding-project-folder")!;
     expect(folder("local").querySelector(".project-folder-cloud")).toBeNull();
-    expect(folder("linked").querySelector(".project-folder-cloud")).not.toBeNull();
+    expect(folder("local").querySelector(".onboarding-project-cloud-badge")).toBeNull();
     expect(folder("cloud").querySelector(".project-folder-cloud")).not.toBeNull();
-    expect(folder("linked").classList.contains("is-cloud")).toBe(false);
-    expect(folder("cloud").classList.contains("is-cloud")).toBe(true);
+    expect(folder("cloud").querySelector(".onboarding-project-cloud-badge")).toBeNull();
+    expect(folder("linked").querySelector(".project-folder-cloud")).toBeNull();
+    expect(folder("linked").querySelector(".onboarding-project-cloud-badge")).not.toBeNull();
   });
 
-  it("draws every folder to one outline, with nothing overhanging its edge", () => {
-    const { container } = renderHome();
-    pick(container, "grid");
-    expect(container.querySelector(".onboarding-project-folder .onboarding-project-cloud-badge")).toBeNull();
-    expect(container.querySelectorAll(".onboarding-project-folder > *")).toHaveLength(projectItems.length);
-  });
-
-  it("draws the Grid in ink alone, inverting the folder for a Cloud project", () => {
+  it("keeps every folder neutral and leaves the blue to the cloud alone", () => {
     const css = readFileSync("src/styles/onboarding.css", "utf8");
     const start = css.indexOf(".onboarding-project-folder {");
-    const end = css.indexOf(".onboarding-homepage-error {");
+    const cloud = css.indexOf(".project-folder-cloud {");
     expect(start).toBeGreaterThan(-1);
-    expect(end).toBeGreaterThan(start);
-    const grid = css.slice(start, end);
-    expect(grid).not.toMatch(/brand-blue|--po-accent|#[0-9a-f]{3,8}\b|shadow|url\(/i);
-    expect(grid).toMatch(/\.is-cloud \.project-folder-outline \{\s*fill: var\(--po-text\);/);
-    expect(grid).toMatch(/\.is-cloud \.project-folder-cloud \{\s*fill: var\(--po-canvas\);/);
+    expect(cloud).toBeGreaterThan(start);
+    expect(css.slice(start, cloud)).not.toMatch(/is-cloud|is-local|brand-blue|--po-accent|#[0-9a-f]{3,8}\b|gradient|shadow|url\(/i);
+    expect(css.slice(cloud)).toMatch(/\.project-folder-cloud \{\s*fill: var\(--po-brand-blue\);/);
   });
 
-  it("shows a project's name and age, and keeps its place one hover away", () => {
+  it("shows a project as its name alone and keeps the rest one hover away", () => {
     const { container } = renderHome();
     pick(container, "grid");
     const tile = project(container, "local").querySelector(".onboarding-project-tile");
-    expect(tile?.querySelector(".onboarding-project-tile-name")?.textContent).toBe("notes");
-    expect(tile?.querySelector(".onboarding-project-tile-time")?.textContent).toBe("3 days ago");
-    expect(tile?.getAttribute("data-tooltip")).toBe("~/project");
-    const cloudTile = project(container, "cloud").querySelector(".onboarding-project-tile");
-    expect(cloudTile?.getAttribute("data-tooltip")).toBe("Cloud project");
-    expect(cloudTile?.querySelector(".onboarding-project-tile-time")).toBeNull();
+    expect(tile?.textContent).toBe("notes");
+    expect(tile?.getAttribute("data-tooltip")).toBe("~/project · 3 days ago");
+    expect(project(container, "cloud").querySelector(".onboarding-project-tile")?.getAttribute("data-tooltip")).toBe("Cloud project");
   });
 });
