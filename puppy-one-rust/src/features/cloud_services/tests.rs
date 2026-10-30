@@ -56,9 +56,6 @@ fn cloud(id: &'static str) -> impl Fn(&ApiRequest) -> services::Result<Value> + 
                      "message": "Second", "changes": []},
                     {"commit_id": "a".repeat(40), "parent_ids": [], "who": "Ada",
                      "message": "First", "changes": []}]}),
-            p if p.contains("/regenerate-key") => {
-                json!({"access_surface_id": "m1", "credential": "pwk_secret"})
-            }
             p if p.starts_with("/projects/") && p.matches('/').count() == 2 => {
                 project(id, &["project.settings.manage"])
             }
@@ -203,19 +200,30 @@ fn one_organization_is_chosen_but_several_wait_for_the_user(cx: &mut TestAppCont
 }
 
 #[gpui::test]
-fn a_one_time_key_shows_once_and_closing_forgets_it(cx: &mut TestAppContext) {
-    let f = fake(cloud("p"));
+fn creating_an_mcp_endpoint_shows_its_key_once_and_closing_forgets_it(cx: &mut TestAppContext) {
+    let f = fake(|r| {
+        if r.path == "/mcp-endpoints" && r.method == reqwest::Method::POST {
+            return Ok(
+                json!({"id": "m1", "project_id": "p", "name": "MCP Server", "api_key": "pwk_once"}),
+            );
+        }
+        cloud("p")(r)
+    });
     let (view, cx) = open(cx, f.clone(), Section::Mcp);
     let loaded = view.clone();
     settle(cx, "the details", &|cx| {
         loaded.read_with(cx, |s, _| s.details.is_some())
     });
-    view.update(cx, |s, cx| s.regenerate("m1".into(), cx));
+    view.update(cx, |s, cx| {
+        let root = access::views("p", &[])[0].clone();
+        s.create_mcp(root, cx)
+    });
     let loaded = view.clone();
-    settle(cx, "the credential", &|cx| {
-        loaded.read_with(cx, |s, _| s.issued.is_some())
+    settle(cx, "the key", &|cx| {
+        loaded.read_with(cx, |s, _| s.issued.is_some() && !s.busy)
     });
     draw(cx);
+    assert_eq!(f.count("POST", "/mcp-endpoints"), 1);
     view.update(cx, |s, cx| s.close(cx));
     view.read_with(cx, |s, _| {
         assert!(s.issued.is_none() && s.details.is_none() && s.client.is_none());
@@ -225,22 +233,94 @@ fn a_one_time_key_shows_once_and_closing_forgets_it(cx: &mut TestAppContext) {
 #[gpui::test]
 fn a_failed_mutation_says_so_and_is_not_replayed(cx: &mut TestAppContext) {
     let f = fake(|r| {
-        if r.method == reqwest::Method::POST {
+        if r.method == reqwest::Method::DELETE {
             return Err(services::Error::Unknown);
         }
         cloud("p")(r)
     });
-    let (view, cx) = open(cx, f.clone(), Section::Mcp);
+    let (view, cx) = open(cx, f.clone(), Section::Access);
     let loaded = view.clone();
     settle(cx, "the details", &|cx| {
         loaded.read_with(cx, |s, _| s.details.is_some())
     });
-    view.update(cx, |s, cx| s.set_paused("m1".into(), true, cx));
+    view.update(cx, |s, cx| s.delete_scope("s1".into(), cx));
     let loaded = view.clone();
     settle(cx, "the failure", &|cx| {
         loaded.read_with(cx, |s, _| s.notice.is_some() && !s.busy)
     });
-    assert_eq!(f.count("POST", "/projects/p/access/surfaces/m1/pause"), 1);
+    assert_eq!(f.count("DELETE", "/projects/p/scopes/s1"), 1);
+}
+
+#[gpui::test]
+fn create_access_reads_folders_on_demand_and_refuses_a_path_with_access(cx: &mut TestAppContext) {
+    let f = fake(|r| {
+        if r.path.ends_with("/ls") {
+            let at = r
+                .query
+                .iter()
+                .find(|(k, _)| k == "path")
+                .map_or("", |(_, v)| v.as_str());
+            let child = if at.is_empty() {
+                "docs".to_owned()
+            } else {
+                format!("{at}/deep")
+            };
+            return Ok(json!({"path": at, "entries": [
+                {"name": "x", "path": child, "type": "folder"},
+                {"name": "f.md", "path": "f.md", "type": "file"}]}));
+        }
+        if r.path.ends_with("/scopes") && r.method == reqwest::Method::GET {
+            return Ok(
+                json!([{"id": "s1", "project_id": "p", "name": "Taken", "path": "/taken/",
+                "max_mode": "r"}]),
+            );
+        }
+        if r.path.ends_with("/scopes") {
+            return Ok(
+                json!({"id": "s2", "project_id": "p", "name": "docs", "path": "docs",
+                "max_mode": "r"}),
+            );
+        }
+        cloud("p")(r)
+    });
+    let (view, cx) = open(cx, f.clone(), Section::Access);
+    let loaded = view.clone();
+    settle(cx, "the details", &|cx| {
+        loaded.read_with(cx, |s, _| s.details.is_some())
+    });
+    view.update(cx, |s, cx| s.begin_create(cx));
+    let loaded = view.clone();
+    settle(cx, "the root folders", &|cx| {
+        loaded.read_with(cx, |s, _| {
+            s.creating.as_ref().is_some_and(|c| c.folders == ["docs"])
+        })
+    });
+    draw(cx);
+    view.update(cx, |s, cx| s.read_folder("docs".into(), cx));
+    let loaded = view.clone();
+    settle(cx, "the subfolder", &|cx| {
+        loaded.read_with(cx, |s, _| {
+            s.creating
+                .as_ref()
+                .is_some_and(|c| c.folders == ["docs/deep"])
+        })
+    });
+    // A path with access already is refused without a request.
+    view.update(cx, |s, cx| {
+        s.choose_path("taken".into(), cx);
+        s.create_access(cx);
+        assert!(s.creating.is_some() && s.notice.is_some());
+    });
+    assert_eq!(f.count("POST", "/projects/p/scopes"), 0);
+    view.update(cx, |s, cx| {
+        s.choose_path("docs".into(), cx);
+        assert_eq!(s.scope_name.read(cx).text(), "docs");
+        s.create_access(cx);
+    });
+    let reads = f.clone();
+    settle(cx, "the Scope", &|_| {
+        reads.count("POST", "/projects/p/scopes") == 1
+    });
 }
 
 #[gpui::test]

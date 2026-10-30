@@ -147,6 +147,28 @@ pub struct Team {
 pub struct Close;
 impl EventEmitter<Close> for CloudServices {}
 
+/// `CreateAccessDialog`'s draft.
+#[derive(Clone, Debug)]
+struct Create {
+    /// The folder listed, and its subfolders.
+    browsing: String,
+    folders: Vec<String>,
+    failed: bool,
+    path: Option<String>,
+    mode: &'static str,
+}
+impl Default for Create {
+    fn default() -> Self {
+        Self {
+            browsing: String::new(),
+            folders: vec![],
+            failed: false,
+            path: None,
+            mode: "r",
+        }
+    }
+}
+
 pub struct CloudServices {
     client: Option<Client>,
     project: Option<String>,
@@ -160,9 +182,13 @@ pub struct CloudServices {
     commit: Option<String>,
     detail: Option<history::Commit>,
     detail_epoch: u64,
-    /// One-time credential: (surface, value), shown until this view closes.
+    /// One-time credential: (endpoint, value), shown until this view closes.
     issued: Option<(String, String)>,
     confirm_delete: Option<String>,
+    /// The open Create access form.
+    creating: Option<Create>,
+    folder_epoch: u64,
+    scope_name: Entity<TextInput>,
     notice: Option<SharedString>,
     busy: bool,
     name: Entity<TextInput>,
@@ -190,6 +216,9 @@ impl CloudServices {
             detail_epoch: 0,
             issued: None,
             confirm_delete: None,
+            creating: None,
+            folder_epoch: 0,
+            scope_name: field(false, window, cx),
             notice: None,
             busy: false,
             name: field(false, window, cx),
@@ -236,6 +265,8 @@ impl CloudServices {
         self.detail = None;
         self.issued = None;
         self.confirm_delete = None;
+        self.creating = None;
+        self.folder_epoch += 1;
         self.notice = None;
         self.busy = false;
     }
@@ -250,6 +281,7 @@ impl CloudServices {
     pub fn select(&mut self, section: Section, cx: &mut Context<Self>) {
         self.section = section;
         self.confirm_delete = None;
+        self.creating = None;
         self.notice = None;
         self.scroll.set_offset(point(px(0.), px(0.)));
         self.enter(section, cx);
@@ -465,34 +497,133 @@ impl CloudServices {
             cx,
         );
     }
-    fn set_paused(&mut self, surface: String, paused: bool, cx: &mut Context<Self>) {
+    /// `handleCreateMcpEndpoint`: its key is shown here, once.
+    fn create_mcp(&mut self, view: access::View, cx: &mut Context<Self>) {
+        let Some(project) = self.project.clone() else {
+            return;
+        };
+        let readonly = self
+            .details
+            .as_ref()
+            .and_then(|d| d.scopes.iter().find(|s| s.id == view.id))
+            .is_some_and(|s| s.max_mode != "rw");
+        self.mutate(
+            move |client| {
+                let endpoint = client.create_mcp_endpoint(&project, &view.path, readonly)?;
+                Ok(endpoint.api_key.map(|key| (endpoint.id, key)))
+            },
+            cx,
+        );
+    }
+    fn delete_scope(&mut self, scope: String, cx: &mut Context<Self>) {
         let Some(project) = self.project.clone() else {
             return;
         };
         self.mutate(
+            move |client| client.delete_scope(&project, &scope).map(|_| None),
+            cx,
+        );
+    }
+    fn set_scope_mode(&mut self, scope: Scope, mode: &'static str, cx: &mut Context<Self>) {
+        self.mutate(
             move |client| {
                 client
-                    .set_surface_paused(&project, &surface, paused)
+                    .update_scope(&scope.project_id, &scope.id, &scope.name, mode)
                     .map(|_| None)
             },
             cx,
         );
     }
-    fn delete_surface(&mut self, surface: String, cx: &mut Context<Self>) {
-        let Some(project) = self.project.clone() else {
+    /// `CreateAccessDialog`: choosing a path reads its folders on demand.
+    fn begin_create(&mut self, cx: &mut Context<Self>) {
+        self.creating = Some(Create::default());
+        self.read_folder(String::new(), cx);
+        cx.notify();
+    }
+    fn read_folder(&mut self, path: String, cx: &mut Context<Self>) {
+        let (Some(client), Some(project)) = (self.client.clone(), self.project.clone()) else {
             return;
         };
-        self.mutate(
-            move |client| client.delete_surface(&project, &surface).map(|_| None),
-            cx,
-        );
+        if let Some(create) = &mut self.creating {
+            create.browsing = path.clone();
+            create.folders.clear();
+            create.failed = false;
+        }
+        self.folder_epoch += 1;
+        let epoch = self.folder_epoch;
+        let task = cx.background_spawn(async move { client.folder(&project, &path) });
+        cx.spawn(async move |this, cx| {
+            let result = task.await;
+            this.update(cx, |s, cx| {
+                if s.folder_epoch != epoch {
+                    return;
+                }
+                if let Some(create) = &mut s.creating {
+                    match result {
+                        Ok(tree) => {
+                            create.folders = tree
+                                .entries
+                                .into_iter()
+                                .filter(|e| e.kind == "folder")
+                                .map(|e| e.path)
+                                .collect();
+                        }
+                        Err(_) => create.failed = true,
+                    }
+                }
+                cx.notify();
+            })
+            .ok();
+        })
+        .detach();
     }
-    fn regenerate(&mut self, surface: String, cx: &mut Context<Self>) {
+    /// `defaultScopeName` fills the name until someone types one.
+    fn choose_path(&mut self, path: String, cx: &mut Context<Self>) {
+        let last = path
+            .rsplit('/')
+            .find(|p| !p.is_empty())
+            .unwrap_or("")
+            .to_owned();
+        if let Some(create) = &mut self.creating {
+            create.path = Some(path);
+        }
+        self.scope_name.update(cx, |i, cx| i.set_text(&last, cx));
+        cx.notify();
+    }
+    /// `createDesktopCloudAccess`: a path with access is never doubled.
+    fn create_access(&mut self, cx: &mut Context<Self>) {
+        let (Some(project), Some(create)) = (self.project.clone(), self.creating.clone()) else {
+            return;
+        };
+        let Some(path) = create.path.clone().filter(|p| !p.is_empty()) else {
+            return;
+        };
+        let name = self.scope_name.read(cx).text().trim().to_owned();
+        let taken = self.details.as_ref().is_some_and(|d| {
+            d.scopes
+                .iter()
+                .any(|s| s.path.trim_matches('/') == path.trim_matches('/'))
+        });
+        if taken {
+            self.notice = Some(tr("cloud.access.create.pathAlreadyHasAccess").into());
+            cx.notify();
+            return;
+        }
+        if name.is_empty() {
+            return;
+        }
+        let mode = create.mode;
+        let mcp = self.section == Section::Mcp;
+        self.creating = None;
         self.mutate(
             move |client| {
-                client
-                    .regenerate_key(&surface)
-                    .map(|key| Some((surface, key)))
+                let scope = client.create_scope(&project, &name, &path, mode)?;
+                if !mcp {
+                    return Ok(None);
+                }
+                let endpoint =
+                    client.create_mcp_endpoint(&project, &scope.path, scope.max_mode != "rw")?;
+                Ok(endpoint.api_key.map(|key| (endpoint.id, key)))
             },
             cx,
         );
@@ -918,12 +1049,26 @@ impl CloudServices {
         };
         let id = self.project.clone().unwrap_or_default();
         let task = !matches!(self.section, Section::Mcp | Section::Cli);
+        let server = cloud_account::environment(cx)
+            .map(|e| services::mcp_server_url(e.api()))
+            .unwrap_or_default();
         let mut page = v_flex()
             .gap(px(12.))
             .when(task, |d| d.child(self.back(t, cx)));
         page = page.child(self.heading(t));
+        page = match self.creating.clone() {
+            Some(create) => page.child(self.create_form(create, t, cx)),
+            None => page.child(
+                h_flex().justify_end().child(
+                    Button::new("cloud-create-access")
+                        .variant(ButtonVariant::Solid)
+                        .label(tr("cloud.access.create.action"))
+                        .disabled(self.busy)
+                        .on_click(cx.listener(|s, _, _, cx| s.begin_create(cx))),
+                ),
+            ),
+        };
         for (index, point) in details.rows(&id, catalog).into_iter().enumerate() {
-            let surface = point.surface.clone();
             let title = if !point.title.is_empty() {
                 point.title.clone()
             } else {
@@ -1025,7 +1170,7 @@ impl CloudServices {
             if let Some((_, credential)) = self
                 .issued
                 .as_ref()
-                .filter(|(issued, _)| Some(issued) == surface.as_ref())
+                .filter(|(issued, _)| Some(issued) == point.surface.as_ref())
             {
                 let value = credential.clone();
                 row = row.child(
@@ -1050,63 +1195,233 @@ impl CloudServices {
                         ),
                 );
             }
-            if let Some(surface) = surface {
-                let paused = point.status_code == "paused";
-                let (a, b, c) = (surface.clone(), surface.clone(), surface.clone());
-                let confirming = self.confirm_delete.as_deref() == Some(surface.as_str());
+            // A Scope's own settings (`ScopeSettingsBlock`); the Project root
+            // keeps its name and has none to delete.
+            if point.kind == Kind::Cli
+                && let Some(scope) = details
+                    .scopes
+                    .iter()
+                    .find(|s| s.id == point.view.id)
+                    .cloned()
+            {
+                let confirming = self.confirm_delete.as_deref() == Some(scope.id.as_str());
+                let next = if scope.max_mode == "rw" { "r" } else { "rw" };
+                let (toggle, remove) = (scope.clone(), scope.id.clone());
                 row = row.child(
                     h_flex()
                         .justify_end()
                         .gap(px(6.))
                         .child(
-                            Button::new(("cloud-regenerate", index))
+                            Button::new(("cloud-scope-mode", index))
                                 .variant(ButtonVariant::Secondary)
-                                .label(tr("cloud.access.regenerateRootKey"))
-                                .disabled(self.busy)
-                                .on_click(
-                                    cx.listener(move |s, _, _, cx| s.regenerate(a.clone(), cx)),
-                                ),
-                        )
-                        .child(
-                            Button::new(("cloud-pause", index))
-                                .variant(ButtonVariant::Secondary)
-                                .label(tr(if paused {
-                                    "cloud.status.active"
+                                .label(tr(if scope.max_mode == "rw" {
+                                    "cloud.scope.readWrite"
                                 } else {
-                                    "cloud.status.paused"
+                                    "cloud.scope.readOnly"
                                 }))
                                 .disabled(self.busy)
                                 .on_click(cx.listener(move |s, _, _, cx| {
-                                    s.set_paused(b.clone(), !paused, cx)
+                                    s.set_scope_mode(toggle.clone(), next, cx)
                                 })),
                         )
                         .child(
-                            Button::new(("cloud-delete", index))
+                            Button::new(("cloud-scope-delete", index))
                                 .variant(if confirming {
                                     ButtonVariant::SolidDanger
                                 } else {
                                     ButtonVariant::Secondary
                                 })
                                 .label(tr(if confirming {
-                                    "cloud.common.confirm"
+                                    "cloud.common.confirmDelete"
                                 } else {
-                                    "cloud.common.discard"
+                                    "cloud.scope.deleteHelp"
                                 }))
                                 .disabled(self.busy)
                                 .on_click(cx.listener(move |s, _, _, cx| {
-                                    if s.confirm_delete.as_deref() == Some(c.as_str()) {
-                                        s.delete_surface(c.clone(), cx);
+                                    if s.confirm_delete.as_deref() == Some(remove.as_str()) {
+                                        s.delete_scope(remove.clone(), cx);
                                     } else {
-                                        s.confirm_delete = Some(c.clone());
+                                        s.confirm_delete = Some(remove.clone());
                                         cx.notify();
                                     }
                                 })),
                         ),
                 );
             }
+            if point.kind == Kind::Mcp {
+                if point.placeholder {
+                    let view = point.view.clone();
+                    row = row.child(
+                        h_flex().justify_end().child(
+                            Button::new(("cloud-mcp-create", index))
+                                .variant(ButtonVariant::Solid)
+                                .label(tr("cloud.access.method.mcp.create"))
+                                .disabled(self.busy)
+                                .on_click(
+                                    cx.listener(move |s, _, _, cx| s.create_mcp(view.clone(), cx)),
+                                ),
+                        ),
+                    );
+                } else if !server.is_empty() {
+                    let value = server.clone();
+                    row = row.child(
+                        h_flex().justify_end().child(
+                            Button::new(("cloud-mcp-url", index))
+                                .variant(ButtonVariant::Secondary)
+                                .label(tr("cloud.access.command.server-url"))
+                                .on_click(
+                                    cx.listener(move |s, _, _, cx| s.copy(value.clone(), cx)),
+                                ),
+                        ),
+                    );
+                }
+            }
             page = page.child(row);
         }
         page.into_any_element()
+    }
+    /// `CreateAccessDialog`: a folder, a name and a permission.
+    fn create_form(
+        &mut self,
+        create: Create,
+        t: Theme,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let ty = theme::ty().ui;
+        let selected = create.path.clone();
+        let label = selected.as_deref().map_or(
+            tr("cloud.access.create.choosePath").to_owned(),
+            access::path_label,
+        );
+        let up = (!create.browsing.is_empty()).then(|| {
+            let parent = create
+                .browsing
+                .rsplit_once('/')
+                .map_or(String::new(), |(p, _)| p.to_owned());
+            Button::new("cloud-folder-up")
+                .variant(ButtonVariant::Secondary)
+                .icon(Icon::new("arrow-left").with_size(px(13.)).color(t.muted))
+                .label(access::path_label(&parent))
+                .on_click(cx.listener(move |s, _, _, cx| s.read_folder(parent.clone(), cx)))
+        });
+        let rows: Vec<_> = create
+            .folders
+            .iter()
+            .enumerate()
+            .map(|(index, path)| {
+                let (open, choose) = (path.clone(), path.clone());
+                let chosen = selected.as_deref() == Some(path.as_str());
+                h_flex()
+                    .id(("cloud-folder", index))
+                    .h(px(28.))
+                    .px(px(6.))
+                    .gap(px(8.))
+                    .rounded(px(6.))
+                    .text_size(px(ty.meta))
+                    .text_color(t.text)
+                    .when(chosen, |d| d.bg(t.selected))
+                    .hover(|d| d.bg(t.hover))
+                    .on_click(cx.listener(move |s, _, _, cx| s.choose_path(choose.clone(), cx)))
+                    .child(
+                        Icon::product(ProductIcon::Folder)
+                            .with_size(px(14.))
+                            .color(t.muted),
+                    )
+                    .child(div().flex_1().min_w_0().child(access::path_label(path)))
+                    .child(
+                        Button::new(("cloud-folder-open", index))
+                            .variant(ButtonVariant::Secondary)
+                            .icon(Icon::new("chevron-right").with_size(px(13.)).color(t.muted))
+                            .accessibility_label(tr("cloud.common.open"))
+                            .on_click(cx.listener(move |s, _, _, cx| {
+                                cx.stop_propagation();
+                                s.read_folder(open.clone(), cx)
+                            })),
+                    )
+            })
+            .collect();
+        let mode = create.mode;
+        let mode_button = |id: &'static str, value: &'static str, key: &str| {
+            Button::new(id)
+                .variant(if mode == value {
+                    ButtonVariant::Solid
+                } else {
+                    ButtonVariant::Secondary
+                })
+                .label(tr(key))
+                .on_click(cx.listener(move |s, _, _, cx| {
+                    if let Some(create) = &mut s.creating {
+                        create.mode = value;
+                    }
+                    cx.notify();
+                }))
+        };
+        let read = mode_button("cloud-create-read", "r", "cloud.scope.readOnly");
+        let write = mode_button("cloud-create-write", "rw", "cloud.scope.readWrite");
+        let ready = create.path.is_some() && !self.scope_name.read(cx).text().trim().is_empty();
+        v_flex()
+            .gap(px(8.))
+            .p(px(12.))
+            .border_1()
+            .border_color(t.border)
+            .rounded(px(8.))
+            .child(
+                div()
+                    .text_size(px(ty.meta))
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(t.text)
+                    .child(tr("cloud.access.create.title")),
+            )
+            .children(up)
+            .when(create.failed, |d| {
+                d.child(
+                    div()
+                        .text_size(px(ty.caption))
+                        .text_color(t.danger)
+                        .child(tr("cloud.access.create.folderLoadFailed")),
+                )
+            })
+            .children(rows)
+            .child(
+                div()
+                    .text_size(px(ty.caption))
+                    .text_color(t.muted)
+                    .child(label),
+            )
+            .child(
+                v_flex()
+                    .gap(px(4.))
+                    .child(
+                        div()
+                            .text_size(px(ty.caption))
+                            .text_color(t.muted)
+                            .child(tr("cloud.access.create.name")),
+                    )
+                    .child(self.scope_name.clone()),
+            )
+            .child(
+                h_flex()
+                    .gap(px(6.))
+                    .child(read)
+                    .child(write)
+                    .child(div().flex_1())
+                    .child(
+                        Button::new("cloud-create-cancel")
+                            .variant(ButtonVariant::Secondary)
+                            .label(tr("cloud.common.cancel"))
+                            .on_click(cx.listener(|s, _, _, cx| {
+                                s.creating = None;
+                                cx.notify();
+                            })),
+                    )
+                    .child(
+                        Button::new("cloud-create-submit")
+                            .variant(ButtonVariant::Solid)
+                            .label(tr("cloud.access.create.action"))
+                            .disabled(self.busy || !ready)
+                            .on_click(cx.listener(|s, _, _, cx| s.create_access(cx))),
+                    ),
+            )
     }
     fn history(&mut self, t: Theme, cx: &mut Context<Self>) -> AnyElement {
         let ty = theme::ty().ui;

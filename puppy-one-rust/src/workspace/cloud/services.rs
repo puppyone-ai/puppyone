@@ -179,8 +179,22 @@ pub struct McpEndpoint {
     pub name: String,
     #[serde(default)]
     pub api_key_hint: Option<String>,
+    /// Present only in a creation receipt.
+    #[serde(default)]
+    pub api_key: Option<String>,
     #[serde(default)]
     pub status: String,
+}
+/// `buildMcpServerUrl`: the public proxy, on the API's origin. The bearer
+/// credential travels apart from it, never in the URL.
+pub fn mcp_server_url(api: &str) -> String {
+    let Ok(url) = url::Url::parse(api) else {
+        return String::new();
+    };
+    format!(
+        "{}/api/v1/mcp/proxy",
+        &url[url::Position::BeforeScheme..url::Position::AfterPort]
+    )
 }
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct IdentityScope {
@@ -413,38 +427,67 @@ impl Client {
     pub fn raw(&self, request: ApiRequest) -> Result<Value> {
         self.transport.request(request)
     }
-    /// `pauseAccessSurface` / `resumeAccessSurface`.
-    pub fn set_surface_paused(&self, project: &str, id: &str, paused: bool) -> Result<()> {
-        let path = format!(
-            "/projects/{}/access/surfaces/{}/{}",
-            segment(project)?,
-            segment(id)?,
-            if paused { "pause" } else { "resume" }
-        );
-        self.send(Method::POST, path, vec![], Some(json!({})))
-            .map(|_| ())
+    /// `listCloudFolder`: one folder of the Project, for choosing a path.
+    pub fn folder(&self, id: &str, path: &str) -> Result<Tree> {
+        decode(
+            self.send(
+                Method::GET,
+                format!("/content/{}/ls", segment(id)?),
+                vec![("path".into(), path.trim_start_matches('/').to_owned())],
+                None,
+            )?,
+            "tree",
+        )
     }
-    pub fn delete_surface(&self, project: &str, id: &str) -> Result<()> {
-        let path = format!(
-            "/projects/{}/access/surfaces/{}",
-            segment(project)?,
-            segment(id)?
-        );
-        self.send(Method::DELETE, path, vec![], None).map(|_| ())
-    }
-    /// `regenerateAccessSurfaceKey`: the credential is shown once.
-    pub fn regenerate_key(&self, id: &str) -> Result<String> {
-        let path = format!("/access/surfaces/{}/regenerate-key", segment(id)?);
-        let value = unwrap(self.send(Method::POST, path, vec![], Some(json!({})))?);
-        match (
-            value["access_surface_id"].as_str(),
-            value["credential"].as_str(),
-        ) {
-            (Some(issued), Some(credential)) if issued == id && !credential.trim().is_empty() => {
-                Ok(credential.to_owned())
-            }
-            _ => Err(Error::Invalid("credential")),
+    /// `createCloudScope`.
+    pub fn create_scope(&self, project: &str, name: &str, path: &str, mode: &str) -> Result<Scope> {
+        let body = json!({"name": name, "path": path, "max_mode": mode, "exclude": []});
+        let url = format!("/projects/{}/scopes", segment(project)?);
+        let scope: Scope = decode(self.send(Method::POST, url, vec![], Some(body))?, "scopes")?;
+        if scope.project_id != project {
+            return Err(Error::Invalid("scopes"));
         }
+        Ok(scope)
+    }
+    /// `updateCloudScope`.
+    pub fn update_scope(
+        &self,
+        project: &str,
+        scope: &str,
+        name: &str,
+        mode: &str,
+    ) -> Result<Scope> {
+        let body = json!({"name": name, "max_mode": mode});
+        let url = format!("/projects/{}/scopes/{}", segment(project)?, segment(scope)?);
+        let updated: Scope = decode(self.send(Method::PATCH, url, vec![], Some(body))?, "scopes")?;
+        if updated.project_id != project || updated.id != scope {
+            return Err(Error::Invalid("scopes"));
+        }
+        Ok(updated)
+    }
+    /// `deleteCloudScope`: the access scope goes and its credential with it.
+    pub fn delete_scope(&self, project: &str, scope: &str) -> Result<()> {
+        let url = format!("/projects/{}/scopes/{}", segment(project)?, segment(scope)?);
+        self.send(Method::DELETE, url, vec![], None).map(|_| ())
+    }
+    /// `createCloudMcpEndpoint`: the one read that may carry the key; the
+    /// caller shows it once. It never goes into a URL.
+    pub fn create_mcp_endpoint(
+        &self,
+        project: &str,
+        path: &str,
+        readonly: bool,
+    ) -> Result<McpEndpoint> {
+        let body = json!({"project_id": project, "path": path, "name": "MCP Server",
+            "accesses": [{"path": path, "json_path": "", "readonly": readonly}]});
+        let endpoint: McpEndpoint = decode(
+            self.send(Method::POST, "/mcp-endpoints".into(), vec![], Some(body))?,
+            "mcp",
+        )?;
+        if endpoint.project_id != project {
+            return Err(Error::Invalid("mcp"));
+        }
+        Ok(endpoint)
     }
     pub fn organizations(&self) -> Result<Vec<Organization>> {
         decode(self.get("/organizations/".into())?, "organizations")
@@ -537,23 +580,61 @@ mod tests {
     }
 
     #[test]
-    fn identifiers_never_reach_a_path_unescaped_and_keys_must_match() {
+    fn identifiers_never_reach_a_path_unescaped() {
         assert!(client(json!({})).project("../x").is_err());
-        assert_eq!(
-            client(json!({"access_surface_id": "a", "credential": "secret"}))
-                .regenerate_key("a")
-                .unwrap(),
-            "secret"
-        );
-        assert!(
-            client(json!({"access_surface_id": "b", "credential": "secret"}))
-                .regenerate_key("a")
-                .is_err()
-        );
         assert!(
             client(json!({"id": "other", "name": "N"}))
                 .project("p")
                 .is_err()
         );
+        assert!(client(json!({})).delete_scope("p", "a/b").is_err());
+    }
+
+    #[test]
+    fn the_mcp_address_is_the_proxy_and_never_holds_the_key() {
+        assert_eq!(
+            mcp_server_url("https://api.puppyone.ai/api/v1"),
+            "https://api.puppyone.ai/api/v1/mcp/proxy"
+        );
+        assert_eq!(
+            mcp_server_url("http://127.0.0.1:9090/api/v1"),
+            "http://127.0.0.1:9090/api/v1/mcp/proxy"
+        );
+        let created = json!({"id": "e", "project_id": "p", "name": "MCP Server", "api_key": "k"});
+        assert_eq!(
+            client(created.clone())
+                .create_mcp_endpoint("p", "docs", true)
+                .unwrap()
+                .api_key
+                .as_deref(),
+            Some("k")
+        );
+        assert!(
+            client(created)
+                .create_mcp_endpoint("q", "docs", true)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn scope_changes_are_held_to_their_project_and_scope() {
+        let scope =
+            json!({"id": "s", "project_id": "p", "name": "N", "path": "a", "max_mode": "r"});
+        assert!(
+            client(scope.clone())
+                .create_scope("p", "N", "a", "r")
+                .is_ok()
+        );
+        assert!(
+            client(scope.clone())
+                .create_scope("q", "N", "a", "r")
+                .is_err()
+        );
+        assert!(
+            client(scope.clone())
+                .update_scope("p", "s", "N", "r")
+                .is_ok()
+        );
+        assert!(client(scope).update_scope("p", "other", "N", "r").is_err());
     }
 }
