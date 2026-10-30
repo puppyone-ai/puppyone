@@ -5,11 +5,11 @@ import type { CloudWorkspacePeople } from "../features/cloud/workbench/CloudWork
 import { workspaceAgentStatus } from "../features/cloud/share/useWorkspaceAgents";
 
 /**
- * Who is in a hosted workspace, in the Header's own marks. Share already owns
- * the list and the Remove action, so the marks open it rather than a second
- * list that could disagree with it.
+ * Who is in a hosted workspace, in the Header's own marks: the Agents, then the
+ * person looking. Share already owns the list and the Remove action, so the
+ * marks open it rather than a second list that could disagree with it.
  */
-export function CloudWorkspaceAgentPeople({ agents, onOpen }: CloudWorkspacePeople) {
+export function CloudWorkspaceAgentPeople({ agents, viewer, onOpen }: CloudWorkspacePeople) {
   const localization = useLocalization();
   const state = useMemo(() => resolveProjectReachState({
     share: "shared",
@@ -20,9 +20,10 @@ export function CloudWorkspaceAgentPeople({ agents, onOpen }: CloudWorkspacePeop
     activity: Object.fromEntries(agents.filter(agent => agent.active)
       .map(agent => [agent.id, { kind: "working" as const, label: agent.name }])),
   }), [agents]);
-  const statement = localization.formatList(
-    [...agents].sort((left, right) => Number(right.active) - Number(left.active)).map(agent =>
+  const statement = localization.formatList([
+    ...[...agents].sort((left, right) => Number(right.active) - Number(left.active)).map(agent =>
       [agent.name, workspaceAgentStatus(agent, localization)].filter(Boolean).join(" · ")),
-    { type: "unit" });
-  return <ProjectReachPeople state={state} statement={statement} onOpen={onOpen} />;
+    `${localization.t("agent.message.you")} · ${viewer}`,
+  ], { type: "unit" });
+  return <ProjectReachPeople state={state} statement={statement} viewer={viewer} onOpen={onOpen} />;
 }

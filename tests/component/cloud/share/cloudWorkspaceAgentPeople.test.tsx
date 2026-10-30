@@ -20,14 +20,16 @@ vi.mock("../../../../src/features/cloud/share/CloudWorkspaceShareDialog", () => 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const API = "https://cloud-fixture.puppyone.ai/api/v1";
-const session = { api_base_url: API, user_id: "alice", session_generation: "1" } as DesktopCloudSession;
+const session = { api_base_url: API, user_id: "alice", user_email: "alice@example.com",
+  session_generation: "1" } as DesktopCloudSession;
 const project = (kind: "project_root" | "scope" = "project_root"): ProjectCloudContext => ({ status: "resolved", projectId: "p1",
   target: kind === "scope" ? { kind, project_id: "p1", scope_id: "s" } : { kind, project_id: "p1" }, capabilities: ["content.read"] });
 const connection = (id: string, name: string) => ({ id, name, admission: "sign_in", grant_id: `g-${id}`,
   connected_at: "2026-10-30T00:00:00Z", expires_at: "2026-11-29T00:00:00Z" });
 const ago = (seconds: number) => new Date(Date.now() - seconds * 1000).toISOString();
 let root: Root; let connections: ReturnType<typeof connection>[]; let sessions: unknown[];
-const marks = () => [...document.querySelectorAll<HTMLElement>(".desktop-project-reach-mark")];
+const marks = () => [...document.querySelectorAll<HTMLElement>(".desktop-project-reach-mark:not([data-reach-viewer])")];
+const viewer = () => document.querySelector<HTMLElement>(".desktop-project-reach-mark[data-reach-viewer]");
 const people = () => document.querySelector<HTMLButtonElement>(".desktop-titlebar-reach-people");
 const share = () => document.querySelector<HTMLButtonElement>('[data-cloud-workspace-tool="share"]')!;
 const render = async (context = project(), mounted = true) => {
@@ -44,11 +46,23 @@ beforeEach(() => {
 afterEach(() => { act(() => root.unmount()); document.body.replaceChildren(); vi.clearAllMocks(); });
 
 describe("An Agent in the Header", () => {
-  it("shows nothing at all while nobody has been let in", async () => {
+  it("shows only the person looking while nobody has been let in", async () => {
     await render();
+    expect(marks()).toEqual([]);
+    expect(viewer()?.textContent).toBe("A");
+    expect(viewer()?.dataset.reachAudience).toBe("person");
+    expect(people()!.compareDocumentPosition(share()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+  it("does not claim the person is alone, because Organization members may reach the project", async () => {
+    await render();
+    expect(people()!.getAttribute("aria-label")).toContain("alice@example.com");
+    expect(people()!.getAttribute("aria-label")).not.toContain("Only you");
+  });
+  it("waits for a resolved workspace before saying who is in it", async () => {
+    await render(null as unknown as ProjectCloudContext);
     expect(people()).toBeNull();
   });
-  it("appears ahead of Share as soon as it is allowed, as a square machine mark", async () => {
+  it("appears ahead of Share as soon as it is allowed", async () => {
     connections = [connection("c1", "秘书小陈")];
     await render();
     expect(marks()).toHaveLength(1);
@@ -81,16 +95,32 @@ describe("An Agent in the Header", () => {
     connections = [];
     await act(async () => document.querySelector<HTMLButtonElement>("[data-changed]")!.click());
     await act(async () => { await Promise.resolve(); });
-    expect(people()).toBeNull();
+    expect(marks()).toEqual([]);
+    expect(viewer()).not.toBeNull();
   });
-  it("collapses a crowd into a count", async () => {
+  it("collapses a crowd into a count and keeps the person looking beside Share", async () => {
     connections = ["A", "B", "C", "D", "E"].map(name => connection(name, name));
     await render();
     expect(marks()).toHaveLength(3);
-    expect(document.querySelector(".desktop-project-reach-count")?.textContent).toBe("+2");
+    const count = document.querySelector(".desktop-project-reach-count")!;
+    expect(count.textContent).toBe("+2");
+    expect(count.compareDocumentPosition(viewer()!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+  it("states the Agents first and then the person looking", async () => {
+    connections = [connection("c1", "秘书小陈")];
+    await render();
+    const label = people()!.getAttribute("aria-label")!;
+    expect(label.indexOf("秘书小陈")).toBeLessThan(label.indexOf("alice@example.com"));
+  });
+  it("keeps the person looking when the server will not list the Agents", async () => {
+    vi.mocked(cloudApiRequest).mockRejectedValue(Object.assign(new Error("denied"), { status: 403 }));
+    await render();
+    expect(marks()).toEqual([]);
+    expect(viewer()?.textContent).toBe("A");
   });
   it("does not look for Agents in a scoped view, which cannot have any", async () => {
     await render(project("scope"));
     expect(cloudApiRequest).not.toHaveBeenCalled();
+    expect(viewer()).not.toBeNull();
   });
 });

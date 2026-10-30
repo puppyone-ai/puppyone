@@ -10,7 +10,12 @@ import { useWorkspaceAgents, type WorkspaceAgent } from "../share/useWorkspaceAg
 
 const ShareDialog = lazy(() => import("../share/CloudWorkspaceShareDialog").then(module => ({ default: module.CloudWorkspaceShareDialog })));
 
-export type CloudWorkspacePeople = Readonly<{ agents: readonly WorkspaceAgent[]; onOpen: () => void }>;
+export type CloudWorkspacePeople = Readonly<{
+  agents: readonly WorkspaceAgent[];
+  /** The signed-in person, who is in the workspace too. */
+  viewer: string;
+  onOpen: () => void;
+}>;
 
 type Props = {
   context: ProjectCloudContext | null;
@@ -52,7 +57,7 @@ function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, getShar
   };
   return <>
     <div className="desktop-titlebar-cloud-tools" data-window-no-drag="true" aria-busy={!ready || undefined}>
-      {agents.length > 0 && renderPeople?.({ agents, onOpen: openShare })}
+      {ready && renderPeople?.({ agents, viewer: session.user_email, onOpen: openShare })}
       <Tooltip content={ready ? t("shell.titlebar.share") : t("shell.workspaceSwitcher.location.checking")}>
         <button type="button" className="desktop-titlebar-action desktop-titlebar-share"
           data-cloud-workspace-tool="share" disabled={!ready} aria-label={t("shell.titlebar.share")}
