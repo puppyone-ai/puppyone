@@ -306,8 +306,8 @@ async function runSmoke(update: (fixture: Fixture) => void, active: () => boolea
         assert([...document.querySelectorAll(".desktop-agent-evidence-marker, .desktop-agent-tool-file-path")]
           .every(node => getComputedStyle(node).color === detailColor), "Expanded tool markers or file path lost their muted color");
         assert(messageColors(addedEvidence).contrast >= 4.5, `${theme}: added content is unreadable`);
-        assert(stats.textContent === "+2−1" && getComputedStyle(stats).display === "none"
-          && addition.color !== deletion.color, "Compact edit evidence leaked text or lost semantic colors");
+        assert(stats.textContent === "+2−1" && getComputedStyle(stats).display !== "none"
+          && addition.color !== deletion.color, "Edit counts lost their text, visibility or semantic colors");
         assert(document.querySelectorAll(".desktop-agent-tool-diff-stats").length === 1
           && !document.querySelector(".desktop-agent-changes-control, .desktop-agent-composer-floating"), "File-change counts were duplicated above the composer");
         assert(messageColors(stats.querySelector<HTMLElement>(".is-addition")!).contrast >= 4.5
