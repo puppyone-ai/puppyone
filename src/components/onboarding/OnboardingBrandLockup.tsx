@@ -1,14 +1,16 @@
 import { useLocalization } from "@puppyone/localization";
+import type { ReactNode } from "react";
 import { PuppyBrandMark } from "../brand/PuppyBrandMark";
 import type { OnboardingHomeState } from "./types";
 
 type OnboardingBrandLockupProps = {
   state: OnboardingHomeState;
   resolvedTheme: "light" | "dark";
+  trailing?: ReactNode;
 };
 
 /** First-run states the file-first promise; returning users see the project prompt. */
-export function OnboardingBrandLockup({ state, resolvedTheme }: OnboardingBrandLockupProps) {
+export function OnboardingBrandLockup({ state, resolvedTheme, trailing }: OnboardingBrandLockupProps) {
   const { t } = useLocalization();
   const hasProjects = state === "projects";
 
@@ -25,6 +27,7 @@ export function OnboardingBrandLockup({ state, resolvedTheme }: OnboardingBrandL
           {t(hasProjects ? "onboarding.section.chooseProject" : "onboarding.brand.agentReadyMessage")}
         </span>
       </div>
+      {trailing}
     </header>
   );
 }

@@ -632,6 +632,7 @@ export {
   HomeIcon,
   LocalIcon,
   PRODUCT_ICONS,
+  CLOUD_ICON_PATH,
 } from "./icons/productIcons";
 export type { ProductIconMeaning } from "./icons/productIcons";
 

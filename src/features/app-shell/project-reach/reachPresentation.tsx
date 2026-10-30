@@ -60,15 +60,21 @@ function PlaceDrawing({ place, size, strokeWidth }: {
  * Who can reach the project, as a mark.
  *
  * An agent is its brand: a user recognizes Claude's mark long before they
- * read the word, and the product already owns these assets. A person is a
- * round initial, because the product knows a name and nothing more — faking
- * an avatar would claim an identity it has not been given.
+ * read the word, and the product already owns these assets. A person is an
+ * initial, because the product knows a name and nothing more — faking an
+ * avatar would claim an identity it has not been given. Both are the same
+ * round mark as the account in the Homepage Header: an identity looks like one.
  *
  * Lit means working in the project right now; everything else is quiet. That
  * is the only live state these marks carry, and it comes from the reading /
  * writing facts rather than from a residency claim.
  */
-export function ReachMemberMark({ member, size = 18 }: { member: ReachMember; size?: number }) {
+export function ReachMemberMark({ member, size = 18, viewer = false }: {
+  member: ReachMember;
+  size?: number;
+  /** The person looking, who stands with the others but is never "someone else". */
+  viewer?: boolean;
+}) {
   const brand = member.audience === "machine" ? resolveAgentBrand({ label: member.name }) : null;
   return (
     <span
@@ -76,6 +82,7 @@ export function ReachMemberMark({ member, size = 18 }: { member: ReachMember; si
       data-reach-audience={member.audience}
       data-reach-activity={member.activity?.kind}
       data-reach-brand={brand?.id}
+      data-reach-viewer={viewer || undefined}
       style={{ width: size, height: size }}
       aria-hidden="true"
     >

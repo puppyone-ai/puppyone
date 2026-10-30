@@ -178,6 +178,7 @@
   "projectReach.freshness.waiting": "{name} はまだ開いていません",
   "projectReach.freshness.reading": "{name} がいまこのプロジェクトを読んでいます",
   "projectReach.freshness.writing": "{name} がいま変更を加えています",
+  "projectReach.freshness.working": "{name} がいまこのプロジェクトで作業しています",
   "projectReach.freshness.attention": "いまは届くかどうかを確認できません",
   "projectReach.freshness.notOnThisDevice": "そのまま読めます。変更するにはここに副本が必要です",
   "projectReach.invitePerson": "人を招待",

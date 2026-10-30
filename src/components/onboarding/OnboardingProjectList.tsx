@@ -1,20 +1,22 @@
 import { Tooltip } from "@puppyone/shared-ui";
 import { bidiIsolate, useLocalization, type MessageFormatter } from "@puppyone/localization";
 import { Unlink } from "lucide-react";
-import type { DragEvent as ReactDragEvent } from "react";
+import type { ButtonHTMLAttributes, DragEvent as ReactDragEvent } from "react";
 import {
   getProjectName,
   getWorkspaceParentPathForDisplay,
   projectHomeItemLocation,
   type ProjectHomeItem,
 } from "../../lib/workspaceHomeModel";
+import type { HomepageProjectLayout } from "../../preferenceStorage";
 import { DesktopMenuIconButton, DesktopMenuItem } from "../DesktopMenu";
 import { InlineLoading } from "../loading";
-import { HomeProjectIcon } from "./HomeProjectIcon";
-import { LinkedCloudProjectButton, ProjectHomeItemCaption } from "./LinkedCloudProjectButton";
+import { HomeProjectIcon, ProjectFolder } from "./HomeProjectIcon";
+import { LinkedCloudProjectButton, ProjectHomeItemCaption, useProjectHomeItemCaption } from "./LinkedCloudProjectButton";
 
 type OnboardingProjectListProps = {
   items: ProjectHomeItem[];
+  layout?: HomepageProjectLayout;
   onOpenCloudProject?: (projectId: string) => void;
   busy: boolean;
   openingPath: string | null;
@@ -28,6 +30,7 @@ type OnboardingProjectListProps = {
 
 export function OnboardingProjectList({
   items,
+  layout = "list",
   onOpenCloudProject,
   busy,
   openingPath,
@@ -43,6 +46,7 @@ export function OnboardingProjectList({
   return (
     <div
       className="onboarding-project-list"
+      data-project-layout={layout}
       data-po-scrollbar="menu"
       data-po-scrollbar-visibility="always"
       role="region"
@@ -55,27 +59,31 @@ export function OnboardingProjectList({
         const removing = removingPath === item.localPath;
         const dragging = draggingPath === item.localPath;
         const linked = item.linkedCloudProject;
+        const modified = formatModificationTime(item.lastModifiedAt, t, formatRelativeTime);
+        const open = {
+          disabled: busy,
+          "aria-busy": openingPath === item.localPath || undefined,
+          "aria-label": t(location === "cloud" ? "cloud.home.openCloud" : "cloud.home.openLocal", { project: bidiIsolate(name) }),
+          draggable: !busy && Boolean(item.localPath),
+          onClick: () => location === "cloud" && item.cloudProjectId ? onOpenCloudProject?.(item.cloudProjectId) : onOpen(item.localPath),
+          onDragStart: (event: ReactDragEvent<HTMLButtonElement>) => onDragStart(event, item),
+          onDragEnd,
+        };
         return (
           <div key={item.id} className={`onboarding-project-row-wrap ${linked ? "has-cloud-project" : ""} ${removing ? "is-removing" : ""} ${dragging ? "is-dragging" : ""}`}
             data-project-location={location}
             data-cloud-project-id={item.cloudProjectId}
             data-linked-cloud-project-id={linked?.id}>
-            <DesktopMenuItem
+            {layout === "grid" ? <ProjectTile item={item} name={name} modified={modified} {...open} /> : <DesktopMenuItem
               className="onboarding-project-row"
               role="button"
               icon={<HomeProjectIcon item={item} />}
               label={<bdi>{name}</bdi>}
               detail={location === "cloud" ? <ProjectHomeItemCaption item={item} />
                 : <bdi dir="ltr">{getWorkspaceParentPathForDisplay(item.localPath)}</bdi>}
-              trailing={formatModificationTime(item.lastModifiedAt, t, formatRelativeTime)}
-              disabled={busy}
-              aria-busy={openingPath === item.localPath || undefined}
-              aria-label={t(location === "cloud" ? "cloud.home.openCloud" : "cloud.home.openLocal", { project: bidiIsolate(name) })}
-              draggable={!busy && Boolean(item.localPath)}
-              onClick={() => location === "cloud" && item.cloudProjectId ? onOpenCloudProject?.(item.cloudProjectId) : onOpen(item.localPath)}
-              onDragStart={(event) => onDragStart(event, item)}
-              onDragEnd={onDragEnd}
-            />
+              trailing={modified}
+              {...open}
+            />}
             {linked && onOpenCloudProject && <LinkedCloudProjectButton project={linked} busy={busy}
               className="onboarding-project-cloud-link"
               onOpen={() => onOpenCloudProject(linked.id)} />}
@@ -95,6 +103,24 @@ export function OnboardingProjectList({
         );
       })}
     </div>
+  );
+}
+
+/** One project on the Grid: a folder and its name, the rest stays one hover away. */
+function ProjectTile({ item, name, modified, ...button }: {
+  item: ProjectHomeItem;
+  name: string;
+  modified: string | null;
+} & ButtonHTMLAttributes<HTMLButtonElement>) {
+  const caption = useProjectHomeItemCaption(item);
+  const place = projectHomeItemLocation(item) === "cloud" ? caption : getWorkspaceParentPathForDisplay(item.localPath);
+  return (
+    <Tooltip content={[place, modified].filter(Boolean).join(" · ")}>
+      <button type="button" className="onboarding-project-tile" {...button}>
+        <ProjectFolder item={item} />
+        <bdi className="onboarding-project-tile-name">{name}</bdi>
+      </button>
+    </Tooltip>
   );
 }
 

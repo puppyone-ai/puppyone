@@ -102,6 +102,11 @@ export function commandForActivity(activity: AgentActivity) {
   return firstText(activity.detail.command, input.command, input.cmd, metadata.command, typeof activity.detail.input === "string" ? activity.detail.input : "");
 }
 
+/** The command as the user would have typed it, without a login-shell wrapper. */
+export function visibleCommandForActivity(activity: AgentActivity) {
+  return unwrapLoginShell(commandForActivity(activity));
+}
+
 export type AgentCommandPresentation = {
   tool: "bash" | "read" | "grep" | "glob" | "list";
   title: "Bash" | "Read" | "Grep" | "Glob" | "List";

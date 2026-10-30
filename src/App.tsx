@@ -33,7 +33,9 @@ import {
 } from "./features/settings";
 import { CLOUD_HUB_ENTRY_SECTION, type CloudWorkspaceSection } from "./features/cloud";
 import { useAccountCloudWorkspace } from "./features/cloud/workbench/useAccountCloudWorkspace";
+import { CloudProjectOpeningSurface } from "./app/CloudProjectOpeningSurface";
 import { CloudWorkspaceHeaderTools } from "./features/cloud/workbench/CloudWorkspaceHeaderTools";
+import { CloudWorkspaceAgentPeople } from "./app/CloudWorkspaceAgentPeople";
 import { captureCloudWorkspaceShareResource } from "./features/cloud/share/cloudWorkspaceShareResource";
 import { useCloudAgentWorkspace } from "./features/cloud/agent/useCloudAgentWorkspace";
 import { CloudWorkspaceSidebar } from "./features/cloud/workbench/CloudWorkspaceSidebar";
@@ -105,6 +107,7 @@ import { DesktopOverlayPortal } from "./components/DesktopOverlayPortal";
 import { DesktopHelpLauncher } from "./features/app-shell/DesktopHelpLauncher";
 import { useDesktopPlatformCapabilities } from "./platform/useDesktopPlatformCapabilities";
 import { RestoringWorkspaceScreen } from "./features/app-shell/RestoringWorkspaceScreen";
+import { useHomepageFirstPaint } from "./features/app-shell/useHomepageFirstPaint";
 import { useDesktopPreference, useDesktopAppearance, useDesktopPreferenceEffects } from "./features/settings";
 import { isAssetLibraryHomeEnabled } from "./features/app-shell/homeFeatureGate";
 import { useWorkspaceLifecycle } from "./features/app-shell/useWorkspaceLifecycle";
@@ -345,6 +348,7 @@ function AppContent() {
     openFolder,
     openWorkspacePath,
     recentWorkspaceItems,
+    recentWorkspacesSettled,
     removeWorkspaceFromRecents,
     renameProject,
     removeProject,
@@ -1636,6 +1640,14 @@ function AppContent() {
     projectRail={railOwnsProject && hostedWorkspace ? { ...projectRailLayout,
       renderLeadingRail: ({ expanded }) => renderProjectRail(hostedWorkspace, expanded) } : undefined}
     onCreateProject={openProjectLauncher} /> : null;
+  const cancelCloudOpening = () => { projectNavigation.cancel(); accountCloud.cancel(); };
+  const openingCloudProjectId = !workspace && !cloudWorkspaceActive ? accountCloud.openingTarget?.project_id : undefined;
+  const cloudOpeningSurface = openingCloudProjectId ? <CloudProjectOpeningSurface appearance={surfaceAppearance}
+    projectName={projectCatalog.items.find((item) => item.cloudProjectId === openingCloudProjectId)?.label
+      ?? accountCloud.preparation?.projectName ?? ""}
+    progress={accountCloud.preparation?.progress} onCancel={cancelCloudOpening}
+    projectRail={railOwnsProject ? { ...projectRailLayout, renderLeadingRail: ({ expanded }) => renderProjectRail(
+      nativeCloudWorkbench.surfaceService.workspace, expanded, openingCloudProjectId) } : undefined} /> : null;
   const missingCloudProjectReplaceable = Boolean(activeCloudSession) && projectCloudContext.status === "not-found"
     && canReplaceMissingCloudProject(projectCloudContext, activeGitStatus, desktopCloudApiBaseUrl);
   const cloudProjectNoticeState = cloudEnabled && workspace && focusedWorkspace?.path === workspace.path
@@ -1671,6 +1683,10 @@ function AppContent() {
     restoring: cloudSessionRestoring || restoringWorkspace,
     signedIn: Boolean(activeCloudSession),
     hasProjects: Boolean(workspace || initialCloudProject || recentWorkspaceItems.length || workspaces.length),
+  });
+  const homepageReady = useHomepageFirstPaint({
+    restoring: restoringWorkspace,
+    settled: recentWorkspacesSettled && !cloudSessionRestoring && projectCatalog.settled,
   });
   const settingsOverlay = <DesktopOverlayPortal appearance={surfaceAppearance}>
     {settingsDialogOpen && (
@@ -1745,16 +1761,18 @@ function AppContent() {
       projectIsOpen={Boolean(workspace) || cloudWorkspaceActive}
     />
   </DesktopOverlayPortal>;
+  const homepageHidden = cloudWorkspaceActive || Boolean(cloudOpeningSurface);
   const themeRuntime = (content: ReactNode) => (
     <SurfaceAppearanceProvider value={surfaceAppearance}>
       <div
         className={`desktop-theme-bootstrap-surface ${resolvedTheme === "dark" ? "dark" : ""}`}
         {...surfaceAppearance.rootProps}
       >
-        <div hidden={cloudWorkspaceActive} style={{ display: cloudWorkspaceActive ? "none" : "contents" }}>
+        <div hidden={homepageHidden} style={{ display: homepageHidden ? "none" : "contents" }}>
           {content}
         </div>
         {accountCloudSurface}
+        {cloudOpeningSurface}
         {projectNavigationOverlay}
         {projectEntryOverlay}
         {settingsOverlay}
@@ -1762,7 +1780,7 @@ function AppContent() {
     </SurfaceAppearanceProvider>
   );
 
-  if (!workspace && (restoringWorkspace || firstRunSignIn.pending)) {
+  if (!workspace && (!homepageReady || firstRunSignIn.pending)) {
     return themeRuntime(
       <RestoringWorkspaceScreen
         appearance={surfaceAppearance}
@@ -1793,7 +1811,7 @@ function AppContent() {
         projectItems={projectCatalog.items}
         onOpenCloudProject={selectCloudProject}
         cloudOpening={accountCloud.opening}
-        onCancelCloudOpening={() => { projectNavigation.cancel(); accountCloud.cancel(); }}
+        onCancelCloudOpening={cancelCloudOpening}
         cloudAccountStatus={cloudEnabled ? <HomepageCloudStatus status={projectCatalog.status} restoring={cloudSessionRestoring} empty={projectCatalog.items.length === 0}
           session={activeCloudSession} onOpenAccount={() => openSettingsDialog("account")}
           apiBaseUrl={desktopCloudApiBaseUrl} controller={accountCloud} onRetry={projectCatalog.refresh} /> : undefined}
@@ -1954,7 +1972,8 @@ function AppContent() {
         getShareResource={() => captureCloudWorkspaceShareResource(nativeCloudWorkbench)}
         session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl} onSessionChange={updateCloudSession}
         historyOpen={cloudSidebar.historyOpen} onToggleHistory={cloudSidebar.toggleHistory}
-        agentOpen={cloudAgent.open} onToggleAgent={cloudWorkspaceActive ? cloudSidebar.toggleAgent : undefined} />}
+        agentOpen={cloudAgent.open} onToggleAgent={cloudWorkspaceActive ? cloudSidebar.toggleAgent : undefined}
+        renderPeople={people => <CloudWorkspaceAgentPeople {...people} />} />}
       {/* Who can reach the project sits where every application puts the
           people in a document: the right of the Header, ahead of the tools.
           It opens the same panel as the place control, so it is one entry

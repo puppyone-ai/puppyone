@@ -108,7 +108,7 @@ const smokeApproval: AgentApproval = {
   policyChangeRequested: false,
   reason: "Web search: early collaborative editor launch history",
   availableDecisions: ["accept", "acceptForSession", "decline", "cancel"],
-  sequence: 13,
+  sequence: 14,
 };
 
 export function AgentVisualSmokeHarness() {
@@ -223,7 +223,7 @@ export function AgentVisualSmokeHarness() {
         ].join("\n"),
         streaming: true,
         terminalState: null,
-        sequence: 12,
+        sequence: 13,
       });
     }
     value.activities = [
@@ -283,6 +283,17 @@ export function AgentVisualSmokeHarness() {
         sequence: 9,
       },
       {
+        id: "activity:read-shell",
+        turnId: "turn-2",
+        itemId: "tool-read-shell",
+        kind: "tool",
+        label: "Read editor shell styles",
+        status: toolMotionSmoke ? "running" : "completed",
+        detail: { tool: "read", input: { file_path: "src/editor-shell.css" } },
+        output: ".editor-shell {\n  padding-inline: 24px;\n}",
+        sequence: 10,
+      },
+      {
         id: "activity:file-change",
         turnId: "turn-2",
         itemId: "tool-edit",
@@ -296,7 +307,7 @@ export function AgentVisualSmokeHarness() {
           input: { patch: "@@ -10,2 +10,2 @@\n-padding: 12px 24px;\n+padding: 24px;" },
         },
         output: "",
-        sequence: 10,
+        sequence: 11,
       },
     ];
     value.parts = [{
@@ -308,7 +319,7 @@ export function AgentVisualSmokeHarness() {
       status: "completed",
       detail: { changes: [{ path: "src/markdown-editor.css", additions: 2704, deletions: 585 }] },
       output: "",
-      sequence: 10,
+      sequence: 11,
     }];
     value.turns = [
       {
@@ -325,12 +336,12 @@ export function AgentVisualSmokeHarness() {
         status: "completed",
         startedAtSequence: 3,
         startedAtMs: 3_000,
-        completedAtSequence: 11,
+        completedAtSequence: 12,
         durationMs: 31_000,
         partIds: ["user:2", "assistant:2"],
       },
     ];
-    value.lastSequence = streamingTableSmoke ? 12 : 10;
+    value.lastSequence = streamingTableSmoke ? 13 : 11;
     value.terminalState = "completed";
     return value;
   }, [streamingTableSmoke, toolMotionSmoke]);

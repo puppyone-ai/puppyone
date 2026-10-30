@@ -86,6 +86,8 @@
 }
 
 .onboarding-shell[data-onboarding-state="projects"] .onboarding-homepage {
+  /* The longest title beside the layout switch: 40 + 381 + 12 + 86. */
+  --onboarding-column-width: 520px;
   --onboarding-title-primary-gap: 34px;
   --onboarding-primary-inset-end: 10px;
   --onboarding-primary-actions-gap: 12px;
@@ -689,6 +691,158 @@ span.homepage-cloud-feedback {
   text-overflow: ellipsis;
   text-transform: none;
   white-space: nowrap;
+}
+
+.onboarding-project-layout-switch {
+  margin-inline-start: auto;
+}
+
+/* No taller than the brand mark, so the list keeps its fixed start. */
+.onboarding-project-layout-switch button {
+  width: 26px;
+  height: 24px;
+  padding: 0;
+}
+
+/* Monochrome, like the website's template folder. Both tones are mixed from the
+   page, so the folder is lighter than a dark page and darker than a light one.
+   A folder is never coloured, shadowed or graded: blue belongs to the cloud alone. */
+.onboarding-project-folder {
+  --folder-back: color-mix(in srgb, var(--po-text) 6%, var(--po-canvas));
+  --folder-front: color-mix(in srgb, var(--po-text) 11%, var(--po-canvas));
+  display: block;
+  flex: 0 0 auto;
+}
+
+.onboarding-project-row-wrap:is(:hover, :focus-within) .onboarding-project-folder {
+  --folder-back: color-mix(in srgb, var(--po-text) 10%, var(--po-canvas));
+  --folder-front: color-mix(in srgb, var(--po-text) 18%, var(--po-canvas));
+}
+
+.project-folder-glyph {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.project-folder-back {
+  fill: var(--folder-back);
+  transition: fill 130ms ease-out;
+}
+
+.project-folder-front {
+  fill: var(--folder-front);
+  transition: fill 130ms ease-out;
+}
+
+/* Solid, so it survives a glance across the page; an outline does not. */
+.project-folder-cloud {
+  fill: var(--po-brand-blue);
+}
+
+.onboarding-project-tile {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: var(--desktop-control-radius);
+  background: transparent;
+  color: var(--po-text-muted);
+  font-family: var(--po-font-sans);
+  cursor: var(--po-clickable-cursor, default);
+  transition: color 130ms ease-out;
+}
+
+.onboarding-project-tile:disabled {
+  cursor: default;
+}
+
+.onboarding-project-tile:focus-visible {
+  outline: 1px solid var(--po-focus-ring);
+  outline-offset: -1px;
+}
+
+.onboarding-project-row-wrap:is(:hover, :focus-within) .onboarding-project-tile:not(:disabled),
+.onboarding-project-row-wrap.is-removing .onboarding-project-tile {
+  color: var(--po-text);
+}
+
+.onboarding-project-row-wrap.is-dragging .onboarding-project-tile {
+  opacity: 0.62;
+}
+
+.onboarding-project-tile-name {
+  min-width: 0;
+  overflow: hidden;
+  color: inherit;
+}
+
+/* A tile has no room for the link's label; its tooltip still says what it opens. */
+.onboarding-project-tile ~ .onboarding-project-cloud-link {
+  width: 24px;
+  min-width: 0;
+  height: 24px;
+  justify-content: center;
+  padding: 0;
+}
+
+.onboarding-project-tile ~ .onboarding-project-cloud-link > span {
+  display: none;
+}
+
+/* The Grid is the list's projects in the list's order and column, so switching
+   changes only what sits between the two rules. Equal cells flow in reading order.
+   The tile's inset is taken back from the list, so a folder stands exactly on the
+   left edge of the title and the rules, and the scrolling area still has room for
+   the focus ring. */
+.onboarding-project-list[data-project-layout="grid"] {
+  --project-tile-inset: 6px;
+  width: calc(100% + var(--project-tile-inset));
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 14px 8px;
+  margin-inline-start: calc(var(--project-tile-inset) * -1);
+}
+
+.onboarding-project-list[data-project-layout="grid"] .onboarding-project-tile {
+  align-content: start;
+  justify-items: start;
+  gap: 8px;
+  padding: var(--project-tile-inset);
+  text-align: start;
+  user-select: none;
+}
+
+.onboarding-project-list[data-project-layout="grid"] .onboarding-project-folder {
+  width: 35px;
+  height: 28px;
+}
+
+/* Two lines are always reserved, so every row keeps the same rhythm. */
+.onboarding-project-list[data-project-layout="grid"] .onboarding-project-tile-name {
+  display: -webkit-box;
+  max-width: 100%;
+  min-height: 32px;
+  overflow-wrap: anywhere;
+  font-size: var(--po-type-ui-caption, 12px);
+  font-weight: 400;
+  line-height: 16px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.onboarding-project-list[data-project-layout="grid"] :is(.onboarding-project-remove, .onboarding-project-cloud-link) {
+  top: 2px;
+  transform: none;
+}
+
+.onboarding-project-list[data-project-layout="grid"] .onboarding-project-remove {
+  inset-inline-end: 2px;
+}
+
+.onboarding-project-list[data-project-layout="grid"] .onboarding-project-cloud-link {
+  inset-inline-end: 28px;
 }
 
 .onboarding-homepage-error {

@@ -139,35 +139,24 @@
     flex: 0 0 auto;
     place-items: center;
     overflow: hidden;
-    border: 1px solid transparent;
-    background: var(--po-control, color-mix(in srgb, currentColor 12%, transparent));
-    color: inherit;
+    /* An identity is the account mark, for a person and an Agent alike. */
+    border-radius: 50%;
+    background: var(--po-control);
+    color: var(--po-text);
     font-size: var(--po-type-ui-micro);
     line-height: 1;
     font-weight: var(--po-text-weight-medium, 500);
-    /* Quiet by default: present, not here. */
-    opacity: 0.55;
   }
 
+  /* A brand stays whole inside the circle; its corners are not the circle's to cut. */
   .desktop-project-reach-mark > img,
   .desktop-project-reach-mark > svg {
-    width: 100%;
-    height: 100%;
-  }
-
-  .desktop-project-reach-mark[data-reach-audience="person"] {
-    border-color: currentColor;
-    border-radius: 50%;
-    background: transparent;
-  }
-
-  .desktop-project-reach-mark[data-reach-audience="machine"] {
-    border-radius: 5px;
+    width: 62%;
+    height: 62%;
   }
 
   /* Lit means working in the project right now, and nothing else does. */
   .desktop-project-reach-mark[data-reach-activity] {
-    opacity: 1;
     box-shadow: 0 0 0 1.5px var(--po-accent);
   }
 

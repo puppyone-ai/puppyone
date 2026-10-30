@@ -8,6 +8,7 @@ import { DesktopOverlayPortal } from "../../components/DesktopOverlayPortal";
 import { DesktopTitlebarContext } from "../../features/app-shell/DesktopTitlebarContext";
 import { DesktopTitlebarActions } from "../../features/app-shell/DesktopTitlebarActions";
 import { CloudWorkspaceHeaderTools } from "../../features/cloud/workbench/CloudWorkspaceHeaderTools";
+import { CloudWorkspaceAgentPeople } from "../CloudWorkspaceAgentPeople";
 import { captureCloudWorkspaceShareResource } from "../../features/cloud/share/cloudWorkspaceShareResource";
 import { DesktopWorkspaceLocationSurface } from "../../features/app-shell/DesktopWorkspaceLocationSurface";
 import { useDesktopPreference, useDesktopPreferenceEffects, initializeDesktopPreferences } from "../../features/settings";
@@ -127,6 +128,8 @@ window.puppyoneDesktop = {
     const operation = url.pathname.split("/").at(-1);
     const path = url.searchParams.get("path") ?? "";
     const body = request.body ? JSON.parse(request.body) : null;
+    if (operation === "agent-links") return { links: [], connections: [SMOKE_AGENT] };
+    if (url.pathname.endsWith("/access/sessions")) return [SMOKE_AGENT_SESSION];
     if (operation === "repository-context") return cloudProjectMissing
       ? { transport: "puppyone-cloud-ipc-v1", ok: false, error: { status: 404, message: "Project not found" } }
       : { project: { id: context.projectId }, target: context.target };
@@ -354,7 +357,8 @@ export function NativeCloudWorkbenchSmokeHarness() {
           getShareResource={() => captureCloudWorkspaceShareResource(workbench)}
           session={activeSession} apiBaseUrl={API} onSessionChange={noop}
           agentOpen={agent.open} onToggleAgent={cloudSidebar.toggleAgent}
-          historyOpen={cloudSidebar.historyOpen} onToggleHistory={cloudSidebar.toggleHistory} />}
+          historyOpen={cloudSidebar.historyOpen} onToggleHistory={cloudSidebar.toggleHistory}
+          renderPeople={people => <CloudWorkspaceAgentPeople {...people} />} />}
         <DesktopTitlebarActions terminalSidebarOpen={sidebar.localOpen}
         terminalToolEnabled={location === "local"} gitChangesAvailable={location === "local"}
         onToggleTerminal={sidebar.toggleLocal} onToggleGitChanges={noop} />
@@ -441,6 +445,11 @@ function getProjectHeaderSlots(centered: boolean, project: ReactNode) {
   return centered ? { titlebarCenteredSlot: project }
     : { titlebarSidebarSlot: <div className="desktop-titlebar-context">{project}</div> };
 }
+
+const SMOKE_AGENT = { id: "smoke-agent", name: "Claude Code", admission: "sign_in", grant_id: "smoke-grant",
+  connected_at: "2026-10-30T00:00:00Z", expires_at: "2099-01-01T00:00:00Z" };
+const SMOKE_AGENT_SESSION = { grant_id: "smoke-grant", state: "active", created_at: "2026-10-30T00:00:00Z",
+  closed_at: null, lease_until: "2099-01-01T00:00:00Z" };
 
 function cloudMetadataFixture(operation: string | undefined) {
     if (!cloudToolsAvailable && ["surfaces", "bindings", "providers"].includes(operation ?? ""))

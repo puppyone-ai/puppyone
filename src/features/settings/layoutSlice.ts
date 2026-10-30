@@ -17,6 +17,8 @@ export const createLayoutSlice: PreferenceSlice<LayoutSlice> = (set) => ({
   setRightSidebarWidth: (update) => set((state) => ({ rightSidebarWidth: applyPreferenceUpdate(update, state.rightSidebarWidth) })),
   rightSidebarSurface: "chat",
   setRightSidebarSurface: (update) => set((state) => ({ rightSidebarSurface: applyPreferenceUpdate(update, state.rightSidebarSurface) })),
+  homepageProjectLayout: "list",
+  setHomepageProjectLayout: (update) => set((state) => ({ homepageProjectLayout: applyPreferenceUpdate(update, state.homepageProjectLayout) })),
   rightSidebarToolsSettings: parseRightSidebarToolsSettings(null),
   setRightSidebarToolsSettings: (update) => set((state) => ({ rightSidebarToolsSettings: applyPreferenceUpdate(update, state.rightSidebarToolsSettings) })),
   titlebarActionsSettings: parseTitlebarActionsSettings(null),

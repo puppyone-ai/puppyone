@@ -178,6 +178,7 @@
   "projectReach.freshness.waiting": "{name} 还没有打开",
   "projectReach.freshness.reading": "{name} 正在读这个项目",
   "projectReach.freshness.writing": "{name} 正在改动",
+  "projectReach.freshness.working": "{name} 正在这个项目里工作",
   "projectReach.freshness.attention": "现在无法确认可达性",
   "projectReach.freshness.notOnThisDevice": "可以照原样阅读；要改动需要在这里有一份副本",
   "projectReach.invitePerson": "邀请一个人",

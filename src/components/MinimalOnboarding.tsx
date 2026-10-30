@@ -39,6 +39,7 @@ import {
   OnboardingEntryActions,
 } from "./onboarding/OnboardingEntryActions";
 import { OnboardingHomeLayout } from "./onboarding/OnboardingHomeLayout";
+import { OnboardingProjectLayoutSwitch } from "./onboarding/OnboardingProjectLayoutSwitch";
 import { OnboardingProjectList } from "./onboarding/OnboardingProjectList";
 import { isHomepageProjectOpening, OnboardingProjectLoading } from "./onboarding/OnboardingProjectLoading";
 import { OnboardingTelemetryDisclosure } from "./onboarding/OnboardingTelemetryDisclosure";
@@ -109,6 +110,8 @@ export function MinimalOnboarding({
   const ownProjectEntryFlow = useProjectEntryFlow();
   const projectEntryFlow = projectEntryController ?? ownProjectEntryFlow;
   const enableOtherAppImports = useDesktopPreference(s => s.experimentalSettings.enableOtherAppImports);
+  const projectLayout = useDesktopPreference(s => s.homepageProjectLayout);
+  const setProjectLayout = useDesktopPreference(s => s.setHomepageProjectLayout);
   const importPreviewBrands = resolveImportPreviewBrands({ enableOtherAppImports });
   const items = useMemo(
     () => (projectItems ?? recentWorkspaces.map(({ workspace }) => ({
@@ -257,11 +260,14 @@ export function MinimalOnboarding({
         aria-busy={openingProject || undefined}
       >
         <OnboardingHomeLayout
-          brand={<OnboardingBrandLockup state={onboardingState} resolvedTheme={resolvedTheme} />}
+          brand={<OnboardingBrandLockup state={onboardingState} resolvedTheme={resolvedTheme} trailing={
+            <OnboardingProjectLayoutSwitch available={hasProjects} layout={projectLayout} disabled={openingProject} onChange={setProjectLayout} />
+          } />}
           primaryKind={hasProjects ? "projects" : "create"}
           primary={hasProjects ? (
             <OnboardingProjectList
               items={items}
+              layout={projectLayout}
               onOpenCloudProject={onOpenCloudProject}
               busy={busy}
               openingPath={openingPath}

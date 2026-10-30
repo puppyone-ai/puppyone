@@ -1515,11 +1515,6 @@
       "count": 1
     }
   },
-  "src/components/onboarding/HomeProjectIcon.tsx": {
-    "no-nested-ternary": {
-      "count": 1
-    }
-  },
   "src/features/app-shell/DesktopDataWorkspaceSurface.tsx": {
     "complexity": {
       "count": 1
@@ -1969,11 +1964,8 @@
     }
   },
   "src/features/desktop-agent/ui/activity/AgentActivityShell.tsx": {
-    "complexity": {
-      "count": 1
-    },
     "no-nested-ternary": {
-      "count": 2
+      "count": 1
     }
   },
   "src/features/desktop-agent/ui/activity/AgentFileChangeActivity.tsx": {
