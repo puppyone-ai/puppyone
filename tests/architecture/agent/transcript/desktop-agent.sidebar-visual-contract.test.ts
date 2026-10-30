@@ -76,7 +76,8 @@ describe("Desktop Agent sidebar visual contract", () => {
     expect(timelineLayout).toContain("Measurements contain row content only");
     expect(timelineLayout).toContain("turnHandoff: 24");
     expect(timelineLayout).toContain("workHandoff: 8");
-    expect(css).toMatch(/\.desktop-agent-tool-row\s*\{[^}]*min-height:\s*var\(--po-control-size\)[^}]*grid-template-columns:\s*auto auto minmax\(0, 1fr\) auto[^}]*padding:\s*0 var\(--agent-tool-row-padding-inline\)/s);
+    expect(css).toMatch(/--agent-tool-row-height:\s*var\(--po-control-size-compact\)/);
+    expect(css).toMatch(/\.desktop-agent-tool-row\s*\{[^}]*display:\s*flex[^}]*min-height:\s*var\(--agent-tool-row-height\)[^}]*gap:\s*8px[^}]*padding:\s*0 var\(--agent-tool-row-padding-inline\)/s);
     expect(css).not.toMatch(/\.desktop-agent-tool-call\.has-detail \.desktop-agent-tool-row/);
     expect(css).toMatch(/\.desktop-agent-connection-status\s*\{[^}]*width:\s*fit-content[^}]*padding:\s*0 var\(--agent-message-content-inset\)[^}]*color:\s*var\(--agent-text-subtle\)[^}]*font-size:\s*var\(--agent-font-size-meta\)/s);
     expect(css).not.toContain(".desktop-agent-notice.is-connection");
@@ -325,30 +326,38 @@ describe("Desktop Agent sidebar visual contract", () => {
     expect(panelStatus).not.toContain("desktop-agent-provider-progress");
   });
 
-  it("keeps native tool rows quiet until the user asks for detail", () => {
+  it("reads each native tool as one quiet step line: glyph, verb, object, outcome", () => {
     expect(css).toMatch(/--agent-tool-action-foreground:\s*var\(--agent-text-muted\)/);
     expect(css).toMatch(/--agent-tool-evidence-rail:\s*var\(--agent-border\)/);
-    expect(css).toMatch(/\.desktop-agent-tool-icon\s*\{[^}]*display:\s*grid[^}]*color:\s*var\(--agent-tool-action-foreground\)/s);
+    expect(css).toMatch(/--agent-tool-glyph-foreground:\s*var\(--agent-text-subtle\)/);
+    expect(css).toMatch(/\.desktop-agent-tool-icon\s*\{[^}]*display:\s*grid[^}]*color:\s*var\(--agent-tool-glyph-foreground\)/s);
     expect(css).toMatch(/\.desktop-agent-tool-name\s*\{[^}]*color:\s*var\(--agent-tool-action-foreground\)/s);
     expect(css).toMatch(/\.desktop-agent-tool-row:is\(:hover, :focus-visible\):not\(:disabled\) :is\(\.desktop-agent-tool-icon, \.desktop-agent-tool-name\)\s*\{[^}]*color:\s*var\(--agent-text\)/s);
-    expect(css).toMatch(/\.desktop-agent-tool-rail\s*\{[^}]*display:\s*flex[^}]*flex-wrap:\s*nowrap[^}]*overflow:\s*hidden/s);
-    expect(css).toMatch(/\.desktop-agent-tool-group-item \.desktop-agent-tool-name\s*\{[^}]*display:\s*none/s);
-    expect(css).toMatch(/\.desktop-agent-tool-group-item \.desktop-agent-tool-summary,[^{]*\.desktop-agent-tool-group-item \.desktop-agent-tool-metadata,[^{]*\.desktop-agent-tool-group-item \.desktop-agent-tool-diff-stats\s*\{[^}]*display:\s*none/s);
-    expect(css).toMatch(/\.desktop-agent-tool-overflow\s*\{[^}]*width:\s*var\(--agent-tool-rail-overflow-size\)[^}]*font-variant-numeric:\s*tabular-nums/s);
+    // One line per step; the old icon-only rail must not come back.
+    expect(css).not.toContain(".desktop-agent-tool-rail");
+    expect(css).not.toContain(".desktop-agent-tool-overflow");
+    expect(css).not.toMatch(/\.desktop-agent-tool-group-item \.desktop-agent-tool-(?:name|summary|metadata)[^{]*\{[^}]*display:\s*none/s);
+    expect(css).toMatch(/\.desktop-agent-tool-subject-name,\s*\.desktop-agent-tool-subject-code\s*\{[^}]*color:\s*var\(--agent-tool-subject-foreground\)/s);
+    expect(css).toMatch(/\.desktop-agent-tool-subject-context\s*\{[^}]*flex:\s*0 100 auto[^}]*color:\s*var\(--agent-text-subtle\)/s);
+    expect(css).toMatch(/\.desktop-agent-tool-metadata\s*\{[^}]*margin-inline-start:\s*auto[^}]*font-size:\s*var\(--agent-font-size-meta\)[^}]*font-variant-numeric:\s*tabular-nums/s);
+    expect(css).toMatch(/\.desktop-agent-tool-fold-body\s*\{[^}]*margin-inline-start:\s*var\(--agent-evidence-rail-inline\)[^}]*border-inline-start:\s*1px solid var\(--agent-border-subtle\)/s);
+    expect(css).toMatch(/\.desktop-agent-tool-call\.is-active :is\(\.desktop-agent-tool-name, \.desktop-agent-tool-subject-name, \.desktop-agent-tool-subject-code\)\s*\{[^}]*animation:\s*desktop-agent-tool-shimmer/s);
+    expect(responsiveCss).toMatch(/prefers-reduced-motion:\s*reduce[\s\S]*\.desktop-agent-tool-call\.is-active :is\([^)]*\)\s*\{[^}]*animation:\s*none/s);
     expect(toolGlyph).toContain('const ACTIVE_STATUSES = new Set<AgentActivityStatus>(["running", "in-progress"])');
     expect(css).toMatch(/\.desktop-agent-tool-glyph\s*\{[^}]*width:\s*16px[^}]*height:\s*16px[^}]*stroke-width:\s*1\.8/s);
     expect(css).toMatch(/\.desktop-agent-tool-glyph\.is-search\.is-active \.desktop-agent-tool-glyph-motion\s*\{[^}]*desktop-agent-tool-search/s);
     expect(css).toMatch(/\.desktop-agent-tool-glyph\.is-read\.is-active \.desktop-agent-tool-glyph-scan\s*\{[^}]*desktop-agent-tool-read/s);
     expect(responsiveCss).toMatch(/prefers-reduced-motion:\s*reduce[\s\S]*\.desktop-agent-tool-glyph-motion,[\s\S]*\.desktop-agent-tool-glyph-scan,[\s\S]*\.desktop-agent-tool-glyph-ink\s*\{\s*animation:\s*none/s);
-    expect(activityShell).toContain("aria-label={compactLabel}");
-    expect(activityShell).toContain("<Tooltip content={compactLabel}>");
-    expect(activityShell).not.toContain("data-tooltip={compactLabel}");
+    // Step lines carry visible text, so they need neither a tooltip nor a duplicate aria-label.
+    expect(activityShell).not.toContain("Tooltip");
+    expect(activityShell).not.toContain("compactLabel");
+    expect(activityShell).toContain('<span className="desktop-agent-tool-summary">{subject}</span>');
     expect(css).toMatch(/\.desktop-agent-reasoning \.desktop-agent-tool-name\s*\{[^}]*color:\s*var\(--agent-text-muted\)/s);
     expect(css).not.toContain(".desktop-agent-tool-chevron");
     expect(activityShell).not.toContain("ChevronDown");
     expect(activityShell).not.toContain("desktop-agent-tool-chevron");
-    expect(commandActivity).not.toContain("summary=");
-    expect(fileQueryActivity).not.toContain("summary=");
+    expect(commandActivity).toContain("subject={");
+    expect(fileQueryActivity).toContain("subject={");
     expect(css).not.toContain("--agent-current-tool-accent");
     expect(css).toMatch(/\.desktop-agent-tool-name\s*\{[^}]*font-weight:\s*400/s);
     expect(css).not.toMatch(/\.desktop-agent-tool-(?:name|row)[^{]*(?:is-read|is-edit)\s*\{[^}]*(?:color|background):/s);
@@ -371,7 +380,9 @@ describe("Desktop Agent sidebar visual contract", () => {
     expect(commandActivity).toContain('<AgentToolEvidenceNode kind="command" marker="$">');
     expect(commandActivity).toContain('<AgentToolEvidenceNode kind="result">');
     expect(commandActivity).not.toContain('"via Bash"');
-    expect(commandActivity).not.toContain("commandMetadata");
+    // Outcome facts stay sparse: a non-zero exit, and only durations long enough to notice.
+    expect(commandActivity).toContain("exitCode !== null && exitCode !== 0");
+    expect(commandActivity).toContain("durationMs >= 1_000");
     expect(commandActivity).not.toContain("CommandActions");
     expect(commandActivity).toContain("commandPresentationForActivity");
     expect(commandActivity).toContain("AgentToolTextEvidence");
