@@ -1,9 +1,9 @@
-import { FolderIcon, Tooltip } from "@puppyone/shared-ui";
+import { Tooltip } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
 import { LayoutGrid, List } from "lucide-react";
 import { HOMEPAGE_PROJECT_LAYOUTS, type HomepageProjectLayout } from "../../preferenceStorage";
 
-const LAYOUT_ICONS = { list: List, icons: FolderIcon, cards: LayoutGrid } as const;
+const LAYOUT_ICONS = { list: List, grid: LayoutGrid } as const;
 
 /** How the Homepage arranges its projects, beside the title they answer. */
 export function OnboardingProjectLayoutSwitch({ available, layout, disabled, onChange }: {

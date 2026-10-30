@@ -1,7 +1,7 @@
 import { Tooltip } from "@puppyone/shared-ui";
 import { bidiIsolate, useLocalization, type MessageFormatter } from "@puppyone/localization";
 import { Unlink } from "lucide-react";
-import type { ButtonHTMLAttributes, DragEvent as ReactDragEvent } from "react";
+import { useMemo, type ButtonHTMLAttributes, type DragEvent as ReactDragEvent } from "react";
 import {
   getProjectName,
   getWorkspaceParentPathForDisplay,
@@ -13,6 +13,8 @@ import { DesktopMenuIconButton, DesktopMenuItem } from "../DesktopMenu";
 import { InlineLoading } from "../loading";
 import { HomeProjectIcon, ProjectFolder } from "./HomeProjectIcon";
 import { LinkedCloudProjectButton, ProjectHomeItemCaption, useProjectHomeItemCaption } from "./LinkedCloudProjectButton";
+import { DESKTOP_WIDTH } from "./projectDesktop";
+import { useProjectDesktop } from "./useProjectDesktop";
 
 type OnboardingProjectListProps = {
   items: ProjectHomeItem[];
@@ -42,6 +44,60 @@ export function OnboardingProjectList({
   onDragEnd,
 }: OnboardingProjectListProps) {
   const { t, formatRelativeTime } = useLocalization();
+  const grid = layout === "grid";
+  const ids = useMemo(() => items.map((item) => item.id), [items]);
+  const desktop = useProjectDesktop(ids, busy);
+
+  const projects = items.map((item) => {
+    const name = getProjectName(item, t("onboarding.projects.untitled"));
+    const location = projectHomeItemLocation(item);
+    const removing = removingPath === item.localPath;
+    const dragging = draggingPath === item.localPath;
+    const linked = item.linkedCloudProject;
+    const modified = formatModificationTime(item.lastModifiedAt, t, formatRelativeTime);
+    const open = {
+      disabled: busy,
+      "aria-busy": openingPath === item.localPath || undefined,
+      "aria-label": t(location === "cloud" ? "cloud.home.openCloud" : "cloud.home.openLocal", { project: bidiIsolate(name) }),
+      onClick: () => location === "cloud" && item.cloudProjectId ? onOpenCloudProject?.(item.cloudProjectId) : onOpen(item.localPath),
+    };
+    return (
+      <div key={item.id} className={`onboarding-project-row-wrap ${linked ? "has-cloud-project" : ""} ${removing ? "is-removing" : ""} ${dragging ? "is-dragging" : ""} ${desktop.movingId === item.id ? "is-moving" : ""}`}
+        data-project-location={location}
+        data-cloud-project-id={item.cloudProjectId}
+        data-linked-cloud-project-id={linked?.id}
+        style={grid ? desktop.place(item.id) : undefined}>
+        {grid ? <ProjectTile item={item} name={name} modified={modified} {...open} {...desktop.tile(item.id)} /> : <DesktopMenuItem
+          className="onboarding-project-row"
+          role="button"
+          icon={<HomeProjectIcon item={item} />}
+          label={<bdi>{name}</bdi>}
+          detail={location === "cloud" ? <ProjectHomeItemCaption item={item} />
+            : <bdi dir="ltr">{getWorkspaceParentPathForDisplay(item.localPath)}</bdi>}
+          trailing={modified}
+          draggable={!busy && Boolean(item.localPath)}
+          onDragStart={(event) => onDragStart(event, item)}
+          onDragEnd={onDragEnd}
+          {...open}
+        />}
+        {linked && onOpenCloudProject && <LinkedCloudProjectButton project={linked} busy={busy}
+          className="onboarding-project-cloud-link"
+          onOpen={() => onOpenCloudProject(linked.id)} />}
+        {onRemove && item.localPath && (
+          <Tooltip content={t("onboarding.projects.removeHint")}><DesktopMenuIconButton
+            className="onboarding-project-remove"
+            disabled={busy && !removing}
+            aria-busy={removing || undefined}
+            label={t("onboarding.projects.removeFor", { project: bidiIsolate(name) })}
+            onClick={() => onRemove(item)}
+            icon={removing
+              ? <InlineLoading label={null} size="xs" tone="neutral" />
+              : <Unlink size={14} aria-hidden="true" />}
+          /></Tooltip>
+        )}
+      </div>
+    );
+  });
 
   return (
     <div
@@ -53,78 +109,34 @@ export function OnboardingProjectList({
       aria-label={t("onboarding.projects.title")}
       tabIndex={0}
     >
-      {items.map((item) => {
-        const name = getProjectName(item, t("onboarding.projects.untitled"));
-        const location = projectHomeItemLocation(item);
-        const removing = removingPath === item.localPath;
-        const dragging = draggingPath === item.localPath;
-        const linked = item.linkedCloudProject;
-        const modified = formatModificationTime(item.lastModifiedAt, t, formatRelativeTime);
-        const open = {
-          disabled: busy,
-          "aria-busy": openingPath === item.localPath || undefined,
-          "aria-label": t(location === "cloud" ? "cloud.home.openCloud" : "cloud.home.openLocal", { project: bidiIsolate(name) }),
-          draggable: !busy && Boolean(item.localPath),
-          onClick: () => location === "cloud" && item.cloudProjectId ? onOpenCloudProject?.(item.cloudProjectId) : onOpen(item.localPath),
-          onDragStart: (event: ReactDragEvent<HTMLButtonElement>) => onDragStart(event, item),
-          onDragEnd,
-        };
-        return (
-          <div key={item.id} className={`onboarding-project-row-wrap ${linked ? "has-cloud-project" : ""} ${removing ? "is-removing" : ""} ${dragging ? "is-dragging" : ""}`}
-            data-project-location={location}
-            data-cloud-project-id={item.cloudProjectId}
-            data-linked-cloud-project-id={linked?.id}>
-            {layout === "list" ? <DesktopMenuItem
-              className="onboarding-project-row"
-              role="button"
-              icon={<HomeProjectIcon item={item} />}
-              label={<bdi>{name}</bdi>}
-              detail={location === "cloud" ? <ProjectHomeItemCaption item={item} />
-                : <bdi dir="ltr">{getWorkspaceParentPathForDisplay(item.localPath)}</bdi>}
-              trailing={modified}
-              {...open}
-            /> : <ProjectTile layout={layout} item={item} name={name} modified={modified} {...open} />}
-            {linked && onOpenCloudProject && <LinkedCloudProjectButton project={linked} busy={busy}
-              className="onboarding-project-cloud-link"
-              onOpen={() => onOpenCloudProject(linked.id)} />}
-            {onRemove && item.localPath && (
-              <Tooltip content={t("onboarding.projects.removeHint")}><DesktopMenuIconButton
-                className="onboarding-project-remove"
-                disabled={busy && !removing}
-                aria-busy={removing || undefined}
-                label={t("onboarding.projects.removeFor", { project: bidiIsolate(name) })}
-                onClick={() => onRemove(item)}
-                icon={removing
-                  ? <InlineLoading label={null} size="xs" tone="neutral" />
-                  : <Unlink size={14} aria-hidden="true" />}
-              /></Tooltip>
-            )}
-          </div>
-        );
-      })}
+      {grid ? (
+        <div
+          className={`onboarding-project-desktop ${desktop.movingId ? "is-arranging" : ""}`}
+          style={{ width: DESKTOP_WIDTH, height: desktop.height }}
+        >
+          {projects}
+        </div>
+      ) : projects}
     </div>
   );
 }
 
-/** One project in the Icons or Cards layout. Only the arrangement differs from a row. */
-function ProjectTile({ layout, item, name, modified, ...button }: {
-  layout: Exclude<HomepageProjectLayout, "list">;
+/** One project on the Grid: a desktop icon is its name, the rest stays one hover away. */
+function ProjectTile({ item, name, modified, ...button }: {
   item: ProjectHomeItem;
   name: string;
   modified: string | null;
 } & ButtonHTMLAttributes<HTMLButtonElement>) {
   const caption = useProjectHomeItemCaption(item);
   const place = projectHomeItemLocation(item) === "cloud" ? caption : getWorkspaceParentPathForDisplay(item.localPath);
-  const details = [place, modified].filter(Boolean).join(" · ");
-  const tile = (
-    <button type="button" className="onboarding-project-tile" {...button}>
-      <ProjectFolder item={item} />
-      <bdi className="onboarding-project-tile-name">{name}</bdi>
-      {layout === "cards" && <bdi className="onboarding-project-tile-details" dir="ltr">{details}</bdi>}
-    </button>
+  return (
+    <Tooltip content={[place, modified].filter(Boolean).join(" · ")}>
+      <button type="button" className="onboarding-project-tile" {...button}>
+        <ProjectFolder item={item} />
+        <bdi className="onboarding-project-tile-name">{name}</bdi>
+      </button>
+    </Tooltip>
   );
-  // A desktop icon is its name; the rest stays one hover away.
-  return layout === "icons" ? <Tooltip content={details}>{tile}</Tooltip> : tile;
 }
 
 function formatModificationTime(
