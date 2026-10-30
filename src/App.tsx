@@ -107,6 +107,7 @@ import { DesktopOverlayPortal } from "./components/DesktopOverlayPortal";
 import { DesktopHelpLauncher } from "./features/app-shell/DesktopHelpLauncher";
 import { useDesktopPlatformCapabilities } from "./platform/useDesktopPlatformCapabilities";
 import { RestoringWorkspaceScreen } from "./features/app-shell/RestoringWorkspaceScreen";
+import { useHomepageFirstPaint } from "./features/app-shell/useHomepageFirstPaint";
 import { useDesktopPreference, useDesktopAppearance, useDesktopPreferenceEffects } from "./features/settings";
 import { isAssetLibraryHomeEnabled } from "./features/app-shell/homeFeatureGate";
 import { useWorkspaceLifecycle } from "./features/app-shell/useWorkspaceLifecycle";
@@ -347,6 +348,7 @@ function AppContent() {
     openFolder,
     openWorkspacePath,
     recentWorkspaceItems,
+    recentWorkspacesSettled,
     removeWorkspaceFromRecents,
     renameProject,
     removeProject,
@@ -1682,6 +1684,10 @@ function AppContent() {
     signedIn: Boolean(activeCloudSession),
     hasProjects: Boolean(workspace || initialCloudProject || recentWorkspaceItems.length || workspaces.length),
   });
+  const homepageReady = useHomepageFirstPaint({
+    restoring: restoringWorkspace,
+    settled: recentWorkspacesSettled && !cloudSessionRestoring && projectCatalog.settled,
+  });
   const settingsOverlay = <DesktopOverlayPortal appearance={surfaceAppearance}>
     {settingsDialogOpen && (
       <SettingsDialog
@@ -1773,7 +1779,7 @@ function AppContent() {
     </SurfaceAppearanceProvider>
   );
 
-  if (!workspace && (restoringWorkspace || firstRunSignIn.pending)) {
+  if (!workspace && (!homepageReady || firstRunSignIn.pending)) {
     return themeRuntime(
       <RestoringWorkspaceScreen
         appearance={surfaceAppearance}

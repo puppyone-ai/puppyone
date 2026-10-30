@@ -6,6 +6,32 @@ export function latestProjectModifiedAt(...values: (string | null | undefined)[]
   return timestamps.length ? new Date(Math.max(...timestamps)).toISOString() : null;
 }
 
+const ACTIVITY_CACHE_KEY = "puppyone.desktop.cloud-project-activity.v1";
+
+/**
+ * Last known activity dates for one account. They only date projects the fresh
+ * catalog returned, so they never prove access; they let the list start in its
+ * real order without waiting for one history read per project.
+ */
+export function readCachedProjectActivity(scope: string): ReadonlyMap<string, string> | undefined {
+  try {
+    const cached = JSON.parse(window.localStorage.getItem(ACTIVITY_CACHE_KEY) ?? "null") as
+      { scope?: unknown; activity?: unknown } | null;
+    if (cached?.scope !== scope || !cached.activity || typeof cached.activity !== "object") return undefined;
+    return new Map(Object.entries(cached.activity).filter((entry): entry is [string, string] => typeof entry[1] === "string"));
+  } catch {
+    return undefined;
+  }
+}
+
+export function writeCachedProjectActivity(scope: string, activity: ReadonlyMap<string, string>) {
+  try {
+    window.localStorage.setItem(ACTIVITY_CACHE_KEY, JSON.stringify({ scope, activity: Object.fromEntries(activity) }));
+  } catch {
+    // Without the cache the next launch reads history before showing the list.
+  }
+}
+
 /** Project.updated_at alone need not advance on content writes. Read one existing history entry.
  * Bounded parallelism; history denial/offline never hides an accessible project or opens its files.
  */

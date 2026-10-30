@@ -61,6 +61,8 @@ export function useWorkspaceLifecycle({
   const [recentWorkspaceItems, setRecentWorkspaceItems] = useState<RecentWorkspaceHomeItem[]>([]);
   const [workbenchWorkspace, setWorkbenchWorkspace] = useState<WorkbenchWorkspace | null>(null);
   const [restoringWorkspace, setRestoringWorkspace] = useState(true);
+  // Recents arrive without modification dates, so they are not in Homepage order yet.
+  const [recentWorkspacesSettled, setRecentWorkspacesSettled] = useState(false);
   const [initialCloudProject, setInitialCloudProject] = useState<CloudProjectWindowTarget | null>(null);
   const [restoreWorkspaceError, setRestoreWorkspaceError] = useState<string | null>(null);
   const [workspaceEntryIntent, setWorkspaceEntryIntent] = useState<WorkspaceEntryIntent | null>(null);
@@ -430,11 +432,15 @@ export function useWorkspaceLifecycle({
           })
           .catch((error) => {
             if (!cancelled) console.warn("Unable to hydrate recent puppyone workspaces:", error);
+          })
+          .finally(() => {
+            if (!cancelled) setRecentWorkspacesSettled(true);
           });
       })
       .catch((error) => {
         if (!cancelled) {
           setRestoreWorkspaceError(error instanceof Error ? error.message : String(error));
+          setRecentWorkspacesSettled(true);
         }
       })
       .finally(() => {
@@ -470,6 +476,7 @@ export function useWorkspaceLifecycle({
     renameProject,
     removeProject,
     recentWorkspaceItems,
+    recentWorkspacesSettled,
     refreshRecentWorkspaceList,
     restoreWorkspaceError,
     restoringWorkspace,

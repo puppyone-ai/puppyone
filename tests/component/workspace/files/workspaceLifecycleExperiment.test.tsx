@@ -69,6 +69,33 @@ afterEach(async () => {
   vi.clearAllMocks();
 });
 
+describe("recent project readiness", () => {
+  it("settles only after recents have been hydrated with their modification dates", async () => {
+    let finishHydration!: (value: unknown) => void;
+    localFiles.hydrateRecentWorkspaces.mockReturnValue(new Promise(resolve => { finishHydration = resolve; }));
+    const harness = await renderHarness(false, vi.fn());
+    expect(harness.current.restoringWorkspace).toBe(false);
+    expect(harness.current.recentWorkspacesSettled).toBe(false);
+    await act(async () => finishHydration({ workspaces: [], errors: [], hydrated: true }));
+    expect(harness.current.recentWorkspacesSettled).toBe(true);
+  });
+
+  it("settles when hydration fails, so the Homepage is not left waiting for it", async () => {
+    localFiles.hydrateRecentWorkspaces.mockRejectedValue(new Error("Unreadable"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const harness = await renderHarness(false, vi.fn());
+    expect(harness.current.recentWorkspacesSettled).toBe(true);
+    warn.mockRestore();
+  });
+
+  it("settles when recents cannot be read at all", async () => {
+    localFiles.getRecentWorkspaces.mockRejectedValue(new Error("Unreadable"));
+    const harness = await renderHarness(false, vi.fn());
+    expect(harness.current.recentWorkspacesSettled).toBe(true);
+    expect(localFiles.hydrateRecentWorkspaces).not.toHaveBeenCalled();
+  });
+});
+
 describe("multi-project Workspace experiment", () => {
   it("opens folders in the current window even when a project is already displayed", async () => {
     const primary = workspace("a", "A", "/projects/a");

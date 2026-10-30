@@ -97,6 +97,9 @@ describe("repository-context architecture", () => {
     expect(app).toContain("projectItems={projectCatalog.items}");
     // The shared catalog also feeds the Header, so it waits only for workspace restoration.
     expect(app).toMatch(/useHomepageCloudProjects\(\{\s*visible: !restoringWorkspace,/);
+    // The first Homepage waits for every source of its list, in one place.
+    expect(app).toContain("settled: recentWorkspacesSettled && !cloudSessionRestoring && projectCatalog.settled,");
+    expect(app).toContain("if (!workspace && (!homepageReady || firstRunSignIn.pending)) {");
     expect(app).not.toMatch(/browseAccountCloudProjects|cloud\.catalog\.browse/);
     expect(app).not.toContain("activatePrepared");
     expect(app).toContain("await accountCloud.openTarget({ kind: \"project_root\", project_id: target.projectId }, isCurrent, true);");

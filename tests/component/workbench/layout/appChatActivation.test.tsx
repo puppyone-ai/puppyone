@@ -41,7 +41,7 @@ vi.mock("../../../../src/features/app-shell/auxiliary-workbench/AuxiliaryWorkben
   AuxiliaryWorkbenchPanel: ({ active }: { active: boolean }) => <><input data-chat-active={String(active)} defaultValue="draft" /><EditorAppearanceProbe /></>,
 }));
 vi.mock("../../../../src/features/app-shell/useWorkspaceLifecycle", () => ({
-  useWorkspaceLifecycle: () => ({ workspace: state.workspace, workbenchWorkspace: null, workspaces: [], recentWorkspaceItems: [] }),
+  useWorkspaceLifecycle: () => ({ workspace: state.workspace, workbenchWorkspace: null, workspaces: [], recentWorkspaceItems: [], recentWorkspacesSettled: true }),
 }));
 vi.mock("../../../../src/features/app-shell/project-sessions/useProjectSession", () => ({ useProjectSession: () => state.project }));
 vi.mock("../../../../src/features/cloud/workbench/useAccountCloudWorkspace", () => ({
@@ -55,7 +55,7 @@ vi.mock("../../../../src/app/AccountCloudWorkspaceSurface", () => ({
   AccountCloudWorkspaceSurface: () => null,
   useAccountCloudWorkspacePresentation: () => ({}),
 }));
-vi.mock("../../../../src/features/cloud/workbench/useHomepageCloudProjects", () => ({ useHomepageCloudProjects: () => ({ items: [] }) }));
+vi.mock("../../../../src/features/cloud/workbench/useHomepageCloudProjects", () => ({ useHomepageCloudProjects: () => ({ items: [], settled: true }) }));
 vi.mock("../../../../src/features/cloud/hooks/useDesktopCloudSession", () => ({
   useDesktopCloudSession: () => ({ cloudSession: null, cloudAuthStatus: "anonymous", cloudSessionRestoring: false }),
 }));
