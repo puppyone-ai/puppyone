@@ -1,6 +1,7 @@
 /**
  * @vitest-environment happy-dom
  */
+import { readFileSync } from "node:fs";
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -155,14 +156,25 @@ describe("Homepage project layouts", () => {
     expect(label("local")).not.toBe(label("cloud"));
   });
 
-  it.each(["icons", "cards"] as const)("draws every project in the %s layout as a folder, blue in the Cloud", (layout) => {
+  it.each(["icons", "cards"] as const)("tells local and Cloud folders apart by shape in the %s layout", (layout) => {
     const { container } = renderHome();
     pick(container, layout);
     expect(container.querySelector(".onboarding-project-tile .onboarding-project-icon")).toBeNull();
-    expect(project(container, "local").querySelector(".onboarding-project-folder")?.className).toContain("is-local");
-    expect(project(container, "linked").querySelector(".onboarding-project-folder")?.className).toContain("is-linked");
-    expect(project(container, "linked").querySelector(".onboarding-project-cloud-badge")).not.toBeNull();
-    expect(project(container, "cloud").querySelector(".onboarding-project-folder")?.className).toContain("is-cloud");
+    const folder = (id: "local" | "linked" | "cloud") => project(container, id).querySelector(".onboarding-project-folder")!;
+    expect(folder("local").querySelector(".project-folder-cloud")).toBeNull();
+    expect(folder("local").querySelector(".onboarding-project-cloud-badge")).toBeNull();
+    expect(folder("cloud").querySelector(".project-folder-cloud")).not.toBeNull();
+    expect(folder("cloud").querySelector(".onboarding-project-cloud-badge")).toBeNull();
+    expect(folder("linked").querySelector(".project-folder-cloud")).toBeNull();
+    expect(folder("linked").querySelector(".onboarding-project-cloud-badge")).not.toBeNull();
+  });
+
+  it("never asks anyone to learn what a colour means", () => {
+    const css = readFileSync("src/styles/onboarding.css", "utf8");
+    const folders = css.slice(css.indexOf(".onboarding-project-folder {"), css.indexOf(".onboarding-project-tile {"));
+    expect(folders).not.toBe("");
+    expect(folders).not.toMatch(/is-cloud|is-local|brand-blue|--po-accent|#[0-9a-f]{3,8}\b|gradient|shadow|url\(/i);
+    expect(css).toMatch(/\.onboarding-project-tile ~ \.onboarding-project-cloud-link svg \{\s*color: inherit;/);
   });
 
   it("shows an icon as its name alone and keeps the rest one hover away", () => {

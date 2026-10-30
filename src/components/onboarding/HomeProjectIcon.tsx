@@ -21,13 +21,13 @@ export function HomeProjectIcon({ item }: { item: ProjectHomeItem }) {
   );
 }
 
-/** The same three places as a whole folder: white here, blue in the Cloud. */
+/** The same three places as a whole folder, told apart by shape alone. */
 export function ProjectFolder({ item }: { item: ProjectHomeItem }) {
   const location = projectIconLocation(item);
   return (
     <span className={`onboarding-project-folder is-${location}`} data-project-location={location} aria-hidden="true">
-      <ProjectFolderGlyph />
-      {location === "linked" && <CloudIcon className="onboarding-project-cloud-badge" size={18} backplate />}
+      <ProjectFolderGlyph cloud={location === "cloud"} />
+      {location === "linked" && <CloudIcon className="onboarding-project-cloud-badge" size={16} backplate />}
     </span>
   );
 }
