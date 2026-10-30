@@ -6,7 +6,7 @@
 //! a newer one replaced is dropped. A one-time credential lives in this view
 //! only, until it closes.
 use crate::{
-    features::cloud_account,
+    features::{cloud_account, cloud_publish::Publication},
     localization::{t as tr, tf},
     theme::{self, Theme},
     ui::{
@@ -160,6 +160,9 @@ pub struct Team {
 
 pub struct Close;
 impl EventEmitter<Close> for CloudServices {}
+/// `publish.start`: a share needs the first push finished before it can go on.
+pub struct ResumePublication;
+impl EventEmitter<ResumePublication> for CloudServices {}
 
 /// The signed-in account's billing requests (Settings → Plan).
 pub fn billing_client(cx: &App) -> Option<crate::workspace::cloud::billing::Client> {
@@ -189,6 +192,8 @@ struct ShareFlow {
 #[derive(Clone, Debug)]
 enum SharePhase {
     Choose,
+    /// `publishing`: the Project's first push comes first.
+    Publishing,
     Issuing,
     Ready {
         endpoint: Option<String>,
@@ -284,6 +289,13 @@ pub struct CloudServices {
     pending_epoch: u64,
     /// Drops a share list that a newer read or Project replaced.
     shares_epoch: u64,
+    /// The Project's first publication, as the Shell last reported it.
+    publication: Publication,
+    /// `publishRequestedRef`: this share asked for the run in progress, so
+    /// its stopping stops the share.
+    publish_requested: bool,
+    /// `formatCloudPublishFailure` of the last run.
+    publish_failure: Option<String>,
     share_epoch: u64,
     stop_failed: bool,
     scope_name: Entity<TextInput>,
@@ -328,6 +340,9 @@ impl CloudServices {
             pending_share: None,
             pending_epoch: 0,
             shares_epoch: 0,
+            publication: Publication::Clear,
+            publish_requested: false,
+            publish_failure: None,
             share_epoch: 0,
             stop_failed: false,
             scope_name: field(false, window, cx),
@@ -382,6 +397,59 @@ impl CloudServices {
         self.share_readers = false;
         cx.notify();
     }
+    pub fn project(&self) -> Option<&str> {
+        self.project.as_deref()
+    }
+    /// The orchestration in `ShareConnectStep`: a share waiting on the first
+    /// publication goes on when it clears, and stops if the run it asked for
+    /// stops. One it did not ask for only hands over to a request of its own.
+    pub fn sync_publication(
+        &mut self,
+        publication: Publication,
+        failure: Option<String>,
+        cx: &mut Context<Self>,
+    ) {
+        self.publish_failure = failure;
+        if self.publication == publication {
+            return;
+        }
+        self.publication = publication;
+        if !self.publishing() {
+            return;
+        }
+        match publication {
+            Publication::Busy => {}
+            Publication::Pending if self.publish_requested => {
+                self.set_share_phase(SharePhase::Failed, cx)
+            }
+            Publication::Clear | Publication::Pending => self.issue_share(cx),
+        }
+    }
+    /// The run could not even start, so nothing will report back.
+    pub fn publication_refused(&mut self, cx: &mut Context<Self>) {
+        if self.publishing() {
+            self.set_share_phase(SharePhase::Failed, cx);
+        }
+    }
+    fn publishing(&self) -> bool {
+        matches!(
+            self.share_flow.as_ref().map(|flow| &flow.phase),
+            Some(SharePhase::Publishing)
+        )
+    }
+    /// A share of the Project by the Shell's tests, past its scope step.
+    #[cfg(test)]
+    pub fn share_now(&mut self, cx: &mut Context<Self>) {
+        self.begin_share(share::TARGETS[2], cx);
+        self.issue_share(cx);
+    }
+    #[cfg(test)]
+    pub fn share_ready(&self) -> bool {
+        matches!(
+            self.share_flow.as_ref().map(|flow| &flow.phase),
+            Some(SharePhase::Ready { .. })
+        )
+    }
     #[cfg(test)]
     pub fn share_start(&self) -> &str {
         &self.share_path
@@ -418,6 +486,7 @@ impl CloudServices {
         self.share_epoch += 1;
         self.shares_epoch += 1;
         self.pending_epoch += 1;
+        self.publish_requested = false;
         self.stop_failed = false;
         self.billing.reset();
         self.notice = None;
@@ -947,6 +1016,7 @@ impl CloudServices {
             .unwrap_or_default()
     }
     fn begin_share(&mut self, target: share::Target, cx: &mut Context<Self>) {
+        self.publish_requested = false;
         self.share_flow = Some(ShareFlow {
             target,
             path: self.share_path.clone(),
@@ -966,6 +1036,18 @@ impl CloudServices {
         ) else {
             return;
         };
+        // `publishPending`: nothing is handed over for a Project whose
+        // content has not arrived, whichever way the share reaches it.
+        match self.publication {
+            Publication::Clear => {}
+            Publication::Busy => return self.set_share_phase(SharePhase::Publishing, cx),
+            Publication::Pending => {
+                self.publish_requested = true;
+                self.set_share_phase(SharePhase::Publishing, cx);
+                cx.emit(ResumePublication);
+                return;
+            }
+        }
         let target = flow.target;
         if target.channel == share::Channel::Link {
             self.set_share_phase(
@@ -1035,6 +1117,12 @@ impl CloudServices {
             .ok();
         })
         .detach();
+    }
+    /// `retry`: a failed run may be asked for again.
+    fn retry_share(&mut self, cx: &mut Context<Self>) {
+        self.publish_requested = false;
+        self.publish_failure = None;
+        self.issue_share(cx);
     }
     fn set_share_phase(&mut self, phase: SharePhase, cx: &mut Context<Self>) {
         if let Some(flow) = &mut self.share_flow {
@@ -2279,6 +2367,21 @@ impl CloudServices {
                 )
                 .into_any_element()
             }
+            SharePhase::Publishing => {
+                let project = details.project.as_ref().map_or("", |p| p.name.as_str());
+                page.child(div().text_size(px(ty.meta)).text_color(t.text).child(tf(
+                    "cloud.share.publish.title",
+                    &[
+                        ("project", project.into()),
+                        ("target", label.clone().into()),
+                    ],
+                )))
+                .child(div().text_size(px(ty.meta)).text_color(t.muted).child(tf(
+                    "cloud.share.publish.why",
+                    &[("target", label.clone().into())],
+                )))
+                .into_any_element()
+            }
             SharePhase::Issuing => page
                 .child(div().text_size(px(ty.meta)).text_color(t.muted).child(tf(
                     "cloud.share.publish.issuing",
@@ -2287,17 +2390,18 @@ impl CloudServices {
                 .into_any_element(),
             SharePhase::Failed => page
                 .child(
-                    div()
-                        .text_size(px(ty.meta))
-                        .text_color(t.danger)
-                        .child(tr("cloud.share.error.issueFailed")),
+                    div().text_size(px(ty.meta)).text_color(t.danger).child(
+                        self.publish_failure
+                            .clone()
+                            .unwrap_or_else(|| tr("cloud.share.error.issueFailed").to_owned()),
+                    ),
                 )
                 .child(
                     h_flex().child(
                         Button::new("cloud-share-retry")
                             .variant(ButtonVariant::Secondary)
                             .label(tr("cloud.share.action.retry"))
-                            .on_click(cx.listener(|s, _, _, cx| s.issue_share(cx))),
+                            .on_click(cx.listener(|s, _, _, cx| s.retry_share(cx))),
                     ),
                 )
                 .into_any_element(),

@@ -1581,7 +1581,7 @@
         "test:stopping_a_share_deletes_its_endpoint_and_a_failure_changes_nothing",
         "test:the_share_preview_uses_cached_entries_and_keeps_the_open_file"
       ],
-      "remaining": "The preview is drawn reduced, since GPUI cannot scale the real Explorer and Viewer. A checkout with no Cloud Project goes through the value page instead of signing in and publishing inside the wizard, so a folder chosen there is not carried across. The status dot does not pulse; no pixel comparison."
+      "remaining": "The preview is drawn reduced, since GPUI cannot scale the real Explorer and Viewer. A checkout with no Cloud Project goes through the value page instead of signing in and publishing inside the wizard, so a folder chosen there is not carried across. Resuming a stopped first push from the wizard states the run in words, without CloudPublishProgressIndicator. The status dot does not pulse; no pixel comparison."
     },
     {
       "name": "Cloud organization and Billing",
@@ -1738,7 +1738,7 @@
         "test:built_ins_exist_per_target_and_mcp_per_surface",
         "test:share_opens_the_linked_projects_services_and_signing_out_closes_them"
       ],
-      "remaining": "A pending first publication is not resumed from the dialog; no pixel comparison."
+      "remaining": "No pixel comparison."
     },
     {
       "name": "Cloud sign-in surfaces",

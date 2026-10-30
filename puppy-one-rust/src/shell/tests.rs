@@ -3101,6 +3101,86 @@ fn share_with_on_a_folder_starts_the_share_from_it(cx: &mut TestAppContext) {
     });
 }
 
+/// C-12.3, end to end with the real coordinator and journal: the first push
+/// stopped, so Share resumes it, and the server sees the request for access
+/// only once the journal is gone.
+#[gpui::test]
+fn a_share_finishes_a_stopped_first_push_before_it_issues_access(cx: &mut TestAppContext) {
+    use crate::cloud_publication::{
+        Action, Code, Coordinator,
+        journal::Journal,
+        tests::{Fake, coordinator},
+    };
+    use crate::features::cloud_publish::Publication;
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicUsize, Ordering::SeqCst},
+    };
+    let (_repository, fake) = Fake::new();
+    fake.fail_next_push(Code::PushFailed);
+    let issued = Arc::new(AtomicUsize::new(0));
+    let finished_first = Arc::new(AtomicBool::new(false));
+    let responder: crate::cloud_auth::Responder = {
+        let (issued, finished_first) = (issued.clone(), finished_first.clone());
+        let git_dir = fake.git_dir.clone();
+        let base = cloud_project_responder();
+        Arc::new(move |request| {
+            if request.path == "/mcp-endpoints" && request.method == reqwest::Method::POST {
+                issued.fetch_add(1, SeqCst);
+                let journal = Journal::in_git_dir(&git_dir).read().unwrap();
+                finished_first.store(journal.is_none(), SeqCst);
+                return Ok(serde_json::json!({"code": 0, "data": {"id": "e1",
+                    "project_id": "project-a", "name": "Claude", "api_key": "pwk_once",
+                    "status": "active", "path": "", "accesses": []}}));
+            }
+            base(request)
+        })
+    };
+    let (view, cx, Linked { _temp, .. }) = linked_checkout(cx, with_catalog(responder));
+    settle_cloud(&view, cx, "the association", &|s, cx| {
+        s.repository_cloud.read(cx).context.project() == Some("project-a")
+    });
+    // One vault across both runs, as the Keychain is.
+    let vault = coordinator(&fake).1;
+    cx.update(|_, cx| {
+        crate::features::cloud_publish::install_factory(
+            Arc::new(move |_, _| Coordinator {
+                git: fake.clone(),
+                cloud: fake.clone(),
+                vault: vault.clone(),
+            }),
+            cx,
+        )
+    });
+    view.update(cx, |s, cx| {
+        s.cloud_publish.update(cx, |p, cx| {
+            p.selected = Some("org-1".into());
+            p.start(Action::Initialize, cx)
+        })
+    });
+    settle_cloud(&view, cx, "the stopped push", &|s, cx| {
+        s.cloud_publish.read(cx).publication("project-a") == Publication::Pending
+    });
+
+    command(&view, cx, Command::CloudServices);
+    let services = view.read_with(cx, |s, _| s.cloud_services.clone());
+    services.update(cx, |s, cx| s.share_now(cx));
+    settle_cloud(&view, cx, "the share", &|s, cx| {
+        s.cloud_services.read(cx).share_ready()
+    });
+    assert_eq!(issued.load(SeqCst), 1);
+    assert!(
+        finished_first.load(SeqCst),
+        "access was issued before the push finished"
+    );
+    view.read_with(cx, |s, cx| {
+        assert_eq!(
+            s.cloud_publish.read(cx).published.as_deref(),
+            Some("project-a")
+        );
+    });
+}
+
 #[gpui::test]
 fn share_on_an_unlinked_checkout_shows_the_value_page(cx: &mut TestAppContext) {
     let temp = tempfile::tempdir().unwrap();

@@ -35,6 +35,27 @@ pub enum HeaderStatus {
     Attention,
 }
 
+/// `publish` of `ShareWizardDialog`: what a share of a Project has to wait for.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Publication {
+    #[default]
+    Clear,
+    /// Being read, or running.
+    Busy,
+    /// `publish.pending`: a durable first push of that Project has not
+    /// finished, even though the Project exists.
+    Pending,
+}
+fn publication_of(busy: bool, stopped: Option<&str>, project: &str) -> Publication {
+    if busy {
+        Publication::Busy
+    } else if stopped == Some(project) {
+        Publication::Pending
+    } else {
+        Publication::Clear
+    }
+}
+
 /// Builds the coordinator for an account (tests replace it).
 pub type Factory = Arc<
     dyn Fn(Arc<crate::cloud_auth::Broker>, crate::cloud_auth::model::Binding) -> Coordinator
@@ -310,6 +331,28 @@ impl CloudPublish {
         })
         .detach();
     }
+    /// What a share of `project` waits for. This model follows the checkout,
+    /// which need not be the Project a hosted window shows: another Project's
+    /// stopped push must neither hold this share back nor be resumed by it.
+    pub fn publication(&self, project: &str) -> Publication {
+        let stopped = self
+            .outcome
+            .as_ref()
+            .and_then(|o| o.record.as_ref())
+            .and_then(|r| r.project_id.as_deref());
+        publication_of(self.running.is_some() || self.reading, stopped, project)
+    }
+    /// `getCloudPushAction`: what the saved state says continues it.
+    pub fn push_action(&self) -> Action {
+        use crate::workspace::cloud::publish::Action as A;
+        match self.outcome.as_ref().and_then(|o| o.state.as_ref()) {
+            Some(s) if s.actions.contains(&A::Reconcile) => Action::Reconcile,
+            Some(s) if s.actions.contains(&A::PushLatest) && !s.actions.contains(&A::RetryPush) => {
+                Action::PushLatest
+            }
+            _ => Action::RetryPush,
+        }
+    }
     /// What the Header states about this checkout's publication.
     pub fn header_status(&self) -> Option<HeaderStatus> {
         use crate::workspace::cloud::publish::{Action as A, Cleanup};
@@ -346,4 +389,19 @@ fn project_name(root: &Path) -> String {
 fn current_branch(root: &Path) -> Option<String> {
     use git::GitOps as _;
     git::Cli { helper: None }.status(root).ok()?.branch
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::prelude::v1::test;
+
+    #[test]
+    fn only_this_projects_stopped_push_holds_a_share_back() {
+        assert_eq!(publication_of(false, None, "p"), Publication::Clear);
+        assert_eq!(publication_of(false, Some("p"), "p"), Publication::Pending);
+        assert_eq!(publication_of(false, Some("q"), "p"), Publication::Clear);
+        assert_eq!(publication_of(true, None, "p"), Publication::Busy);
+        assert_eq!(publication_of(true, Some("p"), "p"), Publication::Busy);
+    }
 }

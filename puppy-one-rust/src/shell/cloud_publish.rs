@@ -88,10 +88,39 @@ impl Shell {
                 s.publish_reported = publish.read(cx).published.clone();
                 s.repository_cloud.update(cx, |r, cx| r.retry(cx));
             }
+            s.report_publication(cx);
             cx.notify()
         })
         .detach();
         entity
+    }
+    /// The Share wizard waits on the first publication of its Project.
+    pub(super) fn report_publication(&mut self, cx: &mut Context<Self>) {
+        let Some(project) = self.cloud_services.read(cx).project().map(str::to_owned) else {
+            return;
+        };
+        let publish = self.cloud_publish.read(cx);
+        let publication = publish.publication(&project);
+        let failure = publish
+            .outcome
+            .as_ref()
+            .and_then(|o| o.error.as_ref())
+            .map(|e| tr(failure_copy(e.code)).to_owned());
+        self.cloud_services
+            .update(cx, |s, cx| s.sync_publication(publication, failure, cx));
+    }
+    /// `publish.start` from the wizard: the run outlives its dialog as any
+    /// other does, and the Header states it.
+    pub(super) fn resume_publication(&mut self, cx: &mut Context<Self>) {
+        let started = self.cloud_publish.update(cx, |p, cx| {
+            let action = p.push_action();
+            p.start(action, cx);
+            p.running.is_some()
+        });
+        if !started {
+            self.cloud_services
+                .update(cx, |s, cx| s.publication_refused(cx));
+        }
     }
     pub(super) fn sync_cloud_publish(&mut self, cx: &mut Context<Self>) {
         let enabled = crate::features::flags::cloud_enabled(&self.preferences, cx);
@@ -715,16 +744,7 @@ impl Shell {
                         })),
                 );
         } else if can_push {
-            // `getCloudPushAction`: what the saved state says continues it.
-            let action = match state.as_ref() {
-                Some(s) if s.actions.contains(&A::Reconcile) => Action::Reconcile,
-                Some(s)
-                    if s.actions.contains(&A::PushLatest) && !s.actions.contains(&A::RetryPush) =>
-                {
-                    Action::PushLatest
-                }
-                _ => Action::RetryPush,
-            };
+            let action = self.cloud_publish.read(cx).push_action();
             dialog = dialog.footer(
                 Button::new("publish-retry")
                     .variant(ButtonVariant::Solid)

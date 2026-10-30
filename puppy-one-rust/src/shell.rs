@@ -577,6 +577,13 @@ impl Shell {
             },
         )
         .detach();
+        cx.subscribe(
+            &s.cloud_services,
+            |s, _, _: &crate::features::cloud_services::ResumePublication, cx| {
+                s.resume_publication(cx)
+            },
+        )
+        .detach();
         // Its close button is the only way out; the draft is already gone.
         cx.subscribe_in(
             &s.feedback,
@@ -1394,6 +1401,7 @@ impl Shell {
                     s.open(project, Section::Share, cx);
                     s.start_from(path, cx);
                 });
+                self.report_publication(cx);
                 self.modals.open(Modal::CloudServices);
                 self.modal_focus.focus(window, cx);
             }

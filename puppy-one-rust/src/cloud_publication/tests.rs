@@ -86,6 +86,9 @@ impl Fake {
     fn with<T>(&self, f: impl FnOnce(&mut FakeState) -> T) -> T {
         f(&mut self.state.lock().unwrap())
     }
+    pub(crate) fn fail_next_push(&self, code: Code) {
+        self.with(|s| s.push_failures.push_back(code));
+    }
 }
 impl GitOps for Fake {
     fn identity(&self, root: &Path) -> Result<Identity, PublishError> {

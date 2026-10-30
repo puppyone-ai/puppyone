@@ -1000,6 +1000,159 @@ fn a_folder_from_the_explorer_starts_the_share_there(cx: &mut TestAppContext) {
     });
 }
 
+fn watch_resumes(
+    view: &Entity<CloudServices>,
+    cx: &mut VisualTestContext,
+) -> Arc<std::sync::atomic::AtomicUsize> {
+    let count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let seen = count.clone();
+    let view = view.clone();
+    cx.update(|_, cx| {
+        cx.subscribe(&view, move |_, _: &ResumePublication, _| {
+            seen.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        })
+        .detach()
+    });
+    count
+}
+fn phase_of(view: &Entity<CloudServices>, cx: &mut VisualTestContext) -> SharePhase {
+    view.read_with(cx, |s, _| s.share_flow.as_ref().unwrap().phase.clone())
+}
+/// A wizard past its scope step, with the first publication stopped.
+fn share_held_back(
+    cx: &mut TestAppContext,
+    publication: Publication,
+) -> (Entity<CloudServices>, &mut VisualTestContext, Arc<Fake>) {
+    let state = Arc::<Awaited>::default();
+    let f = awaited_cloud(state);
+    let (view, cx) = open(cx, f.clone(), Section::Share);
+    let loaded = view.clone();
+    settle(cx, "the details", &|cx| {
+        loaded.read_with(cx, |s, _| s.details.is_some())
+    });
+    view.update(cx, |s, cx| {
+        s.sync_publication(publication, None, cx);
+        s.begin_share(share::TARGETS[2], cx);
+    });
+    (view, cx, f)
+}
+
+/// `publishPending`: the Project exists, its content has not arrived. The
+/// Agent gets nothing until the push finished.
+#[gpui::test]
+fn a_share_finishes_the_first_publication_before_it_issues_anything(cx: &mut TestAppContext) {
+    use std::sync::atomic::Ordering::SeqCst;
+    let (view, cx, f) = share_held_back(cx, Publication::Pending);
+    let resumes = watch_resumes(&view, cx);
+    view.update(cx, |s, cx| s.issue_share(cx));
+    cx.run_until_parked();
+    assert!(matches!(phase_of(&view, cx), SharePhase::Publishing));
+    draw(cx);
+    assert_eq!(resumes.load(SeqCst), 1);
+    assert_eq!(f.count("POST", "/mcp-endpoints"), 0);
+    view.update(cx, |s, cx| s.sync_publication(Publication::Busy, None, cx));
+    assert!(matches!(phase_of(&view, cx), SharePhase::Publishing));
+    assert_eq!(f.count("POST", "/mcp-endpoints"), 0);
+    view.update(cx, |s, cx| s.sync_publication(Publication::Clear, None, cx));
+    let loaded = view.clone();
+    settle(cx, "the issued key", &|cx| {
+        loaded.read_with(cx, |s, _| {
+            matches!(
+                s.share_flow.as_ref().map(|f| &f.phase),
+                Some(SharePhase::Ready { key: Some(_), .. })
+            )
+        })
+    });
+    assert_eq!(f.count("POST", "/mcp-endpoints"), 1);
+    assert_eq!(resumes.load(SeqCst), 1);
+}
+
+/// A link is a promise of content too.
+#[gpui::test]
+fn a_link_waits_for_the_first_publication_as_well(cx: &mut TestAppContext) {
+    let (view, cx, _f) = share_held_back(cx, Publication::Pending);
+    let person = share::TARGETS.iter().copied().find(|t| t.id == "person");
+    view.update(cx, |s, cx| {
+        s.begin_share(person.unwrap(), cx);
+        s.issue_share(cx);
+    });
+    assert!(matches!(phase_of(&view, cx), SharePhase::Publishing));
+}
+
+#[gpui::test]
+fn a_run_that_stops_fails_the_share_and_retry_asks_again(cx: &mut TestAppContext) {
+    use std::sync::atomic::Ordering::SeqCst;
+    let (view, cx, f) = share_held_back(cx, Publication::Pending);
+    let resumes = watch_resumes(&view, cx);
+    view.update(cx, |s, cx| s.issue_share(cx));
+    view.update(cx, |s, cx| s.sync_publication(Publication::Busy, None, cx));
+    view.update(cx, |s, cx| {
+        s.sync_publication(Publication::Pending, Some("No space left".into()), cx)
+    });
+    assert!(matches!(phase_of(&view, cx), SharePhase::Failed));
+    view.read_with(cx, |s, _| {
+        assert_eq!(s.publish_failure.as_deref(), Some("No space left"))
+    });
+    draw(cx);
+    assert_eq!(f.count("POST", "/mcp-endpoints"), 0);
+    view.update(cx, |s, cx| s.retry_share(cx));
+    cx.run_until_parked();
+    assert!(matches!(phase_of(&view, cx), SharePhase::Publishing));
+    assert_eq!(resumes.load(SeqCst), 2);
+}
+
+/// Retry forgets the request that failed: a run started elsewhere since then
+/// is not this share's, so its stopping is not this share's failure.
+#[gpui::test]
+fn retry_forgets_the_request_that_failed(cx: &mut TestAppContext) {
+    use std::sync::atomic::Ordering::SeqCst;
+    let (view, cx, _f) = share_held_back(cx, Publication::Pending);
+    let resumes = watch_resumes(&view, cx);
+    view.update(cx, |s, cx| s.issue_share(cx));
+    view.update(cx, |s, cx| s.sync_publication(Publication::Busy, None, cx));
+    view.update(cx, |s, cx| {
+        s.sync_publication(Publication::Pending, None, cx)
+    });
+    assert!(matches!(phase_of(&view, cx), SharePhase::Failed));
+    view.update(cx, |s, cx| s.sync_publication(Publication::Busy, None, cx));
+    view.update(cx, |s, cx| s.retry_share(cx));
+    view.update(cx, |s, cx| {
+        s.sync_publication(Publication::Pending, None, cx)
+    });
+    cx.run_until_parked();
+    assert!(matches!(phase_of(&view, cx), SharePhase::Publishing));
+    assert_eq!(resumes.load(SeqCst), 2);
+}
+
+/// Someone else's run is waited for, not started again; when it stops, this
+/// share asks for itself instead of inheriting a failure it never saw.
+#[gpui::test]
+fn a_run_already_going_is_waited_for_and_not_started_twice(cx: &mut TestAppContext) {
+    use std::sync::atomic::Ordering::SeqCst;
+    let (view, cx, _f) = share_held_back(cx, Publication::Busy);
+    let resumes = watch_resumes(&view, cx);
+    view.update(cx, |s, cx| s.issue_share(cx));
+    cx.run_until_parked();
+    assert!(matches!(phase_of(&view, cx), SharePhase::Publishing));
+    assert_eq!(resumes.load(SeqCst), 0);
+    view.update(cx, |s, cx| {
+        s.sync_publication(Publication::Pending, None, cx)
+    });
+    cx.run_until_parked();
+    assert!(matches!(phase_of(&view, cx), SharePhase::Publishing));
+    assert_eq!(resumes.load(SeqCst), 1);
+}
+
+#[gpui::test]
+fn a_run_that_cannot_start_does_not_leave_the_share_waiting(cx: &mut TestAppContext) {
+    let (view, cx, _f) = share_held_back(cx, Publication::Pending);
+    view.update(cx, |s, cx| {
+        s.issue_share(cx);
+        s.publication_refused(cx);
+    });
+    assert!(matches!(phase_of(&view, cx), SharePhase::Failed));
+}
+
 /// A billing Cloud: one quote, then an operation the test ends.
 struct Billed {
     keys: Mutex<Vec<(String, Option<String>)>>,
