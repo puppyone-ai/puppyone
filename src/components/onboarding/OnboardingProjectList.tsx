@@ -106,7 +106,7 @@ export function OnboardingProjectList({
   );
 }
 
-/** One project on the Grid: a desktop icon is its name, the rest stays one hover away. */
+/** One project on the Grid: a folder and one line of name, all of it one hover away. */
 function ProjectTile({ item, name, modified, ...button }: {
   item: ProjectHomeItem;
   name: string;
@@ -115,7 +115,7 @@ function ProjectTile({ item, name, modified, ...button }: {
   const caption = useProjectHomeItemCaption(item);
   const place = projectHomeItemLocation(item) === "cloud" ? caption : getWorkspaceParentPathForDisplay(item.localPath);
   return (
-    <Tooltip content={[place, modified].filter(Boolean).join(" · ")}>
+    <Tooltip content={[name, place, modified].filter(Boolean).join(" · ")}>
       <button type="button" className="onboarding-project-tile" {...button}>
         <ProjectFolder item={item} />
         <bdi className="onboarding-project-tile-name">{name}</bdi>

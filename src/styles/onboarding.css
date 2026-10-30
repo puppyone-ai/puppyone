@@ -693,19 +693,22 @@ span.homepage-cloud-feedback {
   white-space: nowrap;
 }
 
-/* The Grid rearranges the same projects on the same plain page: the skeleton,
-   rules and fixed insets stay, and only the column widens. */
-.onboarding-homepage:has(.onboarding-project-list:not([data-project-layout="list"])) {
-  --onboarding-column-width: 100%;
-  /* Top-aligned like a long list, so switching layouts leaves the title in place. */
-  justify-content: flex-start;
-  width: min(760px, 100%);
-}
-
-.onboarding-homepage:has(.onboarding-project-list:not([data-project-layout="list"])) .onboarding-entry-actions {
+/* Under a wall of folders the list's action rows would be a second page, so on the
+   Grid they become one quiet line in the folders' own type, centered like them. */
+.onboarding-homepage:has(.onboarding-project-list[data-project-layout="grid"]) .onboarding-entry-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px 8px;
+  justify-content: center;
+  gap: 2px 18px;
+}
+
+.onboarding-homepage:has(.onboarding-project-list[data-project-layout="grid"]) .onboarding-entry-action {
+  --onboarding-row-font-size: var(--po-type-ui-caption, 12px);
+  --onboarding-row-font-weight: var(--po-text-weight-regular, 400);
+}
+
+.onboarding-homepage:has(.onboarding-project-list[data-project-layout="grid"]) :is(.onboarding-entry-action .po-button__icon, .onboarding-entry-import-brands) {
+  display: none;
 }
 
 .onboarding-project-layout-switch {
@@ -725,6 +728,7 @@ span.homepage-cloud-feedback {
 .onboarding-project-folder {
   --folder-back: color-mix(in srgb, var(--po-text) 11%, var(--po-canvas));
   --folder-front: color-mix(in srgb, var(--po-text) 19%, var(--po-canvas));
+  --folder-edge: color-mix(in srgb, var(--po-text) 30%, var(--po-canvas));
   position: relative;
   display: block;
   flex: 0 0 auto;
@@ -733,6 +737,7 @@ span.homepage-cloud-feedback {
 .onboarding-project-row-wrap:is(:hover, :focus-within) .onboarding-project-folder {
   --folder-back: color-mix(in srgb, var(--po-text) 15%, var(--po-canvas));
   --folder-front: color-mix(in srgb, var(--po-text) 26%, var(--po-canvas));
+  --folder-edge: color-mix(in srgb, var(--po-text) 46%, var(--po-canvas));
 }
 
 .project-folder-glyph {
@@ -741,14 +746,21 @@ span.homepage-cloud-feedback {
   height: 100%;
 }
 
+.project-folder-back,
+.project-folder-front {
+  stroke: var(--folder-edge);
+  stroke-linejoin: round;
+  stroke-width: 1;
+  transition: fill 130ms ease-out, stroke 130ms ease-out;
+  vector-effect: non-scaling-stroke;
+}
+
 .project-folder-back {
   fill: var(--folder-back);
-  transition: fill 130ms ease-out;
 }
 
 .project-folder-front {
   fill: var(--folder-front);
-  transition: fill 130ms ease-out;
 }
 
 /* Solid, so it survives a glance across the page; an outline does not. */
@@ -821,36 +833,45 @@ span.homepage-cloud-feedback {
   display: none;
 }
 
+/* The scrolling area reaches the top rule, so a scrolled row fades out beneath it. */
+.onboarding-home-primary:has(.onboarding-project-list[data-project-layout="grid"]) {
+  padding-block-start: 0;
+}
+
+/* Four cells across the list's column, wide enough that a project's whole name fits
+   on one line. A hairline thumb hangs in its lane outside the column. Rows fade at
+   both ends rather than being cut, and the insets keep the fades clear at rest. */
 .onboarding-project-list[data-project-layout="grid"] {
-  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
-  gap: 6px 4px;
-  scrollbar-gutter: auto;
+  --po-scrollbar-thumb-active-inset: calc((var(--po-scrollbar-size) - 2px) / 2);
+  --po-scrollbar-presentation-thumb: color-mix(in srgb, var(--po-text) 22%, transparent);
+  width: calc(100% + var(--po-scrollbar-size));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px 0;
+  padding-block: var(--onboarding-primary-inset-start) 20px;
+  mask-image: linear-gradient(to bottom, transparent, black 20px, black calc(100% - 20px), transparent);
 }
 
 .onboarding-project-list[data-project-layout="grid"] .onboarding-project-tile {
   align-content: start;
   justify-items: center;
   gap: 8px;
-  padding: 10px 4px 6px;
+  padding: 8px 4px 6px;
   text-align: center;
 }
 
 .onboarding-project-list[data-project-layout="grid"] .onboarding-project-folder {
-  width: 44px;
-  height: 35px;
+  width: 64px;
+  height: 51px;
 }
 
-/* Two lines are always reserved, so every row keeps the same rhythm. */
 .onboarding-project-list[data-project-layout="grid"] .onboarding-project-tile-name {
-  display: -webkit-box;
+  display: block;
   max-width: 100%;
-  min-height: 32px;
-  overflow-wrap: anywhere;
   font-size: var(--po-type-ui-caption, 12px);
   font-weight: 400;
   line-height: 16px;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .onboarding-project-list[data-project-layout="grid"] :is(.onboarding-project-remove, .onboarding-project-cloud-link) {

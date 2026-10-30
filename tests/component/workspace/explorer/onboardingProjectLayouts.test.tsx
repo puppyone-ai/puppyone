@@ -196,12 +196,12 @@ describe("Homepage project layouts", () => {
     expect(css.slice(cloud)).toMatch(/\.project-folder-cloud \{\s*fill: var\(--po-brand-blue\);/);
   });
 
-  it("shows a project as its name alone and keeps the rest one hover away", () => {
+  it("shows a project as one line of name and keeps all of it one hover away", () => {
     const { container } = renderHome();
     pick(container, "grid");
     const tile = project(container, "local").querySelector(".onboarding-project-tile");
     expect(tile?.textContent).toBe("notes");
-    expect(tile?.getAttribute("data-tooltip")).toBe("~/project · 3 days ago");
-    expect(project(container, "cloud").querySelector(".onboarding-project-tile")?.getAttribute("data-tooltip")).toBe("Cloud project");
+    expect(tile?.getAttribute("data-tooltip")).toBe("notes · ~/project · 3 days ago");
+    expect(project(container, "cloud").querySelector(".onboarding-project-tile")?.getAttribute("data-tooltip")).toBe("shared · Cloud project");
   });
 });

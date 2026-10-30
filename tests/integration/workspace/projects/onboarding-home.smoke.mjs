@@ -409,7 +409,8 @@ async function runSmoke() {
       }
     }
     await validateProjectScrollports();
-    console.log(`Onboarding visual smoke passed: 10 entry cases plus short/long list geometry and persistent scrolling; screenshots: ${screenshots}`);
+    await validateProjectGrid();
+    console.log(`Onboarding visual smoke passed: 10 entry cases plus short/long list geometry, persistent scrolling and the Grid; screenshots: ${screenshots}`);
   } catch (error) {
     console.error(error);
     if (window && !window.isDestroyed()) console.error(await evaluate("({ active: document.activeElement?.outerHTML, dialogs: document.querySelectorAll('[role=dialog]').length, text: document.body.innerText })"));
@@ -419,6 +420,49 @@ async function runSmoke() {
     window?.destroy();
     await server?.close();
     app.exit(exitCode);
+  }
+}
+
+// The Grid keeps the list's column, four cells across, with its actions on one quiet line.
+async function validateProjectGrid() {
+  const settle = "new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))).then(() => Promise.all(document.getAnimations().map(animation => animation.finished)))";
+  const column = `(() => { const edges = selector => { const r = document.querySelector(selector).getBoundingClientRect(); return [r.left, r.right]; };
+    return { brand:edges('.onboarding-brand-lockup'), rule:edges('.onboarding-home-primary'), layoutSwitch:edges('.onboarding-project-layout-switch') }; })()`;
+  for (const theme of ["dark", "light"]) {
+    for (const [width, height, count] of [[1180, 760, 40], [640, 535, 40], [1200, 900, 3]]) {
+      window.setContentSize(width, height);
+      const url = new URL(`http://127.0.0.1:${server.httpServer.address().port}/tests/fixtures/workspace/projects/onboarding-home.html`);
+      url.searchParams.set("state", "projects"); url.searchParams.set("count", String(count)); url.searchParams.set("theme", theme);
+      await window.loadURL(url.href);
+      await until(`document.querySelectorAll('.onboarding-project-row-wrap').length === ${count}`);
+      await evaluate("document.querySelector('[data-project-layout-option=list]').click()");
+      await until("!!document.querySelector('.onboarding-project-row')");
+      await evaluate(settle);
+      const list = await evaluate(column);
+      await evaluate("document.querySelector('[data-project-layout-option=grid]').click()");
+      await until("!!document.querySelector('.onboarding-project-tile')");
+      await evaluate(settle);
+      const context = `grid/${theme}/${width}x${height}/${count}`;
+      assert.deepEqual(await evaluate(column), list, `${context}: switching layouts never moves the column`);
+      const snapshot = await evaluate(`(() => {
+        const element = document.querySelector('.onboarding-project-list');
+        const actions = [...document.querySelectorAll('.onboarding-entry-action')];
+        const folders = [...document.querySelectorAll('.onboarding-project-folder')].map(folder => folder.getBoundingClientRect());
+        return { sideways:element.scrollWidth - element.clientWidth, overflows:element.scrollHeight > element.clientHeight,
+          columns:new Set(folders.map(folder => folder.left)).size, actionTops:new Set(actions.map(action => action.getBoundingClientRect().top)).size,
+          actionIcons:actions.filter(action => action.querySelector('.po-button__icon') && getComputedStyle(action.querySelector('.po-button__icon')).display !== 'none').length,
+          actionFont:getComputedStyle(actions[0].querySelector('.po-button__label')).fontSize,
+          thumb:getComputedStyle(element, '::-webkit-scrollbar-thumb').backgroundColor };
+      })()`);
+      assert.equal(snapshot.sideways, 0, `${context}: the Grid never scrolls sideways`);
+      assert.equal(snapshot.columns, Math.min(count, 4), `${context}: four cells across`);
+      assert.equal(snapshot.actionTops, 1, `${context}: the actions share one line`);
+      assert.equal(snapshot.actionIcons, 0, `${context}: the actions are words alone`);
+      assert.equal(snapshot.actionFont, '12px', `${context}: the actions use the folders' type`);
+      if (snapshot.overflows) assert.notEqual(snapshot.thumb, 'rgba(0, 0, 0, 0)', `${context}: more projects below are always signalled`);
+      await writeFile(path.join(screenshots, `grid-${theme}-${width}x${height}-${count}.png`), (await window.capturePage()).toPNG());
+      console.log(`Passed ${context}`);
+    }
   }
 }
 
