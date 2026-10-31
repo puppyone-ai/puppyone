@@ -2,7 +2,8 @@ import { useDesktopPreference, useDesktopAppearance } from "../features/settings
 import { resolveProjectPlaceMenu } from "../features/app-shell/project-place/projectPlaceMenuState";
 import { useRef, useState, type ComponentProps, type ReactNode } from "react";
 import { createWorkspaceResourceUri } from "@puppyone/shared-ui";
-import { DesktopCloudShell } from "../components/DesktopCloudShell";
+import type { ProjectShell } from "../components/ProjectShell";
+import { ProjectWindow, type ProjectWindowOpening } from "./ProjectWindow";
 import type { ResolvedSurfaceAppearance } from "../features/appearance/AppearanceRuntime";
 import { DesktopTitlebarContext } from "../features/app-shell/DesktopTitlebarContext";
 import { DesktopShellLocationBar } from "../features/app-shell/DesktopShellLocationBar";
@@ -80,7 +81,7 @@ function hostedPlaceMenu({ projectId, projectItems, sidebar, onSelectProject }: 
  * open, the retained local shell embeds the presentation above instead. */
 export function AccountCloudWorkspaceSurface({ opening, workbench, presentation, active, appearance, onHome, context, session, apiBaseUrl, onSessionChange, projectItems, pendingProject, onSelectProject, onSelectCloudProject, onCreateProject, projectRail, agent: suppliedAgent, sidebar: suppliedSidebar }: {
   /** Another project on its way into this window: its name and its wait. */
-  opening?: Readonly<{ projectName: string; content: ReactNode }>;
+  opening?: ProjectWindowOpening & Readonly<{ projectName: string }>;
   workbench: NativeCloudWorkbench;
   presentation: AccountCloudWorkspacePresentation;
   active: boolean;
@@ -90,7 +91,7 @@ export function AccountCloudWorkspaceSurface({ opening, workbench, presentation,
   onHome: () => void;
   projectItems: readonly ProjectHomeItem[];
   pendingProject?: ProjectTarget | null;
-  projectRail?: Pick<ComponentProps<typeof DesktopCloudShell>, "renderLeadingRail"
+  projectRail?: Pick<ComponentProps<typeof ProjectShell>, "renderLeadingRail"
     | "leadingRailWidth" | "leadingRailMinWidth" | "leadingRailMaxWidth"
     | "leadingRailCollapsed" | "leadingRailCollapsedWidth" | "leadingRailCollapseThreshold"
     | "resizableLeadingRail" | "onLeadingRailCollapsedChange" | "onLeadingRailWidthChange">;
@@ -102,11 +103,8 @@ export function AccountCloudWorkspaceSurface({ opening, workbench, presentation,
   apiBaseUrl: string;
   onSessionChange: (session: DesktopCloudSession | null) => void;
 }) {
-  const sidebarCollapsed = useDesktopPreference(s => s.sidebarCollapsed);
-  const explorerWidth = useDesktopPreference(s => s.explorerWidth);
   const rightSidebarWidth = useDesktopPreference(s => s.rightSidebarWidth);
   const setRightSidebarWidth = useDesktopPreference(s => s.setRightSidebarWidth);
-  const setSidebarCollapsed = useDesktopPreference(s => s.setSidebarCollapsed);
   const editorTabsInHeader = useDesktopPreference(s => s.experimentalSettings.enableEditorTabsInHeader);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -126,19 +124,17 @@ export function AccountCloudWorkspaceSurface({ opening, workbench, presentation,
         onClose={() => setMenuOpen(false)} onToggle={() => setMenuOpen((current) => !current)}
         projectItems={projectItems} pendingProject={pendingProject} onSelectProject={onSelectProject} onSelectCloudProject={onSelectCloudProject}
         onCreateProject={onCreateProject} onHome={onHome} />;
-  return <div className={`app-shell cloud-runtime desktop-account-cloud-workspace ${appearance.appearance.effectiveColorMode === "dark" ? "dark" : ""}`} hidden={!active}
-    {...appearance.rootProps}
-    style={{ ...appearance.rootProps.style, ...(!active ? { display: "none" } : {}) }} data-active-cloud-project={service.workspace.projectId}>
-    <DesktopCloudShell active={active} workspaceLocation="cloud" leftSidebarCollapsed={sidebarCollapsed}
+  return <ProjectWindow location="cloud" hosted active={active} opening={opening} appearance={appearance}
+    rootAttributes={{ hidden: !active, style: active ? undefined : { display: "none" },
+      "data-active-cloud-project": service.workspace.projectId ?? undefined }}
       {...projectRail}
-      leftSidebarWidth={explorerWidth} onLeftSidebarExpand={() => setSidebarCollapsed(false)}
-      titlebarActions={active && !opening && <CloudWorkspaceHeaderTools context={context} session={session}
+      titlebarActions={active && <CloudWorkspaceHeaderTools context={context} session={session}
         getShareResource={() => captureCloudWorkspaceShareResource(workbench)}
         apiBaseUrl={apiBaseUrl} onSessionChange={onSessionChange} agentOpen={agent.open} onToggleAgent={sidebar.toggleAgent}
         renderPeople={people => <CloudWorkspaceAgentPeople {...people} />}
         renderAgentMark={agent => <CloudWorkspaceAgentMark {...agent} />} />}
       titlebarSidebarSlot={projectContext}
-      titlebarTabs={editorTabsInHeader && !opening ? presentation.titlebarTabs : undefined}
+      titlebarTabs={editorTabsInHeader ? presentation.titlebarTabs : undefined}
       alignTitlebarTabsToExplorer={editorTabsInHeader}
       locationBar={presentation.locationBar}
       rightSidebarOpen={sidebar.open} rightSidebarWidth={rightSidebarWidth} resizableRightSidebar
@@ -148,7 +144,5 @@ export function AccountCloudWorkspaceSurface({ opening, workbench, presentation,
         revisionKey={String(workbench.refreshToken.sequence)} onSessionChange={onSessionChange}
         workbenchPanel={AuxiliaryWorkbenchPanel} />}>
       {presentation.content}
-      {opening?.content}
-    </DesktopCloudShell>
-  </div>;
+  </ProjectWindow>;
 }

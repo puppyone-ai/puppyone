@@ -4,7 +4,7 @@
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DesktopCloudShell } from "../../../../src/components/DesktopCloudShell";
+import { ProjectShell } from "../../../../src/components/ProjectShell";
 import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
@@ -179,7 +179,7 @@ function renderShell({
   root = createRoot(container);
   act(() => {
     root?.render(withTestLocalization(
-      <DesktopCloudShell
+      <ProjectShell
         onGoHome={onGoHome}
         leadingRail={leadingRail}
         leadingRailWidth={leadingRailWidth}
@@ -192,7 +192,7 @@ function renderShell({
         titlebarTabs={titlebarTabs}
       >
         <div>Editor</div>
-      </DesktopCloudShell>,
+      </ProjectShell>,
     ));
   });
   return container;

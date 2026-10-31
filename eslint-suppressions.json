@@ -1479,7 +1479,7 @@
       "count": 2
     }
   },
-  "src/components/DesktopCloudShell.tsx": {
+  "src/components/ProjectShell.tsx": {
     "complexity": {
       "count": 1
     },
