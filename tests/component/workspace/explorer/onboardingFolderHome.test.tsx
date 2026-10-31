@@ -284,9 +284,10 @@ describe("project folder home", () => {
     expect(onboardingCss).not.toMatch(/\.onboarding-entry-import:hover/);
   });
 
-  it("draws the Header's mark in the same ink as the product's name", () => {
-    expect(onboardingCss).toMatch(/\.onboarding-header-brand \{\s*color: var\(--desktop-titlebar-text\);/);
-    expect(onboardingCss).toMatch(/\.onboarding-header-mark-ink feFlood \{\s*flood-color: var\(--desktop-titlebar-text\);/);
+  it("draws the Header's mark, name and avatar in the muted ink of a project's Header", () => {
+    expect(onboardingCss).toMatch(/\.onboarding-header-brand \{\s*color: var\(--desktop-titlebar-text-muted\);/);
+    expect(onboardingCss).toMatch(/\.onboarding-header-mark-ink feFlood \{\s*flood-color: var\(--desktop-titlebar-text-muted\);/);
+    expect(onboardingCss).toMatch(/\.homepage-cloud-avatar \{[^}]*color: var\(--desktop-titlebar-text-muted\);/s);
     expect(onboardingCss).toMatch(/\.desktop-titlebar \.onboarding-header-mark \{[^}]*filter: url\("#onboarding-header-mark-ink"\);/s);
     expect(onboardingCss).not.toMatch(/onboarding-header-mark \{[^}]*mix-blend-mode/s);
     const container = renderHome({ projectItems: [{ id: "notes", label: "Notes", localPath: "/Users/example/Notes", lastOpenedAt: null }] });

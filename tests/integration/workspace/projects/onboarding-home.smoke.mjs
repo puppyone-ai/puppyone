@@ -259,11 +259,14 @@ async function validateProjectsHead(theme, width, height) {
     return { header:rect(document.querySelector('.desktop-titlebar')), head:rect(head), surface:rect(surface), create:rect(create), more:rect(more),
       chevron:rect(more.querySelector('svg')), label:rect(label), labelClip:getComputedStyle(label).clipPath,
       brandName:brandName?.textContent, brandMark:rect(brand?.querySelector('img')), brandFont:brandName && getComputedStyle(brandName).fontSize,
+      brandColor:brandName && getComputedStyle(brandName).color,
+      headerMuted:(probe => { document.querySelector('.desktop-titlebar').append(probe); probe.style.color = 'var(--desktop-titlebar-text-muted)'; const color = getComputedStyle(probe).color; probe.remove(); return color; })(document.createElement('span')),
       headMark:!!head.querySelector('img'), title:!!head.querySelector('.onboarding-brand-name'),
       border:surfaceStyle.borderTopWidth, fill:surfaceStyle.backgroundColor,
       keys:!!document.querySelector('.onboarding-entry-actions'), other:document.querySelectorAll('[data-onboarding-action=open], [data-onboarding-action=import]').length };
   })()`);
   assert.equal(page.brandName, "puppyone", `${context}: the Header names the product`);
+  assert.equal(page.brandColor, page.headerMuted, `${context}: the name wears a project name's muted ink`);
   assert.ok(page.brandMark.width > 0 && page.brandMark.x < 200, `${context}: the mark leads the Header`);
   assert.equal(page.headMark, false, `${context}: one mark on the page`);
   assert.equal(page.title, false, `${context}: the head holds no title`);

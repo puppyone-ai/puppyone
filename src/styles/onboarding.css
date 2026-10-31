@@ -172,8 +172,8 @@
   text-wrap: balance;
 }
 
-/* The product's name in the Header, with the mark at the Header's own size and in the
-   name's own ink, whatever colours the theme gives the Header. */
+/* The product's name in the Header, in the same muted ink as a project's name there,
+   with the mark at the Header's own size and in that ink, whatever the theme. */
 .desktop-titlebar .onboarding-header-mark {
   display: block;
   width: 18px;
@@ -190,11 +190,11 @@
 }
 
 .onboarding-header-mark-ink feFlood {
-  flood-color: var(--desktop-titlebar-text);
+  flood-color: var(--desktop-titlebar-text-muted);
 }
 
 .onboarding-header-brand {
-  color: var(--desktop-titlebar-text);
+  color: var(--desktop-titlebar-text-muted);
 }
 
 /* First run has nothing to frame yet, so the Puppy and a line greet you above the keys. */
@@ -565,7 +565,7 @@ span.homepage-cloud-feedback {
   padding: 0;
   border-radius: 50%;
   background: var(--po-control);
-  color: var(--po-text);
+  color: var(--desktop-titlebar-text-muted);
 }
 
 .homepage-cloud-avatar:hover,
