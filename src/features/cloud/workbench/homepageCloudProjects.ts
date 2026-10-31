@@ -1,5 +1,5 @@
 import type { ProjectHomeItem, RecentWorkspaceHomeItem } from "../../../lib/workspaceHomeModel";
-import type { DesktopCloudProject } from "../../../lib/cloudApi";
+import { projectAllows, type DesktopCloudProject } from "../../../lib/cloudApi";
 import { isTrustedCloudGitOrigin } from "../workspace/workspaceGitRemote";
 import { latestProjectModifiedAt } from "./homepageCloudActivity";
 
@@ -29,6 +29,7 @@ export function buildHomepageProjects({ local, cloud, apiBaseUrl, activity = new
   });
   for (const project of cloud) {
     items.push({ id: `cloud:${project.id}`, label: project.name, localPath: "", cloudProjectId: project.id,
+      cloudActions: { rename: projectAllows(project, "project.settings.manage"), delete: projectAllows(project, "project.delete") },
       lastModifiedAt: latestProjectModifiedAt(project.updated_at, activity.get(project.id)) });
   }
   return items.sort((a, b) => time(b.lastModifiedAt) - time(a.lastModifiedAt)

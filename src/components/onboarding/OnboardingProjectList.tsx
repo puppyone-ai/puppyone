@@ -1,6 +1,5 @@
 import { Tooltip } from "@puppyone/shared-ui";
 import { bidiIsolate, useLocalization, type MessageFormatter } from "@puppyone/localization";
-import { Unlink } from "lucide-react";
 import { useRef, useState, type ButtonHTMLAttributes, type DragEvent as ReactDragEvent } from "react";
 import {
   getProjectName,
@@ -9,21 +8,26 @@ import {
   type ProjectHomeItem,
 } from "../../lib/workspaceHomeModel";
 import type { HomepageProjectLayout } from "../../preferenceStorage";
-import { DesktopMenuIconButton, DesktopMenuItem } from "../DesktopMenu";
-import { InlineLoading } from "../loading";
+import { ProjectRowActions, type ProjectActionSurface } from "../../features/app-shell/ProjectRowActions";
+import { DesktopMenuItem } from "../DesktopMenu";
 import { HomeProjectIcon, ProjectFolder } from "./HomeProjectIcon";
 import { LinkedCloudProjectButton, ProjectHomeItemCaption, useProjectHomeItemCaption } from "./LinkedCloudProjectButton";
 
-type OnboardingProjectListProps = {
+type ProjectChanges = {
+  onRename?: (path: string, name: string) => Promise<void>;
+  onRemove?: (path: string) => Promise<void>;
+  onRenameCloudProject?: (projectId: string, name: string) => Promise<void>;
+  onDeleteCloudProject?: (projectId: string) => Promise<void>;
+};
+
+type OnboardingProjectListProps = ProjectChanges & {
   items: ProjectHomeItem[];
   layout?: HomepageProjectLayout;
   onOpenCloudProject?: (projectId: string) => void;
   busy: boolean;
   openingPath: string | null;
-  removingPath: string | null;
   draggingPath: string | null;
   onOpen: (path: string) => void;
-  onRemove?: (item: ProjectHomeItem) => void;
   onDragStart: (event: ReactDragEvent<HTMLButtonElement>, item: ProjectHomeItem) => void;
   onDragEnd: () => void;
 };
@@ -34,14 +38,14 @@ export function OnboardingProjectList({
   onOpenCloudProject,
   busy,
   openingPath,
-  removingPath,
   draggingPath,
   onOpen,
-  onRemove,
   onDragStart,
   onDragEnd,
+  ...changes
 }: OnboardingProjectListProps) {
   const { t, formatRelativeTime } = useLocalization();
+  const [actions, setActions] = useState<{ id: string; surface: ProjectActionSurface } | null>(null);
 
   return (
     <div
@@ -56,7 +60,7 @@ export function OnboardingProjectList({
       {items.map((item) => {
         const name = getProjectName(item, t("onboarding.projects.untitled"));
         const location = projectHomeItemLocation(item);
-        const removing = removingPath === item.localPath;
+        const surface = actions?.id === item.id ? actions.surface : null;
         const dragging = draggingPath === item.localPath;
         const linked = item.linkedCloudProject;
         const modified = formatModificationTime(item.lastModifiedAt, t, formatRelativeTime);
@@ -70,7 +74,8 @@ export function OnboardingProjectList({
           onDragEnd,
         };
         return (
-          <div key={item.id} className={`onboarding-project-row-wrap ${linked ? "has-cloud-project" : ""} ${removing ? "is-removing" : ""} ${dragging ? "is-dragging" : ""}`}
+          <div key={item.id} className={`onboarding-project-row-wrap ${linked ? "has-cloud-project" : ""} ${dragging ? "is-dragging" : ""}`}
+            data-menu-open={surface === "menu" ? "true" : undefined}
             data-project-location={location}
             data-cloud-project-id={item.cloudProjectId}
             data-linked-cloud-project-id={linked?.id}>
@@ -87,22 +92,53 @@ export function OnboardingProjectList({
             {linked && onOpenCloudProject && <LinkedCloudProjectButton project={linked} busy={busy}
               className="onboarding-project-cloud-link"
               onOpen={() => onOpenCloudProject(linked.id)} />}
-            {onRemove && item.localPath && (
-              <Tooltip content={t("onboarding.projects.removeHint")}><DesktopMenuIconButton
-                className="onboarding-project-remove"
-                disabled={busy && !removing}
-                aria-busy={removing || undefined}
-                label={t("onboarding.projects.removeFor", { project: bidiIsolate(name) })}
-                onClick={() => onRemove(item)}
-                icon={removing
-                  ? <InlineLoading label={null} size="xs" tone="neutral" />
-                  : <Unlink size={14} aria-hidden="true" />}
-              /></Tooltip>
-            )}
+            <ProjectActions item={item} name={name} busy={busy} surface={surface} {...changes}
+              onSurfaceChange={(next) => setActions(next && { id: item.id, surface: next })} />
           </div>
         );
       })}
     </div>
+  );
+}
+
+/**
+ * What can be done to one entry. A folder and its Cloud project are two projects
+ * (ADR-001), so each menu speaks for its own entry: a folder is only ever unlinked
+ * from this app, and only a Cloud project can be deleted.
+ */
+function offeredProjectChanges({ localPath, cloudProjectId, cloudActions }: ProjectHomeItem, changes: ProjectChanges) {
+  const { onRename, onRemove, onRenameCloudProject, onDeleteCloudProject } = changes;
+  if (localPath) return {
+    onRename: onRename && ((name: string) => onRename(localPath, name)),
+    onUnlink: onRemove && (() => onRemove(localPath)),
+  };
+  if (!cloudProjectId) return {};
+  return {
+    onRename: cloudActions?.rename && onRenameCloudProject ? (name: string) => onRenameCloudProject(cloudProjectId, name) : undefined,
+    onDelete: cloudActions?.delete && onDeleteCloudProject ? () => onDeleteCloudProject(cloudProjectId) : undefined,
+  };
+}
+
+/** Nothing is offered that this account may not do; an entry with nothing to offer has no trigger. */
+function ProjectActions({ item, name, busy, surface, onSurfaceChange, ...changes }: ProjectChanges & {
+  item: ProjectHomeItem;
+  name: string;
+  busy: boolean;
+  surface: ProjectActionSurface;
+  onSurfaceChange: (surface: ProjectActionSurface) => void;
+}) {
+  const offered = offeredProjectChanges(item, changes);
+  if (!Object.values(offered).some(Boolean)) return null;
+  return (
+    <ProjectRowActions
+      project={{ name, path: item.localPath || undefined }}
+      surface={surface}
+      onSurfaceChange={onSurfaceChange}
+      disabled={busy}
+      triggerClassName="desktop-menu-icon-button onboarding-project-actions"
+      menuPlacement="beside"
+      {...offered}
+    />
   );
 }
 

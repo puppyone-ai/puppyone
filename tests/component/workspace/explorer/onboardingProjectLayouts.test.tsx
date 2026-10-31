@@ -58,6 +58,26 @@ const project = (container: HTMLElement, id: "local" | "linked" | "cloud") => {
 };
 
 const viewTriggers = (container: HTMLElement) => toolbarControls(container).slice(0, 2);
+const withCloudActions = (overrides: Partial<MinimalOnboardingProps> = {}): Partial<MinimalOnboardingProps> => ({
+  projectItems: [local, linked, { ...cloud, cloudActions: { rename: true, delete: true } }],
+  onRenameProject: vi.fn(async () => undefined),
+  onRenameCloudProject: vi.fn(async () => undefined),
+  onDeleteCloudProject: vi.fn(async () => undefined),
+  ...overrides,
+});
+const actionMenu = () => document.body.querySelector<HTMLElement>(".desktop-project-row-actions-menu");
+const actionItems = () => [...(actionMenu()?.querySelectorAll<HTMLButtonElement>(".desktop-menu-item") ?? [])];
+const menuLabels = () => actionItems().map((item) => item.textContent);
+const actionItem = (label: string) => actionItems().find((item) => item.textContent === label);
+const dialogButton = (selector: string) =>
+  document.body.querySelector<HTMLButtonElement>(`.desktop-project-row-dialog .desktop-dialog-footer .desktop-dialog-button${selector}`)!;
+const openActions = (container: HTMLElement, id: "local" | "linked" | "cloud") =>
+  act(async () => project(container, id).querySelector<HTMLButtonElement>(".onboarding-project-actions")!.click());
+const typeName = (name: string) => act(async () => {
+  const input = document.body.querySelector<HTMLInputElement>(".desktop-project-row-dialog input")!;
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, name);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+});
 const menuItem = (container: HTMLElement, name: string) => [...container.querySelectorAll<HTMLButtonElement>(".onboarding-view-menu .desktop-menu-item")]
   .find((candidate) => candidate.textContent === name);
 /** Turns places on or off in the filter's menu, and closes it again. */
@@ -412,14 +432,99 @@ describe("Homepage project layouts", () => {
     expect(props.onOpenCloudProject).toHaveBeenCalledWith("cloud-shared");
   });
 
-  it.each(LAYOUTS)("keeps removal and the linked Cloud project in the %s layout", async (layout) => {
-    const { container, props } = renderHome();
+  it.each(LAYOUTS)("gives a folder and its linked Cloud project their own actions in the %s layout", async (layout) => {
+    const { container, props } = renderHome(withCloudActions());
     pick(container, layout);
     await act(async () => project(container, "linked").querySelector<HTMLButtonElement>(".onboarding-project-cloud-link")!.click());
     expect(props.onOpenCloudProject).toHaveBeenCalledWith("cloud-site");
-    await act(async () => project(container, "local").querySelector<HTMLButtonElement>(".onboarding-project-remove")!.click());
+
+    await openActions(container, "local");
+    expect(menuLabels()).toEqual(["Rename…", "Unlink…"]);
+    expect(actionMenu()?.querySelector(".desktop-project-menu-header-path")?.textContent).toBe(local.localPath);
+    expect(actionMenu()?.style.width).toBe("288px");
+    await act(async () => actionItem("Unlink…")!.click());
+    await act(async () => dialogButton(".destructive").click());
     expect(props.onRemoveProject).toHaveBeenCalledWith(local.localPath);
-    expect(project(container, "cloud").querySelector(".onboarding-project-remove")).toBeNull();
+
+    await openActions(container, "cloud");
+    expect(menuLabels()).toEqual(["Rename…", "Delete…"]);
+    expect(actionMenu()?.querySelector(".desktop-project-menu-header")).toBeNull();
+    expect(actionMenu()?.style.width).toBe("184px");
+    await act(async () => actionItem("Rename…")!.click());
+    await typeName("renamed");
+    await act(async () => dialogButton(".primary").click());
+    expect(props.onRenameCloudProject).toHaveBeenCalledWith("cloud-shared", "renamed");
+  });
+
+  it("places the menu by its measured height, once the overlay has mounted it", async () => {
+    const box = (top: number, right: number, width: number, height: number) =>
+      ({ top, right, bottom: top + height, left: right - width, width, height, x: right - width, y: top, toJSON: () => ({}) });
+    const measure = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      return this.matches(".desktop-project-row-actions-menu") ? box(0, 184, 184, 80) : box(700, 1000, 22, 22);
+    });
+    const { container } = renderHome(withCloudActions());
+    await openActions(container, "cloud");
+    measure.mockRestore();
+
+    expect(actionMenu()?.style.top).toBe(`${700 - 4 - 80}px`);
+    expect(actionMenu()?.style.left).toBe(`${1000 - 184}px`);
+    expect(document.activeElement).toBe(actionItem("Rename…"));
+  });
+
+  it("renames a local project from the Homepage by its path", async () => {
+    const { container, props } = renderHome(withCloudActions());
+    await openActions(container, "local");
+    await act(async () => actionItem("Rename…")!.click());
+    await typeName("renamed");
+    await act(async () => dialogButton(".primary").click());
+    expect(props.onRenameProject).toHaveBeenCalledWith(local.localPath, "renamed");
+    expect(props.onRenameCloudProject).not.toHaveBeenCalled();
+  });
+
+  it("deletes a Cloud project only after a confirmation that opens on Cancel", async () => {
+    const { container, props } = renderHome(withCloudActions());
+    await openActions(container, "cloud");
+    await act(async () => actionItem("Delete…")!.click());
+
+    const dialog = document.body.querySelector<HTMLElement>(".desktop-project-row-dialog")!;
+    expect(dialog.textContent).toMatch(/permanently deletes .*shared.* cannot be undone/s);
+    expect(dialog.querySelector("[data-desktop-dialog-initial-focus]")?.textContent).toBe("Cancel");
+    expect(props.onDeleteCloudProject).not.toHaveBeenCalled();
+    await act(async () => dialogButton(":not(.destructive)").click());
+    expect(props.onDeleteCloudProject).not.toHaveBeenCalled();
+
+    await openActions(container, "cloud");
+    await act(async () => actionItem("Delete…")!.click());
+    await act(async () => dialogButton(".destructive").click());
+    expect(props.onDeleteCloudProject).toHaveBeenCalledExactlyOnceWith("cloud-shared");
+    expect(document.body.querySelector(".desktop-project-row-dialog")).toBeNull();
+  });
+
+  it("keeps the delete dialog up with the reason when the server refuses", async () => {
+    const { container } = renderHome(withCloudActions({
+      onDeleteCloudProject: vi.fn(async () => { throw new Error("Only admins can delete this project."); }),
+    }));
+    await openActions(container, "cloud");
+    await act(async () => actionItem("Delete…")!.click());
+    await act(async () => dialogButton(".destructive").click());
+    expect(document.body.querySelector(".desktop-project-row-dialog [role=alert]")?.textContent).toBe("Only admins can delete this project.");
+    expect(dialogButton(".destructive").disabled).toBe(false);
+  });
+
+  it.each([
+    [{ rename: true, delete: false }, ["Rename…"]],
+    [{ rename: false, delete: true }, ["Delete…"]],
+  ])("offers a Cloud project only what the account may do (%j)", async (cloudActions, labels) => {
+    const { container } = renderHome(withCloudActions({ projectItems: [local, linked, { ...cloud, cloudActions }] }));
+    await openActions(container, "cloud");
+    expect(menuLabels()).toEqual(labels);
+    expect(actionMenu()?.querySelector(".desktop-menu-separator, [role=separator]")).toBeNull();
+  });
+
+  it.each([{ rename: false, delete: false }, undefined])("shows no actions on a Cloud project the account cannot change (%j)", (cloudActions) => {
+    const { container } = renderHome(withCloudActions({ projectItems: [local, linked, { ...cloud, cloudActions }] }));
+    expect(project(container, "cloud").querySelector(".onboarding-project-actions")).toBeNull();
+    expect(project(container, "local").querySelector(".onboarding-project-actions")).not.toBeNull();
   });
 
   it.each(LAYOUTS)("drags a local project out of the %s layout", (layout) => {

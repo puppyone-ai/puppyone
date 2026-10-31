@@ -949,57 +949,47 @@ describe("project folder home", () => {
     await act(async () => finishOpening?.());
   });
 
-  it("turns the remove mark red on its own, with a ring for the keyboard", () => {
-    const hover = onboardingCss.match(/\.desktop-menu-icon-button\.onboarding-project-remove:hover:not\(:disabled\),[^{]*\{[^}]*\}/s)?.[0] ?? "";
+  it("brightens the project actions on their own, with a ring for the keyboard", () => {
+    const hover = onboardingCss.match(/\.desktop-menu-icon-button\.onboarding-project-actions:hover:not\(:disabled\),[^{]*\{[^}]*\}/)?.[0];
     expect(hover).toMatch(/background:\s*transparent;/);
-    expect(hover).toMatch(/color:\s*var\(--po-danger\);/);
-    expect(onboardingCss).toMatch(/\.onboarding-project-remove:focus-visible:not\(:disabled\)\s*\{\s*outline:\s*2px solid var\(--po-focus-ring\);/);
+    expect(hover).toMatch(/color:\s*var\(--po-text\);/);
+    expect(onboardingCss).toMatch(/\.onboarding-project-actions:focus-visible:not\(:disabled\)\s*\{\s*outline:\s*2px solid var\(--po-focus-ring\)/);
   });
 
-  it("removes one registration without opening the project", async () => {
+  it("unlinks one project from its menu, after confirming, without opening it", async () => {
     const onOpenWorkspacePath = vi.fn(async () => undefined);
     const onRemoveProject = vi.fn(async () => undefined);
-    const confirm = vi.fn(() => true);
-    Object.defineProperty(window, "confirm", { configurable: true, value: confirm });
-    const container = renderHome({
-      onOpenWorkspacePath,
-      onRemoveProject,
-      projectItems: [{
-        id: "notes",
-        label: "Notes",
-        localPath: "/Users/example/Desktop/Notes",
-        lastOpenedAt: null,
-      }],
-    });
-    const removeButton = container.querySelector<HTMLButtonElement>(".onboarding-project-remove");
+    const container = renderHome({ onOpenWorkspacePath, onRemoveProject, projectItems: [notesProject] });
+    const trigger = container.querySelector<HTMLButtonElement>(".onboarding-project-actions");
 
-    expect(removeButton?.getAttribute("aria-label")).toContain("Remove");
-    expect(removeButton?.dataset.tooltip).toBe("Removes this registration only. Local files are not deleted.");
-    expect(removeButton?.querySelector(".lucide-unlink")).not.toBeNull();
-    expect(removeButton?.querySelector(".lucide-x")).toBeNull();
-    await act(async () => removeButton?.click());
+    expect(trigger?.getAttribute("aria-label")).toContain("Project actions for");
+    expect(trigger?.getAttribute("aria-haspopup")).toBe("menu");
+    expect(trigger?.dataset.tooltip).toBe("Project actions");
+    await act(async () => trigger?.click());
+    expect(trigger?.getAttribute("aria-expanded")).toBe("true");
+    expect(container.querySelector(".onboarding-project-row-wrap")?.getAttribute("data-menu-open")).toBe("true");
+    expect(onRemoveProject).not.toHaveBeenCalled();
 
-    expect(confirm).toHaveBeenCalledWith(expect.stringMatching(/Local files will stay on disk/));
+    await act(async () => projectMenuItem("Unlink…")?.click());
+    expect(document.body.querySelector(".desktop-project-row-dialog")?.textContent).toMatch(/Local files will stay on disk/);
+    expect(onRemoveProject).not.toHaveBeenCalled();
+    await act(async () => document.body.querySelector<HTMLButtonElement>(".desktop-dialog-button.destructive")?.click());
+
     expect(onRemoveProject).toHaveBeenCalledWith("/Users/example/Desktop/Notes");
     expect(onOpenWorkspacePath).not.toHaveBeenCalled();
+    expect(document.body.querySelector(".desktop-project-row-dialog")).toBeNull();
   });
 
   it("keeps a project registered when unlink confirmation is cancelled", async () => {
     const onRemoveProject = vi.fn(async () => undefined);
-    Object.defineProperty(window, "confirm", { configurable: true, value: vi.fn(() => false) });
-    const container = renderHome({
-      onRemoveProject,
-      projectItems: [{
-        id: "notes",
-        label: "Notes",
-        localPath: "/Users/example/Desktop/Notes",
-        lastOpenedAt: null,
-      }],
-    });
+    const container = renderHome({ onRemoveProject, projectItems: [notesProject] });
 
-    await act(async () => container.querySelector<HTMLButtonElement>(".onboarding-project-remove")?.click());
+    await act(async () => container.querySelector<HTMLButtonElement>(".onboarding-project-actions")?.click());
+    await act(async () => projectMenuItem("Unlink…")?.click());
+    await act(async () => document.body.querySelector<HTMLButtonElement>(".desktop-dialog-footer .desktop-dialog-button:not(.destructive)")?.click());
 
     expect(onRemoveProject).not.toHaveBeenCalled();
+    expect(document.body.querySelector(".desktop-project-row-dialog")).toBeNull();
     expect(container.querySelector(".onboarding-project-row")).not.toBeNull();
   });
 
@@ -1080,6 +1070,11 @@ describe("project folder home", () => {
     expect(container.querySelector("[role='alert']")?.textContent).toContain("Drop a local folder");
   });
 });
+
+const notesProject = { id: "notes", label: "Notes", localPath: "/Users/example/Desktop/Notes", lastOpenedAt: null };
+
+const projectMenuItem = (label: string) => [...document.body.querySelectorAll<HTMLButtonElement>(".desktop-project-row-actions-menu .desktop-menu-item")]
+  .find((item) => item.textContent === label);
 
 function renderHome(
   overrides: Partial<Omit<MinimalOnboardingProps, "appearance">> & Pick<Partial<MinimalOnboardingProps>, "appearance"> = {},

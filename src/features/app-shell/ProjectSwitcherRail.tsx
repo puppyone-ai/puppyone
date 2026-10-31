@@ -339,11 +339,11 @@ function ProjectSwitcherRailRow({
       )}
       {actionable && workspace && (
         <ProjectRowActions
-          workspace={workspace}
+          project={workspace}
           surface={actionSurface}
           onSurfaceChange={(surface) => onSurfaceChange(workspace.path, surface)}
-          onRenameProject={onRenameProject}
-          onUnlinkProject={onUnlinkProject}
+          onRename={onRenameProject && ((name) => onRenameProject(workspace.path, name))}
+          onUnlink={onUnlinkProject && (() => onUnlinkProject(workspace.path))}
         />
       )}
     </div>

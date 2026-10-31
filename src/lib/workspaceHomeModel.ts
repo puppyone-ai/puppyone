@@ -25,6 +25,8 @@ export type ProjectHomeItem = {
    * Only a mark and a way to open that other project; never merges them.
    */
   linkedCloudProject?: Readonly<{ id: string; name: string }>;
+  /** What this account may do to a Cloud project's own entry. */
+  cloudActions?: Readonly<{ rename: boolean; delete: boolean }>;
   lastModifiedAt?: string | null;
   lastOpenedAt?: string | null;
 };

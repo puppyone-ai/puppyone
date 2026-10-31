@@ -17,7 +17,10 @@ import {
   resolveProjectSwitcherRailWidth,
   resolveProjectSwitcherRailItems,
 } from "../../../../src/features/app-shell/ProjectSwitcherRail";
-import { resolveDesktopSidebarActionMenuPosition } from "../../../../src/components/DesktopSidebarActionMenu";
+import {
+  resolveDesktopActionMenuPositionBeside,
+  resolveDesktopSidebarActionMenuPosition,
+} from "../../../../src/components/DesktopSidebarActionMenu";
 import {
   ProjectEntryFlow,
   useProjectEntryFlow,
@@ -294,6 +297,17 @@ describe("Project switcher rail", () => {
       top: 706,
       left: 804,
     });
+  });
+
+  it("opens a page's action menu beside its trigger, then under it, then over it", () => {
+    const beside = (anchor: { top: number; right: number; bottom: number }, estimatedHeight = 82) =>
+      resolveDesktopActionMenuPositionBeside(anchor, { menuWidth: 184, estimatedHeight, viewportWidth: 1_000, viewportHeight: 800 });
+
+    expect(beside({ top: 100, right: 300, bottom: 124 })).toEqual({ left: 304, top: 100 });
+    expect(beside({ top: 780, right: 300, bottom: 790 })).toEqual({ left: 304, top: 706 });
+    expect(beside({ top: 100, right: 900, bottom: 124 })).toEqual({ left: 716, top: 128 });
+    expect(beside({ top: 740, right: 900, bottom: 764 })).toEqual({ left: 716, top: 654 });
+    expect(beside({ top: 20, right: 900, bottom: 44 }, 780)).toEqual({ left: 716, top: 12 });
   });
 
   it("exports a Project row as a Finder-compatible native folder drag", async () => {

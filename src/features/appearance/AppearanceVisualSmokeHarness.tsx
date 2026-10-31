@@ -192,7 +192,6 @@ export function AppearanceVisualSmokeHarness() {
               items={[{ id: "typography-project", label: "PuppyOne", localPath: "/Users/demo/Desktop/PuppyOne", lastOpenedAt: null }]}
               busy={false}
               openingPath={null}
-              removingPath={null}
               draggingPath={null}
               onOpen={() => undefined}
               onDragStart={() => undefined}
