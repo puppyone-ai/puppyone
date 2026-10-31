@@ -61,7 +61,7 @@ function property(name: string): string {
 describe("Header project reach bindings", () => {
   it("decides once in the composition root and hands the Header a prepared context", () => {
     expect(source.split("useProjectReachExperience()").length - 1).toBe(1);
-    expect(attribute("DesktopTitlebarContext", "projectReach")).toBe("projectReach");
+    expect(attribute("DesktopTitlebarContext", "projectReach")).toBe("projectOpening ? null : projectReach");
   });
 
   it("states nothing at all while Puppyone Cloud is off, like the established control", () => {

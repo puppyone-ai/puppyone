@@ -46,11 +46,11 @@ function visit(node: ts.Node) {
 }
 visit(app);
 
-function appLocation(cloudWorkspaceActive: boolean) {
+function appLocation(cloudWorkspaceActive: boolean, projectOpening: { location: "local" | "cloud" } | null = null) {
   expect(locationBinding).not.toBe("");
   const compiled = ts.transpileModule(`const workspaceLocation = ${locationBinding};
     ({ surface: ${surfaceBinding}, chrome: ${chromeBinding} });`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
-  return runInNewContext(compiled, { cloudWorkspaceActive }) as { surface: "local" | "cloud"; chrome: "local" | "cloud" };
+  return runInNewContext(compiled, { cloudWorkspaceActive, projectOpening }) as { surface: "local" | "cloud"; chrome: "local" | "cloud" };
 }
 
 let root: Root | null = null;
@@ -87,7 +87,7 @@ describe("production App location wiring", () => {
     expect(state.surface).toBe(active ? "cloud" : "local");
     expect(state.chrome).toBe(state.surface);
     expect(surfaceBinding).toBe("workspaceLocation");
-    expect(chromeBinding).toBe("workspaceLocation");
+    expect(chromeBinding).toBe("projectOpening?.location ?? workspaceLocation");
   });
 
   it("never offers to switch one project between this computer and the Cloud (ADR-001)", () => {

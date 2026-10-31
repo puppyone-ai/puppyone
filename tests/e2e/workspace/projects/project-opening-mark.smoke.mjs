@@ -18,7 +18,7 @@ app.setPath("appData", temporaryRoot);
 app.setPath("userData", path.join(temporaryRoot, getDesktopBuildChannelPolicy("dev").userDataName));
 await fs.mkdir(app.getPath("userData"), { recursive: true });
 app.on("window-all-closed", () => {});
-const report = { ok: false, restore: null, opening: null, error: null };
+const report = { ok: false, restore: null, opening: null, menu: null, failure: null, error: null };
 let window;
 let server;
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -30,8 +30,9 @@ const guard = setTimeout(() => { console.error("Project opening check timed out"
 const handle = ipcMain.handle.bind(ipcMain);
 ipcMain.handle = (channel, listener) => handle(channel, async (event, ...args) => {
   if (channel === "workspace:open-current" || channel === "workspace:read-file") await wait(350);
-  // Longer than the restoring mark's delay, so a slow start is the one observed.
-  if (channel === "window:get-initial-workspace") await wait(700);
+  if (channel === "workspace:open-current" && String(args[0]).endsWith("Project C")) throw new Error("Fixture folder is unavailable");
+  // Well past the restoring mark's delay, so a slow start is the one observed even on a busy machine.
+  if (channel === "window:get-initial-workspace") await wait(1500);
   return listener(event, ...args);
 });
 
@@ -62,6 +63,13 @@ const observer = `(() => {
         : document.querySelector('.onboarding-restoring-mark') ? 'restoring' : 'other',
       prompt: Boolean(pane && pane.dataset.contentState === 'empty'),
       title: document.querySelector('.desktop-titlebar-workspace-name')?.textContent ?? null,
+      shownDocument: [...document.querySelectorAll('.cm-content')].find((content) => shown(content)
+        && getComputedStyle(content).visibility === 'visible')?.textContent.slice(0, 24) ?? null,
+      // The project being left, which must be retained but out of reach during the wait.
+      left: (() => {
+        const surface = document.querySelector('.desktop-workspace-location-surface');
+        return surface ? getComputedStyle(surface).visibility : null;
+      })(),
     });
     if (state.recording) requestAnimationFrame(sample);
   };
@@ -97,9 +105,23 @@ const stop = async () => {
   return frames;
 };
 
+function assertOneMark(path, summary) {
+  assert.equal(summary.promptFrames, 0, `the empty editor prompt showed during the ${path}`);
+  assert.equal(summary.multipleMarks, 0, `two marks showed at once during the ${path}`);
+  assert.equal(summary.sizes.length, 1, `the mark changed size during the ${path}: ${summary.sizes.join(" -> ")}`);
+  assert.equal(summary.centers.length, 1, `the mark moved during the ${path}: ${summary.centers.join(" -> ")}`);
+}
+
+async function chooseFromMenu(name) {
+  await evaluate("document.querySelector('.desktop-titlebar-workspace-button').click()");
+  await until(`[...document.querySelectorAll('.desktop-project-menu [role=menuitem]')].some(item => item.textContent.includes(${JSON.stringify(name)}))`, `${name} in the project menu`);
+  await evaluate(observer);
+  await evaluate(`[...document.querySelectorAll('.desktop-project-menu [role=menuitem]')].find(item => item.textContent.includes(${JSON.stringify(name)})).click()`);
+}
+
 async function initialize() {
   const workspaces = [];
-  for (const name of ["Project A", "Project B"]) {
+  for (const name of ["Project A", "Project B", "Project C"]) {
     const root = path.join(temporaryRoot, name);
     await fs.mkdir(root);
     await fs.writeFile(path.join(root, "note.md"), `# ${name}\n\nOpening mark.\n`);
@@ -166,14 +188,39 @@ async function run() {
   report.opening = summarize(frames);
 
   // Everything after the click: the page the user left must already be gone.
-  const leaving = frames.findIndex(({ stage }) => stage === "preparation");
-  const after = frames.slice(leaving);
+  const after = frames.slice(frames.findIndex(({ stage }) => stage === "preparation"));
   assert.ok(!after.some(({ stage }) => stage === "homepage"), "the Homepage reappeared during the open");
   assert.equal(after.find(({ title }) => title)?.title, "Project B", "the Header named the project from the start");
-  assert.equal(report.opening.promptFrames, 0, "the empty editor prompt showed during the open");
-  assert.equal(report.opening.multipleMarks, 0, "two marks showed at once");
-  assert.equal(report.opening.sizes.length, 1, `the mark changed size: ${report.opening.sizes.join(" -> ")}`);
-  assert.equal(report.opening.centers.length, 1, `the mark moved: ${report.opening.centers.join(" -> ")}`);
+  assertOneMark("open", report.opening);
+
+  // From the Header menu, with a project on screen.
+  await chooseFromMenu("Project A");
+  await until("window.projectOpeningObservation.frames.some(frame => frame.stage === 'preparation')", "project's window from the menu");
+  await wait(120);
+  await fs.writeFile(path.join(reportDirectory, "menu-preparation.png"), (await window.webContents.capturePage()).toPNG());
+  await until("!!document.querySelector('.cm-content') && document.querySelector('.cm-content').textContent.includes('Project A')", "document from the menu");
+  const menu = await stop();
+  report.menu = summarize(menu);
+  const waiting = menu.filter(({ stage }) => stage === "preparation");
+  assert.ok(waiting.every(({ title }) => title === "Project A"), `the Header kept the project being left: ${[...new Set(waiting.map(({ title }) => title))]}`);
+  assert.ok(waiting.every(({ left }) => left === "hidden"), "the project being left stayed visible during the wait");
+  const afterWait = menu.slice(menu.findIndex(({ stage }) => stage === "preparation"));
+  const shownAfterWait = [...new Set(afterWait.map(({ shownDocument }) => shownDocument).filter(Boolean))];
+  report.menu.shownAfterWait = shownAfterWait;
+  assert.ok(shownAfterWait.every((text) => text.includes("Project A")), `the project being left showed after the wait: ${shownAfterWait}`);
+  assertOneMark("menu switch", report.menu);
+
+  // A failed switch returns to the project on screen, untouched.
+  await chooseFromMenu("Project C");
+  await until("window.projectOpeningObservation.frames.some(frame => frame.stage === 'preparation')", "failed open started");
+  await until("document.body.textContent.includes('Fixture folder is unavailable')", "failure dialog");
+  await fs.writeFile(path.join(reportDirectory, "menu-failure.png"), (await window.webContents.capturePage()).toPNG());
+  const failed = await stop();
+  report.failure = summarize(failed);
+  assert.equal(await evaluate("document.querySelector('.desktop-titlebar-workspace-name').textContent"), "Project A", "the Header kept the failed target");
+  assert.equal(await evaluate("getComputedStyle(document.querySelector('.desktop-workspace-location-surface')).visibility"), "visible", "the project on screen stayed hidden");
+  assert.ok(await evaluate("document.querySelector('.cm-content').textContent.includes('Project A')"), "the project on screen lost its document");
+  assert.equal(await evaluate("document.querySelector('.desktop-project-preparation')"), null, "the wait outlived the failure");
   report.ok = true;
 }
 
@@ -192,7 +239,8 @@ void (bootstrapError ? Promise.reject(bootstrapError) : run()).catch(async (erro
   clearTimeout(guard);
   await fs.writeFile(path.join(reportDirectory, "report.json"), JSON.stringify(report, null, 2));
   console.log(`Project opening report: ${reportDirectory}/report.json`);
-  console.log(JSON.stringify({ ok: report.ok, restore: report.restore, opening: report.opening }));
+  console.log(`Documents shown after the wait: ${JSON.stringify(report.menu?.shownAfterWait)}`);
+  console.log(JSON.stringify({ ok: report.ok, restore: report.restore, opening: report.opening, menu: report.menu, failure: report.failure }));
   for (const owner of BrowserWindow.getAllWindows()) owner.destroy();
   await server?.close();
   app.exit(report.ok ? 0 : 1);

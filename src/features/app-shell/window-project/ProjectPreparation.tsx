@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { useLocalization } from "@puppyone/localization";
 import { DataWorkspaceFrame, ExplorerTree, type DataWorkspaceExplorerFrame } from "@puppyone/shared-ui";
+import { useNativeSurfaceOcclusionLease } from "../../native-surfaces";
 
 const NO_NODES: never[] = [];
 const NO_PATHS: ReadonlySet<string> = new Set();
@@ -28,6 +29,8 @@ export function ProjectPreparation({ explorerFrame, onCancel, children }: {
   children: ReactNode;
 }) {
   const { t } = useLocalization();
+  // A native preview in the project being left draws above the page.
+  useNativeSurfaceOcclusionLease();
   const surfaceRef = useRef<HTMLElement>(null);
   const previousFocusRef = useRef(document.activeElement);
   useEffect(() => {
