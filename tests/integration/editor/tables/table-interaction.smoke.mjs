@@ -90,8 +90,10 @@ app.whenReady().then(async () => {
       optimizeDeps: { entries: ["tests/fixtures/editor/tables/table-interaction.html"] },
       server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null } });
     await vite.listen();
+    // The pointer strokes need the whole page, and macOS fits a shown window to the
+    // display, which on a CI runner is shorter than the page and cannot be outgrown.
     window = new BrowserWindow({ width: 1100, height: 970,
-      show: process.env.PUPPYONE_TABLE_INTERACTION_HIDDEN !== "1",
+      show: process.platform !== "darwin" && process.env.PUPPYONE_TABLE_INTERACTION_HIDDEN !== "1",
       webPreferences: { contextIsolation: true, sandbox: true, backgroundThrottling: false } });
     window.webContents.on("console-message", details => {
       if ((details.level === "error" || details.level === "warning") && !details.message.includes("Electron Security Warning")) errors.push(details.message);
