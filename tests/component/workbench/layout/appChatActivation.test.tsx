@@ -6,7 +6,7 @@ import { act, type ComponentProps, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../../../../src/App";
-import type { DesktopCloudShell } from "../../../../src/components/DesktopCloudShell";
+import type { ProjectShell } from "../../../../src/components/ProjectShell";
 import type { DesktopTitlebarContext } from "../../../../src/features/app-shell/DesktopTitlebarContext";
 import type { RightSidebarSurface } from "../../../../src/preferenceStorage";
 import { withTestLocalization } from "../../../support/react/localization";
@@ -23,8 +23,8 @@ const state = vi.hoisted(() => ({
 // Execute App's real composition. Control only its external state and capture
 // the shell/panel boundary; sidebarVisibility.integration covers the panel's
 // downstream presentation, command-target, inertness and resource lifecycle.
-vi.mock("../../../../src/components/DesktopCloudShell", () => ({
-  DesktopCloudShell: ({ rightSidebar, rightSidebarOpen, titlebarSidebarSlot }: ComponentProps<typeof DesktopCloudShell>) => (
+vi.mock("../../../../src/components/ProjectShell", () => ({
+  ProjectShell: ({ rightSidebar, rightSidebarOpen, titlebarSidebarSlot }: ComponentProps<typeof ProjectShell>) => (
     <div data-sidebar-open={String(rightSidebarOpen)}>
       {titlebarSidebarSlot}
       {typeof rightSidebar === "function" && rightSidebar({

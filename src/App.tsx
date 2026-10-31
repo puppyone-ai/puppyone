@@ -25,7 +25,7 @@ import {
   type WorkspaceFolder,
 } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
-import { DesktopCloudShell, type DesktopView } from "./components/DesktopCloudShell";
+import type { DesktopView } from "./components/ProjectShell";
 import {
   isSettingsSectionAvailable,
   SettingsDialog,
@@ -34,6 +34,7 @@ import {
 import { CLOUD_HUB_ENTRY_SECTION, type CloudWorkspaceSection } from "./features/cloud";
 import { useAccountCloudWorkspace } from "./features/cloud/workbench/useAccountCloudWorkspace";
 import { ProjectOpeningContent, ProjectOpeningSurface } from "./app/ProjectOpeningSurface";
+import { ProjectWindow } from "./app/ProjectWindow";
 import { CloudWorkspaceHeaderTools } from "./features/cloud/workbench/CloudWorkspaceHeaderTools";
 import { CloudWorkspaceAgentMark, CloudWorkspaceAgentPeople } from "./app/CloudWorkspaceAgentPeople";
 import { captureCloudWorkspaceShareResource } from "./features/cloud/share/cloudWorkspaceShareResource";
@@ -1639,9 +1640,10 @@ function AppContent() {
   });
   const projectOpeningWait = projectOpening && { location: projectOpening.location,
     progress: accountCloud.preparation?.progress, onCancel: projectOpening.location === "cloud" ? cancelCloudOpening : undefined };
-  const projectOpeningContent = projectOpeningWait ? <ProjectOpeningContent {...projectOpeningWait} /> : null;
+  const projectOpeningInWindow = projectOpeningWait
+    ? { location: projectOpeningWait.location, content: <ProjectOpeningContent {...projectOpeningWait} /> } : null;
   const accountCloudSurface = !workspace ? <AccountCloudWorkspaceSurface workbench={nativeCloudWorkbench}
-    opening={projectOpening && cloudWorkspaceActive ? { projectName: projectOpening.projectName, content: projectOpeningContent } : undefined}
+    opening={projectOpeningInWindow && projectOpening && cloudWorkspaceActive ? { ...projectOpeningInWindow, projectName: projectOpening.projectName } : undefined}
     agent={cloudAgent} sidebar={cloudSidebar}
     presentation={accountCloudPresentation} active={cloudWorkspaceActive}
     context={accountCloud.context} session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl} onSessionChange={updateCloudSession}
@@ -2022,24 +2024,19 @@ function AppContent() {
   return (
     <SurfaceAppearanceProvider value={surfaceAppearance}>
       <CloudShareProvider value={cloudShareActions}>
-      <div
-        className={`app-shell cloud-runtime ${resolvedTheme === "dark" ? "dark" : ""}`}
-        {...surfaceAppearance.rootProps}
-      >
-        <DesktopCloudShell
-          active
-          workspaceLocation={projectOpening?.location ?? workspaceLocation}
+        <ProjectWindow
+          location={workspaceLocation}
+          appearance={surfaceAppearance}
+          opening={projectOpeningInWindow}
           renderLeadingRail={railOwnsProject ? ({ expanded }) => renderProjectRail(workspace, expanded,
             cloudWorkspaceActive && accountCloud.context.status === "resolved" ? accountCloud.context.projectId : undefined) : undefined}
           {...projectRailLayout}
-          leftSidebarCollapsed={sidebarCollapsed}
           leftSidebarPresent={Boolean(dataPort)}
-          leftSidebarWidth={explorerWidth}
           titlebarSidebarSlot={titlebarContext}
-          titlebarActions={projectOpening ? undefined : titlebarActions}
-          titlebarTabs={!projectOpening && (cloudWorkspaceActive
+          titlebarActions={titlebarActions}
+          titlebarTabs={cloudWorkspaceActive
             ? editorTabsInHeaderEnabled && accountCloudPresentation.titlebarTabs
-            : titlebarEditorTabs)}
+            : titlebarEditorTabs}
           alignTitlebarTabsToExplorer={editorTabsInHeaderEnabled}
           titlebarTabsHostRef={enableWorkbenchTabsInHeader && !editorTabsInHeaderEnabled
             ? setTitlebarTabHost
@@ -2053,7 +2050,6 @@ function AppContent() {
           rightSidebarOpen={cloudWorkspaceActive ? cloudSidebar.open : rightSidebarContentVisible}
           resizableRightSidebar
           rightSidebarWidth={rightSidebarWidth}
-          onLeftSidebarExpand={() => setSidebarCollapsed(false)}
           onRightSidebarOpenChange={cloudWorkspaceActive ? cloudSidebar.setOpen : handleLocalRightSidebarOpenChange}
           onRightSidebarWidthChange={setRightSidebarWidth}
           rightSidebar={(presentation) => (
@@ -2193,8 +2189,7 @@ function AppContent() {
             </>}
             cloud={accountCloudPresentation.content}
           />
-          {projectOpeningContent}
-        </DesktopCloudShell>
+        </ProjectWindow>
         <DesktopOverlayPortal
           appearance={surfaceAppearance}
         >
@@ -2328,7 +2323,6 @@ function AppContent() {
           ))}
           </>
         </DesktopOverlayPortal>
-      </div>
       {settingsOverlay}
       </CloudShareProvider>
       {accountCloudSurface}

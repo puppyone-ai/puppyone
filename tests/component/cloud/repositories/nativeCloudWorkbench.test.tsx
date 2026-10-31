@@ -5,7 +5,7 @@ import { act, useEffect, useState, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DesktopWorkspaceLocationSurface } from "../../../../src/features/app-shell/DesktopWorkspaceLocationSurface";
-import { DesktopCloudShell } from "../../../../src/components/DesktopCloudShell";
+import { ProjectShell } from "../../../../src/components/ProjectShell";
 import { useNativeCloudWorkbench, type NativeCloudWorkbench } from "../../../../src/features/cloud/workbench/useNativeCloudWorkbench";
 import { cloudCache } from "../../../../src/features/cloud/cache/cloudCache";
 import type { DesktopCloudSession } from "../../../../src/lib/cloudApi";
@@ -129,9 +129,9 @@ describe("native Cloud workbench for a Cloud project opened beside a local folde
   });
 
   it("shows committed content without an arrival cover and retains Header and drafts", async () => {
-    const shell = (location: "local" | "cloud", active = true) => <DesktopCloudShell workspaceLocation={location} active={active}>
+    const shell = (location: "local" | "cloud", active = true) => <ProjectShell workspaceLocation={location} active={active}>
       <input aria-label="Retained content" defaultValue="Unsaved draft" />
-    </DesktopCloudShell>;
+    </ProjectShell>;
     await render(shell("local"));
     const input = document.querySelector<HTMLInputElement>('input[aria-label="Retained content"]')!;
     input.value = "Local draft";

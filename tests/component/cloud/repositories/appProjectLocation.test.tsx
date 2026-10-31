@@ -6,7 +6,7 @@ import ts from "typescript";
 import { act, createRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DesktopCloudShell } from "../../../../src/components/DesktopCloudShell";
+import { ProjectShell } from "../../../../src/components/ProjectShell";
 import { DesktopTitlebarContext } from "../../../../src/features/app-shell/DesktopTitlebarContext";
 import { DesktopWorkspaceLocationSurface } from "../../../../src/features/app-shell/DesktopWorkspaceLocationSurface";
 import type { ProjectHomeItem } from "../../../../src/lib/workspaceHomeModel";
@@ -38,7 +38,7 @@ function visit(node: ts.Node) {
       const expression = attribute.initializer && ts.isJsxExpression(attribute.initializer)
         ? attribute.initializer.expression?.getText(app) ?? "" : "";
       if (name === "DesktopWorkspaceLocationSurface" && prop === "location") surfaceBinding = expression;
-      if (name === "DesktopCloudShell" && prop === "workspaceLocation") chromeBinding = expression;
+      if (name === "ProjectWindow" && prop === "location") chromeBinding = expression;
       if (name === "DesktopTitlebarContext") titlebarProps.push(prop);
     }
   }
@@ -46,11 +46,11 @@ function visit(node: ts.Node) {
 }
 visit(app);
 
-function appLocation(cloudWorkspaceActive: boolean, projectOpening: { location: "local" | "cloud" } | null = null) {
+function appLocation(cloudWorkspaceActive: boolean) {
   expect(locationBinding).not.toBe("");
   const compiled = ts.transpileModule(`const workspaceLocation = ${locationBinding};
     ({ surface: ${surfaceBinding}, chrome: ${chromeBinding} });`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
-  return runInNewContext(compiled, { cloudWorkspaceActive, projectOpening }) as { surface: "local" | "cloud"; chrome: "local" | "cloud" };
+  return runInNewContext(compiled, { cloudWorkspaceActive }) as { surface: "local" | "cloud"; chrome: "local" | "cloud" };
 }
 
 let root: Root | null = null;
@@ -69,14 +69,14 @@ async function renderCommittedLocation(active: boolean, onSelectProject = vi.fn(
   if (!root) { const container = document.createElement("div"); document.body.appendChild(container); root = createRoot(container); }
   const state = appLocation(active);
   await act(async () => root!.render(withTestLocalization(
-    <DesktopCloudShell workspaceLocation={state.chrome} titlebarSidebarSlot={<DesktopTitlebarContext titlebarLabel={workspace.name}
+    <ProjectShell workspaceLocation={state.chrome} titlebarSidebarSlot={<DesktopTitlebarContext titlebarLabel={workspace.name}
       workspace={active ? cloudWorkspace : workspace} workspaceFolders={[]} multiRootWorkspacesEnabled={false}
       projectItems={projectItems} open={open} refObject={menuRef} onClose={noop} onToggle={noop}
       onSelectProject={onSelectProject} onSelectCloudProject={onSelectCloudProject} />}>
     <DesktopWorkspaceLocationSurface location={state.surface}
       local={<input aria-label="Local draft" defaultValue="LOCAL_ONLY" />}
       cloud={<div data-cloud-native="true">CLOUD_ONLY</div>} />
-    </DesktopCloudShell>)));
+    </ProjectShell>)));
 }
 
 afterEach(() => { act(() => root?.unmount()); root = null; document.body.innerHTML = ""; vi.restoreAllMocks(); });
@@ -87,7 +87,7 @@ describe("production App location wiring", () => {
     expect(state.surface).toBe(active ? "cloud" : "local");
     expect(state.chrome).toBe(state.surface);
     expect(surfaceBinding).toBe("workspaceLocation");
-    expect(chromeBinding).toBe("projectOpening?.location ?? workspaceLocation");
+    expect(chromeBinding).toBe("workspaceLocation");
   });
 
   it("never offers to switch one project between this computer and the Cloud (ADR-001)", () => {

@@ -14,7 +14,7 @@ import {
 import { useLocalization } from "@puppyone/localization";
 import type { DesktopGitController } from "../source-control";
 import type { SettingsSection } from "../settings";
-import type { DesktopView } from "../../components/DesktopCloudShell";
+import type { DesktopView } from "../../components/ProjectShell";
 import type { DesktopUpdatesController } from "../updates";
 import {
   formatFileOperationNotice,
