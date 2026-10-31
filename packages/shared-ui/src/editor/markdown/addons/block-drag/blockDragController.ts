@@ -12,7 +12,6 @@ import {
   type MarkdownMovableBlockRef,
 } from "../../core/syntax/markdownBlockBoundaries";
 import {
-  getBlockDragLabel,
   getEdgeScrollVelocity,
   pickDropBoundary,
   readBlockBottom,
@@ -22,12 +21,15 @@ import {
   readDropSpan,
   readHandlePoint,
   readHoveredBlock,
+  readPreviewPoint,
   readSourceSpan,
   toOverlayY,
+  type BlockDragPoint,
   type BlockDragSpan,
   type BlockDragSurface,
 } from "./blockDragGeometry";
 import { BlockDragOverlay } from "./blockDragOverlay";
+import { createBlockPreview } from "./blockDragPreview";
 
 const DRAG_THRESHOLD_PX = 4;
 const MAX_AUTOSCROLL_FRAME_MS = 34;
@@ -35,8 +37,7 @@ const MAX_AUTOSCROLL_FRAME_MS = 34;
 type DragFrame = {
   readonly surface: BlockDragSurface;
   readonly dropSpan: BlockDragSpan;
-  readonly ghostOriginX: number;
-  readonly ghostOriginY: number;
+  readonly previewOrigin: BlockDragPoint;
 };
 
 type Press = {
@@ -209,8 +210,11 @@ export class BlockDragController {
       if (distance <= DRAG_THRESHOLD_PX) return;
       this.startDrag(press);
     }
-    const frame = press.frame!;
-    this.overlay.moveGhost(event.clientX - frame.ghostOriginX, event.clientY - frame.ghostOriginY);
+    const { previewOrigin } = press.frame!;
+    this.overlay.moveGhost(
+      previewOrigin.x + event.clientX - press.startX,
+      previewOrigin.y + event.clientY - press.startY,
+    );
     this.updateDrop(press);
     this.startAutoscroll();
   };
@@ -283,14 +287,14 @@ export class BlockDragController {
   private startDrag(press: Press) {
     const { view, overlay } = this;
     const surface = readBlockDragSurface(view, overlay.root);
-    const root = view.dom.getBoundingClientRect();
     press.frame = {
       surface,
       dropSpan: readDropSpan(view, surface, press.source),
-      ghostOriginX: root.left,
-      ghostOriginY: root.top,
+      previewOrigin: readPreviewPoint(view, surface, press.source),
     };
-    overlay.beginDrag(getBlockDragLabel(view.state, press.source));
+    // Read before the first write of the drag, so the copy costs no extra layout.
+    const preview = createBlockPreview(view, press.source);
+    overlay.beginDrag(preview, surface.railRight - surface.railLeft);
     this.renderDrag(press);
   }
 

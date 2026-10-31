@@ -1,16 +1,16 @@
-import type { EditorState } from "@codemirror/state";
 import { BlockType, Direction, type BlockInfo, type EditorView } from "@codemirror/view";
 import {
   getMarkdownMovableBlockAt,
   type MarkdownMovableBlockRef,
 } from "../../core/syntax/markdownBlockBoundaries";
 
-export const BLOCK_DRAG_HANDLE_SIZE_PX = 22;
-const HANDLE_GAP_PX = 8;
+export const BLOCK_DRAG_HANDLE_WIDTH_PX = 18;
+export const BLOCK_DRAG_HANDLE_HEIGHT_PX = 24;
+const HANDLE_GAP_PX = 4;
+const SOURCE_BLEED_PX = 4;
 const EDGE_SCROLL_ZONE_PX = 48;
 const MAX_EDGE_SCROLL_PX_PER_SECOND = 840;
 const MAX_GAP_LINES = 8;
-const MAX_LABEL_LENGTH = 80;
 
 /** Where the overlay sits, measured once per layout and reused until it changes. */
 export type BlockDragSurface = Readonly<{
@@ -88,7 +88,7 @@ export function readHandlePoint(
   const block = view.lineBlockAt(source.from);
   const anchor = view.coordsAtPos(source.from, 1);
   const rtl = view.textDirection === Direction.RTL;
-  const inset = HANDLE_GAP_PX + BLOCK_DRAG_HANDLE_SIZE_PX / 2;
+  const inset = HANDLE_GAP_PX + BLOCK_DRAG_HANDLE_WIDTH_PX / 2;
   // A top-level list shares the rail with paragraphs, so the handle holds still
   // moving between them. Only deeper items step in beside their own marker.
   const edge = source.depth > 1 && anchor ? toOverlayX(surface, anchor.left) : readRailStart(surface, rtl);
@@ -97,7 +97,7 @@ export function readHandlePoint(
     ? ((anchor.top + anchor.bottom) / 2 - surface.originTop) / surface.scaleY
     : toOverlayY(surface, block.top + Math.min(block.height / 2, view.defaultLineHeight));
   return {
-    x: rtl ? edge + inset : Math.max(BLOCK_DRAG_HANDLE_SIZE_PX / 2, edge - inset),
+    x: rtl ? edge + inset : Math.max(BLOCK_DRAG_HANDLE_WIDTH_PX / 2, edge - inset),
     y,
   };
 }
@@ -116,8 +116,25 @@ export function readDropSpan(
   return { left, width: Math.max(0, right - left) };
 }
 
+/** The selected block's tint overhangs its text slightly, as a selection does. */
 export function readSourceSpan(surface: BlockDragSurface): BlockDragSpan {
-  return { left: surface.railLeft, width: surface.railRight - surface.railLeft };
+  return {
+    left: surface.railLeft - SOURCE_BLEED_PX,
+    width: surface.railRight - surface.railLeft + SOURCE_BLEED_PX * 2,
+  };
+}
+
+/** Where a preview must start, in editor coordinates, to sit exactly over its block. */
+export function readPreviewPoint(
+  view: EditorView,
+  surface: BlockDragSurface,
+  block: MarkdownMovableBlockRef,
+): BlockDragPoint {
+  const root = view.dom.getBoundingClientRect();
+  return {
+    x: surface.originLeft - root.left + surface.railLeft * surface.scaleX,
+    y: surface.originTop - root.top + toOverlayY(surface, readBlockTop(view, block)) * surface.scaleY,
+  };
 }
 
 function readRailStart(surface: BlockDragSurface, rtl: boolean): number {
@@ -171,16 +188,4 @@ export function getEdgeScrollVelocity(clientY: number, top: number, bottom: numb
   const intoBottom = clientY - (bottom - EDGE_SCROLL_ZONE_PX);
   const depth = intoTop > 0 ? -intoTop : Math.max(0, intoBottom);
   return Math.max(-1, Math.min(1, depth / EDGE_SCROLL_ZONE_PX)) * MAX_EDGE_SCROLL_PX_PER_SECOND;
-}
-
-/** A plain excerpt for the drag preview. Live block DOM is never cloned. */
-export function getBlockDragLabel(state: EditorState, block: MarkdownMovableBlockRef): string {
-  const lines = state.sliceDoc(block.from, block.to).split("\n", 8);
-  for (const line of lines) {
-    const text = line
-      .replace(/^\s*(?:>\s*)*(?:#{1,6}\s+|[-*+]\s+(?:\[[ xX]\]\s+)?|\d+[.)]\s+)?/, "")
-      .trim();
-    if (text && !/^(?:`{3,}|~{3,})/.test(text)) return text.slice(0, MAX_LABEL_LENGTH);
-  }
-  return lines[0].trim().slice(0, MAX_LABEL_LENGTH);
 }
