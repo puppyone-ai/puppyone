@@ -10,7 +10,7 @@ import { NsisUpdater } from "electron-updater/out/NsisUpdater.js";
 import { ElectronHttpExecutor } from "electron-updater/out/electronHttpExecutor.js";
 import { createUpdateService } from "../../../../electron/update-service.mjs";
 import { resolveDesktopBuildIdentity } from "../../../../shared/desktop-build-identity.mjs";
-import { createDesktopElectronBuilderConfig } from "../../../../tooling/desktop/build/create-builder-config.mjs";
+import { createDesktopElectronBuilderConfig } from "../../../../scripts/desktop/build/create-builder-config.mjs";
 
 const fixtures = [];
 afterEach(async () => {

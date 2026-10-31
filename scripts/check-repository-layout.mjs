@@ -17,9 +17,9 @@ const requiredPaths = [
   "local-api",
   "shared/desktop/platform-contract.mjs",
   "src/platform/desktopPlatformClient.ts",
-  "tooling/desktop/targets/target-manifest.mjs",
-  "tooling/desktop/build/create-builder-config.mjs",
-  "tooling/desktop/release/release-set.mjs",
+  "scripts/desktop/targets/target-manifest.mjs",
+  "scripts/desktop/build/create-builder-config.mjs",
+  "scripts/desktop/release/release-set.mjs",
   "scripts/check-desktop-build-environment.mjs",
   "tests/fixtures/editor/formats/samples/README.md",
 ];
@@ -31,6 +31,7 @@ const retiredPaths = [
   "src/components/CloudSidebar.tsx",
   "src/components/DesktopUtilityViews.tsx",
   "sub-themes",
+  "tooling",
   "vendor",
 ];
 

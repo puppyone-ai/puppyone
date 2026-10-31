@@ -25,12 +25,12 @@ import {
 import { resolveDesktopBuildIdentity } from "../../../../shared/desktop-build-identity.mjs";
 import {
   createDesktopElectronBuilderConfig,
-} from "../../../../tooling/desktop/build/create-builder-config.mjs";
+} from "../../../../scripts/desktop/build/create-builder-config.mjs";
 import {
   assertDesktopTargetManifest,
   createDesktopCiMatrix,
   getDesktopTargetDefinition,
-} from "../../../../tooling/desktop/targets/target-manifest.mjs";
+} from "../../../../scripts/desktop/targets/target-manifest.mjs";
 
 const commitSha = "a".repeat(40);
 const packageMetadata = {

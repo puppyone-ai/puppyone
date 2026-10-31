@@ -12,8 +12,8 @@ import { createDesktopImmutableReleasePrefix } from "../../shared/desktop/distri
 import { createDesktopTargetFromNode } from "../../shared/desktop/platform-contract.mjs";
 import {
   createDesktopElectronBuilderConfig as createTargetDesktopElectronBuilderConfig,
-} from "../../tooling/desktop/build/create-builder-config.mjs";
-import { getDesktopTargetDefinition } from "../../tooling/desktop/targets/target-manifest.mjs";
+} from "../desktop/build/create-builder-config.mjs";
+import { getDesktopTargetDefinition } from "../desktop/targets/target-manifest.mjs";
 import { repairNodePtyPermissions } from "../node-pty-permissions.mjs";
 
 export const DEFAULT_BUILD_INFO_PATH = "generated/desktop-build-info.json";

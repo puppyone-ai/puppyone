@@ -13,7 +13,7 @@ if (args.length > 1 || (args.length === 1 && args[0] !== "--prune")) {
 const executable = fileURLToPath(new URL("../node_modules/dependency-cruiser/bin/dependency-cruise.mjs", import.meta.url));
 const current = JSON.parse(execFileSync(process.execPath, [executable,
   "src", "packages", "electron", "local-api", "shared",
-  "--config", "tooling/quality/dependency-cruiser.cjs", "--output-type", "baseline",
+  "--config", "scripts/quality/dependency-cruiser.cjs", "--output-type", "baseline",
 ], { encoding: "utf8", maxBuffer: 32 * 1024 * 1024 }));
 const previous = JSON.parse(readFileSync(file, "utf8"));
 const additions = compareBaseline(file, previous, current);

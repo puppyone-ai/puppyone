@@ -4,11 +4,11 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveDesktopBuildIdentity } from "../shared/desktop-build-identity.mjs";
-import { createDesktopElectronBuilderConfig } from "../tooling/desktop/build/create-builder-config.mjs";
+import { createDesktopElectronBuilderConfig } from "./desktop/build/create-builder-config.mjs";
 import {
   assertDesktopTargetManifest,
   listDesktopTargets,
-} from "../tooling/desktop/targets/target-manifest.mjs";
+} from "./desktop/targets/target-manifest.mjs";
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const errors = [];

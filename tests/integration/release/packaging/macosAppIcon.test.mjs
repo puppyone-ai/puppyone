@@ -7,8 +7,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import prepareMacosIconBeforePack from "../../../../scripts/before-pack-macos-icon.mjs";
 import verifyMacosIconAfterPack from "../../../../scripts/after-pack-macos-icon.mjs";
 import { resolveDesktopAppIcon } from "../../../../shared/desktop/app-icon-contract.mjs";
-import { decodeAppIconPng } from "../../../../tooling/desktop/build/app-icon-validation.mjs";
-import { resolveMacosIconBuildInputs, verifyMacosIcns } from "../../../../tooling/desktop/build/macos-app-icon.mjs";
+import { decodeAppIconPng } from "../../../../scripts/desktop/build/app-icon-validation.mjs";
+import { resolveMacosIconBuildInputs, verifyMacosIcns } from "../../../../scripts/desktop/build/macos-app-icon.mjs";
 
 describe("app icon input validation", () => {
   it("rejects a PNG signature without actual image data", () => {

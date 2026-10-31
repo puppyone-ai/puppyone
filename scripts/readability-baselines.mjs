@@ -7,8 +7,8 @@ const readabilityRules = new Set(["no-nested-ternary"]);
 /** Removed rules, which an older baseline being compared against may still record. */
 const retiredRules = new Set(["complexity", "max-depth", "max-lines", "max-lines-per-function", "max-params"]);
 
-export const eslintSuppressionsFile = "tooling/quality/eslint-suppressions.json";
-export const dependencyBaselineFile = "tooling/quality/dependency-baseline.json";
+export const eslintSuppressionsFile = "scripts/quality/eslint-suppressions.json";
+export const dependencyBaselineFile = "scripts/quality/dependency-baseline.json";
 export const baselineFiles = [eslintSuppressionsFile, dependencyBaselineFile];
 
 function normalizePaths(value, renames) {

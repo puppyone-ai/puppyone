@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { build } from "vite";
 import { loadDesktopCloudConfiguration, parseDesktopCloudConfiguration } from "../../../../electron/main/cloud-configuration.mjs";
 import { loadDesktopDevelopmentEnvironment } from "../../../../scripts/local-cloud-dev.mjs";
-import { cloudConfigurationPlugin } from "../../../../tooling/desktop/build/cloud-configuration-plugin.mjs";
+import { cloudConfigurationPlugin } from "../../../../scripts/desktop/build/cloud-configuration-plugin.mjs";
 
 const endpoints = { VITE_DESKTOP_CLOUD_API_URL: "https://qubits-api.puppyone.ai/api/v1", VITE_DESKTOP_CLOUD_WEB_URL: "https://qubits-try.puppyone.ai" };
 

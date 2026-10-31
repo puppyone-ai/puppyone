@@ -18,7 +18,7 @@ const temporary = mkdtempSync(path.join(tmpdir(), "desktop-readability-"));
 afterAll(() => rmSync(temporary, { recursive: true, force: true }));
 const eslint = new ESLint({ cwd: root });
 const nested = "export const f = a ? b ? c : d : e;";
-const dependencyConfig = "tooling/quality/dependency-cruiser.cjs";
+const dependencyConfig = "scripts/quality/dependency-cruiser.cjs";
 
 function fixture() {
   return mkdtempSync(path.join(temporary, "case-"));
@@ -114,7 +114,7 @@ function dependencyFixture() {
   for (const dir of ["src", "packages", "electron", "local-api", "shared"]) mkdirSync(path.join(cwd, dir));
   json(cwd, "package.json", { type: "module" });
   json(cwd, "tsconfig.json", { compilerOptions: { baseUrl: ".", paths: { "@probe/*": ["src/*"] } } });
-  mkdirSync(path.join(cwd, "tooling/quality"), { recursive: true });
+  mkdirSync(path.join(cwd, "scripts/quality"), { recursive: true });
   cpSync(path.join(root, dependencyConfig), path.join(cwd, dependencyConfig));
   write(cwd, "src/features/cloud/index.ts", "export const publicValue = 1;");
   write(cwd, "src/features/cloud/internal.ts", "export const privateValue = 1;");

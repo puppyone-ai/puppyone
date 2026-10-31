@@ -4,9 +4,9 @@ import react from "@vitejs/plugin-react";
 import autoprefixer from "autoprefixer";
 import { fileURLToPath, URL } from "node:url";
 import path from "node:path";
-import { rendererOutputLeasePlugin } from "./tooling/desktop/build/renderer-output-lease-plugin.mjs";
-import { cascadeBootstrapPlugin } from "./tooling/styles/cascade-bootstrap-plugin.mjs";
-import { cloudConfigurationPlugin } from "./tooling/desktop/build/cloud-configuration-plugin.mjs";
+import { rendererOutputLeasePlugin } from "./scripts/desktop/build/renderer-output-lease-plugin.mjs";
+import { cascadeBootstrapPlugin } from "./scripts/styles/cascade-bootstrap-plugin.mjs";
+import { cloudConfigurationPlugin } from "./scripts/desktop/build/cloud-configuration-plugin.mjs";
 
 const DESKTOP_CONTENT_SECURITY_POLICY = [
   "default-src 'self'",

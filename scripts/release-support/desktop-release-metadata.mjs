@@ -9,7 +9,7 @@ import {
   createDesktopLatestReleasePrefix,
   createDesktopReleaseCatalogKey,
 } from "../../shared/desktop/distribution-contract.mjs";
-import { getDesktopTargetDefinition } from "../../tooling/desktop/targets/target-manifest.mjs";
+import { getDesktopTargetDefinition } from "../desktop/targets/target-manifest.mjs";
 
 export const DESKTOP_RELEASE_SCHEMA_VERSION = 2;
 export const DESKTOP_LEGACY_RELEASE_SCHEMA_VERSION = 1;
