@@ -88,8 +88,8 @@
 
 .markdown-codemirror-editor .cm-md-block-drag-grip {
   display: block;
-  width: 14px;
-  height: 14px;
+  width: 8px;
+  height: 13px;
   fill: currentColor;
   pointer-events: none;
 }

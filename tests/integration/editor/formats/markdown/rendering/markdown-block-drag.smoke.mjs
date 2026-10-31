@@ -146,7 +146,7 @@ const scenarios = {
     const handle = await page.hover(400, (row.top + row.bottom) / 2);
     await sleep(160); await page.shot("handle-rest");
     const resting = await page.call("handleLook");
-    assert.deepEqual([resting.dots, resting.width, resting.height], [6, 14, 14], "grip should be the product's 14px drawing");
+    assert.deepEqual([resting.dots, resting.width, resting.height], [6, 8, 13], "grip should be six dots on a whole-pixel box");
     assert(Math.abs(resting.opacity - .62) < .01, `resting opacity ${resting.opacity} should match the product's grips`);
     await page.hover(handle.x, handle.y);
     page.send({ type: "mouseMove", x: handle.x + 1, y: handle.y }); await sleep(160);
