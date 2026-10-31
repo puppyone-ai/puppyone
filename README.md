@@ -118,6 +118,15 @@ The canonical [sandbox runbook](https://github.com/puppyone-ai/puppy-issues/blob
 and [architecture](https://github.com/puppyone-ai/puppy-issues/blob/main/document/puppyone/architecture/control-plane/desktop-agent-inference.md)
 are maintained in `puppy-issues` alongside this task branch.
 
+## Documentation
+
+Current Desktop product, architecture, operations, privacy, and release
+documentation lives in
+[`puppy-issues/document/puppyone-desktop`](https://github.com/puppyone-ai/puppy-issues/tree/main/document/puppyone-desktop).
+The former in-repository documents remain in
+[`archive/legacy-desktop-docs/`](archive/legacy-desktop-docs/README.md) for
+history only.
+
 ## License
 
 Code is licensed under the [Apache License 2.0](LICENSE).
