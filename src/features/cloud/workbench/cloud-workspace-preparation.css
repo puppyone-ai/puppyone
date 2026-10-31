@@ -26,16 +26,13 @@
 }
 
 .desktop-cloud-opening-label {
+  overflow: hidden;
+  max-width: 100%;
   font-size: var(--po-type-ui-body, 14px);
   font-weight: var(--po-text-weight-medium, 500);
   line-height: var(--po-line-height-body);
-}
-
-.desktop-cloud-opening-hint {
-  max-width: 320px;
-  color: var(--po-text-muted);
-  font-size: var(--po-type-ui-small, 13px);
-  line-height: var(--po-line-height-body);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .desktop-cloud-opening-title {
