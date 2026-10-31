@@ -50,7 +50,7 @@ export function useHomepageProjectView(items: ProjectHomeItem[]) {
 export function OnboardingProjectToolbar({ view, disabled, children }: {
   view: ReturnType<typeof useHomepageProjectView>;
   disabled: boolean;
-  /** How the projects are arranged, last on the row. */
+  /** How the projects are arranged, after what is shown and in what order. */
   children: ReactNode;
 }) {
   const { t } = useLocalization();
@@ -92,8 +92,7 @@ export function OnboardingProjectToolbar({ view, disabled, children }: {
         <OnboardingToolbarMenu
           label={filterLabel}
           triggerLabel={chosen.length ? `${filterLabel}: ${chosen.map((place) => placeOptions[place].label).join(", ")}` : filterLabel}
-          trigger={<><ListFilter {...ICON} /><span>{t("onboarding.projects.filter.trigger")}</span></>}
-          text
+          trigger={<ListFilter {...ICON} />}
           active={chosen.length > 0}
           multiple
           disabled={disabled}
@@ -126,8 +125,7 @@ export function OnboardingProjectToolbar({ view, disabled, children }: {
         <OnboardingToolbarMenu
           label={sortLabel}
           triggerLabel={`${sortLabel}: ${sortLabels[view.sort]}`}
-          trigger={<><ArrowUpDown {...ICON} /><span>{sortLabels[view.sort]}</span></>}
-          text
+          trigger={<ArrowUpDown {...ICON} />}
           disabled={disabled}
         >
           {(close) => (

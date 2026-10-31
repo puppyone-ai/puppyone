@@ -22,7 +22,7 @@ const PROJECT_COLUMN = 640;
 const EMPTY_COLUMN = 440;
 const TITLE_INSET = 32;
 const GRID_COLUMNS = 5;
-const PROJECT_TYPE = ["12px/400", "14px/400", "16px/500"];
+const PROJECT_TYPE = ["12px/400", "14px/400"];
 const EMPTY_TYPE = ["14px/400", "19px/500"];
 
 const evaluate = (source) => window.webContents.executeJavaScript(source);
@@ -73,10 +73,13 @@ async function open({ theme, state, width, height, count = 1, mixed = false, lay
   await evaluate(settle);
 }
 
-const LAYOUT_TRIGGER = ".onboarding-view-menu-root .po-icon-button:not(.onboarding-view-menu-trigger)";
+const CONTROLS = ".onboarding-project-view .onboarding-view-menu-root .po-icon-button";
+const FILTER = `document.querySelectorAll('${CONTROLS}')[0]`;
+const SORT = `document.querySelectorAll('${CONTROLS}')[1]`;
+const LAYOUT = `document.querySelectorAll('${CONTROLS}')[2]`;
 async function chooseLayout(layout) {
   if (await evaluate(`document.querySelector('.onboarding-project-list').dataset.projectLayout === '${layout}'`)) return;
-  await evaluate(`document.querySelector('${LAYOUT_TRIGGER}').click()`);
+  await evaluate(`${LAYOUT}.click()`);
   await until(`!!document.querySelector('[data-project-layout-option=${layout}]')`);
   await evaluate(`document.querySelector('[data-project-layout-option=${layout}]').click()`);
   await until(`document.querySelector('.onboarding-project-list').dataset.projectLayout === '${layout}'`);
@@ -109,6 +112,7 @@ async function runSmoke() {
       }
       await validateToolbar(theme);
       await validateMenuPlacement(theme);
+      await validatePointerFocus(theme);
       await validateGrid(theme);
       await validateScrollport(theme);
     }
@@ -131,21 +135,22 @@ const rects = `const rect = (node) => { if (!node) return null; const r = node.g
 async function validateChrome(context, theme, column, width) {
   const page = await evaluate(`(() => { ${rects}
     const brand = document.querySelector('.onboarding-brand-lockup');
-    const title = brand.querySelector('.onboarding-brand-name, .onboarding-brand-prompt');
+    const mark = document.querySelector('.onboarding-header-mark, .onboarding-brand-mark-artwork');
+    const title = brand.querySelector('.onboarding-brand-name');
     const controls = [...document.querySelectorAll('.onboarding-launcher button')];
     return {
       brand:rect(brand), launcher:rect(document.querySelector('.onboarding-launcher')),
-      mark:brand.querySelector('img').getAttribute('src').split('/').pop(),
-      markFilter:getComputedStyle(brand.querySelector('img')).filter,
-      titleColor:getComputedStyle(title).color,
-      muted:(probe => { document.body.append(probe); probe.style.color = 'var(--po-text-muted)'; probe.className = document.querySelector('.onboarding-shell').className; const color = getComputedStyle(probe).color; probe.remove(); return color; })(document.createElement('span')),
-      titleClipped:title.scrollWidth > title.clientWidth + 1,
+      mark:mark.getAttribute('src').split('/').pop(),
+      markFilter:getComputedStyle(mark).filter,
+      titleClipped:!!title && title.scrollWidth > title.clientWidth + 1,
       outside:controls.some(control => { const r = control.getBoundingClientRect(); return r.width && (r.left < 0 || r.right > innerWidth || r.top < 38); }),
       sideways:document.documentElement.scrollWidth > innerWidth,
     };
   })()`);
-  assert.equal(page.mark, theme === "light" ? "puppy-lite.svg" : "puppy-dark.svg", `${context}: the product's mark for this theme`);
-  assert.equal(page.markFilter, theme === "light" ? "none" : "grayscale(1) brightness(0.7)", `${context}: the mark's theme treatment`);
+  const headerMark = column === PROJECT_COLUMN;
+  assert.equal(page.mark, theme === "light" || headerMark ? "puppy-lite.svg" : "puppy-dark.svg", `${context}: the product's mark for this place`);
+  const pageFilter = theme === "light" ? "none" : "grayscale(1) brightness(0.7)";
+  assert.equal(page.markFilter, headerMark ? 'url("#onboarding-header-mark-ink")' : pageFilter, `${context}: the mark's treatment`);
   assert.ok(!page.titleClipped, `${context}: the title is not cut`);
   assert.ok(!page.outside && !page.sideways, `${context}: controls stay onscreen`);
   assert.equal(page.brand.width, column, `${context}: the column keeps its width`);
@@ -248,21 +253,26 @@ async function validateProjectsHead(theme, width, height) {
     const create = document.querySelector('[data-onboarding-action=create]');
     const more = document.querySelector('[data-onboarding-action=more]');
     const label = create.querySelector('.po-button__label');
+    const brand = document.querySelector('.desktop-titlebar .onboarding-header-brand');
+    const brandName = brand?.querySelector('.desktop-titlebar-context-name');
     const surfaceStyle = getComputedStyle(surface);
     return { header:rect(document.querySelector('.desktop-titlebar')), head:rect(head), surface:rect(surface), create:rect(create), more:rect(more),
       chevron:rect(more.querySelector('svg')), label:rect(label), labelClip:getComputedStyle(label).clipPath,
-      createRadius:getComputedStyle(create).borderRadius, border:surfaceStyle.borderTopWidth, radius:surfaceStyle.borderRadius,
-      keys:!!document.querySelector('.onboarding-entry-actions'), other:document.querySelectorAll('[data-onboarding-action=open], [data-onboarding-action=import]').length,
-      title:head.querySelector('.onboarding-brand-prompt').textContent };
+      brandName:brandName?.textContent, brandMark:rect(brand?.querySelector('img')), brandFont:brandName && getComputedStyle(brandName).fontSize,
+      headMark:!!head.querySelector('img'), title:!!head.querySelector('.onboarding-brand-name'),
+      border:surfaceStyle.borderTopWidth, fill:surfaceStyle.backgroundColor,
+      keys:!!document.querySelector('.onboarding-entry-actions'), other:document.querySelectorAll('[data-onboarding-action=open], [data-onboarding-action=import]').length };
   })()`);
-  assert.equal(page.title, "Which project do you want to start with?", `${context}: the returning title`);
-  assert.equal(page.head.y - page.header.bottom, TITLE_INSET, `${context}: the inset above the title`);
-  assert.equal(page.surface.y - page.head.bottom, TITLE_INSET, `${context}: the same inset below it`);
-  assert.equal(page.border, "0px", `${context}: a fill, not a rule`);
-  assert.equal(page.radius, "8px", `${context}: the card radius`);
+  assert.equal(page.brandName, "puppyone", `${context}: the Header names the product`);
+  assert.ok(page.brandMark.width > 0 && page.brandMark.x < 200, `${context}: the mark leads the Header`);
+  assert.equal(page.headMark, false, `${context}: one mark on the page`);
+  assert.equal(page.title, false, `${context}: the head holds no title`);
+  assert.equal(page.head.y - page.header.bottom, TITLE_INSET, `${context}: the inset above the head`);
+  assert.equal(page.border, "0px", `${context}: no rule`);
+  assert.equal(page.fill, "rgba(0, 0, 0, 0)", `${context}: the projects sit on the page itself`);
   assert.equal(page.keys, false, `${context}: the entries live at the head`);
   assert.equal(page.other, 0, `${context}: the other entries wait behind the arrow`);
-  assert.equal(page.more.right, page.surface.right, `${context}: the entry menu ends on the column's edge`);
+  assert.equal(page.more.right, page.head.right, `${context}: the entry menu ends on the column's edge`);
   assert.equal(page.more.x - page.create.right, 1, `${context}: the two halves of one button`);
   assert.equal(page.chevron.width, 14, `${context}: the arrow never disappears`);
   assert.equal(page.labelClip, "none", `${context}: New keeps its words down to the smallest window`);
@@ -305,22 +315,24 @@ async function validateToolbar(theme) {
   const context = `toolbar/${theme}`;
   await open({ theme, state: "projects", width: 1180, height: 760, count: 9, mixed: true, layout: "grid" });
   const view = `(() => { ${rects}
-    const triggers = [...document.querySelectorAll('.onboarding-view-menu-trigger')];
-    return { triggers:triggers.map(rect), layout:rect(document.querySelector('${LAYOUT_TRIGGER}')), texts:triggers.map(trigger => trigger.textContent),
-      chips:[...document.querySelectorAll('.onboarding-filter-chip')].map(chip => chip.textContent), surface:rect(document.querySelector('.onboarding-home-primary')),
+    const controls = [...document.querySelectorAll('${CONTROLS}')];
+    return { controls:controls.map(rect), tips:controls.map(control => control.dataset.tooltip), words:controls.map(control => control.textContent),
+      chips:[...document.querySelectorAll('.onboarding-filter-chip')].map(chip => chip.textContent), chipRects:[...document.querySelectorAll('.onboarding-filter-chip')].map(rect),
+      head:rect(document.querySelector('.onboarding-brand-lockup')), create:rect(document.querySelector('[data-onboarding-action=create]')),
       chevrons:document.querySelectorAll('.onboarding-project-toolbar .lucide-chevron-down').length, segments:document.querySelectorAll('.desktop-theme-segment').length,
       shown:[...document.querySelectorAll('.onboarding-project-row-wrap')].map(row => row.dataset.projectLocation),
       names:[...document.querySelectorAll('.onboarding-project-tile-name')].map(name => name.textContent) };
   })()`;
   const rest = await evaluate(view);
-  assert.deepEqual(rest.texts, ["Filter", "Last modified"], `${context}: plain words, with no state to show yet`);
+  assert.deepEqual(rest.words, ["", "", ""], `${context}: three icons, without words`);
+  assert.deepEqual(rest.tips, ["Filter projects", "Sort projects: Last modified", "Project layout: Grid"], `${context}: the tooltips carry what the icons leave out`);
   assert.equal(rest.chevrons, 0, `${context}: no dropdown arrows`);
   assert.equal(rest.segments, 0, `${context}: the layout is one icon, not a highlighted switch`);
-  assert.ok(rest.triggers[0].right <= rest.triggers[1].x && rest.triggers[1].right <= rest.layout.x, `${context}: filter, then order, then layout`);
-  assert.ok(rest.layout.right <= rest.surface.right && rest.triggers[0].x > rest.surface.x + rest.surface.width / 2, `${context}: all at the row's end`);
+  assert.equal(rest.create.x - rest.controls[2].right, 8, `${context}: the icons sit just before New`);
+  assert.ok(rest.controls[0].right <= rest.controls[1].x && rest.controls[1].right <= rest.controls[2].x, `${context}: filter, then order, then layout`);
   assert.equal(rest.shown.length, 9, context);
   const item = (name) => `[...document.querySelectorAll('.onboarding-view-menu .desktop-menu-item')].find(node => node.textContent === ${JSON.stringify(name)})`;
-  await evaluate("document.querySelectorAll('.onboarding-view-menu-trigger')[0].click()");
+  await evaluate(`${FILTER}.click()`);
   await until(`!!${item("Cloud projects")}`);
   const filter = await evaluate(`(() => { const items = [...document.querySelectorAll('.onboarding-view-menu .desktop-menu-item')];
     return { rows:items.map(node => [node.textContent, node.getAttribute('aria-checked'), node.disabled]), icons:items.map(node => node.querySelector('[data-product-icon]')?.getAttribute('data-product-icon') ?? null),
@@ -339,34 +351,57 @@ async function validateToolbar(theme) {
   await evaluate(`${item("This computer")}.click()`);
   await until("document.querySelectorAll('.onboarding-filter-chip').length === 2");
   await shot(`toolbar-filter-${theme}`);
-  await evaluate("document.querySelectorAll('.onboarding-view-menu-trigger')[0].click()");
+  await evaluate(`${FILTER}.click()`);
   await until("!document.querySelector('.onboarding-view-menu')");
   const both = await evaluate(view);
   assert.deepEqual(both.chips, ["This computer", "Cloud projects"], `${context}: each filter in force is named on the toolbar`);
+  assert.deepEqual(both.controls, rest.controls, `${context}: filters in force move nothing else`);
+  assert.equal(both.head.height, rest.head.height, `${context}: the head stays one line`);
+  assert.ok(both.chipRects.at(-1).right <= both.controls[0].x, `${context}: chips stay clear of the icons`);
   assert.equal(both.shown.length, 9, `${context}: any of the chosen places`);
   await evaluate("document.querySelector('.onboarding-filter-chip').click()");
   await until("document.querySelectorAll('.onboarding-filter-chip').length === 1");
   const cloud = await evaluate(view);
   assert.ok(cloud.shown.length === 3 && cloud.shown.every(place => place === "cloud"), `${context}: one place left`);
-  await evaluate("document.querySelectorAll('.onboarding-view-menu-trigger')[0].click()");
+  await evaluate(`${FILTER}.click()`);
   await until(`!!${item("All projects")}`);
   await evaluate(`${item("All projects")}.click()`);
   await until("document.querySelectorAll('.onboarding-filter-chip').length === 0");
   assert.equal(await evaluate(`${item("All projects")}.getAttribute('aria-checked')`), "true", `${context}: All projects clears every filter`);
-  await evaluate("document.querySelectorAll('.onboarding-view-menu-trigger')[0].click()");
+  await evaluate(`${FILTER}.click()`);
   await until("!document.querySelector('.onboarding-view-menu')");
-  await evaluate("document.querySelectorAll('.onboarding-view-menu-trigger')[1].click()");
+  await evaluate(`${SORT}.click()`);
   await until(`!!${item("Name")}`);
   await evaluate(`${item("Name")}.click()`);
   await until("!document.querySelector('.onboarding-view-menu')");
   const named = await evaluate(view);
-  assert.equal(named.texts[1], "Name", `${context}: the order on the button`);
+  assert.equal(named.tips[1], "Sort projects: Name", `${context}: the tooltip names the order`);
   assert.deepEqual(named.names, [...rest.names].sort((a, b) => a.localeCompare(b, "en", { numeric: true })), `${context}: ordered by name, as a person reads it`);
   // The order is remembered, so leave the next page as it was found.
-  await evaluate("document.querySelectorAll('.onboarding-view-menu-trigger')[1].click()");
+  await evaluate(`${SORT}.click()`);
   await until(`!!${item("Last modified")}`);
   await evaluate(`${item("Last modified")}.click()`);
   await until("!document.querySelector('.onboarding-view-menu')");
+  console.log(`Passed ${context}`);
+}
+
+/** With a real pointer, closing a menu hands focus back without drawing a keyboard ring. */
+async function validatePointerFocus(theme) {
+  const context = `pointer/${theme}`;
+  await open({ theme, state: "projects", width: 1180, height: 760, count: 9, layout: "grid" });
+  const press = async (selector) => {
+    const { x, y } = await evaluate(`(() => { const r = ${selector}.getBoundingClientRect(); return { x:r.x + r.width / 2, y:r.y + r.height / 2 }; })()`);
+    for (const [type, buttons] of [["mouseMoved", 0], ["mousePressed", 1], ["mouseReleased", 0]]) {
+      await window.webContents.debugger.sendCommand("Input.dispatchMouseEvent", { type, x, y, button: type === "mouseMoved" ? "none" : "left", buttons, clickCount: type === "mouseMoved" ? 0 : 1 });
+    }
+  };
+  await press(LAYOUT);
+  await until("!!document.querySelector('[data-project-layout-option=list]')");
+  await press("document.querySelector('[data-project-layout-option=list]')");
+  await until("document.querySelector('.onboarding-project-list').dataset.projectLayout === 'list'");
+  await evaluate(settle);
+  assert.equal(await evaluate(`${LAYOUT} === document.activeElement`), true, `${context}: focus comes home to the control`);
+  assert.equal(await evaluate(`${LAYOUT}.matches(':focus-visible')`), false, `${context}: no keyboard ring after a pointer choice`);
   console.log(`Passed ${context}`);
 }
 
@@ -375,9 +410,7 @@ async function validateMenuPlacement(theme) {
     await open({ theme, state: "projects", width, height, count: 9, mixed: true, layout: "grid" });
     for (const name of ["filter", "sort", "layout"]) {
       const context = `menu/${name}/${theme}/${width}x${height}`;
-      const trigger = name === "layout"
-        ? `document.querySelector('${LAYOUT_TRIGGER}')`
-        : `document.querySelectorAll('.onboarding-view-menu-trigger')[${name === "filter" ? 0 : 1}]`;
+      const trigger = { filter: FILTER, sort: SORT, layout: LAYOUT }[name];
       await evaluate(`${trigger}.click()`);
       await until("!!document.querySelector('.onboarding-view-menu')");
       const placement = await evaluate(`(() => { const t = ${trigger}.getBoundingClientRect(); const m = document.querySelector('.onboarding-view-menu').getBoundingClientRect();
@@ -395,7 +428,7 @@ async function validateMenuPlacement(theme) {
 
 async function validateGrid(theme) {
   const column = `(() => { const edges = (selector) => { const r = document.querySelector(selector).getBoundingClientRect(); return [r.left, r.right]; };
-    return { brand:edges('.onboarding-brand-lockup'), surface:edges('.onboarding-home-primary'), layout:edges('${LAYOUT_TRIGGER}') }; })()`;
+    return { brand:edges('.onboarding-brand-lockup'), surface:edges('.onboarding-home-primary') }; })()`;
   for (const [width, height, count] of [[1180, 760, 40], [MINIMUM_WIDTH, MINIMUM_HEIGHT, 40], [1200, 900, 3]]) {
     const context = `grid/${theme}/${width}x${height}/${count}`;
     await open({ theme, state: "projects", width, height, count, layout: "list" });
@@ -407,9 +440,11 @@ async function validateGrid(theme) {
     const snapshot = await evaluate(`(() => { const element = document.querySelector('.onboarding-project-list');
       const folders = [...document.querySelectorAll('.onboarding-project-folder')].map(folder => folder.getBoundingClientRect());
       return { sideways:element.scrollWidth - element.clientWidth, overflows:element.scrollHeight > element.clientHeight, columns:new Set(folders.map(folder => folder.left)).size,
+        toFolder:document.querySelector('.project-folder-back').getBoundingClientRect().top - document.querySelector('.onboarding-brand-lockup').getBoundingClientRect().bottom,
         thumb:getComputedStyle(element, '::-webkit-scrollbar-thumb').backgroundColor, sheets:document.querySelector('.project-folder-glyph').querySelectorAll('.project-folder-sheet').length };
     })()`);
     assert.equal(snapshot.sideways, 0, `${context}: the Grid never scrolls sideways`);
+    assert.ok(Math.abs(snapshot.toFolder - TITLE_INSET) < 1, `${context}: the head sits evenly between the Header and the folders (${snapshot.toFolder})`);
     assert.equal(snapshot.columns, Math.min(count, GRID_COLUMNS), `${context}: five folders across, down to the smallest window`);
     assert.equal(snapshot.sheets, 1, `${context}: each folder holds one sheet`);
     assert.equal(await evaluate("document.querySelector('.onboarding-project-tile').dataset.tooltip"), "/example/Projects", `${context}: the tooltip adds only what the folder does not show`);
@@ -500,6 +535,6 @@ async function validateScrollPolicy() {
     title:document.querySelector('.onboarding-brand-lockup').getBoundingClientRect().top, surface:document.querySelector('.onboarding-home-primary').getBoundingClientRect().height }; })()`);
   assert.equal(short.height, short.content, "A short list does not manufacture overflow");
   assert.equal(short.title, 40 + TITLE_INSET, "The title keeps its place however few projects there are");
-  assert.ok(short.surface < 120, "A few projects hug their surface, without an empty stretched panel");
+  assert.ok(short.surface < 120, "A few projects take only the room they need");
   assert.equal(short.width, longRow, "Stable gutter keeps short and long row geometry identical");
 }

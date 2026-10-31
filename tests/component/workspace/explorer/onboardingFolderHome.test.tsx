@@ -208,7 +208,7 @@ describe("project folder home", () => {
     });
 
     expect(container.querySelector(".onboarding-project-row")?.classList.contains("desktop-menu-item")).toBe(true);
-    expect(container.textContent).toContain("Which project do you want to start with?");
+    expect(container.textContent).not.toContain("Which project do you want to start with?");
     expect(container.textContent).not.toContain("Local Projects");
     expect(container.textContent).not.toContain("Other options");
     expect(container.textContent).not.toContain("Get started with puppyone");
@@ -228,7 +228,7 @@ describe("project folder home", () => {
     const actions = container.querySelector(".onboarding-entry-actions");
     expect(requireSurface(container).dataset.onboardingState).toBe("projects");
     expect(primary?.getAttribute("data-onboarding-primary")).toBe("projects");
-    expect(primary?.children).toHaveLength(2);
+    expect(primary?.children).toHaveLength(1);
     expect(container.querySelector(".onboarding-project-list")?.children).toHaveLength(1);
     expect(brand!.compareDocumentPosition(primary as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(actions).toBeNull();
@@ -284,11 +284,20 @@ describe("project folder home", () => {
     expect(onboardingCss).not.toMatch(/\.onboarding-entry-import:hover/);
   });
 
-  it("frames the projects in a quiet fill and draws no rule around them", () => {
+  it("draws the Header's mark in the same ink as the product's name", () => {
+    expect(onboardingCss).toMatch(/\.onboarding-header-brand \{\s*color: var\(--desktop-titlebar-text\);/);
+    expect(onboardingCss).toMatch(/\.onboarding-header-mark-ink feFlood \{\s*flood-color: var\(--desktop-titlebar-text\);/);
+    expect(onboardingCss).toMatch(/\.desktop-titlebar \.onboarding-header-mark \{[^}]*filter: url\("#onboarding-header-mark-ink"\);/s);
+    expect(onboardingCss).not.toMatch(/onboarding-header-mark \{[^}]*mix-blend-mode/s);
+    const container = renderHome({ projectItems: [{ id: "notes", label: "Notes", localPath: "/Users/example/Notes", lastOpenedAt: null }] });
+    expect(container.querySelector(".onboarding-header-brand filter")?.id).toBe("onboarding-header-mark-ink");
+  });
+
+  it("sets the projects on the page itself, with a fill only for a folder dragged over it", () => {
     expect(onboardingCss).not.toMatch(/\.onboarding-home-primary[^{]*\{[^}]*border-(?:block|top|bottom)\s*:/s);
-    expect(onboardingCss).toMatch(
-      /\.onboarding-home-primary\[data-onboarding-primary="projects"\]\s*\{[^}]*border-radius:\s*var\(--po-card-radius\);[^}]*background:\s*var\(--po-sidebar\);/s,
-    );
+    const surface = onboardingCss.match(/\.onboarding-home-primary\[data-onboarding-primary="projects"\]\s*\{[^}]*\}/s)?.[0] ?? "";
+    expect(surface).not.toMatch(/background/);
+    expect(onboardingCss).toMatch(/\.onboarding-shell\.dragging \.onboarding-home-primary\[data-onboarding-primary="projects"\]\s*\{\s*background:\s*var\(--po-hover\);/);
   });
 
   it("takes its buttons from the shared Button and its values from the theme", () => {
@@ -301,7 +310,7 @@ describe("project folder home", () => {
     expect(onboardingCss).toMatch(/--onboarding-row-font-weight:\s*var\(--po-text-weight-regular, 400\);/);
   });
 
-  it("keeps the page to three levels of type: the title, the body and the caption", () => {
+  it("keeps the page to its levels of type: the first-run title, the body and the caption", () => {
     const page = onboardingCss.slice(0, onboardingCss.indexOf(".project-cloud-link-button {"));
     const sizes = new Set([...page.matchAll(/font-size:\s*([^;]+);/g)].map((match) => match[1]!.trim()));
     expect([...sizes].sort()).toEqual([
@@ -312,7 +321,6 @@ describe("project folder home", () => {
       "var(--po-type-ui-body, 14px)",
       "var(--po-type-ui-caption, 12px)",
       "var(--po-type-ui-heading, 19px)",
-      "var(--po-type-ui-section-title, 16px)",
     ]);
     expect(onboardingCss).toMatch(/--onboarding-row-font-size:\s*var\(--po-type-ui-body, 14px\);/);
     expect(onboardingCss).toMatch(/--onboarding-caption-font-size:\s*var\(--po-type-ui-caption, 12px\);/);
@@ -355,7 +363,7 @@ describe("project folder home", () => {
     expect(onboardingCss).toMatch(
       /\.onboarding-homepage-shell\[data-onboarding-state="projects"\]\s*\{[^}]*padding-block-start:\s*calc\(var\(--desktop-chrome-height\) \+ var\(--onboarding-title-inset\)\);[^}]*padding-block-end:\s*20px;/s,
     );
-    expect(onboardingCss).toMatch(/\.onboarding-shell\[data-onboarding-state="projects"\] \.onboarding-homepage\s*\{[^}]*--onboarding-title-primary-gap:\s*var\(--onboarding-title-inset\);[^}]*--onboarding-primary-actions-gap:\s*0;/s);
+    expect(onboardingCss).toMatch(/\.onboarding-shell\[data-onboarding-state="projects"\] \.onboarding-homepage\s*\{[^}]*--onboarding-title-primary-gap:\s*8px;[^}]*--onboarding-primary-actions-gap:\s*0;/s);
   });
 
   it("keeps one folder action after the project panel", async () => {
@@ -1107,14 +1115,15 @@ function expectBrandLockup(
   expectedMarkAsset: string = PUPPY_BRAND_MARK_ASSETS.dark,
 ) {
   const lockup = container.querySelector(".onboarding-brand-lockup");
-  const mark = lockup?.querySelector<HTMLImageElement>(".onboarding-brand-mark-artwork");
-  expect(mark?.getAttribute("src")).toContain(expectedMarkAsset);
+  const brand = state === "projects" ? container.querySelector(".desktop-titlebar .onboarding-header-brand") : lockup;
+  const mark = brand?.querySelector<HTMLImageElement>("img");
+  expect(mark?.getAttribute("src")).toContain(state === "projects" ? PUPPY_BRAND_MARK_ASSETS.lite : expectedMarkAsset);
   expect(mark?.getAttribute("alt")).toBe("");
   if (state === "projects") {
-    expect(lockup?.querySelector(".onboarding-brand-prompt")?.textContent).toBe("Which project do you want to start with?");
+    expect(brand?.textContent).toBe("puppyone");
+    expect(lockup?.querySelector("img")).toBeNull();
     expect(lockup?.querySelector(".onboarding-brand-name")).toBeNull();
   } else {
-    expect(lockup?.querySelector(".onboarding-brand-prompt")).toBeNull();
     expect(lockup?.querySelector(".onboarding-brand-name")?.textContent).toBe("Start with your files. Agent-ready.");
   }
   expect(lockup?.querySelectorAll("p")).toHaveLength(0);

@@ -81,8 +81,8 @@
 }
 
 .onboarding-homepage-shell[data-onboarding-state="projects"] {
-  /* The shared Header owns account controls; only the project list scrolls. The title
-     row sits evenly between the Header and the projects' surface. */
+  /* The shared Header owns account controls; only the project list scrolls. The head
+     sits evenly between the Header and the folders, whose cells carry their own inset. */
   --onboarding-title-inset: 32px;
   padding-block-start: calc(var(--desktop-chrome-height) + var(--onboarding-title-inset));
   padding-block-end: 20px;
@@ -91,7 +91,7 @@
 .onboarding-shell[data-onboarding-state="projects"] .onboarding-homepage {
   /* Room for five folders across, and for the longest title beside the entry menu. */
   --onboarding-column-width: 640px;
-  --onboarding-title-primary-gap: var(--onboarding-title-inset);
+  --onboarding-title-primary-gap: 8px;
   --onboarding-primary-actions-gap: 0;
   display: flex;
   flex-direction: column;
@@ -164,17 +164,37 @@
   filter: grayscale(1) brightness(0.7);
 }
 
-.onboarding-brand-name,
-.onboarding-brand-prompt {
+.onboarding-brand-name {
   font-family: var(--po-font-sans);
-  font-size: var(--po-type-ui-section-title, 16px);
+  font-size: var(--po-type-ui-heading, 19px);
   font-weight: var(--po-text-weight-medium, 500);
   line-height: var(--po-line-height-tight);
+  text-wrap: balance;
 }
 
-.onboarding-shell[data-onboarding-state="empty"] .onboarding-brand-name {
-  font-size: var(--po-type-ui-heading, 19px);
-  text-wrap: balance;
+/* The product's name in the Header, with the mark at the Header's own size and in the
+   name's own ink, whatever colours the theme gives the Header. */
+.desktop-titlebar .onboarding-header-mark {
+  display: block;
+  width: 18px;
+  max-width: 18px;
+  height: 18px;
+  filter: url("#onboarding-header-mark-ink");
+  pointer-events: none;
+}
+
+.onboarding-header-mark-ink {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+
+.onboarding-header-mark-ink feFlood {
+  flood-color: var(--desktop-titlebar-text);
+}
+
+.onboarding-header-brand {
+  color: var(--desktop-titlebar-text);
 }
 
 /* First run has nothing to frame yet, so the Puppy and a line greet you above the keys. */
@@ -189,15 +209,6 @@
   max-width: 48px;
   height: 48px;
   flex-basis: 48px;
-}
-
-.onboarding-brand-prompt {
-  display: block;
-  max-width: 100%;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .onboarding-home-primary {
@@ -217,13 +228,13 @@
 
 .onboarding-home-primary[data-onboarding-primary="projects"] {
   min-height: 0;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   border-radius: var(--po-card-radius);
-  background: var(--po-sidebar);
 }
 
+/* The projects sit directly on the page; a fill appears only to receive a dragged folder. */
 .onboarding-shell.dragging .onboarding-home-primary[data-onboarding-primary="projects"] {
-  background: var(--po-control-hover);
+  background: var(--po-hover);
 }
 
 .onboarding-telemetry-disclosure {
@@ -414,16 +425,14 @@
   /* Persistent navigation affordance: legible in both light and dark themes. */
   --po-scrollbar-presentation-thumb: color-mix(in srgb, var(--po-text-muted) 40%, transparent);
   --po-scrollbar-presentation-thumb-hover: color-mix(in srgb, var(--po-text-muted) 60%, transparent);
-  /* The start inset matches the scrollbar's lane, which keeps the content centred on
-     the surface, and the margin keeps the thumb clear of the surface's corners. */
+  /* The scrollbar's lane hangs outside the column, so that the projects keep its width. */
   display: grid;
-  width: 100%;
+  width: calc(100% + var(--po-scrollbar-size));
   min-width: 0;
   min-height: 0;
   align-content: start;
   gap: 2px;
-  margin-block: 4px 8px;
-  padding: 0 0 0 var(--po-scrollbar-size);
+  padding-block: 8px;
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-gutter: stable;
@@ -431,6 +440,7 @@
   border: 0;
   border-radius: 0;
   background: transparent;
+  mask-image: linear-gradient(to bottom, transparent, black 8px, black calc(100% - 8px), transparent);
 }
 
 .onboarding-project-row {
@@ -714,37 +724,34 @@ span.homepage-cloud-feedback {
   width: 216px;
 }
 
-/* The toolbar of the projects' surface, kept light so the projects stay the subject:
-   what is shown, in what order and how it is arranged, together at the row's end. */
+/* Three quiet icons just before New: what is shown, in what order and how it is
+   arranged. Filters in force grow leftwards, so that nothing moves under the pointer. */
 .onboarding-project-toolbar {
   display: flex;
-  width: 100%;
   min-width: 0;
-  box-sizing: border-box;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 8px 8px 0;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .onboarding-project-view {
   display: flex;
   min-width: 0;
-  flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
   gap: 4px;
-  margin-inline-start: auto;
 }
 
+/* One line at any width: a chip gives way before the head may grow and move the page. */
 .onboarding-view-menu-root {
   position: relative;
-  min-width: 0;
+  flex: none;
 }
 
 /* A filter in force, named on the toolbar and one press from being taken off. */
 .onboarding-filter-chip {
   display: inline-flex;
-  max-width: 100%;
+  min-width: 0;
+  flex: 0 1 auto;
   height: var(--po-control-size-compact);
   align-items: center;
   gap: 4px;
@@ -777,25 +784,6 @@ span.homepage-cloud-feedback {
 .onboarding-filter-chip:focus-visible {
   outline: 2px solid var(--po-focus-ring);
   outline-offset: -2px;
-}
-
-.onboarding-view-menu-root .onboarding-view-menu-trigger {
-  width: auto;
-  max-width: 100%;
-  gap: 6px;
-  padding-inline: 8px;
-  font-size: var(--onboarding-row-font-size);
-  font-weight: var(--onboarding-row-font-weight);
-}
-
-.onboarding-view-menu-trigger > span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.onboarding-view-menu-trigger svg {
-  flex: 0 0 auto;
 }
 
 .onboarding-view-menu-root .po-icon-button[aria-expanded="true"] {
@@ -900,7 +888,7 @@ span.homepage-cloud-feedback {
   stroke: color-mix(in srgb, var(--po-brand-blue) 84%, var(--po-text));
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 1.75;
+  stroke-width: 1.5;
   vector-effect: non-scaling-stroke;
 }
 
@@ -974,8 +962,6 @@ span.homepage-cloud-feedback {
 .onboarding-project-list[data-project-layout="grid"] {
   grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
   gap: 2px;
-  padding-block: 2px 4px;
-  mask-image: linear-gradient(to bottom, transparent, black 8px, black calc(100% - 8px), transparent);
 }
 
 .onboarding-project-list[data-project-layout="grid"] .onboarding-project-tile {

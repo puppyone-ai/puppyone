@@ -43,8 +43,9 @@ function renderHome(overrides: Partial<MinimalOnboardingProps> = {}) {
 
 const shownLayout = (container: HTMLElement) =>
   container.querySelector(".onboarding-project-list")?.getAttribute("data-project-layout");
-const layoutTrigger = (container: HTMLElement) =>
-  container.querySelector<HTMLButtonElement>(".onboarding-view-menu-root .po-icon-button:not(.onboarding-view-menu-trigger)")!;
+const toolbarControls = (container: HTMLElement) =>
+  [...container.querySelectorAll<HTMLButtonElement>(".onboarding-project-view .onboarding-view-menu-root .po-icon-button")];
+const layoutTrigger = (container: HTMLElement) => toolbarControls(container)[2]!;
 const layoutOption = (container: HTMLElement, layout: string) =>
   container.querySelector<HTMLButtonElement>(`[data-project-layout-option="${layout}"]`)!;
 const pick = (container: HTMLElement, layout: string) => {
@@ -56,7 +57,7 @@ const project = (container: HTMLElement, id: "local" | "linked" | "cloud") => {
   return { local: wrap[0], linked: wrap[1], cloud: wrap[2] }[id]!;
 };
 
-const viewTriggers = (container: HTMLElement) => [...container.querySelectorAll<HTMLButtonElement>(".onboarding-view-menu-trigger")];
+const viewTriggers = (container: HTMLElement) => toolbarControls(container).slice(0, 2);
 const menuItem = (container: HTMLElement, name: string) => [...container.querySelectorAll<HTMLButtonElement>(".onboarding-view-menu .desktop-menu-item")]
   .find((candidate) => candidate.textContent === name);
 /** Turns places on or off in the filter's menu, and closes it again. */
@@ -143,16 +144,29 @@ describe("Homepage project layouts", () => {
     expect(layoutTrigger(container).querySelector(".lucide-layout-grid")).not.toBeNull();
   });
 
-  it("keeps the toolbar's controls together at its end, with the layout last", () => {
+  it("sets the toolbar just before New, with the product named in the Header", () => {
     const { container } = renderHome();
-    const view = container.querySelector(".onboarding-home-primary .onboarding-project-toolbar .onboarding-project-view")!;
+    const view = container.querySelector(".onboarding-brand-lockup .onboarding-project-toolbar .onboarding-project-view")!;
     const roots = [...view.querySelectorAll(":scope > .onboarding-view-menu-root")];
     expect(roots).toHaveLength(3);
     expect(roots[0]?.contains(viewTriggers(container)[0]!)).toBe(true);
     expect(roots[1]?.contains(viewTriggers(container)[1]!)).toBe(true);
     expect(roots[2]?.contains(layoutTrigger(container))).toBe(true);
-    expect(container.querySelector(".onboarding-brand-lockup .onboarding-view-menu-root")).toBeNull();
+    const head = [...container.querySelector(".onboarding-brand-lockup")!.children];
+    expect(head.map((part) => part.className)).toEqual(["onboarding-project-toolbar", "onboarding-entry-menu-root"]);
+    expect(container.querySelector(".onboarding-home-primary .onboarding-view-menu-root")).toBeNull();
     expect(container.querySelector(".desktop-titlebar .onboarding-view-menu-root")).toBeNull();
+    expect(container.querySelector(".onboarding-brand-lockup img")).toBeNull();
+    expect(container.querySelector(".onboarding-brand-prompt")).toBeNull();
+    const brand = container.querySelector(".desktop-titlebar .onboarding-header-brand")!;
+    expect(brand.textContent).toBe("puppyone");
+    expect(brand.querySelector("img")).not.toBeNull();
+  });
+
+  it("names nothing in the Header until there are projects, when the page greets you itself", () => {
+    const { container } = renderHome({ projectItems: [] });
+    expect(container.querySelector(".desktop-titlebar .onboarding-header-brand")).toBeNull();
+    expect(container.querySelector(".onboarding-brand-lockup img")).not.toBeNull();
   });
 
   it("keeps the arrow on the entry menu when New gives up its words", () => {
@@ -176,10 +190,16 @@ describe("Homepage project layouts", () => {
     expect(container.querySelector(".onboarding-view-menu")?.classList.contains("is-multiple")).toBe(false);
   });
 
-  it("carries no dropdown arrow on the toolbar's controls", () => {
+  it("draws the toolbar as three icons, with their state left to the tooltip", () => {
     const { container } = renderHome();
     expect(container.querySelector(".onboarding-project-toolbar .lucide-chevron-down")).toBeNull();
-    expect(viewTriggers(container).map((trigger) => trigger.textContent)).toEqual(["Filter", "Last modified"]);
+    const controls = toolbarControls(container);
+    expect(controls.map((control) => control.textContent)).toEqual(["", "", ""]);
+    expect(controls.map((control) => control.getAttribute("data-tooltip"))).toEqual([
+      "Filter projects",
+      "Sort projects: Last modified",
+      "Project layout: Grid",
+    ]);
   });
 
   it("names each place with its product icon, in the menu and on its chip once chosen", () => {
@@ -270,6 +290,9 @@ describe("Homepage project layouts", () => {
     const { container } = renderHome();
     expect(chips(container)).toHaveLength(0);
     togglePlaces(container, "Cloud projects", "This computer");
+    const view = container.querySelector(".onboarding-project-view")!;
+    expect(view.firstElementChild).toBe(chips(container)[0]);
+    expect(view.lastElementChild?.contains(layoutTrigger(container))).toBe(true);
     expect(chips(container).map((chip) => chip.textContent)).toEqual(["This computer", "Cloud projects"]);
     expect(chips(container)[1]?.getAttribute("aria-label")).toContain("Remove filter");
     expect(viewTriggers(container)[0]?.getAttribute("aria-label")).toBe("Filter projects: This computer, Cloud projects");
@@ -287,7 +310,7 @@ describe("Homepage project layouts", () => {
     initializeDesktopPreferences();
     const next = renderHome();
     expect(chips(next.container)).toHaveLength(0);
-    expect(viewTriggers(next.container).map((trigger) => trigger.textContent)).toEqual(["Filter", "Name"]);
+    expect(viewTriggers(next.container).map((trigger) => trigger.getAttribute("aria-label"))).toEqual(["Filter projects", "Sort projects: Name"]);
   });
 
   it("falls back to the latest modification for a stored order it does not know", () => {

@@ -33,7 +33,7 @@ import type {
   WorkspaceProjectLocationGrant,
 } from "../types/electron";
 import { DesktopWindowChrome } from "./DesktopWindowChrome";
-import { OnboardingBrandLockup } from "./onboarding/OnboardingBrandLockup";
+import { OnboardingBrandLockup, OnboardingHeaderBrand } from "./onboarding/OnboardingBrandLockup";
 import { OnboardingEmptyStateIntro } from "./onboarding/OnboardingEmptyStateIntro";
 import {
   OnboardingCreateProjectAction,
@@ -277,7 +277,7 @@ export function MinimalOnboarding({
       onDragLeave={folderDrop.onDragLeave}
       onDrop={folderDrop.onDrop}
     >
-      <DesktopWindowChrome actions={cloudAccountStatus} />
+      <DesktopWindowChrome context={hasProjects ? <OnboardingHeaderBrand /> : undefined} actions={cloudAccountStatus} />
       <section
         ref={homepageRef}
         className="onboarding-homepage"
@@ -286,12 +286,13 @@ export function MinimalOnboarding({
         aria-busy={openingProject || undefined}
       >
         <OnboardingHomeLayout
-          brand={<OnboardingBrandLockup state={onboardingState} resolvedTheme={resolvedTheme} trailing={entry.trailing} />}
-          primaryKind={hasProjects ? "projects" : "create"}
-          primary={hasProjects ? (<>
+          brand={<OnboardingBrandLockup state={onboardingState} resolvedTheme={resolvedTheme} toolbar={(
             <OnboardingProjectToolbar view={projectView} disabled={openingProject}>
               <OnboardingProjectLayoutSwitch layout={projectLayout} disabled={openingProject} onChange={setProjectLayout} />
             </OnboardingProjectToolbar>
+          )} trailing={entry.trailing} />}
+          primaryKind={hasProjects ? "projects" : "create"}
+          primary={hasProjects ? (
             <OnboardingProjectList
               items={projectView.visibleItems}
               layout={projectLayout}
@@ -305,7 +306,7 @@ export function MinimalOnboarding({
               onDragStart={startProjectDrag}
               onDragEnd={() => setDraggingPath(null)}
             />
-          </>) : (
+          ) : (
             <OnboardingCreateProjectAction
               busy={busy}
               canCreateProject={canCreateProject}
