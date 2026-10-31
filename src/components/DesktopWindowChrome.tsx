@@ -8,7 +8,6 @@ type DesktopWindowChromeProps = {
   /** Header presentation location; shell content separately owns the committed provider. */
   workspaceLocation?: "local" | "cloud";
   context?: ReactNode;
-  centeredContext?: ReactNode;
   actions?: ReactNode;
   tabs?: ReactNode;
   sessionTabsHostRef?: Ref<HTMLDivElement>;
@@ -24,7 +23,6 @@ type DesktopWindowChromeProps = {
 export function DesktopWindowChrome({
   workspaceLocation = "local",
   context,
-  centeredContext,
   actions,
   tabs,
   sessionTabsHostRef,
@@ -44,7 +42,6 @@ export function DesktopWindowChrome({
       data-window-platform={platformCapabilities?.platform}
       data-window-active={windowActive ? "true" : "false"}
       data-window-full-screen={fullScreen ? "true" : undefined}
-      data-centered-project={centeredContext ? "true" : undefined}
     >
       {workspaceLocation === "cloud" && <span className="desktop-cloud-header-reveal" aria-hidden="true" />}
       <div className="desktop-titlebar-layout">
@@ -75,11 +72,6 @@ export function DesktopWindowChrome({
             )}
           </div>
         </div>
-        {centeredContext && (
-          <div className="desktop-titlebar-centered-context">
-            {centeredContext}
-          </div>
-        )}
         <div className="desktop-titlebar-trailing">
           {actions && (
             <div className="desktop-titlebar-actions">

@@ -1,7 +1,4 @@
 {
-  "experimental.projectHeaderAlignment.title": "Posição do projeto no cabeçalho",
-  "experimental.projectHeaderAlignment.left": "Esquerda",
-  "experimental.projectHeaderAlignment.center": "Centro",
   "activation.activate": "Ativar",
   "activation.consent": "O Puppyone instalará a CLI do {agent} em segundo plano. Ela será ativada assim que a instalação terminar. Pode ser necessário entrar na conta no primeiro uso. Uma instalação existente será reutilizada.",
   "activation.guided": "Este Agent usa a configuração oficial. O Puppyone a abrirá e verificará a instalação quando você retornar. Login e modelo são verificados ao iniciar o Agent.",

@@ -69,7 +69,7 @@ async function renderCommittedLocation(active: boolean, onSelectProject = vi.fn(
   if (!root) { const container = document.createElement("div"); document.body.appendChild(container); root = createRoot(container); }
   const state = appLocation(active);
   await act(async () => root!.render(withTestLocalization(
-    <DesktopCloudShell workspaceLocation={state.chrome} titlebarCenteredSlot={<DesktopTitlebarContext titlebarLabel={workspace.name}
+    <DesktopCloudShell workspaceLocation={state.chrome} titlebarSidebarSlot={<DesktopTitlebarContext titlebarLabel={workspace.name}
       workspace={active ? cloudWorkspace : workspace} workspaceFolders={[]} multiRootWorkspacesEnabled={false}
       projectItems={projectItems} open={open} refObject={menuRef} onClose={noop} onToggle={noop}
       onSelectProject={onSelectProject} onSelectCloudProject={onSelectCloudProject} />}>

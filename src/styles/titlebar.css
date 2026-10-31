@@ -192,47 +192,6 @@
   flex: 1 1 auto;
 }
 
-/* The opt-in centered project has its own grid track, so its menu never
- * overlays tabs or actions. Equal outer tracks center it on the full window;
- * platform caption insets are reserved inside those tracks. */
-.desktop-shell .desktop-titlebar[data-centered-project="true"] .desktop-titlebar-layout {
-  grid-template-columns: minmax(0, 1fr) minmax(0, max-content) minmax(0, 1fr);
-  gap: 0;
-  width: 100%;
-  margin-left: 0;
-  padding: 0;
-}
-
-.desktop-titlebar[data-centered-project="true"] .desktop-titlebar-leading {
-  display: grid;
-  box-sizing: border-box;
-  min-width: 0;
-  overflow: hidden;
-  height: 100%;
-  grid-template-columns: minmax(0, max-content) minmax(var(--desktop-titlebar-drag-min-width), 1fr);
-  align-items: center;
-  gap: 6px;
-  padding-inline: calc(var(--desktop-titlebar-safe-area-x) + var(--desktop-titlebar-content-start)) 6px;
-}
-
-.desktop-titlebar-centered-context {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  max-width: min(440px, 40vw);
-  height: 100%;
-}
-
-.desktop-titlebar[data-centered-project="true"] .desktop-titlebar-trailing {
-  min-width: 0;
-  justify-content: flex-end;
-  padding-inline-end: 6px;
-}
-
-.desktop-titlebar[data-centered-project="true"][data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-trailing {
-  padding-inline-end: calc(var(--desktop-titlebar-windows-controls-width) + 6px);
-}
-
 .desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-layout {
   position: relative;
   padding-right: 0;

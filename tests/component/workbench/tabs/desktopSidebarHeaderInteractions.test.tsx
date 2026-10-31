@@ -21,11 +21,9 @@ afterEach(() => {
 
 describe("desktop explorer Header expansion", () => {
   it.each([
-    { collapsed: false, centered: false },
-    { collapsed: true, centered: false },
-    { collapsed: false, centered: true },
-    { collapsed: true, centered: true },
-  ])("keeps Home first and independently clickable with sidebar collapsed=$collapsed and centered project=$centered", ({ collapsed, centered }) => {
+    { collapsed: false },
+    { collapsed: true },
+  ])("keeps Home first and independently clickable with sidebar collapsed=$collapsed", ({ collapsed }) => {
     const onGoHome = vi.fn();
     const onLeftSidebarExpand = vi.fn();
     const onProject = vi.fn();
@@ -33,7 +31,7 @@ describe("desktop explorer Header expansion", () => {
       leftSidebarCollapsed: collapsed,
       onGoHome,
       onLeftSidebarExpand,
-      titlebarCenteredSlot: centered ? <button onClick={onProject}>Project menu</button> : undefined,
+      titlebarSidebarSlot: <button onClick={onProject}>Project menu</button>,
       titlebarTabs: <div role="tablist">Files</div>,
     });
     const header = container.querySelector("header");
@@ -42,24 +40,22 @@ describe("desktop explorer Header expansion", () => {
     expect(home?.getAttribute("aria-label")).toBe("Home");
     expect(home?.querySelector('[data-product-icon="home"]')).not.toBeNull();
     expect(home?.textContent).toBe("");
-    expect(home?.closest(".desktop-titlebar-centered-context")).toBeNull();
     act(() => home?.click());
     expect(onGoHome).toHaveBeenCalledOnce();
     expect(onLeftSidebarExpand).not.toHaveBeenCalled();
     expect(onProject).not.toHaveBeenCalled();
   });
 
-  it("keeps a centered project menu interactive beside file tabs in the same Header", () => {
+  it("keeps the project menu interactive beside file tabs in the same Header", () => {
     const onProject = vi.fn();
     const container = renderShell({
       leftSidebarCollapsed: false,
-      titlebarCenteredSlot: <button onClick={onProject}>Project menu</button>,
+      titlebarSidebarSlot: <button onClick={onProject}>Project menu</button>,
       titlebarTabs: <div role="tablist">Files</div>,
     });
     const header = container.querySelector("header");
-    expect(header?.getAttribute("data-centered-project")).toBe("true");
     expect(header?.querySelector('[role="tablist"]')?.textContent).toBe("Files");
-    const project = header?.querySelector<HTMLButtonElement>(".desktop-titlebar-centered-context button");
+    const project = header?.querySelector<HTMLButtonElement>(".desktop-titlebar-sidebar-context button");
     act(() => project?.click());
     expect(onProject).toHaveBeenCalledOnce();
     expect(container.querySelectorAll("header")).toHaveLength(1);
@@ -164,7 +160,7 @@ function renderShell({
   rightSidebar,
   rightSidebarOpen = false,
   titlebarEditorSlot = <div>Editors</div>,
-  titlebarCenteredSlot,
+  titlebarSidebarSlot = <div>Workspace · main</div>,
   titlebarTabs,
 }: {
   leftSidebarCollapsed: boolean;
@@ -175,7 +171,7 @@ function renderShell({
   rightSidebar?: React.ReactNode;
   rightSidebarOpen?: boolean;
   titlebarEditorSlot?: React.ReactNode;
-  titlebarCenteredSlot?: React.ReactNode;
+  titlebarSidebarSlot?: React.ReactNode;
   titlebarTabs?: React.ReactNode;
 }) {
   const container = document.createElement("div");
@@ -191,9 +187,8 @@ function renderShell({
         onLeftSidebarExpand={onLeftSidebarExpand}
         rightSidebar={rightSidebar}
         rightSidebarOpen={rightSidebarOpen}
-        titlebarSidebarSlot={<div>Workspace · main</div>}
+        titlebarSidebarSlot={titlebarSidebarSlot}
         titlebarEditorSlot={titlebarEditorSlot}
-        titlebarCenteredSlot={titlebarCenteredSlot}
         titlebarTabs={titlebarTabs}
       >
         <div>Editor</div>

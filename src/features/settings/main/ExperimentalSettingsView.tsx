@@ -21,8 +21,6 @@ export function ExperimentalSettingsView() {
       id: "header",
       rows: [
         { messageKey: "projectReach", settingKey: "enableProjectReach" },
-        { messageKey: "projectHeaderAlignment", settingKey: "enableCenteredProjectInHeader",
-          choices: [{ messageKey: "left", value: false }, { messageKey: "center", value: true }] },
         { messageKey: "workbenchTabsInHeader", settingKey: "enableWorkbenchTabsInHeader",
           choices: [{ messageKey: "sidebar", value: false }, { messageKey: "header", value: true }] },
         { messageKey: "shareOnboarding", settingKey: "enableShareOnboarding" },
@@ -77,8 +75,7 @@ export function ExperimentalSettingsView() {
               <div className="desktop-settings-list">
                 {rows.map(({ messageKey, settingKey, choices }) => {
                   const label = t(`settings.experimental.${messageKey}.title`);
-                  const description = messageKey === "projectHeaderAlignment"
-                    ? undefined : t(`settings.experimental.${messageKey}.detail`);
+                  const description = t(`settings.experimental.${messageKey}.detail`);
                   return <div className={`desktop-settings-row desktop-settings-row-control${choices ? " desktop-settings-choice-row" : ""}`} key={settingKey}>
                     <span>{label}</span>
                     {choices ? <div className="desktop-theme-segment" role="group" aria-label={label} aria-description={description}>

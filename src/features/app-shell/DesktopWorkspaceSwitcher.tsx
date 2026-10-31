@@ -20,7 +20,6 @@ export type DesktopWorkspaceSwitcherProps = {
   open: boolean;
   refObject: RefObject<HTMLDivElement>;
   titlebarLabel: string;
-  menuAlignment?: "start" | "center";
   workspace: Workspace;
   workspaceFolders: readonly WorkspaceFolder[];
   multiRootWorkspacesEnabled: boolean;
@@ -41,7 +40,6 @@ export function DesktopWorkspaceSwitcher({
   open,
   refObject,
   titlebarLabel,
-  menuAlignment = "start",
   workspace,
   workspaceFolders,
   multiRootWorkspacesEnabled,
@@ -104,7 +102,6 @@ export function DesktopWorkspaceSwitcher({
         preferredMaxHeight={520}
         preferredWidth={240}
         widthMode="fixed"
-        alignment={menuAlignment}
         role="menu"
         ariaLabel={t("shell.workspaceSwitcher.projects")}
       >

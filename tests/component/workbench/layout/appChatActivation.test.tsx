@@ -24,9 +24,9 @@ const state = vi.hoisted(() => ({
 // the shell/panel boundary; sidebarVisibility.integration covers the panel's
 // downstream presentation, command-target, inertness and resource lifecycle.
 vi.mock("../../../../src/components/DesktopCloudShell", () => ({
-  DesktopCloudShell: ({ rightSidebar, rightSidebarOpen, titlebarSidebarSlot, titlebarCenteredSlot }: ComponentProps<typeof DesktopCloudShell>) => (
+  DesktopCloudShell: ({ rightSidebar, rightSidebarOpen, titlebarSidebarSlot }: ComponentProps<typeof DesktopCloudShell>) => (
     <div data-sidebar-open={String(rightSidebarOpen)}>
-      {titlebarSidebarSlot}{titlebarCenteredSlot}
+      {titlebarSidebarSlot}
       {typeof rightSidebar === "function" && rightSidebar({
         contentVisible: state.contentVisible, contentExpanded: state.contentVisible,
         settledCollapsed: !state.contentVisible, phase: state.contentVisible ? "expanded" : "collapsed",

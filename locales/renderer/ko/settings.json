@@ -1,7 +1,4 @@
 {
-  "experimental.projectHeaderAlignment.title": "프로젝트 헤더 위치",
-  "experimental.projectHeaderAlignment.left": "왼쪽",
-  "experimental.projectHeaderAlignment.center": "가운데",
   "activation.activate": "활성화",
   "activation.consent": "Puppyone이 백그라운드에서 {agent} CLI를 설치합니다. 설치가 완료되면 활성화됩니다. 처음 사용할 때 로그인이 필요할 수 있습니다. 기존 설치는 재사용합니다.",
   "activation.guided": "이 Agent는 공식 설정 절차를 사용합니다. 설정 페이지를 열고 돌아온 후 설치를 확인합니다. 로그인과 모델 설정은 시작할 때 확인합니다.",
