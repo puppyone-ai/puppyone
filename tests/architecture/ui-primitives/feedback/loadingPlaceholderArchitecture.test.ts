@@ -16,8 +16,9 @@ function sourceFiles(relativeDirectory: string, extensions: readonly string[]): 
   });
 }
 
+const builtinThemeSources = path.join("src", "features", "themes", "builtin");
 const stylesheets = sourceFiles("src", [".css"])
-  .filter((file) => !file.endsWith(".generated.css"));
+  .filter((file) => !file.endsWith(".generated.css") && !file.includes(builtinThemeSources));
 const components = sourceFiles("src", [".tsx"])
   .filter((file) => !file.includes(`${path.sep}primitives${path.sep}`));
 
