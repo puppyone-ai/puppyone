@@ -33,7 +33,7 @@ import {
 } from "./features/settings";
 import { CLOUD_HUB_ENTRY_SECTION, type CloudWorkspaceSection } from "./features/cloud";
 import { useAccountCloudWorkspace } from "./features/cloud/workbench/useAccountCloudWorkspace";
-import { CloudProjectOpeningSurface } from "./app/CloudProjectOpeningSurface";
+import { ProjectOpeningSurface } from "./app/ProjectOpeningSurface";
 import { CloudWorkspaceHeaderTools } from "./features/cloud/workbench/CloudWorkspaceHeaderTools";
 import { CloudWorkspaceAgentMark, CloudWorkspaceAgentPeople } from "./app/CloudWorkspaceAgentPeople";
 import { captureCloudWorkspaceShareResource } from "./features/cloud/share/cloudWorkspaceShareResource";
@@ -78,6 +78,7 @@ import {
   removeWorkspaceGitRemote,
   showHomepage,
 } from "./lib/localFiles";
+import { openingLocalProjectName } from "./features/app-shell/projectOpening";
 import { useProjectNavigation } from "./features/app-shell/useProjectNavigation";
 import type { ProjectNavigationTarget } from "./features/app-shell/projectNavigation";
 import { ProjectNavigationFailure } from "./features/app-shell/ProjectNavigationFailure";
@@ -1179,6 +1180,16 @@ function AppContent() {
     return selectProjectTarget({ kind: "cloud", projectId });
   }, [selectProjectTarget]);
   selectCloudProjectRef.current = selectCloudProject;
+  // A dropped folder is not a navigation target: it opens on the drop's own grant.
+  const [droppedProjectName, setDroppedProjectName] = useState<string | null>(null);
+  const openDroppedProject = useCallback(async (folder: File) => {
+    setDroppedProjectName(folder.name);
+    try {
+      await openDroppedWorkspace(folder);
+    } finally {
+      setDroppedProjectName(null);
+    }
+  }, [openDroppedWorkspace]);
   useEffect(() => window.puppyoneDesktop?.onWorkspaceOpenRequested?.(({ rootPath }) => {
     void selectProject(rootPath);
   }), [selectProject]);
@@ -1631,13 +1642,22 @@ function AppContent() {
       renderLeadingRail: ({ expanded }) => renderProjectRail(hostedWorkspace, expanded) } : undefined}
     onCreateProject={openProjectLauncher} /> : null;
   const cancelCloudOpening = () => { projectNavigation.cancel(); accountCloud.cancel(); };
-  const openingCloudProjectId = !workspace && !cloudWorkspaceActive ? accountCloud.openingTarget?.project_id : undefined;
-  const cloudOpeningSurface = openingCloudProjectId ? <CloudProjectOpeningSurface appearance={surfaceAppearance}
-    projectName={projectCatalog.items.find((item) => item.cloudProjectId === openingCloudProjectId)?.label
-      ?? accountCloud.preparation?.projectName ?? ""}
-    progress={accountCloud.preparation?.progress} onCancel={cancelCloudOpening}
-    projectRail={railOwnsProject ? { ...projectRailLayout, renderLeadingRail: ({ expanded }) => renderProjectRail(
-      nativeCloudWorkbench.surfaceService.workspace, expanded, openingCloudProjectId) } : undefined} /> : null;
+  const leavingHomepage = !workspace && !cloudWorkspaceActive;
+  const openingCloudProjectId = leavingHomepage ? accountCloud.openingTarget?.project_id : undefined;
+  const openingLocalProject = leavingHomepage ? openingLocalProjectName({
+    pending: projectNavigation.pending, droppedProjectName, projectItems: projectCatalog.items,
+  }) : null;
+  const openingProjectRail = railOwnsProject ? { ...projectRailLayout,
+    renderLeadingRail: ({ expanded }: { expanded: boolean }) => renderProjectRail(
+      nativeCloudWorkbench.surfaceService.workspace, expanded, openingCloudProjectId) } : undefined;
+  const openingProjectName = openingCloudProjectId
+    ? projectCatalog.items.find((item) => item.cloudProjectId === openingCloudProjectId)?.label
+      ?? accountCloud.preparation?.projectName ?? ""
+    : openingLocalProject;
+  const projectOpeningSurface = openingProjectName === null ? null : <ProjectOpeningSurface
+    location={openingCloudProjectId ? "cloud" : "local"} appearance={surfaceAppearance} projectName={openingProjectName}
+    progress={accountCloud.preparation?.progress} onCancel={openingCloudProjectId ? cancelCloudOpening : undefined}
+    projectRail={openingProjectRail} />;
   const missingCloudProjectReplaceable = Boolean(activeCloudSession) && projectCloudContext.status === "not-found"
     && canReplaceMissingCloudProject(projectCloudContext, activeGitStatus, desktopCloudApiBaseUrl);
   const cloudProjectNoticeState = cloudEnabled && workspace && focusedWorkspace?.path === workspace.path
@@ -1751,7 +1771,7 @@ function AppContent() {
       projectIsOpen={Boolean(workspace) || cloudWorkspaceActive}
     />
   </DesktopOverlayPortal>;
-  const homepageHidden = cloudWorkspaceActive || Boolean(cloudOpeningSurface);
+  const homepageHidden = cloudWorkspaceActive || Boolean(projectOpeningSurface);
   const themeRuntime = (content: ReactNode) => (
     <SurfaceAppearanceProvider value={surfaceAppearance}>
       <div
@@ -1762,7 +1782,7 @@ function AppContent() {
           {content}
         </div>
         {accountCloudSurface}
-        {cloudOpeningSurface}
+        {projectOpeningSurface}
         {projectNavigationOverlay}
         {projectEntryOverlay}
         {settingsOverlay}
@@ -1795,13 +1815,12 @@ function AppContent() {
         onListImportResources={listImportResources}
         onCancelImportSource={cancelImportSource}
         onImportSourceProgress={onImportSourceProgress}
-        onOpenDroppedWorkspace={openDroppedWorkspace}
+        onOpenDroppedWorkspace={openDroppedProject}
         onOpenWorkspacePath={selectProject}
         onRemoveProject={removeWorkspaceFromRecents}
         projectItems={projectCatalog.items}
         onOpenCloudProject={selectCloudProject}
         cloudOpening={accountCloud.opening}
-        onCancelCloudOpening={cancelCloudOpening}
         cloudAccountStatus={cloudEnabled ? <HomepageCloudStatus status={projectCatalog.status} restoring={cloudSessionRestoring} empty={projectCatalog.items.length === 0}
           session={activeCloudSession} onOpenAccount={() => openSettingsDialog("account")}
           apiBaseUrl={desktopCloudApiBaseUrl} controller={accountCloud} onRetry={projectCatalog.refresh} /> : undefined}
@@ -2084,6 +2103,7 @@ function AppContent() {
           <DesktopWorkspaceLocationSurface location={workspaceLocation}
             local={<>
           <DesktopWorkspaceContent
+            workspaceEntering={Boolean(workspaceEntryIntent)}
             activeAiEditRequest={activeAiEditRequest}
             activeDocumentPath={activeDocumentPath}
             activeExplorerPath={activeExplorerPath}

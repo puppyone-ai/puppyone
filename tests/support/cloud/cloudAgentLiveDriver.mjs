@@ -58,7 +58,7 @@ export async function connectCloudAgentLiveDriver(options) {
   const wait = async (expression, label) => {
     const deadline = Date.now() + options.timeout;
     while (Date.now() < deadline) {
-      const alerts = await evaluate(`Array.from(document.querySelectorAll('${cloud} [role=alert],.desktop-cloud-preparation [role=alert],.desktop-cloud-workspace-switch-recovery [role=alert]')).map(x=>x.innerText).join('; ')`);
+      const alerts = await evaluate(`Array.from(document.querySelectorAll('${cloud} [role=alert],.desktop-project-preparation [role=alert],.desktop-cloud-workspace-switch-recovery [role=alert]')).map(x=>x.innerText).join('; ')`);
       if (alerts) throw new Error(`${label}: ${alerts}`);
       if (await evaluate(expression)) return;
       await new Promise(resolve => setTimeout(resolve, 200));

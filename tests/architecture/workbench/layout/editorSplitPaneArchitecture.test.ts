@@ -151,7 +151,7 @@ describe("editor split-pane architecture", () => {
     expect(paneActionsMenuSource).not.toContain('t("editor.panes.splitDown")');
     expect(workbenchControllerSource).toContain("const splitPane = useCallback");
     expect(workbenchControllerSource).toContain("editorId: null");
-    expect(paneShellSource).toContain('contentState: "empty" | "document"');
+    expect(paneShellSource).toContain('contentState: "empty" | "opening" | "document"');
     expect(paneShellSource).toContain('data-content-state={contentState}');
     expect(paneDocumentRuntimeSource).not.toContain("if (invalidTreeNode) return null");
     expect(paneDocumentRuntimeSource).toContain('import { PageLoading } from "../../../components/loading"');

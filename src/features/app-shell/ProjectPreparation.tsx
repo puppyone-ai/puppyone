@@ -1,8 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { useLocalization } from "@puppyone/localization";
 import { DataWorkspaceFrame, ExplorerTree, type DataWorkspaceExplorerFrame } from "@puppyone/shared-ui";
-import { CloudWorkspaceOpeningLoading } from "./CloudWorkspaceOpeningLoading";
-import type { CloudWorkspaceOpeningProgress } from "../files/cloudWorkspaceOpening";
 
 const NO_NODES: never[] = [];
 const NO_PATHS: ReadonlySet<string> = new Set();
@@ -16,19 +14,38 @@ const ignoreSelection = () => {};
  * so the user can size the column while the files are on their way and the
  * files arrive in the column they left; the tree is the file tree itself,
  * waiting for its first folder.
+ *
+ * Focus waits here, and returns to the entry that opened the project if the
+ * open fails or is cancelled. Once the project is open that entry is gone and
+ * focus belongs to the workbench.
  */
-export function CloudWorkspacePreparation({ progress, explorerFrame, onCancel }: {
-  progress: CloudWorkspaceOpeningProgress;
+export function ProjectPreparation({ explorerFrame, onCancel, children }: {
   /** The window's Explorer column, supplied by the shell that owns it. */
   explorerFrame: DataWorkspaceExplorerFrame;
-  onCancel: () => void;
+  /** Absent while the open cannot be abandoned. */
+  onCancel?: () => void;
+  /** What stands in the editor's place. */
+  children: ReactNode;
 }) {
   const { t } = useLocalization();
   const surfaceRef = useRef<HTMLElement>(null);
-  useEffect(() => { surfaceRef.current?.focus({ preventScroll: true }); }, []);
-  return <section ref={surfaceRef} className="desktop-cloud-preparation" aria-label={t("cloud.productName")}
+  const previousFocusRef = useRef(document.activeElement);
+  useEffect(() => {
+    const previousFocus = previousFocusRef.current;
+    surfaceRef.current?.focus({ preventScroll: true });
+    return () => {
+      if (!(previousFocus instanceof HTMLElement)) return;
+      queueMicrotask(() => {
+        if (previousFocus.isConnected && document.activeElement === document.body) {
+          previousFocus.focus({ preventScroll: true });
+        }
+      });
+    };
+  }, []);
+  return <section ref={surfaceRef} className="desktop-project-preparation"
+    aria-label={t("onboarding.status.loadingProject")}
     aria-busy tabIndex={-1} onKeyDown={(event) => {
-      if (event.key !== "Escape") return;
+      if (event.key !== "Escape" || !onCancel) return;
       event.preventDefault();
       event.stopPropagation();
       onCancel();
@@ -43,7 +60,7 @@ export function CloudWorkspacePreparation({ progress, explorerFrame, onCancel }:
           </div>
         </div>
       )}>
-        <CloudWorkspaceOpeningLoading progress={progress} onCancel={onCancel} />
+        {children}
       </DataWorkspaceFrame>
     </div>
   </section>;
