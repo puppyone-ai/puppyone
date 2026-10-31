@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
-import { getWorkspaceGitStatus, resolveGitRepositoryIdentity } from "../../../local-api/workspace.mjs";
-import { execGit, execGitBuffer } from "../../../local-api/git/runner.mjs";
+import { getWorkspaceGitStatus, resolveGitRepositoryIdentity } from "../../local-api/workspace.mjs";
+import { execGit, execGitBuffer } from "../../local-api/git/runner.mjs";
 import { normalizeCloudApiBaseUrl } from "../../../shared/cloudEndpoint.js";
 import { createCloudPublishApi } from "../cloud-publish-api.mjs";
 import { createCloudGitConnectJournal } from "../cloud-git-connect-journal.mjs";

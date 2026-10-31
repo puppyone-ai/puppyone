@@ -3,13 +3,13 @@ import { EditorState } from "@codemirror/state";
 import { forceParsing, syntaxTree } from "@codemirror/language";
 import { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createMarkdownLinkGraph } from "../../../../../../packages/shared-ui/src/editor/markdown/core/links/markdownLinkGraph";
+import { createMarkdownLinkGraph } from "../../../../../../src/shared-ui/editor/markdown/core/links/markdownLinkGraph";
 import {
   markdownCodeMirrorBaseExtensions,
   markdownLivePreviewExtension,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
-import type { MarkdownLinkCommands } from "../../../../../../packages/shared-ui/src/editor/registry/viewerTypes";
-import { openMarkdownHref } from "../../../../../../packages/shared-ui/src/editor/markdown/core/editor/markdownLivePreviewContext";
+} from "../../../../../../src/shared-ui/editor/markdown/markdownCodeMirrorExtensions";
+import type { MarkdownLinkCommands } from "../../../../../../src/shared-ui/editor/registry/viewerTypes";
+import { openMarkdownHref } from "../../../../../../src/shared-ui/editor/markdown/core/editor/markdownLivePreviewContext";
 
 const views: EditorView[] = [];
 

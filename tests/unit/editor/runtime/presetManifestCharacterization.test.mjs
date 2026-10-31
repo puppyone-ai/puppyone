@@ -15,11 +15,11 @@ vi.mock("node:module", async (importOriginal) => {
 async function loadManifest(runtime, input) {
   vi.resetModules();
   fixture.current = input;
-  vi.doMock("../../../../packages/shared-ui/src/editor/registry/presetViewerManifest.json", () => ({ default: input }));
+  vi.doMock("../../../../shared/presetViewerManifest.json", () => ({ default: input }));
   try {
     const module = runtime === "main"
       ? await import("../../../../electron/main/viewer-packs/preset-viewer-manifest.mjs")
-      : await import("../../../../packages/shared-ui/src/editor/registry/presetViewerManifest");
+      : await import("../../../../src/shared-ui/editor/registry/presetViewerManifest");
     const manifest = module.PRESET_VIEWER_MANIFEST;
     // Fail if the fixture mock ever returns a cached manifest from another case.
     expect(manifest).toEqual({ ...input, viewers: input.viewers.map((viewer) => ({ contractVersion: 8, ...viewer })) });

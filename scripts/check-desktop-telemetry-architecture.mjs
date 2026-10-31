@@ -186,15 +186,13 @@ if (appSource.includes("OnboardingTelemetryDisclosure")) {
   errors.push("the first-launch telemetry disclosure must not be mounted in the workspace sidebar");
 }
 
-for (const sourceRoot of ["src", "packages/shared-ui/src"]) {
-  for (const filePath of await listSourceFiles(sourceRoot)) {
-    const source = await fs.readFile(filePath, "utf8");
-    if (/\b(?:posthog|mixpanel|amplitude)(?:-js)?\b/i.test(source)) {
-      errors.push(`${path.relative(repositoryRoot, filePath)} must not embed a renderer analytics SDK`);
-    }
-    if (/electron\/main\/telemetry|telemetry-http-transport/.test(source)) {
-      errors.push(`${path.relative(repositoryRoot, filePath)} must not import main-process telemetry infrastructure`);
-    }
+for (const filePath of await listSourceFiles("src")) {
+  const source = await fs.readFile(filePath, "utf8");
+  if (/\b(?:posthog|mixpanel|amplitude)(?:-js)?\b/i.test(source)) {
+    errors.push(`${path.relative(repositoryRoot, filePath)} must not embed a renderer analytics SDK`);
+  }
+  if (/electron\/main\/telemetry|telemetry-http-transport/.test(source)) {
+    errors.push(`${path.relative(repositoryRoot, filePath)} must not import main-process telemetry infrastructure`);
   }
 }
 

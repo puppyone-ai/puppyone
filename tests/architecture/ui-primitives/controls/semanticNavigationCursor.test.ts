@@ -40,17 +40,17 @@ describe("semantic navigation cursor contract", () => {
   });
 
   it("marks document-reference actions while preserving editable text cursors", () => {
-    const csvCell = source("packages/shared-ui/src/editor/viewers/csv/CsvCellEditor.tsx");
-    const csvCss = source("packages/shared-ui/src/styles/editor/csv-table-editor.css");
-    const markdownCss = source("packages/shared-ui/src/styles/editor/markdown-inline-widgets.css");
+    const csvCell = source("src/shared-ui/editor/viewers/csv/CsvCellEditor.tsx");
+    const csvCss = source("src/shared-ui/styles/editor/csv-table-editor.css");
+    const markdownCss = source("src/shared-ui/styles/editor/markdown-inline-widgets.css");
     const markdownDecorations = source(
-      "packages/shared-ui/src/editor/markdown/core/decorations/inlineDecorations.ts",
+      "src/shared-ui/editor/markdown/core/decorations/inlineDecorations.ts",
     );
     const fileChange = source("src/features/desktop-agent/ui/activity/AgentFileChangeActivity.tsx");
     const fileQuery = source("src/features/desktop-agent/ui/activity/AgentFileQueryActivity.tsx");
-    const editorHost = source("packages/shared-ui/src/editor/host/EditorDocumentHost.tsx");
-    const office = source("packages/shared-ui/src/editor/viewers/office/OfficeViewer.tsx");
-    const appPreview = source("packages/shared-ui/src/editor/viewers/app/AppPreviewViewer.tsx");
+    const editorHost = source("src/shared-ui/editor/host/EditorDocumentHost.tsx");
+    const office = source("src/shared-ui/editor/viewers/office/OfficeViewer.tsx");
+    const appPreview = source("src/shared-ui/editor/viewers/app/AppPreviewViewer.tsx");
 
     expect(csvCell).toContain('data-po-interaction="navigation"');
     expect(csvCell).toContain('data-po-content-interaction="navigation"');
@@ -73,19 +73,18 @@ describe("semantic navigation cursor contract", () => {
     expect(markdownCss).toMatch(
       /\[data-md-link-interaction="navigate"\]\s*\{[^}]*--po-md-inline-foreground:\s*var\(--po-md-link-color\)/,
     );
-    expect(source("packages/shared-ui/src/styles/editor/markdown-content.css")).toMatch(
+    expect(source("src/shared-ui/styles/editor/markdown-content.css")).toMatch(
       /\.cm-md-inline-code[^{]*\{[^}]*color:\s*var\(--po-md-inline-foreground,/,
     );
     expect(markdownCss).not.toContain("cm-md-open-modifier-down");
   });
 
   it("forbids feature CSS from creating pointer cursors outside the policy boundary", () => {
-    const violations = ["src", "packages/shared-ui/src"]
-      .flatMap((directory) => collectCssFiles(new URL(`../../../../${directory}/`, import.meta.url)))
+    const violations = collectCssFiles(new URL("../../../../src/", import.meta.url))
       .filter((file) => (
         !file.pathname.endsWith("/src/styles/base.css")
-        && !file.pathname.endsWith("/packages/shared-ui/src/styles/editor/markdown-inline-widgets.css")
-        && !file.pathname.endsWith("/packages/shared-ui/src/styles/editor/csv-table-editor.css")
+        && !file.pathname.endsWith("/src/shared-ui/styles/editor/markdown-inline-widgets.css")
+        && !file.pathname.endsWith("/src/shared-ui/styles/editor/csv-table-editor.css")
       ))
       .filter((file) => /(?:cursor:\s*pointer|var\(--po-clickable-cursor, pointer\))/.test(readFileSync(file, "utf8")));
 

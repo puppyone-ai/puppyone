@@ -8,7 +8,7 @@ import {
   LoadingPlaceholderStyleProvider,
   PlaceholderLayer,
   type LoadingPlaceholderStyle,
-} from "../../../../packages/shared-ui/src/primitives/LoadingPlaceholder";
+} from "../../../../src/shared-ui/primitives/LoadingPlaceholder";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

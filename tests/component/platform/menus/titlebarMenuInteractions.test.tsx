@@ -2,7 +2,7 @@
 import { act, createRef, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createWorkspaceFolder } from "../../../../packages/shared-ui/src/core/workbenchWorkspace";
+import { createWorkspaceFolder } from "../../../../src/shared-ui/core/workbenchWorkspace";
 import { DesktopTitlebarContext } from "../../../../src/features/app-shell/DesktopTitlebarContext";
 import { DesktopWorkspaceSwitcher } from "../../../../src/features/app-shell/DesktopWorkspaceSwitcher";
 import { initializeDesktopPreferences } from "../../../../src/preferencesStore";

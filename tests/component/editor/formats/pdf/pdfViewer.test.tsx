@@ -5,8 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   EditorPaneMenuContributionProvider,
   type EditorPaneMenuContribution,
-} from "../../../../../packages/shared-ui/src/editor/editorPaneMenuContribution";
-import { PdfViewer, PDF_ATTACHMENT_TIMEOUT_MS, configureChromiumPdfViewerUrl } from "../../../../../packages/shared-ui/src/editor/viewers/pdf/PdfViewer";
+} from "../../../../../src/shared-ui/editor/editorPaneMenuContribution";
+import { PdfViewer, PDF_ATTACHMENT_TIMEOUT_MS, configureChromiumPdfViewerUrl } from "../../../../../src/shared-ui/editor/viewers/pdf/PdfViewer";
 import { withTestLocalization } from "../../../../support/react/localization";
 import type { Window as HappyWindow } from "happy-dom";
 

@@ -8,9 +8,9 @@ import {
   toDesktopReleaseIdentity,
 } from "../../shared/desktop-build-identity.mjs";
 import { resolveDesktopApplicationIdentity } from "../../shared/desktop/application-identity.mjs";
-import { getDesktopTargetDefinition } from "../../tooling/desktop/targets/target-manifest.mjs";
+import { getDesktopTargetDefinition } from "../desktop/targets/target-manifest.mjs";
 
-import { verifyMacosAppIcon } from "../../tooling/desktop/build/macos-app-icon.mjs";
+import { verifyMacosAppIcon } from "../desktop/build/macos-app-icon.mjs";
 
 const { extractFile } = asarPackage;
 const { parse: parsePlist } = plistPackage;

@@ -15,8 +15,8 @@ import {
   inspectMacReleaseReadiness,
 } from "../../../../scripts/release-support/macos-release-policy.mjs";
 import { resolveDesktopBuildIdentity } from "../../../../shared/desktop-build-identity.mjs";
-import { createDesktopElectronBuilderConfig } from "../../../../tooling/desktop/build/create-builder-config.mjs";
-import { getDesktopTargetDefinition } from "../../../../tooling/desktop/targets/target-manifest.mjs";
+import { createDesktopElectronBuilderConfig } from "../../../../scripts/desktop/build/create-builder-config.mjs";
+import { getDesktopTargetDefinition } from "../../../../scripts/desktop/targets/target-manifest.mjs";
 
 const signingEnvironment = {
   CSC_LINK: "certificate.p12",

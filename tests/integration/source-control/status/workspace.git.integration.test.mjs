@@ -1,4 +1,4 @@
-// Deep integration tests for the local-mode Git engine (local-api/workspace.mjs).
+// Deep integration tests for the local-mode Git engine (electron/local-api/workspace.mjs).
 // Every test runs against a real git repository created in a temp directory:
 // real init, real staging, real commits, real branches, real diffs. This covers
 // the source-control half of the "端" (desktop/local) product surface.
@@ -25,7 +25,7 @@ import {
   parsePuppyoneRemoteInfo,
   createWorkspaceEntry,
   writeWorkspaceTextFile,
-} from "../../../../local-api/workspace.mjs";
+} from "../../../../electron/local-api/workspace.mjs";
 
 let root;
 
@@ -765,7 +765,7 @@ describe("fast status vs lazy history", { timeout: 20_000 }, () => {
   });
 
   it("changes the consistency fingerprint when HEAD or the index changes", async () => {
-    const { readGitConsistencyFingerprint } = await import("../../../../local-api/workspace.mjs");
+    const { readGitConsistencyFingerprint } = await import("../../../../electron/local-api/workspace.mjs");
     await initRepoWithIdentity();
     await createWorkspaceEntry(root, { parentPath: null, name: "app.js", kind: "file", content: "one\n" });
     await stageAllWorkspaceGitChanges(root);

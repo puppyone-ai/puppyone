@@ -24,8 +24,8 @@ import {
   resolveLocalWorkspaceIdentity,
   resolveWorkspacePath as resolveLocalWorkspacePath,
   workspaceFromPath,
-} from "../local-api/workspace.mjs";
-import { initializeWorkspaceEditReview } from "../local-api/edit-review.mjs";
+} from "./local-api/workspace.mjs";
+import { initializeWorkspaceEditReview } from "./local-api/edit-review.mjs";
 import { resolveRuntimeAppImage, setDevelopmentDockIcon } from "./main/app-icon.mjs";
 import { createUpdateService } from "./update-service.mjs";
 import { createAppPreviewRuntime } from "./app-preview-runtime.mjs";

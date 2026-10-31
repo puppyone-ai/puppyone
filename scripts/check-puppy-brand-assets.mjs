@@ -4,10 +4,10 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveDesktopBuildIdentity } from "../shared/desktop-build-identity.mjs";
-import { createDesktopElectronBuilderConfig } from "../tooling/desktop/build/create-builder-config.mjs";
-import { getDesktopTargetDefinition } from "../tooling/desktop/targets/target-manifest.mjs";
+import { createDesktopElectronBuilderConfig } from "./desktop/build/create-builder-config.mjs";
+import { getDesktopTargetDefinition } from "./desktop/targets/target-manifest.mjs";
 import { resolveDesktopAppIcon } from "../shared/desktop/app-icon-contract.mjs";
-import { decodeAppIconPng } from "../tooling/desktop/build/app-icon-validation.mjs";
+import { decodeAppIconPng } from "./desktop/build/app-icon-validation.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const nativeBrandDirectory = "assets/brand/puppy";

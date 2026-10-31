@@ -5,9 +5,9 @@ import React, { useRef } from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { CsvTableEditor } from "../../../../../packages/shared-ui/src/editor/viewers/csv/CsvTableEditor";
-import { CsvTableResizeControl } from "../../../../../packages/shared-ui/src/editor/viewers/csv/CsvTableResizeControl";
-import type { EditorSourceSnapshotPort } from "../../../../../packages/shared-ui/src/editor/sourceSnapshot";
+import { CsvTableEditor } from "../../../../../src/shared-ui/editor/viewers/csv/CsvTableEditor";
+import { CsvTableResizeControl } from "../../../../../src/shared-ui/editor/viewers/csv/CsvTableResizeControl";
+import type { EditorSourceSnapshotPort } from "../../../../../src/shared-ui/editor/sourceSnapshot";
 import { testT, withTestLocalization } from "../../../../support/react/localization";
 import { DesktopTooltipLayer } from "../../../../../src/components/DesktopTooltipLayer";
 

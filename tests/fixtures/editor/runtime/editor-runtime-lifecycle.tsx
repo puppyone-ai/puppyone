@@ -11,9 +11,9 @@ import {
 import "@puppyone/shared-ui/shared-ui.css";
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
-import { closeAllDocumentWorkingCopies, closeDocumentWorkingCopy, getDocumentWorkingCopiesUnderResource } from "../../../../packages/shared-ui/src/editor/document-session/documentWorkingCopies";
-import { editorTaskScheduler } from "../../../../packages/shared-ui/src/editor/runtime/EditorTaskScheduler";
-import { parseSpreadsheetInWorker } from "../../../../packages/shared-ui/src/editor/viewers/office/spreadsheetPreviewClient";
+import { closeAllDocumentWorkingCopies, closeDocumentWorkingCopy, getDocumentWorkingCopiesUnderResource } from "../../../../src/shared-ui/editor/document-session/documentWorkingCopies";
+import { editorTaskScheduler } from "../../../../src/shared-ui/editor/runtime/EditorTaskScheduler";
+import { parseSpreadsheetInWorker } from "../../../../src/shared-ui/editor/viewers/office/spreadsheetPreviewClient";
 import englishCatalog from "../../../../src/localization/catalog-loaders/en";
 import "../../../../src/styles.css";
 import "../../../../src/styles/cascade.css";

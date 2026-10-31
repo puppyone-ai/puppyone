@@ -2,11 +2,11 @@ import { EditorState } from "@codemirror/state";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { describe, expect, it } from "vitest";
 
-import { compilePuppyMarkdownElementPlan, puppyMarkdownFeatureCompositionExtension, puppyMarkdownParserExtensions } from "../../../../../../packages/shared-ui/src/editor/markdown/composition/markdownFeatureComposition";
-import { getCollapsedMarkerDeletionUnit, getMarkdownPlanIndex, getMarkdownPlansInRange } from "../../../../../../packages/shared-ui/src/editor/markdown/core/plans/markdownPlanIndex";
-import { MARKDOWN_HTML_PROFILE_VERSION } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/policy/markdownHtmlProfiles";
+import { compilePuppyMarkdownElementPlan, puppyMarkdownFeatureCompositionExtension, puppyMarkdownParserExtensions } from "../../../../../../src/shared-ui/editor/markdown/composition/markdownFeatureComposition";
+import { getCollapsedMarkerDeletionUnit, getMarkdownPlanIndex, getMarkdownPlansInRange } from "../../../../../../src/shared-ui/editor/markdown/core/plans/markdownPlanIndex";
+import { MARKDOWN_HTML_PROFILE_VERSION } from "../../../../../../src/shared-ui/editor/markdown/platform/policy/markdownHtmlProfiles";
 
-import { getMarkdownElements } from "../../../../../../packages/shared-ui/src/editor/markdown/core/syntax/markdownElements";
+import { getMarkdownElements } from "../../../../../../src/shared-ui/editor/markdown/core/syntax/markdownElements";
 
 function createMarkdownState(source: string) {
   return EditorState.create({

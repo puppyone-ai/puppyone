@@ -4,8 +4,8 @@
 import { EditorSelection, EditorState } from "@codemirror/state";
 import { EditorView, runScopeHandlers } from "@codemirror/view";
 import { afterEach, describe, expect, it } from "vitest";
-import { markdownEditingKeymap } from "../../../../../../packages/shared-ui/src/editor/markdown/core/commands/markdownEditingKeymap";
-import { markdownCodeMirrorBaseExtensions, markdownLivePreviewExtension } from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
+import { markdownEditingKeymap } from "../../../../../../src/shared-ui/editor/markdown/core/commands/markdownEditingKeymap";
+import { markdownCodeMirrorBaseExtensions, markdownLivePreviewExtension } from "../../../../../../src/shared-ui/editor/markdown/markdownCodeMirrorExtensions";
 
 const views: EditorView[] = [];
 

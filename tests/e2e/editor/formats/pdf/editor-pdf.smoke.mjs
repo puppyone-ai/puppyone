@@ -6,7 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer } from "node:http";
 import { app, BrowserWindow, ipcMain, protocol, webContents } from "electron";
-import { workspaceFromPath } from "../../../../../local-api/workspace.mjs";
+import { workspaceFromPath } from "../../../../../electron/local-api/workspace.mjs";
 import { createWorkspaceStateStore } from "../../../../../electron/main/workspace-state-store.mjs";
 import { getDesktopBuildChannelPolicy } from "../../../../../shared/desktop-build-identity.mjs";
 import { readSourceIdentity } from "../../../../../scripts/release-checks/execution.mjs";

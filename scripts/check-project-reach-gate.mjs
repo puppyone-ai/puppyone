@@ -66,7 +66,7 @@ export const DATA_OWNERS = [
   "getGitTitlebarStatus",
 ];
 
-const SCAN_ROOTS = ["src", "packages/shared-ui/src"];
+const SCAN_ROOTS = ["src"];
 const SOURCE_PATTERN = /\.(?:[cm]?[jt]sx?)$/u;
 
 export function projectReachGateErrors({ root }) {

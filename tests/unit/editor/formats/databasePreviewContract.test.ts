@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { getPreferredMimeType, resolveFileFormat } from "../../../../packages/shared-ui/src/core/fileFormats";
-import { getEditorSourceRequirement, resolveEditorViewer } from "../../../../packages/shared-ui/src/editor/registry/viewerRegistry";
+import { getPreferredMimeType, resolveFileFormat } from "../../../../src/shared-ui/core/fileFormats";
+import { getEditorSourceRequirement, resolveEditorViewer } from "../../../../src/shared-ui/editor/registry/viewerRegistry";
 import { createDatabasePreviewPort, type DatabaseBridge } from "../../../../src/platform/databasePreviewClient";
 
 describe("database candidate routing and cancellation", () => {

@@ -7,7 +7,7 @@ import {
   parseContextMapDocument,
   serializeContextMapDocument,
   toContextMapRelativePath,
-} from "../../../../../packages/shared-ui/src/editor/viewers/context-map/contextMapDocument";
+} from "../../../../../src/shared-ui/editor/viewers/context-map/contextMapDocument";
 
 describe("context map document", () => {
   it("creates and parses a stable portable descriptor", () => {

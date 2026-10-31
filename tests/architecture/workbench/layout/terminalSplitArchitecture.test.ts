@@ -4,10 +4,10 @@ import { describe, expect, it } from "vitest";
 describe("Terminal native split architecture", () => {
   it("shares only process-neutral split structure with Editor", () => {
     const splitModel = source(
-      "packages/shared-ui/src/workbench/split-tree/splitTreeModel.ts",
+      "src/shared-ui/workbench/split-tree/splitTreeModel.ts",
     );
     const editorModel = source(
-      "packages/shared-ui/src/editor/workbench/editorPaneLayoutModel.ts",
+      "src/shared-ui/editor/workbench/editorPaneLayoutModel.ts",
     );
     const terminalModel = source(
       "src/features/desktop-terminal/model/terminalSessions.ts",

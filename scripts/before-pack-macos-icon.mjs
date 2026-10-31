@@ -1,4 +1,4 @@
-import { buildMacosAppIcon, resolveMacosIconBuildInputs } from "../tooling/desktop/build/macos-app-icon.mjs";
+import { buildMacosAppIcon, resolveMacosIconBuildInputs } from "./desktop/build/macos-app-icon.mjs";
 
 export default async function prepareMacosIconBeforePack(context) {
   if (context.electronPlatformName !== "darwin") return;

@@ -7,31 +7,31 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   markdownCodeMirrorBaseExtensions,
   markdownLivePreviewExtension,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
-import { markdownAssetUrlResolverFacet } from "../../../../../../packages/shared-ui/src/editor/markdown/core/editor/markdownLivePreviewContext";
+} from "../../../../../../src/shared-ui/editor/markdown/markdownCodeMirrorExtensions";
+import { markdownAssetUrlResolverFacet } from "../../../../../../src/shared-ui/editor/markdown/core/editor/markdownLivePreviewContext";
 import {
   getMarkdownPlanIndex,
   getMarkdownPlansInRange,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/core/plans/markdownPlanIndex";
+} from "../../../../../../src/shared-ui/editor/markdown/core/plans/markdownPlanIndex";
 import {
   getMarkdownConformanceSnapshot,
   projectMarkdownConformanceSurface,
   type MarkdownConformanceSurface,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/core/projection/markdownConformance";
-import { validateMarkdownHtmlBlockStructure } from "../../../../../../packages/shared-ui/src/editor/markdown/features/html/htmlBlockStructure";
-import { getMarkdownHtmlBlock } from "../../../../../../packages/shared-ui/src/editor/markdown/features/html/htmlBlockModel";
-import { compileMarkdownHtmlBlockPolicy } from "../../../../../../packages/shared-ui/src/editor/markdown/features/html/htmlBlockPolicy";
-import { createSanitizedBlockHtmlFragment } from "../../../../../../packages/shared-ui/src/editor/markdown/features/html/sanitizeHtml";
-import { renderMarkdownInlineFromSharedPolicy } from "../../../../../../packages/shared-ui/src/editor/markdown/composition/preview/markdownInlinePlanAdapter";
+} from "../../../../../../src/shared-ui/editor/markdown/core/projection/markdownConformance";
+import { validateMarkdownHtmlBlockStructure } from "../../../../../../src/shared-ui/editor/markdown/features/html/htmlBlockStructure";
+import { getMarkdownHtmlBlock } from "../../../../../../src/shared-ui/editor/markdown/features/html/htmlBlockModel";
+import { compileMarkdownHtmlBlockPolicy } from "../../../../../../src/shared-ui/editor/markdown/features/html/htmlBlockPolicy";
+import { createSanitizedBlockHtmlFragment } from "../../../../../../src/shared-ui/editor/markdown/features/html/sanitizeHtml";
+import { renderMarkdownInlineFromSharedPolicy } from "../../../../../../src/shared-ui/editor/markdown/composition/preview/markdownInlinePlanAdapter";
 import {
   getSafeBlockProfile,
   getSafeMediaProfile,
   MARKDOWN_HTML_PROFILES,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/platform/policy/markdownHtmlProfiles";
+} from "../../../../../../src/shared-ui/editor/markdown/platform/policy/markdownHtmlProfiles";
 import type {
   MarkdownAssetUrlResolver,
   MarkdownDialectId,
-} from "../../../../../../packages/shared-ui/src/editor/registry/viewerTypes";
+} from "../../../../../../src/shared-ui/editor/registry/viewerTypes";
 import { CENTERED_README_HEADER } from "../../../../../fixtures/editor/formats/markdown/centeredReadme";
 
 const inertAssetResolver: MarkdownAssetUrlResolver = () => null;

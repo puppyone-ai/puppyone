@@ -1,6 +1,6 @@
 import { parseTemplateLink, requireTemplateId, templateShareLink } from '../../shared/desktop/template-link.mjs';
-import { parseTemplatePackage, TEMPLATE_MAX_BYTES, validateDownloadDescriptor } from '../../local-api/templates/package.mjs';
-import { resolveProjectTemplate } from '../../local-api/templates/project-catalog.mjs';
+import { parseTemplatePackage, TEMPLATE_MAX_BYTES, validateDownloadDescriptor } from '../local-api/templates/package.mjs';
+import { resolveProjectTemplate } from '../local-api/templates/project-catalog.mjs';
 
 const R2_HOST = '13db2d16c6f86490873850f62fff5741.r2.cloudflarestorage.com';
 const signedOut = () => new Error('Sign in to Puppyone before creating a project from this template.');

@@ -8,7 +8,7 @@ import { registerWorkspaceFileIpcHandlers } from "../../../../electron/main/ipc/
 import { createLocalFileCapabilityStore } from "../../../../electron/main/local-file-capabilities.mjs";
 import { parseLocalFileUrl } from "../../../../electron/main/local-file-protocol.mjs";
 import { createSenderWorkspaceAuthorization } from "../../../../electron/main/workspace-authorization.mjs";
-import * as editReview from "../../../../local-api/edit-review.mjs";
+import * as editReview from "../../../../electron/local-api/edit-review.mjs";
 
 let root;
 let otherRoot;

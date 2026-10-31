@@ -3,8 +3,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const sharedUiSourceRoot = path.join(repoRoot, "packages", "shared-ui", "src");
-const markdownRoot = path.join(repoRoot, "packages", "shared-ui", "src", "editor", "markdown");
+const sharedUiSourceRoot = path.join(repoRoot, "src", "shared-ui");
+const markdownRoot = path.join(repoRoot, "src", "shared-ui", "editor", "markdown");
 const addonsRoot = path.join(markdownRoot, "addons");
 const compositionRoot = path.join(markdownRoot, "composition");
 const coreRoot = path.join(markdownRoot, "core");

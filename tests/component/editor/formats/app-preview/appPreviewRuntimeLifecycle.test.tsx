@@ -5,7 +5,7 @@ import { act, StrictMode, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AppPreviewController, AppPreviewResult } from "@puppyone/shared-ui";
-import { useAppPreviewSession } from "../../../../../packages/shared-ui/src/editor/viewers/app/useAppPreviewSession";
+import { useAppPreviewSession } from "../../../../../src/shared-ui/editor/viewers/app/useAppPreviewSession";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

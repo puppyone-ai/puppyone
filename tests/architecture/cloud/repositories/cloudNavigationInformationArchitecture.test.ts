@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { HomeIcon } from "../../../../packages/shared-ui/src/icons/productIcons";
+import { HomeIcon } from "../../../../src/shared-ui/icons/productIcons";
 import {
   CLOUD_HUB_ENTRY_SECTION,
   CLOUD_PROJECT_SIDEBAR_ROUTES,

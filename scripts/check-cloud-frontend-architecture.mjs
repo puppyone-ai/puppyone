@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const errors = [];
-const productionRoots = [resolve("src"), resolve("electron"), resolve("packages/shared-ui/src")];
+const productionRoots = [resolve("src"), resolve("electron")];
 
 const lineBudgets = new Map([
   ["src/features/cloud/files/cloudDataPort.ts", 390],

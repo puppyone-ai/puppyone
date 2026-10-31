@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createGitSyncTargetPolicy } from "../../../../local-api/git/sync-target.mjs";
+import { createGitSyncTargetPolicy } from "../../../../electron/local-api/git/sync-target.mjs";
 
 const { chooseGitSyncTarget } = createGitSyncTargetPolicy({
   isPuppyoneRemote: (remote) => remote.name === "puppyone",

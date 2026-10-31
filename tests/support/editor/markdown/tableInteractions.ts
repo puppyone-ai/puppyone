@@ -2,9 +2,9 @@ import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 
 import { afterEach, vi } from "vitest";
-import { markdownCodeMirrorBaseExtensions, markdownLivePreviewExtension } from "../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
-import { closeActiveMarkdownTableMenu } from "../../../../packages/shared-ui/src/editor/markdown/features/table/tableMenuState";
-import { markdownLocalizationExtension } from "../../../../packages/shared-ui/src/editor/markdown/core/editor/markdownLocalization";
+import { markdownCodeMirrorBaseExtensions, markdownLivePreviewExtension } from "../../../../src/shared-ui/editor/markdown/markdownCodeMirrorExtensions";
+import { closeActiveMarkdownTableMenu } from "../../../../src/shared-ui/editor/markdown/features/table/tableMenuState";
+import { markdownLocalizationExtension } from "../../../../src/shared-ui/editor/markdown/core/editor/markdownLocalization";
 import { testT } from "../../react/localization";
 
 const TABLE_SOURCE = [

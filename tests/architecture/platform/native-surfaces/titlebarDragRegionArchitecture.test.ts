@@ -17,7 +17,7 @@ const auxiliaryPanelHost = readFileSync(
 const shellCss = readFileSync(new URL("../../../../src/styles/shell.css", import.meta.url), "utf8");
 const desktopMenu = readFileSync(new URL("../../../../src/components/DesktopMenu.tsx", import.meta.url), "utf8");
 const sharedWorkspaceCss = readFileSync(
-  new URL("../../../../packages/shared-ui/src/styles/data-workspace.css", import.meta.url),
+  new URL("../../../../src/shared-ui/styles/data-workspace.css", import.meta.url),
   "utf8",
 );
 

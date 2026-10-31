@@ -86,7 +86,7 @@ const workspaceConfig = configTypes.match(/export type PuppyoneWorkspaceConfig\s
 if (/\b(?:cloud|project)\s*:|scope|credential|accessKey|access_key|binding/i.test(workspaceConfig)) {
   errors.push("local workspace config must store no Cloud/Project identity, target, credential, or Binding");
 }
-if (/\bproject\s*:/.test(read("local-api/workspace-config.mjs"))) {
+if (/\bproject\s*:/.test(read("electron/local-api/workspace-config.mjs"))) {
   errors.push("workspace config normalization must physically discard the obsolete local Project identity");
 }
 

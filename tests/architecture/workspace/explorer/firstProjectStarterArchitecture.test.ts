@@ -70,14 +70,14 @@ describe("project initialization ownership", () => {
 
   it("shares one materializer between project templates and Slides", () => {
     expect(source("electron/main/project-initialization-service.mjs")).toContain('local-api/templates/materialize.mjs');
-    expect(source("local-api/workspace-templates.mjs")).toContain('./templates/materialize.mjs');
-    expect(source("local-api/workspace-templates.mjs")).not.toContain("fs.rename(");
+    expect(source("electron/local-api/workspace-templates.mjs")).toContain('./templates/materialize.mjs');
+    expect(source("electron/local-api/workspace-templates.mjs")).not.toContain("fs.rename(");
   });
 
   it("packages the offline template content and safe publication primitive", () => {
     const pkg = JSON.parse(source("package.json"));
-    expect(pkg.build.files).toContain("local-api/**");
-    expect(pkg.build.asarUnpack).toContain("local-api/templates/native/*.node");
+    expect(pkg.build.files).toContain("electron/**");
+    expect(pkg.build.asarUnpack).toContain("electron/local-api/templates/native/*.node");
     expect(pkg.scripts.build).toContain("build:native-templates");
     expect(pkg.scripts.dev).toContain("build:native-templates");
   });

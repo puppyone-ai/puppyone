@@ -6,8 +6,8 @@ import { EMPTY_MARKDOWN_WORKSPACE_ENVIRONMENT, getEditorPanes, withEditorDocumen
 import "@puppyone/shared-ui/shared-ui.css";
 import { useEffect, useRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { closeAllDocumentWorkingCopies } from "../../../../packages/shared-ui/src/editor/document-session/documentWorkingCopies";
-import { editorTaskScheduler } from "../../../../packages/shared-ui/src/editor/runtime/EditorTaskScheduler";
+import { closeAllDocumentWorkingCopies } from "../../../../src/shared-ui/editor/document-session/documentWorkingCopies";
+import { editorTaskScheduler } from "../../../../src/shared-ui/editor/runtime/EditorTaskScheduler";
 import { useDesktopEditorWorkbench } from "../../../../src/features/editor-workbench/controller/useDesktopEditorWorkbench";
 import { DesktopEditorSplitView } from "../../../../src/features/editor-workbench/layout/DesktopEditorSplitView";
 import {

@@ -11,7 +11,7 @@ import { resolveViewerPackRoute } from "./router.mjs";
 import { resolveCoreFormatPolicy } from "./core-format-policy.mjs";
 import { getPinnedViewerPackSigners, normalizeTrustedSigners } from "./package-signature.mjs";
 import { RESOURCE_PROTOCOL_SCHEME } from "./resource-protocol.mjs";
-import { resolveExistingWorkspacePath, statWorkspaceFile } from "../../../local-api/workspace.mjs";
+import { resolveExistingWorkspacePath, statWorkspaceFile } from "../../local-api/workspace.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 

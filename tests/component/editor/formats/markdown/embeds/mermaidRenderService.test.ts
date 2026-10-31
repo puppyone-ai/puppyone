@@ -1,7 +1,7 @@
 /** @vitest-environment happy-dom */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createMermaidRenderService } from "../../../../../../packages/shared-ui/src/editor/markdown/features/mermaid/mermaidRenderService";
-import { retireEditorTasks } from "../../../../../../packages/shared-ui/src/editor/runtime/retireEditorTasks";
+import { createMermaidRenderService } from "../../../../../../src/shared-ui/editor/markdown/features/mermaid/mermaidRenderService";
+import { retireEditorTasks } from "../../../../../../src/shared-ui/editor/runtime/retireEditorTasks";
 
 const theme = { key: "light", config: { theme: "base" as const } };
 const owner = { scope: "mermaid-tests", instance: "diagram.md", generation: 1 };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { inspectStyleLayers } from "../../../../tooling/styles/style-layer-contract.mjs";
+import { inspectStyleLayers } from "../../../../scripts/styles/style-layer-contract.mjs";
 
 describe("feature stylesheet import edges", () => {
   it("finds normal rules even when a sibling is correctly layered", () => {

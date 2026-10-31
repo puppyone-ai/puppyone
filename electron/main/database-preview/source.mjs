@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import { constants } from "node:fs";
 import path from "node:path";
-import { normalizeRelativePath } from "../../../local-api/files/path-policy.mjs";
+import { normalizeRelativePath } from "../../local-api/files/path-policy.mjs";
 import { DATABASE_BUDGET, databaseError, detectDatabase } from "../../../shared/database-preview/contract.mjs";
 
 function stamp(stat) { return [stat.dev, stat.ino, stat.size, stat.mtimeNs, stat.ctimeNs].map(String).join(":"); }

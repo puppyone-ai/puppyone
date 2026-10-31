@@ -8,7 +8,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, safeStorage, session } from "electron";
-import { workspaceFromPath } from "../../../local-api/workspace.mjs";
+import { workspaceFromPath } from "../../../electron/local-api/workspace.mjs";
 import { createWorkspaceStateStore } from "../../../electron/main/workspace-state-store.mjs";
 import { getDesktopBuildChannelPolicy } from "../../../shared/desktop-build-identity.mjs";
 

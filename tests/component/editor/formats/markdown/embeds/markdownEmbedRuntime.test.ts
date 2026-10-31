@@ -4,29 +4,29 @@
 import { EditorState, StateEffect } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createEmbeddedEditSessionStore } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/codemirror/embeddedEditSession";
+import { createEmbeddedEditSessionStore } from "../../../../../../src/shared-ui/editor/markdown/platform/codemirror/embeddedEditSession";
 import {
   disposeMarkdownEmbedHost,
   getMarkdownEmbedHost,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/platform/codemirror/embedHost";
-import { getMarkdownTableBlock } from "../../../../../../packages/shared-ui/src/editor/markdown/features/table/tableModel";
+} from "../../../../../../src/shared-ui/editor/markdown/platform/codemirror/embedHost";
+import { getMarkdownTableBlock } from "../../../../../../src/shared-ui/editor/markdown/features/table/tableModel";
 import {
   createTransactionBroker,
   getDocRevision,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/platform/brokers/transactionBroker";
-import { CodeBlockWidget } from "../../../../../../packages/shared-ui/src/editor/markdown/features/code-block/codeBlockWidget";
-import { highlightMarkdownCode } from "../../../../../../packages/shared-ui/src/editor/markdown/features/code-block/codeBlockHighlight";
-import { markdownLocalizationFacet } from "../../../../../../packages/shared-ui/src/editor/markdown/core/editor/markdownLocalization";
-import { MermaidBlockWidget } from "../../../../../../packages/shared-ui/src/editor/markdown/features/mermaid/mermaidBlockWidget";
+} from "../../../../../../src/shared-ui/editor/markdown/platform/brokers/transactionBroker";
+import { CodeBlockWidget } from "../../../../../../src/shared-ui/editor/markdown/features/code-block/codeBlockWidget";
+import { highlightMarkdownCode } from "../../../../../../src/shared-ui/editor/markdown/features/code-block/codeBlockHighlight";
+import { markdownLocalizationFacet } from "../../../../../../src/shared-ui/editor/markdown/core/editor/markdownLocalization";
+import { MermaidBlockWidget } from "../../../../../../src/shared-ui/editor/markdown/features/mermaid/mermaidBlockWidget";
 import {
   markdownCodeMirrorBaseExtensions,
   markdownLivePreviewExtension,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
+} from "../../../../../../src/shared-ui/editor/markdown/markdownCodeMirrorExtensions";
 import {
   createTableCellEditor,
   disposeTableCellEditor,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/features/table/tableCellEditor";
-import type { MarkdownInlinePreviewRenderer } from "../../../../../../packages/shared-ui/src/editor/markdown/shared/preview/markdownInlinePreviewPort";
+} from "../../../../../../src/shared-ui/editor/markdown/features/table/tableCellEditor";
+import type { MarkdownInlinePreviewRenderer } from "../../../../../../src/shared-ui/editor/markdown/shared/preview/markdownInlinePreviewPort";
 
 const mermaidMocks = vi.hoisted(() => ({
   render: vi.fn(async (_request: unknown) => ({
@@ -39,7 +39,7 @@ const mermaidMocks = vi.hoisted(() => ({
   subscribe: vi.fn(() => () => undefined),
 }));
 
-vi.mock("../../../../../../packages/shared-ui/src/editor/markdown/features/mermaid/mermaidRenderer", () => ({
+vi.mock("../../../../../../src/shared-ui/editor/markdown/features/mermaid/mermaidRenderer", () => ({
   getMermaidThemeSnapshot: () => ({ key: "test-theme", config: {} }),
   peekMermaidDiagram: mermaidMocks.peek,
   mountSanitizedMermaidSvg: (host: HTMLElement) => {

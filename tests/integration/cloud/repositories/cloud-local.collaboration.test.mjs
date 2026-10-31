@@ -28,7 +28,7 @@ import {
   pushWorkspaceGit,
   pullWorkspaceGit,
   fetchWorkspaceGit,
-} from "../../../../local-api/workspace.mjs";
+} from "../../../../electron/local-api/workspace.mjs";
 
 // The full integration suite deliberately exercises several real repositories
 // in parallel. Allow enough headroom for Git/fs process contention on loaded CI

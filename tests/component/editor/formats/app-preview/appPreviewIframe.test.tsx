@@ -5,8 +5,8 @@ import type { AppPreviewController } from "@puppyone/shared-ui";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AppPreviewViewer } from "../../../../../packages/shared-ui/src/editor/viewers/app/AppPreviewViewer";
-import { resolveAppPreviewFrameUrl } from "../../../../../packages/shared-ui/src/editor/viewers/app/SandboxedAppFrame";
+import { AppPreviewViewer } from "../../../../../src/shared-ui/editor/viewers/app/AppPreviewViewer";
+import { resolveAppPreviewFrameUrl } from "../../../../../src/shared-ui/editor/viewers/app/SandboxedAppFrame";
 import { withTestLocalization } from "../../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

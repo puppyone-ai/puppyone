@@ -1,5 +1,5 @@
 import { Readable } from "node:stream";
-import { parseSingleByteRange } from "../../local-api/files/byte-range.mjs";
+import { parseSingleByteRange } from "../local-api/files/byte-range.mjs";
 import { openPdfResource } from "./pdf-resource.mjs";
 
 export function registerLocalFileProtocol({

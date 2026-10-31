@@ -6,7 +6,7 @@ import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createCloudPublishCoordinator } from "../../../../electron/main/cloud-publish-coordinator.mjs";
-import { execGit } from "../../../../local-api/git/runner.mjs";
+import { execGit } from "../../../../electron/local-api/git/runner.mjs";
 
 const execFileAsync = promisify(execFile);
 const roots = [];

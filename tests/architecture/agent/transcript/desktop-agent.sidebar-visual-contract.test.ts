@@ -19,7 +19,7 @@ const attachmentButton = fs.readFileSync(path.join(root, "src/features/desktop-a
 const panel = fs.readFileSync(path.join(root, "src/features/desktop-agent/ui/AgentChatTabPanel.tsx"), "utf8");
 const picker = fs.readFileSync(path.join(root, "src/features/desktop-agent/ui/AgentPickerPopover.tsx"), "utf8");
 const brandMark = fs.readFileSync(path.join(root, "src/features/desktop-agent/ui/AgentBrandMark.tsx"), "utf8");
-const brandImageCss = fs.readFileSync(path.join(root, "packages/shared-ui/src/brand/agent-brand-image.css"), "utf8");
+const brandImageCss = fs.readFileSync(path.join(root, "src/shared-ui/brand/agent-brand-image.css"), "utf8");
 const messagePart = fs.readFileSync(path.join(root, "src/features/desktop-agent/ui/AgentMessagePart.tsx"), "utf8");
 const transcript = fs.readFileSync(path.join(root, "src/features/desktop-agent/ui/AgentTranscript.tsx"), "utf8");
 const timelineLayout = fs.readFileSync(path.join(root, "src/features/desktop-agent/ui/transcript/transcript-layout.ts"), "utf8");
@@ -40,7 +40,7 @@ const tokensCss = fs.readFileSync(path.join(root, "src/styles/tokens.css"), "utf
 const menuCss = fs.readFileSync(path.join(root, "src/styles/menus.css"), "utf8");
 const layoutCss = fs.readFileSync(path.join(root, "src/styles/layout.css"), "utf8");
 const collapsiblePaneCss = fs.readFileSync(
-  path.join(root, "packages/shared-ui/src/sidebar/collapsible-pane.css"),
+  path.join(root, "src/shared-ui/sidebar/collapsible-pane.css"),
   "utf8",
 );
 const responsiveCss = fs.readFileSync(path.join(styleRoot, "responsive.css"), "utf8");

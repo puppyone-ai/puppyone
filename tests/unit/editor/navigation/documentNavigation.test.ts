@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createDocumentNavigationPort,
   parseDocumentReferenceIntent,
-} from "../../../../packages/shared-ui/src/editor/navigation/documentNavigation";
+} from "../../../../src/shared-ui/editor/navigation/documentNavigation";
 
 describe("document navigation boundary", () => {
   it("recognizes only complete, intentional cell references", () => {

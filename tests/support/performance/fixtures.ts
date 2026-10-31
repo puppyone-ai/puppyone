@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import type { DataNode } from "../../../packages/shared-ui/src/core/types";
-import type { MarkdownLinkGraphDocument } from "../../../packages/shared-ui/src/editor/markdown/core/links/markdownLinkGraph";
+import type { DataNode } from "../../../src/shared-ui/core/types";
+import type { MarkdownLinkGraphDocument } from "../../../src/shared-ui/editor/markdown/core/links/markdownLinkGraph";
 
 const EXCLUDED_REPOSITORY_DIRECTORIES = new Set([
   ".git",

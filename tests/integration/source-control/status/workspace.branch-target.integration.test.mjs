@@ -11,7 +11,7 @@ import {
   pullWorkspaceGit,
   pushWorkspaceGit,
   writePuppyoneWorkspaceConfig,
-} from "../../../../local-api/workspace.mjs";
+} from "../../../../electron/local-api/workspace.mjs";
 
 let directory, root, origin, cloud, initial;
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8", stdio: "pipe" }).trim();

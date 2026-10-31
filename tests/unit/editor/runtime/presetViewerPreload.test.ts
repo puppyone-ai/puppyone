@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { preloadPresetViewer } from "../../../../packages/shared-ui/src/editor/host/PresetViewerRenderer";
-import { getPresetViewerDefinition } from "../../../../packages/shared-ui/src/editor/registry/presetViewerManifest";
-import type { LazyPresetViewerContribution } from "../../../../packages/shared-ui/src/editor/registry/viewerTypes";
+import { preloadPresetViewer } from "../../../../src/shared-ui/editor/host/PresetViewerRenderer";
+import { getPresetViewerDefinition } from "../../../../src/shared-ui/editor/registry/presetViewerManifest";
+import type { LazyPresetViewerContribution } from "../../../../src/shared-ui/editor/registry/viewerTypes";
 
 describe("preset viewer preload cache", () => {
 

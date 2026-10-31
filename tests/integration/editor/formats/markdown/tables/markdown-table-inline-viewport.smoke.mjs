@@ -21,19 +21,19 @@ const [scrollbarsCss, markdownEditorCss, markdownContentCss, editableTableCss, m
     "utf8",
   ),
   fsp.readFile(
-    path.join(repoRoot, "packages/shared-ui/src/styles/editor/markdown-editor.css"),
+    path.join(repoRoot, "src/shared-ui/styles/editor/markdown-editor.css"),
     "utf8",
   ),
   fsp.readFile(
-    path.join(repoRoot, "packages/shared-ui/src/styles/editor/markdown-content.css"),
+    path.join(repoRoot, "src/shared-ui/styles/editor/markdown-content.css"),
     "utf8",
   ),
   fsp.readFile(
-    path.join(repoRoot, "packages/shared-ui/src/styles/editor/editable-table.css"),
+    path.join(repoRoot, "src/shared-ui/styles/editor/editable-table.css"),
     "utf8",
   ),
   fsp.readFile(
-    path.join(repoRoot, "packages/shared-ui/src/styles/editor/markdown-table-widget.css"),
+    path.join(repoRoot, "src/shared-ui/styles/editor/markdown-table-widget.css"),
     "utf8",
   ),
 ]);

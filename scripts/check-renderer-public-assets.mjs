@@ -9,7 +9,7 @@ const distRoot = path.join(repoRoot, "dist");
 const publicRoot = path.join(repoRoot, "public");
 const rendererAssetCatalogPath = path.join(
   repoRoot,
-  "packages/shared-ui/src/core/rendererAssetCatalog.ts",
+  "src/shared-ui/core/rendererAssetCatalog.ts",
 );
 const rootRelativeAssetPattern = /(["'`])\/(?!\/)[^"'`]+\.(?:png|svg|webp|jpe?g|gif|ico|woff2?)(?:[?#][^"'`]*)?\1/gi;
 const rendererAssetCallPattern = /resolveRendererPublicAssetUrl\(\s*(["'`])([^"'`]+)\1\s*\)/g;
@@ -26,12 +26,7 @@ for (const filePath of walk(distRoot)) {
   }
 }
 
-const rendererSourceRoots = [
-  path.join(repoRoot, "src"),
-  path.join(repoRoot, "packages", "shared-ui", "src"),
-];
-
-for (const filePath of rendererSourceRoots.flatMap(walk)) {
+for (const filePath of walk(path.join(repoRoot, "src"))) {
   if (!/\.(?:css|[cm]?[jt]sx?)$/.test(filePath)) continue;
   const source = readFileSync(filePath, "utf8");
   const assetPaths = filePath.endsWith(".css")

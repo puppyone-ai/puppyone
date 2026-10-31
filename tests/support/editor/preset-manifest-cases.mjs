@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 
-export const canonicalManifest = JSON.parse(readFileSync(new URL("../../../packages/shared-ui/src/editor/registry/presetViewerManifest.json", import.meta.url), "utf8"));
+export const canonicalManifest = JSON.parse(readFileSync(new URL("../../../shared/presetViewerManifest.json", import.meta.url), "utf8"));
 const fallback = canonicalManifest.viewers.find(({ id }) => id === canonicalManifest.fallbackViewerId);
 const base = {
   id: "fixture-viewer", formatViewerIds: ["fixture-alias"], capability: "preview", source: "content",

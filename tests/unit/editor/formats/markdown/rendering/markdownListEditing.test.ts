@@ -2,13 +2,13 @@ import { EditorSelection, EditorState, RangeSet, Transaction, type TransactionSp
 import type { EditorView } from "@codemirror/view";
 import { undo, redo } from "@codemirror/commands";
 import { describe, expect, it } from "vitest";
-import { markdownCodeMirrorBaseExtensions, markdownLivePreviewExtension } from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
-import { markdownLivePreviewDecorations, requestMarkdownProjectionRange } from "../../../../../../packages/shared-ui/src/editor/markdown/core/decorations/livePreviewDecorations";
-import { markdownLivePreviewFocusEffect } from "../../../../../../packages/shared-ui/src/editor/markdown/core/state/livePreviewFocus";
-import { getMarkdownListItemAt, getMarkdownTaskLine } from "../../../../../../packages/shared-ui/src/editor/markdown/core/syntax/markdownListStructure";
-import { getMarkdownElements } from "../../../../../../packages/shared-ui/src/editor/markdown/core/syntax/markdownElements";
-import { markdownEditingKeymap } from "../../../../../../packages/shared-ui/src/editor/markdown/core/commands/markdownEditingKeymap";
-import { toggleMarkdownTaskCheckboxAt } from "../../../../../../packages/shared-ui/src/editor/markdown/core/commands/markdownTaskCommands";
+import { markdownCodeMirrorBaseExtensions, markdownLivePreviewExtension } from "../../../../../../src/shared-ui/editor/markdown/markdownCodeMirrorExtensions";
+import { markdownLivePreviewDecorations, requestMarkdownProjectionRange } from "../../../../../../src/shared-ui/editor/markdown/core/decorations/livePreviewDecorations";
+import { markdownLivePreviewFocusEffect } from "../../../../../../src/shared-ui/editor/markdown/core/state/livePreviewFocus";
+import { getMarkdownListItemAt, getMarkdownTaskLine } from "../../../../../../src/shared-ui/editor/markdown/core/syntax/markdownListStructure";
+import { getMarkdownElements } from "../../../../../../src/shared-ui/editor/markdown/core/syntax/markdownElements";
+import { markdownEditingKeymap } from "../../../../../../src/shared-ui/editor/markdown/core/commands/markdownEditingKeymap";
+import { toggleMarkdownTaskCheckboxAt } from "../../../../../../src/shared-ui/editor/markdown/core/commands/markdownTaskCommands";
 
 const create = (doc: string, head = doc.length) => EditorState.create({ doc, selection: EditorSelection.cursor(head),
   extensions: [markdownCodeMirrorBaseExtensions(false), markdownLivePreviewExtension()] });

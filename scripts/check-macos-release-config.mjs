@@ -14,8 +14,8 @@ import {
 } from "./release-support/internal-release-workflow-policy.mjs";
 import { inspectMacReleaseReadiness } from "./release-support/macos-release-policy.mjs";
 import { resolveDesktopBuildIdentity } from "../shared/desktop-build-identity.mjs";
-import { createDesktopElectronBuilderConfig } from "../tooling/desktop/build/create-builder-config.mjs";
-import { getDesktopTargetDefinition } from "../tooling/desktop/targets/target-manifest.mjs";
+import { createDesktopElectronBuilderConfig } from "./desktop/build/create-builder-config.mjs";
+import { getDesktopTargetDefinition } from "./desktop/targets/target-manifest.mjs";
 import { resolveDesktopAppIcon } from "../shared/desktop/app-icon-contract.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");

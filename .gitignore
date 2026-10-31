@@ -33,7 +33,7 @@ yarn-error.log*
 *.tsbuildinfo
 
 /electron/main/platform/macos/native/*.node
-/local-api/templates/native/*.node
+/electron/local-api/templates/native/*.node
 
 # Disposable test reports/screenshots; reviewed baselines live under tests/performance.
 /artifacts/tests/

@@ -1,15 +1,15 @@
 import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { FILE_VISUAL_KINDS, type FileIconThemeId } from "../../../../packages/shared-ui/src/file/fileIconTypes";
-import { FileGlyphIcon } from "../../../../packages/shared-ui/src/file/fileIcons";
-import { defaultTheme } from "../../../../packages/shared-ui/src/file/icon-themes/default";
+import { FILE_VISUAL_KINDS, type FileIconThemeId } from "../../../../src/shared-ui/file/fileIconTypes";
+import { FileGlyphIcon } from "../../../../src/shared-ui/file/fileIcons";
+import { defaultTheme } from "../../../../src/shared-ui/file/icon-themes/default";
 import {
   FILE_ICON_THEME_REGISTRY,
   FILE_ICON_THEMES,
   getFileIconThemeDefinition,
-} from "../../../../packages/shared-ui/src/file/icon-themes/registry";
-import { createThemeVariant } from "../../../../packages/shared-ui/src/file/icon-themes/themeFactory";
+} from "../../../../src/shared-ui/file/icon-themes/registry";
+import { createThemeVariant } from "../../../../src/shared-ui/file/icon-themes/themeFactory";
 import {
   PLUGIN_FILE_ICON_THEME_ID,
   pluginFileIconTheme,

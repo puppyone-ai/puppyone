@@ -9,19 +9,19 @@ import {
   buildMarkdownBlockMoveTransaction,
   markdownBlockRelocationAnnotation,
   moveMarkdownBlock,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/core/commands/markdownBlockMove";
-import { markdownBlockDragExtension } from "../../../../../../packages/shared-ui/src/editor/markdown/addons/block-drag";
+} from "../../../../../../src/shared-ui/editor/markdown/core/commands/markdownBlockMove";
+import { markdownBlockDragExtension } from "../../../../../../src/shared-ui/editor/markdown/addons/block-drag";
 import {
   getMarkdownMovableBlockAt,
   getMarkdownMovableBlockGroup,
   sameMarkdownMovableBlock,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/core/syntax/markdownBlockBoundaries";
+} from "../../../../../../src/shared-ui/editor/markdown/core/syntax/markdownBlockBoundaries";
 import {
   markdownCodeMirrorLanguageExtension,
   markdownLivePreviewExtension,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
-import { getMarkdownEmbedHost } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/codemirror/embedHost";
-import { createEmbeddedEditSessionStore } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/codemirror/embeddedEditSession";
+} from "../../../../../../src/shared-ui/editor/markdown/markdownCodeMirrorExtensions";
+import { getMarkdownEmbedHost } from "../../../../../../src/shared-ui/editor/markdown/platform/codemirror/embedHost";
+import { createEmbeddedEditSessionStore } from "../../../../../../src/shared-ui/editor/markdown/platform/codemirror/embeddedEditSession";
 
 const mountedViews: EditorView[] = [];
 

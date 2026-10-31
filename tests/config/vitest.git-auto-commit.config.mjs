@@ -16,7 +16,7 @@ export default defineConfig(async () => mergeConfig(await createTestConfig({ inc
       include: [
         "electron/main/git-auto-commit/**/*.mjs",
         "electron/main/ipc/git-auto-commit-ipc.mjs",
-        "local-api/git/auto-commit.mjs",
+        "electron/local-api/git/auto-commit.mjs",
         "src/features/source-control/useGitAutoCommitSettings.ts",
       ],
       thresholds: {

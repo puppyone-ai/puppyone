@@ -5,9 +5,9 @@ const source = (path: string) => readFileSync(new URL(path, import.meta.url), "u
 
 describe("editor host hierarchy", () => {
   it("keeps the host chain explicit and attaches routing at the document boundary", () => {
-    const preview = source("../../../../packages/shared-ui/src/editor/host/FilePreview.tsx");
-    const nodeHost = source("../../../../packages/shared-ui/src/editor/host/DataNodeEditorHost.tsx");
-    const documentHost = source("../../../../packages/shared-ui/src/editor/host/EditorDocumentHost.tsx");
+    const preview = source("../../../../src/shared-ui/editor/host/FilePreview.tsx");
+    const nodeHost = source("../../../../src/shared-ui/editor/host/DataNodeEditorHost.tsx");
+    const documentHost = source("../../../../src/shared-ui/editor/host/EditorDocumentHost.tsx");
 
     expect(preview).toContain("<DataNodeEditorHost");
     expect(nodeHost).toContain("<EditorDocumentHost");
@@ -16,8 +16,8 @@ describe("editor host hierarchy", () => {
   });
 
   it("routes format implementations from isolated viewer packages", () => {
-    const registry = source("../../../../packages/shared-ui/src/editor/registry/viewerRegistry.tsx");
-    const builtins = source("../../../../packages/shared-ui/src/editor/registry/builtinViewerContributions.ts");
+    const registry = source("../../../../src/shared-ui/editor/registry/viewerRegistry.tsx");
+    const builtins = source("../../../../src/shared-ui/editor/registry/builtinViewerContributions.ts");
 
     for (const viewerPackage of ["app", "code", "csv", "fallback", "html", "media", "office", "pdf", "puppyflow"]) {
       expect(builtins).toContain(`../viewers/${viewerPackage}/`);
@@ -30,10 +30,10 @@ describe("editor host hierarchy", () => {
 
   it("does not restore the former flat ownership paths", () => {
     for (const formerPath of [
-      "../packages/shared-ui/src/data/FilePreview.tsx",
-      "../packages/shared-ui/src/editor/EditorHost.tsx",
-      "../packages/shared-ui/src/editor/PuppyoneEditorHost.tsx",
-      "../packages/shared-ui/src/editor/viewerRegistry.tsx",
+      "../src/shared-ui/data/FilePreview.tsx",
+      "../src/shared-ui/editor/EditorHost.tsx",
+      "../src/shared-ui/editor/PuppyoneEditorHost.tsx",
+      "../src/shared-ui/editor/viewerRegistry.tsx",
       "../src/features/editor-workbench/useDesktopEditorGroup.ts",
       "../src/features/editor-workbench/useEditorWorkbenchDragAndDrop.ts",
     ]) {

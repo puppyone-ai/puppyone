@@ -4,8 +4,8 @@ import { describe, expect, it } from "vitest";
 const tokensCss = readCss("../../../../src/styles/tokens.css");
 const layoutCss = readCss("../../../../src/styles/layout.css");
 const titlebarCss = readCss("../../../../src/styles/titlebar.css");
-const sidebarPrimitivesCss = readCss("../../../../packages/shared-ui/src/styles/sidebar-primitives.css");
-const paneCss = readCss("../../../../packages/shared-ui/src/sidebar/collapsible-pane.css");
+const sidebarPrimitivesCss = readCss("../../../../src/shared-ui/styles/sidebar-primitives.css");
+const paneCss = readCss("../../../../src/shared-ui/sidebar/collapsible-pane.css");
 const sidebarPatternsCss = readCss("../../../../src/styles/sidebar/patterns.css");
 const dataAdapterCss = readCss("../../../../src/features/data-workspace/browser.css");
 const projectSwitcherCss = readCss("../../../../src/features/app-shell/project-switcher-rail.css");
@@ -17,10 +17,10 @@ const projectContextAssetMarkCss = readCss(
   "../../../../src/features/app-shell/project-context-asset-mark.css",
 );
 const dataShellCss = readCss("../../../../src/features/data-workspace/data-shell.css");
-const dataTreeCss = readCss("../../../../packages/shared-ui/src/styles/data-workspace.css");
+const dataTreeCss = readCss("../../../../src/shared-ui/styles/data-workspace.css");
 // The Data workspace and the frame it shares with surfaces that have no files yet.
 const dataWorkspaceSource = ["DataWorkspace.tsx", "DataWorkspaceFrame.tsx"].map((file) => readFileSync(
-  new URL(`../../../../packages/shared-ui/src/data/${file}`, import.meta.url),
+  new URL(`../../../../src/shared-ui/data/${file}`, import.meta.url),
   "utf8",
 )).join("\n");
 const workspaceSurfaceOutletSource = readFileSync(

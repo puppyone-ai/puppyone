@@ -4,7 +4,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
-import { inspectStyleLayers } from "../tooling/styles/style-layer-contract.mjs";
+import { inspectStyleLayers } from "./styles/style-layer-contract.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const errors = [];
@@ -14,9 +14,9 @@ const productStyles = read("src/styles.css");
 const windowChromeStyles = read("src/styles/window-chrome.css");
 const interfaceSkinContractStyles = read("src/styles/interface-skin-contract.css");
 const windowChromeOwner = path.join(repoRoot, "src", "styles", "window-chrome.css");
-const sharedUiRoot = path.join(repoRoot, "packages", "shared-ui", "src");
+const sharedUiRoot = path.join(repoRoot, "src", "shared-ui");
 const interfaceStyleRoot = path.join(repoRoot, "src", "styles", "interfaces");
-const builtinSubThemeRoot = path.join(repoRoot, "sub-themes");
+const builtinSubThemeRoot = path.join(repoRoot, "src/features/themes/builtin");
 const viewerSurfaceTokenContract = JSON.parse(read("src/styles/viewer-surface-token-contract.json"));
 const concreteStylePattern = /\bwindows-xp\b/;
 const editorInternalSelectorPattern = /\.(?:cm-|markdown-codemirror-editor\b|csv-table-editor\b|desktop-terminal-xterm\b|puppyflow-[a-z0-9-]+\b|editor-mode-toggle\b|plain-text-editor\b|code-codemirror-editor\b)/;
@@ -78,7 +78,6 @@ if (
 
 const rendererSourceRoots = [
   path.join(repoRoot, "src"),
-  path.join(repoRoot, "packages", "shared-ui", "src"),
 ];
 
 // Check feature-side imports too, including every transitive CSS import edge.

@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { cloneGitRepository } from "../../local-api/git/runner.mjs";
+import { cloneGitRepository } from "../local-api/git/runner.mjs";
 import { createProjectInitializationService } from "./project-initialization-service.mjs";
 import { createLocalProjectImportService } from "./project-import/service.mjs";
 

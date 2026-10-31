@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
-import { FILE_VISUAL_KINDS, type FileIconThemeId } from "../../../packages/shared-ui/src/file/fileIconTypes";
+import { FILE_VISUAL_KINDS, type FileIconThemeId } from "../../../src/shared-ui/file/fileIconTypes";
 import type {
   FileIconRenderContext,
   FileIconRendererMap,
-} from "../../../packages/shared-ui/src/file/icon-themes/iconThemeTypes";
-import { createIconTheme } from "../../../packages/shared-ui/src/file/icon-themes/themeFactory";
-import type * as Registry from "../../../packages/shared-ui/src/file/icon-themes/registry";
+} from "../../../src/shared-ui/file/icon-themes/iconThemeTypes";
+import { createIconTheme } from "../../../src/shared-ui/file/icon-themes/themeFactory";
+import type * as Registry from "../../../src/shared-ui/file/icon-themes/registry";
 
 /**
  * A file-icon theme no build ships. Tests install it through the plug-in

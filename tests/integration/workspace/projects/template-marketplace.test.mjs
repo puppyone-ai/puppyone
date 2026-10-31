@@ -3,10 +3,10 @@ import os from "node:os";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { parseTemplatePackage, validateDownloadDescriptor } from "../../../../local-api/templates/package.mjs";
+import { parseTemplatePackage, validateDownloadDescriptor } from "../../../../electron/local-api/templates/package.mjs";
 import { createTemplateMarketplaceService } from "../../../../electron/main/template-marketplace-service.mjs";
 import { createProjectInitializationService } from "../../../../electron/main/project-initialization-service.mjs";
-import { materializeTemplate } from "../../../../local-api/templates/materialize.mjs";
+import { materializeTemplate } from "../../../../electron/local-api/templates/materialize.mjs";
 import { looksLikeTemplateLink, parseTemplateLink, resolveTemplateStoreOrigin } from "../../../../shared/desktop/template-link.mjs";
 
 const { fixtures } = JSON.parse(await fs.readFile(new URL("../../../fixtures/workspace/projects/marketplace-packages.json", import.meta.url), "utf8"));

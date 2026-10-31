@@ -5,8 +5,8 @@ import {
   markdownFeatureComposition,
   puppyMarkdownFeatureCompositionExtension,
   puppyMarkdownParserExtensions,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/composition/markdownFeatureComposition";
-import { getMarkdownPlanIndex } from "../../../../../../packages/shared-ui/src/editor/markdown/core/plans/markdownPlanIndex";
+} from "../../../../../../src/shared-ui/editor/markdown/composition/markdownFeatureComposition";
+import { getMarkdownPlanIndex } from "../../../../../../src/shared-ui/editor/markdown/core/plans/markdownPlanIndex";
 
 function createMarkdownState(source: string) {
   return EditorState.create({

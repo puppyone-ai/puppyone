@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseGitPorcelainV2Status } from "../../../../local-api/git/porcelain-v2.mjs";
+import { parseGitPorcelainV2Status } from "../../../../electron/local-api/git/porcelain-v2.mjs";
 
 describe("Git porcelain v2 parser", () => {
   it("parses headers, ordinary changes, renames, and untracked files", () => {

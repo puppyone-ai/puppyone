@@ -2,12 +2,12 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import JSZip from "jszip";
-import { retireEditorTasks } from "../../../../../packages/shared-ui/src/editor/runtime/retireEditorTasks";
+import { retireEditorTasks } from "../../../../../src/shared-ui/editor/runtime/retireEditorTasks";
 import * as XLSX from "xlsx";
 import {
   getSpreadsheetCellKind,
   parseSpreadsheetPreview,
-} from "../../../../../packages/shared-ui/src/editor/viewers/office/spreadsheetParser";
+} from "../../../../../src/shared-ui/editor/viewers/office/spreadsheetParser";
 import {
   getSpreadsheetArchiveKind,
   getSpreadsheetNavigationTarget,
@@ -16,11 +16,11 @@ import {
   getSpreadsheetVisibleRowWindow,
   MAX_SPREADSHEET_MATERIALIZED_CELLS,
   MAX_SPREADSHEET_STRING_PAYLOAD_BYTES,
-} from "../../../../../packages/shared-ui/src/editor/viewers/office/spreadsheetPreview";
+} from "../../../../../src/shared-ui/editor/viewers/office/spreadsheetPreview";
 import {
   DEFAULT_SPREADSHEET_WORKER_TIMEOUT_MS,
   parseSpreadsheetInWorker,
-} from "../../../../../packages/shared-ui/src/editor/viewers/office/spreadsheetPreviewClient";
+} from "../../../../../src/shared-ui/editor/viewers/office/spreadsheetPreviewClient";
 
 const CENTRAL_DIRECTORY_SIGNATURE = 0x02014b50;
 const END_OF_CENTRAL_DIRECTORY_SIGNATURE = 0x06054b50;

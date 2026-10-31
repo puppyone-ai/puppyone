@@ -3,12 +3,12 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createWorkspaceResourceUri,
   createWorkspaceRootUri,
-} from "../../../../packages/shared-ui/src/core/resourceUri";
+} from "../../../../src/shared-ui/core/resourceUri";
 import {
   closeDocumentWorkingCopiesUnderResource,
   closeDocumentWorkingCopy,
   getOrCreateDocumentWorkingCopy,
-} from "../../../../packages/shared-ui/src/editor/document-session/documentWorkingCopies";
+} from "../../../../src/shared-ui/editor/document-session/documentWorkingCopies";
 
 describe("document Working Copy registry", () => {
   it("keeps one session per stable storage identity and document across adapter recreation", async () => {

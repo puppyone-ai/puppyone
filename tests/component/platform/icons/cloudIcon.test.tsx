@@ -1,7 +1,7 @@
 /** @vitest-environment happy-dom */
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { CLOUD_ICON_PATH, CloudIcon } from "../../../../packages/shared-ui/src/icons/productIcons";
+import { CLOUD_ICON_PATH, CloudIcon } from "../../../../src/shared-ui/icons/productIcons";
 
 function render(props: Parameters<typeof CloudIcon>[0] = {}) {
   const host = document.createElement("div");

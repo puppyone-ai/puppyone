@@ -16,15 +16,16 @@ function sourceFiles(relativeDirectory: string, extensions: readonly string[]): 
   });
 }
 
-const stylesheets = [...sourceFiles("src", [".css"]), ...sourceFiles("packages/shared-ui/src", [".css"])]
-  .filter((file) => !file.endsWith(".generated.css"));
-const components = [...sourceFiles("src", [".tsx"]), ...sourceFiles("packages/shared-ui/src", [".tsx"])]
+const builtinThemeSources = path.join("src", "features", "themes", "builtin");
+const stylesheets = sourceFiles("src", [".css"])
+  .filter((file) => !file.endsWith(".generated.css") && !file.includes(builtinThemeSources));
+const components = sourceFiles("src", [".tsx"])
   .filter((file) => !file.includes(`${path.sep}primitives${path.sep}`));
 
 describe("loading placeholder styles", () => {
   it("ships both styles with the shared UI patterns", () => {
-    expect(read("packages/shared-ui/src/styles/shared-ui-patterns.css")).toContain('@import "./loading-placeholder.css";');
-    const index = read("packages/shared-ui/src/index.ts");
+    expect(read("src/shared-ui/styles/shared-ui-patterns.css")).toContain('@import "./loading-placeholder.css";');
+    const index = read("src/shared-ui/index.ts");
     expect(index).toContain("PlaceholderLayer,");
     expect(index).toContain("LoadingPlaceholderStyleProvider,");
     expect(index).not.toContain("OrderedDither");
@@ -44,8 +45,8 @@ describe("loading placeholder styles", () => {
   });
 
   it("keeps both styles still for reduced motion", () => {
-    expect(read("packages/shared-ui/src/primitives/OrderedDither.tsx")).toContain('matchMedia?.("(prefers-reduced-motion: reduce)")');
-    expect(read("packages/shared-ui/src/styles/loading-placeholder.css")).toMatch(
+    expect(read("src/shared-ui/primitives/OrderedDither.tsx")).toContain('matchMedia?.("(prefers-reduced-motion: reduce)")');
+    expect(read("src/shared-ui/styles/loading-placeholder.css")).toMatch(
       /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\[data-placeholder-shape\]\s*\{\s*animation: none;/,
     );
   });

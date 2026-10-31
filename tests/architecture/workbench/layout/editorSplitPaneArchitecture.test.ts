@@ -52,11 +52,11 @@ const paneSourceLifecycle = readFileSync(
 );
 // The Data workspace and the frame it shares with surfaces that have no files yet.
 const dataWorkspaceSource = ["DataWorkspace.tsx", "DataWorkspaceFrame.tsx"].map((file) => readFileSync(
-  new URL(`../../../../packages/shared-ui/src/data/${file}`, import.meta.url),
+  new URL(`../../../../src/shared-ui/data/${file}`, import.meta.url),
   "utf8",
 )).join("\n");
 const viewerTypesSource = readFileSync(
-  new URL("../../../../packages/shared-ui/src/editor/registry/viewerTypes.ts", import.meta.url),
+  new URL("../../../../src/shared-ui/editor/registry/viewerTypes.ts", import.meta.url),
   "utf8",
 );
 const resizeGestureSource = readFileSync(
@@ -88,7 +88,7 @@ const splitStyles = readFileSync(
   "utf8",
 );
 const overflowDotsStyles = readFileSync(
-  new URL("../../../../packages/shared-ui/src/styles/overflow-dots.css", import.meta.url),
+  new URL("../../../../src/shared-ui/styles/overflow-dots.css", import.meta.url),
   "utf8",
 );
 const menuStyles = readFileSync(
@@ -104,7 +104,7 @@ const dataShellStyles = readFileSync(
   "utf8",
 );
 const sharedDataWorkspaceStyles = readFileSync(
-  new URL("../../../../packages/shared-ui/src/styles/data-workspace.css", import.meta.url),
+  new URL("../../../../src/shared-ui/styles/data-workspace.css", import.meta.url),
   "utf8",
 );
 const layoutStyles = readFileSync(
@@ -485,7 +485,7 @@ describe("editor split-pane architecture", () => {
     expect(tokens).toContain("--po-pane-resizer-active-color:");
     expect(tokens).toContain("--po-pane-resizer-active-ring:");
     expect(tokens).not.toMatch(/--po-pane-resizer-(?:hover-color|active-color|active-ring):[^;]*--po-accent/);
-    for (const styles of [readFileSync(new URL("../../../../packages/shared-ui/src/sidebar/collapsible-pane.css", import.meta.url), "utf8"), splitStyles]) {
+    for (const styles of [readFileSync(new URL("../../../../src/shared-ui/sidebar/collapsible-pane.css", import.meta.url), "utf8"), splitStyles]) {
       expect(styles).toContain("var(--po-pane-resizer-hover-color)");
       expect(styles).toContain("var(--po-pane-resizer-active-color)");
       expect(styles).toContain("var(--po-pane-resizer-active-ring)");

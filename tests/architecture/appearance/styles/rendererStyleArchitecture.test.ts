@@ -43,11 +43,11 @@ describe("renderer style architecture", () => {
   });
 
   it("keeps Viewer editor authority above runtime CSS without coupling it to a Style profile", () => {
-    const sharedEntry = source("packages/shared-ui/src/styles/shared-ui.css");
-    const editorEntry = source("packages/shared-ui/src/styles/editor.css");
-    const editableTable = source("packages/shared-ui/src/styles/editor/editable-table.css");
-    const editorChrome = source("packages/shared-ui/src/styles/editor/editor-chrome.css");
-    const puppyflowEditor = source("packages/shared-ui/src/styles/editor/puppyflow-editor.css");
+    const sharedEntry = source("src/shared-ui/styles/shared-ui.css");
+    const editorEntry = source("src/shared-ui/styles/editor.css");
+    const editableTable = source("src/shared-ui/styles/editor/editable-table.css");
+    const editorChrome = source("src/shared-ui/styles/editor/editor-chrome.css");
+    const puppyflowEditor = source("src/shared-ui/styles/editor/puppyflow-editor.css");
     const interfaceSkinContract = source("src/styles/interface-skin-contract.css");
     const xpTableProjection = source("src/styles/interfaces/windows-xp/surfaces/editable-table.css");
     const xpDocumentProjection = source("src/styles/interfaces/windows-xp/surfaces/document.css");

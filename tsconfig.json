@@ -13,10 +13,10 @@
     "moduleResolution": "Node",
     "baseUrl": ".",
     "paths": {
-      "@puppyone/localization": ["packages/localization/src/index.ts"],
-      "@puppyone/localization/*": ["packages/localization/src/*"],
-      "@puppyone/shared-ui": ["packages/shared-ui/src/index.ts"],
-      "@puppyone/shared-ui/markdown-presentation-preview": ["packages/shared-ui/src/editor/markdown/MarkdownPresentationPreview.tsx"],
+      "@puppyone/localization": ["src/lib/localization/index.ts"],
+      "@puppyone/localization/*": ["src/lib/localization/*"],
+      "@puppyone/shared-ui": ["src/shared-ui/index.ts"],
+      "@puppyone/shared-ui/markdown-presentation-preview": ["src/shared-ui/editor/markdown/MarkdownPresentationPreview.tsx"],
       "lucide-react": ["node_modules/lucide-react/dist/lucide-react.d.ts"],
       "react": ["node_modules/@types/react/index.d.ts"],
       "react/jsx-runtime": ["node_modules/@types/react/jsx-runtime.d.ts"]
@@ -26,6 +26,6 @@
     "noEmit": true,
     "jsx": "react-jsx"
   },
-  "include": ["src", "shared/agent-contract/**/*.ts", "shared/agent-activity-contract/**/*.ts", "shared/local-agent-installation/**/*.ts", "packages/localization/src", "packages/shared-ui/src"],
+  "include": ["src", "shared/agent-contract/**/*.ts", "shared/agent-activity-contract/**/*.ts", "shared/local-agent-installation/**/*.ts"],
   "references": []
 }

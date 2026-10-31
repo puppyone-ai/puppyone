@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { readGitBranchBinding, readGitPullPolicyArgs, readOptionalGitConfig } from "../../../../local-api/git/sync-config.mjs";
+import { readGitBranchBinding, readGitPullPolicyArgs, readOptionalGitConfig } from "../../../../electron/local-api/git/sync-config.mjs";
 
 function gitConfig(values) {
   return vi.fn(async (_root, args) => {

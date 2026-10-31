@@ -195,7 +195,7 @@ Checked-in Sub Themes use the same single-file parser and token compiler as
 installed themes. Their repository source is intentionally data-only:
 
 ```text
-sub-themes/
+src/features/themes/builtin/
 ├── default-neutral/theme.css
 ├── default-warm/theme.css
 ├── default-graphite/theme.css

@@ -1,6 +1,6 @@
 import { NodeType, Tree } from "@lezer/common";
 import { describe, expect, it } from "vitest";
-import { getChangedSyntaxProjectionRange } from "../../../../../../packages/shared-ui/src/editor/markdown/core/projection/syntaxProjectionRange";
+import { getChangedSyntaxProjectionRange } from "../../../../../../src/shared-ui/editor/markdown/core/projection/syntaxProjectionRange";
 const documentType = NodeType.define({ id: 0, name: "Document", top: true });
 const blockType = NodeType.define({ id: 1, name: "Paragraph" });
 const block = (length: number) => new Tree(blockType, [], [], length);
