@@ -90,10 +90,8 @@ app.whenReady().then(async () => {
       optimizeDeps: { entries: ["tests/fixtures/editor/tables/table-interaction.html"] },
       server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null } });
     await vite.listen();
-    // The pointer strokes need the whole page, and macOS fits a shown window to the
-    // display, which on a CI runner is shorter than the page and cannot be outgrown.
     window = new BrowserWindow({ width: 1100, height: 970,
-      show: process.platform !== "darwin" && process.env.PUPPYONE_TABLE_INTERACTION_HIDDEN !== "1",
+      show: process.env.PUPPYONE_TABLE_INTERACTION_HIDDEN !== "1",
       webPreferences: { contextIsolation: true, sandbox: true, backgroundThrottling: false } });
     window.webContents.on("console-message", details => {
       if ((details.level === "error" || details.level === "warning") && !details.message.includes("Electron Security Warning")) errors.push(details.message);
@@ -117,6 +115,10 @@ app.whenReady().then(async () => {
     await window.loadURL(`http://127.0.0.1:${port}/tests/fixtures/editor/tables/table-interaction.html`);
     await evaluate(`(async () => { for (let i=0; i<3000 && !window.tableFixture; i++) await new Promise(r=>setTimeout(r,10)); if (!window.tableFixture) throw new Error('Table fixture did not load within 30s'); await window.tableFixture.ready(); })()`);
     window.webContents.debugger.attach("1.3");
+    // macOS fits every window to the display, 1024x684 on a CI runner, and no resize
+    // makes it taller. The pointer strokes need the whole page, so give it a viewport.
+    if (await evaluate("innerHeight") < 900) await window.webContents.debugger.sendCommand(
+      "Emulation.setDeviceMetricsOverride", { width: 1084, height: 931, deviceScaleFactor: 0, mobile: false });
     const reducedMotion = value => window.webContents.debugger.sendCommand("Emulation.setEmulatedMedia", {
       features: [{ name: "prefers-reduced-motion", value: value ? "reduce" : "no-preference" }],
     });
