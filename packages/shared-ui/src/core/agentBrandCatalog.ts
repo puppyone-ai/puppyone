@@ -62,7 +62,7 @@ export const AGENT_BRAND_CATALOG: Readonly<Record<AgentBrandId, AgentBrandDefini
     agentAssets.builtInAgent,
   ),
   viktor: defineBrand("viktor", "Viktor", ["viktor"], agentAssets.viktor),
-  "grok-bot": defineBrand("grok-bot", "Grok Bot", ["grok-bot"], agentAssets.grokBot),
+  "grok-bot": defineBrand("grok-bot", "Grok Bot", ["grok"], agentAssets.grokBot),
   replit: defineBrand("replit", "Replit Agent", ["replit"], agentAssets.replit),
   gemini: defineBrand("gemini", "Gemini", ["gemini"], agentAssets.gemini),
   "github-copilot": defineBrand("github-copilot", "GitHub Copilot", ["github-copilot"], agentAssets.githubCopilot),
@@ -93,15 +93,18 @@ export function resolveAgentBrand(identity: {
   const direct = getAgentBrand(identity.id) ?? getAgentBrand(identity.iconKey);
   if (direct) return direct;
 
-  const normalized = [identity.id, identity.iconKey, identity.label]
+  const words = nameWords([identity.id, identity.iconKey, identity.label]
     .filter((value): value is string => Boolean(value))
-    .join(" ")
-    .toLowerCase();
-  const tokens = new Set(normalized.split(/[^a-z0-9]+/u).filter(Boolean));
+    .join(" "));
 
   return AGENT_BRAND_IDS
     .map((brandId) => AGENT_BRAND_CATALOG[brandId])
-    .find((brand) => brand.aliases.some((alias) => tokens.has(alias))) ?? null;
+    .find((brand) => brand.aliases.some((alias) => words.includes(nameWords(alias)))) ?? null;
+}
+
+/** A name as whole words, so "Grok Bot", "grok-bot" and "GROK_BOT" are one name and "Groq" is not "Grok". */
+function nameWords(value: string): string {
+  return ` ${value.toLowerCase().split(/[^a-z0-9]+/u).filter(Boolean).join(" ")} `;
 }
 
 function defineBrand(

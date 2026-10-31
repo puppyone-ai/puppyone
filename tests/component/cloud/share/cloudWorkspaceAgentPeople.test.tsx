@@ -53,6 +53,16 @@ describe("An Agent in the Header", () => {
     expect(viewer()?.dataset.reachAudience).toBe("person");
     expect(people()!.compareDocumentPosition(share()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
+  it("shows the kind of Agent, and an initial only for a name it cannot recognize", async () => {
+    connections = [connection("1", "Grok Bot"), connection("2", "Research helper")];
+    await render();
+    const [grok, helper] = marks();
+    expect(grok?.dataset.reachBrand).toBe("grok-bot");
+    expect(grok?.textContent).toBe("");
+    expect(grok?.querySelector("img")).not.toBeNull();
+    expect(helper?.dataset.reachBrand).toBeUndefined();
+    expect(helper?.textContent).toBe("R");
+  });
   it("does not claim the person is alone, because Organization members may reach the project", async () => {
     await render();
     expect(people()!.getAttribute("aria-label")).toContain("alice@example.com");

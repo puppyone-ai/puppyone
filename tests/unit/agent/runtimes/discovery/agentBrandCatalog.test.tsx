@@ -11,6 +11,27 @@ import {
 } from "@puppyone/shared-ui";
 
 describe("Agent brand registry", () => {
+  it("recognizes a brand however an Agent writes its name", () => {
+    for (const [label, brandId] of [
+      ["Grok Bot", "grok-bot"],
+      ["grok-bot", "grok-bot"],
+      ["GROK_BOT", "grok-bot"],
+      ["Grok", "grok-bot"],
+      ["xAI Grok CLI", "grok-bot"],
+      ["GitHub Copilot", "github-copilot"],
+      ["github-copilot", "github-copilot"],
+      ["Microsoft Copilot Studio", "copilot-studio"],
+      ["Built-in Agent", "built-in-agent"],
+      ["Claude Code", "claude"],
+    ] as const) expect(resolveAgentBrand({ label })?.id, label).toBe(brandId);
+  });
+
+  it("claims no brand from part of a word or from a word two brands share", () => {
+    for (const label of ["Groq", "Grokking Notes", "Copilot", "GitHub", "Research helper", "我的小助手"]) {
+      expect(resolveAgentBrand({ label }), label).toBeNull();
+    }
+  });
+
   it("uses one canonical id and themed asset contract for every registered brand", () => {
     expect(Object.keys(AGENT_BRAND_CATALOG)).toEqual([...AGENT_BRAND_IDS]);
 
