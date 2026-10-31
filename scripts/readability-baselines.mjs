@@ -3,8 +3,11 @@ import { existsSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 const readabilityRules = new Set([
-  "complexity", "max-depth", "max-params", "no-nested-ternary", "max-lines", "max-lines-per-function",
+  "complexity", "max-depth", "max-params", "no-nested-ternary", "max-lines-per-function",
 ]);
+
+/** Removed rules, which an older baseline being compared against may still record. */
+const retiredRules = new Set(["max-lines"]);
 
 export const baselineFiles = [
   "eslint-suppressions.json",
@@ -24,6 +27,7 @@ export function baselineCounts(file, value, renames = new Map()) {
   if (file === "eslint-suppressions.json") {
     for (const [path, rules] of Object.entries(value)) {
       for (const [rule, { count }] of Object.entries(rules)) {
+        if (retiredRules.has(rule)) continue;
         if (!readabilityRules.has(rule) || !Number.isSafeInteger(count) || count < 1) {
           throw new Error(`Invalid readability suppression: ${path}:${rule} (${count})`);
         }

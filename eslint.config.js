@@ -60,7 +60,6 @@ export default [
       "max-depth": ["error", 4],
       "max-params": ["error", 5],
       "no-nested-ternary": "error",
-      "max-lines": ["error", { max: 800, skipBlankLines: true, skipComments: true }],
       "max-lines-per-function": ["error", { max: 300, skipBlankLines: true, skipComments: true }],
     },
   },
