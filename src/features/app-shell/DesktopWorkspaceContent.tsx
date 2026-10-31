@@ -48,6 +48,7 @@ type DesktopWorkspaceContentProps = {
   cloudWorkspaceActive?: boolean;
   cloudWorkbench?: NativeCloudWorkbench;
   dataPort: DataWorkspacePort | null;
+  workspaceEntering?: boolean;
   editorWorkbench: DesktopEditorWorkbenchController;
   externalOpen: Readonly<{
     open: (path: string) => void | Promise<void>;
@@ -112,6 +113,7 @@ export function DesktopWorkspaceContent({
   cloudWorkspaceActive = false,
   cloudWorkbench,
   dataPort,
+  workspaceEntering = false,
   editorWorkbench,
   externalOpen,
   fileClipboardController,
@@ -206,6 +208,7 @@ export function DesktopWorkspaceContent({
     activeDocumentPath,
     activeExplorerPath,
     dataPort: fileSurfacePort,
+    workspaceEntering,
     editorWorkbench,
     externalOpen,
     showSaveStatus: false,

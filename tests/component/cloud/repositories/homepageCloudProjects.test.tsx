@@ -45,7 +45,6 @@ function Harness({ currentSession = session, visible = true, enabled = true, loc
     onChooseWorkspace={async () => {}}
     onOpenDroppedWorkspace={async () => {}} onOpenWorkspacePath={openLocal}
     cloudOpening={account.opening} onOpenCloudProject={(id) => void account.openTarget({ kind: "project_root", project_id: id })}
-    onCancelCloudOpening={account.cancel}
     cloudAccountStatus={<HomepageCloudStatus status={home.status} restoring={false} empty={enabled && home.items.length === 0} apiBaseUrl={API}
       session={currentSession} onOpenAccount={openAccount} controller={account} onRetry={home.refresh} />} /> : null;
 }
@@ -192,23 +191,13 @@ describe("inline Homepage Cloud projects", () => {
     fail = false; await click('[role="alert"] button'); expect(account.context.projectId).toBe("b");
   });
 
-  it("cancels a pending Cloud open from the page overlay without committing late results", async () => {
+  it("cancels a pending Cloud open without committing late results", async () => {
     await render(); const pending = deferred<unknown>(); bridge.mockReturnValueOnce(pending.promise);
     const projectButton = buttons().find(button => button.getAttribute("aria-label")?.includes("Project b"));
-    projectButton!.focus();
     await act(async () => projectButton!.click());
-    const overlay = document.querySelector<HTMLElement>(".onboarding-project-loading");
-    const page = document.querySelector<HTMLElement>(".onboarding-homepage");
-    expect(overlay?.textContent).toContain("Loading project");
-    expect(overlay?.querySelector("button")?.textContent).toBe("Cancel");
     expect(document.querySelector(".desktop-titlebar [role='status']")).toBeNull();
     expect(document.querySelector(".desktop-titlebar")?.textContent).not.toContain("Opening");
-    expect(page?.inert).toBe(true);
-    expect(document.activeElement).toBe(overlay);
-    await click('.onboarding-project-loading button');
-    expect(document.querySelector(".onboarding-project-loading")).toBeNull();
-    expect(page?.inert).toBe(false);
-    expect(document.activeElement).toBe(projectButton);
+    await act(async () => account.cancel());
     await act(async () => pending.resolve({ project: project("b"), target: { kind: "project_root", project_id: "b" } }));
     expect(account.active).toBe(false); expect(account.opening).toBe(false);
     expect(Object.keys(localStorage).some((key) => key.startsWith("puppyone.cloud-project-history"))).toBe(false);
@@ -234,33 +223,22 @@ describe("inline Homepage Cloud projects", () => {
     expect(account.preparation).toBeNull();
   });
 
-  it("covers pending local opens and restores interaction after failure", async () => {
+  it("blocks a repeated local open and restores interaction after failure", async () => {
     const pending = deferred<void>(); openLocal.mockReturnValueOnce(pending.promise);
     await render({ enabled: false });
     const selector = ".onboarding-project-row";
-    const projectButton = document.querySelector<HTMLButtonElement>(selector)!;
-    projectButton.focus();
     await click(selector);
-    const page = document.querySelector<HTMLElement>(".onboarding-homepage");
-    expect(document.querySelector(".onboarding-project-loading")?.textContent).toBe("Loading project");
-    expect(document.querySelector(".onboarding-project-loading button")).toBeNull();
-    expect(page?.inert).toBe(true);
     await click(selector);
     expect(openLocal).toHaveBeenCalledOnce();
     await act(async () => pending.reject(new Error("Folder unavailable")));
-    expect(document.querySelector(".onboarding-project-loading")).toBeNull();
-    expect(page?.inert).toBe(false);
     expect(document.querySelector('[role="alert"]')?.textContent).toContain("Folder unavailable");
     expect(document.querySelector<HTMLButtonElement>(selector)?.disabled).toBe(false);
-    expect(document.activeElement).toBe(projectButton);
   });
 
-  it("clears the page overlay and exposes retry after a Cloud open fails", async () => {
+  it("exposes retry after a Cloud open fails", async () => {
     await render(); const pending = deferred<unknown>(); bridge.mockReturnValueOnce(pending.promise);
     await act(async () => buttons().find(button => button.getAttribute("aria-label")?.includes("Project b"))!.click());
-    expect(document.querySelector(".onboarding-project-loading")).not.toBeNull();
     await act(async () => pending.reject(new Error("No access")));
-    expect(document.querySelector(".onboarding-project-loading")).toBeNull();
     expect(account.active).toBe(false);
     expect(document.querySelector('[role="alert"]')?.textContent).toContain("Unable to open the Cloud project");
     expect(buttons().find(button => button.textContent === "Retry")?.disabled).toBe(false);

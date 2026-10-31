@@ -24,34 +24,20 @@
   padding: 48px var(--desktop-utility-page-padding-inline);
 }
 
-.onboarding-project-loading {
-  position: fixed;
-  z-index: 60;
-  inset: var(--desktop-chrome-height) 0 0;
-  display: grid;
-  place-items: center;
-  padding: 32px;
-  background: color-mix(in srgb, var(--po-canvas) 84%, transparent);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-  color: var(--po-text);
-  outline: none;
+.onboarding-restoring-shell {
+  padding-block-start: calc(32px + var(--desktop-chrome-height));
+  padding-inline-start: calc(32px + var(--onboarding-restoring-explorer-width));
 }
 
-.onboarding-project-loading-content {
-  display: flex;
-  max-width: 100%;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  text-align: center;
+/* Most starts end within a beat. The mark is for one that does not. */
+.onboarding-restoring-mark {
+  animation: onboarding-restoring-mark-reveal 1ms linear 400ms backwards;
 }
 
-.onboarding-project-loading-content p {
-  margin: 0;
-  font-size: var(--po-type-ui-body, 14px);
-  font-weight: var(--po-text-weight-regular, 400);
-  line-height: var(--po-line-height-body);
+@keyframes onboarding-restoring-mark-reveal {
+  from {
+    opacity: 0;
+  }
 }
 
 .onboarding-homepage {

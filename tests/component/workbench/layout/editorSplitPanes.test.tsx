@@ -73,6 +73,17 @@ describe("DesktopEditorSplitView", () => {
     expect(emptyPane?.querySelector(".document-surface-host")).toBeNull();
   });
 
+  it("keeps the opening mark, not the empty prompt, until a project's first document arrives", () => {
+    const group = EMPTY_EDITOR_GROUP;
+    const container = renderSplitView(group, createEditorPaneLayout(null), { entering: true });
+    const pane = container.querySelector<HTMLElement>(".desktop-editor-pane");
+
+    expect(pane?.dataset.contentState).toBe("opening");
+    expect(pane?.dataset.empty).toBeUndefined();
+    expect(pane?.textContent).not.toContain("Select a file to preview");
+    expect(pane?.querySelector(".desktop-project-opening")?.getAttribute("aria-label")).toBe("Loading file…");
+  });
+
   it("uses the official loading animation without visible loading copy", async () => {
     const markdown = {
       id: "loading.md",
@@ -1175,6 +1186,7 @@ function renderSplitView(
   editorGroup: EditorGroupState,
   layout: EditorPaneLayoutState,
   callbacks: {
+    entering?: boolean;
     onMovePane?: React.ComponentProps<typeof DesktopEditorSplitView>["onMovePane"];
   onOpenAtPaneEdge?: React.ComponentProps<typeof DesktopEditorSplitView>["onOpenAtPaneEdge"];
   onSplitPane?: React.ComponentProps<typeof DesktopEditorSplitView>["onSplitPane"];
@@ -1187,6 +1199,7 @@ function renderSplitView(
   act(() => root?.render(withTestLocalization(
     <DesktopEditorSplitView documentNavigation={unavailableDocumentNavigation}
       aiEditRequest={null}
+      entering={callbacks.entering}
       dataPort={{ listChildren: async () => [] }}
       editorGroup={editorGroup}
       editorInteractionPreferences={{ showSaveStatus: false, markdownBlockDragEnabled: false }}

@@ -54,6 +54,8 @@ import { useProjectExplorerSession } from "../data-workspace/useProjectExplorerS
 type DataWorkspaceProps = ComponentProps<typeof DataWorkspace>;
 
 export type DesktopDataWorkspaceSurfaceProps = {
+  /** The project's first document is still on its way to the editor. */
+  workspaceEntering?: boolean;
   activeAiEditRequest: AiEditRequest | null;
   activeDocumentPath: string | null;
   activeExplorerPath: string | null;
@@ -119,6 +121,7 @@ export function DesktopDataWorkspaceSurface({
   activeExplorerPath,
   dataPort,
   documentSourceKind = "local",
+  workspaceEntering = false,
   providerStateContent,
   editorWorkbench,
   externalOpen,
@@ -401,6 +404,7 @@ export function DesktopDataWorkspaceSurface({
           ? (state) => providerStateContent ?? (
               <>
                 <DesktopEditorSplitView
+                  entering={workspaceEntering}
                   noticeStack={workspaceNoticeStack}
                   aiEditRequest={activeAiEditRequest}
                   dataPort={dataPort}

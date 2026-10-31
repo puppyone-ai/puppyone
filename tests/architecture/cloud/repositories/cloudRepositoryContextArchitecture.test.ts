@@ -107,9 +107,9 @@ describe("repository-context architecture", () => {
     expect(app).not.toContain("accountCloud.open;");
     expect(app).toContain("const accountCloudSurface = !workspace ?");
     // A Homepage open waits inside the project's window, not on top of the Homepage.
-    expect(app).toContain("const homepageHidden = cloudWorkspaceActive || Boolean(cloudOpeningSurface);");
+    expect(app).toContain("const homepageHidden = cloudWorkspaceActive || Boolean(projectOpeningSurface);");
     expect(app).toContain("<DesktopWorkspaceLocationSurface location={workspaceLocation}");
-    expect(surface).toContain("titlebarSidebarSlot={centered ? undefined : projectContext}");
+    expect(surface).toContain("titlebarSidebarSlot={projectContext}");
     expect(surface).not.toMatch(/onViewLocal|projectLocation=/);
   });
 

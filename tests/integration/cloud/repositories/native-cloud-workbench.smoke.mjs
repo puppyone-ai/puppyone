@@ -438,7 +438,7 @@ app.whenReady().then(async () => {
   await evaluate("window.__nativeCloudWorkbenchSmoke.finishCloudRead()");
   if (revealAnimated) assert(await evaluate("document.querySelector('.desktop-cloud-header-reveal').dataset.fixtureIdentity === 'requested-header-reveal' && document.querySelector('.desktop-cloud-header-reveal').getAnimations({subtree:true}).every(animation => animation.playState === 'paused')"),
     'Cloud content arriving must retain the same ongoing Header reveal');
-  assert(await evaluate("!document.querySelector('.desktop-cloud-preparation, .desktop-cloud-entry-light, .desktop-cloud-entry-sweep') && !document.querySelector('[data-workspace-location=cloud]').hidden"),
+  assert(await evaluate("!document.querySelector('.desktop-project-preparation, .desktop-cloud-entry-light, .desktop-cloud-entry-sweep') && !document.querySelector('[data-workspace-location=cloud]').hidden"),
     'Cloud content must appear immediately even while the Header animation is paused');
   await evaluate("document.querySelector('.desktop-cloud-header-reveal')?.getAnimations({subtree:true})[0]?.finish()");
   }

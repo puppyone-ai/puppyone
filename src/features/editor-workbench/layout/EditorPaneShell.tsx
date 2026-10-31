@@ -7,6 +7,7 @@ import type {
   EditorPaneSplitOptions,
   EditorSplitDirection,
 } from "@puppyone/shared-ui";
+import { ProjectOpeningLoading } from "../../../components/loading";
 import type { EditorFileDropController } from "../drag-and-drop/useExplorerFileDrop";
 import type { PaneMoveDragController } from "../drag-and-drop/usePaneMoveDrag";
 import { EditorPaneChrome } from "./EditorPaneChrome";
@@ -21,7 +22,8 @@ export type EditorPaneShellProps = Readonly<{
   actionsOpen: boolean;
   agentPresencePath: string | null;
   children: ReactNode;
-  contentState: "empty" | "document";
+  /** `opening` is a pane the project's first document has not reached yet. */
+  contentState: "empty" | "opening" | "document";
   editorLabel: string | null;
   fileDrop: EditorFileDropController;
   findCommand: EditorFindCommand | null;
@@ -70,6 +72,16 @@ export function EditorPaneShell({
     : null;
   const dropEdge = fileDropEdge ?? paneMoveEdge;
 
+  const emptyContent = contentState === "opening" ? (
+    <div className="desktop-editor-pane-empty">
+      <ProjectOpeningLoading ariaLabel={t("editor.loadingFile")} />
+    </div>
+  ) : (
+    <div className="desktop-editor-pane-empty" role="status">
+      <span>{t("shared-ui.preview.selectFile")}</span>
+    </div>
+  );
+
   return (
     <section
       ref={paneRef}
@@ -116,11 +128,7 @@ export function EditorPaneShell({
         onSplit={onSplit}
       />
       <div className="desktop-editor-pane-content">
-        {contentState === "document" ? children : (
-          <div className="desktop-editor-pane-empty" role="status">
-            <span>{t("shared-ui.preview.selectFile")}</span>
-          </div>
-        )}
+        {contentState === "document" ? children : emptyContent}
       </div>
       {dropEdge && <div className="desktop-editor-drop-preview" data-edge={dropEdge} />}
       <div className="desktop-editor-pane-interaction-frame" aria-hidden="true" />

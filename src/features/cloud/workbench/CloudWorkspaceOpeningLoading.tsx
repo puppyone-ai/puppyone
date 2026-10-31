@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { useLocalization } from "@puppyone/localization";
-import { LoadingMark } from "@puppyone/shared-ui";
+import { ProjectOpeningLoading } from "../../../components/loading";
 import type { CloudWorkspaceOpeningPhase, CloudWorkspaceOpeningProgress } from "../files/cloudWorkspaceOpening";
 
 const labels = {
@@ -15,10 +15,8 @@ export function CloudWorkspaceOpeningLoading({ progress, onCancel }: {
 }) {
   const { t } = useLocalization();
   const phase = useSyncExternalStore(progress.subscribe, progress.getSnapshot);
-  return <div className="desktop-cloud-opening" role="status" aria-live="polite" aria-atomic="true">
-    <LoadingMark layout="area" size="md" tone="neutral" ariaHidden />
-    <p className="desktop-cloud-opening-label">{t(labels[phase])}</p>
+  return <ProjectOpeningLoading label={t(labels[phase])}>
     {onCancel && <button type="button" className="desktop-dialog-button"
       onClick={onCancel}>{t("common.action.cancel")}</button>}
-  </div>;
+  </ProjectOpeningLoading>;
 }

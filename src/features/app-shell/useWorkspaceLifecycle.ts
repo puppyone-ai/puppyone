@@ -1,3 +1,4 @@
+import { flushSync } from "react-dom";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   WorkbenchWorkspaceContext,
@@ -209,7 +210,9 @@ export function useWorkspaceLifecycle({
       path: folderPath,
       placement: "current-window",
     });
-    if (request === navigationRequestRef.current) handleWorkspaceOpenResult(result, entryKind);
+    // Navigation's pending target clears on a synchronous render, ahead of ordinary
+    // state. Commit the workspace first, or the Homepage shows between the two.
+    if (request === navigationRequestRef.current) flushSync(() => handleWorkspaceOpenResult(result, entryKind));
   }, [handleWorkspaceOpenResult]);
 
   const openDroppedWorkspace = useCallback(async (folder: File) => {
