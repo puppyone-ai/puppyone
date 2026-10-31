@@ -1,4 +1,6 @@
 /** @vitest-environment happy-dom */
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -62,6 +64,18 @@ describe("An Agent in the Header", () => {
     expect(grok?.querySelector("img")).not.toBeNull();
     expect(helper?.dataset.reachBrand).toBeUndefined();
     expect(helper?.textContent).toBe("R");
+  });
+  it("keeps the working Agent in front of the grey ones and moves it for no one who asked for less motion", async () => {
+    const now = new Date().toISOString();
+    connections = [connection("1", "Cursor"), connection("2", "Grok Bot"), connection("3", "Gemini CLI")];
+    sessions = [{ grant_id: "g-2", state: "active", created_at: now, closed_at: null,
+      lease_until: new Date(Date.now() + 60_000).toISOString() }];
+    await render();
+    expect(marks().map(mark => mark.dataset.reachBrand)).toEqual(["grok-bot", "cursor", "gemini"]);
+    expect(marks().map(mark => mark.dataset.reachActivity)).toEqual(["working", undefined, undefined]);
+    const styles = readFileSync(resolve(process.cwd(), "src/features/app-shell/project-reach/reach-header.css"), "utf8");
+    const reduced = styles.slice(styles.indexOf("@media (prefers-reduced-motion: reduce)"));
+    expect(reduced).toMatch(/\[data-reach-activity\],\s+[^{]*\[data-reach-activity\]::before\s*\{\s*animation: none;/);
   });
   it("does not claim the person is alone, because Organization members may reach the project", async () => {
     await render();

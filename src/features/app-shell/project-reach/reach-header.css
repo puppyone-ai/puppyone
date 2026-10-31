@@ -157,9 +157,35 @@
     font-weight: var(--po-text-weight-medium, 500);
   }
 
-  /* Stacked, as a room reads: the marks are one group, not a row of buttons. */
+  /* Stacked, as a room reads: the marks are one group, not a row of buttons.
+     The first stands in front, and whoever is working always comes first. */
   .desktop-titlebar-reach-people > * + * {
     margin-inline-start: -5px;
+  }
+
+  .desktop-titlebar-reach-people > :nth-child(1) { z-index: 3; }
+  .desktop-titlebar-reach-people > :nth-child(2) { z-index: 2; }
+  .desktop-titlebar-reach-people > :nth-child(3) { z-index: 1; }
+
+  /* Not at work: plain grey, tucked behind the mark in front with a sliver
+     showing, so the row is about whoever is working. Over the row they spread
+     out far enough to be told apart. */
+  .desktop-titlebar-reach-people > .desktop-project-reach-mark:not([data-reach-activity], [data-reach-viewer]) {
+    filter: grayscale(1);
+    transition: margin-inline-start 160ms ease-out;
+  }
+
+  .desktop-titlebar-reach-people > .desktop-project-reach-mark + .desktop-project-reach-mark:not([data-reach-activity], [data-reach-viewer]) {
+    margin-inline-start: -16px;
+  }
+
+  .desktop-titlebar-reach-people:is(:hover, :focus-visible) > .desktop-project-reach-mark + .desktop-project-reach-mark:not([data-reach-activity], [data-reach-viewer]) {
+    margin-inline-start: -5px;
+  }
+
+  /* The count and the person looking stand clear of the stack, unclipped. */
+  .desktop-titlebar-reach-people > :is(.desktop-project-reach-count, [data-reach-viewer]) {
+    margin-inline-start: 1px;
   }
 
   /* A brand stays whole inside the circle; its corners are not the circle's to cut. */
@@ -188,10 +214,39 @@
 
   /* Lit means working in the project right now, and nothing else does: the
      word comes up and the mark carries Share's own active lamp, which takes no
-     room from the mark beside it. */
+     room from the mark beside it.
+
+     It also hops, in short bursts with a long rest, because it stays in the
+     corner of the eye for as long as an Agent works. The product knows an
+     Agent is in the workspace, not whether it is reading or writing, so the
+     motion is simply busy and claims neither. Agents working together take
+     turns. */
   .desktop-project-reach-mark[data-reach-activity] {
-    z-index: 1;
     color: var(--desktop-titlebar-text, var(--po-text));
+    transform-origin: 50% 100%;
+    animation: desktop-project-reach-hop 2.8s ease-in-out infinite;
+  }
+
+  .desktop-titlebar-reach-people > :nth-child(2)[data-reach-activity] {
+    animation-delay: 260ms;
+  }
+
+  .desktop-titlebar-reach-people > :nth-child(3)[data-reach-activity] {
+    animation-delay: 520ms;
+  }
+
+  .desktop-project-reach-mark[data-reach-activity]::before {
+    content: "";
+    position: absolute;
+    inset-block-end: 0.5px;
+    inset-inline-end: 0.5px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--po-success);
+    opacity: 0;
+    animation: desktop-project-reach-ripple 2.8s ease-out infinite;
+    animation-delay: inherit;
   }
 
   .desktop-project-reach-mark[data-reach-activity]::after {
@@ -216,6 +271,30 @@
     width: 22px;
     height: 22px;
     font-variant-numeric: tabular-nums;
+  }
+
+  @keyframes desktop-project-reach-hop {
+    0%, 26%, 100% { translate: 0 0; rotate: 0deg; scale: 1; }
+    5% { translate: 0 -3px; rotate: -8deg; scale: 0.97 1.03; }
+    10% { translate: 0 0; rotate: 0deg; scale: 1.06 0.94; }
+    15% { translate: 0 -2px; rotate: 7deg; scale: 0.98 1.02; }
+    20% { translate: 0 0; rotate: 0deg; scale: 1.04 0.96; }
+  }
+
+  @keyframes desktop-project-reach-ripple {
+    0% { opacity: 0.55; scale: 1; }
+    30%, 100% { opacity: 0; scale: 3; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .desktop-project-reach-mark[data-reach-activity],
+    .desktop-project-reach-mark[data-reach-activity]::before {
+      animation: none;
+    }
+
+    .desktop-titlebar-reach-people > .desktop-project-reach-mark {
+      transition: none;
+    }
   }
 
   /* The panel is the project menu, not a dialog of its own: same surface
