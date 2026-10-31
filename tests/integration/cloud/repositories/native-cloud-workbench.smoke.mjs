@@ -340,6 +340,9 @@ app.whenReady().then(async () => {
     ...(nativeCorners ? platformHost.windowChrome.browserWindowOptions : {}),
     webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, plugins:true,
       preload:path.join(repo, `tests/fixtures/cloud/repositories/${nativeCorners ? 'window-chrome' : 'preview-document'}-preload.cjs`) } });
+  // macOS clamps a new window to a narrow CI display but not a later resize, so
+  // state the size outright: the baseline below must not depend on the display.
+  window.setContentSize(1100, 760);
   window.webContents.session.protocol.handle(PREVIEW_DOCUMENT_SCHEME, (request) => previewDocuments.handle(request));
   installEmbeddedContentSessionSecurity(window.webContents.session,{applicationUrl:pathToFileURL(rendererPath).href,isAuthorizedCloudResource:cloudResources.allowed});
   installWindowNavigationSecurity({webContents:window.webContents,applicationUrl:pathToFileURL(rendererPath).href,
