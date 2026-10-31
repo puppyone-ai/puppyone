@@ -166,4 +166,4 @@ installation as a new first run.
 Privacy questions: [guanqun.real@puppyone.ai](mailto:guanqun.real@puppyone.ai).
 
 The puppyone name, logo, icons, and other brand assets are not granted under
-the Apache License. See [TRADEMARK.md](TRADEMARK.md).
+the Apache License. See [NOTICE](NOTICE).
