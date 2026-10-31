@@ -58,6 +58,7 @@ export function useWorkspaceAgents(target: Readonly<{
   const projectId = target?.projectId;
   const apiBaseUrl = target?.apiBaseUrl;
   const [agents, setAgents] = useState(NO_AGENTS);
+  const [manageable, setManageable] = useState(false);
   const latest = useRef(0);
   const denied = useRef(false);
   const refresh = useCallback(async () => {
@@ -74,9 +75,11 @@ export function useWorkspaceAgents(target: Readonly<{
       if ((inventory.reason as { status?: number }).status === 403) {
         denied.current = true;
         setAgents(NO_AGENTS);
+        setManageable(false);
       }
       return;
     }
+    setManageable(true);
     setAgents(resolveWorkspaceAgents(inventory.value.connections,
       sessions.status === "fulfilled" ? sessions.value : null, Date.now()));
   }, [apiBaseUrl, projectId, session]);
@@ -92,5 +95,6 @@ export function useWorkspaceAgents(target: Readonly<{
       latest.current += 1;
     };
   }, [apiBaseUrl, projectId, refresh, session]);
-  return { agents: target ? agents : NO_AGENTS, refresh };
+  /** Only someone the server lets read the list may manage it, so only they are offered it. */
+  return { agents: target ? agents : NO_AGENTS, manageable: Boolean(target) && manageable, refresh };
 }

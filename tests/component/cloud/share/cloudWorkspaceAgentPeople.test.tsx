@@ -14,10 +14,14 @@ vi.mock("../../../../src/lib/cloudApi", async original => ({
   ...await original<typeof import("../../../../src/lib/cloudApi")>(), cloudApiRequest: vi.fn(),
 }));
 vi.mock("../../../../src/features/cloud/share/CloudWorkspaceShareDialog", () => ({
-  CloudWorkspaceShareDialog: ({ onAgentsChanged, agents }: { onAgentsChanged: () => void; agents: { name: string }[] }) =>
-    <div role="dialog" data-agents={agents.map(agent => agent.name).join()}>
-      <button data-changed onClick={onAgentsChanged}>changed</button>
-    </div>,
+  CloudWorkspaceShareDialog: () => <div role="dialog" data-panel="share" />,
+}));
+vi.mock("../../../../src/features/cloud/share/CloudWorkspaceAgentsPanel", () => ({
+  CloudWorkspaceAgentsPanel: ({ onChanged, agents, expandedAgentId }: {
+    onChanged: () => void; agents: { name: string }[]; expandedAgentId: string | null;
+  }) => <div role="dialog" data-panel="agents" data-agents={agents.map(agent => agent.name).join()} data-expanded={expandedAgentId ?? ""}>
+    <button data-changed onClick={onChanged}>changed</button>
+  </div>,
 }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -30,9 +34,12 @@ const connection = (id: string, name: string) => ({ id, name, admission: "sign_i
   connected_at: "2026-10-30T00:00:00Z", expires_at: "2026-11-29T00:00:00Z" });
 const ago = (seconds: number) => new Date(Date.now() - seconds * 1000).toISOString();
 let root: Root; let connections: ReturnType<typeof connection>[]; let sessions: unknown[];
-const marks = () => [...document.querySelectorAll<HTMLElement>(".desktop-project-reach-mark:not([data-reach-viewer])")];
-const viewer = () => document.querySelector<HTMLElement>(".desktop-project-reach-mark[data-reach-viewer]");
-const people = () => document.querySelector<HTMLButtonElement>(".desktop-titlebar-reach-people");
+const marks = () => [...document.querySelectorAll<HTMLElement>(".desktop-project-reach-mark")];
+const agentButtons = () => [...document.querySelectorAll<HTMLButtonElement>("[data-cloud-workspace-agent]")];
+const agentButton = (id: string) => document.querySelector<HTMLButtonElement>(`[data-cloud-workspace-agent="${id}"]`)!;
+const row = () => document.querySelector<HTMLElement>(".desktop-titlebar-cloud-agents");
+const connect = () => document.querySelector<HTMLButtonElement>('[data-cloud-workspace-tool="connect-agent"]');
+const panel = () => document.querySelector<HTMLElement>("[role=dialog]");
 const share = () => document.querySelector<HTMLButtonElement>('[data-cloud-workspace-tool="share"]')!;
 const render = async (context = project(), mounted = true) => {
   await act(async () => root.render(withTestLocalization(<CloudWorkspaceHeaderTools context={context} session={session}
@@ -48,12 +55,14 @@ beforeEach(() => {
 afterEach(() => { act(() => root.unmount()); document.body.replaceChildren(); vi.clearAllMocks(); });
 
 describe("An Agent in the Header", () => {
-  it("shows only the person looking while nobody has been let in", async () => {
+  it("offers to connect one while nobody has been let in, and shows no mark for the person looking", async () => {
     await render();
     expect(marks()).toEqual([]);
-    expect(viewer()?.textContent).toBe("A");
-    expect(viewer()?.dataset.reachAudience).toBe("person");
-    expect(people()!.compareDocumentPosition(share()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(connect()?.getAttribute("aria-label")).toBe("Connect an agent");
+    expect(connect()!.compareDocumentPosition(share()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await act(async () => connect()!.click());
+    expect(panel()?.dataset.panel).toBe("agents");
+    expect(connect()!.getAttribute("aria-expanded")).toBe("true");
   });
   it("shows the kind of Agent, and an initial only for a name it cannot recognize", async () => {
     connections = [connection("1", "Grok Bot"), connection("2", "Research helper")];
@@ -77,22 +86,20 @@ describe("An Agent in the Header", () => {
     const reduced = styles.slice(styles.indexOf("@media (prefers-reduced-motion: reduce)"));
     expect(reduced).toMatch(/\[data-reach-activity\],\s+[^{]*\[data-reach-activity\]::before\s*\{\s*animation: none;/);
   });
-  it("does not claim the person is alone, because Organization members may reach the project", async () => {
-    await render();
-    expect(people()!.getAttribute("aria-label")).toContain("alice@example.com");
-    expect(people()!.getAttribute("aria-label")).not.toContain("Only you");
-  });
   it("waits for a resolved workspace before saying who is in it", async () => {
     await render(null as unknown as ProjectCloudContext);
-    expect(people()).toBeNull();
+    expect(row()).toBeNull();
+    expect(connect()).toBeNull();
   });
-  it("appears ahead of Share as soon as it is allowed", async () => {
+  it("appears ahead of Share as soon as it is allowed, as a control of its own", async () => {
     connections = [connection("c1", "秘书小陈")];
     await render();
     expect(marks()).toHaveLength(1);
     expect(marks()[0].textContent).toBe("秘");
     expect(marks()[0].dataset.reachAudience).toBe("machine");
-    expect(people()!.compareDocumentPosition(share()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(row()!.compareDocumentPosition(share()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(row()!.contains(share())).toBe(false);
+    expect(connect()).toBeNull();
   });
   it("is lit only while it is active", async () => {
     connections = [connection("c1", "Quiet agent"), connection("c2", "Busy agent")];
@@ -101,50 +108,69 @@ describe("An Agent in the Header", () => {
     await render();
     expect(marks().map(mark => mark.dataset.reachActivity)).toEqual(["working", undefined]);
     expect(marks().map(mark => mark.textContent)).toEqual(["B", "Q"]);
-    expect(people()!.dataset.reachState).toBe("working");
-    expect(people()!.getAttribute("aria-label")).toContain("Busy agent");
+    expect(agentButton("c2").getAttribute("aria-label")).toBe("Busy agent · Active now");
   });
-  it("opens Share instead of a second list, and tells Share what it knows", async () => {
+  it("makes every Agent its own button, and pressing one asks about that Agent", async () => {
+    connections = [connection("c1", "秘书小陈"), connection("c2", "Codex")];
+    await render();
+    expect(agentButtons().map(button => button.dataset.cloudWorkspaceAgent)).toEqual(["c1", "c2"]);
+    await act(async () => agentButton("c2").click());
+    expect(panel()?.dataset.panel).toBe("agents");
+    expect(panel()?.dataset.agents).toBe("秘书小陈,Codex");
+    expect(panel()?.dataset.expanded).toBe("c2");
+    expect(agentButton("c2").getAttribute("aria-expanded")).toBe("true");
+    expect(agentButton("c1").getAttribute("aria-expanded")).toBe("false");
+  });
+  it("moves to another Agent while open, and closes when the same one is pressed again", async () => {
+    connections = [connection("c1", "秘书小陈"), connection("c2", "Codex")];
+    await render();
+    await act(async () => agentButton("c1").click());
+    await act(async () => agentButton("c2").click());
+    expect(panel()?.dataset.expanded).toBe("c2");
+    await act(async () => agentButton("c2").click());
+    expect(panel()).toBeNull();
+  });
+  it("keeps Share and the Agents apart: each opens only its own card", async () => {
     connections = [connection("c1", "秘书小陈")];
     await render();
-    await act(async () => people()!.click());
-    expect(document.querySelector("[role=dialog]")?.getAttribute("data-agents")).toBe("秘书小陈");
-    expect(document.querySelector(".desktop-project-reach-menu")).toBeNull();
-    expect(people()!.hasAttribute("aria-expanded")).toBe(false);
+    await act(async () => share().click());
+    expect(panel()?.dataset.panel).toBe("share");
+    expect(agentButton("c1").getAttribute("aria-expanded")).toBe("false");
+    await act(async () => agentButton("c1").click());
+    expect(panel()?.dataset.panel).toBe("agents");
+    expect(document.querySelectorAll("[role=dialog]")).toHaveLength(1);
+    expect(share().getAttribute("aria-expanded")).toBe("false");
   });
-  it("disappears the moment Share removes the last one", async () => {
+  it("offers to connect again the moment the last one is removed, without closing the panel", async () => {
     connections = [connection("c1", "秘书小陈")];
     await render();
-    await act(async () => people()!.click());
+    await act(async () => agentButton("c1").click());
     connections = [];
     await act(async () => document.querySelector<HTMLButtonElement>("[data-changed]")!.click());
     await act(async () => { await Promise.resolve(); });
     expect(marks()).toEqual([]);
-    expect(viewer()).not.toBeNull();
+    expect(connect()).not.toBeNull();
+    expect(panel()?.dataset.panel).toBe("agents");
   });
-  it("collapses a crowd into a count and keeps the person looking beside Share", async () => {
+  it("collapses a crowd into a count that opens the whole list", async () => {
     connections = ["A", "B", "C", "D", "E"].map(name => connection(name, name));
     await render();
     expect(marks()).toHaveLength(3);
-    const count = document.querySelector(".desktop-project-reach-count")!;
-    expect(count.textContent).toBe("+2");
-    expect(count.compareDocumentPosition(viewer()!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const more = document.querySelector<HTMLButtonElement>("[data-cloud-workspace-agent-more]")!;
+    expect(more.textContent).toBe("+2");
+    await act(async () => more.click());
+    expect(panel()?.dataset.expanded).toBe("");
+    expect(more.getAttribute("aria-expanded")).toBe("true");
   });
-  it("states the Agents first and then the person looking", async () => {
-    connections = [connection("c1", "秘书小陈")];
-    await render();
-    const label = people()!.getAttribute("aria-label")!;
-    expect(label.indexOf("秘书小陈")).toBeLessThan(label.indexOf("alice@example.com"));
-  });
-  it("keeps the person looking when the server will not list the Agents", async () => {
+  it("offers nothing about Agents to someone the server will not show them to", async () => {
     vi.mocked(cloudApiRequest).mockRejectedValue(Object.assign(new Error("denied"), { status: 403 }));
     await render();
     expect(marks()).toEqual([]);
-    expect(viewer()?.textContent).toBe("A");
+    expect(connect()).toBeNull();
   });
   it("does not look for Agents in a scoped view, which cannot have any", async () => {
     await render(project("scope"));
     expect(cloudApiRequest).not.toHaveBeenCalled();
-    expect(viewer()).not.toBeNull();
+    expect(connect()).toBeNull();
   });
 });

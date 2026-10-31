@@ -146,10 +146,12 @@
     flex: 0 0 auto;
     place-items: center;
     border-radius: 50%;
-    background:
-      linear-gradient(color-mix(in srgb, currentColor 16%, transparent) 0 0),
-      var(--reach-mark-ground);
-    box-shadow: 0 0 0 1.5px var(--reach-mark-ground);
+    /* A lifted disc with a hairline, so a mark reads as an object on any ground
+       rather than as a grey smudge of the Header's own colour. */
+    background: var(--reach-mark-disc, color-mix(in srgb, var(--po-surface-panel-raised, var(--po-panel)) 92%, var(--reach-mark-ground)));
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--po-text) 11%, transparent),
+      0 0 0 1.5px var(--reach-mark-ground);
     /* Present but not at work: nothing here asks to be read. */
     color: var(--desktop-titlebar-text-muted, var(--po-text-muted));
     font-size: var(--po-type-ui-micro);
@@ -170,7 +172,7 @@
   /* Not at work: plain grey, tucked behind the mark in front with a sliver
      showing, so the row is about whoever is working. Over the row they spread
      out far enough to be told apart. */
-  .desktop-titlebar-reach-people > .desktop-project-reach-mark:not([data-reach-activity], [data-reach-viewer]) {
+  .desktop-titlebar-reach-people > .desktop-project-reach-mark:not([data-reach-activity]) {
     filter: grayscale(1);
     transition: margin-inline-start 160ms ease-out;
   }
@@ -183,8 +185,8 @@
     margin-inline-start: -5px;
   }
 
-  /* The count and the person looking stand clear of the stack, unclipped. */
-  .desktop-titlebar-reach-people > :is(.desktop-project-reach-count, [data-reach-viewer]) {
+  /* The count stands clear of the stack, unclipped. */
+  .desktop-titlebar-reach-people > .desktop-project-reach-count {
     margin-inline-start: 1px;
   }
 

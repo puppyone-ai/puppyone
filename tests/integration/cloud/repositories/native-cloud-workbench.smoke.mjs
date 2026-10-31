@@ -588,9 +588,9 @@ app.whenReady().then(async () => {
     'Cloud tool pages must load only when the user opens a ready CTA');
   assert(await evaluate("!document.querySelector('[data-cloud-workspace-tool=automation], [data-cloud-workspace-tool=connect]')"),
     'Cloud Header exposes Share and Agent');
-  await waitFor("Boolean(document.querySelector('.desktop-titlebar-reach-people .desktop-project-reach-mark[data-reach-activity=working]'))");
+  await waitFor("Boolean(document.querySelector('.desktop-titlebar-cloud-agents .desktop-project-reach-mark[data-reach-activity=working]'))");
   assert(await evaluate(`(() => {
-    const people = document.querySelector('.desktop-titlebar-reach-people').getBoundingClientRect();
+    const people = document.querySelector('.desktop-titlebar-cloud-agents').getBoundingClientRect();
     const share = document.querySelector('[data-cloud-workspace-tool=share]').getBoundingClientRect();
     return people.height > 0 && people.right <= share.left && people.top >= 0 && people.bottom <= document.querySelector('.desktop-titlebar').getBoundingClientRect().bottom;
   })()`), 'An active Agent stands in the Header ahead of Share, inside the Header');
@@ -599,7 +599,7 @@ app.whenReady().then(async () => {
   await waitFor("Boolean(document.querySelector('.desktop-cloud-share-people'))");
   // The link covers what the user is looking at (2b347d52): the canonical
   // project URL, narrowed to the open file when one is open.
-  assert(await evaluate("/\\/11111111-1111-4111-8111-111111111111\\/(?:readme\\.txt)?$/.test(document.querySelector('.desktop-cloud-share-people').dataset.shareUrl)"),
+  assert(await evaluate("/\\/11111111-1111-4111-8111-111111111111\\/(?:readme\\.txt)?$/.test(document.querySelector('[data-share-target]').dataset.shareUrl)"),
     'Workspace sharing must expose its canonical human URL for what is being viewed');
   assert((await workspaceRequests()).length === beforeSharing, 'Sharing a URL must not issue Cloud API requests');
   await captureSettledDialog('cloud-share', '.desktop-cloud-workspace-share');

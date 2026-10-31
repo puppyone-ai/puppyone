@@ -69,11 +69,9 @@ function PlaceDrawing({ place, size, strokeWidth }: {
  * is the only live state these marks carry, and it comes from the reading /
  * writing facts rather than from a residency claim.
  */
-export function ReachMemberMark({ member, size = 18, viewer = false }: {
+export function ReachMemberMark({ member, size = 18 }: {
   member: ReachMember;
   size?: number;
-  /** The person looking, who stands with the others but is never "someone else". */
-  viewer?: boolean;
 }) {
   const brand = member.audience === "machine" ? resolveAgentBrand({ label: member.name }) : null;
   return (
@@ -82,7 +80,6 @@ export function ReachMemberMark({ member, size = 18, viewer = false }: {
       data-reach-audience={member.audience}
       data-reach-activity={member.activity?.kind}
       data-reach-brand={brand?.id}
-      data-reach-viewer={viewer || undefined}
       style={{ width: size, height: size }}
       aria-hidden="true"
     >

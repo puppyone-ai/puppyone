@@ -1,86 +1,118 @@
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { Check } from "lucide-react";
+import { useEffect, useRef, useState, type RefObject } from "react";
+import { Check, FileText } from "lucide-react";
+import { FolderIcon } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
 import { DesktopTitlebarMenuLayer } from "../../../components/DesktopTitlebarMenuLayer";
-import { getDesktopCloudWebUrl, type DesktopCloudSession } from "../../../lib/cloudApi";
+import { getDesktopCloudWebUrl } from "../../../lib/cloudApi";
 import { writeClipboardText } from "../../../lib/clipboard";
 import { workspaceResourceUrl } from "../files/workspaceResourceUrl";
 import type { ProjectCloudContext } from "../project/context";
-import { CloudWorkspaceAgentShare, type ShareAgentMark } from "./CloudWorkspaceAgentShare";
 import "./workspace-share.css";
 import type { CloudWorkspaceShareResource } from "./cloudWorkspaceShareResource";
-import type { WorkspaceAgent } from "./useWorkspaceAgents";
+
+const COPY_LABEL = {
+  idle: "cloud.share.people.copy",
+  copying: "cloud.common.copying",
+  copied: "cloud.share.action.copied",
+  failed: "cloud.share.people.copy",
+} as const;
+
+type ResolvedContext = Extract<ProjectCloudContext, { status: "resolved" }>;
+type ShareTarget = Readonly<{
+  id: "resource" | "project";
+  name: string;
+  caption: "cloud.share.people.thisFile" | "cloud.share.people.thisFolder" | "cloud.share.people.wholeProject";
+  directory: boolean;
+  url: string;
+}>;
 
 /**
- * Share, as a panel under the button that opens it. It is one column of two
- * offers built alike, a sentence and a button, so neither looks like a form.
+ * Share, as a card under the button that opens it. It answers one question,
+ * how to send this to someone: each row names what its link opens, so a file
+ * called anything at all still reads as a file.
  */
-export function CloudWorkspaceShareDialog({ anchor, context, resource, session, apiBaseUrl, agents, renderAgentMark, onAgentsChanged, onClose }: {
+export function CloudWorkspaceShareDialog({ anchor, context, resource, onClose }: {
   anchor: RefObject<HTMLElement | null>;
-  context: Extract<ProjectCloudContext, { status: "resolved" }>;
+  context: ResolvedContext;
   resource?: CloudWorkspaceShareResource | null;
-  /** An Agent connects to the live workspace, which only the whole project can offer. */
-  session?: DesktopCloudSession;
-  apiBaseUrl?: string;
-  /** What the Header knows about each Agent, so the two never disagree. */
-  agents?: readonly WorkspaceAgent[];
-  /** The Header's identity marks belong to the shell, which lends them to this list. */
-  renderAgentMark?: (agent: ShareAgentMark) => ReactNode;
-  onAgentsChanged?: () => void;
   onClose: () => void;
 }) {
   const { t } = useLocalization();
-  const [status, setStatus] = useState<"idle" | "copying" | "copied" | "failed">("idle");
+  const [status, setStatus] = useState<Readonly<{ target: ShareTarget["id"]; state: "copying" | "copied" | "failed" }> | null>(null);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-  const url = shareUrl(context, resource);
-  const connectsAgents = Boolean(session && apiBaseUrl) && context.target.kind === "project_root";
-  const copyLabel = { idle: "cloud.share.people.copy", copying: "cloud.common.copying",
-    copied: "cloud.share.action.copied", failed: "cloud.share.people.copy" }[status];
-  const copy = async () => {
-    if (!url) return;
-    setStatus("copying");
-    try { await writeClipboardText(url); if (mounted.current) setStatus("copied"); }
-    catch { if (mounted.current) setStatus("failed"); }
+  const targets = shareTargets(context, resource);
+  const copy = async ({ id, url }: ShareTarget) => {
+    setStatus({ target: id, state: "copying" });
+    try { await writeClipboardText(url); if (mounted.current) setStatus({ target: id, state: "copied" }); }
+    catch { if (mounted.current) setStatus({ target: id, state: "failed" }); }
   };
+  const failed = status?.state === "failed" ? targets.find(target => target.id === status.target) : undefined;
   return <DesktopTitlebarMenuLayer anchorRef={anchor} open onDismiss={onClose} dismissOnFocusExit={false}
-    className="desktop-cloud-workspace-share" gap={6} preferredWidth={380} preferredMaxHeight={560}
+    className="desktop-cloud-workspace-share" gap={6} preferredWidth={340} preferredMaxHeight={560}
     widthMode="fixed" alignment="end" role="dialog" ariaLabel={t("cloud.share.thisProject")}>
-    {connectsAgents && session && apiBaseUrl && <CloudWorkspaceAgentShare
-      projectId={context.projectId} projectName={context.projectName || context.projectId}
-      session={session} apiBaseUrl={apiBaseUrl} agents={agents} renderAgentMark={renderAgentMark}
-      onChanged={onAgentsChanged} />}
-    {url ? <section className="desktop-cloud-share-people" data-share-url={url}>
-      <div className="desktop-cloud-share-offer">
-        <div className="desktop-cloud-share-offer-text">
-          <h3 dir="auto">{t("cloud.share.people.linkTo", { name: shareName(context, resource) })}</h3>
-          {/* The address grants nothing, so a failed copy takes this line rather than adding one. */}
-          {status === "failed"
-            ? <p role="alert">{t("cloud.share.copyFailed")}</p>
-            : <p>{t("cloud.share.people.note")}</p>}
-        </div>
-        <button type="button" className="desktop-dialog-button desktop-cloud-share-copy"
-          disabled={status === "copying"} onClick={() => void copy()}>
-          {status === "copied" && <Check size={14} aria-hidden="true" />}
-          {t(copyLabel)}
-        </button>
+    <section className="desktop-cloud-share-people">
+      <div className="desktop-cloud-share-offer-text">
+        <h3>{t("cloud.share.people.title")}</h3>
+        {/* The address grants nothing, so a failed copy takes this line rather than adding one. */}
+        {failed
+          ? <p role="alert">{t("cloud.share.copyFailed")}</p>
+          : <p>{t("cloud.share.people.note")}</p>}
       </div>
-      <span className="desktop-cloud-share-status" role="status">{status === "copied" ? t(copyLabel) : ""}</span>
+      {targets.length > 0 ? <ul className="desktop-cloud-share-targets">
+        {targets.map(target => {
+          const state = status?.target === target.id ? status.state : "idle";
+          const Icon = target.directory ? FolderIcon : FileText;
+          const copied = state === "copied";
+          return <li key={target.id} data-share-target={target.id} data-share-url={target.url}>
+            <Icon size={15} strokeWidth={1.75} aria-hidden="true" />
+            <span className="desktop-cloud-share-target-text">
+              <span className="desktop-cloud-share-target-name" dir="auto">{target.name}</span>
+              <span className="desktop-cloud-share-target-caption">{t(target.caption)}</span>
+            </span>
+            <button type="button" className="desktop-dialog-button desktop-cloud-share-copy"
+              disabled={state === "copying"} aria-label={`${t("cloud.share.people.copy")} ${target.name}`}
+              onClick={() => void copy(target)}>
+              {copied && <Check size={14} aria-hidden="true" />}
+              {t(COPY_LABEL[state])}
+            </button>
+          </li>;
+        })}
+      </ul> : <p role="alert">{t("cloud.share.publish.unavailable")}</p>}
+      <span className="desktop-cloud-share-status" role="status">{status?.state === "copied" ? t("cloud.share.action.copied") : ""}</span>
       {/* The address is noise until the clipboard fails; then it is the way out. */}
-      {status === "failed" && <input className="desktop-cloud-share-address" aria-label={t("cloud.share.handoff.link")}
-        readOnly value={url} dir="ltr" onFocus={event => event.currentTarget.select()} />}
-    </section> : <p role="alert">{t("cloud.share.publish.unavailable")}</p>}
+      {failed && <input className="desktop-cloud-share-address" aria-label={t("cloud.share.handoff.link")}
+        readOnly value={failed.url} dir="ltr" onFocus={event => event.currentTarget.select()} />}
+    </section>
   </DesktopTitlebarMenuLayer>;
 }
 
-/** The last name in what is shared, so the panel says what a link opens without drawing it. */
-function shareName(context: Extract<ProjectCloudContext, { status: "resolved" }>, resource?: CloudWorkspaceShareResource | null) {
-  const path = resource?.path ?? context.scopePath ?? "";
-  return path.split("/").filter(Boolean).at(-1) || context.projectName || context.projectId;
+/**
+ * What is open first, when it is not simply the whole of what can be shared. A
+ * resource that cannot be linked offers nothing: the wider link would not be
+ * what the person was looking at.
+ */
+function shareTargets(context: ResolvedContext, resource?: CloudWorkspaceShareResource | null): readonly ShareTarget[] {
+  if (resource === null) return [];
+  const root = context.scopePath ?? "";
+  const rootName = lastName(root) || context.projectName || context.projectId;
+  const rootUrl = shareUrl(context);
+  const inner = resource && resource.path !== root ? resource : null;
+  const innerUrl = inner && shareUrl(context, inner);
+  if (!rootUrl || (inner && !innerUrl)) return [];
+  return [
+    ...(inner && innerUrl ? [{ id: "resource", name: lastName(inner.path) || rootName, directory: inner.directory, url: innerUrl,
+      caption: inner.directory ? "cloud.share.people.thisFolder" : "cloud.share.people.thisFile" } as const] : []),
+    { id: "project", name: rootName, directory: true, url: rootUrl,
+      caption: context.target.kind === "scope" ? "cloud.share.people.thisFolder" : "cloud.share.people.wholeProject" },
+  ];
 }
 
-function shareUrl(context: Extract<ProjectCloudContext, { status: "resolved" }>, resource?: CloudWorkspaceShareResource | null): string | null {
-  if (resource === null) return null;
+function lastName(path: string) {
+  return path.split("/").filter(Boolean).at(-1) ?? "";
+}
+
+function shareUrl(context: ResolvedContext, resource?: CloudWorkspaceShareResource) {
   if (context.target.kind === "scope" && !context.scopePath) return null;
   const path = resource?.path ?? context.scopePath ?? "";
   if (context.scopePath && path !== context.scopePath && !path.startsWith(`${context.scopePath}/`)) return null;

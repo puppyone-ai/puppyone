@@ -63,7 +63,7 @@ async function exercise(hosted) {
     const before = await evaluate(workspaceRequests);
     await evaluate(`${button("share")}.click()`);
     await waitFor("Boolean(document.querySelector('.desktop-cloud-share-people'))");
-    assert(await evaluate("document.querySelector('.desktop-cloud-share-people').dataset.shareUrl === 'https://app-fixture.puppyone.ai/11111111-1111-4111-8111-111111111111/cloud-only.md'"), "Share must show the current document's human URL");
+    assert(await evaluate("document.querySelector('[data-share-target=resource]').dataset.shareUrl === 'https://app-fixture.puppyone.ai/11111111-1111-4111-8111-111111111111/cloud-only.md'"), "Share must show the current document's human URL");
     assert(await evaluate(`${workspaceRequests} === ${before}`), "Sharing must make zero Cloud requests");
     assert(await evaluate("document.querySelector('.desktop-cloud-workspace-share').getAttribute('aria-label') === 'Share this project'"), "Share's name is independent of project name");
     for (const theme of ["light", "dark"]) {
@@ -80,13 +80,13 @@ async function exercise(hosted) {
     // restores the actual document as the target rather than retaining it.
     await evaluate("[...document.querySelectorAll('.data-content .tree-row.folder')].find(row => row.getBoundingClientRect().width > 0 && row.dataset.explorerPath.endsWith('/records')).click()");
     await evaluate(`${button("share")}.click()`);
-    await waitFor("document.querySelector('.desktop-cloud-share-people')?.dataset.shareUrl.endsWith('/records/')");
+    await waitFor("document.querySelector('[data-share-target=resource]')?.dataset.shareUrl.endsWith('/records/')");
     await capture("share-folder");
     await evaluate("document.querySelector('[data-cloud-workspace-tool=share]').click()");
     await evaluate("[...document.querySelectorAll('.data-content .tree-row.file')].find(row => row.getBoundingClientRect().width > 0 && row.dataset.explorerPath.endsWith('/notes.md')).click()");
     await waitFor("[...document.querySelectorAll('.data-content .cm-content')].some(content => content.textContent.includes('Cloud note'))");
     await evaluate(`${button("share")}.click()`);
-    await waitFor("document.querySelector('.desktop-cloud-share-people')?.dataset.shareUrl.endsWith('/notes.md')");
+    await waitFor("document.querySelector('[data-share-target=resource]')?.dataset.shareUrl.endsWith('/notes.md')");
     await capture("share-notes");
     await evaluate("document.querySelector('[data-cloud-workspace-tool=share]').click()");
   }

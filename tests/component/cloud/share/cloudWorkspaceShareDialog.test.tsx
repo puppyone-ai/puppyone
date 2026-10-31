@@ -6,11 +6,9 @@ import { CloudWorkspaceShareDialog } from "../../../../src/features/cloud/share/
 import { writeClipboardText } from "../../../../src/lib/clipboard";
 import { withTestLocalization } from "../../../support/react/localization";
 import type { CloudWorkspaceShareResource } from "../../../../src/features/cloud/share/cloudWorkspaceShareResource";
-import type { DesktopCloudSession } from "../../../../src/lib/cloudApi";
 
 vi.mock("../../../../src/lib/cloudApi", () => ({
   getDesktopCloudWebUrl: () => "https://cloud-fixture.puppyone.ai/",
-  cloudApiRequest: vi.fn().mockResolvedValue({ links: [], connections: [] }),
 }));
 vi.mock("../../../../src/lib/clipboard", () => ({ writeClipboardText: vi.fn().mockResolvedValue(undefined) }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -27,8 +25,10 @@ async function render(scopePath?: string, resource?: CloudWorkspaceShareResource
 }
 const anchor = () => { const button = document.createElement("button"); document.body.append(button); return { current: button }; };
 const copy = () => document.querySelector<HTMLButtonElement>(".desktop-cloud-share-copy")!;
-const address = () => document.querySelector<HTMLElement>(".desktop-cloud-share-people")?.dataset.shareUrl;
-const heading = () => [...document.querySelectorAll("h3")].map(node => node.textContent);
+const address = () => document.querySelector<HTMLElement>("[data-share-target]")?.dataset.shareUrl;
+const rows = () => [...document.querySelectorAll<HTMLElement>("[data-share-target]")];
+const said = () => rows().map(row => [row.querySelector(".desktop-cloud-share-target-name")?.textContent,
+  row.querySelector(".desktop-cloud-share-target-caption")?.textContent]);
 afterEach(() => { act(() => root?.unmount()); root = null; document.body.replaceChildren(); vi.clearAllMocks(); });
 
 describe("Cloud workspace link sharing", () => {
@@ -38,7 +38,7 @@ describe("Cloud workspace link sharing", () => {
     const url = `https://cloud-fixture.puppyone.ai/${projectId}/`;
     expect(address()).toBe(url);
     expect(document.querySelector('[role="dialog"]')?.getAttribute("aria-label")).toBe("Share this project");
-    expect(document.querySelector(".desktop-cloud-share-people p")?.textContent).toBe("Only people with access can open it.");
+    expect(document.querySelector(".desktop-cloud-share-people p")?.textContent).toBe("Only people with access can open these links.");
     await act(async () => copy().click());
     expect(writeClipboardText).toHaveBeenCalledExactlyOnceWith(url);
     expect(copy().textContent).toBe("Copied");
@@ -52,21 +52,33 @@ describe("Cloud workspace link sharing", () => {
     expect(document.body.textContent).not.toContain(projectId);
   });
   it.each([
-    [undefined, "Link to Research"],
-    [{ path: "Research/Notes", directory: true }, "Link to Notes"],
-    [{ path: "研究资料/Notes #1.md", directory: false, file: { name: "Notes #1.md", type: "markdown" as const } }, "Link to Notes #1.md"],
-  ])("says what the link opens by name", async (resource, title) => {
+    [undefined, [["Research", "Whole project"]]],
+    [{ path: "", directory: true }, [["Research", "Whole project"]]],
+    [{ path: "Research/Notes", directory: true }, [["Notes", "This folder"], ["Research", "Whole project"]]],
+    [{ path: "研究资料/Notes #1.md", directory: false, file: { name: "Notes #1.md", type: "markdown" as const } },
+      [["Notes #1.md", "This file"], ["Research", "Whole project"]]],
+  ])("says what each link opens, so a file's name never reads as an instruction", async (resource, expected) => {
     await render(undefined, resource);
-    expect(heading()).toEqual([title]);
+    expect(said()).toEqual(expected);
   });
-  it("offers the two kinds of visitor in the same shape", async () => {
-    const host = document.createElement("div"); document.body.append(host); root = createRoot(host);
-    await act(async () => root!.render(withTestLocalization(<CloudWorkspaceShareDialog anchor={anchor()}
-      context={{ status: "resolved", projectId, projectName: "Research", target: { kind: "project_root", project_id: projectId } }}
-      session={{ user_id: "alice" } as DesktopCloudSession} apiBaseUrl="https://cloud-fixture.puppyone.ai/api/v1" onClose={vi.fn()} />)));
-    expect(heading()).toEqual(["Connect an agent", "Link to Research"]);
-    expect(document.querySelectorAll(".desktop-cloud-share-offer")).toHaveLength(2);
-    expect(document.querySelectorAll(".desktop-cloud-workspace-share button.primary")).toHaveLength(1);
+  it("calls an authorized folder a folder, because that is all this person can share", async () => {
+    await render("Research/Limited");
+    expect(said()).toEqual([["Limited", "This folder"]]);
+  });
+  it("is about sending a link to people, and only that", async () => {
+    await render(undefined, { path: "AGENTS.md", directory: false });
+    expect([...document.querySelectorAll("h3")].map(node => node.textContent)).toEqual(["Share with people"]);
+    expect(document.body.textContent).not.toContain("Connect an agent");
+    expect(document.querySelector(".desktop-cloud-agent-share, .desktop-cloud-agent-list")).toBeNull();
+    expect(document.querySelector(".desktop-cloud-workspace-share .primary, .desktop-cloud-workspace-share .po-button--primary")).toBeNull();
+  });
+  it("copies the row that was pressed and says so only on that row", async () => {
+    await render(undefined, { path: "AGENTS.md", directory: false });
+    const [file, whole] = rows().map(row => row.querySelector<HTMLButtonElement>("button")!);
+    expect(file.getAttribute("aria-label")).toBe("Copy link AGENTS.md");
+    await act(async () => whole.click());
+    expect(writeClipboardText).toHaveBeenCalledExactlyOnceWith(`https://cloud-fixture.puppyone.ai/${projectId}/`);
+    expect([file.textContent, whole.textContent]).toEqual(["Copy link", "Copied"]);
   });
   it("preserves an authorized folder locator and encodes each path segment", async () => {
     await render("研究资料/Notes #1");
