@@ -140,6 +140,8 @@
     --reach-mark-ground: var(--desktop-titlebar-bg, var(--po-header));
     position: relative;
     display: grid;
+    /* A definite track, so a brand sized against the mark cannot grow the mark. */
+    grid-template: 100% / 100%;
     box-sizing: border-box;
     flex: 0 0 auto;
     place-items: center;
@@ -166,6 +168,22 @@
     width: 62%;
     height: 62%;
     opacity: 0.7;
+  }
+
+  /* These are square tiles whose ground runs to the asset's edge, so at the
+     brand's size they read as a box in the circle. The ground is not the brand:
+     the tile becomes the mark and the brand inside it stays whole. The asset's
+     optical scale still applies, so the box is sized to land on the mark. */
+  .desktop-project-reach-mark:is(
+    [data-reach-brand="grok-bot"],
+    [data-reach-brand="hermes"],
+    [data-reach-brand="manus"],
+    [data-reach-brand="opencode"]
+  ) > img {
+    flex: none;
+    width: calc(100% / var(--po-agent-brand-image-scale, 1));
+    height: calc(100% / var(--po-agent-brand-image-scale, 1));
+    border-radius: 50%;
   }
 
   /* Lit means working in the project right now, and nothing else does: the

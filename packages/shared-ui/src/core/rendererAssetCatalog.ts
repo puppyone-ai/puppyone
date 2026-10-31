@@ -54,7 +54,10 @@ export const RENDERER_ASSET_PATHS = {
       },
       replit: { light: "assets/icons/agents/replit.svg" },
       gemini: { light: "assets/icons/agents/gemini.svg" },
-      githubCopilot: { light: "assets/icons/agents/github-copilot.svg" },
+      githubCopilot: {
+        light: "assets/icons/agents/github-copilot.svg",
+        dark: "assets/icons/agents/github-copilot-dark.svg",
+      },
       devin: { light: "assets/icons/agents/devin.svg" },
       copilotStudio: { light: "assets/icons/agents/copilot-studio.svg" },
       jules: { light: "assets/icons/agents/jules.svg" },

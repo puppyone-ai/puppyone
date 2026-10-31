@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
@@ -24,6 +26,17 @@ describe("Agent brand registry", () => {
       ["Built-in Agent", "built-in-agent"],
       ["Claude Code", "claude"],
     ] as const) expect(resolveAgentBrand({ label })?.id, label).toBe(brandId);
+  });
+
+  it("gives a mark that cannot inherit the page's color an asset for each theme", () => {
+    // An <img> resolves currentColor to black, which is invisible on a dark surface.
+    const source = (path: string) => readFileSync(resolve(process.cwd(), "public", path), "utf8");
+    for (const brandId of AGENT_BRAND_IDS) {
+      const { light, dark } = AGENT_BRAND_CATALOG[brandId].assets;
+      if (!light.endsWith(".svg") || !source(light).includes("currentColor")) continue;
+      expect(dark, brandId).toBeDefined();
+      expect(source(dark!), brandId).not.toContain("currentColor");
+    }
   });
 
   it("claims no brand from part of a word or from a word two brands share", () => {
