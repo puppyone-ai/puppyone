@@ -8,7 +8,7 @@ import { DesktopOverlayPortal } from "../../components/DesktopOverlayPortal";
 import { DesktopTitlebarContext } from "../../features/app-shell/DesktopTitlebarContext";
 import { DesktopTitlebarActions } from "../../features/app-shell/DesktopTitlebarActions";
 import { CloudWorkspaceHeaderTools } from "../../features/cloud/workbench/CloudWorkspaceHeaderTools";
-import { CloudWorkspaceAgentPeople } from "../CloudWorkspaceAgentPeople";
+import { CloudWorkspaceAgentMark, CloudWorkspaceAgentPeople } from "../CloudWorkspaceAgentPeople";
 import { captureCloudWorkspaceShareResource } from "../../features/cloud/share/cloudWorkspaceShareResource";
 import { DesktopWorkspaceLocationSurface } from "../../features/app-shell/DesktopWorkspaceLocationSurface";
 import { useDesktopPreference, useDesktopPreferenceEffects, initializeDesktopPreferences } from "../../features/settings";
@@ -360,7 +360,8 @@ export function NativeCloudWorkbenchSmokeHarness() {
           getShareResource={() => captureCloudWorkspaceShareResource(workbench)}
           session={activeSession} apiBaseUrl={API} onSessionChange={noop}
           agentOpen={agent.open} onToggleAgent={cloudSidebar.toggleAgent}
-          renderPeople={people => <CloudWorkspaceAgentPeople {...people} />} />}
+          renderPeople={people => <CloudWorkspaceAgentPeople {...people} />}
+        renderAgentMark={agent => <CloudWorkspaceAgentMark {...agent} />} />}
         <DesktopTitlebarActions terminalSidebarOpen={sidebar.localOpen}
         terminalToolEnabled={location === "local"} gitChangesAvailable={location === "local"}
         onToggleTerminal={sidebar.toggleLocal} onToggleGitChanges={noop} />

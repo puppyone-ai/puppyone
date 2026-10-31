@@ -602,14 +602,14 @@ app.whenReady().then(async () => {
   })()`), 'An active Agent stands in the Header ahead of Share, inside the Header');
   const beforeSharing = (await workspaceRequests()).length;
   await evaluate("document.querySelector('[data-cloud-workspace-tool=share]').click()");
-  await waitFor("Boolean(document.querySelector('.desktop-cloud-workspace-share input'))");
+  await waitFor("Boolean(document.querySelector('.desktop-cloud-share-people'))");
   // The link covers what the user is looking at (2b347d52): the canonical
   // project URL, narrowed to the open file when one is open.
-  assert(await evaluate("/\\/11111111-1111-4111-8111-111111111111\\/(?:readme\\.txt)?$/.test(document.querySelector('.desktop-cloud-workspace-share input').value)"),
+  assert(await evaluate("/\\/11111111-1111-4111-8111-111111111111\\/(?:readme\\.txt)?$/.test(document.querySelector('.desktop-cloud-share-people').dataset.shareUrl)"),
     'Workspace sharing must expose its canonical human URL for what is being viewed');
   assert((await workspaceRequests()).length === beforeSharing, 'Sharing a URL must not issue Cloud API requests');
   await captureSettledDialog('cloud-share', '.desktop-cloud-workspace-share');
-  await evaluate("document.querySelector('.desktop-cloud-workspace-share .desktop-dialog-icon-button').click()");
+  await evaluate("document.querySelector('[data-cloud-workspace-tool=share]').click()");
   await evaluate("document.querySelector('.desktop-titlebar-place-button').click()");
   await waitFor("Boolean(document.querySelector('[data-project-place-row=history]'))");
   await evaluate("document.querySelector('[data-project-place-row=history]').click()");

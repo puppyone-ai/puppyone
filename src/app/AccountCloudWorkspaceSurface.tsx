@@ -12,7 +12,7 @@ import { DesktopCloudFileWorkspace, type CloudFileSurfaceProps } from "../featur
 import type { NativeCloudWorkbench } from "../features/cloud/workbench/useNativeCloudWorkbench";
 import type { DesktopCloudSession } from "../lib/cloudApi";
 import { CloudWorkspaceHeaderTools } from "../features/cloud/workbench/CloudWorkspaceHeaderTools";
-import { CloudWorkspaceAgentPeople } from "./CloudWorkspaceAgentPeople";
+import { CloudWorkspaceAgentMark, CloudWorkspaceAgentPeople } from "./CloudWorkspaceAgentPeople";
 import { captureCloudWorkspaceShareResource } from "../features/cloud/share/cloudWorkspaceShareResource";
 import type { ProjectCloudContext } from "../features/cloud/project/context";
 import type { ProjectNavigationTarget } from "../features/app-shell/projectNavigation";
@@ -126,7 +126,8 @@ export function AccountCloudWorkspaceSurface({ workbench, presentation, active, 
       titlebarActions={active && <CloudWorkspaceHeaderTools context={context} session={session}
         getShareResource={() => captureCloudWorkspaceShareResource(workbench)}
         apiBaseUrl={apiBaseUrl} onSessionChange={onSessionChange} agentOpen={agent.open} onToggleAgent={sidebar.toggleAgent}
-        renderPeople={people => <CloudWorkspaceAgentPeople {...people} />} />}
+        renderPeople={people => <CloudWorkspaceAgentPeople {...people} />}
+        renderAgentMark={agent => <CloudWorkspaceAgentMark {...agent} />} />}
       titlebarSidebarSlot={centered ? undefined : projectContext}
       titlebarCenteredSlot={centered ? projectContext : undefined}
       titlebarTabs={editorTabsInHeader ? presentation.titlebarTabs : undefined}

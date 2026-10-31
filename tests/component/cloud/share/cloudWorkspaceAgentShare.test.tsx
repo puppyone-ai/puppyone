@@ -101,7 +101,7 @@ describe("Connecting an agent from Share", () => {
     expect(copied).toContain("sign-in link");
     expect(copied.split("\n")).toHaveLength(1);
     expect(document.querySelector('[role="status"]')?.textContent).toContain("Paste it");
-    expect(primary().textContent).toContain("Paste it");
+    expect(primary().textContent).toBe("Copied");
   });
 
   it("returns the button to its label so a second agent can be connected", async () => {
@@ -109,22 +109,23 @@ describe("Connecting an agent from Share", () => {
     try {
       await render();
       await act(async () => primary().click());
-      expect(primary().textContent).toContain("Paste it");
+      expect(primary().textContent).toBe("Copied");
       await act(async () => { await vi.advanceTimersByTimeAsync(3_000); });
-      expect(primary().textContent).toBe("Copy for your agent");
+      expect(primary().textContent).toBe("Copy for agent");
       expect(document.querySelector('[role="status"]')?.textContent).toBe("");
     } finally { vi.useRealTimers(); }
   });
 
-  it("reports a failed link in the button itself and lets it be retried", async () => {
+  it("says a link failed beside the button, which stays ready to retry", async () => {
     vi.mocked(cloudApiRequest).mockRejectedValueOnce(new Error("offline")); // The first list refresh.
     await render();
     vi.mocked(cloudApiRequest).mockRejectedValueOnce(new Error("offline"));
     await act(async () => primary().click());
-    expect(primary().textContent).toContain("Try again");
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain("Try again");
+    expect(primary().textContent).toBe("Copy for agent");
     expect(document.querySelector('[role="alert"]')?.textContent).toContain("Try again");
     await act(async () => primary().click());
-    expect(primary().textContent).toContain("Paste it");
+    expect(primary().textContent).toBe("Copied");
     expect(document.querySelector('[role="alert"]')).toBeNull();
   });
 
@@ -202,6 +203,23 @@ describe("Connecting an agent from Share", () => {
     expect(cloudApiRequest).toHaveBeenCalledWith("/projects/project-1/agent-links", session, undefined,
       { method: "DELETE" }, API);
     expect(document.querySelector(".desktop-cloud-agent-share-stop")).toBeNull();
+  });
+
+  it("states what is true now and keeps when access ends for a closer look", async () => {
+    inventory = { links: [], connections: [{ ...agent, expires_at: "2026-11-06T12:00:00Z" }] };
+    await render({ agents: [{ ...agent, admission: "sign_in", active: true, lastActiveAt: null, activityKnown: true }] });
+    const status = document.querySelector<HTMLElement>(".desktop-cloud-agent-expiry")!;
+    expect(status.firstChild?.textContent).toBe("Active now");
+    expect(status.querySelector(".desktop-cloud-share-status")?.textContent).toContain("Expires Nov");
+  });
+
+  it("draws an Agent with the mark the shell lends it", async () => {
+    inventory = { links: [], connections: [agent] };
+    await render({ agents: [{ ...agent, admission: "sign_in", active: true, lastActiveAt: null, activityKnown: true }],
+      renderAgentMark: ({ name, active }: { name: string; active: boolean }) => <i data-mark={name} data-working={active} /> });
+    const row = document.querySelector(".desktop-cloud-agent-list li")!;
+    expect(row.querySelector("[data-mark]")?.getAttribute("data-working")).toBe("true");
+    expect(row.querySelector(".desktop-cloud-agent-lamp")).toBeNull();
   });
 
   it("agrees with the Header about who is active", async () => {
