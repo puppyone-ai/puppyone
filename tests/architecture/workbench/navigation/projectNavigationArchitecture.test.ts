@@ -34,10 +34,10 @@ describe("one project navigation policy across shell surfaces", () => {
     expect(source).not.toContain('placement: "dedicated-window"');
   });
   it("opens every project through the one window navigation, so no entry can miss the wait", () => {
-    const navigation = source.slice(source.indexOf("useProjectNavigation({"), source.indexOf("cancelProjectNavigationRef.current = projectNavigation.cancel"));
+    const navigation = readFileSync(resolve(process.cwd(), "src/app/useWindowProjectNavigation.ts"), "utf8");
     for (const open of ["openWorkspacePath(", "openDroppedWorkspace(", "accountCloud.openTarget("]) {
-      expect(source.split(open).length - 1, open).toBe(1);
-      expect(navigation, open).toContain(open);
+      expect(source, open).not.toContain(open);
+      expect(navigation.split(open).length - 1, open).toBe(1);
     }
     expect(source).not.toContain("accountCloud.retry");
     expect(source).not.toContain("controller={accountCloud}");

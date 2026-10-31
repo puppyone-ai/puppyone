@@ -33,8 +33,9 @@ import {
 } from "./features/settings";
 import { CLOUD_HUB_ENTRY_SECTION, type CloudWorkspaceSection } from "./features/cloud";
 import { useAccountCloudWorkspace } from "./features/cloud/workbench/useAccountCloudWorkspace";
-import { ProjectOpeningContent, ProjectOpeningSurface } from "./app/ProjectOpeningSurface";
 import { ProjectWindow } from "./app/ProjectWindow";
+import { useProjectOpeningSurfaces } from "./app/useProjectOpeningSurfaces";
+import { useWindowProjectNavigation, type ProjectDesktopView } from "./app/useWindowProjectNavigation";
 import { CloudWorkspaceHeaderTools } from "./features/cloud/workbench/CloudWorkspaceHeaderTools";
 import { CloudWorkspaceAgentMark, CloudWorkspaceAgentPeople } from "./app/CloudWorkspaceAgentPeople";
 import { captureCloudWorkspaceShareResource } from "./features/cloud/share/cloudWorkspaceShareResource";
@@ -79,12 +80,8 @@ import {
   removeWorkspaceGitRemote,
   showHomepage,
 } from "./lib/localFiles";
-import { describeProjectOpening } from "./features/app-shell/window-project/projectOpening";
-import { showWindowProject, useWindowProject, windowProjectStore } from "./features/app-shell/window-project/windowProjectStore";
-import { useProjectNavigation } from "./features/app-shell/window-project/useProjectNavigation";
+import { showWindowProject, useWindowProject } from "./features/app-shell/window-project/windowProjectStore";
 import { ProjectNavigationFailure } from "./features/app-shell/ProjectNavigationFailure";
-import { CloudOpeningError, describeCloudOpeningFailure } from "./features/cloud/cloudOpeningFailure";
-import { formatCloudMessage } from "./features/cloud/cloudPresentation";
 import {
   getDesktopCloudApiBaseUrl,
   type DesktopCloudSession,
@@ -213,7 +210,6 @@ import { useProjectSwitcherSurface } from "./features/app-shell/useProjectSwitch
 const AgentChatWorkbenchItem = lazy(loadAgentChatWorkbenchItem);
 const AgentChatHistoryBrowser = lazy(loadAgentChatHistoryBrowser);
 const EMPTY_WORKSPACE_FOLDERS: readonly WorkspaceFolder[] = Object.freeze([]);
-type ProjectDesktopView = Exclude<DesktopView, "settings" | "cloud">;
 
 export function App() {
   return <AppContent />;
@@ -1133,72 +1129,6 @@ function AppContent() {
     if (activeView !== "settings" && activeView !== "cloud") lastProjectViewRef.current = activeView;
   }, [activeView]);
 
-  const projectOpenFailure = useWindowProject((project) => project.failure);
-  const dismissProjectOpenFailure = () => windowProjectStore.setState({ failure: null });
-  const projectNavigation = useProjectNavigation({
-    async open(target, isCurrent) {
-      windowProjectStore.setState({ failure: null });
-      if (target.kind === "cloud") {
-        if (!activeCloudSession) throw new CloudOpeningError(describeCloudOpeningFailure({ status: 401 }));
-        await accountCloud.openTarget({ kind: "project_root", project_id: target.projectId }, isCurrent, true);
-        return;
-      }
-      const projectView = lastProjectViewRef.current;
-      if (!await drainWorkspaceNavigation() || !isCurrent()) return;
-      // Keep the displayed provider until the local target has opened. Failed
-      // Cloud -> Local navigation must leave the original Cloud project visible.
-      // Main serializes local opens. Reconcile an acknowledged transaction
-      // before draining the next intent so its composition and this Renderer
-      // cannot disagree when the following target is Cloud.
-      if (target.kind === "dropped") await openDroppedWorkspace(target.folder);
-      else await openWorkspacePath(target.path, "switched");
-      if (isCurrent()) {
-        if (cloudHeaderActive) openLocalWorkspace();
-        navigateDesktopView(projectView);
-      }
-    },
-    onError(error, target) {
-      const failure = target.kind === "cloud" ? describeCloudOpeningFailure(error) : null;
-      const message = error instanceof Error ? error.message : String(error);
-      windowProjectStore.setState({ failure: { target, recovery: failure?.action ?? "retry",
-        message: failure ? formatCloudMessage(failure.message, t) : message } });
-    },
-  });
-  cancelProjectNavigationRef.current = projectNavigation.cancel;
-  const selectProjectTarget = projectNavigation.select;
-  const cancelProjectNavigation = projectNavigation.cancel;
-  const showProjectLauncher = projectEntryFlow.openLauncher;
-  const openProjectLauncher = useCallback(() => {
-    cancelProjectNavigation();
-    cancelAccountCloudOpen();
-    showProjectLauncher();
-  }, [cancelProjectNavigation, cancelAccountCloudOpen, showProjectLauncher]);
-  const selectProject = useCallback((path: string) => {
-    setSwitcherOpen(false);
-    return selectProjectTarget({ kind: "local", path });
-  }, [selectProjectTarget]);
-  const selectCloudProject = useCallback((projectId: string) => {
-    setSwitcherOpen(false);
-    return selectProjectTarget({ kind: "cloud", projectId });
-  }, [selectProjectTarget]);
-  selectCloudProjectRef.current = selectCloudProject;
-  const openDroppedProject = useCallback((folder: File) => selectProjectTarget({ kind: "dropped", folder }), [selectProjectTarget]);
-  // Every retry is another open, so it takes the same road as the first.
-  const homepageCloudController = { ...accountCloud, retry: () => {
-    const target = accountCloud.lastAttemptedTarget();
-    return target ? selectCloudProject(target.project_id) : undefined;
-  } };
-  useEffect(() => window.puppyoneDesktop?.onWorkspaceOpenRequested?.(({ rootPath }) => {
-    void selectProject(rootPath);
-  }), [selectProject]);
-  const initialCloudProjectOpened = useRef(false);
-  useEffect(() => {
-    if (initialCloudProjectOpened.current || restoringWorkspace || !initialCloudProject
-      || !cloudEnabled || !activeCloudSession || activeCloudSession.user_id !== initialCloudProject.userId) return;
-    initialCloudProjectOpened.current = true;
-    void selectCloudProject(initialCloudProject.projectId);
-  }, [selectCloudProject, activeCloudSession, cloudEnabled, initialCloudProject, restoringWorkspace]);
-
   const handleActiveDataPathChange = useCallback(async (
     path: string | null,
     node: DataNode | null = null,
@@ -1607,6 +1537,15 @@ function AppContent() {
     onLeadingRailCollapsedChange: setProjectSwitcherCollapsed,
     onLeadingRailWidthChange: setProjectSwitcherWidth,
   };
+  const {
+    dismissProjectOpenFailure, homepageCloudController, openDroppedProject, openProjectLauncher,
+    projectNavigation, projectOpenFailure, selectCloudProject, selectProject,
+  } = useWindowProjectNavigation({
+    accountCloud, activeCloudSession, cancelAccountCloudOpen, cancelProjectNavigationRef, cloudEnabled,
+    cloudHeaderActive, drainWorkspaceNavigation, initialCloudProject, lastProjectViewRef,
+    navigateDesktopView, openDroppedWorkspace, openLocalWorkspace, openWorkspacePath, projectEntryFlow,
+    restoringWorkspace, selectCloudProjectRef, setSwitcherOpen, t,
+  });
   const renderProjectRail = (activeWorkspace: Workspace, expanded: boolean, activeCloudProjectId?: string | null) => (
     <ProjectSwitcherRail
       activeView={activeView}
@@ -1630,18 +1569,12 @@ function AppContent() {
     />
   );
   const hostedWorkspace = nativeCloudWorkbench.service?.workspace;
-  const cancelCloudOpening = () => { projectNavigation.cancel(); accountCloud.cancel(); };
-  const projectOpening = describeProjectOpening({
-    opening: projectNavigation.pending,
-    displayedPath: cloudWorkspaceActive ? null : workspace?.path ?? null,
-    displayedCloudProjectId: cloudWorkspaceActive && accountCloud.context.status === "resolved" ? accountCloud.context.projectId : null,
-    projectItems: projectCatalog.items,
-    preparedCloudProjectName: accountCloud.preparation?.projectName,
+  const {
+    projectOpening, projectOpeningInWindow, projectOpeningSurface,
+  } = useProjectOpeningSurfaces({
+    accountCloud, cloudWorkspaceActive, nativeCloudWorkbench, projectCatalog, projectNavigation,
+    projectRailLayout, railOwnsProject, renderProjectRail, surfaceAppearance, workspace,
   });
-  const projectOpeningWait = projectOpening && { location: projectOpening.location,
-    progress: accountCloud.preparation?.progress, onCancel: projectOpening.location === "cloud" ? cancelCloudOpening : undefined };
-  const projectOpeningInWindow = projectOpeningWait
-    ? { location: projectOpeningWait.location, content: <ProjectOpeningContent {...projectOpeningWait} /> } : null;
   const accountCloudSurface = !workspace ? <AccountCloudWorkspaceSurface workbench={nativeCloudWorkbench}
     opening={projectOpeningInWindow && projectOpening && cloudWorkspaceActive ? { ...projectOpeningInWindow, projectName: projectOpening.projectName } : undefined}
     agent={cloudAgent} sidebar={cloudSidebar}
@@ -1652,15 +1585,6 @@ function AppContent() {
     projectRail={railOwnsProject && hostedWorkspace ? { ...projectRailLayout,
       renderLeadingRail: ({ expanded }) => renderProjectRail(hostedWorkspace, expanded) } : undefined}
     onCreateProject={openProjectLauncher} /> : null;
-  const openingCloudProjectId = projectNavigation.pending?.kind === "cloud" ? projectNavigation.pending.projectId : undefined;
-  const openingProjectRail = railOwnsProject ? { ...projectRailLayout,
-    renderLeadingRail: ({ expanded }: { expanded: boolean }) => renderProjectRail(
-      nativeCloudWorkbench.surfaceService.workspace, expanded, openingCloudProjectId) } : undefined;
-  // With a project on screen the wait happens in its shell; from the Homepage there is none yet.
-  const projectOpeningSurface = projectOpening && projectOpeningWait && !workspace && !cloudWorkspaceActive
-    ? <ProjectOpeningSurface {...projectOpeningWait} appearance={surfaceAppearance}
-      projectName={projectOpening.projectName} projectRail={openingProjectRail} />
-    : null;
   const missingCloudProjectReplaceable = Boolean(activeCloudSession) && projectCloudContext.status === "not-found"
     && canReplaceMissingCloudProject(projectCloudContext, activeGitStatus, desktopCloudApiBaseUrl);
   const cloudProjectNoticeState = cloudEnabled && workspace && focusedWorkspace?.path === workspace.path

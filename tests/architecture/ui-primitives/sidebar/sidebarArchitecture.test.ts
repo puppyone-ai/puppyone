@@ -192,8 +192,8 @@ describe("Sidebar architecture", () => {
     // Every entry selects through the one in-window project navigation queue.
     expect(railElement.slice(0, railElement.indexOf("\n    />"))).toContain("onSelectProject={selectProject}");
     expect(railElement.slice(0, railElement.indexOf("\n    />"))).toContain("onSelectCloudProject={selectCloudProject}");
-    expect(appSource).toMatch(/const selectProject = useCallback\(\(path: string\) => \{[\s\S]*?selectProjectTarget\(\{ kind: "local", path \}\)/);
-    expect(appSource).toContain("const selectProjectTarget = projectNavigation.select;");
+    expect(read("../../../../src/app/useWindowProjectNavigation.ts")).toMatch(/const selectProject = useCallback\(\(path: string\) => \{[\s\S]*?selectProjectTarget\(\{ kind: "local", path \}\)/);
+    expect(read("../../../../src/app/useWindowProjectNavigation.ts")).toContain("const selectProjectTarget = projectNavigation.select;");
     expect(appSource).not.toMatch(/onSelectProject=\{openProjectFromHeader\}[\s\S]{0,400}utilitySlot/);
   });
 
