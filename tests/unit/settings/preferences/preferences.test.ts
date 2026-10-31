@@ -332,10 +332,9 @@ describe("experimental preferences", () => {
       .toBe(true);
   });
 
-  it("keeps the Asset Library homepage off unless the user explicitly opts in", () => {
-    expect(parseExperimentalSettings(null).enableAssetLibraryHome).toBe(false);
-    expect(parseExperimentalSettings(JSON.stringify({ enableAssetLibraryHome: false })).enableAssetLibraryHome).toBe(false);
-    expect(parseExperimentalSettings(JSON.stringify({ enableAssetLibraryHome: true })).enableAssetLibraryHome).toBe(true);
+  it("forgets a saved choice of the retired card Homepage", () => {
+    expect(parseExperimentalSettings(JSON.stringify({ enableAssetLibraryHome: true })))
+      .not.toHaveProperty("enableAssetLibraryHome");
   });
 
   it("keeps Viewer Plugins off unless the user explicitly opts in", () => {

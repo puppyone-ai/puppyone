@@ -5,7 +5,6 @@ import { useLocalization } from "@puppyone/localization";
 import { TypographyCatalogProvider, useTypographyCatalog, useTypographyRuntime } from "../../features/typography";
 import { resolveSurfaceAppearance, SurfaceAppearanceProvider } from "../../features/appearance/AppearanceRuntime";
 import { useDesktopPreference, useDesktopAppearance, useDesktopPreferenceEffects, initializeDesktopPreferences, desktopPreferencesStore } from "../../features/settings";
-import { AssetLibraryHome } from "../../components/AssetLibraryHome";
 import { MinimalOnboarding } from "../../components/MinimalOnboarding";
 import { useHomepageCloudProjects } from "../../features/cloud/workbench/useHomepageCloudProjects";
 import { HomepageCloudStatus } from "../../features/cloud/workbench/HomepageCloudStatus";
@@ -143,9 +142,8 @@ function AccountCloudFixture() {
     };
     return () => { delete window.__accountCloudSmoke; };
   }, [account, setTheme, settingsOpened, selectedLocalPath]);
-  const Home = new URLSearchParams(location.search).get("home") === "cards" ? AssetLibraryHome : MinimalOnboarding;
   return <SurfaceAppearanceProvider value={appearance}>
-    {!account.active && <Home appearance={appearance} projectItems={homepage.items}
+    {!account.active && <MinimalOnboarding appearance={appearance} projectItems={homepage.items}
       cloudOpening={account.opening}
       onCancelCloudOpening={account.cancel}
       onChooseWorkspace={async () => {}} onOpenWorkspacePath={async () => {}} onOpenDroppedWorkspace={async () => {}}

@@ -1098,9 +1098,3 @@ span.homepage-cloud-feedback {
 .project-cloud-link-button svg {
   color: var(--po-brand-blue);
 }
-.asset-library-project-cloud-link {
-  position: absolute;
-  inset-inline-end: 8px;
-  top: 8px;
-  background: var(--po-header);
-}

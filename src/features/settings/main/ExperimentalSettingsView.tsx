@@ -1,5 +1,5 @@
 import { useDesktopPreference } from "../../../preferencesStore";
-import { useAccountAvailable, useFeatureFlag } from "../../flags";
+import { useAccountAvailable } from "../../flags";
 import { useLocalization } from "@puppyone/localization";
 import type { ExperimentalSettings } from "../../../preferences";
 import { SettingsSectionHeader, SettingsSubsection, SettingsToggle } from "../components";
@@ -7,7 +7,6 @@ import { SettingsSectionHeader, SettingsSubsection, SettingsToggle } from "../co
 export function ExperimentalSettingsView() {
   const settings = useDesktopPreference(s => s.experimentalSettings);
   const onChange = useDesktopPreference(s => s.setExperimentalSettings);
-  const assetLibraryHomeAvailable = useFeatureFlag("assetLibraryHome");
   const accountAvailable = useAccountAvailable();
   const { t } = useLocalization();
   const groups: Array<{
@@ -64,11 +63,6 @@ export function ExperimentalSettingsView() {
           : []),
       ],
     },
-    ...(assetLibraryHomeAvailable || settings.enableAssetLibraryHome ? [{
-      id: "homepage",
-      rows: [{ messageKey: "projectsHome", settingKey: "enableAssetLibraryHome" as const,
-        choices: [{ messageKey: "list", value: false }, { messageKey: "cards", value: true }] }],
-    }] : []),
   ];
 
   return (

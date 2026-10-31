@@ -37,6 +37,6 @@ describe("one project navigation policy across shell surfaces", () => {
     expect(bindings("ProjectSwitcherRail", "onCreateNew")).toEqual(["openProjectLauncher"]);
     expect(bindings("DesktopTitlebarContext", "onCreateProject")).toEqual(["openProjectLauncher"]);
     expect(bindings("AccountCloudWorkspaceSurface", "onCreateProject")).toEqual(["openProjectLauncher"]);
-    expect(bindings("Homepage", "projectEntryController")).toEqual(["projectEntryFlow"]);
+    expect(bindings("MinimalOnboarding", "projectEntryController")).toEqual(["projectEntryFlow"]);
   });
 });

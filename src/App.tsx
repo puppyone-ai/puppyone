@@ -53,7 +53,6 @@ import { useNativeCloudWorkbench } from "./features/cloud/workbench/useNativeClo
 import {
   MinimalOnboarding,
 } from "./components/MinimalOnboarding";
-import { AssetLibraryHome } from "./components/AssetLibraryHome";
 import {
   closeAgentChatWorkbenchItem,
   createAgentChatCloseAdapter,
@@ -109,7 +108,6 @@ import { useDesktopPlatformCapabilities } from "./platform/useDesktopPlatformCap
 import { RestoringWorkspaceScreen } from "./features/app-shell/RestoringWorkspaceScreen";
 import { useHomepageFirstPaint } from "./features/app-shell/useHomepageFirstPaint";
 import { useDesktopPreference, useDesktopAppearance, useDesktopPreferenceEffects } from "./features/settings";
-import { isAssetLibraryHomeEnabled } from "./features/app-shell/homeFeatureGate";
 import { useWorkspaceLifecycle } from "./features/app-shell/useWorkspaceLifecycle";
 import { usePuppyoneConfig } from "./features/app-shell/usePuppyoneConfig";
 import { useExternalFileOpen } from "./features/external-apps/useExternalFileOpen";
@@ -129,7 +127,7 @@ import {
   canReplaceMissingCloudProject,
   MissingCloudProjectReplacement,
 } from "./features/cloud/project/MissingCloudProjectReplacement";
-import { useAccountAvailable, useCloudEnabled, useFeatureFlag } from "./features/flags";
+import { useAccountAvailable, useCloudEnabled } from "./features/flags";
 import {
   DesktopCreateEntryMenu,
   DesktopNodeActionMenu,
@@ -232,7 +230,6 @@ function AppContent() {
   const explorerWidth = useDesktopPreference(s => s.explorerWidth);
   const enableMultiRootWorkspaces = useDesktopPreference(s => s.experimentalSettings.enableMultiRootWorkspaces);
   const enableShareOnboarding = useDesktopPreference(s => s.experimentalSettings.enableShareOnboarding);
-  const enableAssetLibraryHome = useDesktopPreference(s => s.experimentalSettings.enableAssetLibraryHome);
   const enableViewerPlugins = useDesktopPreference(s => s.experimentalSettings.enableViewerPlugins);
   const enableOtherAppImports = useDesktopPreference(s => s.experimentalSettings.enableOtherAppImports);
   const enablePayments = useDesktopPreference(s => s.experimentalSettings.enablePayments);
@@ -307,7 +304,6 @@ function AppContent() {
   // The share entry's fork: one screen for inviting a person or connecting an
   // agent, or the existing step wizard. Declared in the project-reach contract.
   const projectReachEnabled = useProjectReachExperience();
-  const assetLibraryHomeAvailable = useFeatureFlag("assetLibraryHome");
   const {
     cloudSession,
     cloudAuthStatus,
@@ -410,11 +406,6 @@ function AppContent() {
       hiddenLocalAgentIds: hiddenTerminalAgentIds,
     });
   }, [hiddenTerminalAgentIds]);
-  const assetLibraryHomeEnabled = isAssetLibraryHomeEnabled({
-    available: assetLibraryHomeAvailable,
-    optedIn: enableAssetLibraryHome,
-  });
-  const Homepage = assetLibraryHomeEnabled ? AssetLibraryHome : MinimalOnboarding;
   // Settings opens on Account, the first row of the first group. It is the
   // page a user most often came here for — who am I signed in as, and what am
   // I paying — and the only one that is always available, with or without a
@@ -1794,7 +1785,7 @@ function AppContent() {
         onContinueLocally={firstRunSignIn.complete} />,
     );
     return themeRuntime(
-      <Homepage
+      <MinimalOnboarding
         projectEntryController={projectEntryFlow}
         onChooseWorkspace={openFolder}
         onChooseProjectLocation={chooseProjectLocation}

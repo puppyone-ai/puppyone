@@ -196,7 +196,7 @@ function surface() {
       listTopLevelFolders={async () => [{ name: 'docs', path: 'docs' }, { name: 'media', path: 'media' }]}
       onSessionChange={noop} onIssued={noop} onOpenCloud={noop} onClose={noop} />;
     case 'share-status': return <CloudShareStatusCard status={{ kind: 'shared', readers: [], pending: null, message: null }} surface="page" onPrimary={noop} />;
-    case 'share-navigation': return <FeatureFlagsProvider value={{ cloudWorkspace: true, cloudBilling: false, assetLibraryHome: false }}>
+    case 'share-navigation': return <FeatureFlagsProvider value={{ cloudWorkspace: true, cloudBilling: false }}>
       <CloudShareProvider value={variant === 'off' ? null : { signedIn: true, pending: null, openShare: noop,
         shares: { shares: [], loading: false, loaded: true, error: false, reload: refresh } }}>
         <CloudServiceSidebar cloudAuthState={{ status: 'signed-in', apiBaseUrl: session.api_base_url, session }}

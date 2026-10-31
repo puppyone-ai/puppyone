@@ -59,7 +59,7 @@ describe("Experimental settings", () => {
     act(() => root?.render(withTestLocalization(<ExperimentalSettingsView />)));
     const groups = [...host.querySelectorAll(".desktop-settings-subsection")];
     expect(groups.map((group) => group.querySelector("h3")?.textContent)).toEqual([
-      "Header & layout", "Markdown", "Imports & plugins", "Cloud & automation", "Homepage",
+      "Header & layout", "Markdown", "Imports & plugins", "Cloud & automation",
     ]);
     const rows = [...groups[0]!.querySelectorAll(".desktop-settings-row")];
     const fileGroup = rows.at(-1)?.querySelector('[role="group"][aria-label="File navigation"]')!;
@@ -229,30 +229,6 @@ describe("Experimental settings", () => {
     expect(repeat.getAttribute("aria-pressed")).toBe("true");
     expect(once.getAttribute("aria-pressed")).toBe("false");
     act(() => once.click());
-    expect(store.getState().experimentalSettings).toEqual(DEFAULT_EXPERIMENTAL_SETTINGS);
-  });
-
-  it("restores List / Cards homepage choices at the end and lets saved card users return to List", () => {
-    const host = document.createElement("div");
-    document.body.append(host);
-    root = createRoot(host);
-    act(() => store.getState().setExperimentalSettings(s => ({ ...s, enableAssetLibraryHome: true })));
-
-    act(() => root?.render(withTestLocalization(
-      <ExperimentalSettingsView />,
-    )));
-
-    const lastSection = [...host.querySelectorAll(".desktop-settings-subsection")].at(-1)!;
-    expect(lastSection.querySelector("h3")?.textContent).toBe("Homepage");
-    const group = lastSection.querySelector('[role="group"][aria-label="Project homepage"]')!;
-    const [list, cards] = [...group.querySelectorAll<HTMLButtonElement>("button")];
-    expect([list.textContent, cards.textContent]).toEqual(["List", "Cards"]);
-    expect(cards.getAttribute("aria-pressed")).toBe("true");
-    expect(store.getState().experimentalSettings).toEqual({ ...DEFAULT_EXPERIMENTAL_SETTINGS, enableAssetLibraryHome: true });
-    act(() => list.click());
-    act(() => initializeDesktopPreferences());
-    expect(list.getAttribute("aria-pressed")).toBe("true");
-    expect(cards.getAttribute("aria-pressed")).toBe("false");
     expect(store.getState().experimentalSettings).toEqual(DEFAULT_EXPERIMENTAL_SETTINGS);
   });
 

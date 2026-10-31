@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MinimalOnboarding, type MinimalOnboardingProps } from "../../../../src/components/MinimalOnboarding";
 import { HOMEPAGE_PROJECT_LAYOUT_STORAGE_KEY, HOMEPAGE_PROJECT_SORT_STORAGE_KEY } from "../../../../src/preferenceStorage";
 import { viewProjectHomeItems, type ProjectHomeItem } from "../../../../src/lib/workspaceHomeModel";
-import { desktopPreferencesStore as preferences, initializeDesktopPreferences } from "../../../../src/preferencesStore";
+import { initializeDesktopPreferences } from "../../../../src/preferencesStore";
 import { renderWithTestLocalization } from "../../../support/react/localization";
 import { createTestSurfaceAppearance } from "../../../support/react/surfaceAppearance";
 
@@ -117,9 +117,8 @@ describe("Homepage project layouts", () => {
     expect(layoutTrigger(container).getAttribute("aria-label")).toBe("Project layout: Grid");
   });
 
-  it("switches on the Homepage itself, with no experimental setting involved", () => {
+  it("switches on the Homepage itself", () => {
     const { container } = renderHome();
-    expect(preferences.getState().experimentalSettings.enableAssetLibraryHome).toBe(false);
     for (const layout of LAYOUTS) {
       pick(container, layout);
       expect(shownLayout(container)).toBe(layout);
