@@ -94,7 +94,7 @@ describe("repository-context architecture", () => {
     expect(app).toContain("if (!workspace && (!homepageReady || firstRunSignIn.pending)) {");
     expect(app).not.toMatch(/browseAccountCloudProjects|cloud\.catalog\.browse/);
     expect(app).not.toContain("activatePrepared");
-    expect(app).toContain("await accountCloud.openTarget({ kind: \"project_root\", project_id: target.projectId }, isCurrent, true);");
+    expect(readFileSync(new URL("../../../../src/app/useWindowProjectNavigation.ts", import.meta.url), "utf8")).toContain("await accountCloud.openTarget({ kind: \"project_root\", project_id: target.projectId }, isCurrent, true);");
     expect(surface).not.toMatch(/onBrowse|cloud\.catalog\.browse/);
     expect(app).not.toContain("accountCloud.open;");
     expect(app).toContain("const accountCloudSurface = !workspace ?");
