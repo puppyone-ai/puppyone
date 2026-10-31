@@ -28,7 +28,7 @@ import { ProjectMenuHeader } from "./ProjectMenuHeader";
 export type ProjectActionSurface = "menu" | "rename" | "unlink" | "delete" | null;
 
 /** The local menu carries the folder's path; a Cloud project has only its commands. */
-const PROJECT_ACTION_MENU_WIDTH = { local: 288, cloud: 184 } as const;
+const PROJECT_ACTION_MENU_WIDTH = { local: 224, cloud: 184 } as const;
 const PROJECT_ACTION_MENU_ESTIMATED_HEIGHT = 180;
 const PROJECT_NAME_MAX_LENGTH = { local: 120, cloud: 200 } as const;
 const PROJECT_ACTION_MENU_POSITION = {
@@ -209,7 +209,7 @@ export function ProjectRowActions({
             style={{ ...menuPosition, width: menuWidth }}
             onPointerDown={(event) => event.stopPropagation()}
           >
-            {project.path && <ProjectMenuHeader key={project.path} name={project.name} path={project.path} />}
+            {project.path && <ProjectMenuHeader key={project.path} path={project.path} />}
             {onRename && (
               <DesktopMenuItem
                 icon={<Pencil size={14} />}

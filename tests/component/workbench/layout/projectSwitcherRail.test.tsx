@@ -232,9 +232,10 @@ describe("Project switcher rail", () => {
     expect(menu?.dataset.menuElevation).toBe("compact");
     expect(menu?.dataset.menuTypographySurface).toBe("left-sidebar");
     expect(Array.from(menu?.querySelectorAll(".desktop-menu-item") ?? [], (item) => item.textContent))
-      .toEqual(["Rename…", "Unlink…"]);
+      .toEqual(["Copy path", "Rename…", "Unlink…"]);
 
-    await act(async () => menu?.querySelector<HTMLButtonElement>(".desktop-menu-item")?.click());
+    await act(async () => [...(menu?.querySelectorAll<HTMLButtonElement>(".desktop-menu-item") ?? [])]
+      .find((item) => item.textContent === "Rename…")?.click());
     const renameDialog = document.body.querySelector<HTMLElement>("[role='dialog']");
     expect(renameDialog?.textContent).toContain("Rename project");
     expect(renameDialog?.textContent).toContain("The local folder stays the same.");
