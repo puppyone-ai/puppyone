@@ -29,7 +29,7 @@
       "properties": [
         { "name": "puppyone:adoption-scope", "value": "frontend-interaction-and-native-protocol-orchestration" },
         { "name": "puppyone:runtime-code-included", "value": "false" },
-        { "name": "puppyone:source-ledger", "value": "vendor/claudian/SOURCE_ADOPTION.md" }
+        { "name": "puppyone:source-ledger", "value": "licenses/claudian/SOURCE_ADOPTION.md" }
       ]
     }
   ]

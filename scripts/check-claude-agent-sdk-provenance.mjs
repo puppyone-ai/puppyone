@@ -10,8 +10,8 @@ const locked = lock.packages?.["node_modules/@anthropic-ai/claude-agent-sdk"];
 const discovery = read("electron/main/agent/runtimes/claude/claude-discovery.mjs");
 const adapter = read("electron/main/agent/runtimes/claude/claude-agent-sdk-adapter.mjs");
 const nativeValues = read("electron/main/agent/runtimes/claude/claude-native-values.mjs");
-const notices = read("THIRD_PARTY_NOTICES.md");
-const license = read("vendor/claude-agent-sdk/LICENSE.md");
+const notices = read("licenses/THIRD_PARTY_NOTICES.md");
+const license = read("licenses/claude-agent-sdk/LICENSE.md");
 
 assert(version === "0.3.159", "Claude Agent SDK must be pinned exactly.");
 assert(locked?.version === version, "Claude Agent SDK lockfile version drifted.");

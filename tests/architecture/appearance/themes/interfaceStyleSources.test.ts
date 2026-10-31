@@ -259,17 +259,17 @@ describe("Interface style registry", () => {
     }
     expect(source("src/styles/interfaces/windows-xp/assets/CRYSTAL-CLEAR-LGPL-2.1.txt"))
       .toContain("GNU LESSER GENERAL PUBLIC LICENSE");
-    expect(source("THIRD_PARTY_NOTICES.md"))
+    expect(source("licenses/THIRD_PARTY_NOTICES.md"))
       .toContain("B00merang Windows-XP icon theme");
-    expect(source("THIRD_PARTY_NOTICES.md"))
+    expect(source("licenses/THIRD_PARTY_NOTICES.md"))
       .toContain("B00merang Windows-XP Luna caption buttons");
-    expect(source("THIRD_PARTY_NOTICES.md"))
+    expect(source("licenses/THIRD_PARTY_NOTICES.md"))
       .toContain("places/gtk-directory.png");
-    expect(source("THIRD_PARTY_NOTICES.md"))
+    expect(source("licenses/THIRD_PARTY_NOTICES.md"))
       .toContain("Git official logomark");
-    expect(source("THIRD_PARTY_NOTICES.md"))
+    expect(source("licenses/THIRD_PARTY_NOTICES.md"))
       .toContain("GNOME gitg classic icon");
-    expect(source("THIRD_PARTY_NOTICES.md"))
+    expect(source("licenses/THIRD_PARTY_NOTICES.md"))
       .toContain("Crystal Clear configure icon");
     expect(xp).not.toContain("desktop-explorer-pane-caption");
     expect(dataWorkspaceSurface).toContain("showExplorerToolbar={false}");

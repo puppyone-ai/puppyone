@@ -158,7 +158,7 @@ store. It does not execute the user's Pi binary or load the user's Pi profile.
 
 Pi is Copyright (c) 2025 Mario Zechner and licensed under the MIT License. The
 complete license and immutable source-adoption record are distributed at
-`vendor/pi-kernel/LICENSE` and `vendor/pi-kernel/SOURCE_ADOPTION.json`.
+`licenses/pi-kernel/LICENSE` and `licenses/pi-kernel/SOURCE_ADOPTION.json`.
 
 ## Claude Agent SDK
 
@@ -168,7 +168,7 @@ Claude Code backend. PuppyOne does not redistribute the SDK's optional
 platform executable; the backend uses the user's canonical Claude Code
 installation. The SDK is © Anthropic PBC, all rights reserved, and its use is
 subject to Anthropic's applicable legal agreements. The package license notice is retained at
-`vendor/claude-agent-sdk/LICENSE.md`; current terms are linked from
+`licenses/claude-agent-sdk/LICENSE.md`; current terms are linked from
 https://code.claude.com/docs/en/legal-and-compliance.
 
 Anthropic's published authentication policy does not permit third-party
@@ -191,8 +191,8 @@ Claudian credential stores, prompts, conversation persistence and Obsidian
 integration are not included.
 
 Claudian is licensed under the MIT License. The complete license, source map and
-CycloneDX record are distributed in `vendor/claudian/LICENSE`,
-`vendor/claudian/SOURCE_ADOPTION.md` and `vendor/claudian/SBOM.cdx.json`.
+CycloneDX record are distributed in `licenses/claudian/LICENSE`,
+`licenses/claudian/SOURCE_ADOPTION.md` and `licenses/claudian/SBOM.cdx.json`.
 
 ## saxes
 

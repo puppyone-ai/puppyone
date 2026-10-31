@@ -30,7 +30,8 @@ const retiredPaths = [
   "src/components/ChangesWorkspace.tsx",
   "src/components/CloudSidebar.tsx",
   "src/components/DesktopUtilityViews.tsx",
-  "vendor/shared-ui",
+  "sub-themes",
+  "vendor",
 ];
 
 for (const relativePath of requiredPaths) {
@@ -44,11 +45,11 @@ for (const relativePath of retiredPaths) {
   }
 }
 
-const allowedVendorEntries = new Set(["claude-agent-sdk", "claudian", "pi-kernel"]);
-for (const entry of readdirSync(path.join(repoRoot, "vendor"), { withFileTypes: true })) {
+const allowedLicenseEntries = new Set(["THIRD_PARTY_NOTICES.md", "claude-agent-sdk", "claudian", "pi-kernel"]);
+for (const entry of readdirSync(path.join(repoRoot, "licenses"), { withFileTypes: true })) {
   if (entry.name.startsWith(".")) continue;
-  if (!allowedVendorEntries.has(entry.name)) {
-    errors.push(`vendor/ is reserved for pinned third-party sources; move ${entry.name} to packages/ or another owned domain`);
+  if (!allowedLicenseEntries.has(entry.name)) {
+    errors.push(`licenses/ is reserved for third-party license and provenance records; move ${entry.name} to an owned domain`);
   }
 }
 

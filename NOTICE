@@ -30,11 +30,11 @@ third-party components include, but are not limited to:
   - JSZip                              (MIT OR GPL-3.0-or-later; MIT selected)
   - saxes                              (ISC License)
   - Commander.js                       (MIT License)
-  - OpenCode (anomalyco/opencode)      (MIT License; see THIRD_PARTY_NOTICES.md)
+  - OpenCode (anomalyco/opencode)      (MIT License; see licenses/THIRD_PARTY_NOTICES.md)
   - Claudian (YishenTu/claudian)       (MIT License; frontend reference only)
-  - B00merang Windows-XP icon theme    (GPL-2.0; see THIRD_PARTY_NOTICES.md)
-  - Git official logomark              (CC BY 3.0; see THIRD_PARTY_NOTICES.md)
-  - Crystal Clear configure icon       (LGPL-2.1-or-later; see THIRD_PARTY_NOTICES.md)
+  - B00merang Windows-XP icon theme    (GPL-2.0; see licenses/THIRD_PARTY_NOTICES.md)
+  - Git official logomark              (CC BY 3.0; see licenses/THIRD_PARTY_NOTICES.md)
+  - Crystal Clear configure icon       (LGPL-2.1-or-later; see licenses/THIRD_PARTY_NOTICES.md)
 
 For the full text of each component's license, please refer to the
 upstream project. Inclusion of a component in this list does not imply
