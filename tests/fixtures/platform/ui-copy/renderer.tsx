@@ -1,6 +1,5 @@
 // Real product components and styles; only external services use disposable fixtures.
 import '../../../../src/styles/cascade.css';
-import '../../../../src/cloud-globals.css';
 import '../../../../src/styles.css';
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';

@@ -2,7 +2,6 @@ import type { Plugin } from "vite";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import autoprefixer from "autoprefixer";
-import tailwindcss from "tailwindcss";
 import { fileURLToPath, URL } from "node:url";
 import path from "node:path";
 import { rendererOutputLeasePlugin } from "./tooling/desktop/build/renderer-output-lease-plugin.mjs";
@@ -46,7 +45,7 @@ export default defineConfig({
   base: "./",
   plugins: [rendererOutputLeasePlugin(), cloudConfigurationPlugin(), react(), cascadeBootstrapPlugin(), desktopContentSecurityPolicyPlugin],
   clearScreen: false,
-  css: { postcss: { plugins: [tailwindcss(), autoprefixer()] } },
+  css: { postcss: { plugins: [autoprefixer()] } },
   resolve: {
     alias: [
       {

@@ -14,7 +14,6 @@ import { createRoot } from "react-dom/client";
 import { closeAllDocumentWorkingCopies, closeDocumentWorkingCopy, getDocumentWorkingCopiesUnderResource } from "../../../../packages/shared-ui/src/editor/document-session/documentWorkingCopies";
 import { editorTaskScheduler } from "../../../../packages/shared-ui/src/editor/runtime/EditorTaskScheduler";
 import { parseSpreadsheetInWorker } from "../../../../packages/shared-ui/src/editor/viewers/office/spreadsheetPreviewClient";
-import "../../../../src/cloud-globals.css";
 import englishCatalog from "../../../../src/localization/catalog-loaders/en";
 import "../../../../src/styles.css";
 import "../../../../src/styles/cascade.css";

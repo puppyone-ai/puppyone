@@ -5,7 +5,6 @@ import "@puppyone/shared-ui/shared-ui.css";
 import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { parseWorkspaceResourceReference } from "../../../../shared/workspace-resource-reference.mjs";
-import "../../../../src/cloud-globals.css";
 import { useResourceDragExport } from "../../../../src/features/data-workspace/useResourceDragExport";
 import { useDesktopEditorWorkbench } from "../../../../src/features/editor-workbench/controller/useDesktopEditorWorkbench";
 import { DesktopEditorSplitView } from "../../../../src/features/editor-workbench/layout/DesktopEditorSplitView";

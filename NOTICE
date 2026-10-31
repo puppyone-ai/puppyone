@@ -50,7 +50,6 @@ third-party components include, but are not limited to:
   - SheetJS Community Edition          (Apache License 2.0)
   - JSZip                              (MIT OR GPL-3.0-or-later; MIT selected)
   - saxes                              (ISC License)
-  - Tailwind CSS                       (MIT License)
   - Commander.js                       (MIT License)
   - Docker                             (Apache License 2.0)
   - E2B                                (Apache License 2.0)

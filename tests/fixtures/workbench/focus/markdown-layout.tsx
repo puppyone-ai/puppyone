@@ -20,7 +20,6 @@ import {
 import "@puppyone/shared-ui/shared-ui.css";
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
-import "../../../../src/cloud-globals.css";
 import { DesktopEditorSplitView } from "../../../../src/features/editor-workbench/layout/DesktopEditorSplitView";
 import englishCatalog from "../../../../src/localization/catalog-loaders/en";
 import "../../../../src/styles.css";
