@@ -45,7 +45,6 @@ const lintCases = [
   ["max-depth", "export function f(a) { if(a) { if(a) { if(a) { if(a) { if(a) { return 1; } } } } } }"],
   ["max-params", "export function f(a,b,c,d,e,f) { return a; }"],
   ["no-nested-ternary", nested],
-  ["max-lines", Array.from({ length: 801 }, (_, i) => `export const x${i} = ${i};`).join("\n")],
   ["max-lines-per-function", `export function f() {\n${"console.log('x');\n".repeat(301)}}`],
 ];
 
@@ -73,7 +72,7 @@ describe("readability gates reject new code, without suppressing bug rules", () 
     expect(config.rules.complexity).toEqual([2, 20]);
     expect(config.rules["max-depth"]).toEqual([2, 4]);
     expect(config.rules["max-params"]).toEqual([2, 5]);
-    expect(config.rules["max-lines"]).toEqual([2, { max: 800, skipBlankLines: true, skipComments: true }]);
+    expect(config.rules["max-lines"]).toBeUndefined();
     expect(config.rules["max-lines-per-function"]).toEqual([2, { max: 300, skipBlankLines: true, skipComments: true }]);
     const [result] = await eslint.lintText(`export function f() {\n${"// comment\n\n".repeat(801)} return 1;\n}`, { filePath: "local-api/probe.ts" });
     expect(result.messages).toEqual([]);

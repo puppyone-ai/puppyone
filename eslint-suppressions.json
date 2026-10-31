@@ -1,17 +1,11 @@
 {
   "electron/app-preview-runtime.mjs": {
-    "max-lines": {
-      "count": 1
-    },
     "max-lines-per-function": {
       "count": 1
     }
   },
   "electron/cloud-auth-service.mjs": {
     "complexity": {
-      "count": 1
-    },
-    "max-lines": {
       "count": 1
     },
     "max-lines-per-function": {
@@ -21,9 +15,6 @@
   "electron/main.mjs": {
     "complexity": {
       "count": 2
-    },
-    "max-lines": {
-      "count": 1
     }
   },
   "electron/main/agent/agent-events.mjs": {
@@ -782,9 +773,6 @@
     "complexity": {
       "count": 5
     },
-    "max-lines": {
-      "count": 1
-    },
     "max-params": {
       "count": 1
     },
@@ -801,9 +789,6 @@
     "complexity": {
       "count": 2
     },
-    "max-lines": {
-      "count": 1
-    },
     "max-lines-per-function": {
       "count": 1
     },
@@ -814,9 +799,6 @@
   "packages/shared-ui/src/data/ExplorerTree.tsx": {
     "complexity": {
       "count": 3
-    },
-    "max-lines": {
-      "count": 1
     },
     "max-lines-per-function": {
       "count": 1
@@ -1194,9 +1176,6 @@
     }
   },
   "packages/shared-ui/src/editor/viewers/context-map/ContextMapViewer.tsx": {
-    "max-lines": {
-      "count": 1
-    },
     "max-lines-per-function": {
       "count": 1
     },
@@ -1206,9 +1185,6 @@
   },
   "packages/shared-ui/src/editor/viewers/context-map/contextMapLayout.ts": {
     "max-depth": {
-      "count": 1
-    },
-    "max-lines": {
       "count": 1
     },
     "no-nested-ternary": {
@@ -1241,9 +1217,6 @@
   },
   "packages/shared-ui/src/editor/viewers/csv/CsvTableEditor.tsx": {
     "complexity": {
-      "count": 1
-    },
-    "max-lines": {
       "count": 1
     },
     "max-lines-per-function": {
@@ -1322,9 +1295,6 @@
   "packages/shared-ui/src/editor/viewers/office/OfficeViewer.tsx": {
     "complexity": {
       "count": 4
-    },
-    "max-lines": {
-      "count": 1
     },
     "max-lines-per-function": {
       "count": 1
@@ -1423,11 +1393,6 @@
       "count": 3
     }
   },
-  "shared/agent-contract/types.ts": {
-    "max-lines": {
-      "count": 1
-    }
-  },
   "shared/database-preview/contract.mjs": {
     "no-nested-ternary": {
       "count": 4
@@ -1465,9 +1430,6 @@
   },
   "src/App.tsx": {
     "complexity": {
-      "count": 1
-    },
-    "max-lines": {
       "count": 1
     },
     "max-lines-per-function": {
@@ -1796,9 +1758,6 @@
     "complexity": {
       "count": 1
     },
-    "max-lines": {
-      "count": 1
-    },
     "no-nested-ternary": {
       "count": 5
     }
@@ -1820,9 +1779,6 @@
   },
   "src/features/data-workspace/nodeActions.tsx": {
     "complexity": {
-      "count": 1
-    },
-    "max-lines": {
       "count": 1
     },
     "no-nested-ternary": {
@@ -2252,9 +2208,6 @@
   },
   "src/lib/cloudApi.ts": {
     "complexity": {
-      "count": 1
-    },
-    "max-lines": {
       "count": 1
     },
     "max-params": {
