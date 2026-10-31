@@ -1,4 +1,4 @@
-import manifestJson from "./presetViewerManifest.json";
+import manifestJson from "../../../../../shared/presetViewerManifest.json";
 import { parsePresetViewerManifest, type PresetViewerDefinition } from "../../../../../shared/presetViewerManifest.js";
 import type { CoreViewerCapability } from "./viewerContract";
 

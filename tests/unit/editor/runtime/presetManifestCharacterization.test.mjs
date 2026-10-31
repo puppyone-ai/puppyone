@@ -15,7 +15,7 @@ vi.mock("node:module", async (importOriginal) => {
 async function loadManifest(runtime, input) {
   vi.resetModules();
   fixture.current = input;
-  vi.doMock("../../../../packages/shared-ui/src/editor/registry/presetViewerManifest.json", () => ({ default: input }));
+  vi.doMock("../../../../shared/presetViewerManifest.json", () => ({ default: input }));
   try {
     const module = runtime === "main"
       ? await import("../../../../electron/main/viewer-packs/preset-viewer-manifest.mjs")

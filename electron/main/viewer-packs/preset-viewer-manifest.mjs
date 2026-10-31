@@ -2,7 +2,7 @@ import { parsePresetViewerManifest } from "../../../shared/presetViewerManifest.
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const manifestJson = require("../../../packages/shared-ui/src/editor/registry/presetViewerManifest.json");
+const manifestJson = require("../../../shared/presetViewerManifest.json");
 
 export const PRESET_VIEWER_MANIFEST = parsePresetViewerManifest(manifestJson, "main");
 

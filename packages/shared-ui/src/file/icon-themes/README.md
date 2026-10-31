@@ -5,7 +5,7 @@ File-format detection stays outside this directory. A theme receives a semantic
 
 ## Classification boundary
 
-- `core/fileFormats.json` is the source of truth for product-family identity.
+- `shared/fileFormats.json` is the source of truth for product-family identity.
   Formats such as Word, Excel, and PowerPoint declare `semanticKind` there.
 - Common formats derive their semantic kind deterministically from viewer and
   category. Icon themes never inspect extensions, MIME types, or filenames.

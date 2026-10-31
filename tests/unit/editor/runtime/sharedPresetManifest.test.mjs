@@ -59,7 +59,7 @@ describe("shared preset manifest parser", () => {
       for (const file of [
         "electron/main/viewer-packs/preset-viewer-manifest.mjs",
         "shared/presetViewerManifest.js",
-        "packages/shared-ui/src/editor/registry/presetViewerManifest.json",
+        "shared/presetViewerManifest.json",
       ]) {
         mkdirSync(path.dirname(path.join(directory, file)), { recursive: true });
         copyFileSync(new URL(`../../../../${file}`, import.meta.url), path.join(directory, file));

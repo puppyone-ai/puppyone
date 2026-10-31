@@ -116,7 +116,7 @@ for (const relativePath of localApiFiles) {
 }
 
 const formatPolicy = read("electron/local-api/files/file-format-policy.mjs");
-if (!formatPolicy.includes("packages/shared-ui/src/core/fileFormats.json")) {
+if (!formatPolicy.includes("shared/fileFormats.json")) {
   errors.push("the local file-format policy must consume the canonical Shared UI registry");
 }
 

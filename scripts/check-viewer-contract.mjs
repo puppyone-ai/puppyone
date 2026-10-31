@@ -8,7 +8,7 @@ import { getPresetViewerDefinitionForViewerId } from "../electron/main/viewer-pa
 
 const require = createRequire(import.meta.url);
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const formatRegistry = require("../packages/shared-ui/src/core/fileFormats.json");
+const formatRegistry = require("../shared/fileFormats.json");
 const errors = [];
 const mainSource = readFileSync(path.join(repoRoot, "electron/main.mjs"), "utf8");
 
