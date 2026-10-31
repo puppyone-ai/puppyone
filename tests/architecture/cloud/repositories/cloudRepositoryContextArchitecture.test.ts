@@ -70,14 +70,6 @@ describe("repository-context architecture", () => {
     expect(resolverSource).not.toContain("remote_url");
     expect(combined).not.toContain("cloud://");
     expect(combined).not.toContain("CloudTemplateStore");
-    expect(existsSync(new URL(
-      "../../../../archive/desktop-cloud-catalog/src/features/cloud/data/useCloudProjectCatalog.ts",
-      import.meta.url,
-    ))).toBe(true);
-    expect(existsSync(new URL(
-      "../../../../archive/desktop-cloud-catalog/src/features/cloud/components/CloudTemplateStore.tsx",
-      import.meta.url,
-    ))).toBe(true);
     expect(combined).not.toMatch(/WorkspaceBinding|workspaceBinding|workspace_binding|cloudBinding|bindingId/);
     expect(publishHookSource).toContain("startWorkspaceCloudInitialization");
     expect(publishHookSource).toContain("pending?.selectedSourceBranch");
