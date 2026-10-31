@@ -79,7 +79,7 @@ import {
   showHomepage,
 } from "./lib/localFiles";
 import { describeProjectOpening } from "./features/app-shell/window-project/projectOpening";
-import { windowProjectStore, useWindowProject } from "./features/app-shell/window-project/windowProjectStore";
+import { showWindowProject, useWindowProject, windowProjectStore } from "./features/app-shell/window-project/windowProjectStore";
 import { useProjectNavigation } from "./features/app-shell/window-project/useProjectNavigation";
 import { ProjectNavigationFailure } from "./features/app-shell/ProjectNavigationFailure";
 import { CloudOpeningError, describeCloudOpeningFailure } from "./features/cloud/cloudOpeningFailure";
@@ -317,7 +317,8 @@ function AppContent() {
     sessionRestoring: cloudSessionRestoring,
     environment: { apiBaseUrl: desktopCloudApiBaseUrl, source: "default", cloudRemote: null },
   })), [cloudAuthStatus, cloudSession, cloudSessionRestoring, desktopCloudApiBaseUrl]);
-  const accountCloud = useAccountCloudWorkspace({ enabled: cloudEnabled, session: activeCloudSession, apiBaseUrl: desktopCloudApiBaseUrl });
+  const accountCloud = useAccountCloudWorkspace({ enabled: cloudEnabled, session: activeCloudSession, apiBaseUrl: desktopCloudApiBaseUrl,
+    shown: useWindowProject((project) => project.shown), onShow: showWindowProject });
   const cloudWorkspaceActive = accountCloud.active;
   const { useLocal: returnToLocalWorkspace } = accountCloud;
   const [activeCloudSection, setActiveCloudSection] = useState<CloudWorkspaceSection>("initialize");

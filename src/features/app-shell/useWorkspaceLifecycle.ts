@@ -1,10 +1,8 @@
-import { flushSync } from "react-dom";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   WorkbenchWorkspaceContext,
   createWorkbenchWorkspace,
   createWorkspaceFolder,
-  type WorkbenchWorkspace,
   type Workspace,
 } from "@puppyone/shared-ui";
 import {
@@ -43,7 +41,8 @@ import {
   mergeWorkspaceLists,
 } from "../../lib/workspaceHomeModel";
 import type { RecentWorkspaceHomeItem } from "../../lib/workspaceHomeModel";
-import type { WorkspaceEntryIntent, WorkspaceEntryKind } from "./workspaceEntryBootstrap";
+import type { WorkspaceEntryKind } from "./workspaceEntryBootstrap";
+import { useWindowProject, windowProjectStore } from "./window-project/windowProjectStore";
 
 export type { WorkspaceEntryKind } from "./workspaceEntryBootstrap";
 
@@ -60,15 +59,15 @@ export function useWorkspaceLifecycle({
 }) {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [recentWorkspaceItems, setRecentWorkspaceItems] = useState<RecentWorkspaceHomeItem[]>([]);
-  const [workbenchWorkspace, setWorkbenchWorkspace] = useState<WorkbenchWorkspace | null>(null);
+  const workbenchWorkspace = useWindowProject((project) => project.folders);
   const [restoringWorkspace, setRestoringWorkspace] = useState(true);
   // Recents arrive without modification dates, so they are not in Homepage order yet.
   const [recentWorkspacesSettled, setRecentWorkspacesSettled] = useState(false);
   const [initialCloudProject, setInitialCloudProject] = useState<CloudProjectWindowTarget | null>(null);
   const [restoreWorkspaceError, setRestoreWorkspaceError] = useState<string | null>(null);
-  const [workspaceEntryIntent, setWorkspaceEntryIntent] = useState<WorkspaceEntryIntent | null>(null);
+  const workspaceEntryIntent = useWindowProject((project) => project.entry);
   const consumeWorkspaceEntryIntent = useCallback((intentId: string) => {
-    setWorkspaceEntryIntent((current) => current?.id === intentId ? null : current);
+    windowProjectStore.setState((project) => project.entry?.id === intentId ? { entry: null } : project);
   }, []);
   const recentWorkspaceRequestRef = useRef(0);
   const navigationRequestRef = useRef(0);
@@ -100,12 +99,12 @@ export function useWorkspaceLifecycle({
     const primaryWorkspace = nextWorkspaces.find(({ path }) => path === entry.workspacePath)
       ?? nextWorkspaces[0]!;
     const entryKind = entry.kind ?? "restored";
-    setWorkspaceEntryIntent({
+    const workspaceEntry = {
       id: `workspace-entry:${++workspaceEntrySequenceRef.current}`,
       kind: entryKind,
       workspacePath: primaryWorkspace.path,
       preferredOpenPath: entry.preferredOpenPath ?? null,
-    });
+    };
     setWorkspaces((current) => {
       const nextIds = new Set(nextWorkspaces.map((item) => item.id));
       return [...nextWorkspaces, ...current.filter((item) => !nextIds.has(item.id))];
@@ -114,7 +113,7 @@ export function useWorkspaceLifecycle({
       ...(workbenchWorkspaceId ? { id: workbenchWorkspaceId } : {}),
     });
     workbenchWorkspaceContextRef.current = new WorkbenchWorkspaceContext(nextWorkbenchWorkspace);
-    setWorkbenchWorkspace(nextWorkbenchWorkspace);
+    windowProjectStore.setState({ folders: nextWorkbenchWorkspace, entry: workspaceEntry, shown: "local" });
     setRestoreWorkspaceError(null);
     onWorkspaceActivated();
   }, [onWorkspaceActivated]);
@@ -129,7 +128,7 @@ export function useWorkspaceLifecycle({
   ) => {
     if (nextWorkspaces.length === 0) {
       workbenchWorkspaceContextRef.current = null;
-      setWorkbenchWorkspace(null);
+      windowProjectStore.setState({ folders: null });
       onWorkspaceCleared();
       return;
     }
@@ -145,7 +144,7 @@ export function useWorkspaceLifecycle({
       const nextIds = new Set(nextWorkspaces.map((item) => item.id));
       return [...nextWorkspaces, ...current.filter((item) => !nextIds.has(item.id))];
     });
-    setWorkbenchWorkspace(nextWorkbenchWorkspace);
+    windowProjectStore.setState({ folders: nextWorkbenchWorkspace });
     setRestoreWorkspaceError(null);
     onWorkspaceActivated();
   }, [activateWorkspaceComposition, onWorkspaceActivated, onWorkspaceCleared]);
@@ -210,15 +209,13 @@ export function useWorkspaceLifecycle({
       path: folderPath,
       placement: "current-window",
     });
-    // Navigation's pending target clears on a synchronous render, ahead of ordinary
-    // state. Commit the workspace first, or the Homepage shows between the two.
-    if (request === navigationRequestRef.current) flushSync(() => handleWorkspaceOpenResult(result, entryKind));
+    if (request === navigationRequestRef.current) handleWorkspaceOpenResult(result, entryKind);
   }, [handleWorkspaceOpenResult]);
 
   const openDroppedWorkspace = useCallback(async (folder: File) => {
     const request = ++navigationRequestRef.current;
     const result = await openDroppedWorkspaceTarget(folder);
-    if (request === navigationRequestRef.current) flushSync(() => handleWorkspaceOpenResult(result));
+    if (request === navigationRequestRef.current) handleWorkspaceOpenResult(result);
   }, [handleWorkspaceOpenResult]);
 
   const openFolder = useCallback(async () => {
@@ -363,19 +360,18 @@ export function useWorkspaceLifecycle({
         : folder
     ));
     const nextWorkspace = await context.replaceFolders(renamedFolders);
-    if (workbenchWorkspaceContextRef.current === context) setWorkbenchWorkspace(nextWorkspace);
+    if (workbenchWorkspaceContextRef.current === context) windowProjectStore.setState({ folders: nextWorkspace });
   }, []);
 
   const clearWorkspace = useCallback(() => {
-    setWorkspaceEntryIntent(null);
     navigationRequestRef.current += 1;
     workbenchWorkspaceContextRef.current = null;
-    setWorkbenchWorkspace(null);
+    windowProjectStore.setState({ folders: null, entry: null });
     onWorkspaceCleared();
   }, [onWorkspaceCleared]);
 
   const forgetActiveWorkspace = useCallback(async () => {
-    setWorkspaceEntryIntent(null);
+    windowProjectStore.setState({ entry: null });
     const navigation = ++navigationRequestRef.current;
     const currentWorkspaceId = workspace?.id ?? null;
     await forgetLastWorkspace();
@@ -385,7 +381,7 @@ export function useWorkspaceLifecycle({
       setWorkspaces((current) => current.filter((item) => item.id !== currentWorkspaceId));
       setRecentWorkspaceItems((current) => current.filter((item) => item.workspace.id !== currentWorkspaceId));
     }
-    setWorkbenchWorkspace(null);
+    windowProjectStore.setState({ folders: null });
     workbenchWorkspaceContextRef.current = null;
     setRestoreWorkspaceError(null);
     setRestoringWorkspace(false);

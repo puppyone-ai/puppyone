@@ -31,8 +31,8 @@ const handle = ipcMain.handle.bind(ipcMain);
 ipcMain.handle = (channel, listener) => handle(channel, async (event, ...args) => {
   if (channel === "workspace:open-current" || channel === "workspace:read-file") await wait(350);
   if (channel === "workspace:open-current" && String(args[0]).endsWith("Project C")) throw new Error("Fixture folder is unavailable");
-  // Longer than the restoring mark's delay, so a slow start is the one observed.
-  if (channel === "window:get-initial-workspace") await wait(700);
+  // Well past the restoring mark's delay, so a slow start is the one observed even on a busy machine.
+  if (channel === "window:get-initial-workspace") await wait(1500);
   return listener(event, ...args);
 });
 

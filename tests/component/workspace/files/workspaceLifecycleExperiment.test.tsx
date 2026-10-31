@@ -4,6 +4,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { INITIAL_WINDOW_PROJECT, windowProjectStore } from "../../../../src/features/app-shell/window-project/windowProjectStore";
 import {
   createWorkspaceResourceUri,
   type DataPort,
@@ -51,6 +52,7 @@ vi.mock("../../../../src/lib/localFiles", () => localFiles);
 let root: Root | null = null;
 
 beforeEach(() => {
+  windowProjectStore.setState(INITIAL_WINDOW_PROJECT, true);
   localFiles.getInitialWorkspace.mockResolvedValue({
     path: null,
     workspace: null,

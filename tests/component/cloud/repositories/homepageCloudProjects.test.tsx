@@ -1,7 +1,7 @@
 import { workspaceFixtureBridge, fixtureWorkspaceWatch, fileVersion, liveEntry } from "../../../fixtures/cloud/repositories/liveWorkspace";
 import { nativeSnapshot } from "../../../fixtures/cloud/repositories/nativeRepository";
 /** @vitest-environment happy-dom */
-import { act } from "react";
+import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initializeDesktopPreferences } from "../../../../src/preferencesStore";
@@ -39,7 +39,8 @@ const appearance = createTestSurfaceAppearance();
 function Harness({ currentSession = session, visible = true, enabled = true, localItems = [local] }: {
   currentSession?: DesktopCloudSession | null; visible?: boolean; enabled?: boolean; localItems?: RecentWorkspaceHomeItem[];
 }) {
-  account = useAccountCloudWorkspace({ enabled, session: currentSession, apiBaseUrl: API });
+  const [shown, onShow] = useState<"local" | "cloud">("local");
+  account = useAccountCloudWorkspace({ enabled, shown, onShow, session: currentSession, apiBaseUrl: API });
   home = useHomepageCloudProjects({ enabled, visible: visible && !account.active, session: currentSession, apiBaseUrl: API, local: localItems });
   return visible && !account.active ? <MinimalOnboarding appearance={appearance} projectItems={home.items}
     onChooseWorkspace={async () => {}}
