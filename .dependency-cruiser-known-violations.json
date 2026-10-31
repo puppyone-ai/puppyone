@@ -1,6 +1,24 @@
 [
   {
     "type": "dependency",
+    "from": "src/components/MinimalOnboarding.tsx",
+    "to": "src/features/app-shell/ProjectEntryFlow.tsx",
+    "rule": {
+      "severity": "error",
+      "name": "composition-root-only"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/components/MinimalOnboarding.tsx",
+    "to": "src/features/app-shell/useWorkspaceFolderDrop.ts",
+    "rule": {
+      "severity": "error",
+      "name": "composition-root-only"
+    }
+  },
+  {
+    "type": "dependency",
     "from": "src/components/ProjectShell.tsx",
     "to": "src/features/app-shell/auxiliary/index.ts",
     "rule": {
@@ -30,24 +48,6 @@
     "type": "dependency",
     "from": "src/components/ProjectShell.tsx",
     "to": "src/features/app-shell/workspace-surfaces/index.ts",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/components/MinimalOnboarding.tsx",
-    "to": "src/features/app-shell/ProjectEntryFlow.tsx",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/components/MinimalOnboarding.tsx",
-    "to": "src/features/app-shell/useWorkspaceFolderDrop.ts",
     "rule": {
       "severity": "error",
       "name": "composition-root-only"
@@ -7549,15 +7549,6 @@
     "type": "dependency",
     "from": "src/features/cloud/routes/CloudRouter.tsx",
     "to": "src/features/source-control/remotes.ts",
-    "rule": {
-      "severity": "error",
-      "name": "public-domain-entry-src-features-cloud"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/features/cloud/routes/cloudRoutes.ts",
-    "to": "src/features/automation/automationDomain.ts",
     "rule": {
       "severity": "error",
       "name": "public-domain-entry-src-features-cloud"

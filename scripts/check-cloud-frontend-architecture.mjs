@@ -141,7 +141,6 @@ for (const requiredRouteContract of [
 for (const stableSection of [
   'id: "contents"',
   'id: "history"',
-  'id: "automation"',
   'id: "mcp"',
   'id: "cli"',
   'id: "git-sync"',
