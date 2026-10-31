@@ -39,7 +39,7 @@ const packageMetadata = {
     asar: true,
     extraResources: [{ from: "vendor/opencode", to: "opencode" }],
     mac: { category: "public.app-category.productivity" },
-    dmg: { background: "build/dmg-background.tiff" },
+    dmg: { background: "assets/installer/dmg-background.tiff" },
   },
 };
 
@@ -169,7 +169,7 @@ describe("target-driven Electron builder configuration", () => {
         identity: "-",
         notarize: false,
       },
-      dmg: { background: "build/dmg-background.tiff" },
+      dmg: { background: "assets/installer/dmg-background.tiff" },
     });
     expect(config).not.toHaveProperty("win");
     expect(config).not.toHaveProperty("linux");
