@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const errors = [];
 
-const fixture = JSON.parse(read("contracts/repository-target-v2.json"));
+const fixture = JSON.parse(read("tests/fixtures/cloud/contracts/repository-target-v2.json"));
 if (fixture.contract !== "puppyone.repository-target" || fixture.version !== 2) {
   errors.push("the repository-target fixture must declare contract v2");
 }

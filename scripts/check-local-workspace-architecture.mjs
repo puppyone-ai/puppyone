@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const errors = [];
 
-const publishContract = JSON.parse(read("contracts/cloud-project-publish-v1.json"));
+const publishContract = JSON.parse(read("tests/fixtures/cloud/contracts/cloud-project-publish-v1.json"));
 if (
   publishContract.contract !== "puppyone.cloud-project-publish"
   || publishContract.version !== 1
