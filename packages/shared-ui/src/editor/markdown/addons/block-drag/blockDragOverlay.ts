@@ -117,17 +117,18 @@ export class BlockDragOverlay {
   }
 }
 
+/** The same drawing as lucide's GripVertical, the product's other drag grips. */
 function createGrip(doc: Document): SVGSVGElement {
   const grip = doc.createElementNS(SVG_NAMESPACE, "svg");
   grip.setAttribute("class", "cm-md-block-drag-grip");
-  grip.setAttribute("viewBox", "0 0 10 16");
+  grip.setAttribute("viewBox", "0 0 24 24");
   grip.setAttribute("aria-hidden", "true");
-  for (const x of [2, 8]) {
-    for (const y of [2, 8, 14]) {
+  for (const x of [9, 15]) {
+    for (const y of [5, 12, 19]) {
       const dot = doc.createElementNS(SVG_NAMESPACE, "circle");
       dot.setAttribute("cx", String(x));
       dot.setAttribute("cy", String(y));
-      dot.setAttribute("r", "1.5");
+      dot.setAttribute("r", "2");
       grip.append(dot);
     }
   }

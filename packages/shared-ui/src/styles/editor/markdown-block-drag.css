@@ -47,9 +47,11 @@
     display 120ms allow-discrete;
 }
 
+/* Matches the resting weight of the product's other grips. It appears beside
+   every row being read, so it stays quiet until the pointer reaches it. */
 .markdown-codemirror-editor .cm-md-block-drag-handle.is-visible {
   display: grid;
-  opacity: 1;
+  opacity: 0.62;
   pointer-events: auto;
 
   @starting-style {
@@ -70,6 +72,7 @@
 .markdown-codemirror-editor .cm-md-block-drag-handle:is(:hover, :focus-visible) {
   background: color-mix(in srgb, var(--po-text) 8%, transparent);
   color: var(--po-text-muted);
+  opacity: 1;
 }
 
 .markdown-codemirror-editor .cm-md-block-drag-handle:active {
@@ -85,8 +88,8 @@
 
 .markdown-codemirror-editor .cm-md-block-drag-grip {
   display: block;
-  width: 9px;
-  height: 14.4px;
+  width: 14px;
+  height: 14px;
   fill: currentColor;
   pointer-events: none;
 }
@@ -98,7 +101,9 @@
   left: 0;
   display: none;
   border-radius: 4px;
-  background: color-mix(in srgb, var(--po-accent) 14%, color-mix(in srgb, var(--po-editor-bg) 45%, transparent));
+  background:
+    linear-gradient(var(--po-md-selection-bg), var(--po-md-selection-bg)),
+    color-mix(in srgb, var(--po-editor-bg) 45%, transparent);
 }
 
 .markdown-codemirror-editor .cm-md-block-drag-source.is-visible {

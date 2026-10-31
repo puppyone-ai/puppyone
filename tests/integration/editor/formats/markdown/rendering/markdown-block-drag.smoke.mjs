@@ -145,8 +145,12 @@ const scenarios = {
     const row = await page.call("row", "Short paragraph 1");
     const handle = await page.hover(400, (row.top + row.bottom) / 2);
     await sleep(160); await page.shot("handle-rest");
+    const resting = await page.call("handleLook");
+    assert.deepEqual([resting.dots, resting.width, resting.height], [6, 14, 14], "grip should be the product's 14px drawing");
+    assert(Math.abs(resting.opacity - .62) < .01, `resting opacity ${resting.opacity} should match the product's grips`);
     await page.hover(handle.x, handle.y);
     page.send({ type: "mouseMove", x: handle.x + 1, y: handle.y }); await sleep(160);
+    assert.equal((await page.call("handleLook")).opacity, 1, "hover should bring the handle to full strength");
     await page.shot("handle-hover", { x: Math.round(handle.x) - 40, y: Math.round(handle.y) - 28, width: 240, height: 56 });
     const nested = await page.call("row", "nested b2");
     await page.hover(400, (nested.top + nested.bottom) / 2); await sleep(160); await page.shot("handle-nested");
@@ -155,6 +159,8 @@ const scenarios = {
     const first = await page.call("row", "item b1"), last = await page.call("row", "nested b2");
     await page.press(held);
     await page.dragTo(held.x + 70, held.y + 130); await sleep(180); await page.shot("drag-list");
+    assert((await page.call("selectionColor")).length > 0, "selection token must reach the overlay");
+    assert((await page.call("sourceBackground")).includes("linear-gradient"), "source tint should come from the selection token");
     const { height } = await page.call("ghostAudit");
     assert(Math.abs(height - (last.bottom - first.top)) <= 2, `preview height ${height} should match its block ${last.bottom - first.top}`);
     await page.release(held.x + 70, held.y + 130);

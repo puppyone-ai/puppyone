@@ -99,6 +99,13 @@ const fixture = {
     if (!rect) return null;
     return { x: (rect.left + rect.right) / 2, y: (rect.top + rect.bottom) / 2, kind: part("drag-handle")!.dataset.blockKind };
   },
+  handleLook() {
+    const handle = part("drag-handle")!, grip = handle.querySelector("svg")!;
+    return { opacity: Number(getComputedStyle(handle).opacity), dots: grip.querySelectorAll("circle").length,
+      width: grip.getBoundingClientRect().width, height: grip.getBoundingClientRect().height };
+  },
+  sourceBackground: () => getComputedStyle(part("drag-source")!).backgroundImage,
+  selectionColor: () => getComputedStyle(part("drag-source")!).getPropertyValue("--po-md-selection-bg").trim(),
   handleTransform: () => part("drag-handle")?.style.transform ?? null,
   source: () => shown("drag-source"),
   indicator: () => shown("drop-indicator"),
