@@ -33,7 +33,8 @@ export {
   resolveProjectSwitcherCompactWidth,
   resolveProjectSwitcherRailWidth,
 } from "./projectSwitcherRailGeometry";
-import { projectMatchesTarget, type ProjectNavigationTarget } from "./projectNavigation";
+import { projectMatchesTarget } from "./window-project/projectNavigation";
+import type { ProjectTarget } from "./window-project/windowProjectStore";
 import { getProjectName, type ProjectHomeItem, type RecentWorkspaceHomeItem } from "../../lib/workspaceHomeModel";
 
 export type ProjectSwitcherRailItem = Readonly<{
@@ -52,7 +53,7 @@ type ProjectSwitcherRailProps = Readonly<{
   activeView?: DesktopView;
   activeWorkspace: Workspace;
   activeCloudProjectId?: string | null;
-  pendingProject?: ProjectNavigationTarget | null;
+  pendingProject?: ProjectTarget | null;
   expanded?: boolean;
   recentWorkspaces: readonly RecentWorkspaceHomeItem[];
   projectItems: readonly ProjectHomeItem[];

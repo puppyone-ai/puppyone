@@ -13,7 +13,8 @@ import {
   resolveProjectContextAssetKind,
 } from "./ProjectContextAssetMark";
 import { getWorkspaceParentPathForDisplay, type ProjectHomeItem } from "../../lib/workspaceHomeModel";
-import { projectMatchesTarget, type ProjectNavigationTarget } from "./projectNavigation";
+import { projectMatchesTarget } from "./window-project/projectNavigation";
+import type { ProjectTarget } from "./window-project/windowProjectStore";
 import { DesktopProjectMenuItem } from "./DesktopProjectMenuItem";
 
 export type DesktopWorkspaceSwitcherProps = {
@@ -25,7 +26,7 @@ export type DesktopWorkspaceSwitcherProps = {
   multiRootWorkspacesEnabled: boolean;
   availableProjects?: readonly Workspace[];
   projectItems?: readonly ProjectHomeItem[];
-  pendingProject?: ProjectNavigationTarget | null;
+  pendingProject?: ProjectTarget | null;
   onAddExistingProject?: (folderPath: string) => void;
   onOpenFolder?: () => void;
   onClose: () => void;

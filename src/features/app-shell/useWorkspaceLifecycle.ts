@@ -218,7 +218,7 @@ export function useWorkspaceLifecycle({
   const openDroppedWorkspace = useCallback(async (folder: File) => {
     const request = ++navigationRequestRef.current;
     const result = await openDroppedWorkspaceTarget(folder);
-    if (request === navigationRequestRef.current) handleWorkspaceOpenResult(result);
+    if (request === navigationRequestRef.current) flushSync(() => handleWorkspaceOpenResult(result));
   }, [handleWorkspaceOpenResult]);
 
   const openFolder = useCallback(async () => {

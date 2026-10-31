@@ -97,6 +97,8 @@ export function useAccountCloudWorkspace({ enabled, session, apiBaseUrl }: {
     openingTarget, opening: Boolean(openingTarget), preparation, error, failure,
     cancel, useLocal, openTarget,
     retry: () => { if (lastAttempt.current) return openTarget(lastAttempt.current); },
+    /** The target `retry` would reopen, for a host that sends retries through its own navigation. */
+    lastAttemptedTarget: () => lastAttempt.current,
   };
 }
 export type AccountCloudWorkspace = ReturnType<typeof useAccountCloudWorkspace>;
