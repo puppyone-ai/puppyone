@@ -1,0 +1,261 @@
+#!/usr/bin/env electron
+import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import { createServer as reservePort } from "node:net";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { app, BrowserWindow } from "electron";
+import { createServer } from "vite";
+
+const root = fileURLToPath(new URL("../../../../../../", import.meta.url));
+const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "puppyone-block-drag-"));
+const artifacts = process.env.PUPPYONE_BLOCK_DRAG_ARTIFACT_DIR || temporary;
+await fs.mkdir(artifacts, { recursive: true });
+app.setPath("userData", path.join(temporary, "profile"));
+app.on("window-all-closed", () => {});
+
+const sleep = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+const results = [];
+let vite, port;
+
+async function openFixture(query) {
+  const window = new BrowserWindow({ width: 1200, height: 800, useContentSize: true,
+    show: process.env.PUPPYONE_BLOCK_DRAG_SHOW === "1", paintWhenInitiallyHidden: true,
+    webPreferences: { contextIsolation: true, sandbox: true, backgroundThrottling: false } });
+  await window.loadURL(`http://127.0.0.1:${port}/tests/fixtures/editor/formats/markdown/block-drag.html?${query}`);
+  const evaluate = code => window.webContents.executeJavaScript(code);
+  await evaluate("(async () => { for (let i = 0; i < 3000 && !window.blockDragFixture; i++) await new Promise(r => setTimeout(r, 10)); await window.blockDragFixture.ready(); })()");
+  const call = (name, ...values) => evaluate(`window.blockDragFixture.${name}(${values.map(value => JSON.stringify(value)).join(",")})`);
+  const send = event => window.webContents.sendInputEvent({ ...event, x: Math.round(event.x ?? 0), y: Math.round(event.y ?? 0) });
+  const hover = async (x, y) => {
+    send({ type: "mouseMove", x: 4, y: 4 }); await sleep(30);
+    send({ type: "mouseMove", x, y }); await sleep(60);
+    return call("handle");
+  };
+  const press = async handle => {
+    send({ type: "mouseMove", x: handle.x, y: handle.y }); await sleep(30);
+    send({ type: "mouseDown", button: "left", clickCount: 1, x: handle.x, y: handle.y }); await sleep(30);
+  };
+  const dragTo = async (x, y) => { send({ type: "mouseMove", button: "left", modifiers: ["leftButtonDown"], x, y }); await sleep(30); };
+  const release = async (x, y) => { send({ type: "mouseUp", button: "left", clickCount: 1, x, y }); await sleep(90); };
+  const shot = async name => fs.writeFile(path.join(artifacts, `${name}.png`), (await window.webContents.capturePage()).toPNG());
+  return { window, call, send, hover, press, dragTo, release, shot };
+}
+
+const scenarios = {
+  async "every part of a row targets that row"(page) {
+    const rail = await page.call("rail");
+    for (const [text, kind] of [["Heading 1", "root"], ["Short paragraph 1", "root"], ["item a1", "list-item"],
+      ["nested b1", "list-item"], ["nested b2", "list-item"], ["item c1", "list-item"], ["quote one 1", "root"]]) {
+      const row = await page.call("row", text);
+      const y = (row.top + Math.min(row.bottom, row.top + 30)) / 2;
+      for (const [zone, x] of [["left gutter", rail.left - 60], ["text", rail.left + 8], ["blank space", rail.right - 12]]) {
+        const handle = await page.hover(x, y);
+        assert(handle, `${text} ${zone}: no handle`);
+        assert.equal(handle.kind, kind, `${text} ${zone}: wrong target kind`);
+        assert(handle.y >= row.top - 1 && handle.y <= row.bottom + 1, `${text} ${zone}: handle y ${handle.y} is off row ${row.top}..${row.bottom}`);
+      }
+    }
+  },
+  async "a lone list item is movable"(page) {
+    const row = await page.call("row", "only item");
+    assert((await page.hover(400, (row.top + row.bottom) / 2))?.kind, "no handle on a single-item list");
+  },
+  async "the gap between blocks keeps the handle"(page) {
+    const above = await page.call("row", "Short paragraph 1"), below = await page.call("row", "Long paragraph 1");
+    const nearAbove = await page.hover(400, above.bottom + 2), nearBelow = await page.hover(400, below.top - 2);
+    assert(nearAbove && nearAbove.y < below.top, "gap: expected the block above");
+    assert(nearBelow && nearBelow.y > above.bottom, "gap: expected the block below");
+  },
+  async "a nested item's handle sits beside its own marker"(page) {
+    const rail = await page.call("rail");
+    const row = await page.call("row", "nested b2"), top = await page.call("row", "item a1");
+    const nested = await page.hover(rail.left + 100, (row.top + row.bottom) / 2);
+    const outer = await page.hover(rail.left + 100, (top.top + top.bottom) / 2);
+    assert(nested.x > outer.x + 16, `nested handle ${nested.x} should indent past ${outer.x}`);
+    assert(Math.abs(outer.x - (rail.left - 19)) <= 2, `root item handle ${outer.x} should sit on the rail`);
+  },
+  async "widgets are reachable and align to their first row"(page) {
+    await page.call("setScrollTop", 560); await sleep(160);
+    for (const selector of [".cm-md-code-widget", ".cm-md-table-widget-wrap", ".cm-md-hr-widget"]) {
+      const widget = await page.call("widget", selector);
+      for (const fraction of [.25, .5, .85]) {
+        const handle = await page.hover(widget.left + 40, widget.top + (widget.bottom - widget.top) * fraction);
+        assert(handle, `${selector} at ${fraction}: no handle`);
+        assert(handle.y >= widget.top - 1 && handle.y <= widget.top + 40, `${selector}: handle y ${handle.y} is not on the first row of ${widget.top}`);
+      }
+    }
+    await page.shot("widget-handle");
+  },
+  async "the handle scrolls with its block without help"(page) {
+    const row = await page.call("row", "Short paragraph 1");
+    const handle = await page.hover(400, (row.top + row.bottom) / 2);
+    const placed = await page.call("handleTransform");
+    assert(await page.call("scrollerContainsHandle"), "handle must live inside the scroller");
+    await page.call("setScrollTop", 8); await sleep(120);
+    const moved = await page.call("handle");
+    assert.equal(await page.call("handleTransform"), placed, "scrolling should not reposition the handle from script");
+    assert(Math.abs(handle.y - moved.y - 8) <= 1, `handle should move 8px with the text, moved ${handle.y - moved.y}`);
+  },
+  async "a drag shows the source, a preview, and a stable drop line"(page) {
+    await page.call("setCaret", 2);
+    const before = await page.call("doc");
+    const row = await page.call("row", "Short paragraph 1"), target = await page.call("row", "item a1");
+    const handle = await page.hover(400, (row.top + row.bottom) / 2);
+    await page.press(handle);
+    await page.dragTo(handle.x + 2, handle.y + 2);
+    assert.equal(await page.call("ghost"), null, "drag started inside the threshold");
+    await page.dragTo(handle.x + 40, handle.y + 30);
+    const ghost = await page.call("ghost"), source = await page.call("source");
+    assert.equal(ghost?.text, "Short paragraph 1.", "preview should name the block");
+    assert(Math.abs(ghost.top - (handle.y + 44)) <= 2, `preview should follow the pointer, got ${ghost.top}`);
+    assert(source && source.top <= row.top + 1 && source.bottom >= row.bottom - 1, "source block is not marked");
+    const long = await page.call("row", "Long paragraph 1");
+    await page.dragTo(handle.x + 40, long.bottom - 20);
+    const indicator = await page.call("indicator");
+    assert(indicator, "no drop line after the long paragraph");
+    assert(Math.abs(indicator.left - (await page.call("rail")).left) <= 1, "root drop line should start on the rail");
+    assert(indicator.top > long.bottom - 1 && indicator.bottom < target.top + 1, `drop line ${indicator.top} should sit in the gap ${long.bottom}..${target.top}`);
+    assert.equal(await page.call("activeIsEditor"), true, "the press moved focus off the editor");
+    await page.shot("mid-drag");
+    await page.release(handle.x + 40, long.bottom - 20);
+    const after = await page.call("doc");
+    assert.notEqual(after, before, "drop did not move the block");
+    assert(after.indexOf("Short paragraph 1.") > after.indexOf("Long paragraph 1"), "block landed in the wrong place");
+    assert.equal(await page.call("ghost"), null, "preview outlived the drag");
+    assert.equal(await page.call("source"), null, "source mark outlived the drag");
+  },
+  async "escape cancels a drag cleanly"(page) {
+    const before = await page.call("doc");
+    const row = await page.call("row", "Short paragraph 1");
+    const handle = await page.hover(400, (row.top + row.bottom) / 2);
+    await page.press(handle); await page.dragTo(handle.x, handle.y + 200);
+    assert(await page.call("ghost"), "drag did not start");
+    page.send({ type: "keyDown", keyCode: "Escape" }); await sleep(40);
+    assert.equal(await page.call("ghost"), null, "escape left the preview up");
+    await page.release(handle.x, handle.y + 200);
+    assert.equal(await page.call("doc"), before, "escape still moved the block");
+  },
+  async "selecting text never summons the handle"(page) {
+    const row = await page.call("row", "Long paragraph 1");
+    const y = row.top + 12;
+    page.send({ type: "mouseMove", x: 400, y }); await sleep(40);
+    page.send({ type: "mouseDown", button: "left", clickCount: 1, x: 400, y }); await sleep(30);
+    await page.dragTo(700, y + 40);
+    assert.equal(await page.call("handle"), null, "handle shown during a text selection");
+    await page.release(700, y + 40);
+  },
+  async "turning it off leaves nothing behind"(page) {
+    assert((await page.call("dragDomCount")) > 0, "add-on was not installed");
+    await page.call("setEnabled", false); await sleep(60);
+    assert.equal(await page.call("dragDomCount"), 0, "add-on DOM survived being switched off");
+    const row = await page.call("row", "Short paragraph 1");
+    assert.equal(await page.hover(400, (row.top + row.bottom) / 2), null);
+    await page.call("setEnabled", true); await sleep(60);
+    assert((await page.hover(400, (row.top + row.bottom) / 2))?.kind, "add-on did not come back");
+  },
+};
+
+const longDocumentScenarios = {
+  async "a drop stays where the pointer left it, far from the caret"(page) {
+    await page.call("setCaret", 0);
+    await page.call("scrollToRow", "Short paragraph 8."); await sleep(300);
+    await page.call("scrollToRow", "Short paragraph 8."); await sleep(300);
+    const row = await page.call("row", "Short paragraph 8.");
+    const handle = await page.hover(400, (row.top + row.bottom) / 2);
+    assert.equal(handle?.kind, "root", "expected a root block in the scrolled document");
+    const before = await page.call("scrollTop"), source = await page.call("doc");
+    await page.press(handle);
+    for (let y = handle.y; y <= handle.y + 280; y += 20) await page.dragTo(handle.x, y);
+    await page.release(handle.x, handle.y + 280); await sleep(200);
+    assert.notEqual(await page.call("doc"), source, "drop did not move the block");
+    assert(Math.abs((await page.call("scrollTop")) - before) < 400, `drop jumped from ${before} to ${await page.call("scrollTop")}`);
+  },
+  async "a drag that outruns the parser still lands"(page) {
+    const parsedAtStart = await page.call("parsedTo");
+    assert(parsedAtStart < await page.call("length"), "fixture must outrun the parser");
+    const row = await page.call("row", "Short paragraph 1");
+    const handle = await page.hover(400, (row.top + row.bottom) / 2);
+    await page.press(handle);
+    await page.dragTo(handle.x, handle.y + 40);
+    assert(await page.call("ghost"), "drag did not start");
+    await page.call("setScrollTop", 40000); await sleep(700);
+    assert((await page.call("parsedTo")) > parsedAtStart, "parser did not advance during the drag");
+    assert(await page.call("ghost"), "the drag died when the parser advanced");
+    await page.dragTo(handle.x, 400);
+    await page.release(handle.x, 400);
+    const moved = await page.call("doc");
+    assert(moved.indexOf("Short paragraph 1.") > parsedAtStart, "block did not land past the original parse horizon");
+  },
+  async "hovering stays out of CodeMirror's measure loop"(page) {
+    await page.call("setScrollTop", 9000); await sleep(300);
+    await page.call("instrument");
+    for (let step = 0; step < 200; step += 1) {
+      page.send({ type: "mouseMove", x: 300 + (step % 40) * 4, y: 60 + (step * 3.4) % 680 }); await sleep(8);
+    }
+    await sleep(100);
+    const measures = await page.call("measureCount");
+    assert(measures <= 60, `hover measured ${measures} times for 200 moves`);
+    return { measures };
+  },
+};
+
+const rightToLeftScenarios = {
+  async "a right-to-left document puts the handle on its start side"(page) {
+    const rail = await page.call("rail");
+    const row = await page.call("row", "פסקה שנייה");
+    const handle = await page.hover(rail.left + 100, (row.top + row.bottom) / 2);
+    assert(handle.x > rail.right, `handle ${handle.x} should sit past the right rail ${rail.right}`);
+  },
+};
+
+const frontmatterScenarios = {
+  async "frontmatter offers no handle"(page) {
+    const row = await page.call("row", "title: Hello");
+    if (row) assert.equal(await page.hover(400, (row.top + row.bottom) / 2), null, "frontmatter is draggable");
+    const body = await page.call("row", "Second paragraph");
+    assert((await page.hover(400, (body.top + body.bottom) / 2))?.kind, "body lost its handle");
+  },
+};
+
+async function runAll(query, group) {
+  for (const [name, scenario] of Object.entries(group)) {
+    const page = await openFixture(query);
+    try {
+      const detail = await scenario(page);
+      results.push({ name, ok: true, ...detail });
+    } catch (error) {
+      results.push({ name, ok: false, error: error.message });
+    }
+    page.window.destroy();
+  }
+}
+
+async function run() {
+  const reservation = reservePort(); await new Promise(resolve => reservation.listen(0, "127.0.0.1", resolve));
+  port = reservation.address().port;
+  await new Promise(resolve => reservation.close(resolve));
+  vite = await createServer({ root, cacheDir: path.join(temporary, "vite"), logLevel: "error",
+    optimizeDeps: { entries: ["tests/fixtures/editor/formats/markdown/block-drag.html"] },
+    server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null } });
+  await vite.listen();
+  await runAll("doc=mixed", scenarios);
+  await runAll("doc=long", longDocumentScenarios);
+  await runAll("doc=rtl", rightToLeftScenarios);
+  await runAll("doc=frontmatter", frontmatterScenarios);
+}
+
+const failures = () => results.filter(result => !result.ok);
+const finish = async code => {
+  await Promise.race([vite?.close(), sleep(1500)]);
+  await fs.rm(temporary, { recursive: true, force: true }).catch(() => {});
+  app.exit(code);
+};
+setTimeout(() => { console.error("markdown-block-drag smoke timed out"); app.exit(3); }, 240_000).unref();
+app.whenReady().then(run).then(async () => {
+  for (const result of results) console.log(`${result.ok ? "pass" : "FAIL"}  ${result.name}${result.error ? `\n      ${result.error}` : ""}${result.measures == null ? "" : ` (${result.measures} measures)`}`);
+  console.log(`${results.length - failures().length}/${results.length} scenarios passed`);
+  await fs.writeFile(path.join(artifacts, "result.json"), JSON.stringify({ results }, null, 2));
+  await finish(failures().length ? 1 : 0);
+}).catch(async error => { console.error(error); await finish(1); });

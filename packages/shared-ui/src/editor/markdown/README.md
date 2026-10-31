@@ -16,6 +16,9 @@ hybrid modular-monolith layout:
   shared media-reference grammar/resolution contract; image and video retain
   separate models, plans, DOM lifecycles, and focused tests. Each complex
   feature exports one small `*Feature.ts` definition to composition.
+- `addons/` owns optional editor behaviors that a preference switches on, such
+  as the block drag handle. Each one is a single CodeMirror extension that core
+  never knows about; see `addons/README.md`.
 - `platform/` owns editor-scoped brokers, sessions, security policy, and
   CodeMirror host adapters. Features request capability through these ports.
 - `shared/` contains feature-agnostic widget DOM and measurement primitives.

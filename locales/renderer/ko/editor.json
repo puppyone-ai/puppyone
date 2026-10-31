@@ -195,6 +195,7 @@
   "markdown.ai.openReview": "모든 내용을 보려면 검토를 여세요.",
   "markdown.ai.removed": "에이전트가 제거함",
   "markdown.ambiguousLinkedNote": "{path}(제목이 여러 노트와 일치함)",
+  "markdown.blockDrag.handle": "드래그하여 블록 이동",
   "markdown.code.language": "코드 언어",
   "markdown.code.languagePlaceholder": "언어",
   "markdown.code.source": "소스: {source}",

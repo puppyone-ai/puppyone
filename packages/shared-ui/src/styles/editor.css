@@ -57,6 +57,9 @@
 /* Markdown live preview: table widget, drag handles, context menu */
 @import "./editor/markdown-table-widget.css";
 
+/* Markdown block drag add-on */
+@import "./editor/markdown-block-drag.css";
+
 /* Conflict markers, crash/empty states, misc editor status UI */
 @import "./editor/editor-status.css";
 
