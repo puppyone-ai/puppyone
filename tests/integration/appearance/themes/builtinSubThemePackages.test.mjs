@@ -8,7 +8,7 @@ import { compileThemeCss } from "../../../../electron/main/themes/theme-css-comp
 import { parseSingleFileThemeCss } from "../../../../electron/main/themes/theme-single-file-contract.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-const packagesRoot = path.join(repoRoot, "sub-themes");
+const packagesRoot = path.join(repoRoot, "src/features/themes/builtin");
 const markdownContract = JSON.parse(readFileSync(path.join(repoRoot, "shared/markdown-theme-contract.json"), "utf8"));
 
 function declarationsForSelector(css, selector) {
@@ -58,7 +58,7 @@ describe("built-in Sub Theme package architecture", () => {
   it("parses and compiles every package through the same public token boundary", async () => {
     const themes = [];
     for (const directory of readdirSync(packagesRoot).sort()) {
-      const sourcePath = `sub-themes/${directory}/theme.css`;
+      const sourcePath = `src/features/themes/builtin/${directory}/theme.css`;
       const theme = parseSingleFileThemeCss(
         readFileSync(path.join(repoRoot, sourcePath), "utf8"),
         {
@@ -133,7 +133,7 @@ describe("built-in Sub Theme package architecture", () => {
   });
 
   it("keeps Neutral's Dark chrome unified and distinct from the editor", async () => {
-    const sourcePath = "sub-themes/default-neutral/theme.css";
+    const sourcePath = "src/features/themes/builtin/default-neutral/theme.css";
     const theme = parseSingleFileThemeCss(
       readFileSync(path.join(repoRoot, sourcePath), "utf8"),
       {
@@ -165,7 +165,7 @@ describe("built-in Sub Theme package architecture", () => {
   });
 
   it("keeps Warm's light shell surfaces from leaking into Dark mode", async () => {
-    const sourcePath = "sub-themes/default-warm/theme.css";
+    const sourcePath = "src/features/themes/builtin/default-warm/theme.css";
     const theme = parseSingleFileThemeCss(
       readFileSync(path.join(repoRoot, sourcePath), "utf8"),
       {
@@ -188,7 +188,7 @@ describe("built-in Sub Theme package architecture", () => {
   });
 
   it("keeps Graphite's Dark text and syntax colors readable", async () => {
-    const sourcePath = "sub-themes/default-graphite/theme.css";
+    const sourcePath = "src/features/themes/builtin/default-graphite/theme.css";
     const theme = parseSingleFileThemeCss(
       readFileSync(path.join(repoRoot, sourcePath), "utf8"),
       {
@@ -221,7 +221,7 @@ describe("built-in Sub Theme package architecture", () => {
     expect(globalTokens).not.toContain("data-light-theme-preset=");
     expect(globalTokens).not.toContain("data-dark-theme-preset=");
     expect(globalTokens).not.toContain("--po-surface-panel: #fafafa");
-    expect(fallback).toContain("generated from sub-themes/default-neutral/theme.css");
+    expect(fallback).toContain("generated from src/features/themes/builtin/default-neutral/theme.css");
     expect(fallback).toContain("--po-surface-panel: #fafafa");
   });
 });

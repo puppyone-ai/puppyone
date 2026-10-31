@@ -1,4 +1,4 @@
-/* This file is generated from sub-themes/default-neutral/theme.css. */
+/* This file is generated from src/features/themes/builtin/default-neutral/theme.css. */
 /* It is the lowest cascade layer only; selected Sub Themes override it. */
 :root, :where([data-po-appearance-root]) {
     --po-surface-canvas: #f5f4f0;

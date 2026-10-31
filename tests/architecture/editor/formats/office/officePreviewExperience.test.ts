@@ -28,7 +28,7 @@ const tokenSource = readFileSync(
 const paletteTokenSource = [
   tokenSource,
   ...["default-neutral", "default-warm", "default-graphite"].map((name) => readFileSync(
-    new URL(`../../../../../sub-themes/${name}/theme.css`, import.meta.url),
+    new URL(`../../../../../src/features/themes/builtin/${name}/theme.css`, import.meta.url),
     "utf8",
   )),
 ].join("\n");

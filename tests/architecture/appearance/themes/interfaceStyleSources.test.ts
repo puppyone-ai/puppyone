@@ -33,7 +33,7 @@ describe("Interface style registry", () => {
   it("uses Neutral as the attribute-free fallback and packages Warm independently", () => {
     const tokens = source("src/styles/tokens.css");
     const fallback = source("src/styles/fallback-theme.generated.css");
-    const warm = source("sub-themes/default-warm/theme.css");
+    const warm = source("src/features/themes/builtin/default-warm/theme.css");
 
     expect(fallback).toContain("--po-surface-panel: #fafafa");
     expect(fallback).toContain("--po-header: #ebebeb;");

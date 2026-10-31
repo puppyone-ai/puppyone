@@ -42,7 +42,7 @@ const markdownProjectionCss = readFileSync(
   "utf8",
 );
 const neutralThemeCss = readFileSync(
-  new URL("../../../../../../sub-themes/default-neutral/theme.css", import.meta.url), "utf8",
+  new URL("../../../../../../src/features/themes/builtin/default-neutral/theme.css", import.meta.url), "utf8",
 );
 const markdownCodeMirrorExtensionsSource = readFileSync(
   new URL("../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions.ts", import.meta.url),

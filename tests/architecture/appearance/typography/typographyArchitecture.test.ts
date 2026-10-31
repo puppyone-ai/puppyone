@@ -289,7 +289,7 @@ describe("typography architecture", () => {
     const directPixelFontShorthand = /\bfont\s*:\s*[^;\n}]*\d+(?:\.\d+)?px/i;
     const directPixelCssTypeToken = /--[\w-]*(?:font|text|type|heading|meta|label)[\w-]*size\s*:\s*\d+(?:\.\d+)?px/i;
     const directNumericInlineTypeSize = /\bfontSize\s*(?::|=)\s*(?:\{\s*)?\d+(?:\.\d+)?\b/;
-    const roots = ["src", "packages", "electron", "local-api", "sub-themes", "public"];
+    const roots = ["src", "packages", "electron", "local-api", "public"];
     for (const root of roots) {
       for (const file of sourceFiles(new URL(`../../../../${root}/`, import.meta.url))) {
         const contents = readFileSync(file, "utf8");
@@ -360,7 +360,7 @@ describe("typography architecture", () => {
     expect(agentToolGroupPresentation).toContain("compactRowHeight = STANDARD_CONTROL_SIZE");
 
     const rawControlDimension = /^\s*(?:width|height|min-height)\s*:\s*30px(?:\s*!important)?;/m;
-    for (const root of ["src", "packages/shared-ui/src", "sub-themes"]) {
+    for (const root of ["src", "packages/shared-ui/src"]) {
       for (const file of sourceFiles(new URL(`../../../../${root}/`, import.meta.url))) {
         if (!file.pathname.endsWith(".css")) continue;
         const contents = readFileSync(file, "utf8");
@@ -576,7 +576,7 @@ describe("typography architecture", () => {
     expect(base).toContain("font-feature-settings: normal;");
     expect(base).not.toContain("'cv02'");
     const markdownProjection = source("packages/shared-ui/src/styles/editor/markdown-theme-tokens.generated.css");
-    const markdownTheme = source("sub-themes/default-neutral/theme.css");
+    const markdownTheme = source("src/features/themes/builtin/default-neutral/theme.css");
     expect(markdownProjection).toContain("--po-md-content-font: var(--po-font-editor-content-user, var(--po-host-md-content-font));");
     expect(markdownContent).toContain("--po-editor-content-font: var(--po-md-content-font);");
     expect(markdownContent).toContain("font-family: var(--po-md-code-font);");

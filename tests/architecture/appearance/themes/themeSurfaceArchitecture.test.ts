@@ -93,7 +93,7 @@ describe("appearance surface boundary", () => {
       "default-github",
       "default-newspaper",
       "windows-xp-luna-blue",
-    ].map((name) => `sub-themes/${name}/theme.css`);
+    ].map((name) => `src/features/themes/builtin/${name}/theme.css`);
 
     expect(themeFiles.map((path) => existsSync(new URL(`../../../../${path}`, import.meta.url))))
       .toEqual([true, true, true, true, true, true]);
@@ -131,7 +131,7 @@ describe("appearance surface boundary", () => {
     ];
 
     for (const name of ["default-github", "default-newspaper"]) {
-      const css = source(`sub-themes/${name}/theme.css`);
+      const css = source(`src/features/themes/builtin/${name}/theme.css`);
       for (const token of semanticTokens) {
         expect(css.match(new RegExp(`--po-md-syntax-${token}:`, "g"))).toHaveLength(2);
       }
@@ -139,7 +139,7 @@ describe("appearance surface boundary", () => {
   });
 
   it("keeps the Neutral Markdown syntax palette complete and achromatic", () => {
-    const css = source("sub-themes/default-neutral/theme.css");
+    const css = source("src/features/themes/builtin/default-neutral/theme.css");
     const syntaxColors = [...css.matchAll(/--po-md-syntax-[\w-]+:\s*(#[0-9a-f]{6})/gi)]
       .map((match) => match[1]);
 
@@ -152,7 +152,7 @@ describe("appearance surface boundary", () => {
 
   it("keeps every Markdown-focused syntax color at accessible text contrast", () => {
     for (const name of ["default-neutral", "default-github", "default-newspaper"]) {
-      const css = source(`sub-themes/${name}/theme.css`);
+      const css = source(`src/features/themes/builtin/${name}/theme.css`);
       const backgrounds = [...css.matchAll(/--po-md-code-block-background:\s*(#[0-9a-f]{6})/gi)]
         .map((match) => match[1]);
       const syntaxColors = [...css.matchAll(/--po-md-syntax-[\w-]+:\s*(#[0-9a-f]{6})/gi)]
@@ -173,7 +173,7 @@ describe("appearance surface boundary", () => {
     expect(foundations).toContain('font-family: "PuppyOne Open Sans"');
     expect(foundations).toContain('font-family: "PuppyOne PT Serif"');
     for (const name of ["default-github", "default-newspaper"]) {
-      expect(source(`sub-themes/${name}/theme.css`)).not.toContain("@font-face");
+      expect(source(`src/features/themes/builtin/${name}/theme.css`)).not.toContain("@font-face");
     }
   });
 });
