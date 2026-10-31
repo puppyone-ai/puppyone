@@ -161,6 +161,21 @@
       }
     },
     {
+      "id": "markdown-block-drag",
+      "name": "Markdown block drag gesture",
+      "group": "app",
+      "command": ["npm", "run", "smoke:markdown-block-drag"],
+      "platforms": ["linux", "darwin"],
+      "dependsOn": [],
+      "timeoutSeconds": 240,
+      "attempts": 2,
+      "runtime": "electron",
+      "artifacts": ["{checkDir}/markdown-block-drag/result.json"],
+      "environment": {
+        "PUPPYONE_BLOCK_DRAG_ARTIFACT_DIR": "{checkDir}/markdown-block-drag"
+      }
+    },
+    {
       "id": "table-interaction",
       "name": "Markdown and CSV table selection, editing and geometry",
       "group": "app",

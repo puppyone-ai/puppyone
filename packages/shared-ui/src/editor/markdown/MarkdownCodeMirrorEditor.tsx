@@ -16,7 +16,7 @@ import {
 } from "./markdownCodeMirrorExtensions";
 import { markdownLivePreviewContextExtension } from "./core/editor/markdownLivePreviewContext";
 import { markdownAiEditExtension } from "./core/editor/markdownAiEditExtension";
-import { markdownBlockDragExtension } from "./core/interaction/markdownBlockDrag";
+import { markdownBlockDragExtension } from "./addons/block-drag";
 import { markdownHeadingOutlineExtension } from "./core/interaction/markdownHeadingOutline";
 import { getMarkdownPlanIndex } from "./core/plans/markdownPlanIndex";
 import { createMarkdownLayoutCoordinator } from "./platform/codemirror/layoutCoordinator";

@@ -191,6 +191,12 @@ themes, writing directions and native platforms. Dependency upgrades must pass
 this gate: the shared adapter uses public coordinate queries to flush pending
 CodeMirror measurement before paint.
 
+`npm run smoke:markdown-block-drag` is the `markdown-block-drag` app gate. It
+drives the block drag add-on with real input in Electron and asserts what only
+layout can prove: every part of a row targets that row, a drag keeps focus and
+scroll position, the overlay scrolls natively, and switching the add-on off
+leaves no DOM behind.
+
 ## Sidebar visibility and residual content
 
 `integration/workbench/layout/sidebarVisibility.integration.test.tsx` connects

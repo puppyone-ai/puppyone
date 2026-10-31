@@ -40,16 +40,23 @@ export const markdownBlockRelocationHistoryExtension = invertedEffects.of((trans
 
 export type MarkdownBlockMoveDirection = "up" | "down";
 
+/**
+ * Pure of any scrolling: a drop lands where the pointer already is, and the
+ * selection may be far from the moved block. A caller that wants its result
+ * revealed asks for that itself.
+ */
 export function buildMarkdownBlockMoveTransaction(
   state: EditorState,
-  source: MarkdownMovableBlockRef,
+  requestedSource: MarkdownMovableBlockRef,
   boundary: number,
   userEvent = "move.drop",
 ): TransactionSpec | null {
   if (state.readOnly) return null;
-  const group = getMarkdownMovableBlockGroup(state, source);
+  const group = getMarkdownMovableBlockGroup(state, requestedSource);
   if (!group || group.blocks.length < 2) return null;
   const { blocks, sourceIndex } = group;
+  // Re-read from this state: the caller's reference may predate parser progress.
+  const source = blocks[sourceIndex];
   if (!Number.isInteger(boundary) || boundary < 0 || boundary > blocks.length) return null;
   if (isMarkdownBlockMoveNoop(sourceIndex, boundary)) return null;
 
@@ -152,7 +159,6 @@ export function buildMarkdownBlockMoveTransaction(
       isolateHistory.of("full"),
       markdownBlockRelocationAnnotation.of(relocation),
     ],
-    scrollIntoView: true,
   };
 }
 
@@ -173,7 +179,8 @@ export function moveMarkdownBlock(
     "move.block.keyboard",
   );
   if (!spec) return false;
-  view.dispatch(spec);
+  // The keyboard moves the block holding the caret, so follow it.
+  view.dispatch({ ...spec, scrollIntoView: true });
   return true;
 }
 

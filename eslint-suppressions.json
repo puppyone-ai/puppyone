@@ -953,11 +953,6 @@
       "count": 1
     }
   },
-  "packages/shared-ui/src/editor/markdown/core/interaction/markdownBlockDrag.ts": {
-    "complexity": {
-      "count": 1
-    }
-  },
   "packages/shared-ui/src/editor/markdown/core/plans/markdownBlockExecution.ts": {
     "complexity": {
       "count": 1

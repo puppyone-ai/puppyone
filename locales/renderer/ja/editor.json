@@ -195,6 +195,7 @@
   "markdown.ai.openReview": "すべての内容を表示するにはレビューを開いてください。",
   "markdown.ai.removed": "エージェントによって除去",
   "markdown.ambiguousLinkedNote": "{path}（タイトルが複数のノートに一致）",
+  "markdown.blockDrag.handle": "ドラッグしてブロックを移動",
   "markdown.code.language": "コード言語",
   "markdown.code.languagePlaceholder": "言語",
   "markdown.code.source": "ソース: {source}",

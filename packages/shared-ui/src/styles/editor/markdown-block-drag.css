@@ -1,0 +1,141 @@
+/* The overlay is a zero-height box at the scroller's content origin. Its parts
+   are placed in document coordinates, so the browser scrolls them with the
+   text and they stay outside contentDOM, clear of text layout and selection. */
+.markdown-codemirror-editor .cm-md-block-drag-layer {
+  position: absolute;
+  z-index: 6;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 0;
+  pointer-events: none;
+}
+
+.markdown-codemirror-editor .cm-md-block-drag-handle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
+  display: none;
+  width: 22px;
+  min-width: 22px;
+  max-width: 22px;
+  height: 22px;
+  min-height: 22px;
+  max-height: 22px;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--po-text-subtle);
+  cursor: grab;
+  /* The list marker tokens below are in em, relative to the document text. */
+  font-size: inherit;
+  line-height: 1;
+  opacity: 0.72;
+  outline: 0;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+}
+
+.markdown-codemirror-editor .cm-md-block-drag-handle.is-visible {
+  display: grid;
+}
+
+/* A nested item's marker hangs outside its text, so the handle clears it too.
+   This `translate` composes with the inline `transform` that places the box. */
+.markdown-codemirror-editor .cm-md-block-drag-handle.is-nested {
+  translate: calc(0px - var(--po-md-list-marker-width, 1.25em) - var(--po-md-list-marker-gap, 0.375em)) 0;
+}
+
+.markdown-codemirror-editor .cm-md-block-drag-handle.is-nested:dir(rtl) {
+  translate: calc(var(--po-md-list-marker-width, 1.25em) + var(--po-md-list-marker-gap, 0.375em)) 0;
+}
+
+.markdown-codemirror-editor .cm-md-block-drag-handle:is(:hover, :focus-visible) {
+  background: color-mix(in srgb, var(--po-text) 7%, transparent);
+  color: var(--po-text-muted);
+  opacity: 1;
+}
+
+/* Stays mounted to keep pointer capture; the ghost takes over from here. */
+.markdown-codemirror-editor .cm-md-block-drag-handle.is-dragging {
+  cursor: grabbing;
+  opacity: 0;
+}
+
+.markdown-codemirror-editor .cm-md-block-drag-grip {
+  width: 10px;
+  height: 16px;
+  background-image: radial-gradient(circle at 2px 2px, currentColor 1.25px, transparent 1.4px);
+  background-position: 0 0;
+  background-size: 6px 6px;
+  pointer-events: none;
+}
+
+.markdown-codemirror-editor .cm-md-block-drag-source {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: none;
+  background: var(--po-editor-bg);
+  opacity: 0.6;
+}
+
+.markdown-codemirror-editor .cm-md-block-drag-source.is-visible {
+  display: block;
+}
+
+.markdown-codemirror-editor .cm-md-block-drop-indicator {
+  position: absolute;
+  top: -1px;
+  left: 0;
+  display: none;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--po-accent);
+}
+
+.markdown-codemirror-editor .cm-md-block-drop-indicator.is-visible {
+  display: block;
+}
+
+/* Tracks the pointer through `transform` alone, with no layout of its own. */
+.markdown-codemirror-editor .cm-md-block-drag-ghost {
+  position: absolute;
+  z-index: 7;
+  top: 0;
+  left: 0;
+  display: none;
+  box-sizing: border-box;
+  max-width: min(320px, 70%);
+  padding: 4px 10px;
+  overflow: hidden;
+  border: 1px solid var(--po-border);
+  border-radius: 6px;
+  background: var(--po-panel);
+  box-shadow: var(--po-shadow-sm);
+  color: var(--po-text-muted);
+  contain: layout paint style;
+  font-family: var(--po-font-ui, var(--po-font-sans));
+  font-size: var(--po-type-ui-meta, 13px);
+  line-height: 1.4;
+  pointer-events: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  will-change: transform;
+}
+
+.markdown-codemirror-editor .cm-md-block-drag-ghost.is-visible {
+  display: block;
+}
+
+.markdown-codemirror-editor .cm-editor.is-markdown-block-dragging,
+.markdown-codemirror-editor .cm-editor.is-markdown-block-dragging .cm-scroller {
+  cursor: grabbing;
+  user-select: none;
+}
