@@ -183,6 +183,10 @@
   pointer-events: none;
 }
 
+.onboarding-shell.dark .desktop-titlebar .onboarding-header-mark {
+  filter: url("#onboarding-header-mark-ink-fine");
+}
+
 .onboarding-header-mark-ink {
   position: absolute;
   width: 0;

@@ -150,7 +150,8 @@ async function validateChrome(context, theme, column, width) {
   const headerMark = column === PROJECT_COLUMN;
   assert.equal(page.mark, theme === "light" || headerMark ? "puppy-lite.svg" : "puppy-dark.svg", `${context}: the product's mark for this place`);
   const pageFilter = theme === "light" ? "none" : "grayscale(1) brightness(0.7)";
-  assert.equal(page.markFilter, headerMark ? 'url("#onboarding-header-mark-ink")' : pageFilter, `${context}: the mark's treatment`);
+  const headerFilter = theme === "light" ? 'url("#onboarding-header-mark-ink")' : 'url("#onboarding-header-mark-ink-fine")';
+  assert.equal(page.markFilter, headerMark ? headerFilter : pageFilter, `${context}: the mark's treatment`);
   assert.ok(!page.titleClipped, `${context}: the title is not cut`);
   assert.ok(!page.outside && !page.sideways, `${context}: controls stay onscreen`);
   assert.equal(page.brand.width, column, `${context}: the column keeps its width`);

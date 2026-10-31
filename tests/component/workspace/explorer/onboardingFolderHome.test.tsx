@@ -290,6 +290,7 @@ describe("project folder home", () => {
     expect(onboardingCss).toMatch(/\.homepage-cloud-avatar \{[^}]*color: var\(--desktop-titlebar-text-muted\);/s);
     expect(onboardingCss).toMatch(/\.desktop-titlebar \.onboarding-header-mark \{[^}]*filter: url\("#onboarding-header-mark-ink"\);/s);
     expect(onboardingCss).not.toMatch(/onboarding-header-mark \{[^}]*mix-blend-mode/s);
+    expect(onboardingCss).toMatch(/\.onboarding-shell\.dark \.desktop-titlebar \.onboarding-header-mark \{\s*filter: url\("#onboarding-header-mark-ink-fine"\);/);
     const container = renderHome({ projectItems: [{ id: "notes", label: "Notes", localPath: "/Users/example/Notes", lastOpenedAt: null }] });
     expect(container.querySelector(".onboarding-header-brand filter")?.id).toBe("onboarding-header-mark-ink");
   });
