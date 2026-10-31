@@ -39,7 +39,7 @@ async function openFixture(query) {
   };
   const dragTo = async (x, y) => { send({ type: "mouseMove", button: "left", modifiers: ["leftButtonDown"], x, y }); await sleep(30); };
   const release = async (x, y) => { send({ type: "mouseUp", button: "left", clickCount: 1, x, y }); await sleep(90); };
-  const shot = async name => fs.writeFile(path.join(artifacts, `${name}.png`), (await window.webContents.capturePage()).toPNG());
+  const shot = async (name, rect) => fs.writeFile(path.join(artifacts, `${name}.png`), (await window.webContents.capturePage(rect)).toPNG());
   return { window, call, send, hover, press, dragTo, release, shot };
 }
 
@@ -74,7 +74,7 @@ const scenarios = {
     const nested = await page.hover(rail.left + 100, (row.top + row.bottom) / 2);
     const outer = await page.hover(rail.left + 100, (top.top + top.bottom) / 2);
     assert(nested.x > outer.x + 16, `nested handle ${nested.x} should indent past ${outer.x}`);
-    assert(Math.abs(outer.x - (rail.left - 19)) <= 2, `root item handle ${outer.x} should sit on the rail`);
+    assert(Math.abs(outer.x - (rail.left - 13)) <= 2, `root item handle ${outer.x} should sit on the rail`);
   },
   async "widgets are reachable and align to their first row"(page) {
     await page.call("setScrollTop", 560); await sleep(160);
@@ -101,6 +101,7 @@ const scenarios = {
   async "a drag shows the source, a preview, and a stable drop line"(page) {
     await page.call("setCaret", 2);
     const before = await page.call("doc");
+    const rail = await page.call("rail");
     const row = await page.call("row", "Short paragraph 1"), target = await page.call("row", "item a1");
     const handle = await page.hover(400, (row.top + row.bottom) / 2);
     await page.press(handle);
@@ -108,14 +109,15 @@ const scenarios = {
     assert.equal(await page.call("ghost"), null, "drag started inside the threshold");
     await page.dragTo(handle.x + 40, handle.y + 30);
     const ghost = await page.call("ghost"), source = await page.call("source");
-    assert.equal(ghost?.text, "Short paragraph 1.", "preview should name the block");
-    assert(Math.abs(ghost.top - (handle.y + 44)) <= 2, `preview should follow the pointer, got ${ghost.top}`);
+    assert.equal(ghost?.text, "Short paragraph 1.", "preview should show the block");
+    assert(Math.abs(ghost.top - (row.top + 30)) <= 2, `preview should lift from its block and follow the pointer, got ${ghost.top} for row ${row.top}`);
+    assert(Math.abs(ghost.left - (rail.left + 40)) <= 2, `preview should keep its grip offset, got ${ghost.left}`);
     assert(source && source.top <= row.top + 1 && source.bottom >= row.bottom - 1, "source block is not marked");
     const long = await page.call("row", "Long paragraph 1");
-    await page.dragTo(handle.x + 40, long.bottom - 20);
+    await page.dragTo(handle.x + 40, long.bottom - 20); await sleep(140);
     const indicator = await page.call("indicator");
     assert(indicator, "no drop line after the long paragraph");
-    assert(Math.abs(indicator.left - (await page.call("rail")).left) <= 1, "root drop line should start on the rail");
+    assert(Math.abs(indicator.left - rail.left) <= 1, "root drop line should start on the rail");
     assert(indicator.top > long.bottom - 1 && indicator.bottom < target.top + 1, `drop line ${indicator.top} should sit in the gap ${long.bottom}..${target.top}`);
     assert.equal(await page.call("activeIsEditor"), true, "the press moved focus off the editor");
     await page.shot("mid-drag");
@@ -125,6 +127,37 @@ const scenarios = {
     assert(after.indexOf("Short paragraph 1.") > after.indexOf("Long paragraph 1"), "block landed in the wrong place");
     assert.equal(await page.call("ghost"), null, "preview outlived the drag");
     assert.equal(await page.call("source"), null, "source mark outlived the drag");
+  },
+  async "a preview is a still copy of even a live widget"(page) {
+    await page.call("setScrollTop", 560); await sleep(160);
+    const rail = await page.call("rail"), table = await page.call("widget", ".cm-md-table-widget-wrap");
+    const handle = await page.hover(table.left + 40, (table.top + table.bottom) / 2);
+    await page.press(handle); await page.dragTo(handle.x + 60, handle.y + 120); await sleep(160);
+    const audit = await page.call("ghostAudit");
+    assert.equal(audit.tables, 1, "preview should show the table");
+    assert.deepEqual([audit.editable, audit.ids, audit.focusable], [0, 0, 0], "preview kept live instance state");
+    assert(Math.abs(audit.width - (rail.right - rail.left)) <= 1, `preview width ${audit.width} should match the rail`);
+    await page.shot("drag-table");
+    await page.release(handle.x + 60, handle.y + 120);
+    assert.equal(await page.call("ghost"), null, "preview outlived the drag");
+  },
+  async "the handle has its resting, hover, and dragging looks"(page) {
+    const row = await page.call("row", "Short paragraph 1");
+    const handle = await page.hover(400, (row.top + row.bottom) / 2);
+    await sleep(160); await page.shot("handle-rest");
+    await page.hover(handle.x, handle.y);
+    page.send({ type: "mouseMove", x: handle.x + 1, y: handle.y }); await sleep(160);
+    await page.shot("handle-hover", { x: Math.round(handle.x) - 40, y: Math.round(handle.y) - 28, width: 240, height: 56 });
+    const nested = await page.call("row", "nested b2");
+    await page.hover(400, (nested.top + nested.bottom) / 2); await sleep(160); await page.shot("handle-nested");
+    const item = await page.call("row", "item b1");
+    const held = await page.hover(400, (item.top + item.bottom) / 2);
+    const first = await page.call("row", "item b1"), last = await page.call("row", "nested b2");
+    await page.press(held);
+    await page.dragTo(held.x + 70, held.y + 130); await sleep(180); await page.shot("drag-list");
+    const { height } = await page.call("ghostAudit");
+    assert(Math.abs(height - (last.bottom - first.top)) <= 2, `preview height ${height} should match its block ${last.bottom - first.top}`);
+    await page.release(held.x + 70, held.y + 130);
   },
   async "escape cancels a drag cleanly"(page) {
     const before = await page.call("doc");
@@ -154,6 +187,17 @@ const scenarios = {
     assert.equal(await page.hover(400, (row.top + row.bottom) / 2), null);
     await page.call("setEnabled", true); await sleep(60);
     assert((await page.hover(400, (row.top + row.bottom) / 2))?.kind, "add-on did not come back");
+  },
+};
+
+const darkScenarios = {
+  async "the dark theme carries the same looks"(page) {
+    const row = await page.call("row", "Short paragraph 1");
+    const handle = await page.hover(400, (row.top + row.bottom) / 2);
+    await sleep(160); await page.shot("dark-handle");
+    await page.press(handle);
+    await page.dragTo(handle.x + 60, handle.y + 180); await sleep(180); await page.shot("dark-drag");
+    await page.release(handle.x + 60, handle.y + 180);
   },
 };
 
@@ -241,6 +285,7 @@ async function run() {
     server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null } });
   await vite.listen();
   await runAll("doc=mixed", scenarios);
+  await runAll("doc=mixed&theme=dark", darkScenarios);
   await runAll("doc=long", longDocumentScenarios);
   await runAll("doc=rtl", rightToLeftScenarios);
   await runAll("doc=frontmatter", frontmatterScenarios);

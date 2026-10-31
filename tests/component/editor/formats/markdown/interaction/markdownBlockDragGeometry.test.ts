@@ -1,11 +1,8 @@
-import { EditorState } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
 import {
-  getBlockDragLabel,
   getEdgeScrollVelocity,
   pickDropBoundary,
 } from "../../../../../../packages/shared-ui/src/editor/markdown/addons/block-drag/blockDragGeometry";
-import type { MarkdownMovableBlockRef } from "../../../../../../packages/shared-ui/src/editor/markdown/core/syntax/markdownBlockBoundaries";
 
 describe("pickDropBoundary", () => {
   const blocks = [{ top: 0, bottom: 100 }, { top: 120, bottom: 140 }, { top: 160, bottom: 400 }];
@@ -54,33 +51,5 @@ describe("getEdgeScrollVelocity", () => {
     expect(getEdgeScrollVelocity(576, 0, 600)).toBe(420);
     expect(getEdgeScrollVelocity(-200, 0, 600)).toBe(-840);
     expect(getEdgeScrollVelocity(900, 0, 600)).toBe(840);
-  });
-});
-
-describe("getBlockDragLabel", () => {
-  const label = (source: string) => {
-    const state = EditorState.create({ doc: source });
-    const block = { from: 0, to: source.length } as MarkdownMovableBlockRef;
-    return getBlockDragLabel(state, block);
-  };
-
-  it("names a block by its text, not its Markdown markers", () => {
-    expect(label("## Heading")).toBe("Heading");
-    expect(label("- item")).toBe("item");
-    expect(label("12. item")).toBe("item");
-    expect(label("- [x] done")).toBe("done");
-    expect(label("> quoted")).toBe("quoted");
-  });
-
-  it("skips a code fence for its first line of code", () => {
-    expect(label("```js\nconst a = 1;\n```")).toBe("const a = 1;");
-  });
-
-  it("keeps a marker-only block recognizable", () => {
-    expect(label("---")).toBe("---");
-  });
-
-  it("bounds a long line", () => {
-    expect(label("x".repeat(500))).toHaveLength(80);
   });
 });

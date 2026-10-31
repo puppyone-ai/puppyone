@@ -35,6 +35,7 @@ const documents: Record<string, () => string> = {
 };
 
 const parameters = new URLSearchParams(location.search);
+const themeMode = parameters.get("theme") === "dark" ? "dark" : "light";
 const initial = documents[parameters.get("doc") ?? "mixed"]();
 let setEnabled: (enabled: boolean) => void;
 
@@ -42,7 +43,7 @@ function Harness() {
   const [enabled, updateEnabled] = useState(true);
   setEnabled = next => flushSync(() => updateEnabled(next));
   const [catalog] = useState(() => createSubThemeCatalogSnapshot({ themes: [], diagnostics: [] }));
-  const appearance = resolveAppearance({ interfaceStyle: "default", themeMode: "light",
+  const appearance = resolveAppearance({ interfaceStyle: "default", themeMode,
     requestedSubThemeIds: { light: "default.neutral", dark: "default.dark" }, subThemeCatalog: catalog,
     sidebarNavigationLayout: "bottom-horizontal", fileIconTheme: "default" });
   const surface = resolveSurfaceAppearance({ appearance, typography: resolveTypography(DEFAULT_TYPOGRAPHY_PREFERENCES),
@@ -50,7 +51,7 @@ function Harness() {
     pointerCursors: false, diffMarkers: "color" });
   useLayoutEffect(() => applySurfaceAppearanceToElement(document.documentElement, surface), [surface]);
   return <TestLocalizationProvider messages={englishCatalog}><SurfaceAppearanceProvider value={surface}>
-    <div {...surface.rootProps} style={{ ...surface.rootProps.style, background: "var(--po-editor-bg)", color: "var(--po-text)", width: "100vw", height: "100vh" }}>
+    <div {...surface.rootProps} className={themeMode === "dark" ? "dark" : ""} style={{ ...surface.rootProps.style, background: "var(--po-editor-bg)", color: "var(--po-text)", width: "100vw", height: "100vh" }}>
       <section id="markdown" style={{ height: "100%" }}>
         <MarkdownCodeMirrorEditor value={initial} livePreview readOnly={false} blockDragEnabled={enabled} />
       </section>
@@ -104,6 +105,12 @@ const fixture = {
   ghost: () => {
     const rect = shown("drag-ghost");
     return rect && { ...rect, text: part("drag-ghost")!.textContent };
+  },
+  ghostAudit() {
+    const ghost = part("drag-ghost")!;
+    return { width: box(ghost)!.right - box(ghost)!.left, height: box(ghost)!.bottom - box(ghost)!.top, tables: ghost.querySelectorAll("table").length,
+      editable: ghost.querySelectorAll("[contenteditable]").length, ids: ghost.querySelectorAll("[id]").length,
+      focusable: ghost.querySelectorAll("[tabindex]").length };
   },
   doc: () => view().state.doc.toString(),
   scrollTop: () => view().scrollDOM.scrollTop,

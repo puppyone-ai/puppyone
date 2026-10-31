@@ -17,33 +17,44 @@
   left: 0;
   box-sizing: border-box;
   display: none;
-  width: 22px;
-  min-width: 22px;
-  max-width: 22px;
-  height: 22px;
-  min-height: 22px;
-  max-height: 22px;
+  width: 18px;
+  min-width: 18px;
+  max-width: 18px;
+  height: 24px;
+  min-height: 24px;
+  max-height: 24px;
   align-items: center;
   justify-content: center;
   margin: 0;
   padding: 0;
   border: 0;
-  border-radius: 5px;
+  border-radius: 4px;
   background: transparent;
   color: var(--po-text-subtle);
   cursor: grab;
   /* The list marker tokens below are in em, relative to the document text. */
   font-size: inherit;
   line-height: 1;
-  opacity: 0.72;
+  opacity: 0;
   outline: 0;
-  pointer-events: auto;
+  pointer-events: none;
   touch-action: none;
   user-select: none;
+  transition:
+    opacity 120ms ease,
+    background-color 80ms ease,
+    color 80ms ease,
+    display 120ms allow-discrete;
 }
 
 .markdown-codemirror-editor .cm-md-block-drag-handle.is-visible {
   display: grid;
+  opacity: 1;
+  pointer-events: auto;
+
+  @starting-style {
+    opacity: 0;
+  }
 }
 
 /* A nested item's marker hangs outside its text, so the handle clears it too.
@@ -57,33 +68,37 @@
 }
 
 .markdown-codemirror-editor .cm-md-block-drag-handle:is(:hover, :focus-visible) {
-  background: color-mix(in srgb, var(--po-text) 7%, transparent);
+  background: color-mix(in srgb, var(--po-text) 8%, transparent);
   color: var(--po-text-muted);
-  opacity: 1;
 }
 
-/* Stays mounted to keep pointer capture; the ghost takes over from here. */
+.markdown-codemirror-editor .cm-md-block-drag-handle:active {
+  background: color-mix(in srgb, var(--po-text) 13%, transparent);
+}
+
+/* Stays mounted to keep pointer capture; the preview takes over from here. */
 .markdown-codemirror-editor .cm-md-block-drag-handle.is-dragging {
   cursor: grabbing;
   opacity: 0;
+  transition: none;
 }
 
 .markdown-codemirror-editor .cm-md-block-drag-grip {
-  width: 10px;
-  height: 16px;
-  background-image: radial-gradient(circle at 2px 2px, currentColor 1.25px, transparent 1.4px);
-  background-position: 0 0;
-  background-size: 6px 6px;
+  display: block;
+  width: 9px;
+  height: 14.4px;
+  fill: currentColor;
   pointer-events: none;
 }
 
+/* The block being moved reads as selected, and the preview carries its look. */
 .markdown-codemirror-editor .cm-md-block-drag-source {
   position: absolute;
   top: 0;
   left: 0;
   display: none;
-  background: var(--po-editor-bg);
-  opacity: 0.6;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--po-accent) 14%, color-mix(in srgb, var(--po-editor-bg) 45%, transparent));
 }
 
 .markdown-codemirror-editor .cm-md-block-drag-source.is-visible {
@@ -92,46 +107,80 @@
 
 .markdown-codemirror-editor .cm-md-block-drop-indicator {
   position: absolute;
-  top: -1px;
+  top: -2px;
   left: 0;
   display: none;
-  height: 2px;
-  border-radius: 999px;
-  background: var(--po-accent);
+  height: 4px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--po-accent) 50%, transparent);
+  opacity: 0;
+  transition:
+    transform 90ms cubic-bezier(0.2, 0, 0, 1),
+    opacity 90ms ease,
+    display 90ms allow-discrete;
 }
 
 .markdown-codemirror-editor .cm-md-block-drop-indicator.is-visible {
   display: block;
+  opacity: 1;
+
+  @starting-style {
+    opacity: 0;
+  }
 }
 
-/* Tracks the pointer through `transform` alone, with no layout of its own. */
+/* The preview only ever moves by `transform`, so it composites without layout.
+   Its width matches the text rail, so the copy wraps exactly like the source. */
 .markdown-codemirror-editor .cm-md-block-drag-ghost {
   position: absolute;
   z-index: 7;
   top: 0;
   left: 0;
   display: none;
-  box-sizing: border-box;
-  max-width: min(320px, 70%);
-  padding: 4px 10px;
+  max-height: 360px;
   overflow: hidden;
-  border: 1px solid var(--po-border);
-  border-radius: 6px;
-  background: var(--po-panel);
-  box-shadow: var(--po-shadow-sm);
-  color: var(--po-text-muted);
   contain: layout paint style;
-  font-family: var(--po-font-ui, var(--po-font-sans));
-  font-size: var(--po-type-ui-meta, 13px);
-  line-height: 1.4;
+  container-type: inline-size;
+  opacity: 0.5;
   pointer-events: none;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   will-change: transform;
+  transition: opacity 120ms ease;
 }
 
 .markdown-codemirror-editor .cm-md-block-drag-ghost.is-visible {
   display: block;
+
+  @starting-style {
+    opacity: 0.9;
+  }
+}
+
+.markdown-codemirror-editor .cm-md-block-drag-ghost .cm-md-block-drag-preview {
+  width: 100%;
+  min-height: 0;
+  padding: 0;
+  outline: 0;
+  user-select: none;
+}
+
+.markdown-codemirror-editor .cm-md-block-drag-ghost .cm-md-block-drag-preview.is-clipped {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 72px), transparent);
+}
+
+.markdown-codemirror-editor .cm-md-block-drag-placeholder {
+  max-width: 100%;
+  border-radius: var(--po-editor-content-block-radius, 10px);
+  background: color-mix(in srgb, var(--po-text) 8%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .markdown-codemirror-editor :is(
+    .cm-md-block-drag-handle,
+    .cm-md-block-drop-indicator,
+    .cm-md-block-drag-ghost
+  ) {
+    transition: none;
+  }
 }
 
 .markdown-codemirror-editor .cm-editor.is-markdown-block-dragging,
