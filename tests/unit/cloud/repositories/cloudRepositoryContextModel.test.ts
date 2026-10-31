@@ -11,7 +11,7 @@ import { cloudMessage } from "../../../../src/features/cloud/cloudPresentation";
 
 describe("local repository application shell", () => {
   it("has one Cloud feature flag and no Cloud-only workspace mode", () => {
-    expect(resolveFeatureFlags({})).toEqual({ cloudWorkspace: true, cloudBilling: false, assetLibraryHome: false });
+    expect(resolveFeatureFlags({})).toEqual({ cloudWorkspace: true, cloudBilling: false });
     expect(resolveFeatureFlags({})).not.toHaveProperty("cloudOnlyWorkspace");
   });
 });

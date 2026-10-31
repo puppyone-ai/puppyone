@@ -145,7 +145,7 @@ describe("Cloud sidebar under the Share experiment", () => {
   const labels = () => Array.from(host.querySelectorAll<HTMLElement>(".po-sidebar-row"))
     .map((row) => row.textContent?.trim());
   const sidebar = (activeSection: "contents" | "share") => (
-    <FeatureFlagsProvider value={{ cloudWorkspace: true, cloudBilling: false, assetLibraryHome: false }}>
+    <FeatureFlagsProvider value={{ cloudWorkspace: true, cloudBilling: false }}>
       <CloudServiceSidebar
         cloudAuthState={authState}
         activeSection={activeSection}
