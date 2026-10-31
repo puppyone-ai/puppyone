@@ -35,7 +35,6 @@ export class BlockDragOverlay {
     this.handle.type = "button";
     // Pointer-only affordance. The shortcuts cover keyboard access.
     this.handle.tabIndex = -1;
-    this.handle.dataset.tooltipPlacement = "left";
     this.relabel();
     this.handle.append(createGrip(doc));
 
@@ -56,7 +55,6 @@ export class BlockDragOverlay {
   relabel() {
     const label = getMarkdownMessage(this.view, "editor.markdown.blockDrag.handle");
     this.handle.setAttribute("aria-label", label);
-    this.handle.dataset.tooltip = label;
   }
 
   showHandle(point: BlockDragPoint, block: MarkdownMovableBlockRef) {
