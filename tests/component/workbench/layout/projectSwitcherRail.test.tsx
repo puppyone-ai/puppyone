@@ -22,7 +22,7 @@ import {
   ProjectEntryFlow,
   useProjectEntryFlow,
 } from "../../../../src/features/app-shell/ProjectEntryFlow";
-import { useProjectNavigation } from "../../../../src/features/app-shell/useProjectNavigation";
+import { useProjectNavigation } from "../../../../src/features/app-shell/window-project/useProjectNavigation";
 import { ProjectEntryLauncherDialog } from "../../../../src/features/app-shell/ProjectEntryLauncherDialog";
 import { DesktopCloudShell } from "../../../../src/components/DesktopCloudShell";
 import { withTestLocalization } from "../../../support/react/localization";

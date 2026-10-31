@@ -9,6 +9,13 @@
   outline: none;
 }
 
+/* The project being left keeps its place and its size behind the wait, so a
+ * failed or cancelled open simply shows it again. Nothing in it can be reached. */
+.desktop-surface:has(> .desktop-project-preparation) > :not(.desktop-project-preparation),
+.desktop-shell-pane-group:has(> .desktop-surface > .desktop-project-preparation) > :not(.desktop-surface) {
+  visibility: hidden;
+}
+
 /* The mark holds the exact centre of its region from the moment a project is
  * chosen until its first document appears. What is said about the wait hangs
  * below the mark, so text arriving or leaving never moves it. */

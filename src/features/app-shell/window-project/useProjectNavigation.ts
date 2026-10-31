@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { ProjectNavigation, type ProjectNavigationTarget } from "./projectNavigation";
+import { useEffect, useRef, useState } from "react";
+import { ProjectNavigation } from "./projectNavigation";
+import { useWindowProject, type ProjectTarget } from "./windowProjectStore";
 
 export function useProjectNavigation(options: {
-  open: (target: ProjectNavigationTarget, isCurrent: () => boolean) => Promise<void>;
-  onError: (error: unknown, target: ProjectNavigationTarget) => void;
+  open: (target: ProjectTarget, isCurrent: () => boolean) => Promise<void>;
+  onError: (error: unknown, target: ProjectTarget) => void;
 }) {
   const current = useRef(options);
   current.current = options;
@@ -11,7 +12,7 @@ export function useProjectNavigation(options: {
     (target, isCurrent) => current.current.open(target, isCurrent),
     (error, target) => current.current.onError(error, target),
   ));
-  const pending = useSyncExternalStore(navigation.subscribe, navigation.getSnapshot, navigation.getSnapshot);
+  const pending = useWindowProject((project) => project.opening);
   useEffect(() => () => navigation.cancel(), [navigation]);
   return { select: navigation.select, cancel: navigation.cancel, pending };
 }

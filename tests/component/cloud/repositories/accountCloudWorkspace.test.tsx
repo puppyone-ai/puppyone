@@ -1,7 +1,7 @@
 import { workspaceFixtureBridge, fixtureWorkspaceWatch, fileVersion, liveEntry } from "../../../fixtures/cloud/repositories/liveWorkspace";
 import { nativeSnapshot, nativeVersion, nativeReceipt } from "../../../fixtures/cloud/repositories/nativeRepository";
 /** @vitest-environment happy-dom */
-import { act } from "react";
+import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAccountCloudWorkspace, type AccountCloudWorkspace } from "../../../../src/features/cloud/workbench/useAccountCloudWorkspace";
@@ -33,7 +33,8 @@ let generation: string;
 function Harness({ currentSession = session, enabled = true, homeVisible = false }: {
   currentSession?: DesktopCloudSession | null; enabled?: boolean; homeVisible?: boolean; association?: ProjectCloudContext;
 }) {
-  account = useAccountCloudWorkspace({ enabled, session: currentSession, apiBaseUrl: API });
+  const [shown, onShow] = useState<"local" | "cloud">("local");
+  account = useAccountCloudWorkspace({ enabled, shown, onShow, session: currentSession, apiBaseUrl: API });
   homepage = useHomepageCloudProjects({ enabled, visible: homeVisible && !account.active, session: currentSession, apiBaseUrl: API, local: [] });
   workbench = useNativeCloudWorkbench({ context: account.context, session: currentSession, apiBaseUrl: API,
     prepared: account.prepared,

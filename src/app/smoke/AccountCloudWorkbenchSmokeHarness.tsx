@@ -109,7 +109,8 @@ function AccountCloudFixture() {
     markdownPresentation: markdownPresentation,
     lightThemePreset: lightThemePreset, darkThemePreset: darkThemePreset,
     pointerCursors: pointerCursors, diffMarkers: diffMarkers });
-  const account = useAccountCloudWorkspace({ enabled: true, session, apiBaseUrl: API });
+  const [shown, onShow] = useState<"local" | "cloud">("local");
+  const account = useAccountCloudWorkspace({ enabled: true, shown, onShow, session, apiBaseUrl: API });
   const homepage = useHomepageCloudProjects({ enabled: true, visible: !account.active, session, apiBaseUrl: API,
     local: includeLocal ? [
       { workspace: { id: "local-alpha", name: "Hosted alpha", path: "/fixture/alpha", status: "recording", hydrationState: "ready", lastModifiedAt: "2026-04-01T00:00:00Z",
