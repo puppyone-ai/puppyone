@@ -1,15 +1,6 @@
 [
   {
     "type": "dependency",
-    "from": "src/components/AssetLibraryHome.tsx",
-    "to": "src/features/app-shell/useWorkspaceFolderDrop.ts",
-    "rule": {
-      "severity": "error",
-      "name": "composition-root-only"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/components/DesktopCloudShell.tsx",
     "to": "src/features/app-shell/auxiliary/index.ts",
     "rule": {

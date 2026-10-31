@@ -9,7 +9,6 @@ describe("appearance surface boundary", () => {
     const markdown = source("packages/shared-ui/src/editor/markdown/MarkdownCodeMirrorEditor.tsx");
     const csv = source("packages/shared-ui/src/editor/viewers/csv/CsvTableEditor.tsx");
     const onboarding = source("src/components/MinimalOnboarding.tsx");
-    const assetHome = source("src/components/AssetLibraryHome.tsx");
     const restoring = source("src/features/app-shell/RestoringWorkspaceScreen.tsx");
     const context = source("packages/shared-ui/src/core/appearance/EditorAppearanceContext.tsx");
     const runtime = source("src/features/appearance/AppearanceRuntime.tsx");
@@ -20,7 +19,7 @@ describe("appearance surface boundary", () => {
     expect(runtime).toContain('"data-po-appearance-root": "true"');
     expect(runtime).toContain('"data-root-theme-id": appearance.rootThemeId');
     expect(runtime).toContain('"data-sub-theme-id": appearance.subThemeId');
-    for (const appearanceRoot of [onboarding, assetHome, restoring]) {
+    for (const appearanceRoot of [onboarding, restoring]) {
       expect(appearanceRoot).toContain("appearance.rootProps");
       expect(appearanceRoot).not.toContain("createTypographyRootProps");
       expect(appearanceRoot).not.toContain("data-sub-theme-id={subThemeId}");

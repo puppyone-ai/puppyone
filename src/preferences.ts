@@ -94,7 +94,6 @@ export type TitlebarActionsSettings = {
 };
 export type { LocalAgentsSettings } from "./localAgentPreferences";
 export type ExperimentalSettings = {
-  enableAssetLibraryHome: boolean;
   enableAlwaysShowOnboardingCoachmarks: boolean;
   enableCloudAutomation: boolean;
   enableCloudWorkspace: boolean;
@@ -186,7 +185,6 @@ export const DEFAULT_LOCAL_AGENTS_SETTINGS: LocalAgentsSettings = {
 export const DEFAULT_AGENT_FILE_ACTIVITY_INDICATORS_ENABLED = false;
 export const DEFAULT_AI_EDIT_ASSIST_ENABLED = false;
 export const DEFAULT_EXPERIMENTAL_SETTINGS: ExperimentalSettings = {
-  enableAssetLibraryHome: false,
   enableAlwaysShowOnboardingCoachmarks: false,
   enableCloudAutomation: false,
   enableCloudWorkspace: false,
@@ -445,7 +443,6 @@ export function parseExperimentalSettings(value: string | null | undefined): Exp
     if (!parsed || typeof parsed !== "object") return DEFAULT_EXPERIMENTAL_SETTINGS;
 
     return {
-      enableAssetLibraryHome: parsed.enableAssetLibraryHome === true,
       enableAlwaysShowOnboardingCoachmarks: parsed.enableAlwaysShowOnboardingCoachmarks === true,
       enableCloudAutomation: parsed.enableCloudAutomation === true,
       enableCloudWorkspace: parsed.enableCloudWorkspace === true,

@@ -221,7 +221,6 @@ function renderSidebar(root: Root, {
     <FeatureFlagsProvider value={{
       cloudWorkspace: true,
       cloudBilling: true,
-      assetLibraryHome: false,
     }}>
       <CloudServiceSidebar
         cloudAuthState={authState}

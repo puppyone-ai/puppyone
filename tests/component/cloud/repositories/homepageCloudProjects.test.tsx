@@ -7,7 +7,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initializeDesktopPreferences } from "../../../../src/preferencesStore";
 import { HOMEPAGE_PROJECT_LAYOUT_STORAGE_KEY } from "../../../../src/preferenceStorage";
 import { MinimalOnboarding } from "../../../../src/components/MinimalOnboarding";
-import { AssetLibraryHome } from "../../../../src/components/AssetLibraryHome";
 import { useAccountCloudWorkspace, type AccountCloudWorkspace } from "../../../../src/features/cloud/workbench/useAccountCloudWorkspace";
 import { useHomepageCloudProjects } from "../../../../src/features/cloud/workbench/useHomepageCloudProjects";
 import { HomepageCloudStatus } from "../../../../src/features/cloud/workbench/HomepageCloudStatus";
@@ -37,13 +36,12 @@ let openAccount: ReturnType<typeof vi.fn<() => void>>;
 type Request = Parameters<NonNullable<typeof window.puppyoneDesktop>["requestCloudSessionApi"]>[0];
 let bridge: ReturnType<typeof vi.fn<(request: Request) => unknown>>;
 const appearance = createTestSurfaceAppearance();
-function Harness({ currentSession = session, visible = true, enabled = true, library = false, localItems = [local] }: {
-  currentSession?: DesktopCloudSession | null; visible?: boolean; enabled?: boolean; library?: boolean; localItems?: RecentWorkspaceHomeItem[];
+function Harness({ currentSession = session, visible = true, enabled = true, localItems = [local] }: {
+  currentSession?: DesktopCloudSession | null; visible?: boolean; enabled?: boolean; localItems?: RecentWorkspaceHomeItem[];
 }) {
   account = useAccountCloudWorkspace({ enabled, session: currentSession, apiBaseUrl: API });
   home = useHomepageCloudProjects({ enabled, visible: visible && !account.active, session: currentSession, apiBaseUrl: API, local: localItems });
-  const Home = library ? AssetLibraryHome : MinimalOnboarding;
-  return visible && !account.active ? <Home appearance={appearance} projectItems={home.items}
+  return visible && !account.active ? <MinimalOnboarding appearance={appearance} projectItems={home.items}
     onChooseWorkspace={async () => {}}
     onOpenDroppedWorkspace={async () => {}} onOpenWorkspacePath={openLocal}
     cloudOpening={account.opening} onOpenCloudProject={(id) => void account.openTarget({ kind: "project_root", project_id: id })}
@@ -194,13 +192,13 @@ describe("inline Homepage Cloud projects", () => {
     fail = false; await click('[role="alert"] button'); expect(account.context.projectId).toBe("b");
   });
 
-  it.each([false, true])("cancels a pending Cloud open from the page overlay without committing late results (cards=%s)", async library => {
-    await render({ library }); const pending = deferred<unknown>(); bridge.mockReturnValueOnce(pending.promise);
+  it("cancels a pending Cloud open from the page overlay without committing late results", async () => {
+    await render(); const pending = deferred<unknown>(); bridge.mockReturnValueOnce(pending.promise);
     const projectButton = buttons().find(button => button.getAttribute("aria-label")?.includes("Project b"));
     projectButton!.focus();
     await act(async () => projectButton!.click());
     const overlay = document.querySelector<HTMLElement>(".onboarding-project-loading");
-    const page = document.querySelector<HTMLElement>(library ? ".asset-library-home" : ".onboarding-homepage");
+    const page = document.querySelector<HTMLElement>(".onboarding-homepage");
     expect(overlay?.textContent).toContain("Loading project");
     expect(overlay?.querySelector("button")?.textContent).toBe("Cancel");
     expect(document.querySelector(".desktop-titlebar [role='status']")).toBeNull();
@@ -236,14 +234,14 @@ describe("inline Homepage Cloud projects", () => {
     expect(account.preparation).toBeNull();
   });
 
-  it.each([false, true])("covers pending local opens and restores interaction after failure (cards=%s)", async library => {
+  it("covers pending local opens and restores interaction after failure", async () => {
     const pending = deferred<void>(); openLocal.mockReturnValueOnce(pending.promise);
-    await render({ library, enabled: false });
-    const selector = library ? ".asset-library-card-main" : ".onboarding-project-row";
+    await render({ enabled: false });
+    const selector = ".onboarding-project-row";
     const projectButton = document.querySelector<HTMLButtonElement>(selector)!;
     projectButton.focus();
     await click(selector);
-    const page = document.querySelector<HTMLElement>(library ? ".asset-library-home" : ".onboarding-homepage");
+    const page = document.querySelector<HTMLElement>(".onboarding-homepage");
     expect(document.querySelector(".onboarding-project-loading")?.textContent).toBe("Loading project");
     expect(document.querySelector(".onboarding-project-loading button")).toBeNull();
     expect(page?.inert).toBe(true);
@@ -257,8 +255,8 @@ describe("inline Homepage Cloud projects", () => {
     expect(document.activeElement).toBe(projectButton);
   });
 
-  it.each([false, true])("clears the page overlay and exposes retry after a Cloud open fails (cards=%s)", async library => {
-    await render({ library }); const pending = deferred<unknown>(); bridge.mockReturnValueOnce(pending.promise);
+  it("clears the page overlay and exposes retry after a Cloud open fails", async () => {
+    await render(); const pending = deferred<unknown>(); bridge.mockReturnValueOnce(pending.promise);
     await act(async () => buttons().find(button => button.getAttribute("aria-label")?.includes("Project b"))!.click());
     expect(document.querySelector(".onboarding-project-loading")).not.toBeNull();
     await act(async () => pending.reject(new Error("No access")));
@@ -335,15 +333,6 @@ describe("inline Homepage Cloud projects", () => {
   it("does not truncate Cloud projects at the old local-recents limit", async () => {
     bridge.mockResolvedValueOnce(Array.from({ length: 55 }, (_, index) => project(String(index))));
     await render(); expect(document.querySelectorAll(".onboarding-project-row-wrap")).toHaveLength(56);
-  });
-
-  it("projects the same two-project catalog into the optional library view", async () => {
-    await render({ library: true });
-    expect(document.querySelectorAll(".asset-library-card")).toHaveLength(3);
-    expect(document.querySelector(".asset-library-project-group")).toBeNull();
-    await click('[data-linked-cloud-project-id="a"] .asset-library-project-cloud-link');
-    expect(account.context.projectId).toBe("a");
-    expect(openLocal).not.toHaveBeenCalled();
   });
 });
 
