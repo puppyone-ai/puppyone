@@ -1,9 +1,41 @@
-// Builds the website demo (website-demo.html) on its own, as static files in
-// dist-website-demo/: the real renderer over an in-memory folder, embedded by
-// the puppyone website's homepage. `npm run build:website-demo`.
+// The website demo: the real renderer over an in-memory folder, embedded by the
+// puppyone website's homepage. `npm run dev:website-demo` serves it on port 5190,
+// where the website's development server looks for it, with its own dependency
+// cache so it can run beside the desktop app's dev server.
+// `npm run build:website-demo` writes static files to dist-website-demo/.
+// Both keep the /website-demo.html address the website embeds.
 import { readFileSync } from "node:fs";
-import type { Plugin } from "vite";
-import demoConfig from "./vite.website-demo.config";
+import path from "node:path";
+import { fileURLToPath, URL } from "node:url";
+import { defineConfig, type Plugin } from "vite";
+import baseConfig from "../../vite.config";
+
+const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
+
+// The renderer will not start without Cloud addresses, and the demo never calls
+// them: its in-memory bridge answers everything. It only accepts puppyone or
+// loopback hosts, so this is the loopback discard port, where nothing answers.
+// These win over any local .env: every build comes out the same, and none can
+// carry a developer's real endpoints.
+process.env.VITE_DESKTOP_CLOUD_API_URL = "http://127.0.0.1:9/api/v1";
+process.env.VITE_DESKTOP_CLOUD_WEB_URL = "http://127.0.0.1:9";
+process.env.VITE_DESKTOP_CLOUD_GIT_ORIGIN = "";
+
+// Main's Agent actor imports randomUUID from node:crypto; the browser has its own.
+const alias = [
+  { find: /^node:crypto$/, replacement: path.join(repoRoot, "src/website-demo/shims/node-crypto.ts") },
+  ...((baseConfig.resolve?.alias as unknown[]) ?? []),
+];
+
+const demoConfig = {
+  ...baseConfig,
+  root: path.join(repoRoot, "src/website-demo"),
+  publicDir: path.join(repoRoot, "public"),
+  envDir: repoRoot,
+  server: { ...baseConfig.server, fs: { allow: [repoRoot] } },
+  resolve: { ...baseConfig.resolve, alias },
+  cacheDir: path.join(repoRoot, ".vite-website-demo"),
+};
 
 // The desktop CSP assumes previews come from Electron's preview protocol. In
 // the browser demo, HTML previews are blob: documents that inherit this
@@ -48,7 +80,7 @@ const inlineBootstrapPlugin: Plugin = {
   transformIndexHtml: {
     order: "post",
     handler: (html) => INLINED_BOOTSTRAP_FILES.reduce((page, file) => {
-      const source = readFileSync(new URL(`./public/${file}`, import.meta.url), "utf8");
+      const source = readFileSync(path.join(repoRoot, "public", file), "utf8");
       const reference = file.endsWith(".css")
         ? new RegExp(`<link rel="stylesheet" href="\\./${file}"\\s*/?>`)
         : new RegExp(`<script src="\\./${file}"></script>`);
@@ -103,8 +135,16 @@ const plugins = [
   preloadRendererPlugin,
 ];
 
-export default {
+export default defineConfig(({ command }) => (command === "build" ? {
   ...demoConfig,
   plugins,
-  build: { ...(demoConfig.build ?? {}), outDir: "dist-website-demo", emptyOutDir: true, rollupOptions: { ...(demoConfig.build?.rollupOptions ?? {}), input: { "website-demo": "website-demo.html" } } },
-};
+  build: {
+    ...(demoConfig.build ?? {}),
+    outDir: path.join(repoRoot, "dist-website-demo"),
+    emptyOutDir: true,
+    rollupOptions: {
+      ...(demoConfig.build?.rollupOptions ?? {}),
+      input: { "website-demo": path.join(repoRoot, "src/website-demo/website-demo.html") },
+    },
+  },
+} : demoConfig));
