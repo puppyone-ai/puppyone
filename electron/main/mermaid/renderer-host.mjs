@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
 
 /** A detached WebContentsView avoids adding hidden application windows. A
- * private, non-persistent session keeps this renderer out of the UI process. */
-export function createMermaidRendererHost({ WebContentsView, session, url, preload }) {
+ * private, non-persistent session keeps this renderer out of the UI process.
+ * The page may load only the renderer build under assetRoot. */
+export function createMermaidRendererHost({ WebContentsView, session, url, assetRoot, preload }) {
   const isolatedSession = session.fromPartition(`mermaid-${randomUUID()}`);
-  const base = new URL(".", url);
+  const base = new URL(assetRoot);
   isolatedSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
   isolatedSession.setPermissionCheckHandler(() => false);
   isolatedSession.webRequest.onBeforeRequest((details, callback) => {

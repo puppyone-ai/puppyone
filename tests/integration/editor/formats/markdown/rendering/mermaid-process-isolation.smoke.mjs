@@ -27,7 +27,8 @@ try {
   }
   service = createMermaidRenderService({ createHost: () => createMermaidRendererHost({
     WebContentsView: TrackedView, session,
-    url: process.env.MERMAID_SMOKE_URL || pathToFileURL(path.join(root, "dist/mermaid-renderer.html")).href,
+    url: process.env.MERMAID_SMOKE_URL || pathToFileURL(path.join(root, "dist/src/platform/mermaid/host.html")).href,
+    assetRoot: process.env.MERMAID_SMOKE_ASSET_ROOT || pathToFileURL(path.join(root, "dist/")).href,
     preload: path.join(root, "electron/mermaid-preload.cjs"),
   }) });
   const config = { theme: "base", fontFamily: '"PuppyOne Open Sans", sans-serif', htmlLabels: false };

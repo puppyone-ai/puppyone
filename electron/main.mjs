@@ -241,7 +241,8 @@ if (!app.isPackaged && !devServerUrl) {
 const rendererApplicationUrl = devServerUrl || pathToFileURL(rendererDistPath).toString();
 const mermaidRenderService = createMermaidRenderService({
   createHost: () => createMermaidRendererHost({ WebContentsView, session: electronSession,
-    url: new URL("mermaid-renderer.html", rendererApplicationUrl).href,
+    url: new URL("src/platform/mermaid/host.html", rendererApplicationUrl).href,
+    assetRoot: new URL(".", rendererApplicationUrl).href,
     preload: path.join(__dirname, "mermaid-preload.cjs"),
   }),
 });
