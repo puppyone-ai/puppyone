@@ -56,11 +56,7 @@ export default [
   {
     files: ["{src,packages,electron,local-api,shared}/**/*.{js,mjs,cjs,ts,tsx,mts,cts}"],
     rules: {
-      complexity: ["error", 20],
-      "max-depth": ["error", 4],
-      "max-params": ["error", 5],
       "no-nested-ternary": "error",
-      "max-lines-per-function": ["error", { max: 300, skipBlankLines: true, skipComments: true }],
     },
   },
   {

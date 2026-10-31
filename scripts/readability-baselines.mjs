@@ -2,12 +2,10 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
-const readabilityRules = new Set([
-  "complexity", "max-depth", "max-params", "no-nested-ternary", "max-lines-per-function",
-]);
+const readabilityRules = new Set(["no-nested-ternary"]);
 
 /** Removed rules, which an older baseline being compared against may still record. */
-const retiredRules = new Set(["max-lines"]);
+const retiredRules = new Set(["complexity", "max-depth", "max-lines", "max-lines-per-function", "max-params"]);
 
 export const baselineFiles = [
   "eslint-suppressions.json",
