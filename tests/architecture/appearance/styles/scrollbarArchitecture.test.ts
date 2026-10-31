@@ -15,17 +15,17 @@ const terminalSessionSource = readCss(
 const terminalCss = readCss("src/features/desktop-terminal/ui/styles/terminal-surface.css")
   + readCss("src/features/desktop-terminal/ui/styles/xterm-adapter.css");
 const interfaceSkinContractCss = readCss("src/styles/interface-skin-contract.css");
-const dataWorkspaceCss = readCss("packages/shared-ui/src/styles/data-workspace.css");
+const dataWorkspaceCss = readCss("src/shared-ui/styles/data-workspace.css");
 // The Data workspace and the frame it shares with surfaces that have no files yet.
-const dataWorkspaceSource = readCss("packages/shared-ui/src/data/DataWorkspace.tsx")
-  + readCss("packages/shared-ui/src/data/DataWorkspaceFrame.tsx");
+const dataWorkspaceSource = readCss("src/shared-ui/data/DataWorkspace.tsx")
+  + readCss("src/shared-ui/data/DataWorkspaceFrame.tsx");
 const desktopDataShellCss = readCss("src/features/data-workspace/data-shell.css");
-const paneCss = readCss("packages/shared-ui/src/sidebar/collapsible-pane.css");
+const paneCss = readCss("src/shared-ui/sidebar/collapsible-pane.css");
 const sidebarResizeHandleSource = readCss(
-  "packages/shared-ui/src/sidebar/SidebarResizeHandle.tsx",
+  "src/shared-ui/sidebar/SidebarResizeHandle.tsx",
 );
 const collapsiblePaneFrameSource = readCss(
-  "packages/shared-ui/src/sidebar/CollapsiblePaneFrame.tsx",
+  "src/shared-ui/sidebar/CollapsiblePaneFrame.tsx",
 );
 const auxiliaryPanelSource = readCss(
   "src/features/app-shell/auxiliary/AuxiliaryPanelHost.tsx",
@@ -35,7 +35,7 @@ const gitSidebarLayoutCss = readCss("src/features/source-control/styles/sidebar-
 const gitSidebarPanelsCss = readCss("src/features/source-control/styles/sidebar-panels.css");
 const layoutCss = readCss("src/styles/layout.css");
 const baseCss = readCss("src/styles/base.css");
-const markdownEditorCss = readCss("packages/shared-ui/src/styles/editor/markdown-editor.css");
+const markdownEditorCss = readCss("src/shared-ui/styles/editor/markdown-editor.css");
 
 describe("scrollbar architecture", () => {
   it("defines one opt-in product scrollbar primitive in the primitives layer", () => {
@@ -101,12 +101,12 @@ describe("scrollbar architecture", () => {
     expect(scrollbarActivitySource).not.toContain('owner.closest(".po-viewer-surface-boundary")');
     expect(interfaceSkinContractCss).not.toContain("data-editor-presentation");
     expect(scrollbarsCss).not.toContain("data-editor-presentation");
-    expect(readCss("packages/shared-ui/src/sidebar/SidebarScrollArea.tsx")).toContain(
+    expect(readCss("src/shared-ui/sidebar/SidebarScrollArea.tsx")).toContain(
       'data-po-scrollbar="sidebar"',
     );
-    expect(readCss("packages/shared-ui/src/editor/markdown/MarkdownCodeMirrorEditor.tsx"))
+    expect(readCss("src/shared-ui/editor/markdown/MarkdownCodeMirrorEditor.tsx"))
       .toContain('view.scrollDOM.dataset.poScrollbar = "content";');
-    expect(readCss("packages/shared-ui/src/editor/viewers/code/CodeMirrorCodeEditor.tsx"))
+    expect(readCss("src/shared-ui/editor/viewers/code/CodeMirrorCodeEditor.tsx"))
       .toContain('view.scrollDOM.dataset.poScrollbar = "content";');
   });
 
@@ -157,10 +157,7 @@ describe("scrollbar architecture", () => {
       "src/styles/scrollbars.css",
       "src/styles/interfaces/windows-xp/tokens.css",
     ]);
-    const violations = [
-      ...listCssFiles(path.join(repositoryRoot, "src")),
-      ...listCssFiles(path.join(repositoryRoot, "packages/shared-ui/src")),
-    ].filter((filePath) => (
+    const violations = listCssFiles(path.join(repositoryRoot, "src")).filter((filePath) => (
       readFileSync(filePath, "utf8").includes("::-webkit-scrollbar")
       && !allowedFiles.has(path.relative(repositoryRoot, filePath))
     ));
@@ -174,8 +171,6 @@ describe("scrollbar architecture", () => {
       path.join(repositoryRoot, "index.html"),
       ...listFiles(path.join(repositoryRoot, "src"), ".ts"),
       ...listFiles(path.join(repositoryRoot, "src"), ".tsx"),
-      ...listFiles(path.join(repositoryRoot, "packages/shared-ui/src"), ".ts"),
-      ...listFiles(path.join(repositoryRoot, "packages/shared-ui/src"), ".tsx"),
     ];
     const invalidVariants = sourceFiles.flatMap((filePath) => {
       const source = readFileSync(filePath, "utf8");
@@ -219,10 +214,7 @@ describe("scrollbar architecture", () => {
   it("requires every vertical SidebarResizeHandle to opt into the pane-edge contract", () => {
     const verticalHandlePattern =
       /<SidebarResizeHandle\b(?:(?!<SidebarResizeHandle\b)[\s\S])*?orientation="vertical"/g;
-    const violations = [
-      ...listFiles(path.join(repositoryRoot, "src"), ".tsx"),
-      ...listFiles(path.join(repositoryRoot, "packages/shared-ui/src"), ".tsx"),
-    ].flatMap((filePath) => {
+    const violations = listFiles(path.join(repositoryRoot, "src"), ".tsx").flatMap((filePath) => {
       const relativePath = path.relative(repositoryRoot, filePath);
       return Array.from(readFileSync(filePath, "utf8").matchAll(verticalHandlePattern))
         .filter((match) => !/\bpaneEdge\b/.test(match[0]))
@@ -283,13 +275,13 @@ describe("scrollbar architecture", () => {
   });
 
   it("registers structured and horizontal editor scroll owners without local paint rules", () => {
-    expect(readCss("packages/shared-ui/src/editor/viewers/csv/CsvTableEditor.tsx")).toContain(
+    expect(readCss("src/shared-ui/editor/viewers/csv/CsvTableEditor.tsx")).toContain(
       'data-po-scrollbar="content"',
     );
-    expect(readCss("packages/shared-ui/src/editor/markdown/features/code-block/codeBlockWidget.ts"))
+    expect(readCss("src/shared-ui/editor/markdown/features/code-block/codeBlockWidget.ts"))
       .toContain('codeEditor.dataset.poScrollbar = "horizontal";');
     const markdownTableSource = readCss(
-      "packages/shared-ui/src/editor/markdown/features/table/tableWidget.ts",
+      "src/shared-ui/editor/markdown/features/table/tableWidget.ts",
     );
     expect(markdownTableSource).toContain('scrollport.dataset.poScrollbar = "hidden";');
     expect(markdownTableSource).toContain('scrollbar.dataset.poScrollbar = "horizontal";');
@@ -297,10 +289,7 @@ describe("scrollbar architecture", () => {
   });
 
   it("does not opt any app stylesheet back into platform-native scrollbar rendering", () => {
-    const violations = [
-      ...listCssFiles(path.join(repositoryRoot, "src")),
-      ...listCssFiles(path.join(repositoryRoot, "packages/shared-ui/src")),
-    ].filter((filePath) => (
+    const violations = listCssFiles(path.join(repositoryRoot, "src")).filter((filePath) => (
       /(?<![-\w])scrollbar-(?:width|color)\s*:/.test(readFileSync(filePath, "utf8"))
     ));
 
@@ -312,10 +301,7 @@ describe("scrollbar architecture", () => {
       "src/styles/interface-skin-contract.css",
       "src/styles/interfaces/windows-xp/tokens.css",
     ]);
-    const violations = [
-      ...listCssFiles(path.join(repositoryRoot, "src")),
-      ...listCssFiles(path.join(repositoryRoot, "packages/shared-ui/src")),
-    ].flatMap((filePath) => {
+    const violations = listCssFiles(path.join(repositoryRoot, "src")).flatMap((filePath) => {
       const relativePath = path.relative(repositoryRoot, filePath);
       if (legacySkinFiles.has(relativePath)) return [];
 

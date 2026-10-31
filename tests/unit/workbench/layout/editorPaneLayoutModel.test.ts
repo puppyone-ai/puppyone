@@ -12,7 +12,7 @@ import {
   removeEditorFromPanes,
   splitEditorPane,
   updateEditorSplitRatio,
-} from "../../../../packages/shared-ui/src/editor/workbench/editorPaneLayoutModel";
+} from "../../../../src/shared-ui/editor/workbench/editorPaneLayoutModel";
 
 describe("EditorPaneLayoutModel", () => {
   it("builds recursive right/down splits and focuses the new pane", () => {

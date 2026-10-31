@@ -9,13 +9,13 @@ import {
   createWorkspaceResourceUri,
   type DataPort,
   type Workspace,
-} from "../../../../packages/shared-ui/src";
-import type { DocumentEditingSession } from "../../../../packages/shared-ui/src/editor/document-session/DocumentEditingSession";
+} from "../../../../src/shared-ui";
+import type { DocumentEditingSession } from "../../../../src/shared-ui/editor/document-session/DocumentEditingSession";
 import {
   closeAllDocumentWorkingCopies,
   closeDocumentWorkingCopy,
   getOrCreateDocumentWorkingCopy,
-} from "../../../../packages/shared-ui/src/editor/document-session/documentWorkingCopies";
+} from "../../../../src/shared-ui/editor/document-session/documentWorkingCopies";
 import { useWorkspaceLifecycle } from "../../../../src/features/app-shell/useWorkspaceLifecycle";
 import { createWorkbenchDataService } from "../../../../src/features/data-workspace/workbenchDataPort";
 

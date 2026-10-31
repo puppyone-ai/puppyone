@@ -1,12 +1,12 @@
-import { retireAllDocumentInputs } from "../../../../packages/shared-ui/src/editor/resource/DocumentInputRuntime";
+import { retireAllDocumentInputs } from "../../../../src/shared-ui/editor/resource/DocumentInputRuntime";
 /** @vitest-environment happy-dom */
 import { createWorkspaceContentChange, type DataPort, type DocumentDataNode, type DocumentPersistedCommit, type FileContent } from "@puppyone/shared-ui";
 import { act, useLayoutEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DocumentEditingSession } from "../../../../packages/shared-ui/src/editor/document-session/DocumentEditingSession";
+import { DocumentEditingSession } from "../../../../src/shared-ui/editor/document-session/DocumentEditingSession";
 import { useEditorPaneSource } from "../../../../src/features/editor-workbench/runtime/useEditorPaneSource";
-import { FilePreview } from "../../../../packages/shared-ui/src/editor/host/FilePreview";
+import { FilePreview } from "../../../../src/shared-ui/editor/host/FilePreview";
 import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })

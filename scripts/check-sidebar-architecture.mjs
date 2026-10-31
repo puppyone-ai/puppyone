@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const sharedSidebarRoot = absolute("packages/shared-ui/src/sidebar");
+const sharedSidebarRoot = absolute("src/shared-ui/sidebar");
 const productPatternRoot = absolute("src/components/sidebar");
 const featureRoot = absolute("src/features");
 const errors = [];
@@ -13,9 +13,9 @@ const importPattern = /\b(?:import|export)\s+(?:type\s+)?(?:[^'";]*?\s+from\s+)?
 const dynamicImportPattern = /\bimport\(\s*["']([^"']+)["']\s*\)/g;
 
 for (const requiredPath of [
-  "packages/shared-ui/src/sidebar/index.ts",
-  "packages/shared-ui/src/styles/sidebar-primitives.css",
-  "packages/shared-ui/src/sidebar/collapsible-pane.css",
+  "src/shared-ui/sidebar/index.ts",
+  "src/shared-ui/styles/sidebar-primitives.css",
+  "src/shared-ui/sidebar/collapsible-pane.css",
   "src/components/sidebar/index.ts",
   "src/styles/sidebar/patterns.css",
   "src/features/app-shell/workspace-surfaces/workspaceSurfaceRegistry.ts",
@@ -74,9 +74,9 @@ for (const filePath of walkSourceFiles(absolute("src"))) {
   }
 }
 
-const sharedStyle = read(absolute("packages/shared-ui/src/styles/sidebar-primitives.css"));
-const paneStyle = read(absolute("packages/shared-ui/src/sidebar/collapsible-pane.css"));
-const sharedPatternsStyle = read(absolute("packages/shared-ui/src/styles/shared-ui-patterns.css"));
+const sharedStyle = read(absolute("src/shared-ui/styles/sidebar-primitives.css"));
+const paneStyle = read(absolute("src/shared-ui/sidebar/collapsible-pane.css"));
+const sharedPatternsStyle = read(absolute("src/shared-ui/styles/shared-ui-patterns.css"));
 const patternStyle = read(absolute("src/styles/sidebar/patterns.css"));
 if (!sharedStyle.includes("@layer primitives")) errors.push("Shared Sidebar primitives must live in @layer primitives.");
 if (!paneStyle.includes("@layer primitives")) errors.push("Shared pane geometry must live in @layer primitives.");
@@ -90,7 +90,9 @@ for (const filePath of walkFiles(absolute("src"), /\.(?:css|ts|tsx)$/)) {
   if (/desktop-tool-sidebar/.test(source)) {
     errors.push(`${relative(filePath)} uses the retired desktop-tool-sidebar compatibility class`);
   }
-  if (filePath.endsWith(".css") && filePath !== absolute("src/styles/sidebar/patterns.css")) {
+  const ownsSidebarPrimitives = filePath === absolute("src/styles/sidebar/patterns.css")
+    || filePath.startsWith(absolute("src/shared-ui/"));
+  if (filePath.endsWith(".css") && !ownsSidebarPrimitives) {
     const unscopedPrimitive = /(?:^|\})[\t\r\n ]*\.po-(?:sidebar|desktop-sidebar)-(?:root|scroll-area|list|row|icon-button|empty|resize-handle|virtual|group|header|status-row)[^{,\s]*\s*[,\{]/;
     if (unscopedPrimitive.test(stripCssComments(source))) {
       errors.push(`${relative(filePath)} redefines an unscoped shared Sidebar primitive/pattern selector`);
@@ -151,7 +153,7 @@ const virtualizationRequirements = [
 for (const [relativePath, token] of virtualizationRequirements) {
   if (!read(absolute(relativePath)).includes(token)) errors.push(`${relativePath} must consume the shared scalable-list policy (${token}).`);
 }
-const virtualizationPolicy = read(absolute("packages/shared-ui/src/sidebar/virtualizationPolicy.ts"));
+const virtualizationPolicy = read(absolute("src/shared-ui/sidebar/virtualizationPolicy.ts"));
 if (!virtualizationPolicy.includes("SIDEBAR_VIRTUALIZATION_THRESHOLD = 200")) {
   errors.push("Shared Sidebar virtualization policy must activate at 200 rows.");
 }
@@ -177,17 +179,17 @@ for (const token of ["CollapsiblePaneFrame", "useCollapsiblePaneResize", 'orient
   if (!auxiliarySource.includes(token)) errors.push(`AuxiliaryPanelHost must consume the shared resize contract (${token}).`);
 }
 const layoutStyle = read(absolute("src/styles/layout.css"));
-const controlGeometryStyle = read(absolute("packages/shared-ui/src/styles/control-geometry.css"));
-const dataWorkspaceStyle = read(absolute("packages/shared-ui/src/styles/data-workspace.css"));
+const controlGeometryStyle = read(absolute("src/shared-ui/styles/control-geometry.css"));
+const dataWorkspaceStyle = read(absolute("src/shared-ui/styles/data-workspace.css"));
 const desktopDataWorkspaceStyle = read(absolute("src/features/data-workspace/data-shell.css"));
 // The Data workspace and the frame it shares with surfaces that have no files yet.
-const dataWorkspaceSource = read(absolute("packages/shared-ui/src/data/DataWorkspace.tsx"))
-  + read(absolute("packages/shared-ui/src/data/DataWorkspaceFrame.tsx"));
-const collapsiblePaneResizeSource = read(absolute("packages/shared-ui/src/primitives/useCollapsiblePaneResize.ts"));
-const collapsiblePaneGestureSource = read(absolute("packages/shared-ui/src/primitives/collapsiblePaneGesture.ts"));
-const paneResizeDragSource = read(absolute("packages/shared-ui/src/primitives/usePaneResizeDrag.ts"));
-const collapsiblePaneFrameSource = read(absolute("packages/shared-ui/src/sidebar/CollapsiblePaneFrame.tsx"));
-const sidebarResizeHandleSource = read(absolute("packages/shared-ui/src/sidebar/SidebarResizeHandle.tsx"));
+const dataWorkspaceSource = read(absolute("src/shared-ui/data/DataWorkspace.tsx"))
+  + read(absolute("src/shared-ui/data/DataWorkspaceFrame.tsx"));
+const collapsiblePaneResizeSource = read(absolute("src/shared-ui/primitives/useCollapsiblePaneResize.ts"));
+const collapsiblePaneGestureSource = read(absolute("src/shared-ui/primitives/collapsiblePaneGesture.ts"));
+const paneResizeDragSource = read(absolute("src/shared-ui/primitives/usePaneResizeDrag.ts"));
+const collapsiblePaneFrameSource = read(absolute("src/shared-ui/sidebar/CollapsiblePaneFrame.tsx"));
+const sidebarResizeHandleSource = read(absolute("src/shared-ui/sidebar/SidebarResizeHandle.tsx"));
 const desktopDataWorkspaceSource = read(absolute("src/features/app-shell/DesktopDataWorkspaceSurface.tsx"));
 const desktopExplorerFrameSource = read(absolute("src/features/app-shell/layout/useDesktopExplorerFrame.ts"));
 if (layoutStyle.includes("--desktop-right-sidebar-visible-width") || auxiliarySource.includes("desktop-right-sidebar-visible-width")) {

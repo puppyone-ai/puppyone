@@ -3,8 +3,8 @@ import {
   CSV_COLUMN_INITIAL_MAX_WIDTH,
   CsvColumnLayoutModel,
   fitCsvColumnWidths,
-} from "../../../../../packages/shared-ui/src/editor/viewers/csv/CsvColumnLayoutModel";
-import { CsvDocumentModel } from "../../../../../packages/shared-ui/src/editor/viewers/csv/CsvDocumentModel";
+} from "../../../../../src/shared-ui/editor/viewers/csv/CsvColumnLayoutModel";
+import { CsvDocumentModel } from "../../../../../src/shared-ui/editor/viewers/csv/CsvDocumentModel";
 
 describe("CSV column layout view state", () => {
   it("connects only for mounted consumers and catches up after a subscription replay", () => {

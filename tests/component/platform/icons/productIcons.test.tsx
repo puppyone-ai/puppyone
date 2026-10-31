@@ -14,8 +14,8 @@ import {
   HomeIcon,
   LocalIcon,
   PRODUCT_ICONS,
-} from "../../../../packages/shared-ui/src/icons/productIcons";
-import { FileGlyphIcon, FilePreviewIcon } from "../../../../packages/shared-ui/src/file/fileIcons";
+} from "../../../../src/shared-ui/icons/productIcons";
+import { FileGlyphIcon, FilePreviewIcon } from "../../../../src/shared-ui/file/fileIcons";
 
 function svg(element: ReactElement) {
   const host = document.createElement("div");

@@ -38,7 +38,7 @@ try {
       `// Generated from src/features/themes/builtin/${fallback.id.replaceAll(".", "-")}/theme.css.
 export const DEFAULT_MARKDOWN_THEME_CSS = ${JSON.stringify(fallbackSource)};
 `],
-    [path.join(repoRoot, "packages/shared-ui/src/styles/editor/markdown-theme-tokens.generated.css"),
+    [path.join(repoRoot, "src/shared-ui/styles/editor/markdown-theme-tokens.generated.css"),
       renderMarkdownProjection(fallbackSource)],
     [path.join(repoRoot, "src/styles/fallback-theme.generated.css"), renderFallbackCss(fallback)],
     [path.join(repoRoot, "src/features/themes/subThemeBootstrap.generated.ts"), renderTypeScriptBootstrap(definitions, fallback)],

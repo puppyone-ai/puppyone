@@ -304,237 +304,237 @@
       "count": 8
     }
   },
-  "packages/shared-ui/src/data/DataWorkspace.tsx": {
+  "src/shared-ui/data/DataWorkspace.tsx": {
     "no-nested-ternary": {
       "count": 2
     }
   },
-  "packages/shared-ui/src/data/explorer/explorerMotionAnimation.ts": {
+  "src/shared-ui/data/explorer/explorerMotionAnimation.ts": {
     "no-nested-ternary": {
       "count": 1
     }
   },
-  "packages/shared-ui/src/editor/ai-edits/diff.ts": {
+  "src/shared-ui/editor/ai-edits/diff.ts": {
     "no-nested-ternary": {
       "count": 1
     }
   },
-  "packages/shared-ui/src/editor/codemirror/readingAnchor.ts": {
+  "src/shared-ui/editor/codemirror/readingAnchor.ts": {
     "no-nested-ternary": {
       "count": 3
     }
   },
-  "packages/shared-ui/src/editor/conflictMarkers.ts": {
+  "src/shared-ui/editor/conflictMarkers.ts": {
     "no-nested-ternary": {
       "count": 1
     }
   },
-  "packages/shared-ui/src/editor/find/editorFind.tsx": {
+  "src/shared-ui/editor/find/editorFind.tsx": {
     "no-nested-ternary": {
       "count": 1
     }
   },
-  "packages/shared-ui/src/editor/find/useCsvFindAdapter.ts": {
+  "src/shared-ui/editor/find/useCsvFindAdapter.ts": {
     "no-nested-ternary": {
       "count": 1
     }
   },
-  "packages/shared-ui/src/editor/host/DataNodeEditorHost.tsx": {
+  "src/shared-ui/editor/host/DataNodeEditorHost.tsx": {
     "no-nested-ternary": {
       "count": 1
     }
   },
-  "packages/shared-ui/src/editor/host/FilePreview.tsx": {
+  "src/shared-ui/editor/host/FilePreview.tsx": {
     "no-nested-ternary": {
       "count": 1
     }
   },
-  "packages/shared-ui/src/editor/markdown/MarkdownCodeMirrorEditor.tsx": {
+  "src/shared-ui/editor/markdown/MarkdownCodeMirrorEditor.tsx": {
     "no-nested-ternary": {
       "count": 1
     }
   },
-  "packages/shared-ui/src/editor/markdown/core/commands/markdownBlockCommands.ts": {
+  "src/shared-ui/editor/markdown/core/commands/markdownBlockCommands.ts": {
     "no-nested-ternary": {
       "count": 2
     }
   },
-  "packages/shared-ui/src/editor/markdown/core/commands/markdownInlineCommands.ts": {
+  "src/shared-ui/editor/markdown/core/commands/markdownInlineCommands.ts": {
     "no-nested-ternary": {
       "count": 2
     }
   },
-  "packages/shared-ui/src/editor/markdown/features/code-block/codeBlockWidget.ts": {
+  "src/shared-ui/editor/markdown/features/code-block/codeBlockWidget.ts": {
     "no-nested-ternary": {
       "count": 1
     }
   },
-  "packages/shared-ui/src/editor/markdown/features/html/htmlBlockStructure.ts": {
+  "src/shared-ui/editor/markdown/features/html/htmlBlockStructure.ts": {
     "no-nested-ternary": {
       "count": 3
     }
   },
-  "packages/shared-ui/src/editor/markdown/features/mermaid/mermaidBlockWidget.ts": {
+  "src/shared-ui/editor/markdown/features/mermaid/mermaidBlockWidget.ts": {
     "no-nested-ternary": {
       "count": 1
     }
   },
-  "packages/shared-ui/src/editor/markdown/features/table/tableContextMenu.ts": {
+  "src/shared-ui/editor/markdown/features/table/tableContextMenu.ts": {
     "no-nested-ternary": {
       "count": 1
     }
   },
-  "packages/shared-ui/src/editor/markdown/features/table/tableDragLayer.ts": {
+  "src/shared-ui/editor/markdown/features/table/tableDragLayer.ts": {
     "no-nested-ternary": {
       "count": 1
     }
   },
-  "packages/shared-ui/src/editor/markdown/features/table/tableInlineViewportController.ts": {
+  "src/shared-ui/editor/markdown/features/table/tableInlineViewportController.ts": {
     "no-nested-ternary": {
       "count": 1
     }
   },
-  "packages/shared-ui/src/editor/markdown/platform/brokers/transactionBroker.ts": {
+  "src/shared-ui/editor/markdown/platform/brokers/transactionBroker.ts": {
     "no-nested-ternary": {
       "count": 1
     }
   },
-  "packages/shared-ui/src/editor/markdown/platform/codemirror/embeddedEditSession.ts": {
+  "src/shared-ui/editor/markdown/platform/codemirror/embeddedEditSession.ts": {
     "no-nested-ternary": {
       "count": 2
     }
   },
-  "packages/shared-ui/src/editor/markdown/platform/codemirror/embeddedInlineViewportSession.ts": {
+  "src/shared-ui/editor/markdown/platform/codemirror/embeddedInlineViewportSession.ts": {
     "no-nested-ternary": {
       "count": 2
     }
   },
-  "packages/shared-ui/src/editor/markdown/platform/codemirror/embeddedTableColumnLayoutSession.ts": {
+  "src/shared-ui/editor/markdown/platform/codemirror/embeddedTableColumnLayoutSession.ts": {
     "no-nested-ternary": {
       "count": 2
     }
   },
-  "packages/shared-ui/src/editor/markdown/platform/policy/markdownAssetPolicy.ts": {
+  "src/shared-ui/editor/markdown/platform/policy/markdownAssetPolicy.ts": {
     "no-nested-ternary": {
       "count": 1
     }
   },
-  "packages/shared-ui/src/editor/markdown/platform/policy/markdownHtmlSanitizerPolicy.ts": {
+  "src/shared-ui/editor/markdown/platform/policy/markdownHtmlSanitizerPolicy.ts": {
     "no-nested-ternary": {
       "count": 2
     }
   },
-  "packages/shared-ui/src/editor/markdown/shared/widgets/markdownWidgetMeasure.ts": {
+  "src/shared-ui/editor/markdown/shared/widgets/markdownWidgetMeasure.ts": {
     "no-nested-ternary": {
       "count": 1
     }
   },
-  "packages/shared-ui/src/editor/navigation/documentNavigation.ts": {
+  "src/shared-ui/editor/navigation/documentNavigation.ts": {
     "no-nested-ternary": {
       "count": 1
     }
   },
-  "packages/shared-ui/src/editor/registry/editorProviderPolicy.ts": {
+  "src/shared-ui/editor/registry/editorProviderPolicy.ts": {
     "no-nested-ternary": {
       "count": 1
     }
   },
-  "packages/shared-ui/src/editor/table/editableTableLayout.ts": {
+  "src/shared-ui/editor/table/editableTableLayout.ts": {
     "no-nested-ternary": {
       "count": 1
     }
   },
-  "packages/shared-ui/src/editor/table/useTabularViewport.ts": {
+  "src/shared-ui/editor/table/useTabularViewport.ts": {
     "no-nested-ternary": {
       "count": 1
     }
   },
-  "packages/shared-ui/src/editor/viewers/app/AppPreviewSetupView.tsx": {
+  "src/shared-ui/editor/viewers/app/AppPreviewSetupView.tsx": {
     "no-nested-ternary": {
       "count": 9
     }
   },
-  "packages/shared-ui/src/editor/viewers/app/AppPreviewViewer.tsx": {
+  "src/shared-ui/editor/viewers/app/AppPreviewViewer.tsx": {
     "no-nested-ternary": {
       "count": 7
     }
   },
-  "packages/shared-ui/src/editor/viewers/context-map/ContextMapViewer.tsx": {
+  "src/shared-ui/editor/viewers/context-map/ContextMapViewer.tsx": {
     "no-nested-ternary": {
       "count": 1
     }
   },
-  "packages/shared-ui/src/editor/viewers/context-map/contextMapLayout.ts": {
+  "src/shared-ui/editor/viewers/context-map/contextMapLayout.ts": {
     "no-nested-ternary": {
       "count": 4
     }
   },
-  "packages/shared-ui/src/editor/viewers/csv/CsvCellEditor.tsx": {
+  "src/shared-ui/editor/viewers/csv/CsvCellEditor.tsx": {
     "no-nested-ternary": {
       "count": 2
     }
   },
-  "packages/shared-ui/src/editor/viewers/csv/CsvTableControls.tsx": {
+  "src/shared-ui/editor/viewers/csv/CsvTableControls.tsx": {
     "no-nested-ternary": {
       "count": 3
     }
   },
-  "packages/shared-ui/src/editor/viewers/csv/CsvTableMenu.tsx": {
+  "src/shared-ui/editor/viewers/csv/CsvTableMenu.tsx": {
     "no-nested-ternary": {
       "count": 2
     }
   },
-  "packages/shared-ui/src/editor/viewers/database/DatabaseViewer.tsx": {
+  "src/shared-ui/editor/viewers/database/DatabaseViewer.tsx": {
     "no-nested-ternary": {
       "count": 8
     }
   },
-  "packages/shared-ui/src/editor/viewers/html/HtmlFloatingToolbar.tsx": {
+  "src/shared-ui/editor/viewers/html/HtmlFloatingToolbar.tsx": {
     "no-nested-ternary": {
       "count": 1
     }
   },
-  "packages/shared-ui/src/editor/viewers/html/HtmlViewer.tsx": {
+  "src/shared-ui/editor/viewers/html/HtmlViewer.tsx": {
     "no-nested-ternary": {
       "count": 1
     }
   },
-  "packages/shared-ui/src/editor/viewers/html/HtmlVisualSurface.tsx": {
+  "src/shared-ui/editor/viewers/html/HtmlVisualSurface.tsx": {
     "no-nested-ternary": {
       "count": 1
     }
   },
-  "packages/shared-ui/src/editor/viewers/html/htmlPreviewProjection.ts": {
+  "src/shared-ui/editor/viewers/html/htmlPreviewProjection.ts": {
     "no-nested-ternary": {
       "count": 1
     }
   },
-  "packages/shared-ui/src/editor/viewers/office/spreadsheetOoxmlPresentation.ts": {
+  "src/shared-ui/editor/viewers/office/spreadsheetOoxmlPresentation.ts": {
     "no-nested-ternary": {
       "count": 3
     }
   },
-  "packages/shared-ui/src/editor/viewers/office/spreadsheetParser.ts": {
+  "src/shared-ui/editor/viewers/office/spreadsheetParser.ts": {
     "no-nested-ternary": {
       "count": 1
     }
   },
-  "packages/shared-ui/src/editor/viewers/pdf/PdfViewer.tsx": {
+  "src/shared-ui/editor/viewers/pdf/PdfViewer.tsx": {
     "no-nested-ternary": {
       "count": 1
     }
   },
-  "packages/shared-ui/src/editor/viewers/puppyflow/puppyflowModel.ts": {
+  "src/shared-ui/editor/viewers/puppyflow/puppyflowModel.ts": {
     "no-nested-ternary": {
       "count": 1
     }
   },
-  "packages/shared-ui/src/editor/viewers/shared/TextEditorFrame.tsx": {
+  "src/shared-ui/editor/viewers/shared/TextEditorFrame.tsx": {
     "no-nested-ternary": {
       "count": 1
     }
   },
-  "packages/shared-ui/src/sidebar/CollapsiblePaneFrame.tsx": {
+  "src/shared-ui/sidebar/CollapsiblePaneFrame.tsx": {
     "no-nested-ternary": {
       "count": 2
     }

@@ -8,10 +8,10 @@ import { createRoot, type Root } from "react-dom/client";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { CodeMirrorFindAdapter } from "../../../../packages/shared-ui/src/editor/find/codeMirrorFindAdapter";
-import { EditorFindContributionProvider, EditorFindHost, useEditorFindCommand, useRegisterEditorFindAdapter, type EditorFindAdapter } from "../../../../packages/shared-ui/src/editor/find/editorFind";
-import { MarkdownCodeMirrorEditor } from "../../../../packages/shared-ui/src/editor/markdown/MarkdownCodeMirrorEditor";
-import { CsvTableEditor } from "../../../../packages/shared-ui/src/editor/viewers/csv/CsvTableEditor";
+import { CodeMirrorFindAdapter } from "../../../../src/shared-ui/editor/find/codeMirrorFindAdapter";
+import { EditorFindContributionProvider, EditorFindHost, useEditorFindCommand, useRegisterEditorFindAdapter, type EditorFindAdapter } from "../../../../src/shared-ui/editor/find/editorFind";
+import { MarkdownCodeMirrorEditor } from "../../../../src/shared-ui/editor/markdown/MarkdownCodeMirrorEditor";
+import { CsvTableEditor } from "../../../../src/shared-ui/editor/viewers/csv/CsvTableEditor";
 import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })

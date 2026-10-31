@@ -124,7 +124,7 @@ describe("built-in Sub Theme package architecture", () => {
       expect(roles["--po-md-code-block-font-size-medium"]).toBe("var(--po-md-table-font-size-medium)");
       expect(roles["--po-md-code-block-color"]).toBe("var(--po-md-blockquote-color)");
     }
-    const projection = readFileSync(path.join(repoRoot, "packages/shared-ui/src/styles/editor/markdown-theme-tokens.generated.css"), "utf8");
+    const projection = readFileSync(path.join(repoRoot, "src/shared-ui/styles/editor/markdown-theme-tokens.generated.css"), "utf8");
     for (const { name } of markdownContract.tokens) {
       expect(projection).toContain(`${name}:`);
       expect(projection).toContain(`${name.replace("--po-md-", "--po-host-md-")}:`);

@@ -261,8 +261,6 @@
       "electron/**",
       "locales/**",
       "shared/**",
-      "packages/localization/**",
-      "packages/shared-ui/**",
       "licenses/**",
       "!node_modules/@anthropic-ai/claude-agent-sdk-*/**",
       "LICENSE",

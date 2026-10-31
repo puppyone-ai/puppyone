@@ -5,7 +5,7 @@ import {
   getPresentationNavigationTarget,
   reducePresentationWheelGesture,
   settlePresentationFonts,
-} from "../../../../../packages/shared-ui/src/editor/viewers/office/presentationPreview";
+} from "../../../../../src/shared-ui/editor/viewers/office/presentationPreview";
 
 describe("PowerPoint preview fitting", () => {
   it("uses the tighter of the available width and height", () => {

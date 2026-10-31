@@ -5,7 +5,7 @@ import {
   type DataPort,
   type Workspace,
   type WorkspaceFolder,
-} from "../../../../packages/shared-ui/src";
+} from "../../../../src/shared-ui";
 import { createWorkbenchDataService } from "../../../../src/features/data-workspace/workbenchDataPort";
 
 function workspace(id: string, name: string, path: string): Workspace {

@@ -8,13 +8,13 @@ import {
   openKnowledgeMdxFeatureComposition,
   puppyMarkdownFeatureCompositionExtension,
   puppyMarkdownParserExtensions,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/composition/markdownFeatureComposition";
-import { addMarkdownBlockAndLineDecorations } from "../../../../../../packages/shared-ui/src/editor/markdown/core/decorations/blockDecorations";
-import { markdownFeatureCompositionFacet } from "../../../../../../packages/shared-ui/src/editor/markdown/core/features/markdownFeatureContract";
-import { getMarkdownPlanIndex } from "../../../../../../packages/shared-ui/src/editor/markdown/core/plans/markdownPlanIndex";
-import { getMarkdownElements } from "../../../../../../packages/shared-ui/src/editor/markdown/core/syntax/markdownElements";
-import { imageFeature } from "../../../../../../packages/shared-ui/src/editor/markdown/features/image/imageFeature";
-import { ImagePreviewWidget } from "../../../../../../packages/shared-ui/src/editor/markdown/features/image/imagePreviewWidget";
+} from "../../../../../../src/shared-ui/editor/markdown/composition/markdownFeatureComposition";
+import { addMarkdownBlockAndLineDecorations } from "../../../../../../src/shared-ui/editor/markdown/core/decorations/blockDecorations";
+import { markdownFeatureCompositionFacet } from "../../../../../../src/shared-ui/editor/markdown/core/features/markdownFeatureContract";
+import { getMarkdownPlanIndex } from "../../../../../../src/shared-ui/editor/markdown/core/plans/markdownPlanIndex";
+import { getMarkdownElements } from "../../../../../../src/shared-ui/editor/markdown/core/syntax/markdownElements";
+import { imageFeature } from "../../../../../../src/shared-ui/editor/markdown/features/image/imageFeature";
+import { ImagePreviewWidget } from "../../../../../../src/shared-ui/editor/markdown/features/image/imagePreviewWidget";
 
 function createMarkdownState(source: string) {
   return EditorState.create({

@@ -1,5 +1,5 @@
-import { createMarkdownLayoutCoordinator } from "../../../../packages/shared-ui/src/editor/markdown/platform/codemirror/layoutCoordinator";
-import { getEditorLayoutSnapshot } from "../../../../packages/shared-ui/src/editor/runtime/editorLayout";
+import { createMarkdownLayoutCoordinator } from "../../../../src/shared-ui/editor/markdown/platform/codemirror/layoutCoordinator";
+import { getEditorLayoutSnapshot } from "../../../../src/shared-ui/editor/runtime/editorLayout";
 
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const frame = () => new Promise(resolve => requestAnimationFrame(resolve));

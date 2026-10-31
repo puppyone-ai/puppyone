@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   getEdgeScrollVelocity,
   pickDropBoundary,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/addons/block-drag/blockDragGeometry";
+} from "../../../../../../src/shared-ui/editor/markdown/addons/block-drag/blockDragGeometry";
 
 describe("pickDropBoundary", () => {
   const blocks = [{ top: 0, bottom: 100 }, { top: 120, bottom: 140 }, { top: 160, bottom: 400 }];

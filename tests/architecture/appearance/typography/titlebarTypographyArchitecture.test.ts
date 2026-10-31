@@ -126,7 +126,7 @@ describe("titlebar typography architecture", () => {
     const layoutRoot = readCssBlock(`\n${tokensCss}`, ":root");
     const titlebarRoot = readCssBlock(`\n${titlebarCss}`, ".desktop-titlebar");
     const controlGeometry = readFileSync(
-      new URL("../../../../packages/shared-ui/src/styles/control-geometry.css", import.meta.url),
+      new URL("../../../../src/shared-ui/styles/control-geometry.css", import.meta.url),
       "utf8",
     );
 

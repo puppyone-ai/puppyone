@@ -5,18 +5,18 @@ import { EditorState } from "@codemirror/state";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getMarkdownPlanIndex } from "../../../../../../packages/shared-ui/src/editor/markdown/core/plans/markdownPlanIndex";
+import { getMarkdownPlanIndex } from "../../../../../../src/shared-ui/editor/markdown/core/plans/markdownPlanIndex";
 import {
   puppyMarkdownFeatureCompositionExtension,
   puppyMarkdownParserExtensions,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/composition/markdownFeatureComposition";
+} from "../../../../../../src/shared-ui/editor/markdown/composition/markdownFeatureComposition";
 import {
   markdownCodeMirrorBaseExtensions,
   markdownLivePreviewExtension,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
-import { disposeMarkdownEmbedHost } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/codemirror/embedHost";
-import { createSanitizedBlockHtmlFragment } from "../../../../../../packages/shared-ui/src/editor/markdown/features/html/sanitizeHtml";
-import type { MarkdownLinkGraph } from "../../../../../../packages/shared-ui/src/editor/registry/viewerTypes";
+} from "../../../../../../src/shared-ui/editor/markdown/markdownCodeMirrorExtensions";
+import { disposeMarkdownEmbedHost } from "../../../../../../src/shared-ui/editor/markdown/platform/codemirror/embedHost";
+import { createSanitizedBlockHtmlFragment } from "../../../../../../src/shared-ui/editor/markdown/features/html/sanitizeHtml";
+import type { MarkdownLinkGraph } from "../../../../../../src/shared-ui/editor/registry/viewerTypes";
 
 const views = new Set<EditorView>();
 

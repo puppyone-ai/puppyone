@@ -4,14 +4,14 @@
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { DataNode } from "../../../../packages/shared-ui/src/core/types";
-import { ExplorerTree, type ExplorerTreeProps } from "../../../../packages/shared-ui/src/data/ExplorerTree";
+import type { DataNode } from "../../../../src/shared-ui/core/types";
+import { ExplorerTree, type ExplorerTreeProps } from "../../../../src/shared-ui/data/ExplorerTree";
 import { DesktopExplorerRowActions } from "../../../../src/features/data-workspace/nodeActions";
-import { createExplorerMotionPlan } from "../../../../packages/shared-ui/src/data/explorer/explorerMotionPlan";
+import { createExplorerMotionPlan } from "../../../../src/shared-ui/data/explorer/explorerMotionPlan";
 import {
   buildExplorerVisibleModel,
-} from "../../../../packages/shared-ui/src/data/explorer/explorerVisibleModel";
-import { EXPLORER_VIRTUAL_MAX_MOUNTED_ROWS } from "../../../../packages/shared-ui/src/data/explorer/useExplorerVirtualWindow";
+} from "../../../../src/shared-ui/data/explorer/explorerVisibleModel";
+import { EXPLORER_VIRTUAL_MAX_MOUNTED_ROWS } from "../../../../src/shared-ui/data/explorer/useExplorerVirtualWindow";
 import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

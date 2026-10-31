@@ -4,18 +4,18 @@
 import { EditorSelection, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it } from "vitest";
-import { disposeWidgetSessionDom } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/codemirror/widgetSession";
-import { createWidgetSessionRegistry } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/codemirror/widgetSession";
-import { createDomFromInlineHtmlSource } from "../../../../../../packages/shared-ui/src/editor/markdown/features/html/inlineHtmlDomAdapter";
+import { disposeWidgetSessionDom } from "../../../../../../src/shared-ui/editor/markdown/platform/codemirror/widgetSession";
+import { createWidgetSessionRegistry } from "../../../../../../src/shared-ui/editor/markdown/platform/codemirror/widgetSession";
+import { createDomFromInlineHtmlSource } from "../../../../../../src/shared-ui/editor/markdown/features/html/inlineHtmlDomAdapter";
 import {
   markdownCodeMirrorBaseExtensions,
   markdownLivePreviewExtension,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
-import { getMarkdownEmbedHost, disposeMarkdownEmbedHost } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/codemirror/embedHost";
-import { createSanitizedBlockHtmlFragment } from "../../../../../../packages/shared-ui/src/editor/markdown/features/html/sanitizeHtml";
-import { createPrincipalFromView } from "../../../../../../packages/shared-ui/src/editor/markdown/core/editor/markdownLivePreviewContext";
-import { renderMarkdownInlineFromSharedPolicy } from "../../../../../../packages/shared-ui/src/editor/markdown/composition/preview/markdownInlinePlanAdapter";
-import { markdownRevealedSourceField } from "../../../../../../packages/shared-ui/src/editor/markdown/core/state/revealedSource";
+} from "../../../../../../src/shared-ui/editor/markdown/markdownCodeMirrorExtensions";
+import { getMarkdownEmbedHost, disposeMarkdownEmbedHost } from "../../../../../../src/shared-ui/editor/markdown/platform/codemirror/embedHost";
+import { createSanitizedBlockHtmlFragment } from "../../../../../../src/shared-ui/editor/markdown/features/html/sanitizeHtml";
+import { createPrincipalFromView } from "../../../../../../src/shared-ui/editor/markdown/core/editor/markdownLivePreviewContext";
+import { renderMarkdownInlineFromSharedPolicy } from "../../../../../../src/shared-ui/editor/markdown/composition/preview/markdownInlinePlanAdapter";
+import { markdownRevealedSourceField } from "../../../../../../src/shared-ui/editor/markdown/core/state/revealedSource";
 
 const views: EditorView[] = [];
 

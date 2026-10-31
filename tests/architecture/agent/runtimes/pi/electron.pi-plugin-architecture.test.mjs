@@ -69,7 +69,7 @@ describe("Pi RuntimeDefinition plug-in architecture", () => {
     }
     expect(source("src/features/local-agents/setup/localAgentCatalog.ts"))
       .toContain('id: "pi", label: "Pi", iconKey: "pi", status: "available", availability: "local-installation"');
-    expect(source("packages/shared-ui/src/core/agentBrandCatalog.ts")).toContain('pi: defineBrand("pi", "Pi Agent"');
+    expect(source("src/shared-ui/core/agentBrandCatalog.ts")).toContain('pi: defineBrand("pi", "Pi Agent"');
     expect(source("src/features/desktop-agent/ui/AgentBrandMark.tsx")).toContain("resolveAgentBrand");
   });
 });

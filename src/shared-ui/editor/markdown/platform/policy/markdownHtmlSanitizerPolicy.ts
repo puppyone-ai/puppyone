@@ -43,7 +43,7 @@ export const MARKDOWN_HTML_POLICY = {
   },
   urls: {
     protocols: new Set(["http:", "https:", "mailto:"]),
-    relativePrefixes: ["#", "/", "./", "../"],
+    relativePrefixes: ["#", "/", ".//", "../"],
   },
 } as const;
 

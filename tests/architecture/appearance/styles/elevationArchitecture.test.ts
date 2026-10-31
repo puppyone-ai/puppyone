@@ -18,10 +18,10 @@ const utilityScreens = readSource("../../../../src/styles/utility-screens.css");
 const agentFilePresence = readSource(
   "../../../../src/features/desktop-agent-presence/agent-file-presence.css",
 );
-const editorFind = readSource("../../../../packages/shared-ui/src/styles/editor/editor-find.css");
-const editorChrome = readSource("../../../../packages/shared-ui/src/styles/editor/editor-chrome.css");
-const csvEditor = readSource("../../../../packages/shared-ui/src/styles/editor/csv-table-editor.css");
-const markdownEditor = readSource("../../../../packages/shared-ui/src/styles/editor/markdown-editor.css");
+const editorFind = readSource("../../../../src/shared-ui/styles/editor/editor-find.css");
+const editorChrome = readSource("../../../../src/shared-ui/styles/editor/editor-chrome.css");
+const csvEditor = readSource("../../../../src/shared-ui/styles/editor/csv-table-editor.css");
+const markdownEditor = readSource("../../../../src/shared-ui/styles/editor/markdown-editor.css");
 const splitView = readSource(
   "../../../../src/features/editor-workbench/layout/desktop-editor-split-view.css",
 );

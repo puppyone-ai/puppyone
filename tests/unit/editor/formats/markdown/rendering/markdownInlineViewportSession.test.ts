@@ -3,12 +3,12 @@ import {
   createEmbeddedInlineViewportSessionStore,
   invertEmbeddedInlineViewportSequenceChange,
   mapEmbeddedInlineViewportPosition,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/platform/codemirror/embeddedInlineViewportSession";
+} from "../../../../../../src/shared-ui/editor/markdown/platform/codemirror/embeddedInlineViewportSession";
 import {
   denormalizeInlineScrollOffset,
   mapInlineScrollOffset,
   normalizeInlineScrollOffset,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/features/table/tableInlineViewportController";
+} from "../../../../../../src/shared-ui/editor/markdown/features/table/tableInlineViewportController";
 
 describe("Markdown embedded inline viewport sessions", () => {
   it("keeps one semantic anchor across an explicitly continuous Widget replacement", () => {

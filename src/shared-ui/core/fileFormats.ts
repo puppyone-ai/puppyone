@@ -1,4 +1,4 @@
-import registryJson from "../../../../shared/fileFormats.json";
+import registryJson from "../../../shared/fileFormats.json";
 
 export type FileCategory =
   | "image"

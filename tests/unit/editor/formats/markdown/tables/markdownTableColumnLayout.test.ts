@@ -5,8 +5,8 @@ import {
   layoutMarkdownTableColumns,
   measureCellText,
   measureMarkdownTableColumns,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/features/table/markdownTableColumnLayout";
-import type { MarkdownTableRow } from "../../../../../../packages/shared-ui/src/editor/markdown/features/table/tableModel";
+} from "../../../../../../src/shared-ui/editor/markdown/features/table/markdownTableColumnLayout";
+import type { MarkdownTableRow } from "../../../../../../src/shared-ui/editor/markdown/features/table/tableModel";
 
 // 600px usable; estimates carry 6% slack, so 1em of text is 10.6px here.
 const metrics = { availableWidth: 602, emPx: 10, cellInset: 20 } as const;

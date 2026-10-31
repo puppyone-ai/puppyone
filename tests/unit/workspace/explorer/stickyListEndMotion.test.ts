@@ -3,7 +3,7 @@ import {
   STICKY_LIST_END_FADE_THRESHOLDS,
   resolveStickyListEndFade,
   resolveStickyListEndMotionOffset,
-} from "../../../../packages/shared-ui/src/data/explorer/stickyListEndMotion";
+} from "../../../../src/shared-ui/data/explorer/stickyListEndMotion";
 
 // Scrollport-bottom pin at content y=500 for every motion case below.
 const pinnedTop = 500;

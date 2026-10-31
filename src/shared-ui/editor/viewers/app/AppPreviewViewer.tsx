@@ -17,7 +17,7 @@ import { useLocalization } from "@puppyone/localization/react";
 import {
   getAppPreviewManifestDisplayName,
   parseAppPreviewManifest,
-} from "../../../../../../shared/appPreviewManifest.js";
+} from "../../../../../shared/appPreviewManifest.js";
 import { PlainTextEditor } from "../code/PlainTextEditor";
 import type { PresetViewerRenderContext } from "../../registry/viewerTypes";
 import { AppPreviewSetupView } from "./AppPreviewSetupView";

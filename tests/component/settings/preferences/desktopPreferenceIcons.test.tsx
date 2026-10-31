@@ -13,7 +13,7 @@ import { withTestLocalization } from "../../../support/react/localization";
 import { PLUGIN_FILE_ICON_THEME_ID } from "../../../support/appearance/pluginFileIconTheme";
 
 // Only the default theme ships; a test plug-in theme proves live icon updates.
-vi.mock("../../../../packages/shared-ui/src/file/icon-themes/registry", async (original) => {
+vi.mock("../../../../src/shared-ui/file/icon-themes/registry", async (original) => {
   const { withPluginFileIconTheme } = await import("../../../support/appearance/pluginFileIconTheme");
   return withPluginFileIconTheme(await original());
 });

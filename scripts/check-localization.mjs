@@ -112,17 +112,14 @@ for (const locale of expectedLocales) {
 }
 
 await validateMessageReferences(
-  [path.join(repositoryRoot, "src"), path.join(repositoryRoot, "packages", "shared-ui", "src")],
+  [path.join(repositoryRoot, "src")],
   rendererMessageIds,
 );
 await validateMessageReferences(
   [path.join(repositoryRoot, "electron")],
   nativeMessageIds,
 );
-await validateNoHardcodedUserInterfaceText([
-  path.join(repositoryRoot, "src"),
-  path.join(repositoryRoot, "packages", "shared-ui", "src"),
-]);
+await validateNoHardcodedUserInterfaceText([path.join(repositoryRoot, "src")]);
 
 console.log(
   `Localization architecture OK: ${expectedLocales.length} locales, `

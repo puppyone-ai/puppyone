@@ -5,13 +5,13 @@ import {
   canonicalizeMarkdownHref,
   getSafeMarkdownHref,
   isSafeHref,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/platform/policy/markdownUrlPolicy";
-import { compileInlineHtmlRenderPlan } from "../../../../../../packages/shared-ui/src/editor/markdown/features/html/inlineHtmlPolicy";
-import { getMarkdownInlineHtml } from "../../../../../../packages/shared-ui/src/editor/markdown/features/html/inlineHtmlModel";
+} from "../../../../../../src/shared-ui/editor/markdown/platform/policy/markdownUrlPolicy";
+import { compileInlineHtmlRenderPlan } from "../../../../../../src/shared-ui/editor/markdown/features/html/inlineHtmlPolicy";
+import { getMarkdownInlineHtml } from "../../../../../../src/shared-ui/editor/markdown/features/html/inlineHtmlModel";
 import {
   puppyMarkdownFeatureCompositionExtension,
   puppyMarkdownParserExtensions,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/composition/markdownFeatureComposition";
+} from "../../../../../../src/shared-ui/editor/markdown/composition/markdownFeatureComposition";
 
 function createMarkdownState(source: string) {
   return EditorState.create({

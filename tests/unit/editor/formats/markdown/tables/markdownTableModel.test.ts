@@ -7,8 +7,8 @@ import {
   isMarkdownTableLine,
   isMarkdownTableSourceLine,
   serializeMarkdownTable,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/features/table/tableModel";
-import { markdownCodeMirrorLanguageExtension } from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
+} from "../../../../../../src/shared-ui/editor/markdown/features/table/tableModel";
+import { markdownCodeMirrorLanguageExtension } from "../../../../../../src/shared-ui/editor/markdown/markdownCodeMirrorExtensions";
 
 function createMarkdownState(source: string) {
   return EditorState.create({ doc: source });

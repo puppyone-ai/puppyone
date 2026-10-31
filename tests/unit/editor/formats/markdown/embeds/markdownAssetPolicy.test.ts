@@ -4,16 +4,16 @@ import {
   isBrokerSafeResolvedAssetUrl,
   isPathInsideWorkspaceRoot,
   resolveWorkspaceRelativePath,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/platform/policy/markdownAssetPolicy";
-import { createAssetBroker } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/brokers/assetBroker";
-import { resolveMarkdownAssetPath } from "../../../../../../packages/shared-ui/src/editor/markdown/features/media/markdownMediaReference";
-import { createCapabilityPrincipal } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/security/capabilityPrincipal";
+} from "../../../../../../src/shared-ui/editor/markdown/platform/policy/markdownAssetPolicy";
+import { createAssetBroker } from "../../../../../../src/shared-ui/editor/markdown/platform/brokers/assetBroker";
+import { resolveMarkdownAssetPath } from "../../../../../../src/shared-ui/editor/markdown/features/media/markdownMediaReference";
+import { createCapabilityPrincipal } from "../../../../../../src/shared-ui/editor/markdown/platform/security/capabilityPrincipal";
 import {
   allowsLocalActiveHtml,
   createDocumentTrustContext,
   evaluateAuthorizationGrant,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/platform/policy/markdownTrustPolicy";
-import { createExecutionSessionStore } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/sessions/executionSession";
+} from "../../../../../../src/shared-ui/editor/markdown/platform/policy/markdownTrustPolicy";
+import { createExecutionSessionStore } from "../../../../../../src/shared-ui/editor/markdown/platform/sessions/executionSession";
 
 describe("markdownAssetPolicy", () => {
   it("resolves Cloud relative and root assets within the complete account/project/scope root", () => {

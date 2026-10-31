@@ -17,12 +17,12 @@ import {
   createWorkbenchWorkspace,
   createWorkspaceResourceUri,
   type DataPort,
-} from "../../../../packages/shared-ui/src";
+} from "../../../../src/shared-ui";
 import {
   closeAllDocumentWorkingCopies,
   getOrCreateDocumentWorkingCopy,
-} from "../../../../packages/shared-ui/src/editor/document-session/documentWorkingCopies";
-import type { DocumentEditingSession } from "../../../../packages/shared-ui/src/editor/document-session/DocumentEditingSession";
+} from "../../../../src/shared-ui/editor/document-session/documentWorkingCopies";
+import type { DocumentEditingSession } from "../../../../src/shared-ui/editor/document-session/DocumentEditingSession";
 import { createWorkbenchDataService } from "../../../../src/features/data-workspace/workbenchDataPort";
 
 let temporaryRoot: string | null = null;

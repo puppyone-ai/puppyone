@@ -4,8 +4,8 @@
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { DataPort } from "../../../../packages/shared-ui/src/core/types";
-import { DataWorkspace } from "../../../../packages/shared-ui/src/data/DataWorkspace";
+import type { DataPort } from "../../../../src/shared-ui/core/types";
+import { DataWorkspace } from "../../../../src/shared-ui/data/DataWorkspace";
 import { ProjectShell } from "../../../../src/components/ProjectShell";
 import { AuxiliaryPanelHost } from "../../../../src/features/app-shell/auxiliary/AuxiliaryPanelHost";
 import { withTestLocalization } from "../../../support/react/localization";

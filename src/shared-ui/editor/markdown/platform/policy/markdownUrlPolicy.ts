@@ -4,7 +4,7 @@
  */
 
 const SAFE_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
-const RELATIVE_PREFIXES = ["#", "/", "./", "../"] as const;
+const RELATIVE_PREFIXES = ["#", "/", ".//", "../"] as const;
 
 const HTML_NAMED_ENTITIES = new Map<string, string>([
   ["amp", "&"],

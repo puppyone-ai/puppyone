@@ -7,7 +7,7 @@ import {
   preflightOoxmlPackage,
   preflightZipCentralDirectory,
   type ZipPreflightErrorCode,
-} from "../../../../../packages/shared-ui/src/editor/security/zipCentralDirectoryPreflight";
+} from "../../../../../src/shared-ui/editor/security/zipCentralDirectoryPreflight";
 
 const LOCAL_FILE_HEADER_SIGNATURE = 0x04034b50;
 const CENTRAL_DIRECTORY_HEADER_SIGNATURE = 0x02014b50;

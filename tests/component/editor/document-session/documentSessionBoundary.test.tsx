@@ -8,10 +8,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createWorkspaceResourceUri,
   createWorkspaceRootUri,
-} from "../../../../packages/shared-ui/src/core/resourceUri";
-import { DocumentSessionBoundary } from "../../../../packages/shared-ui/src/editor/document-session/DocumentSessionBoundary";
-import { useEditableDocumentSource } from "../../../../packages/shared-ui/src/editor/document-session/EditableDocumentSourceContext";
-import type { DocumentPersistedCommit } from "../../../../packages/shared-ui/src/editor/document-session/types";
+} from "../../../../src/shared-ui/core/resourceUri";
+import { DocumentSessionBoundary } from "../../../../src/shared-ui/editor/document-session/DocumentSessionBoundary";
+import { useEditableDocumentSource } from "../../../../src/shared-ui/editor/document-session/EditableDocumentSourceContext";
+import type { DocumentPersistedCommit } from "../../../../src/shared-ui/editor/document-session/types";
 import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })

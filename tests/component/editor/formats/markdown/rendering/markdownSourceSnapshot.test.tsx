@@ -6,15 +6,15 @@ import { EditorView } from "@codemirror/view";
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DocumentSessionBoundary } from "../../../../../../packages/shared-ui/src/editor/document-session/DocumentSessionBoundary";
+import { DocumentSessionBoundary } from "../../../../../../src/shared-ui/editor/document-session/DocumentSessionBoundary";
 import {
   closeAllDocumentWorkingCopies,
   closeDocumentWorkingCopy,
-} from "../../../../../../packages/shared-ui/src/editor/document-session/documentWorkingCopies";
-import { MarkdownCodeMirrorEditor } from "../../../../../../packages/shared-ui/src/editor/markdown/MarkdownCodeMirrorEditor";
-import { markdownRevealedSourceField } from "../../../../../../packages/shared-ui/src/editor/markdown/core/state/revealedSource";
-import type { EditorSourceSnapshotPort } from "../../../../../../packages/shared-ui/src/editor/sourceSnapshot";
-import { TextEditorFrame } from "../../../../../../packages/shared-ui/src/editor/viewers/shared/TextEditorFrame";
+} from "../../../../../../src/shared-ui/editor/document-session/documentWorkingCopies";
+import { MarkdownCodeMirrorEditor } from "../../../../../../src/shared-ui/editor/markdown/MarkdownCodeMirrorEditor";
+import { markdownRevealedSourceField } from "../../../../../../src/shared-ui/editor/markdown/core/state/revealedSource";
+import type { EditorSourceSnapshotPort } from "../../../../../../src/shared-ui/editor/sourceSnapshot";
+import { TextEditorFrame } from "../../../../../../src/shared-ui/editor/viewers/shared/TextEditorFrame";
 import { withTestLocalization } from "../../../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

@@ -30,7 +30,7 @@ import {
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DocumentSurfaceHost } from "../../../../packages/shared-ui/src/editor/host/DocumentSurfaceHost";
+import { DocumentSurfaceHost } from "../../../../src/shared-ui/editor/host/DocumentSurfaceHost";
 import { DesktopEditorSplitView } from "../../../../src/features/editor-workbench/layout/DesktopEditorSplitView";
 import {
   EditorPaneDocumentRuntime,

@@ -50,31 +50,31 @@ export default defineConfig({
     alias: [
       {
         find: "@puppyone/localization",
-        replacement: fileURLToPath(new URL("./packages/localization/src", import.meta.url)),
+        replacement: fileURLToPath(new URL("./src/lib/localization", import.meta.url)),
       },
       {
         find: "@puppyone/shared-ui/shared-ui.css",
-        replacement: fileURLToPath(new URL("./packages/shared-ui/src/styles/shared-ui.css", import.meta.url)),
+        replacement: fileURLToPath(new URL("./src/shared-ui/styles/shared-ui.css", import.meta.url)),
       },
       {
         find: "@puppyone/shared-ui/control-geometry.css",
-        replacement: fileURLToPath(new URL("./packages/shared-ui/src/styles/control-geometry.css", import.meta.url)),
+        replacement: fileURLToPath(new URL("./src/shared-ui/styles/control-geometry.css", import.meta.url)),
       },
       {
         find: "@puppyone/shared-ui/shared-ui-patterns.css",
-        replacement: fileURLToPath(new URL("./packages/shared-ui/src/styles/shared-ui-patterns.css", import.meta.url)),
+        replacement: fileURLToPath(new URL("./src/shared-ui/styles/shared-ui-patterns.css", import.meta.url)),
       },
       {
         find: "@puppyone/shared-ui/editor.css",
-        replacement: fileURLToPath(new URL("./packages/shared-ui/src/styles/editor.css", import.meta.url)),
+        replacement: fileURLToPath(new URL("./src/shared-ui/styles/editor.css", import.meta.url)),
       },
       {
         find: "@puppyone/shared-ui/markdown-presentation-preview",
-        replacement: fileURLToPath(new URL("./packages/shared-ui/src/editor/markdown/MarkdownPresentationPreview.tsx", import.meta.url)),
+        replacement: fileURLToPath(new URL("./src/shared-ui/editor/markdown/MarkdownPresentationPreview.tsx", import.meta.url)),
       },
       {
         find: "@puppyone/shared-ui",
-        replacement: fileURLToPath(new URL("./packages/shared-ui/src/index.ts", import.meta.url)),
+        replacement: fileURLToPath(new URL("./src/shared-ui/index.ts", import.meta.url)),
       },
       {
         find: "lucide-react",

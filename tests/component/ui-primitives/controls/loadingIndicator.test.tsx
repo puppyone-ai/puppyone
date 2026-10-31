@@ -11,7 +11,7 @@ import {
   LoadingPlaceholderStyleProvider,
   type LoadingPlaceholderStyle,
 } from "@puppyone/shared-ui";
-import { ORDERED_DITHER_LIGHT } from "../../../../packages/shared-ui/src/primitives/orderedDitherField";
+import { ORDERED_DITHER_LIGHT } from "../../../../src/shared-ui/primitives/orderedDitherField";
 import { InlineLoading as DesktopInlineLoading, PageLoading } from "../../../../src/components/loading";
 import { SourceControlDots } from "../../../../src/features/source-control/sidebar/GitSidebarPrimitives";
 import { withTestLocalization } from "../../../support/react/localization";

@@ -12,8 +12,8 @@ import type { DesktopCloudSession } from "../../../../src/lib/cloudApi";
 import type { ProjectCloudContext } from "../../../../src/features/cloud/project/context/projectCloudContext";
 import { cloudMessage } from "../../../../src/features/cloud/cloudPresentation";
 import { withTestLocalization } from "../../../support/react/localization";
-import { retireAllDocumentInputs, getDocumentInputRuntime } from "../../../../packages/shared-ui/src/editor/resource/DocumentInputRuntime";
-import { getOrCreateDocumentWorkingCopy, closeAllDocumentWorkingCopies } from "../../../../packages/shared-ui/src/editor/document-session/documentWorkingCopies";
+import { retireAllDocumentInputs, getDocumentInputRuntime } from "../../../../src/shared-ui/editor/resource/DocumentInputRuntime";
+import { getOrCreateDocumentWorkingCopy, closeAllDocumentWorkingCopies } from "../../../../src/shared-ui/editor/document-session/documentWorkingCopies";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const API = "https://cloud-fixture.puppyone.ai/api/v1";

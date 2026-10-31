@@ -4,17 +4,17 @@
 import { Compartment, EditorSelection, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { markdownLivePreviewContextExtension } from "../../../../../../packages/shared-ui/src/editor/markdown/core/editor/markdownLivePreviewContext";
-import { markdownLivePreviewFocusEffect } from "../../../../../../packages/shared-ui/src/editor/markdown/core/state/livePreviewFocus";
-import { markdownRevealedSourceField } from "../../../../../../packages/shared-ui/src/editor/markdown/core/state/revealedSource";
-import { ImagePreviewWidget } from "../../../../../../packages/shared-ui/src/editor/markdown/features/image/imagePreviewWidget";
-import { disposeMarkdownEmbedHost } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/codemirror/embedHost";
+import { markdownLivePreviewContextExtension } from "../../../../../../src/shared-ui/editor/markdown/core/editor/markdownLivePreviewContext";
+import { markdownLivePreviewFocusEffect } from "../../../../../../src/shared-ui/editor/markdown/core/state/livePreviewFocus";
+import { markdownRevealedSourceField } from "../../../../../../src/shared-ui/editor/markdown/core/state/revealedSource";
+import { ImagePreviewWidget } from "../../../../../../src/shared-ui/editor/markdown/features/image/imagePreviewWidget";
+import { disposeMarkdownEmbedHost } from "../../../../../../src/shared-ui/editor/markdown/platform/codemirror/embedHost";
 import {
   markdownCodeMirrorBaseExtensions,
   markdownLivePreviewCoreExtension,
   markdownLivePreviewExtension,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
-import type { MarkdownLinkGraph } from "../../../../../../packages/shared-ui/src/editor/registry/viewerTypes";
+} from "../../../../../../src/shared-ui/editor/markdown/markdownCodeMirrorExtensions";
+import type { MarkdownLinkGraph } from "../../../../../../src/shared-ui/editor/registry/viewerTypes";
 
 const mounted: Array<{
   widget: ImagePreviewWidget;

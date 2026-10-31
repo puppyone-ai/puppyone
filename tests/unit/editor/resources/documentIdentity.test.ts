@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   createWorkspaceResourceUri,
   createWorkspaceRootUri,
-} from "../../../../packages/shared-ui/src/core/resourceUri";
+} from "../../../../src/shared-ui/core/resourceUri";
 import {
   createDocumentIdentity,
   getDocumentIdentityKey,
-} from "../../../../packages/shared-ui/src/editor/document-session/documentIdentity";
+} from "../../../../src/shared-ui/editor/document-session/documentIdentity";
 
 describe("DocumentIdentity", () => {
   it("retains legacy provider-path canonicalization", () => {

@@ -2,7 +2,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import { closeActiveMarkdownTableMenu } from "../../../../../../packages/shared-ui/src/editor/markdown/features/table/tableMenuState";
+import { closeActiveMarkdownTableMenu } from "../../../../../../src/shared-ui/editor/markdown/features/table/tableMenuState";
 
 import { createTableView, source, makeHandleCaptureSafe, mockRect, rect, nextAnimationFrame } from "../../../../../support/editor/markdown/tableInteractions";
 

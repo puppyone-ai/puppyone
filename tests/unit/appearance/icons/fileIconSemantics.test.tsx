@@ -9,14 +9,14 @@ import {
   isFileIconThemeId,
   parseFileIconThemeId,
   type FileIconThemeId,
-} from "../../../../packages/shared-ui/src/file/fileIcons";
+} from "../../../../src/shared-ui/file/fileIcons";
 import {
   getSemanticKindForFormat,
   getPreferredMimeType,
   resolveFileFormat,
   type FileFormat,
-} from "../../../../packages/shared-ui/src/core/fileFormats";
-import { FILE_ICON_THEME_REGISTRY } from "../../../../packages/shared-ui/src/file/icon-themes/registry";
+} from "../../../../src/shared-ui/core/fileFormats";
+import { FILE_ICON_THEME_REGISTRY } from "../../../../src/shared-ui/file/icon-themes/registry";
 
 const INSTALLED_THEMES = FILE_ICON_THEMES.map(({ id }) => id);
 

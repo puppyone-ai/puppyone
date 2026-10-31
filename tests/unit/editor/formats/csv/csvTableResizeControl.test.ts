@@ -3,7 +3,7 @@ import {
   getCsvTableExpansionFromDrag,
   getCsvTableResizeViewportConstraints,
   getCsvExpansionEdgeVelocity,
-} from "../../../../../packages/shared-ui/src/editor/viewers/csv/CsvTableResizeControl";
+} from "../../../../../src/shared-ui/editor/viewers/csv/CsvTableResizeControl";
 
 describe("CSV table corner resize geometry", () => {
   it("snaps outward distance to the nearest complete row and column", () => {

@@ -3,25 +3,25 @@ import {
   FILE_FORMATS,
   resolveFileFormat,
   UNKNOWN_FORMAT,
-} from "../../../../packages/shared-ui/src/core/fileFormats";
+} from "../../../../src/shared-ui/core/fileFormats";
 import {
   coreViewerCapability,
   PRESET_VIEWER_MANIFEST,
-} from "../../../../packages/shared-ui/src/editor/registry/presetViewerManifest";
-import { PRESET_VIEWER_CONTRACT_VERSION } from "../../../../packages/shared-ui/src/editor/registry/viewerContract";
+} from "../../../../src/shared-ui/editor/registry/presetViewerManifest";
+import { PRESET_VIEWER_CONTRACT_VERSION } from "../../../../src/shared-ui/editor/registry/viewerContract";
 import {
   createPresetViewerRegistry,
   definePresetViewer,
   PRESET_VIEWER_REGISTRY,
   PRESET_VIEWERS,
   resolveEditorViewer,
-} from "../../../../packages/shared-ui/src/editor/registry/viewerRegistry";
+} from "../../../../src/shared-ui/editor/registry/viewerRegistry";
 import type {
   EditorDocument,
   EditorViewerMatch,
   PresetViewerContribution,
   PresetViewerImplementation,
-} from "../../../../packages/shared-ui/src/editor/registry/viewerTypes";
+} from "../../../../src/shared-ui/editor/registry/viewerTypes";
 
 function document(name: string, type: EditorDocument["type"] = "file", mimeType: string | null = null): EditorDocument {
   return { path: name, name, type, mimeType };

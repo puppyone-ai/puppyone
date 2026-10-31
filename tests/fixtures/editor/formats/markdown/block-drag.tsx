@@ -6,7 +6,7 @@ import { syntaxTree } from "@codemirror/language";
 import { useLayoutEffect, useState } from "react";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
-import { MarkdownCodeMirrorEditor } from "../../../../../packages/shared-ui/src/editor/markdown/MarkdownCodeMirrorEditor";
+import { MarkdownCodeMirrorEditor } from "../../../../../src/shared-ui/editor/markdown/MarkdownCodeMirrorEditor";
 import { resolveAppearance } from "../../../../../src/features/appearance/resolveAppearance";
 import { applySurfaceAppearanceToElement, resolveSurfaceAppearance, SurfaceAppearanceProvider } from "../../../../../src/features/appearance/AppearanceRuntime";
 import { createSubThemeCatalogSnapshot } from "../../../../../src/features/themes/builtinSubThemes";

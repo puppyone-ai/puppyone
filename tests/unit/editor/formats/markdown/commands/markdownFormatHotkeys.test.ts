@@ -2,7 +2,7 @@
  * @vitest-environment happy-dom
  */
 import { describe, expect, it } from "vitest";
-import { matchMarkdownFormatHotkey } from "../../../../../../packages/shared-ui/src/editor/markdown/core/commands/markdownFormatHotkeys";
+import { matchMarkdownFormatHotkey } from "../../../../../../src/shared-ui/editor/markdown/core/commands/markdownFormatHotkeys";
 
 describe("Markdown format hotkeys", () => {
   it("matches the product inline-format shortcut contract", () => {

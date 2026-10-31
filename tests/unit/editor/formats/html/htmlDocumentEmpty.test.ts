@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isHtmlDocumentEmpty } from "../../../../../packages/shared-ui/src/editor/viewers/html/htmlDocumentEmpty";
+import { isHtmlDocumentEmpty } from "../../../../../src/shared-ui/editor/viewers/html/htmlDocumentEmpty";
 
 describe("empty HTML documents", () => {
   it.each(["", " \n", "<!-- empty -->", '<!doctype html><html><head><title>Untitled</title><meta charset="utf-8"></head><body>\n</body></html>'])(

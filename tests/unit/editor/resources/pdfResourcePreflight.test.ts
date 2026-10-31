@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { preflightPdfResource } from "../../../../packages/shared-ui/src/editor/viewers/pdf/pdfResourcePreflight";
+import { preflightPdfResource } from "../../../../src/shared-ui/editor/viewers/pdf/pdfResourcePreflight";
 
 afterEach(() => vi.unstubAllGlobals());
 const url = "https://cloud-fixture.puppyone.ai/api/v1/content/project/inline?path=report.pdf&token=fixture";

@@ -2,50 +2,50 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const markdownEditorCss = readFileSync(
-  new URL("../../../../../../packages/shared-ui/src/styles/editor/markdown-editor.css", import.meta.url),
+  new URL("../../../../../../src/shared-ui/styles/editor/markdown-editor.css", import.meta.url),
   "utf8",
 );
 const editorEntryCss = readFileSync(
-  new URL("../../../../../../packages/shared-ui/src/styles/editor.css", import.meta.url),
+  new URL("../../../../../../src/shared-ui/styles/editor.css", import.meta.url),
   "utf8",
 );
 const sharedTableCss = readFileSync(
-  new URL("../../../../../../packages/shared-ui/src/styles/editor/editable-table.css", import.meta.url),
+  new URL("../../../../../../src/shared-ui/styles/editor/editable-table.css", import.meta.url),
   "utf8",
 );
 const markdownTableCss = readFileSync(
-  new URL("../../../../../../packages/shared-ui/src/styles/editor/markdown-table-widget.css", import.meta.url),
+  new URL("../../../../../../src/shared-ui/styles/editor/markdown-table-widget.css", import.meta.url),
   "utf8",
 );
 const markdownTableWidgetSource = readFileSync(
-  new URL("../../../../../../packages/shared-ui/src/editor/markdown/features/table/tableWidget.ts", import.meta.url),
+  new URL("../../../../../../src/shared-ui/editor/markdown/features/table/tableWidget.ts", import.meta.url),
   "utf8",
 );
 const markdownHtmlCss = readFileSync(
-  new URL("../../../../../../packages/shared-ui/src/styles/editor/markdown-html-widget.css", import.meta.url),
+  new URL("../../../../../../src/shared-ui/styles/editor/markdown-html-widget.css", import.meta.url),
   "utf8",
 );
 const markdownContentCss = readFileSync(
-  new URL("../../../../../../packages/shared-ui/src/styles/editor/markdown-content.css", import.meta.url),
+  new URL("../../../../../../src/shared-ui/styles/editor/markdown-content.css", import.meta.url),
   "utf8",
 );
 const markdownCodeCss = readFileSync(
-  new URL("../../../../../../packages/shared-ui/src/styles/editor/markdown-code-widgets.css", import.meta.url),
+  new URL("../../../../../../src/shared-ui/styles/editor/markdown-code-widgets.css", import.meta.url),
   "utf8",
 );
 const markdownInlineCss = readFileSync(
-  new URL("../../../../../../packages/shared-ui/src/styles/editor/markdown-inline-widgets.css", import.meta.url),
+  new URL("../../../../../../src/shared-ui/styles/editor/markdown-inline-widgets.css", import.meta.url),
   "utf8",
 );
 const markdownProjectionCss = readFileSync(
-  new URL("../../../../../../packages/shared-ui/src/styles/editor/markdown-theme-tokens.generated.css", import.meta.url),
+  new URL("../../../../../../src/shared-ui/styles/editor/markdown-theme-tokens.generated.css", import.meta.url),
   "utf8",
 );
 const neutralThemeCss = readFileSync(
   new URL("../../../../../../src/features/themes/builtin/default-neutral/theme.css", import.meta.url), "utf8",
 );
 const markdownCodeMirrorExtensionsSource = readFileSync(
-  new URL("../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions.ts", import.meta.url),
+  new URL("../../../../../../src/shared-ui/editor/markdown/markdownCodeMirrorExtensions.ts", import.meta.url),
   "utf8",
 );
 

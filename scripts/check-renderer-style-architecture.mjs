@@ -14,7 +14,7 @@ const productStyles = read("src/styles.css");
 const windowChromeStyles = read("src/styles/window-chrome.css");
 const interfaceSkinContractStyles = read("src/styles/interface-skin-contract.css");
 const windowChromeOwner = path.join(repoRoot, "src", "styles", "window-chrome.css");
-const sharedUiRoot = path.join(repoRoot, "packages", "shared-ui", "src");
+const sharedUiRoot = path.join(repoRoot, "src", "shared-ui");
 const interfaceStyleRoot = path.join(repoRoot, "src", "styles", "interfaces");
 const builtinSubThemeRoot = path.join(repoRoot, "src/features/themes/builtin");
 const viewerSurfaceTokenContract = JSON.parse(read("src/styles/viewer-surface-token-contract.json"));
@@ -78,7 +78,6 @@ if (
 
 const rendererSourceRoots = [
   path.join(repoRoot, "src"),
-  path.join(repoRoot, "packages", "shared-ui", "src"),
 ];
 
 // Check feature-side imports too, including every transitive CSS import edge.

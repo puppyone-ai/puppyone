@@ -289,7 +289,7 @@ describe("typography architecture", () => {
     const directPixelFontShorthand = /\bfont\s*:\s*[^;\n}]*\d+(?:\.\d+)?px/i;
     const directPixelCssTypeToken = /--[\w-]*(?:font|text|type|heading|meta|label)[\w-]*size\s*:\s*\d+(?:\.\d+)?px/i;
     const directNumericInlineTypeSize = /\bfontSize\s*(?::|=)\s*(?:\{\s*)?\d+(?:\.\d+)?\b/;
-    const roots = ["src", "packages", "electron", "public"];
+    const roots = ["src", "electron", "public"];
     for (const root of roots) {
       for (const file of sourceFiles(new URL(`../../../../${root}/`, import.meta.url))) {
         const contents = readFileSync(file, "utf8");
@@ -315,18 +315,18 @@ describe("typography architecture", () => {
 
   it("owns scaled control geometry at the shared design-token boundary", () => {
     const geometry = readFileSync(
-      new URL("../../../../packages/shared-ui/src/styles/control-geometry.css", import.meta.url),
+      new URL("../../../../src/shared-ui/styles/control-geometry.css", import.meta.url),
       "utf8",
     );
     const geometryRuntime = readFileSync(
-      new URL("../../../../packages/shared-ui/src/core/controlGeometry.ts", import.meta.url),
+      new URL("../../../../src/shared-ui/core/controlGeometry.ts", import.meta.url),
       "utf8",
     );
     const tokens = readFileSync(new URL("../../../../src/styles/tokens.css", import.meta.url), "utf8");
     const stylesEntry = readFileSync(new URL("../../../../src/styles.css", import.meta.url), "utf8");
     const viteConfig = readFileSync(new URL("../../../../vite.config.ts", import.meta.url), "utf8");
     const sharedStylesEntry = readFileSync(
-      new URL("../../../../packages/shared-ui/src/styles/shared-ui.css", import.meta.url),
+      new URL("../../../../src/shared-ui/styles/shared-ui.css", import.meta.url),
       "utf8",
     );
     const nodeActions = source("src/features/data-workspace/nodeActions.tsx");
@@ -360,23 +360,19 @@ describe("typography architecture", () => {
     expect(agentToolGroupPresentation).toContain("compactRowHeight = STANDARD_CONTROL_SIZE");
 
     const rawControlDimension = /^\s*(?:width|height|min-height)\s*:\s*30px(?:\s*!important)?;/m;
-    for (const root of ["src", "packages/shared-ui/src"]) {
-      for (const file of sourceFiles(new URL(`../../../../${root}/`, import.meta.url))) {
-        if (!file.pathname.endsWith(".css")) continue;
-        const contents = readFileSync(file, "utf8");
-        expect(contents, file.pathname).not.toMatch(rawControlDimension);
-        if (!file.pathname.endsWith("src/styles/typography/foundations.css")) {
-          expect(contents, file.pathname).not.toContain("var(--po-text-size-sidebar");
-        }
+    for (const file of sourceFiles(new URL(`../../../../src/`, import.meta.url))) {
+      if (!file.pathname.endsWith(".css")) continue;
+      const contents = readFileSync(file, "utf8");
+      expect(contents, file.pathname).not.toMatch(rawControlDimension);
+      if (!file.pathname.endsWith("src/styles/typography/foundations.css")) {
+        expect(contents, file.pathname).not.toContain("var(--po-text-size-sidebar");
       }
     }
 
     const rawRuntimeControlDimension = /(?:(?:ROW_HEIGHT|CONTROL_SIZE|rowHeight|controlSize)\s*=|estimatedHeight:)\s*30\b/;
-    for (const root of ["src", "packages/shared-ui/src"]) {
-      for (const file of sourceFiles(new URL(`../../../../${root}/`, import.meta.url))) {
-        if (!/\.tsx?$/.test(file.pathname) || file.pathname.endsWith("controlGeometry.ts")) continue;
-        expect(readFileSync(file, "utf8"), file.pathname).not.toMatch(rawRuntimeControlDimension);
-      }
+    for (const file of sourceFiles(new URL(`../../../../src/`, import.meta.url))) {
+      if (!/\.tsx?$/.test(file.pathname) || file.pathname.endsWith("controlGeometry.ts")) continue;
+      expect(readFileSync(file, "utf8"), file.pathname).not.toMatch(rawRuntimeControlDimension);
     }
   });
 
@@ -514,20 +510,20 @@ describe("typography architecture", () => {
     const locales = source("src/styles/typography/locales.css");
     const roles = source("src/styles/typography/roles.css");
     const base = source("src/styles/base.css");
-    const markdown = source("packages/shared-ui/src/styles/editor/markdown-editor.css");
-    const markdownContent = source("packages/shared-ui/src/styles/editor/markdown-content.css");
-    const markdownMath = source("packages/shared-ui/src/styles/editor/markdown-math.css");
-    const plainText = source("packages/shared-ui/src/styles/editor/editor-chrome.css");
-    const editableTable = source("packages/shared-ui/src/styles/editor/editable-table.css");
-    const officePreview = source("packages/shared-ui/src/styles/editor/media-office-preview.css");
+    const markdown = source("src/shared-ui/styles/editor/markdown-editor.css");
+    const markdownContent = source("src/shared-ui/styles/editor/markdown-content.css");
+    const markdownMath = source("src/shared-ui/styles/editor/markdown-math.css");
+    const plainText = source("src/shared-ui/styles/editor/editor-chrome.css");
+    const editableTable = source("src/shared-ui/styles/editor/editable-table.css");
+    const officePreview = source("src/shared-ui/styles/editor/media-office-preview.css");
     const agentTranscript = source("src/features/desktop-agent/ui/styles/transcript.css");
     const agentActivities = source("src/features/desktop-agent/ui/styles/activities.css");
     const terminalAppearance = source("src/features/desktop-terminal/runtime/terminalAppearance.ts");
     const terminalAppearanceSync = source("src/features/desktop-terminal/runtime/useTerminalAppearanceSync.ts");
     const overlayPortal = source("src/components/DesktopOverlayPortal.tsx");
-    const markdownEditor = source("packages/shared-ui/src/editor/markdown/MarkdownCodeMirrorEditor.tsx");
-    const codeEditor = source("packages/shared-ui/src/editor/viewers/code/CodeMirrorCodeEditor.tsx");
-    const plainTextEditor = source("packages/shared-ui/src/editor/viewers/code/PlainTextEditor.tsx");
+    const markdownEditor = source("src/shared-ui/editor/markdown/MarkdownCodeMirrorEditor.tsx");
+    const codeEditor = source("src/shared-ui/editor/viewers/code/CodeMirrorCodeEditor.tsx");
+    const plainTextEditor = source("src/shared-ui/editor/viewers/code/PlainTextEditor.tsx");
     const agentMarkdown = source("src/features/desktop-agent/ui/markdown/AgentMarkdownDocument.tsx");
     const typographyRuntime = source("src/features/typography/typographyRuntime.ts");
     const appearanceRuntime = source("src/features/appearance/AppearanceRuntime.tsx");
@@ -575,7 +571,7 @@ describe("typography architecture", () => {
     expect(locales).not.toContain("--po-content-reading-line-height:");
     expect(base).toContain("font-feature-settings: normal;");
     expect(base).not.toContain("'cv02'");
-    const markdownProjection = source("packages/shared-ui/src/styles/editor/markdown-theme-tokens.generated.css");
+    const markdownProjection = source("src/shared-ui/styles/editor/markdown-theme-tokens.generated.css");
     const markdownTheme = source("src/features/themes/builtin/default-neutral/theme.css");
     expect(markdownProjection).toContain("--po-md-content-font: var(--po-font-editor-content-user, var(--po-host-md-content-font));");
     expect(markdownContent).toContain("--po-editor-content-font: var(--po-md-content-font);");

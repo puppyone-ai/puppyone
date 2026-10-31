@@ -1,12 +1,12 @@
 import { ensureSyntaxTree } from "@codemirror/language";
 import { EditorState } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
-import { getMarkdownFragmentPosition, markdownFragmentTargetsFacet } from "../../../../../../packages/shared-ui/src/editor/markdown/core/links/markdownFragmentTargets";
-import { markdownHeadingIndexField } from "../../../../../../packages/shared-ui/src/editor/markdown/core/links/markdownHeadingIndex";
-import { getCollapsedMarkerDeletionUnit, getMarkdownPlanIndex } from "../../../../../../packages/shared-ui/src/editor/markdown/core/plans/markdownPlanIndex";
-import { getMarkdownInlineHtmlAnchors } from "../../../../../../packages/shared-ui/src/editor/markdown/features/html/inlineHtmlAnchors";
-import { getMarkdownInlineHtmlDiagnostics, resetMarkdownInlineHtmlDiagnostics } from "../../../../../../packages/shared-ui/src/editor/markdown/features/html/inlineHtmlModel";
-import { markdownCodeMirrorBaseExtensions } from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
+import { getMarkdownFragmentPosition, markdownFragmentTargetsFacet } from "../../../../../../src/shared-ui/editor/markdown/core/links/markdownFragmentTargets";
+import { markdownHeadingIndexField } from "../../../../../../src/shared-ui/editor/markdown/core/links/markdownHeadingIndex";
+import { getCollapsedMarkerDeletionUnit, getMarkdownPlanIndex } from "../../../../../../src/shared-ui/editor/markdown/core/plans/markdownPlanIndex";
+import { getMarkdownInlineHtmlAnchors } from "../../../../../../src/shared-ui/editor/markdown/features/html/inlineHtmlAnchors";
+import { getMarkdownInlineHtmlDiagnostics, resetMarkdownInlineHtmlDiagnostics } from "../../../../../../src/shared-ui/editor/markdown/features/html/inlineHtmlModel";
+import { markdownCodeMirrorBaseExtensions } from "../../../../../../src/shared-ui/editor/markdown/markdownCodeMirrorExtensions";
 
 function createState(doc: string) {
   const state = EditorState.create({ doc, extensions: [

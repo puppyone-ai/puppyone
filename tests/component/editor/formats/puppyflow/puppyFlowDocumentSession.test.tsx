@@ -5,9 +5,9 @@ import React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { EditorDocumentHost } from "../../../../../packages/shared-ui/src/editor/host/EditorDocumentHost";
-import { preloadPresetViewer } from "../../../../../packages/shared-ui/src/editor/host/PresetViewerRenderer";
-import { resolveEditorViewer } from "../../../../../packages/shared-ui/src/editor/registry/viewerRegistry";
+import { EditorDocumentHost } from "../../../../../src/shared-ui/editor/host/EditorDocumentHost";
+import { preloadPresetViewer } from "../../../../../src/shared-ui/editor/host/PresetViewerRenderer";
+import { resolveEditorViewer } from "../../../../../src/shared-ui/editor/registry/viewerRegistry";
 import { withTestLocalization } from "../../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })

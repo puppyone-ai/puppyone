@@ -1,18 +1,18 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const sharedSidebarCss = read("../../../../packages/shared-ui/src/styles/sidebar-primitives.css");
-const paneCss = read("../../../../packages/shared-ui/src/sidebar/collapsible-pane.css");
-const controlGeometryCss = read("../../../../packages/shared-ui/src/styles/control-geometry.css");
-const sharedDataWorkspaceCss = read("../../../../packages/shared-ui/src/styles/data-workspace.css");
+const sharedSidebarCss = read("../../../../src/shared-ui/styles/sidebar-primitives.css");
+const paneCss = read("../../../../src/shared-ui/sidebar/collapsible-pane.css");
+const controlGeometryCss = read("../../../../src/shared-ui/styles/control-geometry.css");
+const sharedDataWorkspaceCss = read("../../../../src/shared-ui/styles/data-workspace.css");
 const dataShellCss = read("../../../../src/features/data-workspace/data-shell.css");
 const projectSwitcherRailCss = read("../../../../src/features/app-shell/project-switcher-rail.css");
 const patternCss = read("../../../../src/styles/sidebar/patterns.css");
 const layoutCss = read("../../../../src/styles/layout.css");
 const dataSurfaceSource = read("../../../../src/features/app-shell/DesktopDataWorkspaceSurface.tsx");
 // The Data workspace and the frame it shares with surfaces that have no files yet.
-const dataWorkspaceSource = read("../../../../packages/shared-ui/src/data/DataWorkspace.tsx")
-  + read("../../../../packages/shared-ui/src/data/DataWorkspaceFrame.tsx");
+const dataWorkspaceSource = read("../../../../src/shared-ui/data/DataWorkspace.tsx")
+  + read("../../../../src/shared-ui/data/DataWorkspaceFrame.tsx");
 const desktopShellSource = read("../../../../src/components/ProjectShell.tsx");
 const appSource = read("../../../../src/App.tsx");
 const projectSwitcherSurfaceSource = read("../../../../src/features/app-shell/useProjectSwitcherSurface.ts");
@@ -23,17 +23,17 @@ const hostedCloudSurfaceSource = read("../../../../src/app/AccountCloudWorkspace
 const workspaceContentSource = read("../../../../src/features/app-shell/DesktopWorkspaceContent.tsx");
 const registrySource = read("../../../../src/features/app-shell/workspace-surfaces/workspaceSurfaceRegistry.ts");
 const auxiliaryHostSource = read("../../../../src/features/app-shell/auxiliary/AuxiliaryPanelHost.tsx");
-const collapsiblePaneResizeSource = read("../../../../packages/shared-ui/src/primitives/useCollapsiblePaneResize.ts");
-const collapsiblePaneGestureSource = read("../../../../packages/shared-ui/src/primitives/collapsiblePaneGesture.ts");
-const collapsiblePaneFrameSource = read("../../../../packages/shared-ui/src/sidebar/CollapsiblePaneFrame.tsx");
-const sidebarResizeHandleSource = read("../../../../packages/shared-ui/src/sidebar/SidebarResizeHandle.tsx");
+const collapsiblePaneResizeSource = read("../../../../src/shared-ui/primitives/useCollapsiblePaneResize.ts");
+const collapsiblePaneGestureSource = read("../../../../src/shared-ui/primitives/collapsiblePaneGesture.ts");
+const collapsiblePaneFrameSource = read("../../../../src/shared-ui/sidebar/CollapsiblePaneFrame.tsx");
+const sidebarResizeHandleSource = read("../../../../src/shared-ui/sidebar/SidebarResizeHandle.tsx");
 const settingsSidebarSource = read("../../../../src/features/settings/sidebar/SettingsSidebar.tsx");
 const settingsModelSource = read("../../../../src/features/settings/sidebar/settingsSidebarModel.ts");
 const sourceControlResourceLists = read("../../../../src/features/source-control/sidebar/SourceControlResourceLists.tsx");
 const sourceControlHistory = read("../../../../src/features/source-control/GitHistoryTimeline.tsx");
 const cloudHistorySidebar = read("../../../../src/features/cloud/history/CloudHistorySidebar.tsx");
-const virtualizationPolicy = read("../../../../packages/shared-ui/src/sidebar/virtualizationPolicy.ts");
-const virtualSidebarList = read("../../../../packages/shared-ui/src/sidebar/VirtualSidebarList.tsx");
+const virtualizationPolicy = read("../../../../src/shared-ui/sidebar/virtualizationPolicy.ts");
+const virtualSidebarList = read("../../../../src/shared-ui/sidebar/VirtualSidebarList.tsx");
 const sidebarBoundarySmoke = read("../../../support/electron/sidebar-boundaries.mjs");
 const tokens = read("../../../../src/styles/tokens.css");
 

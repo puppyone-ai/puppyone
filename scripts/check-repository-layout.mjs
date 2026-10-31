@@ -9,8 +9,7 @@ const errors = [];
 
 const requiredPaths = [
   ".gitattributes",
-  "packages/shared-ui/package.json",
-  "packages/shared-ui/src/index.ts",
+  "src/shared-ui/index.ts",
   "src/features",
   "electron/main",
   "electron/main/platform/create-platform-host.mjs",
@@ -31,6 +30,7 @@ const retiredPaths = [
   "src/components/CloudSidebar.tsx",
   "src/components/DesktopUtilityViews.tsx",
   "local-api",
+  "packages",
   "sub-themes",
   "tooling",
   "vendor",
@@ -55,25 +55,19 @@ for (const entry of readdirSync(path.join(repoRoot, "licenses"), { withFileTypes
   }
 }
 
+const sharedUiRoot = path.join(repoRoot, "src", "shared-ui");
+const isInsideSharedUi = (target) => target === sharedUiRoot || target.startsWith(`${sharedUiRoot}${path.sep}`);
+const relativeImportPattern = /(?:\bfrom\s+|\bimport\s*\(\s*|\bimport\s+)["'](\.{1,2}\/[^"']*)["']/g;
 for (const filePath of walkSourceFiles(path.join(repoRoot, "src"))) {
-  const source = readFileSync(filePath, "utf8");
-  if (/packages\/shared-ui\/src/.test(source)) {
-    errors.push(`${relative(filePath)} deep-imports first-party Shared UI; use @puppyone/shared-ui`);
+  if (isInsideSharedUi(filePath)) continue;
+  for (const [, specifier] of readFileSync(filePath, "utf8").matchAll(relativeImportPattern)) {
+    if (isInsideSharedUi(path.resolve(path.dirname(filePath), specifier))) {
+      errors.push(`${relative(filePath)} deep-imports first-party Shared UI; use @puppyone/shared-ui`);
+    }
   }
 }
 
-const eslintConfig = read("eslint.config.js");
-if (!eslintConfig.includes('"packages/shared-ui/src/**/*.{ts,tsx}"')) {
-  errors.push("ESLint must include first-party packages/shared-ui sources.");
-}
-if (/"packages\/\*\*"/.test(eslintConfig)) {
-  errors.push("ESLint must not ignore the first-party packages/ tree.");
-}
-
 const packageMetadata = read("package.json");
-if (!packageMetadata.includes('"packages/shared-ui/**"')) {
-  errors.push("Packaged Desktop artifacts must include packages/shared-ui.");
-}
 if (!packageMetadata.includes('"build": "node scripts/check-desktop-build-environment.mjs')) {
   errors.push("Production renderer builds must fail fast on missing endpoint configuration.");
 }

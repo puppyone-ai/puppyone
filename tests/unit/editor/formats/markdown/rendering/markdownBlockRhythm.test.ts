@@ -1,9 +1,9 @@
 import { EditorState, RangeSet } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
-import { markdownCodeMirrorBaseExtensions, markdownLivePreviewExtension } from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
-import { markdownLivePreviewDecorations, requestMarkdownProjectionRange } from "../../../../../../packages/shared-ui/src/editor/markdown/core/decorations/livePreviewDecorations";
+import { markdownCodeMirrorBaseExtensions, markdownLivePreviewExtension } from "../../../../../../src/shared-ui/editor/markdown/markdownCodeMirrorExtensions";
+import { markdownLivePreviewDecorations, requestMarkdownProjectionRange } from "../../../../../../src/shared-ui/editor/markdown/core/decorations/livePreviewDecorations";
 
-import { getMarkdownMarkerDiagnostics, resetMarkdownMarkerDiagnostics } from "../../../../../../packages/shared-ui/src/editor/markdown/core/presentation/markdownBlockRhythm";
+import { getMarkdownMarkerDiagnostics, resetMarkdownMarkerDiagnostics } from "../../../../../../src/shared-ui/editor/markdown/core/presentation/markdownBlockRhythm";
 
 const create = (doc: string) => EditorState.create({ doc, extensions: [markdownCodeMirrorBaseExtensions(false), markdownLivePreviewExtension()] });
 const projection = (state: EditorState) => state.field(markdownLivePreviewDecorations).decorations;

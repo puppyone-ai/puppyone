@@ -10,15 +10,15 @@ import { join } from "node:path";
 import {
   puppyMarkdownFeatureCompositionExtension,
   puppyMarkdownParserExtensions,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/composition/markdownFeatureComposition";
+} from "../../../../../../src/shared-ui/editor/markdown/composition/markdownFeatureComposition";
 import {
   collectMarkdownHeadingOutlineEntries,
   markdownHeadingOutlineExtension,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/core/interaction/markdownHeadingOutline";
+} from "../../../../../../src/shared-ui/editor/markdown/core/interaction/markdownHeadingOutline";
 import {
   markdownCodeMirrorBaseExtensions,
   markdownLivePreviewExtension,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
+} from "../../../../../../src/shared-ui/editor/markdown/markdownCodeMirrorExtensions";
 
 const mountedViews: Array<{ parent: HTMLElement; view: EditorView }> = [];
 
@@ -249,7 +249,7 @@ describe("Markdown heading outline", () => {
 
   it("keeps the visible dash separate from its pointer target without expandable chrome", () => {
     const css = readFileSync(
-      join(process.cwd(), "packages/shared-ui/src/styles/editor/markdown-editor.css"),
+      join(process.cwd(), "src/shared-ui/styles/editor/markdown-editor.css"),
       "utf8",
     );
     expect(css).toContain(".cm-md-heading-outline-layer");

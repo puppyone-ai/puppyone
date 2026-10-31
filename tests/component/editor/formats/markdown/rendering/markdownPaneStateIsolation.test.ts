@@ -2,21 +2,21 @@
 import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it } from "vitest";
-import { markdownLivePreviewDecorations } from "../../../../../../packages/shared-ui/src/editor/markdown/core/decorations/livePreviewDecorations";
+import { markdownLivePreviewDecorations } from "../../../../../../src/shared-ui/editor/markdown/core/decorations/livePreviewDecorations";
 import {
   markdownLivePreviewContextExtension,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/core/editor/markdownLivePreviewContext";
+} from "../../../../../../src/shared-ui/editor/markdown/core/editor/markdownLivePreviewContext";
 import {
   getMarkdownProjectionDiagnostics,
   resetMarkdownProjectionDiagnostics,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/core/projection/markdownDocumentProjection";
-import { MarkdownLinkInteractionSession } from "../../../../../../packages/shared-ui/src/editor/markdown/core/state/markdownLinkInteraction";
+} from "../../../../../../src/shared-ui/editor/markdown/core/projection/markdownDocumentProjection";
+import { MarkdownLinkInteractionSession } from "../../../../../../src/shared-ui/editor/markdown/core/state/markdownLinkInteraction";
 import {
   markdownCodeMirrorBaseExtensions,
   markdownLivePreviewCoreExtension,
   markdownLivePreviewExtension,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
-import type { MarkdownLinkGraph } from "../../../../../../packages/shared-ui/src/editor/registry/viewerTypes";
+} from "../../../../../../src/shared-ui/editor/markdown/markdownCodeMirrorExtensions";
+import type { MarkdownLinkGraph } from "../../../../../../src/shared-ui/editor/registry/viewerTypes";
 
 const views: EditorView[] = [];
 

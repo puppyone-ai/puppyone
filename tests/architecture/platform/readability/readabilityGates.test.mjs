@@ -55,9 +55,9 @@ describe("readability gates reject new code, without suppressing bug rules", () 
     expect(result.messages.some((message) => message.ruleId === rule && message.severity === 2)).toBe(true);
   });
   it.each([
-    "src/a.ts", "packages/shared-ui/src/a.ts", "electron/a.ts", "electron/local-api/a.ts", "shared/a.ts",
+    "src/a.ts", "src/shared-ui/a.ts", "electron/a.ts", "electron/local-api/a.ts", "shared/a.ts",
     "src/a.mts", "electron/a.cts", "electron/local-api/a.tsx", "electron/a.mjs", "electron/local-api/a.mjs", "shared/a.js",
-    "src/a.js", "packages/shared-ui/src/a.mjs", "electron/a.cjs",
+    "src/a.js", "src/shared-ui/a.mjs", "electron/a.cjs",
   ])("covers %s", async (filePath) => {
     const annotation = /\.(?:[cm]?ts|tsx)$/.test(filePath) ? "const typed: number = 1; " : "";
     const text = filePath.endsWith(".cjs") ? "const f = a ? b ? c : d : e; debugger;" : `${annotation}${nested} debugger;`;
@@ -111,7 +111,7 @@ it("documents native suppression granularity: replacement at the same file/rule/
 
 function dependencyFixture() {
   const cwd = fixture();
-  for (const dir of ["src", "packages", "electron", "shared"]) mkdirSync(path.join(cwd, dir));
+  for (const dir of ["src", "electron", "shared"]) mkdirSync(path.join(cwd, dir));
   json(cwd, "package.json", { type: "module" });
   json(cwd, "tsconfig.json", { compilerOptions: { baseUrl: ".", paths: { "@probe/*": ["src/*"] } } });
   mkdirSync(path.join(cwd, "scripts/quality"), { recursive: true });
@@ -129,7 +129,7 @@ function dependencyFixture() {
 }
 function cruise(cwd) {
   const result = run(cwd, "node_modules/dependency-cruiser/bin/dependency-cruise.mjs", [
-    "src", "packages", "electron", "shared", "--config", dependencyConfig, "--output-type", "json",
+    "src", "electron", "shared", "--config", dependencyConfig, "--output-type", "json",
   ]);
   // JSON/baseline reporters intentionally exit zero even with errors.
   expect(result.status, result.stderr).toBe(0);
@@ -146,18 +146,20 @@ it("dependency-cruiser catches all directions, aliases, cycles and unresolved im
   write(cwd, "src/future-domain/deep.ts", "import '../features/cloud/internal'; import '../app';");
   write(cwd, "src/features/helpers.ts", "export const helper = 1;");
   write(cwd, "src/lib/invalid.ts", "import '../features/cloud'; import '../features/helpers'; import '../future-domain'; import '../app';");
-  write(cwd, "packages/probe/index.ts", "import '../../src/features/cloud'; import '../../electron/main.mjs';");
+  write(cwd, "src/shared-ui/probe.ts", "import '../features/cloud'; import '../../electron/main.mjs';");
+  write(cwd, "src/shared-ui/localized.ts", "import '../lib/localization/probe';");
+  write(cwd, "src/lib/localization/probe.ts", "import '../../../electron/main.mjs';");
   write(cwd, "src/cycle-a.ts", "import './cycle-b';");
   write(cwd, "src/cycle-b.ts", "import './cycle-a';");
   write(cwd, "src/features/agent/missing.ts", "import '@misspelled/features/cloud/internal'; import './missing-relative';");
   const { summary, modules } = cruise(cwd);
   const names = summary.violations.map((item) => item.rule.name);
   expect(names).toEqual(expect.arrayContaining([
-    "no-circular", "composition-root-only", "lib-does-not-import-domains", "packages-do-not-import-applications",
+    "no-circular", "composition-root-only", "lib-does-not-import-domains", "shared-ui-does-not-import-applications",
     "public-domain-entry-src-features-agent", "public-domain-entry-src-future-domain", "no-unresolved",
   ]));
   expect(summary.violations.filter((item) => item.rule.name === "lib-does-not-import-domains")).toHaveLength(4);
-  expect(summary.violations.filter((item) => item.rule.name === "packages-do-not-import-applications")).toHaveLength(2);
+  expect(summary.violations.filter((item) => item.rule.name === "shared-ui-does-not-import-applications")).toHaveLength(3);
   expect(summary.violations.filter((item) => item.rule.name === "no-unresolved")).toHaveLength(2);
   expect(summary.violations.filter((item) => item.from === "src/features/agent/index.ts" || item.from === "src/main.ts")).toEqual([]);
   expect(modules.find((item) => item.source === "src/features/agent/deep.ts").dependencies.every((item) => !item.couldNotResolve)).toBe(true);

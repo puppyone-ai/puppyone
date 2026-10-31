@@ -13,10 +13,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   EditorPaneMenuContributionProvider,
   type EditorPaneMenuContribution,
-} from "../../../../../packages/shared-ui/src/editor/editorPaneMenuContribution";
-import { EditorDocumentHost } from "../../../../../packages/shared-ui/src/editor/host/EditorDocumentHost";
-import { preloadPresetViewer } from "../../../../../packages/shared-ui/src/editor/host/PresetViewerRenderer";
-import { resolveEditorViewer } from "../../../../../packages/shared-ui/src/editor/registry/viewerRegistry";
+} from "../../../../../src/shared-ui/editor/editorPaneMenuContribution";
+import { EditorDocumentHost } from "../../../../../src/shared-ui/editor/host/EditorDocumentHost";
+import { preloadPresetViewer } from "../../../../../src/shared-ui/editor/host/PresetViewerRenderer";
+import { resolveEditorViewer } from "../../../../../src/shared-ui/editor/registry/viewerRegistry";
 import { withTestLocalization } from "../../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })

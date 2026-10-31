@@ -37,9 +37,7 @@ export default [
   },
   {
     files: [
-      "{src,packages,electron,shared}/**/*.{ts,tsx,mts,cts}",
-      // Keep the package's explicit contract visible to the layout check.
-      "packages/shared-ui/src/**/*.{ts,tsx}",
+      "{src,electron,shared}/**/*.{ts,tsx,mts,cts}",
     ],
     languageOptions: {
       parser: tsParser,
@@ -54,7 +52,7 @@ export default [
     },
   },
   {
-    files: ["{src,packages,electron,shared}/**/*.{js,mjs,cjs,ts,tsx,mts,cts}"],
+    files: ["{src,electron,shared}/**/*.{js,mjs,cjs,ts,tsx,mts,cts}"],
     rules: {
       "no-nested-ternary": "error",
     },
@@ -104,7 +102,7 @@ export default [
     },
   },
   {
-    files: ["cloudflare/**/*.mjs", "{src,packages,electron,shared}/**/*.{js,mjs}", "scripts/**/*.mjs", "tests/**/*.mjs"],
+    files: ["cloudflare/**/*.mjs", "{src,electron,shared}/**/*.{js,mjs}", "scripts/**/*.mjs", "tests/**/*.mjs"],
     languageOptions: { ecmaVersion: 2023, sourceType: "module", globals: { ...globals.node } },
     rules: coreBugRules,
   },

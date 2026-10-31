@@ -40,7 +40,7 @@ import { CloudShareProvider } from '../../../../src/features/cloud/share/CloudSh
 import { CloudServiceSidebar } from '../../../../src/features/cloud/CloudServiceSidebar';
 import { FeatureFlagsProvider } from '../../../../src/features/flags';
 import { CloudPublishProgressIndicator } from '../../../../src/features/cloud/initialization/CloudPublishProgressIndicator';
-import { AppPreviewSetupView } from '../../../../packages/shared-ui/src/editor/viewers/app/AppPreviewSetupView';
+import { AppPreviewSetupView } from '../../../../src/shared-ui/editor/viewers/app/AppPreviewSetupView';
 import type { DesktopCloudAutomationProviderSpec, DesktopBillingOperation } from '../../../../src/lib/cloudApi';
 import type { ModelConnectionSnapshot } from '../../../../shared/model-connections/types';
 import type { LocaleState } from '@puppyone/localization/core';

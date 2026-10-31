@@ -4,7 +4,7 @@
 import { act, useMemo, useRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useTabularViewport, type TabularViewportProjection } from "../../../../packages/shared-ui/src/editor/table/useTabularViewport";
+import { useTabularViewport, type TabularViewportProjection } from "../../../../src/shared-ui/editor/table/useTabularViewport";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root;

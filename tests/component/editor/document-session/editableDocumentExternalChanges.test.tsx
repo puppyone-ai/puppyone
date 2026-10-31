@@ -4,8 +4,8 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DocumentSessionBoundary } from "../../../../packages/shared-ui/src/editor/document-session/DocumentSessionBoundary";
-import { TextEditorFrame } from "../../../../packages/shared-ui/src/editor/viewers/shared/TextEditorFrame";
+import { DocumentSessionBoundary } from "../../../../src/shared-ui/editor/document-session/DocumentSessionBoundary";
+import { TextEditorFrame } from "../../../../src/shared-ui/editor/viewers/shared/TextEditorFrame";
 import { withTestLocalization } from "../../../support/react/localization";
 import type { DocumentPersistencePort } from "@puppyone/shared-ui";
 

@@ -9,7 +9,7 @@ const directories = (path) => existsSync(join(repoRoot, path))
   ? readdirSync(join(repoRoot, path), { withFileTypes: true })
     .filter((entry) => entry.isDirectory()).map((entry) => `${path}/${entry.name}`)
   : [];
-const technical = new Set(["app", "features", "components", "hooks", "lib", "types", "styles", "assets"]);
+const technical = new Set(["app", "features", "components", "hooks", "lib", "types", "styles", "assets", "shared-ui"]);
 const domains = [
   ...directories("src/features"),
   ...directories("src").filter((path) => !technical.has(path.split("/").at(-1))),
@@ -36,10 +36,10 @@ module.exports = {
       to: { path: `^(?:src/features|src/app|${domainPaths.join("|")})/` },
     },
     {
-      name: "packages-do-not-import-applications",
+      name: "shared-ui-does-not-import-applications",
       severity: "error",
-      from: { path: "^packages/" },
-      to: { path: "^(?:src|electron)/" },
+      from: { path: "^src/(?:shared-ui|lib/localization)/" },
+      to: { path: "^(?:src|electron)/", pathNot: "^src/(?:shared-ui|lib/localization)/" },
     },
     ...domains.map((domain) => ({
       name: `public-domain-entry-${domain.replaceAll("/", "-")}`,

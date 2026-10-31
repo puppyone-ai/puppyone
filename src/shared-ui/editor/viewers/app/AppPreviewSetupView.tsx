@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useLocalization } from "@puppyone/localization/react";
-import { parseAppPreviewManifest } from "../../../../../../shared/appPreviewManifest.js";
+import { parseAppPreviewManifest } from "../../../../../shared/appPreviewManifest.js";
 import type {
   AppPreviewController,
   AppPreviewDetectionResult,

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { getDocumentInputRuntime, retireDocumentInputs } from "../../../../packages/shared-ui/src/editor/resource/DocumentInputRuntime";
-import { getEditorStorageIdentity } from "../../../../packages/shared-ui/src/editor/resource/editorStorageIdentity";
-import { acquireFileResource, settleFileResourceReleases } from "../../../../packages/shared-ui/src/editor/resource/FileResourcePool";
+import { getDocumentInputRuntime, retireDocumentInputs } from "../../../../src/shared-ui/editor/resource/DocumentInputRuntime";
+import { getEditorStorageIdentity } from "../../../../src/shared-ui/editor/resource/editorStorageIdentity";
+import { acquireFileResource, settleFileResourceReleases } from "../../../../src/shared-ui/editor/resource/FileResourcePool";
 import type { DataPort, DataFileUrlOptions, DocumentDataNode } from "@puppyone/shared-ui";
 
 describe("document resource Retry", () => {

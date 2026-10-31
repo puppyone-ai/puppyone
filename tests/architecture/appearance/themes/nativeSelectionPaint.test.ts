@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const root = fileURLToPath(new URL("../../../../", import.meta.url));
-const selectionCss = readFileSync(path.join(root, "packages/shared-ui/src/styles/editor/text-selection.css"), "utf8");
+const selectionCss = readFileSync(path.join(root, "src/shared-ui/styles/editor/text-selection.css"), "utf8");
 const uncommented = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, "");
 const declarations = (css: string, property: string) => [...uncommented(css).matchAll(
   new RegExp(`(?:^|[;{\\s])${property}:\\s*([^;]+);`, "g"),
@@ -41,8 +41,8 @@ describe("native text selection paint", () => {
   });
 
   it("keeps the composite and native selection paint out of feature stylesheets", () => {
-    const owner = path.join(root, "packages/shared-ui/src/styles/editor/text-selection.css");
-    const files = [...stylesheets(path.join(root, "src")), ...stylesheets(path.join(root, "packages/shared-ui/src"))]
+    const owner = path.join(root, "src/shared-ui/styles/editor/text-selection.css");
+    const files = stylesheets(path.join(root, "src"))
       .filter((file) => file !== owner);
     for (const file of files) {
       const css = readFileSync(file, "utf8");

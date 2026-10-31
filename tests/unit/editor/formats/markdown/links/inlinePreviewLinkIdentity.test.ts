@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { getInlinePreviewLinkIdentity } from "../../../../../../packages/shared-ui/src/editor/markdown/core/links/inlinePreviewLinkIdentity";
-import { createMarkdownLinkGraph } from "../../../../../../packages/shared-ui/src/editor/markdown/core/links/markdownLinkGraph";
+import { getInlinePreviewLinkIdentity } from "../../../../../../src/shared-ui/editor/markdown/core/links/inlinePreviewLinkIdentity";
+import { createMarkdownLinkGraph } from "../../../../../../src/shared-ui/editor/markdown/core/links/markdownLinkGraph";
 
 const graph = (paths: string[], revision: number) => createMarkdownLinkGraph(
   paths.map((path) => ({ path, name: path.split("/").at(-1)! })), undefined, revision,

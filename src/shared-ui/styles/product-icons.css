@@ -1,5 +1,5 @@
 /*
- * Product icons (packages/shared-ui/src/icons/productIcons.tsx).
+ * Product icons (src/shared-ui/icons/productIcons.tsx).
  *
  * DisclosureIcon rotates itself to point down when a controlled row expands.
  * A collapsed controlled row points along the reading direction, so it mirrors

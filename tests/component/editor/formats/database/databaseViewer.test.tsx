@@ -2,9 +2,9 @@
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { FilePreview } from "../../../../../packages/shared-ui/src/editor/host/FilePreview";
-import type { DatabaseObject, DatabasePage, DatabasePreviewSession, EditorPreviewServices } from "../../../../../packages/shared-ui/src/editor/preview-services/types";
-import { retireEditorHostLeases } from "../../../../../packages/shared-ui/src/editor/runtime/EditorHostLeases";
+import { FilePreview } from "../../../../../src/shared-ui/editor/host/FilePreview";
+import type { DatabaseObject, DatabasePage, DatabasePreviewSession, EditorPreviewServices } from "../../../../../src/shared-ui/editor/preview-services/types";
+import { retireEditorHostLeases } from "../../../../../src/shared-ui/editor/runtime/EditorHostLeases";
 import { withTestLocalization } from "../../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

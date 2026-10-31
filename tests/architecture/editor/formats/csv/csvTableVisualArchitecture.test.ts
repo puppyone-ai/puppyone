@@ -2,67 +2,67 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const csvEditorSource = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/editor/viewers/csv/CsvTableEditor.tsx", import.meta.url),
+  new URL("../../../../../src/shared-ui/editor/viewers/csv/CsvTableEditor.tsx", import.meta.url),
   "utf8",
 );
 const csvControlsSource = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/editor/viewers/csv/CsvTableControls.tsx", import.meta.url),
+  new URL("../../../../../src/shared-ui/editor/viewers/csv/CsvTableControls.tsx", import.meta.url),
   "utf8",
 );
 const csvMenuSource = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/editor/viewers/csv/CsvTableMenu.tsx", import.meta.url),
+  new URL("../../../../../src/shared-ui/editor/viewers/csv/CsvTableMenu.tsx", import.meta.url),
   "utf8",
 );
 const csvViewSettingsSource = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/editor/viewers/csv/CsvViewSettings.tsx", import.meta.url),
+  new URL("../../../../../src/shared-ui/editor/viewers/csv/CsvViewSettings.tsx", import.meta.url),
   "utf8",
 );
 const csvResizeSource = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/editor/viewers/csv/CsvTableResizeControl.tsx", import.meta.url),
+  new URL("../../../../../src/shared-ui/editor/viewers/csv/CsvTableResizeControl.tsx", import.meta.url),
   "utf8",
 );
 const csvColumnResizeSource = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/editor/viewers/csv/CsvColumnResizeLayer.tsx", import.meta.url),
+  new URL("../../../../../src/shared-ui/editor/viewers/csv/CsvColumnResizeLayer.tsx", import.meta.url),
   "utf8",
 );
 const csvColumnLayoutSource = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/editor/viewers/csv/CsvColumnLayoutModel.ts", import.meta.url),
+  new URL("../../../../../src/shared-ui/editor/viewers/csv/CsvColumnLayoutModel.ts", import.meta.url),
   "utf8",
 );
 const csvDocumentModelSource = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/editor/viewers/csv/CsvDocumentModel.ts", import.meta.url),
+  new URL("../../../../../src/shared-ui/editor/viewers/csv/CsvDocumentModel.ts", import.meta.url),
   "utf8",
 );
 const csvViewerSource = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/editor/viewers/csv/CsvViewer.tsx", import.meta.url),
+  new URL("../../../../../src/shared-ui/editor/viewers/csv/CsvViewer.tsx", import.meta.url),
   "utf8",
 );
 const csvCellEditorSource = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/editor/viewers/csv/CsvCellEditor.tsx", import.meta.url),
+  new URL("../../../../../src/shared-ui/editor/viewers/csv/CsvCellEditor.tsx", import.meta.url),
   "utf8",
 );
 const textEditorFrameSource = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/editor/viewers/shared/TextEditorFrame.tsx", import.meta.url),
+  new URL("../../../../../src/shared-ui/editor/viewers/shared/TextEditorFrame.tsx", import.meta.url),
   "utf8",
 );
 const editorEntryCss = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/styles/editor.css", import.meta.url),
+  new URL("../../../../../src/shared-ui/styles/editor.css", import.meta.url),
   "utf8",
 );
 const editorChromeCss = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/styles/editor/editor-chrome.css", import.meta.url),
+  new URL("../../../../../src/shared-ui/styles/editor/editor-chrome.css", import.meta.url),
   "utf8",
 );
 const sharedTableCss = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/styles/editor/editable-table.css", import.meta.url),
+  new URL("../../../../../src/shared-ui/styles/editor/editable-table.css", import.meta.url),
   "utf8",
 );
 const csvTableCss = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/styles/editor/csv-table-editor.css", import.meta.url),
+  new URL("../../../../../src/shared-ui/styles/editor/csv-table-editor.css", import.meta.url),
   "utf8",
 );
 const markdownTableCss = readFileSync(
-  new URL("../../../../../packages/shared-ui/src/styles/editor/markdown-table-widget.css", import.meta.url),
+  new URL("../../../../../src/shared-ui/styles/editor/markdown-table-widget.css", import.meta.url),
   "utf8",
 );
 

@@ -33,15 +33,15 @@
     "editor": {
       "files": 305,
       "uncoveredFiles": [
-        "packages/shared-ui/src/editor/markdown/MarkdownPresentationPreview.tsx",
-        "packages/shared-ui/src/editor/markdown/core/plans/markdownPlanTypes.ts",
-        "packages/shared-ui/src/editor/markdown/platform/indexing/markdownLinkIndex.worker.ts",
-        "packages/shared-ui/src/editor/markdown/shared/widgets/markdownWidgetMeasure.ts",
-        "packages/shared-ui/src/editor/security/officePackageValidation.worker.ts",
-        "packages/shared-ui/src/editor/viewers/office/OfficeViewer.tsx",
-        "packages/shared-ui/src/editor/viewers/office/officeTextFallback.worker.ts",
-        "packages/shared-ui/src/editor/viewers/office/spreadsheetPreview.worker.ts",
-        "packages/shared-ui/src/editor/viewers/office/word/WordDocumentPreview.tsx"
+        "src/shared-ui/editor/markdown/MarkdownPresentationPreview.tsx",
+        "src/shared-ui/editor/markdown/core/plans/markdownPlanTypes.ts",
+        "src/shared-ui/editor/markdown/platform/indexing/markdownLinkIndex.worker.ts",
+        "src/shared-ui/editor/markdown/shared/widgets/markdownWidgetMeasure.ts",
+        "src/shared-ui/editor/security/officePackageValidation.worker.ts",
+        "src/shared-ui/editor/viewers/office/OfficeViewer.tsx",
+        "src/shared-ui/editor/viewers/office/officeTextFallback.worker.ts",
+        "src/shared-ui/editor/viewers/office/spreadsheetPreview.worker.ts",
+        "src/shared-ui/editor/viewers/office/word/WordDocumentPreview.tsx"
       ],
       "statements": {
         "covered": 15771,

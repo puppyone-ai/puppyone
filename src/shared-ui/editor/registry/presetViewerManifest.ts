@@ -1,8 +1,8 @@
-import manifestJson from "../../../../../shared/presetViewerManifest.json";
-import { parsePresetViewerManifest, type PresetViewerDefinition } from "../../../../../shared/presetViewerManifest.js";
+import manifestJson from "../../../../shared/presetViewerManifest.json";
+import { parsePresetViewerManifest, type PresetViewerDefinition } from "../../../../shared/presetViewerManifest.js";
 import type { CoreViewerCapability } from "./viewerContract";
 
-export type { PresetViewerDefinition, PresetViewerManifest } from "../../../../../shared/presetViewerManifest.js";
+export type { PresetViewerDefinition, PresetViewerManifest } from "../../../../shared/presetViewerManifest.js";
 
 export const PRESET_VIEWER_MANIFEST = parsePresetViewerManifest(manifestJson, "renderer");
 

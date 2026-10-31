@@ -5,7 +5,7 @@ import {
   routeRadialHierarchyRelationships,
   routeRadialReferenceRelationship,
   routeStraightRelationships,
-} from "../../../../../packages/shared-ui/src/editor/viewers/context-map/contextMapRouting";
+} from "../../../../../src/shared-ui/editor/viewers/context-map/contextMapRouting";
 
 describe("folder relationship straight-line routing", () => {
   it("connects the facing glyph edges without a gap", () => {

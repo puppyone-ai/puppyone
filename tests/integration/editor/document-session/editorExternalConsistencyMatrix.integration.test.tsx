@@ -20,13 +20,13 @@ import {
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { closeAllDocumentWorkingCopies } from "../../../../packages/shared-ui/src/editor/document-session/documentWorkingCopies";
-import { EditorDocumentHost } from "../../../../packages/shared-ui/src/editor/host/EditorDocumentHost";
-import { preloadPresetViewer } from "../../../../packages/shared-ui/src/editor/host/PresetViewerRenderer";
+import { closeAllDocumentWorkingCopies } from "../../../../src/shared-ui/editor/document-session/documentWorkingCopies";
+import { EditorDocumentHost } from "../../../../src/shared-ui/editor/host/EditorDocumentHost";
+import { preloadPresetViewer } from "../../../../src/shared-ui/editor/host/PresetViewerRenderer";
 import {
   PRESET_VIEWERS,
   resolveEditorViewer,
-} from "../../../../packages/shared-ui/src/editor/registry/viewerRegistry";
+} from "../../../../src/shared-ui/editor/registry/viewerRegistry";
 import { EditorPaneDocumentRuntime } from "../../../../src/features/editor-workbench/runtime/EditorPaneDocumentRuntime";
 import { withTestLocalization } from "../../../support/react/localization";
 

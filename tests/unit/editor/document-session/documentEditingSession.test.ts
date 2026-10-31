@@ -3,8 +3,8 @@ import type {
   DocumentPersistencePort,
   DocumentPersistenceRequest,
 } from "@puppyone/shared-ui";
-import { DocumentEditingSession } from "../../../../packages/shared-ui/src/editor/document-session/DocumentEditingSession";
-import type { EditorSourceSnapshot } from "../../../../packages/shared-ui/src/editor/sourceSnapshot";
+import { DocumentEditingSession } from "../../../../src/shared-ui/editor/document-session/DocumentEditingSession";
+import type { EditorSourceSnapshot } from "../../../../src/shared-ui/editor/sourceSnapshot";
 
 describe("DocumentEditingSession", () => {
   it("fences a late Cloud save and preserves typing when Agent publication arrives", async () => {
