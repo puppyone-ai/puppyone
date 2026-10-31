@@ -1,15 +1,18 @@
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
-import { Tooltip } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
-import { DesktopMenuIconButton, DesktopMenuSeparator } from "../../components/DesktopMenu";
+import { DesktopMenuItem } from "../../components/DesktopMenu";
 import { writeClipboardText } from "../../lib/clipboard";
+import { getWorkspacePathForDisplay } from "../../lib/workspaceHomeModel";
 
-/** Project identity stays readable; copying is a secondary menu action. */
-export function ProjectMenuHeader({ name, path }: { name: string; path: string }) {
+/**
+ * The name is already on the row that opened this menu, so it only says where the
+ * folder is, on one quiet line, and leads with copying the full path.
+ */
+export function ProjectMenuHeader({ path }: { path: string }) {
   const { t } = useLocalization();
   const [copyState, setCopyState] = useState<"idle" | "pending" | "copied" | "failed">("idle");
-  const copyLabel = t(copyState === "copied" ? "common.action.copied" : "shell.workspaceSwitcher.copyPath");
+  const copied = copyState === "copied";
   const copyPath = async () => {
     if (copyState === "pending") return;
     setCopyState("pending");
@@ -24,30 +27,19 @@ export function ProjectMenuHeader({ name, path }: { name: string; path: string }
   if (path.startsWith("puppyone-cloud:")) return null;
 
   return (<>
-    <div className="desktop-project-menu-header">
-      <bdi className="desktop-project-menu-header-name">{name}</bdi>
-      <div className="desktop-project-menu-header-location">
-        <bdi className="desktop-project-menu-header-path" dir="ltr">{path}</bdi>
-        <Tooltip content={copyLabel}>
-          <DesktopMenuIconButton
-            className="desktop-project-menu-header-copy"
-            role="menuitem"
-            label={copyLabel}
-            disabled={copyState === "pending"}
-            icon={copyState === "copied" ? <Check size={14} /> : <Copy size={14} />}
-            onClick={() => void copyPath()}
-          />
-        </Tooltip>
+    <bdi className="desktop-project-menu-header-path" dir="ltr">{getWorkspacePathForDisplay(path)}</bdi>
+    <DesktopMenuItem
+      icon={copied ? <Check size={14} /> : <Copy size={14} />}
+      label={t(copied ? "common.action.copied" : "shell.workspaceSwitcher.copyPath")}
+      onClick={() => void copyPath()}
+    />
+    <span className="desktop-project-menu-header-status" role="status">
+      {copied ? t("common.action.copied") : null}
+    </span>
+    {copyState === "failed" && (
+      <div className="desktop-project-menu-header-error" role="alert">
+        {t("shell.workspaceSwitcher.copyPathFailed")}
       </div>
-      <span className="desktop-project-menu-header-status" role="status">
-        {copyState === "copied" ? t("common.action.copied") : null}
-      </span>
-      {copyState === "failed" && (
-        <div className="desktop-project-menu-header-error" role="alert">
-          {t("shell.workspaceSwitcher.copyPathFailed")}
-        </div>
-      )}
-    </div>
-    <DesktopMenuSeparator />
+    )}
   </>);
 }

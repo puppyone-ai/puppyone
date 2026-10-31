@@ -439,16 +439,16 @@ describe("Homepage project layouts", () => {
     expect(props.onOpenCloudProject).toHaveBeenCalledWith("cloud-site");
 
     await openActions(container, "local");
-    expect(menuLabels()).toEqual(["Rename…", "Unlink…"]);
-    expect(actionMenu()?.querySelector(".desktop-project-menu-header-path")?.textContent).toBe(local.localPath);
-    expect(actionMenu()?.style.width).toBe("288px");
+    expect(menuLabels()).toEqual(["Copy path", "Rename…", "Unlink…"]);
+    expect(actionMenu()?.querySelector(".desktop-project-menu-header-path")?.textContent).toBe("~/project/notes");
+    expect(actionMenu()?.style.width).toBe("224px");
     await act(async () => actionItem("Unlink…")!.click());
     await act(async () => dialogButton(".destructive").click());
     expect(props.onRemoveProject).toHaveBeenCalledWith(local.localPath);
 
     await openActions(container, "cloud");
     expect(menuLabels()).toEqual(["Rename…", "Delete…"]);
-    expect(actionMenu()?.querySelector(".desktop-project-menu-header")).toBeNull();
+    expect(actionMenu()?.querySelector(".desktop-project-menu-header-path")).toBeNull();
     expect(actionMenu()?.style.width).toBe("184px");
     await act(async () => actionItem("Rename…")!.click());
     await typeName("renamed");
@@ -469,6 +469,28 @@ describe("Homepage project layouts", () => {
     expect(actionMenu()?.style.top).toBe(`${700 - 4 - 80}px`);
     expect(actionMenu()?.style.left).toBe(`${1000 - 184}px`);
     expect(document.activeElement).toBe(actionItem("Rename…"));
+  });
+
+  it("leads a local menu with Copy path, without repeating the project's name", async () => {
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    const { container } = renderHome(withCloudActions({ projectItems: [{ ...local, label: "Display name" }, linked, cloud] }));
+    await openActions(container, "local");
+
+    expect(actionMenu()?.textContent).not.toContain("Display name");
+    expect(document.activeElement).toBe(actionItem("Copy path"));
+    await act(async () => actionItem("Copy path")!.click());
+    expect(writeText).toHaveBeenCalledExactlyOnceWith(local.localPath);
+    expect(menuLabels()).toEqual(["Copied", "Rename…", "Unlink…"]);
+  });
+
+  it("says so in the menu when the path cannot be copied", async () => {
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: vi.fn(async () => { throw new Error("denied"); }) } });
+    const { container } = renderHome(withCloudActions());
+    await openActions(container, "local");
+    await act(async () => actionItem("Copy path")!.click());
+    expect(actionMenu()?.querySelector("[role=alert]")?.textContent).toBe("Couldn’t copy. Try again.");
+    expect(menuLabels()).toContain("Copy path");
   });
 
   it("renames a local project from the Homepage by its path", async () => {

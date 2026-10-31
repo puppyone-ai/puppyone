@@ -91,7 +91,7 @@ describe("combined Home and project menu", () => {
       ]}
       onClose={close} onSelectProject={select} onSelectCloudProject={selectCloud} />);
     const popup = menu();
-    expect(popup.querySelector(".desktop-project-menu-header")).toBeNull();
+    expect(popup.querySelector(".desktop-project-menu-header-path")).toBeNull();
     expect(popup.querySelector(".desktop-menu-item")?.textContent).toBe("Home");
     const copyButtons = [...popup.querySelectorAll<HTMLButtonElement>(".desktop-project-switcher-copy")];
     expect(copyButtons).toHaveLength(2);
