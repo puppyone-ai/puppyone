@@ -309,6 +309,46 @@ describe("inline Homepage Cloud projects", () => {
       .toEqual(["alice", "alice", "bob", "bob"]);
   });
 
+  it("takes a renamed or deleted project from the server, quietly, and a read in flight cannot undo it", async () => {
+    const activity = deferred<unknown>(); const relisting = deferred<void>(); const actual = bridge.getMockImplementation()!;
+    let catalog = [project("a"), project("b")]; let listings = 0;
+    bridge.mockImplementation(async (request) => {
+      const id = decodeURIComponent(request.path.split("/")[2] ?? "");
+      if (request.method === "DELETE") { catalog = catalog.filter((entry) => entry.id !== id); return { status: "pending" }; }
+      if (request.method === "PUT") {
+        catalog = catalog.map((entry) => entry.id === id ? { ...entry, ...JSON.parse(request.body!) } : entry);
+        return catalog.find((entry) => entry.id === id);
+      }
+      if (request.path.startsWith("/projects/?")) { if (++listings > 1) await relisting.promise; return catalog; }
+      return request.path.includes("/commits?") && listings === 1 ? activity.promise : actual(request);
+    });
+    await render();
+    const cloudNames = () => home.items.filter((item) => item.cloudProjectId).map((item) => item.label).sort();
+
+    await act(async () => home.deleteProject!("b"));
+    expect(cloudNames()).toEqual(["Project a"]);
+    expect(home.status).toBe("ready");
+    await act(async () => activity.resolve(historyFor("b", "2026-01-01T00:00:00Z")));
+    expect(cloudNames()).toEqual(["Project a"]);
+    await act(async () => relisting.resolve());
+    expect(cloudNames()).toEqual(["Project a"]);
+
+    await act(async () => home.renameProject!("a", "Renamed"));
+    expect(cloudNames()).toEqual(["Renamed"]);
+    expect(home.items.find((item) => item.localPath)?.linkedCloudProject).toEqual({ id: "a", name: "Renamed" });
+    const [deletion] = bridge.mock.calls.map(([request]) => request).filter(({ method }) => method === "DELETE");
+    expect(deletion?.path).toBe("/projects/b");
+  });
+
+  it("offers no Cloud changes without a session, and a refused one leaves the catalog alone", async () => {
+    await render({ currentSession: null }); expect(home.deleteProject).toBeUndefined();
+    const actual = bridge.getMockImplementation()!;
+    bridge.mockImplementation((request) => request.method === "DELETE" ? Promise.reject(new Error("Forbidden")) : actual(request));
+    await render();
+    await act(async () => { await expect(home.deleteProject!("b")).rejects.toThrow("Forbidden"); });
+    expect(home.items.some((item) => item.cloudProjectId === "b")).toBe(true);
+  });
+
   it("does not truncate Cloud projects at the old local-recents limit", async () => {
     bridge.mockResolvedValueOnce(Array.from({ length: 55 }, (_, index) => project(String(index))));
     await render(); expect(document.querySelectorAll(".onboarding-project-row-wrap")).toHaveLength(56);
@@ -330,6 +370,13 @@ describe("Homepage identity and modification order", () => {
     expect(items.find((item) => item.cloudProjectId)?.localPath).toBe("");
     expect(items.find((item) => item.localPath)).not.toHaveProperty("cloudProjectId");
     expect(items.find((item) => item.localPath)).not.toHaveProperty("linkedCloudProject");
+  });
+  it("gives a Cloud entry only the actions the account's grant holds", () => {
+    const actions = (capabilities: string[]) => build([], [{ ...project("a"), capabilities }])[0]?.cloudActions;
+    expect(actions(["content.read"])).toEqual({ rename: false, delete: false });
+    expect(actions(["project.settings.manage"])).toEqual({ rename: true, delete: false });
+    expect(actions(["project.delete"])).toEqual({ rename: false, delete: true });
+    expect(build([local]).find((item) => item.localPath)).not.toHaveProperty("cloudActions");
   });
   it("does not treat a local locator as proof of account access", () => {
     expect(build([local], [project("other")]).find((item) => item.localPath)?.linkedCloudProject).toBeUndefined();

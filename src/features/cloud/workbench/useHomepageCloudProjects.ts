@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { listCloudProjects, type DesktopCloudProject, type DesktopCloudSession } from "../../../lib/cloudApi";
+import {
+  deleteCloudProject,
+  listCloudProjects,
+  updateCloudProject,
+  type DesktopCloudProject,
+  type DesktopCloudSession,
+} from "../../../lib/cloudApi";
 import type { RecentWorkspaceHomeItem } from "../../../lib/workspaceHomeModel";
 import { buildHomepageProjects } from "./homepageCloudProjects";
 import { loadCloudProjectActivity, readCachedProjectActivity, writeCachedProjectActivity } from "./homepageCloudActivity";
@@ -26,7 +32,9 @@ export function useHomepageCloudProjects({ visible, enabled, session, apiBaseUrl
     if (!authority) { setCatalog(null); return; }
     if (!visible || !current.current.session) return;
     let cancelled = false;
-    setCatalog((previous) => ({ authority, projects: previous?.authority === authority ? previous.projects : [], status: "loading" }));
+    // Revalidating a loaded list keeps it as it is, so a change made here does not flash the Header.
+    setCatalog((previous) => previous?.authority === authority && previous.status === "ready" ? previous
+      : { authority, projects: previous?.authority === authority ? previous.projects : [], status: "loading" });
     const capturedSession = current.current.session;
     const isCurrent = () => !cancelled && current.current.authority === authority;
     void listCloudProjects(capturedSession, apiBaseUrl).then(async (projects) => {
@@ -48,6 +56,21 @@ export function useHomepageCloudProjects({ visible, enabled, session, apiBaseUrl
     });
     return () => { cancelled = true; };
   }, [accountScope, apiBaseUrl, authority, visible, reload]);
+  // Reloading also drops any listing still in flight, which could bring the old entry back.
+  const applyChange = (change: (projects: DesktopCloudProject[]) => DesktopCloudProject[]) => {
+    setCatalog((previous) => previous?.authority === authority ? { ...previous, projects: change(previous.projects) } : previous);
+    setReload((value) => value + 1);
+  };
+  const changes = session ? {
+    renameProject: async (projectId: string, name: string) => {
+      const updated = await updateCloudProject(session, projectId, { name }, undefined, apiBaseUrl);
+      applyChange((projects) => projects.map((project) => project.id === projectId ? { ...project, ...updated } : project));
+    },
+    deleteProject: async (projectId: string) => {
+      await deleteCloudProject(session, projectId, undefined, apiBaseUrl);
+      applyChange((projects) => projects.filter((project) => project.id !== projectId));
+    },
+  } : {};
   const scoped = authority && catalog?.authority === authority ? catalog : null;
   const items = buildHomepageProjects({ local, cloud: scoped?.projects ?? [], apiBaseUrl, activity: scoped?.activity });
   return {
@@ -56,5 +79,6 @@ export function useHomepageCloudProjects({ visible, enabled, session, apiBaseUrl
     /** No Cloud result is still on its way that would reorder the list. */
     settled: !authority || scoped?.status === "error" || (scoped?.status === "ready" && scoped.activity !== undefined),
     refresh: () => setReload((value) => value + 1),
+    ...changes,
   };
 }

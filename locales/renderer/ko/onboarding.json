@@ -8,8 +8,6 @@
   "section.otherOptions": "기타 옵션",
   "projects.localTitle": "로컬 프로젝트",
   "projects.open": "{project} 열기",
-  "projects.removeFor": "로컬 프로젝트에서 {project} 제거",
-  "projects.removeHint": "등록 정보만 제거하며 로컬 파일은 삭제하지 않습니다.",
   "projects.layout.label": "프로젝트 보기 방식",
   "projects.layout.list": "목록",
   "projects.layout.grid": "그리드",

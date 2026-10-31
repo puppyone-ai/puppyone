@@ -8,8 +8,6 @@
   "section.otherOptions": "Other options",
   "projects.localTitle": "Local Projects",
   "projects.open": "Open {project}",
-  "projects.removeFor": "Remove {project} from Local Projects",
-  "projects.removeHint": "Removes this registration only. Local files are not deleted.",
   "projects.layout.label": "Project layout",
   "projects.layout.list": "List",
   "projects.layout.grid": "Grid",

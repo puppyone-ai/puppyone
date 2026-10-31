@@ -1,5 +1,5 @@
 import { useDesktopPreference } from "../preferencesStore";
-import { bidiIsolate, useLocalization } from "@puppyone/localization";
+import { useLocalization } from "@puppyone/localization";
 import { AlertTriangle } from "lucide-react";
 import type { ComponentProps } from "react";
 import {
@@ -17,11 +17,7 @@ import {
   useProjectEntryFlow,
   type ProjectEntryFlowController,
 } from "../features/app-shell/ProjectEntryFlow";
-import {
-  getProjectName,
-  type ProjectHomeItem,
-  type RecentWorkspaceHomeItem,
-} from "../lib/workspaceHomeModel";
+import type { ProjectHomeItem, RecentWorkspaceHomeItem } from "../lib/workspaceHomeModel";
 import { writeClipboardText } from "../features/settings/utils";
 import { resolveImportPreviewBrands } from "../features/project-import/importSourceRegistry";
 import type {
@@ -69,6 +65,9 @@ export type MinimalOnboardingProps = {
   onOpenWorkspacePath: (path: string) => Promise<void>;
   onOpenDroppedWorkspace: (folder: File) => Promise<void>;
   onRemoveProject?: (path: string) => Promise<void>;
+  onRenameProject?: (path: string, name: string) => Promise<void>;
+  onRenameCloudProject?: (projectId: string, name: string) => Promise<void>;
+  onDeleteCloudProject?: (projectId: string) => Promise<void>;
   recentWorkspaces?: RecentWorkspaceHomeItem[];
   projectItems?: ProjectHomeItem[];
   cloudAccountStatus?: ReactNode;
@@ -104,6 +103,9 @@ export function MinimalOnboarding({
   onOpenWorkspacePath,
   onOpenDroppedWorkspace,
   onRemoveProject,
+  onRenameProject,
+  onRenameCloudProject,
+  onDeleteCloudProject,
   recentWorkspaces = [],
   projectItems,
   cloudAccountStatus,
@@ -115,7 +117,6 @@ export function MinimalOnboarding({
   const { t } = useLocalization();
   const [error, setError] = useState<string | null>(initialError);
   const [openingPath, setOpeningPath] = useState<string | null>(null);
-  const [removingPath, setRemovingPath] = useState<string | null>(null);
   const [draggingPath, setDraggingPath] = useState<string | null>(null);
   const ownProjectEntryFlow = useProjectEntryFlow();
   const projectEntryFlow = projectEntryController ?? ownProjectEntryFlow;
@@ -174,25 +175,7 @@ export function MinimalOnboarding({
     }
   };
 
-  const removeProject = async (item: ProjectHomeItem) => {
-    if (!onRemoveProject || openingPath || removingPath) return;
-    const projectName = getProjectName(item, t("onboarding.projects.untitled"));
-    const confirmed = window.confirm(
-      t("settings.localProject.unlink.confirm", { workspace: bidiIsolate(projectName) }),
-    );
-    if (!confirmed) return;
-    setError(null);
-    setRemovingPath(item.localPath);
-    try {
-      await onRemoveProject(item.localPath);
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : String(nextError));
-    } finally {
-      setRemovingPath(null);
-    }
-  };
-
-  const busy = [openingPath, removingPath, cloudOpening].some(Boolean);
+  const busy = [openingPath, cloudOpening].some(Boolean);
   const startProjectDrag = (event: ReactDragEvent<HTMLButtonElement>, item: ProjectHomeItem) => {
     const absolutePath = item.localPath.trim();
     if (busy || !absolutePath) {
@@ -294,10 +277,12 @@ export function MinimalOnboarding({
               onOpenCloudProject={onOpenCloudProject}
               busy={busy}
               openingPath={openingPath}
-              removingPath={removingPath}
               draggingPath={draggingPath}
               onOpen={(path) => void openPath(path)}
-              onRemove={onRemoveProject ? (item) => void removeProject(item) : undefined}
+              onRename={onRenameProject}
+              onRemove={onRemoveProject}
+              onRenameCloudProject={onRenameCloudProject}
+              onDeleteCloudProject={onDeleteCloudProject}
               onDragStart={startProjectDrag}
               onDragEnd={() => setDraggingPath(null)}
             />

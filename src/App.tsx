@@ -1745,6 +1745,9 @@ function AppContent() {
         onOpenDroppedWorkspace={openDroppedProject}
         onOpenWorkspacePath={selectProject}
         onRemoveProject={removeWorkspaceFromRecents}
+        onRenameProject={renameProject}
+        onRenameCloudProject={projectCatalog.renameProject}
+        onDeleteCloudProject={projectCatalog.deleteProject}
         projectItems={projectCatalog.items}
         onOpenCloudProject={selectCloudProject}
         cloudOpening={accountCloud.opening}

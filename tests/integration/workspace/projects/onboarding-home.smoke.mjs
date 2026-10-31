@@ -452,30 +452,43 @@ async function validateGrid(theme) {
     assert.equal(snapshot.columns, Math.min(count, GRID_COLUMNS), `${context}: five folders across, down to the smallest window`);
     assert.equal(snapshot.sheets, 1, `${context}: each folder holds one sheet`);
     assert.equal(await evaluate("document.querySelector('.onboarding-project-tile').dataset.tooltip"), "/example/Projects", `${context}: the tooltip adds only what the folder does not show`);
-    await validateRemoveMark(context);
+    await validateProjectActions(context);
     if (snapshot.overflows) assert.notEqual(snapshot.thumb, "rgba(0, 0, 0, 0)", `${context}: more projects below are always signalled`);
     await shot(`grid-${theme}-${width}x${height}-${count}`);
     console.log(`Passed ${context}`);
   }
 }
 
-/** With a real pointer: the mark turns red by itself, and the row keeps its other parts. */
-async function validateRemoveMark(context) {
+/** With a real pointer: the dots brighten by themselves, then open their menu in the window. */
+async function validateProjectActions(context) {
   const move = async (x, y) => window.webContents.debugger.sendCommand("Input.dispatchMouseEvent", { type: "mouseMoved", x, y });
+  const press = async (type, { x, y }) => window.webContents.debugger.sendCommand("Input.dispatchMouseEvent", { type, x, y, button: "left", clickCount: 1 });
   const tile = await evaluate(`(() => { const r = document.querySelector('.onboarding-project-tile').getBoundingClientRect(); return { x:r.x + r.width / 2, y:r.y + r.height / 2 }; })()`);
   await move(tile.x, tile.y);
   await until("document.querySelector('.onboarding-project-row-wrap').matches(':hover')");
-  const mark = await evaluate(`(() => { const r = document.querySelector('.onboarding-project-remove').getBoundingClientRect(); return { x:r.x + r.width / 2, y:r.y + r.height / 2 }; })()`);
+  const mark = await evaluate(`(() => { const r = document.querySelector('.onboarding-project-actions').getBoundingClientRect(); return { x:r.x + r.width / 2, y:r.y + r.height / 2 }; })()`);
   await move(mark.x, mark.y);
-  await until("document.querySelector('.onboarding-project-remove').matches(':hover')");
+  await until("document.querySelector('.onboarding-project-actions').matches(':hover')");
   await evaluate(settle);
-  const style = await evaluate(`(() => { const remove = document.querySelector('.onboarding-project-remove');
-    const probe = document.createElement('span'); probe.style.color = 'var(--po-danger)'; remove.parentElement.append(probe);
-    const danger = getComputedStyle(probe).color; probe.remove();
-    return { background:getComputedStyle(remove).backgroundColor, color:getComputedStyle(remove).color, danger }; })()`);
-  assert.equal(style.background, "rgba(0, 0, 0, 0)", `${context}: no backdrop behind the remove mark`);
-  assert.equal(style.color, style.danger, `${context}: the remove mark itself turns red`);
+  const style = await evaluate(`(() => { const actions = document.querySelector('.onboarding-project-actions');
+    const probe = document.createElement('span'); probe.style.color = 'var(--po-text)'; actions.parentElement.append(probe);
+    const text = getComputedStyle(probe).color; probe.remove();
+    return { background:getComputedStyle(actions).backgroundColor, color:getComputedStyle(actions).color, text }; })()`);
+  assert.equal(style.background, "rgba(0, 0, 0, 0)", `${context}: no backdrop behind the project actions`);
+  assert.equal(style.color, style.text, `${context}: the project actions brighten by themselves`);
+  await press("mousePressed", mark);
+  await press("mouseReleased", mark);
+  await until("document.querySelector('.desktop-project-row-actions-menu')");
   await move(1, 39);
+  await evaluate(settle);
+  const opened = await evaluate(`(() => { const r = document.querySelector('.desktop-project-row-actions-menu').getBoundingClientRect();
+    const actions = document.querySelector('.onboarding-project-actions');
+    return { inside:r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight, shown:getComputedStyle(actions).opacity === '1' }; })()`);
+  assert.equal(opened.inside, true, `${context}: the project menu stays inside the window`);
+  assert.equal(opened.shown, true, `${context}: the dots stay up while their menu is open`);
+  await window.webContents.debugger.sendCommand("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+  await window.webContents.debugger.sendCommand("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+  await until("!document.querySelector('.desktop-project-row-actions-menu')");
 }
 
 async function validateScrollport(theme) {

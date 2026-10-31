@@ -459,7 +459,7 @@
 
 /* A local folder that has its own Cloud project is the quieter of the two
    entries: the Cloud project is where people and agents work. */
-.onboarding-project-row-wrap.has-cloud-project:not(:hover, :focus-within) .onboarding-project-row .desktop-menu-item-label {
+.onboarding-project-row-wrap.has-cloud-project:not(:hover, :focus-within, [data-menu-open]) .onboarding-project-row .desktop-menu-item-label {
   color: var(--po-text-subtle);
 }
 
@@ -477,7 +477,8 @@
 }
 
 .onboarding-project-row-wrap:hover .onboarding-project-cloud-link,
-.onboarding-project-row-wrap:focus-within .onboarding-project-cloud-link {
+.onboarding-project-row-wrap:focus-within .onboarding-project-cloud-link,
+.onboarding-project-row-wrap[data-menu-open] .onboarding-project-cloud-link {
   opacity: 1;
   pointer-events: auto;
 }
@@ -578,7 +579,7 @@ span.homepage-cloud-feedback {
   min-width: 0;
 }
 
-.onboarding-project-remove {
+.onboarding-project-actions {
   position: absolute;
   z-index: 1;
   top: 50%;
@@ -588,27 +589,33 @@ span.homepage-cloud-feedback {
   transform: translateY(-50%);
 }
 
-.onboarding-project-row-wrap:hover .onboarding-project-remove,
-.onboarding-project-row-wrap:focus-within .onboarding-project-remove,
-.onboarding-project-row-wrap.is-removing .onboarding-project-remove {
+.onboarding-project-row-wrap:hover .onboarding-project-actions,
+.onboarding-project-row-wrap:focus-within .onboarding-project-actions,
+.onboarding-project-row-wrap[data-menu-open] .onboarding-project-actions {
   opacity: 1;
   pointer-events: auto;
 }
 
-/* The mark itself turns red; its backdrop would weigh on a page of quiet folders. */
-.desktop-menu-icon-button.onboarding-project-remove:hover:not(:disabled),
-.desktop-menu-icon-button.onboarding-project-remove:focus-visible:not(:disabled) {
-  background: transparent;
-  color: var(--po-danger);
+.onboarding-project-actions > svg {
+  width: 14px;
+  height: 14px;
 }
 
-.desktop-menu-icon-button.onboarding-project-remove:focus-visible:not(:disabled) {
+/* The dots brighten alone; a backdrop would weigh on a page of quiet folders. */
+.desktop-menu-icon-button.onboarding-project-actions:hover:not(:disabled),
+.desktop-menu-icon-button.onboarding-project-actions:focus-visible:not(:disabled),
+.onboarding-project-row-wrap[data-menu-open] .desktop-menu-icon-button.onboarding-project-actions {
+  background: transparent;
+  color: var(--po-text);
+}
+
+.desktop-menu-icon-button.onboarding-project-actions:focus-visible:not(:disabled) {
   outline: 2px solid var(--po-focus-ring);
 }
 
 .onboarding-project-row-wrap:hover .onboarding-project-row:not(:disabled),
 .onboarding-project-row-wrap:focus-within .onboarding-project-row:not(:disabled),
-.onboarding-project-row-wrap.is-removing .onboarding-project-row {
+.onboarding-project-row-wrap[data-menu-open] .onboarding-project-row {
   background: var(--po-hover);
   color: var(--po-text);
 }
@@ -625,7 +632,7 @@ span.homepage-cloud-feedback {
 
 .onboarding-project-row-wrap:hover .desktop-menu-item-trailing,
 .onboarding-project-row-wrap:focus-within .desktop-menu-item-trailing,
-.onboarding-project-row-wrap.is-removing .desktop-menu-item-trailing {
+.onboarding-project-row-wrap[data-menu-open] .desktop-menu-item-trailing {
   opacity: 0;
 }
 
@@ -839,7 +846,7 @@ span.homepage-cloud-feedback {
   fill: var(--po-project-folder-sheet-ink);
 }
 
-.onboarding-project-row-wrap:is(:hover, :focus-within) .project-folder-sheet {
+.onboarding-project-row-wrap:is(:hover, :focus-within, [data-menu-open]) .project-folder-sheet {
   transform: translateY(-7px);
 }
 
@@ -863,11 +870,11 @@ span.homepage-cloud-feedback {
   fill: var(--po-project-folder-front);
 }
 
-.onboarding-project-row-wrap:is(:hover, :focus-within) .project-folder-back {
+.onboarding-project-row-wrap:is(:hover, :focus-within, [data-menu-open]) .project-folder-back {
   fill: color-mix(in srgb, var(--po-project-folder-back) 90%, var(--po-text));
 }
 
-.onboarding-project-row-wrap:is(:hover, :focus-within) .project-folder-front {
+.onboarding-project-row-wrap:is(:hover, :focus-within, [data-menu-open]) .project-folder-front {
   fill: color-mix(in srgb, var(--po-project-folder-front) 90%, var(--po-text));
 }
 
@@ -915,8 +922,7 @@ span.homepage-cloud-feedback {
   outline-offset: -2px;
 }
 
-.onboarding-project-row-wrap:is(:hover, :focus-within) .onboarding-project-tile:not(:disabled),
-.onboarding-project-row-wrap.is-removing .onboarding-project-tile {
+.onboarding-project-row-wrap:is(:hover, :focus-within, [data-menu-open]) .onboarding-project-tile:not(:disabled) {
   color: var(--po-text);
 }
 
@@ -930,7 +936,7 @@ span.homepage-cloud-feedback {
   color: inherit;
 }
 
-.onboarding-project-row-wrap.has-cloud-project:not(:hover, :focus-within) .onboarding-project-tile-name {
+.onboarding-project-row-wrap.has-cloud-project:not(:hover, :focus-within, [data-menu-open]) .onboarding-project-tile-name {
   color: var(--po-text-subtle);
 }
 
@@ -962,7 +968,7 @@ span.homepage-cloud-feedback {
   text-align: center;
 }
 
-.onboarding-project-row-wrap:is(:hover, :focus-within) .onboarding-project-tile:not(:disabled) {
+.onboarding-project-row-wrap:is(:hover, :focus-within, [data-menu-open]) .onboarding-project-tile:not(:disabled) {
   background: var(--po-hover);
 }
 
@@ -981,12 +987,12 @@ span.homepage-cloud-feedback {
   white-space: nowrap;
 }
 
-.onboarding-project-list[data-project-layout="grid"] :is(.onboarding-project-remove, .onboarding-project-cloud-link) {
+.onboarding-project-list[data-project-layout="grid"] :is(.onboarding-project-actions, .onboarding-project-cloud-link) {
   top: 4px;
   transform: none;
 }
 
-.onboarding-project-list[data-project-layout="grid"] .onboarding-project-remove {
+.onboarding-project-list[data-project-layout="grid"] .onboarding-project-actions {
   inset-inline-end: 4px;
 }
 
@@ -1053,7 +1059,7 @@ span.homepage-cloud-feedback {
 
 @media (hover: none) {
   .onboarding-project-cloud-link,
-  .onboarding-project-remove {
+  .onboarding-project-actions {
     opacity: 1;
     pointer-events: auto;
   }

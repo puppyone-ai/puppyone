@@ -8,8 +8,6 @@
   "section.otherOptions": "Autres options",
   "projects.localTitle": "Projets locaux",
   "projects.open": "Ouvrir {project}",
-  "projects.removeFor": "Retirer {project} des projets locaux",
-  "projects.removeHint": "Seule cette inscription est retirée. Les fichiers locaux ne sont pas supprimés.",
   "projects.layout.label": "Affichage des projets",
   "projects.layout.list": "Liste",
   "projects.layout.grid": "Grille",

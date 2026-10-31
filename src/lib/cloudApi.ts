@@ -693,6 +693,25 @@ export function updateCloudProject(
   );
 }
 
+/**
+ * Access ends when the server accepts this; it removes the stored objects
+ * afterwards, so a resolved call does not mean that cleanup has finished.
+ */
+export function deleteCloudProject(
+  session: DesktopCloudSession,
+  projectId: string,
+  onSessionChange?: MutableSessionHandler,
+  apiBaseUrl?: string | null,
+): Promise<void> {
+  return cloudApiRequest<void>(
+    `/projects/${encodeURIComponent(projectId)}`,
+    session,
+    onSessionChange,
+    { method: "DELETE" },
+    apiBaseUrl,
+  );
+}
+
 export function getCloudRepositoryContext(
   session: DesktopCloudSession,
   projectId: string,

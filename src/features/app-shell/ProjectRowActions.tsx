@@ -7,9 +7,8 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
-import type { Workspace } from "@puppyone/shared-ui";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
-import { MoreVertical, Pencil, Unlink } from "lucide-react";
+import { MoreVertical, Pencil, Trash2, Unlink } from "lucide-react";
 import {
   DesktopDialogCloseButton,
   DesktopDialogRoot,
@@ -20,60 +19,95 @@ import {
 } from "../../components/DesktopMenu";
 import {
   DesktopSidebarActionMenu,
+  resolveDesktopActionMenuPositionBeside,
   resolveDesktopSidebarActionMenuPosition,
 } from "../../components/DesktopSidebarActionMenu";
 import { DesktopOverlayLayer } from "../../components/DesktopOverlayPortal";
 import { ProjectMenuHeader } from "./ProjectMenuHeader";
 
-export type ProjectActionSurface = "menu" | "rename" | "unlink" | null;
+export type ProjectActionSurface = "menu" | "rename" | "unlink" | "delete" | null;
 
-const PROJECT_ACTION_MENU_WIDTH = 288;
+/** The local menu carries the folder's path; a Cloud project has only its commands. */
+const PROJECT_ACTION_MENU_WIDTH = { local: 288, cloud: 184 } as const;
 const PROJECT_ACTION_MENU_ESTIMATED_HEIGHT = 180;
+const PROJECT_NAME_MAX_LENGTH = { local: 120, cloud: 200 } as const;
+const PROJECT_ACTION_MENU_POSITION = {
+  sidebar: resolveDesktopSidebarActionMenuPosition,
+  beside: resolveDesktopActionMenuPositionBeside,
+} as const;
+
+const PROJECT_CONFIRMATIONS = {
+  unlink: {
+    title: "shell.workspaceSwitcher.unlinkProjectTitle",
+    description: "shell.workspaceSwitcher.unlinkProjectDescription",
+    action: "shell.workspaceSwitcher.unlinkProjectAction",
+    progress: "shell.workspaceSwitcher.unlinkProjectProgress",
+  },
+  delete: {
+    title: "shell.workspaceSwitcher.deleteProjectTitle",
+    description: "shell.workspaceSwitcher.deleteProjectDescription",
+    action: "shell.workspaceSwitcher.deleteProjectAction",
+    progress: "shell.workspaceSwitcher.deleteProjectProgress",
+  },
+} as const;
 
 export type ProjectRowActionsProps = Readonly<{
-  workspace: Workspace;
+  /** A Cloud project has no path, so no folder to show or to leave in place. */
+  project: Readonly<{ name: string; path?: string }>;
   surface: ProjectActionSurface;
   onSurfaceChange: (surface: ProjectActionSurface) => void;
-  onRenameProject?: (path: string, name: string) => Promise<void>;
-  onUnlinkProject?: (path: string) => Promise<void>;
+  onRename?: (name: string) => Promise<void>;
+  onUnlink?: () => Promise<void>;
+  onDelete?: () => Promise<void>;
+  disabled?: boolean;
+  triggerClassName?: string;
+  menuPlacement?: keyof typeof PROJECT_ACTION_MENU_POSITION;
 }>;
 
 export function ProjectRowActions({
-  workspace,
+  project,
   surface,
   onSurfaceChange,
-  onRenameProject,
-  onUnlinkProject,
+  onRename,
+  onUnlink,
+  onDelete,
+  disabled = false,
+  triggerClassName = "desktop-project-switcher-row-action",
+  menuPlacement = "sidebar",
 }: ProjectRowActionsProps) {
   const { t } = useLocalization();
-  const menuRef = useRef<HTMLDivElement>(null);
+  const place = project.path ? "local" : "cloud";
+  const menuWidth = PROJECT_ACTION_MENU_WIDTH[place];
+  const resolveMenuPosition = PROJECT_ACTION_MENU_POSITION[menuPlacement];
+  // State, not a ref: the overlay layer mounts a commit after the surface opens,
+  // so effects have to run again once the menu really exists to be measured.
+  const [menu, setMenu] = useState<HTMLDivElement | null>(null);
   const menuAnchorRef = useRef<HTMLElement | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
-  const [name, setName] = useState(workspace.name);
-  const [pending, setPending] = useState<"rename" | "unlink" | null>(null);
+  const [name, setName] = useState(project.name);
+  const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (surface !== "rename") setName(workspace.name);
-  }, [surface, workspace.name]);
+    if (surface !== "rename") setName(project.name);
+  }, [surface, project.name]);
 
   useLayoutEffect(() => {
     if (surface === "menu") {
-      menuRef.current?.querySelector<HTMLButtonElement>(".desktop-menu-item:not(:disabled)")?.focus();
+      menu?.querySelector<HTMLButtonElement>(".desktop-menu-item:not(:disabled)")?.focus();
     } else if (surface === "rename") {
       inputRef.current?.select();
     }
-  }, [surface]);
+  }, [menu, surface]);
 
   useLayoutEffect(() => {
-    const menu = menuRef.current;
     const anchor = menuAnchorRef.current;
     if (surface !== "menu" || !menu || !anchor) return;
     const reposition = () => {
       const bounds = menu.getBoundingClientRect();
       if (!bounds.height) return;
-      const next = resolveDesktopSidebarActionMenuPosition(anchor.getBoundingClientRect(), {
+      const next = resolveMenuPosition(anchor.getBoundingClientRect(), {
         menuWidth: bounds.width,
         estimatedHeight: bounds.height,
       });
@@ -83,19 +117,19 @@ export function ProjectRowActions({
     const observer = new ResizeObserver(reposition);
     observer.observe(menu);
     return () => observer.disconnect();
-  }, [surface]);
+  }, [menu, resolveMenuPosition, surface]);
 
   useEffect(() => {
     if (surface !== "menu") return undefined;
     const dismiss = (event: PointerEvent) => {
-      if (event.target instanceof Node && menuRef.current?.contains(event.target)) return;
+      if (event.target instanceof Node && menu?.contains(event.target)) return;
       onSurfaceChange(null);
     };
     const dismissWithKeyboard = (event: KeyboardEvent) => {
       if (event.key === "Escape") onSurfaceChange(null);
     };
     const dismissOnViewportChange = (event: Event) => {
-      if (event.target instanceof Node && menuRef.current?.contains(event.target)) return;
+      if (event.target instanceof Node && menu?.contains(event.target)) return;
       onSurfaceChange(null);
     };
     document.addEventListener("pointerdown", dismiss);
@@ -108,59 +142,52 @@ export function ProjectRowActions({
       window.removeEventListener("resize", dismissOnViewportChange);
       window.removeEventListener("scroll", dismissOnViewportChange, true);
     };
-  }, [onSurfaceChange, surface]);
+  }, [menu, onSurfaceChange, surface]);
 
   const openMenu = (anchor: HTMLElement) => {
     menuAnchorRef.current = anchor;
     setError(null);
-    setMenuPosition(resolveDesktopSidebarActionMenuPosition(
+    setMenuPosition(resolveMenuPosition(
       anchor.getBoundingClientRect(),
-      {
-        menuWidth: PROJECT_ACTION_MENU_WIDTH,
-        estimatedHeight: PROJECT_ACTION_MENU_ESTIMATED_HEIGHT,
-      },
+      { menuWidth, estimatedHeight: PROJECT_ACTION_MENU_ESTIMATED_HEIGHT },
     ));
     onSurfaceChange(surface === "menu" ? null : "menu");
   };
 
-  const renameProject = async (event: FormEvent) => {
-    event.preventDefault();
-    const nextName = name.trim();
-    if (!onRenameProject || !nextName || pending) return;
-    setPending("rename");
+  /** The surface stays up, with the reason, when the project refuses the change. */
+  const run = async (change: () => Promise<void>) => {
+    if (pending) return;
+    setPending(true);
     setError(null);
     try {
-      await onRenameProject(workspace.path, nextName);
+      await change();
+      setPending(false);
       onSurfaceChange(null);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : String(nextError));
-    } finally {
-      setPending(null);
+      setPending(false);
     }
   };
 
-  const unlinkProject = async () => {
-    if (!onUnlinkProject || pending) return;
-    setPending("unlink");
-    setError(null);
-    try {
-      await onUnlinkProject(workspace.path);
-      setPending(null);
-      onSurfaceChange(null);
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : String(nextError));
-      setPending(null);
-    }
+  const renameProject = (event: FormEvent) => {
+    event.preventDefault();
+    const nextName = name.trim();
+    if (onRename && nextName) void run(() => onRename(nextName));
   };
+
+  const projectActionsLabel = t("shell.workspaceSwitcher.projectActionsFor", {
+    project: bidiIsolate(project.name),
+  });
+  const confirming = surface === "unlink" || surface === "delete" ? surface : null;
+  const confirmedChange = confirming ? { unlink: onUnlink, delete: onDelete }[confirming] : undefined;
 
   return (
     <>
       <Tooltip content={t("shell.workspaceSwitcher.projectActions")}><button
-        className="desktop-project-switcher-row-action"
+        className={triggerClassName}
         type="button"
-        aria-label={t("shell.workspaceSwitcher.projectActionsFor", {
-          project: bidiIsolate(workspace.name),
-        })}
+        disabled={disabled}
+        aria-label={projectActionsLabel}
         aria-haspopup="menu"
         aria-expanded={surface === "menu"}
         onPointerDown={(event) => event.stopPropagation()}
@@ -176,28 +203,26 @@ export function ProjectRowActions({
       {surface === "menu" && (
         <DesktopOverlayLayer>
           <DesktopSidebarActionMenu
-            ref={menuRef}
+            ref={setMenu}
             className="desktop-project-row-actions-menu"
-            ariaLabel={t("shell.workspaceSwitcher.projectActionsFor", {
-              project: bidiIsolate(workspace.name),
-            })}
-            style={{ ...menuPosition, width: PROJECT_ACTION_MENU_WIDTH }}
+            ariaLabel={projectActionsLabel}
+            style={{ ...menuPosition, width: menuWidth }}
             onPointerDown={(event) => event.stopPropagation()}
           >
-            <ProjectMenuHeader key={workspace.path} name={workspace.name} path={workspace.path} />
-            {onRenameProject && (
+            {project.path && <ProjectMenuHeader key={project.path} name={project.name} path={project.path} />}
+            {onRename && (
               <DesktopMenuItem
                 icon={<Pencil size={14} />}
                 label={t("shell.workspaceSwitcher.renameProject")}
                 onClick={() => {
-                  setName(workspace.name);
+                  setName(project.name);
                   setError(null);
                   onSurfaceChange("rename");
                 }}
               />
             )}
-            {onRenameProject && onUnlinkProject && <DesktopMenuSeparator />}
-            {onUnlinkProject && (
+            {onRename && (onUnlink || onDelete) && <DesktopMenuSeparator />}
+            {onUnlink && (
               <DesktopMenuItem
                 destructive
                 icon={<Unlink size={14} />}
@@ -208,6 +233,17 @@ export function ProjectRowActions({
                 }}
               />
             )}
+            {onDelete && (
+              <DesktopMenuItem
+                destructive
+                icon={<Trash2 size={14} />}
+                label={t("shell.workspaceSwitcher.deleteProject")}
+                onClick={() => {
+                  setError(null);
+                  onSurfaceChange("delete");
+                }}
+              />
+            )}
           </DesktopSidebarActionMenu>
         </DesktopOverlayLayer>
       )}
@@ -215,14 +251,14 @@ export function ProjectRowActions({
       {surface === "rename" && (
         <ProjectRowDialog
           labelledBy="desktop-project-rename-title"
-          pending={pending !== null}
+          pending={pending}
           onClose={() => onSurfaceChange(null)}
-          onSubmit={(event) => void renameProject(event)}
+          onSubmit={renameProject}
         >
           <ProjectRowDialogHeader
             titleId="desktop-project-rename-title"
             title={t("shell.workspaceSwitcher.renameProjectTitle")}
-            pending={pending !== null}
+            pending={pending}
             onClose={() => onSurfaceChange(null)}
           />
           <div className="desktop-dialog-body">
@@ -231,8 +267,8 @@ export function ProjectRowActions({
               <input
                 ref={inputRef}
                 value={name}
-                maxLength={120}
-                disabled={pending !== null}
+                maxLength={PROJECT_NAME_MAX_LENGTH[place]}
+                disabled={pending}
                 data-desktop-dialog-initial-focus="true"
                 onChange={(event) => {
                   setName(event.target.value);
@@ -241,7 +277,9 @@ export function ProjectRowActions({
               />
             </label>
             <p className="desktop-dialog-note">
-              {t("shell.workspaceSwitcher.renameProjectDescription")}
+              {t(place === "cloud"
+                ? "shell.workspaceSwitcher.renameCloudProjectDescription"
+                : "shell.workspaceSwitcher.renameProjectDescription")}
             </p>
             {error && <p className="desktop-dialog-error" role="alert">{error}</p>}
           </div>
@@ -249,7 +287,7 @@ export function ProjectRowActions({
             <button
               className="desktop-dialog-button"
               type="button"
-              disabled={pending !== null}
+              disabled={pending}
               onClick={() => onSurfaceChange(null)}
             >
               {t("common.action.cancel")}
@@ -257,9 +295,9 @@ export function ProjectRowActions({
             <button
               className="desktop-dialog-button primary"
               type="submit"
-              disabled={pending !== null || !name.trim() || name.trim() === workspace.name}
+              disabled={pending || !name.trim() || name.trim() === project.name}
             >
-              {pending === "rename"
+              {pending
                 ? t("shell.workspaceSwitcher.renameProjectProgress")
                 : t("common.action.save")}
             </button>
@@ -267,56 +305,72 @@ export function ProjectRowActions({
         </ProjectRowDialog>
       )}
 
-      {surface === "unlink" && (
-        <ProjectRowDialog
-          labelledBy="desktop-project-unlink-title"
-          pending={pending !== null}
+      {confirming && confirmedChange && (
+        <ProjectRowConfirmDialog
+          kind={confirming}
+          name={project.name}
+          pending={pending}
+          error={error}
           onClose={() => onSurfaceChange(null)}
-        >
-          <ProjectRowDialogHeader
-            titleId="desktop-project-unlink-title"
-            title={t("shell.workspaceSwitcher.unlinkProjectTitle")}
-            pending={pending !== null}
-            onClose={() => onSurfaceChange(null)}
-          />
-          <div className="desktop-dialog-body">
-            <p>
-              {t("shell.workspaceSwitcher.unlinkProjectDescription", {
-                project: bidiIsolate(workspace.name),
-              })}
-            </p>
-            {error && <p className="desktop-dialog-error" role="alert">{error}</p>}
-          </div>
-          <footer className="desktop-dialog-footer">
-            <button
-              className="desktop-dialog-button"
-              type="button"
-              disabled={pending !== null}
-              data-desktop-dialog-initial-focus="true"
-              onClick={() => onSurfaceChange(null)}
-            >
-              {t("common.action.cancel")}
-            </button>
-            <button
-              className="desktop-dialog-button destructive"
-              type="button"
-              disabled={pending !== null}
-              onClick={() => void unlinkProject()}
-            >
-              {pending === "unlink"
-                ? t("shell.workspaceSwitcher.unlinkProjectProgress")
-                : t("shell.workspaceSwitcher.unlinkProjectAction")}
-            </button>
-          </footer>
-        </ProjectRowDialog>
+          onConfirm={() => void run(confirmedChange)}
+        />
       )}
     </>
   );
 }
 
+/** Cancel holds the focus: neither of these should be one Enter away. */
+function ProjectRowConfirmDialog({
+  kind,
+  name,
+  pending,
+  error,
+  onClose,
+  onConfirm,
+}: Readonly<{
+  kind: keyof typeof PROJECT_CONFIRMATIONS;
+  name: string;
+  pending: boolean;
+  error: string | null;
+  onClose: () => void;
+  onConfirm: () => void;
+}>) {
+  const { t } = useLocalization();
+  const copy = PROJECT_CONFIRMATIONS[kind];
+  const titleId = `desktop-project-${kind}-title`;
+  return (
+    <ProjectRowDialog labelledBy={titleId} pending={pending} onClose={onClose}>
+      <ProjectRowDialogHeader titleId={titleId} title={t(copy.title)} pending={pending} onClose={onClose} />
+      <div className="desktop-dialog-body">
+        <p>{t(copy.description, { project: bidiIsolate(name) })}</p>
+        {error && <p className="desktop-dialog-error" role="alert">{error}</p>}
+      </div>
+      <footer className="desktop-dialog-footer">
+        <button
+          className="desktop-dialog-button"
+          type="button"
+          disabled={pending}
+          data-desktop-dialog-initial-focus="true"
+          onClick={onClose}
+        >
+          {t("common.action.cancel")}
+        </button>
+        <button
+          className="desktop-dialog-button destructive"
+          type="button"
+          disabled={pending}
+          onClick={onConfirm}
+        >
+          {t(pending ? copy.progress : copy.action)}
+        </button>
+      </footer>
+    </ProjectRowDialog>
+  );
+}
+
 /**
  * The confirmation surfaces a Project row can raise. They share one frame so
- * renaming and unlinking cannot drift apart in focus, dismissal or elevation.
+ * renaming, unlinking and deleting cannot drift apart in focus, dismissal or elevation.
  */
 function ProjectRowDialog({
   children,
