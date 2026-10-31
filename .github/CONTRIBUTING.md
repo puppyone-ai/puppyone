@@ -6,7 +6,7 @@ Thanks for considering contributing to puppyone desktop.
 
 ```bash
 git clone https://github.com/puppyone-ai/puppyone.git
-cd puppyone-desktop
+cd puppyone
 npm install
 npm run dev
 ```
@@ -29,7 +29,7 @@ Unsigned macOS packages are for internal testing only.
 
 ## Pull Requests
 
-- Branch from `main`.
+- Branch from `qubits`, the integration branch for the next release.
 - Keep changes focused.
 - Include a concise description and test plan.
 - Do not commit generated release artifacts from `dist/` or `release/`.

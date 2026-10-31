@@ -7,10 +7,9 @@ const readabilityRules = new Set(["no-nested-ternary"]);
 /** Removed rules, which an older baseline being compared against may still record. */
 const retiredRules = new Set(["complexity", "max-depth", "max-lines", "max-lines-per-function", "max-params"]);
 
-export const baselineFiles = [
-  "eslint-suppressions.json",
-  ".dependency-cruiser-known-violations.json",
-];
+export const eslintSuppressionsFile = "tooling/quality/eslint-suppressions.json";
+export const dependencyBaselineFile = "tooling/quality/dependency-baseline.json";
+export const baselineFiles = [eslintSuppressionsFile, dependencyBaselineFile];
 
 function normalizePaths(value, renames) {
   if (typeof value === "string") return renames.get(value) ?? value;
@@ -22,7 +21,7 @@ function normalizePaths(value, renames) {
 
 export function baselineCounts(file, value, renames = new Map()) {
   const counts = new Map();
-  if (file === "eslint-suppressions.json") {
+  if (file === eslintSuppressionsFile) {
     for (const [path, rules] of Object.entries(value)) {
       for (const [rule, { count }] of Object.entries(rules)) {
         if (retiredRules.has(rule)) continue;
@@ -70,7 +69,7 @@ export function checkBaselines(base) {
   const errors = [];
   for (const file of baselineFiles) {
     const current = JSON.parse(readFileSync(file, "utf8"));
-    if (file === "eslint-suppressions.json") {
+    if (file === eslintSuppressionsFile) {
       // ESLint only notices unused counts in files it actually visits. Cover
       // deleted files too; lint:prune removes their native suppressions.
       for (const path of Object.keys(current)) {

@@ -118,6 +118,15 @@ The canonical [sandbox runbook](https://github.com/puppyone-ai/puppy-issues/blob
 and [architecture](https://github.com/puppyone-ai/puppy-issues/blob/main/document/puppyone/architecture/control-plane/desktop-agent-inference.md)
 are maintained in `puppy-issues` alongside this task branch.
 
+## Documentation
+
+Current Desktop product, architecture, operations, privacy, and release
+documentation lives in
+[`puppy-issues/document/puppyone-desktop`](https://github.com/puppyone-ai/puppy-issues/tree/main/document/puppyone-desktop).
+The former in-repository documents remain in
+[`archive/legacy-desktop-docs/`](archive/legacy-desktop-docs/README.md) for
+history only.
+
 ## License
 
 Code is licensed under the [Apache License 2.0](LICENSE).
@@ -165,5 +174,16 @@ installation as a new first run.
 
 Privacy questions: [guanqun.real@puppyone.ai](mailto:guanqun.real@puppyone.ai).
 
-The puppyone name, logo, icons, and other brand assets are not granted under
-the Apache License. See [TRADEMARK.md](TRADEMARK.md).
+## Trademarks
+
+The puppyone name, logos, icons, product marks, and related brand assets are
+trademarks or service marks of puppyone and are not licensed under the Apache
+License 2.0.
+
+You may use the puppyone name only to refer to the original project or to
+accurately describe compatibility with it. You may not use puppyone branding to
+imply endorsement, affiliation, or official distribution of a modified build
+without prior written permission.
+
+Forks and redistributed builds should use their own product name, app icon, and
+branding unless they have explicit permission to use puppyone marks.

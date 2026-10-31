@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -11,15 +11,13 @@ describe("renderer style architecture", () => {
     const entry = source("src/main.tsx");
     const styles = source("src/styles.css");
     const sourceControlStyles = source("src/features/source-control/source-control.css");
-    const tailwindConfig = source("tailwind.config.cjs");
 
     expect(cascade.trim()).toBe("@layer reset, fallback, tokens, primitives, patterns, features, interface-style, sub-theme, appearance-overrides, accessibility, overrides;");
     expectInOrder(entry, [
       'import "./styles/cascade.css";',
-      'import "./cloud-globals.css";',
       'import "./styles.css";',
     ]);
-    expect(entry).toMatch(/^import "\.\/styles\/cascade\.css";\nimport "\.\/cloud-globals\.css";\nimport "\.\/styles\.css";\n/);
+    expect(entry).toMatch(/^import "\.\/styles\/cascade\.css";\nimport "\.\/styles\.css";\n/);
     expect(styles).toContain('@import "./features/source-control/source-control.css" layer(features);');
     expect(styles).not.toContain("source-control-overrides.css");
     expectInOrder(sourceControlStyles, [
@@ -42,18 +40,6 @@ describe("renderer style architecture", () => {
       .replace('@import "@puppyone/shared-ui/editor.css";', ""))
       .not.toMatch(/^@import(?![^;]*\blayer\()[^;]+;$/m);
     expect(styles).toContain("CodeMirror mounts its base theme as unlayered runtime CSS");
-    expect(tailwindConfig).toMatch(/corePlugins\s*:\s*\{[\s\S]*?preflight\s*:\s*false/);
-  });
-
-  it("keeps Tailwind global directives in one entry file", () => {
-    const tailwindEntry = source("src/cloud-globals.css");
-    expect(tailwindEntry).toContain("@layer reset");
-    expect(tailwindEntry).toContain("@layer features");
-
-    const duplicateEntries = walkCss(path.join(repoRoot, "src"))
-      .filter((filePath) => path.relative(repoRoot, filePath) !== path.join("src", "cloud-globals.css"))
-      .filter((filePath) => /^\s*@tailwind\s+(?:base|components|utilities)\s*;/m.test(readFileSync(filePath, "utf8")));
-    expect(duplicateEntries).toEqual([]);
   });
 
   it("keeps Viewer editor authority above runtime CSS without coupling it to a Style profile", () => {
@@ -112,12 +98,4 @@ function expectInOrder(sourceText: string, needles: string[]) {
     expect(next, needle).toBeGreaterThan(cursor);
     cursor = next;
   }
-}
-
-function walkCss(directory: string): string[] {
-  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    const filePath = path.join(directory, entry.name);
-    if (entry.isDirectory()) return walkCss(filePath);
-    return statSync(filePath).isFile() && filePath.endsWith(".css") ? [filePath] : [];
-  });
 }

@@ -1,6 +1,7 @@
 import type { Plugin } from "vite";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import autoprefixer from "autoprefixer";
 import { fileURLToPath, URL } from "node:url";
 import path from "node:path";
 import { rendererOutputLeasePlugin } from "./tooling/desktop/build/renderer-output-lease-plugin.mjs";
@@ -44,6 +45,7 @@ export default defineConfig({
   base: "./",
   plugins: [rendererOutputLeasePlugin(), cloudConfigurationPlugin(), react(), cascadeBootstrapPlugin(), desktopContentSecurityPolicyPlugin],
   clearScreen: false,
+  css: { postcss: { plugins: [autoprefixer()] } },
   resolve: {
     alias: [
       {
@@ -103,7 +105,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         index: path.resolve(fileURLToPath(new URL("./", import.meta.url)), "index.html"),
-        mermaid: path.resolve(fileURLToPath(new URL("./", import.meta.url)), "mermaid-renderer.html"),
+        mermaid: path.resolve(fileURLToPath(new URL("./", import.meta.url)), "src/platform/mermaid/host.html"),
       },
     },
   },

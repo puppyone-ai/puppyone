@@ -14,7 +14,6 @@ import {
   getNativeSurfaceLayoutActivitySnapshot,
   isNativeSurfaceLayoutStable,
 } from "../../../../src/features/native-surfaces";
-import "../../../../src/cloud-globals.css";
 import englishCatalog from "../../../../src/localization/catalog-loaders/en";
 import "../../../../src/styles.css";
 import "../../../../src/styles/cascade.css";

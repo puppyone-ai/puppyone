@@ -7,14 +7,18 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { load } from "js-yaml";
-import { compareBaseline } from "../../../../scripts/readability-baselines.mjs";
+import {
+  compareBaseline,
+  dependencyBaselineFile as baselineFile,
+  eslintSuppressionsFile,
+} from "../../../../scripts/readability-baselines.mjs";
 
 const root = process.cwd();
 const temporary = mkdtempSync(path.join(tmpdir(), "desktop-readability-"));
 afterAll(() => rmSync(temporary, { recursive: true, force: true }));
 const eslint = new ESLint({ cwd: root });
 const nested = "export const f = a ? b ? c : d : e;";
-const baselineFile = ".dependency-cruiser-known-violations.json";
+const dependencyConfig = "tooling/quality/dependency-cruiser.cjs";
 
 function fixture() {
   return mkdtempSync(path.join(temporary, "case-"));
@@ -31,12 +35,13 @@ function run(cwd, script, args = [], options = {}) {
   return spawnSync(process.execPath, [path.join(root, script), ...args], { cwd, encoding: "utf8", ...options });
 }
 function lint(cwd, args = []) {
-  return run(cwd, "node_modules/eslint/bin/eslint.js", [".", ...args]);
+  return run(cwd, "node_modules/eslint/bin/eslint.js", [".", "--suppressions-location", eslintSuppressionsFile, ...args]);
 }
 function lintFixture() {
   const cwd = fixture();
   write(cwd, "eslint.config.mjs", `export { default } from ${JSON.stringify(pathToFileURL(path.join(root, "eslint.config.js")).href)};`);
   write(cwd, "src/a.ts", nested);
+  json(cwd, eslintSuppressionsFile, {});
   return cwd;
 }
 
@@ -93,8 +98,8 @@ it("native ESLint pruning removes fixed counts and the Git ratchet disallows bug
   write(cwd, "src/a.ts", "export const fixed = 1;");
   expect(lint(cwd).status).toBeGreaterThan(0);
   expect(lint(cwd, ["--prune-suppressions"]).status).toBe(0);
-  expect(JSON.parse(readFileSync(path.join(cwd, "eslint-suppressions.json"), "utf8"))).toEqual({});
-  expect(() => compareBaseline("eslint-suppressions.json", {}, { "src/a.ts": { "no-debugger": { count: 1 } } })).toThrow("Invalid readability suppression");
+  expect(JSON.parse(readFileSync(path.join(cwd, eslintSuppressionsFile), "utf8"))).toEqual({});
+  expect(() => compareBaseline(eslintSuppressionsFile, {}, { "src/a.ts": { "no-debugger": { count: 1 } } })).toThrow("Invalid readability suppression");
 }, 15_000);
 
 it("documents native suppression granularity: replacement at the same file/rule/count needs review", () => {
@@ -109,7 +114,8 @@ function dependencyFixture() {
   for (const dir of ["src", "packages", "electron", "local-api", "shared"]) mkdirSync(path.join(cwd, dir));
   json(cwd, "package.json", { type: "module" });
   json(cwd, "tsconfig.json", { compilerOptions: { baseUrl: ".", paths: { "@probe/*": ["src/*"] } } });
-  cpSync(path.join(root, ".dependency-cruiser.cjs"), path.join(cwd, ".dependency-cruiser.cjs"));
+  mkdirSync(path.join(cwd, "tooling/quality"), { recursive: true });
+  cpSync(path.join(root, dependencyConfig), path.join(cwd, dependencyConfig));
   write(cwd, "src/features/cloud/index.ts", "export const publicValue = 1;");
   write(cwd, "src/features/cloud/internal.ts", "export const privateValue = 1;");
   write(cwd, "src/features/app-shell/index.ts", "export const shell = 1;");
@@ -123,7 +129,7 @@ function dependencyFixture() {
 }
 function cruise(cwd) {
   const result = run(cwd, "node_modules/dependency-cruiser/bin/dependency-cruise.mjs", [
-    "src", "packages", "electron", "local-api", "shared", "--config", ".dependency-cruiser.cjs", "--output-type", "json",
+    "src", "packages", "electron", "local-api", "shared", "--config", dependencyConfig, "--output-type", "json",
   ]);
   // JSON/baseline reporters intentionally exit zero even with errors.
   expect(result.status, result.stderr).toBe(0);
@@ -204,9 +210,9 @@ function gitFixture() {
   git(cwd, ["config", "user.name", "Readability Fixture"]);
   git(cwd, ["config", "user.email", "readability@example.invalid"]);
   write(cwd, "src/old.ts", `${nested}\n${"// unchanged line\n".repeat(30)}`);
-  json(cwd, "eslint-suppressions.json", { "src/old.ts": { "no-nested-ternary": { count: 1 } } });
+  json(cwd, eslintSuppressionsFile, { "src/old.ts": { "no-nested-ternary": { count: 1 } } });
   json(cwd, baselineFile, [{ type: "dependency", from: "src/old.ts", to: "src/target.ts", rule: { name: "no-unresolved", severity: "error" } }]);
-  git(cwd, ["add", "src/old.ts", "eslint-suppressions.json", baselineFile]);
+  git(cwd, ["add", "src/old.ts", eslintSuppressionsFile, baselineFile]);
   git(cwd, ["commit", "-qm", "Initial fixture"]);
   return cwd;
 }
@@ -218,14 +224,14 @@ it.each([false, true])("Git ratchet supports only genuine exact renames (modifie
   const cwd = gitFixture();
   git(cwd, ["mv", "src/old.ts", "src/new.ts"]);
   if (modified) write(cwd, "src/new.ts", `${nested}\n${"// unchanged line\n".repeat(30)}export const changed = 1;`);
-  json(cwd, "eslint-suppressions.json", { "src/new.ts": { "no-nested-ternary": { count: 1 } } });
+  json(cwd, eslintSuppressionsFile, { "src/new.ts": { "no-nested-ternary": { count: 1 } } });
   const dependency = JSON.parse(readFileSync(path.join(cwd, baselineFile), "utf8"));
   dependency[0].from = "src/new.ts";
   json(cwd, baselineFile, dependency);
   const result = ratchet(cwd);
   expect(result.status, result.stderr).toBe(modified ? 1 : 0);
   if (modified) {
-    expect(result.stderr).toContain("eslint-suppressions.json");
+    expect(result.stderr).toContain(eslintSuppressionsFile);
     expect(result.stderr).toContain(baselineFile);
   }
 });
@@ -234,15 +240,15 @@ it("Git ratchet rejects growth, same-total transfers, stale deleted files and in
   const cwd = gitFixture();
   expect(ratchet(cwd).status).toBe(0);
   expect(ratchet(cwd, "definitely-not-a-git-ref").status).toBe(1);
-  json(cwd, "eslint-suppressions.json", { "src/old.ts": { "no-nested-ternary": { count: 2 } } });
+  json(cwd, eslintSuppressionsFile, { "src/old.ts": { "no-nested-ternary": { count: 2 } } });
   expect(ratchet(cwd).status).toBe(1);
   write(cwd, "src/new.ts", nested);
-  json(cwd, "eslint-suppressions.json", { "src/new.ts": { "no-nested-ternary": { count: 1 } } });
+  json(cwd, eslintSuppressionsFile, { "src/new.ts": { "no-nested-ternary": { count: 1 } } });
   expect(ratchet(cwd).status).toBe(1);
-  json(cwd, "eslint-suppressions.json", { "src/old.ts": { "no-nested-ternary": { count: 1 } } });
+  json(cwd, eslintSuppressionsFile, { "src/old.ts": { "no-nested-ternary": { count: 1 } } });
   rmSync(path.join(cwd, "src/old.ts"));
   expect(ratchet(cwd).stderr).toContain("stale deleted file");
-  json(cwd, "eslint-suppressions.json", {});
+  json(cwd, eslintSuppressionsFile, {});
   json(cwd, baselineFile, []);
   expect(ratchet(cwd).status).toBe(0);
   json(cwd, baselineFile, [{ type: "dependency", from: "src/new.ts", to: "src/target.ts", rule: { name: "no-unresolved", severity: "error" } }]);
@@ -269,8 +275,8 @@ it("CI fetches the supplied comparison commit and catches growth earlier in a mu
   git(cwd, ["remote", "add", "origin", remote]);
   git(cwd, ["push", "-q", "origin", "HEAD:main"]);
   const base = git(cwd, ["rev-parse", "HEAD"]);
-  json(cwd, "eslint-suppressions.json", { "src/old.ts": { "no-nested-ternary": { count: 2 } } });
-  git(cwd, ["add", "eslint-suppressions.json"]);
+  json(cwd, eslintSuppressionsFile, { "src/old.ts": { "no-nested-ternary": { count: 2 } } });
+  git(cwd, ["add", eslintSuppressionsFile]);
   git(cwd, ["commit", "-qm", "Increase debt in first commit"]);
   write(cwd, "src/harmless.ts", "export const harmless = 1;");
   git(cwd, ["add", "src/harmless.ts"]);

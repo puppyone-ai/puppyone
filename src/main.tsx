@@ -1,5 +1,4 @@
 import "./styles/cascade.css";
-import "./cloud-globals.css";
 import "./styles.css";
 
 import React from "react";

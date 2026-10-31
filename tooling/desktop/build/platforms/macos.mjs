@@ -33,7 +33,7 @@ export function applyMacosBuilderConfig({ config, baseBuild, identity }) {
     },
     dmg: {
       title: "${productName} Installer",
-      background: "build/dmg-background.tiff",
+      background: "assets/installer/dmg-background.tiff",
       iconSize: 128,
       iconTextSize: 14,
       window: { width: 720, height: 440 },

@@ -1,10 +1,12 @@
 const { existsSync, readdirSync } = require("node:fs");
 const { join } = require("node:path");
 
+const repoRoot = join(__dirname, "../..");
+
 // Domain discovery supports both today's src/features/* and the accepted
 // src/<domain> layout. Technical buckets are not domains.
-const directories = (path) => existsSync(join(__dirname, path))
-  ? readdirSync(join(__dirname, path), { withFileTypes: true })
+const directories = (path) => existsSync(join(repoRoot, path))
+  ? readdirSync(join(repoRoot, path), { withFileTypes: true })
     .filter((entry) => entry.isDirectory()).map((entry) => `${path}/${entry.name}`)
   : [];
 const technical = new Set(["app", "features", "components", "hooks", "lib", "types", "styles", "assets"]);

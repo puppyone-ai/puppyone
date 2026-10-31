@@ -11,7 +11,7 @@ describe("Mermaid computation boundary", () => {
       "src/platform/mermaid/desktopMermaidClient.ts",
       "src/main.tsx",
     ]) expect(read(file)).not.toMatch(/import\(["']mermaid["']\)|import\s+(?!type\b)[^;]+from\s+["']mermaid["']/);
-    expect(read("src/platform/mermaid/renderer.ts")).toContain('import("mermaid")');
+    expect(read("src/platform/mermaid/host.ts")).toContain('import("mermaid")');
     expect(read("electron/main.mjs")).toContain("registerMermaidIpc({ ipcMain: trustedIpcMain");
   });
   it("keeps the compute preload capability small and engine cache version explicit", () => {

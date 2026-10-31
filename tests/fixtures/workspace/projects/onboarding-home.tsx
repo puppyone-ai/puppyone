@@ -1,5 +1,4 @@
 import "../../../../src/styles/cascade.css";
-import "../../../../src/cloud-globals.css";
 import "../../../../src/styles.css";
 import { createRoot } from "react-dom/client";
 import { TestLocalizationProvider } from "@puppyone/localization/testing";

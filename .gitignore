@@ -37,3 +37,6 @@ yarn-error.log*
 
 # Disposable test reports/screenshots; reviewed baselines live under tests/performance.
 /artifacts/tests/
+
+# Per-user PuppyOne workspace state; the app writes it on demand.
+/.puppyone/

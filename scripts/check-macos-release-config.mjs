@@ -70,7 +70,7 @@ const expectedDmgContents = [
 if (dmg.title !== "${productName} Installer") {
   errors.push("the macOS installer volume must use the channel-aware product name");
 }
-if (dmg.background !== "build/dmg-background.tiff") {
+if (dmg.background !== "assets/installer/dmg-background.tiff") {
   errors.push("the macOS installer must use the PuppyOne onboarding background");
 }
 if (dmg.iconSize !== 128 || dmg.iconTextSize !== 14) {

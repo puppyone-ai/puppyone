@@ -1,5 +1,4 @@
 import "../../../../src/styles/cascade.css";
-import "../../../../src/cloud-globals.css";
 import "../../../../src/styles.css";
 import { canonicalizeResourceUri } from "@puppyone/shared-ui";
 import { useRef, useState } from "react";

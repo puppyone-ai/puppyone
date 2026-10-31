@@ -32,7 +32,7 @@ export default [
     ignores: [
       "archive/**", "artifacts/**", "dist/**", "release/**", "node_modules/**",
       "vendor/claudian/**", "vendor/pi-kernel/**",
-      "src-tauri/**", "build/**", "public/**", "**/*.d.ts", "eslint.config.js",
+      "src-tauri/**", "public/**", "**/*.d.ts", "eslint.config.js",
     ],
   },
   {
