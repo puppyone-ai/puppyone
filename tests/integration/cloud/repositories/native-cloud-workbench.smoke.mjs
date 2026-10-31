@@ -140,7 +140,7 @@ async function headerPresentation(location) {
       return [...canvas.getImageData(0,0,1,1).data].slice(0,3);
     };
     return { location:header.dataset.workspaceKind ?? 'local', identity:header.dataset.fixtureIdentity,
-      x:h.x, y:h.y, width:h.width, height:h.height, viewport:innerWidth, viewportHeight:innerHeight,
+      x:h.x, y:h.y, projectLeft:context.getBoundingClientRect().x, width:h.width, height:h.height, viewport:innerWidth, viewportHeight:innerHeight,
       background:rgb(css.backgroundColor), expected:rgb(expected), accent:rgb(accent),
       cloudBackground:rgb(cloudBackground), themeText:rgb(themeText),
       backgroundImage:css.backgroundImage,
@@ -641,7 +641,7 @@ app.whenReady().then(async () => {
         window.webContents.send('window-layout:chrome-state-changed', {fullScreen:false});
         await waitFor("document.querySelector('.desktop-titlebar').dataset.windowFullScreen !== 'true'");
       }
-      if (before) for (const key of ["x", "y", "width", "height", "projectCenter"]) {
+      if (before) for (const key of ["x", "y", "width", "height", "projectLeft"]) {
         assert(Math.abs(sample[key] - before[key]) < 0.01, `Header ${key} moved on ${theme} ${width}px switch`);
       }
       if (before) assert(JSON.stringify(sample.controlPalette) === JSON.stringify(before.controlPalette),
