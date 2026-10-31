@@ -340,9 +340,6 @@ app.whenReady().then(async () => {
     ...(nativeCorners ? platformHost.windowChrome.browserWindowOptions : {}),
     webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, plugins:true,
       preload:path.join(repo, `tests/fixtures/cloud/repositories/${nativeCorners ? 'window-chrome' : 'preview-document'}-preload.cjs`) } });
-  // macOS clamps a new window to a narrow CI display but not a later resize, so
-  // state the size outright: the baseline below must not depend on the display.
-  window.setContentSize(1100, 760);
   window.webContents.session.protocol.handle(PREVIEW_DOCUMENT_SCHEME, (request) => previewDocuments.handle(request));
   installEmbeddedContentSessionSecurity(window.webContents.session,{applicationUrl:pathToFileURL(rendererPath).href,isAuthorizedCloudResource:cloudResources.allowed});
   installWindowNavigationSecurity({webContents:window.webContents,applicationUrl:pathToFileURL(rendererPath).href,
@@ -372,6 +369,11 @@ app.whenReady().then(async () => {
   // Visible compositing is required for captures of the paused Header reveal;
   // hidden-window capturePage can return the previous provider's frame.
   window.showInactive();
+  // macOS fits a window to the display as it appears, 1024x684 on a CI runner. A
+  // later resize can widen it past the display but never make it taller, so only
+  // the width can be stated: the local baseline must use every later comparison's.
+  window.setContentSize(1100, 760);
+  await waitFor("innerWidth === 1100");
   await evaluate(`window.__nativeCloudWorkbenchSmoke.addCloudFixtures(${JSON.stringify([
     {path:'report.xlsx',mimeType:'application/octet-stream',content_base64:spreadsheet.toString('base64')},
     {path:'assets/diagram.svg',mimeType:'image/svg+xml',content:'<svg xmlns="http://www.w3.org/2000/svg" width="300" height="120"><rect width="300" height="120" fill="#102a43"/></svg>'},

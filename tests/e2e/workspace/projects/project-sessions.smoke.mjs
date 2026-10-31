@@ -94,9 +94,13 @@ let failed = false;
 try {
   await until(() => BrowserWindow.getAllWindows().length > 0, "Main window");
   window = BrowserWindow.getAllWindows()[0];
-  window.setSize(2000, 1000);
   app.focus({ steal: true });
   await untilRenderer("Boolean(document.querySelector('.app-shell'))", "App mount");
+  // macOS fits a window to the display as it appears, 1024x684 on a CI runner, but
+  // a later resize can widen it, which is the room the Terminal pane needs.
+  await until(() => window.isVisible(), "Main window shown");
+  window.setSize(2000, 1000);
+  await untilRenderer("innerWidth > 1900", "Main window at its test size");
   if (!await evaluate("document.querySelector('.desktop-titlebar-terminal, .desktop-shell-toolbar-terminal')?.getAttribute('aria-pressed') === 'true'")) {
     await click(".desktop-titlebar-terminal, .desktop-shell-toolbar-terminal");
   }
