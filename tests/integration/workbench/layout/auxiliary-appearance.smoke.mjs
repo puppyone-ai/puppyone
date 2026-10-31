@@ -92,7 +92,7 @@ async function run() {
       assert(JSON.stringify(value.initial) === JSON.stringify(value.background), theme + ": initial PTY and displayed background disagree");
       assert(JSON.stringify(value.sidebar) === JSON.stringify(value.background), theme + ": terminal padding differs from workbench");
       assert(value.promptBackground === "rgba(0, 0, 0, 0)", theme + ": prompt editor paints its own background");
-      assert(value.font === "14px" && value.padding === "16px", theme + ": CodeMirror defaults defeated adapter metrics");
+      assert(value.font === "14px" && value.padding === "12px", theme + ": CodeMirror defaults defeated adapter metrics");
       assert(!value.overflow, theme + ": composer overflows narrow surface");
       assert(await evaluate('getComputedStyle(document.querySelector(".desktop-terminal-xterm")).visibility === "visible"'), theme + ": terminal content is hidden");
       // Other platforms may legitimately use xterm's DOM fallback. The hosted

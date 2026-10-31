@@ -5,7 +5,7 @@
 The experimental Cloud Agent catalog displays product marks for identification;
 showing a mark does not imply endorsement or an active connection.
 
-`replit.svg`, `gemini.svg`, `github-copilot.svg`, `devin.svg`, `grok-bot.svg`,
+`replit.svg`, `gemini.svg`, `github-copilot.svg`, `github-copilot-dark.svg`, `devin.svg`, `grok-bot.svg`,
 and `grok-bot-dark.svg` come from
 `@lobehub/icons-static-svg` 1.95.1. Lobe Icons is MIT licensed; its full
 license is included at `public/assets/icons/agents/lobe-icons-license.txt`.

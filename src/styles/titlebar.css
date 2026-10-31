@@ -682,18 +682,14 @@
 .desktop-titlebar-share {
   width: auto;
   min-width: var(--desktop-chrome-control-size);
-  gap: 6px;
-  padding-inline: 7px 8px;
+  padding-inline: 8px;
+  /* The Header's one worded control: its word carries it, with no icon to prop it up. */
+  color: var(--desktop-titlebar-text);
   font-family: var(--desktop-titlebar-context-font-family);
   font-size: var(--desktop-titlebar-context-font-size);
-  font-weight: var(--desktop-titlebar-context-font-weight);
+  font-weight: var(--po-text-weight-medium, 500);
   line-height: var(--desktop-titlebar-context-line-height);
   white-space: nowrap;
-}
-
-.desktop-titlebar-share > svg {
-  display: block;
-  flex: 0 0 auto;
 }
 
 .desktop-titlebar-share-label {

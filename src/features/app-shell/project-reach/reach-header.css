@@ -107,7 +107,6 @@
     display: inline-flex;
     box-sizing: border-box;
     align-items: center;
-    gap: 4px;
     height: var(--desktop-titlebar-control-height);
     padding: 0 6px;
     border: 0;
@@ -133,19 +132,60 @@
   /* People are round, machines are square. An agent carries its own brand, so
      the shape is what still separates a person from a program; colour never
      has to. */
-  .desktop-project-reach-mark {
+  /* An identity is one round mark, for a person and an Agent alike. It is
+     opaque over the Header's own colour so that stacked marks stay separate
+     however the project tints it, and the ring is that colour too. */
+  .desktop-project-reach-mark,
+  .desktop-project-reach-count {
+    --reach-mark-ground: var(--desktop-titlebar-bg, var(--po-header));
+    position: relative;
     display: grid;
+    /* A definite track, so a brand sized against the mark cannot grow the mark. */
+    grid-template: 100% / 100%;
     box-sizing: border-box;
     flex: 0 0 auto;
     place-items: center;
-    overflow: hidden;
-    /* An identity is the account mark, for a person and an Agent alike. */
     border-radius: 50%;
-    background: var(--po-control);
-    color: var(--po-text);
+    background:
+      linear-gradient(color-mix(in srgb, currentColor 16%, transparent) 0 0),
+      var(--reach-mark-ground);
+    box-shadow: 0 0 0 1.5px var(--reach-mark-ground);
+    /* Present but not at work: nothing here asks to be read. */
+    color: var(--desktop-titlebar-text-muted, var(--po-text-muted));
     font-size: var(--po-type-ui-micro);
     line-height: 1;
     font-weight: var(--po-text-weight-medium, 500);
+  }
+
+  /* Stacked, as a room reads: the marks are one group, not a row of buttons.
+     The first stands in front, and whoever is working always comes first. */
+  .desktop-titlebar-reach-people > * + * {
+    margin-inline-start: -5px;
+  }
+
+  .desktop-titlebar-reach-people > :nth-child(1) { z-index: 3; }
+  .desktop-titlebar-reach-people > :nth-child(2) { z-index: 2; }
+  .desktop-titlebar-reach-people > :nth-child(3) { z-index: 1; }
+
+  /* Not at work: plain grey, tucked behind the mark in front with a sliver
+     showing, so the row is about whoever is working. Over the row they spread
+     out far enough to be told apart. */
+  .desktop-titlebar-reach-people > .desktop-project-reach-mark:not([data-reach-activity], [data-reach-viewer]) {
+    filter: grayscale(1);
+    transition: margin-inline-start 160ms ease-out;
+  }
+
+  .desktop-titlebar-reach-people > .desktop-project-reach-mark + .desktop-project-reach-mark:not([data-reach-activity], [data-reach-viewer]) {
+    margin-inline-start: -16px;
+  }
+
+  .desktop-titlebar-reach-people:is(:hover, :focus-visible) > .desktop-project-reach-mark + .desktop-project-reach-mark:not([data-reach-activity], [data-reach-viewer]) {
+    margin-inline-start: -5px;
+  }
+
+  /* The count and the person looking stand clear of the stack, unclipped. */
+  .desktop-titlebar-reach-people > :is(.desktop-project-reach-count, [data-reach-viewer]) {
+    margin-inline-start: 1px;
   }
 
   /* A brand stays whole inside the circle; its corners are not the circle's to cut. */
@@ -153,17 +193,108 @@
   .desktop-project-reach-mark > svg {
     width: 62%;
     height: 62%;
+    opacity: 0.7;
   }
 
-  /* Lit means working in the project right now, and nothing else does. */
+  /* These are square tiles whose ground runs to the asset's edge, so at the
+     brand's size they read as a box in the circle. The ground is not the brand:
+     the tile becomes the mark and the brand inside it stays whole. The asset's
+     optical scale still applies, so the box is sized to land on the mark. */
+  .desktop-project-reach-mark:is(
+    [data-reach-brand="grok-bot"],
+    [data-reach-brand="hermes"],
+    [data-reach-brand="manus"],
+    [data-reach-brand="opencode"]
+  ) > img {
+    flex: none;
+    width: calc(100% / var(--po-agent-brand-image-scale, 1));
+    height: calc(100% / var(--po-agent-brand-image-scale, 1));
+    border-radius: 50%;
+  }
+
+  /* Lit means working in the project right now, and nothing else does: the
+     word comes up and the mark carries Share's own active lamp, which takes no
+     room from the mark beside it.
+
+     It also hops, in short bursts with a long rest, because it stays in the
+     corner of the eye for as long as an Agent works. The product knows an
+     Agent is in the workspace, not whether it is reading or writing, so the
+     motion is simply busy and claims neither. Agents working together take
+     turns. */
   .desktop-project-reach-mark[data-reach-activity] {
-    box-shadow: 0 0 0 1.5px var(--po-accent);
+    color: var(--desktop-titlebar-text, var(--po-text));
+    transform-origin: 50% 100%;
+    animation: desktop-project-reach-hop 2.8s ease-in-out infinite;
+  }
+
+  .desktop-titlebar-reach-people > :nth-child(2)[data-reach-activity] {
+    animation-delay: 260ms;
+  }
+
+  .desktop-titlebar-reach-people > :nth-child(3)[data-reach-activity] {
+    animation-delay: 520ms;
+  }
+
+  .desktop-project-reach-mark[data-reach-activity]::before {
+    content: "";
+    position: absolute;
+    inset-block-end: 0.5px;
+    inset-inline-end: 0.5px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--po-success);
+    opacity: 0;
+    animation: desktop-project-reach-ripple 2.8s ease-out infinite;
+    animation-delay: inherit;
+  }
+
+  .desktop-project-reach-mark[data-reach-activity]::after {
+    content: "";
+    position: absolute;
+    inset-block-end: -1px;
+    inset-inline-end: -1px;
+    box-sizing: content-box;
+    width: 6px;
+    height: 6px;
+    border: 1.5px solid var(--reach-mark-ground);
+    border-radius: 50%;
+    background: var(--po-success);
+  }
+
+  .desktop-project-reach-mark[data-reach-activity] > img,
+  .desktop-project-reach-mark[data-reach-activity] > svg {
+    opacity: 1;
   }
 
   .desktop-project-reach-count {
-    color: inherit;
-    line-height: inherit;
+    width: 22px;
+    height: 22px;
     font-variant-numeric: tabular-nums;
+  }
+
+  @keyframes desktop-project-reach-hop {
+    0%, 26%, 100% { translate: 0 0; rotate: 0deg; scale: 1; }
+    5% { translate: 0 -3px; rotate: -8deg; scale: 0.97 1.03; }
+    10% { translate: 0 0; rotate: 0deg; scale: 1.06 0.94; }
+    15% { translate: 0 -2px; rotate: 7deg; scale: 0.98 1.02; }
+    20% { translate: 0 0; rotate: 0deg; scale: 1.04 0.96; }
+  }
+
+  @keyframes desktop-project-reach-ripple {
+    0% { opacity: 0.55; scale: 1; }
+    30%, 100% { opacity: 0; scale: 3; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .desktop-project-reach-mark[data-reach-activity],
+    .desktop-project-reach-mark[data-reach-activity]::before {
+      animation: none;
+    }
+
+    .desktop-titlebar-reach-people > .desktop-project-reach-mark {
+      transition: none;
+    }
   }
 
   /* The panel is the project menu, not a dialog of its own: same surface

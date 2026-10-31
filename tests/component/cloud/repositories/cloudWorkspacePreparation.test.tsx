@@ -29,18 +29,16 @@ afterEach(() => {
 });
 
 describe("Cloud project opening", () => {
-  it("keeps a quick open quiet, then says what a real wait is for", () => {
+  it("states the stage in one line, however long the open takes", () => {
     const progress = createCloudWorkspaceOpeningProgress();
     act(() => renderWithTestLocalization(root, <CloudWorkspaceOpeningLoading progress={progress} />));
     const status = container.querySelector('[role="status"]');
-    expect(status?.textContent).toBe("Waking up…");
-    expect(container.querySelector(".desktop-cloud-opening-hint")).toBeNull();
-    act(() => { vi.advanceTimersByTime(3_000); });
-    expect(status?.textContent).toContain("This can take up to a minute.");
+    expect(status?.textContent).toBe("Starting workspace…");
+    act(() => { vi.advanceTimersByTime(60_000); });
+    expect(status?.textContent).toBe("Starting workspace…");
     act(() => progress.set("files"));
-    expect(status?.textContent).toContain("Taking out your files…");
-    expect(status?.textContent).toContain("Putting your project’s files in place.");
-    expect(status?.textContent).not.toContain("up to a minute");
+    expect(status?.textContent).toBe("Preparing files…");
+    expect(container.querySelectorAll(".desktop-cloud-opening p")).toHaveLength(1);
   });
 
   it("opens inside the project's window with the file tree waiting, and cancels", () => {

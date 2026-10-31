@@ -115,7 +115,7 @@ describe("project template selection", () => {
     }));
     const onDefaultLocation = vi.fn(async () => ({ grantId: "location", path: "/projects" }));
     const onClose = vi.fn();
-    await act(async () => { root!.render(withTestLocalization(<StrictMode><OnboardingProjectEntryDialog templateLinks={false} onClose={onClose} onDefaultLocation={onDefaultLocation} onSubmit={onSubmit} /></StrictMode>)); await flush(); });
+    await act(async () => { root!.render(withTestLocalization(<StrictMode><OnboardingProjectEntryDialog onClose={onClose} onDefaultLocation={onDefaultLocation} onSubmit={onSubmit} /></StrictMode>)); await flush(); });
     expect(onDefaultLocation).toHaveBeenCalledOnce();
     expect(host.querySelector("select")).toBeNull();
     setName(host, "Notes");
@@ -134,7 +134,7 @@ describe("project template selection", () => {
       initialization: { ...receipt, operationId: request.operationId },
       opening: { status: "failed", message: "Window unavailable" },
     }));
-    await act(async () => { root!.render(withTestLocalization(<OnboardingProjectEntryDialog templateLinks={false} onClose={vi.fn()} onDefaultLocation={async () => ({ grantId: "location", path: "/projects" })} onSubmit={onSubmit} />)); await flush(); });
+    await act(async () => { root!.render(withTestLocalization(<OnboardingProjectEntryDialog onClose={vi.fn()} onDefaultLocation={async () => ({ grantId: "location", path: "/projects" })} onSubmit={onSubmit} />)); await flush(); });
     setName(host, "Notes");
     await act(async () => { host.querySelector<HTMLButtonElement>('button[type="submit"]')!.click(); await flush(); });
     expect(host.textContent).toContain("Project created at /projects/Notes");
@@ -146,27 +146,35 @@ describe("project template selection", () => {
   });
 });
 
-describe("marketplace template links follow Cloud", () => {
-  const link = "https://www.puppyone.ai/t/hiring-tracker";
+describe("marketplace template links", () => {
+  const link = "https://www.puppyone.ai/t/b91aaade-bc9e-4dfd-8f23-11f06ec00301";
   const detail: MarketplaceTemplateDetail = {
     id: "template-one", releaseId: "release-one", name: "Hiring Tracker", description: "Roles and candidates.",
-    version: "1.0.0", author: "PuppyOne", locale: "en", shareUrl: link,
+    version: "1.0.0", author: "PuppyOne", locale: "en", shareUrl: link, fileCount: 12, icon: null, requiresSignIn: false,
   };
   type TemplateBridge = Record<"readTemplateImportIntent" | "acknowledgeTemplateImportIntent" | "onTemplateImportRequested"
     | "resolveTemplateLink" | "readCloudAuthState", ReturnType<typeof vi.fn>>;
   let flow: ProjectEntryFlowController;
-  function FlowHarness() {
+  const created = {
+    initialization: { path: "/projects/Hiring Tracker", initialOpenPath: "README.md" },
+    opening: { status: "opened", result: { status: "opened-current" } },
+  };
+  const onCreateProject = vi.fn(async () => created);
+  function FlowHarness({ projectIsOpen = false }: { projectIsOpen?: boolean }) {
     flow = useProjectEntryFlow();
-    return <ProjectEntryFlow controller={flow} onOpenFolder={vi.fn()} onCreateProject={vi.fn()}
+    return <ProjectEntryFlow controller={flow} onOpenFolder={vi.fn()} onCreateProject={onCreateProject as never} projectIsOpen={projectIsOpen}
       onChooseLocation={async () => null} onDefaultLocation={async () => ({ grantId: "location", path: "/projects" })} />;
   }
-  function installBridge(): TemplateBridge {
+  function installBridge(overrides: Partial<TemplateBridge> = {}): TemplateBridge {
+    // Main holds a link until it is acknowledged, then forgets it.
+    let intent: { id: string; url: string } | null = { id: "intent-one", url: link };
     const bridge: TemplateBridge = {
-      readTemplateImportIntent: vi.fn(async () => ({ id: "intent-one", url: link })),
-      acknowledgeTemplateImportIntent: vi.fn(async () => undefined),
+      readTemplateImportIntent: vi.fn(async () => intent),
+      acknowledgeTemplateImportIntent: vi.fn(async () => { intent = null; }),
       onTemplateImportRequested: vi.fn(() => () => {}),
       resolveTemplateLink: vi.fn(async () => detail),
       readCloudAuthState: vi.fn(async () => ({ status: "signed-out", session: null })),
+      ...overrides,
     };
     Object.assign(window, { puppyoneDesktop: bridge });
     return bridge;
@@ -176,38 +184,107 @@ describe("marketplace template links follow Cloud", () => {
     initializeDesktopPreferences();
     desktopPreferencesStore.getState().setExperimentalSettings((settings) => ({ ...settings, enableCloudWorkspace: cloud }));
   }
-  afterEach(() => { Reflect.deleteProperty(window, "puppyoneDesktop"); localStorage.clear(); });
+  const paste = (target: EventTarget, text: string) => {
+    const event = Object.assign(new Event("paste", { bubbles: true, cancelable: true }), { clipboardData: { getData: () => text } });
+    target.dispatchEvent(event);
+    return event;
+  };
+  const submitButton = (host: HTMLElement) => host.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+  afterEach(() => { Reflect.deleteProperty(window, "puppyoneDesktop"); localStorage.clear(); onCreateProject.mockClear(); });
 
-  it("offers no template link, consumes no store link and reads no account while Cloud is off", async () => {
+  it("opens a store link as its card with Cloud off, and reads no account", async () => {
     preferences(false);
-    const bridge = installBridge();
-    const host = mount();
-    await act(async () => { root!.render(withTestLocalization(<FlowHarness />)); await flush(); });
-
-    expect(bridge.readTemplateImportIntent).not.toHaveBeenCalled();
-    expect(host.querySelector("form")).toBeNull();
-
-    await act(async () => { flow.openCreate(); await flush(); });
-    expect(host.querySelector("form")).not.toBeNull();
-    expect(host.textContent).not.toContain("Use a template link");
-    expect(host.querySelector('input[type="checkbox"]')).toBeNull();
-    expect(host.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled).toBe(false);
-    expect(bridge.readCloudAuthState).not.toHaveBeenCalled();
-    expect(bridge.resolveTemplateLink).not.toHaveBeenCalled();
-    expect(bridge.acknowledgeTemplateImportIntent).not.toHaveBeenCalled();
-  });
-
-  it("opens a store link as a template project once Cloud is on", async () => {
-    preferences(true);
     const bridge = installBridge();
     const host = mount();
     await act(async () => { root!.render(withTestLocalization(<FlowHarness />)); await flush(); await flush(); });
 
-    expect(bridge.readTemplateImportIntent).toHaveBeenCalled();
     expect(bridge.acknowledgeTemplateImportIntent).toHaveBeenCalledWith("intent-one");
     expect(bridge.resolveTemplateLink).toHaveBeenCalledWith({ url: link, locale: "en" });
-    expect(host.textContent).toContain("Use a template link");
-    expect(host.querySelector<HTMLInputElement>('input[type="checkbox"]')!.checked).toBe(true);
+    expect(host.textContent).toContain("Hiring Tracker");
+    expect(host.textContent).toContain("PuppyOne · 12 files");
+    expect(host.querySelector(".onboarding-entry-template-destination bdi")!.textContent).toBe("projects/Hiring Tracker");
+    expect(host.querySelector("input")).toBeNull();
+    expect(submitButton(host).textContent).toBe("Get a copy");
+    expect(submitButton(host).disabled).toBe(false);
+    expect(bridge.readCloudAuthState).not.toHaveBeenCalled();
+  });
+
+  it("gets a copy in one action, under the template's own name", async () => {
+    preferences(false);
+    installBridge();
+    const host = mount();
+    await act(async () => { root!.render(withTestLocalization(<FlowHarness />)); await flush(); await flush(); });
+    await act(async () => { host.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); await flush(); });
+
+    expect(onCreateProject).toHaveBeenCalledOnce();
+    expect(onCreateProject.mock.calls[0]).toMatchObject([{
+      name: "Hiring Tracker", locationGrantId: "location", numberIfTaken: true, openInNewWindow: false,
+      source: { kind: "template", ref: { sourceId: "marketplace", id: "template-one", releaseId: "release-one" } },
+    }]);
+    expect(host.querySelector("form")).toBeNull();
+  });
+
+  it("leaves an open Project where it is", async () => {
+    preferences(false);
+    installBridge();
+    const host = mount();
+    await act(async () => { root!.render(withTestLocalization(<FlowHarness projectIsOpen />)); await flush(); await flush(); });
+    await act(async () => { host.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); await flush(); });
+    expect(onCreateProject.mock.calls[0]).toMatchObject([{ openInNewWindow: true }]);
+  });
+
+  it("lets the name and place be changed, without asking first", async () => {
+    preferences(false);
+    installBridge();
+    const host = mount();
+    await act(async () => { root!.render(withTestLocalization(<FlowHarness />)); await flush(); await flush(); });
+    await act(async () => { host.querySelector<HTMLButtonElement>(".onboarding-entry-template-destination button")!.click(); await flush(); });
+    expect(host.querySelector<HTMLInputElement>(".onboarding-entry-create-input")!.value).toBe("Hiring Tracker");
+    expect(host.querySelector(".onboarding-entry-location-path")!.textContent).toBe("/projects");
+  });
+
+  it("asks for an account only for a template that needs one", async () => {
+    preferences(false);
+    const bridge = installBridge({ resolveTemplateLink: vi.fn(async () => ({ ...detail, requiresSignIn: true })) });
+    const host = mount();
+    await act(async () => { root!.render(withTestLocalization(<FlowHarness />)); await flush(); await flush(); });
     expect(bridge.readCloudAuthState).toHaveBeenCalled();
+    expect(host.textContent).toContain("Sign in to use this template");
+    expect(submitButton(host).disabled).toBe(true);
+  });
+
+  it("explains a link that cannot be read and offers to try again", async () => {
+    preferences(false);
+    const resolveTemplateLink = vi.fn(async () => { throw new Error("The template store is temporarily unavailable."); });
+    installBridge({ resolveTemplateLink });
+    const host = mount();
+    await act(async () => { root!.render(withTestLocalization(<FlowHarness />)); await flush(); await flush(); });
+    expect(host.querySelector('[role="alert"]')!.textContent).toContain("temporarily unavailable");
+    expect(submitButton(host)).toBeNull();
+    resolveTemplateLink.mockImplementation((async () => detail) as never);
+    await act(async () => { [...host.querySelectorAll("button")].find((button) => button.textContent === "Retry")!.click(); await flush(); });
+    expect(host.textContent).toContain("Hiring Tracker");
+  });
+
+  it("opens a pasted template link, and leaves every other paste alone", async () => {
+    preferences(false);
+    const bridge = installBridge({ readTemplateImportIntent: vi.fn(async () => null) });
+    const host = mount();
+    await act(async () => { root!.render(withTestLocalization(<FlowHarness />)); await flush(); });
+    const field = document.body.appendChild(document.createElement("input"));
+
+    let other!: Event;
+    await act(async () => { other = paste(document.body, "just some copied text"); await flush(); });
+    expect(other.defaultPrevented).toBe(false);
+    await act(async () => { other = paste(field, link); await flush(); });
+    expect(other.defaultPrevented).toBe(false);
+    expect(bridge.resolveTemplateLink).not.toHaveBeenCalled();
+    expect(host.querySelector("form")).toBeNull();
+
+    await act(async () => { other = paste(document.body, `  ${link}\n`); await flush(); await flush(); });
+    expect(other.defaultPrevented).toBe(true);
+    expect(bridge.resolveTemplateLink).toHaveBeenCalledWith({ url: link, locale: "en" });
+    expect(host.textContent).toContain("Hiring Tracker");
+    field.remove();
   });
 });

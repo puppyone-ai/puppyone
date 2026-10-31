@@ -1,5 +1,4 @@
 import { lazy, Suspense, useState, type ReactNode } from "react";
-import { Forward, History } from "lucide-react";
 import { Tooltip } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
 import { AgentEntryIcon } from "../../../components/brand/AgentEntryIcon";
@@ -23,8 +22,6 @@ type Props = {
   session: DesktopCloudSession | null;
   apiBaseUrl: string;
   onSessionChange: (session: DesktopCloudSession | null) => void;
-  historyOpen?: boolean;
-  onToggleHistory?: () => void;
   agentOpen?: boolean;
   onToggleAgent?: () => void;
   /** The Header's marks belong to the shell; this feature only supplies who is there. */
@@ -44,7 +41,7 @@ export function CloudWorkspaceHeaderTools(props: Props) {
   return <ScopedCloudWorkspaceHeaderTools key={scope} {...props} />;
 }
 
-function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, getShareResource, historyOpen = false, onToggleHistory, agentOpen = false, onToggleAgent, renderPeople }: Props) {
+function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, getShareResource, agentOpen = false, onToggleAgent, renderPeople }: Props) {
   const { t } = useLocalization();
   const [sharing, setSharing] = useState(false);
   const [shareResource, setShareResource] = useState<CloudWorkspaceShareResource | null | undefined>();
@@ -58,23 +55,13 @@ function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, getShar
   return <>
     <div className="desktop-titlebar-cloud-tools" data-window-no-drag="true" aria-busy={!ready || undefined}>
       {ready && renderPeople?.({ agents, viewer: session.user_email, onOpen: openShare })}
-      <Tooltip content={ready ? t("shell.titlebar.share") : t("shell.workspaceSwitcher.location.checking")}>
+      <Tooltip content={ready ? null : t("shell.workspaceSwitcher.location.checking")}>
         <button type="button" className="desktop-titlebar-action desktop-titlebar-share"
           data-cloud-workspace-tool="share" disabled={!ready} aria-label={t("shell.titlebar.share")}
           aria-haspopup="dialog" aria-expanded={sharing} onClick={openShare}>
-          <Forward size={16} strokeWidth={1.8} aria-hidden="true" />
           <span className="desktop-titlebar-share-label">{t("shell.titlebar.share")}</span>
         </button>
       </Tooltip>
-      <Tooltip content={t("source-control.history.title")}>
-        <button type="button" className="desktop-titlebar-action desktop-titlebar-cloud-tool"
-          data-cloud-workspace-tool="history" disabled={!ready || !onToggleHistory || context?.status !== "resolved" || context.target.kind !== "project_root"}
-          aria-label={t("source-control.history.title")} aria-pressed={historyOpen}
-          aria-expanded={historyOpen} onClick={onToggleHistory}>
-          <History size={15} aria-hidden="true" />
-        </button>
-      </Tooltip>
-      <span className="desktop-titlebar-action-divider" aria-hidden="true" />
       <Tooltip content={t(agentOpen ? "shell.titlebar.hideAgent" : "shell.titlebar.showAgent")}>
         <button type="button" className="desktop-titlebar-action desktop-titlebar-terminal"
           data-cloud-workspace-tool="agent" disabled={!ready || !onToggleAgent}

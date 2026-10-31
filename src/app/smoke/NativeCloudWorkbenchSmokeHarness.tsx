@@ -331,7 +331,10 @@ export function NativeCloudWorkbenchSmokeHarness() {
   const projectSwitcher = <DesktopTitlebarContext open={menuOpen} refObject={menuRef} multiRootWorkspacesEnabled={false}
         projectItems={projectItems} {...smokeHeaderProject(location === "cloud" ? workbench.service : null)}
         onClose={() => setMenuOpen(false)} onToggle={() => setMenuOpen((current) => !current)}
-        onSelectProject={openLocalFolder} onSelectCloudProject={openCloudProject} />;
+        onSelectProject={openLocalFolder} onSelectCloudProject={openCloudProject}
+        placeMenu={location === "cloud" ? { menu: { place: "cloud", action: null }, handlers: { onPutInCloud: noop,
+          onOpenCloudProject: noop, onSignIn: noop, onPutInCloudAgain: noop, onOpenLocalFolder: noop,
+          ...(cloudSidebar.historyAvailable ? { onOpenHistory: cloudSidebar.openHistory } : {}) } } : null} />;
   const noticeState = resolveLocalFolderCloudNotice(repositoryContext);
   const cloudProjectNotice = noticeState && !noticeDismissed ? <LocalFolderCloudNotice notice={noticeState}
     onOpenCloudProject={openCloudProject} onSignIn={requestCloud}
@@ -357,7 +360,6 @@ export function NativeCloudWorkbenchSmokeHarness() {
           getShareResource={() => captureCloudWorkspaceShareResource(workbench)}
           session={activeSession} apiBaseUrl={API} onSessionChange={noop}
           agentOpen={agent.open} onToggleAgent={cloudSidebar.toggleAgent}
-          historyOpen={cloudSidebar.historyOpen} onToggleHistory={cloudSidebar.toggleHistory}
           renderPeople={people => <CloudWorkspaceAgentPeople {...people} />} />}
         <DesktopTitlebarActions terminalSidebarOpen={sidebar.localOpen}
         terminalToolEnabled={location === "local"} gitChangesAvailable={location === "local"}

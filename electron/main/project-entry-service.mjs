@@ -5,6 +5,8 @@ import { createProjectInitializationService } from "./project-initialization-ser
 import { createLocalProjectImportService } from "./project-import/service.mjs";
 
 const PROJECT_NAME_MAX_LENGTH = 120;
+const MAX_NUMBERED_NAMES = 99;
+const REMEMBERED_NAMES = 64;
 const WINDOWS_RESERVED_NAME = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i;
 
 export function createProjectEntryService({
@@ -16,6 +18,26 @@ export function createProjectEntryService({
   validateTemplateSource,
 } = {}) {
   const initialization = createProjectInitializationService({ journalDirectory, resolveTemplate, validateSource: validateTemplateSource });
+  // A retry must land on the name its first attempt chose, even though that
+  // attempt may have created the folder that now makes the name look taken.
+  const numberedNames = new Map();
+  async function freeProjectName(parentPath, name, operationId) {
+    const known = numberedNames.get(operationId);
+    if (known) return known;
+    let chosen = name;
+    for (let number = 2; number <= MAX_NUMBERED_NAMES; number += 1) {
+      const exists = await fsPromises.lstat(pathModule.join(parentPath, chosen)).then(() => true, (error) => {
+        if (error.code === "ENOENT") return false;
+        throw error;
+      });
+      if (!exists) break;
+      const suffix = ` ${number}`;
+      chosen = requireProjectName(`${name.slice(0, PROJECT_NAME_MAX_LENGTH - suffix.length).trimEnd()}${suffix}`);
+    }
+    numberedNames.set(operationId, chosen);
+    if (numberedNames.size > REMEMBERED_NAMES) numberedNames.delete(numberedNames.keys().next().value);
+    return chosen;
+  }
   const imports = createLocalProjectImportService({
     io: fsPromises,
     validateName: requireProjectName,
@@ -36,9 +58,13 @@ export function createProjectEntryService({
     }
   }
   return Object.freeze({
-    async createProject({ parentPath, name, source = { kind: "blank" }, locale = "en", operationId }) {
-      const projectName = requireProjectName(name);
+    async createProject({ parentPath, name, source = { kind: "blank" }, locale = "en", operationId, numberIfTaken = false }) {
+      const requestedName = requireProjectName(name);
       const canonicalParent = await requireDirectory(parentPath, fsPromises, pathModule);
+      // Numbering never reuses a folder: it only picks a name no folder has yet.
+      const projectName = numberIfTaken && operationId
+        ? await freeProjectName(canonicalParent, requestedName, operationId)
+        : requestedName;
       const projectPath = resolveChildPath(canonicalParent, projectName, pathModule);
       try {
         const receipt = await initialization.initialize({ parentPath: canonicalParent, name: projectName, source, locale, operationId });

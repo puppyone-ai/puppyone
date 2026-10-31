@@ -297,13 +297,17 @@ async function runSmoke(update: (fixture: Fixture) => void, active: () => boolea
         const addition = getComputedStyle(stats.querySelector(".is-addition")!);
         const deletion = getComputedStyle(stats.querySelector(".is-deletion")!);
         const icon = expandedEdit.querySelector<HTMLElement>(".desktop-agent-tool-icon")!;
-        const detailColor = getComputedStyle(icon).color;
+        // Step glyphs are deliberately quieter, so compare with the muted role itself.
+        const mutedProbe = expandedEdit.appendChild(document.createElement("span"));
+        mutedProbe.style.color = "var(--agent-text-muted)";
+        const detailColor = getComputedStyle(mutedProbe).color;
+        mutedProbe.remove();
         assert(evidenceStyle.color === detailColor && getComputedStyle(addedEvidence).color === detailColor, "Expanded tool text did not use the common muted role");
         assert([...document.querySelectorAll(".desktop-agent-evidence-marker, .desktop-agent-tool-file-path")]
           .every(node => getComputedStyle(node).color === detailColor), "Expanded tool markers or file path lost their muted color");
         assert(messageColors(addedEvidence).contrast >= 4.5, `${theme}: added content is unreadable`);
-        assert(stats.textContent === "+2−1" && getComputedStyle(stats).display === "none"
-          && addition.color !== deletion.color, "Compact edit evidence leaked text or lost semantic colors");
+        assert(stats.textContent === "+2−1" && getComputedStyle(stats).display !== "none"
+          && addition.color !== deletion.color, "Edit counts lost their text, visibility or semantic colors");
         assert(document.querySelectorAll(".desktop-agent-tool-diff-stats").length === 1
           && !document.querySelector(".desktop-agent-changes-control, .desktop-agent-composer-floating"), "File-change counts were duplicated above the composer");
         assert(messageColors(stats.querySelector<HTMLElement>(".is-addition")!).contrast >= 4.5

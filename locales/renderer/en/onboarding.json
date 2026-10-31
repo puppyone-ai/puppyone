@@ -135,13 +135,11 @@
   "entry.create.createdNote": "Project created at {path}. You can retry opening it without creating it again.",
   "entry.create.retryOpen": "Open created project",
   "template.title": "Create from template",
-  "template.useLink": "Use a template link",
-  "template.link": "Template link",
-  "template.paste": "Paste link",
-  "template.pasteFailed": "Paste the template link into the field.",
-  "template.preview": "Preview template",
+  "template.paste": "Paste template link",
+  "template.noLink": "There's no template link on the clipboard. Copy one from a template page first.",
+  "template.fileCount": "{count, plural, one {# file} other {# files}}",
+  "template.getCopy": "Get a copy",
   "template.loading": "Loading…",
   "template.signIn": "Sign in to use this template",
-  "template.signingIn": "Signing in…",
-  "template.linkPlaceholder": "https://www.puppyone.ai/t/…"
+  "template.signingIn": "Signing in…"
 }

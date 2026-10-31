@@ -667,6 +667,7 @@ export type LastWorkspaceResult = {
   workspace: Workspace | null;
   workspaces?: Workspace[];
   initialCloudProject?: CloudProjectWindowTarget | null;
+  initialOpenPath?: string | null;
   error: string | null;
 };
 
@@ -732,12 +733,17 @@ export type WorkspaceDetachResult = {
 export type MarketplaceTemplateDetail = {
   id: string; releaseId: string; name: string; description: string;
   version: string; author: string; locale: string; shareUrl: string;
+  fileCount: number | null; icon: string | null; requiresSignIn: boolean;
 };
 
 export type WorkspaceCreateProjectRequest = {
   name: string;
   locationGrantId: string;
   operationId: string;
+  /** Take the next free name ("CRM 2") instead of failing on a taken one. */
+  numberIfTaken?: boolean;
+  /** Leave this window's Project where it is and open the new one beside it. */
+  openInNewWindow?: boolean;
   source: { kind: "blank" } | { kind: "template"; ref: { sourceId: "builtin"; id: "puppyone.project.getting-started"; version: 1 } } | { kind: "template"; ref: { sourceId: "marketplace"; id: string; releaseId: string } };
   locale: string;
 };

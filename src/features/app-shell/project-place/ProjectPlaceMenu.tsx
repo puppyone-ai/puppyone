@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, Plug, UserPlus } from "lucide-react";
+import { Check, History, Plug, UserPlus } from "lucide-react";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import { CloudIcon, CloudUploadIcon, LocalIcon } from "@puppyone/shared-ui";
 import { DesktopMenuItem, DesktopMenuSeparator } from "../../../components/DesktopMenu";
@@ -17,6 +17,8 @@ export type ProjectPlaceHandlers = Readonly<{
   /** Sharing is part of putting a folder in the Cloud; absent when sharing is off. */
   onInvitePerson?: () => void;
   onConnectAgent?: () => void;
+  /** A hosted project's own record; absent where it has none to show. */
+  onOpenHistory?: () => void;
 }>;
 
 export type ProjectPlaceMenuProps = Readonly<{
@@ -83,6 +85,12 @@ export function ProjectPlaceRows({ menu, handlers, onDismiss }: ProjectPlaceMenu
       {sharing?.onConnectAgent && <DesktopMenuItem className="desktop-project-place-row desktop-project-place-subrow"
         role="button" data-project-place-row="connect-agent" icon={<Plug size={14} strokeWidth={1.8} />}
         label={t("shell.projectReach.connectAgent")} onClick={run(sharing.onConnectAgent)} />}
+    </>}
+    {handlers.onOpenHistory && <>
+      <DesktopMenuSeparator />
+      <DesktopMenuItem className="desktop-project-place-row" role="button" data-project-place-row="history"
+        icon={<History size={15} strokeWidth={1.75} aria-hidden="true" />}
+        label={t("source-control.history.title")} onClick={run(handlers.onOpenHistory)} />
     </>}
   </section>;
 }

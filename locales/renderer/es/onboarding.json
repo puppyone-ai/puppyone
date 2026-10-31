@@ -135,13 +135,11 @@
   "entry.create.createdNote": "Proyecto creado en {path}. Puedes volver a abrirlo sin crearlo otra vez.",
   "entry.create.retryOpen": "Abrir proyecto creado",
   "template.title": "Crear desde plantilla",
-  "template.useLink": "Usar un enlace de plantilla",
-  "template.link": "Enlace de plantilla",
-  "template.paste": "Pegar enlace",
-  "template.pasteFailed": "Pega el enlace de la plantilla en el campo.",
-  "template.preview": "Vista previa",
+  "template.paste": "Pegar enlace de plantilla",
+  "template.noLink": "No hay ningún enlace de plantilla en el portapapeles. Copia uno desde la página de una plantilla.",
+  "template.fileCount": "{count, plural, one {# archivo} other {# archivos}}",
+  "template.getCopy": "Obtener una copia",
   "template.loading": "Cargando…",
   "template.signIn": "Iniciar sesión para usar esta plantilla",
-  "template.signingIn": "Iniciando sesión…",
-  "template.linkPlaceholder": "https://www.puppyone.ai/t/…"
+  "template.signingIn": "Iniciando sesión…"
 }

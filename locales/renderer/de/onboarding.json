@@ -135,13 +135,11 @@
   "entry.create.createdNote": "Projekt unter {path} erstellt. Du kannst es erneut öffnen, ohne es nochmals zu erstellen.",
   "entry.create.retryOpen": "Erstelltes Projekt öffnen",
   "template.title": "Aus Vorlage erstellen",
-  "template.useLink": "Vorlagenlink verwenden",
-  "template.link": "Vorlagenlink",
-  "template.paste": "Link einfügen",
-  "template.pasteFailed": "Füge den Vorlagenlink in das Feld ein.",
-  "template.preview": "Vorlage ansehen",
+  "template.paste": "Vorlagenlink einfügen",
+  "template.noLink": "In der Zwischenablage ist kein Vorlagenlink. Kopiere zuerst einen von einer Vorlagenseite.",
+  "template.fileCount": "{count, plural, one {# Datei} other {# Dateien}}",
+  "template.getCopy": "Kopie holen",
   "template.loading": "Wird geladen…",
   "template.signIn": "Anmelden, um die Vorlage zu verwenden",
-  "template.signingIn": "Anmeldung läuft…",
-  "template.linkPlaceholder": "https://www.puppyone.ai/t/…"
+  "template.signingIn": "Anmeldung läuft…"
 }
