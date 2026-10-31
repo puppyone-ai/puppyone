@@ -1,10 +1,11 @@
-import { lazy, Suspense, useState, type ReactNode } from "react";
+import { lazy, Suspense, useRef, useState, type ReactNode } from "react";
 import { Tooltip } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
 import { AgentEntryIcon } from "../../../components/brand/AgentEntryIcon";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import type { ProjectCloudContext } from "../project/context";
 import type { CloudWorkspaceShareResource } from "../share/cloudWorkspaceShareResource";
+import type { ShareAgentMark } from "../share/CloudWorkspaceAgentShare";
 import { useWorkspaceAgents, type WorkspaceAgent } from "../share/useWorkspaceAgents";
 
 const ShareDialog = lazy(() => import("../share/CloudWorkspaceShareDialog").then(module => ({ default: module.CloudWorkspaceShareDialog })));
@@ -26,6 +27,7 @@ type Props = {
   onToggleAgent?: () => void;
   /** The Header's marks belong to the shell; this feature only supplies who is there. */
   renderPeople?: (people: CloudWorkspacePeople) => ReactNode;
+  renderAgentMark?: (agent: ShareAgentMark) => ReactNode;
 };
 
 /** An Agent connects to the whole workspace, so a scoped view has none to show. */
@@ -41,24 +43,26 @@ export function CloudWorkspaceHeaderTools(props: Props) {
   return <ScopedCloudWorkspaceHeaderTools key={scope} {...props} />;
 }
 
-function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, getShareResource, agentOpen = false, onToggleAgent, renderPeople }: Props) {
+function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, getShareResource, agentOpen = false, onToggleAgent, renderPeople, renderAgentMark }: Props) {
   const { t } = useLocalization();
   const [sharing, setSharing] = useState(false);
+  const shareButton = useRef<HTMLButtonElement>(null);
   const [shareResource, setShareResource] = useState<CloudWorkspaceShareResource | null | undefined>();
   const ready = context?.status === "resolved" && session !== null;
   const { agents, refresh: refreshAgents } = useWorkspaceAgents(agentTarget(context, session, apiBaseUrl));
-  const openShare = () => {
+  const toggleShare = () => {
+    if (sharing) { setSharing(false); return; }
     try { setShareResource(getShareResource?.()); }
     catch { setShareResource(null); }
     setSharing(true);
   };
   return <>
     <div className="desktop-titlebar-cloud-tools" data-window-no-drag="true" aria-busy={!ready || undefined}>
-      {ready && renderPeople?.({ agents, viewer: session.user_email, onOpen: openShare })}
+      {ready && renderPeople?.({ agents, viewer: session.user_email, onOpen: toggleShare })}
       <Tooltip content={ready ? null : t("shell.workspaceSwitcher.location.checking")}>
-        <button type="button" className="desktop-titlebar-action desktop-titlebar-share"
+        <button ref={shareButton} type="button" className="desktop-titlebar-action desktop-titlebar-share"
           data-cloud-workspace-tool="share" disabled={!ready} aria-label={t("shell.titlebar.share")}
-          aria-haspopup="dialog" aria-expanded={sharing} onClick={openShare}>
+          aria-haspopup="dialog" aria-expanded={sharing} onClick={toggleShare}>
           <span className="desktop-titlebar-share-label">{t("shell.titlebar.share")}</span>
         </button>
       </Tooltip>
@@ -72,8 +76,9 @@ function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, getShar
       </Tooltip>
     </div>
     {sharing && context?.status === "resolved" && session && <Suspense fallback={null}>
-      <ShareDialog context={context} resource={shareResource} session={session} apiBaseUrl={apiBaseUrl}
-        agents={agents} onAgentsChanged={() => void refreshAgents()} onClose={() => setSharing(false)} />
+      <ShareDialog anchor={shareButton} context={context} resource={shareResource} session={session}
+        apiBaseUrl={apiBaseUrl} agents={agents} renderAgentMark={renderAgentMark}
+        onAgentsChanged={() => void refreshAgents()} onClose={() => setSharing(false)} />
     </Suspense>}
   </>;
 }

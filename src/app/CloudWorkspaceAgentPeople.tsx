@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import { useLocalization } from "@puppyone/localization/react";
-import { ProjectReachPeople, resolveProjectReachState } from "../features/app-shell/project-reach";
+import { ProjectReachPeople, ReachMemberMark, resolveProjectReachState } from "../features/app-shell/project-reach";
 import type { CloudWorkspacePeople } from "../features/cloud/workbench/CloudWorkspaceHeaderTools";
+import type { ShareAgentMark } from "../features/cloud/share/CloudWorkspaceAgentShare";
 import { workspaceAgentStatus } from "../features/cloud/share/useWorkspaceAgents";
 
 /**
@@ -26,4 +27,10 @@ export function CloudWorkspaceAgentPeople({ agents, viewer, onOpen }: CloudWorks
     `${localization.t("agent.message.you")} · ${viewer}`,
   ], { type: "unit" });
   return <ProjectReachPeople state={state} statement={statement} viewer={viewer} onOpen={onOpen} />;
+}
+
+/** The same mark in Share's list as in the Header, so an Agent looks like itself in both. */
+export function CloudWorkspaceAgentMark({ id, name, active }: ShareAgentMark) {
+  return <ReachMemberMark size={22} member={{ id, name, audience: "machine", lastSeenAt: null,
+    activity: active ? { kind: "working", label: name } : null }} />;
 }
