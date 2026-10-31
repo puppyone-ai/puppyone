@@ -25,8 +25,8 @@ const rendererMinWidth = rendererWidthMatch ? Number(rendererWidthMatch[1]) : nu
 const rendererChromeHeightMatch = tokensCss.match(/--desktop-chrome-height:\s*(\d+)px;/);
 const rendererChromeHeight = rendererChromeHeightMatch ? Number(rendererChromeHeightMatch[1]) : null;
 
-if (DESKTOP_WINDOW_MIN_WIDTH !== 640) {
-  errors.push("The desktop native minimum width must remain 640px unless the product contract changes intentionally.");
+if (DESKTOP_WINDOW_MIN_WIDTH !== 720) {
+  errors.push("The desktop native minimum width must remain 720px unless the product contract changes intentionally.");
 }
 if (DESKTOP_WINDOW_MIN_HEIGHT !== 520) {
   errors.push("The desktop native minimum height must remain 520px unless the product contract changes intentionally.");

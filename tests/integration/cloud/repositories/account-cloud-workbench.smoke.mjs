@@ -175,8 +175,8 @@ app.whenReady().then(async () => {
   }
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await writeFile(path.join(artifacts, "flat-homepage.png"), (await window.webContents.capturePage()).toPNG());
-  window.setSize(640, 520);
-  await waitFor("innerWidth === 640 && innerHeight === 520");
+  window.setSize(720, 520);
+  await waitFor("innerWidth === 720 && innerHeight === 520");
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   assert(await evaluate(`(() => {
     const list = document.querySelector('.onboarding-project-list');

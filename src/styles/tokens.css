@@ -10,7 +10,7 @@
   --po-brand-blue: #4599df;
   --desktop-control-radius: 6px;
   /* Mirrored from electron/main/window-layout-contract.mjs and guarded by the architecture check. */
-  --desktop-window-min-width: 640px;
+  --desktop-window-min-width: 720px;
   --desktop-toolbar-action-radius: 5px;
   /* Default native Header height is mirrored from window-layout-contract.mjs. */
   --desktop-chrome-height: 40px;

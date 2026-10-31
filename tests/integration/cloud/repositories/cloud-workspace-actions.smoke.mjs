@@ -71,7 +71,7 @@ async function exercise(hosted) {
       assert(Object.values(nativeStyles).every(value => value.actual === value.preview), `Miniature rows inherit the exact ${theme} product Explorer styles before uniform scaling: ${JSON.stringify(nativeStyles)}`);
     }
     assert(await evaluate(`${workspaceRequests} === ${before}`), "Rendering the actual Viewer must add no Cloud requests");
-    window.setSize(640, 520);
+    window.setSize(720, 520);
     await evaluate("new Promise(resolve => setTimeout(resolve, 350))");
     assert(await evaluate("(() => { const r = document.querySelector('.desktop-cloud-workspace-share .desktop-cloud-share-copy').getBoundingClientRect(); return r.bottom <= innerHeight && r.width <= innerWidth; })()"), "Share copy action stays visible on a small window");
     await capture("share-small");

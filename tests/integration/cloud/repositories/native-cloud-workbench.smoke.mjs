@@ -615,7 +615,7 @@ app.whenReady().then(async () => {
   assert((await workspaceRequests()).length === beforeDetail, 'Commit details must reuse the history response');
   await writeFile(path.join(artifacts, 'cloud-history.png'), (await window.webContents.capturePage()).toPNG());
   await evaluate("document.querySelector('.desktop-cloud-workspace-history button[aria-label=Close]').click()");
-  for (const width of [1100, 640]) for (const theme of ["light", "dark"]) {
+  for (const width of [1100, 720]) for (const theme of ["light", "dark"]) {
     window.setContentSize(width, 760);
     await waitFor(`innerWidth === ${width}`);
     await evaluate(`window.__nativeCloudWorkbenchSmoke.setLoginAppearance('${theme}', 'en')`);
@@ -665,7 +665,7 @@ app.whenReady().then(async () => {
       }
     }
   }
-  for (const width of [1100, 640]) for (const theme of ['light', 'dark']) {
+  for (const width of [1100, 720]) for (const theme of ['light', 'dark']) {
     window.setContentSize(width, 760);
     await waitFor(`innerWidth === ${width}`);
     await evaluate(`window.__nativeCloudWorkbenchSmoke.setLoginAppearance('${theme}', 'en')`);
@@ -823,8 +823,8 @@ app.whenReady().then(async () => {
   assert(/^Put .+ in the cloud$/.test(activationTitle), `Signing in to an unhosted folder must continue to its first publish: ${activationTitle}`);
   const publishPresentations = [];
   // The Cloud dialog's publish surface at every window width the app allows
-  // (DESKTOP_WINDOW_MIN_WIDTH is 640).
-  for (const [width, height] of [[1100,760], [720,640], [640,640]]) {
+  // (DESKTOP_WINDOW_MIN_WIDTH is 720).
+  for (const [width, height] of [[1100,760], [720,640]]) {
     window.setContentSize(width, height);
     await waitFor(`innerWidth === ${width}`);
     for (const theme of ['light', 'dark']) {
@@ -846,7 +846,7 @@ app.whenReady().then(async () => {
         `Publish dialog must fit without clipping (${theme}/${width}): ${JSON.stringify(presentation)}`);
       assert(presentation.action === 'Upload to Cloud', 'Authenticated activation must offer actual publication');
       publishPresentations.push({theme, viewport:width, ...presentation});
-      if (width === 1100 || width === 640) await writeFile(path.join(artifacts, `publish-${theme}-${width}.png`), (await window.webContents.capturePage()).toPNG());
+      if (width === 1100 || width === 720) await writeFile(path.join(artifacts, `publish-${theme}-${width}.png`), (await window.webContents.capturePage()).toPNG());
     }
   }
   window.setContentSize(1100,760);
