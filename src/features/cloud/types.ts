@@ -33,7 +33,6 @@ export type CloudGitRemoteOptions = {
 export type CloudServiceSidebarProps = {
   cloudAuthState: CloudAuthState;
   activeSection: CloudWorkspaceSection;
-  automationEnabled: boolean;
   /** True only when the current repository's canonical remote is authorized. */
   projectAvailable?: boolean;
   projectCapabilities?: readonly string[];
@@ -48,7 +47,6 @@ export type CloudServiceMainViewProps = {
   projectContext?: ProjectCloudContext | null;
   onCloudSessionChange: (session: DesktopCloudSession | null) => void;
   activeSection: CloudWorkspaceSection;
-  automationEnabled: boolean;
   loading: boolean;
   error: string | null;
   cloudBackupLoading: boolean;

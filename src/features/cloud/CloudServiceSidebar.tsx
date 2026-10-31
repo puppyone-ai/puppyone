@@ -7,7 +7,7 @@ import {
   CLOUD_BOUND_PROJECT_SIDEBAR_ROUTES,
   getCloudSidebarActiveSection,
   getCloudSignedOutSection,
-  getAvailableCloudSection,
+  normalizeCloudSection,
   withSharePageSidebarRoutes,
   type CloudRouteNavigationGroup,
   type CloudRouteDescriptor,
@@ -38,7 +38,6 @@ type CloudSidebarNavGroup = {
 export function CloudServiceSidebar({
   cloudAuthState,
   activeSection,
-  automationEnabled,
   projectAvailable = false,
   projectCapabilities = [],
   onSelectSection,
@@ -46,7 +45,7 @@ export function CloudServiceSidebar({
   const { t } = useLocalization();
   const billingEnabled = useFeatureFlag("cloudBilling");
   const shareEnabled = useCloudShare() !== null;
-  const normalizedActiveSection = getAvailableCloudSection(activeSection, { automationEnabled });
+  const normalizedActiveSection = normalizeCloudSection(activeSection);
   const signedIn = Boolean(getCloudAuthSession(cloudAuthState));
   const visibleActiveSection = getCloudSidebarActiveSection(
     signedIn
@@ -64,7 +63,6 @@ export function CloudServiceSidebar({
       : false,
   })).filter((item) => (
     (item.id !== "cloud-billing" || billingEnabled)
-    && (item.id !== "automation" || automationEnabled)
   ));
   const navGroups = buildCloudSidebarNavGroups(navItems);
 
@@ -146,11 +144,6 @@ function buildCloudSidebarNavGroups(items: readonly CloudSidebarNavEntry[]): Clo
       id: "connections",
       labelId: "cloud.sidebar.connectionsGroup",
       items: items.filter((item) => item.navigationGroup === "connections"),
-    },
-    {
-      id: "automation",
-      labelId: "cloud.sidebar.automationGroup",
-      items: items.filter((item) => item.navigationGroup === "automation"),
     },
     {
       id: "organization",

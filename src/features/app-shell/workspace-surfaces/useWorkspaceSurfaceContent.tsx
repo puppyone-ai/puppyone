@@ -107,7 +107,6 @@ export function useWorkspaceSurfaceContent({
   subThemeCatalog: SubThemeCatalogController;
   workspace: Workspace;
 }): WorkspaceSurfaceContentResult {
-  const automationEnabled = useDesktopPreference(s => s.experimentalSettings.enableCloudAutomation);
   const surfaceCapabilities = useMemo<WorkspaceSurfaceCapabilities>(() => ({
     cloudEnabled: cloud.enabled,
   }), [cloud.enabled]);
@@ -192,7 +191,6 @@ export function useWorkspaceSurfaceContent({
     projectContext,
     onCloudSessionChange: cloud.onCloudSessionChange,
     activeSection: cloud.activeSection,
-    automationEnabled: automationEnabled,
     loading: git.gitStatusLoading,
     error: git.gitStatusError,
     cloudBackupLoading: cloud.backupLoading,
@@ -215,7 +213,6 @@ export function useWorkspaceSurfaceContent({
       <CloudServiceSidebar
         cloudAuthState={cloudAuthState}
         activeSection={cloud.activeSection}
-        automationEnabled={automationEnabled}
         projectAvailable={cloudContextHasProject(projectContext)}
         projectCapabilities={projectContext.status === "resolved"
           ? projectContext.capabilities ?? []

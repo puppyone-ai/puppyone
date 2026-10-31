@@ -8,7 +8,6 @@ export const CLOUD_WORKSPACE_SECTIONS = [
   "history",
   "branches",
   "access",
-  "automation",
   "cli",
   "mcp",
   "git-sync",

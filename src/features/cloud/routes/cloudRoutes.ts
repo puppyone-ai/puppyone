@@ -1,7 +1,6 @@
 import type { ComponentType } from "react";
-import { Clock3, CreditCard, GitBranch, Grid2X2, Settings, Share2, ShieldCheck, SquareTerminal, Users } from "lucide-react";
+import { Clock3, CreditCard, GitBranch, Settings, Share2, ShieldCheck, SquareTerminal, Users } from "lucide-react";
 import type { MessageFormatter } from "@puppyone/localization/core";
-import { getCloudAutomationWebPath } from "../../automation/automationDomain";
 import { McpLogoIcon } from "../components/McpLogoIcon";
 import type { CloudProjectDetailResource } from "../data/cloudProjectDetails";
 import type { CloudWorkspaceSection } from "./cloudRouteIds";
@@ -9,7 +8,7 @@ import { CloudIcon, FolderIcon, HomeIcon } from "@puppyone/shared-ui";
 
 export type CloudRouteContext = "initialization" | "project" | "organization";
 export type CloudRouteSurface = "standard" | "landing" | "history" | "automation";
-export type CloudRouteNavigationGroup = "project" | "connections" | "automation" | "organization";
+export type CloudRouteNavigationGroup = "project" | "connections" | "organization";
 export type CloudRouteIcon = ComponentType<{
   className?: string;
   size?: number | string;
@@ -182,19 +181,6 @@ export const CLOUD_ROUTES = [
     webPath: (projectId?: string) => `/projects/${requireProjectId(projectId)}/changes`,
   },
   {
-    id: "automation",
-    labelId: "cloud.route.automation.label",
-    titleId: "cloud.route.automation.title",
-    descriptionId: "cloud.route.automation.description",
-    icon: Grid2X2,
-    context: "project",
-    surface: "automation",
-    resources: ACCESS_PROJECT_RESOURCES,
-    showInSidebar: true,
-    navigationGroup: "automation",
-    webPath: (projectId?: string) => getCloudAutomationWebPath(requireProjectId(projectId)),
-  },
-  {
     id: "access",
     labelId: "cloud.route.access.label",
     titleId: "cloud.route.access.title",
@@ -259,7 +245,6 @@ const CLOUD_PROJECT_SIDEBAR_ORDER: readonly CloudWorkspaceSection[] = [
   "mcp",
   "cli",
   "git-sync",
-  "automation",
 ];
 export const CLOUD_PROJECT_SIDEBAR_ROUTES = CLOUD_PROJECT_ROUTES
   .filter((route) => route.showInSidebar)
@@ -297,16 +282,6 @@ export function normalizeCloudSection(
   return CLOUD_ROUTE_BY_ID.has(section as CloudWorkspaceSection)
     ? section as CloudWorkspaceSection
     : "contents";
-}
-
-export function getAvailableCloudSection(
-  section: CloudWorkspaceSection | string,
-  { automationEnabled }: { automationEnabled: boolean },
-): CloudWorkspaceSection {
-  const normalizedSection = normalizeCloudSection(section);
-  return normalizedSection === "automation" && !automationEnabled
-    ? "contents"
-    : normalizedSection;
 }
 
 /** Use the primary product capability as the first signed-out Cloud destination. */

@@ -14,7 +14,7 @@ import { CloudSurfaceFrame } from "./shell/CloudSurfaceFrame";
 import { CloudShareHome, useCloudShare } from "./share";
 import {
   getCloudProjectDetailResources,
-  getAvailableCloudSection,
+  normalizeCloudSection,
   getCloudRouteSurface,
   getCloudRouteWebPath,
   isCloudOrganizationSection,
@@ -39,7 +39,6 @@ export function CloudServiceMainView({
   projectContext = null,
   onCloudSessionChange,
   activeSection,
-  automationEnabled,
   loading,
   error,
   cloudBackupLoading,
@@ -60,7 +59,7 @@ export function CloudServiceMainView({
   const share = useCloudShare();
   const cloudRemote = cloudEnvironment.cloudRemote;
   const cloudApiBaseUrl = cloudEnvironment.apiBaseUrl;
-  const routedSection = getAvailableCloudSection(activeSection, { automationEnabled });
+  const routedSection = normalizeCloudSection(activeSection);
   const inOrganizationSection = isCloudOrganizationSection(routedSection);
   const localOnlyContext = !inOrganizationSection && (
       projectContext?.status === "local-only"
@@ -93,11 +92,11 @@ export function CloudServiceMainView({
   }, [workspace.path, accountEmail, cloudApiBaseUrl]);
 
   useEffect(() => {
-    const normalizedSection = getAvailableCloudSection(activeSection, { automationEnabled });
+    const normalizedSection = normalizeCloudSection(activeSection);
     if (normalizedSection !== activeSection) {
       onSelectSection(normalizedSection);
     }
-  }, [activeSection, automationEnabled, onSelectSection]);
+  }, [activeSection, onSelectSection]);
 
   const cloudPublishErrorMessage = cloudPublishError
     ? formatCloudPublishFailure(cloudPublishError, t)

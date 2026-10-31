@@ -149,7 +149,6 @@ describe("Cloud sidebar under the Share experiment", () => {
       <CloudServiceSidebar
         cloudAuthState={authState}
         activeSection={activeSection}
-        automationEnabled={false}
         projectAvailable
         onSelectSection={vi.fn()}
       />

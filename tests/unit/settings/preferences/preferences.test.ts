@@ -288,11 +288,9 @@ describe("experimental preferences", () => {
       .toBe(true);
   });
 
-  it("keeps Cloud Automation off unless the user explicitly opts in", () => {
-    expect(parseExperimentalSettings(null).enableCloudAutomation).toBe(false);
-    expect(parseExperimentalSettings("not-json").enableCloudAutomation).toBe(false);
-    expect(parseExperimentalSettings(JSON.stringify({ enableCloudAutomation: false })).enableCloudAutomation).toBe(false);
-    expect(parseExperimentalSettings(JSON.stringify({ enableCloudAutomation: true })).enableCloudAutomation).toBe(true);
+  it("drops the retired Cloud Automation experiment", () => {
+    expect(parseExperimentalSettings(JSON.stringify({ enableCloudAutomation: true })))
+      .not.toHaveProperty("enableCloudAutomation");
   });
 
   it("drops retired first-project and save-status preferences", () => {

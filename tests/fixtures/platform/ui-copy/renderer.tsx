@@ -200,7 +200,7 @@ function surface() {
       <CloudShareProvider value={variant === 'off' ? null : { signedIn: true, pending: null, openShare: noop,
         shares: { shares: [], loading: false, loaded: true, error: false, reload: refresh } }}>
         <CloudServiceSidebar cloudAuthState={{ status: 'signed-in', apiBaseUrl: session.api_base_url, session }}
-          activeSection="contents" automationEnabled={false} projectAvailable onSelectSection={noop} />
+          activeSection="contents" projectAvailable onSelectSection={noop} />
       </CloudShareProvider>
     </FeatureFlagsProvider>;
     case 'progress': return <Progress />;

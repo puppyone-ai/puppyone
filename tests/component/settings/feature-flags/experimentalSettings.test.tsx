@@ -215,7 +215,7 @@ describe("Experimental settings", () => {
     expect(store.getState().experimentalSettings).toEqual(DEFAULT_EXPERIMENTAL_SETTINGS);
   });
 
-  it("offers an off-by-default Automation opt-in", () => {
+  it("does not offer Automation as an experiment", () => {
     const host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
@@ -224,14 +224,6 @@ describe("Experimental settings", () => {
       <ExperimentalSettingsView />,
     )));
 
-    const toggle = host.querySelector<HTMLInputElement>('input[aria-label="Automation"]');
-    expect(toggle).not.toBeNull();
-    expect(toggle?.checked).toBe(false);
-
-    act(() => toggle?.click());
-    expect(store.getState().experimentalSettings).toEqual({
-      ...DEFAULT_EXPERIMENTAL_SETTINGS,
-      enableCloudAutomation: true,
-    });
+    expect(host.querySelector('input[aria-label="Automation"]')).toBeNull();
   });
 });

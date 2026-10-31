@@ -95,7 +95,6 @@ export type TitlebarActionsSettings = {
 export type { LocalAgentsSettings } from "./localAgentPreferences";
 export type ExperimentalSettings = {
   enableAlwaysShowOnboardingCoachmarks: boolean;
-  enableCloudAutomation: boolean;
   enableCloudWorkspace: boolean;
   enableEditorTabsInHeader: boolean;
   enableProjectReach: boolean;
@@ -185,7 +184,6 @@ export const DEFAULT_AGENT_FILE_ACTIVITY_INDICATORS_ENABLED = false;
 export const DEFAULT_AI_EDIT_ASSIST_ENABLED = false;
 export const DEFAULT_EXPERIMENTAL_SETTINGS: ExperimentalSettings = {
   enableAlwaysShowOnboardingCoachmarks: false,
-  enableCloudAutomation: false,
   enableCloudWorkspace: false,
   enableEditorTabsInHeader: false,
   /**
@@ -442,7 +440,6 @@ export function parseExperimentalSettings(value: string | null | undefined): Exp
 
     return {
       enableAlwaysShowOnboardingCoachmarks: parsed.enableAlwaysShowOnboardingCoachmarks === true,
-      enableCloudAutomation: parsed.enableCloudAutomation === true,
       enableCloudWorkspace: parsed.enableCloudWorkspace === true,
       enableEditorTabsInHeader: parsed.enableEditorTabsInHeader === true,
       enableProjectReach: parsed.enableProjectReach === true,
