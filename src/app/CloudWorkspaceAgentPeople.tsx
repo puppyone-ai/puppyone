@@ -9,10 +9,10 @@ import { workspaceAgentStatus } from "../features/cloud/share/useWorkspaceAgents
 const VISIBLE_AGENT_LIMIT = 3;
 
 /**
- * The Agents in a hosted workspace, each its own button: pressing one asks about
- * that Agent. Whoever is at work comes first, as the only live fact in the row.
+ * The Agents in a hosted workspace, each its own button, and any of them opens
+ * the list. Whoever is at work comes first, as the only live fact in the row.
  */
-export function CloudWorkspaceAgentPeople({ agents, open, expandedAgentId, onOpen }: CloudWorkspacePeople) {
+export function CloudWorkspaceAgentPeople({ agents, open, pressedAgentId, onOpen }: CloudWorkspacePeople) {
   const localization = useLocalization();
   const { t } = localization;
   const ordered = [...agents].sort((left, right) => Number(right.active) - Number(left.active));
@@ -23,7 +23,7 @@ export function CloudWorkspaceAgentPeople({ agents, open, expandedAgentId, onOpe
       const label = [agent.name, workspaceAgentStatus(agent, localization)].filter(Boolean).join(" · ");
       return <Tooltip key={agent.id} content={label}>
         <button type="button" className="desktop-titlebar-cloud-agent" data-cloud-workspace-agent={agent.id}
-          aria-label={label} aria-haspopup="dialog" aria-expanded={open && expandedAgentId === agent.id}
+          aria-label={label} aria-haspopup="dialog" aria-expanded={open && pressedAgentId === agent.id}
           onClick={() => onOpen(agent.id)}>
           <CloudWorkspaceAgentMark id={agent.id} name={agent.name} active={agent.active} />
         </button>
@@ -32,7 +32,7 @@ export function CloudWorkspaceAgentPeople({ agents, open, expandedAgentId, onOpe
     {overflow > 0 && <Tooltip content={t("cloud.share.agent.connected")}>
       <button type="button" className="desktop-titlebar-cloud-agent" data-cloud-workspace-agent-more=""
         aria-label={t("cloud.share.agent.connected")} aria-haspopup="dialog"
-        aria-expanded={open && expandedAgentId === null} onClick={() => onOpen(null)}>
+        aria-expanded={open && pressedAgentId === null} onClick={() => onOpen(null)}>
         <span className="desktop-project-reach-count">{t("shell.projectReach.more", { count: overflow })}</span>
       </button>
     </Tooltip>}

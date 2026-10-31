@@ -68,8 +68,8 @@ describe("Cloud workspace link sharing", () => {
   it("is about sending a link to people, and only that", async () => {
     await render(undefined, { path: "AGENTS.md", directory: false });
     expect([...document.querySelectorAll("h3")].map(node => node.textContent)).toEqual(["Share with people"]);
-    expect(document.body.textContent).not.toContain("Connect an agent");
-    expect(document.querySelector(".desktop-cloud-agent-share, .desktop-cloud-agent-list")).toBeNull();
+    expect(document.body.textContent).not.toContain("Invite new agents");
+    expect(document.querySelector(".desktop-cloud-agent-invite, .desktop-cloud-agent-list")).toBeNull();
     expect(document.querySelector(".desktop-cloud-workspace-share .primary, .desktop-cloud-workspace-share .po-button--primary")).toBeNull();
   });
   it("copies the row that was pressed and says so only on that row", async () => {

@@ -1,5 +1,5 @@
 /** @vitest-environment happy-dom */
-import { act, useState, type ComponentProps } from "react";
+import { act, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CloudWorkspaceAgentsPanel } from "../../../../src/features/cloud/share/CloudWorkspaceAgentsPanel";
@@ -22,20 +22,15 @@ let created: { admission: string; workbench_id: string; secret: string }[];
 let denied: boolean;
 
 const select = (selector: string) => document.querySelector<HTMLButtonElement>(selector)!;
-const primary = () => select(".desktop-cloud-agent-share-copy");
+const primary = () => select("[data-cloud-agent-invite]");
 type PanelProps = ComponentProps<typeof CloudWorkspaceAgentsPanel>;
 const anchor = { current: document.createElement("button") };
-/** The Header owns which Agent is unfolded; this stands in for it. */
-function Panel({ initial = null, ...props }: Partial<PanelProps> & { initial?: string | null }) {
-  const [expanded, setExpanded] = useState<string | null>(initial);
-  return <CloudWorkspaceAgentsPanel anchor={anchor} projectId="project-1" projectName="Launch plan" session={session}
-    apiBaseUrl={API} expandedAgentId={expanded} onExpandAgent={setExpanded} onClose={vi.fn()} {...props} />;
-}
-const render = async (props: Partial<PanelProps> & { initial?: string | null } = {}) => {
-  await act(async () => root.render(withTestLocalization(<Panel {...props} />)));
+const render = async (props: Partial<PanelProps> = {}) => {
+  await act(async () => root.render(withTestLocalization(<CloudWorkspaceAgentsPanel anchor={anchor} projectId="project-1"
+    projectName="Launch plan" session={session} apiBaseUrl={API} onClose={vi.fn()} {...props} />)));
 };
 const row = (id: string) => document.querySelector<HTMLElement>(`[data-cloud-agent-row="${id}"]`)!;
-const unfold = async (id: string) => { await act(async () => row(id).querySelector<HTMLButtonElement>(".desktop-cloud-agent-row")!.click()); };
+const remove = (id: string) => row(id).querySelector<HTMLButtonElement>(".desktop-cloud-agent-remove")!;
 
 beforeEach(() => {
   inventory = { links: [], connections: [] }; created = []; denied = false;
@@ -45,9 +40,6 @@ beforeEach(() => {
       if (denied) throw Object.assign(new Error("denied"), { status: 403 });
       created.push(JSON.parse(String(init.body)));
       return { agent_url: LINK };
-    }
-    if (path === "/projects/project-1/agent-links" && init.method === "DELETE") {
-      inventory = { links: [], connections: [] }; return { stopped: true };
     }
     if (path === "/projects/project-1/access/grants/g1") {
       expect(JSON.parse(String(init.body))).toEqual({ state: "revoked" });
@@ -65,7 +57,6 @@ describe("The Agents in a project", () => {
     await render();
     expect(document.querySelector('[role="radiogroup"]')).toBeNull();
     expect(document.querySelector('[data-agent-admission="link"]')).toBeNull();
-    expect(document.body.textContent).toContain("then open the link it sends you");
     await act(async () => primary().click());
     expect(created[0].admission).toBe("sign_in");
   });
@@ -110,7 +101,7 @@ describe("The Agents in a project", () => {
     expect(copied).toContain("sign-in link");
     expect(copied.split("\n")).toHaveLength(1);
     expect(document.querySelector('[role="status"]')?.textContent).toContain("Paste it");
-    expect(primary().textContent).toBe("Copied");
+    expect(primary().textContent).toBe("Copied. Paste it to your agent.");
   });
 
   it("returns the button to its label so a second agent can be connected", async () => {
@@ -118,9 +109,9 @@ describe("The Agents in a project", () => {
     try {
       await render();
       await act(async () => primary().click());
-      expect(primary().textContent).toBe("Copied");
+      expect(primary().textContent).toBe("Copied. Paste it to your agent.");
       await act(async () => { await vi.advanceTimersByTimeAsync(3_000); });
-      expect(primary().textContent).toBe("Copy invite");
+      expect(primary().textContent).toBe("Invite new agents");
       expect(document.querySelector('[role="status"]')?.textContent).toBe("");
     } finally { vi.useRealTimers(); }
   });
@@ -131,10 +122,10 @@ describe("The Agents in a project", () => {
     vi.mocked(cloudApiRequest).mockRejectedValueOnce(new Error("offline"));
     await act(async () => primary().click());
     expect(document.querySelector('[role="alert"]')?.textContent).toContain("Try again");
-    expect(primary().textContent).toBe("Copy invite");
+    expect(primary().textContent).toBe("Invite new agents");
     expect(document.querySelector('[role="alert"]')?.textContent).toContain("Try again");
     await act(async () => primary().click());
-    expect(primary().textContent).toBe("Copied");
+    expect(primary().textContent).toBe("Copied. Paste it to your agent.");
     expect(document.querySelector('[role="alert"]')).toBeNull();
   });
 
@@ -172,7 +163,7 @@ describe("The Agents in a project", () => {
     expect(writeClipboardText).not.toHaveBeenCalled();
   });
 
-  it("shows an agent as soon as it connects, and removes it from its own details", async () => {
+  it("shows an agent as soon as it connects, and removes it", async () => {
     vi.useFakeTimers();
     try {
       await render();
@@ -180,80 +171,37 @@ describe("The Agents in a project", () => {
       inventory = { links: [], connections: [agent] };
       await act(async () => { await vi.advanceTimersByTimeAsync(5_000); });
       expect(document.querySelector(".desktop-cloud-agent-list")?.textContent).toContain("Claude Code");
-      expect(document.querySelector(".desktop-cloud-agent-remove")).toBeNull();
-      await unfold("c1");
-      await act(async () => select(".desktop-cloud-agent-remove").click());
+      await act(async () => remove("c1").click());
       await act(async () => { await vi.advanceTimersByTimeAsync(0); });
       expect(document.querySelector(".desktop-cloud-agent-list")).toBeNull();
     } finally { vi.useRealTimers(); }
   });
 
-  it("opens on the Agent that was pressed, and one row at a time", async () => {
-    inventory = { links: [], connections: [agent, { ...agent, id: "c2", name: "Codex", grant_id: "g2" }] };
-    await render({ initial: "c2" });
-    expect(row("c1").querySelector(".desktop-cloud-agent-detail")).toBeNull();
-    expect(row("c2").querySelector(".desktop-cloud-agent-detail")).not.toBeNull();
-    await unfold("c1");
-    expect(row("c1").querySelector(".desktop-cloud-agent-row")?.getAttribute("aria-expanded")).toBe("true");
-    expect(row("c2").querySelector(".desktop-cloud-agent-detail")).toBeNull();
-    await unfold("c1");
-    expect(document.querySelector(".desktop-cloud-agent-detail")).toBeNull();
-  });
-
-  it("says how each Agent got in and when its access ends", async () => {
-    inventory = { links: [], connections: [agent,
-      { ...agent, id: "c2", name: "Codex", grant_id: "g2", admission: "link", expires_at: "2026-11-06T12:00:00Z" }] };
-    await render({ initial: "c1" });
-    expect(row("c1").querySelector("dl")?.textContent).toContain("Approved by you");
-    expect(row("c1").querySelector("dl")?.textContent).not.toContain("Access ends");
-    await unfold("c2");
-    expect(row("c2").querySelector("dl")?.textContent).toContain("Joined with a link");
-    expect(row("c2").querySelector("dl")?.textContent).toContain("Access ends");
-  });
-
-  it("says what Remove all would end: how many invites are still open", async () => {
-    inventory = { links: [{ id: "l1", admission: "link", expires_at: "2026-11-06T00:00:00Z" }, { id: "l2", admission: "link", expires_at: "2026-11-06T00:00:00Z" }],
-      connections: [agent] };
-    await render();
-    expect(document.querySelector(".desktop-cloud-agent-foot")?.textContent).toContain("2 invite links still open");
-    expect(select(".desktop-cloud-agent-share-stop").getAttribute("aria-label")).toBe("Remove every agent and invite link");
-  });
-
-  it("explains Remove all by its open invite when nothing has connected yet", async () => {
-    inventory = { links: [{ id: "l1", admission: "link", expires_at: "2026-11-06T00:00:00Z" }], connections: [] };
-    await render();
-    expect(document.querySelector(".desktop-cloud-agent-foot")?.textContent).toContain("1 invite link still open");
-    expect(document.querySelector(".desktop-cloud-agent-list")).toBeNull();
-    expect(document.querySelector(".desktop-cloud-agent-share-stop")).not.toBeNull();
-  });
-
-  it("removes every link and connected agent at once", async () => {
-    inventory = { links: [{ id: "l1", admission: "link", expires_at: "2026-11-06T00:00:00Z" }], connections: [agent] };
-    await render();
-    await act(async () => select(".desktop-cloud-agent-share-stop").click());
-    expect(cloudApiRequest).toHaveBeenCalledWith("/projects/project-1/agent-links", session, undefined,
-      { method: "DELETE" }, API);
-    expect(document.querySelector(".desktop-cloud-agent-share-stop")).toBeNull();
-  });
-
-  it("does not repeat one Agent's Remove as a second action", async () => {
-    inventory = { links: [], connections: [agent] };
-    await render();
-    expect(document.querySelector(".desktop-cloud-agent-foot")).toBeNull();
-  });
-
-  it("states what is true now on the row and keeps when access ends for the details", async () => {
-    inventory = { links: [], connections: [{ ...agent, expires_at: "2026-11-06T12:00:00Z" }] };
+  it("says who is here and when they were last here, and nothing else", async () => {
+    inventory = { links: [{ id: "l1", admission: "link", expires_at: "2026-11-06T00:00:00Z" }],
+      connections: [{ ...agent, expires_at: "2026-11-06T12:00:00Z" }] };
     await render({ agents: [{ ...agent, admission: "sign_in", active: true, lastActiveAt: null, activityKnown: true }] });
     expect(document.querySelector(".desktop-cloud-agent-state")?.textContent).toBe("Active now");
-    expect(document.body.textContent).not.toContain("Access ends");
+    expect(document.querySelector("[data-cloud-agent-row]")?.textContent).toBe("Claude CodeActive now");
+    expect(document.querySelector(".desktop-cloud-workspace-share")?.textContent).toBe("Claude CodeActive nowInvite new agents");
+  });
+
+  it("only invites with a line of its own while nobody is here", async () => {
+    await render();
+    expect(document.querySelector(".desktop-cloud-workspace-share")?.textContent).toBe("Invite new agents");
+  });
+
+  it("names the Agent that Remove would remove", async () => {
+    inventory = { links: [], connections: [agent] };
+    await render();
+    expect(remove("c1").getAttribute("aria-label")).toBe("Remove from project Claude Code");
   });
 
   it("draws an Agent with the mark the shell lends it", async () => {
     inventory = { links: [], connections: [agent] };
     await render({ agents: [{ ...agent, admission: "sign_in", active: true, lastActiveAt: null, activityKnown: true }],
       renderAgentMark: ({ name, active }: { name: string; active: boolean }) => <i data-mark={name} data-working={active} /> });
-    const line = document.querySelector(".desktop-cloud-agent-list li")!;
+    const line = row("c1");
     expect(line.querySelector("[data-mark]")?.getAttribute("data-working")).toBe("true");
     expect(line.querySelector(".desktop-cloud-agent-lamp")).toBeNull();
   });
@@ -272,16 +220,20 @@ describe("The Agents in a project", () => {
   it("tells the Header at once when a change is made here", async () => {
     inventory = { links: [], connections: [agent] };
     const onChanged = vi.fn();
-    await render({ onChanged, initial: "c1" });
+    await render({ onChanged });
     await act(async () => primary().click());
     expect(onChanged).toHaveBeenCalledTimes(1);
-    await act(async () => select(".desktop-cloud-agent-remove").click());
+    await act(async () => remove("c1").click());
     expect(onChanged).toHaveBeenCalledTimes(2);
   });
 
-  it("offers nothing to end when nothing is shared", async () => {
+  it("says a removal failed without losing the row", async () => {
+    inventory = { links: [], connections: [agent] };
     await render();
-    expect(document.querySelector(".desktop-cloud-agent-share-stop")).toBeNull();
+    vi.mocked(cloudApiRequest).mockRejectedValueOnce(new Error("offline"));
+    await act(async () => remove("c1").click());
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain("Try again");
+    expect(row("c1")).not.toBeNull();
   });
 
   it("stays usable if the list cannot be read", async () => {

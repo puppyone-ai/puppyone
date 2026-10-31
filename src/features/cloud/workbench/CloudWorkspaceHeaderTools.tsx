@@ -1,5 +1,5 @@
 import { lazy, Suspense, useRef, useState, type ReactNode, type RefObject } from "react";
-import { Plug } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Tooltip } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
 import { AgentEntryIcon } from "../../../components/brand/AgentEntryIcon";
@@ -15,8 +15,8 @@ const AgentsPanel = lazy(() => import("../share/CloudWorkspaceAgentsPanel").then
 export type CloudWorkspacePeople = Readonly<{
   agents: readonly WorkspaceAgent[];
   open: boolean;
-  expandedAgentId: string | null;
-  /** Null asks about the Agents as a whole rather than about one of them. */
+  /** The mark that opened the list, so the Header shows which one is pressed. */
+  pressedAgentId: string | null;
   onOpen: (agentId: string | null) => void;
 }>;
 
@@ -49,7 +49,7 @@ export function CloudWorkspaceHeaderTools(props: Props) {
 function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, getShareResource, agentOpen = false, onToggleAgent, renderPeople, renderAgentMark }: Props) {
   const { t } = useLocalization();
   const [panel, setPanel] = useState<"share" | "agents" | null>(null);
-  const [expandedAgentId, setExpandedAgentId] = useState<string | null>(null);
+  const [pressedAgentId, setPressedAgentId] = useState<string | null>(null);
   const shareButton = useRef<HTMLButtonElement>(null);
   const agentsAnchor = useRef<HTMLDivElement>(null);
   const [shareResource, setShareResource] = useState<CloudWorkspaceShareResource | null | undefined>();
@@ -63,15 +63,15 @@ function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, getShar
     setPanel("share");
   };
   const openAgents = (agentId: string | null) => {
-    if (panel === "agents" && expandedAgentId === agentId) { closePanel(); return; }
-    setExpandedAgentId(agentId);
+    if (panel === "agents" && pressedAgentId === agentId) { closePanel(); return; }
+    setPressedAgentId(agentId);
     setPanel("agents");
   };
   const agentsOpen = panel === "agents";
   return <>
     <div className="desktop-titlebar-cloud-tools" data-window-no-drag="true" aria-busy={!ready || undefined}>
       {ready && manageable && <AgentsEntry anchor={agentsAnchor} renderPeople={renderPeople}
-        people={{ agents, open: agentsOpen, expandedAgentId, onOpen: openAgents }} />}
+        people={{ agents, open: agentsOpen, pressedAgentId, onOpen: openAgents }} />}
       <Tooltip content={ready ? null : t("shell.workspaceSwitcher.location.checking")}>
         <button ref={shareButton} type="button" className="desktop-titlebar-action desktop-titlebar-share"
           data-cloud-workspace-tool="share" disabled={!ready} aria-label={t("shell.titlebar.share")}
@@ -94,13 +94,12 @@ function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, getShar
     {agentsOpen && context?.status === "resolved" && session && <Suspense fallback={null}>
       <AgentsPanel anchor={agentsAnchor} projectId={context.projectId}
         projectName={context.projectName || context.projectId} session={session} apiBaseUrl={apiBaseUrl}
-        agents={agents} expandedAgentId={expandedAgentId} onExpandAgent={setExpandedAgentId}
-        renderAgentMark={renderAgentMark} onChanged={() => void refreshAgents()} onClose={closePanel} />
+        agents={agents} renderAgentMark={renderAgentMark} onChanged={() => void refreshAgents()} onClose={closePanel} />
     </Suspense>}
   </>;
 }
 
-/** Who is here, or with nobody connected the way to connect one: there is no mark to press then. */
+/** Who is here, or with nobody connected the way to invite one: there is no mark to press then. */
 function AgentsEntry({ anchor, people, renderPeople }: {
   anchor: RefObject<HTMLDivElement>;
   people: CloudWorkspacePeople;
@@ -112,7 +111,7 @@ function AgentsEntry({ anchor, people, renderPeople }: {
       <button type="button" className="desktop-titlebar-action desktop-titlebar-cloud-tool"
         data-cloud-workspace-tool="connect-agent" aria-label={t("cloud.share.agent.title")}
         aria-haspopup="dialog" aria-expanded={people.open} onClick={() => people.onOpen(null)}>
-        <Plug size={15} strokeWidth={1.8} aria-hidden="true" />
+        <Plus size={15} strokeWidth={1.8} aria-hidden="true" />
       </button>
     </Tooltip>}
   </div>;

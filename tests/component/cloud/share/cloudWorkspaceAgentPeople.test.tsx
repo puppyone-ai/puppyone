@@ -17,9 +17,8 @@ vi.mock("../../../../src/features/cloud/share/CloudWorkspaceShareDialog", () => 
   CloudWorkspaceShareDialog: () => <div role="dialog" data-panel="share" />,
 }));
 vi.mock("../../../../src/features/cloud/share/CloudWorkspaceAgentsPanel", () => ({
-  CloudWorkspaceAgentsPanel: ({ onChanged, agents, expandedAgentId }: {
-    onChanged: () => void; agents: { name: string }[]; expandedAgentId: string | null;
-  }) => <div role="dialog" data-panel="agents" data-agents={agents.map(agent => agent.name).join()} data-expanded={expandedAgentId ?? ""}>
+  CloudWorkspaceAgentsPanel: ({ onChanged, agents }: { onChanged: () => void; agents: { name: string }[] }) =>
+    <div role="dialog" data-panel="agents" data-agents={agents.map(agent => agent.name).join()}>
     <button data-changed onClick={onChanged}>changed</button>
   </div>,
 }));
@@ -55,10 +54,10 @@ beforeEach(() => {
 afterEach(() => { act(() => root.unmount()); document.body.replaceChildren(); vi.clearAllMocks(); });
 
 describe("An Agent in the Header", () => {
-  it("offers to connect one while nobody has been let in, and shows no mark for the person looking", async () => {
+  it("offers to invite one while nobody has been let in, and shows no mark for the person looking", async () => {
     await render();
     expect(marks()).toEqual([]);
-    expect(connect()?.getAttribute("aria-label")).toBe("Connect an agent");
+    expect(connect()?.getAttribute("aria-label")).toBe("Invite new agents");
     expect(connect()!.compareDocumentPosition(share()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     await act(async () => connect()!.click());
     expect(panel()?.dataset.panel).toBe("agents");
@@ -110,23 +109,24 @@ describe("An Agent in the Header", () => {
     expect(marks().map(mark => mark.textContent)).toEqual(["B", "Q"]);
     expect(agentButton("c2").getAttribute("aria-label")).toBe("Busy agent · Active now");
   });
-  it("makes every Agent its own button, and pressing one asks about that Agent", async () => {
+  it("makes every Agent its own button, and any of them opens the list", async () => {
     connections = [connection("c1", "秘书小陈"), connection("c2", "Codex")];
     await render();
     expect(agentButtons().map(button => button.dataset.cloudWorkspaceAgent)).toEqual(["c1", "c2"]);
     await act(async () => agentButton("c2").click());
     expect(panel()?.dataset.panel).toBe("agents");
     expect(panel()?.dataset.agents).toBe("秘书小陈,Codex");
-    expect(panel()?.dataset.expanded).toBe("c2");
     expect(agentButton("c2").getAttribute("aria-expanded")).toBe("true");
     expect(agentButton("c1").getAttribute("aria-expanded")).toBe("false");
   });
-  it("moves to another Agent while open, and closes when the same one is pressed again", async () => {
+  it("stays open when another Agent is pressed, and closes when the same one is pressed again", async () => {
     connections = [connection("c1", "秘书小陈"), connection("c2", "Codex")];
     await render();
     await act(async () => agentButton("c1").click());
     await act(async () => agentButton("c2").click());
-    expect(panel()?.dataset.expanded).toBe("c2");
+    expect(panel()).not.toBeNull();
+    expect(agentButton("c2").getAttribute("aria-expanded")).toBe("true");
+    expect(agentButton("c1").getAttribute("aria-expanded")).toBe("false");
     await act(async () => agentButton("c2").click());
     expect(panel()).toBeNull();
   });
@@ -141,7 +141,7 @@ describe("An Agent in the Header", () => {
     expect(document.querySelectorAll("[role=dialog]")).toHaveLength(1);
     expect(share().getAttribute("aria-expanded")).toBe("false");
   });
-  it("offers to connect again the moment the last one is removed, without closing the panel", async () => {
+  it("offers to invite again the moment the last one is removed, without closing the panel", async () => {
     connections = [connection("c1", "秘书小陈")];
     await render();
     await act(async () => agentButton("c1").click());
@@ -159,7 +159,7 @@ describe("An Agent in the Header", () => {
     const more = document.querySelector<HTMLButtonElement>("[data-cloud-workspace-agent-more]")!;
     expect(more.textContent).toBe("+2");
     await act(async () => more.click());
-    expect(panel()?.dataset.expanded).toBe("");
+    expect(panel()?.dataset.panel).toBe("agents");
     expect(more.getAttribute("aria-expanded")).toBe("true");
   });
   it("offers nothing about Agents to someone the server will not show them to", async () => {
