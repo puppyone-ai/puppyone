@@ -14,13 +14,20 @@ vi.mock("../../../../src/lib/cloudApi", async original => ({
   ...await original<typeof import("../../../../src/lib/cloudApi")>(), cloudApiRequest: vi.fn(),
 }));
 vi.mock("../../../../src/features/cloud/share/CloudWorkspaceShareDialog", () => ({
-  CloudWorkspaceShareDialog: () => <div role="dialog" data-panel="share" />,
+  CloudWorkspaceShareDialog: ({ agentInvite }: { agentInvite: { onChanged: () => void } | null }) =>
+    <div role="dialog" data-panel="share" data-invites={Boolean(agentInvite)}>
+      <button data-changed onClick={agentInvite?.onChanged}>changed</button>
+    </div>,
 }));
 vi.mock("../../../../src/features/cloud/share/CloudWorkspaceAgentsPanel", () => ({
-  CloudWorkspaceAgentsPanel: ({ onChanged, agents }: { onChanged: () => void; agents: { name: string }[] }) =>
+  CloudWorkspaceAgentsPanel: ({ onManage, agents }: { onManage: () => void; agents: { name: string }[] }) =>
     <div role="dialog" data-panel="agents" data-agents={agents.map(agent => agent.name).join()}>
-    <button data-changed onClick={onChanged}>changed</button>
-  </div>,
+      <button data-manage onClick={onManage}>manage</button>
+    </div>,
+}));
+vi.mock("../../../../src/features/cloud/share/CloudWorkspaceAgentsDialog", () => ({
+  CloudWorkspaceAgentsDialog: ({ onChanged }: { onChanged: () => void }) =>
+    <div role="dialog" data-panel="manage"><button data-changed onClick={onChanged}>changed</button></div>,
 }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -37,7 +44,6 @@ const marks = () => [...document.querySelectorAll<HTMLElement>(".desktop-project
 const agentButtons = () => [...document.querySelectorAll<HTMLButtonElement>("[data-cloud-workspace-agent]")];
 const agentButton = (id: string) => document.querySelector<HTMLButtonElement>(`[data-cloud-workspace-agent="${id}"]`)!;
 const row = () => document.querySelector<HTMLElement>(".desktop-titlebar-cloud-agents");
-const connect = () => document.querySelector<HTMLButtonElement>('[data-cloud-workspace-tool="connect-agent"]');
 const panel = () => document.querySelector<HTMLElement>("[role=dialog]");
 const share = () => document.querySelector<HTMLButtonElement>('[data-cloud-workspace-tool="share"]')!;
 const render = async (context = project(), mounted = true) => {
@@ -54,14 +60,13 @@ beforeEach(() => {
 afterEach(() => { act(() => root.unmount()); document.body.replaceChildren(); vi.clearAllMocks(); });
 
 describe("An Agent in the Header", () => {
-  it("offers to invite one while nobody has been let in, and shows no mark for the person looking", async () => {
+  it("shows nothing while nobody has been let in: inviting belongs to Share", async () => {
     await render();
     expect(marks()).toEqual([]);
-    expect(connect()?.getAttribute("aria-label")).toBe("Invite new agents");
-    expect(connect()!.compareDocumentPosition(share()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    await act(async () => connect()!.click());
-    expect(panel()?.dataset.panel).toBe("agents");
-    expect(connect()!.getAttribute("aria-expanded")).toBe("true");
+    expect(row()).toBeNull();
+    expect(document.querySelector('[data-cloud-workspace-tool="connect-agent"]')).toBeNull();
+    await act(async () => share().click());
+    expect(panel()?.dataset.invites).toBe("true");
   });
   it("shows the kind of Agent, and an initial only for a name it cannot recognize", async () => {
     connections = [connection("1", "Grok Bot"), connection("2", "Research helper")];
@@ -88,7 +93,6 @@ describe("An Agent in the Header", () => {
   it("waits for a resolved workspace before saying who is in it", async () => {
     await render(null as unknown as ProjectCloudContext);
     expect(row()).toBeNull();
-    expect(connect()).toBeNull();
   });
   it("appears ahead of Share as soon as it is allowed, as a control of its own", async () => {
     connections = [connection("c1", "秘书小陈")];
@@ -98,7 +102,6 @@ describe("An Agent in the Header", () => {
     expect(marks()[0].dataset.reachAudience).toBe("machine");
     expect(row()!.compareDocumentPosition(share()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(row()!.contains(share())).toBe(false);
-    expect(connect()).toBeNull();
   });
   it("is lit only while it is active", async () => {
     connections = [connection("c1", "Quiet agent"), connection("c2", "Busy agent")];
@@ -141,16 +144,25 @@ describe("An Agent in the Header", () => {
     expect(document.querySelectorAll("[role=dialog]")).toHaveLength(1);
     expect(share().getAttribute("aria-expanded")).toBe("false");
   });
-  it("offers to invite again the moment the last one is removed, without closing the panel", async () => {
+  it("opens Manage agents from the list, as a dialog of its own", async () => {
     connections = [connection("c1", "秘书小陈")];
     await render();
     await act(async () => agentButton("c1").click());
+    await act(async () => document.querySelector<HTMLButtonElement>("[data-manage]")!.click());
+    expect(panel()?.dataset.panel).toBe("manage");
+    expect(document.querySelectorAll("[role=dialog]")).toHaveLength(1);
+  });
+  it("disappears when Manage agents removes the last one, and the dialog stays", async () => {
+    connections = [connection("c1", "秘书小陈")];
+    await render();
+    await act(async () => agentButton("c1").click());
+    await act(async () => document.querySelector<HTMLButtonElement>("[data-manage]")!.click());
     connections = [];
     await act(async () => document.querySelector<HTMLButtonElement>("[data-changed]")!.click());
     await act(async () => { await Promise.resolve(); });
     expect(marks()).toEqual([]);
-    expect(connect()).not.toBeNull();
-    expect(panel()?.dataset.panel).toBe("agents");
+    expect(row()).toBeNull();
+    expect(panel()?.dataset.panel).toBe("manage");
   });
   it("collapses a crowd into a count that opens the whole list", async () => {
     connections = ["A", "B", "C", "D", "E"].map(name => connection(name, name));
@@ -166,11 +178,13 @@ describe("An Agent in the Header", () => {
     vi.mocked(cloudApiRequest).mockRejectedValue(Object.assign(new Error("denied"), { status: 403 }));
     await render();
     expect(marks()).toEqual([]);
-    expect(connect()).toBeNull();
+    await act(async () => share().click());
+    expect(panel()?.dataset.invites).toBe("false");
   });
   it("does not look for Agents in a scoped view, which cannot have any", async () => {
     await render(project("scope"));
     expect(cloudApiRequest).not.toHaveBeenCalled();
-    expect(connect()).toBeNull();
+    await act(async () => share().click());
+    expect(panel()?.dataset.invites).toBe("false");
   });
 });

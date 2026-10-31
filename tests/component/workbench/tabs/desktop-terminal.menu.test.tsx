@@ -63,9 +63,9 @@ describe("Desktop Terminal tab session manager", () => {
     )));
     render(true);
     const share = container.querySelector<HTMLButtonElement>(".desktop-titlebar-share");
-    expect(share?.textContent).toBe("Share");
     expect(share?.getAttribute("aria-label")).toBe("Share");
-    expect(share?.querySelector("svg")).toBeNull();
+    expect(share?.dataset.tooltip).toBe("Share");
+    expect(share?.querySelector("svg")).not.toBeNull();
     act(() => share?.click());
     expect(onShare).toHaveBeenCalledOnce();
 

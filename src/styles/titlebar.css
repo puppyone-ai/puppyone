@@ -599,6 +599,12 @@
   inset-inline-end: calc(100% + var(--desktop-titlebar-button-gap) + 4px);
 }
 
+/* The Agents stay beside Share, on the editor's side of the boundary. */
+.desktop-shell[data-header-follows-right-sidebar="true"] .desktop-titlebar-cloud-agents-anchor {
+  position: absolute;
+  inset-inline-end: calc(100% + var(--desktop-titlebar-button-gap) + 4px + var(--desktop-chrome-control-size));
+}
+
 .desktop-shell[data-header-follows-right-sidebar="true"]
   .desktop-titlebar-share + .desktop-titlebar-action-divider {
   position: absolute;
@@ -638,23 +644,6 @@
   transition: background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
 }
 
-.desktop-titlebar-share {
-  width: auto;
-  min-width: var(--desktop-chrome-control-size);
-  padding-inline: 8px;
-  /* The Header's one worded control, in the Header's own voice: what sits in
-     this row is quiet until it is reached for, words and icons alike. */
-  font-family: var(--desktop-titlebar-context-font-family);
-  font-size: var(--desktop-titlebar-context-font-size);
-  font-weight: var(--desktop-titlebar-context-font-weight);
-  line-height: var(--desktop-titlebar-context-line-height);
-  white-space: nowrap;
-}
-
-.desktop-titlebar-share-label {
-  display: block;
-}
-
 .desktop-titlebar-cloud-tools {
   display: inline-flex;
   align-items: center;
@@ -690,17 +679,21 @@
   transition: background 0.12s ease;
 }
 
-.desktop-titlebar-cloud-agent:hover {
-  background: var(--desktop-titlebar-hover);
-}
-
+.desktop-titlebar-cloud-agent:hover,
 .desktop-titlebar-cloud-agent[aria-expanded="true"] {
-  background: var(--desktop-titlebar-active);
+  background: var(--desktop-titlebar-hover);
 }
 
 .desktop-titlebar-cloud-agent:focus-visible {
   outline: 1px solid var(--desktop-titlebar-focus);
   outline-offset: -1px;
+}
+
+/* Not stacked, so nothing has to be covered: at rest a mark is only its outline. */
+.desktop-titlebar-cloud-agent .desktop-project-reach-mark:not([data-reach-activity]) {
+  --reach-mark-fill: transparent;
+  box-shadow: inset 0 0 0 1px var(--reach-mark-outline);
+  filter: grayscale(1);
 }
 
 .desktop-titlebar-cloud-agent:nth-child(2) .desktop-project-reach-mark[data-reach-activity] {
@@ -983,15 +976,6 @@
   line-height: 1;
   box-shadow: none;
   transition: none;
-}
-
-.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"]
-  .desktop-titlebar-action.desktop-titlebar-share {
-  width: auto;
-  min-width: var(--desktop-titlebar-windows-control-width);
-  flex-basis: auto;
-  gap: 6px;
-  padding-inline: 10px;
 }
 
 .desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-actions .desktop-titlebar-terminal {

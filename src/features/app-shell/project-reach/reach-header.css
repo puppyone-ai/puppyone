@@ -146,11 +146,12 @@
     flex: 0 0 auto;
     place-items: center;
     border-radius: 50%;
-    /* A lifted disc with a hairline, so a mark reads as an object on any ground
-       rather than as a grey smudge of the Header's own colour. */
-    background: var(--reach-mark-disc, color-mix(in srgb, var(--po-surface-panel-raised, var(--po-panel)) 92%, var(--reach-mark-ground)));
+    /* Filled means at work. At rest a mark is an outline on its own ground, which
+       still covers whatever it is stacked over. */
+    --reach-mark-outline: color-mix(in srgb, currentColor 30%, transparent);
+    background: var(--reach-mark-fill, var(--reach-mark-ground));
     box-shadow:
-      inset 0 0 0 1px color-mix(in srgb, var(--po-text) 11%, transparent),
+      inset 0 0 0 1px var(--reach-mark-outline),
       0 0 0 1.5px var(--reach-mark-ground);
     /* Present but not at work: nothing here asks to be read. */
     color: var(--desktop-titlebar-text-muted, var(--po-text-muted));
@@ -224,6 +225,7 @@
      motion is simply busy and claims neither. Agents working together take
      turns. */
   .desktop-project-reach-mark[data-reach-activity] {
+    --reach-mark-fill: color-mix(in srgb, var(--po-surface-panel-raised, var(--po-panel)) 92%, var(--reach-mark-ground));
     color: var(--desktop-titlebar-text, var(--po-text));
     transform-origin: 50% 100%;
     animation: desktop-project-reach-hop 2.8s ease-in-out infinite;

@@ -55,10 +55,15 @@ describe("Cloud workspace Header tools", () => {
     expect(button("history")).toBeNull();
   });
 
-  it("states Share in its word alone, with no icon beside it", async () => {
+  it("states Share as a mark with its name, and a divider between it and the Agent", async () => {
     await render();
-    expect(button("share").querySelector("svg")).toBeNull();
-    expect(button("share").textContent).toBe("Share");
+    expect(button("share").querySelector("svg")).not.toBeNull();
+    expect(button("share").textContent).toBe("");
+    expect(button("share").getAttribute("aria-label")).toBe("Share");
+    expect(button("share").dataset.tooltip).toBe("Share");
+    const divider = button("share").nextElementSibling;
+    expect(divider?.classList.contains("desktop-titlebar-action-divider")).toBe(true);
+    expect(divider?.nextElementSibling).toBe(button("agent"));
   });
 
   it("opens sharing for the active hosted project and allows dismissal", async () => {

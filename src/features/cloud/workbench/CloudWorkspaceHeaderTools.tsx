@@ -1,5 +1,5 @@
-import { lazy, Suspense, useRef, useState, type ReactNode, type RefObject } from "react";
-import { Plus } from "lucide-react";
+import { lazy, Suspense, useRef, useState, type ReactNode } from "react";
+import { Forward } from "lucide-react";
 import { Tooltip } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization/react";
 import { AgentEntryIcon } from "../../../components/brand/AgentEntryIcon";
@@ -11,6 +11,7 @@ import { useWorkspaceAgents, type WorkspaceAgent } from "../share/useWorkspaceAg
 
 const ShareDialog = lazy(() => import("../share/CloudWorkspaceShareDialog").then(module => ({ default: module.CloudWorkspaceShareDialog })));
 const AgentsPanel = lazy(() => import("../share/CloudWorkspaceAgentsPanel").then(module => ({ default: module.CloudWorkspaceAgentsPanel })));
+const AgentsDialog = lazy(() => import("../share/CloudWorkspaceAgentsDialog").then(module => ({ default: module.CloudWorkspaceAgentsDialog })));
 
 export type CloudWorkspacePeople = Readonly<{
   agents: readonly WorkspaceAgent[];
@@ -48,7 +49,7 @@ export function CloudWorkspaceHeaderTools(props: Props) {
 
 function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, getShareResource, agentOpen = false, onToggleAgent, renderPeople, renderAgentMark }: Props) {
   const { t } = useLocalization();
-  const [panel, setPanel] = useState<"share" | "agents" | null>(null);
+  const [panel, setPanel] = useState<"share" | "agents" | "manage" | null>(null);
   const [pressedAgentId, setPressedAgentId] = useState<string | null>(null);
   const shareButton = useRef<HTMLButtonElement>(null);
   const agentsAnchor = useRef<HTMLDivElement>(null);
@@ -67,52 +68,43 @@ function ScopedCloudWorkspaceHeaderTools({ context, session, apiBaseUrl, getShar
     setPressedAgentId(agentId);
     setPanel("agents");
   };
-  const agentsOpen = panel === "agents";
+  const agentsOpen = panel === "agents" && agents.length > 0;
+  const refreshPeople = () => void refreshAgents();
+  const invite = manageable && session ? { session, apiBaseUrl, onChanged: refreshPeople } : null;
   return <>
     <div className="desktop-titlebar-cloud-tools" data-window-no-drag="true" aria-busy={!ready || undefined}>
-      {ready && manageable && <AgentsEntry anchor={agentsAnchor} renderPeople={renderPeople}
-        people={{ agents, open: agentsOpen, pressedAgentId, onOpen: openAgents }} />}
-      <Tooltip content={ready ? null : t("shell.workspaceSwitcher.location.checking")}>
+      {ready && agents.length > 0 && <div ref={agentsAnchor} className="desktop-titlebar-cloud-agents-anchor">
+        {renderPeople?.({ agents, open: agentsOpen, pressedAgentId, onOpen: openAgents })}
+      </div>}
+      <Tooltip content={t(ready ? "shell.titlebar.share" : "shell.workspaceSwitcher.location.checking")}>
         <button ref={shareButton} type="button" className="desktop-titlebar-action desktop-titlebar-share"
           data-cloud-workspace-tool="share" disabled={!ready} aria-label={t("shell.titlebar.share")}
           aria-haspopup="dialog" aria-expanded={panel === "share"} onClick={toggleShare}>
-          <span className="desktop-titlebar-share-label">{t("shell.titlebar.share")}</span>
+          <Forward size={15} strokeWidth={1.8} aria-hidden="true" />
         </button>
       </Tooltip>
-      <Tooltip content={t(agentOpen ? "shell.titlebar.hideAgent" : "shell.titlebar.showAgent")}>
-        <button type="button" className="desktop-titlebar-action desktop-titlebar-terminal"
-          data-cloud-workspace-tool="agent" disabled={!ready || !onToggleAgent}
-          aria-label={t(agentOpen ? "shell.titlebar.hideAgent" : "shell.titlebar.showAgent")}
-          aria-pressed={agentOpen} aria-expanded={agentOpen} onClick={onToggleAgent}>
-          <AgentEntryIcon size={15} strokeWidth={1.8} aria-hidden="true" />
-        </button>
-      </Tooltip>
+      <span className="desktop-titlebar-action-divider" aria-hidden="true" />
+      <AgentPaneTool open={agentOpen} disabled={!ready || !onToggleAgent} onToggle={onToggleAgent} />
     </div>
-    {panel === "share" && context?.status === "resolved" && <Suspense fallback={null}>
-      <ShareDialog anchor={shareButton} context={context} resource={shareResource} onClose={closePanel} />
-    </Suspense>}
-    {agentsOpen && context?.status === "resolved" && session && <Suspense fallback={null}>
-      <AgentsPanel anchor={agentsAnchor} projectId={context.projectId}
-        projectName={context.projectName || context.projectId} session={session} apiBaseUrl={apiBaseUrl}
-        agents={agents} renderAgentMark={renderAgentMark} onChanged={() => void refreshAgents()} onClose={closePanel} />
+    {context?.status === "resolved" && <Suspense fallback={null}>
+      {panel === "share" && <ShareDialog anchor={shareButton} context={context} resource={shareResource} onClose={closePanel}
+        agentInvite={invite} />}
+      {agentsOpen && <AgentsPanel anchor={agentsAnchor} agents={agents} renderAgentMark={renderAgentMark}
+        onManage={() => setPanel("manage")} onClose={closePanel} />}
+      {panel === "manage" && session && <AgentsDialog projectId={context.projectId} session={session} apiBaseUrl={apiBaseUrl}
+        agents={agents} renderAgentMark={renderAgentMark} onChanged={refreshPeople} onClose={closePanel} />}
     </Suspense>}
   </>;
 }
 
-/** Who is here, or with nobody connected the way to invite one: there is no mark to press then. */
-function AgentsEntry({ anchor, people, renderPeople }: {
-  anchor: RefObject<HTMLDivElement>;
-  people: CloudWorkspacePeople;
-  renderPeople: Props["renderPeople"];
-}) {
+function AgentPaneTool({ open, disabled, onToggle }: { open: boolean; disabled: boolean; onToggle?: () => void }) {
   const { t } = useLocalization();
-  return <div ref={anchor} className="desktop-titlebar-cloud-agents-anchor">
-    {people.agents.length > 0 ? renderPeople?.(people) : <Tooltip content={t("cloud.share.agent.title")}>
-      <button type="button" className="desktop-titlebar-action desktop-titlebar-cloud-tool"
-        data-cloud-workspace-tool="connect-agent" aria-label={t("cloud.share.agent.title")}
-        aria-haspopup="dialog" aria-expanded={people.open} onClick={() => people.onOpen(null)}>
-        <Plus size={15} strokeWidth={1.8} aria-hidden="true" />
-      </button>
-    </Tooltip>}
-  </div>;
+  const label = t(open ? "shell.titlebar.hideAgent" : "shell.titlebar.showAgent");
+  return <Tooltip content={label}>
+    <button type="button" className="desktop-titlebar-action desktop-titlebar-terminal"
+      data-cloud-workspace-tool="agent" disabled={disabled} aria-label={label}
+      aria-pressed={open} aria-expanded={open} onClick={onToggle}>
+      <AgentEntryIcon size={15} strokeWidth={1.8} aria-hidden="true" />
+    </button>
+  </Tooltip>;
 }
