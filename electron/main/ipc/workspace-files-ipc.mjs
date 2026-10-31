@@ -16,8 +16,8 @@ import {
   resolveExistingWorkspacePath,
   resolveWorkspaceNode,
   writeWorkspaceTextFile,
-} from "../../../local-api/workspace.mjs";
-import { absorbWorkspaceEditReviewPath as updateWorkspaceEditReviewPath } from "../../../local-api/edit-review.mjs";
+} from "../../local-api/workspace.mjs";
+import { absorbWorkspaceEditReviewPath as updateWorkspaceEditReviewPath } from "../../local-api/edit-review.mjs";
 
 async function absorbWorkspaceEditReviewPath(rootPath, resource) {
   try { await updateWorkspaceEditReviewPath(rootPath, resource); }
@@ -34,7 +34,7 @@ import { openPdfResource } from "../pdf-resource.mjs";
 import {
   instantiateWorkspaceTemplate,
   loadBundledSlidesFont,
-} from "../../../local-api/workspace-templates.mjs";
+} from "../../local-api/workspace-templates.mjs";
 
 const MAX_OFFICE_CONVERSIONS_PER_WINDOW = 2;
 const DEFAULT_NATIVE_MESSAGES = Object.freeze({

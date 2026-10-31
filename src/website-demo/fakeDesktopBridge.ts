@@ -28,7 +28,7 @@ function basename(path: string) {
 
 type Callback<T> = (value: T) => void;
 
-/** Same shapes local-api/git builds from `git status --porcelain=v2`. */
+/** Same shapes electron/local-api/git builds from `git status --porcelain=v2`. */
 function buildGitStatus(changed: Map<string, DemoChange>, branch: string) {
   const entries = [...changed].map(([path, kind]) => kind === "created"
     ? { path, oldPath: null, staged: "?", unstaged: "?", status: "untracked" }

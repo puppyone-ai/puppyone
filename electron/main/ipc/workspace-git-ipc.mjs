@@ -31,7 +31,7 @@ import {
   unstageAllWorkspaceGitChanges,
   unstageWorkspaceGitPaths,
   writePuppyoneWorkspaceConfig,
-} from "../../../local-api/workspace.mjs";
+} from "../../local-api/workspace.mjs";
 import {
   createGitOperationCoordinator,
   repositoryLockKey,

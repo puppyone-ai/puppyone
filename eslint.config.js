@@ -37,7 +37,7 @@ export default [
   },
   {
     files: [
-      "{src,packages,electron,local-api,shared}/**/*.{ts,tsx,mts,cts}",
+      "{src,packages,electron,shared}/**/*.{ts,tsx,mts,cts}",
       // Keep the package's explicit contract visible to the layout check.
       "packages/shared-ui/src/**/*.{ts,tsx}",
     ],
@@ -54,13 +54,13 @@ export default [
     },
   },
   {
-    files: ["{src,packages,electron,local-api,shared}/**/*.{js,mjs,cjs,ts,tsx,mts,cts}"],
+    files: ["{src,packages,electron,shared}/**/*.{js,mjs,cjs,ts,tsx,mts,cts}"],
     rules: {
       "no-nested-ternary": "error",
     },
   },
   {
-    files: ["{electron,local-api,shared}/**/*.{ts,tsx,mts,cts}"],
+    files: ["{electron,shared}/**/*.{ts,tsx,mts,cts}"],
     languageOptions: { globals: globals.node },
   },
   {
@@ -104,7 +104,7 @@ export default [
     },
   },
   {
-    files: ["cloudflare/**/*.mjs", "{src,packages,electron,local-api,shared}/**/*.{js,mjs}", "scripts/**/*.mjs", "tests/**/*.mjs"],
+    files: ["cloudflare/**/*.mjs", "{src,packages,electron,shared}/**/*.{js,mjs}", "scripts/**/*.mjs", "tests/**/*.mjs"],
     languageOptions: { ecmaVersion: 2023, sourceType: "module", globals: { ...globals.node } },
     rules: coreBugRules,
   },

@@ -73,7 +73,7 @@ requireSource(
   "Renderer types must use product platform identifiers",
 );
 
-const workspaceFacade = await readText("local-api/workspace.mjs");
+const workspaceFacade = await readText("electron/local-api/workspace.mjs");
 if (workspaceFacade.includes("textutil") || workspaceFacade.includes("convertWorkspaceOfficeDocumentToDocx")) {
   errors.push("The process-neutral workspace engine must not own macOS Office conversion.");
 }

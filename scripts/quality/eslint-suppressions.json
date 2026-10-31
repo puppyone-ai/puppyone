@@ -279,27 +279,27 @@
       "count": 1
     }
   },
-  "local-api/edit-review.mjs": {
+  "electron/local-api/edit-review.mjs": {
     "no-nested-ternary": {
       "count": 1
     }
   },
-  "local-api/git/cloud-remote.mjs": {
+  "electron/local-api/git/cloud-remote.mjs": {
     "no-nested-ternary": {
       "count": 1
     }
   },
-  "local-api/templates/materialize.mjs": {
+  "electron/local-api/templates/materialize.mjs": {
     "no-nested-ternary": {
       "count": 1
     }
   },
-  "local-api/workspace-config.mjs": {
+  "electron/local-api/workspace-config.mjs": {
     "no-nested-ternary": {
       "count": 1
     }
   },
-  "local-api/workspace.mjs": {
+  "electron/local-api/workspace.mjs": {
     "no-nested-ternary": {
       "count": 8
     }

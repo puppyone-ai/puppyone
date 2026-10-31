@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { normalizeCloudApiBaseUrl } from "../../shared/cloudEndpoint.js";
-import { normalizeRelativePath } from "../../local-api/files/path-policy.mjs";
+import { normalizeRelativePath } from "../local-api/files/path-policy.mjs";
 import { DATABASE_BUDGET, databaseError, publicDatabaseFailure } from "../../shared/database-preview/contract.mjs";
 import { REPOSITORY_TARGET_CONTRACT_HEADER, REPOSITORY_TARGET_CONTRACT_VERSION } from "../../shared/repositoryContract.js";
 

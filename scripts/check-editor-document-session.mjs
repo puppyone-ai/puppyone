@@ -396,7 +396,7 @@ const featureIndependentWorkspaceKernelFiles = [
   path.join(repoRoot, "src/lib/localFiles.ts"),
   path.join(repoRoot, "electron/main/window-workspace-composition.mjs"),
   path.join(repoRoot, "electron/main/workspace-state-store.mjs"),
-  path.join(repoRoot, "local-api/files/path-policy.mjs"),
+  path.join(repoRoot, "electron/local-api/files/path-policy.mjs"),
 ];
 for (const filePath of featureIndependentWorkspaceKernelFiles) {
   if (multiRootFeatureGatePattern.test(readFileSync(filePath, "utf8"))) {

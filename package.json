@@ -251,7 +251,7 @@
       "node_modules/node-pty/**",
       "node_modules/@duckdb/**",
       "electron/main/platform/macos/native/*.node",
-      "local-api/templates/native/*.node"
+      "electron/local-api/templates/native/*.node"
     ],
     "directories": {
       "output": "release"
@@ -259,7 +259,6 @@
     "files": [
       "dist/**",
       "electron/**",
-      "local-api/**",
       "locales/**",
       "shared/**",
       "packages/localization/**",

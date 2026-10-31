@@ -3,8 +3,8 @@ import {
   GIT_NETWORK_TIMEOUT_MS,
   execGit,
   execGitBuffer,
-} from "../../local-api/git/runner.mjs";
-import { getWorkspaceGitStatus } from "../../local-api/workspace.mjs";
+} from "../local-api/git/runner.mjs";
+import { getWorkspaceGitStatus } from "../local-api/workspace.mjs";
 import {
   CLOUD_DESTINATION_REF,
   CLOUD_DESTINATION_BRANCH,

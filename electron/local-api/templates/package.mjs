@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import yauzl from 'yauzl';
 import { requireRelativeTemplatePath, validateTemplatePlan } from './materialize.mjs';
-import { requireTemplateId } from '../../shared/desktop/template-link.mjs';
+import { requireTemplateId } from '../../../shared/desktop/template-link.mjs';
 
 export const TEMPLATE_MAX_BYTES = 32 * 1024 * 1024;
 const HASH = /^[a-f0-9]{64}$/;

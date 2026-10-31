@@ -4,10 +4,10 @@ import { fileURLToPath } from "node:url";
 import {
   requireRelativeTemplatePath,
   validateTemplatePlan,
-} from "../local-api/templates/materialize.mjs";
+} from "../electron/local-api/templates/materialize.mjs";
 
 const checkOnly = process.argv.includes("--check");
-const contentRoot = fileURLToPath(new URL("../local-api/templates/content/", import.meta.url));
+const contentRoot = fileURLToPath(new URL("../electron/local-api/templates/content/", import.meta.url));
 const manifestNames = (await fs.readdir(contentRoot))
   .filter((name) => name.endsWith(".manifest.json"))
   .sort();

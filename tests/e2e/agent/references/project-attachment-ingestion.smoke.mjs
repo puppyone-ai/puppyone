@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { app, BrowserWindow, ipcMain } from "electron";
-import { workspaceFromPath } from "../../../../local-api/workspace.mjs";
+import { workspaceFromPath } from "../../../../electron/local-api/workspace.mjs";
 import { createWorkspaceStateStore } from "../../../../electron/main/workspace-state-store.mjs";
 import { getDesktopBuildChannelPolicy } from "../../../../shared/desktop-build-identity.mjs";
 import { installFixtureAgent } from "../../../support/agent/install-fixture-agent.mjs";

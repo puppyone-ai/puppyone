@@ -55,8 +55,8 @@ describe("readability gates reject new code, without suppressing bug rules", () 
     expect(result.messages.some((message) => message.ruleId === rule && message.severity === 2)).toBe(true);
   });
   it.each([
-    "src/a.ts", "packages/shared-ui/src/a.ts", "electron/a.ts", "local-api/a.ts", "shared/a.ts",
-    "src/a.mts", "electron/a.cts", "local-api/a.tsx", "electron/a.mjs", "local-api/a.mjs", "shared/a.js",
+    "src/a.ts", "packages/shared-ui/src/a.ts", "electron/a.ts", "electron/local-api/a.ts", "shared/a.ts",
+    "src/a.mts", "electron/a.cts", "electron/local-api/a.tsx", "electron/a.mjs", "electron/local-api/a.mjs", "shared/a.js",
     "src/a.js", "packages/shared-ui/src/a.mjs", "electron/a.cjs",
   ])("covers %s", async (filePath) => {
     const annotation = /\.(?:[cm]?ts|tsx)$/.test(filePath) ? "const typed: number = 1; " : "";
@@ -69,7 +69,7 @@ describe("readability gates reject new code, without suppressing bug rules", () 
     expect(await eslint.isPathIgnored("artifacts/tests/issue-098/source-copy.ts")).toBe(true);
   });
   it("leaves length and shape to review, and keeps nested ternaries out", async () => {
-    const config = await eslint.calculateConfigForFile("local-api/probe.ts");
+    const config = await eslint.calculateConfigForFile("electron/local-api/probe.ts");
     for (const rule of ["complexity", "max-depth", "max-params", "max-lines", "max-lines-per-function"]) {
       expect(config.rules[rule], rule).toBeUndefined();
     }
@@ -111,7 +111,7 @@ it("documents native suppression granularity: replacement at the same file/rule/
 
 function dependencyFixture() {
   const cwd = fixture();
-  for (const dir of ["src", "packages", "electron", "local-api", "shared"]) mkdirSync(path.join(cwd, dir));
+  for (const dir of ["src", "packages", "electron", "shared"]) mkdirSync(path.join(cwd, dir));
   json(cwd, "package.json", { type: "module" });
   json(cwd, "tsconfig.json", { compilerOptions: { baseUrl: ".", paths: { "@probe/*": ["src/*"] } } });
   mkdirSync(path.join(cwd, "scripts/quality"), { recursive: true });
@@ -129,7 +129,7 @@ function dependencyFixture() {
 }
 function cruise(cwd) {
   const result = run(cwd, "node_modules/dependency-cruiser/bin/dependency-cruise.mjs", [
-    "src", "packages", "electron", "local-api", "shared", "--config", dependencyConfig, "--output-type", "json",
+    "src", "packages", "electron", "shared", "--config", dependencyConfig, "--output-type", "json",
   ]);
   // JSON/baseline reporters intentionally exit zero even with errors.
   expect(result.status, result.stderr).toBe(0);

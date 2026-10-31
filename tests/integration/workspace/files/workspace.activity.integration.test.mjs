@@ -4,8 +4,8 @@ import os from "node:os";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { readWorkspaceModifiedAt } from "../../../../local-api/files/workspace-activity.mjs";
-import { workspaceFromPath } from "../../../../local-api/workspace.mjs";
+import { readWorkspaceModifiedAt } from "../../../../electron/local-api/files/workspace-activity.mjs";
+import { workspaceFromPath } from "../../../../electron/local-api/workspace.mjs";
 
 const execute = promisify(execFile);
 let root;

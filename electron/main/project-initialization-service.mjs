@@ -1,9 +1,9 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
-import { materializeTemplate, validateTemplatePlan } from "../../local-api/templates/materialize.mjs";
-import { publishDirectory } from "../../local-api/templates/publish-directory.mjs";
-import { resolveProjectTemplate } from "../../local-api/templates/project-catalog.mjs";
+import { materializeTemplate, validateTemplatePlan } from "../local-api/templates/materialize.mjs";
+import { publishDirectory } from "../local-api/templates/publish-directory.mjs";
+import { resolveProjectTemplate } from "../local-api/templates/project-catalog.mjs";
 
 /** The caller must authorize the parent for this sender before every call. */
 export function createProjectInitializationService({ journalDirectory = null, materialize = materializeTemplate, resolveTemplate = resolveProjectTemplate, validateSource = async () => {} } = {}) {

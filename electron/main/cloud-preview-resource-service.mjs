@@ -1,6 +1,6 @@
 import { readWorkspaceFile } from "./cloud-workspace-file.mjs";
 import { normalizeCloudApiBaseUrl } from "../../shared/cloudEndpoint.js";
-import { normalizeRelativePath } from "../../local-api/files/path-policy.mjs";
+import { normalizeRelativePath } from "../local-api/files/path-policy.mjs";
 import { databaseError } from "../../shared/database-preview/contract.mjs";
 import { REPOSITORY_TARGET_CONTRACT_HEADER, REPOSITORY_TARGET_CONTRACT_VERSION } from "../../shared/repositoryContract.js";
 

@@ -3,8 +3,8 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { execGit } from "../../../../local-api/git/runner.mjs";
-import { readGitPublishScope } from "../../../../local-api/git/publish-scope.mjs";
+import { execGit } from "../../../../electron/local-api/git/runner.mjs";
+import { readGitPublishScope } from "../../../../electron/local-api/git/publish-scope.mjs";
 
 const folders = [];
 const IGNORE_RULES = "node_modules/\n";

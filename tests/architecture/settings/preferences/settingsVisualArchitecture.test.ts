@@ -139,7 +139,7 @@ describe("settings visual architecture", () => {
     const loading = source("src/components/loading/index.tsx");
     const app = source("src/App.tsx");
     const reviewRuntime = source("src/features/data-workspace/useAiEditReviewRequest.ts");
-    const reviewEngine = source("local-api/edit-review.mjs");
+    const reviewEngine = source("electron/local-api/edit-review.mjs");
 
     expect(sidebarModel).toContain('id: "typography"');
     expect(sidebarModel).not.toContain('id: "editor"');

@@ -192,7 +192,7 @@ export function resolveCopyNameExtension(name) {
 }
 
 function loadFileFormatRegistry() {
-  const registryPath = path.resolve(localApiDir, "../packages/shared-ui/src/core/fileFormats.json");
+  const registryPath = path.resolve(localApiDir, "../../packages/shared-ui/src/core/fileFormats.json");
   try {
     return JSON.parse(readFileSync(registryPath, "utf8"));
   } catch (error) {

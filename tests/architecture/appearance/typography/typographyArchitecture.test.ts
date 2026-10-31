@@ -289,7 +289,7 @@ describe("typography architecture", () => {
     const directPixelFontShorthand = /\bfont\s*:\s*[^;\n}]*\d+(?:\.\d+)?px/i;
     const directPixelCssTypeToken = /--[\w-]*(?:font|text|type|heading|meta|label)[\w-]*size\s*:\s*\d+(?:\.\d+)?px/i;
     const directNumericInlineTypeSize = /\bfontSize\s*(?::|=)\s*(?:\{\s*)?\d+(?:\.\d+)?\b/;
-    const roots = ["src", "packages", "electron", "local-api", "public"];
+    const roots = ["src", "packages", "electron", "public"];
     for (const root of roots) {
       for (const file of sourceFiles(new URL(`../../../../${root}/`, import.meta.url))) {
         const contents = readFileSync(file, "utf8");
