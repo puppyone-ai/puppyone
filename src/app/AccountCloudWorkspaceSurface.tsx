@@ -91,7 +91,6 @@ export function AccountCloudWorkspaceSurface({ workbench, presentation, active, 
   const setRightSidebarWidth = useDesktopPreference(s => s.setRightSidebarWidth);
   const setSidebarCollapsed = useDesktopPreference(s => s.setSidebarCollapsed);
   const editorTabsInHeader = useDesktopPreference(s => s.experimentalSettings.enableEditorTabsInHeader);
-  const centered = useDesktopPreference(s => s.experimentalSettings.enableCenteredProjectInHeader);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const ownAgent = useCloudAgentWorkspace({ context: suppliedAgent ? null : context, session, apiBaseUrl,
@@ -115,8 +114,7 @@ export function AccountCloudWorkspaceSurface({ workbench, presentation, active, 
         multiRootWorkspacesEnabled={false} placeMenu={placeMenu}
         onClose={() => setMenuOpen(false)} onToggle={() => setMenuOpen((current) => !current)}
         projectItems={projectItems} pendingProject={pendingProject} onSelectProject={onSelectProject} onSelectCloudProject={onSelectCloudProject}
-        onCreateProject={onCreateProject} onHome={onHome}
-        menuAlignment={centered ? "center" : "start"} />;
+        onCreateProject={onCreateProject} onHome={onHome} />;
   return <div className={`app-shell cloud-runtime desktop-account-cloud-workspace ${appearance.appearance.effectiveColorMode === "dark" ? "dark" : ""}`} hidden={!active}
     {...appearance.rootProps}
     style={{ ...appearance.rootProps.style, ...(!active ? { display: "none" } : {}) }} data-active-cloud-project={service.workspace.projectId}>
@@ -128,8 +126,7 @@ export function AccountCloudWorkspaceSurface({ workbench, presentation, active, 
         apiBaseUrl={apiBaseUrl} onSessionChange={onSessionChange} agentOpen={agent.open} onToggleAgent={sidebar.toggleAgent}
         renderPeople={people => <CloudWorkspaceAgentPeople {...people} />}
         renderAgentMark={agent => <CloudWorkspaceAgentMark {...agent} />} />}
-      titlebarSidebarSlot={centered ? undefined : projectContext}
-      titlebarCenteredSlot={centered ? projectContext : undefined}
+      titlebarSidebarSlot={projectContext}
       titlebarTabs={editorTabsInHeader ? presentation.titlebarTabs : undefined}
       alignTitlebarTabsToExplorer={editorTabsInHeader}
       locationBar={presentation.locationBar}

@@ -105,14 +105,14 @@ async function headerPresentation(location) {
     // in-flight transitions so the sample is the committed presentation.
     document.getAnimations().filter(animation => animation instanceof CSSTransition).forEach(animation => animation.finish());
     const header = document.querySelector('.desktop-titlebar');
-    const context = header.querySelector('.desktop-titlebar-centered-context');
+    const context = header.querySelector('.desktop-titlebar-context');
     // The project trigger is the Header's one project control; no Local /
     // Cloud switch sits beside it (ADR-001), so its ink carries the checks.
     const button = context.querySelector('.desktop-titlebar-workspace-button');
     const mark = button.querySelector('.desktop-titlebar-workspace-mark');
     const svg = mark.matches('svg') ? mark : mark.querySelector('svg');
     const outline = svg.querySelector('[data-cloud-outline]');
-    const h = header.getBoundingClientRect(), c = context.getBoundingClientRect();
+    const h = header.getBoundingClientRect();
     const css = getComputedStyle(header);
     const shell = header.closest('.desktop-shell'), s = shell.getBoundingClientRect();
     const frame = getComputedStyle(shell, '::after');
@@ -141,7 +141,6 @@ async function headerPresentation(location) {
     };
     return { location:header.dataset.workspaceKind ?? 'local', identity:header.dataset.fixtureIdentity,
       x:h.x, y:h.y, width:h.width, height:h.height, viewport:innerWidth, viewportHeight:innerHeight,
-      center:h.x+h.width/2, projectCenter:c.x+c.width/2,
       background:rgb(css.backgroundColor), expected:rgb(expected), accent:rgb(accent),
       cloudBackground:rgb(cloudBackground), themeText:rgb(themeText),
       backgroundImage:css.backgroundImage,
@@ -188,7 +187,6 @@ async function headerPresentation(location) {
   assert(sample.frame.content === 'none', 'Neither location may paint a frame around the workspace');
   assert(sample.identity === "retained-header" && sample.x === 0 && sample.width === sample.viewport,
     "Tint must cover the original full-width Header, including both blank sides");
-  assert(Math.abs(sample.center - sample.projectCenter) < 0.01, "Tint must not move the centered project context");
   const luminance = (rgb) => rgb.map(v => v/255).map(v => v <= 0.04045 ? v/12.92 : ((v+0.055)/1.055)**2.4)
     .reduce((sum, value, i) => sum + value * [0.2126,0.7152,0.0722][i], 0);
   // Verify the project label in the regular Header; Header tabs are experimental.
@@ -385,12 +383,10 @@ app.whenReady().then(async () => {
   const localHost = await evaluate("document.querySelector('[data-workspace-location=local] .cm-editor').dataset.fixtureIdentity = 'retained-local-host'");
   const localHeader = await evaluate(`(() => {
     const header = document.querySelector('.desktop-titlebar');
-    const context = document.querySelector('.desktop-titlebar-centered-context');
+    const context = document.querySelector('.desktop-titlebar-context');
     header.dataset.fixtureIdentity = 'retained-header';
     header.closest('.desktop-shell').dataset.fixtureIdentity = 'retained-shell';
-    const h = header.getBoundingClientRect(), c = context.getBoundingClientRect();
-    return { headerCenter:h.x + h.width / 2, contextCenter:c.x + c.width / 2,
-      projectName:context.querySelector('.desktop-titlebar-workspace-name')?.textContent };
+    return { projectName:context.querySelector('.desktop-titlebar-workspace-name')?.textContent };
   })()`);
   assert(await evaluate("Boolean(document.querySelector('.desktop-titlebar-terminal')) && Boolean(document.querySelector('.desktop-titlebar-changes'))"),
     'Local must expose its Chat and Git Header actions before switching');
@@ -455,18 +451,14 @@ app.whenReady().then(async () => {
   assert(await evaluate("document.querySelector('[data-workspace-location=local]').hidden && !document.querySelector('[data-workspace-location=cloud]').hidden && !document.querySelector('.desktop-cloud-dialog, [role=dialog]')"), "Opening the Cloud project must replace the main surface without a dialog");
   const cloudHeader = await evaluate(`(() => {
     const header = document.querySelector('.desktop-titlebar');
-    const context = document.querySelector('.desktop-titlebar-centered-context');
-    const h = header.getBoundingClientRect(), c = context.getBoundingClientRect();
+    const context = document.querySelector('.desktop-titlebar-context');
     return { identity:header.dataset.fixtureIdentity, count:document.querySelectorAll('.desktop-titlebar').length,
-      headerCenter:h.x + h.width / 2, contextCenter:c.x + c.width / 2,
       projectName:context.querySelector('.desktop-titlebar-workspace-name')?.textContent };
   })()`);
   assert(cloudHeader.identity === "retained-header" && cloudHeader.count === 1,
     "Moving between the folder and its Cloud project must retain one Header DOM host");
-  assert(Math.abs(localHeader.headerCenter - localHeader.contextCenter) < 0.01
-    && Math.abs(cloudHeader.headerCenter - cloudHeader.contextCenter) < 0.01
-    && cloudHeader.projectName === localHeader.projectName,
-    "Project name must remain centered and stable between the folder and its Cloud project");
+  assert(cloudHeader.projectName === localHeader.projectName,
+    "Project name must remain stable between the folder and its Cloud project");
   assert(await evaluate("!document.querySelector('[data-cloud-native=true]').textContent.includes('local-only') && document.querySelector('[data-cloud-native=true]').textContent.includes('cloud-only')"), "Cloud tree must contain Cloud files only");
   await evaluate("[...document.querySelectorAll('[data-cloud-native=true] .tree-row')].find(row => row.textContent.includes('readme')).click()");
   await waitFor("Boolean(document.querySelector('[data-workspace-location=cloud] .cm-content')?.textContent.includes('CLOUD_FILE_BODY'))");
@@ -634,12 +626,12 @@ app.whenReady().then(async () => {
       assert(await evaluate(`document.querySelectorAll('[data-cloud-workspace-tool]').length === ${location === 'cloud' ? 2 : 0}`),
         'Cloud CTAs must follow the active environment in both themes and widths');
       if (location === 'cloud') assert(await evaluate(`(() => {
-        const project = document.querySelector('.desktop-titlebar-centered-context').getBoundingClientRect();
+        const project = document.querySelector('.desktop-titlebar-context').getBoundingClientRect();
         return [...document.querySelectorAll('[data-cloud-workspace-tool]')].every(button => {
           const r = button.getBoundingClientRect();
           return r.x >= project.right && r.right <= innerWidth && r.y >= 0 && r.bottom <= 40;
         });
-      })()`), 'Cloud CTAs must fit beside the centered project without overlapping it');
+      })()`), 'Cloud CTAs must fit beside the project without overlapping it');
       sample.pixels = await windowFramePixels(sample);
       if (nativeCorners && location === 'cloud') {
         await captureNativeCorners(`${theme}-${width}`,sample);
@@ -676,8 +668,7 @@ app.whenReady().then(async () => {
     window.setContentSize(width, 760);
     await waitFor(`innerWidth === ${width}`);
     await evaluate(`window.__nativeCloudWorkbenchSmoke.setLoginAppearance('${theme}', 'en')`);
-    for (const centered of [true, false]) for (const location of ['local', 'cloud']) {
-      await evaluate(`window.__nativeCloudWorkbenchSmoke.setCenteredProject(${centered})`);
+    for (const location of ['local', 'cloud']) {
       if ((await state()).location !== location) await selectLocation(location);
       await evaluate("window.__nativeCloudWorkbenchSmoke.setSidebarCollapsed(true)");
       await waitFor("Boolean(document.querySelector('.desktop-titlebar-sidebar-expand'))");
@@ -695,17 +686,16 @@ app.whenReady().then(async () => {
         `Left Header controls must retain the Element spacing in ${location}, ${theme}, ${width}px: ${JSON.stringify(leading)}`);
       assert(Math.abs(leading.home - leading.expectedSize) < 0.1 && Math.abs(leading.expand - leading.expectedExpandSize) < 0.1,
         `Left Header controls must not shrink on ${location} entry: ${JSON.stringify(leading)}`);
-      if (!centered) assert(leading.projectGap >= leading.expectedGap - 0.1,
+      assert(leading.projectGap >= leading.expectedGap - 0.1,
         `Expand and project controls must keep their gap in ${location}, ${theme}, ${width}px: ${JSON.stringify(leading)}`);
       if (location === 'cloud') {
         await evaluate("Promise.all((document.querySelector('.desktop-cloud-header-reveal')?.getAnimations({subtree:true}) ?? []).map(animation => animation.finished.catch(() => {})))");
-        await writeFile(path.join(artifacts, `header-leading-${theme}-${width}-${centered ? 'centered' : 'left'}.png`), (await window.webContents.capturePage()).toPNG());
+        await writeFile(path.join(artifacts, `header-leading-${theme}-${width}.png`), (await window.webContents.capturePage()).toPNG());
       }
       await evaluate("document.querySelector('.desktop-titlebar-sidebar-expand').click()");
       await waitFor("!document.querySelector('.desktop-titlebar-sidebar-expand')");
     }
   }
-  await evaluate("window.__nativeCloudWorkbenchSmoke.setCenteredProject(true)");
   window.webContents.debugger.attach('1.3');
   await window.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', {
     features:[{name:'prefers-reduced-motion',value:'reduce'}],

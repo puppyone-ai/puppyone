@@ -245,13 +245,13 @@ describe("experimental preferences", () => {
     expect(parseExperimentalSettings(JSON.stringify({ enableShareOnboarding: true })).enableShareOnboarding).toBe(true);
   });
 
-  it("restores project alignment independently of Cloud and ignores the retired Git card", () => {
+  it("forgets the retired centered project and Git card Header choices", () => {
     const settings = parseExperimentalSettings(JSON.stringify({
       enableCenteredProjectInHeader: true,
       enableGitCardInHeader: true,
     }));
-    expect(settings).toEqual({ ...DEFAULT_EXPERIMENTAL_SETTINGS, enableCenteredProjectInHeader: true });
-    expect(settings.enableCenteredProjectInHeader).toBe(true);
+    expect(settings).toEqual(DEFAULT_EXPERIMENTAL_SETTINGS);
+    expect(settings).not.toHaveProperty("enableCenteredProjectInHeader");
     expect(settings).not.toHaveProperty("enableGitCardInHeader");
   });
 

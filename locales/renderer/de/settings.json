@@ -1,7 +1,4 @@
 {
-  "experimental.projectHeaderAlignment.title": "Position des Projektkopfs",
-  "experimental.projectHeaderAlignment.left": "Links",
-  "experimental.projectHeaderAlignment.center": "Zentriert",
   "activation.activate": "Aktivieren",
   "activation.consent": "Puppyone installiert die {agent}-CLI im Hintergrund. Nach der Installation ist sie aktiviert. Bei der ersten Nutzung ist möglicherweise eine Anmeldung nötig. Eine vorhandene Installation wird weiterverwendet.",
   "activation.guided": "Dieser Agent verwendet die offizielle Einrichtung. Puppyone öffnet die Anleitung und prüft danach die Installation. Anmeldung und Modelleinstellungen werden beim Start geprüft.",

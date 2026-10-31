@@ -91,7 +91,6 @@ export function WorkspaceMenuVisualSmokeHarness() {
             open={open}
             refObject={anchorRef}
             titlebarLabel={currentWorkspace.name}
-            menuAlignment="center"
             workspace={currentWorkspace}
             availableProjects={projectList ? menuProjects : [currentWorkspace]}
             workspaceFolders={[]}

@@ -65,7 +65,6 @@ type DesktopCloudShellProps = {
   resizableLeadingRail?: boolean;
   titlebarSidebarSlot?: ReactNode;
   titlebarEditorSlot?: ReactNode;
-  titlebarCenteredSlot?: ReactNode;
   titlebarActions?: ReactNode;
   titlebarTabs?: ReactNode;
   alignTitlebarTabsToExplorer?: boolean;
@@ -107,7 +106,6 @@ export function DesktopCloudShell({
   resizableLeadingRail = false,
   titlebarSidebarSlot,
   titlebarEditorSlot,
-  titlebarCenteredSlot,
   titlebarActions,
   titlebarTabs,
   alignTitlebarTabsToExplorer = false,
@@ -372,7 +370,6 @@ export function DesktopCloudShell({
             </>
           )}
           actions={titlebarActions}
-          centeredContext={titlebarCenteredSlot}
           tabs={titlebarTabs}
           sessionTabsHostRef={titlebarTabsHostRef}
         />

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AuxiliaryWorkbenchPanel } from "../../features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel";
 import { EditorView } from "@codemirror/view";
 import { createWorkspaceRootUri, createWorkspaceResourceUri, getWorkspaceResourcePath, canonicalizeResourceUri, isDocumentDataNode, withEditorDocumentOperations, type DataPort, type Workspace, type WorkspaceFolder } from "@puppyone/shared-ui";
@@ -187,7 +187,6 @@ declare global {
     setRepositoryMissing: (missing: boolean) => void;
     finishPublish: () => void;
     setSidebarCollapsed: (collapsed: boolean) => void;
-    setCenteredProject: (centered: boolean) => void;
     setLoginAppearance: (theme: "light" | "dark", locale: AppLanguagePreference) => Promise<void>;
     resetLogin: () => void;
     failLogin: () => void;
@@ -217,7 +216,6 @@ export function NativeCloudWorkbenchSmokeHarness() {
   const [noticeDismissed, setNoticeDismissed] = useState(false);
   const location = cloudSelected && cloudSessionAvailable ? "cloud" : "local";
   useEffect(() => { if (!cloudSessionAvailable) setCloudSelected(false); }, [cloudSessionAvailable]);
-  const [centeredProject, setCenteredProject] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   useDesktopPreferenceEffects();
@@ -307,7 +305,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
         view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } });
       },
       setCloudToolsAvailable: (available) => { cloudToolsAvailable = available; },
-      setCloudSessionAvailable, setSidebarCollapsed, setCenteredProject, setRepositoryLocalOnly, setRepositoryWrongHost,
+      setCloudSessionAvailable, setSidebarCollapsed, setRepositoryLocalOnly, setRepositoryWrongHost,
       setRepositoryMissing: (missing) => { cloudProjectMissing = missing; setRepositoryMissing(missing); setNoticeDismissed(false); },
       finishPublish: () => { setPublishLoading(false); setRepositoryLocalOnly(false); setNoticeDismissed(false); },
       setLoginAppearance: async (nextTheme, locale) => { setTheme(nextTheme); await setLanguagePreference(locale); },
@@ -354,7 +352,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
       onRightSidebarOpenChange={sidebar.setOpen}
       rightSidebar={pane => <SmokeAgentSidebar location={location} agent={agent} cloudSidebar={cloudSidebar} revisionKey={String(workbench.refreshToken.sequence)} contentVisible={pane.contentVisible} />}
       onLeftSidebarExpand={() => setSidebarCollapsed(false)}
-      {...getProjectHeaderSlots(centeredProject, projectSwitcher)}
+      titlebarSidebarSlot={projectSwitcher}
       titlebarActions={<>
         {location === "cloud" && <CloudWorkspaceHeaderTools context={context}
           getShareResource={() => captureCloudWorkspaceShareResource(workbench)}
@@ -442,11 +440,6 @@ function SmokeAgentSidebar({ location, agent, cloudSidebar, revisionKey, content
     <div className={`desktop-right-sidebar-surface ${localActive ? "is-active" : ""}`}
       aria-hidden={!localActive} data-native-local-agent="true">{t("agent.panel.chat", { agent: t("shell.navigation.local") })}</div>
   </div>;
-}
-
-function getProjectHeaderSlots(centered: boolean, project: ReactNode) {
-  return centered ? { titlebarCenteredSlot: project }
-    : { titlebarSidebarSlot: <div className="desktop-titlebar-context">{project}</div> };
 }
 
 const SMOKE_AGENT = { id: "smoke-agent", name: "Claude Code", admission: "sign_in", grant_id: "smoke-grant",

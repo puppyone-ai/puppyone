@@ -28,7 +28,6 @@ export function CloudProjectOpeningSurface({ projectName, progress = startingPro
   const sidebarCollapsed = useDesktopPreference(s => s.sidebarCollapsed);
   const explorerWidth = useDesktopPreference(s => s.explorerWidth);
   const setSidebarCollapsed = useDesktopPreference(s => s.setSidebarCollapsed);
-  const centered = useDesktopPreference(s => s.experimentalSettings.enableCenteredProjectInHeader);
   // The rail states the project it is switching to, as it does once the project is open.
   const title = projectRail ? null : <span className="desktop-cloud-opening-title">{projectName}</span>;
   return <div className={`app-shell cloud-runtime desktop-account-cloud-workspace ${appearance.appearance.effectiveColorMode === "dark" ? "dark" : ""}`}
@@ -36,8 +35,7 @@ export function CloudProjectOpeningSurface({ projectName, progress = startingPro
     <DesktopCloudShell active workspaceLocation="cloud" leftSidebarCollapsed={sidebarCollapsed}
       {...projectRail}
       leftSidebarWidth={explorerWidth} onLeftSidebarExpand={() => setSidebarCollapsed(false)}
-      titlebarSidebarSlot={centered ? undefined : title}
-      titlebarCenteredSlot={centered ? title : undefined}>
+      titlebarSidebarSlot={title}>
       <ShellCloudWorkspacePreparation progress={progress} onCancel={onCancel} />
     </DesktopCloudShell>
   </div>;

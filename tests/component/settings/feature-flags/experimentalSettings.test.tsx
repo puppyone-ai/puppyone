@@ -67,7 +67,6 @@ describe("Experimental settings", () => {
     expect([panes.textContent, header.textContent]).toEqual(["Panes", "Header tabs"]);
     expect(panes.getAttribute("aria-pressed")).toBe("true");
     expect(host.querySelector('input[aria-label="Git card in Header"]')).toBeNull();
-    expect(host.querySelector('input[aria-label="Center project in Header"]')).toBeNull();
     expect(store.getState().experimentalSettings).toEqual(DEFAULT_EXPERIMENTAL_SETTINGS);
     act(() => header.click());
     act(() => initializeDesktopPreferences());
@@ -75,22 +74,6 @@ describe("Experimental settings", () => {
     expect(header.getAttribute("aria-pressed")).toBe("true");
     act(() => panes.click());
     expect(store.getState().experimentalSettings).toEqual(DEFAULT_EXPERIMENTAL_SETTINGS);
-  });
-
-  it("persists mutually exclusive Left / Center choices and defaults to Left", () => {
-    const host = document.createElement("div"); document.body.append(host); root = createRoot(host);
-    act(() => root?.render(withTestLocalization(<ExperimentalSettingsView />)));
-    const group = host.querySelector('[role="group"][aria-label="Project header position"]')!;
-    const [left, center] = [...group.querySelectorAll<HTMLButtonElement>("button")];
-    expect(left.textContent).toBe("Left"); expect(center.textContent).toBe("Center");
-    expect(left.getAttribute("aria-pressed")).toBe("true");
-    act(() => center.click());
-    expect(center.getAttribute("aria-pressed")).toBe("true"); expect(left.getAttribute("aria-pressed")).toBe("false");
-    act(() => initializeDesktopPreferences());
-    expect(store.getState().experimentalSettings.enableCenteredProjectInHeader).toBe(true);
-    expect(store.getState().experimentalSettings.enableCloudWorkspace).toBe(false);
-    act(() => left.click());
-    expect(store.getState().experimentalSettings.enableCenteredProjectInHeader).toBe(false);
   });
 
   it("offers one default-off import experiment", () => {

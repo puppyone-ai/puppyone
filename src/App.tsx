@@ -234,7 +234,6 @@ function AppContent() {
   const enableOtherAppImports = useDesktopPreference(s => s.experimentalSettings.enableOtherAppImports);
   const enablePayments = useDesktopPreference(s => s.experimentalSettings.enablePayments);
   const enableAlwaysShowOnboardingCoachmarks = useDesktopPreference(s => s.experimentalSettings.enableAlwaysShowOnboardingCoachmarks);
-  const centerProjectInHeader = useDesktopPreference(s => s.experimentalSettings.enableCenteredProjectInHeader);
   const enableEditorTabsInHeader = useDesktopPreference(s => s.experimentalSettings.enableEditorTabsInHeader);
   const enableWorkbenchTabsInHeader = useDesktopPreference(s => s.experimentalSettings.enableWorkbenchTabsInHeader);
   // The Project switcher experiment. While the rail is the switcher it owns
@@ -1924,7 +1923,6 @@ function AppContent() {
   const titlebarContext = railOwnsProject ? null : (
     <DesktopTitlebarContext
       titlebarLabel={headerWorkspace.name}
-      menuAlignment={centerProjectInHeader ? "center" : "start"}
       projectReach={projectReach}
       placeMenu={placeMenu}
       locationActivity={cloudEnabled
@@ -2017,8 +2015,7 @@ function AppContent() {
           leftSidebarCollapsed={sidebarCollapsed}
           leftSidebarPresent={Boolean(dataPort)}
           leftSidebarWidth={explorerWidth}
-          titlebarSidebarSlot={centerProjectInHeader ? undefined : titlebarContext}
-          titlebarCenteredSlot={centerProjectInHeader ? titlebarContext : undefined}
+          titlebarSidebarSlot={titlebarContext}
           titlebarActions={titlebarActions}
           titlebarTabs={cloudWorkspaceActive
             ? editorTabsInHeaderEnabled && accountCloudPresentation.titlebarTabs

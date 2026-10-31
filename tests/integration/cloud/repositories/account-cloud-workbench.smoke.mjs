@@ -59,10 +59,8 @@ app.whenReady().then(async () => {
     const shell = document.querySelector('.desktop-account-cloud-workspace');
     const rect = (selector) => { const r = shell.querySelector(selector).getBoundingClientRect(); return { x:r.x, width:r.width, height:r.height }; };
     return { explorer:rect('.explorer-column'), editor:rect('.browser-column'),
-      header:rect('.desktop-titlebar'), project:rect('.desktop-titlebar-centered-context') };
+      header:rect('.desktop-titlebar') };
   })()`);
-  assert(Math.abs((geometry.project.x + geometry.project.width / 2) - (geometry.header.x + geometry.header.width / 2)) < 0.01,
-    "Hosted project context must remain centered in the Header");
   assert(await evaluate(`(() => {
     const header = document.querySelector('.desktop-titlebar');
     const probe = document.createElement('span');

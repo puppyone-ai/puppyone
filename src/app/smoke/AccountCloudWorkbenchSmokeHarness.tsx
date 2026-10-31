@@ -4,7 +4,7 @@ import { EditorView } from "@codemirror/view";
 import { useLocalization } from "@puppyone/localization";
 import { TypographyCatalogProvider, useTypographyCatalog, useTypographyRuntime } from "../../features/typography";
 import { resolveSurfaceAppearance, SurfaceAppearanceProvider } from "../../features/appearance/AppearanceRuntime";
-import { useDesktopPreference, useDesktopAppearance, useDesktopPreferenceEffects, initializeDesktopPreferences, desktopPreferencesStore } from "../../features/settings";
+import { useDesktopPreference, useDesktopAppearance, useDesktopPreferenceEffects, initializeDesktopPreferences } from "../../features/settings";
 import { MinimalOnboarding } from "../../components/MinimalOnboarding";
 import { useHomepageCloudProjects } from "../../features/cloud/workbench/useHomepageCloudProjects";
 import { HomepageCloudStatus } from "../../features/cloud/workbench/HomepageCloudStatus";
@@ -16,8 +16,6 @@ import { AccountCloudWorkspaceSurface, useAccountCloudWorkspacePresentation } fr
 import { createCloudAgentSmokeFixture, editCloudAgentPrompt } from "../../features/cloud/agent/CloudAgentSmokeFixture";
 
 initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeItem: () => {} });
-// The geometry acceptance below exercises the optional centered Header layout.
-desktopPreferencesStore.setState(s => ({ experimentalSettings: { ...s.experimentalSettings, enableCenteredProjectInHeader: true } }));
 
 const API = "https://cloud-fixture.puppyone.ai/api/v1";
 const project = (id: string) => ({ id, name: `Hosted ${id}`, org_id: "team", updated_at: id === "beta" ? "2026-06-01T00:00:00Z" : "2026-04-01T00:00:00Z", capabilities: ["content.read", "content.write"] });
