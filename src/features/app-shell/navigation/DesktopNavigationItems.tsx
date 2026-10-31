@@ -2,7 +2,7 @@ import { Tooltip } from "@puppyone/shared-ui";
 import { useEffect, useRef, useState } from "react";
 import { Blocks, Settings } from "lucide-react";
 import { useLocalization, type MessageFormatter } from "@puppyone/localization";
-import type { DesktopView } from "../../../components/DesktopCloudShell";
+import type { DesktopView } from "../../../components/ProjectShell";
 import {
   getDesktopGitNavSummary,
   getDesktopNavigationBadge,

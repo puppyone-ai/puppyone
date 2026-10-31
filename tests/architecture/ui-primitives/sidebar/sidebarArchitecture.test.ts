@@ -13,7 +13,7 @@ const dataSurfaceSource = read("../../../../src/features/app-shell/DesktopDataWo
 // The Data workspace and the frame it shares with surfaces that have no files yet.
 const dataWorkspaceSource = read("../../../../packages/shared-ui/src/data/DataWorkspace.tsx")
   + read("../../../../packages/shared-ui/src/data/DataWorkspaceFrame.tsx");
-const desktopShellSource = read("../../../../src/components/DesktopCloudShell.tsx");
+const desktopShellSource = read("../../../../src/components/ProjectShell.tsx");
 const appSource = read("../../../../src/App.tsx");
 const projectSwitcherSurfaceSource = read("../../../../src/features/app-shell/useProjectSwitcherSurface.ts");
 const railSource = read("../../../../src/features/app-shell/ProjectSwitcherRail.tsx");
@@ -137,7 +137,7 @@ describe("Sidebar architecture", () => {
     expect(desktopShellSource).not.toContain("PanelLeftOpen");
     expect(desktopShellSource).not.toContain("autoCollapsed");
     expect(desktopShellSource).not.toContain("autoClosed");
-    expect(appSource).toContain("onLeftSidebarExpand={() => setSidebarCollapsed(false)}");
+    expect(readFileSync(new URL("../../../../src/app/ProjectWindow.tsx", import.meta.url), "utf8")).toContain("onLeftSidebarExpand={() => setSidebarCollapsed(false)}");
     expect(appSource).not.toContain("if (autoCollapsed)");
   });
 

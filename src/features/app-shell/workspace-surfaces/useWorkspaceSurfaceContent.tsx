@@ -3,7 +3,7 @@ import { useMemo, type ReactNode } from "react";
 import { CloudFileWorkspaceGate } from "../../cloud/workbench/CloudFileWorkspaceGate";
 import type { CloudServiceMainViewProps } from "../../cloud/types";
 import { type Workspace } from "@puppyone/shared-ui";
-import type { DesktopView } from "../../../components/DesktopCloudShell";
+import type { DesktopView } from "../../../components/ProjectShell";
 import type { DesktopUpdatesController } from "../../updates";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import type {

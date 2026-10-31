@@ -14,7 +14,7 @@ const errors = [];
 const mainSource = read("electron/main.mjs");
 const shellCss = read("src/styles/shell.css");
 const tokensCss = read("src/styles/tokens.css");
-const desktopShellSource = read("src/components/DesktopCloudShell.tsx");
+const desktopShellSource = read("src/components/ProjectShell.tsx");
 const preloadSource = read("electron/preload.cjs");
 const windowLayoutIpcSource = read("electron/main/ipc/window-layout-ipc.mjs");
 const windowChromeProfileSource = read("electron/main/window-chrome-profile.mjs");
@@ -57,7 +57,7 @@ if (!windowLayoutIpcSource.includes("Math.max(DESKTOP_WINDOW_MIN_WIDTH, requeste
   errors.push("Dynamic pane minima must never lower the product-level 640px window floor.");
 }
 if (!desktopShellSource.includes("paneLayout.minimumWidth")) {
-  errors.push("DesktopCloudShell must publish its resolved pane minimum to the native window.");
+  errors.push("ProjectShell must publish its resolved pane minimum to the native window.");
 }
 if (
   !mainSource.includes("desktopPlatformHost.windowChrome.browserWindowOptions")

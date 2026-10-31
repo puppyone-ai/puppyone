@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DesktopCloudShell } from "../../../../src/components/DesktopCloudShell";
+import { ProjectShell } from "../../../../src/components/ProjectShell";
 import { DesktopHelpLauncher } from "../../../../src/features/app-shell/DesktopHelpLauncher";
 import { DesktopSidebarFooterNavigation } from "../../../../src/features/app-shell/navigation";
 import { renderWithTestLocalization } from "../../../support/react/localization";
@@ -257,7 +257,7 @@ describe("DesktopHelpLauncher", () => {
   it("belongs to the Sidebar utility edge instead of the Chat and Terminal panel", () => {
     const utility = <DesktopHelpLauncher />;
     const container = renderLauncher(
-      <DesktopCloudShell
+      <ProjectShell
         rightSidebar={<div data-testid="auxiliary-panel">Chat or Terminal</div>}
         rightSidebarOpen
       >
@@ -272,7 +272,7 @@ describe("DesktopHelpLauncher", () => {
           onNavigate={vi.fn()}
           onOpenSettings={vi.fn()}
         />
-      </DesktopCloudShell>,
+      </ProjectShell>,
     );
 
     const mainSurface = container.querySelector("main.desktop-surface");
@@ -299,7 +299,7 @@ describe("DesktopHelpLauncher", () => {
     expect(appSource).toContain("const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);");
     expect(appSource).toContain("renderLeadingRail={railOwnsProject ? ({ expanded }) => renderProjectRail(");
     expect(appSource).toContain("expanded={expanded}");
-    expect(appSource).toContain("leftSidebarCollapsed={sidebarCollapsed}");
+    expect(readFileSync("src/app/ProjectWindow.tsx", "utf8")).toContain("leftSidebarCollapsed={sidebarCollapsed}");
     // Local right-sidebar content never shows over a Cloud workspace.
     expect(appSource).toMatch(/rightSidebarOpen=\{[^}]*\brightSidebarContentVisible\b[^}]*\}/);
     expect(appSource).toMatch(/const localRightSidebarActive = !cloudWorkspaceActive\b/);

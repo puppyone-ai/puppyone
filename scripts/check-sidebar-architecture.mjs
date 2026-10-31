@@ -299,7 +299,7 @@ if (!dataContent.includes("display: flex")) {
 if (dataContent.includes("grid-template-columns")) {
   errors.push("Shared DataWorkspace must not consume the overlay resize hit target as layout width.");
 }
-const shellSource = read(absolute("src/components/DesktopCloudShell.tsx"));
+const shellSource = read(absolute("src/components/ProjectShell.tsx"));
 if (!shellSource.includes("onLeadingRailWidthChange?.(commit.restoreWidth)")) {
   errors.push("The Workspace rail must persist the shared collapse restore width.");
 }
@@ -419,7 +419,7 @@ if (
 ) {
   errors.push("Desktop explorer resize must register both initial-press routing and active-drag native-surface passthrough.");
 }
-if (!shellSource.includes("<AuxiliaryPanelHost")) errors.push("DesktopCloudShell must delegate Auxiliary geometry/lifecycle to AuxiliaryPanelHost.");
+if (!shellSource.includes("<AuxiliaryPanelHost")) errors.push("ProjectShell must delegate Auxiliary geometry/lifecycle to AuxiliaryPanelHost.");
 
 if (errors.length > 0) {
   console.error("Sidebar architecture check failed:");

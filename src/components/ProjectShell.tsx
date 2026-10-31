@@ -49,7 +49,7 @@ export type DesktopLeadingRailRenderState = Readonly<{ expanded: boolean }>;
 // Settings: the stable composition keeps Cloud, Git, and Chat right-aligned.
 const FOLLOW_RIGHT_SIDEBAR_EDGE_IN_HEADER = false;
 
-type DesktopCloudShellProps = {
+type ProjectShellProps = {
   children: ReactNode;
   workspaceLocation?: "local" | "cloud";
   /** Retained hidden workspaces must not publish native window constraints. */
@@ -91,7 +91,7 @@ type DesktopCloudShellProps = {
   onRightSidebarWidthChange?: (width: number) => void;
 };
 
-export function DesktopCloudShell({
+export function ProjectShell({
   children,
   workspaceLocation = "local",
   active = true,
@@ -130,7 +130,7 @@ export function DesktopCloudShell({
   onLeadingRailWidthChange,
   onRightSidebarOpenChange,
   onRightSidebarWidthChange,
-}: DesktopCloudShellProps) {
+}: ProjectShellProps) {
   const { t } = useLocalization();
   const bodyRef = useRef<HTMLDivElement>(null);
   const [navigationToolbarHost, setNavigationToolbarHost] = useState<HTMLDivElement | null>(null);

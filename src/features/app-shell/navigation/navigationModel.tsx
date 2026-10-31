@@ -1,5 +1,5 @@
 import type { MessageFormatter } from "@puppyone/localization";
-import type { DesktopView } from "../../../components/DesktopCloudShell";
+import type { DesktopView } from "../../../components/ProjectShell";
 import type { GitStatusEntry, GitStatusSnapshot } from "../../../types/electron";
 import { VersionControlIcon } from "../../source-control";
 import type {

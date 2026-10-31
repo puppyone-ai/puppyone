@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AuxiliaryWorkbenchPanel } from "../../features/app-shell/auxiliary-workbench/AuxiliaryWorkbenchPanel";
 import { EditorView } from "@codemirror/view";
 import { createWorkspaceRootUri, createWorkspaceResourceUri, getWorkspaceResourcePath, canonicalizeResourceUri, isDocumentDataNode, withEditorDocumentOperations, type DataPort, type Workspace, type WorkspaceFolder } from "@puppyone/shared-ui";
-import { DesktopCloudShell } from "../../components/DesktopCloudShell";
+import { ProjectShell } from "../../components/ProjectShell";
 import { resetDesktopPlatformCapabilitiesForTests } from "../../platform";
 import { DesktopOverlayPortal } from "../../components/DesktopOverlayPortal";
 import { DesktopTitlebarContext } from "../../features/app-shell/DesktopTitlebarContext";
@@ -346,7 +346,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
 
   return <div className={`app-shell${theme === "dark" ? " dark" : ""}`} data-po-appearance-root="true" data-native-cloud-smoke-ready="true">
     <DesktopOverlayPortal theme={theme}>{null}</DesktopOverlayPortal>
-    <DesktopCloudShell onGoHome={noop} workspaceLocation={location} leftSidebarCollapsed={sidebarCollapsed} leftSidebarWidth={explorerWidth}
+    <ProjectShell onGoHome={noop} workspaceLocation={location} leftSidebarCollapsed={sidebarCollapsed} leftSidebarWidth={explorerWidth}
       rightSidebarOpen={sidebar.open}
       rightSidebarWidth={360} resizableRightSidebar
       onRightSidebarOpenChange={sidebar.setOpen}
@@ -369,7 +369,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
         local={<DesktopDataWorkspaceSurface {...commonSurfaceProps} cloudProjectNotice={cloudProjectNotice} />}
         cloud={<DesktopCloudFileWorkspace workbench={workbench} surfaceProps={commonSurfaceProps}
           providerStateContent={null} />} />
-    </DesktopCloudShell>
+    </ProjectShell>
     {cloudDialogOpen && cloudDialogAvailable && <CloudDialog sidebar={null}
       main={<SmokeCloudDialogContent signedIn={cloudSessionAvailable} publishLoading={publishLoading}
         onPublish={(organizationId) => { publishRequests.push(organizationId); setPublishLoading(true); }} />}

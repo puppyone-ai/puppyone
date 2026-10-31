@@ -1,7 +1,7 @@
 [
   {
     "type": "dependency",
-    "from": "src/components/DesktopCloudShell.tsx",
+    "from": "src/components/ProjectShell.tsx",
     "to": "src/features/app-shell/auxiliary/index.ts",
     "rule": {
       "severity": "error",
@@ -10,7 +10,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/components/DesktopCloudShell.tsx",
+    "from": "src/components/ProjectShell.tsx",
     "to": "src/features/app-shell/DesktopShellAccessoryContext.tsx",
     "rule": {
       "severity": "error",
@@ -19,7 +19,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/components/DesktopCloudShell.tsx",
+    "from": "src/components/ProjectShell.tsx",
     "to": "src/features/app-shell/layout/DesktopPaneLayoutContext.tsx",
     "rule": {
       "severity": "error",
@@ -28,7 +28,7 @@
   },
   {
     "type": "dependency",
-    "from": "src/components/DesktopCloudShell.tsx",
+    "from": "src/components/ProjectShell.tsx",
     "to": "src/features/app-shell/workspace-surfaces/index.ts",
     "rule": {
       "severity": "error",
@@ -6515,7 +6515,7 @@
   },
   {
     "type": "cycle",
-    "from": "src/components/DesktopCloudShell.tsx",
+    "from": "src/components/ProjectShell.tsx",
     "to": "src/features/app-shell/workspace-surfaces/index.ts",
     "rule": {
       "severity": "error",
@@ -6538,7 +6538,7 @@
         ]
       },
       {
-        "name": "src/components/DesktopCloudShell.tsx",
+        "name": "src/components/ProjectShell.tsx",
         "dependencyTypes": [
           "local",
           "type-only",

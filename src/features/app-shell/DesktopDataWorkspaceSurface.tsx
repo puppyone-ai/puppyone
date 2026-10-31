@@ -40,7 +40,7 @@ import type { GitStatusSnapshot } from "../../types/electron";
 import { useDesktopExplorerFrame } from "./layout/useDesktopExplorerFrame";
 import { DesktopSidebarFooterNavigation } from "./navigation";
 import { WorkspaceSurfaceOutlet, type ResolvedWorkspaceSurface } from "./workspace-surfaces";
-import type { DesktopView } from "../../components/DesktopCloudShell";
+import type { DesktopView } from "../../components/ProjectShell";
 import { DesktopEditorSplitView } from "../editor-workbench/layout/DesktopEditorSplitView";
 import type { DesktopEditorWorkbenchController } from "../editor-workbench/controller/useDesktopEditorWorkbench";
 import {

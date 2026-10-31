@@ -24,7 +24,7 @@ import {
 } from "../../../../src/features/app-shell/ProjectEntryFlow";
 import { useProjectNavigation } from "../../../../src/features/app-shell/window-project/useProjectNavigation";
 import { ProjectEntryLauncherDialog } from "../../../../src/features/app-shell/ProjectEntryLauncherDialog";
-import { DesktopCloudShell } from "../../../../src/components/DesktopCloudShell";
+import { ProjectShell } from "../../../../src/components/ProjectShell";
 import { withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
@@ -49,7 +49,7 @@ describe("Project switcher rail", () => {
     document.body.append(host);
     root = createRoot(host);
     const renderShell = (activeWorkspace: Workspace) => withTestLocalization(
-      <DesktopCloudShell
+      <ProjectShell
         leadingRailWidth={220}
         leadingRailCollapsed={!expanded}
         leadingRailCollapsedWidth={56}
@@ -61,7 +61,7 @@ describe("Project switcher rail", () => {
         )}
       >
         <div>{activeWorkspace.name}</div>
-      </DesktopCloudShell>,
+      </ProjectShell>,
     );
     await act(async () => root?.render(renderShell(alpha)));
     const rail = host.querySelector(".desktop-project-switcher-rail");

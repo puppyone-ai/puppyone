@@ -4,7 +4,7 @@ import "../../../../src/styles.css";
 import { canonicalizeResourceUri } from "@puppyone/shared-ui";
 import { useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { DesktopCloudShell } from "../../../../src/components/DesktopCloudShell";
+import { ProjectShell } from "../../../../src/components/ProjectShell";
 import { DesktopTitlebarContext } from "../../../../src/features/app-shell/DesktopTitlebarContext";
 import { AuxiliaryWorkbenchHeader } from "../../../../src/features/app-shell/auxiliary-workbench/layout/AuxiliaryWorkbenchHeader";
 import { TerminalSessionHeader } from "../../../../src/features/desktop-terminal/ui/session-header/TerminalSessionHeader";
@@ -44,7 +44,7 @@ function Harness() {
     onHome={activate} onCreateProject={activate} onSelectProject={activate}
     onToggle={() => setMenuOpen(open => !open)} onClose={() => setMenuOpen(false)} />;
   return <div className="app-shell" data-drag-fixture={mode} style={{ height: "100vh" }}>
-    <DesktopCloudShell leftSidebarWidth={220} leftSidebarCollapsed={params.get("collapsed") === "true"}
+    <ProjectShell leftSidebarWidth={220} leftSidebarCollapsed={params.get("collapsed") === "true"}
       titlebarSidebarSlot={context}
       titlebarTabs={tabs} titlebarTabsHostRef={mode === "empty-host" ? host : undefined}
       alignTitlebarTabsToExplorer={mode === "files" || mode === "overflow"}
@@ -57,7 +57,7 @@ function Harness() {
         <output id="clicks">{clicks}</output>
         <p id="native-bounds" />
       </main>
-    </DesktopCloudShell>
+    </ProjectShell>
   </div>;
 }
 createRoot(document.getElementById("root")!).render(withTestLocalization(<Harness />));

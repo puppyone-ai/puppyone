@@ -18,7 +18,7 @@ import {
   DesktopSidebarPluginsButton,
   DesktopSidebarSettingsButton,
 } from "./navigation/DesktopNavigationItems";
-import type { DesktopView } from "../../components/DesktopCloudShell";
+import type { DesktopView } from "../../components/ProjectShell";
 import { beginProjectRootDrag } from "./projectRootDrag";
 import {
   ProjectRowActions,
