@@ -12,17 +12,17 @@ import { MoreVertical, Pencil, Trash2, Unlink } from "lucide-react";
 import {
   DesktopDialogCloseButton,
   DesktopDialogRoot,
-} from "../../components/DesktopDialog";
+} from "./DesktopDialog";
 import {
   DesktopMenuItem,
   DesktopMenuSeparator,
-} from "../../components/DesktopMenu";
+} from "./DesktopMenu";
 import {
   DesktopSidebarActionMenu,
   resolveDesktopActionMenuPositionBeside,
   resolveDesktopSidebarActionMenuPosition,
-} from "../../components/DesktopSidebarActionMenu";
-import { DesktopOverlayLayer } from "../../components/DesktopOverlayPortal";
+} from "./DesktopSidebarActionMenu";
+import { DesktopOverlayLayer } from "./DesktopOverlayPortal";
 import { ProjectMenuHeader } from "./ProjectMenuHeader";
 
 export type ProjectActionSurface = "menu" | "rename" | "unlink" | "delete" | null;

@@ -76,6 +76,13 @@ const scenarios = {
     assert(nested.x > outer.x + 16, `nested handle ${nested.x} should indent past ${outer.x}`);
     assert(Math.abs(outer.x - (rail.left - 13)) <= 2, `root item handle ${outer.x} should sit on the rail`);
   },
+  async "the handle measures its marker offset in document text"(page) {
+    const rail = await page.call("rail"), row = await page.call("row", "item a1");
+    await page.hover(rail.left + 100, (row.top + row.bottom) / 2);
+    const [handle, text] = await page.window.webContents.executeJavaScript(`[".cm-md-block-drag-handle", ".cm-content"]
+      .map(selector => getComputedStyle(document.querySelector(selector)).fontSize)`);
+    assert.equal(handle, text, "the handle's em offsets should resolve against the document text size");
+  },
   async "widgets are reachable and align to their first row"(page) {
     await page.call("setScrollTop", 560); await sleep(160);
     for (const selector of [".cm-md-code-widget", ".cm-md-table-widget-wrap", ".cm-md-hr-widget"]) {

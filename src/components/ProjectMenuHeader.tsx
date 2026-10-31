@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
-import { DesktopMenuItem } from "../../components/DesktopMenu";
-import { writeClipboardText } from "../../lib/clipboard";
-import { getWorkspacePathForDisplay } from "../../lib/workspaceHomeModel";
+import { DesktopMenuItem } from "./DesktopMenu";
+import { writeClipboardText } from "../lib/clipboard";
+import { getWorkspacePathForDisplay } from "../lib/workspaceHomeModel";
 
 /**
  * The name is already on the row that opened this menu, so it only says where the

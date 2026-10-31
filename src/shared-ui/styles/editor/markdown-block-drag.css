@@ -33,7 +33,7 @@
   color: var(--po-text-subtle);
   cursor: grab;
   /* The list marker tokens below are in em, relative to the document text. */
-  font-size: inherit;
+  font-size: var(--po-md-content-size);
   line-height: 1;
   opacity: 0;
   outline: 0;
