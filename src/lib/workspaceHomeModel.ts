@@ -1,3 +1,4 @@
+import type { HomepageProjectSort } from "../preferenceStorage";
 import type { Workspace } from "@puppyone/shared-ui";
 import type { getRecentWorkspaces } from "./localFiles";
 
@@ -30,6 +31,39 @@ export type ProjectHomeItem = {
 
 export function projectHomeItemLocation(item: ProjectHomeItem): "local" | "cloud" {
   return item.localPath ? "local" : "cloud";
+}
+
+export const PROJECT_HOME_PLACES = ["local", "cloud"] as const;
+export type ProjectHomePlace = typeof PROJECT_HOME_PLACES[number];
+
+/** The places that hold at least one of these projects. */
+export function projectHomeLocations(items: readonly ProjectHomeItem[]) {
+  return new Set(items.map(projectHomeItemLocation));
+}
+
+function modificationTime(item: ProjectHomeItem) {
+  const time = Date.parse(item.lastModifiedAt ?? "");
+  return Number.isNaN(time) ? Number.NEGATIVE_INFINITY : time;
+}
+
+/** Narrows and orders projects, leaving equals in the order the catalog gave them. */
+export function viewProjectHomeItems(items: readonly ProjectHomeItem[], { places, sort, locale, untitled }: {
+  /** The places to show, any of them; none chosen means every place. */
+  places: ReadonlySet<ProjectHomePlace>;
+  sort: HomepageProjectSort;
+  locale: string;
+  untitled: string;
+}) {
+  const shown = items.filter((item) => places.size === 0 || places.has(projectHomeItemLocation(item)));
+  if (sort === "name") {
+    const collator = new Intl.Collator(locale, { numeric: true, sensitivity: "base" });
+    return shown.sort((a, b) => collator.compare(getProjectName(a, untitled), getProjectName(b, untitled)));
+  }
+  return shown.sort((a, b) => {
+    const [newer, older] = [modificationTime(b), modificationTime(a)];
+    if (newer === older) return 0;
+    return newer > older ? 1 : -1;
+  });
 }
 
 export function mergeWorkspaceLists(current: Workspace[], incoming: Workspace[]) {

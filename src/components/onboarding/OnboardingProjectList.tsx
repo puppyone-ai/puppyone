@@ -1,7 +1,7 @@
 import { Tooltip } from "@puppyone/shared-ui";
 import { bidiIsolate, useLocalization, type MessageFormatter } from "@puppyone/localization";
 import { Unlink } from "lucide-react";
-import type { ButtonHTMLAttributes, DragEvent as ReactDragEvent } from "react";
+import { useRef, useState, type ButtonHTMLAttributes, type DragEvent as ReactDragEvent } from "react";
 import {
   getProjectName,
   getWorkspaceParentPathForDisplay,
@@ -30,7 +30,7 @@ type OnboardingProjectListProps = {
 
 export function OnboardingProjectList({
   items,
-  layout = "list",
+  layout = "grid",
   onOpenCloudProject,
   busy,
   openingPath,
@@ -77,7 +77,7 @@ export function OnboardingProjectList({
             {layout === "grid" ? <ProjectTile item={item} name={name} modified={modified} {...open} /> : <DesktopMenuItem
               className="onboarding-project-row"
               role="button"
-              icon={<HomeProjectIcon item={item} />}
+              icon={<HomeProjectIcon item={item} filled />}
               label={<bdi>{name}</bdi>}
               detail={location === "cloud" ? <ProjectHomeItemCaption item={item} />
                 : <bdi dir="ltr">{getWorkspaceParentPathForDisplay(item.localPath)}</bdi>}
@@ -106,7 +106,10 @@ export function OnboardingProjectList({
   );
 }
 
-/** One project on the Grid: a folder and one line of name, all of it one hover away. */
+/**
+ * One project on the Grid: a folder and one line of name. The tooltip adds where it
+ * lives and when it last changed, and the name itself only when the line has cut it.
+ */
 function ProjectTile({ item, name, modified, ...button }: {
   item: ProjectHomeItem;
   name: string;
@@ -114,11 +117,17 @@ function ProjectTile({ item, name, modified, ...button }: {
 } & ButtonHTMLAttributes<HTMLButtonElement>) {
   const caption = useProjectHomeItemCaption(item);
   const place = projectHomeItemLocation(item) === "cloud" ? caption : getWorkspaceParentPathForDisplay(item.localPath);
+  const nameRef = useRef<HTMLElement>(null);
+  const [nameCut, setNameCut] = useState(false);
+  const measureName = () => {
+    const shown = nameRef.current;
+    setNameCut(Boolean(shown && shown.scrollWidth > shown.clientWidth));
+  };
   return (
-    <Tooltip content={[name, place, modified].filter(Boolean).join(" · ")}>
-      <button type="button" className="onboarding-project-tile" {...button}>
+    <Tooltip content={[nameCut && name, place, modified].filter(Boolean).join(" · ")}>
+      <button type="button" className="onboarding-project-tile" onPointerEnter={measureName} onFocus={measureName} {...button}>
         <ProjectFolder item={item} />
-        <bdi className="onboarding-project-tile-name">{name}</bdi>
+        <bdi ref={nameRef} className="onboarding-project-tile-name">{name}</bdi>
       </button>
     </Tooltip>
   );

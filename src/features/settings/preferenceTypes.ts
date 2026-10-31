@@ -1,7 +1,8 @@
 import type { FileIconThemeId } from "@puppyone/shared-ui";
 import type { AgentRoutePreference, AgentRoutingPreferences } from "../../agentRoutingPreferences";
 import type { CreateNewMenuSettings, DiffMarkers, ExperimentalSettings, FilesVisibilitySettings, GitDisplayMode, InterfaceStyle, LoadingPlaceholderStyle, LocalAgentsSettings, RightSidebarToolsSettings, ThemeMode, TitlebarActionsSettings, TypographyPreferences } from "../../preferences";
-import type { HomepageProjectLayout, RightSidebarSurface } from "../../preferenceStorage";
+import type { HomepageProjectLayout,
+  HomepageProjectSort, RightSidebarSurface } from "../../preferenceStorage";
 import type { RootThemeAppearancePreferences } from "../appearance";
 import type { MarkdownPresentationSettings } from "../markdown";
 import type { SubThemeCatalogSnapshot } from "../themes";
@@ -33,6 +34,8 @@ export type AppearanceSlice = {
 export type LayoutSlice = {
   homepageProjectLayout: HomepageProjectLayout;
   setHomepageProjectLayout: PreferenceAction<HomepageProjectLayout>;
+  homepageProjectSort: HomepageProjectSort;
+  setHomepageProjectSort: PreferenceAction<HomepageProjectSort>;
   explorerWidth: number;
   setExplorerWidth: PreferenceAction<number>;
   sidebarCollapsed: boolean;

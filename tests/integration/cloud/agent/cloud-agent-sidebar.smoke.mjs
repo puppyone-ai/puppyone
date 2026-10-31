@@ -134,8 +134,8 @@ async function exercise(mode) {
   await window.loadURL(`${pathToFileURL(path.join(repo, "dist/index.html")).href}#${hosted ? "account" : "native"}-cloud-workbench-smoke`);
   await waitFor(`Boolean(${api})`);
   if (hosted) {
-    await waitFor("Boolean(document.querySelector('[data-cloud-project-id=alpha] .onboarding-project-row'))");
-    await evaluate("document.querySelector('[data-cloud-project-id=alpha] .onboarding-project-row').click()");
+    await waitFor("Boolean(document.querySelector('[data-cloud-project-id=alpha] :is(.onboarding-project-row, .onboarding-project-tile)'))");
+    await evaluate("document.querySelector('[data-cloud-project-id=alpha] :is(.onboarding-project-row, .onboarding-project-tile)').click()");
     await waitFor(`${api}.state().active`);
     await waitFor("Boolean(document.querySelector('[data-cloud-native=true] .tree-row'))");
     await evaluate("document.querySelector('[data-cloud-native=true] .tree-row').click()");
@@ -254,8 +254,8 @@ async function exercise(mode) {
     await evaluate("document.querySelector('.browser-column .editor-inline-error button.action').click()");
     await waitFor("document.querySelector('.browser-column .cm-content')?.textContent.includes('AGENT_PUBLISHED_CLOUD_BODY_3')");
     await evaluate(`${api}.home()`);
-    await waitFor("Boolean(document.querySelector('[data-cloud-project-id=beta] .onboarding-project-row'))");
-    await evaluate("document.querySelector('[data-cloud-project-id=beta] .onboarding-project-row').click()");
+    await waitFor("Boolean(document.querySelector('[data-cloud-project-id=beta] :is(.onboarding-project-row, .onboarding-project-tile)'))");
+    await evaluate("document.querySelector('[data-cloud-project-id=beta] :is(.onboarding-project-row, .onboarding-project-tile)').click()");
     await waitFor(`${api}.state().project === 'beta' && Boolean(${entry})`);
     assert(await evaluate(`${entry}.getAttribute('aria-expanded') === 'false'`), "A different project owns a separate closed sidebar");
     await evaluate(`${entry}.click()`); await waitFor(`Boolean(${composer})`);

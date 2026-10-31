@@ -14,6 +14,17 @@ app.commandLine.appendSwitch("disable-gpu");
 app.commandLine.appendSwitch("force-prefers-reduced-motion");
 let window;
 let server;
+
+/** The smallest window the app allows, and the column the page keeps down to it. */
+const MINIMUM_WIDTH = 720;
+const MINIMUM_HEIGHT = 520;
+const PROJECT_COLUMN = 640;
+const EMPTY_COLUMN = 440;
+const TITLE_INSET = 32;
+const GRID_COLUMNS = 5;
+const PROJECT_TYPE = ["12px/400", "14px/400", "16px/500"];
+const EMPTY_TYPE = ["14px/400", "19px/500"];
+
 const evaluate = (source) => window.webContents.executeJavaScript(source);
 async function until(expression) {
   for (let attempt = 0; attempt < 240; attempt++) {
@@ -22,9 +33,54 @@ async function until(expression) {
   }
   throw new Error(`Timed out waiting for ${expression}`);
 }
+const press = (keyCode, modifiers = []) => {
+  window.webContents.sendInputEvent({ type: "keyDown", keyCode, modifiers });
+  if (keyCode === "Enter") window.webContents.sendInputEvent({ type: "char", keyCode: "\r" });
+  window.webContents.sendInputEvent({ type: "keyUp", keyCode, modifiers });
+};
+const settle = "new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))).then(() => Promise.all(document.getAnimations().map(animation => animation.finished)))";
+const typeLevels = `(() => {
+  const levels = new Set();
+  const walker = document.createTreeWalker(document.querySelector('.onboarding-launcher'), NodeFilter.SHOW_TEXT);
+  while (walker.nextNode()) {
+    if (!walker.currentNode.textContent.trim()) continue;
+    const style = getComputedStyle(walker.currentNode.parentElement);
+    levels.add(style.fontSize + '/' + style.fontWeight);
+  }
+  return [...levels].sort((a, b) => parseFloat(a) - parseFloat(b));
+})()`;
+const shot = async (name) => writeFile(path.join(screenshots, `${name}.png`), (await window.capturePage()).toPNG());
 
-const timeout = setTimeout(() => { console.error("Onboarding visual smoke timed out"); app.exit(1); }, 90_000);
+const timeout = setTimeout(() => { console.error("Onboarding visual smoke timed out"); app.exit(1); }, 170_000);
 app.whenReady().then(runSmoke).catch((error) => { console.error(error); app.exit(1); });
+
+async function open({ theme, state, width, height, count = 1, mixed = false, layout }) {
+  window.setContentSize(width, height);
+  const url = new URL(`http://127.0.0.1:${server.httpServer.address().port}/tests/fixtures/workspace/projects/onboarding-home.html`);
+  url.searchParams.set("theme", theme);
+  url.searchParams.set("state", state);
+  url.searchParams.set("count", String(count));
+  if (mixed) url.searchParams.set("mixed", "1");
+  await window.loadURL(url.href);
+  // Attach only after navigation creates the renderer target. The app-level
+  // reduced-motion switch is already visible during the initial React mount.
+  if (!window.webContents.debugger.isAttached()) window.webContents.debugger.attach("1.3");
+  await window.webContents.debugger.sendCommand("Emulation.setFocusEmulationEnabled", { enabled: true });
+  await until("!!document.querySelector('[data-onboarding-action=create]') && !document.querySelector('[data-onboarding-empty-state-intro]')");
+  await until("[...document.querySelectorAll('.onboarding-brand-lockup img')].every(image => image.complete && image.naturalWidth > 0)");
+  if (layout) await chooseLayout(layout);
+  await window.webContents.debugger.sendCommand("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 39 });
+  await evaluate(settle);
+}
+
+const LAYOUT_TRIGGER = ".onboarding-view-menu-root .po-icon-button:not(.onboarding-view-menu-trigger)";
+async function chooseLayout(layout) {
+  if (await evaluate(`document.querySelector('.onboarding-project-list').dataset.projectLayout === '${layout}'`)) return;
+  await evaluate(`document.querySelector('${LAYOUT_TRIGGER}').click()`);
+  await until(`!!document.querySelector('[data-project-layout-option=${layout}]')`);
+  await evaluate(`document.querySelector('[data-project-layout-option=${layout}]').click()`);
+  await until(`document.querySelector('.onboarding-project-list').dataset.projectLayout === '${layout}'`);
+}
 
 async function runSmoke() {
   let exitCode = 0;
@@ -46,371 +102,18 @@ async function runSmoke() {
     window.webContents.on("console-message", (details) => {
       if (details.level === "error") console.error(details.message);
     });
-    const labels = { en: "New empty project" };
-    const projectPrompts = { en: "Which project do you want to start with?" };
-    const importLabels = { en: "Import" };
-    const importIntros = { en: "Bring content from these apps into a local project." };
-    for (const locale of Object.keys(labels)) {
-      for (const theme of ["dark", "light"]) {
-        for (const [state, width, height] of [
-          ["empty", 900, 680], ["empty", 563, 469], ["empty", 360, 520],
-          ["projects", 900, 680], ["projects", 640, 535],
-        ]) {
-          window.setContentSize(width, height);
-          const url = new URL(`http://127.0.0.1:${server.httpServer.address().port}/tests/fixtures/workspace/projects/onboarding-home.html`);
-          url.searchParams.set("theme", theme);
-          url.searchParams.set("state", state);
-          await window.loadURL(url.href);
-          // Attach only after navigation creates the renderer target. The app-level
-          // reduced-motion switch is already visible during the initial React mount.
-          if (!window.webContents.debugger.isAttached()) window.webContents.debugger.attach("1.3");
-          await window.webContents.debugger.sendCommand("Emulation.setFocusEmulationEnabled", { enabled: true });
-          await until("!!document.querySelector('[data-onboarding-action=create]') && !document.querySelector('[data-onboarding-empty-state-intro]')");
-          await until("[...document.querySelectorAll('.onboarding-brand-lockup img, .onboarding-entry-import img')].every(image => image.complete && image.naturalWidth > 0)");
-          const snapshot = await evaluate(`(() => {
-            const rect = (element) => { if (!element) return null; const r = element.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; };
-            const create = document.querySelector('[data-onboarding-action=create]');
-            const open = document.querySelector('[data-onboarding-action=open]');
-            const importButton = document.querySelector('.onboarding-entry-import');
-            const importLabel = importButton.querySelector('.onboarding-entry-import-label');
-            const importMarks = [...importButton.querySelectorAll('.onboarding-import-mark')];
-            const importBadges = [...importButton.querySelectorAll('.onboarding-entry-import-brand-badge')];
-            const label = create.querySelector('.po-button__label');
-            const brand = document.querySelector('.onboarding-brand-lockup');
-            const launcher = document.querySelector('.onboarding-launcher');
-            const primarySection = document.querySelector('.onboarding-home-primary');
-            const actions = document.querySelector('.onboarding-entry-actions');
-            const projectPanel = primarySection.dataset.onboardingPrimary === 'projects' ? primarySection : null;
-            const projectRow = document.querySelector('.onboarding-project-row');
-            const projectPanelStyle = projectPanel && getComputedStyle(projectPanel);
-            const primaryStyle = getComputedStyle(primarySection);
-            const firstSection = primarySection;
-            const firstClickable = projectRow || create;
-            const buttons = [...document.querySelectorAll('.onboarding-entry-action')];
-            const images = [...document.querySelectorAll('.onboarding-brand-lockup img, .onboarding-entry-import img')];
-            return {
-              create: rect(create), brand: rect(brand), launcher: rect(launcher), actions: rect(actions), label: create.textContent,
-              homepage: rect(document.querySelector('.onboarding-homepage')),
-              brandText: brand.querySelector('.onboarding-brand-name, .onboarding-brand-prompt').textContent,
-              primaryKind: primarySection.dataset.onboardingPrimary,
-              primaryBorderTop: primaryStyle.borderTopWidth,
-              primaryPaddingTop: primaryStyle.paddingTop,
-              primaryPaddingBottom: primaryStyle.paddingBottom,
-              primaryMarginBottom: primaryStyle.marginBottom,
-              primaryBorderBottom: primaryStyle.borderBottomWidth,
-              firstSection: rect(firstSection),
-              firstClickable: rect(firstClickable),
-              createFont: parseFloat(getComputedStyle(label).fontSize),
-              createMinWidth: getComputedStyle(create).minWidth,
-              createWeight: getComputedStyle(label).fontWeight,
-              createLineHeight: getComputedStyle(label).lineHeight,
-              createFamily: getComputedStyle(label).fontFamily,
-              openFont: parseFloat(getComputedStyle(open.querySelector('.po-button__label')).fontSize),
-              openFamily: getComputedStyle(open.querySelector('.po-button__label')).fontFamily,
-              openHeight: rect(open).height,
-              brandFont: getComputedStyle(brand.querySelector('.onboarding-brand-name, .onboarding-brand-prompt')).fontSize,
-              brandMarkWidth: rect(brand.querySelector('img')).width,
-              actionIconWidth: rect(create.querySelector('svg')).width,
-              actionIcon: rect(create.querySelector('.po-button__icon')),
-              openIcon: rect(open.querySelector('.po-button__icon')),
-              importButton: rect(importButton), open: rect(open),
-              projectPanel: rect(projectPanel),
-              projectRow: rect(projectRow),
-              projectIcon: rect(projectRow?.querySelector('.desktop-menu-item-icon')),
-              projectPanelFrame: projectPanelStyle && {
-                borderTop: projectPanelStyle.borderTopWidth,
-                borderRight: projectPanelStyle.borderRightWidth,
-                borderBottom: projectPanelStyle.borderBottomWidth,
-                borderLeft: projectPanelStyle.borderLeftWidth,
-                paddingRight: projectPanelStyle.paddingRight,
-                paddingLeft: projectPanelStyle.paddingLeft,
-                paddingTop: projectPanelStyle.paddingTop,
-              },
-              importFont: parseFloat(getComputedStyle(importLabel).fontSize),
-              importWeight: getComputedStyle(importLabel).fontWeight,
-              importLineHeight: getComputedStyle(importLabel).lineHeight,
-              importFamily: getComputedStyle(importLabel).fontFamily,
-              importBackground: getComputedStyle(importButton).backgroundColor,
-              importColor: getComputedStyle(importButton).color,
-              importIcon: rect(importButton.querySelector('.po-button__icon svg')),
-              importArtworkCount: importButton.querySelectorAll('img, svg').length,
-              importMarks: importMarks.map(rect),
-              importMarkOpacities: importMarks.map(mark => getComputedStyle(mark).opacity),
-              importMarkFilters: importMarks.map(mark => getComputedStyle(mark).filter),
-              importBadges: importBadges.map(rect),
-              importBadgeBackgrounds: importBadges.map(badge => getComputedStyle(badge).backgroundColor),
-              importBadgeRadii: importBadges.map(badge => getComputedStyle(badge).borderRadius),
-              importBadgeStackOrder: importBadges.map(badge => getComputedStyle(badge).zIndex),
-              importBrandIds: importMarks.map(image => image.dataset.importBrand),
-              importBrandLabels: importMarks.map(image => image.alt),
-              importLabel: rect(importLabel),
-              importBrands: rect(importButton.querySelector('.onboarding-entry-import-brands')),
-              importText: importButton.textContent,
-              actionCount: buttons.length,
-              reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
-              clipped: buttons.some(button => button.scrollWidth > button.clientWidth + 1)
-                || buttons.some(button => {
-                  const text = button.querySelector('.po-button__label');
-                  return text && text.scrollWidth > text.clientWidth + 1;
-                }),
-              outside: buttons.some(button => { const r = button.getBoundingClientRect(); return r.left < 0 || r.right > innerWidth || r.top < 38 || r.bottom > innerHeight; }),
-              tagline: !!document.querySelector('.onboarding-brand-tagline'),
-              imagesLoaded: images.length === 1 + importMarks.length
-                && images.every(image => image.complete && image.naturalWidth > 0),
-            };
-          })()`);
-          const context = `${state}/${locale}/${theme}/${width}x${height}`;
-          assert.equal(snapshot.label, labels[locale], context);
-          assert.equal(snapshot.reducedMotion, true, `${context}: visual smoke skips the full intro animation`);
-          assert.equal(snapshot.brandText, state === 'empty' ? 'Start with your files. Agent-ready.' : projectPrompts[locale], `${context}: state-specific title`);
-          assert.equal(snapshot.tagline, false, context);
-          assert.ok(snapshot.imagesLoaded, `${context}: all brand assets must load`);
-          assert.ok(!snapshot.clipped && !snapshot.outside, `${context}: clipped or offscreen controls`);
-          // Preserve the compact pre-redesign scale, not a large marketing CTA.
-          assert.equal(snapshot.create.height, snapshot.openHeight, `${context}: shared row height`);
-          assert.ok(snapshot.create.height <= 34, `${context}: compact button height`);
-          if (state === 'empty') {
-            assert.equal(snapshot.createMinWidth, '0px', `${context}: primary action hugs its content`);
-            assert.ok(snapshot.create.width < 220, `${context}: compact content-hugging button`);
-          }
-          assert.equal(snapshot.createFont, 14, `${context}: original body size`);
-          assert.equal(snapshot.createFont, snapshot.openFont, `${context}: no CTA size override`);
-          assert.equal(snapshot.createFamily, snapshot.openFamily, `${context}: shared font family`);
-          assert.equal(snapshot.createWeight, '500', `${context}: original medium weight`);
-          assert.equal(snapshot.createLineHeight, '18px', `${context}: original line height`);
-          assert.equal(snapshot.brandFont, '19px', `${context}: original brand size`);
-          assert.equal(snapshot.brandMarkWidth, 28, `${context}: original brand mark`);
-          assert.equal(snapshot.actionIconWidth, 14, `${context}: original action icon`);
-          assert.equal(snapshot.importFont, snapshot.createFont, `${context}: import uses the same CTA text size`);
-          assert.equal(snapshot.importWeight, snapshot.createWeight, `${context}: shared CTA weight`);
-          assert.equal(snapshot.importLineHeight, snapshot.createLineHeight, `${context}: shared CTA line height`);
-          assert.equal(snapshot.importFamily, snapshot.createFamily, `${context}: shared CTA font`);
-          assert.equal(snapshot.importBackground, 'rgba(0, 0, 0, 0)', `${context}: transparent text action`);
-          assert.equal(snapshot.importArtworkCount, 3, `${context}: action icon and production source logos`);
-          assert.equal(snapshot.importIcon.width, snapshot.actionIconWidth, `${context}: shared action icon size`);
-          assert.deepEqual(snapshot.importBrandIds, ['github', 'gitlab'], `${context}: experimental import sources stay hidden by default`);
-          assert.deepEqual(snapshot.importBrandLabels, ['GitHub', 'GitLab'], `${context}: named logos for assistive technology`);
-          assert.equal(snapshot.importBrands.x - snapshot.importLabel.x - snapshot.importLabel.width, 6, `${context}: source badges sit close to the import label`);
-          assert.ok(Math.abs(snapshot.importBrands.y + snapshot.importBrands.height / 2 - snapshot.importLabel.y - snapshot.importLabel.height / 2) < 1, `${context}: vertically aligned label and logos`);
-          if (width >= 563) assert.equal(snapshot.importLabel.height, 18, `${context}: single-line text at desktop widths`);
-          assert.ok(snapshot.importBadges.every(badge => badge.width === 20 && badge.height === 20), `${context}: readable circular source badges`);
-          assert.deepEqual([...new Set(snapshot.importBadgeRadii)], ['50%'], `${context}: every source uses the same circular badge`);
-          assert.equal(new Set(snapshot.importBadgeBackgrounds).size, 1, `${context}: source badges share one background tone`);
-          assert.ok(snapshot.importMarks.every(mark => mark.width === 14 && mark.height === 14), `${context}: readable logo size inside each badge`);
-          assert.deepEqual(snapshot.importMarkOpacities, ['1', '1'], `${context}: source logos render at full clarity`);
-          assert.deepEqual(
-            snapshot.importMarkFilters,
-            theme === 'dark' ? ['invert(1)', 'none'] : ['none', 'none'],
-            `${context}: the solid GitHub mark adapts to the theme while GitLab keeps its brand colors`,
-          );
-          assert.deepEqual(snapshot.importBadgeStackOrder, ['3', '2'], `${context}: leftmost source badge sits above the badge to its right`);
-          for (let i = 1; i < snapshot.importBadges.length; i++) {
-            const previous = snapshot.importBadges[i - 1];
-            assert.equal(snapshot.importBadges[i].x - previous.x - previous.width, -6, `${context}: circular source badges overlap`);
-          }
-          assert.equal(snapshot.importText, importLabels[locale], `${context}: complete localized text`);
-          assert.equal(snapshot.brand.width, Math.min(state === 'empty' ? 440 : 520, width - 56), `${context}: column width fits within stable page insets`);
-          assert.equal(snapshot.brand.x, snapshot.actions.x, `${context}: brand and actions share a left edge`);
-          assert.equal(snapshot.brand.width, snapshot.actions.width, `${context}: shared content-column width`);
-          assert.equal(snapshot.create.x, snapshot.actions.x, `${context}: no extra action-area left padding`);
-          assert.equal(snapshot.open.x, snapshot.create.x, `${context}: open aligns with create`);
-          assert.equal(snapshot.importButton.x, snapshot.create.x, `${context}: import aligns with create`);
-          assert.equal(snapshot.actionIcon.x, snapshot.openIcon.x, `${context}: create content is left aligned with the other actions`);
-          assert.ok(Math.abs(snapshot.brand.x + snapshot.brand.width / 2 - width / 2) < 1, `${context}: shared column is centered`);
-          assert.equal(snapshot.launcher.x, snapshot.brand.x, `${context}: launcher uses the shared left edge`);
-          assert.equal(snapshot.launcher.width, snapshot.brand.width, `${context}: launcher uses the shared width`);
-          assert.equal(snapshot.firstSection.x, snapshot.brand.x, `${context}: first content section uses the shared left edge`);
-          assert.equal(snapshot.firstSection.width, snapshot.brand.width, `${context}: first content section spans the shared column`);
-          const titleToSectionGap = state === 'empty' ? 24 : 34;
-          assert.ok(Math.abs(snapshot.firstSection.y - snapshot.brand.y - snapshot.brand.height - titleToSectionGap) < 1, `${context}: shared title-to-section gap`);
-          assert.ok(Math.abs(snapshot.firstClickable.y - snapshot.brand.y - snapshot.brand.height - titleToSectionGap - 25) < 1, `${context}: shared title-to-first-clickable gap`);
-          const verticalCenter = state === 'empty' ? height / 2 : snapshot.homepage.y + snapshot.homepage.height / 2;
-          assert.ok(Math.abs(snapshot.launcher.y + snapshot.launcher.height / 2 - verticalCenter) < 1, `${context}: short content is centered in its available region`);
-          assert.equal(snapshot.primaryKind, state === 'empty' ? 'create' : 'projects', `${context}: one primary-section contract swaps content by state`);
-          assert.equal(snapshot.primaryBorderTop, '1px', `${context}: shared primary frame has a top rule`);
-          assert.equal(snapshot.primaryPaddingTop, '24px', `${context}: shared primary frame owns the content inset`);
-          if (state === 'empty') {
-            assert.equal(snapshot.primaryBorderBottom, '1px', `${context}: shared primary frame separates create from secondary actions`);
-            assert.equal(snapshot.primaryPaddingBottom, '18px', `${context}: create keeps a balanced inset above the divider`);
-            assert.equal(snapshot.primaryMarginBottom, '18px', `${context}: divider keeps the same inset above the open action`);
-            assert.equal(snapshot.open.y - snapshot.firstSection.y - snapshot.firstSection.height, 18, `${context}: open action sits below the shared divider`);
-            const openToImportGap = snapshot.importButton.y - snapshot.open.y - snapshot.open.height;
-            assert.ok(openToImportGap >= 1 && openToImportGap <= 4, `${context}: secondary actions form one compact group`);
-            assert.equal(await evaluate("document.querySelector('.onboarding-entry-action-divider')"), null, `${context}: no decorative import divider`);
-          } else {
-            assert.equal(snapshot.primaryBorderBottom, '1px', `${context}: project list keeps its bottom rule`);
-            assert.equal(snapshot.projectPanel.x, snapshot.brand.x, `${context}: project frame shares the content left edge`);
-            assert.equal(snapshot.projectPanel.width, snapshot.brand.width, `${context}: project frame uses the shared width`);
-            assert.equal(snapshot.projectRow.x, snapshot.brand.x, `${context}: project row has no container-side inset`);
-            assert.equal(snapshot.projectIcon.x, snapshot.actionIcon.x, `${context}: project and action icons align`);
-            assert.deepEqual(snapshot.projectPanelFrame, {
-              borderTop: '1px', borderRight: '0px', borderBottom: '1px', borderLeft: '0px',
-              paddingRight: '0px', paddingLeft: '0px', paddingTop: '24px',
-            }, `${context}: horizontal-rule project frame without side padding`);
-          }
-          assert.equal(snapshot.importButton.height, snapshot.openHeight, `${context}: import uses the shared CTA height`);
-          assert.equal(snapshot.actionCount, 3, `${context}: no extra logo buttons`);
-          const prefix = state === 'empty' ? '' : 'projects-';
-          await writeFile(path.join(screenshots, `${prefix}${locale}-${theme}-${width}.png`), (await window.capturePage()).toPNG());
-          await window.webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
-            type: 'mouseMoved', x: 1, y: 39,
-          });
-          await window.webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
-            type: 'mouseMoved',
-            x: Math.round(snapshot.importButton.x + snapshot.importButton.width / 2),
-            y: Math.round(snapshot.importButton.y + snapshot.importButton.height / 2),
-          });
-          await until("document.querySelector('.onboarding-entry-import').matches(':hover')");
-          await evaluate("Promise.all(document.querySelector('.onboarding-entry-import').getAnimations().map(animation => animation.finished))");
-          const importHover = await evaluate(`(() => {
-            const style = getComputedStyle(document.querySelector('.onboarding-entry-import'));
-            return { background: style.backgroundColor, color: style.color, boxShadow: style.boxShadow };
-          })()`);
-          await window.webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
-            type: 'mouseMoved',
-            x: Math.round(snapshot.open.x + snapshot.open.width / 2),
-            y: Math.round(snapshot.open.y + snapshot.open.height / 2),
-          });
-          await until("document.querySelector('[data-onboarding-action=open]').matches(':hover')");
-          await evaluate("Promise.all(document.querySelector('[data-onboarding-action=open]').getAnimations().map(animation => animation.finished))");
-          const openHover = await evaluate(`(() => {
-            const style = getComputedStyle(document.querySelector('[data-onboarding-action=open]'));
-            return { background: style.backgroundColor, color: style.color, boxShadow: style.boxShadow };
-          })()`);
-          assert.notEqual(importHover.background, 'rgba(0, 0, 0, 0)', `${context}: import has the shared CTA hover background`);
-          assert.deepEqual(importHover, openHover, `${context}: import and open share hover treatment`);
-          // Real keyboard focus must remain visible and Enter must open the creation dialog.
-          window.focus();
-          window.webContents.focus();
-          await evaluate("document.querySelector('[data-onboarding-action=create]').focus()");
-          window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Tab" });
-          window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Tab" });
-          await until("document.activeElement?.dataset.onboardingAction === 'open'");
-          window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Tab", modifiers: ["shift"] });
-          window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Tab", modifiers: ["shift"] });
-          await until("document.activeElement?.dataset.onboardingAction === 'create'");
-          await until("document.activeElement?.matches(':focus-visible')");
-          assert.equal(await evaluate("getComputedStyle(document.activeElement).outlineStyle"), "solid", `${context}: focus ring`);
-          window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Enter" });
-          window.webContents.sendInputEvent({ type: "char", keyCode: "\r" });
-          window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Enter" });
-          await until("!!document.querySelector('.onboarding-entry-dialog')");
-          await until("!document.querySelector('.onboarding-entry-dialog button[type=submit]').disabled");
-          const createDialog = await evaluate(`(() => {
-            const dialog = document.querySelector('.onboarding-entry-dialog');
-            return {
-              name: dialog.querySelector('input').value,
-              selects: dialog.querySelectorAll('select').length,
-              localNotes: dialog.querySelectorAll('.onboarding-entry-local-note').length,
-              starterCopy: /Getting Started|Blank folder/.test(dialog.textContent),
-            };
-          })()`);
-          assert.match(createDialog.name, /^My project [A-F0-9]{4}$/, `${context}: collision-resistant default project name`);
-          assert.deepEqual({ ...createDialog, name: undefined }, {
-            name: undefined, selects: 0, localNotes: 0, starterCopy: false,
-          }, `${context}: one-action create dialog`);
-          window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Escape" });
-          window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Escape" });
-          await until("!document.querySelector('.onboarding-entry-dialog')");
-          await evaluate("document.querySelector('[data-onboarding-action=open]').focus()");
-          window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Tab" });
-          window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Tab" });
-          await until("document.activeElement?.dataset.onboardingAction === 'import'");
-          await until("document.activeElement?.matches(':focus-visible')");
-          await evaluate("Promise.all(document.activeElement.getAnimations().map(animation => animation.finished))");
-          assert.equal(await evaluate("getComputedStyle(document.activeElement).outlineStyle"), "solid", `${context}: import focus ring`);
-          const importFocus = await evaluate(`(() => {
-            const style = getComputedStyle(document.activeElement);
-            return { background: style.backgroundColor, color: style.color, outline: style.outline };
-          })()`);
-          await window.webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
-            type: 'mouseMoved', x: 1, y: 39,
-          });
-          await until("!document.querySelector('[data-onboarding-action=open]').matches(':hover')");
-          await evaluate("Promise.all(document.querySelector('[data-onboarding-action=open]').getAnimations().map(animation => animation.finished))");
-          window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Tab", modifiers: ["shift"] });
-          window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Tab", modifiers: ["shift"] });
-          await until("document.activeElement?.dataset.onboardingAction === 'open'");
-          await until("document.activeElement?.matches(':focus-visible')");
-          await evaluate("Promise.all(document.activeElement.getAnimations().map(animation => animation.finished))");
-          const openFocus = await evaluate(`(() => {
-            const style = getComputedStyle(document.activeElement);
-            return { background: style.backgroundColor, color: style.color, outline: style.outline };
-          })()`);
-          assert.deepEqual(importFocus, openFocus, `${context}: import and open share keyboard focus treatment`);
-          window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Tab" });
-          window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Tab" });
-          await until("document.activeElement?.dataset.onboardingAction === 'import'");
-          window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Enter" });
-          window.webContents.sendInputEvent({ type: "char", keyCode: "\r" });
-          window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Enter" });
-          await until("!!document.querySelector('.is-import-sources')");
-          await evaluate("Promise.all(document.querySelector('.is-import-sources').getAnimations().map(animation => animation.finished))");
-          await until("document.activeElement?.dataset.importSource === 'github'");
-          assert.equal(await evaluate("document.querySelectorAll('.onboarding-import-source').length"), 2, `${context}: only production sources in dialog`);
-          await until("[...document.querySelectorAll('.onboarding-import-source img')].length === 2 && [...document.querySelectorAll('.onboarding-import-source img')].every(image => image.complete && image.naturalWidth > 0)");
-          const picker = await evaluate(`(() => {
-            const dialog = document.querySelector('.is-import-sources');
-            const rows = [...dialog.querySelectorAll('.onboarding-import-source')];
-            const bounds = dialog.getBoundingClientRect();
-            return {
-              width: bounds.width, height: bounds.height,
-              intro: dialog.querySelector('.onboarding-import-intro').textContent,
-              paragraphs: dialog.querySelectorAll('p').length,
-              decoration: dialog.querySelectorAll('.desktop-dialog-leading, .onboarding-import-source-chevron, .onboarding-import-source-copy').length,
-              listItems: dialog.querySelectorAll('ul > li > button').length,
-              rows: rows.map(row => {
-                const css = getComputedStyle(row);
-                const label = row.querySelector('.onboarding-import-source-label');
-                const icon = row.querySelector('.onboarding-import-source-icon');
-                return {
-                  source: row.dataset.importSource,
-                  mode: row.dataset.importMode,
-                  height: row.getBoundingClientRect().height,
-                  border: css.borderTopWidth,
-                  background: css.backgroundColor,
-                  hover: row.matches(':hover'),
-                  iconBackground: getComputedStyle(icon).backgroundColor,
-                  weight: getComputedStyle(label).fontWeight,
-                  labelOnly: row.textContent === label.textContent,
-                  clipped: row.scrollWidth > row.clientWidth || label.scrollWidth > label.clientWidth,
-                };
-              }),
-              focus: document.activeElement?.dataset.importSource,
-              focusWidth: getComputedStyle(document.activeElement).outlineWidth,
-            };
-          })()`);
-          assert.ok(picker.width <= 360 && picker.height <= 360, `${context}: compact source dialog`);
-          assert.equal(picker.intro, importIntros[locale], `${context}: one short description`);
-          assert.equal(picker.paragraphs, 1, `${context}: no per-source descriptions`);
-          assert.equal(picker.decoration, 0, `${context}: no header badge or row arrows`);
-          assert.equal(picker.listItems, 2, `${context}: native list and button semantics`);
-          assert.deepEqual(picker.rows.map(row => row.source), ['github', 'gitlab'], `${context}: experimental sources are hidden and providers remain separate`);
-          assert.deepEqual(picker.rows.map(row => row.mode), ['repository', 'repository'], `${context}: source capability is explicit in the DOM contract`);
-          for (const row of picker.rows) {
-            assert.equal(row.height, 36, `${context}: compact single-line source row`);
-            assert.equal(row.border, '0px', `${context}: no card border`);
-            assert.equal(row.iconBackground, 'rgba(0, 0, 0, 0)', `${context}: no icon tile`);
-            if (!row.hover) assert.equal(row.background, 'rgba(0, 0, 0, 0)', `${context}: no card fill`);
-            assert.equal(row.weight, '400', `${context}: regular source names`);
-            assert.ok(row.labelOnly && !row.clipped, `${context}: source name only, without clipping`);
-          }
-          assert.equal(picker.focus, 'github', `${context}: first source keeps initial keyboard focus`);
-          assert.equal(picker.focusWidth, '1px', `${context}: restrained visible focus ring`);
-          await writeFile(path.join(screenshots, `${prefix}import-${locale}-${theme}-${width}.png`), (await window.capturePage()).toPNG());
-          window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Tab" });
-          window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Tab" });
-          await until("document.activeElement?.dataset.importSource === 'gitlab'");
-          window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Escape" });
-          window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Escape" });
-          await until("!document.querySelector('[role=dialog]') && document.activeElement?.dataset.onboardingAction === 'import'");
-          console.log(`Passed ${context}`);
-        }
+    for (const theme of ["dark", "light"]) {
+      for (const [width, height] of [[900, 680], [MINIMUM_WIDTH, MINIMUM_HEIGHT]]) {
+        await validateFirstRun(theme, width, height);
+        await validateProjectsHead(theme, width, height);
       }
+      await validateToolbar(theme);
+      await validateMenuPlacement(theme);
+      await validateGrid(theme);
+      await validateScrollport(theme);
     }
-    await validateProjectScrollports();
-    await validateProjectGrid();
-    console.log(`Onboarding visual smoke passed: 10 entry cases plus short/long list geometry, persistent scrolling and the Grid; screenshots: ${screenshots}`);
+    await validateScrollPolicy();
+    console.log(`Onboarding visual smoke passed; screenshots: ${screenshots}`);
   } catch (error) {
     console.error(error);
     if (window && !window.isDestroyed()) console.error(await evaluate("({ active: document.activeElement?.outerHTML, dialogs: document.querySelectorAll('[role=dialog]').length, text: document.body.innerText })"));
@@ -423,121 +126,360 @@ async function runSmoke() {
   }
 }
 
-// The Grid keeps the list's column, four cells across, with three equal action keys under it.
-async function validateProjectGrid() {
-  const settle = "new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))).then(() => Promise.all(document.getAnimations().map(animation => animation.finished)))";
-  const column = `(() => { const edges = selector => { const r = document.querySelector(selector).getBoundingClientRect(); return [r.left, r.right]; };
-    return { brand:edges('.onboarding-brand-lockup'), rule:edges('.onboarding-home-primary'), layoutSwitch:edges('.onboarding-project-layout-switch') }; })()`;
-  for (const theme of ["dark", "light"]) {
-    for (const [width, height, count] of [[1180, 760, 40], [640, 535, 40], [1200, 900, 3]]) {
-      window.setContentSize(width, height);
-      const url = new URL(`http://127.0.0.1:${server.httpServer.address().port}/tests/fixtures/workspace/projects/onboarding-home.html`);
-      url.searchParams.set("state", "projects"); url.searchParams.set("count", String(count)); url.searchParams.set("theme", theme);
-      await window.loadURL(url.href);
-      await until(`document.querySelectorAll('.onboarding-project-row-wrap').length === ${count}`);
-      await evaluate("document.querySelector('[data-project-layout-option=list]').click()");
-      await until("!!document.querySelector('.onboarding-project-row')");
-      await evaluate(settle);
-      const list = await evaluate(column);
-      await evaluate("document.querySelector('[data-project-layout-option=grid]').click()");
-      await until("!!document.querySelector('.onboarding-project-tile')");
-      await evaluate(settle);
-      const context = `grid/${theme}/${width}x${height}/${count}`;
-      assert.deepEqual(await evaluate(column), list, `${context}: switching layouts never moves the column`);
-      const snapshot = await evaluate(`(() => {
-        const element = document.querySelector('.onboarding-project-list');
-        const actions = [...document.querySelectorAll('.onboarding-entry-action')];
-        const folders = [...document.querySelectorAll('.onboarding-project-folder')].map(folder => folder.getBoundingClientRect());
-        return { sideways:element.scrollWidth - element.clientWidth, overflows:element.scrollHeight > element.clientHeight,
-          columns:new Set(folders.map(folder => folder.left)).size, actionTops:new Set(actions.map(action => action.getBoundingClientRect().top)).size,
-          actionIcons:actions.filter(action => action.querySelector('.po-button__icon') && getComputedStyle(action.querySelector('.po-button__icon')).display !== 'none').length,
-          actionFont:getComputedStyle(actions[0].querySelector('.po-button__label')).fontSize,
-          actionWidths:new Set(actions.map(action => Math.round(action.getBoundingClientRect().width))).size,
-          actionEdges:[Math.round(actions[0].getBoundingClientRect().left), Math.round(actions[2].getBoundingClientRect().right)],
-          ruleEdges:(rule => [Math.round(rule.left), Math.round(rule.right)])(document.querySelector('.onboarding-home-primary').getBoundingClientRect()),
-          clippedLabels:actions.filter(action => { const label = action.querySelector('.po-button__label'); return label.scrollWidth > label.clientWidth; }).length,
-          thumb:getComputedStyle(element, '::-webkit-scrollbar-thumb').backgroundColor };
-      })()`);
-      assert.equal(snapshot.sideways, 0, `${context}: the Grid never scrolls sideways`);
-      assert.equal(snapshot.columns, Math.min(count, 4), `${context}: four cells across`);
-      assert.equal(snapshot.actionTops, 1, `${context}: the actions share one line`);
-      assert.equal(snapshot.actionIcons, 3, `${context}: the actions keep the list's icons`);
-      assert.equal(snapshot.actionWidths, 1, `${context}: the actions are equal keys`);
-      assert.deepEqual(snapshot.actionEdges, snapshot.ruleEdges, `${context}: the actions span the column`);
-      assert.equal(snapshot.clippedLabels, 0, `${context}: no action label is cut`);
-      assert.equal(snapshot.actionFont, '12px', `${context}: the actions use the folders' type`);
-      if (snapshot.overflows) assert.notEqual(snapshot.thumb, 'rgba(0, 0, 0, 0)', `${context}: more projects below are always signalled`);
-      await writeFile(path.join(screenshots, `grid-${theme}-${width}x${height}-${count}.png`), (await window.capturePage()).toPNG());
-      console.log(`Passed ${context}`);
+const rects = `const rect = (node) => { if (!node) return null; const r = node.getBoundingClientRect(); return { x:r.x, y:r.y, width:r.width, height:r.height, right:r.right, bottom:r.bottom }; };`;
+
+async function validateChrome(context, theme, column, width) {
+  const page = await evaluate(`(() => { ${rects}
+    const brand = document.querySelector('.onboarding-brand-lockup');
+    const title = brand.querySelector('.onboarding-brand-name, .onboarding-brand-prompt');
+    const controls = [...document.querySelectorAll('.onboarding-launcher button')];
+    return {
+      brand:rect(brand), launcher:rect(document.querySelector('.onboarding-launcher')),
+      mark:brand.querySelector('img').getAttribute('src').split('/').pop(),
+      markFilter:getComputedStyle(brand.querySelector('img')).filter,
+      titleColor:getComputedStyle(title).color,
+      muted:(probe => { document.body.append(probe); probe.style.color = 'var(--po-text-muted)'; probe.className = document.querySelector('.onboarding-shell').className; const color = getComputedStyle(probe).color; probe.remove(); return color; })(document.createElement('span')),
+      titleClipped:title.scrollWidth > title.clientWidth + 1,
+      outside:controls.some(control => { const r = control.getBoundingClientRect(); return r.width && (r.left < 0 || r.right > innerWidth || r.top < 38); }),
+      sideways:document.documentElement.scrollWidth > innerWidth,
+    };
+  })()`);
+  assert.equal(page.mark, theme === "light" ? "puppy-lite.svg" : "puppy-dark.svg", `${context}: the product's mark for this theme`);
+  assert.equal(page.markFilter, theme === "light" ? "none" : "grayscale(1) brightness(0.7)", `${context}: the mark's theme treatment`);
+  assert.ok(!page.titleClipped, `${context}: the title is not cut`);
+  assert.ok(!page.outside && !page.sideways, `${context}: controls stay onscreen`);
+  assert.equal(page.brand.width, column, `${context}: the column keeps its width`);
+  assert.ok(Math.abs(page.brand.x + page.brand.width / 2 - width / 2) < 1, `${context}: the column is centred`);
+  assert.equal(page.launcher.x, page.brand.x, `${context}: one left edge`);
+}
+
+async function validateFirstRun(theme, width, height) {
+  const context = `empty/${theme}/${width}x${height}`;
+  await open({ theme, state: "empty", width, height });
+  await until("[...document.querySelectorAll('.onboarding-entry-import img')].every(image => image.complete && image.naturalWidth > 0)");
+  await validateChrome(context, theme, EMPTY_COLUMN, width);
+  assert.deepEqual(await evaluate(typeLevels), EMPTY_TYPE, `${context}: two levels of type`);
+  const page = await evaluate(`(() => { ${rects}
+    const create = document.querySelector('[data-onboarding-action=create]');
+    const openFolder = document.querySelector('[data-onboarding-action=open]');
+    const importButton = document.querySelector('.onboarding-entry-import');
+    const primary = document.querySelector('.onboarding-home-primary');
+    const marks = [...importButton.querySelectorAll('.onboarding-import-mark')];
+    return { create:rect(create), open:rect(openFolder), import:rect(importButton), launcher:rect(document.querySelector('.onboarding-launcher')),
+      primaryBorder:getComputedStyle(primary).borderTopWidth, primaryFill:getComputedStyle(primary).backgroundColor,
+      radius:getComputedStyle(create).borderRadius, icons:[create, openFolder, importButton].map(key => rect(key.querySelector('.po-button__icon svg')).width),
+      brands:marks.map(mark => mark.dataset.importBrand), alts:marks.map(mark => mark.alt), filters:marks.map(mark => getComputedStyle(mark).filter),
+      divider:!!document.querySelector('.onboarding-entry-action-divider'), label:create.textContent, reduced:matchMedia('(prefers-reduced-motion: reduce)').matches,
+      title:document.querySelector('.onboarding-brand-name').textContent };
+  })()`);
+  assert.equal(page.reduced, true, `${context}: visual smoke skips the full intro animation`);
+  assert.equal(page.title, "Start with your files. Agent-ready.", `${context}: the first-run title`);
+  assert.equal(page.label, "New empty project", context);
+  assert.equal(page.primaryBorder, "0px", `${context}: no rule around the create action`);
+  assert.equal(page.primaryFill, "rgba(0, 0, 0, 0)", `${context}: first run has no surface`);
+  assert.equal(page.create.width, EMPTY_COLUMN, `${context}: New spans the column`);
+  assert.equal(page.open.y, page.import.y, `${context}: the other entries share a row`);
+  assert.equal(page.open.width, page.import.width, `${context}: the other entries are equal keys`);
+  assert.equal(page.open.x, page.create.x, `${context}: one left edge`);
+  assert.equal(page.import.right, page.create.right, `${context}: one right edge`);
+  assert.equal(page.radius, "6px", `${context}: the shared control radius`);
+  assert.deepEqual(page.icons, [14, 14, 14], `${context}: one icon size`);
+  assert.deepEqual(page.brands, ["github", "gitlab"], `${context}: only production sources`);
+  assert.deepEqual(page.alts, ["GitHub", "GitLab"], `${context}: named logos for assistive technology`);
+  assert.deepEqual(page.filters, theme === "dark" ? ["invert(1)", "none"] : ["none", "none"], `${context}: the solid mark adapts to the theme`);
+  assert.equal(page.divider, false, context);
+  assert.ok(Math.abs(page.launcher.y + page.launcher.height / 2 - height / 2) < 1, `${context}: first run is centred`);
+  await shot(`first-run-${theme}-${width}`);
+  // Keyboard: a visible ring on each key, and Enter opens each dialog.
+  window.focus();
+  window.webContents.focus();
+  await evaluate("document.querySelector('[data-onboarding-action=create]').focus()");
+  press("Tab");
+  await until("document.activeElement?.dataset.onboardingAction === 'open'");
+  press("Tab", ["shift"]);
+  await until("document.activeElement?.dataset.onboardingAction === 'create' && document.activeElement.matches(':focus-visible')");
+  assert.equal(await evaluate("getComputedStyle(document.activeElement).outlineStyle"), "solid", `${context}: focus ring`);
+  press("Enter");
+  await until("!!document.querySelector('.onboarding-entry-dialog')");
+  await until("!document.querySelector('.onboarding-entry-dialog button[type=submit]').disabled");
+  const dialog = await evaluate(`(() => { const d = document.querySelector('.onboarding-entry-dialog'); return { name:d.querySelector('input').value, selects:d.querySelectorAll('select').length, starter:/Getting Started|Blank folder/.test(d.textContent) }; })()`);
+  assert.match(dialog.name, /^My project [A-F0-9]{4}$/, `${context}: collision-resistant default name`);
+  assert.deepEqual({ selects: dialog.selects, starter: dialog.starter }, { selects: 0, starter: false }, `${context}: one-action create dialog`);
+  press("Escape");
+  await until("!document.querySelector('.onboarding-entry-dialog')");
+  await evaluate("document.querySelector('[data-onboarding-action=open]').focus()");
+  press("Tab");
+  await until("document.activeElement?.dataset.onboardingAction === 'import'");
+  press("Enter");
+  await validateImportPicker(context);
+  await shot(`first-run-import-${theme}-${width}`);
+  press("Escape");
+  await until("!document.querySelector('[role=dialog]') && document.activeElement?.dataset.onboardingAction === 'import'");
+  console.log(`Passed ${context}`);
+}
+
+async function validateImportPicker(context) {
+  await until("!!document.querySelector('.is-import-sources')");
+  await evaluate("Promise.all(document.querySelector('.is-import-sources').getAnimations().map(animation => animation.finished))");
+  await until("document.activeElement?.dataset.importSource === 'github'");
+  await until("[...document.querySelectorAll('.onboarding-import-source img')].length === 2 && [...document.querySelectorAll('.onboarding-import-source img')].every(image => image.complete && image.naturalWidth > 0)");
+  const picker = await evaluate(`(() => {
+    const dialog = document.querySelector('.is-import-sources');
+    const bounds = dialog.getBoundingClientRect();
+    return { width:bounds.width, height:bounds.height, sources:[...dialog.querySelectorAll('.onboarding-import-source')].map(row => row.dataset.importSource),
+      modes:[...dialog.querySelectorAll('.onboarding-import-source')].map(row => row.dataset.importMode), listItems:dialog.querySelectorAll('ul > li > button').length,
+      clipped:[...dialog.querySelectorAll('.onboarding-import-source')].some(row => row.scrollWidth > row.clientWidth) };
+  })()`);
+  assert.ok(picker.width <= 360 && picker.height <= 360, `${context}: compact source dialog`);
+  assert.deepEqual(picker.sources, ["github", "gitlab"], `${context}: experimental sources stay hidden`);
+  assert.deepEqual(picker.modes, ["repository", "repository"], `${context}: source capability is explicit`);
+  assert.equal(picker.listItems, 2, `${context}: native list and button semantics`);
+  assert.equal(picker.clipped, false, `${context}: source names are not cut`);
+}
+
+async function validateProjectsHead(theme, width, height) {
+  const context = `projects/${theme}/${width}x${height}`;
+  await open({ theme, state: "projects", width, height, count: 3, layout: "list" });
+  await validateChrome(context, theme, PROJECT_COLUMN, width);
+  assert.deepEqual(await evaluate(typeLevels), PROJECT_TYPE, `${context}: three levels of type`);
+  const page = await evaluate(`(() => { ${rects}
+    const head = document.querySelector('.onboarding-brand-lockup');
+    const surface = document.querySelector('.onboarding-home-primary');
+    const create = document.querySelector('[data-onboarding-action=create]');
+    const more = document.querySelector('[data-onboarding-action=more]');
+    const label = create.querySelector('.po-button__label');
+    const surfaceStyle = getComputedStyle(surface);
+    return { header:rect(document.querySelector('.desktop-titlebar')), head:rect(head), surface:rect(surface), create:rect(create), more:rect(more),
+      chevron:rect(more.querySelector('svg')), label:rect(label), labelClip:getComputedStyle(label).clipPath,
+      createRadius:getComputedStyle(create).borderRadius, border:surfaceStyle.borderTopWidth, radius:surfaceStyle.borderRadius,
+      keys:!!document.querySelector('.onboarding-entry-actions'), other:document.querySelectorAll('[data-onboarding-action=open], [data-onboarding-action=import]').length,
+      title:head.querySelector('.onboarding-brand-prompt').textContent };
+  })()`);
+  assert.equal(page.title, "Which project do you want to start with?", `${context}: the returning title`);
+  assert.equal(page.head.y - page.header.bottom, TITLE_INSET, `${context}: the inset above the title`);
+  assert.equal(page.surface.y - page.head.bottom, TITLE_INSET, `${context}: the same inset below it`);
+  assert.equal(page.border, "0px", `${context}: a fill, not a rule`);
+  assert.equal(page.radius, "8px", `${context}: the card radius`);
+  assert.equal(page.keys, false, `${context}: the entries live at the head`);
+  assert.equal(page.other, 0, `${context}: the other entries wait behind the arrow`);
+  assert.equal(page.more.right, page.surface.right, `${context}: the entry menu ends on the column's edge`);
+  assert.equal(page.more.x - page.create.right, 1, `${context}: the two halves of one button`);
+  assert.equal(page.chevron.width, 14, `${context}: the arrow never disappears`);
+  assert.equal(page.labelClip, "none", `${context}: New keeps its words down to the smallest window`);
+  assert.ok(page.label.width > 60, `${context}: New keeps its words down to the smallest window`);
+  await shot(`projects-${theme}-${width}`);
+  // The entry menu by keyboard, and focus coming home from the dialog it opens.
+  window.focus();
+  window.webContents.focus();
+  await evaluate("document.querySelector('[data-onboarding-action=more]').focus()");
+  press("Enter");
+  await until("document.activeElement?.dataset.onboardingAction === 'open'");
+  const menu = await evaluate(`(() => { ${rects} const surface = document.querySelector('.onboarding-entry-menu'); const item = surface.querySelector('.desktop-menu-item');
+    return { rect:rect(surface), padding:getComputedStyle(surface).paddingTop, radius:getComputedStyle(surface).borderRadius, icon:rect(item.querySelector('svg')).width, gap:getComputedStyle(item).columnGap }; })()`);
+  assert.equal(menu.padding, "4px", `${context}: the menu's standard inset`);
+  assert.equal(menu.radius, "8px", `${context}: the menu's standard radius`);
+  assert.equal(menu.icon, 14, `${context}: menu icons match the rest of the page`);
+  assert.ok(menu.rect.right <= width, `${context}: the menu stays onscreen`);
+  await shot(`projects-entry-menu-${theme}-${width}`);
+  press("Down");
+  await until("document.activeElement?.dataset.onboardingAction === 'import'");
+  press("Escape");
+  await until("!document.querySelector('.onboarding-entry-menu') && document.activeElement?.dataset.onboardingAction === 'more'");
+  press("Enter");
+  await until("document.activeElement?.dataset.onboardingAction === 'open'");
+  press("Down");
+  await until("document.activeElement?.dataset.onboardingAction === 'import'");
+  press("Enter");
+  await validateImportPicker(context);
+  press("Escape");
+  await until("!document.querySelector('[role=dialog]') && document.activeElement?.dataset.onboardingAction === 'more'");
+  await evaluate("document.querySelector('[data-onboarding-action=create]').focus()");
+  press("Enter");
+  await until("!!document.querySelector('.onboarding-entry-dialog')");
+  press("Escape");
+  await until("!document.querySelector('.onboarding-entry-dialog')");
+  console.log(`Passed ${context}`);
+}
+
+async function validateToolbar(theme) {
+  const context = `toolbar/${theme}`;
+  await open({ theme, state: "projects", width: 1180, height: 760, count: 9, mixed: true, layout: "grid" });
+  const view = `(() => { ${rects}
+    const triggers = [...document.querySelectorAll('.onboarding-view-menu-trigger')];
+    return { triggers:triggers.map(rect), layout:rect(document.querySelector('${LAYOUT_TRIGGER}')), texts:triggers.map(trigger => trigger.textContent),
+      chips:[...document.querySelectorAll('.onboarding-filter-chip')].map(chip => chip.textContent), surface:rect(document.querySelector('.onboarding-home-primary')),
+      chevrons:document.querySelectorAll('.onboarding-project-toolbar .lucide-chevron-down').length, segments:document.querySelectorAll('.desktop-theme-segment').length,
+      shown:[...document.querySelectorAll('.onboarding-project-row-wrap')].map(row => row.dataset.projectLocation),
+      names:[...document.querySelectorAll('.onboarding-project-tile-name')].map(name => name.textContent) };
+  })()`;
+  const rest = await evaluate(view);
+  assert.deepEqual(rest.texts, ["Filter", "Last modified"], `${context}: plain words, with no state to show yet`);
+  assert.equal(rest.chevrons, 0, `${context}: no dropdown arrows`);
+  assert.equal(rest.segments, 0, `${context}: the layout is one icon, not a highlighted switch`);
+  assert.ok(rest.triggers[0].right <= rest.triggers[1].x && rest.triggers[1].right <= rest.layout.x, `${context}: filter, then order, then layout`);
+  assert.ok(rest.layout.right <= rest.surface.right && rest.triggers[0].x > rest.surface.x + rest.surface.width / 2, `${context}: all at the row's end`);
+  assert.equal(rest.shown.length, 9, context);
+  const item = (name) => `[...document.querySelectorAll('.onboarding-view-menu .desktop-menu-item')].find(node => node.textContent === ${JSON.stringify(name)})`;
+  await evaluate("document.querySelectorAll('.onboarding-view-menu-trigger')[0].click()");
+  await until(`!!${item("Cloud projects")}`);
+  const filter = await evaluate(`(() => { const items = [...document.querySelectorAll('.onboarding-view-menu .desktop-menu-item')];
+    return { rows:items.map(node => [node.textContent, node.getAttribute('aria-checked'), node.disabled]), icons:items.map(node => node.querySelector('[data-product-icon]')?.getAttribute('data-product-icon') ?? null),
+      sections:document.querySelectorAll('.onboarding-view-menu .desktop-menu-section').length, overflow:(r => r.right > innerWidth || r.bottom > innerHeight)(document.querySelector('.onboarding-view-menu').getBoundingClientRect()) }; })()`);
+  assert.deepEqual(filter.rows, [
+    ["All projects", "true", false],
+    ["This computer", "false", false],
+    ["Cloud projects", "false", false],
+  ], `${context}: every project first, ticked until a place is chosen`);
+  assert.deepEqual(filter.icons, [null, "local", "cloud"], `${context}: each place has its product icon`);
+  assert.equal(filter.sections, 1, `${context}: one list of places`);
+  assert.equal(filter.overflow, false, `${context}: the menu stays onscreen`);
+  await evaluate(`${item("Cloud projects")}.click()`);
+  await until("document.querySelectorAll('.onboarding-filter-chip').length === 1");
+  assert.ok(await evaluate("!!document.querySelector('.onboarding-view-menu')"), `${context}: the filter stays open for a second choice`);
+  await evaluate(`${item("This computer")}.click()`);
+  await until("document.querySelectorAll('.onboarding-filter-chip').length === 2");
+  await shot(`toolbar-filter-${theme}`);
+  await evaluate("document.querySelectorAll('.onboarding-view-menu-trigger')[0].click()");
+  await until("!document.querySelector('.onboarding-view-menu')");
+  const both = await evaluate(view);
+  assert.deepEqual(both.chips, ["This computer", "Cloud projects"], `${context}: each filter in force is named on the toolbar`);
+  assert.equal(both.shown.length, 9, `${context}: any of the chosen places`);
+  await evaluate("document.querySelector('.onboarding-filter-chip').click()");
+  await until("document.querySelectorAll('.onboarding-filter-chip').length === 1");
+  const cloud = await evaluate(view);
+  assert.ok(cloud.shown.length === 3 && cloud.shown.every(place => place === "cloud"), `${context}: one place left`);
+  await evaluate("document.querySelectorAll('.onboarding-view-menu-trigger')[0].click()");
+  await until(`!!${item("All projects")}`);
+  await evaluate(`${item("All projects")}.click()`);
+  await until("document.querySelectorAll('.onboarding-filter-chip').length === 0");
+  assert.equal(await evaluate(`${item("All projects")}.getAttribute('aria-checked')`), "true", `${context}: All projects clears every filter`);
+  await evaluate("document.querySelectorAll('.onboarding-view-menu-trigger')[0].click()");
+  await until("!document.querySelector('.onboarding-view-menu')");
+  await evaluate("document.querySelectorAll('.onboarding-view-menu-trigger')[1].click()");
+  await until(`!!${item("Name")}`);
+  await evaluate(`${item("Name")}.click()`);
+  await until("!document.querySelector('.onboarding-view-menu')");
+  const named = await evaluate(view);
+  assert.equal(named.texts[1], "Name", `${context}: the order on the button`);
+  assert.deepEqual(named.names, [...rest.names].sort((a, b) => a.localeCompare(b, "en", { numeric: true })), `${context}: ordered by name, as a person reads it`);
+  // The order is remembered, so leave the next page as it was found.
+  await evaluate("document.querySelectorAll('.onboarding-view-menu-trigger')[1].click()");
+  await until(`!!${item("Last modified")}`);
+  await evaluate(`${item("Last modified")}.click()`);
+  await until("!document.querySelector('.onboarding-view-menu')");
+  console.log(`Passed ${context}`);
+}
+
+async function validateMenuPlacement(theme) {
+  for (const [width, height] of [[1180, 760], [MINIMUM_WIDTH, MINIMUM_HEIGHT]]) {
+    await open({ theme, state: "projects", width, height, count: 9, mixed: true, layout: "grid" });
+    for (const name of ["filter", "sort", "layout"]) {
+      const context = `menu/${name}/${theme}/${width}x${height}`;
+      const trigger = name === "layout"
+        ? `document.querySelector('${LAYOUT_TRIGGER}')`
+        : `document.querySelectorAll('.onboarding-view-menu-trigger')[${name === "filter" ? 0 : 1}]`;
+      await evaluate(`${trigger}.click()`);
+      await until("!!document.querySelector('.onboarding-view-menu')");
+      const placement = await evaluate(`(() => { const t = ${trigger}.getBoundingClientRect(); const m = document.querySelector('.onboarding-view-menu').getBoundingClientRect();
+        return { trigger:t.left + t.width / 2, menu:m.left + m.width / 2, left:m.left, right:m.right, top:m.top - t.bottom, width:m.width }; })()`);
+      assert.ok(Math.abs(placement.trigger - placement.menu) < 1, `${context}: centred under its control (${placement.trigger} vs ${placement.menu})`);
+      assert.ok(placement.left >= 0 && placement.right <= width, `${context}: stays in the window (${placement.left}-${placement.right})`);
+      assert.equal(placement.top, 4, `${context}: hangs just under its control`);
+      await shot(`menu-${name}-${theme}-${width}`);
+      await evaluate(`${trigger}.click()`);
+      await until("!document.querySelector('.onboarding-view-menu')");
+      console.log(`Passed ${context}: ${Math.round(placement.width)}px wide, ${Math.round(width - placement.right)}px from the edge`);
     }
   }
 }
 
-async function validateProjectScrollports() {
-  const samples = [];
-  for (const theme of ["dark", "light"]) {
-    // Keep the same title/list clearance at every window size; grow the list below it.
-    for (const [width, height, minimumListHeight, titleTop, listTop] of [
-      [640, 520, 200, 91, 178], [591, 594, 275, 91, 178], [992, 596, 275, 91, 178],
-      [900, 680, 350, 91, 178], [1200, 900, 475, 91, 178], [1200, 1200, 625, 91, 178],
-    ]) {
-      window.setContentSize(width, height);
-      const url = new URL(`http://127.0.0.1:${server.httpServer.address().port}/tests/fixtures/workspace/projects/onboarding-home.html`);
-      url.searchParams.set("state", "projects"); url.searchParams.set("count", "40"); url.searchParams.set("theme", theme);
-      await window.loadURL(url.href);
-      await window.webContents.debugger.sendCommand("Emulation.setFocusEmulationEnabled", { enabled: true });
-      await until("document.querySelectorAll('.onboarding-project-row-wrap').length === 40");
-      await window.webContents.debugger.sendCommand("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 39 });
-      await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
-      const snapshot = await evaluate(`(() => {
-        const list = document.querySelector('.onboarding-project-list');
-        const rect = selector => { const r = document.querySelector(selector).getBoundingClientRect(); return { top:r.top, bottom:r.bottom, height:r.height, left:r.left, right:r.right, width:r.width }; };
-        return { viewport:{ width:innerWidth, height:innerHeight }, list:rect('.onboarding-project-list'), launcher:rect('.onboarding-launcher'), page:rect('.onboarding-homepage'),
-          brand:rect('.onboarding-brand-lockup'), actions:rect('.onboarding-entry-actions'), row:rect('.onboarding-project-row'),
-          lowerInset:getComputedStyle(document.querySelector('.onboarding-home-primary')).paddingBottom,
-          actionGap:getComputedStyle(document.querySelector('.onboarding-home-primary')).marginBottom,
-          actionPadding:getComputedStyle(document.querySelector('.onboarding-entry-actions')).paddingBottom,
-          lastAction:rect('[data-onboarding-action=import]'),
-          scrollHeight:list.scrollHeight, clientHeight:list.clientHeight, gutter:list.offsetWidth-list.clientWidth,
-          thumb:getComputedStyle(list, '::-webkit-scrollbar-thumb').backgroundColor,
-          thumbInset:getComputedStyle(list, '::-webkit-scrollbar-thumb').borderTopWidth, hover:list.matches(':hover'),
-          outerOverflow:document.querySelector('.onboarding-shell').scrollHeight > innerHeight,
-          region:list.getAttribute('role'), tabIndex:list.tabIndex };
-      })()`);
-      const context = `long-projects/${theme}/${width}x${height}`;
-      assert.deepEqual(snapshot.viewport, { width, height }, `${context}: test the requested viewport, not an OS-clamped window`);
-      assert.ok(snapshot.list.height >= minimumListHeight, `${context}: use available height, not the old 112–284px cap (${snapshot.list.height}px)`);
-      assert.ok(Math.abs(snapshot.launcher.height - snapshot.page.height) < 1, `${context}: no wasted available vertical space`);
-      assert.equal(snapshot.brand.top, titleTop, `${context}: preserve the original top margin, not the regressed 48px anchor`);
-      assert.equal(snapshot.list.top, listTop, `${context}: title-to-list spacing stays untouched`);
-      assert.equal(snapshot.lowerInset, '10px', `${context}: reduce only the inset below the list`);
-      assert.equal(snapshot.actionGap, '12px', `${context}: compact spacing below the divider`);
-      assert.equal(snapshot.actionPadding, '0px', `${context}: remove trailing action-area padding`);
-      assert.equal(height - snapshot.lastAction.bottom, 16, `${context}: do not leave the old large bottom blank`);
-      assert.ok(snapshot.brand.top >= 38 && snapshot.actions.bottom <= height, `${context}: title and all actions remain onscreen`);
-      assert.ok(snapshot.list.top >= snapshot.brand.bottom && snapshot.list.bottom <= snapshot.actions.top, `${context}: no overlapping chrome`);
-      assert.ok(snapshot.scrollHeight > snapshot.clientHeight && !snapshot.outerOverflow, `${context}: only the Project list scrolls`);
-      assert.equal(snapshot.gutter, 12, `${context}: deterministic reserved scrollbar lane`);
-      assert.equal(snapshot.hover, false, `${context}: visibility must not depend on hovering the list`);
-      assert.notEqual(snapshot.thumb, 'rgba(0, 0, 0, 0)', `${context}: persistent thumb before any interaction`);
-      assert.equal(snapshot.thumbInset, '2px', `${context}: use the shared visible presentation, not the faint idle thumb`);
-      assert.equal(snapshot.region, 'region'); assert.equal(snapshot.tabIndex, 0);
-      await writeFile(path.join(screenshots, `long-projects-${theme}-${width}x${height}.png`), (await window.capturePage()).toPNG());
-      await window.webContents.debugger.sendCommand("Input.dispatchMouseEvent", { type: "mouseWheel",
-        x: Math.round(snapshot.list.left + 30), y: Math.round(snapshot.list.top + 20), deltaX: 0, deltaY: 250 });
-      await until("document.querySelector('.onboarding-project-list').scrollTop > 0");
-      await evaluate("document.querySelector('.onboarding-project-list').focus()");
-      window.webContents.sendInputEvent({ type: "keyDown", keyCode: "End" });
-      window.webContents.sendInputEvent({ type: "keyUp", keyCode: "End" });
-      await until("(() => { const el = document.querySelector('.onboarding-project-list'); return el.scrollTop >= el.scrollHeight - el.clientHeight - 2; })()");
-      const after = await evaluate(`({ brandTop:document.querySelector('.onboarding-brand-lockup').getBoundingClientRect().top,
-        actionsTop:document.querySelector('.onboarding-entry-actions').getBoundingClientRect().top })`);
-      assert.equal(after.brandTop, snapshot.brand.top, `${context}: scrolling does not move the title`);
-      assert.equal(after.actionsTop, snapshot.actions.top, `${context}: scrolling does not move the actions`);
-      samples.push({ context, ...snapshot });
-      console.log(`Passed ${context}: ${snapshot.list.height}px list, visible thumb, wheel/End scrolling`);
-    }
+async function validateGrid(theme) {
+  const column = `(() => { const edges = (selector) => { const r = document.querySelector(selector).getBoundingClientRect(); return [r.left, r.right]; };
+    return { brand:edges('.onboarding-brand-lockup'), surface:edges('.onboarding-home-primary'), layout:edges('${LAYOUT_TRIGGER}') }; })()`;
+  for (const [width, height, count] of [[1180, 760, 40], [MINIMUM_WIDTH, MINIMUM_HEIGHT, 40], [1200, 900, 3]]) {
+    const context = `grid/${theme}/${width}x${height}/${count}`;
+    await open({ theme, state: "projects", width, height, count, layout: "list" });
+    const list = await evaluate(column);
+    await chooseLayout("grid");
+    await evaluate(settle);
+    assert.deepEqual(await evaluate(column), list, `${context}: switching layouts never moves the column`);
+    assert.deepEqual(await evaluate(typeLevels), PROJECT_TYPE, `${context}: three levels of type`);
+    const snapshot = await evaluate(`(() => { const element = document.querySelector('.onboarding-project-list');
+      const folders = [...document.querySelectorAll('.onboarding-project-folder')].map(folder => folder.getBoundingClientRect());
+      return { sideways:element.scrollWidth - element.clientWidth, overflows:element.scrollHeight > element.clientHeight, columns:new Set(folders.map(folder => folder.left)).size,
+        thumb:getComputedStyle(element, '::-webkit-scrollbar-thumb').backgroundColor, sheets:document.querySelector('.project-folder-glyph').querySelectorAll('.project-folder-sheet').length };
+    })()`);
+    assert.equal(snapshot.sideways, 0, `${context}: the Grid never scrolls sideways`);
+    assert.equal(snapshot.columns, Math.min(count, GRID_COLUMNS), `${context}: five folders across, down to the smallest window`);
+    assert.equal(snapshot.sheets, 1, `${context}: each folder holds one sheet`);
+    assert.equal(await evaluate("document.querySelector('.onboarding-project-tile').dataset.tooltip"), "/example/Projects", `${context}: the tooltip adds only what the folder does not show`);
+    await validateRemoveMark(context);
+    if (snapshot.overflows) assert.notEqual(snapshot.thumb, "rgba(0, 0, 0, 0)", `${context}: more projects below are always signalled`);
+    await shot(`grid-${theme}-${width}x${height}-${count}`);
+    console.log(`Passed ${context}`);
   }
+}
+
+/** With a real pointer: the mark turns red by itself, and the row keeps its other parts. */
+async function validateRemoveMark(context) {
+  const move = async (x, y) => window.webContents.debugger.sendCommand("Input.dispatchMouseEvent", { type: "mouseMoved", x, y });
+  const tile = await evaluate(`(() => { const r = document.querySelector('.onboarding-project-tile').getBoundingClientRect(); return { x:r.x + r.width / 2, y:r.y + r.height / 2 }; })()`);
+  await move(tile.x, tile.y);
+  await until("document.querySelector('.onboarding-project-row-wrap').matches(':hover')");
+  const mark = await evaluate(`(() => { const r = document.querySelector('.onboarding-project-remove').getBoundingClientRect(); return { x:r.x + r.width / 2, y:r.y + r.height / 2 }; })()`);
+  await move(mark.x, mark.y);
+  await until("document.querySelector('.onboarding-project-remove').matches(':hover')");
+  await evaluate(settle);
+  const style = await evaluate(`(() => { const remove = document.querySelector('.onboarding-project-remove');
+    const probe = document.createElement('span'); probe.style.color = 'var(--po-danger)'; remove.parentElement.append(probe);
+    const danger = getComputedStyle(probe).color; probe.remove();
+    return { background:getComputedStyle(remove).backgroundColor, color:getComputedStyle(remove).color, danger }; })()`);
+  assert.equal(style.background, "rgba(0, 0, 0, 0)", `${context}: no backdrop behind the remove mark`);
+  assert.equal(style.color, style.danger, `${context}: the remove mark itself turns red`);
+  await move(1, 39);
+}
+
+async function validateScrollport(theme) {
+  const titleTop = 40 + TITLE_INSET;
+  for (const [width, height, minimumListHeight] of [
+    [MINIMUM_WIDTH, MINIMUM_HEIGHT, 280], [992, 596, 355], [900, 680, 440], [1200, 900, 660], [1200, 1200, 960],
+  ]) {
+    const context = `long-projects/${theme}/${width}x${height}`;
+    await open({ theme, state: "projects", width, height, count: 40, layout: "list" });
+    const snapshot = await evaluate(`(() => { ${rects}
+      const list = document.querySelector('.onboarding-project-list');
+      return { viewport:{ width:innerWidth, height:innerHeight }, list:rect(list), brand:rect(document.querySelector('.onboarding-brand-lockup')),
+        surface:rect(document.querySelector('.onboarding-home-primary')), scrollHeight:list.scrollHeight, clientHeight:list.clientHeight,
+        gutter:list.offsetWidth - list.clientWidth, thumb:getComputedStyle(list, '::-webkit-scrollbar-thumb').backgroundColor,
+        thumbInset:getComputedStyle(list, '::-webkit-scrollbar-thumb').borderTopWidth, hover:list.matches(':hover'),
+        outerOverflow:document.querySelector('.onboarding-shell').scrollHeight > innerHeight, region:list.getAttribute('role'), tabIndex:list.tabIndex };
+    })()`);
+    assert.deepEqual(snapshot.viewport, { width, height }, `${context}: test the requested viewport, not an OS-clamped window`);
+    assert.equal(snapshot.brand.y, titleTop, `${context}: the title's position never moves`);
+    assert.ok(snapshot.list.height >= minimumListHeight, `${context}: the list uses the available height (${snapshot.list.height}px)`);
+    assert.equal(height - snapshot.surface.bottom, 20, `${context}: the surface runs to the page's lower inset`);
+    assert.ok(snapshot.scrollHeight > snapshot.clientHeight && !snapshot.outerOverflow, `${context}: only the Project list scrolls`);
+    assert.equal(snapshot.gutter, 12, `${context}: the shared scrollbar lane`);
+    assert.equal(snapshot.thumbInset, "2px", `${context}: the shared scrollbar thumb, not a local one`);
+    assert.equal(snapshot.hover, false, `${context}: visibility must not depend on hovering the list`);
+    assert.notEqual(snapshot.thumb, "rgba(0, 0, 0, 0)", `${context}: persistent thumb before any interaction`);
+    assert.equal(snapshot.region, "region");
+    assert.equal(snapshot.tabIndex, 0);
+    await shot(`long-projects-${theme}-${width}x${height}`);
+    await window.webContents.debugger.sendCommand("Input.dispatchMouseEvent", { type: "mouseWheel",
+      x: Math.round(snapshot.list.x + 30), y: Math.round(snapshot.list.y + 20), deltaX: 0, deltaY: 250 });
+    await until("document.querySelector('.onboarding-project-list').scrollTop > 0");
+    await evaluate("document.querySelector('.onboarding-project-list').focus()");
+    press("End");
+    await until("(() => { const el = document.querySelector('.onboarding-project-list'); return el.scrollTop >= el.scrollHeight - el.clientHeight - 2; })()");
+    assert.equal(await evaluate("document.querySelector('.onboarding-brand-lockup').getBoundingClientRect().top"), snapshot.brand.y, `${context}: scrolling does not move the title`);
+    console.log(`Passed ${context}: ${snapshot.list.height}px list, visible thumb, wheel/End scrolling`);
+  }
+}
+
+async function validateScrollPolicy() {
+  await open({ theme: "dark", state: "projects", width: 1200, height: 900, count: 40, layout: "list" });
+  const longRow = await evaluate("document.querySelector('.onboarding-project-row').getBoundingClientRect().width");
   // The opt-in must not change ordinary scroll owners or override system mode.
   const policy = await evaluate(`(() => {
     const ordinary = document.createElement('div'); ordinary.dataset.poScrollbar = 'content';
@@ -550,16 +492,14 @@ async function validateProjectScrollports() {
     document.documentElement.dataset.poScrollbarMode = 'product';
     return { transient, systemWidth };
   })()`);
-  assert.equal(policy.transient, 'rgba(0, 0, 0, 0)', 'Other default scroll owners remain transient');
-  assert.notEqual(policy.systemWidth, '12px', 'System scrollbar mode retains OS-owned geometry');
-  window.setContentSize(1200, 900);
-  const shortUrl = new URL(`http://127.0.0.1:${server.httpServer.address().port}/tests/fixtures/workspace/projects/onboarding-home.html?state=projects&count=1`);
-  await window.loadURL(shortUrl.href); await until("document.querySelectorAll('.onboarding-project-row-wrap').length === 1");
-  const short = await evaluate(`(() => { const list=document.querySelector('.onboarding-project-list'); return {
+  assert.equal(policy.transient, "rgba(0, 0, 0, 0)", "Other default scroll owners remain transient");
+  assert.notEqual(policy.systemWidth, "12px", "System scrollbar mode retains OS-owned geometry");
+  await open({ theme: "dark", state: "projects", width: 1200, height: 900, count: 1, layout: "list" });
+  const short = await evaluate(`(() => { const list = document.querySelector('.onboarding-project-list'); return {
     height:list.clientHeight, content:list.scrollHeight, width:document.querySelector('.onboarding-project-row').getBoundingClientRect().width,
-    launcher:document.querySelector('.onboarding-launcher').getBoundingClientRect().height }; })()`);
-  assert.equal(short.height, short.content, 'A short list does not manufacture overflow');
-  assert.ok(short.height < 50 && short.launcher < 400, 'A few projects still hug content, without an empty stretched panel');
-  assert.equal(short.width, samples.find(sample => sample.context === 'long-projects/dark/1200x900').row.width, 'Stable gutter keeps short/long row geometry identical');
-  await writeFile(path.join(screenshots, 'scrollport-results.json'), JSON.stringify({ samples, short, policy }, null, 2));
+    title:document.querySelector('.onboarding-brand-lockup').getBoundingClientRect().top, surface:document.querySelector('.onboarding-home-primary').getBoundingClientRect().height }; })()`);
+  assert.equal(short.height, short.content, "A short list does not manufacture overflow");
+  assert.equal(short.title, 40 + TITLE_INSET, "The title keeps its place however few projects there are");
+  assert.ok(short.surface < 120, "A few projects hug their surface, without an empty stretched panel");
+  assert.equal(short.width, longRow, "Stable gutter keeps short and long row geometry identical");
 }

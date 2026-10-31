@@ -1,6 +1,7 @@
 import { useDesktopPreference } from "../preferencesStore";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import { AlertTriangle } from "lucide-react";
+import type { ComponentProps } from "react";
 import {
   useEffect,
   useMemo,
@@ -38,6 +39,8 @@ import {
   OnboardingCreateProjectAction,
   OnboardingEntryActions,
 } from "./onboarding/OnboardingEntryActions";
+import { OnboardingEntryMenu } from "./onboarding/OnboardingEntryMenu";
+import { OnboardingProjectToolbar, useHomepageProjectView } from "./onboarding/OnboardingProjectToolbar";
 import { OnboardingHomeLayout } from "./onboarding/OnboardingHomeLayout";
 import { OnboardingProjectLayoutSwitch } from "./onboarding/OnboardingProjectLayoutSwitch";
 import { OnboardingProjectList } from "./onboarding/OnboardingProjectList";
@@ -79,6 +82,16 @@ export type MinimalOnboardingProps = {
 };
 
 /** Homepage project list. Cloud catalog/auth is supplied by the host, not discovered by the view. */
+/** Once there are projects, every way to start one moves to the head of the page. */
+function onboardingEntrySlots(hasProjects: boolean, {
+  draggingFolder,
+  ...entry
+}: ComponentProps<typeof OnboardingEntryMenu> & { draggingFolder: boolean }) {
+  if (hasProjects) return { trailing: <OnboardingEntryMenu {...entry} />, actions: null };
+  const { canCreateProject: _canCreateProject, onCreateProject: _onCreateProject, ...actions } = entry;
+  return { trailing: null, actions: <OnboardingEntryActions {...actions} draggingFolder={draggingFolder} /> };
+}
+
 export function MinimalOnboarding({
   projectEntryController,
   onChooseWorkspace,
@@ -239,6 +252,19 @@ export function MinimalOnboarding({
 
   const completeEmptyStateIntro = () => setShowEmptyStateIntro(false);
   const resolvedTheme = appearance.appearance.effectiveColorMode;
+  const canCreateProject = Boolean(onCreateProject && onChooseProjectLocation);
+  const projectView = useHomepageProjectView(items);
+  const entry = onboardingEntrySlots(hasProjects, {
+    busy,
+    openingFolder: openingPath === "__new__",
+    draggingFolder: folderDrop.dragging,
+    canCreateProject,
+    canImport: Boolean(onImportSource),
+    importPreviewBrands,
+    onCreateProject: projectEntryFlow.openCreate,
+    onOpenFolder: () => void chooseFolder(),
+    onImport: projectEntryFlow.openImport,
+  });
 
   return (
     <main
@@ -260,13 +286,14 @@ export function MinimalOnboarding({
         aria-busy={openingProject || undefined}
       >
         <OnboardingHomeLayout
-          brand={<OnboardingBrandLockup state={onboardingState} resolvedTheme={resolvedTheme} trailing={
-            <OnboardingProjectLayoutSwitch available={hasProjects} layout={projectLayout} disabled={openingProject} onChange={setProjectLayout} />
-          } />}
+          brand={<OnboardingBrandLockup state={onboardingState} resolvedTheme={resolvedTheme} trailing={entry.trailing} />}
           primaryKind={hasProjects ? "projects" : "create"}
-          primary={hasProjects ? (
+          primary={hasProjects ? (<>
+            <OnboardingProjectToolbar view={projectView} disabled={openingProject}>
+              <OnboardingProjectLayoutSwitch layout={projectLayout} disabled={openingProject} onChange={setProjectLayout} />
+            </OnboardingProjectToolbar>
             <OnboardingProjectList
-              items={items}
+              items={projectView.visibleItems}
               layout={projectLayout}
               onOpenCloudProject={onOpenCloudProject}
               busy={busy}
@@ -278,26 +305,15 @@ export function MinimalOnboarding({
               onDragStart={startProjectDrag}
               onDragEnd={() => setDraggingPath(null)}
             />
-          ) : (
+          </>) : (
             <OnboardingCreateProjectAction
               busy={busy}
-              canCreateProject={Boolean(onCreateProject && onChooseProjectLocation)}
+              canCreateProject={canCreateProject}
               prominent
               onCreateProject={projectEntryFlow.openCreate}
             />
           )}
-          actions={<OnboardingEntryActions
-            includeCreateProject={hasProjects}
-            busy={busy}
-            openingFolder={openingPath === "__new__"}
-            draggingFolder={folderDrop.dragging}
-            canCreateProject={Boolean(onCreateProject && onChooseProjectLocation)}
-            canImport={Boolean(onImportSource)}
-            importPreviewBrands={importPreviewBrands}
-            onOpenFolder={() => void chooseFolder()}
-            onCreateProject={projectEntryFlow.openCreate}
-            onImport={projectEntryFlow.openImport}
-          />}
+          actions={entry.actions}
         />
 
         {error && <div className="onboarding-error onboarding-homepage-error" role="alert"><AlertTriangle size={15} /><span>{error}</span></div>}

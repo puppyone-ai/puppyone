@@ -46,6 +46,7 @@ export const PROJECT_SWITCHER_WIDTH_STORAGE_KEY = "puppyone.desktop.projectSwitc
 export const RIGHT_SIDEBAR_WIDTH_STORAGE_KEY = "puppyone.desktop.rightSidebarWidth";
 export const RIGHT_SIDEBAR_SURFACE_STORAGE_KEY = "puppyone.desktop.rightSidebarSurface";
 export const HOMEPAGE_PROJECT_LAYOUT_STORAGE_KEY = "puppyone.desktop.homepageProjectLayout";
+export const HOMEPAGE_PROJECT_SORT_STORAGE_KEY = "puppyone.desktop.homepageProjectSort";
 export const AGENT_ROUTING_PREFERENCES_STORAGE_KEY = "puppyone.desktop.agentRoutingPreferences.v1";
 export const REACH_LAST_AGENT_STORAGE_KEY = "puppyone.desktop.reachLastAgent";
 /** @deprecated Migrated into AGENT_ROUTING_PREFERENCES_STORAGE_KEY. */
@@ -55,6 +56,8 @@ export const AGENT_PREFERRED_MODEL_STORAGE_KEY = "puppyone.desktop.agentPreferre
 export type RightSidebarSurface = "chat" | "changes" | "history";
 export const HOMEPAGE_PROJECT_LAYOUTS = ["list", "grid"] as const;
 export type HomepageProjectLayout = typeof HOMEPAGE_PROJECT_LAYOUTS[number];
+export const HOMEPAGE_PROJECT_SORTS = ["modified", "name"] as const;
+export type HomepageProjectSort = typeof HOMEPAGE_PROJECT_SORTS[number];
 
 export function readInitialDiffMarkers(storage: Pick<Storage, "getItem"> = defaultPreferenceStorage()): DiffMarkers {
   if (typeof window === "undefined") return parseDiffMarkers(null);
@@ -150,9 +153,15 @@ export function readInitialRightSidebarSurface(storage: Pick<Storage, "getItem">
 }
 
 export function readInitialHomepageProjectLayout(storage: Pick<Storage, "getItem"> = defaultPreferenceStorage()): HomepageProjectLayout {
-  if (typeof window === "undefined") return "list";
+  if (typeof window === "undefined") return "grid";
   const stored = storage.getItem(HOMEPAGE_PROJECT_LAYOUT_STORAGE_KEY);
-  return HOMEPAGE_PROJECT_LAYOUTS.find((layout) => layout === stored) ?? "list";
+  return HOMEPAGE_PROJECT_LAYOUTS.find((layout) => layout === stored) ?? "grid";
+}
+
+export function readInitialHomepageProjectSort(storage: Pick<Storage, "getItem"> = defaultPreferenceStorage()): HomepageProjectSort {
+  if (typeof window === "undefined") return "modified";
+  const stored = storage.getItem(HOMEPAGE_PROJECT_SORT_STORAGE_KEY);
+  return HOMEPAGE_PROJECT_SORTS.find((sort) => sort === stored) ?? "modified";
 }
 
 export function readInitialAgentPreferredModel(storage: Pick<Storage, "getItem"> = defaultPreferenceStorage()): string | null {

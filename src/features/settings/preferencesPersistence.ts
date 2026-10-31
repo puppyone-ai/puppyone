@@ -52,6 +52,7 @@ function readPreferences(storage: PreferenceStorage, onReadFailure: () => void) 
     rightSidebarWidth: legacy.readInitialRightSidebarWidth(safe),
     rightSidebarSurface: legacy.readInitialRightSidebarSurface(safe),
     homepageProjectLayout: legacy.readInitialHomepageProjectLayout(safe),
+    homepageProjectSort: legacy.readInitialHomepageProjectSort(safe),
     reachLastAgentId: legacy.readInitialReachLastAgent(safe),
     agentRoutingPreferences: parseAgentRoutingPreferences(safe.getItem(legacy.AGENT_ROUTING_PREFERENCES_STORAGE_KEY), {
       legacyRuntimeId: legacy.readInitialAgentPreferredRuntime(safe), legacyModelId: legacy.readInitialAgentPreferredModel(safe),
@@ -91,6 +92,7 @@ function serializePreferences(s: PersistedDesktopPreferences): Record<string, st
     [legacy.RIGHT_SIDEBAR_WIDTH_STORAGE_KEY]: String(s.rightSidebarWidth),
     [legacy.RIGHT_SIDEBAR_SURFACE_STORAGE_KEY]: s.rightSidebarSurface,
     [legacy.HOMEPAGE_PROJECT_LAYOUT_STORAGE_KEY]: s.homepageProjectLayout,
+    [legacy.HOMEPAGE_PROJECT_SORT_STORAGE_KEY]: s.homepageProjectSort,
     // A memory, not a setting: nothing is written until there is something to
     // remember, so a user who never connected an agent has no key for one.
     ...(s.reachLastAgentId ? { [legacy.REACH_LAST_AGENT_STORAGE_KEY]: s.reachLastAgentId } : {}),

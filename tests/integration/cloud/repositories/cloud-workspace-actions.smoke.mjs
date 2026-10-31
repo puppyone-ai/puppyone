@@ -38,8 +38,8 @@ async function exercise(hosted) {
   await window.loadURL(`${pathToFileURL(path.join(repo, "dist/index.html")).href}#${mode}-cloud-workbench-smoke`);
   await waitFor(`Boolean(${api})`);
   if (hosted) {
-    await waitFor("Boolean(document.querySelector('[data-cloud-project-id=alpha] .onboarding-project-row'))");
-    await evaluate("document.querySelector('[data-cloud-project-id=alpha] .onboarding-project-row').click()");
+    await waitFor("Boolean(document.querySelector('[data-cloud-project-id=alpha] :is(.onboarding-project-row, .onboarding-project-tile)'))");
+    await evaluate("document.querySelector('[data-cloud-project-id=alpha] :is(.onboarding-project-row, .onboarding-project-tile)').click()");
   } else {
     // The folder's Cloud project is its own project in the project menu (ADR-001).
     await evaluate("document.querySelector('.desktop-titlebar-workspace-button').click()");

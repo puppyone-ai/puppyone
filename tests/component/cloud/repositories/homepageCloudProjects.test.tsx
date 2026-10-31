@@ -4,6 +4,8 @@ import { nativeSnapshot } from "../../../fixtures/cloud/repositories/nativeRepos
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { initializeDesktopPreferences } from "../../../../src/preferencesStore";
+import { HOMEPAGE_PROJECT_LAYOUT_STORAGE_KEY } from "../../../../src/preferenceStorage";
 import { MinimalOnboarding } from "../../../../src/components/MinimalOnboarding";
 import { AssetLibraryHome } from "../../../../src/components/AssetLibraryHome";
 import { useAccountCloudWorkspace, type AccountCloudWorkspace } from "../../../../src/features/cloud/workbench/useAccountCloudWorkspace";
@@ -62,6 +64,8 @@ function deferred<T>() {
   return { resolve, reject, promise };
 }
 beforeEach(() => {
+  localStorage.setItem(HOMEPAGE_PROJECT_LAYOUT_STORAGE_KEY, "list");
+  initializeDesktopPreferences();
   bridge = vi.fn(async (request) => {
     if (request.path.startsWith("/projects/?")) return [project("a"), project("b")];
     if (request.path.endsWith("/repository-context")) {

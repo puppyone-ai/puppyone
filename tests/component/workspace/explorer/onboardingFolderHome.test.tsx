@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { HOMEPAGE_PROJECT_LAYOUT_STORAGE_KEY } from "../../../../src/preferenceStorage";
 import { MinimalOnboarding, type MinimalOnboardingProps } from "../../../../src/components/MinimalOnboarding";
 import { OnboardingImportDialog } from "../../../../src/components/OnboardingImportDialog";
 import { PUPPY_BRAND_MARK_ASSETS } from "../../../../src/components/brand/PuppyBrandMark";
@@ -19,7 +20,7 @@ import { DEFAULT_EXPERIMENTAL_SETTINGS } from "../../../../src/preferences";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-beforeEach(() => { localStorage.clear(); initializeDesktopPreferences(); });
+beforeEach(() => { localStorage.clear(); localStorage.setItem(HOMEPAGE_PROJECT_LAYOUT_STORAGE_KEY, "list"); initializeDesktopPreferences(); });
 
 let root: Root | null = null;
 const originalClipboard = navigator.clipboard;
@@ -212,25 +213,25 @@ describe("project folder home", () => {
     expect(container.textContent).not.toContain("Other options");
     expect(container.textContent).not.toContain("Get started with puppyone");
     expectBrandLockup(container, "projects");
-    const projectActions = [...container.querySelectorAll<HTMLButtonElement>(".onboarding-entry-action")];
-    expect(projectActions).toHaveLength(3);
-    expect(projectActions.map((action) => action.textContent)).toEqual([
-      "New empty project",
+    const projectActions = [...container.querySelectorAll<HTMLButtonElement>(".onboarding-brand-lockup .onboarding-entry-action")];
+    expect(projectActions.map((action) => action.textContent)).toEqual(["New empty project"]);
+    expect(projectActions[0]?.classList.contains("po-button--primary")).toBe(true);
+    expect(projectActions[0]?.classList.contains("onboarding-entry-action-cta")).toBe(false);
+    act(() => container.querySelector<HTMLButtonElement>("[data-onboarding-action='more']")?.click());
+    expect([...container.querySelectorAll(".onboarding-entry-menu [role='menuitem']")].map((item) => item.textContent)).toEqual([
       "Open a folder",
       "Import",
     ]);
-    expect(projectActions.every((action) => action.classList.contains("po-button--neutral"))).toBe(true);
-    expect(projectActions.every((action) => !action.classList.contains("onboarding-entry-action-cta"))).toBe(true);
     expect(container.querySelector(".onboarding-entry-action-divider")).toBeNull();
     const brand = container.querySelector(".onboarding-brand-lockup");
     const primary = container.querySelector(".onboarding-home-primary");
     const actions = container.querySelector(".onboarding-entry-actions");
     expect(requireSurface(container).dataset.onboardingState).toBe("projects");
     expect(primary?.getAttribute("data-onboarding-primary")).toBe("projects");
-    expect(primary?.children).toHaveLength(1);
+    expect(primary?.children).toHaveLength(2);
     expect(container.querySelector(".onboarding-project-list")?.children).toHaveLength(1);
     expect(brand!.compareDocumentPosition(primary as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(primary!.compareDocumentPosition(actions as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(actions).toBeNull();
   });
 
   it("uses Puppy Lite only when the resolved theme is light", () => {
@@ -260,16 +261,16 @@ describe("project folder home", () => {
       /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-launcher/,
     );
     expect(onboardingCss).toMatch(
-      /\.onboarding-home-primary\s*\{[^}]*padding:\s*var\(--onboarding-primary-inset-start\) 0 var\(--onboarding-primary-inset-end\);[^}]*margin-block-end:\s*var\(--onboarding-primary-actions-gap\);[^}]*border-block:\s*1px solid var\(--po-border\);/s,
+      /\.onboarding-home-primary\s*\{[^}]*padding:\s*0;[^}]*margin-block-end:\s*var\(--onboarding-primary-actions-gap\);[^}]*border:\s*0;/s,
     );
     expect(onboardingCss).not.toMatch(
       /\.onboarding-home-primary\[data-onboarding-primary="create"\]/,
     );
     expect(onboardingCss).toMatch(
-      /\.onboarding-homepage\s*\{[^}]*--onboarding-title-primary-gap:\s*58px;[^}]*--onboarding-primary-actions-gap:\s*30px;[^}]*--onboarding-primary-inset-start:\s*24px;/s,
+      /\.onboarding-homepage\s*\{[^}]*--onboarding-title-primary-gap:\s*58px;[^}]*--onboarding-primary-actions-gap:\s*30px;/s,
     );
     expect(onboardingCss).toMatch(
-      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-homepage\s*\{[^}]*--onboarding-title-primary-gap:\s*24px;[^}]*--onboarding-primary-actions-gap:\s*18px;/s,
+      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-homepage\s*\{[^}]*--onboarding-title-primary-gap:\s*20px;[^}]*--onboarding-primary-actions-gap:\s*8px;/s,
     );
     expect(onboardingCss).toMatch(
       /\.onboarding-brand-lockup\s*\{[^}]*margin-block-end:\s*var\(--onboarding-title-primary-gap\);/s,
@@ -281,6 +282,40 @@ describe("project folder home", () => {
     expect(onboardingCss).not.toContain(".onboarding-projects-layout");
     expect(onboardingCss).not.toMatch(/\.onboarding-entry-import\s*\{[^}]*height:/s);
     expect(onboardingCss).not.toMatch(/\.onboarding-entry-import:hover/);
+  });
+
+  it("frames the projects in a quiet fill and draws no rule around them", () => {
+    expect(onboardingCss).not.toMatch(/\.onboarding-home-primary[^{]*\{[^}]*border-(?:block|top|bottom)\s*:/s);
+    expect(onboardingCss).toMatch(
+      /\.onboarding-home-primary\[data-onboarding-primary="projects"\]\s*\{[^}]*border-radius:\s*var\(--po-card-radius\);[^}]*background:\s*var\(--po-sidebar\);/s,
+    );
+  });
+
+  it("takes its buttons from the shared Button and its values from the theme", () => {
+    const action = onboardingCss.match(/\.onboarding-entry-action\s*\{[^}]*\}/s)?.[0] ?? "";
+    expect(action).not.toMatch(/(?:^|\s)(?:height|padding|border|border-radius|background|color):/m);
+    expect(action).toMatch(/font-size:\s*var\(--onboarding-row-font-size\);\s*font-weight:\s*var\(--onboarding-row-font-weight\);/);
+    expect(onboardingCss).not.toMatch(/border-radius:\s*(?:7|10|12|14|16|26)px/);
+    expect(onboardingCss).not.toMatch(/font-weight:\s*\d/);
+    expect(onboardingCss).not.toMatch(/letter-spacing:\s*-/);
+    expect(onboardingCss).toMatch(/--onboarding-row-font-weight:\s*var\(--po-text-weight-regular, 400\);/);
+  });
+
+  it("keeps the page to three levels of type: the title, the body and the caption", () => {
+    const page = onboardingCss.slice(0, onboardingCss.indexOf(".project-cloud-link-button {"));
+    const sizes = new Set([...page.matchAll(/font-size:\s*([^;]+);/g)].map((match) => match[1]!.trim()));
+    expect([...sizes].sort()).toEqual([
+      "var(--desktop-titlebar-context-font-size)",
+      "var(--onboarding-caption-font-size)",
+      "var(--onboarding-row-font-size)",
+      "var(--po-text-size-caption, 11px)",
+      "var(--po-type-ui-body, 14px)",
+      "var(--po-type-ui-caption, 12px)",
+      "var(--po-type-ui-heading, 19px)",
+      "var(--po-type-ui-section-title, 16px)",
+    ]);
+    expect(onboardingCss).toMatch(/--onboarding-row-font-size:\s*var\(--po-type-ui-body, 14px\);/);
+    expect(onboardingCss).toMatch(/--onboarding-caption-font-size:\s*var\(--po-type-ui-caption, 12px\);/);
   });
 
   it("exposes one vertical projects-state contract", () => {
@@ -318,10 +353,9 @@ describe("project folder home", () => {
     // The projects page hangs from the shared Header and keeps a small bottom edge;
     // only the list below absorbs extra height.
     expect(onboardingCss).toMatch(
-      /\.onboarding-homepage-shell\[data-onboarding-state="projects"\]\s*\{[^}]*padding-block-start:\s*calc\(var\(--desktop-chrome-height\) \+ \d+px\);[^}]*padding-block-end:\s*16px;/s,
+      /\.onboarding-homepage-shell\[data-onboarding-state="projects"\]\s*\{[^}]*padding-block-start:\s*calc\(var\(--desktop-chrome-height\) \+ var\(--onboarding-title-inset\)\);[^}]*padding-block-end:\s*20px;/s,
     );
-    expect(onboardingCss).toMatch(/\.onboarding-shell\[data-onboarding-state="projects"\] \.onboarding-homepage\s*\{[^}]*--onboarding-primary-inset-end:\s*10px;[^}]*--onboarding-primary-actions-gap:\s*12px;/s);
-    expect(onboardingCss).toMatch(/\.onboarding-shell\[data-onboarding-state="projects"\] \.onboarding-entry-actions\s*\{[^}]*padding-block-end:\s*0;/s);
+    expect(onboardingCss).toMatch(/\.onboarding-shell\[data-onboarding-state="projects"\] \.onboarding-homepage\s*\{[^}]*--onboarding-title-primary-gap:\s*var\(--onboarding-title-inset\);[^}]*--onboarding-primary-actions-gap:\s*0;/s);
   });
 
   it("keeps one folder action after the project panel", async () => {
@@ -341,15 +375,17 @@ describe("project folder home", () => {
     const panel = container.querySelector(".onboarding-home-primary");
     expect(panel?.getAttribute("data-onboarding-primary")).toBe("projects");
     expect(panel?.lastElementChild?.classList.contains("onboarding-project-list")).toBe(true);
-    const projectPlace = container.querySelector('.onboarding-project-row [data-product-icon="local"]');
+    const projectPlace = container.querySelector('.onboarding-project-row [data-project-location="local"] .project-folder-glyph');
     expect(projectPlace).not.toBeNull();
     expect(container.querySelector(".desktop-menu-item-label")?.textContent).toBe("Notes");
     expect(container.querySelector(".desktop-menu-item-detail")?.textContent).toBe("~/Desktop");
     // Opening history is not a project modification timestamp.
     expect(container.querySelector(".desktop-menu-item-trailing")?.textContent ?? "").toBe("");
 
+    await act(async () => container.querySelector<HTMLButtonElement>("[data-onboarding-action='more']")?.click());
     await act(async () => container.querySelector<HTMLButtonElement>("[data-onboarding-action='open']")?.click());
     expect(onChooseWorkspace).toHaveBeenCalledTimes(1);
+    expect(container.querySelector(".onboarding-entry-menu")).toBeNull();
   });
 
   it("uses one explicit CTA in the empty state", async () => {
@@ -406,7 +442,7 @@ describe("project folder home", () => {
     expect(importLabel!.compareDocumentPosition(preview as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(container.querySelector(".onboarding-entry-action-divider")).toBeNull();
     expect(onboardingCss).toMatch(
-      /\.onboarding-entry-action-default\s*\{[^}]*border-color:\s*var\(--po-accent\);[^}]*background:\s*var\(--po-accent\);[^}]*color:\s*var\(--po-text-inverse\);/s,
+      /\.onboarding-entry-action-default:hover:not\(:disabled\)\s*\{[^}]*background:\s*color-mix\(in srgb, var\(--po-accent\) 88%, var\(--po-canvas\)\);/s,
     );
     expect(actions[1]!.compareDocumentPosition(importGroup as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const launcher = container.querySelector(".onboarding-launcher");
@@ -895,18 +931,26 @@ describe("project folder home", () => {
         lastOpenedAt: null,
       }],
     });
-    const folderAction = container.querySelector<HTMLButtonElement>("[data-onboarding-action='open']");
+    const more = container.querySelector<HTMLButtonElement>("[data-onboarding-action='more']");
+    await act(async () => more?.click());
 
     await act(async () => {
-      folderAction?.click();
+      container.querySelector<HTMLButtonElement>("[data-onboarding-action='open']")?.click();
       await Promise.resolve();
     });
 
-    expect(folderAction?.querySelectorAll("[data-puppy-loader]")).toHaveLength(1);
+    expect(more?.querySelectorAll("[data-puppy-loader]")).toHaveLength(1);
     expect(container.querySelector(".onboarding-operation-status")).toBeNull();
     expect(container.querySelector(".onboarding-project-row [data-puppy-loader]")).toBeNull();
 
     await act(async () => finishOpening?.());
+  });
+
+  it("turns the remove mark red on its own, with a ring for the keyboard", () => {
+    const hover = onboardingCss.match(/\.desktop-menu-icon-button\.onboarding-project-remove:hover:not\(:disabled\),[^{]*\{[^}]*\}/s)?.[0] ?? "";
+    expect(hover).toMatch(/background:\s*transparent;/);
+    expect(hover).toMatch(/color:\s*var\(--po-danger\);/);
+    expect(onboardingCss).toMatch(/\.onboarding-project-remove:focus-visible:not\(:disabled\)\s*\{\s*outline:\s*2px solid var\(--po-focus-ring\);/);
   });
 
   it("removes one registration without opening the project", async () => {

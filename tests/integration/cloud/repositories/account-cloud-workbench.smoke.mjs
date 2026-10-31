@@ -23,11 +23,19 @@ const waitFor = async (expression) => {
   while (Date.now() < deadline) { if (await evaluate(expression)) return; await new Promise((r) => setTimeout(r, 50)); }
   throw new Error(`Timed out: ${expression}; ${errors.join("; ")}`);
 };
+/** The Homepage opens on the Grid; a project's location marks belong to the list. */
+async function showHomepageList() {
+  if (await evaluate("document.querySelector('.onboarding-project-list').dataset.projectLayout === 'list'")) return;
+  await evaluate("document.querySelector('.onboarding-view-menu-root .po-icon-button:not(.onboarding-view-menu-trigger)').click()");
+  await waitFor("Boolean(document.querySelector('[data-project-layout-option=list]'))");
+  await evaluate("document.querySelector('[data-project-layout-option=list]').click()");
+  await waitFor("document.querySelector('.onboarding-project-list').dataset.projectLayout === 'list'");
+}
 async function openProject(id) {
   await evaluate("window.__accountCloudSmoke.home()");
-  await waitFor(`Boolean(document.querySelector('[data-cloud-project-id="${id}"] .onboarding-project-row'))`);
+  await waitFor(`Boolean(document.querySelector('[data-cloud-project-id="${id}"] :is(.onboarding-project-row, .onboarding-project-tile)'))`);
   // A Cloud project's own entry opens it directly (puppy-issues ADR-001).
-  await evaluate(`document.querySelector('[data-cloud-project-id="${id}"] .onboarding-project-row').click()`);
+  await evaluate(`document.querySelector('[data-cloud-project-id="${id}"] :is(.onboarding-project-row, .onboarding-project-tile)').click()`);
   await waitFor(`window.__accountCloudSmoke.state().active && window.__accountCloudSmoke.state().project === '${id}' && !document.querySelector('[role=dialog]')`);
   await waitFor("Boolean(document.querySelector('[data-cloud-native=true] .tree-row'))");
   await evaluate("[...document.querySelectorAll('[data-cloud-native=true] .tree-row')].find(el => el.textContent.includes('readme')).click()");
@@ -106,7 +114,7 @@ app.whenReady().then(async () => {
       top:button?.top, right:button ? innerWidth - button.right : null,
       topGap:button && titlebar ? button.top - titlebar.top : null,
       bottomGap:button && titlebar ? titlebar.bottom - button.bottom : null,
-      projectRows:projectRows.length, projectLabels:projectRows.map(row => row.querySelector('.desktop-menu-item-label')?.textContent) };
+      projectRows:projectRows.length, projectLabels:projectRows.map(row => row.querySelector('.desktop-menu-item-label, .onboarding-project-tile-name')?.textContent) };
   })()`);
   assert(signedOutHome.exists && signedOutHome.inHeader && !signedOutHome.inProjectList, "Sign-in belongs to the Homepage Header, never a synthetic Project row");
   assert(signedOutHome.headerHeight === geometry.header.height, "Homepage and project Headers must have the same height");
@@ -145,7 +153,7 @@ app.whenReady().then(async () => {
   // Six folders and two Cloud projects: the folder linked to alpha is its own entry (ADR-001).
   await waitFor("document.querySelectorAll('.onboarding-project-row-wrap').length === 8");
   assert(await evaluate("!document.querySelector('.onboarding-project-group') && document.querySelectorAll('[data-cloud-project-id=alpha]').length === 1 && Boolean(document.querySelector('[data-linked-cloud-project-id=alpha] [data-project-location=linked] .onboarding-project-cloud-badge'))"), "One flat list must express linked folders through their folder/cloud icon, not section headings");
-  const homepageOrder = await evaluate("[...document.querySelectorAll('.onboarding-project-row-wrap')].map(row => (row.dataset.projectLocation ?? '') + ':' + row.querySelector('.desktop-menu-item-label').textContent).join('|')");
+  const homepageOrder = await evaluate("[...document.querySelectorAll('.onboarding-project-row-wrap')].map(row => (row.dataset.projectLocation ?? '') + ':' + row.querySelector('.desktop-menu-item-label, .onboarding-project-tile-name').textContent).join('|')");
   // One order for every entry: beta (June) before the notes folder (May) before
   // the alpha folder (April); the alpha Cloud project is dated by its own activity.
   const order = homepageOrder.split('|');
@@ -154,6 +162,7 @@ app.whenReady().then(async () => {
     && order.includes('cloud:Hosted alpha') && order.filter(entry => entry.endsWith(':Hosted alpha')).length === 2,
     `All locations must share one last-modified order: ${homepageOrder}`);
   const homepageMarks = [];
+  await showHomepageList();
   for (const theme of ['light', 'dark']) {
     await evaluate(`window.__accountCloudSmoke.setTheme('${theme}')`);
     await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");

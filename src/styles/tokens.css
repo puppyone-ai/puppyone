@@ -116,6 +116,7 @@
   --desktop-task-dialog-inset: 32px;
   --po-reading-content-width: 724px;
 
+  --po-card-radius: 8px;
   --po-menu-radius: 8px;
   --po-menu-padding: 4px;
   --po-menu-item-radius: var(--desktop-control-radius);
@@ -224,6 +225,12 @@
   );
   --po-sidebar: color-mix(in srgb, var(--po-surface-chrome) 40%, var(--po-surface-editor));
   --po-chrome: var(--po-surface-chrome);
+  /* A project's folder: tones of the theme's own ink, with its front lighter than its
+   * back and the paper inside the brightest thing in it. */
+  --po-project-folder-back: color-mix(in srgb, var(--po-text) 34%, var(--po-canvas));
+  --po-project-folder-front: color-mix(in srgb, var(--po-text) 22%, var(--po-canvas));
+  --po-project-folder-sheet: var(--po-surface-panel-raised);
+  --po-project-folder-sheet-ink: color-mix(in srgb, var(--po-project-folder-sheet) 84%, var(--po-text));
   --po-panel: var(--po-surface-panel);
   --po-panel-raised: var(--po-surface-panel-raised);
   --po-overlay: var(--po-surface-overlay);
@@ -278,6 +285,10 @@
 
 .dark {
   color-scheme: dark;
+  --po-project-folder-back: color-mix(in srgb, var(--po-text) 20%, var(--po-canvas));
+  --po-project-folder-front: color-mix(in srgb, var(--po-text) 32%, var(--po-canvas));
+  --po-project-folder-sheet: color-mix(in srgb, var(--po-text) 90%, var(--po-canvas));
+  --po-project-folder-sheet-ink: color-mix(in srgb, var(--po-project-folder-sheet) 80%, var(--po-canvas));
   --po-project-card-tab: color-mix(in srgb, var(--po-panel-raised) 84%, var(--po-canvas) 16%);
   --po-project-card-hover-bg: color-mix(in srgb, var(--po-panel) 94%, var(--po-text) 6%);
   --po-elevation-low: 0 2px 4px -2px
