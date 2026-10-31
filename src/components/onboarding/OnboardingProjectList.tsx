@@ -8,7 +8,7 @@ import {
   type ProjectHomeItem,
 } from "../../lib/workspaceHomeModel";
 import type { HomepageProjectLayout } from "../../preferenceStorage";
-import { ProjectRowActions, type ProjectActionSurface } from "../../features/app-shell/ProjectRowActions";
+import { ProjectRowActions, type ProjectActionSurface } from "../ProjectRowActions";
 import { DesktopMenuItem } from "../DesktopMenu";
 import { HomeProjectIcon, ProjectFolder } from "./HomeProjectIcon";
 import { LinkedCloudProjectButton, ProjectHomeItemCaption, useProjectHomeItemCaption } from "./LinkedCloudProjectButton";

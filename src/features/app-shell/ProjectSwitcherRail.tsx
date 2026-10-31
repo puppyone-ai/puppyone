@@ -23,7 +23,7 @@ import { beginProjectRootDrag } from "./projectRootDrag";
 import {
   ProjectRowActions,
   type ProjectActionSurface,
-} from "./ProjectRowActions";
+} from "../../components/ProjectRowActions";
 import type { ProjectAppearance } from "../../types/electron";
 export {
   DEFAULT_PROJECT_SWITCHER_EXPANDED_WIDTH,
