@@ -61,10 +61,17 @@ export function compileMarkdownHtmlBlockPolicy(input: {
   const diagnostics: MarkdownDiagnostic[] = [];
   let hasMedia = false;
   let requiresAssetBroker = false;
+  let depth = 0;
 
   for (const token of tokens) {
-    if (token.closing) continue;
-    if (isBlockedExecutableTag(token.tagName)) {
+    if (token.closing) {
+      depth = Math.max(0, depth - 1);
+      continue;
+    }
+    const isRoot = depth === 0;
+    if (!token.selfClosing) depth += 1;
+
+    if (isBlockedExecutableTag(token.tagName) && isRoot) {
       return unsupported(
         "htmlBlock.blocked-tag",
         `<${token.tagName}> is not supported in ordinary Markdown`,
@@ -74,10 +81,13 @@ export function compileMarkdownHtmlBlockPolicy(input: {
     const safeBlock = isTagAllowedInProfile(token.tagName, "block");
     const safeMedia = isTagAllowedInProfile(token.tagName, "block", { deferredMedia: true });
     if (!safeBlock && !safeMedia) {
-      return unsupported(
-        "htmlBlock.unsupported-tag",
-        `<${token.tagName}> is not in the versioned safe HTML profile`,
-      );
+      // The sanitizer removes only this tag, so one unknown or nested blocked
+      // element no longer costs the rest of the block its rendering.
+      diagnostics.push({
+        code: "htmlBlock.tag-reduced",
+        message: `<${token.tagName}> was omitted`,
+      });
+      continue;
     }
     hasMedia ||= !safeBlock && safeMedia;
 
@@ -205,6 +215,7 @@ function compileBlockStyleDiagnostics(
 function isMediaResourceAttribute(tagName: string, attributeName: string): boolean {
   return (
     (tagName === "img" && (attributeName === "src" || attributeName === "srcset"))
+    || (tagName === "source" && attributeName === "srcset")
     || ((tagName === "video" || tagName === "source") && attributeName === "src")
     || (tagName === "video" && attributeName === "poster")
   );

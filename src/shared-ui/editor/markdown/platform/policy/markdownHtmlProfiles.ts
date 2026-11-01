@@ -2,7 +2,7 @@
  * Versioned broad-safe HTML profiles (architecture §6.4).
  * Profiles are non-escalating: a surface receives only its selected profile.
  */
-export const MARKDOWN_HTML_PROFILE_VERSION = "2026-08-06.1" as const;
+export const MARKDOWN_HTML_PROFILE_VERSION = "2026-11-02.1" as const;
 
 export type MarkdownHtmlProfileId =
   | "inline-editable"
@@ -21,6 +21,7 @@ const INLINE_EDITABLE_TAGS = [
   "del",
   "em",
   "i",
+  "ins",
   "kbd",
   "mark",
   "q",
@@ -28,13 +29,17 @@ const INLINE_EDITABLE_TAGS = [
   "rt",
   "ruby",
   "s",
+  "samp",
   "small",
   "span",
+  "strike",
   "strong",
   "sub",
   "sup",
   "time",
+  "tt",
   "u",
+  "var",
 ] as const;
 
 const SAFE_BLOCK_TAGS = [
@@ -76,7 +81,7 @@ const SAFE_BLOCK_TAGS = [
 // profile. Every network-capable sink below has a shipped broker-backed DOM
 // adapter; declaring a tag here without one would advertise ambient browser
 // loading that the product does not actually mediate.
-const SAFE_MEDIA_TAGS = ["img", "source", "video"] as const;
+const SAFE_MEDIA_TAGS = ["img", "picture", "source", "video"] as const;
 
 const SAFE_BLOCK_ALIGN_TAGS = [
   "blockquote",
@@ -177,7 +182,7 @@ export const MARKDOWN_HTML_PROFILES = {
     attributes: {
       global: new Set(["aria-label", "class", "dir", "id", "lang", "style", "title"]),
       byTag: new Map<string, Set<string>>([
-        ["a", new Set(["aria-label", "class", "dir", "href", "id", "lang", "rel", "style", "target", "title"])],
+        ["a", new Set(["aria-label", "class", "dir", "href", "id", "lang", "name", "rel", "style", "target", "title"])],
         ["abbr", new Set(["aria-label", "class", "dir", "id", "lang", "style", "title"])],
         ["time", new Set(["aria-label", "class", "datetime", "dir", "id", "lang", "style", "title"])],
       ]),
@@ -191,16 +196,18 @@ export const MARKDOWN_HTML_PROFILES = {
     attributes: {
       global: new Set(["aria-label", "class", "dir", "id", "lang", "style", "title"]),
       byTag: new Map<string, Set<string>>([
-        ["a", new Set(["aria-label", "class", "dir", "href", "id", "lang", "rel", "style", "target", "title"])],
+        ["a", new Set(["aria-label", "class", "dir", "href", "id", "lang", "name", "rel", "style", "target", "title"])],
         ["details", new Set(["aria-label", "class", "dir", "id", "lang", "open", "style", "title"])],
-        ["td", new Set(["aria-label", "class", "colspan", "dir", "id", "lang", "rowspan", "style", "title"])],
-        ["th", new Set(["aria-label", "class", "colspan", "dir", "id", "lang", "rowspan", "style", "title"])],
+        ["ol", new Set(["start", "type"])],
+        ["table", new Set(["align", "width"])],
         ["time", new Set(["aria-label", "class", "datetime", "dir", "id", "lang", "style", "title"])],
         ...SAFE_BLOCK_ALIGN_TAGS.map((tagName) => [
           tagName,
           new Set([
             "align",
-            ...(tagName === "td" || tagName === "th" ? ["colspan", "rowspan"] : []),
+            ...(tagName === "td" || tagName === "th"
+              ? ["colspan", "height", "rowspan", "valign", "width"]
+              : []),
           ]),
         ] as const),
       ]),
@@ -214,8 +221,8 @@ export const MARKDOWN_HTML_PROFILES = {
     attributes: {
       global: new Set(["aria-label", "class", "dir", "id", "lang", "style", "title"]),
       byTag: new Map<string, Set<string>>([
-        ["img", new Set(["alt", "aria-label", "class", "height", "id", "loading", "src", "srcset", "style", "title", "width"])],
-        ["source", new Set(["src", "type"])],
+        ["img", new Set(["align", "alt", "aria-label", "class", "height", "id", "loading", "src", "srcset", "style", "title", "width"])],
+        ["source", new Set(["media", "sizes", "src", "srcset", "type"])],
         ["video", new Set([
           "aria-label",
           "class",
@@ -253,6 +260,15 @@ export function getSafeMediaProfile() {
 
 export function isBlockedExecutableTag(tagName: string): boolean {
   return MARKDOWN_HTML_PROFILES.blocked.has(tagName);
+}
+
+/** A block-level root keeps block layout even when it shares a line with Markdown. */
+export function isBlockLevelHtmlTag(tagName: string): boolean {
+  return getSafeBlockProfile().tags.has(tagName) && !getInlineEditableProfile().tags.has(tagName);
+}
+
+export function isPassiveMediaHtmlTag(tagName: string): boolean {
+  return getSafeMediaProfile().tags.has(tagName);
 }
 
 export function normalizeMarkdownHtmlAlignment(value: string | null): "left" | "center" | "right" | null {

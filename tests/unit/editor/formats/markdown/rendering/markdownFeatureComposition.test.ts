@@ -78,7 +78,7 @@ describe("static Markdown Feature Composition", () => {
       "table",
       "video",
     ]));
-    expect(inlineWidgetKinds).toEqual(["mathInline", "image"]);
+    expect(inlineWidgetKinds).toEqual(["mathInline", "htmlRun", "image"]);
   });
 
   it("adds declarative MDX components only to the OpenKnowledge dialect", () => {

@@ -54,7 +54,7 @@ describe("Markdown HTML anchor targets", () => {
     expect(view.state.doc.toString()).toBe(source);
   });
 
-  it.each(['<a id=section><a>', '<a id=section>', '<a id=section href="javascript:alert(1)"></a>', '<span></span>'])(
+  it.each(['<a id=section><a>', '<a id=section>', '<a id=section href="javascript:alert(1)"></a>'])(
     "keeps unsupported or incomplete source visible: %s", source => {
       const view = mount(`${source}\n\nBody`);
       expect(view.contentDOM.textContent).toContain(source);

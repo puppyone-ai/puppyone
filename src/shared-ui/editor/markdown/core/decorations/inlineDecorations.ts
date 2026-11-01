@@ -67,6 +67,30 @@ export function addInlineMarkdownDecorations(
       // Emit its range decorations exactly once, from the line that owns the
       // opening marker.
       if (element.from < lineFrom || element.from > lineTo) continue;
+      if (plan.presentation === "inlineAtom" && plan.atom.kind === "htmlRun") {
+        // One range has one owner: nested Markdown stays inside the widget, or
+        // literal in the revealed source, and never decorates a second time.
+        if (!reserveRange(occupied, plan.sourceRange.from, plan.sourceRange.to)) continue;
+        if (isRevealedInlineRange(plan.sourceRange.from, plan.sourceRange.to, inlineRevealRange)) {
+          addSourceSyntaxDecoration(builders, plan.sourceRange.from, plan.sourceRange.to, "inline-html", true);
+          continue;
+        }
+        const widget = featureComposition?.createInlineWidget(plan, {
+          htmlTrustMode,
+          markdownLinkGraph,
+          documentPath,
+          markdownAssetUrlResolver,
+        }) ?? null;
+        if (widget) {
+          addReplacementDecoration(
+            builders,
+            Decoration.replace({ widget, inclusive: false }),
+            plan.sourceRange.from,
+            plan.sourceRange.to,
+          );
+        }
+        continue;
+      }
       addInlineHtmlElementDecoration(
         state,
         element,
@@ -166,7 +190,7 @@ function compareInlineDecorationPriority(left: MarkdownElement, right: MarkdownE
       case "mathInline":
         return 0;
       case "inlineHtml":
-        return 1;
+        return element.inlineHtml.runRole === "owner" ? -1 : 1;
       case "wikiLink":
         return 2;
       case "link":

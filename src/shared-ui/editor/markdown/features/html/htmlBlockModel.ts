@@ -255,6 +255,11 @@ function getStandaloneMediaHtmlBlock(
   };
 }
 
+/** Lines the block widget already owns; an inline run must not project them twice. */
+export function isStandaloneMediaHtmlLine(state: EditorState, lineNumber: number): boolean {
+  return getStandaloneMediaHtmlBlock(state, lineNumber) !== null;
+}
+
 function estimateHtmlBlockMetrics(
   tokens: readonly MarkdownHtmlTagToken[],
 ): MarkdownHtmlBlockMetrics {

@@ -9,10 +9,13 @@ export type {
   MarkdownInlineHtml,
   MarkdownInlineHtmlStatus,
 } from "../../core/features/markdownFeatureData";
+import { isBlockedExecutableTag } from "../../platform/policy/markdownHtmlProfiles";
 import {
   parseMarkdownHtmlTagToken,
+  scanMarkdownHtmlTagTokens,
   type MarkdownHtmlTagToken,
 } from "./htmlTagTokenizer";
+import { compileInlineHtmlRenderPlan } from "./inlineHtmlPolicy";
 
 type InlineContainer = {
   from: number;
@@ -175,6 +178,12 @@ function collectInlineHtmlContainers(
   tree.iterate({
     enter(nodeRef) {
       const node = nodeRef.node;
+      if (node.name === "HTMLBlock") {
+        if (isMarkerOwnedHtmlBlock(state, node)) {
+          containers.set(`${node.from}:${node.to}`, collectMarkerOwnedHtmlBlock(state, node));
+        }
+        return false;
+      }
       if (node.name !== "HTMLTag") return true;
 
       const containerNode = findInlineContainerNode(node);
@@ -220,7 +229,13 @@ function collectInlineHtmlContainersInRange(
     to: probeTo,
     enter(nodeRef) {
       const node = nodeRef.node;
-      if (node.name === "HTMLBlock") return false;
+      if (node.name === "HTMLBlock") {
+        const key = `${node.from}:${node.to}`;
+        if (isMarkerOwnedHtmlBlock(state, node) && !containers.has(key)) {
+          containers.set(key, collectMarkerOwnedHtmlBlock(state, node));
+        }
+        return false;
+      }
       if (!isInlineContainerName(node.name)) return true;
       const key = `${node.from}:${node.to}`;
       if (!containers.has(key)) {
@@ -257,6 +272,27 @@ function collectInlineHtmlContainer(
   });
   container.tokens.sort((left, right) => left.from - right.from || left.to - right.to);
   return container;
+}
+
+/**
+ * A block widget replaces whole lines, so it cannot take over an HTML block
+ * that shares its line with a list or quote marker. CommonMark still makes it
+ * a block; projecting it as a run keeps the marker and its container intact.
+ */
+function isMarkerOwnedHtmlBlock(state: EditorState, node: SyntaxNode): boolean {
+  const firstLine = state.doc.lineAt(node.from);
+  return (
+    state.sliceDoc(firstLine.from, node.from).trim() !== ""
+    && Math.max(node.from, node.to - 1) <= firstLine.to
+  );
+}
+
+function collectMarkerOwnedHtmlBlock(state: EditorState, node: SyntaxNode): InlineContainer {
+  return {
+    from: node.from,
+    to: node.to,
+    tokens: scanMarkdownHtmlTagTokens(state.sliceDoc(node.from, node.to), node.from),
+  };
 }
 
 function countContainerTokens(containers: ReadonlyMap<string, InlineContainer>): number {
@@ -338,13 +374,63 @@ function pairInlineHtmlContainer(container: InlineContainer): MarkdownInlineHtml
     });
   }
 
-  return elements.map((element) => {
+  return assignInlineHtmlRuns(elements.map((element) => {
     if (element.status !== "complete") return element;
     const enclosedByInvalidSource = invalidRanges.some((range) => (
       element.from >= range.from && element.to <= range.to
     ));
     return enclosedByInvalidSource ? { ...element, status: "malformed" } : element;
+  }));
+}
+
+/**
+ * Classifies on the whole container, never on a range query, so a run keeps
+ * one projection however a viewport slices it.
+ */
+function assignInlineHtmlRuns(elements: readonly MarkdownInlineHtml[]): MarkdownInlineHtml[] {
+  const ordered = [...elements].sort(compareInlineHtmlElements);
+  const result: MarkdownInlineHtml[] = [];
+  for (let index = 0; index < ordered.length;) {
+    const root = ordered[index];
+    let end = index + 1;
+    while (end < ordered.length && ordered[end].to <= root.to) end += 1;
+    const group = ordered.slice(index, end);
+    if (requiresInlineHtmlRun(group)) {
+      result.push({ ...root, runRole: "owner" });
+      for (const member of group.slice(1)) result.push({ ...member, runRole: "member" });
+    } else {
+      result.push(...group);
+    }
+    index = end;
+  }
+  return result;
+}
+
+function requiresInlineHtmlRun(group: readonly MarkdownInlineHtml[]): boolean {
+  const root = group[0];
+  if (!root || isBlockedExecutableTag(root.tagName)) return false;
+  // Broken structure and unsafe URLs stay source-visible rather than repaired.
+  if (group.some(({ status }) => status !== "complete")) return false;
+  const policies = group.map(compileInlineHtmlRenderPlan);
+  if (policies.some((policy) => (
+    !policy.supported
+    && policy.diagnostics.some(({ code }) => code === "inline-html.unsafe-href")
+  ))) return false;
+  return group.some((element, index) => {
+    const policy = policies[index];
+    if (!policy?.supported) return true;
+    if (policy.value.kind !== "mark") return false;
+    const empty = element.contentRange?.from === element.contentRange?.to;
+    return empty && !(policy.value.tagName === "a" && policy.value.attributes.id);
   });
+}
+
+/** Continuation lines keep their list or quote prefix in the document only. */
+export function readMarkdownInlineHtmlRunSource(
+  state: EditorState,
+  element: MarkdownInlineHtml,
+): string {
+  return state.sliceDoc(element.from, element.to).replace(/\n[ \t]*(?:>[ \t]?)*/g, "\n");
 }
 
 function createStandaloneElement(

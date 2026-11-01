@@ -49,6 +49,13 @@ export type MarkdownInlineHtml = {
   status: MarkdownInlineHtmlStatus;
   containerFrom: number;
   containerTo: number;
+  /**
+   * Inline marks can only style existing text. An outermost element they
+   * cannot express owns one rendered run; its descendants are run members.
+   */
+  runRole?: "owner" | "member";
+  /** Authored HTML for a run owner, free of container line prefixes. */
+  runSource?: string;
 };
 
 export type MarkdownHtmlBlockMetrics = {

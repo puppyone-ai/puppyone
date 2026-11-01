@@ -184,3 +184,19 @@
     transition: none;
   }
 }
+
+.markdown-codemirror-editor .cm-md-html-run {
+  /* CodeMirror lines use `white-space: pre`; a run follows HTML whitespace. */
+  white-space: normal;
+}
+
+.markdown-codemirror-editor .cm-md-html-run img {
+  max-width: 100%;
+}
+
+/* A block root sharing its line with a list or quote marker keeps block
+   layout, so alignment resolves against the content width. */
+.markdown-codemirror-editor .cm-md-html-run.is-block {
+  display: inline-block;
+  vertical-align: top;
+}
