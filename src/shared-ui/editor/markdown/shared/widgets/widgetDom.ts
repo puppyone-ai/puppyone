@@ -72,3 +72,29 @@ export function isContentEditableCaretAtBoundary(element: HTMLElement, boundary:
   contentRange.setStart(range.endContainer, range.endOffset);
   return contentRange.toString().length === 0;
 }
+
+export function createSourceToggleIcon(): SVGElement {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("width", "13");
+  svg.setAttribute("height", "13");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "2");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  svg.setAttribute("aria-hidden", "true");
+
+  const paths = [
+    ["polyline", "16 18 22 12 16 6"],
+    ["polyline", "8 6 2 12 8 18"],
+  ] as const;
+
+  for (const item of paths) {
+    const element = document.createElementNS("http://www.w3.org/2000/svg", item[0]);
+    element.setAttribute("points", item[1]);
+    svg.appendChild(element);
+  }
+
+  return svg;
+}

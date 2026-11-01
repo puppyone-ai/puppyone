@@ -48,6 +48,10 @@ const PREFERRED_MINIMUM_SHARE = 0.3;
 /** Columns this narrow are labels: kept on one line while long columns flex. */
 const SHORT_COLUMN_MAX_WIDTH = 160;
 const SHORT_COLUMN_MAX_SHARE = 0.22;
+const IMAGE_DEFAULT_WIDTH = 160;
+const IMAGE_MAX_WIDTH = 480;
+const IMAGE_CHARACTER_WIDTH = 8;
+
 /** Bold header glyphs set slightly wider than body text. */
 const HEADER_WIDTH_FACTOR = 1.05;
 /**
@@ -214,6 +218,8 @@ type TextExtent = Readonly<{ minEm: number; maxEm: number }>;
  */
 export function measureCellText(source: string): TextExtent {
   const text = source
+    .replace(/<img\b[^>]*>/gi, reserveImageExtent)
+    .replace(/<(?!br\b)\/?[a-z][^>]*>/gi, "")
     .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
     .replace(/<((?:https?|mailto):[^>\s]+)>/g, "$1")
     .replace(/(\*\*|__|~~)/g, "")
@@ -250,6 +256,12 @@ export function measureCellText(source: string): TextExtent {
     maxEm = Math.max(maxEm, lineEm);
   }
   return { minEm, maxEm };
+}
+
+/** Tags are not painted, but an image needs its track before it has loaded. */
+function reserveImageExtent(tag: string): string {
+  const authoredWidth = Number(/\bwidth=["']?(\d+)/i.exec(tag)?.[1] ?? IMAGE_DEFAULT_WIDTH);
+  return "n".repeat(Math.ceil(Math.min(authoredWidth, IMAGE_MAX_WIDTH) / IMAGE_CHARACTER_WIDTH));
 }
 
 function characterEm(character: string, codePoint: number): number {

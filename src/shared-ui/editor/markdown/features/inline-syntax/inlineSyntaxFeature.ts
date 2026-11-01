@@ -8,7 +8,7 @@ import { decodeHtmlEntity, InlineTextAtomWidget } from "./inlineTextAtomWidget";
 
 export const inlineSyntaxFeature = defineMarkdownFeature({
   id: "inline-syntax",
-  semanticKinds: ["comment", "emoji", "entity", "highlight"],
+  semanticKinds: ["comment", "emoji", "entity", "highlight", "linkDefinition"],
   inlineWidgetKinds: ["emoji", "entity"],
   blockWidgetKinds: [],
   parserExtensions: [markdownInlineSyntaxParserExtension],
@@ -28,6 +28,12 @@ export const inlineSyntaxFeature = defineMarkdownFeature({
   },
 });
 
+const INLINE_SYNTAX_MARK_CLASSES = {
+  comment: "cm-md-comment",
+  highlight: "cm-md-syntax-highlight",
+  linkDefinition: "cm-md-link-definition",
+} as const;
+
 function compileInlineSyntaxPlan(element: MarkdownElement): MarkdownElementPlan {
   const sourceRange = rangeOf(element);
   // The caret reveals these atoms, so a keystroke edits one character at a time.
@@ -44,9 +50,10 @@ function compileInlineSyntaxPlan(element: MarkdownElement): MarkdownElementPlan 
   if (element.kind === "entity") {
     return { ...textAtom, atom: { kind: "entity", source: element.blockData.source } };
   }
-  if ((element.kind !== "highlight" && element.kind !== "comment") || !element.contentRange) {
+  if (element.kind !== "highlight" && element.kind !== "comment" && element.kind !== "linkDefinition") {
     return visibleSourcePlan(sourceRange, []);
   }
+  if (!element.contentRange) return visibleSourcePlan(sourceRange, []);
   return {
     presentation: "inlineMark",
     sourceRange,
@@ -54,12 +61,12 @@ function compileInlineSyntaxPlan(element: MarkdownElement): MarkdownElementPlan 
     markerRanges: element.markerRanges.map(cloneRange),
     mark: {
       kind: element.kind,
-      className: element.kind === "highlight" ? "cm-md-syntax-highlight" : "cm-md-comment",
+      className: INLINE_SYNTAX_MARK_CLASSES[element.kind],
       attributes: {},
     },
     diagnostics: [],
     capabilities: {
-      reveal: element.kind === "highlight",
+      reveal: element.kind !== "comment",
       atomic: true,
       deleteUnits: element.markerRanges.map(cloneRange),
     },

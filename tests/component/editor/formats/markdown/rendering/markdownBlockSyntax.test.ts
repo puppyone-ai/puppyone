@@ -85,6 +85,12 @@ describe("Markdown callouts", () => {
     expect(view.contentDOM.textContent).not.toContain("[!note]");
   });
 
+  it("keeps the header in a pane that has never held focus", () => {
+    const view = mount("> [!note] Title\n> body", false);
+    expect(view.contentDOM.textContent).not.toContain("[!note]");
+    expect(view.contentDOM.querySelector(".cm-md-callout-header")).not.toBeNull();
+  });
+
   it("starts folded with a minus marker and never rewrites the source to toggle", () => {
     const source = "> [!tip]- Folded\n> hidden body";
     const view = mount(source);

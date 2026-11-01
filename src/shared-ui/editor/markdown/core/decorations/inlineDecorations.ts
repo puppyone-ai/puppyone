@@ -167,6 +167,9 @@ export function addInlineMarkdownDecorations(
       case "highlight":
         addDelimitedInlineElementDecoration(element, builders, inlineRevealRange, "cm-md-syntax-highlight");
         break;
+      case "linkDefinition":
+        addDelimitedInlineElementDecoration(element, builders, inlineRevealRange, "cm-md-link-definition");
+        break;
       case "comment":
         if (element.from >= lineFrom && element.from <= lineTo) {
           builders.decorations.push(Decoration.mark({ class: "cm-md-comment" }).range(element.from, element.to));

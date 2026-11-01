@@ -78,7 +78,8 @@ describe("Markdown reference links", () => {
 
   it("keeps the definition visible and linked", () => {
     const view = mount(`[x][r]\n\n[r]: https://example.com/r`);
-    expect(view.contentDOM.textContent).toContain("[r]: https://example.com/r");
+    expect(view.contentDOM.textContent).toContain("r https://example.com/r");
+    expect(view.contentDOM.querySelector(".cm-md-link-definition")?.textContent).toBe("r");
     expect(hrefs(view)).toContain("https://example.com/r");
   });
 

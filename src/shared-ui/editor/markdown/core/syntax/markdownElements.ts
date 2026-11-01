@@ -50,6 +50,7 @@ const MARKDOWN_ELEMENT_CAPABILITIES = {
   inlineHtml: { inlineDecoration: true, inlineMarkerDeletion: true, inlineReveal: true },
   inlineCode: { inlineDecoration: true, inlineMarkerDeletion: true, inlineReveal: true },
   link: { inlineDecoration: true, inlineMarkerDeletion: true, inlineReveal: true },
+  linkDefinition: { inlineDecoration: true, inlineMarkerDeletion: true, inlineReveal: true },
   list: { inlineDecoration: false, inlineMarkerDeletion: false, inlineReveal: false },
   mathBlock: { inlineDecoration: false, inlineMarkerDeletion: false, inlineReveal: false },
   mathInline: { inlineDecoration: true, inlineMarkerDeletion: true, inlineReveal: false },

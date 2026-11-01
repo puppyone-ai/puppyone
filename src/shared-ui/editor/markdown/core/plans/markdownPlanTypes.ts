@@ -43,7 +43,7 @@ export type BlockEmbedCapabilities = {
 };
 
 export type TypedContentMark = {
-  kind: "comment" | "highlight" | "inlineHtmlMark" | "strong" | "emphasis" | "strike" | "inlineCode" | "link" | "wikiLink";
+  kind: "comment" | "highlight" | "linkDefinition" | "inlineHtmlMark" | "strong" | "emphasis" | "strike" | "inlineCode" | "link" | "wikiLink";
   tagName?: string;
   className?: string;
   attributes: Readonly<Record<string, string>>;

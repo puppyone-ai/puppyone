@@ -27,7 +27,7 @@ import {
   type MarkdownMountedBlockExecution,
 } from "../../core/plans/markdownBlockExecution";
 import { markdownRevealedSourceEffect } from "../../core/state/revealedSource";
-import { getMappedWidgetSourceRange } from "../../shared/widgets/widgetDom";
+import { createSourceToggleIcon, getMappedWidgetSourceRange } from "../../shared/widgets/widgetDom";
 
 const HTML_MEDIA_RESOLUTION_CONCURRENCY = 6;
 
@@ -266,7 +266,7 @@ export class HtmlBlockWidget extends WidgetType {
       clearPreviewLifecycle();
       const version = nextPreviewVersion();
       content.replaceChildren(createPreviewBlock(version));
-      toggleButton.replaceChildren(createHtmlSourceIcon());
+      toggleButton.replaceChildren(createSourceToggleIcon());
       const toggleLabel = t("editor.markdown.html.showSource");
       toggleButton.setAttribute("aria-label", toggleLabel);
       measure.schedule();
@@ -404,33 +404,6 @@ function createDeferredHtmlPlaceholder(onActivate: () => void): HTMLElement {
   placeholder.append(label, button);
   return placeholder;
 }
-
-function createHtmlSourceIcon(): SVGElement {
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("width", "13");
-  svg.setAttribute("height", "13");
-  svg.setAttribute("viewBox", "0 0 24 24");
-  svg.setAttribute("fill", "none");
-  svg.setAttribute("stroke", "currentColor");
-  svg.setAttribute("stroke-width", "2");
-  svg.setAttribute("stroke-linecap", "round");
-  svg.setAttribute("stroke-linejoin", "round");
-  svg.setAttribute("aria-hidden", "true");
-
-  const paths = [
-    ["polyline", "16 18 22 12 16 6"],
-    ["polyline", "8 6 2 12 8 18"],
-  ] as const;
-
-  for (const item of paths) {
-    const element = document.createElementNS("http://www.w3.org/2000/svg", item[0]);
-    element.setAttribute("points", item[1]);
-    svg.appendChild(element);
-  }
-
-  return svg;
-}
-
 
 function createDefensiveHtmlSourceFallback(source: string, reason?: string): HTMLElement {
   const wrapper = document.createElement("div");

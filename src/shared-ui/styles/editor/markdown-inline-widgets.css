@@ -251,3 +251,7 @@
   margin: 0;
   overflow-wrap: anywhere;
 }
+
+.markdown-codemirror-editor .cm-md-link-definition {
+  color: var(--po-md-link-color);
+}

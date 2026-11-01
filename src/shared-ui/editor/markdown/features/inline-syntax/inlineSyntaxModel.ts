@@ -5,12 +5,14 @@ import emojiShortcodes from "./emojiShortcodes.generated.json";
 
 const EMOJI = emojiShortcodes as Readonly<Record<string, string>>;
 
+type InlineSyntaxKind = "comment" | "emoji" | "entity" | "highlight" | "linkDefinition";
+
 export function collectMarkdownInlineSyntax(
   state: EditorState,
   from: number,
   to: number,
-): MarkdownElementOf<"comment" | "emoji" | "entity" | "highlight">[] {
-  const elements: MarkdownElementOf<"comment" | "emoji" | "entity" | "highlight">[] = [];
+): MarkdownElementOf<InlineSyntaxKind>[] {
+  const elements: MarkdownElementOf<InlineSyntaxKind>[] = [];
   syntaxTree(state).iterate({
     from,
     to,
@@ -47,6 +49,23 @@ export function collectMarkdownInlineSyntax(
             ],
             contentRange: { from: opening.to, to: closing.from },
           });
+          return true;
+        }
+        case "LinkReference": {
+          const label = node.getChild("LinkLabel");
+          const colon = node.getChild("LinkMark");
+          if (label && colon && state.sliceDoc(label.from + 1, label.from + 2) !== "^") {
+            elements.push({
+              kind: "linkDefinition",
+              from: label.from,
+              to: colon.to,
+              markerRanges: [
+                { from: label.from, to: label.from + 1 },
+                { from: label.to - 1, to: colon.to },
+              ],
+              contentRange: { from: label.from + 1, to: label.to - 1 },
+            });
+          }
           return true;
         }
         case "Comment":

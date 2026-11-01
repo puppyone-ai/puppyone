@@ -2,7 +2,7 @@ import { EditorSelection } from "@codemirror/state";
 import { EditorView, WidgetType } from "@codemirror/view";
 import { getMarkdownLocalization } from "../../core/editor/markdownLocalization";
 import { markdownRevealedSourceEffect } from "../../core/state/revealedSource";
-import { getMappedWidgetSourceRange } from "../../shared/widgets/widgetDom";
+import { createSourceToggleIcon, getMappedWidgetSourceRange } from "../../shared/widgets/widgetDom";
 
 export type MarkdownFrontMatterEntry = Readonly<{ key: string; value: string }>;
 
@@ -44,7 +44,7 @@ export class FrontMatterWidget extends WidgetType {
     const toggle = document.createElement("button");
     toggle.type = "button";
     toggle.className = "cm-md-html-source-toggle";
-    toggle.textContent = "</>";
+    toggle.appendChild(createSourceToggleIcon());
     toggle.setAttribute("aria-label", getMarkdownLocalization(view).t("editor.markdown.html.showSource"));
     toggle.addEventListener("click", (event) => {
       event.preventDefault();

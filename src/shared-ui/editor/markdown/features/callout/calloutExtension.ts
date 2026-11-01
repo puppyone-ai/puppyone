@@ -1,6 +1,7 @@
 import { syntaxTree } from "@codemirror/language";
 import { RangeSetBuilder, StateEffect, StateField, type EditorState, type Extension, type Range } from "@codemirror/state";
 import { Decoration, EditorView, WidgetType, type DecorationSet } from "@codemirror/view";
+import { markdownLivePreviewFocusEffect } from "../../core/state/livePreviewFocus";
 import { createCalloutIcon } from "./calloutIcons";
 import { getMarkdownCallouts, type MarkdownCallout } from "./calloutModel";
 
@@ -19,6 +20,17 @@ const calloutFoldField = StateField.define<ReadonlyMap<number, boolean>>({
       }
     }
     return next;
+  },
+});
+
+/** An unfocused pane has no caret to reveal for, even when its selection sits here. */
+const calloutFocusField = StateField.define<boolean>({
+  create: () => false,
+  update(value, transaction) {
+    for (const effect of transaction.effects) {
+      if (effect.is(markdownLivePreviewFocusEffect)) return effect.value;
+    }
+    return value;
   },
 });
 
@@ -80,7 +92,9 @@ class CalloutHeaderWidget extends WidgetType {
 function buildCalloutDecorations(state: EditorState): DecorationSet {
   const folds = state.field(calloutFoldField);
   const ranges: Range<Decoration>[] = [];
-  const caretLine = state.doc.lineAt(state.selection.main.head).number;
+  const caretLine = state.field(calloutFocusField) && !state.readOnly
+    ? state.doc.lineAt(state.selection.main.head).number
+    : null;
 
   for (const callout of getMarkdownCallouts(state)) {
     const folded = callout.fold !== null
@@ -96,7 +110,7 @@ function buildCalloutDecorations(state: EditorState): DecorationSet {
       ranges.push(Decoration.line({ class: classes }).range(state.doc.line(number).from));
     }
 
-    if (caretLine !== callout.firstLine || state.readOnly) {
+    if (caretLine !== callout.firstLine) {
       ranges.push(Decoration.replace({
         widget: new CalloutHeaderWidget(callout, folded),
         inclusive: false,
@@ -121,7 +135,9 @@ function buildCalloutDecorations(state: EditorState): DecorationSet {
 const calloutDecorationField = StateField.define<DecorationSet>({
   create: buildCalloutDecorations,
   update(value, transaction) {
-    const refold = transaction.effects.some((effect) => effect.is(calloutFoldEffect));
+    const refold = transaction.effects.some((effect) => (
+      effect.is(calloutFoldEffect) || effect.is(markdownLivePreviewFocusEffect)
+    ));
     return transaction.docChanged
       || transaction.selection
       || refold
@@ -132,4 +148,4 @@ const calloutDecorationField = StateField.define<DecorationSet>({
   provide: (field) => EditorView.decorations.from(field),
 });
 
-export const markdownCalloutExtension: Extension = [calloutFoldField, calloutDecorationField];
+export const markdownCalloutExtension: Extension = [calloutFoldField, calloutFocusField, calloutDecorationField];

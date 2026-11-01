@@ -91,6 +91,7 @@ export type MarkdownElementKind =
   | "inlineHtml"
   | "inlineCode"
   | "link"
+  | "linkDefinition"
   | "list"
   | "mathBlock"
   | "mathInline"
