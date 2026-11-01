@@ -150,6 +150,7 @@
     "smoke:workbench-header-motion": "electron tests/integration/workbench/tabs/workbench-header-motion.smoke.mjs",
     "smoke:project-sessions": "electron tests/e2e/workspace/projects/project-sessions.smoke.mjs",
     "smoke:project-sidebar-stability": "electron tests/e2e/workspace/projects/project-sidebar-stability.smoke.mjs",
+    "smoke:homepage-return-order": "electron tests/e2e/workspace/projects/homepage-return-order.smoke.mjs",
     "test:typecheck": "tsc -p tests/config/tsconfig.json && tsc -p tests/config/tsconfig.tooling.json",
     "pretest:core:coverage": "npm run build:native-templates",
     "test:core:coverage": "vitest run --config tests/config/vitest.core-coverage.config.ts",

@@ -38,6 +38,7 @@ import type {
 } from "../../types/electron";
 import {
   getRecentWorkspaceItems,
+  keepHydratedRecentItems,
   mergeWorkspaceLists,
 } from "../../lib/workspaceHomeModel";
 import type { RecentWorkspaceHomeItem } from "../../lib/workspaceHomeModel";
@@ -154,12 +155,13 @@ export function useWorkspaceLifecycle({
     recentWorkspaceRequestRef.current = requestId;
     const result = await getRecentWorkspaces();
     if (recentWorkspaceRequestRef.current !== requestId) return;
-    setRecentWorkspaceItems(getRecentWorkspaceItems(result));
+    setRecentWorkspaceItems((current) => keepHydratedRecentItems(getRecentWorkspaceItems(result), current));
     setWorkspaces((current) => mergeWorkspaceLists(current, result.workspaces));
     if (result.errors.length > 0) {
       console.warn("Some recent puppyone workspaces could not be loaded:", result.errors);
     }
-    void hydrateRecentWorkspaces()
+    // Resolves once the dates are in, for a caller about to show the list.
+    await hydrateRecentWorkspaces()
       .then((hydrated) => {
         if (recentWorkspaceRequestRef.current !== requestId) return;
         setRecentWorkspaceItems(getRecentWorkspaceItems(hydrated));
@@ -476,7 +478,9 @@ export function useWorkspaceLifecycle({
     renameProject,
     removeProject,
     recentWorkspaceItems,
-    recentWorkspacesSettled,
+    // A hydration discarded for a newer read leaves the list settled but undated.
+    recentWorkspacesSettled: recentWorkspacesSettled
+      && recentWorkspaceItems.every(({ workspace }) => workspace.hydrationState !== "metadata"),
     refreshRecentWorkspaceList,
     restoreWorkspaceError,
     restoringWorkspace,

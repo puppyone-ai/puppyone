@@ -12,7 +12,9 @@ import { buildHomepageProjects } from "./homepageCloudProjects";
 import { loadCloudProjectActivity, readCachedProjectActivity, writeCachedProjectActivity } from "./homepageCloudActivity";
 
 type Catalog = { authority: string; projects: DesktopCloudProject[]; status: "loading" | "ready" | "error";
-  activity?: ReadonlyMap<string, string> };
+  activity?: ReadonlyMap<string, string>;
+  /** This session's own listing and history have arrived, so the order is the real one. */
+  fresh?: boolean };
 
 function cachedCatalog(scope: string | null, session: DesktopCloudSession) {
   // Offline the listing cannot answer, so a cached list would only show and vanish.
@@ -70,7 +72,7 @@ export function useHomepageCloudProjects({ visible, enabled, session, restoring 
         const modified = loaded.get(id) ?? dates?.get(id);
         return modified ? [[id, modified] as const] : [];
       }));
-      setCatalog({ authority, projects, status: "ready", activity });
+      setCatalog({ authority, projects, status: "ready", activity, fresh: true });
       if (accountScope) writeCachedProjectActivity(accountScope, activity);
     }, () => {
       // A failed revalidation must not present revoked/stale projects as accessible.
@@ -106,7 +108,7 @@ export function useHomepageCloudProjects({ visible, enabled, session, restoring 
     items,
     status: !authority ? "signed-out" as const : scoped?.status ?? "loading" as const,
     /** No Cloud result is still on its way that would reorder the list. */
-    settled: !authority || scoped?.status === "error" || (scoped?.status === "ready" && scoped.activity !== undefined),
+    settled: !authority || scoped?.status === "error" || (scoped?.status === "ready" && scoped.fresh === true),
     refresh: () => setReload((value) => value + 1),
     ...changes,
   };
