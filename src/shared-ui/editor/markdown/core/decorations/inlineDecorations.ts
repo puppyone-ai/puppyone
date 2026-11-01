@@ -130,8 +130,14 @@ export function addInlineMarkdownDecorations(
     }
     if (expandedFeatureAtom) continue;
 
+    // A link's label may be an atom such as a badge image: a mark can wrap a
+    // replaced range, so only a true overlap with its syntax rules it out.
+    const label = element.kind === "link" ? element.contentRange : undefined;
+    const holdsAtom = (range: OccupiedRange) => Boolean(
+      label && range.from >= label.from && range.to <= label.to,
+    );
     const overlapsExclusiveRange = occupied.some((range) => (
-      element.from < range.to && element.to > range.from
+      element.from < range.to && element.to > range.from && !holdsAtom(range)
     ));
     if (overlapsExclusiveRange) continue;
 
@@ -140,7 +146,7 @@ export function addInlineMarkdownDecorations(
         addWikiLinkElementDecoration(state, element, lineFrom, tokenLookup, builders, inlineRevealRange, markdownLinkGraph, documentPath, t);
         break;
       case "link":
-        addLinkElementDecoration(state, element, lineFrom, text, tokenLookup, builders, inlineRevealRange, markdownLinkGraph, documentPath, t);
+        addLinkElementDecoration(state, element, lineFrom, text, tokenLookup, builders, inlineRevealRange, markdownLinkGraph, documentPath, t, occupied.some(holdsAtom));
         break;
       case "strong":
         addDelimitedInlineElementDecoration(element, builders, inlineRevealRange, "cm-md-syntax-strong");
@@ -385,6 +391,7 @@ function addLinkElementDecoration(
   markdownLinkGraph: MarkdownLinkGraph | null,
   documentPath: string,
   t: MessageFormatter,
+  labelHoldsAtom: boolean,
 ) {
   if (!element.contentRange || element.contentRange.from >= element.contentRange.to) return;
 
@@ -418,6 +425,9 @@ function addLinkElementDecoration(
   builders.decorations.push(
     Decoration.mark({
       class: linkClasses,
+      // A replacement sharing the mark's start would otherwise open first and
+      // leave the mark with no content to wrap.
+      inclusive: labelHoldsAtom,
       attributes: {
         "data-md-href": href,
         ...getMarkdownLinkInteractionAttributes(interaction),

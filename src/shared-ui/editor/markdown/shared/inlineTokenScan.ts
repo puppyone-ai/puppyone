@@ -36,6 +36,29 @@ export function scanUnescapedDelimiterOnLine(
   return { closingIndex: -1, nextIndex: source.length };
 }
 
+/**
+ * Pairs square brackets per physical line in one pass, so a link label may hold
+ * a nested token such as a badge image, and a stray `[` costs nothing to skip.
+ */
+export function matchInlineBrackets(source: string): ReadonlyMap<number, number> {
+  const closingByOpening = new Map<number, number>();
+  const openings: number[] = [];
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index];
+    if (character === "\n") {
+      openings.length = 0;
+    } else if (character === "\\") {
+      index += 1;
+    } else if (character === "[") {
+      openings.push(index);
+    } else if (character === "]") {
+      const opening = openings.pop();
+      if (opening !== undefined) closingByOpening.set(opening, index);
+    }
+  }
+  return closingByOpening;
+}
+
 export function isEscapedInlineToken(source: string, index: number): boolean {
   let slashCount = 0;
   for (let cursor = index - 1; cursor >= 0 && source[cursor] === "\\"; cursor -= 1) {

@@ -9,6 +9,7 @@ import {
   createPrincipalFromView,
   markdownDocumentPathFacet,
   markdownAssetUrlResolverFacet,
+  openMarkdownHref,
 } from "../../core/editor/markdownLivePreviewContext";
 import { markdownRevealedSourceEffect } from "../../core/state/revealedSource";
 import {
@@ -98,6 +99,11 @@ export class ImagePreviewWidget extends WidgetType {
       const moved = pointerDown && hasPointerMoved(event, pointerDown);
       pointerDown = null;
       if (moved) return;
+
+      // This widget owns the pointer gesture, so the link mark around a badge
+      // image never sees it. Keep the link meaning of the whole label.
+      const link = wrapper.closest<HTMLElement>('.cm-md-link-label[data-md-link-interaction="navigate"]');
+      if (link?.dataset.mdHref && openMarkdownHref(link.dataset.mdHref, view)) return;
 
       // A document selection across a replacement decoration makes
       // CodeMirror tear down and recreate its DOM even when WidgetType.eq()

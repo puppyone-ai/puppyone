@@ -1,6 +1,6 @@
 import {
   isEscapedInlineToken,
-  scanUnescapedDelimiterOnLine,
+  matchInlineBrackets,
   type InlineTokenClosingScan,
 } from "../../shared/inlineTokenScan";
 
@@ -17,6 +17,7 @@ export type MarkdownLinkToken = {
 
 export function findMarkdownLinkTokens(source: string): MarkdownLinkToken[] {
   const tokens: MarkdownLinkToken[] = [];
+  const closingBrackets = matchInlineBrackets(source);
 
   for (let index = 0; index < source.length;) {
     if (
@@ -28,10 +29,9 @@ export function findMarkdownLinkTokens(source: string): MarkdownLinkToken[] {
       continue;
     }
 
-    const labelScan = scanUnescapedDelimiterOnLine(source, index + 1, "]");
-    const labelTo = labelScan.closingIndex;
+    const labelTo = closingBrackets.get(index) ?? -1;
     if (labelTo <= index + 1 || source[labelTo + 1] !== "(") {
-      index = labelScan.nextIndex;
+      index += 1;
       continue;
     }
 
