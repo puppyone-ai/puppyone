@@ -126,7 +126,33 @@ app.whenReady().then(async () => {
     })()`);
     await settle();
 
-    const metrics = await evaluate(`(${measure.toString()})()`);
+    // A short display leaves the lower half outside CodeMirror's viewport, so
+    // each half is measured while it is actually mounted.
+    const scrollTo = async (text) => {
+      await evaluate(`(() => {
+        const view = window.syntaxGallery.view();
+        const position = view.state.doc.toString().indexOf(${JSON.stringify(text)});
+        view.scrollDOM.scrollTop = view.lineBlockAt(position).top;
+      })()`);
+      await settle();
+      await settle();
+    };
+    const upper = await evaluate(`(${measure.toString()})()`);
+    await scrollTo("## Syntax");
+    const lower = await evaluate(`(${measure.toString()})()`);
+    await scrollTo("---");
+    const metrics = {
+      ...upper,
+      visible: `${upper.visible}\n${lower.visible}`,
+      link: lower.link,
+      reference: lower.reference,
+      footnote: lower.footnote,
+      footnoteDefinition: lower.footnoteDefinition,
+      highlight: lower.highlight,
+      comments: lower.comments,
+      math: lower.math,
+      table: lower.table,
+    };
     await fs.writeFile(path.join(artifacts, "gallery.json"), JSON.stringify(metrics, null, 2));
     assert.doesNotMatch(metrics.visible, /<(?:details|summary|div|img|font|svg)\b/, "HTML tags are visible");
     assert.doesNotMatch(metrics.visible, /\[!|\[\^1\]|&copy;|:smile:|~gone~|==mark==/, "Markdown syntax is visible");
@@ -180,6 +206,7 @@ app.whenReady().then(async () => {
     await click(".cm-md-callout-fold");
     assert(await evaluate("window.syntaxGallery.view().contentDOM.innerText.includes('Hidden body')"), "callout did not unfold");
 
+    await scrollTo("## Syntax");
     await click(".cm-md-footnote-reference");
     const source = await evaluate("window.syntaxGallery.source");
     assert.equal(await evaluate("window.syntaxGallery.view().state.selection.main.head"), source.indexOf("[^1]:"), "footnote did not jump");

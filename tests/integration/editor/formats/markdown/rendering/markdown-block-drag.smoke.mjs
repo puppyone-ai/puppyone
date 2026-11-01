@@ -20,8 +20,10 @@ const results = [];
 let vite, port;
 
 async function openFixture(query) {
+  // Linux stops frames and CodeMirror measurement for a hidden window, so the
+  // pointer scenarios need a shown one there, as the other editor gates do.
   const window = new BrowserWindow({ width: 1200, height: 800, useContentSize: true,
-    show: process.env.PUPPYONE_BLOCK_DRAG_SHOW === "1", paintWhenInitiallyHidden: true,
+    show: process.platform === "linux" || process.env.PUPPYONE_BLOCK_DRAG_SHOW === "1", paintWhenInitiallyHidden: true,
     webPreferences: { contextIsolation: true, sandbox: true, backgroundThrottling: false } });
   await window.loadURL(`http://127.0.0.1:${port}/tests/fixtures/editor/formats/markdown/block-drag.html?${query}`);
   const evaluate = code => window.webContents.executeJavaScript(code);
