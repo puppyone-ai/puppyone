@@ -12,9 +12,29 @@ import { useWindowProject, windowProjectStore } from "../features/app-shell/wind
 
 export type ProjectDesktopView = Exclude<DesktopView, "settings" | "cloud">;
 
+/**
+ * A Cloud project can be on screen from the cached list before the session is back,
+ * so being asked to open it now only means asking again once the session is known.
+ */
+function useKnownCloudSession(restoring: boolean, session: DesktopCloudSession | null) {
+  const latest = useRef({ restoring, session });
+  latest.current = { restoring, session };
+  const waiting = useRef(new Set<() => void>());
+  useEffect(() => {
+    if (restoring) return;
+    for (const resume of waiting.current) resume();
+    waiting.current.clear();
+  }, [restoring]);
+  return useCallback(async () => {
+    if (latest.current.restoring) await new Promise<void>((resume) => waiting.current.add(resume));
+    return latest.current.session;
+  }, []);
+}
+
 type WindowProjectNavigationInput = {
   accountCloud: AccountCloudWorkspace;
   activeCloudSession: DesktopCloudSession | null;
+  cloudSessionRestoring: boolean;
   cancelAccountCloudOpen: () => void;
   cancelProjectNavigationRef: React.MutableRefObject<() => void>;
   cloudEnabled: boolean;
@@ -39,18 +59,21 @@ type WindowProjectNavigationInput = {
  * window all come through here, so none of them can miss the wait or the failure.
  */
 export function useWindowProjectNavigation({
-  accountCloud, activeCloudSession, cancelAccountCloudOpen, cancelProjectNavigationRef, cloudEnabled,
+  accountCloud, activeCloudSession, cloudSessionRestoring, cancelAccountCloudOpen, cancelProjectNavigationRef, cloudEnabled,
   cloudHeaderActive, drainWorkspaceNavigation, initialCloudProject, lastProjectViewRef, navigateDesktopView,
   openDroppedWorkspace, openLocalWorkspace, openWorkspacePath, projectEntryFlow, restoringWorkspace,
   selectCloudProjectRef, setSwitcherOpen, t,
 }: WindowProjectNavigationInput) {
   const projectOpenFailure = useWindowProject((project) => project.failure);
   const dismissProjectOpenFailure = () => windowProjectStore.setState({ failure: null });
+  const knownCloudSession = useKnownCloudSession(cloudSessionRestoring, activeCloudSession);
   const projectNavigation = useProjectNavigation({
     async open(target, isCurrent) {
       windowProjectStore.setState({ failure: null });
       if (target.kind === "cloud") {
-        if (!activeCloudSession) throw new CloudOpeningError(describeCloudOpeningFailure({ status: 401 }));
+        const session = await knownCloudSession();
+        if (!isCurrent()) return;
+        if (!session) throw new CloudOpeningError(describeCloudOpeningFailure({ status: 401 }));
         await accountCloud.openTarget({ kind: "project_root", project_id: target.projectId }, isCurrent, true);
         return;
       }

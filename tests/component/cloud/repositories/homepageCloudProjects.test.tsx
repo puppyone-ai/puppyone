@@ -336,6 +336,8 @@ describe("inline Homepage Cloud projects", () => {
     await act(async () => home.renameProject!("a", "Renamed"));
     expect(cloudNames()).toEqual(["Renamed"]);
     expect(home.items.find((item) => item.localPath)?.linkedCloudProject).toEqual({ id: "a", name: "Renamed" });
+    const cachedNames = () => JSON.parse(localStorage.getItem("puppyone.desktop.cloud-project-catalog.v1")!).projects.map(({ name }: { name: string }) => name);
+    expect(cachedNames()).toEqual(["Renamed"]);
     const [deletion] = bridge.mock.calls.map(([request]) => request).filter(({ method }) => method === "DELETE");
     expect(deletion?.path).toBe("/projects/b");
   });
