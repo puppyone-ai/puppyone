@@ -27,22 +27,34 @@ const guard = setTimeout(() => { console.error("Homepage return check timed out"
 const roots = {};
 
 // Dates cost git calls, about this long for a dozen real projects. Everything else is real.
+let hydrating = 0;
 const handle = ipcMain.handle.bind(ipcMain);
 ipcMain.handle = (channel, listener) => handle(channel, async (event, ...args) => {
-  if (channel === "workspace:hydrate-recent") await wait(450);
-  return listener(event, ...args);
+  if (channel !== "workspace:hydrate-recent") return listener(event, ...args);
+  hydrating += 1;
+  try {
+    await wait(450);
+    return await listener(event, ...args);
+  } finally {
+    hydrating -= 1;
+  }
 });
 
-/** Every order the Homepage ever puts on screen, sampled once a frame. */
+/** Every order the Homepage ever puts on screen, and when each part of it arrived, sampled once a frame. */
 const observer = `(() => {
   const state = { orders: [], recording: true };
   window.homepageOrders = state;
   const sample = () => {
     if (!state.recording) return;
+    const now = performance.now();
     const order = [...document.querySelectorAll('.onboarding-project-row-wrap')]
       .filter((row) => row.getBoundingClientRect().width > 0)
       .map((row) => row.querySelector('.onboarding-project-tile-name, .desktop-menu-item-label')?.textContent).join(' | ');
     if (order && state.orders.at(-1) !== order) state.orders.push(order);
+    const mark = document.querySelector('.onboarding-project-list-loading');
+    if (document.querySelector('.onboarding-homepage-shell')) state.homeAt ??= now;
+    if (mark && getComputedStyle(mark).opacity !== '0') state.markAt ??= now;
+    if (order) state.listAt ??= now;
     requestAnimationFrame(sample);
   };
   sample();
@@ -96,16 +108,28 @@ async function initialize() {
   await import("../../../../electron/main.mjs");
 }
 
-/** Works in a project, goes Home, and reports every order shown on the way. */
+/** Works in a project, goes Home, and reports everything shown on the way. */
 async function returnHomeFrom(name) {
+  // Until the launch's own dates are in, Home is still the launch's first paint.
+  while (hydrating > 0) await wait(50);
   await fs.appendFile(path.join(roots[name], "note.md"), "\nJust edited.\n");
   await evaluate(observer);
   await evaluate("document.querySelector('.desktop-titlebar-workspace-button').click()");
   await until("[...document.querySelectorAll('.desktop-project-menu [role=menuitem]')].some(item => item.textContent.includes('Home'))", "Home in the menu");
-  await evaluate("[...document.querySelectorAll('.desktop-project-menu [role=menuitem]')].find(item => item.textContent.includes('Home')).click()");
+  await evaluate("window.homepageOrders.clickedAt = performance.now(); [...document.querySelectorAll('.desktop-project-menu [role=menuitem]')].find(item => item.textContent.includes('Home')).click()");
   await until("document.querySelectorAll('.onboarding-project-row-wrap').length === 4", "the Homepage");
   await wait(1800);
-  return evaluate("(() => { window.homepageOrders.recording = false; return window.homepageOrders.orders; })()");
+  return evaluate("(() => { window.homepageOrders.recording = false; return window.homepageOrders; })()");
+}
+
+/** Home arrives first with the mark in the list's place, then the list, once, in its final order. */
+function assertReturn(name, visit, order) {
+  const since = (moment) => Math.round(moment - visit.clickedAt);
+  console.log(`Leaving ${name} showed:`, JSON.stringify(visit.orders),
+    `Home ${since(visit.homeAt)}ms, mark ${visit.markAt ? `${since(visit.markAt)}ms` : "never"}, list ${since(visit.listAt)}ms`);
+  assert.deepEqual(visit.orders, [order], "the Homepage showed anything but its final order");
+  assert.ok(visit.listAt - visit.homeAt >= 200, "the click on Home waited for the dates instead of arriving first");
+  assert.ok(visit.markAt < visit.listAt, "the list's wait showed no loading mark");
 }
 
 async function main() {
@@ -117,15 +141,11 @@ async function main() {
   window.setContentSize(1200, 800);
 
   await until("!!document.querySelector('.cm-content')", "the restored project");
-  const first = await returnHomeFrom("Project D");
-  console.log("Leaving Project D showed:", JSON.stringify(first));
-  assert.deepEqual(first, ["Project D | Project A | Project B | Project C"], "the Homepage showed more than one order");
+  assertReturn("Project D", await returnHomeFrom("Project D"), "Project D | Project A | Project B | Project C");
 
   await evaluate("document.querySelector('.onboarding-project-row-wrap[data-project-location=local] button[aria-label*=\"Project B\"]').click()");
   await until("!!document.querySelector('.cm-content')", "Project B");
-  const second = await returnHomeFrom("Project B");
-  console.log("Leaving Project B showed:", JSON.stringify(second));
-  assert.deepEqual(second, ["Project B | Project D | Project A | Project C"], "the Homepage showed more than one order");
+  assertReturn("Project B", await returnHomeFrom("Project B"), "Project B | Project D | Project A | Project C");
   console.log("Homepage return smoke passed.");
 }
 

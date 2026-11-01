@@ -6,6 +6,7 @@ import { MinimalOnboarding } from "../../../../src/components/MinimalOnboarding"
 import {
   HOMEPAGE_FIRST_PAINT_BUDGET_MS,
   useHomepageFirstPaint,
+  useHomepageListHold,
 } from "../../../../src/features/app-shell/useHomepageFirstPaint";
 import { useHomepageCloudProjects } from "../../../../src/features/cloud/workbench/useHomepageCloudProjects";
 import type { DesktopCloudSession } from "../../../../src/lib/cloudApi";
@@ -46,13 +47,13 @@ const metadataLocal = [metadata("alpha"), metadata("gamma")];
 const hydratedLocal = [hydrated("gamma", "2026-10-29T00:00:00Z"), hydrated("alpha", "2026-09-01T00:00:00Z")];
 const finalOrder = ["gamma", "cloud-old", "alpha", "cloud-new"];
 
-function Harness({ local, localSettled, restoring = false, sessionRestoring = false, session = alice }: {
-  local: RecentWorkspaceHomeItem[]; localSettled: boolean; restoring?: boolean; sessionRestoring?: boolean; session?: DesktopCloudSession | null;
+function Harness({ local, localSettled, restoring = false, sessionRestoring = false, session = alice, listHeld = false }: {
+  local: RecentWorkspaceHomeItem[]; localSettled: boolean; restoring?: boolean; sessionRestoring?: boolean; session?: DesktopCloudSession | null; listHeld?: boolean;
 }) {
   const catalog = useHomepageCloudProjects({ visible: !restoring, enabled: true, session, restoring: sessionRestoring, apiBaseUrl: API, local });
   const ready = useHomepageFirstPaint({ restoring, settled: localSettled && !sessionRestoring && catalog.settled,
     account: catalog.account, accountRestoring: sessionRestoring });
-  return ready ? <MinimalOnboarding appearance={appearance} projectItems={catalog.items} onChooseWorkspace={async () => {}}
+  return ready ? <MinimalOnboarding appearance={appearance} projectItems={catalog.items} listHeld={listHeld} onChooseWorkspace={async () => {}}
     onOpenDroppedWorkspace={async () => {}} onOpenWorkspacePath={async () => {}} /> : <p data-holding />;
 }
 
@@ -360,5 +361,79 @@ describe("a Homepage that never shows part of its list", () => {
     localStorage.setItem(CATALOG_KEY, "{");
     await listed(); await historyArrives();
     expect(rows()).toEqual(finalOrder);
+  });
+});
+
+describe("going Home from a project", () => {
+  const local = { local: hydratedLocal, localSettled: true, session: null };
+  const after = [hydrated("alpha", "2026-11-01T00:00:00Z"), hydrated("gamma", "2026-10-29T00:00:00Z")];
+  const mark = () => document.querySelector(".onboarding-project-list-loading");
+  let hold: ReturnType<typeof useHomepageListHold>[1];
+  function HoldHarness() {
+    const [held, requestHold] = useHomepageListHold();
+    hold = requestHold;
+    return held ? <p data-held /> : null;
+  }
+  const held = () => document.querySelector("[data-held]") !== null;
+  const renderHold = () => act(async () => root.render(<HoldHarness />));
+
+  it("arrives at once, with the mark standing in for the list", async () => {
+    await render({ ...local, listHeld: true });
+    expect(document.querySelector(".onboarding-project-toolbar")).not.toBeNull();
+    expect(document.querySelector('[aria-label="Loading…"]')).not.toBeNull();
+    expect(mark()).not.toBeNull();
+    expect(rows()).toEqual([]);
+    await render(local);
+    expect(mark()).toBeNull();
+    expect(rows()).toEqual(["gamma", "alpha"]);
+  });
+
+  it("does not take a held list for having no projects", async () => {
+    await render({ ...local, local: [], listHeld: true });
+    expect(document.querySelector("[data-onboarding-state]")?.getAttribute("data-onboarding-state")).toBe("projects");
+    expect(mark()).not.toBeNull();
+  });
+
+  it("counts a hold as a new visit on a Homepage kept mounted behind a Cloud project", async () => {
+    await render(local);
+    expect(rows()).toEqual(["gamma", "alpha"]);
+    await render({ ...local, local: after });
+    expect(rows()).toEqual(["gamma", "alpha"]);
+    await render({ ...local, local: after, listHeld: true });
+    await render({ ...local, local: after });
+    expect(rows()).toEqual(["alpha", "gamma"]);
+  });
+
+  it.each([
+    ["arrive", (dates: ReturnType<typeof deferred<void>>) => dates.resolve()],
+    ["fail", (dates: ReturnType<typeof deferred<void>>) => dates.reject(new Error("Denied"))],
+  ] as const)("releases the list when the dates %s", async (_name, settle) => {
+    await renderHold();
+    const dates = deferred<void>();
+    await act(async () => hold(dates.promise));
+    expect(held()).toBe(true);
+    await act(async () => settle(dates));
+    expect(held()).toBe(false);
+  });
+
+  it("stops waiting at the budget", async () => {
+    vi.useFakeTimers();
+    await renderHold();
+    await act(async () => hold(deferred<void>().promise));
+    await act(async () => { await vi.advanceTimersByTimeAsync(HOMEPAGE_FIRST_PAINT_BUDGET_MS - 1); });
+    expect(held()).toBe(true);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    expect(held()).toBe(false);
+  });
+
+  it("is not released by an earlier return that settles late", async () => {
+    await renderHold();
+    const earlier = deferred<void>();
+    const later = deferred<void>();
+    await act(async () => { hold(earlier.promise); hold(later.promise); });
+    await act(async () => earlier.resolve());
+    expect(held()).toBe(true);
+    await act(async () => later.resolve());
+    expect(held()).toBe(false);
   });
 });

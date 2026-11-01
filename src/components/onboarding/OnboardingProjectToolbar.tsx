@@ -22,7 +22,7 @@ const ICON = { size: 14, strokeWidth: 1.85, "aria-hidden": true } as const;
  * the layout; the filter lasts only as long as the page, so that no launch opens on
  * what looks like a shorter list of projects. No place chosen means every place.
  */
-export function useHomepageProjectView(items: ProjectHomeItem[]) {
+export function useHomepageProjectView(items: ProjectHomeItem[], held = false) {
   const { t, locale } = useLocalization();
   const sort = useDesktopPreference((s) => s.homepageProjectSort);
   const setSort = useDesktopPreference((s) => s.setHomepageProjectSort);
@@ -35,17 +35,21 @@ export function useHomepageProjectView(items: ProjectHomeItem[]) {
   );
   const untitled = t("onboarding.projects.untitled");
   // A date learned after a row is on screen waits for the next visit, so rows only
-  // ever move because someone asked them to.
+  // ever move because someone asked them to. A held list is the start of a visit: a
+  // Homepage kept mounted behind a Cloud project has no other.
   const shownDates = useRef(new Map<string, string>());
-  const visibleItems = useMemo(
-    () => viewProjectHomeItems(items.map((item) => {
+  const visibleItems = useMemo(() => {
+    if (held) {
+      shownDates.current.clear();
+      return [];
+    }
+    return viewProjectHomeItems(items.map((item) => {
       const shown = shownDates.current.get(item.id);
       if (shown) return { ...item, lastModifiedAt: shown };
       if (item.lastModifiedAt) shownDates.current.set(item.id, item.lastModifiedAt);
       return item;
-    }), { places, sort, locale, untitled }),
-    [items, places, sort, locale, untitled],
-  );
+    }), { places, sort, locale, untitled });
+  }, [held, items, places, sort, locale, untitled]);
   const togglePlace = (place: ProjectHomePlace) => setChosenPlaces((current) => {
     const next = new Set(current);
     if (!next.delete(place)) next.add(place);

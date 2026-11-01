@@ -105,7 +105,7 @@ import { DesktopOverlayPortal } from "./components/DesktopOverlayPortal";
 import { DesktopHelpLauncher } from "./features/app-shell/DesktopHelpLauncher";
 import { useDesktopPlatformCapabilities } from "./platform/useDesktopPlatformCapabilities";
 import { RestoringWorkspaceScreen } from "./features/app-shell/RestoringWorkspaceScreen";
-import { HOMEPAGE_RETURN_WAIT_MS, useHomepageFirstPaint } from "./features/app-shell/useHomepageFirstPaint";
+import { useHomepageFirstPaint, useHomepageListHold } from "./features/app-shell/useHomepageFirstPaint";
 import { useDesktopPreference, useDesktopAppearance, useDesktopPreferenceEffects } from "./features/settings";
 import { useWorkspaceLifecycle } from "./features/app-shell/useWorkspaceLifecycle";
 import { usePuppyoneConfig } from "./features/app-shell/usePuppyoneConfig";
@@ -1066,13 +1066,13 @@ function AppContent() {
     }));
   }, [resolvedCloudProjectId, cloudHubWorkspaceIdentity, workspacePath]);
 
+  const [homepageListHeld, holdHomepageList] = useHomepageListHold();
   const goToHomepage = useCallback(async () => {
     cancelProjectNavigationRef.current();
     try {
       if (!await drainWorkspaceNavigation()) return;
-      // The project just left has to be in its new place on the Homepage's first frame.
       const refreshed = refreshRecentWorkspaceList();
-      await Promise.race([refreshed.catch(() => undefined), new Promise((settle) => { window.setTimeout(settle, HOMEPAGE_RETURN_WAIT_MS); })]);
+      holdHomepageList(refreshed);
       await showHomepage();
       cancelCloudWorkspaceSwitch();
       returnToLocalWorkspace();
@@ -1091,6 +1091,7 @@ function AppContent() {
     returnToLocalWorkspace,
     clearWorkspace,
     drainWorkspaceNavigation,
+    holdHomepageList,
     refreshRecentWorkspaceList,
     resetDataNodeActions,
     setBranchSwitcherOpen,
@@ -1754,6 +1755,7 @@ function AppContent() {
         onRenameCloudProject={projectCatalog.renameProject}
         onDeleteCloudProject={projectCatalog.deleteProject}
         projectItems={projectCatalog.items}
+        listHeld={homepageListHeld}
         onOpenCloudProject={selectCloudProject}
         cloudOpening={accountCloud.opening}
         cloudAccountStatus={cloudEnabled ? <HomepageCloudStatus status={projectCatalog.status} restoring={cloudSessionRestoring} empty={projectCatalog.items.length === 0}

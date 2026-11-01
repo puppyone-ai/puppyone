@@ -40,6 +40,18 @@
   }
 }
 
+.onboarding-project-list-wait {
+  display: grid;
+  width: 100%;
+  min-height: 240px;
+  place-items: center;
+}
+
+/* The same reveal, sooner: this wait is always felt, but can still be over in a beat. */
+.onboarding-project-list-loading {
+  animation: onboarding-restoring-mark-reveal 1ms linear 120ms backwards;
+}
+
 .onboarding-homepage {
   --onboarding-column-width: 440px;
   --onboarding-page-gap: 30px;

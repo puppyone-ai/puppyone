@@ -70,6 +70,8 @@ export type MinimalOnboardingProps = {
   onDeleteCloudProject?: (projectId: string) => Promise<void>;
   recentWorkspaces?: RecentWorkspaceHomeItem[];
   projectItems?: ProjectHomeItem[];
+  /** The page is here but its list is not settled, so the mark stands in for it. */
+  listHeld?: boolean;
   cloudAccountStatus?: ReactNode;
   cloudOpening?: boolean;
   onOpenCloudProject?: (projectId: string) => void;
@@ -108,6 +110,7 @@ export function MinimalOnboarding({
   onDeleteCloudProject,
   recentWorkspaces = [],
   projectItems,
+  listHeld = false,
   cloudAccountStatus,
   cloudOpening = false,
   onOpenCloudProject,
@@ -195,7 +198,7 @@ export function MinimalOnboarding({
   });
 
   // Account/auth controls are page chrome, never synthetic Project rows.
-  const hasProjects = items.length > 0;
+  const hasProjects = items.length > 0 || listHeld;
   const onboardingState: OnboardingHomeState = hasProjects ? "projects" : "empty";
   const [showEmptyStateIntro, setShowEmptyStateIntro] = useState(() => !hasProjects);
   const homepageRef = useRef<HTMLElement>(null);
@@ -232,7 +235,7 @@ export function MinimalOnboarding({
   const completeEmptyStateIntro = () => setShowEmptyStateIntro(false);
   const resolvedTheme = appearance.appearance.effectiveColorMode;
   const canCreateProject = Boolean(onCreateProject && onChooseProjectLocation);
-  const projectView = useHomepageProjectView(items);
+  const projectView = useHomepageProjectView(items, listHeld);
   const entry = onboardingEntrySlots(hasProjects, {
     busy,
     openingFolder: openingPath === "__new__",
@@ -272,6 +275,7 @@ export function MinimalOnboarding({
           primaryKind={hasProjects ? "projects" : "create"}
           primary={hasProjects ? (
             <OnboardingProjectList
+              held={listHeld}
               items={projectView.visibleItems}
               layout={projectLayout}
               onOpenCloudProject={onOpenCloudProject}
