@@ -34,5 +34,6 @@ export const renderMarkdownInlineFromSharedPolicy: MarkdownInlinePreviewRenderer
     resolveAssetUrl: options.resolveAssetUrl,
     openHref: options.openHref,
     t: options.t,
+    treatHtmlAsText: options.treatHtmlAsText,
   });
 };

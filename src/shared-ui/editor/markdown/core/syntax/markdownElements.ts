@@ -165,6 +165,12 @@ export function getInlineRevealElement(
   let best: MarkdownElement | null = null;
   for (const element of candidates) {
     if (!isSelectableInlineFormat(element)) continue;
+    if (element.kind === "inlineHtml" && element.inlineHtml.runRole === "owner") {
+      // A collapsed run is atomic, so its edges are the only caret positions
+      // that can reach it. Once revealed it stays the owner of its whole range.
+      if (caret >= element.from && caret <= element.to) return element;
+      continue;
+    }
     if (caret <= element.from || caret >= element.to) continue;
     if (!best || element.to - element.from < best.to - best.from) best = element;
   }

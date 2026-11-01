@@ -352,13 +352,13 @@
   background: var(--po-md-rule-color);
 }
 
-.markdown-codemirror-editor .cm-md-html-rendered-surface a {
+.markdown-codemirror-editor :is(.cm-md-html-rendered-surface, .cm-md-html-run) a {
   --po-md-inline-foreground: var(--po-md-link-color);
   color: var(--po-md-link-color);
   text-decoration: none;
 }
 
-.markdown-codemirror-editor .cm-md-html-rendered-surface a:hover {
+.markdown-codemirror-editor :is(.cm-md-html-rendered-surface, .cm-md-html-run) a:hover {
   text-decoration: underline;
 }
 
@@ -432,13 +432,13 @@
   cursor: var(--po-clickable-cursor, default);
 }
 
-.markdown-codemirror-editor .cm-md-html-rendered-surface img {
+.markdown-codemirror-editor :is(.cm-md-html-rendered-surface, .cm-md-html-run) img {
   max-width: 100%;
   border-radius: var(--po-md-block-radius);
 }
 
-.markdown-codemirror-editor .cm-md-html-rendered-surface img[aria-busy="true"],
-.markdown-codemirror-editor .cm-md-html-rendered-surface img[data-md-asset-state="loading"] {
+.markdown-codemirror-editor :is(.cm-md-html-rendered-surface, .cm-md-html-run) img[aria-busy="true"],
+.markdown-codemirror-editor :is(.cm-md-html-rendered-surface, .cm-md-html-run) img[data-md-asset-state="loading"] {
   min-width: 1em;
   min-height: 1em;
   background: var(--po-md-placeholder-background);
@@ -465,7 +465,7 @@
   background: var(--po-md-media-background);
 }
 
-.markdown-codemirror-editor .cm-md-html-rendered-surface :where(img, video, canvas, svg) {
+.markdown-codemirror-editor :is(.cm-md-html-rendered-surface, .cm-md-html-run) :where(img, video, canvas, svg) {
   user-select: none;
   -webkit-user-drag: none;
 }

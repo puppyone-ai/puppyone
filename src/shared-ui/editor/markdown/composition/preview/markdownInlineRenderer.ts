@@ -11,11 +11,8 @@ import type {
   MarkdownLinkCommands,
   MarkdownLinkGraph,
 } from "../../../registry/viewerTypes";
-import {
-  findMarkdownImageTokens,
-  parseMarkdownImageTokenAt,
-  resolveMarkdownHtmlImageSources,
-} from "../../features/image/markdownImageModel";
+import { hydrateDeferredHtmlMedia } from "../../features/html/htmlMediaHydration";
+import { parseMarkdownImageTokenAt } from "../../features/image/markdownImageModel";
 import {
   resolveMarkdownMediaReference,
   type MarkdownMediaReferenceKind,
@@ -71,6 +68,8 @@ export type MarkdownInlineRenderOptions = {
   sourcePath?: string;
   openHref?: (href: string) => void;
   t?: MessageFormatter;
+  /** For text nodes of already-parsed HTML, where `<` is literal content. */
+  treatHtmlAsText?: boolean;
 };
 
 export function createMarkdownInlineFragment(
@@ -105,7 +104,7 @@ function renderMarkdownInlineIntoAtDepth(
     return;
   }
 
-  if (mightContainHtml(source)) {
+  if (!options.treatHtmlAsText && mightContainHtml(source)) {
     appendInlineHtml(target, source, options, depth);
     return;
   }
@@ -120,36 +119,29 @@ function appendInlineHtml(
   depth: number,
 ) {
   const resolver = options.resolveAssetUrl ?? null;
-  const containsImages = /<img\b/i.test(source);
-  if (!containsImages || !resolver) {
+  if (!resolver || !/<(?:img|picture|source|video)\b/i.test(source)) {
     renderSanitizedInlineHtml(target, source, options, false, depth);
     return;
   }
 
   const targetNode = document.createElement("span");
   target.appendChild(targetNode);
-  // Keep unresolved media honest while the broker evaluates every source.
-  renderSanitizedInlineHtml(targetNode, source, options, false, depth);
-
-  resolveMarkdownHtmlImageSources(source, options.sourcePath ?? "", resolver)
-    .then((resolvedSource) => {
-      if (targetNode instanceof HTMLElement && !targetNode.isConnected) return;
-      targetNode.replaceChildren();
-      renderSanitizedInlineHtml(targetNode, resolvedSource, {
-        ...options,
-        markdownAssetUrlResolver: null,
-        resolveAssetUrl: undefined,
-      }, true, depth);
-      options.onLayoutChange?.();
-    })
-    .catch(() => undefined);
+  renderSanitizedInlineHtml(targetNode, source, options, true, depth);
+  hydrateDeferredHtmlMedia({
+    root: targetNode,
+    documentPath: options.sourcePath ?? "",
+    resolver: (documentPath, href, _kind, signal) => resolver(documentPath, href, signal),
+    signal: new AbortController().signal,
+    isCurrent: () => true,
+    onLayoutChange: () => options.onLayoutChange?.(),
+  });
 }
 
 function renderSanitizedInlineHtml(
   target: Node,
   source: string,
   options: MarkdownInlineRenderOptions,
-  brokeredMedia: boolean,
+  deferredMedia: boolean,
   depth: number,
 ) {
   if (!isStructurallyCompleteInlineHtmlSource(source)) {
@@ -180,7 +172,7 @@ function renderSanitizedInlineHtml(
     fragment,
     template.content,
     (node, text) => appendMarkdownText(node, text, options, depth + 1),
-    { brokeredMedia },
+    { deferredMedia },
   );
   if (!result.supported) {
     appendText(target, source);
@@ -485,7 +477,7 @@ function parseCodeToken(source: string, from: number): InlineToken | null {
 function parseLinkToken(source: string, from: number): InlineToken | null {
   if (source[from] !== "[" || source[from - 1] === "!") return null;
 
-  const labelTo = source.indexOf("]", from + 1);
+  const labelTo = findClosingBracket(source, from);
   if (labelTo <= from + 1 || source[labelTo + 1] !== "(") return null;
 
   const hrefTo = findClosingParen(source, labelTo + 2);
@@ -559,6 +551,22 @@ function parseEmphasisToken(source: string, from: number, delimiter: "*" | "_"):
     to: closingFrom + 1,
     text,
   };
+}
+
+/** Link labels may nest brackets, such as an image that fills a badge link. */
+function findClosingBracket(source: string, open: number): number {
+  let depth = 0;
+  for (let index = open; index < source.length; index += 1) {
+    if (source[index] === "\\") {
+      index += 1;
+    } else if (source[index] === "[") {
+      depth += 1;
+    } else if (source[index] === "]") {
+      depth -= 1;
+      if (depth === 0) return index;
+    }
+  }
+  return -1;
 }
 
 function findClosingParen(source: string, start: number): number {

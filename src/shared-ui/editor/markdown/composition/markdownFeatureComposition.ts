@@ -19,7 +19,7 @@ import type {
   MarkdownElementKind,
 } from "../core/syntax/markdownElementTypes";
 import { codeBlockFeature } from "../features/code-block/codeBlockFeature";
-import { htmlFeature } from "../features/html/htmlFeature";
+import { createHtmlFeature } from "../features/html/htmlFeature";
 import { imageFeature } from "../features/image/imageFeature";
 import { mathFeature } from "../features/math/mathFeature";
 import { mediaSyntaxFeature } from "../features/media/mediaSyntaxFeature";
@@ -34,6 +34,7 @@ import type { MarkdownDialectId } from "../../registry/viewerTypes";
  * The only built-in Markdown Feature registration point. The list is static,
  * ordered, and frozen; this is composition, not a runtime plugin registry.
  */
+const htmlFeature = createHtmlFeature(renderMarkdownInlineFromSharedPolicy);
 const tableFeature = createTableFeature(renderMarkdownInlineFromSharedPolicy);
 const mdxComponentFeature = createMdxComponentFeature(renderMarkdownInlineFromSharedPolicy);
 

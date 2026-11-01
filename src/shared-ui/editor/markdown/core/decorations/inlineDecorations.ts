@@ -67,6 +67,30 @@ export function addInlineMarkdownDecorations(
       // Emit its range decorations exactly once, from the line that owns the
       // opening marker.
       if (element.from < lineFrom || element.from > lineTo) continue;
+      if (plan.presentation === "inlineAtom" && plan.atom.kind === "htmlRun") {
+        // One range has one owner: nested Markdown stays inside the widget, or
+        // literal in the revealed source, and never decorates a second time.
+        if (!reserveRange(occupied, plan.sourceRange.from, plan.sourceRange.to)) continue;
+        if (isRevealedInlineRange(plan.sourceRange.from, plan.sourceRange.to, inlineRevealRange)) {
+          addSourceSyntaxDecoration(builders, plan.sourceRange.from, plan.sourceRange.to, "inline-html", true);
+          continue;
+        }
+        const widget = featureComposition?.createInlineWidget(plan, {
+          htmlTrustMode,
+          markdownLinkGraph,
+          documentPath,
+          markdownAssetUrlResolver,
+        }) ?? null;
+        if (widget) {
+          addReplacementDecoration(
+            builders,
+            Decoration.replace({ widget, inclusive: false }),
+            plan.sourceRange.from,
+            plan.sourceRange.to,
+          );
+        }
+        continue;
+      }
       addInlineHtmlElementDecoration(
         state,
         element,
@@ -106,8 +130,14 @@ export function addInlineMarkdownDecorations(
     }
     if (expandedFeatureAtom) continue;
 
+    // A link's label may be an atom such as a badge image: a mark can wrap a
+    // replaced range, so only a true overlap with its syntax rules it out.
+    const label = element.kind === "link" ? element.contentRange : undefined;
+    const holdsAtom = (range: OccupiedRange) => Boolean(
+      label && range.from >= label.from && range.to <= label.to,
+    );
     const overlapsExclusiveRange = occupied.some((range) => (
-      element.from < range.to && element.to > range.from
+      element.from < range.to && element.to > range.from && !holdsAtom(range)
     ));
     if (overlapsExclusiveRange) continue;
 
@@ -116,7 +146,7 @@ export function addInlineMarkdownDecorations(
         addWikiLinkElementDecoration(state, element, lineFrom, tokenLookup, builders, inlineRevealRange, markdownLinkGraph, documentPath, t);
         break;
       case "link":
-        addLinkElementDecoration(state, element, lineFrom, text, tokenLookup, builders, inlineRevealRange, markdownLinkGraph, documentPath, t);
+        addLinkElementDecoration(state, element, lineFrom, text, tokenLookup, builders, inlineRevealRange, markdownLinkGraph, documentPath, t, occupied.some(holdsAtom));
         break;
       case "strong":
         addDelimitedInlineElementDecoration(element, builders, inlineRevealRange, "cm-md-syntax-strong");
@@ -166,7 +196,7 @@ function compareInlineDecorationPriority(left: MarkdownElement, right: MarkdownE
       case "mathInline":
         return 0;
       case "inlineHtml":
-        return 1;
+        return element.inlineHtml.runRole === "owner" ? -1 : 1;
       case "wikiLink":
         return 2;
       case "link":
@@ -361,6 +391,7 @@ function addLinkElementDecoration(
   markdownLinkGraph: MarkdownLinkGraph | null,
   documentPath: string,
   t: MessageFormatter,
+  labelHoldsAtom: boolean,
 ) {
   if (!element.contentRange || element.contentRange.from >= element.contentRange.to) return;
 
@@ -394,6 +425,9 @@ function addLinkElementDecoration(
   builders.decorations.push(
     Decoration.mark({
       class: linkClasses,
+      // A replacement sharing the mark's start would otherwise open first and
+      // leave the mark with no content to wrap.
+      inclusive: labelHoldsAtom,
       attributes: {
         "data-md-href": href,
         ...getMarkdownLinkInteractionAttributes(interaction),

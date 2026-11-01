@@ -11,7 +11,10 @@ import {
 } from "../../platform/policy/markdownHtmlSanitizerPolicy";
 import { isBrokerSafeResolvedAssetUrl } from "../../platform/policy/markdownAssetPolicy";
 import type { MarkdownHtmlSanitizerCapabilities } from "../../platform/policy/markdownHtmlProfiles";
-import { normalizeMarkdownHtmlAlignment } from "../../platform/policy/markdownHtmlProfiles";
+import {
+  isPassiveMediaHtmlTag,
+  normalizeMarkdownHtmlAlignment,
+} from "../../platform/policy/markdownHtmlProfiles";
 import { getSafeMarkdownHref } from "../../platform/policy/markdownUrlPolicy";
 
 export type MarkdownTextRenderer = (target: Node, text: string) => void;
@@ -22,9 +25,21 @@ export type SanitizedHtmlResult = {
   reasons: string[];
 };
 
+const HTML_DIMENSION_PATTERN = /^[1-9]\d{0,3}(?:%|px)?$/;
+const HTML_SOURCE_CONDITION_MAX_LENGTH = 256;
+
+/** Removing these keeps their raw payload from surfacing as document text. */
+const BLOCKED_TAGS_DROPPED_WITH_CONTENT = new Set([
+  "embed",
+  "iframe",
+  "object",
+  "script",
+  "style",
+  "template",
+]);
+
 type SanitizeContext = {
   mode: HtmlSanitizerMode;
-  strict: boolean;
   reasons: string[];
   renderText?: MarkdownTextRenderer;
   capabilities: MarkdownHtmlSanitizerCapabilities;
@@ -39,14 +54,13 @@ export function appendSanitizedInlineHtml(
   options: MarkdownHtmlSanitizerOptions = {},
 ): Pick<SanitizedHtmlResult, "supported" | "reasons"> {
   const context: SanitizeContext = {
-    mode: "inline",
-    strict: false,
+    mode: "block",
     reasons: [],
     renderText,
     capabilities: options,
   };
 
-  appendSanitizedChildren(target, source, context);
+  appendSanitizedChildren(target, source, context, 0);
   return {
     supported: context.reasons.length === 0,
     reasons: Array.from(new Set(context.reasons)),
@@ -62,12 +76,11 @@ export function createSanitizedBlockHtmlFragment(
 
   const context: SanitizeContext = {
     mode: "block",
-    strict: true,
     reasons: [],
     capabilities: options,
   };
   const fragment = document.createDocumentFragment();
-  appendSanitizedChildren(fragment, template.content, context);
+  appendSanitizedChildren(fragment, template.content, context, 0);
 
   return {
     fragment,
@@ -76,13 +89,18 @@ export function createSanitizedBlockHtmlFragment(
   };
 }
 
-function appendSanitizedChildren(target: Node, source: DocumentFragment | HTMLElement, context: SanitizeContext) {
+function appendSanitizedChildren(
+  target: Node,
+  source: DocumentFragment | HTMLElement,
+  context: SanitizeContext,
+  depth: number,
+) {
   for (const child of Array.from(source.childNodes)) {
-    appendSanitizedNode(target, child, context);
+    appendSanitizedNode(target, child, context, depth);
   }
 }
 
-function appendSanitizedNode(target: Node, node: ChildNode, context: SanitizeContext) {
+function appendSanitizedNode(target: Node, node: ChildNode, context: SanitizeContext, depth: number) {
   if (node.nodeType === Node.TEXT_NODE) {
     const text = node.textContent ?? "";
     if (context.renderText) context.renderText(target, text);
@@ -94,13 +112,22 @@ function appendSanitizedNode(target: Node, node: ChildNode, context: SanitizeCon
 
   const tagName = node.tagName.toLowerCase();
   if (isBlockedHtmlTag(tagName)) {
-    markUnsupported(context, `<${tagName}> is not supported`, { fatal: true });
+    // A blocked root has no honest projection. Nested inside a safe element it
+    // is removed on its own so one tag cannot hide the surrounding document.
+    if (depth === 0) markUnsupported(context, `<${tagName}> is not supported`, { fatal: true });
+    else if (!BLOCKED_TAGS_DROPPED_WITH_CONTENT.has(tagName)) {
+      appendSanitizedChildren(target, node, context, depth + 1);
+    }
     return;
   }
 
   if (!isAllowedHtmlTag(tagName, context.mode, context.capabilities)) {
-    markUnsupported(context, `<${tagName}> is not supported`, { fatal: true });
-    if (!context.strict) appendSanitizedChildren(target, node, context);
+    if (isPassiveMediaHtmlTag(tagName)) {
+      markUnsupported(context, `<${tagName}> requires AssetBroker`, { fatal: true });
+      return;
+    }
+    // Unknown structure carries no capability: drop the tag, keep its content.
+    appendSanitizedChildren(target, node, context, depth + 1);
     return;
   }
 
@@ -118,7 +145,7 @@ function appendSanitizedNode(target: Node, node: ChildNode, context: SanitizeCon
     return;
   }
 
-  appendSanitizedChildren(element, node, context);
+  appendSanitizedChildren(element, node, context, depth + 1);
   target.appendChild(element);
 }
 
@@ -155,6 +182,62 @@ function copySafeAttributes(target: HTMLElement, source: HTMLElement, tagName: s
       } else {
         markUnsupported(context, "unsafe link URL is not supported", { fatal: true });
       }
+      continue;
+    }
+
+    if (tagName === "a" && name === "name") {
+      // The legacy target form shares the id namespace; an explicit id wins.
+      if (source.hasAttribute("id")) continue;
+      const scoped = scopeDocumentToken(value);
+      if (scoped) target.setAttribute("id", scoped);
+      else markUnsupported(context, "anchor name was omitted", { fatal: false });
+      continue;
+    }
+
+    if ((tagName === "img" && name === "align") || (tagName === "table" && name === "align")) {
+      // These are placement hints rather than text alignment, so the browser
+      // has to receive the attribute itself.
+      const allowed = tagName === "img"
+        ? /^(?:left|right|center|top|middle|bottom)$/i
+        : /^(?:left|right|center)$/i;
+      if (allowed.test(value.trim())) target.setAttribute("align", value.trim().toLowerCase());
+      else markUnsupported(context, "align value was omitted", { fatal: false });
+      continue;
+    }
+
+    if (
+      (tagName === "table" || tagName === "td" || tagName === "th")
+      && (name === "width" || name === "height")
+    ) {
+      if (HTML_DIMENSION_PATTERN.test(value.trim())) target.setAttribute(name, value.trim());
+      else markUnsupported(context, `${name} value was omitted`, { fatal: false });
+      continue;
+    }
+
+    if ((tagName === "td" || tagName === "th") && name === "valign") {
+      if (/^(?:top|middle|bottom|baseline)$/i.test(value.trim())) {
+        target.setAttribute("valign", value.trim().toLowerCase());
+      } else {
+        markUnsupported(context, "valign value was omitted", { fatal: false });
+      }
+      continue;
+    }
+
+    if (tagName === "ol" && name === "start") {
+      if (/^-?\d{1,6}$/.test(value.trim())) target.setAttribute("start", value.trim());
+      else markUnsupported(context, "start value was omitted", { fatal: false });
+      continue;
+    }
+
+    if (tagName === "ol" && name === "type") {
+      if (/^[1aAiI]$/.test(value.trim())) target.setAttribute("type", value.trim());
+      else markUnsupported(context, "list type was omitted", { fatal: false });
+      continue;
+    }
+
+    if (tagName === "source" && (name === "media" || name === "sizes")) {
+      if (isSafeSourceCondition(value)) target.setAttribute(name, value.trim());
+      else markUnsupported(context, `${name} value was omitted`, { fatal: false });
       continue;
     }
 
@@ -201,7 +284,7 @@ function copySafeAttributes(target: HTMLElement, source: HTMLElement, tagName: s
       continue;
     }
 
-    if (tagName === "img" && name === "srcset") {
+    if ((tagName === "img" || tagName === "source") && name === "srcset") {
       if (context.capabilities.brokeredMedia && isBrokerSafeImageSrcset(value)) {
         target.setAttribute("srcset", value.trim());
       } else if (context.capabilities.deferredMedia) {
@@ -226,7 +309,7 @@ function copySafeAttributes(target: HTMLElement, source: HTMLElement, tagName: s
     }
 
     if (tagName === "img" && (name === "width" || name === "height")) {
-      if (/^[1-9]\d{0,3}$/.test(value.trim())) target.setAttribute(name, value.trim());
+      if (HTML_DIMENSION_PATTERN.test(value.trim())) target.setAttribute(name, value.trim());
       else markUnsupported(context, `${name} value was omitted`, { fatal: false });
       continue;
     }
@@ -249,8 +332,8 @@ function copySafeAttributes(target: HTMLElement, source: HTMLElement, tagName: s
 
     if (tagName === "source" && name === "type") {
       const type = value.trim().toLowerCase();
-      if (/^video\/[a-z0-9.+-]+$/.test(type)) target.setAttribute("type", type);
-      else markUnsupported(context, "video source type was omitted", { fatal: false });
+      if (/^(?:image|video)\/[a-z0-9.+-]+$/.test(type)) target.setAttribute("type", type);
+      else markUnsupported(context, "media source type was omitted", { fatal: false });
       continue;
     }
 
@@ -287,13 +370,8 @@ function copySafeAttributes(target: HTMLElement, source: HTMLElement, tagName: s
     }
 
     if (name === "class" || name === "id") {
-      const scoped = value
-        .trim()
-        .split(/\s+/)
-        .map((token) => token.trim())
-        .filter((token) => /^[A-Za-z_][\w-]*$/.test(token) && !token.startsWith("cm-") && !token.startsWith("po-"))
-        .map((token) => `md-doc-${token}`);
-      if (scoped.length > 0) target.setAttribute(name, scoped.join(" "));
+      const scoped = scopeDocumentToken(value);
+      if (scoped) target.setAttribute(name, scoped);
       else markUnsupported(context, `attribute "${name}" was omitted`, { fatal: false });
       continue;
     }
@@ -323,6 +401,26 @@ function copySafeInlineStyles(
     }
     target.style.setProperty(name, value.trim());
   }
+}
+
+function scopeDocumentToken(value: string): string | null {
+  const scoped = value
+    .trim()
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => /^[A-Za-z_][\w-]*$/.test(token) && !token.startsWith("cm-") && !token.startsWith("po-"))
+    .map((token) => `md-doc-${token}`);
+  return scoped.length > 0 ? scoped.join(" ") : null;
+}
+
+/** A media condition selects among brokered candidates and never loads anything. */
+function isSafeSourceCondition(value: string): boolean {
+  const condition = value.trim();
+  return (
+    condition.length > 0
+    && condition.length <= HTML_SOURCE_CONDITION_MAX_LENGTH
+    && !/[<>{};]|url\s*\(/i.test(condition)
+  );
 }
 
 function markUnsupported(context: SanitizeContext, reason: string, options: { fatal?: boolean } = {}) {

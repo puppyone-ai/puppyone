@@ -184,8 +184,9 @@ export function compileInlineHtmlRenderPlan(element: MarkdownInlineHtml): Inline
       continue;
     }
 
-    if (attribute.name === "class" || attribute.name === "id") {
-      const scoped = scopeDocumentToken(decodeHtmlAttributeValue(attribute.value), attribute.name);
+    if (attribute.name === "class" || attribute.name === "id" || attribute.name === "name") {
+      const kind = attribute.name === "class" ? "class" : "id";
+      const scoped = scopeDocumentToken(decodeHtmlAttributeValue(attribute.value), kind);
       if (!scoped) {
         diagnostics.push({
           code: "inline-html.attribute-reduced",
@@ -193,7 +194,9 @@ export function compileInlineHtmlRenderPlan(element: MarkdownInlineHtml): Inline
         });
         continue;
       }
-      attributes[attribute.name] = scoped;
+      // The legacy `name` target form shares the id namespace; an explicit id wins.
+      if (attribute.name === "name" && element.attributes.some(({ name }) => name === "id")) continue;
+      attributes[kind] = scoped;
       continue;
     }
 

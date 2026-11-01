@@ -224,37 +224,6 @@ export function isSafeMarkdownImageSrcset(value: string): boolean {
     });
 }
 
-export async function resolveMarkdownHtmlImageSources(
-  source: string,
-  documentPath: string,
-  resolver: BrokeredMarkdownImageUrlResolver | null,
-): Promise<string> {
-  if (!resolver || !/<img\b/i.test(source)) return source;
-
-  const template = document.createElement("template");
-  template.innerHTML = source;
-  const images = Array.from(template.content.querySelectorAll<HTMLImageElement>("img"));
-  if (images.length === 0) return source;
-
-  await Promise.all(images.map(async (image) => {
-    const src = image.getAttribute("src");
-    if (src) {
-      const resolvedUrl = await resolver(documentPath, src);
-      if (resolvedUrl && isBrokerSafeResolvedAssetUrl(resolvedUrl)) image.setAttribute("src", resolvedUrl);
-      else image.removeAttribute("src");
-    }
-
-    const srcset = image.getAttribute("srcset");
-    if (srcset) {
-      const resolvedSrcset = await resolveMarkdownImageSrcset(srcset, documentPath, resolver);
-      if (resolvedSrcset) image.setAttribute("srcset", resolvedSrcset);
-      else image.removeAttribute("srcset");
-    }
-  }));
-
-  return template.innerHTML;
-}
-
 export async function resolveMarkdownImageSrcset(
   value: string,
   documentPath: string,

@@ -15,10 +15,17 @@ import {
   type MarkdownDocumentProfile,
 } from "../../core/plans/markdownBlockExecution";
 import { compileMarkdownHtmlBlockPolicy } from "./htmlBlockPolicy";
+import { validateMarkdownHtmlBlockStructure } from "./htmlBlockStructure";
+import { isBlockLevelHtmlTag } from "../../platform/policy/markdownHtmlProfiles";
 
 export function compileInlineHtmlElementPlan(
   element: Extract<MarkdownElement, { kind: "inlineHtml" }>,
+  assetBrokerAvailable = false,
 ): MarkdownElementPlan {
+  if (element.inlineHtml.runRole === "owner") {
+    return compileInlineHtmlRunPlan(element, assetBrokerAvailable);
+  }
+
   const sourceRange = rangeOf(element);
   const policy = compileInlineHtmlRenderPlan(element.inlineHtml);
 
@@ -71,6 +78,60 @@ export function compileInlineHtmlElementPlan(
       reveal: true,
       atomic: true,
       deleteUnits: markerRanges.map(cloneRange),
+    },
+  };
+}
+
+/**
+ * The whole balanced run shares the HTML block policy and sanitizer. Source
+ * stays editable: deletion is left to the revealed text, so it needs no
+ * collapsed delete unit that would remove the run in a single keystroke.
+ */
+function compileInlineHtmlRunPlan(
+  element: Extract<MarkdownElement, { kind: "inlineHtml" }>,
+  assetBrokerAvailable: boolean,
+): MarkdownElementPlan {
+  const sourceRange = rangeOf(element);
+  const source = element.inlineHtml.runSource ?? "";
+  const structure = validateMarkdownHtmlBlockStructure(source);
+  const policy = compileMarkdownHtmlBlockPolicy({
+    source,
+    status: structure.status,
+    diagnostic: structure.diagnostic,
+    assetBrokerAvailable,
+  });
+  if (!policy.supported) {
+    return visibleSourcePlan(sourceRange, [{
+      code: policy.diagnostic.code,
+      message: policy.diagnostic.message,
+    }]);
+  }
+  if (policy.profile === "external-web-embed") {
+    return visibleSourcePlan(sourceRange, [{
+      code: "htmlBlock.inline-embed",
+      message: "Web embeds render only as their own block",
+    }]);
+  }
+
+  return {
+    presentation: "inlineAtom",
+    sourceRange,
+    atom: {
+      kind: "htmlRun",
+      tagName: element.inlineHtml.tagName,
+      source,
+      rootIsBlock: isBlockLevelHtmlTag(element.inlineHtml.tagName),
+      profile: policy.profile,
+      profileVersion: policy.profileVersion,
+      requiresAssetBroker: policy.requiresAssetBroker,
+    },
+    layout: { lineBreaks: 0 },
+    diagnostics: policy.diagnostics,
+    capabilities: {
+      reveal: true,
+      atomic: true,
+      deleteUnits: [],
+      expand: false,
     },
   };
 }

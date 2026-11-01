@@ -61,6 +61,15 @@ export type InlineAtomModel =
     }
   | { kind: "taskCheckbox"; checked: boolean }
   | { kind: "mathInline"; source: string }
+  | {
+      kind: "htmlRun";
+      tagName: string;
+      source: string;
+      rootIsBlock: boolean;
+      profile: MarkdownHtmlBlockRenderProfile;
+      profileVersion: string;
+      requiresAssetBroker: boolean;
+    }
   | { kind: "escape" };
 
 export type BlockEmbedModel =

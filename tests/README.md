@@ -67,6 +67,11 @@ e2e command runs project sessions followed by the fixture-based Agent/Terminal
 sidebar workflow. Both run without paid requests.
 
 Other `smoke:*` commands are explicit focused checks, not implicitly part of CI.
+The `markdown-html-run` app gate (`npm run smoke:markdown-html-run`) mounts the
+production editor in Chromium and checks what a DOM stub cannot: list indent,
+`prefers-color-scheme` candidate selection, intrinsic and percentage sizes, and
+real pointer and arrow-key entry into inline HTML source.
+
 The `markdown-quote-colors` app gate (`npm run smoke:markdown-quote-colors`)
 checks actual Chromium styles for native Markdown and Safe HTML quotes, code,
 tables and list markers. Its 42 cases cover light/dark, default/Newspaper, explicit quote,

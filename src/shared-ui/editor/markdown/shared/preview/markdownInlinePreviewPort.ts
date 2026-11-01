@@ -19,6 +19,8 @@ export type MarkdownInlinePreviewOptions = {
   ) => string | Promise<string | null> | null;
   openHref?: (href: string) => void;
   t?: MessageFormatter;
+  /** For text nodes of already-parsed HTML, where `<` is literal content. */
+  treatHtmlAsText?: boolean;
 };
 
 export type MarkdownInlinePreviewRenderer = (

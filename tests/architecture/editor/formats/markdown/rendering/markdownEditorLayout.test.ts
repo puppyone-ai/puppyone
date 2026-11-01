@@ -200,7 +200,7 @@ describe("Markdown HTML media layout", () => {
   it("caps raw HTML images at the reading rail without replacing authored sizing", () => {
     const imageRule = readCssRule(
       markdownContentCss,
-      ".markdown-codemirror-editor .cm-md-html-rendered-surface img",
+      ".markdown-codemirror-editor :is(.cm-md-html-rendered-surface, .cm-md-html-run) img",
     );
 
     expect(imageRule).toContain("max-width: 100%;");
