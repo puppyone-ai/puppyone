@@ -195,10 +195,10 @@ describe("Markdown video embeds", () => {
     views.add(view);
 
     await waitFor(() => (
-      view.dom.querySelector(".cm-md-html-rendered-surface video")?.getAttribute("poster")
+      view.dom.querySelector(".cm-md-html-run video")?.getAttribute("poster")
       === "blob:https://app/poster.png"
     ));
-    const video = view.dom.querySelector<HTMLVideoElement>(".cm-md-html-rendered-surface video");
+    const video = view.dom.querySelector<HTMLVideoElement>(".cm-md-html-run video");
     const childSource = video?.querySelector<HTMLSourceElement>("source");
     if (!video || !childSource) throw new Error("Raw HTML video surface did not mount.");
 

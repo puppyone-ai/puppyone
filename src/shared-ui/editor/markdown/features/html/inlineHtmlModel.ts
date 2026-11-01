@@ -280,11 +280,7 @@ function collectInlineHtmlContainer(
  * a block; projecting it as a run keeps the marker and its container intact.
  */
 function isMarkerOwnedHtmlBlock(state: EditorState, node: SyntaxNode): boolean {
-  const firstLine = state.doc.lineAt(node.from);
-  return (
-    state.sliceDoc(firstLine.from, node.from).trim() !== ""
-    && Math.max(node.from, node.to - 1) <= firstLine.to
-  );
+  return state.sliceDoc(state.doc.lineAt(node.from).from, node.from).trim() !== "";
 }
 
 function collectMarkerOwnedHtmlBlock(state: EditorState, node: SyntaxNode): InlineContainer {
@@ -312,6 +308,7 @@ function findInlineContainerNode(node: SyntaxNode): SyntaxNode | null {
 function isInlineContainerName(name: string): boolean {
   return (
     name === "Paragraph" ||
+    name === "Task" ||
     /^ATXHeading[1-6]$/.test(name) ||
     /^SetextHeading[12]$/.test(name)
   );

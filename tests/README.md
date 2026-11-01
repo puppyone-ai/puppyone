@@ -72,6 +72,11 @@ production editor in Chromium and checks what a DOM stub cannot: list indent,
 `prefers-color-scheme` candidate selection, intrinsic and percentage sizes, and
 real pointer and arrow-key entry into inline HTML source.
 
+The `markdown-syntax-gallery` app gate (`npm run smoke:markdown-syntax-gallery`)
+renders one document holding every construct at once, so callout color, table
+tracks, fold state, `details` inside an HTML flow, and footnote jumps are checked
+against real layout and real pointer input.
+
 The `markdown-quote-colors` app gate (`npm run smoke:markdown-quote-colors`)
 checks actual Chromium styles for native Markdown and Safe HTML quotes, code,
 tables and list markers. Its 42 cases cover light/dark, default/Newspaper, explicit quote,

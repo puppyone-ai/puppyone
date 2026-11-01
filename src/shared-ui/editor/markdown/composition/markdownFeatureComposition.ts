@@ -18,9 +18,13 @@ import type {
   MarkdownElement,
   MarkdownElementKind,
 } from "../core/syntax/markdownElementTypes";
+import { calloutFeature } from "../features/callout/calloutFeature";
 import { codeBlockFeature } from "../features/code-block/codeBlockFeature";
+import { footnoteFeature } from "../features/footnote/footnoteFeature";
+import { frontMatterFeature } from "../features/front-matter/frontMatterFeature";
 import { createHtmlFeature } from "../features/html/htmlFeature";
 import { imageFeature } from "../features/image/imageFeature";
+import { inlineSyntaxFeature } from "../features/inline-syntax/inlineSyntaxFeature";
 import { mathFeature } from "../features/math/mathFeature";
 import { mediaSyntaxFeature } from "../features/media/mediaSyntaxFeature";
 import { mermaidFeature } from "../features/mermaid/mermaidFeature";
@@ -40,8 +44,12 @@ const mdxComponentFeature = createMdxComponentFeature(renderMarkdownInlineFromSh
 
 const puppyGfmFeatures = Object.freeze([
   mediaSyntaxFeature,
-  codeBlockFeature,
+  frontMatterFeature,
+  inlineSyntaxFeature,
+  footnoteFeature,
+  calloutFeature,
   mathFeature,
+  codeBlockFeature,
   mermaidFeature,
   htmlFeature,
   tableFeature,
@@ -51,8 +59,12 @@ const puppyGfmFeatures = Object.freeze([
 
 const openKnowledgeMdxFeatures = Object.freeze([
   mediaSyntaxFeature,
-  codeBlockFeature,
+  frontMatterFeature,
+  inlineSyntaxFeature,
+  footnoteFeature,
+  calloutFeature,
   mathFeature,
+  codeBlockFeature,
   mermaidFeature,
   mdxComponentFeature,
   htmlFeature,

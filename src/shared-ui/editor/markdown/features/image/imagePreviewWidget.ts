@@ -37,6 +37,7 @@ export class ImagePreviewWidget extends WidgetType {
     private readonly documentPath: string,
     private readonly resolvedSource: string | null = source,
     private readonly displayMode: MarkdownImageDisplayMode = "inline",
+    private readonly size: Readonly<{ width: number; height: number | null }> | null = null,
   ) {
     super();
     this.sourceLength = Math.max(0, to - from);
@@ -51,7 +52,9 @@ export class ImagePreviewWidget extends WidgetType {
       widget.title === this.title &&
       widget.documentPath === this.documentPath &&
       widget.resolvedSource === this.resolvedSource &&
-      widget.displayMode === this.displayMode
+      widget.displayMode === this.displayMode &&
+      widget.size?.width === this.size?.width &&
+      widget.size?.height === this.size?.height
     );
   }
 
@@ -146,6 +149,10 @@ export class ImagePreviewWidget extends WidgetType {
     const createImage = (source: string, placeholder: HTMLElement) => {
       const image = document.createElement("img");
       image.alt = this.alt;
+      if (this.size) {
+        image.style.width = `${this.size.width}px`;
+        if (this.size.height !== null) image.style.height = `${this.size.height}px`;
+      }
       // CodeMirror already mounts only nearby widgets. This image must load
       // while hidden so decoding completes before its atomic layout reveal.
       image.loading = "eager";

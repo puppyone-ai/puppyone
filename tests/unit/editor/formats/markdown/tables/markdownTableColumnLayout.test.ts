@@ -95,3 +95,19 @@ describe("Markdown table column layout", () => {
     expect(fitMarkdownTableColumnWidths([200, 600], 402)).toEqual([100, 300]);
   });
 });
+
+describe("Markdown table column extents for HTML", () => {
+  it("does not count tag source as visible text", () => {
+    expect(measureCellText('<a href="https://example.com/a/very/long/path">x</a>')).toEqual(measureCellText("x"));
+  });
+
+  it("reserves an image's authored width", () => {
+    const narrow = measureCellText('<img src="a.png" width="40">');
+    const wide = measureCellText('<picture><source srcset="d.svg"><img src="l.svg" width="196"></picture>');
+    expect(wide.minEm).toBeGreaterThan(narrow.minEm);
+  });
+
+  it("keeps an authored line break", () => {
+    expect(measureCellText("long words here<br>x").maxEm).toBeLessThan(measureCellText("long words here x").maxEm);
+  });
+});

@@ -63,6 +63,30 @@ export function getMarkdownMathBlock(
   return null;
 }
 
+/** A fenced block labelled `math`, which the code block feature would otherwise own. */
+export function getMarkdownMathFence(
+  state: EditorState,
+  openingLineNumber: number,
+): MarkdownMathBlock | null {
+  const opening = state.doc.line(openingLineNumber);
+  if (!/^\s{0,3}(?:`{3,}|~{3,})\s*math\s*$/.test(opening.text)) return null;
+  let node: SyntaxNode | null = syntaxTree(state).resolveInner(opening.from + opening.text.search(/\S/), 1);
+  while (node && node.name !== "FencedCode") node = node.parent;
+  if (!node || state.doc.lineAt(node.from).number !== openingLineNumber) return null;
+  const code = node.getChild("CodeText");
+  const source = code ? state.sliceDoc(code.from, code.to) : "";
+  if (!code || !source.trim()) return null;
+  const closing = state.doc.lineAt(Math.max(node.from, node.to - 1));
+  return {
+    from: opening.from,
+    to: closing.to,
+    contentFrom: code.from,
+    contentTo: code.to,
+    nextLineNumber: closing.number + 1,
+    source,
+  };
+}
+
 export function findMarkdownInlineMathTokens(
   state: EditorState,
   from: number,
@@ -88,9 +112,20 @@ export function findMarkdownInlineMathTokens(
         source: token.source,
       });
     }
+    // The backtick form wraps inline code, which the scan above must suppress.
+    for (const match of line.text.matchAll(/\$`([^`\n]+)`\$/g)) {
+      const absoluteFrom = line.from + match.index;
+      tokens.push({
+        from: absoluteFrom,
+        to: absoluteFrom + match[0].length,
+        contentFrom: absoluteFrom + 2,
+        contentTo: absoluteFrom + 2 + match[1].length,
+        source: match[1],
+      });
+    }
   }
 
-  return tokens;
+  return tokens.sort((left, right) => left.from - right.from);
 }
 
 function scanInlineMath(text: string): MarkdownInlineMathToken[] {

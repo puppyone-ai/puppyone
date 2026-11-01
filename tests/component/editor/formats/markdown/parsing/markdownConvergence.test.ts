@@ -54,6 +54,7 @@ describe("Markdown semantic-plan convergence", () => {
         title: "Architecture",
         referenceKind: "markdown-path",
         displayMode: "block",
+        size: null,
       });
       expect(image.plan.diagnostics).toEqual([]);
     }
@@ -104,7 +105,9 @@ describe("Markdown HTML profile convergence", () => {
     expect(isTagAllowedInProfile("source", "block")).toBe(false);
     expect(isTagAllowedInProfile("video", "block", { deferredMedia: true })).toBe(true);
     expect(isTagAllowedInProfile("source", "block", { deferredMedia: true })).toBe(true);
-    expect(isTagAllowedInProfile("audio", "inline", { brokeredMedia: true })).toBe(false);
+    expect(isTagAllowedInProfile("audio", "block")).toBe(false);
+    expect(isTagAllowedInProfile("audio", "inline", { brokeredMedia: true })).toBe(true);
+    expect(isTagAllowedInProfile("picture", "block")).toBe(false);
   });
 
   it("turns Mermaid anchor navigation into brokered intents while preserving local paint references", () => {

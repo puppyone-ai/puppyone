@@ -43,7 +43,7 @@ export type BlockEmbedCapabilities = {
 };
 
 export type TypedContentMark = {
-  kind: "inlineHtmlMark" | "strong" | "emphasis" | "strike" | "inlineCode" | "link" | "wikiLink";
+  kind: "comment" | "highlight" | "linkDefinition" | "inlineHtmlMark" | "strong" | "emphasis" | "strike" | "inlineCode" | "link" | "wikiLink";
   tagName?: string;
   className?: string;
   attributes: Readonly<Record<string, string>>;
@@ -58,9 +58,13 @@ export type InlineAtomModel =
       title: string | null;
       referenceKind: MarkdownMediaReferenceKind;
       displayMode: MarkdownImageDisplayMode;
+      size: Readonly<{ width: number; height: number | null }> | null;
     }
   | { kind: "taskCheckbox"; checked: boolean }
   | { kind: "mathInline"; source: string }
+  | { kind: "emoji"; emoji: string }
+  | { kind: "entity"; source: string }
+  | { kind: "footnote"; marker: "definition" | "reference"; id: string; label: string }
   | {
       kind: "htmlRun";
       tagName: string;
@@ -103,6 +107,7 @@ export type BlockEmbedModel =
     }
   | { kind: "mdxComponent"; name: "Tabs"; tabs: readonly MarkdownMdxTab[]; source: string }
   | { kind: "mathBlock"; source: string }
+  | { kind: "frontMatter"; source: string }
   | { kind: "horizontalRule" };
 
 export type VisibleSourcePlan = {
@@ -159,6 +164,14 @@ export type MarkdownElementPlan =
   | InlineMarkPlan
   | DistributedInlineAtomPlan<InlineAtomModel>
   | DistributedBlockAtomPlan<BlockEmbedModel>;
+
+/**
+ * Atoms that swap for their exact source when the caret touches them. Their
+ * range is atomic while collapsed, so the edges are the only way in.
+ */
+export function revealsSourceOnCaretTouch(kind: InlineAtomModel["kind"]): boolean {
+  return kind === "htmlRun" || kind === "entity" || kind === "emoji" || kind === "footnote";
+}
 
 export function planHasCollapsedMarkerDeletion(plan: MarkdownElementPlan): boolean {
   return plan.capabilities.deleteUnits.length > 0;

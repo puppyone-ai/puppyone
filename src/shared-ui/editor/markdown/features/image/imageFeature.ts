@@ -6,6 +6,8 @@ import { isObsidianImageEmbedSize } from "../media/obsidianMediaEmbed";
 import { resolveMarkdownMediaReference } from "../media/markdownMediaReference";
 import { ImagePreviewWidget } from "./imagePreviewWidget";
 import { compileImageElementPlan } from "./imagePlan";
+import { parseMarkdownImageSize, splitMarkdownImageAlt, type MarkdownImageSize } from "./markdownImageSize";
+import { findMarkdownReferenceImageTokens } from "./markdownReferenceImages";
 import { findStandardMarkdownImageTokens, type MarkdownImageToken } from "./markdownImageModel";
 
 export const imageFeature = defineMarkdownFeature({
@@ -24,18 +26,23 @@ export const imageFeature = defineMarkdownFeature({
         href: token.target,
         title: null,
         referenceKind: "wiki-target",
-      }, getImageDisplayModeFromState(state, token.from, token.to))
-    ));
+      }, getImageDisplayModeFromState(state, token.from, token.to), parseMarkdownImageSize(token.alias))
+    )).concat(collectReferenceImages(state, from, to));
   },
   collectLine(line) {
-    return findStandardMarkdownImageTokens(line.text).map((token) => createImageElement(
-      {
-        ...token,
-        from: line.from + token.from,
-        to: line.from + token.to,
-      },
-      getImageDisplayModeOnLine(line.text, token.from, token.to),
-    ));
+    return findStandardMarkdownImageTokens(line.text).map((token) => {
+      const { alt, size } = splitMarkdownImageAlt(token.alt);
+      return createImageElement(
+        {
+          ...token,
+          alt,
+          from: line.from + token.from,
+          to: line.from + token.to,
+        },
+        getImageDisplayModeOnLine(line.text, token.from, token.to),
+        size,
+      );
+    });
   },
   compile(element) {
     return compileImageElementPlan(element);
@@ -56,13 +63,22 @@ export const imageFeature = defineMarkdownFeature({
       context.documentPath,
       resolvedSource,
       plan.atom.displayMode,
+      plan.atom.size,
     );
   },
 });
 
+function collectReferenceImages(state: EditorState, from: number, to: number) {
+  return findMarkdownReferenceImageTokens(state, from, to).map((token) => {
+    const { alt, size } = splitMarkdownImageAlt(token.alt);
+    return createImageElement({ ...token, alt }, getImageDisplayModeFromState(state, token.from, token.to), size);
+  });
+}
+
 function createImageElement(
   token: MarkdownImageToken,
   displayMode: MarkdownImageDisplayMode,
+  size: MarkdownImageSize | null,
 ) {
   return {
     kind: "image" as const,
@@ -77,6 +93,7 @@ function createImageElement(
       title: token.title,
       referenceKind: token.referenceKind,
       displayMode,
+      size,
     },
   };
 }

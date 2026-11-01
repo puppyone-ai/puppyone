@@ -3,7 +3,7 @@
  */
 import { EditorSelection, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { afterEach, describe, expect, it } from "vitest";
+import { vi, afterEach, describe, expect, it } from "vitest";
 import { disposeWidgetSessionDom } from "../../../../../../src/shared-ui/editor/markdown/platform/codemirror/widgetSession";
 import { createWidgetSessionRegistry } from "../../../../../../src/shared-ui/editor/markdown/platform/codemirror/widgetSession";
 import { createDomFromInlineHtmlSource } from "../../../../../../src/shared-ui/editor/markdown/features/html/inlineHtmlDomAdapter";
@@ -209,19 +209,13 @@ describe("Markdown table plan adapter", () => {
         return "blob:https://app/pic";
       },
     });
-    // The renderer schedules the resolve microtask; flush it.
-    await Promise.resolve();
-    await Promise.resolve();
+    await vi.waitFor(() => expect(target.querySelector("img")?.getAttribute("src")).toBe("blob:https://app/pic"));
     expect(resolverCalls).toBe(1);
     const img = target.querySelector("img");
-    expect(img?.getAttribute("src")).toBe("blob:https://app/pic");
-    expect(img?.hidden).toBe(true);
-    expect(target.querySelector(".cm-md-image-placeholder")).not.toBeNull();
     if (!img) throw new Error("Brokered table image did not mount.");
-    Object.defineProperty(img, "decode", { configurable: true, value: undefined });
+    expect(img.alt).toBe("alt");
     img.dispatchEvent(new Event("load"));
-    expect(img.hidden).toBe(false);
-    expect(target.querySelector(".cm-md-image-placeholder")).toBeNull();
+    expect(img.dataset.mdAssetState).toBe("ready");
     target.remove();
   });
 

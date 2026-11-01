@@ -45,8 +45,12 @@ describe("static Markdown Feature Composition", () => {
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids).toEqual([
       "media-syntax",
-      "code-block",
+      "front-matter",
+      "inline-syntax",
+      "footnote",
+      "callout",
       "math",
+      "code-block",
       "mermaid",
       "html",
       "table",
@@ -78,7 +82,7 @@ describe("static Markdown Feature Composition", () => {
       "table",
       "video",
     ]));
-    expect(inlineWidgetKinds).toEqual(["mathInline", "htmlRun", "image"]);
+    expect(inlineWidgetKinds).toEqual(["emoji", "entity", "footnote", "mathInline", "htmlRun", "image"]);
   });
 
   it("adds declarative MDX components only to the OpenKnowledge dialect", () => {

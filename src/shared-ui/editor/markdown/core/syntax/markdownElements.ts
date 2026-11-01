@@ -35,15 +35,22 @@ type MarkdownElementCapabilities = {
 
 const MARKDOWN_ELEMENT_CAPABILITIES = {
   blockquote: { inlineDecoration: false, inlineMarkerDeletion: false, inlineReveal: false },
+  comment: { inlineDecoration: true, inlineMarkerDeletion: false, inlineReveal: false },
+  emoji: { inlineDecoration: true, inlineMarkerDeletion: false, inlineReveal: true },
   emphasis: { inlineDecoration: true, inlineMarkerDeletion: true, inlineReveal: true },
+  entity: { inlineDecoration: true, inlineMarkerDeletion: false, inlineReveal: true },
   escape: { inlineDecoration: true, inlineMarkerDeletion: true, inlineReveal: false },
   fence: { inlineDecoration: false, inlineMarkerDeletion: false, inlineReveal: false },
+  footnote: { inlineDecoration: true, inlineMarkerDeletion: false, inlineReveal: true },
+  frontMatter: { inlineDecoration: false, inlineMarkerDeletion: false, inlineReveal: false },
   heading: { inlineDecoration: false, inlineMarkerDeletion: false, inlineReveal: false },
+  highlight: { inlineDecoration: true, inlineMarkerDeletion: true, inlineReveal: true },
   htmlBlock: { inlineDecoration: false, inlineMarkerDeletion: false, inlineReveal: false },
   image: { inlineDecoration: true, inlineMarkerDeletion: true, inlineReveal: false },
   inlineHtml: { inlineDecoration: true, inlineMarkerDeletion: true, inlineReveal: true },
   inlineCode: { inlineDecoration: true, inlineMarkerDeletion: true, inlineReveal: true },
   link: { inlineDecoration: true, inlineMarkerDeletion: true, inlineReveal: true },
+  linkDefinition: { inlineDecoration: true, inlineMarkerDeletion: true, inlineReveal: true },
   list: { inlineDecoration: false, inlineMarkerDeletion: false, inlineReveal: false },
   mathBlock: { inlineDecoration: false, inlineMarkerDeletion: false, inlineReveal: false },
   mathInline: { inlineDecoration: true, inlineMarkerDeletion: true, inlineReveal: false },
@@ -130,7 +137,32 @@ function collectMarkdownElements(state: EditorState, from: number, to: number): 
           return true;
         case "Autolink":
           elements.push(createAutolinkElement(node));
+          return false;
+        case "URL":
+          if (node.parent && BARE_URL_PARENTS.test(node.parent.name)) {
+            elements.push(createBareUrlElement(node));
+          }
+          return false;
+        case "HardBreak":
+          // The backslash form leaves a marker; trailing spaces need no projection.
+          if (state.sliceDoc(node.from, node.from + 1) === "\\") {
+            const marker = { from: node.from, to: node.from + 1 };
+            elements.push({ kind: "escape", ...marker, markerRanges: [marker], contentRange: { from: marker.to, to: marker.to } });
+          }
+          return false;
+        case "Subscript": {
+          const marks = directChildRanges(node, "SubscriptMark");
+          if (marks.length === 2) {
+            elements.push({
+              kind: "strike",
+              from: node.from,
+              to: node.to,
+              markerRanges: marks,
+              contentRange: { from: marks[0].to, to: marks[1].from },
+            });
+          }
           return true;
+        }
         case "HorizontalRule":
           elements.push({
             kind: "rule",
@@ -165,9 +197,9 @@ export function getInlineRevealElement(
   let best: MarkdownElement | null = null;
   for (const element of candidates) {
     if (!isSelectableInlineFormat(element)) continue;
-    if (element.kind === "inlineHtml" && element.inlineHtml.runRole === "owner") {
-      // A collapsed run is atomic, so its edges are the only caret positions
-      // that can reach it. Once revealed it stays the owner of its whole range.
+    if (revealsAtCaretTouch(element)) {
+      // A collapsed atom's edges are the only caret positions that can reach
+      // it. Once revealed it stays the owner of its whole range.
       if (caret >= element.from && caret <= element.to) return element;
       continue;
     }
@@ -175,6 +207,13 @@ export function getInlineRevealElement(
     if (!best || element.to - element.from < best.to - best.from) best = element;
   }
   return best;
+}
+
+function revealsAtCaretTouch(element: MarkdownElement): boolean {
+  return element.kind === "entity"
+    || element.kind === "emoji"
+    || element.kind === "footnote"
+    || (element.kind === "inlineHtml" && element.inlineHtml.runRole === "owner");
 }
 
 const INLINE_FORMAT_SELECTION_KINDS = new Set<MarkdownElementKind>([
@@ -445,6 +484,18 @@ function createAutolinkElement(node: SyntaxNode): MarkdownElement {
     to: node.to,
     markerRanges,
     contentRange: { from: contentFrom, to: contentTo },
+  };
+}
+
+const BARE_URL_PARENTS = /^(?:Paragraph|Task|LinkReference|ATXHeading[1-6]|SetextHeading[12])$/;
+
+function createBareUrlElement(node: SyntaxNode): MarkdownElement {
+  return {
+    kind: "link",
+    from: node.from,
+    to: node.to,
+    markerRanges: [],
+    contentRange: { from: node.from, to: node.to },
   };
 }
 

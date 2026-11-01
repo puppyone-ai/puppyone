@@ -1,5 +1,5 @@
 import { defineMarkdownFeature } from "../../core/features/markdownFeatureContract";
-import { findMarkdownInlineMathTokens, getMarkdownMathBlock } from "./mathModel";
+import { findMarkdownInlineMathTokens, getMarkdownMathBlock, getMarkdownMathFence } from "./mathModel";
 import { compileMathElementPlan } from "./mathPlan";
 import { MathBlockWidget, MathInlineWidget } from "./mathWidget";
 
@@ -22,7 +22,7 @@ export const mathFeature = defineMarkdownFeature({
     }));
   },
   collectBlock(state, line) {
-    const block = getMarkdownMathBlock(state, line.number);
+    const block = getMarkdownMathBlock(state, line.number) ?? getMarkdownMathFence(state, line.number);
     if (!block || block.from !== line.from) return null;
     return {
       nextLineNumber: block.nextLineNumber,

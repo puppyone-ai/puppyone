@@ -84,7 +84,7 @@ describe("Markdown image readiness", () => {
     expect(image?.decoding).toBe("async");
   });
 
-  it("promotes a standalone raw HTML image to the brokered safe-media block", async () => {
+  it("renders a raw HTML image inside a paragraph through the brokered media path", async () => {
     const source = [
       "文件系统-based context workspace",
       '<img src="asserts/Screenshot 2026-07-15 at 10.07.43 PM.png" alt="Context Base" width="600">',
@@ -113,11 +113,11 @@ describe("Markdown image readiness", () => {
     views.add(view);
 
     await waitFor(() => (
-      view.dom.querySelector<HTMLImageElement>(".cm-md-html-rendered-surface img")
+      view.dom.querySelector<HTMLImageElement>(".cm-md-html-run img")
         ?.getAttribute("src") === "blob:https://app/context-base"
     ));
 
-    const image = view.dom.querySelector<HTMLImageElement>(".cm-md-html-rendered-surface img");
+    const image = view.dom.querySelector<HTMLImageElement>(".cm-md-html-run img");
     expect(image?.alt).toBe("Context Base");
     expect(image?.width).toBe(600);
     expect(resolveAssetUrl).toHaveBeenCalledWith(
@@ -127,7 +127,7 @@ describe("Markdown image readiness", () => {
     );
   });
 
-  it("edits a standalone raw HTML image through the canonical source", async () => {
+  it("edits a raw HTML image inside a paragraph through the canonical source", async () => {
     const source = [
       "Before",
       '<img src="assets/context.png" alt="Context Base" width="600">',
@@ -155,18 +155,14 @@ describe("Markdown image readiness", () => {
     });
     views.add(view);
 
-    await waitFor(() => view.dom.querySelector(".cm-md-html-rendered-surface img") !== null);
-    const sourceButton = view.dom.querySelector<HTMLButtonElement>(".cm-md-html-source-toggle");
-    if (!sourceButton) throw new Error("HTML image source button did not mount.");
-    sourceButton.click();
-    await Promise.resolve();
-
+    await waitFor(() => view.dom.querySelector(".cm-md-html-run img") !== null);
+    view.focus();
+    await new Promise((resolve) => window.setTimeout(resolve, 20));
     const imageLine = view.state.doc.line(2);
-    expect(view.state.field(markdownRevealedSourceField)).toEqual({
-      from: imageLine.from,
-      to: imageLine.to,
-      presentation: "block",
-    });
+    view.dispatch({ selection: EditorSelection.cursor(imageLine.from) });
+    expect(view.dom.querySelector(".cm-md-html-run")).toBeNull();
+    expect(view.contentDOM.textContent).toContain('width="600"');
+
     const widthFrom = view.state.doc.toString().indexOf("600", imageLine.from);
     view.dispatch({
       changes: { from: widthFrom, to: widthFrom + 3, insert: "800" },
@@ -174,11 +170,10 @@ describe("Markdown image readiness", () => {
       userEvent: "input.type",
     });
     expect(view.state.doc.toString()).toContain('width="800"');
-    expect(view.dom.querySelector(".cm-md-html-widget")).toBeNull();
+    expect(view.dom.querySelector(".cm-md-html-run")).toBeNull();
 
     view.dispatch({ selection: EditorSelection.cursor(0) });
-    await waitFor(() => view.dom.querySelector<HTMLImageElement>(".cm-md-html-rendered-surface img")?.width === 800);
-    expect(view.state.field(markdownRevealedSourceField)).toBeNull();
+    await waitFor(() => view.dom.querySelector<HTMLImageElement>(".cm-md-html-run img")?.width === 800);
   });
 
   it("resolves Obsidian image embeds through the workspace link graph", async () => {

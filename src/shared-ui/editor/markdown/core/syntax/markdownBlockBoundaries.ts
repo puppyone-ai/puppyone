@@ -1,3 +1,4 @@
+import { getMarkdownFrontMatterEndLine } from "./markdownFrontMatter";
 import { syntaxTree } from "@codemirror/language";
 import type { EditorState, Line } from "@codemirror/state";
 import type { SyntaxNode } from "@lezer/common";
@@ -25,7 +26,6 @@ export type MarkdownMovableBlockGroup = Readonly<{
 }>;
 
 const LIST_NODE_NAMES = new Set(["BulletList", "OrderedList"]);
-const FRONTMATTER_SCAN_LINES = 256;
 
 /**
  * The movable block a source line belongs to. The answer depends only on the
@@ -117,13 +117,8 @@ function resolveLineAnchor(state: EditorState, line: Line): SyntaxNode | null {
  * it out of every movable group, so nothing can leave or enter that region.
  */
 function getMarkdownBodyStart(state: EditorState): number {
-  if (state.doc.line(1).text.trimEnd() !== "---") return 0;
-  const lastLine = Math.min(state.doc.lines, FRONTMATTER_SCAN_LINES);
-  for (let number = 2; number <= lastLine; number += 1) {
-    const line = state.doc.line(number);
-    if (line.text.trimEnd() === "---") return line.to + 1;
-  }
-  return 0;
+  const endLine = getMarkdownFrontMatterEndLine(state.doc);
+  return endLine === null ? 0 : state.doc.line(endLine).to + 1;
 }
 
 function createBlockRef(
