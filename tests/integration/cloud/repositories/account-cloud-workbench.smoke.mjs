@@ -26,7 +26,7 @@ const waitFor = async (expression) => {
 /** The Homepage opens on the Grid; a project's location marks belong to the list. */
 async function showHomepageList() {
   if (await evaluate("document.querySelector('.onboarding-project-list').dataset.projectLayout === 'list'")) return;
-  await evaluate("document.querySelector('.onboarding-view-menu-root .po-icon-button:not(.onboarding-view-menu-trigger)').click()");
+  await evaluate("document.querySelectorAll('.onboarding-project-view .onboarding-view-menu-root .po-icon-button')[2].click()");
   await waitFor("Boolean(document.querySelector('[data-project-layout-option=list]'))");
   await evaluate("document.querySelector('[data-project-layout-option=list]').click()");
   await waitFor("document.querySelector('.onboarding-project-list').dataset.projectLayout === 'list'");

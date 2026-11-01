@@ -18,6 +18,8 @@ import { createTestSurfaceAppearance } from "../../../support/react/surfaceAppea
 
 const API = "https://cloud-fixture.puppyone.ai/api/v1";
 const CACHE_KEY = "puppyone.desktop.cloud-project-activity.v1";
+const CATALOG_KEY = "puppyone.desktop.cloud-project-catalog.v1";
+const scopeOf = (user: string) => JSON.stringify([API, user]);
 const appearance = createTestSurfaceAppearance();
 const account = (user_id: string, session_generation = "one"): DesktopCloudSession => ({ api_base_url: API, user_id,
   user_email: `${user_id}@example.com`, session_generation, expires_in: 3600, expires_at: Date.now() + 3600000, status: "authenticated" });
@@ -45,10 +47,11 @@ const hydratedLocal = [hydrated("gamma", "2026-10-29T00:00:00Z"), hydrated("alph
 const finalOrder = ["gamma", "cloud-old", "alpha", "cloud-new"];
 
 function Harness({ local, localSettled, restoring = false, sessionRestoring = false, session = alice }: {
-  local: RecentWorkspaceHomeItem[]; localSettled: boolean; restoring?: boolean; sessionRestoring?: boolean; session?: DesktopCloudSession;
+  local: RecentWorkspaceHomeItem[]; localSettled: boolean; restoring?: boolean; sessionRestoring?: boolean; session?: DesktopCloudSession | null;
 }) {
-  const catalog = useHomepageCloudProjects({ visible: !restoring, enabled: true, session, apiBaseUrl: API, local });
-  const ready = useHomepageFirstPaint({ restoring, settled: localSettled && !sessionRestoring && catalog.settled });
+  const catalog = useHomepageCloudProjects({ visible: !restoring, enabled: true, session, restoring: sessionRestoring, apiBaseUrl: API, local });
+  const ready = useHomepageFirstPaint({ restoring, settled: localSettled && !sessionRestoring && catalog.settled,
+    account: catalog.account, accountRestoring: sessionRestoring });
   return ready ? <MinimalOnboarding appearance={appearance} projectItems={catalog.items} onChooseWorkspace={async () => {}}
     onOpenDroppedWorkspace={async () => {}} onOpenWorkspacePath={async () => {}} /> : <p data-holding />;
 }
@@ -177,5 +180,146 @@ describe("first Homepage paint", () => {
     await render({ local: hydratedLocal, localSettled: false, sessionRestoring: true, session: account("alice", "two") });
     expect(holding()).toBe(false);
     expect(rows()).toEqual(["gamma", "alpha"]);
+  });
+});
+
+describe("a Homepage that never shows part of its list", () => {
+  const cacheList = (user = "alice", projects: unknown = cloudProjects) => {
+    localStorage.setItem(CATALOG_KEY, JSON.stringify({ scope: scopeOf(user), projects }));
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ scope: scopeOf(user), activity: { old: "2026-10-01T00:00:00Z", new: "2026-07-01T00:00:00Z" } }));
+  };
+  const home = { local: hydratedLocal, localSettled: true };
+
+  it("remembers only what the list needs from the catalog", async () => {
+    await render(home);
+    await act(async () => listing.resolve(cloudProjects.map((project) => ({ ...project, description: "private notes", org_id: "org" }))));
+    const cached = JSON.parse(localStorage.getItem(CATALOG_KEY)!);
+    expect(cached.scope).toBe(scopeOf("alice"));
+    expect(cached.projects[0]).toEqual(cloudProjects[0]);
+  });
+
+  it("shows a returning account's whole list at once, without waiting for Cloud", async () => {
+    cacheList();
+    await render(home);
+    expect(holding()).toBe(false);
+    expect(rows()).toEqual(finalOrder);
+  });
+
+  it("then takes the fresh list without emptying it", async () => {
+    cacheList();
+    await render(home);
+    await act(async () => listing.resolve([cloudProjects[1]]));
+    expect(holding()).toBe(false);
+    expect(rows()).toEqual(["gamma", "alpha", "cloud-new"]);
+    expect(JSON.parse(localStorage.getItem(CATALOG_KEY)!).projects.map(({ id }: { id: string }) => id)).toEqual(["new"]);
+  });
+
+  it("waits for the session even with a cached list, so nothing can be opened before it", async () => {
+    cacheList();
+    await render({ ...home, session: null, sessionRestoring: true });
+    expect(holding()).toBe(true);
+    await render(home);
+    expect(holding()).toBe(false);
+    expect(rows()).toEqual(finalOrder);
+  });
+
+  it("holds a Homepage whose user signs in, and shows the account's whole list together", async () => {
+    await render({ ...home, session: null });
+    expect(rows()).toEqual(["gamma", "alpha"]);
+
+    await render(home);
+    expect(holding()).toBe(true);
+    expect(rows()).toEqual([]);
+    await listed();
+    expect(holding()).toBe(true);
+    await historyArrives();
+    expect(holding()).toBe(false);
+    expect(rows()).toEqual(finalOrder);
+  });
+
+  it("stops holding that sign-in at the budget, so local projects stay reachable", async () => {
+    vi.useFakeTimers();
+    await render({ ...home, session: null });
+    await render(home);
+    expect(holding()).toBe(true);
+    await act(async () => { await vi.advanceTimersByTimeAsync(HOMEPAGE_FIRST_PAINT_BUDGET_MS - 1); });
+    expect(holding()).toBe(true);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    expect(holding()).toBe(false);
+    expect(rows()).toEqual(["gamma", "alpha"]);
+  });
+
+  it("shows the whole cached list when a slow session outlasts the wait", async () => {
+    vi.useFakeTimers();
+    cacheList();
+    await render({ ...home, session: null, sessionRestoring: true });
+    expect(holding()).toBe(true);
+    await act(async () => { await vi.advanceTimersByTimeAsync(HOMEPAGE_FIRST_PAINT_BUDGET_MS); });
+    expect(rows()).toEqual(finalOrder);
+
+    await render(home);
+    expect(holding()).toBe(false);
+    expect(rows()).toEqual(finalOrder);
+  });
+
+  it("drops that list if the session turns out to be gone", async () => {
+    vi.useFakeTimers();
+    cacheList();
+    await render({ ...home, session: null, sessionRestoring: true });
+    await act(async () => { await vi.advanceTimersByTimeAsync(HOMEPAGE_FIRST_PAINT_BUDGET_MS); });
+    await render({ ...home, session: null });
+    expect(rows()).toEqual(["gamma", "alpha"]);
+    expect(localStorage.getItem(CATALOG_KEY)).toBeNull();
+  });
+
+  it("does not take back a Homepage released before a slow session turned up", async () => {
+    vi.useFakeTimers();
+    await render({ ...home, session: null, sessionRestoring: true });
+    await act(async () => { await vi.advanceTimersByTimeAsync(HOMEPAGE_FIRST_PAINT_BUDGET_MS); });
+    expect(rows()).toEqual(["gamma", "alpha"]);
+    await render(home);
+    expect(holding()).toBe(false);
+  });
+
+  it("keeps the list through a new session generation of one account", async () => {
+    await render(home); await listed(); await historyArrives();
+    await render({ ...home, session: account("alice", "two") });
+    expect(holding()).toBe(false);
+    expect(rows()).toEqual(finalOrder);
+  });
+
+  it("holds again for another account, and never shows it the cached list", async () => {
+    cacheList("bob");
+    await render(home);
+    expect(holding()).toBe(true);
+    expect(rows()).toEqual([]);
+  });
+
+  it("forgets the names when the account signs out, not while its session restores", async () => {
+    cacheList();
+    await render({ ...home, session: null, sessionRestoring: true });
+    expect(localStorage.getItem(CATALOG_KEY)).not.toBeNull();
+
+    await render({ ...home, session: null });
+    expect(localStorage.getItem(CATALOG_KEY)).toBeNull();
+    expect(rows()).toEqual(["gamma", "alpha"]);
+  });
+
+  it("does not show a cached list offline, where it could only vanish again", async () => {
+    cacheList();
+    await render({ ...home, session: { ...alice, status: "offline-authenticated" } });
+    expect(holding()).toBe(true);
+    await act(async () => listing.reject(new Error("offline")));
+    expect(holding()).toBe(false);
+    expect(rows()).toEqual(["gamma", "alpha"]);
+  });
+
+  it("does not trust a cached list it cannot read", async () => {
+    cacheList("alice", "not a list");
+    await render(home);
+    expect(holding()).toBe(true);
+    localStorage.setItem(CATALOG_KEY, "{");
+    await listed(); await historyArrives();
+    expect(rows()).toEqual(finalOrder);
   });
 });

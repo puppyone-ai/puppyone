@@ -371,7 +371,7 @@ function AppContent() {
   });
   const projectCatalog = useHomepageCloudProjects({
     visible: !restoringWorkspace,
-    enabled: cloudEnabled, session: activeCloudSession, apiBaseUrl: desktopCloudApiBaseUrl,
+    enabled: cloudEnabled, session: activeCloudSession, restoring: cloudSessionRestoring, apiBaseUrl: desktopCloudApiBaseUrl,
     local: recentWorkspaceItems,
   });
   const surfaceAppearance = useMemo(() => resolveSurfaceAppearance({
@@ -1541,7 +1541,7 @@ function AppContent() {
     dismissProjectOpenFailure, homepageCloudController, openDroppedProject, openProjectLauncher,
     projectNavigation, projectOpenFailure, selectCloudProject, selectProject,
   } = useWindowProjectNavigation({
-    accountCloud, activeCloudSession, cancelAccountCloudOpen, cancelProjectNavigationRef, cloudEnabled,
+    accountCloud, activeCloudSession, cloudSessionRestoring, cancelAccountCloudOpen, cancelProjectNavigationRef, cloudEnabled,
     cloudHeaderActive, drainWorkspaceNavigation, initialCloudProject, lastProjectViewRef,
     navigateDesktopView, openDroppedWorkspace, openLocalWorkspace, openWorkspacePath, projectEntryFlow,
     restoringWorkspace, selectCloudProjectRef, setSwitcherOpen, t,
@@ -1624,6 +1624,8 @@ function AppContent() {
   const homepageReady = useHomepageFirstPaint({
     restoring: restoringWorkspace,
     settled: recentWorkspacesSettled && !cloudSessionRestoring && projectCatalog.settled,
+    account: projectCatalog.account,
+    accountRestoring: cloudSessionRestoring,
   });
   const settingsOverlay = <DesktopOverlayPortal appearance={surfaceAppearance}>
     {settingsDialogOpen && (
