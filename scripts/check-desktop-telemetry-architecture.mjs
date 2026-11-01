@@ -143,8 +143,12 @@ requireSource(
   "the product must link to the disclosure in the public Desktop repository",
 );
 const publicReadme = await readText("README.md");
-for (const term of ["## Privacy", "desktop_first_run", "desktop_daily_active", "100 days", "Settings → Privacy", "shared/desktop-telemetry-contract.mjs"]) {
-  requireSource(publicReadme, term, `the public disclosure must include ${term}`);
+for (const term of ["## Privacy", "(PRIVACY.md)"]) {
+  requireSource(publicReadme, term, `the README disclosure anchor must keep ${term}`);
+}
+const publicPrivacyNotice = await readText("PRIVACY.md");
+for (const term of ["desktop_first_run", "desktop_daily_active", "100 days", "Settings → Privacy", "shared/desktop-telemetry-contract.mjs"]) {
+  requireSource(publicPrivacyNotice, term, `the public disclosure must include ${term}`);
 }
 
 const ipcSource = await readText("electron/main/ipc/telemetry-ipc.mjs");
