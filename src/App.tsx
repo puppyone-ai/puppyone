@@ -105,7 +105,7 @@ import { DesktopOverlayPortal } from "./components/DesktopOverlayPortal";
 import { DesktopHelpLauncher } from "./features/app-shell/DesktopHelpLauncher";
 import { useDesktopPlatformCapabilities } from "./platform/useDesktopPlatformCapabilities";
 import { RestoringWorkspaceScreen } from "./features/app-shell/RestoringWorkspaceScreen";
-import { useHomepageFirstPaint } from "./features/app-shell/useHomepageFirstPaint";
+import { HOMEPAGE_RETURN_WAIT_MS, useHomepageFirstPaint } from "./features/app-shell/useHomepageFirstPaint";
 import { useDesktopPreference, useDesktopAppearance, useDesktopPreferenceEffects } from "./features/settings";
 import { useWorkspaceLifecycle } from "./features/app-shell/useWorkspaceLifecycle";
 import { usePuppyoneConfig } from "./features/app-shell/usePuppyoneConfig";
@@ -1070,6 +1070,9 @@ function AppContent() {
     cancelProjectNavigationRef.current();
     try {
       if (!await drainWorkspaceNavigation()) return;
+      // The project just left has to be in its new place on the Homepage's first frame.
+      const refreshed = refreshRecentWorkspaceList();
+      await Promise.race([refreshed.catch(() => undefined), new Promise((settle) => { window.setTimeout(settle, HOMEPAGE_RETURN_WAIT_MS); })]);
       await showHomepage();
       cancelCloudWorkspaceSwitch();
       returnToLocalWorkspace();
@@ -1079,7 +1082,7 @@ function AppContent() {
       setRightSidebarOpen(false);
       resetDataNodeActions();
       setRestoreWorkspaceError(null);
-      await refreshRecentWorkspaceList();
+      await refreshed;
     } catch (error) {
       setRestoreWorkspaceError(error instanceof Error ? error.message : String(error));
     }

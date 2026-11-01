@@ -105,13 +105,14 @@ describe("first Homepage paint", () => {
     expect(rows()).toEqual(finalOrder);
   });
 
-  it("starts in real order from last known dates, without waiting for one history read per project", async () => {
+  it("waits for the real order even when it has last known dates", async () => {
     localStorage.setItem(CACHE_KEY, JSON.stringify({ scope: JSON.stringify([API, "alice"]),
       activity: { old: "2026-10-01T00:00:00Z", new: "2026-07-01T00:00:00Z" } }));
     await render({ local: hydratedLocal, localSettled: true });
     await listed();
-    expect(rows()).toEqual(finalOrder);
+    expect(holding()).toBe(true);
     await historyArrives();
+    expect(holding()).toBe(false);
     expect(rows()).toEqual(finalOrder);
   });
 
@@ -124,6 +125,7 @@ describe("first Homepage paint", () => {
     listing = deferred(); reads = new Map(cloudProjects.map(({ id }) => [id, deferred()]));
     await render({ local: hydratedLocal, localSettled: true, session: account("alice", "two") });
     await listed();
+    await act(async () => { for (const read of reads.values()) read.reject(new Error("Denied")); });
     expect(rows()).toEqual(finalOrder);
   });
 
@@ -198,20 +200,56 @@ describe("a Homepage that never shows part of its list", () => {
     expect(cached.projects[0]).toEqual(cloudProjects[0]);
   });
 
-  it("shows a returning account's whole list at once, without waiting for Cloud", async () => {
+  it("holds a returning account's list until its real order is known", async () => {
     cacheList();
     await render(home);
+    expect(holding()).toBe(true);
+    await listed();
+    expect(holding()).toBe(true);
+    await historyArrives();
     expect(holding()).toBe(false);
     expect(rows()).toEqual(finalOrder);
   });
 
-  it("then takes the fresh list without emptying it", async () => {
+  it("shows the last known order when Cloud outlasts the wait, and does not move it afterwards", async () => {
+    vi.useFakeTimers();
     cacheList();
     await render(home);
+    await act(async () => { await vi.advanceTimersByTimeAsync(HOMEPAGE_FIRST_PAINT_BUDGET_MS); });
+    expect(rows()).toEqual(finalOrder);
+
+    await listed();
+    await act(async () => {
+      reads.get("old")!.resolve(history("old", "2026-05-01T00:00:00Z"));
+      reads.get("new")!.resolve(history("new", "2026-12-01T00:00:00Z"));
+    });
+    expect(rows()).toEqual(finalOrder);
+  });
+
+  it("takes rows the fresh list adds or removes, without emptying the list", async () => {
+    vi.useFakeTimers();
+    cacheList();
+    await render(home);
+    await act(async () => { await vi.advanceTimersByTimeAsync(HOMEPAGE_FIRST_PAINT_BUDGET_MS); });
     await act(async () => listing.resolve([cloudProjects[1]]));
-    expect(holding()).toBe(false);
     expect(rows()).toEqual(["gamma", "alpha", "cloud-new"]);
     expect(JSON.parse(localStorage.getItem(CATALOG_KEY)!).projects.map(({ id }: { id: string }) => id)).toEqual(["new"]);
+  });
+
+  it("does not move a row whose local date arrives after it is on screen", async () => {
+    await render({ ...home, session: null });
+    expect(rows()).toEqual(["gamma", "alpha"]);
+    await render({ ...home, session: null, local: [hydrated("alpha", "2026-11-01T00:00:00Z"), hydrated("gamma", "2026-10-29T00:00:00Z")] });
+    expect(rows()).toEqual(["gamma", "alpha"]);
+  });
+
+  it("gives the fresh order on the next visit", async () => {
+    await render({ ...home, session: null });
+    await render({ ...home, session: null, local: [hydrated("alpha", "2026-11-01T00:00:00Z"), hydrated("gamma", "2026-10-29T00:00:00Z")] });
+    await act(async () => root.unmount());
+    root = createRoot(document.body.appendChild(document.createElement("div")));
+    await render({ ...home, session: null, local: [hydrated("alpha", "2026-11-01T00:00:00Z"), hydrated("gamma", "2026-10-29T00:00:00Z")] });
+    expect(rows()).toEqual(["alpha", "gamma"]);
   });
 
   it("waits for the session even with a cached list, so nothing can be opened before it", async () => {
@@ -219,6 +257,7 @@ describe("a Homepage that never shows part of its list", () => {
     await render({ ...home, session: null, sessionRestoring: true });
     expect(holding()).toBe(true);
     await render(home);
+    await listed(); await historyArrives();
     expect(holding()).toBe(false);
     expect(rows()).toEqual(finalOrder);
   });

@@ -86,6 +86,20 @@ export function getRecentWorkspaceItems(
   }));
 }
 
+/**
+ * A re-read of the recent list has names and paths but no dates, which is most of
+ * what orders it. What hydration learned stands until hydration learns it again.
+ */
+export function keepHydratedRecentItems(next: RecentWorkspaceHomeItem[], current: readonly RecentWorkspaceHomeItem[]) {
+  const known = new Map(current.map(({ workspace }) => [workspace.path, workspace]));
+  return next.map((item) => {
+    const previous = known.get(item.workspace.path);
+    if (previous?.hydrationState !== "ready" || item.workspace.hydrationState !== "metadata") return item;
+    const { commitCount, lastModifiedAt, hydrationState } = previous;
+    return { ...item, workspace: { ...item.workspace, commitCount, lastModifiedAt, hydrationState } };
+  });
+}
+
 export function getWorkspaceParentPathForDisplay(workspacePath: string): string {
   const trimmedPath = workspacePath.trim();
   if (!trimmedPath) return "";

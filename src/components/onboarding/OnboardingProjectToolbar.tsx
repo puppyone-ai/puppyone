@@ -1,7 +1,7 @@
 import { CloudIcon, LocalIcon } from "@puppyone/shared-ui";
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
 import { ArrowUpDown, Check, ListFilter, X } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import {
   PROJECT_HOME_PLACES,
   projectHomeLocations,
@@ -34,8 +34,16 @@ export function useHomepageProjectView(items: ProjectHomeItem[]) {
     [chosenPlaces, locations],
   );
   const untitled = t("onboarding.projects.untitled");
+  // A date learned after a row is on screen waits for the next visit, so rows only
+  // ever move because someone asked them to.
+  const shownDates = useRef(new Map<string, string>());
   const visibleItems = useMemo(
-    () => viewProjectHomeItems(items, { places, sort, locale, untitled }),
+    () => viewProjectHomeItems(items.map((item) => {
+      const shown = shownDates.current.get(item.id);
+      if (shown) return { ...item, lastModifiedAt: shown };
+      if (item.lastModifiedAt) shownDates.current.set(item.id, item.lastModifiedAt);
+      return item;
+    }), { places, sort, locale, untitled }),
     [items, places, sort, locale, untitled],
   );
   const togglePlace = (place: ProjectHomePlace) => setChosenPlaces((current) => {
