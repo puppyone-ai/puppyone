@@ -283,6 +283,7 @@ export function createFakeDesktopBridge(scenario: DemoScenario, { locale, instan
     }),
 
     // ---- workspace -----------------------------------------------------
+    getRestoringProject: async () => ({ kind: "local", path: rootPath }),
     getInitialWorkspace: async () => ({ workspaceId: workspace.id, path: rootPath, workspace, workspaces: [workspace], error: null }),
     getLastWorkspace: async () => ({ workspaceId: workspace.id, path: rootPath, workspace, workspaces: [workspace], error: null }),
     getRecentWorkspaces: async () => ({ workspaces: [workspace], errors: [], hydrated: true }),

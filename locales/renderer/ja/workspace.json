@@ -8,7 +8,6 @@
   "projectSessions.closeFailed": "一部のプロジェクトのタスクを停止できませんでした。",
   "projectSessions.retryClose": "もう一度閉じる",
   "drag.exportFailed": "ドロップを完了できません。元の項目と移動先が利用可能で、この操作に対応しているか確認してください。",
-  "restoring.ariaLabel": "前回のプロジェクトを開いています",
   "restoring.message": "前回のプロジェクトを開いています…",
   "viewerPack.rootUnavailable": "Viewer Pack を有効にするためのワークスペースルートを利用できません。",
   "viewerPack.loadingExtension": "ビューアー拡張機能を読み込んでいます…",

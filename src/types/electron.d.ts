@@ -1187,6 +1187,7 @@ declare global {
         }) => Promise<{ ok?: boolean; visible?: boolean } | void>;
         destroy: (request: { id: string }) => Promise<{ ok?: boolean } | void>;
       };
+      getRestoringProject: () => Promise<{ kind: "local"; path: string } | { kind: "cloud"; projectId: string } | null>;
       getInitialWorkspace: () => Promise<LastWorkspaceResult>;
       getLastWorkspace: () => Promise<LastWorkspaceResult>;
       getRecentWorkspaces: () => Promise<RecentWorkspacesResult>;

@@ -10,6 +10,7 @@ import {
   attachWorkspaceFolder,
   detachWorkspaceFolder,
   getInitialWorkspace,
+  getRestoringProject,
   getRecentWorkspaces,
   hydrateRecentWorkspaces,
   removeRecentWorkspace,
@@ -62,6 +63,7 @@ export function useWorkspaceLifecycle({
   const [recentWorkspaceItems, setRecentWorkspaceItems] = useState<RecentWorkspaceHomeItem[]>([]);
   const workbenchWorkspace = useWindowProject((project) => project.folders);
   const [restoringWorkspace, setRestoringWorkspace] = useState(true);
+  const [restoringProject, setRestoringProject] = useState<Awaited<ReturnType<typeof getRestoringProject>>>(null);
   // Recents arrive without modification dates, so they are not in Homepage order yet.
   const [recentWorkspacesSettled, setRecentWorkspacesSettled] = useState(false);
   const [initialCloudProject, setInitialCloudProject] = useState<CloudProjectWindowTarget | null>(null);
@@ -396,6 +398,11 @@ export function useWorkspaceLifecycle({
     const recentRequestId = recentWorkspaceRequestRef.current + 1;
     recentWorkspaceRequestRef.current = recentRequestId;
 
+    // Only decides how the wait looks, so not knowing leaves the plain one.
+    void getRestoringProject().then((project) => {
+      if (!cancelled) setRestoringProject(project);
+    }, () => undefined);
+
     Promise.all([getInitialWorkspace(), getRecentWorkspaces()])
       .then(([initialWorkspace, recentWorkspaces]) => {
         if (cancelled) return;
@@ -483,6 +490,7 @@ export function useWorkspaceLifecycle({
       && recentWorkspaceItems.every(({ workspace }) => workspace.hydrationState !== "metadata"),
     refreshRecentWorkspaceList,
     restoreWorkspaceError,
+    restoringProject: restoringWorkspace ? restoringProject : null,
     restoringWorkspace,
     initialCloudProject,
     setRestoreWorkspaceError,
