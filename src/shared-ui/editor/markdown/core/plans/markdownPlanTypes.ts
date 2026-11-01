@@ -43,7 +43,7 @@ export type BlockEmbedCapabilities = {
 };
 
 export type TypedContentMark = {
-  kind: "inlineHtmlMark" | "strong" | "emphasis" | "strike" | "inlineCode" | "link" | "wikiLink";
+  kind: "comment" | "highlight" | "inlineHtmlMark" | "strong" | "emphasis" | "strike" | "inlineCode" | "link" | "wikiLink";
   tagName?: string;
   className?: string;
   attributes: Readonly<Record<string, string>>;
@@ -62,6 +62,8 @@ export type InlineAtomModel =
     }
   | { kind: "taskCheckbox"; checked: boolean }
   | { kind: "mathInline"; source: string }
+  | { kind: "emoji"; emoji: string }
+  | { kind: "entity"; source: string }
   | {
       kind: "htmlRun";
       tagName: string;
@@ -160,6 +162,14 @@ export type MarkdownElementPlan =
   | InlineMarkPlan
   | DistributedInlineAtomPlan<InlineAtomModel>
   | DistributedBlockAtomPlan<BlockEmbedModel>;
+
+/**
+ * Atoms that swap for their exact source when the caret touches them. Their
+ * range is atomic while collapsed, so the edges are the only way in.
+ */
+export function revealsSourceOnCaretTouch(kind: InlineAtomModel["kind"]): boolean {
+  return kind === "htmlRun" || kind === "entity" || kind === "emoji";
+}
 
 export function planHasCollapsedMarkerDeletion(plan: MarkdownElementPlan): boolean {
   return plan.capabilities.deleteUnits.length > 0;

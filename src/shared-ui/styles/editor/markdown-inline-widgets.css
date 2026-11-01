@@ -145,3 +145,12 @@
   font-family: var(--po-md-code-font);
   font-size: var(--po-md-inline-code-font-size);
 }
+
+.markdown-codemirror-editor .cm-md-syntax-highlight {
+  background: color-mix(in srgb, var(--po-accent, #e6c54a) 32%, transparent);
+  border-radius: 2px;
+}
+
+.markdown-codemirror-editor .cm-md-comment {
+  color: var(--po-md-markup-color);
+}

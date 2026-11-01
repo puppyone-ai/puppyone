@@ -9,7 +9,8 @@ import {
   type MarkdownLinkToken,
 } from "../links/markdownLinkModel";
 import { findWikiLinkTokens, type MarkdownWikiLinkToken } from "../links/wikiLinkModel";
-import type { MarkdownElementPlan } from "../plans/markdownPlanTypes";
+import { resolveMarkdownLinkReference } from "../links/markdownLinkReferences";
+import { revealsSourceOnCaretTouch, type MarkdownElementPlan } from "../plans/markdownPlanTypes";
 import type { IndexedMarkdownPlan } from "../plans/markdownPlanIndex";
 import { isSafeHref } from "../../platform/policy/markdownHtmlSanitizerPolicy";
 import type { MarkdownRevealedSourceRange } from "../state/revealedSource";
@@ -62,35 +63,38 @@ export function addInlineMarkdownDecorations(
   const tokenLookup = createInlineTokenLookup(text, elements);
 
   for (const { element, plan } of entries) {
+    if (plan.presentation === "inlineAtom" && revealsSourceOnCaretTouch(plan.atom.kind)) {
+      // A multi-line atom intersects every line it spans; its start owns it.
+      if (element.from < lineFrom || element.from > lineTo) continue;
+      // One range has one owner: nested Markdown stays inside the widget, or
+      // literal in the revealed source, and never decorates a second time.
+      if (!reserveRange(occupied, plan.sourceRange.from, plan.sourceRange.to)) continue;
+      if (isRevealedInlineRange(plan.sourceRange.from, plan.sourceRange.to, inlineRevealRange)) {
+        addSourceSyntaxDecoration(builders, plan.sourceRange.from, plan.sourceRange.to, "inline-html", true);
+        continue;
+      }
+      const widget = featureComposition?.createInlineWidget(plan, {
+        htmlTrustMode,
+        markdownLinkGraph,
+        documentPath,
+        markdownAssetUrlResolver,
+      }) ?? null;
+      if (widget) {
+        addReplacementDecoration(
+          builders,
+          Decoration.replace({ widget, inclusive: false }),
+          plan.sourceRange.from,
+          plan.sourceRange.to,
+        );
+      }
+      continue;
+    }
+
     if (element.kind === "inlineHtml") {
       // A multi-line inline element intersects every physical line it spans.
       // Emit its range decorations exactly once, from the line that owns the
       // opening marker.
       if (element.from < lineFrom || element.from > lineTo) continue;
-      if (plan.presentation === "inlineAtom" && plan.atom.kind === "htmlRun") {
-        // One range has one owner: nested Markdown stays inside the widget, or
-        // literal in the revealed source, and never decorates a second time.
-        if (!reserveRange(occupied, plan.sourceRange.from, plan.sourceRange.to)) continue;
-        if (isRevealedInlineRange(plan.sourceRange.from, plan.sourceRange.to, inlineRevealRange)) {
-          addSourceSyntaxDecoration(builders, plan.sourceRange.from, plan.sourceRange.to, "inline-html", true);
-          continue;
-        }
-        const widget = featureComposition?.createInlineWidget(plan, {
-          htmlTrustMode,
-          markdownLinkGraph,
-          documentPath,
-          markdownAssetUrlResolver,
-        }) ?? null;
-        if (widget) {
-          addReplacementDecoration(
-            builders,
-            Decoration.replace({ widget, inclusive: false }),
-            plan.sourceRange.from,
-            plan.sourceRange.to,
-          );
-        }
-        continue;
-      }
       addInlineHtmlElementDecoration(
         state,
         element,
@@ -159,6 +163,14 @@ export function addInlineMarkdownDecorations(
         break;
       case "strike":
         addDelimitedInlineElementDecoration(element, builders, inlineRevealRange, "cm-md-syntax-strikethrough");
+        break;
+      case "highlight":
+        addDelimitedInlineElementDecoration(element, builders, inlineRevealRange, "cm-md-syntax-highlight");
+        break;
+      case "comment":
+        if (element.from >= lineFrom && element.from <= lineTo) {
+          builders.decorations.push(Decoration.mark({ class: "cm-md-comment" }).range(element.from, element.to));
+        }
         break;
       case "escape":
         addEscapeElementDecoration(element, builders);
@@ -397,7 +409,9 @@ function addLinkElementDecoration(
 
   const candidate = tokenLookup.linksByFrom.get(element.from - lineFrom);
   const token = candidate && lineFrom + candidate.to === element.to ? candidate : null;
-  const href = token?.href ?? getAutolinkHref(element, lineFrom, text);
+  const href = token?.href
+    ?? getAutolinkHref(element, lineFrom, text)
+    ?? getReferenceLinkHref(state, element);
   if (!href) return;
 
   const resolvedTarget = markdownLinkGraph?.resolveMarkdownLink(documentPath, href) ?? null;
@@ -463,9 +477,22 @@ function getMarkdownLinkInteractionAttributes(
 }
 
 function getAutolinkHref(element: MarkdownElement, lineFrom: number, text: string): string | null {
-  if (!element.contentRange || text[element.from - lineFrom] !== "<") return null;
+  if (!element.contentRange) return null;
+  const bare = element.markerRanges.length === 0;
+  if (!bare && text[element.from - lineFrom] !== "<") return null;
   const href = text.slice(element.contentRange.from - lineFrom, element.contentRange.to - lineFrom).trim();
-  return href || null;
+  if (!href) return null;
+  if (bare && /^www\./i.test(href)) return `https://${href}`;
+  return bare && !/^[a-z][a-z0-9+.-]*:/i.test(href) && href.includes("@") ? `mailto:${href}` : href;
+}
+
+/** `[text][label]`, `[label][]`, and `[label]`; an undefined label stays text. */
+function getReferenceLinkHref(state: EditorState, element: MarkdownElement): string | null {
+  if (!element.contentRange) return null;
+  const suffix = state.sliceDoc(element.contentRange.to + 1, element.to).trim();
+  const explicit = suffix.length > 2 ? suffix.slice(1, -1) : "";
+  const label = explicit || state.sliceDoc(element.contentRange.from, element.contentRange.to);
+  return resolveMarkdownLinkReference(state, label);
 }
 
 function addInlineSourceSyntaxDecorations(

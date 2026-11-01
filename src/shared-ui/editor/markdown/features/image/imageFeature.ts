@@ -7,6 +7,7 @@ import { resolveMarkdownMediaReference } from "../media/markdownMediaReference";
 import { ImagePreviewWidget } from "./imagePreviewWidget";
 import { compileImageElementPlan } from "./imagePlan";
 import { parseMarkdownImageSize, splitMarkdownImageAlt, type MarkdownImageSize } from "./markdownImageSize";
+import { findMarkdownReferenceImageTokens } from "./markdownReferenceImages";
 import { findStandardMarkdownImageTokens, type MarkdownImageToken } from "./markdownImageModel";
 
 export const imageFeature = defineMarkdownFeature({
@@ -15,7 +16,11 @@ export const imageFeature = defineMarkdownFeature({
   inlineWidgetKinds: ["image"],
   blockWidgetKinds: [],
   collectRange(state, from, to) {
-    return getObsidianMediaEmbedNodesInRange(state, from, to, "image").map((token) => (
+    const referenceImages = findMarkdownReferenceImageTokens(state, from, to).map((token) => {
+      const { alt, size } = splitMarkdownImageAlt(token.alt);
+      return createImageElement({ ...token, alt }, getImageDisplayModeFromState(state, token.from, token.to), size);
+    });
+    return [...referenceImages, ...getObsidianMediaEmbedNodesInRange(state, from, to, "image").map((token) => (
       createImageElement({
         from: token.from,
         to: token.to,
@@ -26,7 +31,7 @@ export const imageFeature = defineMarkdownFeature({
         title: null,
         referenceKind: "wiki-target",
       }, getImageDisplayModeFromState(state, token.from, token.to), parseMarkdownImageSize(token.alias))
-    ));
+    ))];
   },
   collectLine(line) {
     return findStandardMarkdownImageTokens(line.text).map((token) => {

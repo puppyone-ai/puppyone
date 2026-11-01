@@ -56,6 +56,8 @@ export type MarkdownElementBlockData =
       kind: "mdxComponent";
       component: MarkdownMdxComponentModel;
     }
+  | { kind: "emoji"; emoji: string }
+  | { kind: "entity"; source: string }
   | { kind: "mathBlock"; source: string }
   | { kind: "mathInline"; source: string }
   | { kind: "task"; checked: boolean; task: MarkdownTaskLine }
@@ -72,10 +74,14 @@ export type MarkdownElementBlockData =
 
 export type MarkdownElementKind =
   | "blockquote"
+  | "comment"
+  | "emoji"
   | "emphasis"
+  | "entity"
   | "escape"
   | "fence"
   | "heading"
+  | "highlight"
   | "htmlBlock"
   | "image"
   | "inlineHtml"
@@ -95,7 +101,7 @@ export type MarkdownElementKind =
 
 type MarkdownPlainElementKind = Exclude<
   MarkdownElementKind,
-  "fence" | "htmlBlock" | "image" | "inlineHtml" | "mathBlock" | "mathInline" | "mdxComponent" | "table" | "task" | "video"
+  "emoji" | "entity" | "fence" | "htmlBlock" | "image" | "inlineHtml" | "mathBlock" | "mathInline" | "mdxComponent" | "table" | "task" | "video"
 >;
 
 export type MarkdownPlainElement<K extends MarkdownPlainElementKind = MarkdownPlainElementKind> =
@@ -122,6 +128,8 @@ export type MarkdownInlineHtmlElement = MarkdownElementBase & {
 export type MarkdownFenceElement = MarkdownFeatureElement<"fence">;
 export type MarkdownHtmlBlockElement = MarkdownFeatureElement<"htmlBlock">;
 export type MarkdownImageElement = MarkdownFeatureElement<"image">;
+export type MarkdownEmojiElement = MarkdownFeatureElement<"emoji">;
+export type MarkdownEntityElement = MarkdownFeatureElement<"entity">;
 export type MarkdownMathBlockElement = MarkdownFeatureElement<"mathBlock">;
 export type MarkdownMathInlineElement = MarkdownFeatureElement<"mathInline">;
 export type MarkdownMdxComponentElement = MarkdownFeatureElement<"mdxComponent">;
@@ -134,6 +142,8 @@ export type MarkdownElement =
   | MarkdownFenceElement
   | MarkdownHtmlBlockElement
   | MarkdownImageElement
+  | MarkdownEmojiElement
+  | MarkdownEntityElement
   | MarkdownInlineHtmlElement
   | MarkdownMathBlockElement
   | MarkdownMathInlineElement

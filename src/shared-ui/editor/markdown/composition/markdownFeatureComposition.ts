@@ -21,6 +21,7 @@ import type {
 import { codeBlockFeature } from "../features/code-block/codeBlockFeature";
 import { createHtmlFeature } from "../features/html/htmlFeature";
 import { imageFeature } from "../features/image/imageFeature";
+import { inlineSyntaxFeature } from "../features/inline-syntax/inlineSyntaxFeature";
 import { mathFeature } from "../features/math/mathFeature";
 import { mediaSyntaxFeature } from "../features/media/mediaSyntaxFeature";
 import { mermaidFeature } from "../features/mermaid/mermaidFeature";
@@ -40,8 +41,9 @@ const mdxComponentFeature = createMdxComponentFeature(renderMarkdownInlineFromSh
 
 const puppyGfmFeatures = Object.freeze([
   mediaSyntaxFeature,
-  codeBlockFeature,
+  inlineSyntaxFeature,
   mathFeature,
+  codeBlockFeature,
   mermaidFeature,
   htmlFeature,
   tableFeature,
@@ -51,8 +53,9 @@ const puppyGfmFeatures = Object.freeze([
 
 const openKnowledgeMdxFeatures = Object.freeze([
   mediaSyntaxFeature,
-  codeBlockFeature,
+  inlineSyntaxFeature,
   mathFeature,
+  codeBlockFeature,
   mermaidFeature,
   mdxComponentFeature,
   htmlFeature,
