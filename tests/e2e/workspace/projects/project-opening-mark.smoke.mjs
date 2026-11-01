@@ -59,9 +59,13 @@ const observer = `(() => {
         : pane?.dataset.contentState === 'opening' ? 'entering'
         : shown(document.querySelector('.cm-content')) ? 'document'
         : pane?.dataset.contentState === 'document' ? 'loading-document'
-        : shown(document.querySelector('.onboarding-homepage')) ? 'homepage'
-        : document.querySelector('.onboarding-restoring-mark') ? 'restoring' : 'other',
+        : shown(document.querySelector('.onboarding-homepage')) ? 'homepage' : 'other',
       prompt: Boolean(pane && pane.dataset.contentState === 'empty'),
+      region: (() => {
+        const region = document.querySelector('.desktop-project-preparation .desktop-project-opening')?.getBoundingClientRect();
+        return region ? { x: region.x + region.width / 2, y: region.y + region.height / 2 } : null;
+      })(),
+      explorer: shown(document.querySelector('.desktop-project-preparation .data-explorer-pane')),
       title: document.querySelector('.desktop-titlebar-workspace-name')?.textContent ?? null,
       shownDocument: [...document.querySelectorAll('.cm-content')].find((content) => shown(content)
         && getComputedStyle(content).visibility === 'visible')?.textContent.slice(0, 24) ?? null,
@@ -158,11 +162,16 @@ async function run() {
   assert.ok(window, "production Main created a window");
   window.setContentSize(1200, 800);
 
-  // A slowly restored project: its mark waits where the editor's will be.
+  // A slowly restored project waits in its own window, in the middle of the editor's place.
   await until("!!document.querySelector('.cm-content')", "restored document");
   const restored = await stop();
   report.restore = summarize(restored);
-  assert.ok(restored.some(({ stage, marks }) => stage === "restoring" && marks.length), "the slow start showed no mark");
+  const restoreWait = restored.filter(({ stage, marks }) => stage === "preparation" && marks.length);
+  assert.ok(restoreWait.length, "the slow start showed no mark in the project's window");
+  assert.ok(restoreWait.every(({ explorer }) => explorer), "the slow start's mark had no Explorer column beside it");
+  for (const { marks: [mark], region } of restoreWait) {
+    assert.ok(Math.abs(mark.x - region.x) <= 1 && Math.abs(mark.y - region.y) <= 1, `the mark left the middle of its region: ${JSON.stringify({ mark, region })}`);
+  }
   assert.equal(report.restore.promptFrames, 0, "the empty editor prompt showed during the restore");
   assert.equal(report.restore.multipleMarks, 0, "two marks showed at once during the restore");
   assert.equal(report.restore.sizes.length, 1, `the mark changed size: ${report.restore.sizes.join(" -> ")}`);

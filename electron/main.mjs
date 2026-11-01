@@ -1167,6 +1167,7 @@ function registerIpcHandlers() {
   registerWorkspaceNavigationIpcHandlers({
     ipcMain: trustedIpcMain,
     workspaceStateStore,
+    getRestoringProjectForWindow,
     getInitialWorkspaceResultForWindow,
     forgetCurrentWindowWorkspace,
     showHomepageForCurrentWindow,
@@ -1379,6 +1380,14 @@ async function confirmUpdateRestartWithBlockers({
     ? await dialog.showMessageBox(owner, options)
     : await dialog.showMessageBox(options);
   return result.response === 1;
+}
+
+/** What this window is bringing back, known before the slow work of opening it starts. */
+function getRestoringProjectForWindow(sender) {
+  const state = windowStateById.get(sender.id);
+  const [folderPath] = state?.initialRestorePaths ?? [];
+  if (folderPath) return { kind: "local", path: folderPath };
+  return state?.initialCloudProject ? { kind: "cloud", projectId: state.initialCloudProject.projectId } : null;
 }
 
 async function getInitialWorkspaceResultForWindow(sender) {

@@ -30,6 +30,7 @@ const localFiles = vi.hoisted(() => ({
   detachWorkspaceFolder: vi.fn(),
   forgetLastWorkspace: vi.fn(),
   getInitialWorkspace: vi.fn(),
+  getRestoringProject: vi.fn(),
   getRecentWorkspaces: vi.fn(),
   hydrateRecentWorkspaces: vi.fn(),
   listImportResources: vi.fn(),
@@ -53,6 +54,7 @@ let root: Root | null = null;
 
 beforeEach(() => {
   windowProjectStore.setState(INITIAL_WINDOW_PROJECT, true);
+  localFiles.getRestoringProject.mockResolvedValue(null);
   localFiles.getInitialWorkspace.mockResolvedValue({
     path: null,
     workspace: null,
@@ -99,6 +101,23 @@ describe("recent project readiness", () => {
 });
 
 describe("multi-project Workspace experiment", () => {
+  it("names the project coming back only for as long as it is on its way", async () => {
+    const primary = workspace("a", "A", "/projects/a");
+    let finishRestore!: (value: unknown) => void;
+    localFiles.getRestoringProject.mockResolvedValue({ kind: "local", path: primary.path });
+    localFiles.getInitialWorkspace.mockReturnValue(new Promise((resolve) => { finishRestore = resolve; }));
+    const harness = await renderHarness(false, vi.fn());
+    expect(harness.current.restoringProject).toEqual({ kind: "local", path: primary.path });
+    await act(async () => finishRestore({ workspace: primary, workspaces: [primary], path: primary.path, error: null }));
+    expect(harness.current.restoringProject).toBeNull();
+  });
+
+  it("starts a wait with no project when the window cannot say what is coming back", async () => {
+    localFiles.getRestoringProject.mockRejectedValue(new Error("No answer"));
+    const harness = await renderHarness(false, vi.fn());
+    expect(harness.current.restoringProject).toBeNull();
+  });
+
   it("opens folders in the current window even when a project is already displayed", async () => {
     const primary = workspace("a", "A", "/projects/a");
     const next = workspace("b", "B", "/projects/b");

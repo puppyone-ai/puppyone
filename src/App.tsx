@@ -348,6 +348,7 @@ function AppContent() {
     removeProject,
     refreshRecentWorkspaceList,
     restoreWorkspaceError,
+    restoringProject,
     restoringWorkspace,
     initialCloudProject,
     setRestoreWorkspaceError,
@@ -1576,7 +1577,7 @@ function AppContent() {
   const {
     projectOpening, projectOpeningInWindow, projectOpeningSurface,
   } = useProjectOpeningSurfaces({
-    accountCloud, cloudWorkspaceActive, nativeCloudWorkbench, projectCatalog, projectNavigation,
+    accountCloud, cloudWorkspaceActive, nativeCloudWorkbench, projectCatalog, projectNavigation, restoringProject,
     projectRailLayout, railOwnsProject, renderProjectRail, surfaceAppearance, workspace,
   });
   const accountCloudSurface = !workspace ? <AccountCloudWorkspaceSurface workbench={nativeCloudWorkbench}

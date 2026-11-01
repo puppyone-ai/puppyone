@@ -8,7 +8,6 @@
   "projectSessions.closeFailed": "일부 프로젝트 작업을 중지하지 못했습니다.",
   "projectSessions.retryClose": "닫기 다시 시도",
   "drag.exportFailed": "드롭을 완료할 수 없습니다. 원본과 대상이 사용 가능하고 대상이 이 작업을 지원하는지 확인하세요.",
-  "restoring.ariaLabel": "마지막 프로젝트 여는 중",
   "restoring.message": "마지막 프로젝트를 여는 중…",
   "viewerPack.rootUnavailable": "Viewer Pack을 활성화할 작업 영역 루트를 사용할 수 없습니다.",
   "viewerPack.loadingExtension": "뷰어 확장 프로그램 불러오는 중…",

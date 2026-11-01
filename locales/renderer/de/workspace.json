@@ -8,7 +8,6 @@
   "projectSessions.closeFailed": "Einige Projektaufgaben konnten nicht beendet werden.",
   "projectSessions.retryClose": "Schließen erneut versuchen",
   "drag.exportFailed": "Der Vorgang konnte nicht abgeschlossen werden. Prüfe, ob Quelle und Ziel verfügbar sind und das Ziel diesen Vorgang unterstützt.",
-  "restoring.ariaLabel": "Letztes Projekt wird geöffnet",
   "restoring.message": "Letztes Projekt wird geöffnet…",
   "viewerPack.rootUnavailable": "Der Arbeitsbereichsstamm ist für die Aktivierung des Viewer Packs nicht verfügbar.",
   "viewerPack.loadingExtension": "Viewer-Erweiterung wird geladen…",

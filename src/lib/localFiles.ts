@@ -283,6 +283,10 @@ export async function getLastWorkspace(): Promise<LastWorkspaceResult> {
   return getDesktopBridge().getLastWorkspace();
 }
 
+export async function getRestoringProject() {
+  return getDesktopBridge().getRestoringProject();
+}
+
 export async function getInitialWorkspace(): Promise<LastWorkspaceResult> {
   return getDesktopBridge().getInitialWorkspace();
 }
