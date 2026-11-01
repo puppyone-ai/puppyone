@@ -5,6 +5,7 @@ import {
   isBlockedHtmlTag,
   isBooleanHtmlAttribute,
   isNumericHtmlAttribute,
+  isSafeColorValue,
   isSafeStyleValue,
   isVoidHtmlTag,
   type HtmlSanitizerMode,
@@ -13,6 +14,8 @@ import { isBrokerSafeResolvedAssetUrl } from "../../platform/policy/markdownAsse
 import type { MarkdownHtmlSanitizerCapabilities } from "../../platform/policy/markdownHtmlProfiles";
 import {
   isPassiveMediaHtmlTag,
+  isSafeSvgAttribute,
+  isSafeSvgTag,
   normalizeMarkdownHtmlAlignment,
 } from "../../platform/policy/markdownHtmlProfiles";
 import { getSafeMarkdownHref } from "../../platform/policy/markdownUrlPolicy";
@@ -27,6 +30,8 @@ export type SanitizedHtmlResult = {
 
 const HTML_DIMENSION_PATTERN = /^[1-9]\d{0,3}(?:%|px)?$/;
 const HTML_SOURCE_CONDITION_MAX_LENGTH = 256;
+const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
+const SVG_TEXT_TAGS = new Set(["desc", "text", "title", "tspan"]);
 
 /** Removing these keeps their raw payload from surfacing as document text. */
 const BLOCKED_TAGS_DROPPED_WITH_CONTENT = new Set([
@@ -108,6 +113,11 @@ function appendSanitizedNode(target: Node, node: ChildNode, context: SanitizeCon
     return;
   }
 
+  if (node instanceof SVGElement) {
+    appendSanitizedSvg(target, node);
+    return;
+  }
+
   if (!(node instanceof HTMLElement)) return;
 
   const tagName = node.tagName.toLowerCase();
@@ -133,8 +143,8 @@ function appendSanitizedNode(target: Node, node: ChildNode, context: SanitizeCon
 
   const element = document.createElement(tagName);
   copySafeAttributes(element, node, tagName, context);
-  if (tagName === "video") {
-    // Safe Markdown video is always user-controlled and never auto-starts.
+  if (tagName === "video" || tagName === "audio") {
+    // Safe Markdown media is always user-controlled and never auto-starts.
     element.setAttribute("controls", "");
     element.setAttribute("preload", element.getAttribute("preload") ?? "metadata");
     element.removeAttribute("autoplay");
@@ -147,6 +157,35 @@ function appendSanitizedNode(target: Node, node: ChildNode, context: SanitizeCon
 
   appendSanitizedChildren(element, node, context, depth + 1);
   target.appendChild(element);
+}
+
+/** Rebuilt in a fresh namespace node, so nothing unlisted can reach the document. */
+function appendSanitizedSvg(target: Node, node: SVGElement) {
+  const localName = node.localName;
+  if (!isSafeSvgTag(localName)) return;
+  const element = document.createElementNS(SVG_NAMESPACE, localName);
+  for (const attribute of Array.from(node.attributes)) {
+    const value = sanitizeSvgAttributeValue(attribute.name, attribute.value);
+    if (value !== null) element.setAttribute(attribute.name, value);
+  }
+  for (const child of Array.from(node.childNodes)) {
+    if (child.nodeType === Node.TEXT_NODE) {
+      if (SVG_TEXT_TAGS.has(localName.toLowerCase())) element.appendChild(document.createTextNode(child.textContent ?? ""));
+    } else if (child instanceof SVGElement) {
+      appendSanitizedSvg(element, child);
+    }
+  }
+  target.appendChild(element);
+}
+
+function sanitizeSvgAttributeValue(name: string, value: string): string | null {
+  if (!isSafeSvgAttribute(name)) return null;
+  const lowerName = name.toLowerCase();
+  // Local paint references stay inside this drawing; ids share the document scope.
+  if (lowerName === "id") return /^[A-Za-z_][\w-]*$/.test(value) ? `md-doc-${value}` : null;
+  const reference = /^url\(#([A-Za-z_][\w-]*)\)$/.exec(value.trim());
+  if (reference) return `url(#md-doc-${reference[1]})`;
+  return /url\s*\(|javascript:|expression\s*\(/i.test(value) ? null : value;
 }
 
 function copySafeAttributes(target: HTMLElement, source: HTMLElement, tagName: string, context: SanitizeContext) {
@@ -223,6 +262,23 @@ function copySafeAttributes(target: HTMLElement, source: HTMLElement, tagName: s
       continue;
     }
 
+    if (tagName === "font") {
+      const safe = name === "color"
+        ? isSafeColorValue(value.trim(), false)
+        : name === "size"
+          ? /^[+-]?[1-7]$/.test(value.trim())
+          : /^[\w ,-]{1,64}$/.test(value.trim());
+      if (safe) target.setAttribute(name, value.trim());
+      else markUnsupported(context, `font ${name} was omitted`, { fatal: false });
+      continue;
+    }
+
+    if ((tagName === "meter" || tagName === "progress") && name !== "class" && name !== "id" && name !== "style") {
+      if (/^-?\d{1,9}(?:\.\d{1,6})?$/.test(value.trim())) target.setAttribute(name, value.trim());
+      else markUnsupported(context, `${name} value was omitted`, { fatal: false });
+      continue;
+    }
+
     if (tagName === "ol" && name === "start") {
       if (/^-?\d{1,6}$/.test(value.trim())) target.setAttribute("start", value.trim());
       else markUnsupported(context, "start value was omitted", { fatal: false });
@@ -260,8 +316,9 @@ function copySafeAttributes(target: HTMLElement, source: HTMLElement, tagName: s
       continue;
     }
 
-    if ((tagName === "video" || tagName === "source") && name === "src") {
-      if (context.capabilities.brokeredMedia && isBrokerSafeResolvedAssetUrl(value, "video")) {
+    if ((tagName === "video" || tagName === "audio" || tagName === "source") && name === "src") {
+      const kind = tagName === "audio" ? "audio" : "video";
+      if (context.capabilities.brokeredMedia && isBrokerSafeResolvedAssetUrl(value, kind)) {
         target.setAttribute("src", value.trim());
       } else if (context.capabilities.deferredMedia) {
         target.setAttribute("data-md-asset-src", value);
@@ -320,7 +377,7 @@ function copySafeAttributes(target: HTMLElement, source: HTMLElement, tagName: s
       continue;
     }
 
-    if (tagName === "video" && name === "preload") {
+    if ((tagName === "video" || tagName === "audio") && name === "preload") {
       const preload = value.trim().toLowerCase();
       if (preload === "none" || preload === "metadata") target.setAttribute("preload", preload);
       else {
@@ -332,7 +389,7 @@ function copySafeAttributes(target: HTMLElement, source: HTMLElement, tagName: s
 
     if (tagName === "source" && name === "type") {
       const type = value.trim().toLowerCase();
-      if (/^(?:image|video)\/[a-z0-9.+-]+$/.test(type)) target.setAttribute("type", type);
+      if (/^(?:audio|image|video)\/[a-z0-9.+-]+$/.test(type)) target.setAttribute("type", type);
       else markUnsupported(context, "media source type was omitted", { fatal: false });
       continue;
     }

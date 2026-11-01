@@ -17,7 +17,7 @@ import { bindInlineHtmlDomInteractions } from "./inlineHtmlDomAdapter";
 import { appendSanitizedInlineHtml } from "./sanitizeHtml";
 
 /** DOM that answers a pointer itself rather than asking for the source. */
-const HTML_RUN_INTERACTIVE_SELECTOR = "[data-md-href], summary, video";
+const HTML_RUN_INTERACTIVE_SELECTOR = "[data-md-href], summary, video, audio";
 
 type MarkdownHtmlRun = Readonly<{
   source: string;

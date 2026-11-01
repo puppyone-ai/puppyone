@@ -67,6 +67,7 @@ export type MarkdownElementBlockData =
       title: string | null;
       referenceKind: MarkdownMediaReferenceKind;
       displayMode: MarkdownImageDisplayMode;
+      size: Readonly<{ width: number; height: number | null }> | null;
     };
 
 export type MarkdownElementKind =

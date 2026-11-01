@@ -6,6 +6,7 @@ import type { MarkdownDiagnostic } from "../../core/plans/markdownPlanTypes";
 import {
   isAttributeAllowedInProfile,
   isBlockedExecutableTag,
+  isSafeSvgTag,
   isStylePropertyAllowedInProfile,
   isTagAllowedInProfile,
   MARKDOWN_HTML_PROFILE_VERSION,
@@ -80,6 +81,7 @@ export function compileMarkdownHtmlBlockPolicy(input: {
 
     const safeBlock = isTagAllowedInProfile(token.tagName, "block");
     const safeMedia = isTagAllowedInProfile(token.tagName, "block", { deferredMedia: true });
+    if (isSafeSvgTag(token.tagName)) continue;
     if (!safeBlock && !safeMedia) {
       // The sanitizer removes only this tag, so one unknown or nested blocked
       // element no longer costs the rest of the block its rendering.
@@ -216,7 +218,7 @@ function isMediaResourceAttribute(tagName: string, attributeName: string): boole
   return (
     (tagName === "img" && (attributeName === "src" || attributeName === "srcset"))
     || (tagName === "source" && attributeName === "srcset")
-    || ((tagName === "video" || tagName === "source") && attributeName === "src")
+    || ((tagName === "video" || tagName === "audio" || tagName === "source") && attributeName === "src")
     || (tagName === "video" && attributeName === "poster")
   );
 }

@@ -27,11 +27,10 @@
 }
 
 .markdown-codemirror-editor .cm-md-image-widget.is-block img {
-  width: 100%;
+  /* Natural size, capped by the reading rail: a small image is never upscaled. */
   height: auto;
   max-width: 100%;
   max-height: none;
-  object-fit: contain;
 }
 
 .markdown-codemirror-editor .cm-md-image-widget.is-block .cm-md-image-placeholder {

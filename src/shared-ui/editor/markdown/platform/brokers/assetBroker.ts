@@ -69,6 +69,7 @@ export function createAssetBroker(
   }> = [];
   const defaultWorkspaceRoot = options.workspaceRoot ?? null;
   const remotePolicy: Readonly<Record<MarkdownAssetKind, MarkdownRemoteAssetPolicy>> = {
+    audio: options.remotePolicy?.audio ?? "deny",
     image: options.remotePolicy?.image ?? "deny",
     video: options.remotePolicy?.video ?? "deny",
   };

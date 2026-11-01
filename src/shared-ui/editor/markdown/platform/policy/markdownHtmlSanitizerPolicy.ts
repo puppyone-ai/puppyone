@@ -30,6 +30,7 @@ export const MARKDOWN_HTML_POLICY = {
     get byTag() { return getSafeBlockProfile().attributes.byTag; },
     boolean: new Map<string, Set<string>>([
       ["details", new Set(["open"])],
+      ["audio", new Set(["controls", "loop", "muted"])],
       ["video", new Set(["controls", "loop", "muted", "playsinline"])],
     ]),
     numeric: new Map<string, Set<string>>([
@@ -206,7 +207,7 @@ export function isSafeStyleValue(property: string, value: string): boolean {
   return false;
 }
 
-function isSafeColorValue(value: string, allowVariable = true): boolean {
+export function isSafeColorValue(value: string, allowVariable = true): boolean {
   return (
     /^#[0-9a-f]{3,8}$/i.test(value) ||
     /^rgba?\(\s*[\d.]+%?\s*,\s*[\d.]+%?\s*,\s*[\d.]+%?(?:\s*,\s*(?:[\d.]+|[\d.]+%))?\s*\)$/i.test(value) ||

@@ -93,6 +93,27 @@ describe("Markdown image inside a link", () => {
   });
 });
 
+describe("Markdown image size", () => {
+  it.each([
+    ["a width", `![alt|100](${IMAGE})`, "100px", ""],
+    ["both axes", `![alt|100x50](${IMAGE})`, "100px", "50px"],
+    ["an embed width", "![[a.png|100]]", "100px", ""],
+  ])("applies %s and keeps the description", async (_name, source, width, height) => {
+    const view = mount(source);
+    await vi.waitFor(() => expect(view.contentDOM.querySelector(".cm-md-image-widget img")).not.toBeNull());
+    const image = view.contentDOM.querySelector<HTMLImageElement>(".cm-md-image-widget img");
+    expect(image?.style.width).toBe(width);
+    expect(image?.style.height).toBe(height);
+    expect(image?.alt).not.toContain("|");
+  });
+
+  it("keeps a pipe that is not a size in the description", async () => {
+    const view = mount(`![a|b](${IMAGE})`);
+    await vi.waitFor(() => expect(view.contentDOM.querySelector(".cm-md-image-widget img")).not.toBeNull());
+    expect(view.contentDOM.querySelector<HTMLImageElement>(".cm-md-image-widget img")?.alt).toBe("a|b");
+  });
+});
+
 describe("Markdown link label scanning", () => {
   it("reads a nested image as part of the label", () => {
     const source = `[![badge](${IMAGE})](${LINK})`;

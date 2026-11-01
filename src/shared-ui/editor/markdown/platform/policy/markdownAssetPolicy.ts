@@ -9,7 +9,7 @@ import { getWorkspaceResourcePath } from "../../../../core/resourceUri";
 export const MARKDOWN_ASSET_POLICY_VERSION = "2026-10-05";
 export const MARKDOWN_ASSET_MAX_DATA_URL_BYTES = 2 * 1024 * 1024;
 export const MARKDOWN_ASSET_MAX_IN_FLIGHT = 8;
-export type MarkdownAssetKind = "image" | "video";
+export type MarkdownAssetKind = "audio" | "image" | "video";
 export type MarkdownRemoteAssetPolicy = "deny" | "https-only";
 
 export type MarkdownAssetPolicyContext = {
@@ -319,6 +319,11 @@ function guessMimeFromHref(href: string): string | null {
   if (clean.endsWith(".mov") || clean.endsWith(".qt")) return "video/quicktime";
   if (clean.endsWith(".3gp") || clean.endsWith(".3gpp")) return "video/3gpp";
   if (clean.endsWith(".3g2")) return "video/3gpp2";
+  if (clean.endsWith(".mp3")) return "audio/mpeg";
+  if (clean.endsWith(".wav")) return "audio/wav";
+  if (clean.endsWith(".m4a") || clean.endsWith(".aac")) return "audio/mp4";
+  if (clean.endsWith(".ogg") || clean.endsWith(".oga") || clean.endsWith(".opus")) return "audio/ogg";
+  if (clean.endsWith(".flac")) return "audio/flac";
   return null;
 }
 

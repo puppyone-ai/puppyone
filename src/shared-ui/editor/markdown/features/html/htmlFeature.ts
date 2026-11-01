@@ -1,6 +1,6 @@
 import { defineMarkdownFeature } from "../../core/features/markdownFeatureContract";
 import type { MarkdownInlinePreviewRenderer } from "../../shared/preview/markdownInlinePreviewPort";
-import { getMarkdownHtmlBlock, isStandaloneMediaHtmlLine } from "./htmlBlockModel";
+import { getMarkdownHtmlBlock } from "./htmlBlockModel";
 import { HtmlBlockWidget } from "./htmlBlockWidget";
 import { HtmlRunWidget } from "./htmlRunWidget";
 import { getMarkdownInlineHtmlInRange, readMarkdownInlineHtmlRunSource } from "./inlineHtmlModel";
@@ -16,13 +16,7 @@ export const createHtmlFeature = (renderInlinePreview: MarkdownInlinePreviewRend
   livePreviewExtensions: [markdownFragmentTargetsFacet.of(getMarkdownInlineHtmlAnchors)],
   collectRange(state, from, to) {
     return getMarkdownInlineHtmlInRange(state, from, to)
-      .filter((inlineHtml) => (
-        inlineHtml.runRole !== "member"
-        && !(
-          inlineHtml.runRole === "owner"
-          && isStandaloneMediaHtmlLine(state, state.doc.lineAt(inlineHtml.from).number)
-        )
-      ))
+      .filter((inlineHtml) => inlineHtml.runRole !== "member")
       .map((inlineHtml) => ({
         kind: "inlineHtml" as const,
         from: inlineHtml.from,

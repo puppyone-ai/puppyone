@@ -37,7 +37,7 @@ export function getMarkdownHtmlBlock(state: EditorState, lineNumber: number): Ma
   const doc = state.doc;
   const requestedLine = doc.line(lineNumber);
   const requestedNode = findHtmlBlockStartingOnLine(state, requestedLine.from, requestedLine.to);
-  if (!requestedNode) return getStandaloneMediaHtmlBlock(state, lineNumber);
+  if (!requestedNode) return null;
 
   const { startNode, endNode: flowEndNode } = findMarkdownHtmlFlowContainingNode(state, requestedNode);
   const firstLine = doc.lineAt(startNode.from);
@@ -189,75 +189,6 @@ function collectExplicitOpenTags(tokens: readonly MarkdownHtmlTagToken[]): strin
     stack.pop();
   }
   return stack;
-}
-
-/**
- * Lezer does not consistently promote a standalone media element on one
- * physical line to HTMLBlock, especially when it follows paragraph text
- * without a blank line. Keep the product dialect deliberately narrow: only a
- * complete <img> or closed <video> root that owns the whole line gets block
- * media treatment. Other inline HTML remains under the normal Markdown parser,
- * and four-space-indented source remains an indented code block.
- */
-function getStandaloneMediaHtmlBlock(
-  state: EditorState,
-  lineNumber: number,
-): MarkdownHtmlBlock | null {
-  const line = state.doc.line(lineNumber);
-  const leadingWhitespace = line.text.match(/^[ \t]*/)?.[0] ?? "";
-  if (leadingWhitespace.includes("\t") || leadingWhitespace.length > 3) return null;
-
-  const trimmedSource = line.text.trim();
-  if (!trimmedSource.startsWith("<")) return null;
-
-  const sourceFrom = line.from + leadingWhitespace.length;
-  const tokens = scanMarkdownHtmlTagTokens(trimmedSource, sourceFrom);
-  const opening = tokens[0] ?? null;
-  const closing = tokens.at(-1) ?? null;
-  const sourceTo = sourceFrom + trimmedSource.length;
-  const isCompleteImage = Boolean(
-    opening
-    && opening.tagName === "img"
-    && !opening.closing
-    && opening.selfClosing
-    && opening.from === sourceFrom
-    && opening.to === sourceTo
-    && tokens.length === 1,
-  );
-  const isCompleteVideo = Boolean(
-    opening
-    && opening.tagName === "video"
-    && !opening.closing
-    && !opening.selfClosing
-    && opening.from === sourceFrom
-    && closing
-    && closing.closing
-    && closing.tagName === "video"
-    && closing.to === sourceTo
-    && validateMarkdownHtmlBlockStructure(trimmedSource, sourceFrom).status === "complete",
-  );
-  if (
-    !opening
-    || (!isCompleteImage && !isCompleteVideo)
-  ) {
-    return null;
-  }
-
-  return {
-    from: line.from,
-    to: line.to,
-    nextLineNumber: line.number + 1,
-    source: line.text,
-    tagName: opening.tagName,
-    status: "complete",
-    diagnostic: null,
-    metrics: estimateHtmlBlockMetrics(tokens),
-  };
-}
-
-/** Lines the block widget already owns; an inline run must not project them twice. */
-export function isStandaloneMediaHtmlLine(state: EditorState, lineNumber: number): boolean {
-  return getStandaloneMediaHtmlBlock(state, lineNumber) !== null;
 }
 
 function estimateHtmlBlockMetrics(

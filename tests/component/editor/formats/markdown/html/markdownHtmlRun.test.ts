@@ -180,7 +180,7 @@ describe("Markdown HTML run projection", () => {
     expect(plan?.atom.source).toBe(`<a href="${LINK}">\n<img src="a.png" alt="i">\n</a>`);
   });
 
-  it("gives a standalone media line to the block widget alone", () => {
+  it("leaves an image alone in its block to the HTML block widget", () => {
     const state = createState('<img src="a.png" alt="i">');
     expect(getRunPlans(state)).toHaveLength(0);
     expect(getMarkdownPlanIndex(state).filter(({ plan }) => plan.presentation === "blockAtom")).toHaveLength(1);
@@ -193,6 +193,41 @@ describe("Markdown HTML run projection", () => {
     expect(view.contentDOM.textContent).toBe("K a b c d e");
     expect(view.contentDOM.querySelector("kbd")?.textContent).toBe("K");
     expect(view.contentDOM.querySelector("strike")?.textContent).toBe("c");
+  });
+
+  it.each([
+    ["an image", '- [ ] <img src="a.png" alt="i">', "img"],
+    ["a text mark", "- [x] <kbd>K</kbd>", "kbd"],
+  ])("renders %s inside a task item", (_name, source, selector) => {
+    const view = mount(source);
+    expect(view.contentDOM.querySelector(selector)).not.toBeNull();
+    expect(view.contentDOM.textContent).not.toContain("<");
+  });
+
+  it("renders a multi-line HTML block that starts after a quote marker", () => {
+    const view = mount("> <div>\n> hi\n> </div>\n\nafter");
+    const [run] = runs(view);
+    expect(run?.querySelector("div")?.textContent?.trim()).toBe("hi");
+    expect(run?.textContent).not.toContain(">");
+  });
+
+  it("gives an image on its own line between text lines one run", () => {
+    const state = createState('Before\n<img src="a.png" alt="i">\nAfter');
+    expect(getRunPlans(state)).toHaveLength(1);
+    expect(getMarkdownPlanIndex(state).filter(({ plan }) => plan.presentation === "blockAtom")).toHaveLength(0);
+  });
+
+  it.each([
+    ["font", '<font color="red">red</font> tail', "font"],
+    ["big", "<big>big</big> tail", "big"],
+    ["dfn", "<dfn>term</dfn> tail", "dfn"],
+    ["nobr", "<nobr>x</nobr> tail", "nobr"],
+    ["center", "tail <center>mid</center>", "center"],
+    ["meter", '<meter value="0.5"></meter> tail', "meter"],
+  ])("renders the passive %s element", (_name, source, selector) => {
+    const view = mount(source);
+    expect(runs(view)[0]?.querySelector(selector)).not.toBeNull();
+    expect(view.contentDOM.textContent).not.toContain("<");
   });
 
   it("hides an empty element while keeping its source", () => {
@@ -396,7 +431,7 @@ describe("Markdown HTML reduction", () => {
 
   it.each([
     ["an unknown tag", "<div><foo>hello</foo></div>", "<div>hello</div>"],
-    ["a presentational tag", "<div><center>hello</center></div>", "<div>hello</div>"],
+    ["a marquee", "<div><marquee>hello</marquee></div>", "<div>hello</div>"],
     ["a form wrapper", "<div><form>hello</form></div>", "<div>hello</div>"],
     ["a script payload", '<div onclick="evil()"><script>alert(1)</script>hello</div>', "<div>hello</div>"],
     ["a style payload", "<div><style>p{color:red}</style>hello</div>", "<div>hello</div>"],
@@ -458,6 +493,58 @@ describe("Markdown HTML reduction", () => {
       supported: false,
       diagnostic: { code: "htmlBlock.blocked-tag" },
     });
+  });
+});
+
+describe("Markdown inline SVG and audio", () => {
+  function sanitized(source: string) {
+    const result = createSanitizedBlockHtmlFragment(source, { deferredMedia: true });
+    const box = document.createElement("div");
+    box.appendChild(result.fragment);
+    return box;
+  }
+
+  it("keeps a passive drawing and scopes its local paint references", () => {
+    const box = sanitized('<svg width="10" viewBox="0 0 10 10"><defs><linearGradient id="g"><stop offset="0"/></linearGradient></defs><circle r="5" fill="url(#g)"/></svg>');
+    expect(box.querySelector("svg")?.getAttribute("width")).toBe("10");
+    expect(box.querySelector("circle")?.getAttribute("fill")).toBe("url(#md-doc-g)");
+  });
+
+  it.each([
+    ["script", '<svg><script>alert(1)</script><circle r="5"/></svg>', "script"],
+    ["foreign content", "<svg><foreignObject><div>x</div></foreignObject></svg>", "div"],
+    ["animation", '<svg><animate attributeName="href" to="javascript:alert(1)"/></svg>', "animate"],
+    ["a linked use", '<svg><use href="https://example.com/a.svg#x"/></svg>', "use"],
+  ])("removes %s from a drawing", (_name, source, selector) => {
+    expect(sanitized(source).querySelector(selector)).toBeNull();
+  });
+
+  it.each([
+    ["an event handler", '<svg onload="alert(1)"><circle r="5"/></svg>', "svg", "onload"],
+    ["a remote paint", '<svg><circle r="5" fill="url(https://example.com/a)"/></svg>', "circle", "fill"],
+    ["a linked style", '<svg><circle r="5" style="fill:url(https://example.com/a)"/></svg>', "circle", "style"],
+  ])("removes %s attribute", (_name, source, selector, attribute) => {
+    expect(sanitized(source).querySelector(selector)?.hasAttribute(attribute)).toBe(false);
+  });
+
+  it("gives audio user controls and defers its source to the broker", () => {
+    const audio = sanitized('<audio autoplay src="a.mp3"></audio>').querySelector("audio");
+    expect(audio?.hasAttribute("controls")).toBe(true);
+    expect(audio?.hasAttribute("autoplay")).toBe(false);
+    expect(audio?.hasAttribute("src")).toBe(false);
+    expect(audio?.dataset.mdAssetSrc).toBe("a.mp3");
+  });
+
+  it("resolves audio through the broker as audio", async () => {
+    const hrefs: string[] = [];
+    const view = mount('tail <audio src="a.mp3" controls></audio>', {
+      resolver: async (_documentPath, href) => {
+        hrefs.push(href);
+        return `${BROKERED_ROOT}${href}`;
+      },
+    });
+    await waitFor(() => runs(view)[0]?.querySelector("audio")?.hasAttribute("src") === true);
+    expect(hrefs).toEqual(["a.mp3"]);
   });
 });
 

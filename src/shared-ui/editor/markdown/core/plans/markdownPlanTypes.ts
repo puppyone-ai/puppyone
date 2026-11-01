@@ -58,6 +58,7 @@ export type InlineAtomModel =
       title: string | null;
       referenceKind: MarkdownMediaReferenceKind;
       displayMode: MarkdownImageDisplayMode;
+      size: Readonly<{ width: number; height: number | null }> | null;
     }
   | { kind: "taskCheckbox"; checked: boolean }
   | { kind: "mathInline"; source: string }

@@ -24,6 +24,7 @@ export function compileImageElementPlan(
       title: imageData?.title ?? null,
       referenceKind: imageData?.referenceKind ?? "markdown-path",
       displayMode: imageData?.displayMode ?? "inline",
+      size: imageData?.size ?? null,
     },
     layout: { lineBreaks: 0, estimatedHeight: 120 },
     diagnostics: imageData ? [] : [{ code: "image.missing-data", message: "image token data unavailable" }],

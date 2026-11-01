@@ -196,7 +196,8 @@ export function hydrateDeferredHtmlMedia({
     }
   }
 
-  for (const video of root.querySelectorAll<HTMLVideoElement>("video")) {
+  for (const video of root.querySelectorAll<HTMLMediaElement>("video, audio")) {
+    const kind = video.tagName === "AUDIO" ? "audio" : "video";
     const directSource = video.dataset.mdAssetSrc ?? null;
     const posterSource = video.dataset.mdAssetPoster ?? null;
     const sourceElements = Array.from(video.querySelectorAll<HTMLSourceElement>("source"))
@@ -214,16 +215,16 @@ export function hydrateDeferredHtmlMedia({
       try {
         const [resolvedDirect, resolvedPoster, resolvedChildren] = await Promise.all([
           directSource
-            ? resolver(documentPath, directSource, "video", signal)
+            ? resolver(documentPath, directSource, kind, signal)
             : Promise.resolve(null),
           posterSource
             ? resolver(documentPath, posterSource, "image", signal)
             : Promise.resolve(null),
-          Promise.all(sourceElements.map(({ href }) => resolver(documentPath, href, "video", signal))),
+          Promise.all(sourceElements.map(({ href }) => resolver(documentPath, href, kind, signal))),
         ]);
         if (signal.aborted || !isCurrent() || !video.isConnected) return;
 
-        if (resolvedDirect && isBrokerSafeResolvedAssetUrl(resolvedDirect, "video")) {
+        if (resolvedDirect && isBrokerSafeResolvedAssetUrl(resolvedDirect, kind)) {
           video.setAttribute("src", resolvedDirect);
         }
         if (resolvedPoster && isBrokerSafeResolvedAssetUrl(resolvedPoster, "image")) {
@@ -232,7 +233,7 @@ export function hydrateDeferredHtmlMedia({
         for (let index = 0; index < sourceElements.length; index += 1) {
           const resolved = resolvedChildren[index];
           const element = sourceElements[index]?.source;
-          if (resolved && element && isBrokerSafeResolvedAssetUrl(resolved, "video")) {
+          if (resolved && element && isBrokerSafeResolvedAssetUrl(resolved, kind)) {
             element.setAttribute("src", resolved);
           }
         }
