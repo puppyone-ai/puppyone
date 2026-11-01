@@ -65,23 +65,47 @@ class CalloutHeaderWidget extends WidgetType {
     header.appendChild(icon);
 
     if (!callout.hasTitle) header.append(document.createTextNode(callout.defaultTitle));
-
-    if (callout.fold) {
-      const toggle = document.createElement("button");
-      toggle.type = "button";
-      toggle.className = "cm-md-callout-fold";
-      toggle.classList.toggle("is-folded", folded);
-      toggle.setAttribute("aria-expanded", String(!folded));
-      toggle.setAttribute("aria-label", callout.defaultTitle);
-      toggle.appendChild(createCalloutIcon("chevron"));
-      toggle.addEventListener("mousedown", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        view.dispatch({ effects: calloutFoldEffect.of({ at: callout.markerFrom, folded: !folded }) });
-      });
-      header.appendChild(toggle);
-    }
     return header;
+  }
+
+  ignoreEvent(): boolean {
+    return true;
+  }
+}
+
+/** Sits after the title, which is document text the header widget cannot follow. */
+class CalloutFoldWidget extends WidgetType {
+  constructor(
+    private readonly at: number,
+    private readonly label: string,
+    private readonly folded: boolean,
+  ) {
+    super();
+  }
+
+  eq(widget: WidgetType): boolean {
+    return (
+      widget instanceof CalloutFoldWidget &&
+      widget.at === this.at &&
+      widget.label === this.label &&
+      widget.folded === this.folded
+    );
+  }
+
+  toDOM(view: EditorView): HTMLElement {
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "cm-md-callout-fold";
+    toggle.classList.toggle("is-folded", this.folded);
+    toggle.setAttribute("aria-expanded", String(!this.folded));
+    toggle.setAttribute("aria-label", this.label);
+    toggle.appendChild(createCalloutIcon("chevron"));
+    toggle.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      view.dispatch({ effects: calloutFoldEffect.of({ at: this.at, folded: !this.folded }) });
+    });
+    return toggle;
   }
 
   ignoreEvent(): boolean {
@@ -115,6 +139,12 @@ function buildCalloutDecorations(state: EditorState): DecorationSet {
         widget: new CalloutHeaderWidget(callout, folded),
         inclusive: false,
       }).range(callout.markerFrom, callout.markerTo));
+      if (callout.fold) {
+        ranges.push(Decoration.widget({
+          widget: new CalloutFoldWidget(callout.markerFrom, callout.defaultTitle, folded),
+          side: 1,
+        }).range(state.doc.line(callout.firstLine).to));
+      }
     }
 
     if (folded && callout.lastLine > callout.firstLine) {

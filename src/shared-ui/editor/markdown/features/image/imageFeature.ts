@@ -16,11 +16,7 @@ export const imageFeature = defineMarkdownFeature({
   inlineWidgetKinds: ["image"],
   blockWidgetKinds: [],
   collectRange(state, from, to) {
-    const referenceImages = findMarkdownReferenceImageTokens(state, from, to).map((token) => {
-      const { alt, size } = splitMarkdownImageAlt(token.alt);
-      return createImageElement({ ...token, alt }, getImageDisplayModeFromState(state, token.from, token.to), size);
-    });
-    return [...referenceImages, ...getObsidianMediaEmbedNodesInRange(state, from, to, "image").map((token) => (
+    return getObsidianMediaEmbedNodesInRange(state, from, to, "image").map((token) => (
       createImageElement({
         from: token.from,
         to: token.to,
@@ -31,7 +27,7 @@ export const imageFeature = defineMarkdownFeature({
         title: null,
         referenceKind: "wiki-target",
       }, getImageDisplayModeFromState(state, token.from, token.to), parseMarkdownImageSize(token.alias))
-    ))];
+    )).concat(collectReferenceImages(state, from, to));
   },
   collectLine(line) {
     return findStandardMarkdownImageTokens(line.text).map((token) => {
@@ -71,6 +67,13 @@ export const imageFeature = defineMarkdownFeature({
     );
   },
 });
+
+function collectReferenceImages(state: EditorState, from: number, to: number) {
+  return findMarkdownReferenceImageTokens(state, from, to).map((token) => {
+    const { alt, size } = splitMarkdownImageAlt(token.alt);
+    return createImageElement({ ...token, alt }, getImageDisplayModeFromState(state, token.from, token.to), size);
+  });
+}
 
 function createImageElement(
   token: MarkdownImageToken,
