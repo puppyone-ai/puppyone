@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="public/assets/brand/puppy/puppy-dark.svg" alt="puppyone Logo" width="72" height="72" />
+  <img src="assets/brand/puppy/puppy-app-image.png" alt="puppyone Logo" width="88" height="88" />
 
   <h1>puppyone</h1>
 
