@@ -84,8 +84,8 @@ Swap the agent; keep the folder.
 
 Put the folder in puppyone Cloud and it stays on after you close your laptop.
 An agent on any device — your laptop, a server, CI, ChatGPT or Claude — opens the
-same files and picks up where the last one left off. Each agent gets its own key,
-scoped to only the paths it needs.
+same files and picks up where the last one left off. Each agent gets its own key
+that you can pause or revoke.
 
 > Cloud connection in the app is Early Access.
 
