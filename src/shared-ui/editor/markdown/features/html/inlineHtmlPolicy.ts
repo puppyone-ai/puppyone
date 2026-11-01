@@ -1,4 +1,4 @@
-import type { MarkdownInlineHtml } from "./inlineHtmlModel";
+import type { MarkdownInlineHtml } from "../../core/features/markdownFeatureData";
 import type { MarkdownDiagnostic } from "../../core/plans/markdownPlanTypes";
 import {
   getInlineEditableProfile,

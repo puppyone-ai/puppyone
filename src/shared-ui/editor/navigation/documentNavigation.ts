@@ -1,4 +1,4 @@
-import { findMarkdownLinkTokens, findWikiLinkTokens } from "../markdown";
+import { findMarkdownLinkTokens, findWikiLinkTokens } from "../markdown/linkSyntax";
 
 export type DocumentReferenceSyntax =
   | "url"
