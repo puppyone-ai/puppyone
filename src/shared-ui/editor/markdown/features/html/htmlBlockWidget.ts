@@ -275,7 +275,7 @@ export class HtmlBlockWidget extends WidgetType {
     toggleButton.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      const range = getMappedWidgetSourceRange(view, shell, this.block.source.length);
+      const range = getMappedWidgetSourceRange(view, shell, this.block.to - this.block.from);
       if (!range) return;
       view.dispatch({
         effects: markdownRevealedSourceEffect.of({ ...range, presentation: "block" }),

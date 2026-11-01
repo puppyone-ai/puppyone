@@ -18,7 +18,10 @@ import type {
   MarkdownElement,
   MarkdownElementKind,
 } from "../core/syntax/markdownElementTypes";
+import { calloutFeature } from "../features/callout/calloutFeature";
 import { codeBlockFeature } from "../features/code-block/codeBlockFeature";
+import { footnoteFeature } from "../features/footnote/footnoteFeature";
+import { frontMatterFeature } from "../features/front-matter/frontMatterFeature";
 import { createHtmlFeature } from "../features/html/htmlFeature";
 import { imageFeature } from "../features/image/imageFeature";
 import { inlineSyntaxFeature } from "../features/inline-syntax/inlineSyntaxFeature";
@@ -41,7 +44,10 @@ const mdxComponentFeature = createMdxComponentFeature(renderMarkdownInlineFromSh
 
 const puppyGfmFeatures = Object.freeze([
   mediaSyntaxFeature,
+  frontMatterFeature,
   inlineSyntaxFeature,
+  footnoteFeature,
+  calloutFeature,
   mathFeature,
   codeBlockFeature,
   mermaidFeature,
@@ -53,7 +59,10 @@ const puppyGfmFeatures = Object.freeze([
 
 const openKnowledgeMdxFeatures = Object.freeze([
   mediaSyntaxFeature,
+  frontMatterFeature,
   inlineSyntaxFeature,
+  footnoteFeature,
+  calloutFeature,
   mathFeature,
   codeBlockFeature,
   mermaidFeature,

@@ -8,6 +8,8 @@ import {
   type MarkdownHtmlTagToken,
 } from "./htmlTagTokenizer";
 import { validateMarkdownHtmlBlockStructure } from "./htmlBlockStructure";
+import { renderMarkdownBlocksToHtml } from "./markdownHtmlRenderer";
+import { resolveMarkdownLinkReference } from "../../core/links/markdownLinkReferences";
 import type { MarkdownHtmlBlockStatus } from "../../core/features/markdownFeatureData";
 
 export type MarkdownHtmlBlock = {
@@ -29,13 +31,19 @@ type MarkdownHtmlFlowBounds = Readonly<{
 type MarkdownHtmlFlowCacheEntry = {
   tree: ReturnType<typeof syntaxTree>;
   byNodeFrom: Map<number, MarkdownHtmlFlowBounds>;
+  crossing: readonly MarkdownHtmlFlowBounds[] | null;
 };
+
+const MARKDOWN_HTML_FLOW_MAX_SIBLINGS = 512;
 
 const markdownHtmlFlowCache = new WeakMap<object, MarkdownHtmlFlowCacheEntry>();
 
 export function getMarkdownHtmlBlock(state: EditorState, lineNumber: number): MarkdownHtmlBlock | null {
   const doc = state.doc;
   const requestedLine = doc.line(lineNumber);
+  const crossing = findMarkdownCrossingFlow(state, requestedLine.from);
+  if (crossing) return createMarkdownCrossingBlock(state, crossing);
+
   const requestedNode = findHtmlBlockStartingOnLine(state, requestedLine.from, requestedLine.to);
   if (!requestedNode) return null;
 
@@ -58,6 +66,95 @@ export function getMarkdownHtmlBlock(state: EditorState, lineNumber: number): Ma
     diagnostic: structure.diagnostic,
     metrics: estimateHtmlBlockMetrics(structure.tokens),
   };
+}
+
+/**
+ * Written as GitHub reads it: tags open in one block and close in another, and
+ * the Markdown between them is ordinary content. The whole range becomes one
+ * HTML document for the browser to build, so `<details>` works and its body
+ * still renders as Markdown.
+ */
+function createMarkdownCrossingBlock(
+  state: EditorState,
+  { startNode, endNode }: MarkdownHtmlFlowBounds,
+): MarkdownHtmlBlock {
+  const firstLine = state.doc.lineAt(startNode.from);
+  const lastLine = state.doc.lineAt(Math.max(endNode.from, endNode.to - 1));
+  const source = renderMarkdownBlocksToHtml(state.sliceDoc(firstLine.from, lastLine.to), {
+    resolveReference: (label) => resolveMarkdownLinkReference(state, label),
+  });
+  const structure = validateMarkdownHtmlBlockStructure(source, firstLine.from);
+  return {
+    from: firstLine.from,
+    to: lastLine.to,
+    nextLineNumber: lastLine.number + 1,
+    source,
+    tagName: structure.tagName,
+    status: structure.status,
+    diagnostic: structure.diagnostic,
+    metrics: estimateHtmlBlockMetrics(structure.tokens),
+  };
+}
+
+function findMarkdownCrossingFlow(state: EditorState, position: number): MarkdownHtmlFlowBounds | null {
+  const flows = getMarkdownCrossingFlows(state);
+  let low = 0;
+  let high = flows.length - 1;
+  while (low <= high) {
+    const middle = (low + high) >>> 1;
+    const flow = flows[middle];
+    if (!flow) return null;
+    if (position < state.doc.lineAt(flow.startNode.from).from) high = middle - 1;
+    else if (position > flow.endNode.to) low = middle + 1;
+    else return flow;
+  }
+  return null;
+}
+
+function getMarkdownCrossingFlows(state: EditorState): readonly MarkdownHtmlFlowBounds[] {
+  const cache = getMarkdownHtmlFlowCache(state);
+  if (cache.crossing) return cache.crossing;
+
+  const flows: MarkdownHtmlFlowBounds[] = [];
+  for (let node = syntaxTree(state).topNode.firstChild; node; node = node.nextSibling) {
+    if (!MARKDOWN_HTML_BLOCK_NODE_NAMES.has(node.name)) continue;
+    const endNode = findMarkdownCrossingFlowEnd(state, node);
+    if (!endNode) continue;
+    flows.push({ startNode: node, endNode });
+    node = endNode;
+  }
+  cache.crossing = flows;
+  return flows;
+}
+
+/** The balancing sibling, once at least one non-HTML block has been crossed. */
+function findMarkdownCrossingFlowEnd(state: EditorState, firstNode: SyntaxNode): SyntaxNode | null {
+  const sourceFrom = state.doc.lineAt(firstNode.from).from;
+  const firstStructure = validateMarkdownHtmlBlockStructure(state.sliceDoc(sourceFrom, firstNode.to), sourceFrom);
+  if (firstStructure.status !== "incomplete") return null;
+  const openTags = collectExplicitOpenTags(firstStructure.tokens);
+  if (openTags.length === 0) return null;
+
+  let crossedMarkdown = false;
+  let visited = 0;
+  for (let node = firstNode.nextSibling; node && visited < MARKDOWN_HTML_FLOW_MAX_SIBLINGS; node = node.nextSibling) {
+    visited += 1;
+    if (!MARKDOWN_HTML_BLOCK_NODE_NAMES.has(node.name)) {
+      crossedMarkdown = true;
+      continue;
+    }
+    for (const token of scanMarkdownHtmlTagTokens(state.sliceDoc(node.from, node.to), node.from)) {
+      if (!token.closing) {
+        if (!token.selfClosing) openTags.push(token.tagName);
+      } else if (openTags.at(-1) === token.tagName) {
+        openTags.pop();
+      } else {
+        return null;
+      }
+    }
+    if (openTags.length === 0) return crossedMarkdown ? node : null;
+  }
+  return null;
 }
 
 function findMarkdownHtmlFlowContainingNode(
@@ -118,7 +215,7 @@ function getMarkdownHtmlFlowCache(state: EditorState): MarkdownHtmlFlowCacheEntr
   const tree = syntaxTree(state);
   const existing = markdownHtmlFlowCache.get(state.doc);
   if (existing?.tree === tree) return existing;
-  const created = { tree, byNodeFrom: new Map<number, MarkdownHtmlFlowBounds>() };
+  const created = { tree, byNodeFrom: new Map<number, MarkdownHtmlFlowBounds>(), crossing: null };
   markdownHtmlFlowCache.set(state.doc, created);
   return created;
 }

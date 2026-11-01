@@ -263,12 +263,7 @@ function copySafeAttributes(target: HTMLElement, source: HTMLElement, tagName: s
     }
 
     if (tagName === "font") {
-      const safe = name === "color"
-        ? isSafeColorValue(value.trim(), false)
-        : name === "size"
-          ? /^[+-]?[1-7]$/.test(value.trim())
-          : /^[\w ,-]{1,64}$/.test(value.trim());
-      if (safe) target.setAttribute(name, value.trim());
+      if (isSafeFontAttribute(name, value.trim())) target.setAttribute(name, value.trim());
       else markUnsupported(context, `font ${name} was omitted`, { fatal: false });
       continue;
     }
@@ -458,6 +453,12 @@ function copySafeInlineStyles(
     }
     target.style.setProperty(name, value.trim());
   }
+}
+
+function isSafeFontAttribute(name: string, value: string): boolean {
+  if (name === "color") return isSafeColorValue(value, false);
+  if (name === "size") return /^[+-]?[1-7]$/.test(value);
+  return /^[\w ,-]{1,64}$/.test(value);
 }
 
 function scopeDocumentToken(value: string): string | null {

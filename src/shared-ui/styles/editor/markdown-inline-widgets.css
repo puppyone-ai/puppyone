@@ -154,3 +154,100 @@
 .markdown-codemirror-editor .cm-md-comment {
   color: var(--po-md-markup-color);
 }
+
+/* One callout hue per family; the tint and rule derive from it. */
+.markdown-codemirror-editor .cm-md-callout {
+  --md-callout-color: #448aff;
+  border-left: 0;
+  background: color-mix(in srgb, var(--md-callout-color) 10%, transparent);
+  color: var(--po-md-content-color);
+}
+
+.markdown-codemirror-editor .cm-md-callout-abstract,
+.markdown-codemirror-editor .cm-md-callout-tip { --md-callout-color: #00bfa5; }
+.markdown-codemirror-editor .cm-md-callout-success { --md-callout-color: #08b94e; }
+.markdown-codemirror-editor .cm-md-callout-question,
+.markdown-codemirror-editor .cm-md-callout-warning { --md-callout-color: #ec7500; }
+.markdown-codemirror-editor .cm-md-callout-caution,
+.markdown-codemirror-editor .cm-md-callout-failure,
+.markdown-codemirror-editor .cm-md-callout-danger,
+.markdown-codemirror-editor .cm-md-callout-bug { --md-callout-color: #e93147; }
+.markdown-codemirror-editor .cm-md-callout-example,
+.markdown-codemirror-editor .cm-md-callout-important { --md-callout-color: #7852ee; }
+.markdown-codemirror-editor .cm-md-callout-quote { --md-callout-color: #9e9e9e; }
+
+.markdown-codemirror-editor .cm-md-callout.is-title {
+  border-top-left-radius: var(--po-md-block-radius);
+  border-top-right-radius: var(--po-md-block-radius);
+  color: var(--md-callout-color);
+  font-weight: 600;
+  padding-top: 8px;
+}
+
+.markdown-codemirror-editor .cm-md-callout.is-last {
+  border-bottom-left-radius: var(--po-md-block-radius);
+  border-bottom-right-radius: var(--po-md-block-radius);
+  padding-bottom: 8px;
+}
+
+.markdown-codemirror-editor .cm-md-callout-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 8px;
+  vertical-align: baseline;
+}
+
+.markdown-codemirror-editor .cm-md-callout-icon,
+.markdown-codemirror-editor .cm-md-callout-fold {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+}
+
+.markdown-codemirror-editor .cm-md-callout-fold {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: var(--po-clickable-cursor, default);
+  transform: rotate(90deg);
+  transition: transform 100ms ease-out;
+}
+
+.markdown-codemirror-editor .cm-md-callout-fold.is-folded {
+  transform: none;
+}
+
+.markdown-codemirror-editor .cm-md-footnote-reference {
+  color: var(--po-md-link-color);
+  cursor: var(--po-clickable-cursor, default);
+  font-size: 0.75em;
+}
+
+.markdown-codemirror-editor .cm-md-footnote-definition {
+  color: var(--po-md-link-color);
+  cursor: var(--po-clickable-cursor, default);
+  margin-right: 0.5em;
+}
+
+.markdown-codemirror-editor .cm-md-front-matter-table {
+  display: grid;
+  grid-template-columns: minmax(96px, max-content) minmax(0, 1fr);
+  gap: 4px 16px;
+  margin: 0;
+  padding: 8px 0;
+  color: var(--po-md-content-color);
+  font-size: 0.9em;
+}
+
+.markdown-codemirror-editor .cm-md-front-matter-table dt {
+  color: var(--po-md-markup-color);
+}
+
+.markdown-codemirror-editor .cm-md-front-matter-table dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}

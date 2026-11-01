@@ -1,3 +1,4 @@
+import { getMarkdownFrontMatterEndLine } from "../syntax/markdownFrontMatter";
 import { EditorState, StateField, Text, type ChangeSet } from "@codemirror/state";
 
 type MarkdownHeadingEntry = Readonly<{
@@ -166,6 +167,8 @@ function getSetextHeading(
   lineNumber: number,
 ): { text: string; from: number; setextUnderlineTo?: number } | null {
   if (lineNumber >= doc.lines) return null;
+  const frontMatterEnd = getMarkdownFrontMatterEndLine(doc);
+  if (frontMatterEnd !== null && lineNumber <= frontMatterEnd) return null;
   const line = doc.line(lineNumber);
   const underline = doc.line(lineNumber + 1);
   if (!/^\s{0,3}(?:=+|-+)\s*$/.test(underline.text) || !line.text.trim()) return null;

@@ -58,6 +58,8 @@ export type MarkdownElementBlockData =
     }
   | { kind: "emoji"; emoji: string }
   | { kind: "entity"; source: string }
+  | { kind: "footnote"; marker: "definition" | "reference"; id: string; label: string }
+  | { kind: "frontMatter"; source: string }
   | { kind: "mathBlock"; source: string }
   | { kind: "mathInline"; source: string }
   | { kind: "task"; checked: boolean; task: MarkdownTaskLine }
@@ -80,6 +82,8 @@ export type MarkdownElementKind =
   | "entity"
   | "escape"
   | "fence"
+  | "footnote"
+  | "frontMatter"
   | "heading"
   | "highlight"
   | "htmlBlock"
@@ -101,7 +105,7 @@ export type MarkdownElementKind =
 
 type MarkdownPlainElementKind = Exclude<
   MarkdownElementKind,
-  "emoji" | "entity" | "fence" | "htmlBlock" | "image" | "inlineHtml" | "mathBlock" | "mathInline" | "mdxComponent" | "table" | "task" | "video"
+  "emoji" | "entity" | "fence" | "footnote" | "frontMatter" | "htmlBlock" | "image" | "inlineHtml" | "mathBlock" | "mathInline" | "mdxComponent" | "table" | "task" | "video"
 >;
 
 export type MarkdownPlainElement<K extends MarkdownPlainElementKind = MarkdownPlainElementKind> =
@@ -130,6 +134,8 @@ export type MarkdownHtmlBlockElement = MarkdownFeatureElement<"htmlBlock">;
 export type MarkdownImageElement = MarkdownFeatureElement<"image">;
 export type MarkdownEmojiElement = MarkdownFeatureElement<"emoji">;
 export type MarkdownEntityElement = MarkdownFeatureElement<"entity">;
+export type MarkdownFootnoteElement = MarkdownFeatureElement<"footnote">;
+export type MarkdownFrontMatterElement = MarkdownFeatureElement<"frontMatter">;
 export type MarkdownMathBlockElement = MarkdownFeatureElement<"mathBlock">;
 export type MarkdownMathInlineElement = MarkdownFeatureElement<"mathInline">;
 export type MarkdownMdxComponentElement = MarkdownFeatureElement<"mdxComponent">;
@@ -144,6 +150,8 @@ export type MarkdownElement =
   | MarkdownImageElement
   | MarkdownEmojiElement
   | MarkdownEntityElement
+  | MarkdownFootnoteElement
+  | MarkdownFrontMatterElement
   | MarkdownInlineHtmlElement
   | MarkdownMathBlockElement
   | MarkdownMathInlineElement

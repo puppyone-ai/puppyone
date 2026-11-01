@@ -41,6 +41,8 @@ const MARKDOWN_ELEMENT_CAPABILITIES = {
   entity: { inlineDecoration: true, inlineMarkerDeletion: false, inlineReveal: true },
   escape: { inlineDecoration: true, inlineMarkerDeletion: true, inlineReveal: false },
   fence: { inlineDecoration: false, inlineMarkerDeletion: false, inlineReveal: false },
+  footnote: { inlineDecoration: true, inlineMarkerDeletion: false, inlineReveal: true },
+  frontMatter: { inlineDecoration: false, inlineMarkerDeletion: false, inlineReveal: false },
   heading: { inlineDecoration: false, inlineMarkerDeletion: false, inlineReveal: false },
   highlight: { inlineDecoration: true, inlineMarkerDeletion: true, inlineReveal: true },
   htmlBlock: { inlineDecoration: false, inlineMarkerDeletion: false, inlineReveal: false },
@@ -209,6 +211,7 @@ export function getInlineRevealElement(
 function revealsAtCaretTouch(element: MarkdownElement): boolean {
   return element.kind === "entity"
     || element.kind === "emoji"
+    || element.kind === "footnote"
     || (element.kind === "inlineHtml" && element.inlineHtml.runRole === "owner");
 }
 

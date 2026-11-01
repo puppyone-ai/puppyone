@@ -378,15 +378,17 @@ describe("Markdown HTML cross-surface conformance", () => {
     expect(view.dom.querySelector(".cm-md-html-rendered-surface img")).toBeNull();
   });
 
-  it("never reassembles an HTML flow across a non-HTML parser node", () => {
-    const source = "<div>\n\nMarkdown child\n\n</div>";
+  it("reassembles an HTML flow across Markdown and renders the Markdown inside", () => {
+    const source = "<div>\n\n**Markdown** child\n\n</div>";
     const first = getMarkdownHtmlBlock(createState(source), 1);
 
-    expect(first).toMatchObject({
-      source: "<div>",
-      status: "incomplete",
-    });
-    expect(first?.to).toBe(source.indexOf("\n"));
+    expect(first).toMatchObject({ from: 0, to: source.length, status: "complete" });
+    expect(first?.source).toContain("<strong>Markdown</strong>");
+  });
+
+  it("leaves an HTML flow that never closes as source", () => {
+    const first = getMarkdownHtmlBlock(createState("<div>\n\nMarkdown child"), 1);
+    expect(first).toMatchObject({ source: "<div>", status: "incomplete" });
   });
 
   it("keeps adjacent already-complete HTML blocks as independent plans", () => {

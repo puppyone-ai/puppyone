@@ -64,6 +64,7 @@ export type InlineAtomModel =
   | { kind: "mathInline"; source: string }
   | { kind: "emoji"; emoji: string }
   | { kind: "entity"; source: string }
+  | { kind: "footnote"; marker: "definition" | "reference"; id: string; label: string }
   | {
       kind: "htmlRun";
       tagName: string;
@@ -106,6 +107,7 @@ export type BlockEmbedModel =
     }
   | { kind: "mdxComponent"; name: "Tabs"; tabs: readonly MarkdownMdxTab[]; source: string }
   | { kind: "mathBlock"; source: string }
+  | { kind: "frontMatter"; source: string }
   | { kind: "horizontalRule" };
 
 export type VisibleSourcePlan = {
@@ -168,7 +170,7 @@ export type MarkdownElementPlan =
  * range is atomic while collapsed, so the edges are the only way in.
  */
 export function revealsSourceOnCaretTouch(kind: InlineAtomModel["kind"]): boolean {
-  return kind === "htmlRun" || kind === "entity" || kind === "emoji";
+  return kind === "htmlRun" || kind === "entity" || kind === "emoji" || kind === "footnote";
 }
 
 export function planHasCollapsedMarkerDeletion(plan: MarkdownElementPlan): boolean {
