@@ -1,4 +1,4 @@
-import { Tooltip } from "@puppyone/shared-ui";
+import { LoadingMark, Tooltip } from "@puppyone/shared-ui";
 import { bidiIsolate, useLocalization, type MessageFormatter } from "@puppyone/localization";
 import { useRef, useState, type ButtonHTMLAttributes, type DragEvent as ReactDragEvent } from "react";
 import {
@@ -21,6 +21,8 @@ type ProjectChanges = {
 };
 
 type OnboardingProjectListProps = ProjectChanges & {
+  /** The rows are not settled yet, so the mark stands in for them. */
+  held?: boolean;
   items: ProjectHomeItem[];
   layout?: HomepageProjectLayout;
   onOpenCloudProject?: (projectId: string) => void;
@@ -33,6 +35,7 @@ type OnboardingProjectListProps = ProjectChanges & {
 };
 
 export function OnboardingProjectList({
+  held = false,
   items,
   layout = "grid",
   onOpenCloudProject,
@@ -46,6 +49,13 @@ export function OnboardingProjectList({
 }: OnboardingProjectListProps) {
   const { t, formatRelativeTime } = useLocalization();
   const [actions, setActions] = useState<{ id: string; surface: ProjectActionSurface } | null>(null);
+
+  if (held) return (
+    <div className="onboarding-project-list-wait">
+      <LoadingMark className="onboarding-project-list-loading" layout="area"
+        ariaLabel={t("common.status.loading")} size="md" tone="neutral" />
+    </div>
+  );
 
   return (
     <div
