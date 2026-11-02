@@ -5,7 +5,6 @@ import type { ComponentProps } from "react";
 import {
   useEffect,
   useMemo,
-  useRef,
   useState,
   type DragEvent as ReactDragEvent,
   type ReactNode,
@@ -80,6 +79,8 @@ export type MinimalOnboardingProps = {
   appearance: ResolvedSurfaceAppearance;
 };
 
+const NO_RECENT_WORKSPACES: RecentWorkspaceHomeItem[] = [];
+
 /** Homepage project list. Cloud catalog/auth is supplied by the host, not discovered by the view. */
 /** Once there are projects, every way to start one moves to the head of the page. */
 function onboardingEntrySlots(hasProjects: boolean, {
@@ -108,7 +109,7 @@ export function MinimalOnboarding({
   onRenameProject,
   onRenameCloudProject,
   onDeleteCloudProject,
-  recentWorkspaces = [],
+  recentWorkspaces = NO_RECENT_WORKSPACES,
   projectItems,
   listHeld = false,
   cloudAccountStatus,
@@ -119,6 +120,12 @@ export function MinimalOnboarding({
 }: MinimalOnboardingProps) {
   const { t } = useLocalization();
   const [error, setError] = useState<string | null>(initialError);
+  // A failure handed down replaces what is shown; the page's own actions clear it.
+  const [latestInitialError, setLatestInitialError] = useState(initialError);
+  if (latestInitialError !== initialError) {
+    setLatestInitialError(initialError);
+    setError(initialError);
+  }
   const [openingPath, setOpeningPath] = useState<string | null>(null);
   const [draggingPath, setDraggingPath] = useState<string | null>(null);
   const ownProjectEntryFlow = useProjectEntryFlow();
@@ -137,46 +144,22 @@ export function MinimalOnboarding({
     [projectItems, recentWorkspaces],
   );
 
-  useEffect(() => setError(initialError), [initialError]);
-
-  const openPath = async (path: string) => {
+  /** One opening at a time; if it fails, the reason stays on the page. */
+  const runOpening = async (opening: string, open: () => Promise<void>) => {
     if (openingPath) return;
     setError(null);
-    setOpeningPath(path);
+    setOpeningPath(opening);
     try {
-      await onOpenWorkspacePath(path);
+      await open();
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : String(nextError));
     } finally {
       setOpeningPath(null);
     }
   };
-
-  const chooseFolder = async () => {
-    if (openingPath) return;
-    setError(null);
-    setOpeningPath("__new__");
-    try {
-      await onChooseWorkspace();
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : String(nextError));
-    } finally {
-      setOpeningPath(null);
-    }
-  };
-
-  const openDroppedFolder = async (folder: File) => {
-    if (openingPath) return;
-    setError(null);
-    setOpeningPath("__drop__");
-    try {
-      await onOpenDroppedWorkspace(folder);
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : String(nextError));
-    } finally {
-      setOpeningPath(null);
-    }
-  };
+  const openPath = (path: string) => runOpening(path, () => onOpenWorkspacePath(path));
+  const chooseFolder = () => runOpening("__new__", onChooseWorkspace);
+  const openDroppedFolder = (folder: File) => runOpening("__drop__", () => onOpenDroppedWorkspace(folder));
 
   const busy = [openingPath, cloudOpening].some(Boolean);
   const startProjectDrag = (event: ReactDragEvent<HTMLButtonElement>, item: ProjectHomeItem) => {
@@ -200,16 +183,13 @@ export function MinimalOnboarding({
   // Account/auth controls are page chrome, never synthetic Project rows.
   const hasProjects = items.length > 0 || listHeld;
   const onboardingState: OnboardingHomeState = hasProjects ? "projects" : "empty";
-  const [showEmptyStateIntro, setShowEmptyStateIntro] = useState(() => !hasProjects);
-  const homepageRef = useRef<HTMLElement>(null);
-
-  useEffect(() => {
+  const [showEmptyStateIntro, setShowEmptyStateIntro] = useState(!hasProjects);
+  // The intro belongs to a page that has just become empty, and ends if it fills.
+  const [introHasProjects, setIntroHasProjects] = useState(hasProjects);
+  if (introHasProjects !== hasProjects) {
+    setIntroHasProjects(hasProjects);
     setShowEmptyStateIntro(!hasProjects);
-  }, [hasProjects]);
-
-  useEffect(() => {
-    if (homepageRef.current) homepageRef.current.inert = showEmptyStateIntro;
-  }, [showEmptyStateIntro]);
+  }
 
   useEffect(() => {
     if (!import.meta.env.DEV) return undefined;
@@ -261,10 +241,10 @@ export function MinimalOnboarding({
     >
       <DesktopWindowChrome context={hasProjects ? <OnboardingHeaderBrand /> : undefined} actions={cloudAccountStatus} />
       <section
-        ref={homepageRef}
         className="onboarding-homepage"
         aria-label={t("onboarding.projects.title")}
         aria-hidden={showEmptyStateIntro || undefined}
+        {...(showEmptyStateIntro ? { inert: "" } : {})}
       >
         <OnboardingHomeLayout
           brand={<OnboardingBrandLockup state={onboardingState} resolvedTheme={resolvedTheme} toolbar={(

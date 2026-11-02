@@ -99,6 +99,18 @@ describe("inline Homepage Cloud projects", () => {
     expect(openLocal).toHaveBeenCalledOnce();
   });
 
+  it("keeps one list across renders that change none of its sources", async () => {
+    const localItems = [local];
+    await render({ localItems });
+    const settled = home.items;
+
+    await render({ localItems });
+    expect(home.items).toBe(settled);
+
+    await render({ localItems: [...localItems] });
+    expect(home.items).not.toBe(settled);
+  });
+
   it("never remembers where a project was last opened", async () => {
     await render();
     await click('[data-cloud-project-id="a"] .onboarding-project-row');
