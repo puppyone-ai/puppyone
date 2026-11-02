@@ -429,8 +429,13 @@
   min-height: 0;
   align-content: start;
   gap: 2px;
+  margin: 0;
+  padding-inline: 0;
   padding-block: 8px;
+  list-style: none;
   overflow-y: auto;
+  /* The arrow keys scroll a project clear of the fades at either end. */
+  scroll-padding-block: 8px;
   overflow-x: hidden;
   scrollbar-gutter: stable;
   overscroll-behavior: contain;

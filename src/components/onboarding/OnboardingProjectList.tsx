@@ -12,6 +12,7 @@ import { ProjectRowActions, type ProjectActionSurface } from "../ProjectRowActio
 import { DesktopMenuItem } from "../DesktopMenu";
 import { HomeProjectIcon, ProjectFolder } from "./HomeProjectIcon";
 import { LinkedCloudProjectButton, ProjectHomeItemCaption, useProjectHomeItemCaption } from "./LinkedCloudProjectButton";
+import { useProjectListNavigation } from "./useProjectListNavigation";
 
 type ProjectChanges = {
   onRename?: (path: string, name: string) => Promise<void>;
@@ -49,6 +50,7 @@ export function OnboardingProjectList({
 }: OnboardingProjectListProps) {
   const { t, formatRelativeTime } = useLocalization();
   const [actions, setActions] = useState<{ id: string; surface: ProjectActionSurface } | null>(null);
+  const navigation = useProjectListNavigation(items.map((item) => item.id), layout);
 
   if (held) return (
     <div className="onboarding-project-list-wait">
@@ -58,14 +60,14 @@ export function OnboardingProjectList({
   );
 
   return (
-    <div
+    <ul
+      ref={navigation.listRef}
       className="onboarding-project-list"
       data-project-layout={layout}
       data-po-scrollbar="menu"
       data-po-scrollbar-visibility="always"
-      role="region"
       aria-label={t("onboarding.projects.title")}
-      tabIndex={0}
+      onKeyDown={navigation.onKeyDown}
     >
       {items.map((item) => {
         const name = getProjectName(item, t("onboarding.projects.untitled"));
@@ -74,7 +76,10 @@ export function OnboardingProjectList({
         const dragging = draggingPath === item.localPath;
         const linked = item.linkedCloudProject;
         const modified = formatModificationTime(item.lastModifiedAt, t, formatRelativeTime);
+        const tabIndex = item.id === navigation.stopId ? 0 : -1;
         const open = {
+          "data-project-open": true,
+          tabIndex,
           disabled: busy,
           "aria-busy": openingPath === item.localPath || undefined,
           "aria-label": t(location === "cloud" ? "cloud.home.openCloud" : "cloud.home.openLocal", { project: bidiIsolate(name) }),
@@ -84,11 +89,12 @@ export function OnboardingProjectList({
           onDragEnd,
         };
         return (
-          <div key={item.id} className={`onboarding-project-row-wrap ${linked ? "has-cloud-project" : ""} ${dragging ? "is-dragging" : ""}`}
+          <li key={item.id} className={`onboarding-project-row-wrap ${linked ? "has-cloud-project" : ""} ${dragging ? "is-dragging" : ""}`}
             data-menu-open={surface === "menu" ? "true" : undefined}
             data-project-location={location}
             data-cloud-project-id={item.cloudProjectId}
-            data-linked-cloud-project-id={linked?.id}>
+            data-linked-cloud-project-id={linked?.id}
+            onFocus={() => navigation.setFocusedId(item.id)}>
             {layout === "grid" ? <ProjectTile item={item} name={name} modified={modified} {...open} /> : <DesktopMenuItem
               className="onboarding-project-row"
               role="button"
@@ -100,14 +106,17 @@ export function OnboardingProjectList({
               {...open}
             />}
             {linked && onOpenCloudProject && <LinkedCloudProjectButton project={linked} busy={busy}
-              className="onboarding-project-cloud-link"
+              className="onboarding-project-cloud-link" tabIndex={tabIndex}
               onOpen={() => onOpenCloudProject(linked.id)} />}
-            <ProjectActions item={item} name={name} busy={busy} surface={surface} {...changes}
-              onSurfaceChange={(next) => setActions(next && { id: item.id, surface: next })} />
-          </div>
+            <ProjectActions item={item} name={name} busy={busy} surface={surface} tabIndex={tabIndex} {...changes}
+              onSurfaceChange={(next) => {
+                if (!next) navigation.handOffFocusIfGone(item.id);
+                setActions(next && { id: item.id, surface: next });
+              }} />
+          </li>
         );
       })}
-    </div>
+    </ul>
   );
 }
 
@@ -130,11 +139,12 @@ function offeredProjectChanges({ localPath, cloudProjectId, cloudActions }: Proj
 }
 
 /** Nothing is offered that this account may not do; an entry with nothing to offer has no trigger. */
-function ProjectActions({ item, name, busy, surface, onSurfaceChange, ...changes }: ProjectChanges & {
+function ProjectActions({ item, name, busy, surface, tabIndex, onSurfaceChange, ...changes }: ProjectChanges & {
   item: ProjectHomeItem;
   name: string;
   busy: boolean;
   surface: ProjectActionSurface;
+  tabIndex: number;
   onSurfaceChange: (surface: ProjectActionSurface) => void;
 }) {
   const offered = offeredProjectChanges(item, changes);
@@ -146,6 +156,7 @@ function ProjectActions({ item, name, busy, surface, onSurfaceChange, ...changes
       onSurfaceChange={onSurfaceChange}
       disabled={busy}
       triggerClassName="desktop-menu-icon-button onboarding-project-actions"
+      triggerTabIndex={tabIndex}
       menuPlacement="beside"
       {...offered}
     />

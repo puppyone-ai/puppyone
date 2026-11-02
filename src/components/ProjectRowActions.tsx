@@ -62,6 +62,8 @@ export type ProjectRowActionsProps = Readonly<{
   onDelete?: () => Promise<void>;
   disabled?: boolean;
   triggerClassName?: string;
+  /** For a list that keeps its rows out of the way of the Tab key. */
+  triggerTabIndex?: number;
   menuPlacement?: keyof typeof PROJECT_ACTION_MENU_POSITION;
 }>;
 
@@ -74,6 +76,7 @@ export function ProjectRowActions({
   onDelete,
   disabled = false,
   triggerClassName = "desktop-project-switcher-row-action",
+  triggerTabIndex,
   menuPlacement = "sidebar",
 }: ProjectRowActionsProps) {
   const { t } = useLocalization();
@@ -200,6 +203,7 @@ export function ProjectRowActions({
       <Tooltip content={t("shell.workspaceSwitcher.projectActions")}><button
         className={triggerClassName}
         type="button"
+        tabIndex={triggerTabIndex}
         disabled={disabled}
         aria-label={projectActionsLabel}
         aria-haspopup="menu"

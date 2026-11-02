@@ -346,9 +346,9 @@ describe("project folder home", () => {
     const list = container.querySelector<HTMLElement>(".onboarding-project-list");
     expect(list?.dataset.poScrollbar).toBe("menu");
     expect(list?.dataset.poScrollbarVisibility).toBe("always");
-    expect(list?.getAttribute("role")).toBe("region");
+    expect(list?.tagName).toBe("UL");
     expect(list?.getAttribute("aria-label")).toBe("Projects");
-    expect(list?.tabIndex).toBe(0);
+    expect(list?.hasAttribute("tabindex")).toBe(false);
   });
 
   it("lets the project scrollport use remaining height without fixed list caps", () => {
