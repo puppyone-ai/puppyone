@@ -97,14 +97,25 @@ describe("workspace registry lifecycle", () => {
     expect(persisted.lastActiveWorkbenchWorkspaceId).toBe(first.workspaceId);
   });
 
-  it("does not truncate an active composition to the recent-project limit", async () => {
+  it("does not truncate an active composition", async () => {
     const store = createStore();
     const folders = await createFolders("large-composition", 24);
 
     await store.rememberWorkspaceComposition(folders.map(createWorkspace));
 
     expect(await store.readLastActiveWorkspacePaths()).toHaveLength(24);
-    expect((await store.getRecentWorkspacesResult()).items).toHaveLength(20);
+    expect((await store.getRecentWorkspacesResult()).items).toHaveLength(24);
+  });
+
+  it("keeps every project it has been told about", async () => {
+    const store = createStore();
+    const folders = await createFolders("every-project", 30);
+    for (const folder of folders) await store.rememberRecentWorkspacePath(folder);
+
+    expect((await store.getRecentWorkspacesResult()).items).toHaveLength(30);
+    expect((await store.hydrateRecentWorkspacesResult()).items).toHaveLength(30);
+    const reopened = createStore();
+    expect((await reopened.getRecentWorkspacesResult()).items).toHaveLength(30);
   });
 
   it("serializes interleaved remember and remove mutations without resurrecting removed records", async () => {

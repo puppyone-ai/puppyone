@@ -3,7 +3,6 @@ import fs from "node:fs";
 import path from "node:path";
 
 const WORKSPACE_REGISTRY_VERSION = 7;
-const RECENT_WORKSPACE_LIMIT = 20;
 const HYDRATION_CONCURRENCY = 4;
 
 export function createWorkspaceStateStore({
@@ -159,7 +158,7 @@ export function createWorkspaceStateStore({
       const recentWorkspaceRecords = [
         record,
         ...state.recentWorkspaceRecords.filter((item) => !isSameWorkspaceRecord(item, record)),
-      ].slice(0, RECENT_WORKSPACE_LIMIT);
+      ];
       await writeWorkspaceState(createPersistedState(
         recentWorkspaceRecords,
         [canonicalPath],
@@ -201,7 +200,7 @@ export function createWorkspaceStateStore({
             isSameWorkspaceRecord(record, activeRecord)
           )),
         ),
-      ].slice(0, RECENT_WORKSPACE_LIMIT);
+      ];
       await writeWorkspaceState(createPersistedState(
         recentWorkspaceRecords,
         recordsWithDisplayNames.map((record) => record.path),
@@ -461,7 +460,7 @@ function normalizeWorkspaceState(state) {
     lastActiveWorkspacePath: normalizeOptionalString(state?.lastActiveWorkspacePath)
       ?? records[0]?.path
       ?? null,
-    recentWorkspaceRecords: records.slice(0, RECENT_WORKSPACE_LIMIT),
+    recentWorkspaceRecords: records,
   };
 }
 
