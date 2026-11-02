@@ -116,6 +116,8 @@
   "template.title": "从模板创建",
   "template.paste": "粘贴模板链接",
   "template.noLink": "剪贴板里没有模板链接。请先在模板页复制链接。",
+  "template.linkFailedTitle": "无法打开这个模板链接",
+  "template.linkFailed": "读取链接失败。请重试，或从模板页粘贴链接。",
   "template.fileCount": "{count, plural, other {# 个文件}}",
   "template.getCopy": "取一份副本",
   "template.loading": "加载中…",

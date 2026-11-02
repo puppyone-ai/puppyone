@@ -116,6 +116,8 @@
   "template.title": "Crear desde plantilla",
   "template.paste": "Pegar enlace de plantilla",
   "template.noLink": "No hay ningún enlace de plantilla en el portapapeles. Copia uno desde la página de una plantilla.",
+  "template.linkFailedTitle": "No se pudo abrir este enlace de plantilla",
+  "template.linkFailed": "No se pudo leer el enlace. Inténtalo de nuevo o pégalo desde la página de la plantilla.",
   "template.fileCount": "{count, plural, one {# archivo} other {# archivos}}",
   "template.getCopy": "Obtener una copia",
   "template.loading": "Cargando…",

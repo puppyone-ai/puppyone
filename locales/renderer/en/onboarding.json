@@ -116,6 +116,8 @@
   "template.title": "Create from template",
   "template.paste": "Paste template link",
   "template.noLink": "There's no template link on the clipboard. Copy one from a template page first.",
+  "template.linkFailedTitle": "This template link didn't open",
+  "template.linkFailed": "The link couldn't be read. Try again, or paste it from the template page.",
   "template.fileCount": "{count, plural, one {# file} other {# files}}",
   "template.getCopy": "Get a copy",
   "template.loading": "Loading…",

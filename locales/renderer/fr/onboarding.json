@@ -116,6 +116,8 @@
   "template.title": "Créer à partir d’un modèle",
   "template.paste": "Coller le lien du modèle",
   "template.noLink": "Aucun lien de modèle dans le presse-papiers. Copiez-en un depuis la page d'un modèle.",
+  "template.linkFailedTitle": "Ce lien de modèle ne s'est pas ouvert",
+  "template.linkFailed": "Impossible de lire le lien. Réessayez ou collez-le depuis la page du modèle.",
   "template.fileCount": "{count, plural, one {# fichier} other {# fichiers}}",
   "template.getCopy": "Obtenir une copie",
   "template.loading": "Chargement…",
