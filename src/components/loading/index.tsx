@@ -13,7 +13,7 @@ const SIZE_TO_FONT: Record<LoaderSize, number> = {
 };
 
 export function PageLoading({
-  label = "Loading",
+  label,
   ariaLabel,
   variant = "screen",
   size = "sm",
@@ -21,7 +21,8 @@ export function PageLoading({
   className,
   style,
 }: {
-  label?: ReactNode | null;
+  /** The words beside the mark, or null for none. */
+  label: ReactNode | null;
   ariaLabel?: string;
   variant?: "screen" | "fill";
   size?: LoaderSize;
@@ -49,7 +50,7 @@ export function PageLoading({
         layout="area"
         size={size}
         tone={tone}
-        ariaLabel={ariaLabel || (typeof label === "string" ? label : "Loading")}
+        ariaLabel={ariaLabel || (typeof label === "string" ? label : undefined)}
       />
       {label != null && <span style={{ fontSize, lineHeight: 1.4 }}>{label}</span>}
     </div>
@@ -81,28 +82,30 @@ export function ProjectOpeningLoading({ label, ariaLabel, children }: {
 }
 
 export function InlineLoading({
-  label = "Loading",
+  label,
   size = "xs",
   tone = "neutral",
   className,
   style,
   ariaLabel,
 }: {
-  label?: ReactNode | null;
+  /** The words beside the mark, or null for none. */
+  label: ReactNode | null;
   size?: LoaderSize;
   tone?: LoaderTone;
   className?: string;
   style?: CSSProperties;
   ariaLabel?: string;
 }) {
+  // With no words of its own to announce, the mark's localized name speaks for it.
+  const name = ariaLabel || (typeof label === "string" ? label : undefined);
   return (
     <span
       className={className}
-      role="status"
-      aria-label={ariaLabel || (typeof label === "string" ? label : "Loading")}
+      {...(name ? { role: "status", "aria-label": name } : {})}
       style={{ display: "inline-flex", alignItems: "center", gap: 7, ...style }}
     >
-      <LoadingMark size={size} tone={tone} ariaHidden />
+      <LoadingMark size={size} tone={tone} ariaHidden={Boolean(name)} />
       {label != null && <span>{label}</span>}
     </span>
   );
