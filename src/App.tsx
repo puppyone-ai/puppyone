@@ -1712,8 +1712,11 @@ function AppContent() {
         className={`desktop-theme-bootstrap-surface ${resolvedTheme === "dark" ? "dark" : ""}`}
         {...surfaceAppearance.rootProps}
       >
+        {/* A project on its way only covers the Homepage, which has to be there if the
+            open fails. Once a Cloud project is in, the visit is over, as it is for a local
+            one, so that nothing the page held outlives it. */}
         <div hidden={homepageHidden} style={{ display: homepageHidden ? "none" : "contents" }}>
-          {content}
+          {!cloudWorkspaceActive && content}
         </div>
         {accountCloudSurface}
         {projectOpeningSurface}
