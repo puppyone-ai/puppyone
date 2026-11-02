@@ -32,18 +32,6 @@ export function getResolvedCloudProjectId(context: ProjectCloudContext): string 
   return context.status === "resolved" ? context.projectId : null;
 }
 
-/** Location UI reports association readiness, never account login as Project availability. */
-export function getProjectCloudLocationState(
-  context: ProjectCloudContext,
-  authenticated: boolean,
-): "unavailable" | "available" | "signed-out" | "resolving" | "attention" {
-  if (context.status === "resolved") return "available";
-  if (context.status === "resolving") return "resolving";
-  if (context.status === "local-only") return "unavailable";
-  if (context.status === "wrong-account" && !authenticated) return "signed-out";
-  return "attention";
-}
-
 export function cloudContextHasProject(context: ProjectCloudContext): boolean {
   return Boolean(getResolvedCloudProjectId(context));
 }

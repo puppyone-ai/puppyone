@@ -4,9 +4,9 @@
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { DataPort } from "../../../../packages/shared-ui/src/core/types";
-import { DataWorkspace } from "../../../../packages/shared-ui/src/data/DataWorkspace";
-import { DesktopCloudShell } from "../../../../src/components/DesktopCloudShell";
+import type { DataPort } from "../../../../src/shared-ui/core/types";
+import { DataWorkspace } from "../../../../src/shared-ui/data/DataWorkspace";
+import { ProjectShell } from "../../../../src/components/ProjectShell";
 import { AuxiliaryPanelHost } from "../../../../src/features/app-shell/auxiliary/AuxiliaryPanelHost";
 import { withTestLocalization } from "../../../support/react/localization";
 
@@ -29,8 +29,8 @@ describe("desktop side-pane resize interactions", () => {
     const previous = window.puppyoneDesktop;
     window.puppyoneDesktop = { ...previous, setWindowMinimumWidth } as NonNullable<typeof window.puppyoneDesktop>;
     const shells = (cloudActive: boolean) => withTestLocalization(<>
-      <DesktopCloudShell active={!cloudActive} mainPaneMinWidth={300}><div>Local</div></DesktopCloudShell>
-      <DesktopCloudShell active={cloudActive} mainPaneMinWidth={600}><div>Cloud</div></DesktopCloudShell>
+      <ProjectShell active={!cloudActive} mainPaneMinWidth={300}><div>Local</div></ProjectShell>
+      <ProjectShell active={cloudActive} mainPaneMinWidth={600}><div>Cloud</div></ProjectShell>
     </>);
     render(shells(false));
     expect(setWindowMinimumWidth).toHaveBeenCalledTimes(1);
@@ -357,7 +357,7 @@ describe("desktop side-pane resize interactions", () => {
     const flushFrames = mockAnimationFrames();
     const onWidthChange = vi.fn();
     const container = render(withTestLocalization(
-      <DesktopCloudShell
+      <ProjectShell
         leadingRail={<nav>Projects</nav>}
         leadingRailWidth={220}
         leadingRailMinWidth={160}
@@ -367,7 +367,7 @@ describe("desktop side-pane resize interactions", () => {
         onLeadingRailWidthChange={onWidthChange}
       >
         <div>Editor</div>
-      </DesktopCloudShell>,
+      </ProjectShell>,
     ));
     const handle = requireHandle(container, ".desktop-project-switcher-resizer");
     const shell = requireHandle(container, ".desktop-shell");
@@ -394,7 +394,7 @@ describe("desktop side-pane resize interactions", () => {
     const onCollapsedChange = vi.fn();
     const onWidthChange = vi.fn();
     const container = render(withTestLocalization(
-      <DesktopCloudShell
+      <ProjectShell
         leadingRail={<nav>Projects</nav>}
         leadingRailWidth={220}
         leadingRailMinWidth={160}
@@ -407,7 +407,7 @@ describe("desktop side-pane resize interactions", () => {
         onLeadingRailWidthChange={onWidthChange}
       >
         <div>Editor</div>
-      </DesktopCloudShell>,
+      </ProjectShell>,
     ));
     const handle = requireHandle(container, ".desktop-project-switcher-resizer");
     const shell = requireHandle(container, ".desktop-shell");
@@ -432,7 +432,7 @@ describe("desktop side-pane resize interactions", () => {
     const onCollapsedChange = vi.fn();
     const onWidthChange = vi.fn();
     const container = render(withTestLocalization(
-      <DesktopCloudShell
+      <ProjectShell
         leadingRail={<nav>Projects</nav>}
         leadingRailWidth={220}
         leadingRailMinWidth={160}
@@ -445,7 +445,7 @@ describe("desktop side-pane resize interactions", () => {
         onLeadingRailWidthChange={onWidthChange}
       >
         <div>Editor</div>
-      </DesktopCloudShell>,
+      </ProjectShell>,
     ));
     const handle = requireHandle(container, ".desktop-project-switcher-resizer");
 
@@ -477,7 +477,7 @@ describe("desktop side-pane resize interactions", () => {
     const onCollapsedChange = vi.fn();
     const onWidthChange = vi.fn();
     const container = render(withTestLocalization(
-      <DesktopCloudShell
+      <ProjectShell
         leadingRail={<nav>Projects</nav>}
         leadingRailWidth={220}
         leadingRailMinWidth={160}
@@ -491,7 +491,7 @@ describe("desktop side-pane resize interactions", () => {
         onLeadingRailWidthChange={onWidthChange}
       >
         <div>Editor</div>
-      </DesktopCloudShell>,
+      </ProjectShell>,
     ));
     const handle = requireHandle(container, ".desktop-project-switcher-resizer");
     const shell = requireHandle(container, ".desktop-shell");
@@ -516,7 +516,7 @@ describe("desktop side-pane resize interactions", () => {
     const onCollapsedChange = vi.fn();
     const onWidthChange = vi.fn();
     const container = render(withTestLocalization(
-      <DesktopCloudShell
+      <ProjectShell
         renderLeadingRail={({ expanded }) => (
           <nav data-preview-expanded={expanded ? "true" : "false"}>Projects</nav>
         )}
@@ -532,7 +532,7 @@ describe("desktop side-pane resize interactions", () => {
         onLeadingRailWidthChange={onWidthChange}
       >
         <div>Editor</div>
-      </DesktopCloudShell>,
+      </ProjectShell>,
     ));
     const handle = requireHandle(container, ".desktop-project-switcher-resizer");
 
@@ -560,7 +560,7 @@ describe("desktop side-pane resize interactions", () => {
     const onCollapsedChange = vi.fn();
     const onWidthChange = vi.fn();
     const container = render(withTestLocalization(
-      <DesktopCloudShell
+      <ProjectShell
         leadingRail={<nav>Projects</nav>}
         leadingRailWidth={160}
         leadingRailMinWidth={160}
@@ -574,7 +574,7 @@ describe("desktop side-pane resize interactions", () => {
         onLeadingRailWidthChange={onWidthChange}
       >
         <div>Editor</div>
-      </DesktopCloudShell>,
+      </ProjectShell>,
     ));
     const handle = requireHandle(container, ".desktop-project-switcher-resizer");
     const frame = requireHandle(container, ".desktop-shell-leading-rail");

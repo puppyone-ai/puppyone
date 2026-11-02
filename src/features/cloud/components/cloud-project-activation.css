@@ -24,21 +24,6 @@
     text-align: start;
   }
 
-  /* The switch dialog already provides the surface edge. */
-  .desktop-cloud-workspace-switch-content .desktop-cloud-project-activation {
-    width: 100%;
-    border: 0;
-    border-radius: 0;
-  }
-
-  /* Short windows scroll the values under a persistent action row. */
-  .desktop-cloud-workspace-switch-content .desktop-cloud-project-activation-footer {
-    position: sticky;
-    bottom: 0;
-    z-index: 2;
-    background: var(--po-canvas);
-  }
-
   /* Local folder → Cloud → Agents. Decorative except the named Agent list. */
   /* The band borrows the committed Cloud Header tint so it reads as "the Cloud side". */
   .desktop-cloud-project-journey {
@@ -469,37 +454,4 @@
     .desktop-cloud-project-journey { min-height: 0; padding-block: 18px 30px; }
     .desktop-cloud-project-activation-body { padding-top: 18px; }
   }
-
-  .desktop-cloud-project-connection-error {
-    display: grid;
-    gap: 4px;
-    padding: 10px 12px;
-    border: 1px solid color-mix(in srgb, var(--po-warning) 28%, var(--po-border));
-    border-radius: 8px;
-    background: color-mix(in srgb, var(--po-warning) 7%, transparent);
-    color: var(--po-text-muted);
-    font: inherit;
-  }
-
-  .desktop-cloud-project-connection-error p { margin: 0; }
-  .desktop-cloud-project-connection-error > p:first-child { color: var(--po-text); font-weight: var(--po-text-weight-medium, 500); }
-  .desktop-cloud-project-connection-error summary {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    color: inherit;
-    list-style: none;
-  }
-
-  .desktop-cloud-project-connection-error summary::-webkit-details-marker { display: none; }
-  .desktop-cloud-project-connection-error summary:hover { color: var(--po-text); }
-  .desktop-cloud-project-connection-error summary:focus-visible {
-    border-radius: var(--desktop-control-radius);
-    outline: 2px solid var(--po-focus-ring);
-    outline-offset: 3px;
-  }
-
-  .desktop-cloud-project-connection-error summary svg { flex: 0 0 auto; }
-  .desktop-cloud-project-connection-error details[open] summary svg { transform: rotate(90deg); }
-  .desktop-cloud-project-connection-error details p { margin-top: 8px; }
 }

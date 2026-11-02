@@ -10,9 +10,9 @@ import {
   type MarkdownWorkspaceEnvironment,
 } from "@puppyone/shared-ui";
 import { withTestLocalization } from "../../../../../support/react/localization";
-import { MarkdownCodeMirrorEditor } from "../../../../../../packages/shared-ui/src/editor/markdown/MarkdownCodeMirrorEditor";
+import { MarkdownCodeMirrorEditor } from "../../../../../../src/shared-ui/editor/markdown/MarkdownCodeMirrorEditor";
 import { requireEditorView } from "../../../../../support/editor/editorView";
-import { markdownLinkGraphFacet } from "../../../../../../packages/shared-ui/src/editor/markdown/core/editor/markdownLivePreviewContext";
+import { markdownLinkGraphFacet } from "../../../../../../src/shared-ui/editor/markdown/core/editor/markdownLivePreviewContext";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;

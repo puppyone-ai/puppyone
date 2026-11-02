@@ -9,13 +9,13 @@ import { isCloudContextRecovery } from "../project/context";
 import type { CloudServiceMainViewProps } from "../types";
 
 /** Preparation content has no services navigation or authority to select Cloud. */
-export function CloudFileWorkspaceGate(props: CloudServiceMainViewProps & { compactSignIn?: boolean }) {
+export function CloudFileWorkspaceGate(props: CloudServiceMainViewProps) {
   const { t } = useLocalization();
   const { cloudAuthState, cloudEnvironment, projectContext, workspace, status, loading, error,
     cloudPublishState, cloudPublishStateLoading, onCloudSessionChange, onRefresh } = props;
   const session = getCloudAuthSession(cloudAuthState);
   if (!session) {
-    return <CloudSignedOutRoute compact={props.compactSignIn} activeSection="contents" authState={cloudAuthState}
+    return <CloudSignedOutRoute activeSection="contents" authState={cloudAuthState}
       apiBaseUrl={cloudEnvironment.apiBaseUrl} loadingLabel={t("cloud.loading.session")} />;
   }
   if (projectContext?.status === "local-only" || cloudPublishState || cloudPublishStateLoading) {

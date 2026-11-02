@@ -288,7 +288,7 @@ describe("Desktop Terminal architecture boundaries", () => {
 
   it("keeps plain output close to editor text while preserving ANSI tiers", () => {
     const tokens = source("src/styles/tokens.css");
-    const neutralTheme = source("sub-themes/default-neutral/theme.css");
+    const neutralTheme = source("src/features/themes/builtin/default-neutral/theme.css");
     const light = terminalNeutralTier(neutralTheme, ":root");
     const dark = terminalNeutralTier(neutralTheme, ".dark .theme-root");
 

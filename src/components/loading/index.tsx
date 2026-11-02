@@ -56,6 +56,30 @@ export function PageLoading({
   );
 }
 
+/**
+ * The one mark a project shows from the moment it is chosen until its first
+ * document appears, in the region the document will fill. `label` and `children`
+ * hang below the mark, so they can come and go without moving it.
+ */
+export function ProjectOpeningLoading({ label, ariaLabel, children }: {
+  label?: ReactNode;
+  ariaLabel?: string;
+  children?: ReactNode;
+}) {
+  const detail = label != null || children != null;
+  return (
+    <div className="desktop-project-opening" role="status" aria-live="polite" aria-atomic="true" aria-label={ariaLabel}>
+      <LoadingMark layout="area" size="md" tone="neutral" ariaHidden />
+      {detail && (
+        <div className="desktop-project-opening-detail">
+          {label != null && <p className="desktop-project-opening-label">{label}</p>}
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function InlineLoading({
   label = "Loading",
   size = "xs",

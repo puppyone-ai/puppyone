@@ -20,7 +20,6 @@
 @import "./styles/titlebar.css" layer(features);
 @import "./features/app-shell/header-editor-columns.css" layer(features);
 @import "./features/app-shell/project-context-asset-mark.css" layer(features);
-@import "./features/app-shell/cloud-workspace-preparation.css" layer(features);
 @import "./features/app-shell/project-switcher-rail.css" layer(features);
 @import "./features/editor-workbench/layout/desktop-editor-split-view.css" layer(features);
 @import "./styles/dialogs.css" layer(features);
@@ -30,6 +29,7 @@
 @import "./styles/sidebar/patterns.css" layer(patterns);
 @import "./styles/settings.css" layer(features);
 @import "./styles/entry-state.css" layer(patterns);
+@import "./styles/project-opening.css" layer(features);
 @import "./features/cloud/cloud-service.css" layer(features);
 @import "./styles/settings-controls.css" layer(features);
 @import "./features/source-control/source-control.css" layer(features);
@@ -42,7 +42,6 @@
 @import "./styles/onboarding-empty-state-intro.css" layer(features);
 @import "./styles/onboarding.css" layer(features);
 @import "./styles/onboarding-entry-dialog.css" layer(features);
-@import "./styles/asset-library-home.css" layer(features);
 @import "./features/data-workspace/browser.css" layer(features);
 @import "./features/plugins/plugins.css" layer(features);
 @import "./ai-edits/ai-edits.css" layer(features);

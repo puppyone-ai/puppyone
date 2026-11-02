@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const errors = [];
 
-const publishContract = JSON.parse(read("contracts/cloud-project-publish-v1.json"));
+const publishContract = JSON.parse(read("tests/fixtures/cloud/contracts/cloud-project-publish-v1.json"));
 if (
   publishContract.contract !== "puppyone.cloud-project-publish"
   || publishContract.version !== 1
@@ -23,35 +23,35 @@ if (
   errors.push("the cross-repository Cloud Project publish contract is incomplete or incompatible");
 }
 
-const workspaceFacade = read("local-api/workspace.mjs");
+const workspaceFacade = read("electron/local-api/workspace.mjs");
 
 const requiredBoundaries = [
   {
-    path: "local-api/files/path-policy.mjs",
+    path: "electron/local-api/files/path-policy.mjs",
     exports: ["normalizeRelativePath", "resolveExistingWorkspacePath", "resolveWorkspacePath"],
   },
   {
-    path: "local-api/files/file-format-policy.mjs",
+    path: "electron/local-api/files/file-format-policy.mjs",
     exports: ["classifyLocalFile", "getMimeType", "isLocalFilePreviewable", "resolveCopyNameExtension"],
   },
   {
-    path: "local-api/git/source-control-model.mjs",
+    path: "electron/local-api/git/source-control-model.mjs",
     exports: ["buildGitSourceControlSnapshot", "gitStatusLabelToLetter", "uniqueGitPaths"],
   },
   {
-    path: "local-api/git/cloud-remote.mjs",
+    path: "electron/local-api/git/cloud-remote.mjs",
     exports: ["createWorkspaceCloudRemoteActions"],
   },
   {
-    path: "local-api/git/sync-config.mjs",
+    path: "electron/local-api/git/sync-config.mjs",
     exports: ["readGitBranchBinding", "readGitPullPolicyArgs", "readOptionalGitConfig"],
   },
   {
-    path: "local-api/git/sync-target.mjs",
+    path: "electron/local-api/git/sync-target.mjs",
     exports: ["createGitSyncTargetPolicy", "normalizeCurrentBranchName", "splitRemoteBranchName"],
   },
   {
-    path: "local-api/workspace-config.mjs",
+    path: "electron/local-api/workspace-config.mjs",
     exports: ["readPuppyoneWorkspaceConfig", "writePuppyoneWorkspaceConfig"],
   },
 ];
@@ -86,7 +86,7 @@ const retiredFacadeImplementations = [
 ];
 for (const retiredImplementation of retiredFacadeImplementations) {
   if (workspaceFacade.includes(retiredImplementation)) {
-    errors.push(`local-api/workspace.mjs reabsorbed ${retiredImplementation}`);
+    errors.push(`electron/local-api/workspace.mjs reabsorbed ${retiredImplementation}`);
   }
 }
 
@@ -100,12 +100,12 @@ for (const requiredImport of [
   'from "./workspace-config.mjs"',
 ]) {
   if (!workspaceFacade.includes(requiredImport)) {
-    errors.push(`local-api/workspace.mjs must delegate through ${requiredImport}`);
+    errors.push(`electron/local-api/workspace.mjs must delegate through ${requiredImport}`);
   }
 }
 
 const localApiFiles = [
-  "local-api/workspace.mjs",
+  "electron/local-api/workspace.mjs",
   ...requiredBoundaries.map(({ path: boundaryPath }) => boundaryPath),
 ];
 for (const relativePath of localApiFiles) {
@@ -115,12 +115,12 @@ for (const relativePath of localApiFiles) {
   }
 }
 
-const formatPolicy = read("local-api/files/file-format-policy.mjs");
-if (!formatPolicy.includes("packages/shared-ui/src/core/fileFormats.json")) {
+const formatPolicy = read("electron/local-api/files/file-format-policy.mjs");
+if (!formatPolicy.includes("shared/fileFormats.json")) {
   errors.push("the local file-format policy must consume the canonical Shared UI registry");
 }
 
-const pathPolicy = read("local-api/files/path-policy.mjs");
+const pathPolicy = read("electron/local-api/files/path-policy.mjs");
 if (
   !/RESOURCE_URI_LIKE_PATTERN/.test(pathPolicy)
   || !/Workspace paths must be provider-relative, not Resource URIs/.test(pathPolicy)

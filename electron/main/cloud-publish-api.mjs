@@ -243,17 +243,23 @@ export function validateCanonicalCloudGitRemoteUrl(remoteUrl, {
   ) {
     throw createPublishError("CREDENTIAL_FAILED", "Cloud returned an unsafe Git remote URL.", false);
   }
+  // The remote must belong to the Cloud this app is paired with, exactly as the
+  // Renderer trusts it when the folder is opened again
+  // (src/features/cloud/workspace/workspaceGitRemote.ts): the API origin, or,
+  // only for loopback API development, an explicitly configured HTTPS Git
+  // origin. Another *.puppyone.ai deployment is another environment; writing
+  // its remote would link the folder to a Cloud this app cannot open.
   const allowedOrigins = new Set([api.origin.toLowerCase()]);
-  if (configuredGitOrigin) {
+  const apiIsLoopback = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(api.hostname);
+  if (configuredGitOrigin && apiIsLoopback) {
     try {
-      allowedOrigins.add(new URL(configuredGitOrigin).origin.toLowerCase());
+      const configured = new URL(configuredGitOrigin);
+      if (configured.protocol === "https:") allowedOrigins.add(configured.origin.toLowerCase());
     } catch {
       // Invalid deployment configuration does not widen the trust boundary.
     }
   }
-  const apiIsPuppyone = api.hostname === "puppyone.ai" || api.hostname.endsWith(".puppyone.ai");
-  const remoteIsPuppyone = remote.hostname === "puppyone.ai" || remote.hostname.endsWith(".puppyone.ai");
-  if (!allowedOrigins.has(remote.origin.toLowerCase()) && !(apiIsPuppyone && remoteIsPuppyone)) {
+  if (!allowedOrigins.has(remote.origin.toLowerCase())) {
     throw createPublishError("CREDENTIAL_FAILED", "Cloud returned a Git remote outside the trusted Cloud origin.", false);
   }
   return remote.toString();

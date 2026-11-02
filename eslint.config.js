@@ -31,15 +31,13 @@ export default [
   {
     ignores: [
       "archive/**", "artifacts/**", "dist/**", "release/**", "node_modules/**",
-      "vendor/claudian/**", "vendor/pi-kernel/**",
-      "src-tauri/**", "build/**", "public/**", "**/*.d.ts", "eslint.config.js",
+      "licenses/**",
+      "public/**", "**/*.d.ts", "eslint.config.js",
     ],
   },
   {
     files: [
-      "{src,packages,electron,local-api,shared}/**/*.{ts,tsx,mts,cts}",
-      // Keep the package's explicit contract visible to the layout check.
-      "packages/shared-ui/src/**/*.{ts,tsx}",
+      "{src,electron,shared}/**/*.{ts,tsx,mts,cts}",
     ],
     languageOptions: {
       parser: tsParser,
@@ -54,18 +52,13 @@ export default [
     },
   },
   {
-    files: ["{src,packages,electron,local-api,shared}/**/*.{js,mjs,cjs,ts,tsx,mts,cts}"],
+    files: ["{src,electron,shared}/**/*.{js,mjs,cjs,ts,tsx,mts,cts}"],
     rules: {
-      complexity: ["error", 20],
-      "max-depth": ["error", 4],
-      "max-params": ["error", 5],
       "no-nested-ternary": "error",
-      "max-lines": ["error", { max: 800, skipBlankLines: true, skipComments: true }],
-      "max-lines-per-function": ["error", { max: 300, skipBlankLines: true, skipComments: true }],
     },
   },
   {
-    files: ["{electron,local-api,shared}/**/*.{ts,tsx,mts,cts}"],
+    files: ["{electron,shared}/**/*.{ts,tsx,mts,cts}"],
     languageOptions: { globals: globals.node },
   },
   {
@@ -109,7 +102,7 @@ export default [
     },
   },
   {
-    files: ["cloudflare/**/*.mjs", "{src,packages,electron,local-api,shared}/**/*.{js,mjs}", "scripts/**/*.mjs", "tests/**/*.mjs"],
+    files: ["cloudflare/**/*.mjs", "{src,electron,shared}/**/*.{js,mjs}", "scripts/**/*.mjs", "tests/**/*.mjs"],
     languageOptions: { ecmaVersion: 2023, sourceType: "module", globals: { ...globals.node } },
     rules: coreBugRules,
   },

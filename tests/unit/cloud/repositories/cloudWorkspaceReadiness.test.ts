@@ -57,6 +57,20 @@ describe('workspace readiness', () => {
     expect(api).toHaveBeenCalledTimes(4);
   });
 
+  it('names the wait from the server phase while a workspace starts', async () => {
+    const row = liveWorkbench();
+    const operation = (phase: string) => ({ pending: true, phase, deadline: new Date(Date.now() + 60_000).toISOString(), error: null, retryable: false });
+    api.mockResolvedValueOnce({ workspace: null })
+      .mockResolvedValueOnce({ ...row, state: 'allocating', operation: operation('allocating') })
+      .mockResolvedValueOnce({ workspace: { ...row, state: 'allocating', operation: operation('initializing') } })
+      .mockResolvedValueOnce({ workspace: row, entries: [] });
+    const source = client();
+    const phases: string[] = [];
+    source.openingProgress.subscribe(() => phases.push(source.openingProgress.getSnapshot()));
+    await source.ensure();
+    expect(phases).toEqual(['connecting', 'files']);
+  });
+
   it('starts bounded waiting immediately and adds no delay after a long reply', async () => {
     vi.useFakeTimers();
     const row = liveWorkbench();

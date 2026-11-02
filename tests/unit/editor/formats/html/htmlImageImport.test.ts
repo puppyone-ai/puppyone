@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createDocumentAssetImportPort } from "../../../../../packages/shared-ui/src/editor/resource/DocumentAssetImport";
+import { createDocumentAssetImportPort } from "../../../../../src/shared-ui/editor/resource/DocumentAssetImport";
 const png = () => new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 0])], "../unsafe-name.png", { type: "image/png" });
 
 describe("document image import capability", () => {

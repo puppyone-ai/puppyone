@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DesktopCloudSynchronizeBinding } from "../../../../src/lib/cloudApi";
 import { buildCloudAutomationRows, getCloudAutomationWebPath } from "../../../../src/features/automation";
-import { getCloudRoute, normalizeCloudSection } from "../../../../src/features/cloud/routes/cloudRoutes";
+import { CLOUD_ROUTES, normalizeCloudSection } from "../../../../src/features/cloud/routes/cloudRoutes";
 
 const binding: DesktopCloudSynchronizeBinding = {
   id: "binding-id", project_id: "project-1", provider: "url", direction: "inbound",
@@ -30,8 +30,8 @@ describe("Automation resource identity", () => {
     expect(rows[0]).not.toHaveProperty("connector");
   });
 
-  it("preserves the Automation product route and established Cloud web path", () => {
-    expect(getCloudRoute("automation").labelId).toBe("cloud.route.automation.label");
+  it("keeps the Cloud web path while the Automation route is not registered", () => {
+    expect(CLOUD_ROUTES.map((route) => route.id)).not.toContain("automation");
     expect(getCloudAutomationWebPath("project/a")).toBe("/projects/project%2Fa/workflows");
     expect(normalizeCloudSection("integrations")).toBe("contents");
   });

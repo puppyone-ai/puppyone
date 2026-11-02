@@ -12,11 +12,10 @@ const skippedDirectories = new Set([
   "artifacts",
   "coverage",
   "dist",
+  "licenses",
   "node_modules",
-  "vendor",
 ]);
 const skippedFiles = new Set([
-  "THIRD_PARTY_NOTICES.md",
   "package-lock.json",
 ]);
 const productName = String.raw`(?:Notion|Linear|Cursor|MarkText|VS[ -]?Code|Figma|Slack|Airtable|Obsidian|GitHub)`;

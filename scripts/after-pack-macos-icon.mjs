@@ -1,5 +1,5 @@
 import path from "node:path";
-import { resolveMacosIconBuildInputs, verifyMacosAppIcon } from "../tooling/desktop/build/macos-app-icon.mjs";
+import { resolveMacosIconBuildInputs, verifyMacosAppIcon } from "./desktop/build/macos-app-icon.mjs";
 
 export default async function verifyMacosIconAfterPack(context) {
   if (context.electronPlatformName !== "darwin") return;

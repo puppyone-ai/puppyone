@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ipcErrorMessage } from "../../../../packages/shared-ui/src/core/ipcErrorMessage";
+import { ipcErrorMessage } from "../../../../src/shared-ui/core/ipcErrorMessage";
 
 describe("IPC error messages shown to users", () => {
   it("drops Electron's channel wrapper and the nested Error prefix", () => {

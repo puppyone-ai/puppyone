@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import {
   flushActiveDocumentSessions,
   registerActiveDocumentSession,
-} from "../../../../packages/shared-ui/src/editor/document-session/activeDocumentSessions";
-import { DocumentEditingSession } from "../../../../packages/shared-ui/src/editor/document-session/DocumentEditingSession";
-import type { DocumentEditingSessionHandle } from "../../../../packages/shared-ui/src/editor/document-session/types";
+} from "../../../../src/shared-ui/editor/document-session/activeDocumentSessions";
+import { DocumentEditingSession } from "../../../../src/shared-ui/editor/document-session/DocumentEditingSession";
+import type { DocumentEditingSessionHandle } from "../../../../src/shared-ui/editor/document-session/types";
 
 describe("active Document Session registry", () => {
   it("drains every registered session and forgets unmounted sessions", async () => {

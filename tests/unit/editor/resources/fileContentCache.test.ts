@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { FileContent } from "../../../../packages/shared-ui/src/core/types";
+import type { FileContent } from "../../../../src/shared-ui/core/types";
 import {
   FILE_CONTENT_CACHE_MAX_CHARACTERS,
   FILE_CONTENT_CACHE_MAX_ENTRIES,
   putBoundedFileContent,
-} from "../../../../packages/shared-ui/src/data/file-open/fileContentCache";
+} from "../../../../src/shared-ui/data/file-open/fileContentCache";
 
 describe("bounded file content cache", () => {
   it("retains only the most recently used entry count", () => {

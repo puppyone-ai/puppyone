@@ -136,13 +136,28 @@ export function createCloudAuthService({
         const receiveSession = createBrowserSessionReceiver({
           state, webOrigin: web.origin,
           onSession: async (refreshToken) => {
-            const pending = pendingOAuthStates.get(state);
-            if (!pending || now() - pending.createdAt >= OAUTH_STATE_TTL_MS || pending.generation !== sessionGeneration) throw createSessionChangedError();
-            clearPendingOAuthState(state, { keepCallbackServer: true });
-            // Supabase validates and rotates the isolated browser credential.
-            // The browser cannot assert a user ID or inject an access token.
-            const data = await supabaseAuth.refresh(normalizedApiBase, refreshToken);
-            return finishNativeSignIn(pending, data);
+            try {
+              const pending = pendingOAuthStates.get(state);
+              if (!pending || now() - pending.createdAt >= OAUTH_STATE_TTL_MS || pending.generation !== sessionGeneration) throw createSessionChangedError();
+              clearPendingOAuthState(state, { keepCallbackServer: true });
+              // Supabase validates and rotates the isolated browser credential.
+              // The browser cannot assert a user ID or inject an access token.
+              const data = await supabaseAuth.refresh(normalizedApiBase, refreshToken);
+              return await finishNativeSignIn(pending, data);
+            } catch (error) {
+              // The browser already left the login page; this attempt cannot
+              // finish. Never leave Desktop waiting on a closed listener.
+              failBrowserSignIn(state, error);
+              throw error;
+            }
+          },
+          onRejected: (rejection) => {
+            logger.warn?.("Cloud sign-in handoff was rejected.", describeHandoffRejection(rejection));
+            // Only the real login page knows this attempt's state. Its handoff
+            // cannot be repeated, so report the failure instead of waiting.
+            if (rejection.matchedState) {
+              failBrowserSignIn(state, new Error(describeHandoffRejectionMessage(rejection)), { closeListener: true });
+            }
           },
         });
         callbackServer = await startCallbackServer({
@@ -221,13 +236,26 @@ export function createCloudAuthService({
       const data = await supabaseAuth.exchange(pending.apiBase, code, pending.verifier);
       return await finishNativeSignIn(pending, data);
     } catch (error) {
-      logger.error?.("Cloud OAuth callback failed:", safeErrorMessage(error));
-      if (!runtimeSession) setAuthStatus(credential ? "offline-authenticated" : "signed-out", { broadcast: false });
-      broadcastAuthError(safeErrorMessage(error, "Cloud sign-in failed."));
-      broadcastPublicState();
-      revealWindow();
+      reportSignInFailure("Cloud OAuth callback failed:", error);
       return null;
     }
+  }
+
+  function failBrowserSignIn(state, error, { closeListener = false } = {}) {
+    // A failed handoff closes its own loopback listener; a rejected one is
+    // closed here. Either way the attempt is released so "Open it again"
+    // starts a fresh one.
+    clearPendingOAuthState(state, { keepCallbackServer: !closeListener });
+    reportSignInFailure("Cloud sign-in handoff failed:", error);
+  }
+
+  function reportSignInFailure(context, error) {
+    logger.error?.(context, safeErrorMessage(error));
+    // A sign-out in progress owns the status until it finishes clearing.
+    if (!runtimeSession && authStatus !== "signing-out") setAuthStatus(credential ? "offline-authenticated" : "signed-out", { broadcast: false });
+    broadcastAuthError(safeErrorMessage(error, "Cloud sign-in failed."));
+    broadcastPublicState();
+    revealWindow();
   }
 
   async function finishNativeSignIn(pending, data) {
@@ -710,6 +738,21 @@ export function createCloudAuthService({
     clearSession,
     dispose,
   };
+}
+
+function describeHandoffRejection({ reason, origin, matchedState }) {
+  return {
+    reason,
+    matchedState: Boolean(matchedState),
+    ...(reason === "origin" ? { origin: typeof origin === "string" ? origin.slice(0, 200) : null } : {}),
+  };
+}
+
+function describeHandoffRejectionMessage({ reason, origin }) {
+  if (reason === "origin") {
+    return `The sign-in page could not be verified (origin ${typeof origin === "string" ? origin.slice(0, 200) : "missing"}). Please try again.`;
+  }
+  return "The sign-in page sent an invalid response. Please try again.";
 }
 
 export function createPkceVerifier(randomBytes = crypto.randomBytes) {

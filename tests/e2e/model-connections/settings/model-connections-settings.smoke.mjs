@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { app, BrowserWindow } from "electron";
 import { getDesktopBuildChannelPolicy } from "../../../../shared/desktop-build-identity.mjs";
-import { workspaceFromPath } from "../../../../local-api/workspace.mjs";
+import { workspaceFromPath } from "../../../../electron/local-api/workspace.mjs";
 import { createWorkspaceStateStore } from "../../../../electron/main/workspace-state-store.mjs";
 
 const repo = path.resolve(import.meta.dirname, "../../../..");

@@ -5,9 +5,9 @@ import { requireEditorView } from "../../../../../support/editor/editorView";
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MarkdownCodeMirrorEditor } from "../../../../../../packages/shared-ui/src/editor/markdown/MarkdownCodeMirrorEditor";
-import { markdownLivePreviewDecorations } from "../../../../../../packages/shared-ui/src/editor/markdown/core/decorations/livePreviewDecorations";
-import * as markdownExtensions from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
+import { MarkdownCodeMirrorEditor } from "../../../../../../src/shared-ui/editor/markdown/MarkdownCodeMirrorEditor";
+import { markdownLivePreviewDecorations } from "../../../../../../src/shared-ui/editor/markdown/core/decorations/livePreviewDecorations";
+import * as markdownExtensions from "../../../../../../src/shared-ui/editor/markdown/markdownCodeMirrorExtensions";
 import { testT, withTestLocalization } from "../../../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

@@ -1,16 +1,11 @@
 <div align="center">
-  <img src="public/assets/brand/puppy/puppy-dark.svg" alt="puppyone Logo" width="72" height="72" />
+  <img src="assets/brand/puppy/puppy-app-image.png" alt="puppyone Logo" width="88" height="88" />
 
   <h1>puppyone</h1>
 
-  <p>The (local/cloud) folder built for your agents.</p>
+  <p>The (local & cloud) folder built for your agents.</p>
 
   
-  <p>
-    <a href="https://www.puppyone.ai/download"><b>Download for macOS</b></a> ·
-    <a href="https://www.puppyone.ai/download"><b>Download for Windows</b></a>
-  </p>
-
   <p>
     <a href="https://www.puppyone.ai"><img src="https://img.shields.io/badge/Website-puppyone.ai-39BC66?style=flat-square" alt="Website" /></a>
     <a href="https://www.puppyone.ai/doc"><img src="https://img.shields.io/badge/Docs-Read-D7F3FF?style=flat-square&logo=readthedocs&logoColor=black" alt="Documentation" /></a>
@@ -19,104 +14,63 @@
   </p>
 </div>
 
+puppyone started with a very simple question:
 
+You have a bunch of files on your computer. How do you let the agent on your phone edit them, or your teammates' agents edit them, or an agent on another computer edit them?
+So we built puppyone, a local & cloud folder for agents. Put your files in the cloud folder, and you and every agent in your organization can read and write them.
 ![A folder open in puppyone](public/assets/media/screenshots/puppyone-editor-overview.png)
 
-puppyone opens any folder on your computer. Your documents, spreadsheets, slides,
-PDFs and web pages stay as ordinary files you can just open — nothing to upload,
-nothing to migrate. Let AI agents work in that folder: every change is tracked in
-Git, down to a redline view for Word documents, and anything can be rolled back.
-When you need it online, put the folder in puppyone Cloud and it stays on after
-you close your laptop.
+## Get started
 
-**Agents come and go. Your folder stays.**
+1. **Get puppyone.**
 
-## It's a folder. Everything's already in it.
+   <a href="https://www.puppyone.ai/download"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/download-macos-dark.svg"><img src="assets/readme/download-macos-light.svg" alt="Download for macOS" width="196"></picture></a>
+   <a href="https://www.puppyone.ai/download"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/download-windows-dark.svg"><img src="assets/readme/download-windows-light.svg" alt="Download for Windows" width="196"></picture></a>
 
-Open a folder you already have — no import, no migration. Documents, spreadsheets,
-slides, PDFs, images, audio and video, 3D models and web pages all render in place,
-instead of showing up as a list of filenames.
+2. **Open a folder and start.** Your files stay on your computer. No account needed.
+
+3. **Put it in the cloud (optional).** By default, puppyone Cloud hosts it, so all your agents can reach the same folder. Copy the folder's link into ChatGPT (Web), Grok Bot, Muse or Manus, or invite your teammates.
+
+   Want to self-host? [Deploy puppyone Cloud by yourself](https://github.com/puppyone-ai/puppyone-cloud#self-host).
+
+## Does it work with my agent?
+
+It depends on which agent you use and where your folder is.
+
+- **In puppyone Cloud:** Any agent can reach it through MCP, the CLI or SSH.
+- **Only on your computer:** Cloud agents can't reach it. Local agents can, in their own apps or in puppyone.
+
+| Agent | puppyone Local | puppyone Cloud |
+| --- | --- | --- |
+| <img src="assets/readme/agents/chatgpt.png" alt="" height="24" align="absmiddle"> ChatGPT Web | / | ✅ In app |
+| <img src="assets/readme/agents/claude.png" alt="" height="24" align="absmiddle"> Claude | ✅ In app & in puppyone | ✅ In app |
+| <img src="assets/readme/agents/codex.png" alt="" height="24" align="absmiddle"> Codex | ✅ In app & in puppyone | ✅ In app |
+| <img src="assets/readme/agents/cursor.png" alt="" height="24" align="absmiddle"> Cursor | ✅ In app & in puppyone | ✅ In app |
+| <img src="assets/readme/agents/grok.png" alt="" height="24" align="absmiddle"> Grok Bot | / | ✅ In app |
+| <img src="assets/readme/agents/hermes.png" alt="" height="24" align="absmiddle"> Hermes | ✅ In app & in puppyone | ✅ In app |
+| <img src="assets/readme/agents/manus.png" alt="" height="24" align="absmiddle"> Manus | / | ✅ In app |
+| <img src="assets/readme/agents/muse.png" alt="" height="24" align="absmiddle"> Muse | / | ✅ In app |
+| <img src="assets/readme/agents/opencode.png" alt="" height="24" align="absmiddle"> OpenCode | ✅ In app & in puppyone | ✅ In app |
+| <img src="assets/readme/agents/pi.png" alt="" height="24" align="absmiddle"> Pi | ✅ In app & in puppyone | ✅ In app |
+| <img src="assets/readme/agents/viktor.png" alt="" height="24" align="absmiddle"> Viktor | / | ✅ In app |
+| <img src="assets/readme/agents/workbuddy.png" alt="" height="24" align="absmiddle"> WorkBuddy | ✅ In app & in puppyone | ✅ In app |
+| <img src="assets/readme/agents/puppyone.png" alt="" height="24" align="absmiddle"> Built-in agent | ✅ In puppyone | ✅ In puppyone |
+
+- **In puppyone:** Use the agent directly in the puppyone app, powered by that agent.
+- **In app:** Use the agent in its own app, connected to your puppyone folder.
+
+## What files can puppyone open?
 
 | | Formats |
 | --- | --- |
-| Documents | DOCX, DOC, ODT, RTF |
-| Spreadsheets | XLSX, XLS, XLSM, ODS, CSV |
-| Slides | PPTX, PPSX, ODP |
-| PDF | PDF |
-| Images | PNG, JPG, SVG, WEBP, GIF |
-| Audio and video | MP3, WAV, MP4, WEBM |
-| Text and data | Markdown, TXT, JSON, JSONL, YAML, TOML |
-| Code and web | HTML, CSS, JS, TS, TSX |
-| 3D | GLB |
-| Archives | ZIP, TAR.GZ |
+| First-class support | Markdown, CSV, HTML |
+| Official support | DOCX, DOC, ODT, RTF, XLSX, XLS, XLSM, ODS, PPTX, PPSX, ODP, PDF, PNG, JPG, SVG, WEBP, GIF, MP3, WAV, MP4, WEBM, TXT, JSON, JSONL, YAML, TOML, CSS, JS, TS, TSX |
+| Community support | GLB, ZIP, TAR.GZ |
 
-Files stay on your disk. Nothing leaves the folder unless you put it in puppyone Cloud.
+## What if an agent breaks something?
 
-## Let AI work in it. See every change. Undo any of it.
+No problem. puppyone folders run on Git, so you can revert to any earlier version. Folders hosted on puppyone Cloud work the same way.
 
-Git is built in — nothing to configure. After an agent works, you get a change
-list, a history timeline and per-commit detail in the sidebar:
-
-- **Text** — line-by-line diffs.
-- **Word documents** — a redline view, so you can read what an agent rewrote the
-  way you would read tracked changes.
-- **Binary files** — a change summary.
-
-If something looks wrong, roll back a single file or the whole folder to any
-earlier version.
-
-![Agent working in a folder](public/assets/media/screenshots/editor-agent-light.png)
-
-## Works with 10+ agents
-
-Swap the agent; keep the folder.
-
-| How it connects | Agents | Notes |
-| --- | --- | --- |
-| Built in | puppyone Agent | Sign in with email. Every account gets trial credit, then pay as you go — or bring your own API key or local model and use no credit at all. |
-| Bundled with the app | WorkBuddy | macOS, Windows |
-| Your installed CLI | Claude Code, Codex, OpenCode, Pi | macOS, Linux, Windows |
-| Your installed CLI | Cursor | macOS, Linux |
-| Companion runtime | Hermes | macOS, Linux |
-| Via puppyone Cloud | ChatGPT, Claude, Manus, Viktor, Grok | Or any MCP client |
-
-## Need it online? puppyone Cloud.
-
-Put the folder in puppyone Cloud and it stays on after you close your laptop.
-An agent on any device — your laptop, a server, CI, ChatGPT or Claude — opens the
-same files and picks up where the last one left off. Each agent gets its own key,
-scoped to only the paths it needs.
-
-> Cloud connection in the app is Early Access.
-
-## Install
-
-Download the installer for [macOS or Windows](https://www.puppyone.ai/download).
-
-Or install from npm:
-
-```bash
-npm install --global puppyone
-```
-
-## Start
-
-```bash
-puppyone
-```
-
-## Development checks
-
-See the [test directory and commands](tests/README.md) for unit, component,
-integration, Electron and performance checks.
-
-For the local Agent payment test, run `npm run dev:agent-sandbox -- --check`,
-then `npm run dev:agent-sandbox` after closing the previous development instance.
-This starts the source build against qubits Cloud and Polar Sandbox; it does not
-reconfigure an installed Desktop. Model calls still use real provider credit.
-The canonical [sandbox runbook](https://github.com/puppyone-ai/puppy-issues/blob/main/document/puppypay/operations/desktop-agent-sandbox.md)
-and [architecture](https://github.com/puppyone-ai/puppy-issues/blob/main/document/puppyone/architecture/control-plane/desktop-agent-inference.md)
-are maintained in `puppy-issues` alongside this task branch.
 
 ## License
 
@@ -124,46 +78,18 @@ Code is licensed under the [Apache License 2.0](LICENSE).
 
 ## Privacy
 
-Eligible Stable builds send Basic product analytics after showing the current
-notice. You can turn analytics off in **Settings → Privacy**. Development and
-Internal builds do not send these events.
+puppyone sends basic product analytics, and you can turn them off in **Settings → Privacy**. Read the full [privacy notice](PRIVACY.md).
 
-Basic analytics measure installations and application usage, not people. They
-contain two events: `desktop_first_run`, at most once for a fresh installation,
-and `desktop_daily_active`, at most once per UTC day while the app is
-foregrounded. Existing installations are not counted as new installations
-when they upgrade.
+## Trademarks
 
-Events include the UTC activity day, application version, operating system
-family and major version, processor architecture, notice version, a random
-retry identifier, and a monthly rotating pseudonymous installation ID. A
-separate pseudonymous retention ID links activity during the installation's
-first 100 lifecycle days; the first-run event also includes the onboarding
-version. These IDs come from a random local secret, not an account or hardware
-identifier. The [event catalog](shared/desktop-telemetry-contract.mjs) lists the
-exact permitted fields.
+The puppyone name, logos, icons, product marks, and related brand assets are
+trademarks or service marks of puppyone and are not licensed under the Apache
+License 2.0.
 
-Events never include account identifiers, credentials, files or file paths,
-Git metadata, prompts, Agent replies, terminal content, hardware serial
-numbers, raw IP addresses, or full User-Agent strings. Cloudflare processes
-connection metadata to deliver requests; the analytics Worker does not read
-it into analytics records or store it in the database, and invocation logs
-are disabled.
+You may use the puppyone name only to refer to the original project or to
+accurately describe compatibility with it. You may not use puppyone branding to
+imply endorsement, affiliation, or official distribution of a modified build
+without prior written permission.
 
-| Analytics records | Retention |
-| --- | --- |
-| Retry receipts | 8 days |
-| Daily pseudonymous activity | 35 days |
-| Monthly pseudonymous activity | 62 days |
-| First-run and retention activity details | 100 days |
-| Aggregate counts without identifiers | Long term |
-
-Turning analytics off clears the local queue and identity secret. Already
-submitted records expire on the schedule above; the service has no mapping
-from these IDs to a Puppyone account. Opting back in does not count the
-installation as a new first run.
-
-Privacy questions: [guanqun.real@puppyone.ai](mailto:guanqun.real@puppyone.ai).
-
-The puppyone name, logo, icons, and other brand assets are not granted under
-the Apache License. See [TRADEMARK.md](TRADEMARK.md).
+Forks and redistributed builds should use their own product name, app icon, and
+branding unless they have explicit permission to use puppyone marks.

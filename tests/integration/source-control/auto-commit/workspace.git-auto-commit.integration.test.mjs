@@ -7,8 +7,8 @@ import {
   recoverWorkspaceGitAutoCommit,
   resolveGitRepositoryIdentity,
   runWorkspaceGitAutoCommit,
-} from "../../../../local-api/workspace.mjs";
-import { execGit } from "../../../../local-api/git/runner.mjs";
+} from "../../../../electron/local-api/workspace.mjs";
+import { execGit } from "../../../../electron/local-api/git/runner.mjs";
 import { createGitAutoCommitTransactionJournal } from "../../../../electron/main/git-auto-commit/transaction-journal.mjs";
 import { gitAutoCommitWorkspaceKey } from "../../../../electron/main/git-auto-commit/identity.mjs";
 

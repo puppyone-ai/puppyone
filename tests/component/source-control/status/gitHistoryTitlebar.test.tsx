@@ -23,7 +23,7 @@ afterEach(() => {
 });
 
 describe("Git right-sidebar titlebar entries", () => {
-  it.each([false, true])("keeps one working Git entry on the right with centered project %s", (centered) => {
+  it("keeps one working Git entry on the right", () => {
     const container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
@@ -43,12 +43,12 @@ describe("Git right-sidebar titlebar entries", () => {
       shareEnabled: true,
       onShare,
     };
-    const render = (centered: boolean, changesEnabled = true) => act(() => {
+    const render = (changesEnabled = true) => act(() => {
       preferences.getState().setTitlebarActionsSettings(current => ({ ...current, enabled: { ...current.enabled, changes: changesEnabled } }));
       root?.render(withTestLocalization(
       <>
         <DesktopTitlebarContext
-          menuAlignment={centered ? "center" : "start"} titlebarLabel="Demo"
+          titlebarLabel="Demo"
           workspace={{ id: "demo", name: "Demo", path: "/tmp/demo", status: "recording" }}
           workspaceFolders={[]} multiRootWorkspacesEnabled={false} availableProjects={[]}
           open={false} refObject={createRef<HTMLDivElement>()}
@@ -63,7 +63,7 @@ describe("Git right-sidebar titlebar entries", () => {
     ));
     });
 
-    render(centered);
+    render();
     expect(container.querySelector(".desktop-titlebar-branch-button")).toBeNull();
     const context = container.querySelector(".desktop-titlebar-context");
     const trailing = container.querySelector("[data-header-trailing]");
@@ -97,7 +97,7 @@ describe("Git right-sidebar titlebar entries", () => {
     expect(onShare).toHaveBeenCalledOnce();
     expect(onToggleWorkspaceSwitcher).toHaveBeenCalledOnce();
 
-    render(!centered);
+    render();
     expect(container.querySelectorAll(".desktop-titlebar-changes")).toHaveLength(1);
     expect(container.querySelector(".desktop-titlebar-context")?.contains(
       container.querySelector(".desktop-titlebar-changes"),

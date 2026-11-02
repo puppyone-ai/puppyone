@@ -1,24 +1,20 @@
 import "../../../../src/styles/cascade.css";
-import "../../../../src/cloud-globals.css";
 import "../../../../src/styles.css";
 import { canonicalizeResourceUri } from "@puppyone/shared-ui";
 import { useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { DesktopCloudShell } from "../../../../src/components/DesktopCloudShell";
+import { ProjectShell } from "../../../../src/components/ProjectShell";
 import { DesktopTitlebarContext } from "../../../../src/features/app-shell/DesktopTitlebarContext";
 import { AuxiliaryWorkbenchHeader } from "../../../../src/features/app-shell/auxiliary-workbench/layout/AuxiliaryWorkbenchHeader";
 import { TerminalSessionHeader } from "../../../../src/features/desktop-terminal/ui/session-header/TerminalSessionHeader";
 import { EditorHeaderTabs } from "../../../../src/features/editor-workbench/header/EditorHeaderTabs";
-import { desktopPreferencesStore, initializeDesktopPreferences } from "../../../../src/preferencesStore";
+import { initializeDesktopPreferences } from "../../../../src/preferencesStore";
 import { withTestLocalization } from "../../../support/react/localization";
 
 const params = new URLSearchParams(location.search);
 const mode = params.get("mode") ?? "empty-host";
-const centered = params.get("centered") === "true";
 const cloud = params.get("cloud") === "true";
-const inline = params.get("inline") === "true";
 initializeDesktopPreferences();
-desktopPreferencesStore.getState().setExperimentalSettings(s => ({ ...s, enableProjectLocationIconsInHeader: inline }));
 const workspace = { id: "drag-fixture", name: "Header drag regression", path: "/fixture/header", status: "recording" as const };
 const noop = () => {};
 
@@ -45,24 +41,22 @@ function Harness() {
     titlebarLabel={workspace.name} refObject={anchor} open={menuOpen} multiRootWorkspacesEnabled={false}
     availableProjects={[workspace, { ...workspace, id: "other", name: "Another project", path: "/fixture/other" }]}
     onHome={activate} onCreateProject={activate} onSelectProject={activate}
-    projectLocation={cloud ? { current: "local", localAvailable: true, cloudState: "available" } : undefined}
-    onToggle={() => setMenuOpen(open => !open)} onClose={() => setMenuOpen(false)}
-    onViewLocal={activate} onViewCloud={activate} />;
+    onToggle={() => setMenuOpen(open => !open)} onClose={() => setMenuOpen(false)} />;
   return <div className="app-shell" data-drag-fixture={mode} style={{ height: "100vh" }}>
-    <DesktopCloudShell leftSidebarWidth={220} leftSidebarCollapsed={params.get("collapsed") === "true"}
-      titlebarSidebarSlot={centered ? undefined : context} titlebarCenteredSlot={centered ? context : undefined}
+    <ProjectShell leftSidebarWidth={220} leftSidebarCollapsed={params.get("collapsed") === "true"}
+      titlebarSidebarSlot={context}
       titlebarTabs={tabs} titlebarTabsHostRef={mode === "empty-host" ? host : undefined}
       alignTitlebarTabsToExplorer={mode === "files" || mode === "overflow"}
       titlebarActions={<button onClick={activate}>Action</button>}>
       <main style={{ padding: 24 }}>
         <h1>Header drag regression</h1>
-        <p>Mode: {mode}; Cloud: {String(cloud)}; inline switch: {String(inline)}</p>
+        <p>Mode: {mode}; Cloud: {String(cloud)}</p>
         <p>Drag the empty Header area. Buttons and tabs should remain clickable.</p>
-        <nav>{["empty-host", "overflow", "chat", "terminal"].map(value => <a key={value} style={{ marginRight: 12 }} href={`?mode=${value}&cloud=true&inline=${inline}&centered=${centered}`}>{value}</a>)}<a href={`?mode=${mode}&cloud=true&inline=${!inline}&centered=${!centered}`}>Toggle alignment / location</a></nav>
+        <nav>{["empty-host", "overflow", "chat", "terminal"].map(value => <a key={value} style={{ marginRight: 12 }} href={`?mode=${value}&cloud=true`}>{value}</a>)}</nav>
         <output id="clicks">{clicks}</output>
         <p id="native-bounds" />
       </main>
-    </DesktopCloudShell>
+    </ProjectShell>
   </div>;
 }
 createRoot(document.getElementById("root")!).render(withTestLocalization(<Harness />));

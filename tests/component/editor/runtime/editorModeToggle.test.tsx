@@ -8,8 +8,8 @@ import {
   EditorPaneMenuContributionProvider,
   useEditorPaneMenuContributionPublisher,
   type EditorPaneMenuContribution,
-} from "../../../../packages/shared-ui/src/editor/editorPaneMenuContribution";
-import { TextEditorFrame } from "../../../../packages/shared-ui/src/editor/viewers/shared/TextEditorFrame";
+} from "../../../../src/shared-ui/editor/editorPaneMenuContribution";
+import { TextEditorFrame } from "../../../../src/shared-ui/editor/viewers/shared/TextEditorFrame";
 import { testT, withTestLocalization } from "../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

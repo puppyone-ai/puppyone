@@ -5,9 +5,9 @@ import React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createDocumentNavigationPort } from "../../../../../packages/shared-ui/src/editor/navigation/documentNavigation";
-import { CsvTableEditor } from "../../../../../packages/shared-ui/src/editor/viewers/csv/CsvTableEditor";
-import { writeCsvFirstRecordAsHeaderPreference } from "../../../../../packages/shared-ui/src/editor/viewers/csv/csvViewPreferences";
+import { createDocumentNavigationPort } from "../../../../../src/shared-ui/editor/navigation/documentNavigation";
+import { CsvTableEditor } from "../../../../../src/shared-ui/editor/viewers/csv/CsvTableEditor";
+import { writeCsvFirstRecordAsHeaderPreference } from "../../../../../src/shared-ui/editor/viewers/csv/csvViewPreferences";
 import { withTestLocalization } from "../../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean })

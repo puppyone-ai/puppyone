@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 if (process.platform === "darwin" || process.platform === "linux") {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
   const { include_dir: includeDirectory } = createRequire(import.meta.url)("node-api-headers");
-  const source = path.join(root, "local-api/templates/native/publish-directory.cc");
+  const source = path.join(root, "electron/local-api/templates/native/publish-directory.cc");
   const staging = mkdtempSync(path.join(path.dirname(source), ".build-"));
   const output = path.join(staging, "publish-directory.node");
   try {

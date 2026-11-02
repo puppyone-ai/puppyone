@@ -6,8 +6,8 @@ import {
   flushWorkspaceEditReviewChanges,
   initializeWorkspaceEditReview,
   noteWorkspaceEditReviewPath,
-} from "../../local-api/edit-review.mjs";
-import { getWorkspaceTextVersion } from "../../local-api/workspace.mjs";
+} from "../local-api/edit-review.mjs";
+import { getWorkspaceTextVersion } from "../local-api/workspace.mjs";
 
 export const WORKSPACE_WATCH_REARM_MIN_DELAY_MS = 250;
 export const WORKSPACE_WATCH_REARM_MAX_DELAY_MS = 30_000;

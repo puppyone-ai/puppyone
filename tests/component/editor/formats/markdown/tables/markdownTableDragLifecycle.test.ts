@@ -3,7 +3,7 @@
  */
 import type { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createMarkdownTableDragLayer } from "../../../../../../packages/shared-ui/src/editor/markdown/features/table/tableDragLayer";
+import { createMarkdownTableDragLayer } from "../../../../../../src/shared-ui/editor/markdown/features/table/tableDragLayer";
 import { testT } from "../../../../../support/react/localization";
 
 afterEach(() => {

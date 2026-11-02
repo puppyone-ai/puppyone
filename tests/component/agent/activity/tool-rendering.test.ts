@@ -19,7 +19,7 @@ import { render } from "../../../support/agent/rendererHarness";
 
 describe("Desktop Agent renderer surfaces", () => {
 
-  it("renders Bash activity as a compact product row with a bounded expandable transcript", () => {
+  it("renders Bash activity as one step line with a bounded expandable transcript", () => {
     const projection = createAgentProjection();
     projection.activities.push({
       id: "command-1",
@@ -38,16 +38,13 @@ describe("Desktop Agent renderer surfaces", () => {
     });
     const container = render(React.createElement(AgentTranscript, { projection, loading: false }));
     const row = container.querySelector(".desktop-agent-tool-row") as HTMLButtonElement;
-    expect(row.textContent).toContain("Bash");
-    expect(row.textContent).not.toContain("npm test");
+    expect(row.querySelector(".desktop-agent-tool-name")?.textContent).toBe("Ran");
+    expect(row.querySelector(".desktop-agent-tool-subject-code")?.textContent).toBe("npm test");
     expect(row.querySelector(".desktop-agent-tool-chevron")).toBeNull();
-    expect(row.querySelector(".desktop-agent-tool-summary")).toBeNull();
     expect(row.getAttribute("aria-expanded")).toBe("false");
     act(() => row.click());
     expect(row.getAttribute("aria-expanded")).toBe("true");
     expect(row.querySelector(".desktop-agent-tool-chevron")).toBeNull();
-    expect(row.querySelector(".desktop-agent-tool-summary")).toBeNull();
-    expect(row.textContent).not.toContain("npm test");
     const evidence = Array.from(container.querySelectorAll(".desktop-agent-evidence-node"));
     expect(evidence).toHaveLength(2);
     expect(evidence.map((node) => node.getAttribute("data-evidence-kind"))).toEqual(["command", "result"]);
@@ -61,7 +58,7 @@ describe("Desktop Agent renderer surfaces", () => {
     expect(container.querySelector('button[aria-label*="Copy"]')).toBeNull();
   });
 
-  it("presents conservative read-only shell commands semantically without collapsed provenance noise", () => {
+  it("presents conservative read-only shell commands as the step they perform", () => {
     const projection = createAgentProjection();
     projection.activities.push({
       id: "command-search",
@@ -80,12 +77,13 @@ describe("Desktop Agent renderer surfaces", () => {
     });
     const container = render(React.createElement(AgentTranscript, { projection, loading: false }));
     const row = container.querySelector(".desktop-agent-tool-row") as HTMLButtonElement;
-    expect(row.textContent).toContain("Grep");
-    expect(row.textContent).not.toContain("rg -n -i liangyu src");
+    expect(row.querySelector(".desktop-agent-tool-name")?.textContent).toBe("Searched");
+    // The login-shell wrapper is provenance, not what the Agent meant to do.
+    expect(row.querySelector(".desktop-agent-tool-subject-code")?.textContent).toBe("rg -n -i liangyu src");
+    expect(row.textContent).not.toContain("/bin/zsh");
     expect(row.textContent).not.toContain("via Bash");
-    expect(row.textContent).not.toContain("Exit 0");
+    expect(row.textContent).not.toContain("exit 0");
     act(() => row.click());
-    expect(row.textContent).not.toContain("rg -n -i liangyu src");
     expect(container.querySelector(".desktop-agent-command-line")?.textContent).toContain("rg -n -i liangyu src");
     expect(container.querySelector(".desktop-agent-command.is-grep")).not.toBeNull();
   });
@@ -106,10 +104,11 @@ describe("Desktop Agent renderer surfaces", () => {
     const onOpenFile = vi.fn();
     const container = render(React.createElement(AgentTranscript, { projection, loading: false, onOpenFile }));
     const row = container.querySelector(".desktop-agent-tool-row") as HTMLButtonElement;
-    expect(row.textContent).toContain("Grep");
-    expect(row.textContent).not.toContain("liangyu");
+    expect(row.querySelector(".desktop-agent-tool-name")?.textContent).toBe("Searched");
+    expect(row.querySelector(".desktop-agent-tool-subject-code")?.textContent).toBe("liangyu");
+    expect(row.querySelector(".desktop-agent-tool-subject-context")?.textContent).toBe("in src");
+    expect(row.querySelector(".desktop-agent-tool-metadata")?.textContent).toBe("2 results");
     act(() => row.click());
-    expect(row.textContent).not.toContain("liangyu");
     expect(container.querySelector(".desktop-agent-search-results")?.textContent).toContain("liangyu");
     expect(container.querySelectorAll(".desktop-agent-search-results > button")).toHaveLength(2);
     act(() => (container.querySelector(".desktop-agent-search-results > button") as HTMLButtonElement).click());
@@ -120,6 +119,8 @@ describe("Desktop Agent renderer surfaces", () => {
     const { actor } = agentFileChangeFixture(runtimeId);
     const container = render(React.createElement(AgentTranscript, { projection: actor.display, loading: false }));
     const row = container.querySelector<HTMLButtonElement>(".desktop-agent-tool-row")!;
+    expect(row.querySelector(".desktop-agent-tool-name")?.textContent).toBe("Edited");
+    expect(row.querySelector(".desktop-agent-tool-subject-name")?.textContent).toBe("example.ts");
     expect(row.querySelector(".desktop-agent-tool-diff-stats")?.textContent).toBe("+2−1");
     expect(row.getAttribute("aria-expanded")).toBe("false");
     act(() => row.click());

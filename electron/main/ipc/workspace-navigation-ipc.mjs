@@ -1,6 +1,7 @@
 export function registerWorkspaceNavigationIpcHandlers({
   ipcMain,
   workspaceStateStore,
+  getRestoringProjectForWindow,
   getInitialWorkspaceResultForWindow,
   forgetCurrentWindowWorkspace,
   showHomepageForCurrentWindow,
@@ -20,6 +21,8 @@ export function registerWorkspaceNavigationIpcHandlers({
   attachWorkspaceToCurrentWindow,
   detachWorkspaceFromCurrentWindow,
 }) {
+  ipcMain.handle("window:get-restoring-project", (event) => getRestoringProjectForWindow(event.sender));
+
   ipcMain.handle("window:get-initial-workspace", async (event) => {
     return getInitialWorkspaceResultForWindow(event.sender);
   });

@@ -24,34 +24,27 @@
   padding: 48px var(--desktop-utility-page-padding-inline);
 }
 
-.onboarding-project-loading {
-  position: fixed;
-  z-index: 60;
-  inset: var(--desktop-chrome-height) 0 0;
+/* Most starts end within a beat. The mark is for one that does not. */
+.onboarding-restoring-mark {
+  animation: onboarding-restoring-mark-reveal 1ms linear 400ms backwards;
+}
+
+@keyframes onboarding-restoring-mark-reveal {
+  from {
+    opacity: 0;
+  }
+}
+
+.onboarding-project-list-wait {
   display: grid;
+  width: 100%;
+  min-height: 240px;
   place-items: center;
-  padding: 32px;
-  background: color-mix(in srgb, var(--po-canvas) 84%, transparent);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-  color: var(--po-text);
-  outline: none;
 }
 
-.onboarding-project-loading-content {
-  display: flex;
-  max-width: 100%;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  text-align: center;
-}
-
-.onboarding-project-loading-content p {
-  margin: 0;
-  font-size: var(--po-type-ui-body, 14px);
-  font-weight: var(--po-text-weight-medium, 500);
-  line-height: var(--po-line-height-body);
+/* The same reveal, sooner: this wait is always felt, but can still be over in a beat. */
+.onboarding-project-list-loading {
+  animation: onboarding-restoring-mark-reveal 1ms linear 120ms backwards;
 }
 
 .onboarding-homepage {
@@ -59,10 +52,11 @@
   --onboarding-page-gap: 30px;
   --onboarding-title-primary-gap: 58px;
   --onboarding-primary-actions-gap: 30px;
-  --onboarding-primary-inset-start: 24px;
-  --onboarding-primary-inset-end: 18px;
+  /* The page has three levels of type and no others: the title, this body, and the
+     caption below it. A size between two of them reads as noise, not as hierarchy. */
   --onboarding-row-font-size: var(--po-type-ui-body, 14px);
-  --onboarding-row-font-weight: 500;
+  --onboarding-row-font-weight: var(--po-text-weight-regular, 400);
+  --onboarding-caption-font-size: var(--po-type-ui-caption, 12px);
   --onboarding-row-line-height: 18px;
   display: grid;
   width: min(680px, 100%);
@@ -74,24 +68,27 @@
 }
 
 .onboarding-shell[data-onboarding-state="empty"] .onboarding-homepage {
-  --onboarding-title-primary-gap: 24px;
-  --onboarding-primary-actions-gap: 18px;
+  --onboarding-title-primary-gap: 20px;
+  --onboarding-primary-actions-gap: 8px;
   grid-template-columns: minmax(0, 1fr);
 }
 
 .onboarding-homepage-shell[data-onboarding-state="projects"] {
-  /* The shared Header owns account controls; only the project list scrolls. */
-  padding-block-start: calc(var(--desktop-chrome-height) + 51px);
-  padding-block-end: 16px;
+  /* The shared Header owns account controls; only the project list scrolls. The head
+     sits evenly between the Header and the folders, whose cells carry their own inset. */
+  --onboarding-title-inset: 32px;
+  padding-block-start: calc(var(--desktop-chrome-height) + var(--onboarding-title-inset));
+  padding-block-end: 20px;
 }
 
 .onboarding-shell[data-onboarding-state="projects"] .onboarding-homepage {
-  --onboarding-title-primary-gap: 34px;
-  --onboarding-primary-inset-end: 10px;
-  --onboarding-primary-actions-gap: 12px;
+  /* Room for five folders across, and for the longest title beside the entry menu. */
+  --onboarding-column-width: 640px;
+  --onboarding-title-primary-gap: 8px;
+  --onboarding-primary-actions-gap: 0;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
   height: 100%;
 }
@@ -123,7 +120,7 @@
   align-items: center;
   justify-self: center;
   justify-content: flex-start;
-  gap: 12px;
+  gap: 8px;
   margin-block-end: var(--onboarding-title-primary-gap);
   color: var(--po-text-muted);
   text-align: start;
@@ -138,18 +135,17 @@
 .onboarding-brand-mark {
   display: grid;
   box-sizing: border-box;
-  width: 28px;
-  height: 28px;
-  flex: 0 0 28px;
+  width: var(--po-control-size-tight);
+  height: var(--po-control-size-tight);
+  flex: 0 0 var(--po-control-size-tight);
   place-items: center;
-  color: var(--po-text-muted);
 }
 
 .onboarding-brand-mark-artwork {
   display: block;
-  width: 28px;
-  max-width: 28px;
-  height: 28px;
+  width: var(--po-control-size-tight);
+  max-width: var(--po-control-size-tight);
+  height: var(--po-control-size-tight);
   object-fit: contain;
   pointer-events: none;
 }
@@ -161,27 +157,55 @@
   filter: grayscale(1) brightness(0.7);
 }
 
-.onboarding-brand-name,
-.onboarding-brand-prompt {
+.onboarding-brand-name {
   font-family: var(--po-font-sans);
   font-size: var(--po-type-ui-heading, 19px);
   font-weight: var(--po-text-weight-medium, 500);
-  letter-spacing: -0.035em;
-  line-height: 22px;
+  line-height: var(--po-line-height-tight);
+  text-wrap: balance;
 }
 
-.onboarding-shell[data-onboarding-state="empty"] .onboarding-brand-name {
-  white-space: nowrap;
-}
-
-.onboarding-brand-prompt {
+/* The product's name in the Header, in the same muted ink as a project's name there,
+   with the mark at the Header's own size and in that ink, whatever the theme. */
+.desktop-titlebar .onboarding-header-mark {
   display: block;
-  max-width: 100%;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--po-text-muted);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  width: 18px;
+  max-width: 18px;
+  height: 18px;
+  filter: url("#onboarding-header-mark-ink");
+  pointer-events: none;
+}
+
+.onboarding-shell.dark .desktop-titlebar .onboarding-header-mark {
+  filter: url("#onboarding-header-mark-ink-fine");
+}
+
+.onboarding-header-mark-ink {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+
+.onboarding-header-mark-ink feFlood {
+  flood-color: var(--desktop-titlebar-text-muted);
+}
+
+.onboarding-header-brand {
+  color: var(--desktop-titlebar-text-muted);
+}
+
+/* First run has nothing to frame yet, so the Puppy and a line greet you above the keys. */
+.onboarding-shell[data-onboarding-state="empty"] .onboarding-brand-lockup {
+  flex-direction: column;
+  gap: 16px;
+  text-align: center;
+}
+
+.onboarding-shell[data-onboarding-state="empty"] :is(.onboarding-brand-mark, .onboarding-brand-mark-artwork) {
+  width: 48px;
+  max-width: 48px;
+  height: 48px;
+  flex-basis: 48px;
 }
 
 .onboarding-home-primary {
@@ -191,22 +215,23 @@
   box-sizing: border-box;
   justify-self: center;
   justify-items: start;
-  padding: var(--onboarding-primary-inset-start) 0 var(--onboarding-primary-inset-end);
+  padding: 0;
   margin-block-end: var(--onboarding-primary-actions-gap);
-  border-block: 1px solid var(--po-border);
-  border-inline: 0;
+  border: 0;
   border-radius: 0;
   background: transparent;
-  transition: border-color 120ms ease;
+  transition: background 120ms ease;
 }
 
 .onboarding-home-primary[data-onboarding-primary="projects"] {
   min-height: 0;
   grid-template-rows: minmax(0, 1fr);
+  border-radius: var(--po-card-radius);
 }
 
+/* The projects sit directly on the page; a fill appears only to receive a dragged folder. */
 .onboarding-shell.dragging .onboarding-home-primary[data-onboarding-primary="projects"] {
-  border-color: var(--po-border-strong);
+  background: var(--po-hover);
 }
 
 .onboarding-telemetry-disclosure {
@@ -241,7 +266,7 @@
 }
 
 .onboarding-telemetry-disclosure a:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--po-accent) 36%, transparent);
+  outline: 2px solid var(--po-focus-ring);
   outline-offset: 2px;
 }
 
@@ -258,118 +283,54 @@
   width: 100%;
   max-width: 100%;
   justify-self: center;
-  justify-items: start;
-  gap: 2px;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  justify-items: stretch;
+  gap: 8px;
   padding: 0 0 18px;
 }
 
-.onboarding-shell[data-onboarding-state="projects"] .onboarding-entry-actions {
-  padding-block-end: 0;
-}
-
 .onboarding-entry-action {
-  box-sizing: border-box;
-  width: fit-content;
+  width: 100%;
   min-width: 0;
-  max-width: 100%;
-  height: var(--po-menu-item-height);
-  min-height: var(--po-menu-item-height);
-  justify-content: flex-start;
-  gap: var(--po-menu-item-gap);
-  padding: 0 calc(var(--po-menu-item-padding-inline) - 1px);
-  border: 1px solid transparent;
-  border-radius: var(--desktop-control-radius);
-  background: transparent;
-  color: var(--po-text-muted);
-  font-family: var(--po-font-sans);
   font-size: var(--onboarding-row-font-size);
   font-weight: var(--onboarding-row-font-weight);
-  line-height: var(--onboarding-row-line-height);
-  text-align: start;
-  cursor: var(--po-clickable-cursor, default);
-  transition:
-    border-color 130ms ease-out,
-    background 130ms ease-out,
-    color 130ms ease-out,
-    opacity 130ms ease-out;
+  transition: background 130ms ease-out, color 130ms ease-out;
 }
 
-.onboarding-entry-action .po-button__icon {
-  display: grid;
-  width: var(--po-menu-icon-slot-size);
-  max-width: var(--po-menu-icon-slot-size);
-  height: var(--po-menu-icon-slot-size);
-  flex: 0 0 var(--po-menu-icon-slot-size);
-  place-items: center;
-}
-
-.onboarding-entry-action .po-button__icon > svg {
-  width: 14px;
-  max-width: 14px;
-  height: 14px;
-  stroke-width: 1.85;
+.onboarding-entry-action :is(.po-button__icon, .po-button__label),
+.onboarding-entry-menu-trigger .po-button__label {
+  display: inline-flex;
+  align-items: center;
 }
 
 .onboarding-entry-action .po-button__label {
   min-width: 0;
   overflow: hidden;
-  font-family: var(--po-font-sans);
-  font-size: var(--onboarding-row-font-size);
-  font-weight: var(--onboarding-row-font-weight);
-  line-height: var(--onboarding-row-line-height);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.onboarding-entry-action:hover:not(:disabled),
-.onboarding-entry-action:focus-visible {
-  border-color: transparent;
-  background: color-mix(in srgb, var(--po-text) 5%, transparent);
-  color: var(--po-text-muted);
-}
-
-.onboarding-entry-action.is-dragging {
-  border-color: transparent;
-  background: transparent;
-  color: var(--po-text);
+.onboarding-entry-action.is-dragging,
+.onboarding-shell.dragging .onboarding-entry-action[data-onboarding-action="open"] {
+  background: var(--po-control-hover);
 }
 
 .onboarding-entry-action:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--po-accent) 36%, transparent);
+  outline: 2px solid var(--po-focus-ring);
   outline-offset: 2px;
 }
 
 .onboarding-entry-action:disabled {
-  border-color: transparent;
-  background: transparent;
+  background: var(--po-control);
   color: var(--po-text-disabled);
   cursor: default;
 }
 
-.onboarding-entry-action-default {
-  border-color: var(--po-accent);
-  background: var(--po-accent);
-  color: var(--po-text-inverse);
-  font-weight: var(--po-text-weight-medium, 500);
-}
-
-.onboarding-entry-action-default:hover:not(:disabled),
-.onboarding-entry-action-default:focus-visible:not(:disabled) {
-  border-color: color-mix(in srgb, var(--po-accent) 88%, var(--po-canvas));
+/* The shared Button's hover is neutral, which would take a primary action's colour. */
+.onboarding-entry-action-default:hover:not(:disabled) {
   background: color-mix(in srgb, var(--po-accent) 88%, var(--po-canvas));
   color: var(--po-text-inverse);
-}
-
-/* Dropping a folder always targets "Open a folder", not the default action. */
-.onboarding-shell.dragging .onboarding-entry-action[data-onboarding-action="open"] {
-  border-color: transparent;
-  background: color-mix(in srgb, var(--po-text) 5%, transparent);
-  color: var(--po-text);
-}
-
-/* Import stays in the same compact CTA system without adding a decorative rule. */
-.onboarding-entry-import-area {
-  display: contents;
 }
 
 .onboarding-entry-import .po-button__label {
@@ -461,13 +422,14 @@
   /* Persistent navigation affordance: legible in both light and dark themes. */
   --po-scrollbar-presentation-thumb: color-mix(in srgb, var(--po-text-muted) 40%, transparent);
   --po-scrollbar-presentation-thumb-hover: color-mix(in srgb, var(--po-text-muted) 60%, transparent);
+  /* The scrollbar's lane hangs outside the column, so that the projects keep its width. */
   display: grid;
-  width: 100%;
+  width: calc(100% + var(--po-scrollbar-size));
   min-width: 0;
   min-height: 0;
   align-content: start;
   gap: 2px;
-  padding: 0;
+  padding-block: 8px;
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-gutter: stable;
@@ -475,10 +437,12 @@
   border: 0;
   border-radius: 0;
   background: transparent;
+  mask-image: linear-gradient(to bottom, transparent, black 8px, black calc(100% - 8px), transparent);
 }
 
 .onboarding-project-row {
   width: 100%;
+  color: var(--po-text);
 }
 
 .onboarding-project-icon {
@@ -500,7 +464,13 @@
   inset-block-end: -3px;
 }
 
-.onboarding-project-open {
+/* A local folder that has its own Cloud project is the quieter of the two
+   entries: the Cloud project is where people and agents work. */
+.onboarding-project-row-wrap.has-cloud-project:not(:hover, :focus-within, [data-menu-open]) .onboarding-project-row .desktop-menu-item-label {
+  color: var(--po-text-subtle);
+}
+
+.onboarding-project-cloud-link {
   position: absolute;
   inset-inline-end: 34px;
   top: 50%;
@@ -509,17 +479,20 @@
   transform: translateY(-50%);
 }
 
-.onboarding-project-row-wrap:hover .onboarding-project-open,
-.onboarding-project-row-wrap:focus-within .onboarding-project-open,
-.onboarding-project-open[aria-expanded="true"] {
+.onboarding-project-list .onboarding-project-cloud-link {
+  font-size: var(--onboarding-caption-font-size);
+}
+
+.onboarding-project-row-wrap:hover .onboarding-project-cloud-link,
+.onboarding-project-row-wrap:focus-within .onboarding-project-cloud-link,
+.onboarding-project-row-wrap[data-menu-open] .onboarding-project-cloud-link {
   opacity: 1;
   pointer-events: auto;
 }
 
-.onboarding-project-row-wrap:has(.onboarding-project-open):hover .onboarding-project-row,
-.onboarding-project-row-wrap:has(.onboarding-project-open):focus-within .onboarding-project-row,
-.onboarding-project-row-wrap:has(.onboarding-project-open[aria-expanded="true"]) .onboarding-project-row {
-  padding-inline-end: 112px;
+.onboarding-project-row-wrap:has(.onboarding-project-cloud-link):hover .onboarding-project-row,
+.onboarding-project-row-wrap:has(.onboarding-project-cloud-link):focus-within .onboarding-project-row {
+  padding-inline-end: 132px;
 }
 
 .homepage-cloud-account {
@@ -590,7 +563,7 @@ span.homepage-cloud-feedback {
   padding: 0;
   border-radius: 50%;
   background: var(--po-control);
-  color: var(--po-text);
+  color: var(--desktop-titlebar-text-muted);
 }
 
 .homepage-cloud-avatar:hover,
@@ -613,7 +586,7 @@ span.homepage-cloud-feedback {
   min-width: 0;
 }
 
-.onboarding-project-remove {
+.onboarding-project-actions {
   position: absolute;
   z-index: 1;
   top: 50%;
@@ -623,22 +596,33 @@ span.homepage-cloud-feedback {
   transform: translateY(-50%);
 }
 
-.onboarding-project-row-wrap:hover .onboarding-project-remove,
-.onboarding-project-row-wrap:focus-within .onboarding-project-remove,
-.onboarding-project-row-wrap.is-removing .onboarding-project-remove {
+.onboarding-project-row-wrap:hover .onboarding-project-actions,
+.onboarding-project-row-wrap:focus-within .onboarding-project-actions,
+.onboarding-project-row-wrap[data-menu-open] .onboarding-project-actions {
   opacity: 1;
   pointer-events: auto;
 }
 
-.desktop-menu-icon-button.onboarding-project-remove:hover:not(:disabled),
-.desktop-menu-icon-button.onboarding-project-remove:focus-visible:not(:disabled) {
-  background: color-mix(in srgb, var(--po-danger) 10%, transparent);
-  color: var(--po-danger);
+.onboarding-project-actions > svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* The dots brighten alone; a backdrop would weigh on a page of quiet folders. */
+.desktop-menu-icon-button.onboarding-project-actions:hover:not(:disabled),
+.desktop-menu-icon-button.onboarding-project-actions:focus-visible:not(:disabled),
+.onboarding-project-row-wrap[data-menu-open] .desktop-menu-icon-button.onboarding-project-actions {
+  background: transparent;
+  color: var(--po-text);
+}
+
+.desktop-menu-icon-button.onboarding-project-actions:focus-visible:not(:disabled) {
+  outline: 2px solid var(--po-focus-ring);
 }
 
 .onboarding-project-row-wrap:hover .onboarding-project-row:not(:disabled),
 .onboarding-project-row-wrap:focus-within .onboarding-project-row:not(:disabled),
-.onboarding-project-row-wrap.is-removing .onboarding-project-row {
+.onboarding-project-row-wrap[data-menu-open] .onboarding-project-row {
   background: var(--po-hover);
   color: var(--po-text);
 }
@@ -655,8 +639,7 @@ span.homepage-cloud-feedback {
 
 .onboarding-project-row-wrap:hover .desktop-menu-item-trailing,
 .onboarding-project-row-wrap:focus-within .desktop-menu-item-trailing,
-.onboarding-project-row-wrap:has(.onboarding-project-open[aria-expanded="true"]) .desktop-menu-item-trailing,
-.onboarding-project-row-wrap.is-removing .desktop-menu-item-trailing {
+.onboarding-project-row-wrap[data-menu-open] .desktop-menu-item-trailing {
   opacity: 0;
 }
 
@@ -674,6 +657,7 @@ span.homepage-cloud-feedback {
   min-width: 0;
   flex: 1 1 auto;
   direction: ltr;
+  font-size: var(--onboarding-caption-font-size);
   text-align: start;
 }
 
@@ -681,16 +665,351 @@ span.homepage-cloud-feedback {
   max-width: 112px;
   overflow: hidden;
   color: var(--po-text-subtle);
-  font-size: var(--po-text-size-hint, 12px);
-  font-weight: 500;
+  font-size: var(--onboarding-caption-font-size);
+  font-weight: var(--onboarding-row-font-weight);
   text-overflow: ellipsis;
   text-transform: none;
   white-space: nowrap;
 }
 
+/* The head of a page with projects: New stays one click away, and the arrow holds the
+   other ways to start. */
+.onboarding-entry-menu-root {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 1px;
+  margin-inline-start: auto;
+}
+
+.onboarding-entry-menu-root .onboarding-entry-action {
+  width: auto;
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+
+.onboarding-entry-menu-root .onboarding-entry-menu-trigger {
+  width: var(--po-control-size);
+  padding: 0;
+  border-radius: 0 var(--desktop-control-radius) var(--desktop-control-radius) 0;
+}
+
+/* The Homepage's menus, placed under the buttons that open them. */
+.onboarding-entry-menu,
+.onboarding-view-menu {
+  position: absolute;
+  z-index: 20;
+  box-sizing: border-box;
+  inset-block-start: calc(100% + var(--po-menu-padding));
+  padding: var(--po-menu-padding);
+}
+
+.onboarding-entry-menu .desktop-menu-section-list,
+.onboarding-view-menu .desktop-menu-section-list {
+  display: grid;
+  gap: 2px;
+}
+
+.onboarding-entry-menu {
+  inset-inline-end: 0;
+  width: 232px;
+}
+
+/* Each menu hangs centred under the control that opens it. */
+.onboarding-view-menu {
+  left: 50%;
+  width: max-content;
+  min-width: 104px;
+  transform: translateX(-50%);
+}
+
+/* Fixed, so that a tick appearing beside a choice cannot move the menu under the pointer. */
+.onboarding-view-menu.is-multiple {
+  width: 216px;
+}
+
+/* Three quiet icons just before New: what is shown, in what order and how it is
+   arranged. Filters in force grow leftwards, so that nothing moves under the pointer. */
+.onboarding-project-toolbar {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.onboarding-project-view {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+/* One line at any width: a chip gives way before the head may grow and move the page. */
+.onboarding-view-menu-root {
+  position: relative;
+  flex: none;
+}
+
+/* A filter in force, named on the toolbar and one press from being taken off. */
+.onboarding-filter-chip {
+  display: inline-flex;
+  min-width: 0;
+  flex: 0 1 auto;
+  height: var(--po-control-size-compact);
+  align-items: center;
+  gap: 4px;
+  padding-inline: 8px 6px;
+  border: 0;
+  border-radius: var(--desktop-control-radius);
+  background: var(--po-control);
+  color: var(--po-text);
+  cursor: var(--po-clickable-cursor, default);
+  font-family: var(--po-font-sans);
+  font-size: var(--onboarding-caption-font-size);
+  font-weight: var(--onboarding-row-font-weight);
+  transition: background 130ms ease-out;
+}
+
+.onboarding-filter-chip > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onboarding-filter-chip svg {
+  flex: 0 0 auto;
+}
+
+.onboarding-filter-chip:hover:not(:disabled) {
+  background: var(--po-control-hover);
+}
+
+.onboarding-filter-chip:focus-visible {
+  outline: 2px solid var(--po-focus-ring);
+  outline-offset: -2px;
+}
+
+.onboarding-view-menu-root .po-icon-button[aria-expanded="true"] {
+  background: var(--po-selected);
+  color: var(--po-text);
+}
+
+.onboarding-view-menu-root .po-icon-button.is-active {
+  color: var(--po-text);
+}
+
+.onboarding-view-menu-root .po-icon-button:focus-visible {
+  outline: 2px solid var(--po-focus-ring);
+  outline-offset: -2px;
+}
+
+.onboarding-view-menu-root .po-icon-button:disabled {
+  color: var(--po-text-disabled);
+  cursor: default;
+}
+
+/* Monochrome, like the website's template folder, and drawn in fill alone: the tones
+   carry the whole shape, so a folder has no outline. They belong to the theme.
+   A folder is never coloured, shadowed or graded: blue belongs to the cloud alone. */
+.onboarding-project-folder {
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+}
+
+.project-folder-glyph {
+  display: block;
+  overflow: visible;
+  width: 100%;
+  height: 100%;
+}
+
+/* Sized for a 16px folder inside the drawing's margin, and wider than its slot, which
+   stays the entry actions' 14px so that a project's name keeps its line with theirs. */
+.onboarding-project-icon > .project-folder-glyph {
+  flex: none;
+  width: 19px;
+  height: 15px;
+  margin: -0.5px -2.5px;
+}
+
+.project-folder-back,
+.project-folder-front {
+  transition: fill 130ms ease-out;
+}
+
+/* Reaching for a project shows there is work inside: the top edge of one wide sheet
+   rises from the folder. Nothing shows at rest, when a wall of folders has to stay quiet. */
+.project-folder-sheet {
+  transition: transform 220ms ease-out;
+}
+
+.project-folder-sheet rect {
+  fill: var(--po-project-folder-sheet);
+}
+
+.project-folder-sheet rect + rect {
+  fill: var(--po-project-folder-sheet-ink);
+}
+
+.onboarding-project-row-wrap:is(:hover, :focus-within, [data-menu-open]) .project-folder-sheet {
+  transform: translateY(-7px);
+}
+
+/* The sheet still shows without motion; it simply arrives at once. */
+@media (prefers-reduced-motion: reduce) {
+  .project-folder-sheet {
+    transition: none;
+  }
+}
+
+/* An icon this small has no room for it. */
+.onboarding-project-icon .project-folder-sheet {
+  display: none;
+}
+
+.project-folder-back {
+  fill: var(--po-project-folder-back);
+}
+
+.project-folder-front {
+  fill: var(--po-project-folder-front);
+}
+
+.onboarding-project-row-wrap:is(:hover, :focus-within, [data-menu-open]) .project-folder-back {
+  fill: color-mix(in srgb, var(--po-project-folder-back) 90%, var(--po-text));
+}
+
+.onboarding-project-row-wrap:is(:hover, :focus-within, [data-menu-open]) .project-folder-front {
+  fill: color-mix(in srgb, var(--po-project-folder-front) 90%, var(--po-text));
+}
+
+/* The same outline as the cloud in the list, at a weight that holds up on the folder,
+   and leaning towards the theme's ink so that it stands clear of the folder's tone. */
+.project-folder-cloud {
+  fill: none;
+  stroke: color-mix(in srgb, var(--po-brand-blue) 84%, var(--po-text));
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+/* A local folder that also has a Cloud project: the same blue cloud, off the folder's
+   front and cut out from it by the page, because the project itself lives here. */
+.onboarding-project-folder .onboarding-project-cloud-badge {
+  --po-surface: var(--po-brand-blue);
+  inset-block-end: -4px;
+  inset-inline-end: -4px;
+  color: var(--po-canvas);
+}
+
+.onboarding-project-tile {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: var(--desktop-control-radius);
+  background: transparent;
+  color: var(--po-text);
+  font-family: var(--po-font-sans);
+  cursor: var(--po-clickable-cursor, default);
+  transition: background 130ms ease-out, color 130ms ease-out;
+}
+
+.onboarding-project-tile:disabled {
+  cursor: default;
+}
+
+.onboarding-project-tile:focus-visible {
+  outline: 2px solid var(--po-focus-ring);
+  outline-offset: -2px;
+}
+
+.onboarding-project-row-wrap:is(:hover, :focus-within, [data-menu-open]) .onboarding-project-tile:not(:disabled) {
+  color: var(--po-text);
+}
+
+.onboarding-project-row-wrap.is-dragging .onboarding-project-tile {
+  opacity: 0.62;
+}
+
+.onboarding-project-tile-name {
+  min-width: 0;
+  overflow: hidden;
+  color: inherit;
+}
+
+.onboarding-project-row-wrap.has-cloud-project:not(:hover, :focus-within, [data-menu-open]) .onboarding-project-tile-name {
+  color: var(--po-text-subtle);
+}
+
+/* A tile has no room for the link's label; its tooltip still says what it opens. */
+.onboarding-project-tile ~ .onboarding-project-cloud-link {
+  width: 24px;
+  min-width: 0;
+  height: 24px;
+  justify-content: center;
+  padding: 0;
+}
+
+.onboarding-project-tile ~ .onboarding-project-cloud-link > span {
+  display: none;
+}
+
+/* As many cells across the surface as keep a project's whole name on one line: five
+   down to the smallest window. Rows fade at both ends rather than being cut. */
+.onboarding-project-list[data-project-layout="grid"] {
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 2px;
+}
+
+.onboarding-project-list[data-project-layout="grid"] .onboarding-project-tile {
+  align-content: start;
+  justify-items: center;
+  gap: 8px;
+  padding: 12px 4px 8px;
+  text-align: center;
+}
+
+.onboarding-project-row-wrap:is(:hover, :focus-within, [data-menu-open]) .onboarding-project-tile:not(:disabled) {
+  background: var(--po-hover);
+}
+
+.onboarding-project-list[data-project-layout="grid"] .onboarding-project-folder {
+  width: 72px;
+  height: 57px;
+}
+
+.onboarding-project-list[data-project-layout="grid"] .onboarding-project-tile-name {
+  display: block;
+  max-width: 100%;
+  font-size: var(--onboarding-caption-font-size);
+  font-weight: var(--onboarding-row-font-weight);
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onboarding-project-list[data-project-layout="grid"] :is(.onboarding-project-actions, .onboarding-project-cloud-link) {
+  top: 4px;
+  transform: none;
+}
+
+.onboarding-project-list[data-project-layout="grid"] .onboarding-project-actions {
+  inset-inline-end: 4px;
+}
+
+.onboarding-project-list[data-project-layout="grid"] .onboarding-project-cloud-link {
+  inset-inline: 4px auto;
+}
+
 .onboarding-homepage-error {
   flex: 0 0 auto;
-  width: min(520px, 100%);
+  width: min(640px, 100%);
 }
 
 .onboarding-error {
@@ -705,13 +1024,29 @@ span.homepage-cloud-feedback {
   border-radius: 8px;
   background: color-mix(in srgb, var(--po-danger) 6%, transparent);
   color: var(--po-danger);
-  font-size: var(--po-text-size-label, 13px);
-  font-weight: 520;
+  font-size: var(--onboarding-row-font-size);
+  font-weight: var(--onboarding-row-font-weight);
   line-height: 1.4;
 }
 
 .onboarding-error svg {
   margin-top: 1px;
+}
+
+/* Below the column's width New keeps its key and gives its words to the title, so the
+   label stays for assistive technology and leaves the layout. */
+@media (max-width: 696px) {
+  .onboarding-entry-menu-root .onboarding-entry-action .po-button__label {
+    position: absolute;
+    overflow: hidden;
+    width: 1px;
+    height: 1px;
+    clip-path: inset(50%);
+  }
+
+  .onboarding-entry-menu-root .onboarding-entry-action {
+    padding-inline: 11px;
+  }
 }
 
 @media (max-width: 520px) {
@@ -730,8 +1065,8 @@ span.homepage-cloud-feedback {
 }
 
 @media (hover: none) {
-  .onboarding-project-open,
-  .onboarding-project-remove {
+  .onboarding-project-cloud-link,
+  .onboarding-project-actions {
     opacity: 1;
     pointer-events: auto;
   }
@@ -741,8 +1076,8 @@ span.homepage-cloud-feedback {
   }
 }
 
-/* Opening choices use the same quiet control geometry as the project list. */
-.project-open-menu-button {
+/* A link to another project uses the same quiet control geometry as the project list. */
+.project-cloud-link-button {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -755,18 +1090,14 @@ span.homepage-cloud-feedback {
   font-size: var(--po-text-size-hint, 12px);
   white-space: nowrap;
 }
-.project-open-menu-button:hover,
-.project-open-menu-button[aria-expanded="true"] {
+.project-cloud-link-button:hover {
   color: var(--po-text);
   background: var(--po-hover);
 }
-.project-open-menu-button:focus-visible {
+.project-cloud-link-button:focus-visible {
   outline: 1px solid var(--po-accent);
   outline-offset: -1px;
 }
-.asset-library-project-open {
-  position: absolute;
-  inset-inline-end: 8px;
-  top: 8px;
-  background: var(--po-header);
+.project-cloud-link-button svg {
+  color: var(--po-brand-blue);
 }

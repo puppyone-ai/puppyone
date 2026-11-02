@@ -195,6 +195,7 @@
   "markdown.ai.openReview": "Abre la revisión para ver todo el contenido.",
   "markdown.ai.removed": "Quitado por el agente",
   "markdown.ambiguousLinkedNote": "{path} (coincidencia de título ambigua)",
+  "markdown.blockDrag.handle": "Arrastra para mover el bloque",
   "markdown.code.language": "Lenguaje del código",
   "markdown.code.languagePlaceholder": "Lenguaje",
   "markdown.code.source": "Origen: {source}",

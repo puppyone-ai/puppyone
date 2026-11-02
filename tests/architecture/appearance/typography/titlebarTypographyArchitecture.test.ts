@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 const titlebarCss = readFileSync(new URL("../../../../src/styles/titlebar.css", import.meta.url), "utf8");
 const tokensCss = readFileSync(new URL("../../../../src/styles/tokens.css", import.meta.url), "utf8");
 const neutralThemeCss = readFileSync(
-  new URL("../../../../sub-themes/default-neutral/theme.css", import.meta.url),
+  new URL("../../../../src/features/themes/builtin/default-neutral/theme.css", import.meta.url),
   "utf8",
 );
 const typographyFoundationsCss = readFileSync(
@@ -126,7 +126,7 @@ describe("titlebar typography architecture", () => {
     const layoutRoot = readCssBlock(`\n${tokensCss}`, ":root");
     const titlebarRoot = readCssBlock(`\n${titlebarCss}`, ".desktop-titlebar");
     const controlGeometry = readFileSync(
-      new URL("../../../../packages/shared-ui/src/styles/control-geometry.css", import.meta.url),
+      new URL("../../../../src/shared-ui/styles/control-geometry.css", import.meta.url),
       "utf8",
     );
 
@@ -298,7 +298,7 @@ describe("titlebar typography architecture", () => {
     expect(rule).toContain("line-height: var(--desktop-titlebar-context-line-height);");
   });
 
-  it("keeps the combined Home / project trigger quiet and separates the location control", () => {
+  it("keeps the combined Home / project trigger quiet with no location control beside it", () => {
     const context = readCssBlock(titlebarCss, ".desktop-titlebar-context");
     const projectButton = readCssBlock(titlebarCss, ".desktop-titlebar-workspace-button");
     const projectName = readCssBlock(titlebarCss, ".desktop-titlebar-workspace-name");
@@ -309,7 +309,7 @@ describe("titlebar typography architecture", () => {
     const branchButton = readCssBlock(titlebarCss, ".desktop-titlebar-branch-button");
 
     expect(titlebarContextSource).not.toContain("GitBranch");
-    expect(titlebarContextSource).toContain("<DesktopProjectLocationSwitcher");
+    expect(titlebarContextSource).not.toContain("DesktopProjectLocationSwitcher");
     expect(workspaceSwitcherSource).toContain('className="desktop-titlebar-workspace-mark"');
     expect(workspaceSwitcherSource).toContain("<HomeIcon");
     expect(titlebarContextSource).not.toContain("desktop-titlebar-cloud-button");

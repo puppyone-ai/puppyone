@@ -195,6 +195,7 @@
   "markdown.ai.openReview": "Open the review to see all content.",
   "markdown.ai.removed": "Removed by Agent",
   "markdown.ambiguousLinkedNote": "{path} (ambiguous title match)",
+  "markdown.blockDrag.handle": "Drag to move block",
   "markdown.code.language": "Code language",
   "markdown.code.languagePlaceholder": "Language",
   "markdown.code.source": "Source: {source}",

@@ -5,15 +5,15 @@ import { syntaxTree } from "@codemirror/language";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it } from "vitest";
-import { getMarkdownPlanIndex } from "../../../../../../packages/shared-ui/src/editor/markdown/core/plans/markdownPlanIndex";
-import { markdownRevealedSourceField } from "../../../../../../packages/shared-ui/src/editor/markdown/core/state/revealedSource";
-import { getMarkdownElements } from "../../../../../../packages/shared-ui/src/editor/markdown/core/syntax/markdownElements";
-import { parseMarkdownMdxComponent } from "../../../../../../packages/shared-ui/src/editor/markdown/features/mdx-component/mdxComponentModel";
+import { getMarkdownPlanIndex } from "../../../../../../src/shared-ui/editor/markdown/core/plans/markdownPlanIndex";
+import { markdownRevealedSourceField } from "../../../../../../src/shared-ui/editor/markdown/core/state/revealedSource";
+import { getMarkdownElements } from "../../../../../../src/shared-ui/editor/markdown/core/syntax/markdownElements";
+import { parseMarkdownMdxComponent } from "../../../../../../src/shared-ui/editor/markdown/features/mdx-component/mdxComponentModel";
 import {
   markdownCodeMirrorBaseExtensions,
   markdownCodeMirrorLanguageExtension,
   markdownLivePreviewExtension,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
+} from "../../../../../../src/shared-ui/editor/markdown/markdownCodeMirrorExtensions";
 
 const views: EditorView[] = [];
 

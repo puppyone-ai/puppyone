@@ -5,11 +5,11 @@ import { EditorState } from "@codemirror/state";
 import { undo } from "@codemirror/commands";
 import { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { markdownRevealedSourceField } from "../../../../../../packages/shared-ui/src/editor/markdown/core/state/revealedSource";
+import { markdownRevealedSourceField } from "../../../../../../src/shared-ui/editor/markdown/core/state/revealedSource";
 import {
   markdownCodeMirrorBaseExtensions,
   markdownLivePreviewExtension,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
+} from "../../../../../../src/shared-ui/editor/markdown/markdownCodeMirrorExtensions";
 
 vi.hoisted(() => {
   Object.defineProperty(document, "compatMode", { configurable: true, value: "CSS1Compat" });

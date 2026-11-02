@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createEmbeddedTableColumnLayoutBrowserPersistence,
   createEmbeddedTableColumnLayoutSessionStore,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/platform/codemirror/embeddedTableColumnLayoutSession";
+} from "../../../../../../src/shared-ui/editor/markdown/platform/codemirror/embeddedTableColumnLayoutSession";
 
 describe("Markdown table column layout session", () => {
   it("keeps widths stable through content edits and source movement", () => {

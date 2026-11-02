@@ -5,8 +5,8 @@ import {
   layoutMarkdownTableColumns,
   measureCellText,
   measureMarkdownTableColumns,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/features/table/markdownTableColumnLayout";
-import type { MarkdownTableRow } from "../../../../../../packages/shared-ui/src/editor/markdown/features/table/tableModel";
+} from "../../../../../../src/shared-ui/editor/markdown/features/table/markdownTableColumnLayout";
+import type { MarkdownTableRow } from "../../../../../../src/shared-ui/editor/markdown/features/table/tableModel";
 
 // 600px usable; estimates carry 6% slack, so 1em of text is 10.6px here.
 const metrics = { availableWidth: 602, emPx: 10, cellInset: 20 } as const;
@@ -93,5 +93,21 @@ describe("Markdown table column layout", () => {
   it("fits explicit tracks onto the reading column proportionally", () => {
     expect(fitMarkdownTableColumnWidths([100, 300], 402)).toEqual([100, 300]);
     expect(fitMarkdownTableColumnWidths([200, 600], 402)).toEqual([100, 300]);
+  });
+});
+
+describe("Markdown table column extents for HTML", () => {
+  it("does not count tag source as visible text", () => {
+    expect(measureCellText('<a href="https://example.com/a/very/long/path">x</a>')).toEqual(measureCellText("x"));
+  });
+
+  it("reserves an image's authored width", () => {
+    const narrow = measureCellText('<img src="a.png" width="40">');
+    const wide = measureCellText('<picture><source srcset="d.svg"><img src="l.svg" width="196"></picture>');
+    expect(wide.minEm).toBeGreaterThan(narrow.minEm);
+  });
+
+  it("keeps an authored line break", () => {
+    expect(measureCellText("long words here<br>x").maxEm).toBeLessThan(measureCellText("long words here x").maxEm);
   });
 });

@@ -1,9 +1,0 @@
-.desktop-cloud-preparation {
-  position: absolute;
-  z-index: 10;
-  inset: 0;
-  display: flex;
-  overflow: hidden;
-  background: var(--po-canvas);
-  color: var(--po-text);
-}

@@ -10,7 +10,7 @@ const docxContribution = read("../../../../src/features/source-control/diff/cont
 const provider = read("../../../../src/features/source-control/diff/contributions/docx-redline/provider.ts");
 const packageParser = read("../../../../src/features/source-control/diff/contributions/docx-redline/worker/package.ts");
 const workerClient = read("../../../../src/features/source-control/diff/contributions/docx-redline/worker/client.ts");
-const revisionAuthority = read("../../../../local-api/git/revision-pair.mjs");
+const revisionAuthority = read("../../../../electron/local-api/git/revision-pair.mjs");
 const ipc = read("../../../../electron/main/ipc/workspace-git-ipc.mjs");
 
 describe("format-aware diff architecture", () => {

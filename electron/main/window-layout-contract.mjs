@@ -5,7 +5,7 @@
  * `--desktop-window-min-width`; the architecture check keeps the two process
  * boundaries synchronized because CSS cannot import an Electron main module.
  */
-export const DESKTOP_WINDOW_MIN_WIDTH = 640;
+export const DESKTOP_WINDOW_MIN_WIDTH = 720;
 export const DESKTOP_WINDOW_MIN_HEIGHT = 520;
 
 // The default renderer Header and native traffic-light lane share this height.

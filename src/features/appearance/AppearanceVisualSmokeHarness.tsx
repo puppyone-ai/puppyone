@@ -188,10 +188,10 @@ export function AppearanceVisualSmokeHarness() {
         <div className="onboarding-homepage">
           <OnboardingPrimarySection kind="projects">
             <OnboardingProjectList
+              layout="list"
               items={[{ id: "typography-project", label: "PuppyOne", localPath: "/Users/demo/Desktop/PuppyOne", lastOpenedAt: null }]}
               busy={false}
               openingPath={null}
-              removingPath={null}
               draggingPath={null}
               onOpen={() => undefined}
               onDragStart={() => undefined}

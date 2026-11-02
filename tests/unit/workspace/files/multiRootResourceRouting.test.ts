@@ -5,16 +5,16 @@ import {
   qualifyDataResourcePath,
   type AiEditRequest,
   type MarkdownLinkGraph,
-} from "../../../../packages/shared-ui/src";
+} from "../../../../src/shared-ui";
 import {
   fromContextMapRelativePath,
   getContextMapScopePath,
   toContextMapRelativePath,
-} from "../../../../packages/shared-ui/src/editor/viewers/context-map/contextMapDocument";
+} from "../../../../src/shared-ui/editor/viewers/context-map/contextMapDocument";
 import {
   resolveMarkdownAssetPath,
   resolveMarkdownMediaReference,
-} from "../../../../packages/shared-ui/src/editor/markdown/features/media/markdownMediaReference";
+} from "../../../../src/shared-ui/editor/markdown/features/media/markdownMediaReference";
 import { qualifyAiEditRequest } from "../../../../src/features/data-workspace/useAiEditReviewRequest";
 
 describe("multi-root Resource URI routing", () => {

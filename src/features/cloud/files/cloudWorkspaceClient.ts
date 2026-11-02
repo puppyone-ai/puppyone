@@ -2,7 +2,7 @@ import { cloudApiRequest, type DesktopCloudSession } from "../../../lib/cloudApi
 import type { ProjectCloudContext } from "../project/context/projectCloudContext";
 import { getFileSemanticKind } from "@puppyone/shared-ui";
 import type { CloudEntry } from "./contracts";
-import { createCloudWorkspaceOpeningProgress } from "./cloudWorkspaceOpening";
+import { cloudWorkspaceOpeningPhase, createCloudWorkspaceOpeningProgress } from "./cloudWorkspaceOpening";
 import { cloudWorkspaceIdentity, inspectCloudWorkspaceHandoff, takeCloudWorkspaceHandoff, type CloudWorkspaceHandoff } from "./cloudWorkspaceHandoff";
 
 import type { CloudWorkbench } from "./contracts";
@@ -79,7 +79,7 @@ export function createCloudWorkspaceClient(session: DesktopCloudSession,
     if (row.state !== "running") throw failure("This Cloud workspace is unavailable. Retry to resume it.");
     workspace = { ...row }; return workspace;
   };
-  async function waitForReady(initial: OpeningResult) {
+  async function waitForReady(initial: OpeningResult, progress: Opening["progress"]) {
     let result = initial;
     let row = result.workspace;
     const deadline = Math.min(Date.now() + 620_000,
@@ -96,6 +96,7 @@ export function createCloudWorkspaceClient(session: DesktopCloudSession,
       if (["retained", "cleanup_pending"].includes(row.state)) {
         throw failure("This workspace needs recovery.", 409, "workbench_requires_recovery", false);
       }
+      progress.set(cloudWorkspaceOpeningPhase(row.operation));
       if (!Number.isFinite(deadline) || Date.now() >= deadline) {
         throw failure("This workspace did not become ready in time.", 504, "workbench_start_timeout");
       }
@@ -126,7 +127,7 @@ export function createCloudWorkspaceClient(session: DesktopCloudSession,
           && !status.workspace.operation?.pending && !status.workspace.operation?.error) return { ...status, workspace: status.workspace };
         // The server waits through startup and connection in one request.
         progress.set("connecting");
-        return waitForReady({ workspace: await request<CloudWorkbench>("", { method: "POST" }) });
+        return waitForReady({ workspace: await request<CloudWorkbench>("", { method: "POST" }) }, progress);
       })();
       pending = { result, progress };
       openings.set(identity, pending);

@@ -52,12 +52,12 @@ describe("renderer Sub Theme style host", () => {
 
   it("authors built-ins as self-describing public-token packages and compiles the host boundary", () => {
     for (const relativePath of [
-      "sub-themes/default-neutral/theme.css",
-      "sub-themes/default-warm/theme.css",
-      "sub-themes/default-graphite/theme.css",
-      "sub-themes/default-github/theme.css",
-      "sub-themes/default-newspaper/theme.css",
-      "sub-themes/windows-xp-luna-blue/theme.css",
+      "src/features/themes/builtin/default-neutral/theme.css",
+      "src/features/themes/builtin/default-warm/theme.css",
+      "src/features/themes/builtin/default-graphite/theme.css",
+      "src/features/themes/builtin/default-github/theme.css",
+      "src/features/themes/builtin/default-newspaper/theme.css",
+      "src/features/themes/builtin/windows-xp-luna-blue/theme.css",
     ]) {
       const css = readFileSync(`${process.cwd()}/${relativePath}`, "utf8");
       expect(css).toContain("@puppyone-theme");

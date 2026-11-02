@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const editorFindStyles = readFileSync(
-  "packages/shared-ui/src/styles/editor/editor-find.css",
+  "src/shared-ui/styles/editor/editor-find.css",
   "utf8",
 );
 

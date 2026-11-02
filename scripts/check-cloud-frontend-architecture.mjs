@@ -6,25 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const errors = [];
-const archiveRoot = resolve("archive/desktop-cloud-catalog");
-const productionRoots = [resolve("src"), resolve("electron"), resolve("packages/shared-ui/src")];
-
-const requiredArchiveFiles = [
-  "src/features/cloud/components/ProjectBrowser.tsx",
-  "src/features/cloud/components/CloudTemplateStore.tsx",
-  "src/features/cloud/components/CloudProjectCreateDialog.tsx",
-  "src/features/cloud/data/useCloudProjectCatalog.ts",
-  "src/features/cloud/hooks/useCloudProjectHome.ts",
-  "src/features/cloud/routes/CloudGlobalRouteOutlet.tsx",
-  "src/features/cloud/CloudServicePanel.tsx",
-  "src/components/MinimalOnboarding.tsx",
-  "src/components/AssetLibraryHome.tsx",
-];
-for (const relativePath of requiredArchiveFiles) {
-  if (!existsSync(path.join(archiveRoot, relativePath))) {
-    errors.push(`retired Cloud catalog asset is missing from archive: ${relativePath}`);
-  }
-}
+const productionRoots = [resolve("src"), resolve("electron")];
 
 const lineBudgets = new Map([
   ["src/features/cloud/files/cloudDataPort.ts", 390],
@@ -83,9 +65,6 @@ const cloudWindowOwners = new Set([
 for (const { filePath, source } of productionCode) {
   // Compare and report repository paths with "/" on every platform (Windows CI).
   const relativePath = path.relative(repoRoot, filePath).split(path.sep).join("/");
-  if (/\b(?:from\s+|import\s*\()["'][^"']*archive\/desktop-cloud-catalog/.test(source)) {
-    errors.push(`${relativePath} imports retired code from archive/desktop-cloud-catalog`);
-  }
   for (const token of [
     "CloudProjectBrowser",
     "CloudTemplateStore",
@@ -141,7 +120,6 @@ for (const requiredRouteContract of [
 for (const stableSection of [
   'id: "contents"',
   'id: "history"',
-  'id: "automation"',
   'id: "mcp"',
   'id: "cli"',
   'id: "git-sync"',

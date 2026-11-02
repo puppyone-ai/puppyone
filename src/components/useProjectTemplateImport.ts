@@ -5,24 +5,20 @@ import { readDesktopCloudAuthState, onDesktopCloudAuthStateChanged } from "../li
 import type { MarketplaceTemplateDetail, WorkspaceCreateProjectRequest } from "../types/electron";
 
 /**
- * `enabled` false keeps the flow on the built-in template: it ignores any
- * template link and never reads the Cloud account.
+ * Turns one template link into what the card shows. A public template needs no
+ * account, so the account is read only for a template that says it needs one.
  */
-export function useProjectTemplateImport(requestedUrl: string | null, locale: string, onResolved: (detail: MarketplaceTemplateDetail) => void, enabled = true) {
-  const initialUrl = enabled ? requestedUrl : null;
-  const [mode, setMode] = useState(Boolean(initialUrl));
-  const [url, setUrl] = useState(initialUrl || "");
+export function useProjectTemplateImport(url: string, locale: string) {
   const [template, setTemplate] = useState<MarketplaceTemplateDetail | null>(null);
-  const [resolving, setResolving] = useState(false);
+  const [resolving, setResolving] = useState(true);
   const [signedIn, setSignedIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const generation = useRef(0);
-  const resolvedCallback = useRef(onResolved);
-  resolvedCallback.current = onResolved;
   const auth = useCloudAuthController({ cloudApiBaseUrl: optionalCloudApiBaseUrl() });
+  const needsAccount = template?.requiresSignIn === true;
 
   useEffect(() => {
-    if (!enabled) return undefined;
+    if (!needsAccount) return undefined;
     let active = true;
     const sync = (state: Awaited<ReturnType<typeof readDesktopCloudAuthState>>) => {
       if (active) setSignedIn(Boolean(state.session && ["authenticated", "offline-authenticated", "refreshing"].includes(state.status)));
@@ -30,35 +26,33 @@ export function useProjectTemplateImport(requestedUrl: string | null, locale: st
     void readDesktopCloudAuthState().then(sync).catch(() => {});
     const unsubscribe = onDesktopCloudAuthStateChanged(sync);
     return () => { active = false; unsubscribe(); };
-  }, [enabled]);
+  }, [needsAccount]);
 
-  const resolve = useCallback(async (value: string) => {
+  const resolve = useCallback(async () => {
     const current = ++generation.current;
     setResolving(true); setError(null); setTemplate(null);
     try {
-      const detail = await window.puppyoneDesktop?.resolveTemplateLink({ url: value, locale });
-      if (detail && current === generation.current) { setTemplate(detail); resolvedCallback.current(detail); }
+      const detail = await window.puppyoneDesktop?.resolveTemplateLink({ url, locale });
+      if (detail && current === generation.current) setTemplate(detail);
     } catch (failure) {
       if (current === generation.current) setError(failure instanceof Error ? failure.message : String(failure));
     } finally { if (current === generation.current) setResolving(false); }
-  }, [locale]);
+  }, [locale, url]);
 
   useEffect(() => {
-    if (initialUrl) { setMode(true); setUrl(initialUrl); void resolve(initialUrl); }
+    void resolve();
     const requestGeneration = generation;
     return () => { requestGeneration.current++; };
-  }, [initialUrl, resolve]);
+  }, [resolve]);
 
-  const source: WorkspaceCreateProjectRequest["source"] = enabled && mode && template
+  const source: WorkspaceCreateProjectRequest["source"] | null = template
     ? { kind: "template", ref: { sourceId: "marketplace", id: template.id, releaseId: template.releaseId } }
-    : { kind: "template", ref: { sourceId: "builtin", id: "puppyone.project.getting-started", version: 1 } };
-  return { enabled, mode, setMode, url, setUrl, template, setTemplate, resolving, signedIn, error, setError, resolve, auth, source, canCreate: !enabled || !mode || Boolean(template && signedIn) };
+    : null;
+  return { template, resolving, needsSignIn: needsAccount && !signedIn, error, retry: resolve, auth, source };
 }
 
-export type ProjectTemplateImportController = ReturnType<typeof useProjectTemplateImport>;
-
 function optionalCloudApiBaseUrl() {
-  // Creating an ordinary local project remains available without Cloud configuration.
-  // The existing sign-in controller reports missing configuration on user action.
+  // A public template stays available without Cloud configuration. The existing
+  // sign-in controller reports missing configuration on user action.
   try { return getDesktopCloudApiBaseUrl(); } catch { return null; }
 }

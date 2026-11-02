@@ -51,14 +51,17 @@ async function fixture({ beforeWrite = async () => {} } = {}) {
     throw new Error(`Forbidden cloud authentication broker call: ${path}`);
   });
   let saved = null; let opened = null;
+  const sent = [];
+  const rendererWindow = { isDestroyed: () => false, webContents: { send: (channel, payload) => sent.push({ channel, payload }) } };
   const service = createCloudAuthService({
-    app: { getPath: () => "/unused" }, requestCloudApi, getWindows: () => [], revealWindow() {},
+    app: { getPath: () => "/unused" }, requestCloudApi, getWindows: () => [rendererWindow], revealWindow() {},
     credentialStore: { read: async () => saved, write: async value => { await beforeWrite(); saved = value; }, clear: async () => { saved = null; } },
     externalNavigation: { open: async url => { opened = url; } }, localCloudWebUrl: "https://web.example.test",
     logger: { error() {}, warn() {} },
   });
   cleanup.push(() => service.dispose());
-  return { service, calls, cloudCalls, origin, requestCloudApi, saved: () => saved, opened: () => opened };
+  return { service, calls, cloudCalls, origin, requestCloudApi, saved: () => saved, opened: () => opened,
+    errors: () => sent.filter(event => event.channel === "cloud-auth:error").map(event => event.payload.message) };
 }
 function authorizeForLogin(f) {
   const login = new URL(f.opened());
@@ -107,8 +110,11 @@ it("completes actual HTTP OAuth code exchange with zero cloud handoff requests",
 
 it("accepts the original Web form session and verifies it directly with Supabase", async () => {
   const f = await fixture(); await f.service.startOAuth({ apiBase: "https://api.puppyone.ai/api/v1" });
-  expect((await submit(f, {}, { Origin: "https://evil.test" })).status).toBe(400);
+  // Requests without this attempt's state cannot cancel it.
+  expect((await submit(f, { state: "wrong" }, { Origin: "https://evil.test" })).status).toBe(400);
   expect((await submit(f, { state: "wrong" })).status).toBe(400);
+  expect((await f.service.readState()).status).toBe("signing-in");
+  expect(f.errors()).toEqual([]);
   expect(f.calls.filter(call => call.path.includes("grant_type=refresh_token"))).toHaveLength(0);
   const response = await submit(f);
   expect(response.status).toBe(200);
@@ -121,10 +127,39 @@ it("accepts the original Web form session and verifies it directly with Supabase
 
 it("does not adopt an invalid Supabase refresh credential", async () => {
   const f = await fixture(); await f.service.startOAuth({ apiBase: "https://api.puppyone.ai/api/v1" });
+  const first = f.opened();
   const response = await submit(f, { refresh_token: "invalid" });
   expect(response.status).toBe(400);
   expect(await f.service.readSession()).toBeNull();
   expect(f.saved()).toBeNull();
+  // The browser already left the login page: Desktop must stop waiting and say why.
+  expect((await f.service.readState()).status).toBe("signed-out");
+  expect(f.errors()).toEqual(["Sign-in credentials are invalid or expired."]);
+  // "Open it again" starts a fresh attempt instead of reopening the dead one.
+  await f.service.startOAuth({ apiBase: "https://api.puppyone.ai/api/v1" });
+  expect(new URL(f.opened()).searchParams.get("desktop_state")).not.toBe(new URL(first).searchParams.get("desktop_state"));
+  expect((await submit(f)).status).toBe(200);
+  expect((await f.service.readSession()).user_id).toBe("user-1");
+});
+
+it("fails visibly when the login page's own handoff is rejected", async () => {
+  const f = await fixture(); await f.service.startOAuth({ apiBase: "https://api.puppyone.ai/api/v1" });
+  // A browser that withholds the Origin (for example under no-referrer) sends "null".
+  expect((await submit(f, {}, { Origin: "null" })).status).toBe(400);
+  expect(f.calls.filter(call => call.path.includes("grant_type=refresh_token"))).toHaveLength(0);
+  expect((await f.service.readState()).status).toBe("signed-out");
+  expect(f.errors()).toEqual(["The sign-in page could not be verified (origin null). Please try again."]);
+  // The rejected attempt's listener is closed rather than left open.
+  await vi.waitFor(async () => expect(await submit(f).then(() => "open", () => "closed")).toBe("closed"));
+});
+
+it("fails visibly when the credential cannot be stored after a valid handoff", async () => {
+  const f = await fixture({ beforeWrite: async () => { throw new Error("Secure storage is unavailable."); } });
+  await f.service.startOAuth({ apiBase: "https://api.puppyone.ai/api/v1" });
+  expect((await submit(f)).status).toBe(400);
+  expect(await f.service.readSession()).toBeNull();
+  expect((await f.service.readState()).status).toBe("signed-out");
+  expect(f.errors()).toEqual(["Secure storage is unavailable."]);
 });
 
 it("Supabase rejects a code with the wrong verifier or a replay", async () => {

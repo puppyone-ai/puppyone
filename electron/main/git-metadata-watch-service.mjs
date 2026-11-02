@@ -23,7 +23,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { resolveGitRepositoryIdentity as defaultResolveIdentity } from "../../local-api/workspace.mjs";
+import { resolveGitRepositoryIdentity as defaultResolveIdentity } from "../local-api/workspace.mjs";
 
 export const GIT_REPOSITORY_INVALIDATED_CHANNEL = "git-repository:invalidated";
 

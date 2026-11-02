@@ -18,7 +18,7 @@ const logicalUiStyles = [
   "../../../../src/features/desktop-agent/ui/styles/composer.css",
   "../../../../src/features/desktop-agent/ui/styles/transcript.css",
   "../../../../src/features/plugins/plugins.css",
-  "../../../../packages/shared-ui/src/styles/editor/puppyflow-editor.css",
+  "../../../../src/shared-ui/styles/editor/puppyflow-editor.css",
   "../../../../src/styles/settings-controls.css",
   "../../../../src/styles/settings-view.css",
   "../../../../src/styles/settings.css",
@@ -57,7 +57,7 @@ describe("RTL architecture", () => {
     // reading direction while collapsed, so RTL mirrors it in one place.
     expect(read("../../../../src/features/source-control/GitHistoryTimeline.tsx"))
       .toMatch(/<DisclosureIcon className="desktop-history-date-disclosure" expanded=\{!row\.collapsed\}/);
-    expect(read("../../../../packages/shared-ui/src/styles/product-icons.css"))
+    expect(read("../../../../src/shared-ui/styles/product-icons.css"))
       .toContain('[dir="rtl"] .po-disclosure-icon[data-expanded="false"]');
     expect(read("../../../../src/features/cloud/history/CloudHistorySidebar.tsx"))
       .toMatch(/aria-hidden="true"\s+dir="ltr"/);

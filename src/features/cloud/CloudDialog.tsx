@@ -12,7 +12,6 @@ export type CloudDialogProps = {
   sidebar: ReactNode;
   main: ReactNode;
   onClose: () => void;
-  locationControls?: ReactNode;
 };
 
 /**
@@ -20,7 +19,7 @@ export type CloudDialogProps = {
  * content, while the Explorer, editors, and auxiliary sidebar remain mounted
  * underneath the shared desktop overlay layer.
  */
-export function CloudDialog({ sidebar, main, onClose, locationControls }: CloudDialogProps) {
+export function CloudDialog({ sidebar, main, onClose }: CloudDialogProps) {
   const { t } = useLocalization();
   const title = t("cloud.productName");
 
@@ -39,9 +38,6 @@ export function CloudDialog({ sidebar, main, onClose, locationControls }: CloudD
               </span>
               <h2>{title}</h2>
             </div>
-            {locationControls && <div className="desktop-cloud-dialog-location-controls">
-              {locationControls}
-            </div>}
             <Tooltip content={t("common.action.close")}><DesktopDialogCloseButton label={t("common.action.close")} onClick={onClose} /></Tooltip>
           </header>
 

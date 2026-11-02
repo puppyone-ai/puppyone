@@ -2,7 +2,6 @@ export {
   cloudContextHasProject,
   getCloudContextWarning,
   getResolvedCloudProjectId,
-  getProjectCloudLocationState,
   isCloudContextRecovery,
   resolveCloudHubSectionAfterContextChange,
   resolveCloudHubSectionForContext,

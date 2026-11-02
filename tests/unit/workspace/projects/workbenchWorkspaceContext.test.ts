@@ -1,15 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
-import type { Workspace } from "../../../../packages/shared-ui/src/core/types";
+import type { Workspace } from "../../../../src/shared-ui/core/types";
 import {
   WorkbenchWorkspaceContext,
   createWorkbenchWorkspace,
   createSingleFolderWorkbenchWorkspace,
   createWorkspaceFolder,
-} from "../../../../packages/shared-ui/src/core/workbenchWorkspace";
+} from "../../../../src/shared-ui/core/workbenchWorkspace";
 import {
   createResourceUri,
   createWorkspaceResourceUri,
-} from "../../../../packages/shared-ui/src/core/resourceUri";
+} from "../../../../src/shared-ui/core/resourceUri";
 
 describe("WorkbenchWorkspaceContext", () => {
   it("creates one stable Workbench identity independent of Folder order", async () => {

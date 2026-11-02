@@ -4,17 +4,18 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { INITIAL_WINDOW_PROJECT, windowProjectStore } from "../../../../src/features/app-shell/window-project/windowProjectStore";
 import {
   createWorkspaceResourceUri,
   type DataPort,
   type Workspace,
-} from "../../../../packages/shared-ui/src";
-import type { DocumentEditingSession } from "../../../../packages/shared-ui/src/editor/document-session/DocumentEditingSession";
+} from "../../../../src/shared-ui";
+import type { DocumentEditingSession } from "../../../../src/shared-ui/editor/document-session/DocumentEditingSession";
 import {
   closeAllDocumentWorkingCopies,
   closeDocumentWorkingCopy,
   getOrCreateDocumentWorkingCopy,
-} from "../../../../packages/shared-ui/src/editor/document-session/documentWorkingCopies";
+} from "../../../../src/shared-ui/editor/document-session/documentWorkingCopies";
 import { useWorkspaceLifecycle } from "../../../../src/features/app-shell/useWorkspaceLifecycle";
 import { createWorkbenchDataService } from "../../../../src/features/data-workspace/workbenchDataPort";
 
@@ -29,6 +30,7 @@ const localFiles = vi.hoisted(() => ({
   detachWorkspaceFolder: vi.fn(),
   forgetLastWorkspace: vi.fn(),
   getInitialWorkspace: vi.fn(),
+  getRestoringProject: vi.fn(),
   getRecentWorkspaces: vi.fn(),
   hydrateRecentWorkspaces: vi.fn(),
   listImportResources: vi.fn(),
@@ -51,6 +53,8 @@ vi.mock("../../../../src/lib/localFiles", () => localFiles);
 let root: Root | null = null;
 
 beforeEach(() => {
+  windowProjectStore.setState(INITIAL_WINDOW_PROJECT, true);
+  localFiles.getRestoringProject.mockResolvedValue(null);
   localFiles.getInitialWorkspace.mockResolvedValue({
     path: null,
     workspace: null,
@@ -69,7 +73,51 @@ afterEach(async () => {
   vi.clearAllMocks();
 });
 
+describe("recent project readiness", () => {
+  it("settles only after recents have been hydrated with their modification dates", async () => {
+    let finishHydration!: (value: unknown) => void;
+    localFiles.hydrateRecentWorkspaces.mockReturnValue(new Promise(resolve => { finishHydration = resolve; }));
+    const harness = await renderHarness(false, vi.fn());
+    expect(harness.current.restoringWorkspace).toBe(false);
+    expect(harness.current.recentWorkspacesSettled).toBe(false);
+    await act(async () => finishHydration({ workspaces: [], errors: [], hydrated: true }));
+    expect(harness.current.recentWorkspacesSettled).toBe(true);
+  });
+
+  it("settles when hydration fails, so the Homepage is not left waiting for it", async () => {
+    localFiles.hydrateRecentWorkspaces.mockRejectedValue(new Error("Unreadable"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const harness = await renderHarness(false, vi.fn());
+    expect(harness.current.recentWorkspacesSettled).toBe(true);
+    warn.mockRestore();
+  });
+
+  it("settles when recents cannot be read at all", async () => {
+    localFiles.getRecentWorkspaces.mockRejectedValue(new Error("Unreadable"));
+    const harness = await renderHarness(false, vi.fn());
+    expect(harness.current.recentWorkspacesSettled).toBe(true);
+    expect(localFiles.hydrateRecentWorkspaces).not.toHaveBeenCalled();
+  });
+});
+
 describe("multi-project Workspace experiment", () => {
+  it("names the project coming back only for as long as it is on its way", async () => {
+    const primary = workspace("a", "A", "/projects/a");
+    let finishRestore!: (value: unknown) => void;
+    localFiles.getRestoringProject.mockResolvedValue({ kind: "local", path: primary.path });
+    localFiles.getInitialWorkspace.mockReturnValue(new Promise((resolve) => { finishRestore = resolve; }));
+    const harness = await renderHarness(false, vi.fn());
+    expect(harness.current.restoringProject).toEqual({ kind: "local", path: primary.path });
+    await act(async () => finishRestore({ workspace: primary, workspaces: [primary], path: primary.path, error: null }));
+    expect(harness.current.restoringProject).toBeNull();
+  });
+
+  it("starts a wait with no project when the window cannot say what is coming back", async () => {
+    localFiles.getRestoringProject.mockRejectedValue(new Error("No answer"));
+    const harness = await renderHarness(false, vi.fn());
+    expect(harness.current.restoringProject).toBeNull();
+  });
+
   it("opens folders in the current window even when a project is already displayed", async () => {
     const primary = workspace("a", "A", "/projects/a");
     const next = workspace("b", "B", "/projects/b");

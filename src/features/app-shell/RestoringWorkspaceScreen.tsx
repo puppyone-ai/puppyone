@@ -7,6 +7,10 @@ type RestoringWorkspaceScreenProps = {
   appearance: ResolvedSurfaceAppearance;
 };
 
+/**
+ * The wait for a Homepage. The page has not arrived, so the mark holds the centre
+ * of the window. A project coming back waits in its own window instead.
+ */
 export function RestoringWorkspaceScreen({
   appearance,
 }: RestoringWorkspaceScreenProps) {
@@ -19,7 +23,8 @@ export function RestoringWorkspaceScreen({
       {...appearance.rootProps}
     >
       <DesktopWindowDragRegion className="onboarding-titlebar" />
-      <LoadingMark layout="area" ariaLabel={t("workspace.restoring.ariaLabel")} size="md" tone="neutral" />
+      <LoadingMark className="onboarding-restoring-mark" layout="area"
+        ariaLabel={t("common.status.loading")} size="md" tone="neutral" />
     </main>
   );
 }

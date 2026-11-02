@@ -2,6 +2,7 @@ import { isAgentToolActivity } from "../../../../shared/agent-contract/activity-
 import { isContextCompactionActivity } from "../domain/agent-activity-presentation";
 import type { AgentPart, TimelineRow } from "../domain/agent-projection-types";
 import { STANDARD_CONTROL_SIZE } from "@puppyone/shared-ui";
+import { agentToolStepSegments } from "./activity/agent-tool-steps";
 
 export type AgentTranscriptRow = TimelineRow & Readonly<{
   partIds: readonly string[];
@@ -9,42 +10,6 @@ export type AgentTranscriptRow = TimelineRow & Readonly<{
 }>;
 
 export const AGENT_TOOL_GROUP_LIMIT = 64;
-export const AGENT_TOOL_RAIL_FALLBACK_VISIBLE = 12;
-export const AGENT_TOOL_RAIL_MAX_VISIBLE = 24;
-export const AGENT_TOOL_RAIL_ITEM_WIDTH = 28;
-export const AGENT_TOOL_RAIL_GAP = 4;
-export const AGENT_TOOL_RAIL_OVERFLOW_WIDTH = 36;
-export const AGENT_TOOL_RAIL_GROUP_INSET = 8;
-
-type AgentToolRailVisibilityInput = Readonly<{
-  total: number;
-  width: number;
-  itemWidth: number;
-  gap: number;
-  overflowWidth: number;
-}>;
-
-/** Keeps the default rail on one line and reserves one complete slot for +N. */
-export function agentToolRailVisibleCount({
-  total,
-  width,
-  itemWidth,
-  gap,
-  overflowWidth,
-}: AgentToolRailVisibilityInput) {
-  if (total <= 0) return 0;
-  if (![width, itemWidth, gap, overflowWidth].every(Number.isFinite) || width <= 0 || itemWidth <= 0) {
-    return Math.min(total, AGENT_TOOL_RAIL_FALLBACK_VISIBLE);
-  }
-  const boundedGap = Math.max(0, gap);
-  const fullCapacity = Math.max(0, Math.floor((width + boundedGap) / (itemWidth + boundedGap)));
-  if (total <= fullCapacity && total <= AGENT_TOOL_RAIL_MAX_VISIBLE) return total;
-  const capacityWithOverflow = Math.max(
-    0,
-    Math.floor((width - Math.max(0, overflowWidth)) / (itemWidth + boundedGap)),
-  );
-  return Math.min(total - 1, AGENT_TOOL_RAIL_MAX_VISIBLE, capacityWithOverflow);
-}
 
 /**
  * Groups adjacent tools only at the Renderer boundary. The durable event
@@ -80,7 +45,10 @@ export function groupAgentToolRows(
       ...row,
       id: `tool-group:${row.id}`,
       updatedSequence: Math.max(...toolRows.map((entry) => entry.updatedSequence ?? entry.sequence)),
-      estimatedHeight: compactRowHeight,
+      // One line per visible step until the real row is measured.
+      estimatedHeight: compactRowHeight * Math.max(1, agentToolStepSegments(
+        toolRows.flatMap((entry) => parts.get(entry.partId) ?? []),
+      ).length),
       partIds: toolRows.map((entry) => entry.partId),
       toolGroup: true,
     });

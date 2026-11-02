@@ -1,5 +1,5 @@
 import { useDesktopPreference } from "../../../preferencesStore";
-import { useAccountAvailable, useFeatureFlag } from "../../flags";
+import { useAccountAvailable } from "../../flags";
 import { useLocalization } from "@puppyone/localization";
 import type { ExperimentalSettings } from "../../../preferences";
 import { SettingsSectionHeader, SettingsSubsection, SettingsToggle } from "../components";
@@ -7,7 +7,6 @@ import { SettingsSectionHeader, SettingsSubsection, SettingsToggle } from "../co
 export function ExperimentalSettingsView() {
   const settings = useDesktopPreference(s => s.experimentalSettings);
   const onChange = useDesktopPreference(s => s.setExperimentalSettings);
-  const assetLibraryHomeAvailable = useFeatureFlag("assetLibraryHome");
   const accountAvailable = useAccountAvailable();
   const { t } = useLocalization();
   const groups: Array<{
@@ -22,10 +21,6 @@ export function ExperimentalSettingsView() {
       id: "header",
       rows: [
         { messageKey: "projectReach", settingKey: "enableProjectReach" },
-        { messageKey: "projectHeaderAlignment", settingKey: "enableCenteredProjectInHeader",
-          choices: [{ messageKey: "left", value: false }, { messageKey: "center", value: true }] },
-        { messageKey: "projectLocationIconsInHeader", settingKey: "enableProjectLocationIconsInHeader",
-          choices: [{ messageKey: "menu", value: false }, { messageKey: "header", value: true }] },
         { messageKey: "workbenchTabsInHeader", settingKey: "enableWorkbenchTabsInHeader",
           choices: [{ messageKey: "sidebar", value: false }, { messageKey: "header", value: true }] },
         { messageKey: "shareOnboarding", settingKey: "enableShareOnboarding" },
@@ -56,7 +51,6 @@ export function ExperimentalSettingsView() {
       id: "cloud",
       rows: [
         { messageKey: "cloudWorkspace", settingKey: "enableCloudWorkspace" },
-        { messageKey: "cloudAutomation", settingKey: "enableCloudAutomation" },
         // The only switch that lets the Desktop ask for money: src/features/payments/README.md.
         // Paid compute needs a PuppyOne account, not Cloud, so it is offered whenever accounts are.
         ...(accountAvailable ? [{ messageKey: "payments", settingKey: "enablePayments" as const }] : []),
@@ -66,11 +60,6 @@ export function ExperimentalSettingsView() {
           : []),
       ],
     },
-    ...(assetLibraryHomeAvailable || settings.enableAssetLibraryHome ? [{
-      id: "homepage",
-      rows: [{ messageKey: "projectsHome", settingKey: "enableAssetLibraryHome" as const,
-        choices: [{ messageKey: "list", value: false }, { messageKey: "cards", value: true }] }],
-    }] : []),
   ];
 
   return (
@@ -85,8 +74,7 @@ export function ExperimentalSettingsView() {
               <div className="desktop-settings-list">
                 {rows.map(({ messageKey, settingKey, choices }) => {
                   const label = t(`settings.experimental.${messageKey}.title`);
-                  const description = messageKey === "projectHeaderAlignment"
-                    ? undefined : t(`settings.experimental.${messageKey}.detail`);
+                  const description = t(`settings.experimental.${messageKey}.detail`);
                   return <div className={`desktop-settings-row desktop-settings-row-control${choices ? " desktop-settings-choice-row" : ""}`} key={settingKey}>
                     <span>{label}</span>
                     {choices ? <div className="desktop-theme-segment" role="group" aria-label={label} aria-description={description}>

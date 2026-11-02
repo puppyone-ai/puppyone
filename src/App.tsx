@@ -25,7 +25,7 @@ import {
   type WorkspaceFolder,
 } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
-import { DesktopCloudShell, type DesktopView } from "./components/DesktopCloudShell";
+import type { DesktopView } from "./components/ProjectShell";
 import {
   isSettingsSectionAvailable,
   SettingsDialog,
@@ -33,16 +33,15 @@ import {
 } from "./features/settings";
 import { CLOUD_HUB_ENTRY_SECTION, type CloudWorkspaceSection } from "./features/cloud";
 import { useAccountCloudWorkspace } from "./features/cloud/workbench/useAccountCloudWorkspace";
+import { ProjectWindow } from "./app/ProjectWindow";
+import { useProjectOpeningSurfaces } from "./app/useProjectOpeningSurfaces";
+import { useWindowProjectNavigation, type ProjectDesktopView } from "./app/useWindowProjectNavigation";
 import { CloudWorkspaceHeaderTools } from "./features/cloud/workbench/CloudWorkspaceHeaderTools";
+import { CloudWorkspaceAgentMark, CloudWorkspaceAgentPeople } from "./app/CloudWorkspaceAgentPeople";
 import { captureCloudWorkspaceShareResource } from "./features/cloud/share/cloudWorkspaceShareResource";
 import { useCloudAgentWorkspace } from "./features/cloud/agent/useCloudAgentWorkspace";
 import { CloudWorkspaceSidebar } from "./features/cloud/workbench/CloudWorkspaceSidebar";
 import { useCloudWorkspaceSidebar } from "./features/cloud/workbench/useCloudWorkspaceSidebar";
-import { useRepositoryCloudWorkspaceSwitch } from "./features/cloud/workbench/useRepositoryCloudWorkspaceSwitch";
-import { CloudWorkspaceSwitchDialog } from "./features/cloud/workbench/CloudWorkspaceSwitchDialog";
-import { RepositoryCloudSwitchGate } from "./features/cloud/workbench/RepositoryCloudSwitchGate";
-import { MissingCloudProjectRecovery } from "./features/cloud/workbench/MissingCloudProjectRecovery";
-import { CloudInitializationRoute } from "./features/cloud/initialization/CloudInitializationRoute";
 import { useHomepageCloudProjects } from "./features/cloud/workbench/useHomepageCloudProjects";
 import { HomepageCloudStatus } from "./features/cloud/workbench/HomepageCloudStatus";
 import {
@@ -56,7 +55,6 @@ import { useNativeCloudWorkbench } from "./features/cloud/workbench/useNativeClo
 import {
   MinimalOnboarding,
 } from "./components/MinimalOnboarding";
-import { AssetLibraryHome } from "./components/AssetLibraryHome";
 import {
   closeAgentChatWorkbenchItem,
   createAgentChatCloseAdapter,
@@ -82,11 +80,8 @@ import {
   removeWorkspaceGitRemote,
   showHomepage,
 } from "./lib/localFiles";
-import { useProjectNavigation } from "./features/app-shell/useProjectNavigation";
-import type { ProjectNavigationTarget } from "./features/app-shell/projectNavigation";
+import { showWindowProject, useWindowProject } from "./features/app-shell/window-project/windowProjectStore";
 import { ProjectNavigationFailure } from "./features/app-shell/ProjectNavigationFailure";
-import { CloudOpeningError, describeCloudOpeningFailure, type CloudOpeningFailure } from "./features/cloud/cloudOpeningFailure";
-import { formatCloudMessage } from "./features/cloud/cloudPresentation";
 import {
   getDesktopCloudApiBaseUrl,
   type DesktopCloudSession,
@@ -96,11 +91,10 @@ import type { GitRemoteSummary, PuppyoneWorkspaceConfig } from "./types/electron
 import {
   mergePuppyoneWorkspaceConfig,
 } from "./features/app-shell/preferences";
-import { DesktopProjectLocationControls, type DesktopProjectLocation } from "./components/DesktopProjectLocationSwitcher";
 import { DesktopTitlebarContext } from "./features/app-shell/DesktopTitlebarContext";
+import { resolveProjectPlaceMenu } from "./features/app-shell/project-place/projectPlaceMenuState";
 import { DesktopWorkspaceContent } from "./features/app-shell/DesktopWorkspaceContent";
 import { DesktopWorkspaceLocationSurface } from "./features/app-shell/DesktopWorkspaceLocationSurface";
-import { DesktopCloudWorkspacePreparation } from "./app/DesktopCloudWorkspacePreparation";
 import { DesktopTitlebarActions } from "./features/app-shell/DesktopTitlebarActions";
 import {
   DesktopShellLocationBar,
@@ -111,19 +105,28 @@ import { DesktopOverlayPortal } from "./components/DesktopOverlayPortal";
 import { DesktopHelpLauncher } from "./features/app-shell/DesktopHelpLauncher";
 import { useDesktopPlatformCapabilities } from "./platform/useDesktopPlatformCapabilities";
 import { RestoringWorkspaceScreen } from "./features/app-shell/RestoringWorkspaceScreen";
+import { useHomepageFirstPaint, useHomepageListHold } from "./features/app-shell/useHomepageFirstPaint";
 import { useDesktopPreference, useDesktopAppearance, useDesktopPreferenceEffects } from "./features/settings";
-import { isAssetLibraryHomeEnabled } from "./features/app-shell/homeFeatureGate";
 import { useWorkspaceLifecycle } from "./features/app-shell/useWorkspaceLifecycle";
 import { usePuppyoneConfig } from "./features/app-shell/usePuppyoneConfig";
 import { useExternalFileOpen } from "./features/external-apps/useExternalFileOpen";
 import { useDesktopCloudSession } from "./features/cloud/hooks/useDesktopCloudSession";
 import {
   getResolvedCloudProjectId,
-  getProjectCloudLocationState,
   resolveCloudHubSectionAfterContextChange,
   useCurrentRepositoryCloudContext,
 } from "./features/cloud/project/context";
-import { useAccountAvailable, useCloudEnabled, useFeatureFlag } from "./features/flags";
+import {
+  localFolderCloudNoticeKey,
+  resolveLocalFolderCloudEntry,
+  resolveLocalFolderCloudNotice,
+} from "./features/cloud/project/localFolderCloudNoticeState";
+import { LocalFolderCloudNotice } from "./features/cloud/project/LocalFolderCloudNotice";
+import {
+  canReplaceMissingCloudProject,
+  MissingCloudProjectReplacement,
+} from "./features/cloud/project/MissingCloudProjectReplacement";
+import { useAccountAvailable, useCloudEnabled } from "./features/flags";
 import {
   DesktopCreateEntryMenu,
   DesktopNodeActionMenu,
@@ -207,7 +210,6 @@ import { useProjectSwitcherSurface } from "./features/app-shell/useProjectSwitch
 const AgentChatWorkbenchItem = lazy(loadAgentChatWorkbenchItem);
 const AgentChatHistoryBrowser = lazy(loadAgentChatHistoryBrowser);
 const EMPTY_WORKSPACE_FOLDERS: readonly WorkspaceFolder[] = Object.freeze([]);
-type ProjectDesktopView = Exclude<DesktopView, "settings" | "cloud">;
 
 export function App() {
   return <AppContent />;
@@ -226,12 +228,10 @@ function AppContent() {
   const explorerWidth = useDesktopPreference(s => s.explorerWidth);
   const enableMultiRootWorkspaces = useDesktopPreference(s => s.experimentalSettings.enableMultiRootWorkspaces);
   const enableShareOnboarding = useDesktopPreference(s => s.experimentalSettings.enableShareOnboarding);
-  const enableAssetLibraryHome = useDesktopPreference(s => s.experimentalSettings.enableAssetLibraryHome);
   const enableViewerPlugins = useDesktopPreference(s => s.experimentalSettings.enableViewerPlugins);
   const enableOtherAppImports = useDesktopPreference(s => s.experimentalSettings.enableOtherAppImports);
   const enablePayments = useDesktopPreference(s => s.experimentalSettings.enablePayments);
   const enableAlwaysShowOnboardingCoachmarks = useDesktopPreference(s => s.experimentalSettings.enableAlwaysShowOnboardingCoachmarks);
-  const centerProjectInHeader = useDesktopPreference(s => s.experimentalSettings.enableCenteredProjectInHeader);
   const enableEditorTabsInHeader = useDesktopPreference(s => s.experimentalSettings.enableEditorTabsInHeader);
   const enableWorkbenchTabsInHeader = useDesktopPreference(s => s.experimentalSettings.enableWorkbenchTabsInHeader);
   // The Project switcher experiment. While the rail is the switcher it owns
@@ -301,7 +301,6 @@ function AppContent() {
   // The share entry's fork: one screen for inviting a person or connecting an
   // agent, or the existing step wizard. Declared in the project-reach contract.
   const projectReachEnabled = useProjectReachExperience();
-  const assetLibraryHomeAvailable = useFeatureFlag("assetLibraryHome");
   const {
     cloudSession,
     cloudAuthStatus,
@@ -315,7 +314,8 @@ function AppContent() {
     sessionRestoring: cloudSessionRestoring,
     environment: { apiBaseUrl: desktopCloudApiBaseUrl, source: "default", cloudRemote: null },
   })), [cloudAuthStatus, cloudSession, cloudSessionRestoring, desktopCloudApiBaseUrl]);
-  const accountCloud = useAccountCloudWorkspace({ enabled: cloudEnabled, session: activeCloudSession, apiBaseUrl: desktopCloudApiBaseUrl });
+  const accountCloud = useAccountCloudWorkspace({ enabled: cloudEnabled, session: activeCloudSession, apiBaseUrl: desktopCloudApiBaseUrl,
+    shown: useWindowProject((project) => project.shown), onShow: showWindowProject });
   const cloudWorkspaceActive = accountCloud.active;
   const { useLocal: returnToLocalWorkspace } = accountCloud;
   const [activeCloudSection, setActiveCloudSection] = useState<CloudWorkspaceSection>("initialize");
@@ -342,11 +342,13 @@ function AppContent() {
     openFolder,
     openWorkspacePath,
     recentWorkspaceItems,
+    recentWorkspacesSettled,
     removeWorkspaceFromRecents,
     renameProject,
     removeProject,
     refreshRecentWorkspaceList,
     restoreWorkspaceError,
+    restoringProject,
     restoringWorkspace,
     initialCloudProject,
     setRestoreWorkspaceError,
@@ -370,11 +372,8 @@ function AppContent() {
   });
   const projectCatalog = useHomepageCloudProjects({
     visible: !restoringWorkspace,
-    enabled: cloudEnabled, session: activeCloudSession, apiBaseUrl: desktopCloudApiBaseUrl,
+    enabled: cloudEnabled, session: activeCloudSession, restoring: cloudSessionRestoring, apiBaseUrl: desktopCloudApiBaseUrl,
     local: recentWorkspaceItems,
-    activeLocalPath: !cloudWorkspaceActive ? workspace?.path : undefined,
-    activeCloudProjectId: cloudWorkspaceActive && accountCloud.context.status === "resolved"
-      ? accountCloud.context.projectId : undefined,
   });
   const surfaceAppearance = useMemo(() => resolveSurfaceAppearance({
     appearance: resolvedAppearance,
@@ -406,11 +405,6 @@ function AppContent() {
       hiddenLocalAgentIds: hiddenTerminalAgentIds,
     });
   }, [hiddenTerminalAgentIds]);
-  const assetLibraryHomeEnabled = isAssetLibraryHomeEnabled({
-    available: assetLibraryHomeAvailable,
-    optedIn: enableAssetLibraryHome,
-  });
-  const Homepage = assetLibraryHomeEnabled ? AssetLibraryHome : MinimalOnboarding;
   // Settings opens on Account, the first row of the first group. It is the
   // page a user most often came here for — who am I signed in as, and what am
   // I paying — and the only one that is always available, with or without a
@@ -840,49 +834,54 @@ function AppContent() {
     closeCloudSidebar();
   }, [blurAuxiliarySurfaceFocus, closeCloudSidebar, setRightSidebarOpen]);
   const repositoryCloudInitializationPending = cloudBackupLoading || cloudPublishStateLoading || Boolean(cloudPublishState);
-  const repositoryCloudSwitch = useRepositoryCloudWorkspaceSwitch({
-    enabled: cloudEnabled && Boolean(focusedWorkspace),
-    scope: JSON.stringify([focusedWorkspace?.id, focusedWorkspace?.path]),
-    context: projectCloudContext, session: activeCloudSession, apiBaseUrl: desktopCloudApiBaseUrl,
-    onPrepared: accountCloud.activatePrepared,
-    onRevalidate: revalidateRepositoryContext,
-    initializationPending: repositoryCloudInitializationPending,
-  });
-  const requestCloudWorkspace = repositoryCloudSwitch.request;
-  const cancelRepositoryCloudSwitch = repositoryCloudSwitch.cancel;
   const cancelAccountCloudOpen = accountCloud.cancel;
   const cancelCloudWorkspaceSwitch = useCallback(() => {
     closeWorkspaceSidebars();
-    cancelRepositoryCloudSwitch(); cancelAccountCloudOpen();
-  }, [cancelAccountCloudOpen, cancelRepositoryCloudSwitch, closeWorkspaceSidebars]);
+    cancelAccountCloudOpen();
+  }, [cancelAccountCloudOpen, closeWorkspaceSidebars]);
+  // A local folder and its Cloud project are two projects (puppy-issues
+  // ADR-001). Asking for the folder's Cloud project opens that other project,
+  // starts putting the folder in the Cloud, or shows the notice saying why it
+  // cannot be opened from here. The folder itself is never replaced or blocked.
+  const [dismissedCloudNoticeKey, setDismissedCloudNoticeKey] = useState<string | null>(null);
+  const [replacingMissingCloudProject, setReplacingMissingCloudProject] = useState(false);
+  const selectCloudProjectRef = useRef<(projectId: string) => Promise<void>>(async () => {});
   const openCloudWorkspace = useCallback(() => {
     if (!cloudEnabled) return;
-    cancelProjectNavigationRef.current();
-    closeWorkspaceSidebars();
-    cancelAccountCloudOpen();
-    requestCloudWorkspace();
-    setActiveCloudSection(CLOUD_HUB_ENTRY_SECTION);
-    setCloudDialogOpen(false);
-    setSettingsDialogOpen(false);
-    setPluginsDialogOpen(false);
-    setBranchSwitcherOpen(false);
-  }, [cancelAccountCloudOpen, closeWorkspaceSidebars, cloudEnabled, requestCloudWorkspace, setBranchSwitcherOpen]);
+    const entry = resolveLocalFolderCloudEntry(projectCloudContext, {
+      signedIn: Boolean(activeCloudSession),
+      publishPending: repositoryCloudInitializationPending,
+    });
+    if (entry.kind === "open") {
+      void selectCloudProjectRef.current(entry.projectId);
+      return;
+    }
+    if (entry.kind === "explain") {
+      // An outage may have passed; check again while the notice explains.
+      if (projectCloudContext.status === "temporarily-unavailable") revalidateRepositoryContext();
+      setDismissedCloudNoticeKey(null);
+      return;
+    }
+    openCloudDialogAt(entry.kind === "publish" ? "initialize" : CLOUD_HUB_ENTRY_SECTION);
+  }, [activeCloudSession, cloudEnabled, openCloudDialogAt, projectCloudContext, repositoryCloudInitializationPending,
+    revalidateRepositoryContext]);
   const openLocalWorkspace = useCallback(() => {
     cancelProjectNavigationRef.current();
     closeWorkspaceSidebars();
-    cancelRepositoryCloudSwitch();
     returnToLocalWorkspace();
     setCloudDialogOpen(false);
     setBranchSwitcherOpen(false);
-  }, [cancelRepositoryCloudSwitch, closeWorkspaceSidebars, returnToLocalWorkspace, setBranchSwitcherOpen]);
+  }, [closeWorkspaceSidebars, returnToLocalWorkspace, setBranchSwitcherOpen]);
 
   useEffect(() => {
     if (cloudWorkspaceActive) resetDataNodeActions();
   }, [cloudWorkspaceActive, resetDataNodeActions]);
   useEffect(() => {
     if (activeView === "cloud") {
+      // Programmatic Cloud routes (a finished or discarded first publish) keep
+      // the user in this folder and show the outcome in the Cloud dialog.
       setActiveView("data");
-      if (cloudEnabled) openCloudWorkspace();
+      if (cloudEnabled) setCloudDialogOpen(true);
       if (!cloudEnabled) setActiveCloudSection("initialize");
       return;
     }
@@ -891,7 +890,7 @@ function AppContent() {
       setActiveView("data");
       setActiveCloudSection("initialize");
     }
-  }, [activeView, cloudEnabled, openCloudWorkspace]);
+  }, [activeView, cloudEnabled]);
 
 
   const [shareWizard, setShareWizard] = useState<{
@@ -912,27 +911,16 @@ function AppContent() {
     onSessionChange: updateCloudSession,
   });
   const cloudSignedIn = activeCloudSession !== null;
-  const projectCloudLocationState = getProjectCloudLocationState(projectCloudContext, cloudSignedIn);
-  const prepareCloudInPlace = Boolean(activeCloudSession && !repositoryCloudInitializationPending && (projectCloudContext.status === "resolved"
-    || projectCloudContext.status === "resolving" || repositoryCloudSwitch.error));
-  const headerWorkspaceLocation = cloudWorkspaceActive ? "cloud"
-    : (prepareCloudInPlace && repositoryCloudSwitch.requestedLocation) || "local";
-  const cloudHeaderActive = headerWorkspaceLocation === "cloud";
-  const localRightSidebarActive = !cloudWorkspaceActive && !repositoryCloudSwitch.pending;
+  // The window shows one project: a local folder, or a Cloud project opened as
+  // its own project. Nothing switches one project between the two.
+  const workspaceLocation = cloudWorkspaceActive ? "cloud" : "local";
+  const cloudHeaderActive = cloudWorkspaceActive;
+  const localRightSidebarActive = !cloudWorkspaceActive;
   const rightSidebarContentVisible = rightSidebarOpen && localRightSidebarActive;
   const agentSidebarOpen = rightSidebarContentVisible && rightSidebarSurface === "chat";
   const handleLocalRightSidebarOpenChange = useCallback((open: boolean) => {
     if (!open || localRightSidebarActive) setRightSidebarOpen(open);
   }, [localRightSidebarActive, setRightSidebarOpen]);
-  // Header selection follows intent immediately; the provider remains local
-  // until authorization and root-file access complete.
-  const projectLocation: DesktopProjectLocation | undefined = cloudEnabled
-    ? { current: cloudWorkspaceActive ? "cloud" : "local", requested: repositoryCloudSwitch.requestedLocation,
-      headerLocation: headerWorkspaceLocation,
-      loading: repositoryCloudSwitch.pending && !repositoryCloudSwitch.error,
-      failed: repositoryCloudSwitch.pending && Boolean(repositoryCloudSwitch.error),
-      localAvailable: true, cloudState: projectCloudLocationState }
-    : undefined;
   // The wizard stacks above the Cloud dialog so the Homepage is still there when it closes.
   const openShareWizard = useCallback((
     targetId: ShareTargetId | null,
@@ -956,18 +944,18 @@ function AppContent() {
     // quit) stays visible until it is continued or its empty project deleted.
     pausedStage: cloudPublishState && !cloudPublishProgress ? resolvePausedStage(cloudPublishState) : null,
     pausedDiscard: cloudPublishState ? isCleanupRequested(cloudPublishState) : false,
-    surfaceOpen: repositoryCloudSwitch.pending || cloudDialogOpen || shareWizard !== null,
+    surfaceOpen: cloudDialogOpen || shareWizard !== null,
   });
   const acknowledgeCloudPublishHeader = cloudPublishHeader.acknowledge;
   const reopenCloudPublish = useCallback(() => {
     acknowledgeCloudPublishHeader();
-    openCloudWorkspace();
-  }, [acknowledgeCloudPublishHeader, openCloudWorkspace]);
+    openCloudDialogAt("initialize");
+  }, [acknowledgeCloudPublishHeader, openCloudDialogAt]);
   useEffect(() => {
-    if ((accountCloud.opening || repositoryCloudSwitch.pending) && (cloudDialogOpen || settingsDialogOpen || pluginsDialogOpen || shareWizard)) {
+    if (accountCloud.opening && (cloudDialogOpen || settingsDialogOpen || pluginsDialogOpen || shareWizard)) {
       cancelCloudWorkspaceSwitch();
     }
-  }, [cancelCloudWorkspaceSwitch, cloudDialogOpen, accountCloud.opening, repositoryCloudSwitch.pending, pluginsDialogOpen, settingsDialogOpen, shareWizard]);
+  }, [cancelCloudWorkspaceSwitch, cloudDialogOpen, accountCloud.opening, pluginsDialogOpen, settingsDialogOpen, shareWizard]);
   useEffect(() => {
     if (shareOnboardingEnabled) return;
     setShareWizard(null);
@@ -1002,10 +990,10 @@ function AppContent() {
     share: projectReachShareStatus.kind,
     shares: projectReachShareStatus.readers,
     destinations: reachDestinations,
-    deviceCopyAvailable: projectLocation?.localAvailable !== false,
+    deviceCopyAvailable: true,
     // Where the project is, taken from the surface the user is working on —
     // stated by the Header, never offered as a choice.
-    place: (projectLocation?.headerLocation ?? projectLocation?.current) === "cloud" ? "cloud" : "this-device",
+    place: workspaceLocation === "cloud" ? "cloud" : "this-device",
     waitingFor: pendingShare ? t(shareTargetLabelKey(pendingShare.targetId)) : null,
   });
   // Without Puppyone Cloud there is nobody to reach, so the Header states
@@ -1022,10 +1010,9 @@ function AppContent() {
           : undefined,
         onInvitePerson: () => openShareWizard("person", "", "invite"),
         onConnectAgent: () => openShareWizard(null, "", "connect"),
-        onGetCopy: cloudEnabled ? openCloudWorkspace : undefined,
       }
       : null
-  ), [cloudEnabled, openCloudWorkspace, openShareWizard, projectReachEnabled, projectReachShareStatus,
+  ), [cloudEnabled, openShareWizard, projectReachEnabled, projectReachShareStatus,
     projectReachState, projectShareRevoke, shareOnboardingEnabled]);
   // The reach control is a Header statement about the Project, so it stands
   // only while the Header is the Project surface.
@@ -1080,10 +1067,13 @@ function AppContent() {
     }));
   }, [resolvedCloudProjectId, cloudHubWorkspaceIdentity, workspacePath]);
 
+  const [homepageListHeld, holdHomepageList] = useHomepageListHold();
   const goToHomepage = useCallback(async () => {
     cancelProjectNavigationRef.current();
     try {
       if (!await drainWorkspaceNavigation()) return;
+      const refreshed = refreshRecentWorkspaceList();
+      holdHomepageList(refreshed);
       await showHomepage();
       cancelCloudWorkspaceSwitch();
       returnToLocalWorkspace();
@@ -1093,7 +1083,7 @@ function AppContent() {
       setRightSidebarOpen(false);
       resetDataNodeActions();
       setRestoreWorkspaceError(null);
-      await refreshRecentWorkspaceList();
+      await refreshed;
     } catch (error) {
       setRestoreWorkspaceError(error instanceof Error ? error.message : String(error));
     }
@@ -1102,6 +1092,7 @@ function AppContent() {
     returnToLocalWorkspace,
     clearWorkspace,
     drainWorkspaceNavigation,
+    holdHomepageList,
     refreshRecentWorkspaceList,
     resetDataNodeActions,
     setBranchSwitcherOpen,
@@ -1142,67 +1133,6 @@ function AppContent() {
   useEffect(() => {
     if (activeView !== "settings" && activeView !== "cloud") lastProjectViewRef.current = activeView;
   }, [activeView]);
-
-  const [projectNavigationFailure, setProjectNavigationFailure] = useState<{
-    target: ProjectNavigationTarget; message: string; recovery: CloudOpeningFailure["action"];
-  } | null>(null);
-  const projectNavigation = useProjectNavigation({
-    async open(target, isCurrent) {
-      setProjectNavigationFailure(null);
-      cancelRepositoryCloudSwitch();
-      if (target.kind === "cloud") {
-        if (!activeCloudSession) throw new CloudOpeningError(describeCloudOpeningFailure({ status: 401 }));
-        await accountCloud.openTarget({ kind: "project_root", project_id: target.projectId }, isCurrent, true);
-        return;
-      }
-      const projectView = lastProjectViewRef.current;
-      if (!await drainWorkspaceNavigation() || !isCurrent()) return;
-      // Keep the displayed provider until the local target has opened. Failed
-      // Cloud -> Local navigation must leave the original Cloud project visible.
-      // Main serializes local opens. Reconcile an acknowledged transaction
-      // before draining the next intent so its composition and this Renderer
-      // cannot disagree when the following target is Cloud.
-      await openWorkspacePath(target.path, "switched");
-      if (isCurrent()) {
-        if (cloudHeaderActive) openLocalWorkspace();
-        navigateDesktopView(projectView);
-      }
-    },
-    onError(error, target) {
-      const failure = target.kind === "cloud" ? describeCloudOpeningFailure(error) : null;
-      const message = error instanceof Error ? error.message : String(error);
-      setProjectNavigationFailure({ target, recovery: failure?.action ?? "retry",
-        message: failure ? formatCloudMessage(failure.message, t) : message });
-    },
-  });
-  cancelProjectNavigationRef.current = projectNavigation.cancel;
-  const selectProjectTarget = projectNavigation.select;
-  const cancelProjectNavigation = projectNavigation.cancel;
-  const showProjectLauncher = projectEntryFlow.openLauncher;
-  const openProjectLauncher = useCallback(() => {
-    cancelProjectNavigation();
-    cancelRepositoryCloudSwitch();
-    cancelAccountCloudOpen();
-    showProjectLauncher();
-  }, [cancelProjectNavigation, cancelRepositoryCloudSwitch, cancelAccountCloudOpen, showProjectLauncher]);
-  const selectProject = useCallback((path: string) => {
-    setSwitcherOpen(false);
-    return selectProjectTarget({ kind: "local", path });
-  }, [selectProjectTarget]);
-  const selectCloudProject = useCallback((projectId: string) => {
-    setSwitcherOpen(false);
-    return selectProjectTarget({ kind: "cloud", projectId });
-  }, [selectProjectTarget]);
-  useEffect(() => window.puppyoneDesktop?.onWorkspaceOpenRequested?.(({ rootPath }) => {
-    void selectProject(rootPath);
-  }), [selectProject]);
-  const initialCloudProjectOpened = useRef(false);
-  useEffect(() => {
-    if (initialCloudProjectOpened.current || restoringWorkspace || !initialCloudProject
-      || !cloudEnabled || !activeCloudSession || activeCloudSession.user_id !== initialCloudProject.userId) return;
-    initialCloudProjectOpened.current = true;
-    void selectCloudProject(initialCloudProject.projectId);
-  }, [selectCloudProject, activeCloudSession, cloudEnabled, initialCloudProject, restoringWorkspace]);
 
   const handleActiveDataPathChange = useCallback(async (
     path: string | null,
@@ -1612,19 +1542,21 @@ function AppContent() {
     onLeadingRailCollapsedChange: setProjectSwitcherCollapsed,
     onLeadingRailWidthChange: setProjectSwitcherWidth,
   };
+  const {
+    dismissProjectOpenFailure, homepageCloudController, openDroppedProject, openProjectLauncher,
+    projectNavigation, projectOpenFailure, selectCloudProject, selectProject,
+  } = useWindowProjectNavigation({
+    accountCloud, activeCloudSession, cloudSessionRestoring, cancelAccountCloudOpen, cancelProjectNavigationRef, cloudEnabled,
+    cloudHeaderActive, drainWorkspaceNavigation, initialCloudProject, lastProjectViewRef,
+    navigateDesktopView, openDroppedWorkspace, openLocalWorkspace, openWorkspacePath, projectEntryFlow,
+    restoringWorkspace, selectCloudProjectRef, setSwitcherOpen, t,
+  });
   const renderProjectRail = (activeWorkspace: Workspace, expanded: boolean, activeCloudProjectId?: string | null) => (
     <ProjectSwitcherRail
       activeView={activeView}
       activeWorkspace={activeWorkspace}
       activeCloudProjectId={activeCloudProjectId}
       pendingProject={projectNavigation.pending}
-      activeProjectLocationControls={projectLocation && (
-        <DesktopProjectLocationControls
-          projectLocation={projectLocation}
-          onViewLocal={openLocalWorkspace}
-          onViewCloud={cloudEnabled ? openCloudWorkspace : undefined}
-        />
-      )}
       expanded={expanded}
       recentWorkspaces={recentWorkspaceItems}
       projectItems={projectCatalog.items}
@@ -1642,51 +1574,63 @@ function AppContent() {
     />
   );
   const hostedWorkspace = nativeCloudWorkbench.service?.workspace;
+  const {
+    projectOpening, projectOpeningInWindow, projectOpeningSurface,
+  } = useProjectOpeningSurfaces({
+    accountCloud, cloudWorkspaceActive, nativeCloudWorkbench, projectCatalog, projectNavigation, restoringProject,
+    projectRailLayout, railOwnsProject, renderProjectRail, surfaceAppearance, workspace,
+  });
   const accountCloudSurface = !workspace ? <AccountCloudWorkspaceSurface workbench={nativeCloudWorkbench}
+    opening={projectOpeningInWindow && projectOpening && cloudWorkspaceActive ? { ...projectOpeningInWindow, projectName: projectOpening.projectName } : undefined}
     agent={cloudAgent} sidebar={cloudSidebar}
     presentation={accountCloudPresentation} active={cloudWorkspaceActive}
     context={accountCloud.context} session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl} onSessionChange={updateCloudSession}
-    appearance={surfaceAppearance} onLocal={openLocalWorkspace} onHome={() => void goToHomepage()}
+    appearance={surfaceAppearance} onHome={() => void goToHomepage()}
     projectItems={projectCatalog.items} pendingProject={projectNavigation.pending} onSelectProject={selectProject} onSelectCloudProject={selectCloudProject}
     projectRail={railOwnsProject && hostedWorkspace ? { ...projectRailLayout,
       renderLeadingRail: ({ expanded }) => renderProjectRail(hostedWorkspace, expanded) } : undefined}
     onCreateProject={openProjectLauncher} /> : null;
-  const repositoryCloudDialog = <CloudWorkspaceSwitchDialog controller={repositoryCloudSwitch}
-    onOpenAccount={() => { repositoryCloudSwitch.cancel(); openSettingsDialog("account"); }}
-    projectName={workspace?.name}
-    preparingInPlace={prepareCloudInPlace}
-    authenticationRequired={!activeCloudSession}
-    gate={<RepositoryCloudSwitchGate context={projectCloudContext} apiBaseUrl={desktopCloudApiBaseUrl}
-      onOpenAccount={() => { repositoryCloudSwitch.cancel(); openSettingsDialog("account"); }}
-      authState={resolveCloudAuthState({ cloudSession: activeCloudSession, sessionRestoring: cloudSessionRestoring,
-        environment: { apiBaseUrl: desktopCloudApiBaseUrl, source: "default", cloudRemote: null } })}
-      onRetry={() => { setCloudResolutionRefreshKey((value) => value + 1); repositoryCloudSwitch.retry(); }}
-      initializationPending={repositoryCloudInitializationPending}
-      missingProjectRecovery={workspace && activeCloudSession && focusedWorkspace?.path === workspace.path
-        && projectCloudContext.status === "not-found" ? <MissingCloudProjectRecovery
-          key={JSON.stringify([workspace.path, desktopCloudApiBaseUrl, activeCloudSession.user_id,
-            activeCloudSession.session_generation, projectCloudContext.projectId])}
-          context={projectCloudContext} status={activeGitStatus} session={activeCloudSession}
-          apiBaseUrl={desktopCloudApiBaseUrl} onRemoveCloudRemote={handleRemoveCloudRemote}
-          onRetry={() => { setCloudResolutionRefreshKey(value => value + 1); repositoryCloudSwitch.retry(); }} /> : undefined}
-      publishEntry={workspace && activeCloudSession && focusedWorkspace?.path === workspace.path ? <CloudInitializationRoute
-        activeSection="contents" workspace={workspace} status={activeGitStatus}
-        session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl} accountEmail={activeCloudSession.user_email}
-        loading={gitStatusLoading} error={gitStatusError} cloudActionNotice={null}
-        cloudBackupLoading={cloudBackupLoading} cloudBackupPending={pendingCloudBackupSetup}
-        cloudPublishError={cloudPublishError} cloudPublishNotice={cloudPublishNotice}
-        cloudPublishProgress={cloudPublishProgress} cloudPublishState={cloudPublishState}
-        cloudPublishStateLoading={cloudPublishStateLoading} onSessionChange={updateCloudSession}
-        onAbandonPublish={handleAbandonPuppyoneBackup} onRefresh={() => void refreshGitStatus("configuration")}
-        onPublishWorkspace={(organizationId) => void handleStartPuppyoneBackup(organizationId, { navigateToCloud: false })}
-      /> : undefined}
-      onPublishLocal={workspace ? () => { cancelRepositoryCloudSwitch(); openCloudDialogAt("initialize"); } : undefined} />} />;
+  const missingCloudProjectReplaceable = Boolean(activeCloudSession) && projectCloudContext.status === "not-found"
+    && canReplaceMissingCloudProject(projectCloudContext, activeGitStatus, desktopCloudApiBaseUrl);
+  const cloudProjectNoticeState = cloudEnabled && workspace && focusedWorkspace?.path === workspace.path
+    ? resolveLocalFolderCloudNotice(projectCloudContext) : null;
+  const cloudProjectNoticeKey = localFolderCloudNoticeKey(focusedWorkspace?.path, cloudProjectNoticeState);
+  const cloudProjectNotice = cloudProjectNoticeState && cloudProjectNoticeKey !== dismissedCloudNoticeKey
+    ? <LocalFolderCloudNotice notice={cloudProjectNoticeState}
+      onOpenCloudProject={(projectId) => { void selectCloudProject(projectId); }}
+      onSignIn={() => { if (activeCloudSession) openSettingsDialog("account"); else openCloudWorkspace(); }}
+      onPutInCloud={missingCloudProjectReplaceable ? () => setReplacingMissingCloudProject(true) : undefined}
+      onRetry={revalidateRepositoryContext}
+      onDismiss={() => setDismissedCloudNoticeKey(cloudProjectNoticeKey)} />
+    : undefined;
+  // Putting the folder in the Cloud again first retires its old, missing
+  // Cloud project's Git connection, then continues to the first publish.
+  const missingCloudProjectDialog = replacingMissingCloudProject && missingCloudProjectReplaceable
+    && workspace && activeCloudSession && projectCloudContext.status === "not-found"
+    ? <MissingCloudProjectReplacement
+      key={JSON.stringify([workspace.path, desktopCloudApiBaseUrl, activeCloudSession.user_id,
+        activeCloudSession.session_generation, projectCloudContext.projectId])}
+      context={projectCloudContext} status={activeGitStatus} session={activeCloudSession}
+      apiBaseUrl={desktopCloudApiBaseUrl} onRemoveCloudRemote={handleRemoveCloudRemote}
+      onCancel={() => setReplacingMissingCloudProject(false)}
+      onDone={(outcome) => {
+        setReplacingMissingCloudProject(false);
+        revalidateRepositoryContext();
+        if (outcome === "replaced") openCloudDialogAt("initialize");
+      }} />
+    : null;
   const settingsWorkspace = focusedWorkspace ?? workspace ?? null;
   const firstRunSignIn = useFirstRunSignIn({
     available: cloudEnabled && Boolean(desktopCloudApiBaseUrl),
     restoring: cloudSessionRestoring || restoringWorkspace,
     signedIn: Boolean(activeCloudSession),
     hasProjects: Boolean(workspace || initialCloudProject || recentWorkspaceItems.length || workspaces.length),
+  });
+  const homepageReady = useHomepageFirstPaint({
+    restoring: restoringWorkspace,
+    settled: recentWorkspacesSettled && !cloudSessionRestoring && projectCatalog.settled,
+    account: projectCatalog.account,
+    accountRestoring: cloudSessionRestoring,
   });
   const settingsOverlay = <DesktopOverlayPortal appearance={surfaceAppearance}>
     {settingsDialogOpen && (
@@ -1739,12 +1683,12 @@ function AppContent() {
     )}
   </DesktopOverlayPortal>;
   const projectNavigationOverlay = <DesktopOverlayPortal appearance={surfaceAppearance}>
-    {projectNavigationFailure && <ProjectNavigationFailure message={projectNavigationFailure.message}
-      title={projectNavigationFailure.target.kind === "cloud" ? t("cloud.opening.failedTitle") : undefined}
-      onClose={() => setProjectNavigationFailure(null)}
-      action={projectNavigationFailure.recovery === "account" ? { label: t("settings.sidebar.account"),
-        onClick: () => { setProjectNavigationFailure(null); openSettingsDialog("account"); } } : undefined}
-      onRetry={projectNavigationFailure.recovery === "retry" ? () => { const target = projectNavigationFailure.target; setProjectNavigationFailure(null); void projectNavigation.select(target); } : undefined} />}
+    {projectOpenFailure && <ProjectNavigationFailure message={projectOpenFailure.message}
+      title={projectOpenFailure.target.kind === "cloud" ? t("cloud.opening.failedTitle") : undefined}
+      onClose={dismissProjectOpenFailure}
+      action={projectOpenFailure.recovery === "account" ? { label: t("settings.sidebar.account"),
+        onClick: () => { dismissProjectOpenFailure(); openSettingsDialog("account"); } } : undefined}
+      onRetry={projectOpenFailure.recovery === "retry" ? () => { dismissProjectOpenFailure(); void projectNavigation.select(projectOpenFailure.target); } : undefined} />}
   </DesktopOverlayPortal>;
   const projectEntryOverlay = <DesktopOverlayPortal appearance={surfaceAppearance}>
     <ProjectEntryFlow
@@ -1758,18 +1702,21 @@ function AppContent() {
       onCancelImport={cancelImportSource}
       onImportProgress={onImportSourceProgress}
       onOpenFolder={() => void openFolder()}
+      projectIsOpen={Boolean(workspace) || cloudWorkspaceActive}
     />
   </DesktopOverlayPortal>;
+  const homepageHidden = cloudWorkspaceActive || Boolean(projectOpeningSurface);
   const themeRuntime = (content: ReactNode) => (
     <SurfaceAppearanceProvider value={surfaceAppearance}>
       <div
         className={`desktop-theme-bootstrap-surface ${resolvedTheme === "dark" ? "dark" : ""}`}
         {...surfaceAppearance.rootProps}
       >
-        <div hidden={cloudWorkspaceActive} style={{ display: cloudWorkspaceActive ? "none" : "contents" }}>
+        <div hidden={homepageHidden} style={{ display: homepageHidden ? "none" : "contents" }}>
           {content}
         </div>
         {accountCloudSurface}
+        {projectOpeningSurface}
         {projectNavigationOverlay}
         {projectEntryOverlay}
         {settingsOverlay}
@@ -1777,7 +1724,7 @@ function AppContent() {
     </SurfaceAppearanceProvider>
   );
 
-  if (!workspace && (restoringWorkspace || firstRunSignIn.pending)) {
+  if (!workspace && (!homepageReady || firstRunSignIn.pending)) {
     return themeRuntime(
       <RestoringWorkspaceScreen
         appearance={surfaceAppearance}
@@ -1791,7 +1738,7 @@ function AppContent() {
         onContinueLocally={firstRunSignIn.complete} />,
     );
     return themeRuntime(
-      <Homepage
+      <MinimalOnboarding
         projectEntryController={projectEntryFlow}
         onChooseWorkspace={openFolder}
         onChooseProjectLocation={chooseProjectLocation}
@@ -1802,16 +1749,19 @@ function AppContent() {
         onListImportResources={listImportResources}
         onCancelImportSource={cancelImportSource}
         onImportSourceProgress={onImportSourceProgress}
-        onOpenDroppedWorkspace={openDroppedWorkspace}
+        onOpenDroppedWorkspace={openDroppedProject}
         onOpenWorkspacePath={selectProject}
         onRemoveProject={removeWorkspaceFromRecents}
+        onRenameProject={renameProject}
+        onRenameCloudProject={projectCatalog.renameProject}
+        onDeleteCloudProject={projectCatalog.deleteProject}
         projectItems={projectCatalog.items}
+        listHeld={homepageListHeld}
         onOpenCloudProject={selectCloudProject}
         cloudOpening={accountCloud.opening}
-        onCancelCloudOpening={() => { projectNavigation.cancel(); accountCloud.cancel(); }}
         cloudAccountStatus={cloudEnabled ? <HomepageCloudStatus status={projectCatalog.status} restoring={cloudSessionRestoring} empty={projectCatalog.items.length === 0}
           session={activeCloudSession} onOpenAccount={() => openSettingsDialog("account")}
-          apiBaseUrl={desktopCloudApiBaseUrl} controller={accountCloud} onRetry={projectCatalog.refresh} /> : undefined}
+          apiBaseUrl={desktopCloudApiBaseUrl} controller={homepageCloudController} onRetry={projectCatalog.refresh} /> : undefined}
         initialError={restoreWorkspaceError}
         appearance={surfaceAppearance}
       />,
@@ -1898,17 +1848,43 @@ function AppContent() {
   // the rail on, the name and the place are in the rail's rows, and repeating
   // them here would give the window two places to read the same fact from.
   const headerWorkspace = cloudWorkspaceActive && hostedWorkspace ? hostedWorkspace : workspace;
+  // Where the open project is and its one action: put the folder in the Cloud
+  // (the conversion entry), or open the other project of a linked pair.
+  const openCloudProjectId = cloudWorkspaceActive && accountCloud.context.status === "resolved"
+    ? accountCloud.context.projectId : null;
+  const linkedFolder = openCloudProjectId
+    ? projectCatalog.items.find((item) => item.localPath && item.linkedCloudProject?.id === openCloudProjectId) : undefined;
+  const placeMenu = cloudEnabled ? {
+    menu: resolveProjectPlaceMenu({
+      place: workspaceLocation,
+      unhosted: projectCloudContext.status === "local-only",
+      publishPending: repositoryCloudInitializationPending,
+      notice: cloudProjectNoticeState,
+      missingReplaceable: missingCloudProjectReplaceable,
+      linkedFolder: linkedFolder ? { path: linkedFolder.localPath, name: linkedFolder.label } : null,
+    }),
+    handlers: {
+      onPutInCloud: () => openCloudDialogAt("initialize"),
+      onOpenCloudProject: (projectId: string) => { void selectCloudProject(projectId); },
+      onSignIn: () => { if (activeCloudSession) openSettingsDialog("account"); else openCloudWorkspace(); },
+      onPutInCloudAgain: () => setReplacingMissingCloudProject(true),
+      onOpenLocalFolder: (path: string) => { void selectProject(path); },
+      // Inviting and connecting are part of putting a folder in the Cloud.
+      ...(shareOnboardingEnabled ? {
+        onInvitePerson: () => openShareWizard("person", "", "invite"),
+        onConnectAgent: () => openShareWizard(null, "", "connect"),
+      } : {}),
+      ...(cloudWorkspaceActive && cloudSidebar.historyAvailable ? { onOpenHistory: cloudSidebar.openHistory } : {}),
+    },
+  } : null;
   const titlebarContext = railOwnsProject ? null : (
     <DesktopTitlebarContext
-      titlebarLabel={headerWorkspace.name}
-      menuAlignment={centerProjectInHeader ? "center" : "start"}
-      projectLocation={projectLocation}
-      projectReach={projectReach}
-      locationActivity={cloudEnabled
+      titlebarLabel={projectOpening?.projectName ?? headerWorkspace.name}
+      projectReach={projectOpening ? null : projectReach}
+      placeMenu={projectOpening ? null : placeMenu}
+      locationActivity={cloudEnabled && !projectOpening
         ? <CloudPublishHeaderStatus status={cloudPublishHeader.status} onOpen={reopenCloudPublish} />
         : undefined}
-      cloudProject={focusedWorkspace?.path === workspace.path && projectCloudContext.status === "resolved"
-        ? { id: projectCloudContext.projectId, name: projectCloudContext.projectName } : undefined}
       workspace={headerWorkspace}
       workspaceFolders={workbenchWorkspace?.folders ?? []}
       multiRootWorkspacesEnabled={multiRootWorkspacesEnabled}
@@ -1919,8 +1895,6 @@ function AppContent() {
       refObject={switcherRef}
       onOpenFolder={() => void addProject()}
       onAddExistingProject={(folderPath) => void addExistingProject(folderPath)}
-      onViewLocal={openLocalWorkspace}
-      onViewCloud={cloudEnabled ? openCloudWorkspace : undefined}
       onClose={closeWorkspaceSwitcher}
       onToggle={toggleWorkspaceSwitcher}
       onHome={() => void goToHomepage()}
@@ -1944,8 +1918,9 @@ function AppContent() {
       {cloudHeaderActive && <CloudWorkspaceHeaderTools context={cloudWorkspaceActive ? accountCloud.context : null}
         getShareResource={() => captureCloudWorkspaceShareResource(nativeCloudWorkbench)}
         session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl} onSessionChange={updateCloudSession}
-        historyOpen={cloudSidebar.historyOpen} onToggleHistory={cloudSidebar.toggleHistory}
-        agentOpen={cloudAgent.open} onToggleAgent={cloudWorkspaceActive ? cloudSidebar.toggleAgent : undefined} />}
+        agentOpen={cloudAgent.open} onToggleAgent={cloudWorkspaceActive ? cloudSidebar.toggleAgent : undefined}
+        renderPeople={people => <CloudWorkspaceAgentPeople {...people} />}
+        renderAgentMark={agent => <CloudWorkspaceAgentMark {...agent} />} />}
       {/* Who can reach the project sits where every application puts the
           people in a document: the right of the Header, ahead of the tools.
           It opens the same panel as the place control, so it is one entry
@@ -1984,22 +1959,15 @@ function AppContent() {
   return (
     <SurfaceAppearanceProvider value={surfaceAppearance}>
       <CloudShareProvider value={cloudShareActions}>
-      <div
-        className={`app-shell cloud-runtime ${resolvedTheme === "dark" ? "dark" : ""}`}
-        {...surfaceAppearance.rootProps}
-      >
-        <DesktopCloudShell
-          active
-          workspaceLocation={projectLocation?.current ?? "local"}
-          requestedWorkspaceLocation={headerWorkspaceLocation}
+        <ProjectWindow
+          location={workspaceLocation}
+          appearance={surfaceAppearance}
+          opening={projectOpeningInWindow}
           renderLeadingRail={railOwnsProject ? ({ expanded }) => renderProjectRail(workspace, expanded,
             cloudWorkspaceActive && accountCloud.context.status === "resolved" ? accountCloud.context.projectId : undefined) : undefined}
           {...projectRailLayout}
-          leftSidebarCollapsed={sidebarCollapsed}
           leftSidebarPresent={Boolean(dataPort)}
-          leftSidebarWidth={explorerWidth}
-          titlebarSidebarSlot={centerProjectInHeader ? undefined : titlebarContext}
-          titlebarCenteredSlot={centerProjectInHeader ? titlebarContext : undefined}
+          titlebarSidebarSlot={titlebarContext}
           titlebarActions={titlebarActions}
           titlebarTabs={cloudWorkspaceActive
             ? editorTabsInHeaderEnabled && accountCloudPresentation.titlebarTabs
@@ -2017,7 +1985,6 @@ function AppContent() {
           rightSidebarOpen={cloudWorkspaceActive ? cloudSidebar.open : rightSidebarContentVisible}
           resizableRightSidebar
           rightSidebarWidth={rightSidebarWidth}
-          onLeftSidebarExpand={() => setSidebarCollapsed(false)}
           onRightSidebarOpenChange={cloudWorkspaceActive ? cloudSidebar.setOpen : handleLocalRightSidebarOpenChange}
           onRightSidebarWidthChange={setRightSidebarWidth}
           rightSidebar={(presentation) => (
@@ -2065,12 +2032,10 @@ function AppContent() {
             </div>
           )}
         >
-          <DesktopWorkspaceLocationSurface location={projectLocation?.current ?? "local"}
-            preparation={repositoryCloudSwitch.pending && prepareCloudInPlace
-              ? <DesktopCloudWorkspacePreparation controller={repositoryCloudSwitch}
-                onOpenAccount={() => { repositoryCloudSwitch.cancel(); openSettingsDialog("account"); }} /> : undefined}
+          <DesktopWorkspaceLocationSurface location={workspaceLocation}
             local={<>
           <DesktopWorkspaceContent
+            workspaceEntering={Boolean(workspaceEntryIntent)}
             activeAiEditRequest={activeAiEditRequest}
             activeDocumentPath={activeDocumentPath}
             activeExplorerPath={activeExplorerPath}
@@ -2097,16 +2062,8 @@ function AppContent() {
               },
               onSelectSection: setActiveCloudSection,
               onStartPuppyoneBackup: handleStartPuppyoneBackup,
-              onCreateCloudVersion: (organizationId) => handleStartPuppyoneBackup(organizationId, { navigateToCloud: false }),
             }}
             cloudOpen={cloudDialogOpen}
-            cloudLocationControls={focusedWorkspace?.path === workspace.path && !projectReachEnabled ? (
-              <DesktopProjectLocationControls
-                projectLocation={projectLocation}
-                onViewLocal={openLocalWorkspace}
-                onViewCloud={openCloudWorkspace}
-              />
-            ) : undefined}
             dataPort={dataPort}
             editorWorkbench={editorWorkbench}
             externalOpen={externalFileOpen}
@@ -2152,6 +2109,7 @@ function AppContent() {
             workspaceFolders={workbenchWorkspace?.folders ?? []}
             resolveWorkspaceResource={resolveWorkspaceResource}
             workspaceSurfaceError={restoreWorkspaceError ?? documentNavigationError ?? workspaceSurfaceError}
+            cloudProjectNotice={cloudProjectNotice}
             workspaceKey={workspaceKey}
             workspaceRefreshToken={workspaceRefreshToken}
             workspaceAtomicRefreshToken={workspaceAtomicRefreshToken}
@@ -2166,7 +2124,7 @@ function AppContent() {
             </>}
             cloud={accountCloudPresentation.content}
           />
-        </DesktopCloudShell>
+        </ProjectWindow>
         <DesktopOverlayPortal
           appearance={surfaceAppearance}
         >
@@ -2300,13 +2258,12 @@ function AppContent() {
           ))}
           </>
         </DesktopOverlayPortal>
-      </div>
       {settingsOverlay}
       </CloudShareProvider>
       {accountCloudSurface}
       {projectNavigationOverlay}
       {projectEntryOverlay}
-      <DesktopOverlayPortal appearance={surfaceAppearance}>{repositoryCloudDialog}</DesktopOverlayPortal>
+      <DesktopOverlayPortal appearance={surfaceAppearance}>{missingCloudProjectDialog}</DesktopOverlayPortal>
     </SurfaceAppearanceProvider>
   );
 }

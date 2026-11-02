@@ -1,6 +1,7 @@
 export { ProjectReachControl } from "./ProjectReachControl";
 export type { ProjectReachControlProps } from "./ProjectReachControl";
 export { ProjectReachPeople } from "./ProjectReachPeople";
+export { ReachMemberMark } from "./reachPresentation";
 export type { ProjectReachPeopleProps } from "./ProjectReachPeople";
 export type { ReachPanelContext } from "./ReachPanel";
 export {

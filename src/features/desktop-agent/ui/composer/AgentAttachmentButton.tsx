@@ -49,7 +49,7 @@ export function AgentAttachmentButton({
         disabled={disabled || !available}
         onClick={choose}
       >
-        <Paperclip size={16} strokeWidth={1.7} aria-hidden="true" />
+        <Paperclip size={15} strokeWidth={1.6} aria-hidden="true" />
       </button></Tooltip>
       <input
         ref={inputRef}

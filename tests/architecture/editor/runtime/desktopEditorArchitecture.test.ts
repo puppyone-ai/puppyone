@@ -6,10 +6,10 @@ const editorPaneDocumentRuntime = read(
   "../../../../src/features/editor-workbench/runtime/EditorPaneDocumentRuntime.tsx",
 );
 const textEditorFrame = read(
-  "../../../../packages/shared-ui/src/editor/viewers/shared/TextEditorFrame.tsx",
+  "../../../../src/shared-ui/editor/viewers/shared/TextEditorFrame.tsx",
 );
 const markdownViewer = read(
-  "../../../../packages/shared-ui/src/editor/markdown/MarkdownViewer.tsx",
+  "../../../../src/shared-ui/editor/markdown/MarkdownViewer.tsx",
 );
 
 describe("Desktop editor architecture", () => {

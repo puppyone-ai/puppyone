@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { access, mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -48,6 +49,36 @@ describe("project entry service", () => {
     await expect(service.createProject({ parentPath, name: "Notes" })).rejects.toMatchObject({
       code: "PROJECT_ALREADY_EXISTS",
     });
+  });
+
+  it("numbers a taken name only when asked, and never reuses a folder", async () => {
+    const service = createProjectEntryService();
+    const create = (operationId, extra = {}) => service.createProject({ parentPath, name: "CRM", operationId, numberIfTaken: true, ...extra });
+
+    await expect(create(randomUUID())).resolves.toMatchObject({ name: "CRM" });
+    await writeFile(path.join(parentPath, "CRM", "mine.md"), "my notes");
+    await expect(create(randomUUID())).resolves.toMatchObject({ name: "CRM 2", path: path.join(parentPath, "CRM 2") });
+    await writeFile(path.join(parentPath, "CRM 3"), "a file, not a folder");
+    await expect(create(randomUUID())).resolves.toMatchObject({ name: "CRM 4" });
+    await expect(readFile(path.join(parentPath, "CRM", "mine.md"), "utf8")).resolves.toBe("my notes");
+    await expect(service.createProject({ parentPath, name: "CRM", operationId: randomUUID() })).rejects.toMatchObject({ code: "PROJECT_ALREADY_EXISTS" });
+  });
+
+  it("gives a retry the name its first attempt chose", async () => {
+    const service = createProjectEntryService();
+    const operationId = randomUUID();
+    const request = { parentPath, name: "CRM", operationId, numberIfTaken: true };
+    const first = await service.createProject(request);
+    await expect(service.createProject(request)).resolves.toMatchObject({ name: first.name, path: first.path });
+    expect((await readdir(parentPath)).filter((name) => name.startsWith("CRM"))).toEqual(["CRM"]);
+  });
+
+  it("keeps a numbered name within the project name limit", async () => {
+    const service = createProjectEntryService();
+    const name = "n".repeat(120);
+    await service.createProject({ parentPath, name, operationId: randomUUID(), numberIfTaken: true });
+    const second = await service.createProject({ parentPath, name, operationId: randomUUID(), numberIfTaken: true });
+    expect(second.name).toBe(`${"n".repeat(118)} 2`);
   });
 
   it("rejects traversal, credentials in URLs, unsupported hosts, and malformed repository URLs", () => {

@@ -1,0 +1,36 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:aed014fb-aa6f-40bd-a25b-cd7ccda84117",
+  "version": 2,
+  "metadata": {
+    "timestamp": "2026-07-12T00:00:00Z",
+    "component": {
+      "type": "application",
+      "name": "puppyone-desktop-agent-integration",
+      "version": "0.1.0"
+    }
+  },
+  "components": [
+    {
+      "type": "library",
+      "bom-ref": "pkg:github/YishenTu/claudian@7d7cc84c60a77431aaccda7ff49a2f1f4ae1c2ab",
+      "group": "YishenTu",
+      "name": "claudian-source-reference",
+      "version": "7d7cc84c60a77431aaccda7ff49a2f1f4ae1c2ab",
+      "licenses": [{ "license": { "id": "MIT" } }],
+      "purl": "pkg:github/YishenTu/claudian@7d7cc84c60a77431aaccda7ff49a2f1f4ae1c2ab",
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/YishenTu/claudian.git#7d7cc84c60a77431aaccda7ff49a2f1f4ae1c2ab"
+        }
+      ],
+      "properties": [
+        { "name": "puppyone:adoption-scope", "value": "frontend-interaction-and-native-protocol-orchestration" },
+        { "name": "puppyone:runtime-code-included", "value": "false" },
+        { "name": "puppyone:source-ledger", "value": "licenses/claudian/SOURCE_ADOPTION.md" }
+      ]
+    }
+  ]
+}

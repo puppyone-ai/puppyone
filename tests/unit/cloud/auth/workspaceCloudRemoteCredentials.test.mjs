@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createWorkspaceCloudRemoteActions } from "../../../../local-api/git/cloud-remote.mjs";
+import { createWorkspaceCloudRemoteActions } from "../../../../electron/local-api/git/cloud-remote.mjs";
 
 function harness({ failVerification = false, configuredHelpers = "" } = {}) {
   const calls = [];

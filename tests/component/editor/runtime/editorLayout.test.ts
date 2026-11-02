@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { commitEditorLayout, getEditorLayoutSnapshot, registerEditorLayoutParticipant,
-  type EditorLayoutParticipant, type EditorLayoutRegistration } from "../../../../packages/shared-ui/src/editor/runtime/editorLayout";
+  type EditorLayoutParticipant, type EditorLayoutRegistration } from "../../../../src/shared-ui/editor/runtime/editorLayout";
 
 const registrations: EditorLayoutRegistration[] = [];
 const roots: HTMLElement[] = [];

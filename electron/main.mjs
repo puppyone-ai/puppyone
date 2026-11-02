@@ -24,8 +24,8 @@ import {
   resolveLocalWorkspaceIdentity,
   resolveWorkspacePath as resolveLocalWorkspacePath,
   workspaceFromPath,
-} from "../local-api/workspace.mjs";
-import { initializeWorkspaceEditReview } from "../local-api/edit-review.mjs";
+} from "./local-api/workspace.mjs";
+import { initializeWorkspaceEditReview } from "./local-api/edit-review.mjs";
 import { resolveRuntimeAppImage, setDevelopmentDockIcon } from "./main/app-icon.mjs";
 import { createUpdateService } from "./update-service.mjs";
 import { createAppPreviewRuntime } from "./app-preview-runtime.mjs";
@@ -241,7 +241,8 @@ if (!app.isPackaged && !devServerUrl) {
 const rendererApplicationUrl = devServerUrl || pathToFileURL(rendererDistPath).toString();
 const mermaidRenderService = createMermaidRenderService({
   createHost: () => createMermaidRendererHost({ WebContentsView, session: electronSession,
-    url: new URL("mermaid-renderer.html", rendererApplicationUrl).href,
+    url: new URL("src/platform/mermaid/host.html", rendererApplicationUrl).href,
+    assetRoot: new URL(".", rendererApplicationUrl).href,
     preload: path.join(__dirname, "mermaid-preload.cjs"),
   }),
 });
@@ -668,6 +669,7 @@ async function createWindow(options = {}) {
     initialWorkspaceId: options.initialWorkspaceId ?? null,
     initialWorkspacePaths,
     initialCloudProject: options.initialCloudProject ?? null,
+    initialOpenPath: options.initialOpenPath ?? null,
   }));
   lastFocusedWindowId = webContentsId;
 
@@ -1165,6 +1167,7 @@ function registerIpcHandlers() {
   registerWorkspaceNavigationIpcHandlers({
     ipcMain: trustedIpcMain,
     workspaceStateStore,
+    getRestoringProjectForWindow,
     getInitialWorkspaceResultForWindow,
     forgetCurrentWindowWorkspace,
     showHomepageForCurrentWindow,
@@ -1379,6 +1382,14 @@ async function confirmUpdateRestartWithBlockers({
   return result.response === 1;
 }
 
+/** What this window is bringing back, known before the slow work of opening it starts. */
+function getRestoringProjectForWindow(sender) {
+  const state = windowStateById.get(sender.id);
+  const [folderPath] = state?.initialRestorePaths ?? [];
+  if (folderPath) return { kind: "local", path: folderPath };
+  return state?.initialCloudProject ? { kind: "cloud", projectId: state.initialCloudProject.projectId } : null;
+}
+
 async function getInitialWorkspaceResultForWindow(sender) {
   const window = BrowserWindow.fromWebContents(sender);
   if (!window || window.isDestroyed()) {
@@ -1435,6 +1446,7 @@ async function getInitialWorkspaceResultForWindow(sender) {
       path: folders[0]?.path ?? null,
       workspace: workspaces[0] ?? null,
       workspaces,
+      initialOpenPath: state?.takeInitialOpenPath() ?? null,
       error: null,
     };
   } catch (error) {
@@ -1493,12 +1505,15 @@ async function createProjectForCurrentWindow(sender, request) {
       source: request.source,
       operationId: request.operationId,
       locale: request.locale ?? localeService.getSnapshot().locale,
+      numberIfTaken: request.numberIfTaken === true,
     });
     // Retain authority only for this committed operation, not another create.
     projectLocationGrants.bindCommittedOperation(sender, request.locationGrantId, request.operationId);
     try {
       assertOpen();
-      const result = await openWorkspaceInCurrentWindowNow(sender, project.path, {}, assertOpen);
+      const result = request.openInNewWindow === true
+        ? await openWorkspaceInNewWindow(project.path, { initialOpenPath: project.initialization.initialOpenPath })
+        : await openWorkspaceInCurrentWindowNow(sender, project.path, {}, assertOpen);
       return { initialization: project.initialization, opening: { status: "opened", result } };
     } catch (error) {
       return { initialization: project.initialization, opening: { status: "failed", message: error instanceof Error ? error.message : String(error) } };
@@ -1696,6 +1711,7 @@ async function openWorkspaceInNewWindow(folderPath, options = {}) {
   const canonicalPath = await canonicalizeWorkspacePath(workspace.path);
   const window = await createWindow({
     initialWorkspacePath: canonicalPath,
+    initialOpenPath: options.initialOpenPath,
   });
   const state = assignWindowWorkspace(window, workspace, canonicalPath, { cleanupPrevious: false });
   if (options.remember !== false) {

@@ -1,6 +1,6 @@
 /** @vitest-environment happy-dom */
 import { afterEach, describe, expect, it } from "vitest";
-import { createEditableTableSelection } from "../../../../packages/shared-ui/src/editor/table/editableTableSelection";
+import { createEditableTableSelection } from "../../../../src/shared-ui/editor/table/editableTableSelection";
 
 const cleanups: Array<() => void> = [];
 afterEach(() => { cleanups.splice(0).forEach(dispose => dispose()); document.body.replaceChildren(); });

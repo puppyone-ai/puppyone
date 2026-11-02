@@ -2,33 +2,34 @@ import { Tooltip, FolderIcon } from "@puppyone/shared-ui";
 import { FolderPlus } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useLocalization } from "@puppyone/localization";
-import { useProjectTemplateImport } from "./useProjectTemplateImport";
-import { ProjectTemplateImportFields } from "./ProjectTemplateImportFields";
+import { looksLikeTemplateLink } from "../../shared/desktop/template-link.mjs";
 import type { WorkspaceCreateProjectRequest, WorkspaceCreateProjectResult, WorkspaceProjectLocationGrant } from "../types/electron";
 import {
   DesktopDialogCloseButton,
   DesktopDialogRoot,
 } from "./DesktopDialog";
 
+const GETTING_STARTED = {
+  kind: "template",
+  ref: { sourceId: "builtin", id: "puppyone.project.getting-started", version: 1 },
+} as const;
+
 /**
  * Project initialization dialog. The location is prefilled with the built-in
  * projects folder and the project name is prefilled, so the default path is a
  * single Create action. Browse and name editing remain available as escape
- * hatches. With `templateLinks`, users may also choose a published
- * marketplace template, which needs a PuppyOne account.
+ * hatches. A template link is handed to its own card.
  */
 export function OnboardingProjectEntryDialog({
   onClose,
-  templateLinks,
-  initialTemplateUrl = null,
+  onOpenTemplate,
   onDefaultLocation,
   onChooseLocation,
   onSubmit,
 }: {
   onClose: () => void;
-  /** Required: every entry states whether marketplace links (a Cloud account) are offered. */
-  templateLinks: boolean;
-  initialTemplateUrl?: string | null;
+  /** Hands a template link to its card. */
+  onOpenTemplate?: (url: string) => void;
   onDefaultLocation?: () => Promise<WorkspaceProjectLocationGrant | null>;
   onChooseLocation?: () => Promise<WorkspaceProjectLocationGrant | null>;
   onSubmit: (request: WorkspaceCreateProjectRequest) => Promise<WorkspaceCreateProjectResult>;
@@ -44,13 +45,9 @@ export function OnboardingProjectEntryDialog({
   const [location, setLocation] = useState<WorkspaceProjectLocationGrant | null>(null);
   const [error, setError] = useState<string | null>(null);
   const defaultLocationRequest = useRef<Promise<WorkspaceProjectLocationGrant | null> | null>(null);
-  const marketplace = useProjectTemplateImport(initialTemplateUrl, locale, (detail) => {
-    setValue(`${detail.name} ${crypto.randomUUID().slice(0, 4).toUpperCase()}`);
-    requestRef.current = null;
-  }, templateLinks);
-  const busy = submitting || choosingLocation || marketplace.resolving;
+  const busy = submitting || choosingLocation;
   const fieldsDisabled = busy || created !== null;
-  const title = t(marketplace.mode ? "onboarding.template.title" : "onboarding.entry.create.title");
+  const title = t("onboarding.entry.create.title");
 
   useEffect(() => {
     if (!onDefaultLocation) return;
@@ -71,7 +68,7 @@ export function OnboardingProjectEntryDialog({
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const name = value.trim();
-    if (!name || busy || !location || !marketplace.canCreate) return;
+    if (!name || busy || !location) return;
     setError(null);
     setSubmitting(true);
     try {
@@ -80,7 +77,7 @@ export function OnboardingProjectEntryDialog({
         locationGrantId: location.grantId,
         operationId: crypto.randomUUID(),
         locale,
-        source: marketplace.source,
+        source: GETTING_STARTED,
       };
       const result = await onSubmit(requestRef.current);
       if (result.opening.status === "opened") {
@@ -93,6 +90,14 @@ export function OnboardingProjectEntryDialog({
       setError(nextError instanceof Error ? nextError.message : String(nextError));
     }
     setSubmitting(false);
+  };
+
+  // The clipboard is read only here, when the user asks for it.
+  const pasteTemplateLink = async () => {
+    setError(null);
+    const link = await navigator.clipboard.readText().catch(() => "");
+    if (looksLikeTemplateLink(link)) onOpenTemplate?.(link.trim());
+    else setError(t("onboarding.template.noLink"));
   };
 
   const chooseLocation = async () => {
@@ -142,7 +147,6 @@ export function OnboardingProjectEntryDialog({
 
         <div className="desktop-dialog-body desktop-file-dialog-body onboarding-entry-dialog-body">
           <div className="onboarding-entry-create-fields">
-            <ProjectTemplateImportFields controller={marketplace} disabled={fieldsDisabled} onChange={() => { requestRef.current = null; setError(null); }} />
             <label className="onboarding-entry-create-field">
               <span className="onboarding-entry-create-label">
                 {t("onboarding.entry.create.nameLabel")}
@@ -201,6 +205,14 @@ export function OnboardingProjectEntryDialog({
         </div>
 
         <footer className="desktop-dialog-footer">
+          {onOpenTemplate && <button
+            className="desktop-dialog-button onboarding-entry-paste-template"
+            type="button"
+            disabled={fieldsDisabled}
+            onClick={() => void pasteTemplateLink()}
+          >
+            {t("onboarding.template.paste")}
+          </button>}
           <button
             className="desktop-dialog-button"
             type="button"
@@ -212,7 +224,7 @@ export function OnboardingProjectEntryDialog({
           <button
             className="desktop-dialog-button primary file"
             type="submit"
-            disabled={busy || !value.trim() || !location || !marketplace.canCreate}
+            disabled={busy || !value.trim() || !location}
           >
             {t(submitting
               ? "onboarding.entry.create.submitting"

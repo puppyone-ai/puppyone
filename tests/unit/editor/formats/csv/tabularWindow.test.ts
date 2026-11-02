@@ -5,7 +5,7 @@ import {
   calculateVelocityAwareTabularOverscan,
   calculateVariableTabularWindow,
   createTabularOffsets,
-} from "../../../../../packages/shared-ui/src/editor/table/tabularWindow";
+} from "../../../../../src/shared-ui/editor/table/tabularWindow";
 
 describe("bounded tabular projection", () => {
   it("keeps a fixed row window bounded while advancing through the logical model", () => {

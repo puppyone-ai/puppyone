@@ -14,8 +14,7 @@
 
 .desktop-settings-dialog,
 .desktop-plugins-dialog,
-.desktop-cloud-dialog,
-.desktop-cloud-workspace-switch-dialog {
+.desktop-cloud-dialog {
   --desktop-task-dialog-header-bg: var(--po-header);
   --desktop-task-dialog-header-text: var(--po-text-muted);
   --desktop-task-dialog-header-hover: var(--po-hover);
@@ -110,14 +109,6 @@
   background: var(--desktop-task-dialog-header-hover);
   box-shadow: inset 0 0 0 1px var(--desktop-task-dialog-header-focus);
   color: var(--po-text);
-}
-
-.desktop-cloud-dialog-location-controls {
-  width: max-content;
-  min-width: 232px;
-  max-width: 55%;
-  margin-inline-start: auto;
-  margin-inline-end: 8px;
 }
 
 .desktop-settings-dialog-layout,

@@ -14,7 +14,6 @@ import {
   getAccessPointCatalogKindForSection,
 } from "../access-points";
 import { CloudWorkspaceLoadingState } from "../components/shared";
-import { CloudAutomationRouteSection } from "../sections/AutomationRouteSection";
 import { CloudBranchesSection } from "../sections/branches";
 import { CloudHistorySection } from "../sections/HistorySection";
 import { CloudRepositoryOverview } from "../sections/overview";
@@ -99,16 +98,6 @@ export function CloudProjectRouteOutlet({
         loading={loading}
         onCloudSessionChange={onSessionChange}
         onOpenProject={onOpenProject}
-      />
-    );
-  }
-
-  if (activeSection === "automation") {
-    return (
-      <CloudAutomationRouteSection
-        projectId={projectId}
-        cloudSession={cloudSession}
-        onSessionChange={onSessionChange}
       />
     );
   }

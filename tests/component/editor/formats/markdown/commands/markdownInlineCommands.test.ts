@@ -5,12 +5,12 @@ import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { EditorSelection, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it } from "vitest";
-import { toggleMarkdownHtmlTag, toggleMarkdownInline } from "../../../../../../packages/shared-ui/src/editor/markdown/core/commands/markdownInlineCommands";
-import { getMarkdownElements } from "../../../../../../packages/shared-ui/src/editor/markdown/core/syntax/markdownElements";
+import { toggleMarkdownHtmlTag, toggleMarkdownInline } from "../../../../../../src/shared-ui/editor/markdown/core/commands/markdownInlineCommands";
+import { getMarkdownElements } from "../../../../../../src/shared-ui/editor/markdown/core/syntax/markdownElements";
 import {
   puppyMarkdownFeatureCompositionExtension,
   puppyMarkdownParserExtensions,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/composition/markdownFeatureComposition";
+} from "../../../../../../src/shared-ui/editor/markdown/composition/markdownFeatureComposition";
 
 const views: EditorView[] = [];
 

@@ -16,7 +16,7 @@ import {
 import {
   getWorkspaceGitStatus,
   resolveGitRepositoryIdentity,
-} from "../../../../local-api/workspace.mjs";
+} from "../../../../electron/local-api/workspace.mjs";
 
 let root;
 const services = [];
@@ -552,7 +552,7 @@ describe("git metadata watch service", { timeout: 30_000 }, () => {
 
 describe("background optional locks", { timeout: 30_000 }, () => {
   it("applies GIT_OPTIONAL_LOCKS=0 only for read-only status queries", async () => {
-    const { getGitEnvironmentForTests } = await import("../../../../local-api/workspace.mjs");
+    const { getGitEnvironmentForTests } = await import("../../../../electron/local-api/workspace.mjs");
     expect(getGitEnvironmentForTests({ optionalLocks: false }).GIT_OPTIONAL_LOCKS).toBe("0");
     expect(getGitEnvironmentForTests({}).GIT_OPTIONAL_LOCKS).toBeUndefined();
     expect(getGitEnvironmentForTests({ optionalLocks: true }).GIT_OPTIONAL_LOCKS).toBeUndefined();

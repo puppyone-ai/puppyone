@@ -65,10 +65,7 @@ if (!overlayLayerSource.includes("useNativeSurfaceOcclusionLease")) {
   errors.push("DesktopOverlayLayer must own a native-surface occlusion lease");
 }
 
-for (const filePath of [
-  ...walk(absolute("src")),
-  ...walk(absolute("packages/shared-ui/src")),
-]) {
+for (const filePath of walk(absolute("src"))) {
   const source = readFileSync(filePath, "utf8");
   const rawMenuPattern = /<([a-z][\w.-]*)\b[^>]*className="[^"]*\bdesktop-menu-surface\b[^"]*"[^>]*>/gs;
   let match = rawMenuPattern.exec(source);
@@ -80,16 +77,16 @@ for (const filePath of [
   }
 }
 
-const markdownMenuSource = read("packages/shared-ui/src/editor/markdown/features/table/tableContextMenu.ts");
+const markdownMenuSource = read("src/shared-ui/editor/markdown/features/table/tableContextMenu.ts");
 if (!markdownMenuSource.includes('menu.dataset.nativeSurfaceOccluder = "true"')) {
   errors.push("The imperative Markdown table menu must opt into native-surface occlusion");
 }
 
-const appPreviewViewer = read("packages/shared-ui/src/editor/viewers/app/AppPreviewViewer.tsx");
+const appPreviewViewer = read("src/shared-ui/editor/viewers/app/AppPreviewViewer.tsx");
 if (!appPreviewViewer.includes("SandboxedAppFrame")) {
   errors.push("App Preview must render inside the editor DOM instead of a native surface");
 }
-const appPreviewHook = read("packages/shared-ui/src/editor/viewers/app/useAppPreviewSession.ts");
+const appPreviewHook = read("src/shared-ui/editor/viewers/app/useAppPreviewSession.ts");
 for (const forbidden of ["ResizeObserver", "getBoundingClientRect", "setSurfaceBounds", "attachmentId"]) {
   if (appPreviewHook.includes(forbidden)) {
     errors.push(`App Preview runtime hook must not coordinate native surface geometry (${forbidden})`);
@@ -102,7 +99,7 @@ for (const forbidden of ["WebContentsView", "setBounds", "attachmentId", "browse
   }
 }
 
-const paneResizeDrag = read("packages/shared-ui/src/primitives/usePaneResizeDrag.ts");
+const paneResizeDrag = read("src/shared-ui/primitives/usePaneResizeDrag.ts");
 if (paneResizeDrag.includes("nativeSurfaceOccluder")) {
   errors.push("Shared pane resize gestures must not misrepresent themselves as occluding overlays");
 }
@@ -143,10 +140,6 @@ for (const token of [
 for (const [owner, file, token] of [
   ["src/features/app-shell/DesktopDataWorkspaceSurface.tsx", "src/features/app-shell/DesktopDataWorkspaceSurface.tsx",
     "explorerResizeHandleRef={explorerFrame.resizeHandleRef}"],
-  // The Cloud domain cannot reach into the shell, so the composition root
-  // supplies the window's frame to the Cloud preparation surface.
-  ["src/app/DesktopCloudWorkspacePreparation.tsx", "src/features/cloud/workbench/CloudWorkspacePreparation.tsx",
-    "<DataWorkspaceFrame {...explorerFrame}"],
 ]) {
   if (!read(owner).includes("useDesktopExplorerFrame()") || !read(file).includes(token)) {
     errors.push(`Desktop Explorer surface does not stand in the window's Explorer frame (${file})`);
@@ -176,7 +169,7 @@ for (const relativePath of [
   }
 }
 
-const pdfViewerSource = read("packages/shared-ui/src/editor/viewers/pdf/PdfViewer.tsx");
+const pdfViewerSource = read("src/shared-ui/editor/viewers/pdf/PdfViewer.tsx");
 for (const forbidden of ["WebContentsView", "useNativeSurfaceGeometry", "setBounds", "ResizeObserver"]) {
   if (pdfViewerSource.includes(forbidden)) {
     errors.push(`PDF Viewer must inherit geometry from the Editor DOM (${forbidden})`);
@@ -192,7 +185,7 @@ for (const obsoletePath of [
     errors.push(`obsolete built-in native PDF path still exists: ${obsoletePath}`);
   }
 }
-for (const relativePath of ["packages/shared-ui/src/styles/data-workspace.css"]) {
+for (const relativePath of ["src/shared-ui/styles/data-workspace.css"]) {
   const source = read(relativePath);
   const dataContent = source.match(/\.data-content\s*\{([^}]*)\}/s)?.[1] ?? "";
   if (!dataContent.includes("display: flex")) {
@@ -210,7 +203,7 @@ for (const relativePath of ["packages/shared-ui/src/styles/data-workspace.css"])
   }
 }
 
-const paneFrameStyle = read("packages/shared-ui/src/sidebar/collapsible-pane.css");
+const paneFrameStyle = read("src/shared-ui/sidebar/collapsible-pane.css");
 if (!paneFrameStyle.includes('inset-inline-end: calc(var(--po-pane-resizer-line-size, 1px) - var(--po-pane-resizer-hit-size, 8px))')
   || !paneFrameStyle.includes('.po-collapsible-pane-frame[data-pane-edge="static"]')) {
   errors.push("Shared pane frame must own both resize placement and the static boundary painter");

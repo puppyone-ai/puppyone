@@ -72,7 +72,10 @@ export async function startLoopbackCallbackServer({
           handled = true;
           finish(response, result.session, locale);
         }
-      } catch {
+      } catch (error) {
+        logger.warn?.("PuppyOne browser sign-in handoff failed.", {
+          error: error instanceof Error ? error.message : String(error),
+        });
         if (!response.headersSent) respond(response, 400, "failed", locale, geistFont);
         void close().catch(() => undefined);
       }

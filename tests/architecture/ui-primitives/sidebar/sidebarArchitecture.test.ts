@@ -1,19 +1,19 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const sharedSidebarCss = read("../../../../packages/shared-ui/src/styles/sidebar-primitives.css");
-const paneCss = read("../../../../packages/shared-ui/src/sidebar/collapsible-pane.css");
-const controlGeometryCss = read("../../../../packages/shared-ui/src/styles/control-geometry.css");
-const sharedDataWorkspaceCss = read("../../../../packages/shared-ui/src/styles/data-workspace.css");
+const sharedSidebarCss = read("../../../../src/shared-ui/styles/sidebar-primitives.css");
+const paneCss = read("../../../../src/shared-ui/sidebar/collapsible-pane.css");
+const controlGeometryCss = read("../../../../src/shared-ui/styles/control-geometry.css");
+const sharedDataWorkspaceCss = read("../../../../src/shared-ui/styles/data-workspace.css");
 const dataShellCss = read("../../../../src/features/data-workspace/data-shell.css");
 const projectSwitcherRailCss = read("../../../../src/features/app-shell/project-switcher-rail.css");
 const patternCss = read("../../../../src/styles/sidebar/patterns.css");
 const layoutCss = read("../../../../src/styles/layout.css");
 const dataSurfaceSource = read("../../../../src/features/app-shell/DesktopDataWorkspaceSurface.tsx");
 // The Data workspace and the frame it shares with surfaces that have no files yet.
-const dataWorkspaceSource = read("../../../../packages/shared-ui/src/data/DataWorkspace.tsx")
-  + read("../../../../packages/shared-ui/src/data/DataWorkspaceFrame.tsx");
-const desktopShellSource = read("../../../../src/components/DesktopCloudShell.tsx");
+const dataWorkspaceSource = read("../../../../src/shared-ui/data/DataWorkspace.tsx")
+  + read("../../../../src/shared-ui/data/DataWorkspaceFrame.tsx");
+const desktopShellSource = read("../../../../src/components/ProjectShell.tsx");
 const appSource = read("../../../../src/App.tsx");
 const projectSwitcherSurfaceSource = read("../../../../src/features/app-shell/useProjectSwitcherSurface.ts");
 const railSource = read("../../../../src/features/app-shell/ProjectSwitcherRail.tsx");
@@ -23,17 +23,17 @@ const hostedCloudSurfaceSource = read("../../../../src/app/AccountCloudWorkspace
 const workspaceContentSource = read("../../../../src/features/app-shell/DesktopWorkspaceContent.tsx");
 const registrySource = read("../../../../src/features/app-shell/workspace-surfaces/workspaceSurfaceRegistry.ts");
 const auxiliaryHostSource = read("../../../../src/features/app-shell/auxiliary/AuxiliaryPanelHost.tsx");
-const collapsiblePaneResizeSource = read("../../../../packages/shared-ui/src/primitives/useCollapsiblePaneResize.ts");
-const collapsiblePaneGestureSource = read("../../../../packages/shared-ui/src/primitives/collapsiblePaneGesture.ts");
-const collapsiblePaneFrameSource = read("../../../../packages/shared-ui/src/sidebar/CollapsiblePaneFrame.tsx");
-const sidebarResizeHandleSource = read("../../../../packages/shared-ui/src/sidebar/SidebarResizeHandle.tsx");
+const collapsiblePaneResizeSource = read("../../../../src/shared-ui/primitives/useCollapsiblePaneResize.ts");
+const collapsiblePaneGestureSource = read("../../../../src/shared-ui/primitives/collapsiblePaneGesture.ts");
+const collapsiblePaneFrameSource = read("../../../../src/shared-ui/sidebar/CollapsiblePaneFrame.tsx");
+const sidebarResizeHandleSource = read("../../../../src/shared-ui/sidebar/SidebarResizeHandle.tsx");
 const settingsSidebarSource = read("../../../../src/features/settings/sidebar/SettingsSidebar.tsx");
 const settingsModelSource = read("../../../../src/features/settings/sidebar/settingsSidebarModel.ts");
 const sourceControlResourceLists = read("../../../../src/features/source-control/sidebar/SourceControlResourceLists.tsx");
 const sourceControlHistory = read("../../../../src/features/source-control/GitHistoryTimeline.tsx");
 const cloudHistorySidebar = read("../../../../src/features/cloud/history/CloudHistorySidebar.tsx");
-const virtualizationPolicy = read("../../../../packages/shared-ui/src/sidebar/virtualizationPolicy.ts");
-const virtualSidebarList = read("../../../../packages/shared-ui/src/sidebar/VirtualSidebarList.tsx");
+const virtualizationPolicy = read("../../../../src/shared-ui/sidebar/virtualizationPolicy.ts");
+const virtualSidebarList = read("../../../../src/shared-ui/sidebar/VirtualSidebarList.tsx");
 const sidebarBoundarySmoke = read("../../../support/electron/sidebar-boundaries.mjs");
 const tokens = read("../../../../src/styles/tokens.css");
 
@@ -137,7 +137,7 @@ describe("Sidebar architecture", () => {
     expect(desktopShellSource).not.toContain("PanelLeftOpen");
     expect(desktopShellSource).not.toContain("autoCollapsed");
     expect(desktopShellSource).not.toContain("autoClosed");
-    expect(appSource).toContain("onLeftSidebarExpand={() => setSidebarCollapsed(false)}");
+    expect(readFileSync(new URL("../../../../src/app/ProjectWindow.tsx", import.meta.url), "utf8")).toContain("onLeftSidebarExpand={() => setSidebarCollapsed(false)}");
     expect(appSource).not.toContain("if (autoCollapsed)");
   });
 
@@ -163,7 +163,7 @@ describe("Sidebar architecture", () => {
     expect(appSource).toContain("renderLeadingRail={railOwnsProject");
   });
 
-  it("gives the Project one surface: the rail states name, place and switching", () => {
+  it("gives the Project one surface: the rail states name, place and switching between projects", () => {
     // One reader of the experiment, one name for the decision it makes.
     expect(projectSwitcherSurfaceSource).toContain("experimentalSettings.enableProjectSwitcherRail");
     expect(appSource).toContain('const railOwnsProject = useProjectSwitcherSurface() === "rail"');
@@ -176,9 +176,11 @@ describe("Sidebar architecture", () => {
       expect(source).not.toContain("projectMenuEnabled");
     }
 
-    // Place belongs to the row, and the switch to that row's own menu.
+    // Place belongs to the row. A local folder and its Cloud project are two
+    // rows (ADR-001), so no row menu switches one project between them.
     expect(projectSwitcherRailCss).toContain(".desktop-project-switcher-rail-place");
-    expect(appSource).toContain("activeProjectLocationControls={projectLocation && (");
+    expect(appSource).not.toContain("activeProjectLocationControls");
+    expect(railSource).not.toContain("activeProjectLocationControls");
 
     // The rail is the Project list, so it offers no way back to Homepage.
     expect(railSource).not.toContain("onHome");
@@ -190,8 +192,8 @@ describe("Sidebar architecture", () => {
     // Every entry selects through the one in-window project navigation queue.
     expect(railElement.slice(0, railElement.indexOf("\n    />"))).toContain("onSelectProject={selectProject}");
     expect(railElement.slice(0, railElement.indexOf("\n    />"))).toContain("onSelectCloudProject={selectCloudProject}");
-    expect(appSource).toMatch(/const selectProject = useCallback\(\(path: string\) => \{[\s\S]*?selectProjectTarget\(\{ kind: "local", path \}\)/);
-    expect(appSource).toContain("const selectProjectTarget = projectNavigation.select;");
+    expect(read("../../../../src/app/useWindowProjectNavigation.ts")).toMatch(/const selectProject = useCallback\(\(path: string\) => \{[\s\S]*?selectProjectTarget\(\{ kind: "local", path \}\)/);
+    expect(read("../../../../src/app/useWindowProjectNavigation.ts")).toContain("const selectProjectTarget = projectNavigation.select;");
     expect(appSource).not.toMatch(/onSelectProject=\{openProjectFromHeader\}[\s\S]{0,400}utilitySlot/);
   });
 

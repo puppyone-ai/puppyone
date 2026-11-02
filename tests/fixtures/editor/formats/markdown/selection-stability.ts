@@ -1,11 +1,11 @@
 import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { markdownCodeMirrorBaseExtensions, markdownLivePreviewCoreExtension } from "../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
-import { markdownLivePreviewContextExtension } from "../../../../../packages/shared-ui/src/editor/markdown/core/editor/markdownLivePreviewContext";
-import { createMarkdownLinkGraph } from "../../../../../packages/shared-ui/src/editor/markdown/core/links/markdownLinkGraph";
-import { markdownLivePreviewDecorations } from "../../../../../packages/shared-ui/src/editor/markdown/core/projection/markdownDocumentProjection";
-import { markdownPointerSelectionField } from "../../../../../packages/shared-ui/src/editor/markdown/core/state/pointerSelection";
-import { markdownRevealedSourceEffect, markdownRevealedSourceField } from "../../../../../packages/shared-ui/src/editor/markdown/core/state/revealedSource";
+import { markdownCodeMirrorBaseExtensions, markdownLivePreviewCoreExtension } from "../../../../../src/shared-ui/editor/markdown/markdownCodeMirrorExtensions";
+import { markdownLivePreviewContextExtension } from "../../../../../src/shared-ui/editor/markdown/core/editor/markdownLivePreviewContext";
+import { createMarkdownLinkGraph } from "../../../../../src/shared-ui/editor/markdown/core/links/markdownLinkGraph";
+import { markdownLivePreviewDecorations } from "../../../../../src/shared-ui/editor/markdown/core/projection/markdownDocumentProjection";
+import { markdownPointerSelectionField } from "../../../../../src/shared-ui/editor/markdown/core/state/pointerSelection";
+import { markdownRevealedSourceEffect, markdownRevealedSourceField } from "../../../../../src/shared-ui/editor/markdown/core/state/revealedSource";
 import "@puppyone/shared-ui/shared-ui.css";
 
 const style = document.createElement("style");

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { HomeIcon } from "../../../../packages/shared-ui/src/icons/productIcons";
+import { HomeIcon } from "../../../../src/shared-ui/icons/productIcons";
 import {
   CLOUD_HUB_ENTRY_SECTION,
   CLOUD_PROJECT_SIDEBAR_ROUTES,
-  getAvailableCloudSection,
+  normalizeCloudSection,
   getCloudRoute,
   getCloudSidebarActiveSection,
 } from "../../../../src/features/cloud/routes/cloudRoutes";
@@ -14,12 +14,11 @@ describe("Cloud navigation information architecture", () => {
     expect(CLOUD_HUB_ENTRY_SECTION).toBe("contents");
   });
 
-  it("keeps Homepage, Connections, and Automation as separate product groups", () => {
+  it("keeps Homepage and Connections as separate product groups", () => {
     expect(CLOUD_PROJECT_SIDEBAR_ROUTES.map((route) => route.id)).toEqual([
       "contents",
       "mcp",
       "cli",
-      "automation",
     ]);
     expect(getCloudRoute("contents").icon).toBe(HomeIcon);
     expect(getCloudRoute("share").navigationGroup).toBe("project");
@@ -31,7 +30,6 @@ describe("Cloud navigation information architecture", () => {
     expect(getCloudRoute("git-sync").showInSidebar).toBe(false);
     expect(getCloudRoute("access").showInSidebar).toBe(false);
     expect(getCloudRoute("history").showInSidebar).toBe(false);
-    expect(getCloudRoute("automation").navigationGroup).toBe("automation");
     expect(getCloudRoute("settings").showInSidebar).toBe(false);
   });
 
@@ -42,9 +40,8 @@ describe("Cloud navigation information architecture", () => {
     expect(getCloudRoute("settings").surface).toBe("landing");
   });
 
-  it("falls back to Homepage when the Automation experiment is disabled", () => {
-    expect(getAvailableCloudSection("automation", { automationEnabled: false })).toBe("contents");
-    expect(getAvailableCloudSection("automation", { automationEnabled: true })).toBe("automation");
-    expect(getAvailableCloudSection("mcp", { automationEnabled: false })).toBe("mcp");
+  it("sends a saved Automation section to Homepage now that the route is not registered", () => {
+    expect(normalizeCloudSection("automation")).toBe("contents");
+    expect(normalizeCloudSection("mcp")).toBe("mcp");
   });
 });

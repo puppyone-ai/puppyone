@@ -109,7 +109,6 @@ export function CloudActivationHero({
 }
 
 function getCloudActivationKind(section: CloudWorkspaceSection): CloudActivationKind {
-  if (section === "automation") return "automation";
   if (section === "access") return "access";
   if (section === "cli") return "cli";
   if (section === "git-sync") return "git";

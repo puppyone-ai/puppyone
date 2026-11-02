@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   getEditableTableColumnDropBoundary,
   getEditableTableDropBoundary,
-} from "../../../../../packages/shared-ui/src/editor/table/editableTableDrag";
+} from "../../../../../src/shared-ui/editor/table/editableTableDrag";
 
 describe("editable table drag boundaries", () => {
   it("uses cell midpoints for row boundaries", () => {

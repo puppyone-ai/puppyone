@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deriveGitRevisionSpecs } from "../../../../local-api/git/revision-specs.mjs";
+import { deriveGitRevisionSpecs } from "../../../../electron/local-api/git/revision-specs.mjs";
 
 const mime = (name) => name.endsWith(".docx") ? "application/docx" : "text/plain";
 

@@ -15,17 +15,19 @@ export function useCloudWorkspaceSidebar({ context, session, apiBaseUrl, active,
     ? JSON.stringify([apiBaseUrl, session.user_id, session.session_generation, context.target]) : null;
   const [historyScope, setHistoryScope] = useState<string | null>(null);
   const historyOpen = scope !== null && historyScope === scope;
+  const historyAvailable = scope !== null && context?.status === "resolved" && context.target.kind === "project_root";
   const setAgentOpen = agent.setOpen;
   useEffect(() => { setHistoryScope(null); }, [scope]);
   const close = useCallback(() => {
     setHistoryScope(null);
     setAgentOpen?.(false);
   }, [setAgentOpen]);
-  const toggleHistory = useCallback(() => {
-    if (!scope || context?.status !== "resolved" || context.target.kind !== "project_root") return;
+  /** Asking for History never hides it: the panel owns its own close. */
+  const openHistory = useCallback(() => {
+    if (!historyAvailable) return;
     setAgentOpen?.(false);
-    setHistoryScope(current => current === scope ? null : scope);
-  }, [context, scope, setAgentOpen]);
+    setHistoryScope(scope);
+  }, [historyAvailable, scope, setAgentOpen]);
   const toggleAgent = useCallback(() => {
     if (!scope) return;
     setHistoryScope(null);
@@ -34,7 +36,7 @@ export function useCloudWorkspaceSidebar({ context, session, apiBaseUrl, active,
   const setOpen = useCallback((open: boolean) => {
     if (!open) close();
   }, [close]);
-  return { scope, historyOpen, open: Boolean(scope && (historyOpen || agent.open)), close, setOpen, toggleHistory, toggleAgent };
+  return { scope, historyOpen, open: Boolean(scope && (historyOpen || agent.open)), close, setOpen, openHistory, historyAvailable, toggleAgent };
 }
 
 export type CloudWorkspaceSidebarController = ReturnType<typeof useCloudWorkspaceSidebar>;

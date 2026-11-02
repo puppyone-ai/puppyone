@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { resolveGitRepositoryIdentity } from "../../../local-api/workspace.mjs";
+import { resolveGitRepositoryIdentity } from "../../local-api/workspace.mjs";
 import { normalizeCloudApiBaseUrl } from "../../../shared/cloudEndpoint.js";
 
 export const CLOUD_REMOTE_NAME = "puppyone";

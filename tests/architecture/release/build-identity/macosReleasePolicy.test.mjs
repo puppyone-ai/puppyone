@@ -15,8 +15,8 @@ import {
   inspectMacReleaseReadiness,
 } from "../../../../scripts/release-support/macos-release-policy.mjs";
 import { resolveDesktopBuildIdentity } from "../../../../shared/desktop-build-identity.mjs";
-import { createDesktopElectronBuilderConfig } from "../../../../tooling/desktop/build/create-builder-config.mjs";
-import { getDesktopTargetDefinition } from "../../../../tooling/desktop/targets/target-manifest.mjs";
+import { createDesktopElectronBuilderConfig } from "../../../../scripts/desktop/build/create-builder-config.mjs";
+import { getDesktopTargetDefinition } from "../../../../scripts/desktop/targets/target-manifest.mjs";
 
 const signingEnvironment = {
   CSC_LINK: "certificate.p12",
@@ -126,6 +126,12 @@ describe("continuous integration workflow", () => {
       workflow.replace(/actions\/checkout@[a-f0-9]{40}/, "actions/checkout@v4"),
     )).toEqual(expect.arrayContaining([
       expect.stringMatching(/pinned to full commit SHAs/),
+    ]));
+    expect(inspectContinuousIntegrationWorkflow(
+      workflow.replace(", cloud-email-sign-in]", "]").replace('\n          test "$CLOUD_EMAIL_SIGN_IN_RESULT" = success', ""),
+    )).toEqual(expect.arrayContaining([
+      expect.stringMatching(/Cloud email sign-in/),
+      expect.stringMatching(/email sign-in through the paired Cloud must pass/),
     ]));
   });
 });

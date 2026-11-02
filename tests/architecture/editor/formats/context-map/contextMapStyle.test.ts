@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it } from "vitest";
 const testDirectory = path.dirname(fileURLToPath(import.meta.url));
 const stylesheetPath = path.resolve(
   testDirectory,
-  "../../../../../packages/shared-ui/src/styles/editor/context-map-viewer.css",
+  "../../../../../src/shared-ui/styles/editor/context-map-viewer.css",
 );
 
 afterEach(() => {

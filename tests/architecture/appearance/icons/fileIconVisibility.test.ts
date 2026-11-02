@@ -5,8 +5,8 @@ import { describe, expect, it } from "vitest";
 const repositoryRoot = fileURLToPath(new URL("../../../..", import.meta.url));
 const read = (relativePath: string) => readFileSync(`${repositoryRoot}${relativePath}`, "utf8");
 
-const fileIconsCss = read("packages/shared-ui/src/styles/file-icons.css");
-const sharedPatternsCss = read("packages/shared-ui/src/styles/shared-ui-patterns.css");
+const fileIconsCss = read("src/shared-ui/styles/file-icons.css");
+const sharedPatternsCss = read("src/shared-ui/styles/shared-ui-patterns.css");
 const rules = fileIconsCss.replace(/\/\*[\s\S]*?\*\//g, "").trim();
 
 describe("Appearance → Show file icons", () => {

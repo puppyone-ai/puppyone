@@ -4,8 +4,7 @@ import { EditorView } from "@codemirror/view";
 import { useLocalization } from "@puppyone/localization";
 import { TypographyCatalogProvider, useTypographyCatalog, useTypographyRuntime } from "../../features/typography";
 import { resolveSurfaceAppearance, SurfaceAppearanceProvider } from "../../features/appearance/AppearanceRuntime";
-import { useDesktopPreference, useDesktopAppearance, useDesktopPreferenceEffects, initializeDesktopPreferences, desktopPreferencesStore } from "../../features/settings";
-import { AssetLibraryHome } from "../../components/AssetLibraryHome";
+import { useDesktopPreference, useDesktopAppearance, useDesktopPreferenceEffects, initializeDesktopPreferences } from "../../features/settings";
 import { MinimalOnboarding } from "../../components/MinimalOnboarding";
 import { useHomepageCloudProjects } from "../../features/cloud/workbench/useHomepageCloudProjects";
 import { HomepageCloudStatus } from "../../features/cloud/workbench/HomepageCloudStatus";
@@ -17,8 +16,6 @@ import { AccountCloudWorkspaceSurface, useAccountCloudWorkspacePresentation } fr
 import { createCloudAgentSmokeFixture, editCloudAgentPrompt } from "../../features/cloud/agent/CloudAgentSmokeFixture";
 
 initializeDesktopPreferences({ getItem: () => null, setItem: () => {}, removeItem: () => {} });
-// The geometry acceptance below exercises the optional centered Header layout.
-desktopPreferencesStore.setState(s => ({ experimentalSettings: { ...s.experimentalSettings, enableCenteredProjectInHeader: true } }));
 
 const API = "https://cloud-fixture.puppyone.ai/api/v1";
 const project = (id: string) => ({ id, name: `Hosted ${id}`, org_id: "team", updated_at: id === "beta" ? "2026-06-01T00:00:00Z" : "2026-04-01T00:00:00Z", capabilities: ["content.read", "content.write"] });
@@ -112,7 +109,8 @@ function AccountCloudFixture() {
     markdownPresentation: markdownPresentation,
     lightThemePreset: lightThemePreset, darkThemePreset: darkThemePreset,
     pointerCursors: pointerCursors, diffMarkers: diffMarkers });
-  const account = useAccountCloudWorkspace({ enabled: true, session, apiBaseUrl: API });
+  const [shown, onShow] = useState<"local" | "cloud">("local");
+  const account = useAccountCloudWorkspace({ enabled: true, shown, onShow, session, apiBaseUrl: API });
   const homepage = useHomepageCloudProjects({ enabled: true, visible: !account.active, session, apiBaseUrl: API,
     local: includeLocal ? [
       { workspace: { id: "local-alpha", name: "Hosted alpha", path: "/fixture/alpha", status: "recording", hydrationState: "ready", lastModifiedAt: "2026-04-01T00:00:00Z",
@@ -143,11 +141,9 @@ function AccountCloudFixture() {
     };
     return () => { delete window.__accountCloudSmoke; };
   }, [account, setTheme, settingsOpened, selectedLocalPath]);
-  const Home = new URLSearchParams(location.search).get("home") === "cards" ? AssetLibraryHome : MinimalOnboarding;
   return <SurfaceAppearanceProvider value={appearance}>
-    {!account.active && <Home appearance={appearance} projectItems={homepage.items}
+    {!account.active && <MinimalOnboarding appearance={appearance} projectItems={homepage.items}
       cloudOpening={account.opening}
-      onCancelCloudOpening={account.cancel}
       onChooseWorkspace={async () => {}} onOpenWorkspacePath={async () => {}} onOpenDroppedWorkspace={async () => {}}
       onOpenCloudProject={(id) => void account.openTarget({ kind: "project_root", project_id: id })}
       cloudAccountStatus={<HomepageCloudStatus status={homepage.status} restoring={false} empty={homepage.items.length === 0} apiBaseUrl={API}
@@ -157,6 +153,6 @@ function AccountCloudFixture() {
       onSelectCloudProject={(id) => void account.openTarget({ kind: "project_root", project_id: id })}
       onCreateProject={() => {}} workbench={workbench} presentation={presentation} active={account.active}
       context={account.context} session={session} apiBaseUrl={API} onSessionChange={setSession}
-      appearance={appearance} onLocal={account.useLocal} onHome={account.useLocal} />
+      appearance={appearance} onHome={account.useLocal} />
   </SurfaceAppearanceProvider>;
 }

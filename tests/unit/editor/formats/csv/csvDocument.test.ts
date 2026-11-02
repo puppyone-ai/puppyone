@@ -8,7 +8,7 @@ import {
   stringifyDelimitedText,
   toColumnLabel,
   trimRows,
-} from "../../../../../packages/shared-ui/src/editor/viewers/csv/csvDocument";
+} from "../../../../../src/shared-ui/editor/viewers/csv/csvDocument";
 
 describe("CSV document model", () => {
   it("parses quoted delimiters, escaped quotes, and multiline cells", () => {

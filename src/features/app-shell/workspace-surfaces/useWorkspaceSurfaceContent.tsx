@@ -1,10 +1,9 @@
 import { useDesktopPreference } from "../../settings";
 import { useMemo, type ReactNode } from "react";
-import { getCloudAuthSession } from "../../cloud/auth";
 import { CloudFileWorkspaceGate } from "../../cloud/workbench/CloudFileWorkspaceGate";
 import type { CloudServiceMainViewProps } from "../../cloud/types";
 import { type Workspace } from "@puppyone/shared-ui";
-import type { DesktopView } from "../../../components/DesktopCloudShell";
+import type { DesktopView } from "../../../components/ProjectShell";
 import type { DesktopUpdatesController } from "../../updates";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import type {
@@ -59,15 +58,12 @@ export type DesktopWorkspaceCloudSurfaceController = {
   onOpenGitSettings: () => void;
   onSelectSection: (section: CloudWorkspaceSection) => void;
   onStartPuppyoneBackup: (organizationId?: string) => void;
-  onCreateCloudVersion?: (organizationId?: string) => void;
 };
 
 export type WorkspaceSurfaceContentResult = {
   availableSurfaceIds: readonly WorkspaceSurfaceId[];
   cloudSurface: WorkspaceSurfaceContent;
   cloudFileState: ReactNode;
-  cloudSwitchGate: ReactNode;
-  cloudSwitchAuthenticationRequired: boolean;
   gitEnabled: boolean;
   resolvedActiveView: WorkspaceSurfaceId;
   resolvedSurface: ResolvedWorkspaceSurface;
@@ -111,7 +107,6 @@ export function useWorkspaceSurfaceContent({
   subThemeCatalog: SubThemeCatalogController;
   workspace: Workspace;
 }): WorkspaceSurfaceContentResult {
-  const automationEnabled = useDesktopPreference(s => s.experimentalSettings.enableCloudAutomation);
   const surfaceCapabilities = useMemo<WorkspaceSurfaceCapabilities>(() => ({
     cloudEnabled: cloud.enabled,
   }), [cloud.enabled]);
@@ -196,7 +191,6 @@ export function useWorkspaceSurfaceContent({
     projectContext,
     onCloudSessionChange: cloud.onCloudSessionChange,
     activeSection: cloud.activeSection,
-    automationEnabled: automationEnabled,
     loading: git.gitStatusLoading,
     error: git.gitStatusError,
     cloudBackupLoading: cloud.backupLoading,
@@ -219,7 +213,6 @@ export function useWorkspaceSurfaceContent({
       <CloudServiceSidebar
         cloudAuthState={cloudAuthState}
         activeSection={cloud.activeSection}
-        automationEnabled={automationEnabled}
         projectAvailable={cloudContextHasProject(projectContext)}
         projectCapabilities={projectContext.status === "resolved"
           ? projectContext.capabilities ?? []
@@ -242,10 +235,7 @@ export function useWorkspaceSurfaceContent({
   return {
     availableSurfaceIds,
     cloudSurface: cloudServiceSurface,
-    cloudSwitchAuthenticationRequired: getCloudAuthSession(cloudAuthState) === null,
     cloudFileState: <CloudFileWorkspaceGate {...cloudViewProps} />,
-    cloudSwitchGate: <CloudFileWorkspaceGate {...cloudViewProps} compactSignIn
-      onStartPuppyoneBackup={cloud.onCreateCloudVersion ?? cloud.onStartPuppyoneBackup} />,
     gitEnabled,
     resolvedActiveView,
     resolvedSurface: resolveWorkspaceSurface({ capabilities: surfaceCapabilities, adapters, requestedId: requestedSurfaceId }),

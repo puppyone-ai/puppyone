@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   parseGitComparisonFileSummary,
   parseGitNameStatusPreview,
-} from "../../../../local-api/git/diff-comparison.mjs";
+} from "../../../../electron/local-api/git/diff-comparison.mjs";
 
 describe("Git comparison preview parser", () => {
   it("maps aggregate diff records, including rename tuples, into sidebar resources", () => {

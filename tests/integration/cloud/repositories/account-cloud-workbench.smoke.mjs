@@ -23,12 +23,19 @@ const waitFor = async (expression) => {
   while (Date.now() < deadline) { if (await evaluate(expression)) return; await new Promise((r) => setTimeout(r, 50)); }
   throw new Error(`Timed out: ${expression}; ${errors.join("; ")}`);
 };
+/** The Homepage opens on the Grid; a project's location marks belong to the list. */
+async function showHomepageList() {
+  if (await evaluate("document.querySelector('.onboarding-project-list').dataset.projectLayout === 'list'")) return;
+  await evaluate("document.querySelectorAll('.onboarding-project-view .onboarding-view-menu-root .po-icon-button')[2].click()");
+  await waitFor("Boolean(document.querySelector('[data-project-layout-option=list]'))");
+  await evaluate("document.querySelector('[data-project-layout-option=list]').click()");
+  await waitFor("document.querySelector('.onboarding-project-list').dataset.projectLayout === 'list'");
+}
 async function openProject(id) {
   await evaluate("window.__accountCloudSmoke.home()");
-  await waitFor(`Boolean(document.querySelector('[data-cloud-project-id="${id}"] .onboarding-project-row'))`);
-  await evaluate(`document.querySelector('[data-cloud-project-id="${id}"] .onboarding-project-open').click()`);
-  await waitFor("Boolean(document.querySelector('.desktop-project-location-menu'))");
-  await evaluate(`document.querySelector('.desktop-project-location-menu button[data-project-location="cloud"]').click()`);
+  await waitFor(`Boolean(document.querySelector('[data-cloud-project-id="${id}"] :is(.onboarding-project-row, .onboarding-project-tile)'))`);
+  // A Cloud project's own entry opens it directly (puppy-issues ADR-001).
+  await evaluate(`document.querySelector('[data-cloud-project-id="${id}"] :is(.onboarding-project-row, .onboarding-project-tile)').click()`);
   await waitFor(`window.__accountCloudSmoke.state().active && window.__accountCloudSmoke.state().project === '${id}' && !document.querySelector('[role=dialog]')`);
   await waitFor("Boolean(document.querySelector('[data-cloud-native=true] .tree-row'))");
   await evaluate("[...document.querySelectorAll('[data-cloud-native=true] .tree-row')].find(el => el.textContent.includes('readme')).click()");
@@ -52,10 +59,8 @@ app.whenReady().then(async () => {
     const shell = document.querySelector('.desktop-account-cloud-workspace');
     const rect = (selector) => { const r = shell.querySelector(selector).getBoundingClientRect(); return { x:r.x, width:r.width, height:r.height }; };
     return { explorer:rect('.explorer-column'), editor:rect('.browser-column'),
-      header:rect('.desktop-titlebar'), project:rect('.desktop-titlebar-centered-context') };
+      header:rect('.desktop-titlebar') };
   })()`);
-  assert(Math.abs((geometry.project.x + geometry.project.width / 2) - (geometry.header.x + geometry.header.width / 2)) < 0.01,
-    "Hosted project context must remain centered in the Header");
   assert(await evaluate(`(() => {
     const header = document.querySelector('.desktop-titlebar');
     const probe = document.createElement('span');
@@ -67,13 +72,13 @@ app.whenReady().then(async () => {
       && getComputedStyle(header).backgroundColor === expected
       && getComputedStyle(header).backgroundImage === 'none'
       && frame.content === 'none'
-      && getComputedStyle(header.querySelector('.desktop-titlebar-workspace-mark[data-project-location=cloud]')).color === ink
-      && getComputedStyle(header.querySelector('[data-product-icon=cloud] [data-cloud-outline]')).stroke === ink
+      && getComputedStyle(header.querySelector('.desktop-titlebar-workspace-button .desktop-titlebar-workspace-mark')).color === ink
+      && !header.querySelector('.desktop-titlebar-location-button, .desktop-project-location-controls')
       && shell.getBoundingClientRect().height === innerHeight
       && header.getBoundingClientRect().width === innerWidth;
   })()`), "Hosted-only projects use the theme-blue Header, matching icon/text and no outer frame");
-  assert(await evaluate("document.querySelectorAll('.desktop-account-cloud-workspace [data-cloud-workspace-tool]').length === 3 && [...document.querySelectorAll('[data-cloud-workspace-tool]')].every(button => !button.disabled)"),
-    'Hosted-only Cloud must expose Share, History and Agent');
+  assert(await evaluate("document.querySelectorAll('.desktop-account-cloud-workspace [data-cloud-workspace-tool]').length === 2 && [...document.querySelectorAll('[data-cloud-workspace-tool]')].every(button => !button.disabled)"),
+    'Hosted-only Cloud must expose Share and Agent');
   assert(await evaluate("Boolean(document.querySelector('.desktop-account-cloud-workspace .desktop-sidebar-footer-bar .desktop-feedback'))"), 'Hosted Cloud must retain the Feedback footer');
   await evaluate("document.querySelector('.desktop-account-cloud-workspace .desktop-sidebar-footer-button[aria-label=Settings]').click()");
   await waitFor("window.__accountCloudSmoke.state().settingsOpened === 1");
@@ -81,16 +86,10 @@ app.whenReady().then(async () => {
   await waitFor("Boolean(document.querySelector('.desktop-feedback-dialog'))");
   await evaluate("document.querySelector('.desktop-feedback-close').click()");
   await waitFor("!document.querySelector('.desktop-feedback-dialog')");
-  assert(await evaluate("['share','history','agent'].every(tool => document.querySelector('[data-cloud-workspace-tool='+tool+']')) && !document.querySelector('[data-cloud-workspace-tool=connect]')"),
-    'Cloud entry retains the current Share, History and Agent actions');
-  await evaluate("document.querySelector('.desktop-account-cloud-workspace .desktop-titlebar-location-button').click()");
-  await waitFor("Boolean(document.querySelector('button[data-project-location=cloud]'))");
-  assert(await evaluate("document.querySelector('button[data-project-location=cloud]').getAttribute('aria-pressed') === 'true' && !document.querySelector('.desktop-account-cloud-workspace .desktop-titlebar-actions [data-project-location]')"),
-    "Hosted location uses its dedicated location popover, outside the right-side Header tools");
-  await evaluate("document.querySelector('button[data-project-location=cloud]').click()");
-  assert(await evaluate("Boolean(document.querySelector('.desktop-project-location-menu'))"), 'Selecting the current Cloud location retains the popover');
-  await evaluate("document.querySelector('.desktop-titlebar-location-button').click()");
-  await waitFor("!document.querySelector('.desktop-project-location-menu')");
+  assert(await evaluate("['share','agent'].every(tool => document.querySelector('[data-cloud-workspace-tool='+tool+']')) && !document.querySelector('[data-cloud-workspace-tool=connect]')"),
+    'Cloud entry retains the current Share and Agent actions');
+  assert(await evaluate("!document.querySelector('.desktop-account-cloud-workspace [data-project-location-controls], .desktop-account-cloud-workspace .desktop-titlebar-location-button')"),
+    "A Cloud project's Header never switches it to a local folder");
   assert(geometry.explorer.width > 100 && geometry.editor.width > 300 && geometry.editor.height > 400, "No-local hosted shell must have a usable native layout");
   await evaluate("window.__accountCloudSmoke.edit('ALPHA_EDIT_ONLY')");
   await waitFor("window.__accountCloudSmoke.state().writes.some(write => write.project === 'alpha' && write.content === 'ALPHA_EDIT_ONLY')");
@@ -113,7 +112,7 @@ app.whenReady().then(async () => {
       top:button?.top, right:button ? innerWidth - button.right : null,
       topGap:button && titlebar ? button.top - titlebar.top : null,
       bottomGap:button && titlebar ? titlebar.bottom - button.bottom : null,
-      projectRows:projectRows.length, projectLabels:projectRows.map(row => row.querySelector('.desktop-menu-item-label')?.textContent) };
+      projectRows:projectRows.length, projectLabels:projectRows.map(row => row.querySelector('.desktop-menu-item-label, .onboarding-project-tile-name')?.textContent) };
   })()`);
   assert(signedOutHome.exists && signedOutHome.inHeader && !signedOutHome.inProjectList, "Sign-in belongs to the Homepage Header, never a synthetic Project row");
   assert(signedOutHome.headerHeight === geometry.header.height, "Homepage and project Headers must have the same height");
@@ -129,19 +128,18 @@ app.whenReady().then(async () => {
   await evaluate("window.__accountCloudSmoke.edit('ALPHA_AFTER_RELOGIN')");
   await waitFor("window.__accountCloudSmoke.state().writes.some(write => write.content === 'ALPHA_AFTER_RELOGIN')");
   await openProject("beta");
-  await evaluate("document.querySelector('.desktop-account-cloud-workspace .desktop-titlebar-location-button').click()");
-  await waitFor("Boolean(document.querySelector('button[data-project-location=local]'))");
-  assert(await evaluate("document.querySelector('button[data-project-location=local]').disabled"), "A hosted-only project must not return to an unrelated local folder");
   await evaluate("window.__accountCloudSmoke.home()");
   await waitFor("!window.__accountCloudSmoke.state().active && Boolean(document.querySelector('.onboarding-project-list'))");
   await evaluate("window.__accountCloudSmoke.showLocalFixtures()");
   await openProject("alpha");
-  await evaluate("document.querySelector('.desktop-titlebar-location-button').click()");
-  await waitFor("Boolean(document.querySelector('button[data-project-location=local]'))");
-  assert(await evaluate("!document.querySelector('button[data-project-location=local]').disabled"), "The matching local project must be available");
-  await evaluate("document.querySelector('button[data-project-location=local]').click()");
+  // The folder linked to this Cloud project is another project: a row of its own in the project menu.
+  await evaluate("document.querySelector('.desktop-account-cloud-workspace .desktop-titlebar-workspace-button').click()");
+  await waitFor("Boolean(document.querySelector('.desktop-project-menu .desktop-project-switcher-row[data-linked-cloud-project-id=alpha]'))");
+  assert(await evaluate("document.querySelector('.desktop-project-menu [aria-current=page]')?.closest('.desktop-project-switcher-row')?.dataset.projectLocation === 'cloud'"),
+    "The open Cloud project, not its folder, is the current project");
+  await evaluate("document.querySelector('.desktop-project-menu .desktop-project-switcher-row[data-linked-cloud-project-id=alpha]').querySelector('button').click()");
   await waitFor("!window.__accountCloudSmoke.state().active");
-  assert(await evaluate("window.__accountCloudSmoke.state().selectedLocalPath === '/fixture/alpha'"), "Local opening must target the same project's directory");
+  assert(await evaluate("window.__accountCloudSmoke.state().selectedLocalPath === '/fixture/alpha'"), "Opening the linked folder must target that folder");
   if (process.argv.includes('--files-only')) {
     assert(errors.length === 0, `Unexpected renderer errors: ${errors.join('; ')}`);
     await writeFile(path.join(artifacts, 'file-operations-report.json'), JSON.stringify({passed:true,
@@ -150,10 +148,19 @@ app.whenReady().then(async () => {
     console.log('Account Cloud file operations Electron acceptance passed.');
     window.destroy(); app.exit(0); return;
   }
-  await waitFor("document.querySelectorAll('.onboarding-project-row-wrap').length === 7");
-  assert(await evaluate("!document.querySelector('.onboarding-project-group') && document.querySelectorAll('[data-cloud-project-id=alpha]').length === 1 && Boolean(document.querySelector('[data-project-location=linked] .onboarding-project-cloud-badge'))"), "One flat list must express linked projects through their folder/cloud icon, not section headings");
-  assert(await evaluate("[...document.querySelectorAll('.onboarding-project-row-wrap')].slice(0,3).map(row => row.querySelector('.desktop-menu-item-label').textContent).join('|') === 'Hosted beta|Local notes|Hosted alpha'"), "All locations must share one last-modified order");
+  // Six folders and two Cloud projects: the folder linked to alpha is its own entry (ADR-001).
+  await waitFor("document.querySelectorAll('.onboarding-project-row-wrap').length === 8");
+  assert(await evaluate("!document.querySelector('.onboarding-project-group') && document.querySelectorAll('[data-cloud-project-id=alpha]').length === 1 && Boolean(document.querySelector('[data-linked-cloud-project-id=alpha] [data-project-location=linked] .onboarding-project-cloud-badge'))"), "One flat list must express linked folders through their folder/cloud icon, not section headings");
+  const homepageOrder = await evaluate("[...document.querySelectorAll('.onboarding-project-row-wrap')].map(row => (row.dataset.projectLocation ?? '') + ':' + row.querySelector('.desktop-menu-item-label, .onboarding-project-tile-name').textContent).join('|')");
+  // One order for every entry: beta (June) before the notes folder (May) before
+  // the alpha folder (April); the alpha Cloud project is dated by its own activity.
+  const order = homepageOrder.split('|');
+  assert(order.indexOf('cloud:Hosted beta') < order.indexOf('local:Local notes')
+    && order.indexOf('local:Local notes') < order.indexOf('local:Hosted alpha')
+    && order.includes('cloud:Hosted alpha') && order.filter(entry => entry.endsWith(':Hosted alpha')).length === 2,
+    `All locations must share one last-modified order: ${homepageOrder}`);
   const homepageMarks = [];
+  await showHomepageList();
   for (const theme of ['light', 'dark']) {
     await evaluate(`window.__accountCloudSmoke.setTheme('${theme}')`);
     await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
@@ -175,15 +182,15 @@ app.whenReady().then(async () => {
   }
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await writeFile(path.join(artifacts, "flat-homepage.png"), (await window.webContents.capturePage()).toPNG());
-  window.setSize(640, 520);
-  await waitFor("innerWidth === 640 && innerHeight === 520");
+  window.setSize(720, 520);
+  await waitFor("innerWidth === 720 && innerHeight === 520");
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   assert(await evaluate(`(() => {
     const list = document.querySelector('.onboarding-project-list');
-    const action = document.querySelector('.onboarding-project-open').getBoundingClientRect();
-    const row = document.querySelector('[data-cloud-project-id=alpha]').getBoundingClientRect();
+    const action = document.querySelector('[data-linked-cloud-project-id=alpha] .onboarding-project-cloud-link').getBoundingClientRect();
+    const row = document.querySelector('[data-linked-cloud-project-id=alpha]').getBoundingClientRect();
     return list.scrollHeight > list.clientHeight && action.left >= row.left && action.right <= row.right;
-  })()`), "The flat project list must scroll and retain the explicit Cloud action at the minimum window size");
+  })()`), "The flat project list must scroll and retain a folder's Cloud project link at the minimum window size");
   await writeFile(path.join(artifacts, "flat-homepage-minimum.png"), (await window.webContents.capturePage()).toPNG());
   assert(errors.length === 0, `Unexpected renderer errors: ${errors.join("; ")}`);
   const result = { passed: true, geometry, homepageMarks, ...(await evaluate("window.__accountCloudSmoke.state()")), errors };

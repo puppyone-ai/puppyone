@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, ipcMain, Menu } from "electron";
-import { workspaceFromPath } from "../../../../local-api/workspace.mjs";
+import { workspaceFromPath } from "../../../../electron/local-api/workspace.mjs";
 import { createWorkspaceStateStore } from "../../../../electron/main/workspace-state-store.mjs";
 import { getDesktopBuildChannelPolicy } from "../../../../shared/desktop-build-identity.mjs";
 
@@ -159,7 +159,7 @@ async function verifyHeaderAndWindows() {
     await evaluate("document.querySelector('.desktop-titlebar-workspace-button').click()");
     await until("!!document.querySelector('.desktop-project-switcher-list')", "Header menu");
     await evaluate(`(() => { const row = [...document.querySelectorAll('.desktop-project-switcher-list .desktop-menu-item')].find(row => row.textContent.trim() === ${JSON.stringify(name)}); if (!row) throw new Error('Project row missing'); row.click(); })()`);
-    if (settle) await until(`document.querySelector('.desktop-titlebar-workspace-name')?.textContent === ${JSON.stringify(name)}`, "Header selection");
+    if (settle) await until(`document.querySelector('.desktop-titlebar-workspace-name')?.textContent === ${JSON.stringify(name)} && !document.querySelector('.desktop-project-preparation')`, "Header selection");
   };
   for (const name of ["Project A", "Project B", "Project C"]) {
     await select(name);

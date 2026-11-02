@@ -28,7 +28,7 @@ const render = async (overrides: Partial<CloudServiceMainViewProps> = {}) => {
     status: null, cloudEnvironment: { apiBaseUrl, source: "default", cloudRemote: null },
     cloudAuthState: { status: "signed-in", apiBaseUrl, session },
     projectContext: { status: "local-only", projectId: null },
-    onCloudSessionChange: vi.fn(), activeSection: "team", automationEnabled: false,
+    onCloudSessionChange: vi.fn(), activeSection: "team",
     loading: false, error: null, cloudBackupLoading: false, cloudBackupPending: false,
     cloudPublishError: null, cloudPublishNotice: null, cloudPublishState: null, cloudPublishStateLoading: false,
     onAbandonPuppyoneBackup: vi.fn(), onStartPuppyoneBackup: vi.fn(), onSelectSection: vi.fn(),

@@ -3,8 +3,8 @@ import {
   getPreferredMimeType,
   getResolvedFileExtension,
   resolveFileFormat,
-} from "../../../../packages/shared-ui/src/core/fileFormats";
-import { getEditorSourceRequirement } from "../../../../packages/shared-ui/src/editor/registry/viewerRegistry";
+} from "../../../../src/shared-ui/core/fileFormats";
+import { getEditorSourceRequirement } from "../../../../src/shared-ui/editor/registry/viewerRegistry";
 
 describe("Office family format routing", () => {
   it.each([

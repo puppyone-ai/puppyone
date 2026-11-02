@@ -1,11 +1,12 @@
 import type { Plugin } from "vite";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import autoprefixer from "autoprefixer";
 import { fileURLToPath, URL } from "node:url";
 import path from "node:path";
-import { rendererOutputLeasePlugin } from "./tooling/desktop/build/renderer-output-lease-plugin.mjs";
-import { cascadeBootstrapPlugin } from "./tooling/styles/cascade-bootstrap-plugin.mjs";
-import { cloudConfigurationPlugin } from "./tooling/desktop/build/cloud-configuration-plugin.mjs";
+import { rendererOutputLeasePlugin } from "./scripts/desktop/build/renderer-output-lease-plugin.mjs";
+import { cascadeBootstrapPlugin } from "./scripts/styles/cascade-bootstrap-plugin.mjs";
+import { cloudConfigurationPlugin } from "./scripts/desktop/build/cloud-configuration-plugin.mjs";
 
 const DESKTOP_CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
@@ -44,35 +45,36 @@ export default defineConfig({
   base: "./",
   plugins: [rendererOutputLeasePlugin(), cloudConfigurationPlugin(), react(), cascadeBootstrapPlugin(), desktopContentSecurityPolicyPlugin],
   clearScreen: false,
+  css: { postcss: { plugins: [autoprefixer()] } },
   resolve: {
     alias: [
       {
         find: "@puppyone/localization",
-        replacement: fileURLToPath(new URL("./packages/localization/src", import.meta.url)),
+        replacement: fileURLToPath(new URL("./src/lib/localization", import.meta.url)),
       },
       {
         find: "@puppyone/shared-ui/shared-ui.css",
-        replacement: fileURLToPath(new URL("./packages/shared-ui/src/styles/shared-ui.css", import.meta.url)),
+        replacement: fileURLToPath(new URL("./src/shared-ui/styles/shared-ui.css", import.meta.url)),
       },
       {
         find: "@puppyone/shared-ui/control-geometry.css",
-        replacement: fileURLToPath(new URL("./packages/shared-ui/src/styles/control-geometry.css", import.meta.url)),
+        replacement: fileURLToPath(new URL("./src/shared-ui/styles/control-geometry.css", import.meta.url)),
       },
       {
         find: "@puppyone/shared-ui/shared-ui-patterns.css",
-        replacement: fileURLToPath(new URL("./packages/shared-ui/src/styles/shared-ui-patterns.css", import.meta.url)),
+        replacement: fileURLToPath(new URL("./src/shared-ui/styles/shared-ui-patterns.css", import.meta.url)),
       },
       {
         find: "@puppyone/shared-ui/editor.css",
-        replacement: fileURLToPath(new URL("./packages/shared-ui/src/styles/editor.css", import.meta.url)),
+        replacement: fileURLToPath(new URL("./src/shared-ui/styles/editor.css", import.meta.url)),
       },
       {
         find: "@puppyone/shared-ui/markdown-presentation-preview",
-        replacement: fileURLToPath(new URL("./packages/shared-ui/src/editor/markdown/MarkdownPresentationPreview.tsx", import.meta.url)),
+        replacement: fileURLToPath(new URL("./src/shared-ui/editor/markdown/MarkdownPresentationPreview.tsx", import.meta.url)),
       },
       {
         find: "@puppyone/shared-ui",
-        replacement: fileURLToPath(new URL("./packages/shared-ui/src/index.ts", import.meta.url)),
+        replacement: fileURLToPath(new URL("./src/shared-ui/index.ts", import.meta.url)),
       },
       {
         find: "lucide-react",
@@ -103,7 +105,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         index: path.resolve(fileURLToPath(new URL("./", import.meta.url)), "index.html"),
-        mermaid: path.resolve(fileURLToPath(new URL("./", import.meta.url)), "mermaid-renderer.html"),
+        mermaid: path.resolve(fileURLToPath(new URL("./", import.meta.url)), "src/platform/mermaid/host.html"),
       },
     },
   },

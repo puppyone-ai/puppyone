@@ -17,15 +17,15 @@ app.commandLine.appendSwitch("disable-gpu");
 
 const [editorChromeCss, editableTableCss, csvTableCss] = await Promise.all([
   fsp.readFile(
-    path.join(repoRoot, "packages/shared-ui/src/styles/editor/editor-chrome.css"),
+    path.join(repoRoot, "src/shared-ui/styles/editor/editor-chrome.css"),
     "utf8",
   ),
   fsp.readFile(
-    path.join(repoRoot, "packages/shared-ui/src/styles/editor/editable-table.css"),
+    path.join(repoRoot, "src/shared-ui/styles/editor/editable-table.css"),
     "utf8",
   ),
   fsp.readFile(
-    path.join(repoRoot, "packages/shared-ui/src/styles/editor/csv-table-editor.css"),
+    path.join(repoRoot, "src/shared-ui/styles/editor/csv-table-editor.css"),
     "utf8",
   ),
 ]);

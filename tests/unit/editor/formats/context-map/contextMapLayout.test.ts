@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { DataNode } from "../../../../../packages/shared-ui/src/core/types";
+import type { DataNode } from "../../../../../src/shared-ui/core/types";
 import {
   buildFolderRelationshipLayoutZones,
   buildFolderRelationshipSceneLayout,
@@ -9,8 +9,8 @@ import {
   getDraggedRelationshipOffset,
   getFolderRelationshipLayoutOffset,
   getZoomedRelationshipViewport,
-} from "../../../../../packages/shared-ui/src/editor/viewers/context-map/contextMapLayout";
-import type { FolderRelationshipEdge } from "../../../../../packages/shared-ui/src/editor/viewers/context-map/contextMapGraph";
+} from "../../../../../src/shared-ui/editor/viewers/context-map/contextMapLayout";
+import type { FolderRelationshipEdge } from "../../../../../src/shared-ui/editor/viewers/context-map/contextMapGraph";
 
 describe("folder relationship layout", () => {
   it("keeps folders stable, orders linked files by folder affinity, and isolates unlinked files", () => {

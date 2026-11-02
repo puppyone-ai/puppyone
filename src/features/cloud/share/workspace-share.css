@@ -4,16 +4,102 @@
    reach dialog's overrides of this window — its height, and its frame —
    were being quietly discarded. */
 @layer features {
-  .desktop-cloud-workspace-share .desktop-dialog-title-row { min-width: 0; }
-  .desktop-cloud-workspace-share h2 { overflow-wrap: anywhere; }
-  .desktop-cloud-workspace-share .desktop-dialog-body { gap: 16px; padding-bottom: 24px; }
-  .desktop-cloud-share-link { position: relative; display: flex; align-items: center; gap: 4px; padding: 4px; border: 1px solid var(--po-border); border-radius: 7px; background: var(--po-panel); }
-  .desktop-cloud-share-link input { flex: 1; width: 0; min-width: 0; padding: 5px 8px; border: 0; outline: none; background: transparent; color: var(--po-text); font: inherit; }
-  .desktop-cloud-share-link:has(input:focus-visible) { outline: 2px solid var(--po-accent); outline-offset: 2px; }
-  .desktop-cloud-share-link .desktop-cloud-share-copy { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border: 0; background: transparent; color: var(--po-text-muted); }
-  .desktop-cloud-share-link .desktop-cloud-share-copy:hover { background: var(--po-hover); color: var(--po-text); }
-  .desktop-cloud-share-copy:focus-visible { outline: 2px solid var(--po-accent); outline-offset: 1px; }
+  /* Two cards under the Header, on the project menu's own surface: Share says
+     how to send something to someone, the Agents card says who is in here. */
+  .desktop-cloud-workspace-share {
+    --share-inset: 16px;
+    --po-menu-padding: var(--share-inset);
+    --po-menu-bg: var(--po-header);
+    --po-menu-border: var(--po-shell-divider);
+    --interface-menu-background: var(--po-header);
+    --po-menu-shadow-compact:
+      0 2px 4px color-mix(in srgb, var(--po-shadow) 45%, transparent),
+      0 12px 28px -8px color-mix(in srgb, var(--po-shadow) 70%, transparent);
+    display: grid;
+    gap: 14px;
+    max-height: min(560px, calc(100vh - 58px));
+    overflow-y: auto;
+    outline: none;
+  }
+  .desktop-cloud-workspace-share :is(h3, h4, p) { margin: 0; }
+  .desktop-cloud-workspace-share [role="alert"] { color: var(--po-danger); font-size: var(--po-type-ui-caption, 12px); line-height: 16px; }
+  .desktop-cloud-workspace-share h3 { color: var(--po-text); font-size: var(--po-type-ui-meta, 13px); font-weight: var(--po-text-weight-medium, 500); line-height: 20px; }
+
+  /* What each link opens, so the row says what it copies before it is pressed. */
+  .desktop-cloud-share-people { position: relative; display: grid; gap: 10px; min-width: 0; }
+  .desktop-cloud-share-targets { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+  .desktop-cloud-share-targets li { display: grid; grid-template-columns: 15px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-width: 0; min-height: 36px; color: var(--po-text-muted); }
+  .desktop-cloud-share-target-text { display: grid; min-width: 0; }
+  .desktop-cloud-share-target-name { overflow: hidden; color: var(--po-text); font-size: var(--po-type-ui-meta, 13px); line-height: 18px; text-overflow: ellipsis; white-space: nowrap; }
+  .desktop-cloud-share-target-caption { color: var(--po-text-muted); font-size: var(--po-type-ui-caption, 12px); line-height: 16px; }
+
+  .desktop-cloud-share-heading { display: grid; gap: 2px; min-width: 0; }
+  .desktop-cloud-share-heading h3 { overflow: hidden; color: var(--po-text); font-size: var(--po-type-ui-meta, 13px); font-weight: var(--po-text-weight-medium, 500); line-height: 18px; text-overflow: ellipsis; white-space: nowrap; }
+  .desktop-cloud-share-heading p { color: var(--po-text-muted); font-size: var(--po-type-ui-caption, 12px); line-height: 16px; }
+
+  .desktop-cloud-share-targets .desktop-dialog-button { gap: 5px; height: var(--po-control-size-compact); min-width: 76px; padding: 0 11px; border-radius: var(--desktop-control-radius); font-size: var(--po-type-ui-caption, 12px); font-weight: var(--po-text-weight-medium, 500); white-space: nowrap; }
+
+  /* An Agent gets a prompt to paste: the words themselves, then the one filled shape. */
+  .desktop-cloud-agent-invite { position: relative; display: grid; gap: 10px; min-width: 0; }
+  .desktop-cloud-agent-prompt { padding: 8px 10px; border-radius: var(--desktop-control-radius); background: var(--po-hover); color: var(--po-text); font-size: var(--po-type-ui-caption, 12px); line-height: 18px; overflow-wrap: anywhere; }
+  .desktop-cloud-agent-share-copy { justify-self: end; gap: 5px; height: var(--po-control-size-compact); padding: 0 11px; border-radius: var(--desktop-control-radius); font-size: var(--po-type-ui-caption, 12px); font-weight: var(--po-text-weight-medium, 500); white-space: nowrap; }
+  /* A hairline, edge to edge: the two kinds of visitor reach different things. */
+  .desktop-cloud-agent-invite + .desktop-cloud-share-people { margin-inline: calc(var(--share-inset) * -1); padding: 14px var(--share-inset) 0; border-top: 1px solid var(--po-shell-divider); }
+
+  /* Who is here, as a menu reads: a mark, a name, when it was last here. */
+  .desktop-cloud-agents-panel { --share-inset: 6px; gap: 6px; }
+  .desktop-cloud-agent-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+  .desktop-cloud-agent-list li { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: var(--po-control-size-roomy); padding-inline: 8px; }
+  :is(.desktop-cloud-agent-list, .desktop-cloud-agents-manage-list) .desktop-project-reach-mark { --reach-mark-ground: var(--po-menu-bg); flex-shrink: 0; animation: none; }
+  :is(.desktop-cloud-agent-list, .desktop-cloud-agents-manage-list) .desktop-project-reach-mark::before { animation: none; }
+  :is(.desktop-cloud-agent-list, .desktop-cloud-agents-manage-list) .desktop-project-reach-mark:not([data-reach-activity]) { filter: grayscale(1); }
+  .desktop-cloud-agent-state { flex-shrink: 0; color: var(--po-text-muted); font-size: var(--po-type-ui-caption, 12px); white-space: nowrap; }
+  .desktop-cloud-agents-foot { margin-inline: calc(var(--share-inset) * -1); padding: 6px var(--share-inset) 0; border-top: 1px solid var(--po-shell-divider); }
+  /* Its mark and word stand in the list's own columns, a mark's width from the edge. */
+  .desktop-cloud-agents-manage { --po-menu-item-padding-inline: 8px; --po-menu-item-gap: 10px; min-height: var(--po-control-size-roomy); }
+  .desktop-cloud-agents-manage .desktop-menu-item-icon { display: grid; flex: 0 0 22px; width: 22px; place-items: center; }
+
+  /* Manage agents: where changes happen, so every fact and action can stand here. */
+  .desktop-cloud-agents-dialog-body { display: grid; gap: 16px; padding: 4px 20px 20px; }
+  .desktop-cloud-agents-empty { margin: 0; color: var(--po-text-muted); font-size: var(--po-type-ui-meta, 13px); }
+  .desktop-cloud-agents-manage-list { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+  .desktop-cloud-agents-manage-list li { display: flex; align-items: center; gap: 12px; min-width: 0; min-height: 48px; --po-menu-bg: var(--po-panel); }
+  .desktop-cloud-agents-manage-text { display: grid; flex: 1; min-width: 0; }
+  .desktop-cloud-agents-manage-facts { overflow: hidden; color: var(--po-text-muted); font-size: var(--po-type-ui-caption, 12px); line-height: 16px; text-overflow: ellipsis; white-space: nowrap; }
+  .desktop-cloud-agents-remove { flex-shrink: 0; height: var(--po-control-size-compact); padding: 0 11px; border-radius: var(--desktop-control-radius); font-size: var(--po-type-ui-caption, 12px); }
+  .desktop-cloud-agents-links { display: grid; gap: 4px; padding-top: 12px; border-top: 1px solid var(--po-shell-divider); }
+  .desktop-cloud-agents-links h3 { margin: 0; color: var(--po-text); font-size: var(--po-type-ui-meta, 13px); font-weight: var(--po-text-weight-medium, 500); line-height: 20px; }
+  .desktop-cloud-agents-links ul { display: grid; gap: 2px; margin: 0; padding: 0; color: var(--po-text-muted); font-size: var(--po-type-ui-caption, 12px); line-height: 18px; list-style: none; }
+  .desktop-cloud-agents-dialog-foot { display: flex; justify-content: flex-end; }
+  .desktop-cloud-agents-dialog [role="alert"] { margin: 0; color: var(--po-danger); font-size: var(--po-type-ui-caption, 12px); line-height: 16px; }
+  .desktop-cloud-agent-share-stop { padding: 0; border: 0; border-radius: 4px; background: none; color: var(--po-text-muted); font-size: var(--po-type-ui-caption, 12px); line-height: 20px; }
+  .desktop-cloud-agent-share-stop:hover { color: var(--po-danger); }
+  .desktop-cloud-agent-share-stop:focus-visible { outline: 2px solid var(--po-accent); outline-offset: 2px; }
+
+  /* A choice of who gets in, with the same neutral backplate as a current row. */
+  .desktop-cloud-agent-options { display: grid; gap: 2px; min-width: 0; }
+  .desktop-cloud-agent-option { display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 2px 10px; width: 100%; min-width: 0; padding: 9px 12px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--po-text); font: inherit; text-align: start; transition: background .12s ease; }
+  .desktop-cloud-agent-option:hover { background: var(--po-hover); }
+  .desktop-cloud-agent-option[aria-checked="true"] { background: var(--po-selected); }
+  .desktop-cloud-agent-option:focus-visible { outline: 2px solid var(--po-accent); outline-offset: -2px; }
+  .desktop-cloud-agent-option-mark { box-sizing: border-box; width: 14px; height: 14px; margin-top: 3px; border: 1.5px solid var(--po-text-subtle); border-radius: 50%; transition: border-color .12s ease; }
+  .desktop-cloud-agent-option[aria-checked="true"] .desktop-cloud-agent-option-mark { border: 4px solid var(--po-text); }
+  .desktop-cloud-agent-option-label { font-size: var(--po-type-ui-meta, 13px); font-weight: var(--po-text-weight-medium, 500); line-height: 20px; }
+  .desktop-cloud-agent-option-description { grid-column: 2; color: var(--po-text-muted); font-size: var(--po-type-ui-meta, 13px); line-height: var(--po-line-height-body); text-wrap: pretty; }
+  /* While the risk is the one in force, its words come forward and its mark takes the warning tone. */
+  .desktop-cloud-agent-option[data-agent-admission="link"][aria-checked="true"] .desktop-cloud-agent-option-description { color: var(--po-text); }
+  .desktop-cloud-agent-option[data-agent-admission="link"][aria-checked="true"] .desktop-cloud-agent-option-mark { border-color: var(--po-warning); }
+
+  .desktop-cloud-agent-lamp { flex-shrink: 0; width: 6px; height: 6px; border-radius: 50%; background: var(--po-text-faint, var(--po-text-muted)); }
+  .desktop-cloud-agent-lamp[data-active] { background: var(--po-success); }
+  .desktop-cloud-agent-name { flex: 1; min-width: 0; overflow: hidden; color: var(--po-text); font-size: var(--po-menu-item-font-size, var(--po-type-ui-control, 14px)); text-overflow: ellipsis; white-space: nowrap; }
+
+  .desktop-cloud-share-copy:focus-visible, .desktop-cloud-agent-share-copy:focus-visible { outline: 2px solid var(--po-accent); outline-offset: 1px; }
+  .desktop-cloud-share-address { box-sizing: border-box; width: 100%; height: 28px; padding: 0 8px; border: 1px solid var(--po-border); border-radius: 7px; outline: none; background: transparent; color: var(--po-text-muted); font-family: inherit; font-size: var(--po-type-ui-caption, 12px); }
+  .desktop-cloud-share-address:focus-visible { border-color: var(--po-accent); color: var(--po-text); }
+  :is(.desktop-cloud-agent-invite, .desktop-cloud-share-people) > .desktop-cloud-share-status { margin: -1px; }
   .desktop-cloud-share-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
   .desktop-cloud-share-preview-window { height: 186px; overflow: hidden; border: 1px solid var(--po-border); border-radius: 8px; background: var(--po-canvas); mask-image: linear-gradient(to bottom, black 65%, transparent 100%); }
   .desktop-cloud-share-preview-canvas { width: 200%; height: 200%; transform: scale(.5); transform-origin: top left; pointer-events: none; }
   .desktop-cloud-share-preview-files { flex-shrink: 0; }

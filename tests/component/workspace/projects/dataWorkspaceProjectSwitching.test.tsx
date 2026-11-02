@@ -4,12 +4,12 @@
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { DataNode, DataPort, Workspace } from "../../../../packages/shared-ui/src/core/types";
+import type { DataNode, DataPort, Workspace } from "../../../../src/shared-ui/core/types";
 import {
   DataWorkspace,
   type DataWorkspaceExplorerSession,
-} from "../../../../packages/shared-ui/src/data/DataWorkspace";
-import { reconcileDataNodeLists } from "../../../../packages/shared-ui/src/data/explorer/explorerTreeReconciliation";
+} from "../../../../src/shared-ui/data/DataWorkspace";
+import { reconcileDataNodeLists } from "../../../../src/shared-ui/data/explorer/explorerTreeReconciliation";
 import { withTestLocalization } from "../../../support/react/localization";
 import { createProjectExplorerSessionKey } from "../../../../src/features/data-workspace/useProjectExplorerSession";
 

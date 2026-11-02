@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { HOMEPAGE_PROJECT_LAYOUT_STORAGE_KEY } from "../../../../src/preferenceStorage";
 import { MinimalOnboarding, type MinimalOnboardingProps } from "../../../../src/components/MinimalOnboarding";
 import { OnboardingImportDialog } from "../../../../src/components/OnboardingImportDialog";
 import { PUPPY_BRAND_MARK_ASSETS } from "../../../../src/components/brand/PuppyBrandMark";
@@ -19,7 +20,7 @@ import { DEFAULT_EXPERIMENTAL_SETTINGS } from "../../../../src/preferences";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-beforeEach(() => { localStorage.clear(); initializeDesktopPreferences(); });
+beforeEach(() => { localStorage.clear(); localStorage.setItem(HOMEPAGE_PROJECT_LAYOUT_STORAGE_KEY, "list"); initializeDesktopPreferences(); });
 
 let root: Root | null = null;
 const originalClipboard = navigator.clipboard;
@@ -207,20 +208,20 @@ describe("project folder home", () => {
     });
 
     expect(container.querySelector(".onboarding-project-row")?.classList.contains("desktop-menu-item")).toBe(true);
-    expect(container.textContent).toContain("Which project do you want to start with?");
+    expect(container.textContent).not.toContain("Which project do you want to start with?");
     expect(container.textContent).not.toContain("Local Projects");
     expect(container.textContent).not.toContain("Other options");
     expect(container.textContent).not.toContain("Get started with puppyone");
     expectBrandLockup(container, "projects");
-    const projectActions = [...container.querySelectorAll<HTMLButtonElement>(".onboarding-entry-action")];
-    expect(projectActions).toHaveLength(3);
-    expect(projectActions.map((action) => action.textContent)).toEqual([
-      "New empty project",
+    const projectActions = [...container.querySelectorAll<HTMLButtonElement>(".onboarding-brand-lockup .onboarding-entry-action")];
+    expect(projectActions.map((action) => action.textContent)).toEqual(["New empty project"]);
+    expect(projectActions[0]?.classList.contains("po-button--primary")).toBe(true);
+    expect(projectActions[0]?.classList.contains("onboarding-entry-action-cta")).toBe(false);
+    act(() => container.querySelector<HTMLButtonElement>("[data-onboarding-action='more']")?.click());
+    expect([...container.querySelectorAll(".onboarding-entry-menu [role='menuitem']")].map((item) => item.textContent)).toEqual([
       "Open a folder",
       "Import",
     ]);
-    expect(projectActions.every((action) => action.classList.contains("po-button--neutral"))).toBe(true);
-    expect(projectActions.every((action) => !action.classList.contains("onboarding-entry-action-cta"))).toBe(true);
     expect(container.querySelector(".onboarding-entry-action-divider")).toBeNull();
     const brand = container.querySelector(".onboarding-brand-lockup");
     const primary = container.querySelector(".onboarding-home-primary");
@@ -230,7 +231,7 @@ describe("project folder home", () => {
     expect(primary?.children).toHaveLength(1);
     expect(container.querySelector(".onboarding-project-list")?.children).toHaveLength(1);
     expect(brand!.compareDocumentPosition(primary as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(primary!.compareDocumentPosition(actions as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(actions).toBeNull();
   });
 
   it("uses Puppy Lite only when the resolved theme is light", () => {
@@ -260,16 +261,16 @@ describe("project folder home", () => {
       /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-launcher/,
     );
     expect(onboardingCss).toMatch(
-      /\.onboarding-home-primary\s*\{[^}]*padding:\s*var\(--onboarding-primary-inset-start\) 0 var\(--onboarding-primary-inset-end\);[^}]*margin-block-end:\s*var\(--onboarding-primary-actions-gap\);[^}]*border-block:\s*1px solid var\(--po-border\);/s,
+      /\.onboarding-home-primary\s*\{[^}]*padding:\s*0;[^}]*margin-block-end:\s*var\(--onboarding-primary-actions-gap\);[^}]*border:\s*0;/s,
     );
     expect(onboardingCss).not.toMatch(
       /\.onboarding-home-primary\[data-onboarding-primary="create"\]/,
     );
     expect(onboardingCss).toMatch(
-      /\.onboarding-homepage\s*\{[^}]*--onboarding-title-primary-gap:\s*58px;[^}]*--onboarding-primary-actions-gap:\s*30px;[^}]*--onboarding-primary-inset-start:\s*24px;/s,
+      /\.onboarding-homepage\s*\{[^}]*--onboarding-title-primary-gap:\s*58px;[^}]*--onboarding-primary-actions-gap:\s*30px;/s,
     );
     expect(onboardingCss).toMatch(
-      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-homepage\s*\{[^}]*--onboarding-title-primary-gap:\s*24px;[^}]*--onboarding-primary-actions-gap:\s*18px;/s,
+      /\.onboarding-shell\[data-onboarding-state="empty"\] \.onboarding-homepage\s*\{[^}]*--onboarding-title-primary-gap:\s*20px;[^}]*--onboarding-primary-actions-gap:\s*8px;/s,
     );
     expect(onboardingCss).toMatch(
       /\.onboarding-brand-lockup\s*\{[^}]*margin-block-end:\s*var\(--onboarding-title-primary-gap\);/s,
@@ -281,6 +282,50 @@ describe("project folder home", () => {
     expect(onboardingCss).not.toContain(".onboarding-projects-layout");
     expect(onboardingCss).not.toMatch(/\.onboarding-entry-import\s*\{[^}]*height:/s);
     expect(onboardingCss).not.toMatch(/\.onboarding-entry-import:hover/);
+  });
+
+  it("draws the Header's mark, name and avatar in the muted ink of a project's Header", () => {
+    expect(onboardingCss).toMatch(/\.onboarding-header-brand \{\s*color: var\(--desktop-titlebar-text-muted\);/);
+    expect(onboardingCss).toMatch(/\.onboarding-header-mark-ink feFlood \{\s*flood-color: var\(--desktop-titlebar-text-muted\);/);
+    expect(onboardingCss).toMatch(/\.homepage-cloud-avatar \{[^}]*color: var\(--desktop-titlebar-text-muted\);/s);
+    expect(onboardingCss).toMatch(/\.desktop-titlebar \.onboarding-header-mark \{[^}]*filter: url\("#onboarding-header-mark-ink"\);/s);
+    expect(onboardingCss).not.toMatch(/onboarding-header-mark \{[^}]*mix-blend-mode/s);
+    expect(onboardingCss).toMatch(/\.onboarding-shell\.dark \.desktop-titlebar \.onboarding-header-mark \{\s*filter: url\("#onboarding-header-mark-ink-fine"\);/);
+    const container = renderHome({ projectItems: [{ id: "notes", label: "Notes", localPath: "/Users/example/Notes", lastOpenedAt: null }] });
+    expect(container.querySelector(".onboarding-header-brand filter")?.id).toBe("onboarding-header-mark-ink");
+  });
+
+  it("sets the projects on the page itself, with a fill only for a folder dragged over it", () => {
+    expect(onboardingCss).not.toMatch(/\.onboarding-home-primary[^{]*\{[^}]*border-(?:block|top|bottom)\s*:/s);
+    const surface = onboardingCss.match(/\.onboarding-home-primary\[data-onboarding-primary="projects"\]\s*\{[^}]*\}/s)?.[0] ?? "";
+    expect(surface).not.toMatch(/background/);
+    expect(onboardingCss).toMatch(/\.onboarding-shell\.dragging \.onboarding-home-primary\[data-onboarding-primary="projects"\]\s*\{\s*background:\s*var\(--po-hover\);/);
+  });
+
+  it("takes its buttons from the shared Button and its values from the theme", () => {
+    const action = onboardingCss.match(/\.onboarding-entry-action\s*\{[^}]*\}/s)?.[0] ?? "";
+    expect(action).not.toMatch(/(?:^|\s)(?:height|padding|border|border-radius|background|color):/m);
+    expect(action).toMatch(/font-size:\s*var\(--onboarding-row-font-size\);\s*font-weight:\s*var\(--onboarding-row-font-weight\);/);
+    expect(onboardingCss).not.toMatch(/border-radius:\s*(?:7|10|12|14|16|26)px/);
+    expect(onboardingCss).not.toMatch(/font-weight:\s*\d/);
+    expect(onboardingCss).not.toMatch(/letter-spacing:\s*-/);
+    expect(onboardingCss).toMatch(/--onboarding-row-font-weight:\s*var\(--po-text-weight-regular, 400\);/);
+  });
+
+  it("keeps the page to its levels of type: the first-run title, the body and the caption", () => {
+    const page = onboardingCss.slice(0, onboardingCss.indexOf(".project-cloud-link-button {"));
+    const sizes = new Set([...page.matchAll(/font-size:\s*([^;]+);/g)].map((match) => match[1]!.trim()));
+    expect([...sizes].sort()).toEqual([
+      "var(--desktop-titlebar-context-font-size)",
+      "var(--onboarding-caption-font-size)",
+      "var(--onboarding-row-font-size)",
+      "var(--po-text-size-caption, 11px)",
+      "var(--po-type-ui-body, 14px)",
+      "var(--po-type-ui-caption, 12px)",
+      "var(--po-type-ui-heading, 19px)",
+    ]);
+    expect(onboardingCss).toMatch(/--onboarding-row-font-size:\s*var\(--po-type-ui-body, 14px\);/);
+    expect(onboardingCss).toMatch(/--onboarding-caption-font-size:\s*var\(--po-type-ui-caption, 12px\);/);
   });
 
   it("exposes one vertical projects-state contract", () => {
@@ -318,10 +363,9 @@ describe("project folder home", () => {
     // The projects page hangs from the shared Header and keeps a small bottom edge;
     // only the list below absorbs extra height.
     expect(onboardingCss).toMatch(
-      /\.onboarding-homepage-shell\[data-onboarding-state="projects"\]\s*\{[^}]*padding-block-start:\s*calc\(var\(--desktop-chrome-height\) \+ \d+px\);[^}]*padding-block-end:\s*16px;/s,
+      /\.onboarding-homepage-shell\[data-onboarding-state="projects"\]\s*\{[^}]*padding-block-start:\s*calc\(var\(--desktop-chrome-height\) \+ var\(--onboarding-title-inset\)\);[^}]*padding-block-end:\s*20px;/s,
     );
-    expect(onboardingCss).toMatch(/\.onboarding-shell\[data-onboarding-state="projects"\] \.onboarding-homepage\s*\{[^}]*--onboarding-primary-inset-end:\s*10px;[^}]*--onboarding-primary-actions-gap:\s*12px;/s);
-    expect(onboardingCss).toMatch(/\.onboarding-shell\[data-onboarding-state="projects"\] \.onboarding-entry-actions\s*\{[^}]*padding-block-end:\s*0;/s);
+    expect(onboardingCss).toMatch(/\.onboarding-shell\[data-onboarding-state="projects"\] \.onboarding-homepage\s*\{[^}]*--onboarding-title-primary-gap:\s*8px;[^}]*--onboarding-primary-actions-gap:\s*0;/s);
   });
 
   it("keeps one folder action after the project panel", async () => {
@@ -341,15 +385,17 @@ describe("project folder home", () => {
     const panel = container.querySelector(".onboarding-home-primary");
     expect(panel?.getAttribute("data-onboarding-primary")).toBe("projects");
     expect(panel?.lastElementChild?.classList.contains("onboarding-project-list")).toBe(true);
-    const projectPlace = container.querySelector('.onboarding-project-row [data-product-icon="local"]');
+    const projectPlace = container.querySelector('.onboarding-project-row [data-project-location="local"] .project-folder-glyph');
     expect(projectPlace).not.toBeNull();
     expect(container.querySelector(".desktop-menu-item-label")?.textContent).toBe("Notes");
     expect(container.querySelector(".desktop-menu-item-detail")?.textContent).toBe("~/Desktop");
     // Opening history is not a project modification timestamp.
     expect(container.querySelector(".desktop-menu-item-trailing")?.textContent ?? "").toBe("");
 
+    await act(async () => container.querySelector<HTMLButtonElement>("[data-onboarding-action='more']")?.click());
     await act(async () => container.querySelector<HTMLButtonElement>("[data-onboarding-action='open']")?.click());
     expect(onChooseWorkspace).toHaveBeenCalledTimes(1);
+    expect(container.querySelector(".onboarding-entry-menu")).toBeNull();
   });
 
   it("uses one explicit CTA in the empty state", async () => {
@@ -406,7 +452,7 @@ describe("project folder home", () => {
     expect(importLabel!.compareDocumentPosition(preview as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(container.querySelector(".onboarding-entry-action-divider")).toBeNull();
     expect(onboardingCss).toMatch(
-      /\.onboarding-entry-action-default\s*\{[^}]*border-color:\s*var\(--po-accent\);[^}]*background:\s*var\(--po-accent\);[^}]*color:\s*var\(--po-text-inverse\);/s,
+      /\.onboarding-entry-action-default:hover:not\(:disabled\)\s*\{[^}]*background:\s*color-mix\(in srgb, var\(--po-accent\) 88%, var\(--po-canvas\)\);/s,
     );
     expect(actions[1]!.compareDocumentPosition(importGroup as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const launcher = container.querySelector(".onboarding-launcher");
@@ -429,26 +475,27 @@ describe("project folder home", () => {
     expect(onImportSource).not.toHaveBeenCalled();
   });
 
-  it("with Cloud on, requires an explicit template preview and sign-in before marketplace creation", async () => {
-    // Marketplace templates need a PuppyOne account, so the link entry rides on Cloud.
-    preferences.getState().setExperimentalSettings((settings) => ({ ...settings, enableCloudWorkspace: true }));
-    const readText = vi.fn(async () => "https://www.puppyone.ai/t/b91aaade-bc9e-4dfd-8f23-11f06ec00301");
+  it("reads the clipboard only when asked, and hands a template link to its card", async () => {
+    const readText = vi.fn(async () => "not a link");
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { readText } });
-    const resolveTemplateLink = vi.fn(async () => ({ id: "b91aaade-bc9e-4dfd-8f23-11f06ec00301", releaseId: "b91aaade-bc9e-4dfd-8f23-11f06ec00101", name: "CRM", description: "Customers", version: "1.0.0", author: "Puppyone", locale: "en", shareUrl: "https://www.puppyone.ai/t/b91aaade-bc9e-4dfd-8f23-11f06ec00301" }));
+    const resolveTemplateLink = vi.fn(async () => ({ id: "b91aaade-bc9e-4dfd-8f23-11f06ec00301", releaseId: "b91aaade-bc9e-4dfd-8f23-11f06ec00101", name: "CRM", description: "Customers", version: "1.0.0", author: "PuppyOne", locale: "en", shareUrl: "https://www.puppyone.ai/t/b91aaade-bc9e-4dfd-8f23-11f06ec00301", fileCount: 3, icon: null, requiresSignIn: false }));
     window.puppyoneDesktop = { resolveTemplateLink } as unknown as NonNullable<typeof window.puppyoneDesktop>;
     const onCreateProject = vi.fn(createProjectResult);
     const location = vi.fn(async () => ({ grantId: "default", path: "/example/Projects" }));
     const container = renderHome({ onDefaultProjectLocation: location, onChooseProjectLocation: location, onCreateProject });
     await act(async () => container.querySelector<HTMLButtonElement>("[data-onboarding-action='create']")?.click());
     expect(readText).not.toHaveBeenCalled();
-    await act(async () => container.querySelector<HTMLInputElement>("input[type='checkbox']")?.click());
-    const submit = container.querySelector<HTMLButtonElement>("button[type='submit']");
-    expect(submit?.disabled).toBe(true);
-    await act(async () => [...container.querySelectorAll("button")].find(button => button.textContent === "Paste link")?.click());
+    const pasteButton = () => [...container.querySelectorAll("button")].find(button => button.textContent === "Paste template link");
+
+    await act(async () => { pasteButton()?.click(); await Promise.resolve(); });
     expect(readText).toHaveBeenCalledOnce();
+    expect(container.textContent).toContain("no template link on the clipboard");
+    expect(resolveTemplateLink).not.toHaveBeenCalled();
+
+    readText.mockResolvedValue("https://www.puppyone.ai/t/b91aaade-bc9e-4dfd-8f23-11f06ec00301");
+    await act(async () => { pasteButton()?.click(); await Promise.resolve(); await Promise.resolve(); });
     expect(resolveTemplateLink).toHaveBeenCalledOnce();
     expect(container.textContent).toContain("Customers");
-    expect(submit?.disabled).toBe(true);
     expect(onCreateProject).not.toHaveBeenCalled();
   });
 
@@ -843,7 +890,7 @@ describe("project folder home", () => {
     expect(onImportSource).not.toHaveBeenCalled();
   });
 
-  it("shows project-opening progress in a page overlay and blocks duplicate opens", async () => {
+  it("leaves the waiting to the project's window and blocks duplicate opens", async () => {
     let finishOpening: (() => void) | null = null;
     const onOpenWorkspacePath = vi.fn(() => new Promise<void>((resolve) => {
       finishOpening = resolve;
@@ -864,20 +911,12 @@ describe("project folder home", () => {
       await Promise.resolve();
     });
 
-    const overlay = container.querySelector(".onboarding-project-loading");
-    const page = container.querySelector<HTMLElement>(".onboarding-homepage");
-    expect(overlay?.textContent).toContain("Loading project");
-    expect(overlay?.closest(".desktop-titlebar")).toBeNull();
-    expect(page?.inert).toBe(true);
     expect(row?.disabled).toBe(true);
-    expect(row?.querySelector("[data-puppy-loader]")).toBeNull();
-    expect(container.querySelectorAll("[data-puppy-loader]")).toHaveLength(1);
+    expect(container.querySelectorAll("[data-puppy-loader]")).toHaveLength(0);
     await act(async () => row?.click());
     expect(onOpenWorkspacePath).toHaveBeenCalledOnce();
 
     await act(async () => finishOpening?.());
-    expect(container.querySelector(".onboarding-project-loading")).toBeNull();
-    expect(page?.inert).toBe(false);
     expect(row?.disabled).toBe(false);
   });
 
@@ -895,64 +934,62 @@ describe("project folder home", () => {
         lastOpenedAt: null,
       }],
     });
-    const folderAction = container.querySelector<HTMLButtonElement>("[data-onboarding-action='open']");
+    const more = container.querySelector<HTMLButtonElement>("[data-onboarding-action='more']");
+    await act(async () => more?.click());
 
     await act(async () => {
-      folderAction?.click();
+      container.querySelector<HTMLButtonElement>("[data-onboarding-action='open']")?.click();
       await Promise.resolve();
     });
 
-    expect(folderAction?.querySelectorAll("[data-puppy-loader]")).toHaveLength(1);
+    expect(more?.querySelectorAll("[data-puppy-loader]")).toHaveLength(1);
     expect(container.querySelector(".onboarding-operation-status")).toBeNull();
     expect(container.querySelector(".onboarding-project-row [data-puppy-loader]")).toBeNull();
 
     await act(async () => finishOpening?.());
   });
 
-  it("removes one registration without opening the project", async () => {
+  it("brightens the project actions on their own, with a ring for the keyboard", () => {
+    const hover = onboardingCss.match(/\.desktop-menu-icon-button\.onboarding-project-actions:hover:not\(:disabled\),[^{]*\{[^}]*\}/)?.[0];
+    expect(hover).toMatch(/background:\s*transparent;/);
+    expect(hover).toMatch(/color:\s*var\(--po-text\);/);
+    expect(onboardingCss).toMatch(/\.onboarding-project-actions:focus-visible:not\(:disabled\)\s*\{\s*outline:\s*2px solid var\(--po-focus-ring\)/);
+  });
+
+  it("unlinks one project from its menu, after confirming, without opening it", async () => {
     const onOpenWorkspacePath = vi.fn(async () => undefined);
     const onRemoveProject = vi.fn(async () => undefined);
-    const confirm = vi.fn(() => true);
-    Object.defineProperty(window, "confirm", { configurable: true, value: confirm });
-    const container = renderHome({
-      onOpenWorkspacePath,
-      onRemoveProject,
-      projectItems: [{
-        id: "notes",
-        label: "Notes",
-        localPath: "/Users/example/Desktop/Notes",
-        lastOpenedAt: null,
-      }],
-    });
-    const removeButton = container.querySelector<HTMLButtonElement>(".onboarding-project-remove");
+    const container = renderHome({ onOpenWorkspacePath, onRemoveProject, projectItems: [notesProject] });
+    const trigger = container.querySelector<HTMLButtonElement>(".onboarding-project-actions");
 
-    expect(removeButton?.getAttribute("aria-label")).toContain("Remove");
-    expect(removeButton?.dataset.tooltip).toBe("Removes this registration only. Local files are not deleted.");
-    expect(removeButton?.querySelector(".lucide-unlink")).not.toBeNull();
-    expect(removeButton?.querySelector(".lucide-x")).toBeNull();
-    await act(async () => removeButton?.click());
+    expect(trigger?.getAttribute("aria-label")).toContain("Project actions for");
+    expect(trigger?.getAttribute("aria-haspopup")).toBe("menu");
+    expect(trigger?.dataset.tooltip).toBe("Project actions");
+    await act(async () => trigger?.click());
+    expect(trigger?.getAttribute("aria-expanded")).toBe("true");
+    expect(container.querySelector(".onboarding-project-row-wrap")?.getAttribute("data-menu-open")).toBe("true");
+    expect(onRemoveProject).not.toHaveBeenCalled();
 
-    expect(confirm).toHaveBeenCalledWith(expect.stringMatching(/Local files will stay on disk/));
+    await act(async () => projectMenuItem("Unlink…")?.click());
+    expect(document.body.querySelector(".desktop-project-row-dialog")?.textContent).toMatch(/Local files will stay on disk/);
+    expect(onRemoveProject).not.toHaveBeenCalled();
+    await act(async () => document.body.querySelector<HTMLButtonElement>(".desktop-dialog-button.destructive")?.click());
+
     expect(onRemoveProject).toHaveBeenCalledWith("/Users/example/Desktop/Notes");
     expect(onOpenWorkspacePath).not.toHaveBeenCalled();
+    expect(document.body.querySelector(".desktop-project-row-dialog")).toBeNull();
   });
 
   it("keeps a project registered when unlink confirmation is cancelled", async () => {
     const onRemoveProject = vi.fn(async () => undefined);
-    Object.defineProperty(window, "confirm", { configurable: true, value: vi.fn(() => false) });
-    const container = renderHome({
-      onRemoveProject,
-      projectItems: [{
-        id: "notes",
-        label: "Notes",
-        localPath: "/Users/example/Desktop/Notes",
-        lastOpenedAt: null,
-      }],
-    });
+    const container = renderHome({ onRemoveProject, projectItems: [notesProject] });
 
-    await act(async () => container.querySelector<HTMLButtonElement>(".onboarding-project-remove")?.click());
+    await act(async () => container.querySelector<HTMLButtonElement>(".onboarding-project-actions")?.click());
+    await act(async () => projectMenuItem("Unlink…")?.click());
+    await act(async () => document.body.querySelector<HTMLButtonElement>(".desktop-dialog-footer .desktop-dialog-button:not(.destructive)")?.click());
 
     expect(onRemoveProject).not.toHaveBeenCalled();
+    expect(document.body.querySelector(".desktop-project-row-dialog")).toBeNull();
     expect(container.querySelector(".onboarding-project-row")).not.toBeNull();
   });
 
@@ -1034,6 +1071,11 @@ describe("project folder home", () => {
   });
 });
 
+const notesProject = { id: "notes", label: "Notes", localPath: "/Users/example/Desktop/Notes", lastOpenedAt: null };
+
+const projectMenuItem = (label: string) => [...document.body.querySelectorAll<HTMLButtonElement>(".desktop-project-row-actions-menu .desktop-menu-item")]
+  .find((item) => item.textContent === label);
+
 function renderHome(
   overrides: Partial<Omit<MinimalOnboardingProps, "appearance">> & Pick<Partial<MinimalOnboardingProps>, "appearance"> = {},
   appearanceInput: Parameters<typeof createTestSurfaceAppearance>[0] = {},
@@ -1062,14 +1104,15 @@ function expectBrandLockup(
   expectedMarkAsset: string = PUPPY_BRAND_MARK_ASSETS.dark,
 ) {
   const lockup = container.querySelector(".onboarding-brand-lockup");
-  const mark = lockup?.querySelector<HTMLImageElement>(".onboarding-brand-mark-artwork");
-  expect(mark?.getAttribute("src")).toContain(expectedMarkAsset);
+  const brand = state === "projects" ? container.querySelector(".desktop-titlebar .onboarding-header-brand") : lockup;
+  const mark = brand?.querySelector<HTMLImageElement>("img");
+  expect(mark?.getAttribute("src")).toContain(state === "projects" ? PUPPY_BRAND_MARK_ASSETS.lite : expectedMarkAsset);
   expect(mark?.getAttribute("alt")).toBe("");
   if (state === "projects") {
-    expect(lockup?.querySelector(".onboarding-brand-prompt")?.textContent).toBe("Which project do you want to start with?");
+    expect(brand?.textContent).toBe("puppyone");
+    expect(lockup?.querySelector("img")).toBeNull();
     expect(lockup?.querySelector(".onboarding-brand-name")).toBeNull();
   } else {
-    expect(lockup?.querySelector(".onboarding-brand-prompt")).toBeNull();
     expect(lockup?.querySelector(".onboarding-brand-name")?.textContent).toBe("Start with your files. Agent-ready.");
   }
   expect(lockup?.querySelectorAll("p")).toHaveLength(0);

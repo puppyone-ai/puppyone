@@ -1,18 +1,21 @@
-import { describe, expect, it, vi } from "vitest";
-import { ProjectNavigation, type ProjectNavigationTarget } from "../../../../src/features/app-shell/projectNavigation";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ProjectNavigation } from "../../../../src/features/app-shell/window-project/projectNavigation";
+import { INITIAL_WINDOW_PROJECT, windowProjectStore, type ProjectTarget } from "../../../../src/features/app-shell/window-project/windowProjectStore";
 
-const local = (path: string): ProjectNavigationTarget => ({ kind: "local", path });
-const cloud = (projectId: string): ProjectNavigationTarget => ({ kind: "cloud", projectId });
+const local = (path: string): ProjectTarget => ({ kind: "local", path });
+const cloud = (projectId: string): ProjectTarget => ({ kind: "cloud", projectId });
 function deferred() {
   let resolve!: () => void;
   const promise = new Promise<void>(done => { resolve = done; });
   return { promise, resolve };
 }
 
+beforeEach(() => windowProjectStore.setState(INITIAL_WINDOW_PROJECT, true));
+
 describe("window project navigation", () => {
   it("serializes Local and Cloud selections and commits only the latest intent", async () => {
     const wait = deferred();
-    const committed: ProjectNavigationTarget[] = [];
+    const committed: ProjectTarget[] = [];
     const open = vi.fn(async (target, isCurrent) => {
       if (target.path === "B") await wait.promise;
       if (isCurrent()) committed.push(target);
@@ -22,12 +25,12 @@ describe("window project navigation", () => {
     await Promise.resolve();
     navigation.select(cloud("C"));
     navigation.select(local("D"));
-    expect(navigation.getSnapshot()).toEqual(local("D"));
+    expect(windowProjectStore.getState().opening).toEqual(local("D"));
     expect(open).toHaveBeenCalledTimes(1);
     wait.resolve(); await idle;
     expect(open.mock.calls.map(([target]) => target)).toEqual([local("B"), local("D")]);
     expect(committed).toEqual([local("D")]);
-    expect(navigation.getSnapshot()).toBeNull();
+    expect(windowProjectStore.getState().opening).toBeNull();
   });
 
   it("honors A -> B -> A even while A is still displayed", async () => {
@@ -80,6 +83,6 @@ describe("window project navigation", () => {
     navigation.select(local("C")); navigation.cancel();
     wait.resolve(); await idle;
     expect(open).toHaveBeenCalledTimes(1); expect(commit).not.toHaveBeenCalled();
-    expect(navigation.getSnapshot()).toBeNull();
+    expect(windowProjectStore.getState().opening).toBeNull();
   });
 });

@@ -6,7 +6,7 @@ import {
   orderedDitherThreshold,
   paintOrderedDitherFrame,
   type OrderedDitherLight,
-} from "../../../../packages/shared-ui/src/primitives/orderedDitherField";
+} from "../../../../src/shared-ui/primitives/orderedDitherField";
 
 const INK = [40, 40, 40, 200] as const;
 

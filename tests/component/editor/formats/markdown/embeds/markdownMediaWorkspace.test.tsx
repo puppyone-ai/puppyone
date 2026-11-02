@@ -4,8 +4,8 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { DataNode, DataPort } from "../../../../../../packages/shared-ui/src/core/types";
-import { DataWorkspace } from "../../../../../../packages/shared-ui/src/data/DataWorkspace";
+import type { DataNode, DataPort } from "../../../../../../src/shared-ui/core/types";
+import { DataWorkspace } from "../../../../../../src/shared-ui/data/DataWorkspace";
 import { CENTERED_README_DOCUMENT } from "../../../../../fixtures/editor/formats/markdown/centeredReadme";
 import { withTestLocalization } from "../../../../../support/react/localization";
 

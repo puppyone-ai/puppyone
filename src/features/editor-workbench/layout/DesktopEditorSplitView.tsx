@@ -57,6 +57,8 @@ import { toWorkspaceRelativePath } from "../../desktop-agent-presence";
 
 export type DesktopEditorSplitViewProps = Readonly<{
   aiEditRequest: AiEditRequest | null;
+  /** The project's first document is still on its way to these panes. */
+  entering?: boolean;
   dataPort: DataPort;
   documentSourceKind?: DocumentSourceKind;
   editorGroup: EditorGroupState;
@@ -101,6 +103,7 @@ export type DesktopEditorSplitViewProps = Readonly<{
 
 export function DesktopEditorSplitView({
   aiEditRequest,
+  entering = false,
   dataPort,
   documentSourceKind = "local",
   editorGroup,
@@ -183,6 +186,7 @@ export function DesktopEditorSplitView({
         <EditorPane
           activePaneId={layout.activePaneId}
           aiEditRequest={aiEditRequest}
+          entering={entering}
           dataPort={dataPort}
           documentSourceKind={documentSourceKind}
           editorById={editorById}
@@ -278,6 +282,7 @@ function EditorSplit({
 type EditorPaneProps = Readonly<{
   activePaneId: string;
   aiEditRequest: AiEditRequest | null;
+  entering: boolean;
   dataPort: DataPort;
   documentSourceKind: DocumentSourceKind;
   editorById: ReadonlyMap<string, EditorGroupState["editors"][number]>;
@@ -304,6 +309,7 @@ type EditorPaneProps = Readonly<{
 function EditorPane({
   activePaneId,
   aiEditRequest,
+  entering,
   dataPort,
   documentSourceKind,
   editorById,
@@ -352,6 +358,7 @@ function EditorPane({
     ? editorWorkspaceResource?.providerPath
       ?? toWorkspaceRelativePath(editorWorkspace.path, editor.resource)
     : null;
+  const emptyState = entering ? "opening" : "empty";
   const paneMenuContribution = menuContribution?.editorResource === editor?.resource
     ? menuContribution?.contribution ?? null
     : null;
@@ -361,7 +368,7 @@ function EditorPane({
       active={active}
       actionsOpen={actionsOpen}
       agentPresencePath={agentPresencePath}
-      contentState={editor ? "document" : "empty"}
+      contentState={editor ? "document" : emptyState}
       editorLabel={editor?.label ?? null}
       findCommand={findCommand}
       fileDrop={fileDrop}

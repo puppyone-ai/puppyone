@@ -10,7 +10,6 @@ const fileActions = readSource("../../../../src/styles/file-actions.css");
 const nodeActions = readSource("../../../../src/features/data-workspace/nodeActions.tsx");
 const plugins = readSource("../../../../src/features/plugins/plugins.css");
 const dataShell = readSource("../../../../src/features/data-workspace/data-shell.css");
-const assetLibrary = readSource("../../../../src/styles/asset-library-home.css");
 const aiEdits = readSource("../../../../src/ai-edits/ai-edits.css");
 const accessMethodCard = readSource(
   "../../../../src/features/cloud/sections/access/styles/method-card.css",
@@ -19,10 +18,10 @@ const utilityScreens = readSource("../../../../src/styles/utility-screens.css");
 const agentFilePresence = readSource(
   "../../../../src/features/desktop-agent-presence/agent-file-presence.css",
 );
-const editorFind = readSource("../../../../packages/shared-ui/src/styles/editor/editor-find.css");
-const editorChrome = readSource("../../../../packages/shared-ui/src/styles/editor/editor-chrome.css");
-const csvEditor = readSource("../../../../packages/shared-ui/src/styles/editor/csv-table-editor.css");
-const markdownEditor = readSource("../../../../packages/shared-ui/src/styles/editor/markdown-editor.css");
+const editorFind = readSource("../../../../src/shared-ui/styles/editor/editor-find.css");
+const editorChrome = readSource("../../../../src/shared-ui/styles/editor/editor-chrome.css");
+const csvEditor = readSource("../../../../src/shared-ui/styles/editor/csv-table-editor.css");
+const markdownEditor = readSource("../../../../src/shared-ui/styles/editor/markdown-editor.css");
 const splitView = readSource(
   "../../../../src/features/editor-workbench/layout/desktop-editor-split-view.css",
 );
@@ -50,7 +49,6 @@ describe("desktop elevation architecture", () => {
     expect(readCssBlock(accessMethodCard, ".desktop-cloud-access-method-copy-button"))
       .toContain("box-shadow: none;");
     expect(helpLauncher).not.toContain("0 2px 8px");
-    expect(assetLibrary).not.toContain("6px 7px 0");
   });
 
   it("routes small floating UI through the shared low or popover elevations", () => {
@@ -63,7 +61,6 @@ describe("desktop elevation architecture", () => {
     expect(fileActions).not.toContain("box-shadow: var(--po-menu-shadow-compact);");
     expect(nodeActions).toContain('elevation={sidebarLauncher ? "compact" : "default"}');
     expect(dataShell).toContain("box-shadow: var(--po-elevation-low);");
-    expect(assetLibrary).toContain("box-shadow: var(--po-menu-shadow);");
     expect(aiEdits).toContain("box-shadow: var(--po-menu-shadow);");
     expect(readCssBlock(utilityScreens, ".panic-undo"))
       .toContain("box-shadow: var(--po-elevation-low);");

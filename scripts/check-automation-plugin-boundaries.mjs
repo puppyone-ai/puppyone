@@ -98,6 +98,7 @@ for (const filePath of walkSourceFiles(path.join(repoRoot, "src"))) {
   if (filePath.endsWith(path.join("src", "lib", "cloud", "automationApi.ts"))) continue;
   if (filePath.endsWith(path.join("src", "lib", "cloud", "synchronizeApi.ts"))) continue;
   if (filePath.endsWith(path.join("src", "features", "cloud", "routes", "cloudRoutes.ts"))) continue;
+  if (filePath.endsWith(path.join("src", "shared-ui", "core", "rendererAssetCatalog.ts"))) continue;
   const source = readFileSync(filePath, "utf8");
   if (/\bIntegrations\b|["']integrations["']|\/integrations(?:\/|["'`])/.test(source)) {
     errors.push(`${relative(filePath)} leaks the retired Integrations product name outside a compatibility boundary.`);

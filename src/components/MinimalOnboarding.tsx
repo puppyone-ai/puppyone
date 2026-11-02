@@ -1,6 +1,7 @@
 import { useDesktopPreference } from "../preferencesStore";
-import { bidiIsolate, useLocalization } from "@puppyone/localization";
+import { useLocalization } from "@puppyone/localization";
 import { AlertTriangle } from "lucide-react";
+import type { ComponentProps } from "react";
 import {
   useEffect,
   useMemo,
@@ -16,11 +17,7 @@ import {
   useProjectEntryFlow,
   type ProjectEntryFlowController,
 } from "../features/app-shell/ProjectEntryFlow";
-import {
-  getProjectName,
-  type ProjectHomeItem,
-  type RecentWorkspaceHomeItem,
-} from "../lib/workspaceHomeModel";
+import type { ProjectHomeItem, RecentWorkspaceHomeItem } from "../lib/workspaceHomeModel";
 import { writeClipboardText } from "../features/settings/utils";
 import { resolveImportPreviewBrands } from "../features/project-import/importSourceRegistry";
 import type {
@@ -32,15 +29,17 @@ import type {
   WorkspaceProjectLocationGrant,
 } from "../types/electron";
 import { DesktopWindowChrome } from "./DesktopWindowChrome";
-import { OnboardingBrandLockup } from "./onboarding/OnboardingBrandLockup";
+import { OnboardingBrandLockup, OnboardingHeaderBrand } from "./onboarding/OnboardingBrandLockup";
 import { OnboardingEmptyStateIntro } from "./onboarding/OnboardingEmptyStateIntro";
 import {
   OnboardingCreateProjectAction,
   OnboardingEntryActions,
 } from "./onboarding/OnboardingEntryActions";
+import { OnboardingEntryMenu } from "./onboarding/OnboardingEntryMenu";
+import { OnboardingProjectToolbar, useHomepageProjectView } from "./onboarding/OnboardingProjectToolbar";
 import { OnboardingHomeLayout } from "./onboarding/OnboardingHomeLayout";
+import { OnboardingProjectLayoutSwitch } from "./onboarding/OnboardingProjectLayoutSwitch";
 import { OnboardingProjectList } from "./onboarding/OnboardingProjectList";
-import { isHomepageProjectOpening, OnboardingProjectLoading } from "./onboarding/OnboardingProjectLoading";
 import { OnboardingTelemetryDisclosure } from "./onboarding/OnboardingTelemetryDisclosure";
 import type { OnboardingHomeState } from "./onboarding/types";
 
@@ -66,11 +65,15 @@ export type MinimalOnboardingProps = {
   onOpenWorkspacePath: (path: string) => Promise<void>;
   onOpenDroppedWorkspace: (folder: File) => Promise<void>;
   onRemoveProject?: (path: string) => Promise<void>;
+  onRenameProject?: (path: string, name: string) => Promise<void>;
+  onRenameCloudProject?: (projectId: string, name: string) => Promise<void>;
+  onDeleteCloudProject?: (projectId: string) => Promise<void>;
   recentWorkspaces?: RecentWorkspaceHomeItem[];
   projectItems?: ProjectHomeItem[];
+  /** The page is here but its list is not settled, so the mark stands in for it. */
+  listHeld?: boolean;
   cloudAccountStatus?: ReactNode;
   cloudOpening?: boolean;
-  onCancelCloudOpening?: () => void;
   onOpenCloudProject?: (projectId: string) => void;
   operationStatus?: OnboardingOperationStatus | null;
   initialError?: string | null;
@@ -78,6 +81,16 @@ export type MinimalOnboardingProps = {
 };
 
 /** Homepage project list. Cloud catalog/auth is supplied by the host, not discovered by the view. */
+/** Once there are projects, every way to start one moves to the head of the page. */
+function onboardingEntrySlots(hasProjects: boolean, {
+  draggingFolder,
+  ...entry
+}: ComponentProps<typeof OnboardingEntryMenu> & { draggingFolder: boolean }) {
+  if (hasProjects) return { trailing: <OnboardingEntryMenu {...entry} />, actions: null };
+  const { canCreateProject: _canCreateProject, onCreateProject: _onCreateProject, ...actions } = entry;
+  return { trailing: null, actions: <OnboardingEntryActions {...actions} draggingFolder={draggingFolder} /> };
+}
+
 export function MinimalOnboarding({
   projectEntryController,
   onChooseWorkspace,
@@ -92,11 +105,14 @@ export function MinimalOnboarding({
   onOpenWorkspacePath,
   onOpenDroppedWorkspace,
   onRemoveProject,
+  onRenameProject,
+  onRenameCloudProject,
+  onDeleteCloudProject,
   recentWorkspaces = [],
   projectItems,
+  listHeld = false,
   cloudAccountStatus,
   cloudOpening = false,
-  onCancelCloudOpening,
   onOpenCloudProject,
   initialError = null,
   appearance,
@@ -104,11 +120,12 @@ export function MinimalOnboarding({
   const { t } = useLocalization();
   const [error, setError] = useState<string | null>(initialError);
   const [openingPath, setOpeningPath] = useState<string | null>(null);
-  const [removingPath, setRemovingPath] = useState<string | null>(null);
   const [draggingPath, setDraggingPath] = useState<string | null>(null);
   const ownProjectEntryFlow = useProjectEntryFlow();
   const projectEntryFlow = projectEntryController ?? ownProjectEntryFlow;
   const enableOtherAppImports = useDesktopPreference(s => s.experimentalSettings.enableOtherAppImports);
+  const projectLayout = useDesktopPreference(s => s.homepageProjectLayout);
+  const setProjectLayout = useDesktopPreference(s => s.setHomepageProjectLayout);
   const importPreviewBrands = resolveImportPreviewBrands({ enableOtherAppImports });
   const items = useMemo(
     () => (projectItems ?? recentWorkspaces.map(({ workspace }) => ({
@@ -161,26 +178,7 @@ export function MinimalOnboarding({
     }
   };
 
-  const removeProject = async (item: ProjectHomeItem) => {
-    if (!onRemoveProject || openingPath || removingPath) return;
-    const projectName = getProjectName(item, t("onboarding.projects.untitled"));
-    const confirmed = window.confirm(
-      t("settings.localProject.unlink.confirm", { workspace: bidiIsolate(projectName) }),
-    );
-    if (!confirmed) return;
-    setError(null);
-    setRemovingPath(item.localPath);
-    try {
-      await onRemoveProject(item.localPath);
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : String(nextError));
-    } finally {
-      setRemovingPath(null);
-    }
-  };
-
-  const busy = [openingPath, removingPath, cloudOpening].some(Boolean);
-  const openingProject = isHomepageProjectOpening(openingPath, cloudOpening);
+  const busy = [openingPath, cloudOpening].some(Boolean);
   const startProjectDrag = (event: ReactDragEvent<HTMLButtonElement>, item: ProjectHomeItem) => {
     const absolutePath = item.localPath.trim();
     if (busy || !absolutePath) {
@@ -200,7 +198,7 @@ export function MinimalOnboarding({
   });
 
   // Account/auth controls are page chrome, never synthetic Project rows.
-  const hasProjects = items.length > 0;
+  const hasProjects = items.length > 0 || listHeld;
   const onboardingState: OnboardingHomeState = hasProjects ? "projects" : "empty";
   const [showEmptyStateIntro, setShowEmptyStateIntro] = useState(() => !hasProjects);
   const homepageRef = useRef<HTMLElement>(null);
@@ -210,8 +208,8 @@ export function MinimalOnboarding({
   }, [hasProjects]);
 
   useEffect(() => {
-    if (homepageRef.current) homepageRef.current.inert = showEmptyStateIntro || openingProject;
-  }, [showEmptyStateIntro, openingProject]);
+    if (homepageRef.current) homepageRef.current.inert = showEmptyStateIntro;
+  }, [showEmptyStateIntro]);
 
   useEffect(() => {
     if (!import.meta.env.DEV) return undefined;
@@ -236,6 +234,19 @@ export function MinimalOnboarding({
 
   const completeEmptyStateIntro = () => setShowEmptyStateIntro(false);
   const resolvedTheme = appearance.appearance.effectiveColorMode;
+  const canCreateProject = Boolean(onCreateProject && onChooseProjectLocation);
+  const projectView = useHomepageProjectView(items, listHeld);
+  const entry = onboardingEntrySlots(hasProjects, {
+    busy,
+    openingFolder: openingPath === "__new__",
+    draggingFolder: folderDrop.dragging,
+    canCreateProject,
+    canImport: Boolean(onImportSource),
+    importPreviewBrands,
+    onCreateProject: projectEntryFlow.openCreate,
+    onOpenFolder: () => void chooseFolder(),
+    onImport: projectEntryFlow.openImport,
+  });
 
   return (
     <main
@@ -248,55 +259,50 @@ export function MinimalOnboarding({
       onDragLeave={folderDrop.onDragLeave}
       onDrop={folderDrop.onDrop}
     >
-      <DesktopWindowChrome actions={cloudAccountStatus} />
+      <DesktopWindowChrome context={hasProjects ? <OnboardingHeaderBrand /> : undefined} actions={cloudAccountStatus} />
       <section
         ref={homepageRef}
         className="onboarding-homepage"
         aria-label={t("onboarding.projects.title")}
         aria-hidden={showEmptyStateIntro || undefined}
-        aria-busy={openingProject || undefined}
       >
         <OnboardingHomeLayout
-          brand={<OnboardingBrandLockup state={onboardingState} resolvedTheme={resolvedTheme} />}
+          brand={<OnboardingBrandLockup state={onboardingState} resolvedTheme={resolvedTheme} toolbar={(
+            <OnboardingProjectToolbar view={projectView} disabled={busy}>
+              <OnboardingProjectLayoutSwitch layout={projectLayout} disabled={busy} onChange={setProjectLayout} />
+            </OnboardingProjectToolbar>
+          )} trailing={entry.trailing} />}
           primaryKind={hasProjects ? "projects" : "create"}
           primary={hasProjects ? (
             <OnboardingProjectList
-              items={items}
+              held={listHeld}
+              items={projectView.visibleItems}
+              layout={projectLayout}
               onOpenCloudProject={onOpenCloudProject}
               busy={busy}
               openingPath={openingPath}
-              removingPath={removingPath}
               draggingPath={draggingPath}
               onOpen={(path) => void openPath(path)}
-              onRemove={onRemoveProject ? (item) => void removeProject(item) : undefined}
+              onRename={onRenameProject}
+              onRemove={onRemoveProject}
+              onRenameCloudProject={onRenameCloudProject}
+              onDeleteCloudProject={onDeleteCloudProject}
               onDragStart={startProjectDrag}
               onDragEnd={() => setDraggingPath(null)}
             />
           ) : (
             <OnboardingCreateProjectAction
               busy={busy}
-              canCreateProject={Boolean(onCreateProject && onChooseProjectLocation)}
+              canCreateProject={canCreateProject}
               prominent
               onCreateProject={projectEntryFlow.openCreate}
             />
           )}
-          actions={<OnboardingEntryActions
-            includeCreateProject={hasProjects}
-            busy={busy}
-            openingFolder={openingPath === "__new__"}
-            draggingFolder={folderDrop.dragging}
-            canCreateProject={Boolean(onCreateProject && onChooseProjectLocation)}
-            canImport={Boolean(onImportSource)}
-            importPreviewBrands={importPreviewBrands}
-            onOpenFolder={() => void chooseFolder()}
-            onCreateProject={projectEntryFlow.openCreate}
-            onImport={projectEntryFlow.openImport}
-          />}
+          actions={entry.actions}
         />
 
         {error && <div className="onboarding-error onboarding-homepage-error" role="alert"><AlertTriangle size={15} /><span>{error}</span></div>}
       </section>
-      <OnboardingProjectLoading open={openingProject} cloudOpening={cloudOpening} onCancel={onCancelCloudOpening} />
       {onboardingState === "empty" && (
         <OnboardingTelemetryDisclosure ready={!showEmptyStateIntro} />
       )}

@@ -67,6 +67,16 @@ e2e command runs project sessions followed by the fixture-based Agent/Terminal
 sidebar workflow. Both run without paid requests.
 
 Other `smoke:*` commands are explicit focused checks, not implicitly part of CI.
+The `markdown-html-run` app gate (`npm run smoke:markdown-html-run`) mounts the
+production editor in Chromium and checks what a DOM stub cannot: list indent,
+`prefers-color-scheme` candidate selection, intrinsic and percentage sizes, and
+real pointer and arrow-key entry into inline HTML source.
+
+The `markdown-syntax-gallery` app gate (`npm run smoke:markdown-syntax-gallery`)
+renders one document holding every construct at once, so callout color, table
+tracks, fold state, `details` inside an HTML flow, and footnote jumps are checked
+against real layout and real pointer input.
+
 The `markdown-quote-colors` app gate (`npm run smoke:markdown-quote-colors`)
 checks actual Chromium styles for native Markdown and Safe HTML quotes, code,
 tables and list markers. Its 42 cases cover light/dark, default/Newspaper, explicit quote,
@@ -190,6 +200,12 @@ This tests Chromium layout and input, not OS pointer injection or all fonts,
 themes, writing directions and native platforms. Dependency upgrades must pass
 this gate: the shared adapter uses public coordinate queries to flush pending
 CodeMirror measurement before paint.
+
+`npm run smoke:markdown-block-drag` is the `markdown-block-drag` app gate. It
+drives the block drag add-on with real input in Electron and asserts what only
+layout can prove: every part of a row targets that row, a drag keeps focus and
+scroll position, the overlay scrolls natively, and switching the add-on off
+leaves no DOM behind.
 
 ## Sidebar visibility and residual content
 

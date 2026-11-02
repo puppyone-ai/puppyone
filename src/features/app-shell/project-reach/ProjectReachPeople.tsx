@@ -11,8 +11,8 @@ import "./reach-header.css";
  *
  * It is the same control as the place on the left and opens the same panel —
  * one subject, two views, never two entries with two answers. The marks are
- * the identities themselves: an agent is its brand, a person is a round
- * initial. Lit means working in the project right now; the rest are quiet.
+ * the identities themselves: an agent is its brand, a person is an initial,
+ * both round. Lit means working in the project right now.
  *
  * With nobody there it renders nothing at all. An empty slot that said
  * "invite someone" would be a pitch for Cloud on a Header belonging to a user
@@ -23,6 +23,8 @@ export type ProjectReachPeopleProps = ReachPanelContext;
 
 /** Enough faces to recognize the room; the rest are a count. */
 const VISIBLE_MEMBER_LIMIT = 3;
+/** The account mark's size, so an identity is the same object everywhere. */
+const MARK_SIZE = 22;
 
 export function ProjectReachPeople(context: ProjectReachPeopleProps) {
   const { t } = useLocalization();
@@ -52,7 +54,7 @@ export function ProjectReachPeople(context: ProjectReachPeopleProps) {
           aria-label={summary}
           onClick={() => setOpen((value) => !value)}
         >
-          {visible.map((member) => <ReachMemberMark key={member.id} member={member} />)}
+          {visible.map((member) => <ReachMemberMark key={member.id} member={member} size={MARK_SIZE} />)}
           {overflow > 0 && (
             <span className="desktop-project-reach-count">
               {t("shell.projectReach.more", { count: overflow })}

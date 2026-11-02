@@ -182,7 +182,7 @@ describe("project shares", () => {
 
 describe("Share sidebar route", () => {
   it("keeps Homepage first and slots Share after it without touching the stable contract", () => {
-    expect(CLOUD_PROJECT_SIDEBAR_ROUTES.map((route) => route.id)).toEqual(["contents", "mcp", "cli", "automation"]);
+    expect(CLOUD_PROJECT_SIDEBAR_ROUTES.map((route) => route.id)).toEqual(["contents", "mcp", "cli"]);
     expect(getCloudRoute("share").showInSidebar).toBe(false);
     expect(getCloudRoute("share").navigationGroup).toBe("project");
     const shareRoutes = withSharePageSidebarRoutes(CLOUD_BOUND_PROJECT_SIDEBAR_ROUTES);

@@ -18,12 +18,12 @@ import {
   DesktopSidebarPluginsButton,
   DesktopSidebarSettingsButton,
 } from "./navigation/DesktopNavigationItems";
-import type { DesktopView } from "../../components/DesktopCloudShell";
+import type { DesktopView } from "../../components/ProjectShell";
 import { beginProjectRootDrag } from "./projectRootDrag";
 import {
   ProjectRowActions,
   type ProjectActionSurface,
-} from "./ProjectRowActions";
+} from "../../components/ProjectRowActions";
 import type { ProjectAppearance } from "../../types/electron";
 export {
   DEFAULT_PROJECT_SWITCHER_EXPANDED_WIDTH,
@@ -33,7 +33,8 @@ export {
   resolveProjectSwitcherCompactWidth,
   resolveProjectSwitcherRailWidth,
 } from "./projectSwitcherRailGeometry";
-import { projectMatchesTarget, type ProjectNavigationTarget } from "./projectNavigation";
+import { projectMatchesTarget } from "./window-project/projectNavigation";
+import type { ProjectTarget } from "./window-project/windowProjectStore";
 import { getProjectName, type ProjectHomeItem, type RecentWorkspaceHomeItem } from "../../lib/workspaceHomeModel";
 
 export type ProjectSwitcherRailItem = Readonly<{
@@ -52,12 +53,7 @@ type ProjectSwitcherRailProps = Readonly<{
   activeView?: DesktopView;
   activeWorkspace: Workspace;
   activeCloudProjectId?: string | null;
-  pendingProject?: ProjectNavigationTarget | null;
-  /**
-   * The Local / Cloud switch for the open Project. It lives in that Project's
-   * own row menu because the rail, not the Header, states where a Project is.
-   */
-  activeProjectLocationControls?: ReactNode;
+  pendingProject?: ProjectTarget | null;
   expanded?: boolean;
   recentWorkspaces: readonly RecentWorkspaceHomeItem[];
   projectItems: readonly ProjectHomeItem[];
@@ -83,7 +79,6 @@ export function ProjectSwitcherRail({
   activeWorkspace,
   activeCloudProjectId,
   pendingProject,
-  activeProjectLocationControls,
   expanded = false,
   recentWorkspaces,
   projectItems,
@@ -204,12 +199,11 @@ export function ProjectSwitcherRail({
               failedAvatarUrls={failedAvatarUrls}
               expanded={expanded}
               active={opened && activeView !== "settings"}
-              place={resolveProjectRowPlace(project.item, opened && Boolean(currentCloudProjectId))}
+              place={resolveProjectRowPlace(project.item)}
               pending={isPending(project.item)}
               actionSurface={projectActionSession?.projectPath === project.item.localPath
                 ? projectActionSession.surface
                 : null}
-              locationControls={opened ? activeProjectLocationControls : undefined}
               onSelect={() => void selectProject(project.item)}
               onAvatarError={(url) => setFailedAvatarUrls((current) => new Set(current).add(url))}
               onSurfaceChange={changeProjectActionSurface}
@@ -290,7 +284,6 @@ type ProjectSwitcherRailRowProps = Readonly<{
   place: ProjectRowPlace;
   pending: boolean;
   actionSurface: ProjectActionSurface;
-  locationControls?: ReactNode;
   onSelect: () => void;
   onAvatarError: (assetUrl: string) => void;
   onSurfaceChange: (projectPath: string, surface: ProjectActionSurface) => void;
@@ -313,7 +306,6 @@ function ProjectSwitcherRailRow({
   place,
   pending,
   actionSurface,
-  locationControls,
   onSelect,
   onAvatarError,
   onSurfaceChange,
@@ -347,12 +339,11 @@ function ProjectSwitcherRailRow({
       )}
       {actionable && workspace && (
         <ProjectRowActions
-          workspace={workspace}
-          locationControls={locationControls}
+          project={workspace}
           surface={actionSurface}
           onSurfaceChange={(surface) => onSurfaceChange(workspace.path, surface)}
-          onRenameProject={onRenameProject}
-          onUnlinkProject={onUnlinkProject}
+          onRename={onRenameProject && ((name) => onRenameProject(workspace.path, name))}
+          onUnlink={onUnlinkProject && (() => onUnlinkProject(workspace.path))}
         />
       )}
     </div>
@@ -457,7 +448,7 @@ function useProjectRowIdentity(
 
 function resolveProjectRowContextAssetKind(item: ProjectHomeItem): "cloud" | "linked" | "local" {
   if (!item.localPath) return "cloud";
-  return item.cloudProjectId ? "linked" : "local";
+  return item.linkedCloudProject ? "linked" : "local";
 }
 
 function ProjectSwitcherAvatar({
@@ -511,15 +502,10 @@ function ProjectSwitcherAvatar({
 export type ProjectRowPlace = "local" | "cloud";
 
 /**
- * Where a row's Project is worked on right now. A Project with no local folder
- * only exists in the Cloud; the open Project follows the surface the window is
- * showing.
+ * Where a row's Project is worked on. A local folder and its Cloud project are
+ * two projects with two rows, so a row's place never changes while it is open.
  */
-export function resolveProjectRowPlace(
-  item: ProjectHomeItem,
-  openedInCloud: boolean,
-): ProjectRowPlace {
-  if (openedInCloud) return "cloud";
+export function resolveProjectRowPlace(item: ProjectHomeItem): ProjectRowPlace {
   return item.localPath ? "local" : "cloud";
 }
 

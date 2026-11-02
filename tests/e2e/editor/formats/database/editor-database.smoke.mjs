@@ -9,7 +9,7 @@ import { createReadStream } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { DuckDBInstance } from "@duckdb/node-api";
 import { app, BrowserWindow, ipcMain, utilityProcess } from "electron";
-import { workspaceFromPath } from "../../../../../local-api/workspace.mjs";
+import { workspaceFromPath } from "../../../../../electron/local-api/workspace.mjs";
 import { createWorkspaceStateStore } from "../../../../../electron/main/workspace-state-store.mjs";
 import { getDesktopBuildChannelPolicy } from "../../../../../shared/desktop-build-identity.mjs";
 import { readSourceIdentity } from "../../../../../scripts/release-checks/execution.mjs";

@@ -1,6 +1,6 @@
 /** @vitest-environment happy-dom */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { retainTextSelectionAppearance } from "../../../../packages/shared-ui/src/core/appearance/textSelectionAppearance";
+import { retainTextSelectionAppearance } from "../../../../src/shared-ui/core/appearance/textSelectionAppearance";
 
 const cleanups: (() => void)[] = [];
 afterEach(() => {

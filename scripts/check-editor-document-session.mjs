@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const sharedEditorRoot = path.join(repoRoot, "packages/shared-ui/src/editor");
+const sharedEditorRoot = path.join(repoRoot, "src/shared-ui/editor");
 const sessionKernel = path.join(
   sharedEditorRoot,
   "document-session/DocumentEditingSession.ts",
@@ -114,7 +114,7 @@ if (!/export type ViewerPackFormatContribution\s*=\s*\{[\s\S]*?editable:\s*false
   errors.push(`${relative(packTypesPath)} no longer fixes Viewer Pack v1 contributions to editable: false`);
 }
 
-const sharedUiPublicIndexPath = path.join(repoRoot, "packages/shared-ui/src/index.ts");
+const sharedUiPublicIndexPath = path.join(repoRoot, "src/shared-ui/index.ts");
 const sharedUiPublicIndexSource = readFileSync(sharedUiPublicIndexPath, "utf8");
 for (const authority of [
   "DocumentEditingSession",
@@ -136,7 +136,7 @@ if (!/formats:\s*raw\.formats\.map\([\s\S]*?editable:\s*false,/.test(manifestSch
   errors.push(`${relative(manifestSchemaPath)} no longer normalizes Viewer Pack v1 to editable: false`);
 }
 
-const coreTypesPath = path.join(repoRoot, "packages/shared-ui/src/core/types.ts");
+const coreTypesPath = path.join(repoRoot, "src/shared-ui/core/types.ts");
 const coreTypesSource = readFileSync(coreTypesPath, "utf8");
 if (/\bwriteFile\??\s*:/.test(coreTypesSource)) {
   errors.push(`${relative(coreTypesPath)} exposes the legacy direct writeFile port`);
@@ -154,7 +154,7 @@ if (!/keeps an immediate-save failure visible and retryable in auto mode/.test(m
   errors.push(`${relative(markdownSnapshotTestPath)} does not cover visible immediate-save failure state`);
 }
 
-const dataWorkspacePath = path.join(repoRoot, "packages/shared-ui/src/data/DataWorkspace.tsx");
+const dataWorkspacePath = path.join(repoRoot, "src/shared-ui/data/DataWorkspace.tsx");
 const dataWorkspaceSource = readFileSync(dataWorkspacePath, "utf8");
 if (!/await onActivePathChange/.test(dataWorkspaceSource)) {
   errors.push(`${relative(dataWorkspacePath)} does not route file activation through the Editor Group`);
@@ -329,13 +329,13 @@ if (
   errors.push(`${relative(documentIdentityPath)} does not preserve URI identity before path canonicalization`);
 }
 
-const resourcePathPath = path.join(repoRoot, "packages/shared-ui/src/core/resourcePath.ts");
+const resourcePathPath = path.join(repoRoot, "src/shared-ui/core/resourcePath.ts");
 const resourcePathSource = readFileSync(resourcePathPath, "utf8");
 if (!/if\s*\(looksLikeResourceUri\(path\)\)[\s\S]*?throw new TypeError/.test(resourcePathSource)) {
   errors.push(`${relative(resourcePathPath)} does not fail closed when a Resource URI reaches a provider-path normalizer`);
 }
 
-const dataResourcePathPath = path.join(repoRoot, "packages/shared-ui/src/core/dataResourcePath.ts");
+const dataResourcePathPath = path.join(repoRoot, "src/shared-ui/core/dataResourcePath.ts");
 const dataResourcePathSource = readFileSync(dataResourcePathPath, "utf8");
 if (
   !/function assertValidDataResourceReference/.test(dataResourcePathSource)
@@ -362,7 +362,7 @@ if (
 
 const workbenchWorkspacePath = path.join(
   repoRoot,
-  "packages/shared-ui/src/core/workbenchWorkspace.ts",
+  "src/shared-ui/core/workbenchWorkspace.ts",
 );
 const workbenchWorkspaceSource = readFileSync(workbenchWorkspacePath, "utf8");
 if (
@@ -389,14 +389,14 @@ if (
 // editor, provider-routing, and local persistence boundary.
 const multiRootFeatureGatePattern = /\b(?:enableMultiRootWorkspaces|multiRootWorkspacesEnabled)\b/;
 const featureIndependentWorkspaceKernelFiles = [
-  ...walkTypeScript(path.join(repoRoot, "packages/shared-ui/src/core")),
-  ...walkTypeScript(path.join(repoRoot, "packages/shared-ui/src/editor")),
+  ...walkTypeScript(path.join(repoRoot, "src/shared-ui/core")),
+  ...walkTypeScript(path.join(repoRoot, "src/shared-ui/editor")),
   ...walkTypeScript(path.join(repoRoot, "src/features/data-workspace")),
   ...walkTypeScript(path.join(repoRoot, "src/features/editor-workbench")),
   path.join(repoRoot, "src/lib/localFiles.ts"),
   path.join(repoRoot, "electron/main/window-workspace-composition.mjs"),
   path.join(repoRoot, "electron/main/workspace-state-store.mjs"),
-  path.join(repoRoot, "local-api/files/path-policy.mjs"),
+  path.join(repoRoot, "electron/local-api/files/path-policy.mjs"),
 ];
 for (const filePath of featureIndependentWorkspaceKernelFiles) {
   if (multiRootFeatureGatePattern.test(readFileSync(filePath, "utf8"))) {

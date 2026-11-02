@@ -4,9 +4,9 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createProjectInitializationService } from "../../../../electron/main/project-initialization-service.mjs";
-import { materializeTemplate, validateTemplatePlan } from "../../../../local-api/templates/materialize.mjs";
-import { publishDirectory } from "../../../../local-api/templates/publish-directory.mjs";
-import { resolveProjectTemplate } from "../../../../local-api/templates/project-catalog.mjs";
+import { materializeTemplate, validateTemplatePlan } from "../../../../electron/local-api/templates/materialize.mjs";
+import { publishDirectory } from "../../../../electron/local-api/templates/publish-directory.mjs";
+import { resolveProjectTemplate } from "../../../../electron/local-api/templates/project-catalog.mjs";
 
 let root, parentPath, journalDirectory;
 const source = { kind: "template", ref: { sourceId: "builtin", id: "puppyone.project.getting-started", version: 1 } };

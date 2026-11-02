@@ -101,20 +101,19 @@ describe("current-repository Cloud navigation", () => {
     expect(labels(container)).not.toContain("Settings");
   });
 
-  it("shows Automation only after the experiment is enabled", () => {
+  it("does not offer Automation", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
 
     renderSidebar(root, {
       authState: signedInState(),
-      automationEnabled: true,
       projectAvailable: true,
       onSelectSection: vi.fn(),
     });
 
-    expect(labels(container)).toContain("Automation");
-    expect(groupLabels(container)).toContain("Automation");
+    expect(labels(container)).not.toContain("Automation");
+    expect(groupLabels(container)).not.toContain("Automation");
   });
 
   it("keeps the signed-out Cloud entry focused on one activation action", () => {
@@ -164,17 +163,6 @@ describe("current-repository Cloud navigation", () => {
 
     act(() => renderWithTestLocalization(root,
       <CloudSignedOutRoute
-        activeSection="automation"
-        authState={{ status: "signed-out", apiBaseUrl: session.api_base_url }}
-        apiBaseUrl={session.api_base_url}
-        loadingLabel="Restoring Cloud session…"
-      />,
-    ));
-    expect(container.querySelector("h1")?.textContent).toBe("Automation");
-    expect(container.querySelector(".desktop-cloud-activation-illustration.is-automation")).not.toBeNull();
-
-    act(() => renderWithTestLocalization(root,
-      <CloudSignedOutRoute
         activeSection="contents"
         authState={{ status: "signed-out", apiBaseUrl: session.api_base_url }}
         apiBaseUrl={session.api_base_url}
@@ -205,14 +193,12 @@ describe("current-repository Cloud navigation", () => {
 function renderSidebar(root: Root, {
   authState,
   activeSection = "contents",
-  automationEnabled = false,
   projectAvailable,
   projectCapabilities = [],
   onSelectSection,
 }: {
   authState: CloudAuthState;
   activeSection?: Parameters<typeof CloudServiceSidebar>[0]["activeSection"];
-  automationEnabled?: boolean;
   projectAvailable: boolean;
   projectCapabilities?: string[];
   onSelectSection: (section: Parameters<typeof CloudServiceSidebar>[0]["activeSection"]) => void;
@@ -221,12 +207,10 @@ function renderSidebar(root: Root, {
     <FeatureFlagsProvider value={{
       cloudWorkspace: true,
       cloudBilling: true,
-      assetLibraryHome: false,
     }}>
       <CloudServiceSidebar
         cloudAuthState={authState}
         activeSection={activeSection}
-        automationEnabled={automationEnabled}
         projectAvailable={projectAvailable}
         projectCapabilities={projectCapabilities}
         onSelectSection={onSelectSection}

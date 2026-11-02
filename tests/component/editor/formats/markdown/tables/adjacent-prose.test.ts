@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { getMarkdownPlanIndex } from "../../../../../../packages/shared-ui/src/editor/markdown/core/plans/markdownPlanIndex";
+import { getMarkdownPlanIndex } from "../../../../../../src/shared-ui/editor/markdown/core/plans/markdownPlanIndex";
 import { TABLE_SOURCE, createTableView, source } from "../../../../../support/editor/markdown/tableInteractions";
 
 describe("Markdown table EditorView interactions", () => {

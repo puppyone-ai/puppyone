@@ -20,25 +20,27 @@ afterEach(() => {
 });
 
 describe("Experimental settings", () => {
-  it("persists exclusive location and chat placement choices independently and restores the original defaults", () => {
+  it("persists exclusive project switcher and chat placement choices independently and restores the original defaults", () => {
     const host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
     act(() => root?.render(withTestLocalization(<ExperimentalSettingsView />)));
-    const locationGroup = host.querySelector('[role="group"][aria-label="Local / Cloud switch position"]')!;
+    const locationGroup = host.querySelector('[role="group"][aria-label="Project switcher position"]')!;
     const chatGroup = host.querySelector('[role="group"][aria-label="Chat tabs position"]')!;
     const [menu, locationHeader] = [...locationGroup.querySelectorAll<HTMLButtonElement>("button")];
     const [sidebar, chatHeader] = [...chatGroup.querySelectorAll<HTMLButtonElement>("button")];
-    expect([menu.textContent, locationHeader.textContent]).toEqual(["Menu", "Header"]);
+    expect([menu.textContent, locationHeader.textContent]).toEqual(["Header menu", "Sidebar"]);
+    // The retired Local / Cloud switch has no setting (ADR-001).
+    expect(host.querySelector('[role="group"][aria-label="Local / Cloud switch position"]')).toBeNull();
     expect([sidebar.textContent, chatHeader.textContent]).toEqual(["Sidebar", "Header"]);
     expect(menu.getAttribute("aria-pressed")).toBe("true");
     expect(sidebar.getAttribute("aria-pressed")).toBe("true");
     expect(locationGroup.closest(".desktop-settings-subsection")?.querySelector("h3")?.textContent).toBe("Header & layout");
     act(() => locationHeader.click());
-    expect(store.getState().experimentalSettings).toEqual({ ...DEFAULT_EXPERIMENTAL_SETTINGS, enableProjectLocationIconsInHeader: true });
+    expect(store.getState().experimentalSettings).toEqual({ ...DEFAULT_EXPERIMENTAL_SETTINGS, enableProjectSwitcherRail: true });
     act(() => chatHeader.click());
     expect(store.getState().experimentalSettings).toEqual({ ...DEFAULT_EXPERIMENTAL_SETTINGS,
-      enableProjectLocationIconsInHeader: true, enableWorkbenchTabsInHeader: true });
+      enableProjectSwitcherRail: true, enableWorkbenchTabsInHeader: true });
     act(() => initializeDesktopPreferences());
     expect(locationHeader.getAttribute("aria-pressed")).toBe("true");
     expect(menu.getAttribute("aria-pressed")).toBe("false");
@@ -57,7 +59,7 @@ describe("Experimental settings", () => {
     act(() => root?.render(withTestLocalization(<ExperimentalSettingsView />)));
     const groups = [...host.querySelectorAll(".desktop-settings-subsection")];
     expect(groups.map((group) => group.querySelector("h3")?.textContent)).toEqual([
-      "Header & layout", "Markdown", "Imports & plugins", "Cloud & automation", "Homepage",
+      "Header & layout", "Markdown", "Imports & plugins", "Cloud & automation",
     ]);
     const rows = [...groups[0]!.querySelectorAll(".desktop-settings-row")];
     const fileGroup = rows.at(-1)?.querySelector('[role="group"][aria-label="File navigation"]')!;
@@ -65,7 +67,6 @@ describe("Experimental settings", () => {
     expect([panes.textContent, header.textContent]).toEqual(["Panes", "Header tabs"]);
     expect(panes.getAttribute("aria-pressed")).toBe("true");
     expect(host.querySelector('input[aria-label="Git card in Header"]')).toBeNull();
-    expect(host.querySelector('input[aria-label="Center project in Header"]')).toBeNull();
     expect(store.getState().experimentalSettings).toEqual(DEFAULT_EXPERIMENTAL_SETTINGS);
     act(() => header.click());
     act(() => initializeDesktopPreferences());
@@ -73,22 +74,6 @@ describe("Experimental settings", () => {
     expect(header.getAttribute("aria-pressed")).toBe("true");
     act(() => panes.click());
     expect(store.getState().experimentalSettings).toEqual(DEFAULT_EXPERIMENTAL_SETTINGS);
-  });
-
-  it("persists mutually exclusive Left / Center choices and defaults to Left", () => {
-    const host = document.createElement("div"); document.body.append(host); root = createRoot(host);
-    act(() => root?.render(withTestLocalization(<ExperimentalSettingsView />)));
-    const group = host.querySelector('[role="group"][aria-label="Project header position"]')!;
-    const [left, center] = [...group.querySelectorAll<HTMLButtonElement>("button")];
-    expect(left.textContent).toBe("Left"); expect(center.textContent).toBe("Center");
-    expect(left.getAttribute("aria-pressed")).toBe("true");
-    act(() => center.click());
-    expect(center.getAttribute("aria-pressed")).toBe("true"); expect(left.getAttribute("aria-pressed")).toBe("false");
-    act(() => initializeDesktopPreferences());
-    expect(store.getState().experimentalSettings.enableCenteredProjectInHeader).toBe(true);
-    expect(store.getState().experimentalSettings.enableCloudWorkspace).toBe(false);
-    act(() => left.click());
-    expect(store.getState().experimentalSettings.enableCenteredProjectInHeader).toBe(false);
   });
 
   it("offers one default-off import experiment", () => {
@@ -230,31 +215,7 @@ describe("Experimental settings", () => {
     expect(store.getState().experimentalSettings).toEqual(DEFAULT_EXPERIMENTAL_SETTINGS);
   });
 
-  it("restores List / Cards homepage choices at the end and lets saved card users return to List", () => {
-    const host = document.createElement("div");
-    document.body.append(host);
-    root = createRoot(host);
-    act(() => store.getState().setExperimentalSettings(s => ({ ...s, enableAssetLibraryHome: true })));
-
-    act(() => root?.render(withTestLocalization(
-      <ExperimentalSettingsView />,
-    )));
-
-    const lastSection = [...host.querySelectorAll(".desktop-settings-subsection")].at(-1)!;
-    expect(lastSection.querySelector("h3")?.textContent).toBe("Homepage");
-    const group = lastSection.querySelector('[role="group"][aria-label="Project homepage"]')!;
-    const [list, cards] = [...group.querySelectorAll<HTMLButtonElement>("button")];
-    expect([list.textContent, cards.textContent]).toEqual(["List", "Cards"]);
-    expect(cards.getAttribute("aria-pressed")).toBe("true");
-    expect(store.getState().experimentalSettings).toEqual({ ...DEFAULT_EXPERIMENTAL_SETTINGS, enableAssetLibraryHome: true });
-    act(() => list.click());
-    act(() => initializeDesktopPreferences());
-    expect(list.getAttribute("aria-pressed")).toBe("true");
-    expect(cards.getAttribute("aria-pressed")).toBe("false");
-    expect(store.getState().experimentalSettings).toEqual(DEFAULT_EXPERIMENTAL_SETTINGS);
-  });
-
-  it("offers an off-by-default Automation opt-in", () => {
+  it("does not offer Automation as an experiment", () => {
     const host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
@@ -263,14 +224,6 @@ describe("Experimental settings", () => {
       <ExperimentalSettingsView />,
     )));
 
-    const toggle = host.querySelector<HTMLInputElement>('input[aria-label="Automation"]');
-    expect(toggle).not.toBeNull();
-    expect(toggle?.checked).toBe(false);
-
-    act(() => toggle?.click());
-    expect(store.getState().experimentalSettings).toEqual({
-      ...DEFAULT_EXPERIMENTAL_SETTINGS,
-      enableCloudAutomation: true,
-    });
+    expect(host.querySelector('input[aria-label="Automation"]')).toBeNull();
   });
 });

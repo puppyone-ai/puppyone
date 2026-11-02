@@ -13,20 +13,20 @@ import {
   resolveProjectContextAssetKind,
 } from "./ProjectContextAssetMark";
 import { getWorkspaceParentPathForDisplay, type ProjectHomeItem } from "../../lib/workspaceHomeModel";
-import { projectMatchesTarget, type ProjectNavigationTarget } from "./projectNavigation";
+import { projectMatchesTarget } from "./window-project/projectNavigation";
+import type { ProjectTarget } from "./window-project/windowProjectStore";
 import { DesktopProjectMenuItem } from "./DesktopProjectMenuItem";
 
 export type DesktopWorkspaceSwitcherProps = {
   open: boolean;
   refObject: RefObject<HTMLDivElement>;
   titlebarLabel: string;
-  menuAlignment?: "start" | "center";
   workspace: Workspace;
   workspaceFolders: readonly WorkspaceFolder[];
   multiRootWorkspacesEnabled: boolean;
   availableProjects?: readonly Workspace[];
   projectItems?: readonly ProjectHomeItem[];
-  pendingProject?: ProjectNavigationTarget | null;
+  pendingProject?: ProjectTarget | null;
   onAddExistingProject?: (folderPath: string) => void;
   onOpenFolder?: () => void;
   onClose: () => void;
@@ -41,7 +41,6 @@ export function DesktopWorkspaceSwitcher({
   open,
   refObject,
   titlebarLabel,
-  menuAlignment = "start",
   workspace,
   workspaceFolders,
   multiRootWorkspacesEnabled,
@@ -70,10 +69,14 @@ export function DesktopWorkspaceSwitcher({
     const attachedPaths = new Set(attachedFolders.map((folder) => folder.workspace.path));
     return availableProjects.filter((project) => !attachedPaths.has(project.path));
   }, [attachedFolders, availableProjects]);
-  const projects = useMemo(() => projectItems ?? [...new Map(availableProjects.map(project => [project.path, project])).values()]
-    .map(project => ({ id: project.id, label: project.name,
-      localPath: project.path.startsWith("puppyone-cloud:") ? "" : project.path,
-      cloudProjectId: project.puppyoneGitRemote?.projectId ?? project.projectId ?? undefined })), [availableProjects, projectItems]);
+  // Without the account catalog, every entry is the project it names: a local
+  // folder, or a Cloud project. A folder's Git remote never merges the two.
+  const projects = useMemo<readonly ProjectHomeItem[]>(() => projectItems
+    ?? [...new Map(availableProjects.map(project => [project.path, project])).values()].map(project => {
+      const hosted = project.path.startsWith("puppyone-cloud:");
+      return { id: project.id, label: project.name, localPath: hosted ? "" : project.path,
+        ...(hosted && project.projectId ? { cloudProjectId: project.projectId } : {}) };
+    }), [availableProjects, projectItems]);
   const currentCloudProjectId = workspace.path.startsWith("puppyone-cloud:") ? workspace.projectId : null;
   useEffect(() => {
     if (!open || (view === "add" && !multiRootWorkspacesEnabled)) setView("projects");
@@ -100,7 +103,6 @@ export function DesktopWorkspaceSwitcher({
         preferredMaxHeight={520}
         preferredWidth={240}
         widthMode="fixed"
-        alignment={menuAlignment}
         role="menu"
         ariaLabel={t("shell.workspaceSwitcher.projects")}
       >

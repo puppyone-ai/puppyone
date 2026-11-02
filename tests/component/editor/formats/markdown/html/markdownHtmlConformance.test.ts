@@ -7,31 +7,31 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   markdownCodeMirrorBaseExtensions,
   markdownLivePreviewExtension,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
-import { markdownAssetUrlResolverFacet } from "../../../../../../packages/shared-ui/src/editor/markdown/core/editor/markdownLivePreviewContext";
+} from "../../../../../../src/shared-ui/editor/markdown/markdownCodeMirrorExtensions";
+import { markdownAssetUrlResolverFacet } from "../../../../../../src/shared-ui/editor/markdown/core/editor/markdownLivePreviewContext";
 import {
   getMarkdownPlanIndex,
   getMarkdownPlansInRange,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/core/plans/markdownPlanIndex";
+} from "../../../../../../src/shared-ui/editor/markdown/core/plans/markdownPlanIndex";
 import {
   getMarkdownConformanceSnapshot,
   projectMarkdownConformanceSurface,
   type MarkdownConformanceSurface,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/core/projection/markdownConformance";
-import { validateMarkdownHtmlBlockStructure } from "../../../../../../packages/shared-ui/src/editor/markdown/features/html/htmlBlockStructure";
-import { getMarkdownHtmlBlock } from "../../../../../../packages/shared-ui/src/editor/markdown/features/html/htmlBlockModel";
-import { compileMarkdownHtmlBlockPolicy } from "../../../../../../packages/shared-ui/src/editor/markdown/features/html/htmlBlockPolicy";
-import { createSanitizedBlockHtmlFragment } from "../../../../../../packages/shared-ui/src/editor/markdown/features/html/sanitizeHtml";
-import { renderMarkdownInlineFromSharedPolicy } from "../../../../../../packages/shared-ui/src/editor/markdown/composition/preview/markdownInlinePlanAdapter";
+} from "../../../../../../src/shared-ui/editor/markdown/core/projection/markdownConformance";
+import { validateMarkdownHtmlBlockStructure } from "../../../../../../src/shared-ui/editor/markdown/features/html/htmlBlockStructure";
+import { getMarkdownHtmlBlock } from "../../../../../../src/shared-ui/editor/markdown/features/html/htmlBlockModel";
+import { compileMarkdownHtmlBlockPolicy } from "../../../../../../src/shared-ui/editor/markdown/features/html/htmlBlockPolicy";
+import { createSanitizedBlockHtmlFragment } from "../../../../../../src/shared-ui/editor/markdown/features/html/sanitizeHtml";
+import { renderMarkdownInlineFromSharedPolicy } from "../../../../../../src/shared-ui/editor/markdown/composition/preview/markdownInlinePlanAdapter";
 import {
   getSafeBlockProfile,
   getSafeMediaProfile,
   MARKDOWN_HTML_PROFILES,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/platform/policy/markdownHtmlProfiles";
+} from "../../../../../../src/shared-ui/editor/markdown/platform/policy/markdownHtmlProfiles";
 import type {
   MarkdownAssetUrlResolver,
   MarkdownDialectId,
-} from "../../../../../../packages/shared-ui/src/editor/registry/viewerTypes";
+} from "../../../../../../src/shared-ui/editor/registry/viewerTypes";
 import { CENTERED_README_HEADER } from "../../../../../fixtures/editor/formats/markdown/centeredReadme";
 
 const inertAssetResolver: MarkdownAssetUrlResolver = () => null;
@@ -172,7 +172,7 @@ describe("Markdown HTML plan-level policy", () => {
     ["safe details", "<details><summary>Title</summary>Body</details>", true, "safe-block"],
     ["blocked script", "<script>alert(1)</script>", false, null],
     ["blocked form", "<form><input></form>", false, null],
-    ["unknown custom element", "<my-widget></my-widget>", false, null],
+    ["unknown custom element", "<my-widget></my-widget>", true, "safe-block"],
     ["unsafe anchor", '<div><a href="javascript:alert(1)">x</a></div>', false, null],
     ["exact HTTPS iframe", '<iframe src="https://example.com/embed"></iframe>', true, "external-web-embed"],
     ["iframe with ignored behavior", '<iframe src="https://example.com" allow="camera"></iframe>', false, null],
@@ -378,15 +378,17 @@ describe("Markdown HTML cross-surface conformance", () => {
     expect(view.dom.querySelector(".cm-md-html-rendered-surface img")).toBeNull();
   });
 
-  it("never reassembles an HTML flow across a non-HTML parser node", () => {
-    const source = "<div>\n\nMarkdown child\n\n</div>";
+  it("reassembles an HTML flow across Markdown and renders the Markdown inside", () => {
+    const source = "<div>\n\n**Markdown** child\n\n</div>";
     const first = getMarkdownHtmlBlock(createState(source), 1);
 
-    expect(first).toMatchObject({
-      source: "<div>",
-      status: "incomplete",
-    });
-    expect(first?.to).toBe(source.indexOf("\n"));
+    expect(first).toMatchObject({ from: 0, to: source.length, status: "complete" });
+    expect(first?.source).toContain("<strong>Markdown</strong>");
+  });
+
+  it("leaves an HTML flow that never closes as source", () => {
+    const first = getMarkdownHtmlBlock(createState("<div>\n\nMarkdown child"), 1);
+    expect(first).toMatchObject({ source: "<div>", status: "incomplete" });
   });
 
   it("keeps adjacent already-complete HTML blocks as independent plans", () => {
@@ -418,7 +420,6 @@ describe("Markdown HTML cross-surface conformance", () => {
     ["malformed", "<div><span>x</div></span>", "htmlBlock.malformed"],
     ["browser-repaired", "<p><div>x</div></p>", "htmlBlock.malformed"],
     ["blocked", "<script>alert(1)</script>", "htmlBlock.blocked-tag"],
-    ["unknown", "<my-widget>\nvalue\n</my-widget>", "htmlBlock.unsupported-tag"],
     ["special", "<!-- note -->", "htmlBlock.unsupported"],
   ] as const)("keeps %s block source visible before mounting", (_name, source, code) => {
     const plan = getHtmlPlan(createState(source));
@@ -496,15 +497,22 @@ describe("Markdown HTML cross-surface conformance", () => {
     expect(view.dom.textContent).toContain("safe");
   });
 
-  it.each([false, true])("leaves unsupported blocks as editor source (readOnly=%s)", (readOnly) => {
+  it.each([false, true])("drops an unknown block tag and keeps its content (readOnly=%s)", (readOnly) => {
     const source = "<my-widget>\nvalue\n</my-widget>";
     const view = mountLive(source, readOnly);
-    expect(view.dom.querySelector(".cm-md-html-widget")).toBeNull();
     expect(view.dom.querySelector(".cm-md-html-unsupported")).toBeNull();
     expect(view.state.doc.toString()).toBe(source);
-    expect(view.dom.textContent).toContain("<my-widget>");
-    expect(view.dom.textContent).toContain("value");
-    expect(view.dom.textContent).toContain("</my-widget>");
+    expect(view.dom.querySelector(".cm-md-html-rendered-surface")?.textContent).toContain("value");
+    expect(view.dom.textContent).not.toContain("<my-widget>");
+  });
+
+  it.each([false, true])("leaves a blocked root as editor source (readOnly=%s)", (readOnly) => {
+    const source = "<script>\nvalue\n</script>";
+    const view = mountLive(source, readOnly);
+    expect(view.dom.querySelector(".cm-md-html-widget")).toBeNull();
+    expect(view.state.doc.toString()).toBe(source);
+    expect(view.dom.textContent).toContain("<script>");
+    expect(view.dom.textContent).toContain("</script>");
   });
 
   it("reduces media to visible source when a surface lacks Asset Broker capability", () => {
@@ -519,12 +527,12 @@ describe("Markdown HTML cross-surface conformance", () => {
     });
   });
 
-  it("keeps ordinary GFM component-like HTML honest instead of mounting HTML errors", () => {
+  it("reduces ordinary GFM component-like HTML to its content", () => {
     const source = "<Tabs>\n<Tab>one</Tab>\n</Tabs>";
     const snapshot = getMarkdownConformanceSnapshot(createState(source, { dialect: "puppy-gfm" }));
     expect(snapshot.entries.find(({ kind }) => kind === "htmlBlock")).toMatchObject({
-      presentation: "visibleSource",
-      diagnosticCodes: ["htmlBlock.unsupported-tag"],
+      presentation: "blockAtom",
+      diagnosticCodes: ["htmlBlock.tag-reduced", "htmlBlock.tag-reduced"],
     });
   });
 
@@ -532,7 +540,7 @@ describe("Markdown HTML cross-surface conformance", () => {
     ["safe inline", '<span style="color:red">safe</span>', "SPAN", "safe"],
     ["blocked inline", "<script>alert(1)</script>", null, "<script>alert(1)</script>"],
     ["malformed inline", "<span><em>x</span></em>", null, "<span><em>x</span></em>"],
-    ["unknown inline", "<my-widget>x</my-widget>", null, "<my-widget>x</my-widget>"],
+    ["unknown inline", "<my-widget>x</my-widget>", null, "x"],
   ] as const)("uses the shared policy in the fragment surface: %s", (_name, source, tag, text) => {
     const target = document.createElement("div");
     renderMarkdownInlineFromSharedPolicy(target, source);

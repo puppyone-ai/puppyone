@@ -1,3 +1,4 @@
+import type { HomepageProjectSort } from "../preferenceStorage";
 import type { Workspace } from "@puppyone/shared-ui";
 import type { getRecentWorkspaces } from "./localFiles";
 
@@ -6,19 +7,65 @@ export type RecentWorkspaceHomeItem = {
   lastOpenedAt?: string | null;
 };
 
+/**
+ * One project on the Homepage and in project navigation. A local folder and
+ * its Cloud project are two projects (puppy-issues ADR-001), so an entry is
+ * either a local folder (`localPath`) or a Cloud project (`cloudProjectId`),
+ * never both.
+ */
 export type ProjectHomeItem = {
   id: string;
   label: string;
-  /** Empty for a hosted-only entry; never a synthetic local path. */
+  /** Empty for a Cloud project; never a synthetic local path. */
   localPath: string;
+  /** Present only on a Cloud project's own entry. */
   cloudProjectId?: string;
-  lastOpenedLocation?: "local" | "cloud";
+  /**
+   * A local folder's link to the Cloud project it was put in the Cloud as.
+   * Only a mark and a way to open that other project; never merges them.
+   */
+  linkedCloudProject?: Readonly<{ id: string; name: string }>;
+  /** What this account may do to a Cloud project's own entry. */
+  cloudActions?: Readonly<{ rename: boolean; delete: boolean }>;
   lastModifiedAt?: string | null;
   lastOpenedAt?: string | null;
 };
 
-export function projectOpeningLocation(item: ProjectHomeItem): "local" | "cloud" {
-  return item.cloudProjectId && (item.lastOpenedLocation === "cloud" || !item.localPath) ? "cloud" : "local";
+export function projectHomeItemLocation(item: ProjectHomeItem): "local" | "cloud" {
+  return item.localPath ? "local" : "cloud";
+}
+
+export const PROJECT_HOME_PLACES = ["local", "cloud"] as const;
+export type ProjectHomePlace = typeof PROJECT_HOME_PLACES[number];
+
+/** The places that hold at least one of these projects. */
+export function projectHomeLocations(items: readonly ProjectHomeItem[]) {
+  return new Set(items.map(projectHomeItemLocation));
+}
+
+function modificationTime(item: ProjectHomeItem) {
+  const time = Date.parse(item.lastModifiedAt ?? "");
+  return Number.isNaN(time) ? Number.NEGATIVE_INFINITY : time;
+}
+
+/** Narrows and orders projects, leaving equals in the order the catalog gave them. */
+export function viewProjectHomeItems(items: readonly ProjectHomeItem[], { places, sort, locale, untitled }: {
+  /** The places to show, any of them; none chosen means every place. */
+  places: ReadonlySet<ProjectHomePlace>;
+  sort: HomepageProjectSort;
+  locale: string;
+  untitled: string;
+}) {
+  const shown = items.filter((item) => places.size === 0 || places.has(projectHomeItemLocation(item)));
+  if (sort === "name") {
+    const collator = new Intl.Collator(locale, { numeric: true, sensitivity: "base" });
+    return shown.sort((a, b) => collator.compare(getProjectName(a, untitled), getProjectName(b, untitled)));
+  }
+  return shown.sort((a, b) => {
+    const [newer, older] = [modificationTime(b), modificationTime(a)];
+    if (newer === older) return 0;
+    return newer > older ? 1 : -1;
+  });
 }
 
 export function mergeWorkspaceLists(current: Workspace[], incoming: Workspace[]) {
@@ -37,6 +84,20 @@ export function getRecentWorkspaceItems(
     workspace,
     lastOpenedAt: null,
   }));
+}
+
+/**
+ * A re-read of the recent list has names and paths but no dates, which is most of
+ * what orders it. What hydration learned stands until hydration learns it again.
+ */
+export function keepHydratedRecentItems(next: RecentWorkspaceHomeItem[], current: readonly RecentWorkspaceHomeItem[]) {
+  const known = new Map(current.map(({ workspace }) => [workspace.path, workspace]));
+  return next.map((item) => {
+    const previous = known.get(item.workspace.path);
+    if (previous?.hydrationState !== "ready" || item.workspace.hydrationState !== "metadata") return item;
+    const { commitCount, lastModifiedAt, hydrationState } = previous;
+    return { ...item, workspace: { ...item.workspace, commitCount, lastModifiedAt, hydrationState } };
+  });
 }
 
 export function getWorkspaceParentPathForDisplay(workspacePath: string): string {

@@ -40,7 +40,7 @@ import type { GitStatusSnapshot } from "../../types/electron";
 import { useDesktopExplorerFrame } from "./layout/useDesktopExplorerFrame";
 import { DesktopSidebarFooterNavigation } from "./navigation";
 import { WorkspaceSurfaceOutlet, type ResolvedWorkspaceSurface } from "./workspace-surfaces";
-import type { DesktopView } from "../../components/DesktopCloudShell";
+import type { DesktopView } from "../../components/ProjectShell";
 import { DesktopEditorSplitView } from "../editor-workbench/layout/DesktopEditorSplitView";
 import type { DesktopEditorWorkbenchController } from "../editor-workbench/controller/useDesktopEditorWorkbench";
 import {
@@ -54,6 +54,8 @@ import { useProjectExplorerSession } from "../data-workspace/useProjectExplorerS
 type DataWorkspaceProps = ComponentProps<typeof DataWorkspace>;
 
 export type DesktopDataWorkspaceSurfaceProps = {
+  /** The project's first document is still on its way to the editor. */
+  workspaceEntering?: boolean;
   activeAiEditRequest: AiEditRequest | null;
   activeDocumentPath: string | null;
   activeExplorerPath: string | null;
@@ -106,6 +108,8 @@ export type DesktopDataWorkspaceSurfaceProps = {
   workspaceRefreshToken: WorkspaceContentChange;
   workspaceAtomicRefreshToken: number;
   workspaceSurfaceError: string | null;
+  /** What this local folder's Cloud project means; never shown for Cloud resources. */
+  cloudProjectNotice?: ReactNode;
   /** Offers Retry on the workspace notice when its source can reconnect. */
   onRetryWorkspaceSurface?: () => void;
   sidebarCreateMenuOpen: boolean;
@@ -117,6 +121,7 @@ export function DesktopDataWorkspaceSurface({
   activeExplorerPath,
   dataPort,
   documentSourceKind = "local",
+  workspaceEntering = false,
   providerStateContent,
   editorWorkbench,
   externalOpen,
@@ -144,6 +149,7 @@ export function DesktopDataWorkspaceSurface({
   workspaceAtomicRefreshToken,
   workspaceSurfaceError,
   onRetryWorkspaceSurface,
+  cloudProjectNotice,
   sidebarCreateMenuOpen,
 }: DesktopDataWorkspaceSurfaceProps) {
   const markdownBlockDragEnabled = useDesktopPreference(s => s.experimentalSettings.enableMarkdownBlockDrag);
@@ -214,6 +220,7 @@ export function DesktopDataWorkspaceSurface({
         : undefined}
     >
       <FloatingNoticeStack ref={setWorkspaceNoticeStack} className="desktop-workspace-notice-stack">
+        {localResources && cloudProjectNotice}
         {visibleWorkspaceSurfaceError && (
           <FloatingNotice
             tone="warning"
@@ -397,6 +404,7 @@ export function DesktopDataWorkspaceSurface({
           ? (state) => providerStateContent ?? (
               <>
                 <DesktopEditorSplitView
+                  entering={workspaceEntering}
                   noticeStack={workspaceNoticeStack}
                   aiEditRequest={activeAiEditRequest}
                   dataPort={dataPort}

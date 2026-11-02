@@ -25,7 +25,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 export const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const rulesPath = "scripts/user-vocabulary-rules.json";
-export const baselinePath = ".user-vocabulary-known-violations.json";
+export const baselinePath = "scripts/quality/user-vocabulary-baseline.json";
 export const localesRoot = "locales/renderer";
 export const documentRepository = "puppy-issues";
 export const documentPath = "document/product-philosophy.md";

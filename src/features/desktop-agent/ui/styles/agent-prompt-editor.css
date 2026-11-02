@@ -26,4 +26,17 @@
 .desktop-agent-prompt-editor .cm-content[contenteditable="false"] { cursor: default; }
 .desktop-agent-prompt-editor .cm-line { padding: 0; }
 .desktop-agent-prompt-editor .cm-placeholder { color: var(--agent-text-subtle); }
+/* Chromium draws the native caret beside an atomic inline (the placeholder
+ * widget and its zero-width image buffer) at full line-box height. Taking both
+ * out of flow leaves an empty line, so the resting caret matches typed text. */
+.desktop-agent-prompt-editor .cm-line:has(> .cm-placeholder) { position: relative; }
+.desktop-agent-prompt-editor .cm-line:has(> .cm-placeholder) > .cm-widgetBuffer { display: none; }
+.desktop-agent-prompt-editor .cm-line > .cm-placeholder {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .desktop-agent-prompt-editor .cm-cursor { border-inline-start-color: var(--agent-text); }

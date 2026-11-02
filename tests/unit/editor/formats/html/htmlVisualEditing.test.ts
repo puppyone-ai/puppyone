@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { CodeMirrorDocumentModel } from "../../../../../packages/shared-ui/src/editor/document-session/CodeMirrorDocumentModel";
-import { HtmlVisualSession } from "../../../../../packages/shared-ui/src/editor/viewers/html/HtmlVisualSession";
-import { parseHtmlSource } from "../../../../../packages/shared-ui/src/editor/viewers/html/htmlSourceIndex";
-import { buildHtmlEditingProjection } from "../../../../../packages/shared-ui/src/editor/viewers/html/htmlPreviewProjection";
-import { decodeHtmlBridgeMessage } from "../../../../../packages/shared-ui/src/editor/viewers/html/htmlBridgeProtocol";
-import { imageSourceReference } from "../../../../../packages/shared-ui/src/editor/viewers/html/htmlImageReference";
-import { compileHtmlEdit } from "../../../../../packages/shared-ui/src/editor/viewers/html/htmlEditCompiler";
-import { buildHtmlPreviewDocument, getHtmlPreviewPolicy } from "../../../../../packages/shared-ui/src/editor/viewers/html/HtmlPreviewFrame";
-import { readHtmlPageViewport } from "../../../../../packages/shared-ui/src/editor/viewers/html/htmlPageViewport";
+import { CodeMirrorDocumentModel } from "../../../../../src/shared-ui/editor/document-session/CodeMirrorDocumentModel";
+import { HtmlVisualSession } from "../../../../../src/shared-ui/editor/viewers/html/HtmlVisualSession";
+import { parseHtmlSource } from "../../../../../src/shared-ui/editor/viewers/html/htmlSourceIndex";
+import { buildHtmlEditingProjection } from "../../../../../src/shared-ui/editor/viewers/html/htmlPreviewProjection";
+import { decodeHtmlBridgeMessage } from "../../../../../src/shared-ui/editor/viewers/html/htmlBridgeProtocol";
+import { imageSourceReference } from "../../../../../src/shared-ui/editor/viewers/html/htmlImageReference";
+import { compileHtmlEdit } from "../../../../../src/shared-ui/editor/viewers/html/htmlEditCompiler";
+import { buildHtmlPreviewDocument, getHtmlPreviewPolicy } from "../../../../../src/shared-ui/editor/viewers/html/HtmlPreviewFrame";
+import { readHtmlPageViewport } from "../../../../../src/shared-ui/editor/viewers/html/htmlPageViewport";
 
 function setup(content: string) {
   const model = new CodeMirrorDocumentModel(content, undefined, true);

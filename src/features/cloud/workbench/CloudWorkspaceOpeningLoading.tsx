@@ -1,14 +1,22 @@
+import { useSyncExternalStore } from "react";
 import { useLocalization } from "@puppyone/localization";
-import { PageLoading } from "../../../components/loading";
-import type { CloudWorkspaceOpeningPhase } from "../files/cloudWorkspaceOpening";
+import { ProjectOpeningLoading } from "../../../components/loading";
+import type { CloudWorkspaceOpeningPhase, CloudWorkspaceOpeningProgress } from "../files/cloudWorkspaceOpening";
 
 const labels = {
   checking: "cloud.loading.startingWorkspace",
   connecting: "cloud.loading.startingWorkspace",
   files: "cloud.loading.files",
-} as const;
+} as const satisfies Record<CloudWorkspaceOpeningPhase, string>;
 
-export function CloudWorkspaceOpeningLoading({ phase }: { phase: CloudWorkspaceOpeningPhase }) {
+export function CloudWorkspaceOpeningLoading({ progress, onCancel }: {
+  progress: CloudWorkspaceOpeningProgress;
+  onCancel?: () => void;
+}) {
   const { t } = useLocalization();
-  return <PageLoading variant="fill" label={t(labels[phase])} />;
+  const phase = useSyncExternalStore(progress.subscribe, progress.getSnapshot);
+  return <ProjectOpeningLoading label={t(labels[phase])}>
+    {onCancel && <button type="button" className="desktop-dialog-button"
+      onClick={onCancel}>{t("common.action.cancel")}</button>}
+  </ProjectOpeningLoading>;
 }

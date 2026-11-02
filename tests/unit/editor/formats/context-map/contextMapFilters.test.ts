@@ -3,7 +3,7 @@ import {
   DEFAULT_CONTEXT_MAP_LINE_FILTERS,
   isContextMapReferenceVisible,
   updateContextMapLineFilter,
-} from "../../../../../packages/shared-ui/src/editor/viewers/context-map/contextMapFilters";
+} from "../../../../../src/shared-ui/editor/viewers/context-map/contextMapFilters";
 
 describe("Context Map line filters", () => {
   it("shows every line category by default", () => {

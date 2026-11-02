@@ -23,7 +23,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const desktopRoot = path.resolve(__dirname, "..");
 const mainWatchPaths = [
   path.join(desktopRoot, "electron"),
-  path.join(desktopRoot, "local-api"),
   path.join(desktopRoot, "locales", "native"),
   path.join(desktopRoot, "locales", "manifest.json"),
   path.join(desktopRoot, "assets", "brand", "puppy", "puppy-app-image.png"),

@@ -1,6 +1,7 @@
+import { Tooltip } from "@puppyone/shared-ui";
+import { Forward } from "lucide-react";
 import { useDesktopPreference } from "../../preferencesStore";
 import { Fragment, type ReactNode } from "react";
-import { Forward } from "lucide-react";
 import { useLocalization } from "@puppyone/localization";
 import { getOrderedHeaderElementDefinitions, type HeaderElementRenderContext } from "./headerElements";
 import type { DesktopUpdateState } from "../../types/electron";
@@ -103,15 +104,16 @@ export function DesktopTitlebarActions({
       group: "header",
       id: "share",
       node: (
-        <button
-          type="button"
-          className="desktop-titlebar-action desktop-titlebar-share"
-          aria-label={shareLabel}
-          onClick={onShare}
-        >
-          <Forward size={16} strokeWidth={1.8} aria-hidden="true" />
-          <span className="desktop-titlebar-share-label">{shareLabel}</span>
-        </button>
+        <Tooltip content={shareLabel}>
+          <button
+            type="button"
+            className="desktop-titlebar-action desktop-titlebar-share"
+            aria-label={shareLabel}
+            onClick={onShare}
+          >
+            <Forward size={15} strokeWidth={1.8} aria-hidden="true" />
+          </button>
+        </Tooltip>
       ),
     });
   }

@@ -192,47 +192,6 @@
   flex: 1 1 auto;
 }
 
-/* The opt-in centered project has its own grid track, so its menu never
- * overlays tabs or actions. Equal outer tracks center it on the full window;
- * platform caption insets are reserved inside those tracks. */
-.desktop-shell .desktop-titlebar[data-centered-project="true"] .desktop-titlebar-layout {
-  grid-template-columns: minmax(0, 1fr) minmax(0, max-content) minmax(0, 1fr);
-  gap: 0;
-  width: 100%;
-  margin-left: 0;
-  padding: 0;
-}
-
-.desktop-titlebar[data-centered-project="true"] .desktop-titlebar-leading {
-  display: grid;
-  box-sizing: border-box;
-  min-width: 0;
-  overflow: hidden;
-  height: 100%;
-  grid-template-columns: minmax(0, max-content) minmax(var(--desktop-titlebar-drag-min-width), 1fr);
-  align-items: center;
-  gap: 6px;
-  padding-inline: calc(var(--desktop-titlebar-safe-area-x) + var(--desktop-titlebar-content-start)) 6px;
-}
-
-.desktop-titlebar-centered-context {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  max-width: min(440px, 40vw);
-  height: 100%;
-}
-
-.desktop-titlebar[data-centered-project="true"] .desktop-titlebar-trailing {
-  min-width: 0;
-  justify-content: flex-end;
-  padding-inline-end: 6px;
-}
-
-.desktop-titlebar[data-centered-project="true"][data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-trailing {
-  padding-inline-end: calc(var(--desktop-titlebar-windows-controls-width) + 6px);
-}
-
 .desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-layout {
   position: relative;
   padding-right: 0;
@@ -640,6 +599,12 @@
   inset-inline-end: calc(100% + var(--desktop-titlebar-button-gap) + 4px);
 }
 
+/* The Agents stay beside Share, on the editor's side of the boundary. */
+.desktop-shell[data-header-follows-right-sidebar="true"] .desktop-titlebar-cloud-agents-anchor {
+  position: absolute;
+  inset-inline-end: calc(100% + var(--desktop-titlebar-button-gap) + 4px + var(--desktop-chrome-control-size));
+}
+
 .desktop-shell[data-header-follows-right-sidebar="true"]
   .desktop-titlebar-share + .desktop-titlebar-action-divider {
   position: absolute;
@@ -679,31 +644,64 @@
   transition: background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
 }
 
-.desktop-titlebar-share {
-  width: auto;
-  min-width: var(--desktop-chrome-control-size);
-  gap: 6px;
-  padding-inline: 7px 8px;
-  font-family: var(--desktop-titlebar-context-font-family);
-  font-size: var(--desktop-titlebar-context-font-size);
-  font-weight: var(--desktop-titlebar-context-font-weight);
-  line-height: var(--desktop-titlebar-context-line-height);
-  white-space: nowrap;
-}
-
-.desktop-titlebar-share > svg {
-  display: block;
-  flex: 0 0 auto;
-}
-
-.desktop-titlebar-share-label {
-  display: block;
-}
-
 .desktop-titlebar-cloud-tools {
   display: inline-flex;
   align-items: center;
   gap: var(--desktop-titlebar-button-gap);
+}
+
+/* The Agents stand apart from Share: they are who is here, Share is something
+   to do. Each mark is its own round button, so pressing one asks about it. */
+.desktop-titlebar-cloud-agents-anchor {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  margin-inline-end: 6px;
+}
+
+.desktop-titlebar-cloud-agents {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.desktop-titlebar-cloud-agent {
+  appearance: none;
+  display: grid;
+  width: var(--po-control-size-compact);
+  height: var(--po-control-size-compact);
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--desktop-titlebar-text-muted);
+  transition: background 0.12s ease;
+}
+
+.desktop-titlebar-cloud-agent:hover,
+.desktop-titlebar-cloud-agent[aria-expanded="true"] {
+  background: var(--desktop-titlebar-hover);
+}
+
+.desktop-titlebar-cloud-agent:focus-visible {
+  outline: 1px solid var(--desktop-titlebar-focus);
+  outline-offset: -1px;
+}
+
+/* Not stacked, so nothing has to be covered: at rest a mark is only its outline. */
+.desktop-titlebar-cloud-agent .desktop-project-reach-mark:not([data-reach-activity]) {
+  --reach-mark-fill: transparent;
+  box-shadow: inset 0 0 0 1px var(--reach-mark-outline);
+  filter: grayscale(1);
+}
+
+.desktop-titlebar-cloud-agent:nth-child(2) .desktop-project-reach-mark[data-reach-activity] {
+  animation-delay: 260ms;
+}
+
+.desktop-titlebar-cloud-agent:nth-child(3) .desktop-project-reach-mark[data-reach-activity] {
+  animation-delay: 520ms;
 }
 
 .desktop-titlebar-cloud-tool > svg {
@@ -980,15 +978,6 @@
   transition: none;
 }
 
-.desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"]
-  .desktop-titlebar-action.desktop-titlebar-share {
-  width: auto;
-  min-width: var(--desktop-titlebar-windows-control-width);
-  flex-basis: auto;
-  gap: 6px;
-  padding-inline: 10px;
-}
-
 .desktop-titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] .desktop-titlebar-actions .desktop-titlebar-terminal {
   width: var(--desktop-titlebar-windows-control-width);
   min-width: var(--desktop-titlebar-windows-control-width);
@@ -1084,63 +1073,6 @@
   height: 100%;
   align-items: center;
   gap: var(--desktop-titlebar-button-gap);
-}
-
-.desktop-titlebar-location-wrap {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  height: 100%;
-}
-
-.desktop-titlebar-location-button {
-  display: inline-flex;
-  box-sizing: border-box;
-  align-items: center;
-  justify-content: center;
-  gap: var(--desktop-titlebar-workspace-icon-label-gap);
-  height: var(--desktop-titlebar-control-height);
-  padding: 0 var(--desktop-titlebar-workspace-inline-padding);
-  border: 0;
-  border-radius: var(--desktop-toolbar-action-radius);
-  background: transparent;
-  color: var(--desktop-titlebar-text-muted);
-  font-family: var(--desktop-titlebar-context-font-family);
-  font-size: var(--desktop-titlebar-context-font-size);
-  font-weight: var(--desktop-titlebar-context-font-weight);
-  line-height: var(--desktop-titlebar-context-line-height);
-  white-space: nowrap;
-}
-
-.desktop-titlebar-location-button .desktop-titlebar-workspace-mark {
-  display: grid;
-  width: var(--desktop-titlebar-workspace-icon-slot-size);
-  height: var(--desktop-titlebar-workspace-icon-slot-size);
-  flex: 0 0 var(--desktop-titlebar-workspace-icon-slot-size);
-  place-items: center;
-  color: inherit;
-}
-
-.desktop-titlebar-location-button .desktop-titlebar-workspace-mark > svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-/* A location that could not be opened takes the Header's one warning hue. */
-.desktop-titlebar-location-button .desktop-titlebar-workspace-mark[data-computer-status="failed"] {
-  color: var(--po-warning, currentColor);
-}
-
-.desktop-titlebar-location-button:hover,
-.desktop-titlebar-location-button[aria-expanded="true"] {
-  background: var(--desktop-titlebar-hover);
-  color: var(--desktop-titlebar-text);
-}
-
-.desktop-titlebar-location-button:focus-visible {
-  outline: 1px solid var(--desktop-titlebar-focus);
-  outline-offset: -1px;
 }
 
 .desktop-titlebar-workspace-button {

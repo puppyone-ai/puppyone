@@ -11,9 +11,9 @@ import { join } from "node:path";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { DataNode, FileContent } from "../../../../packages/shared-ui/src/core/types";
-import { DataWorkspace } from "../../../../packages/shared-ui/src/data/DataWorkspace";
-import { flushActiveDocumentSessions } from "../../../../packages/shared-ui/src/editor/document-session/activeDocumentSessions";
+import type { DataNode, FileContent } from "../../../../src/shared-ui/core/types";
+import { DataWorkspace } from "../../../../src/shared-ui/data/DataWorkspace";
+import { flushActiveDocumentSessions } from "../../../../src/shared-ui/editor/document-session/activeDocumentSessions";
 import { createLocalDataPort } from "../../../../src/lib/localFiles";
 import { withTestLocalization } from "../../../support/react/localization";
 

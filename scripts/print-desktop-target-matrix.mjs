@@ -3,7 +3,7 @@
 import {
   assertDesktopTargetManifest,
   createDesktopCiMatrix,
-} from "../tooling/desktop/targets/target-manifest.mjs";
+} from "./desktop/targets/target-manifest.mjs";
 
 const scopeArgument = readArgument("--scope") ?? "contracts";
 const channel = readArgument("--channel");

@@ -69,8 +69,8 @@ export function AgentComposerToolbar({
           {primaryActionBusy
             ? <LoaderCircle size={15} className="desktop-agent-spin" />
             : running
-              ? <Square size={11} fill="currentColor" />
-              : <ArrowUp size={17} strokeWidth={1.6} />}
+              ? <Square size={10} fill="currentColor" />
+              : <ArrowUp size={15} strokeWidth={2.1} />}
         </button></Tooltip>
       </div>
     </div>

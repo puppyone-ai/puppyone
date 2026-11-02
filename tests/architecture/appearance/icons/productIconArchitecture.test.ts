@@ -4,10 +4,10 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const repositoryRoot = fileURLToPath(new URL("../../../..", import.meta.url));
-const registryFile = "packages/shared-ui/src/icons/productIcons.tsx";
+const registryFile = "src/shared-ui/icons/productIcons.tsx";
 // File-icon themes own their own complete drawing sets; the default theme
 // draws its folder from the registry's FOLDER_ICON_PATHS.
-const fileIconThemes = "packages/shared-ui/src/file/icon-themes/";
+const fileIconThemes = "src/shared-ui/file/icon-themes/";
 
 /** Lucide drawings that state a product meaning and so belong to the registry only. */
 const REGISTERED_DRAWINGS = new Map([
@@ -39,7 +39,7 @@ function lucideImports(source: string) {
 }
 
 describe("product icon architecture", () => {
-  const files = [...sourceFiles("src"), ...sourceFiles("packages/shared-ui/src")]
+  const files = sourceFiles("src")
     .filter((file) => file !== registryFile && !file.startsWith(fileIconThemes));
 
   it("asks the registry for home, folder, local and Cloud meanings instead of importing drawings", () => {
@@ -51,15 +51,13 @@ describe("product icon architecture", () => {
 
   it("draws every in-place expand arrow with the registry's DisclosureIcon", () => {
     const disclosureSites = [
-      "packages/shared-ui/src/data/ExplorerTree.tsx",
+      "src/shared-ui/data/ExplorerTree.tsx",
       "src/features/cloud/sections/access/CreateAccessFolderTree.tsx",
       "src/features/cloud/sections/access/CreateAccessDialog.tsx",
       "src/features/cloud/sections/access/AccessMethodCard.tsx",
       "src/features/source-control/components.tsx",
       "src/features/source-control/GitHistoryTimeline.tsx",
       "src/features/automation/AutomationControls.tsx",
-      "src/features/cloud/workbench/RepositoryCloudSwitchGate.tsx",
-      "src/features/cloud/workbench/CloudWorkspaceRecovery.tsx",
     ];
     for (const file of disclosureSites) {
       expect(readFileSync(path.join(repositoryRoot, file), "utf8"), file).toContain("<DisclosureIcon");

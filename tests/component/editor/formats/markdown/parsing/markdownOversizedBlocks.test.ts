@@ -13,19 +13,19 @@ import {
   MARKDOWN_TABLE_MODEL_SOURCE_BYTE_LIMIT,
   MARKDOWN_RENDER_BUDGET_VERSION,
   resetMarkdownBlockBudgetDiagnostics,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/core/plans/markdownBlockExecution";
-import { MarkdownBlockVirtualizer } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/codemirror/blockVirtualizer";
-import { createMarkdownTableWindowController } from "../../../../../../packages/shared-ui/src/editor/markdown/features/table/tableWindowController";
-import type { MarkdownTableRow } from "../../../../../../packages/shared-ui/src/editor/markdown/features/table/tableModel";
-import type { MarkdownEmbedHost } from "../../../../../../packages/shared-ui/src/editor/markdown/platform/codemirror/embedHost";
-import { createSanitizedBlockHtmlFragment } from "../../../../../../packages/shared-ui/src/editor/markdown/features/html/sanitizeHtml";
-import { resolveMarkdownImageSrcset } from "../../../../../../packages/shared-ui/src/editor/markdown/features/image/markdownImageModel";
-import { getMarkdownTableBlock } from "../../../../../../packages/shared-ui/src/editor/markdown/features/table/tableModel";
+} from "../../../../../../src/shared-ui/editor/markdown/core/plans/markdownBlockExecution";
+import { MarkdownBlockVirtualizer } from "../../../../../../src/shared-ui/editor/markdown/platform/codemirror/blockVirtualizer";
+import { createMarkdownTableWindowController } from "../../../../../../src/shared-ui/editor/markdown/features/table/tableWindowController";
+import type { MarkdownTableRow } from "../../../../../../src/shared-ui/editor/markdown/features/table/tableModel";
+import type { MarkdownEmbedHost } from "../../../../../../src/shared-ui/editor/markdown/platform/codemirror/embedHost";
+import { createSanitizedBlockHtmlFragment } from "../../../../../../src/shared-ui/editor/markdown/features/html/sanitizeHtml";
+import { resolveMarkdownImageSrcset } from "../../../../../../src/shared-ui/editor/markdown/features/image/markdownImageModel";
+import { getMarkdownTableBlock } from "../../../../../../src/shared-ui/editor/markdown/features/table/tableModel";
 import {
   markdownCodeMirrorBaseExtensions,
   markdownLivePreviewExtension,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
-import { compileCodeBlockElementPlan } from "../../../../../../packages/shared-ui/src/editor/markdown/features/code-block/codeBlockPlan";
+} from "../../../../../../src/shared-ui/editor/markdown/markdownCodeMirrorExtensions";
+import { compileCodeBlockElementPlan } from "../../../../../../src/shared-ui/editor/markdown/features/code-block/codeBlockPlan";
 
 const views: EditorView[] = [];
 

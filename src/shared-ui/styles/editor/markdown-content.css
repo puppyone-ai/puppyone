@@ -1,0 +1,471 @@
+/* Markdown semantic projection. Registered theme files own visual values;
+   the generated contract binds them on the document boundary. Editing chrome
+   and intrinsic layout stay with their feature adapters. */
+.markdown-codemirror-editor {
+  --po-selection-background: var(--po-md-selection-bg);
+  --po-selection-inactive-background: var(--po-md-selection-inactive-bg);
+  --po-md-presentation-version: 6;
+  --po-editor-content-font: var(--po-md-content-font);
+  background: var(--po-md-surface-background);
+  color: var(--po-md-content-color);
+}
+
+.markdown-codemirror-editor .cm-scroller {
+  line-height: var(--po-md-content-line-height);
+}
+
+.markdown-codemirror-editor .cm-line {
+  /* A theme may express line-height as a ratio or a length. Resolve the actual
+     line box instead of passing a unitless ratio to a length-only property. */
+  min-height: 1lh;
+}
+
+.markdown-codemirror-editor .cm-md-syntax-heading,
+.markdown-codemirror-editor .cm-md-heading {
+  color: var(--po-md-heading-color);
+  font-weight: var(--po-md-current-heading-weight, var(--po-md-heading-weight));
+  line-height: inherit;
+}
+
+/* Wrapped visual lines use the body line-height. Each ordinary source line
+   adds the file-owned break gap once, including empty source lines. Native
+   CodeMirror measures border boxes, so project outer spacing as padding;
+   HTML paragraphs below consume the same role as margin. Paragraph/list
+   overrides are additional semantic gaps, never replacement line heights. */
+.markdown-codemirror-editor[data-live-preview="true"] .cm-line:not(:is(.cm-md-heading, .cm-md-table-line, .cm-md-code-fence, .cm-md-code-block-line)) {
+  padding-block: var(--md-line-padding-before, 0px) calc(var(--po-md-source-line-gap) + var(--md-line-padding-after, 0px));
+}
+
+.markdown-codemirror-editor[data-live-preview="true"] .cm-md-paragraph-start {
+  --md-line-padding-before: var(--po-md-paragraph-gap-before);
+}
+
+.markdown-codemirror-editor[data-live-preview="true"] .cm-md-paragraph-end {
+  --md-line-padding-after: var(--po-md-paragraph-gap-after);
+}
+
+.markdown-codemirror-editor[data-live-preview="true"] .cm-md-list-item-start {
+  --md-line-padding-before: calc(var(--po-md-list-item-gap) / 2);
+}
+
+.markdown-codemirror-editor[data-live-preview="true"] .cm-md-list-item-end {
+  --md-line-padding-after: calc(var(--po-md-list-item-gap) / 2);
+}
+
+.markdown-codemirror-editor[data-live-preview="true"] .cm-md-list-start {
+  --md-line-padding-before: calc(var(--po-md-paragraph-gap-before) + var(--po-md-list-item-gap) / 2);
+}
+
+.markdown-codemirror-editor[data-live-preview="true"] .cm-md-list-end {
+  --md-line-padding-after: calc(var(--po-md-paragraph-gap-after) + var(--po-md-list-item-gap) / 2);
+}
+
+/* CodeMirror measures line border boxes. Represent semantic outer gaps as
+   line padding so its height map, caret hit testing and scroll anchors include
+   the full heading rhythm; HTML consumes the same roles as block margins. */
+.markdown-codemirror-editor[data-live-preview="true"] .cm-line.cm-md-heading {
+  padding-block: var(--po-md-current-heading-gap-before) var(--po-md-current-heading-gap-after);
+  line-height: var(--po-md-heading-line-height);
+}
+
+.markdown-codemirror-editor[data-live-preview="true"] .cm-md-heading-1 {
+  --po-md-current-heading-gap-before: var(--po-md-h1-gap-before);
+  --po-md-current-heading-gap-after: var(--po-md-h1-gap-after);
+  --po-md-current-heading-weight: var(--po-md-h1-weight);
+  font-size: var(--po-md-h1-size);
+}
+
+.markdown-codemirror-editor[data-live-preview="true"] .cm-md-heading-2 {
+  --po-md-current-heading-gap-before: var(--po-md-h2-gap-before);
+  --po-md-current-heading-gap-after: var(--po-md-h2-gap-after);
+  --po-md-current-heading-weight: var(--po-md-h2-weight);
+  font-size: var(--po-md-h2-size);
+}
+
+.markdown-codemirror-editor[data-live-preview="true"] .cm-md-heading-3 {
+  --po-md-current-heading-gap-before: var(--po-md-h3-gap-before);
+  --po-md-current-heading-gap-after: var(--po-md-h3-gap-after);
+  --po-md-current-heading-weight: var(--po-md-h3-weight);
+  font-size: var(--po-md-h3-size);
+}
+
+.markdown-codemirror-editor[data-live-preview="true"] :is(.cm-md-heading-1, .cm-md-heading-2),
+.markdown-codemirror-editor .cm-md-html-rendered-surface :is(h1, h2) {
+  box-shadow: inset 0 -1px var(--po-md-heading-border-color);
+}
+
+.markdown-codemirror-editor[data-live-preview="true"] .cm-md-heading-4 {
+  --po-md-current-heading-gap-before: var(--po-md-h4-gap-before);
+  --po-md-current-heading-gap-after: var(--po-md-h4-gap-after);
+  font-size: var(--po-md-h4-size);
+}
+
+.markdown-codemirror-editor[data-live-preview="true"] .cm-md-heading-5 {
+  --po-md-current-heading-gap-before: var(--po-md-h5-gap-before);
+  --po-md-current-heading-gap-after: var(--po-md-h5-gap-after);
+  font-size: var(--po-md-h5-size);
+}
+
+.markdown-codemirror-editor[data-live-preview="true"] .cm-md-heading-6 {
+  --po-md-current-heading-gap-before: var(--po-md-h6-gap-before);
+  --po-md-current-heading-gap-after: var(--po-md-h6-gap-after);
+  color: var(--po-md-h6-color);
+  font-size: var(--po-md-h6-size);
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface {
+  --background-primary: var(--po-md-surface-background);
+  --background-primary-alt: color-mix(in srgb, var(--po-panel) 56%, transparent);
+  --background-modifier-border: var(--po-divider);
+  --text-muted: var(--po-md-blockquote-color);
+  --text-normal: var(--po-md-content-color);
+  box-sizing: border-box;
+  contain: layout paint;
+  display: flow-root;
+  width: 100%;
+  max-width: 100%;
+  overflow: clip;
+  color: var(--po-md-content-color);
+  font-family: var(--po-md-content-font);
+  font-size: var(--po-md-content-size);
+  font-weight: var(--po-md-content-weight);
+  letter-spacing: var(--po-md-content-letter-spacing);
+  line-height: var(--po-md-content-line-height);
+  /* CodeMirror source lines use inherited `white-space: pre`. Sanitized HTML
+     must re-enter browser HTML whitespace semantics at this adapter boundary. */
+  white-space: normal;
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface *,
+.markdown-codemirror-editor .cm-md-html-rendered-surface *::before,
+.markdown-codemirror-editor .cm-md-html-rendered-surface *::after {
+  box-sizing: border-box;
+}
+
+.markdown-codemirror-editor .cm-md-html-block {
+  margin: 0;
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface :where(h1, h2, h3, h4, h5, h6) {
+  margin-block: var(--po-md-current-heading-gap-before) var(--po-md-current-heading-gap-after);
+  color: var(--po-md-heading-color);
+  font-weight: var(--po-md-heading-weight);
+  line-height: var(--po-md-heading-line-height);
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface h1 {
+  --po-md-current-heading-gap-before: var(--po-md-h1-gap-before);
+  --po-md-current-heading-gap-after: var(--po-md-h1-gap-after);
+  font-size: var(--po-md-h1-size);
+  font-weight: var(--po-md-h1-weight);
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface h2 {
+  --po-md-current-heading-gap-before: var(--po-md-h2-gap-before);
+  --po-md-current-heading-gap-after: var(--po-md-h2-gap-after);
+  font-size: var(--po-md-h2-size);
+  font-weight: var(--po-md-h2-weight);
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface h3 {
+  --po-md-current-heading-gap-before: var(--po-md-h3-gap-before);
+  --po-md-current-heading-gap-after: var(--po-md-h3-gap-after);
+  font-size: var(--po-md-h3-size);
+  font-weight: var(--po-md-h3-weight);
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface h4 {
+  --po-md-current-heading-gap-before: var(--po-md-h4-gap-before);
+  --po-md-current-heading-gap-after: var(--po-md-h4-gap-after);
+  font-size: var(--po-md-h4-size);
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface h5 {
+  --po-md-current-heading-gap-before: var(--po-md-h5-gap-before);
+  --po-md-current-heading-gap-after: var(--po-md-h5-gap-after);
+  font-size: var(--po-md-h5-size);
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface h6 {
+  --po-md-current-heading-gap-before: var(--po-md-h6-gap-before);
+  --po-md-current-heading-gap-after: var(--po-md-h6-gap-after);
+  color: var(--po-md-h6-color);
+  font-size: var(--po-md-h6-size);
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface :where(p, blockquote, pre, table, ul, ol, dl) {
+  margin-block: 0 var(--po-md-block-gap);
+}
+
+/* HTML re-enters normal block layout and consumes the same paragraph roles. */
+.markdown-codemirror-editor .cm-md-html-rendered-surface p {
+  margin-block: var(--po-md-paragraph-gap-before) calc(var(--po-md-source-line-gap) + var(--po-md-paragraph-gap-after));
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface li > p:first-child {
+  margin-block-start: 0;
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface li > p:last-child {
+  margin-block-end: 0;
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface pre {
+  background: var(--po-md-code-block-background);
+  padding: var(--po-md-code-block-padding);
+  border-radius: var(--po-md-code-block-radius);
+  color: var(--po-md-code-block-color);
+  font-size: var(--po-md-code-block-font-size);
+  font-family: var(--po-md-code-font);
+  font-weight: var(--po-md-code-block-font-weight);
+  line-height: var(--po-md-code-block-line-height);
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface pre code {
+  color: inherit;
+  /* Inherit the block's face, size and leading; UA monospace sizing would shrink it. */
+  font: inherit;
+}
+
+/* One file-owned table profile across the editable adapter and Safe HTML. */
+.markdown-codemirror-editor .cm-md-table-widget-wrap {
+  --po-editable-table-format-radius: var(--po-md-block-radius);
+  --po-editable-table-color: var(--po-md-table-color);
+  --po-editable-table-header-color: var(--po-md-table-header-color);
+  --po-editable-table-body-color: var(--po-md-table-body-color);
+  --po-editable-table-font-size: var(--po-md-table-font-size);
+  --po-editable-table-line-height: var(--po-md-table-line-height);
+  --po-editable-table-header-font-weight: var(--po-md-table-header-weight);
+  --po-editable-table-format-background: var(--po-md-table-background);
+  --po-editable-table-format-border: var(--po-md-table-border);
+  --po-editable-table-format-cell-border: var(--po-md-table-cell-border);
+  --po-editable-table-format-header-background: var(--po-md-table-header-background);
+  --po-editable-table-cell-padding: var(--po-md-table-cell-padding);
+}
+
+.markdown-codemirror-editor :is(.cm-md-table-widget, .cm-md-html-rendered-surface table) {
+  color: var(--po-md-table-color);
+  font-family: var(--po-md-table-font);
+  font-size: var(--po-md-table-font-size);
+  line-height: var(--po-md-table-line-height);
+}
+
+.markdown-codemirror-editor :is(.cm-md-table-widget, .cm-md-html-rendered-surface table) th {
+  --po-md-inline-foreground: var(--po-md-table-header-color);
+  color: var(--po-md-table-header-color);
+  font-weight: var(--po-md-table-header-weight);
+}
+
+.markdown-codemirror-editor :is(.cm-md-table-widget, .cm-md-html-rendered-surface table) td {
+  --po-md-inline-foreground: var(--po-md-table-body-color);
+  color: var(--po-md-table-body-color);
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface table {
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: var(--po-md-block-radius);
+  overflow: hidden;
+  background: var(--po-md-table-background);
+  border: 1px solid var(--po-md-table-border);
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface table :is(th, td) {
+  padding: var(--po-md-table-cell-padding);
+  border: 0;
+  border-inline-end: 1px solid var(--po-md-table-cell-border);
+  border-block-end: 1px solid var(--po-md-table-cell-border);
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface table tr > :last-child {
+  border-inline-end: 0;
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface table > :last-child > tr:last-child > * {
+  border-block-end: 0;
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface th {
+  background: var(--po-md-table-header-background);
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface :where(ul, ol) {
+  --md-list-marker-slot-width: var(--po-md-list-marker-width);
+  margin-block: var(--po-md-paragraph-gap-before) var(--po-md-paragraph-gap-after);
+  padding-inline-start: calc(var(--po-md-list-inset) + var(--md-list-marker-slot-width) + var(--po-md-list-marker-gap));
+  list-style: none;
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface ul {
+  --md-list-marker-columns: 0;
+}
+
+/* Both adapters share the same marker rail. Source/counter columns include
+   one trailing delimiter, whose width belongs to the theme instead of being
+   charged as a whole digit. Only sufficiently wide numbers enlarge the rail. */
+.markdown-codemirror-editor :is(.cm-md-ordered-list-line, .cm-md-html-rendered-surface ol) {
+  --md-list-marker-slot-width: max(var(--po-md-list-marker-width), calc((var(--md-list-marker-columns, 1) - 1) * 1ch + var(--po-md-ordered-marker-suffix-width)));
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface li :where(ul, ol) {
+  margin-block: 0;
+  padding-inline-start: max(var(--po-md-list-indent-step), calc(var(--md-list-marker-slot-width) + var(--po-md-list-marker-gap)));
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface li {
+  position: relative;
+  margin-block: calc(var(--po-md-list-item-gap) / 2) calc(var(--po-md-source-line-gap) + var(--po-md-list-item-gap) / 2);
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface li::before {
+  position: absolute;
+  inset-inline-start: calc(0px - var(--md-list-marker-slot-width) - var(--po-md-list-marker-gap));
+  inset-block-start: 0;
+  display: inline-flex;
+  width: var(--md-list-marker-slot-width);
+  height: 1lh;
+  align-items: center;
+  justify-content: center;
+  color: var(--po-md-list-marker-color);
+  font-weight: var(--po-md-list-marker-weight);
+  font-variant-numeric: var(--po-md-list-marker-numeric-variant);
+  user-select: none;
+  content: "•";
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface ol > li::before {
+  justify-content: var(--po-md-ordered-marker-align);
+  content: counter(list-item) ".";
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface blockquote {
+  padding-inline: var(--po-md-blockquote-padding-inline);
+  border-inline-start: var(--po-md-blockquote-border-width) solid var(--po-md-blockquote-border-color);
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface hr {
+  height: 1px;
+  margin-block: var(--po-md-heading-gap-before);
+  border: 0;
+  background: var(--po-md-rule-color);
+}
+
+.markdown-codemirror-editor :is(.cm-md-html-rendered-surface, .cm-md-html-run) a {
+  --po-md-inline-foreground: var(--po-md-link-color);
+  color: var(--po-md-link-color);
+  text-decoration: none;
+}
+
+.markdown-codemirror-editor :is(.cm-md-html-rendered-surface, .cm-md-html-run) a:hover {
+  text-decoration: underline;
+}
+
+/* One emphasis weight across native Markdown, inline HTML, and rendered HTML.
+   Feature widgets consume the same token instead of defining parallel values. */
+.markdown-codemirror-editor .cm-md-syntax-strong,
+.markdown-codemirror-editor :is(strong, b).cm-md-inline-html,
+.markdown-codemirror-editor .cm-md-html-rendered-surface :where(strong, b) {
+  color: var(--po-md-inline-foreground, var(--po-md-strong-color));
+  font-weight: var(--po-md-strong-weight);
+}
+
+/* Inline foreground is inherited context, owned by its semantic container.
+   Quotes set it once; links may establish a nested context. Inline adapters
+   consume it before their ordinary role color, without quote-specific rules. */
+.markdown-codemirror-editor
+  :is(.cm-md-blockquote, .cm-md-html-rendered-surface blockquote) {
+  --po-md-inline-foreground: var(--po-md-blockquote-color);
+  color: var(--po-md-blockquote-color);
+}
+
+.markdown-codemirror-editor .cm-md-syntax-emphasis {
+  color: var(--po-md-inline-foreground, var(--po-md-emphasis-color));
+}
+
+.markdown-codemirror-editor .cm-md-syntax-strikethrough {
+  color: var(--po-md-inline-foreground, var(--po-md-strikethrough-color));
+}
+
+.markdown-codemirror-editor :is(em, i, s, del).cm-md-inline-html,
+.markdown-codemirror-editor .cm-md-html-rendered-surface :where(em, i, s, del) {
+  color: var(--po-md-inline-foreground, inherit);
+}
+
+/* Every inline-code adapter consumes the file-owned role. Block code keeps
+   its separate background and syntax palette. */
+.markdown-codemirror-editor :is(.cm-md-syntax-monospace, .cm-md-inline-code, code.cm-md-inline-html),
+.markdown-codemirror-editor .cm-md-html-rendered-surface :where(code:not(pre code), kbd, samp) {
+  color: var(--po-md-inline-foreground, var(--po-md-inline-code-color));
+  background: var(--po-md-inline-code-background);
+  padding: var(--po-md-inline-code-padding);
+  border-radius: var(--po-md-inline-code-radius);
+  font-size: var(--po-md-inline-code-font-size);
+  font-family: var(--po-md-code-font);
+}
+
+/* Native quoted lists retain their actual source marker; ordinary native
+   lists paint a pseudo-element. Both and Safe HTML use the quote foreground. */
+.markdown-codemirror-editor[data-live-preview="true"] .cm-md-syntax-list.cm-md-syntax-markup,
+.markdown-codemirror-editor .cm-md-html-rendered-surface li::marker {
+  color: var(--po-md-list-marker-color);
+  font-weight: var(--po-md-list-marker-weight);
+  font-variant-numeric: var(--po-md-list-marker-numeric-variant);
+}
+
+/* Emphasis must never make an already-strong heading lighter. */
+.markdown-codemirror-editor .cm-md-heading .cm-md-syntax-strong,
+.markdown-codemirror-editor .cm-md-heading :is(strong, b).cm-md-inline-html,
+.markdown-codemirror-editor
+  .cm-md-html-rendered-surface
+  :where(h1, h2, h3, h4, h5, h6)
+  :where(strong, b) {
+  font-weight: inherit;
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface details {
+  margin-block: 0 var(--po-md-block-gap);
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface summary {
+  cursor: var(--po-clickable-cursor, default);
+}
+
+.markdown-codemirror-editor :is(.cm-md-html-rendered-surface, .cm-md-html-run) img {
+  max-width: 100%;
+  border-radius: var(--po-md-block-radius);
+}
+
+.markdown-codemirror-editor :is(.cm-md-html-rendered-surface, .cm-md-html-run) img[aria-busy="true"],
+.markdown-codemirror-editor :is(.cm-md-html-rendered-surface, .cm-md-html-run) img[data-md-asset-state="loading"] {
+  min-width: 1em;
+  min-height: 1em;
+  background: var(--po-md-placeholder-background);
+}
+
+.markdown-codemirror-editor .cm-md-html-image-fallback {
+  display: inline-flex;
+  min-height: 1.5em;
+  align-items: center;
+  padding-inline: 0.4em;
+  border: 1px solid var(--po-md-fallback-border);
+  border-radius: var(--po-md-block-radius);
+  color: var(--po-md-fallback-color);
+  font-size: var(--po-md-table-font-size);
+  line-height: 1.35;
+}
+
+.markdown-codemirror-editor .cm-md-html-rendered-surface video {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: min(70vh, 720px);
+  border-radius: var(--po-md-block-radius);
+  background: var(--po-md-media-background);
+}
+
+.markdown-codemirror-editor :is(.cm-md-html-rendered-surface, .cm-md-html-run) :where(img, video, canvas, svg) {
+  user-select: none;
+  -webkit-user-drag: none;
+}

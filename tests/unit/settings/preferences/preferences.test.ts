@@ -212,8 +212,9 @@ describe("experimental preferences", () => {
     expect(settings).not.toHaveProperty("enableAgentCompanion");
   });
 
-  it.each([null, "not-json", "{}", '{"enableProjectLocationIconsInHeader":"true"}'])("keeps existing installations on the project popup (%s)", (stored) => {
-    expect(parseExperimentalSettings(stored).enableProjectLocationIconsInHeader).toBe(false);
+  it("drops the retired Header location switch experiment from stored settings", () => {
+    expect(parseExperimentalSettings(JSON.stringify({ enableProjectLocationIconsInHeader: true })))
+      .not.toHaveProperty("enableProjectLocationIconsInHeader");
   });
 
   it.each([null, "not-json", "{}", '{"enableProjectReach":"true"}', '{"enableProjectReach":1}'])(
@@ -227,10 +228,6 @@ describe("experimental preferences", () => {
     expect(DEFAULT_EXPERIMENTAL_SETTINGS.enableProjectReach).toBe(false);
     expect(parseExperimentalSettings(JSON.stringify({ enableProjectReach: true })))
       .toEqual({ ...DEFAULT_EXPERIMENTAL_SETTINGS, enableProjectReach: true });
-  });
-
-  it("restores explicit Header location icon consent", () => {
-    expect(parseExperimentalSettings(JSON.stringify({ enableProjectLocationIconsInHeader: true })).enableProjectLocationIconsInHeader).toBe(true);
   });
 
   it("keeps Puppyone Cloud off unless the user explicitly opts in", () => {
@@ -248,13 +245,13 @@ describe("experimental preferences", () => {
     expect(parseExperimentalSettings(JSON.stringify({ enableShareOnboarding: true })).enableShareOnboarding).toBe(true);
   });
 
-  it("restores project alignment independently of Cloud and ignores the retired Git card", () => {
+  it("forgets the retired centered project and Git card Header choices", () => {
     const settings = parseExperimentalSettings(JSON.stringify({
       enableCenteredProjectInHeader: true,
       enableGitCardInHeader: true,
     }));
-    expect(settings).toEqual({ ...DEFAULT_EXPERIMENTAL_SETTINGS, enableCenteredProjectInHeader: true });
-    expect(settings.enableCenteredProjectInHeader).toBe(true);
+    expect(settings).toEqual(DEFAULT_EXPERIMENTAL_SETTINGS);
+    expect(settings).not.toHaveProperty("enableCenteredProjectInHeader");
     expect(settings).not.toHaveProperty("enableGitCardInHeader");
   });
 
@@ -291,11 +288,9 @@ describe("experimental preferences", () => {
       .toBe(true);
   });
 
-  it("keeps Cloud Automation off unless the user explicitly opts in", () => {
-    expect(parseExperimentalSettings(null).enableCloudAutomation).toBe(false);
-    expect(parseExperimentalSettings("not-json").enableCloudAutomation).toBe(false);
-    expect(parseExperimentalSettings(JSON.stringify({ enableCloudAutomation: false })).enableCloudAutomation).toBe(false);
-    expect(parseExperimentalSettings(JSON.stringify({ enableCloudAutomation: true })).enableCloudAutomation).toBe(true);
+  it("drops the retired Cloud Automation experiment", () => {
+    expect(parseExperimentalSettings(JSON.stringify({ enableCloudAutomation: true })))
+      .not.toHaveProperty("enableCloudAutomation");
   });
 
   it("drops retired first-project and save-status preferences", () => {
@@ -335,10 +330,9 @@ describe("experimental preferences", () => {
       .toBe(true);
   });
 
-  it("keeps the Asset Library homepage off unless the user explicitly opts in", () => {
-    expect(parseExperimentalSettings(null).enableAssetLibraryHome).toBe(false);
-    expect(parseExperimentalSettings(JSON.stringify({ enableAssetLibraryHome: false })).enableAssetLibraryHome).toBe(false);
-    expect(parseExperimentalSettings(JSON.stringify({ enableAssetLibraryHome: true })).enableAssetLibraryHome).toBe(true);
+  it("forgets a saved choice of the retired card Homepage", () => {
+    expect(parseExperimentalSettings(JSON.stringify({ enableAssetLibraryHome: true })))
+      .not.toHaveProperty("enableAssetLibraryHome");
   });
 
   it("keeps Viewer Plugins off unless the user explicitly opts in", () => {

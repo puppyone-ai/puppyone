@@ -9,6 +9,7 @@ import path from "node:path";
 export class WindowWorkspaceState {
   #initialWorkspacePaths;
   #initialCloudProject;
+  #initialOpenPath;
   #workspaceId;
   #workspaceFolders = Object.freeze([]);
   #compositions = new Map();
@@ -18,6 +19,7 @@ export class WindowWorkspaceState {
     initialWorkspacePath = null,
     initialWorkspacePaths = null,
     initialCloudProject = null,
+    initialOpenPath = null,
     focusedAt = Date.now(),
   } = {}) {
     const requestedPaths = Array.isArray(initialWorkspacePaths)
@@ -30,6 +32,7 @@ export class WindowWorkspaceState {
     );
     this.#workspaceId = normalizeWorkspaceId(initialWorkspaceId) ?? createWorkbenchWorkspaceId();
     this.#initialCloudProject = initialCloudProject ? Object.freeze({ ...initialCloudProject }) : null;
+    this.#initialOpenPath = typeof initialOpenPath === "string" && initialOpenPath ? initialOpenPath : null;
     this.lastFocusedAt = focusedAt;
   }
 
@@ -39,6 +42,13 @@ export class WindowWorkspaceState {
 
   get initialCloudProject() {
     return this.#initialCloudProject;
+  }
+
+  /** The document a new window opens on. A reload must not reopen it. */
+  takeInitialOpenPath() {
+    const openPath = this.#initialOpenPath;
+    this.#initialOpenPath = null;
+    return openPath;
   }
 
   get initialRestorePath() {

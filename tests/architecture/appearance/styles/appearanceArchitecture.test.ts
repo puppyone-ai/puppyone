@@ -26,10 +26,10 @@ import { BUILTIN_SUB_THEMES } from "../../../../src/features/themes/builtinSubTh
 import type { SubThemeDefinition } from "../../../../src/features/themes/themeTypes";
 import {
   PRESET_VIEWER_MANIFEST,
-} from "../../../../packages/shared-ui/src/editor/registry/presetViewerManifest";
+} from "../../../../src/shared-ui/editor/registry/presetViewerManifest";
 import {
   VIEWER_SURFACE_FAMILIES,
-} from "../../../../packages/shared-ui/src/editor/registry/viewerContract";
+} from "../../../../src/shared-ui/editor/registry/viewerContract";
 
 describe("appearance profile architecture", () => {
   it("keeps navigation in the bottom footer for every interface style", () => {
@@ -289,7 +289,7 @@ describe("appearance profile architecture", () => {
     expect(result.diagnostics[0]?.code).toBe("sub-theme-incompatible");
     expect(result.appearanceRevision).toMatch(/^default:default\.neutral:dark:[a-z0-9]+$/);
 
-    const editorContext = source("packages/shared-ui/src/core/appearance/EditorAppearanceContext.tsx");
+    const editorContext = source("src/shared-ui/core/appearance/EditorAppearanceContext.tsx");
     expect(editorContext).toContain("EditorAppearanceRevisionContext");
     expect(editorContext).toContain("revision: string");
     expect(editorContext).not.toMatch(/ThemeCatalog|SubThemeDefinition|rootThemeId|subThemeId/);

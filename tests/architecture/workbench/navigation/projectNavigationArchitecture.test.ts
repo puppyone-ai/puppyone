@@ -33,10 +33,19 @@ describe("one project navigation policy across shell surfaces", () => {
     expect(source).not.toContain("openCloudProjectInNewWindow");
     expect(source).not.toContain('placement: "dedicated-window"');
   });
+  it("opens every project through the one window navigation, so no entry can miss the wait", () => {
+    const navigation = readFileSync(resolve(process.cwd(), "src/app/useWindowProjectNavigation.ts"), "utf8");
+    for (const open of ["openWorkspacePath(", "openDroppedWorkspace(", "accountCloud.openTarget("]) {
+      expect(source, open).not.toContain(open);
+      expect(navigation.split(open).length - 1, open).toBe(1);
+    }
+    expect(source).not.toContain("accountCloud.retry");
+    expect(source).not.toContain("controller={accountCloud}");
+  });
   it("routes both New workspace actions to the shared launcher", () => {
     expect(bindings("ProjectSwitcherRail", "onCreateNew")).toEqual(["openProjectLauncher"]);
     expect(bindings("DesktopTitlebarContext", "onCreateProject")).toEqual(["openProjectLauncher"]);
     expect(bindings("AccountCloudWorkspaceSurface", "onCreateProject")).toEqual(["openProjectLauncher"]);
-    expect(bindings("Homepage", "projectEntryController")).toEqual(["projectEntryFlow"]);
+    expect(bindings("MinimalOnboarding", "projectEntryController")).toEqual(["projectEntryFlow"]);
   });
 });

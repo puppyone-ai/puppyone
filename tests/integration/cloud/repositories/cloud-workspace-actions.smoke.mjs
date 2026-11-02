@@ -15,6 +15,13 @@ let window;
 const errors = [];
 const assert = (value, message) => { if (!value) throw new Error(message); };
 const evaluate = code => window.webContents.executeJavaScript(code, true);
+// History is the hosted project's own record, so it lives in the project's place menu.
+async function openHistory(menuCapture) {
+  await evaluate("document.querySelector('.desktop-titlebar-place-button').click()");
+  await waitFor("Boolean(document.querySelector('[data-project-place-row=history]'))");
+  if (menuCapture) await capture(menuCapture);
+  await evaluate("document.querySelector('[data-project-place-row=history]').click()");
+}
 async function waitFor(expression) {
   const until = Date.now() + 15000;
   while (Date.now() < until) {
@@ -32,69 +39,63 @@ const button = tool => `document.querySelector('[data-cloud-workspace-tool=${too
 async function exercise(hosted) {
   const mode = hosted ? "account" : "native";
   const api = hosted ? "window.__accountCloudSmoke" : "window.__nativeCloudWorkbenchSmoke";
+  // The Header and Share keep the Agent list current by themselves, whatever else is happening.
+  const workspaceRequests = `${api}.state().requests.filter(path => !/\\/(agent-links|access\\/sessions)$/.test(path)).length`;
   await window.loadURL("about:blank");
   await window.loadURL(`${pathToFileURL(path.join(repo, "dist/index.html")).href}#${mode}-cloud-workbench-smoke`);
   await waitFor(`Boolean(${api})`);
   if (hosted) {
-    await waitFor("Boolean(document.querySelector('[data-cloud-project-id=alpha] .onboarding-project-row'))");
-    await evaluate("document.querySelector('[data-cloud-project-id=alpha] .onboarding-project-row').click()");
+    await waitFor("Boolean(document.querySelector('[data-cloud-project-id=alpha] :is(.onboarding-project-row, .onboarding-project-tile)'))");
+    await evaluate("document.querySelector('[data-cloud-project-id=alpha] :is(.onboarding-project-row, .onboarding-project-tile)').click()");
   } else {
-    await evaluate("document.querySelector('.desktop-titlebar-location-button').click()");
-    await waitFor("Boolean(document.querySelector('button[data-project-location=cloud]'))");
-    await evaluate("document.querySelector('button[data-project-location=cloud]').click()");
+    // The folder's Cloud project is its own project in the project menu (ADR-001).
+    await evaluate("document.querySelector('.desktop-titlebar-workspace-button').click()");
+    await waitFor("Boolean(document.querySelector('.desktop-project-menu .desktop-project-switcher-row[data-project-location=cloud]'))");
+    await evaluate("document.querySelector('.desktop-project-menu .desktop-project-switcher-row[data-project-location=cloud]').querySelector('button').click()");
     await waitFor(`${api}.state().location === 'cloud'`);
-    await evaluate("document.querySelector('.desktop-titlebar-location-button').click()");
   }
-  await waitFor(`${button("history")} && !${button("history")}.disabled`);
+  await waitFor(`${button("share")} && !${button("share")}.disabled`);
   assert(await evaluate("!document.querySelector('[data-cloud-workspace-tool=automation], [data-cloud-workspace-tool=connect]')"), "Retired entries must not be visible");
   if (!hosted) {
     await evaluate(`${api}.setLoginAppearance('light', 'en')`);
     await evaluate("[...document.querySelectorAll('.data-content .tree-row.file')].find(row => row.getBoundingClientRect().width > 0 && row.dataset.explorerPath.endsWith('/cloud-only.md')).click()");
     await waitFor("[...document.querySelectorAll('.data-content .cm-content')].some(content => content.textContent.includes('Cloud only'))");
-    const before = await evaluate(`${api}.state().requests.length`);
+    const before = await evaluate(workspaceRequests);
     await evaluate(`${button("share")}.click()`);
-    await waitFor("Boolean(document.querySelector('.desktop-cloud-workspace-share input'))");
-    assert(await evaluate("document.querySelector('.desktop-cloud-workspace-share input').value === 'https://app-fixture.puppyone.ai/11111111-1111-4111-8111-111111111111/cloud-only.md'"), "Share must show the current document's human URL");
-    assert(await evaluate(`${api}.state().requests.length === ${before}`), "Sharing must make zero Cloud requests");
-    await waitFor("Boolean(document.querySelector('.desktop-cloud-share-preview-window'))");
-    assert(await evaluate("Boolean(document.querySelector('.desktop-cloud-share-preview-window [data-explorer-path=\"puppyone-preview://share/notes.md\"]'))"), "Share preview uses cached real file names");
-    assert(await evaluate("!document.querySelector('.desktop-cloud-share-preview-heading, .desktop-cloud-workspace-share .desktop-dialog-footer')"), "Share contains only link/copy row and preview illustration");
-    await waitFor("Boolean(document.querySelector('.desktop-cloud-share-preview-window .markdown-codemirror-editor .cm-editor'))");
-    assert(await evaluate("document.querySelector('.desktop-cloud-share-preview-window .cm-content').textContent.includes('Cloud only')"), "Share previews the current file's accepted body");
-    assert(await evaluate("document.querySelector('.desktop-cloud-workspace-share h2').textContent === 'Share this project'"), "Share title is independent of project name");
+    await waitFor("Boolean(document.querySelector('.desktop-cloud-share-people'))");
+    assert(await evaluate("document.querySelector('[data-share-target=resource]').dataset.shareUrl === 'https://app-fixture.puppyone.ai/11111111-1111-4111-8111-111111111111/cloud-only.md'"), "Share must show the current document's human URL");
+    assert(await evaluate(`${workspaceRequests} === ${before}`), "Sharing must make zero Cloud requests");
+    assert(await evaluate("document.querySelector('.desktop-cloud-workspace-share').getAttribute('aria-label') === 'Share this project'"), "Share's name is independent of project name");
     for (const theme of ["light", "dark"]) {
       await evaluate(`${api}.setLoginAppearance('${theme}', 'en')`);
       await capture(`share-${theme}`);
-      const nativeStyles = await evaluate("(() => { const preview = document.querySelector('.desktop-cloud-share-preview-window .tree-row.file'); const actual = [...document.querySelectorAll('.data-content .tree-row.file')].find(row => !row.closest('.desktop-cloud-share-preview-window') && row.getBoundingClientRect().width > 0); const a = getComputedStyle(actual); const b = getComputedStyle(preview); return Object.fromEntries(['fontSize', 'fontWeight', 'lineHeight', 'height', 'borderRadius', 'color', 'paddingLeft', 'paddingRight'].map(key => [key, { actual:a[key], preview:b[key] }])); })()");
-      assert(Object.values(nativeStyles).every(value => value.actual === value.preview), `Miniature rows inherit the exact ${theme} product Explorer styles before uniform scaling: ${JSON.stringify(nativeStyles)}`);
     }
-    assert(await evaluate(`${api}.state().requests.length === ${before}`), "Rendering the actual Viewer must add no Cloud requests");
-    window.setSize(640, 520);
+    window.setSize(720, 520);
     await evaluate("new Promise(resolve => setTimeout(resolve, 350))");
     assert(await evaluate("(() => { const r = document.querySelector('.desktop-cloud-workspace-share .desktop-cloud-share-copy').getBoundingClientRect(); return r.bottom <= innerHeight && r.width <= innerWidth; })()"), "Share copy action stays visible on a small window");
     await capture("share-small");
     window.setSize(1100, 760);
-    await evaluate("document.querySelector('.desktop-cloud-workspace-share .desktop-dialog-icon-button').click()");
+    await evaluate("document.querySelector('[data-cloud-workspace-tool=share]').click()");
     // Selecting a folder overrides the still-open document; switching tabs
     // restores the actual document as the target rather than retaining it.
     await evaluate("[...document.querySelectorAll('.data-content .tree-row.folder')].find(row => row.getBoundingClientRect().width > 0 && row.dataset.explorerPath.endsWith('/records')).click()");
     await evaluate(`${button("share")}.click()`);
-    await waitFor("document.querySelector('.desktop-cloud-workspace-share input')?.value.endsWith('/records/')");
+    await waitFor("document.querySelector('[data-share-target=resource]')?.dataset.shareUrl.endsWith('/records/')");
     await capture("share-folder");
-    await evaluate("document.querySelector('.desktop-cloud-workspace-share .desktop-dialog-icon-button').click()");
+    await evaluate("document.querySelector('[data-cloud-workspace-tool=share]').click()");
     await evaluate("[...document.querySelectorAll('.data-content .tree-row.file')].find(row => row.getBoundingClientRect().width > 0 && row.dataset.explorerPath.endsWith('/notes.md')).click()");
     await waitFor("[...document.querySelectorAll('.data-content .cm-content')].some(content => content.textContent.includes('Cloud note'))");
     await evaluate(`${button("share")}.click()`);
-    await waitFor("document.querySelector('.desktop-cloud-workspace-share input')?.value.endsWith('/notes.md')");
+    await waitFor("document.querySelector('[data-share-target=resource]')?.dataset.shareUrl.endsWith('/notes.md')");
     await capture("share-notes");
-    await evaluate("document.querySelector('.desktop-cloud-workspace-share .desktop-dialog-icon-button').click()");
+    await evaluate("document.querySelector('[data-cloud-workspace-tool=share]').click()");
   }
   await evaluate(`${button("agent")}.click()`);
   await waitFor("Boolean(document.querySelector('.desktop-cloud-agent-sidebar .cm-content'))");
   await evaluate(`${api}.editAgent('Keep this draft')`);
   for (const theme of ["light", "dark"]) {
     await evaluate(hosted ? `${api}.setTheme('${theme}')` : `${api}.setLoginAppearance('${theme}', 'en')`);
-    await evaluate(`${button("history")}.click()`);
+    await openHistory(`${mode}-place-menu-${theme}`);
     await waitFor("document.querySelector('.desktop-cloud-workspace-history')?.textContent.includes('Update research notes')");
     assert(await evaluate(`${button("agent")}.getAttribute('aria-expanded') === 'false'`), "History owns the auxiliary pane");
     await evaluate("new Promise(resolve => setTimeout(resolve, 350))");
@@ -107,7 +108,7 @@ async function exercise(hosted) {
     await evaluate(`${button("agent")}.click()`);
     await waitFor("document.querySelector('.desktop-cloud-agent-sidebar .cm-content')?.textContent.includes('Keep this draft')");
   }
-  await evaluate(`${button("history")}.click()`);
+  await openHistory();
   await waitFor("Boolean(document.querySelector('.desktop-cloud-workspace-history'))");
   await evaluate("document.querySelector('.desktop-cloud-workspace-history button[aria-label=Close]').click()");
   await waitFor("document.querySelector('.desktop-right-sidebar').dataset.paneCollapsed === 'true'");

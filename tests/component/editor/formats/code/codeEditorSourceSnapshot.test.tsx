@@ -5,10 +5,10 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CodeMirrorCodeEditor } from "../../../../../packages/shared-ui/src/editor/viewers/code/CodeMirrorCodeEditor";
-import { DocumentSessionBoundary } from "../../../../../packages/shared-ui/src/editor/document-session/DocumentSessionBoundary";
-import type { EditorSourceSnapshotPort } from "../../../../../packages/shared-ui/src/editor/sourceSnapshot";
-import { TextEditorFrame } from "../../../../../packages/shared-ui/src/editor/viewers/shared/TextEditorFrame";
+import { CodeMirrorCodeEditor } from "../../../../../src/shared-ui/editor/viewers/code/CodeMirrorCodeEditor";
+import { DocumentSessionBoundary } from "../../../../../src/shared-ui/editor/document-session/DocumentSessionBoundary";
+import type { EditorSourceSnapshotPort } from "../../../../../src/shared-ui/editor/sourceSnapshot";
+import { TextEditorFrame } from "../../../../../src/shared-ui/editor/viewers/shared/TextEditorFrame";
 import { withTestLocalization } from "../../../../support/react/localization";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

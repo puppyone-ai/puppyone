@@ -9,6 +9,7 @@ for (const flag of flags) {
 }
 const scenarios = [
   ["../../e2e/workspace/projects/project-sidebar-stability.smoke.mjs"],
+  ["../../e2e/workspace/projects/project-opening-mark.smoke.mjs"],
   ["../../e2e/workspace/projects/project-sessions.smoke.mjs", "--agent-draft"],
   ["../../e2e/workbench/layout/sidebar-visibility.smoke.mjs", "--native"],
 ];

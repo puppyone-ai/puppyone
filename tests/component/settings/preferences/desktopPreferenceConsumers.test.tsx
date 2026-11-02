@@ -17,7 +17,7 @@ import { PLUGIN_FILE_ICON_THEME_ID } from "../../../support/appearance/pluginFil
 
 // Only the default theme ships; installing a test plug-in theme brings back the
 // File icons choice so its ordering and persistence stay covered.
-vi.mock("../../../../packages/shared-ui/src/file/icon-themes/registry", async (original) => {
+vi.mock("../../../../src/shared-ui/file/icon-themes/registry", async (original) => {
   const { withPluginFileIconTheme } = await import("../../../support/appearance/pluginFileIconTheme");
   return withPluginFileIconTheme(await original());
 });
@@ -208,10 +208,10 @@ describe("mounted desktop preference consumers", () => {
   });
   it("updates only the requested experiment from mounted settings and persists after remount", () => {
     renderSettings("experimental"); const before = store.getState().experimentalSettings;
-    click('[role="group"][aria-label="Local / Cloud switch position"] button:last-child');
-    expect(store.getState().experimentalSettings).toEqual({ ...before, enableProjectLocationIconsInHeader: true });
+    click('[role="group"][aria-label="Project switcher position"] button:last-child');
+    expect(store.getState().experimentalSettings).toEqual({ ...before, enableProjectSwitcherRail: true });
     act(() => initializeDesktopPreferences());
-    expect(host.querySelector('[role="group"][aria-label="Local / Cloud switch position"] button:last-child')?.getAttribute("aria-pressed")).toBe("true");
+    expect(host.querySelector('[role="group"][aria-label="Project switcher position"] button:last-child')?.getAttribute("aria-pressed")).toBe("true");
   });
   it("retains expanded preference width while the shell track is collapsed and observes live resize/icon changes", () => {
     store.getState().setExplorerWidth(390);

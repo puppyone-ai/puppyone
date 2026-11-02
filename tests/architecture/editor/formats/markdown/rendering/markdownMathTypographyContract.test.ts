@@ -3,15 +3,15 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const markdownContentCss = readFileSync(
-  join(process.cwd(), "packages/shared-ui/src/styles/editor/markdown-content.css"),
+  join(process.cwd(), "src/shared-ui/styles/editor/markdown-content.css"),
   "utf8",
 );
 const markdownMathCss = readFileSync(
-  join(process.cwd(), "packages/shared-ui/src/styles/editor/markdown-math.css"),
+  join(process.cwd(), "src/shared-ui/styles/editor/markdown-math.css"),
   "utf8",
 );
 const editorCss = readFileSync(
-  join(process.cwd(), "packages/shared-ui/src/styles/editor.css"),
+  join(process.cwd(), "src/shared-ui/styles/editor.css"),
   "utf8",
 );
 

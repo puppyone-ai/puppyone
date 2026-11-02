@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { normalizeRelativePath } from '../../local-api/files/path-policy.mjs';
+import { normalizeRelativePath } from '../local-api/files/path-policy.mjs';
 
 export function workspaceFileEndpoint(input, operation = 'file', path = input.path) {
   const generation = input.workbench?.generation;

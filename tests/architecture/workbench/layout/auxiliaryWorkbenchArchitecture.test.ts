@@ -25,7 +25,7 @@ describe("Project-owned auxiliary workbench architecture", () => {
 
   it("keeps serializable topology independent from feature runtimes", () => {
     const model = source(
-      "packages/shared-ui/src/workbench/auxiliary-workbench/auxiliaryWorkbenchModel.ts",
+      "src/shared-ui/workbench/auxiliary-workbench/auxiliaryWorkbenchModel.ts",
     );
     expect(model).toContain("type AuxiliaryWorkbenchItem");
     expect(model).toContain("type AuxiliaryWorkbenchGroup");

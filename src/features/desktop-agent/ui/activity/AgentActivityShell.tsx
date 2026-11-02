@@ -1,14 +1,15 @@
-import { Tooltip } from "@puppyone/shared-ui";
 import { Check, Circle, CircleAlert, CircleSlash2 } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import { createPortal } from "react-dom";
 import { useLocalization } from "@puppyone/localization/react";
 import type { AgentActivityStatus } from "../../domain/agent-projection-types";
 import { useAgentToolGroupDisclosure } from "../AgentToolGroupContext";
+import { isActiveToolStatus } from "./agent-tool-steps";
 
 type AgentActivityShellProps = {
   title: string;
   summary?: string;
+  /** What the step acted on (file, pattern, command); rendered after the title. */
+  subject?: ReactNode;
   metadata?: ReactNode;
   status: AgentActivityStatus;
   icon: ReactNode;
@@ -20,6 +21,7 @@ type AgentActivityShellProps = {
 export function AgentActivityShell({
   title,
   summary,
+  subject,
   metadata,
   status,
   icon,
@@ -34,9 +36,7 @@ export function AgentActivityShell({
     : standaloneExpanded;
   const hasDetail = children !== undefined && children !== null && children !== false && children !== "";
   const visibleSummary = summary?.slice(0, 2_048);
-  const compactLabel = groupDisclosure
-    ? visibleSummary ? `${title}: ${visibleSummary}` : title
-    : undefined;
+  const active = isActiveToolStatus(status);
   const toggleExpanded = () => {
     if (!hasDetail) return;
     if (groupDisclosure) {
@@ -49,26 +49,25 @@ export function AgentActivityShell({
     ? <div className="desktop-agent-tool-branch">{children}</div>
     : null;
   return (
-    <div className={`desktop-agent-tool-call is-${status}${hasDetail ? " has-detail" : ""}${expanded ? " is-expanded" : ""} ${className}`.trim()}>
+    <div className={`desktop-agent-tool-call is-${status}${active ? " is-active" : ""}${hasDetail ? " has-detail" : ""}${expanded ? " is-expanded" : ""} ${className}`.trim()}>
       <div className="desktop-agent-tool-header">
-        <Tooltip content={compactLabel}><button
+        <button
           type="button"
           className={`desktop-agent-tool-row${metadata ? " has-metadata" : ""}`}
           disabled={!hasDetail}
-          aria-label={compactLabel}
           aria-expanded={hasDetail ? expanded : undefined}
           onClick={toggleExpanded}
         >
           <span className="desktop-agent-tool-icon" aria-hidden="true">{icon}</span>
           <strong className="desktop-agent-tool-name">{title}</strong>
+          {subject
+            ? <span className="desktop-agent-tool-summary">{subject}</span>
+            : visibleSummary && <span className="desktop-agent-tool-summary">{visibleSummary}</span>}
           {metadata && <span className="desktop-agent-tool-metadata">{metadata}</span>}
-          {visibleSummary && <span className="desktop-agent-tool-summary">{visibleSummary}</span>}
           <StatusIcon status={status} />
-        </button></Tooltip>
+        </button>
       </div>
-      {detail && groupDisclosure?.detailHost
-        ? createPortal(detail, groupDisclosure.detailHost)
-        : detail}
+      {detail}
     </div>
   );
 }

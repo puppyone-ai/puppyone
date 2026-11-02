@@ -9,10 +9,10 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DataWorkspace } from "../../../../packages/shared-ui/src/data/DataWorkspace";
-import type { FileContent } from "../../../../packages/shared-ui/src/core/types";
-import { flushActiveDocumentSessions } from "../../../../packages/shared-ui/src/editor/document-session/activeDocumentSessions";
-import { closeAllDocumentWorkingCopies } from "../../../../packages/shared-ui/src/editor/document-session/documentWorkingCopies";
+import { DataWorkspace } from "../../../../src/shared-ui/data/DataWorkspace";
+import type { FileContent } from "../../../../src/shared-ui/core/types";
+import { flushActiveDocumentSessions } from "../../../../src/shared-ui/editor/document-session/activeDocumentSessions";
+import { closeAllDocumentWorkingCopies } from "../../../../src/shared-ui/editor/document-session/documentWorkingCopies";
 import { createLocalDataPort } from "../../../../src/lib/localFiles";
 import { withTestLocalization } from "../../../support/react/localization";
 

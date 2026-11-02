@@ -3,8 +3,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const sharedUiSourceRoot = path.join(repoRoot, "packages", "shared-ui", "src");
-const markdownRoot = path.join(repoRoot, "packages", "shared-ui", "src", "editor", "markdown");
+const sharedUiSourceRoot = path.join(repoRoot, "src", "shared-ui");
+const markdownRoot = path.join(repoRoot, "src", "shared-ui", "editor", "markdown");
+const addonsRoot = path.join(markdownRoot, "addons");
 const compositionRoot = path.join(markdownRoot, "composition");
 const coreRoot = path.join(markdownRoot, "core");
 const featuresRoot = path.join(markdownRoot, "features");
@@ -28,6 +29,13 @@ const legacyDirectories = [
 const importPattern = /\b(?:import|export)\s+(?:type\s+)?(?:[^'";]*?\s+from\s+)?["']([^"']+)["']/g;
 const dynamicImportPattern = /\bimport\(\s*["']([^"']+)["']\s*\)/g;
 const errors = [];
+// An add-on is optional, so the editor around it must survive its removal.
+const addonHost = path.join(markdownRoot, "MarkdownCodeMirrorEditor.tsx");
+const addonCorePorts = new Set([
+  "core/commands/markdownBlockMove.ts",
+  "core/editor/markdownLocalization.ts",
+  "core/syntax/markdownBlockBoundaries.ts",
+].map(file => path.join(markdownRoot, file)));
 const removedArchitectureFiles = [
   path.join(coreRoot, "syntax", "markdownParserExtensions.ts"),
   path.join(featuresRoot, "blockFeatureRegistry.ts"),
@@ -79,6 +87,21 @@ for (const filePath of walkTypeScript(markdownRoot)) {
 
     if (isInside(filePath, featuresRoot) && isInside(target, compositionRoot)) {
       errors.push(`${relative(filePath)} imports ${relative(target)}; inject a leaf port instead of depending on composition`);
+    }
+
+    if (isInside(filePath, addonsRoot)) {
+      if ([compositionRoot, featuresRoot, platformRoot, sharedRoot].some(root => isInside(target, root))) {
+        errors.push(`${relative(filePath)} imports ${relative(target)}; an add-on stays off the rendering path`);
+      }
+      if (isInside(target, coreRoot) && !addonCorePorts.has(target)) {
+        errors.push(`${relative(filePath)} imports ${relative(target)}; add-ons use the listed core ports only`);
+      }
+      const sameAddon = path.relative(addonsRoot, filePath).split(path.sep)[0] === path.relative(addonsRoot, target).split(path.sep)[0];
+      if (isInside(target, addonsRoot) && !sameAddon) {
+        errors.push(`${relative(filePath)} imports ${relative(target)}; add-ons cannot depend on each other`);
+      }
+    } else if (isInside(target, addonsRoot) && (filePath !== addonHost || path.basename(target) !== "index.ts")) {
+      errors.push(`${relative(filePath)} imports ${relative(target)}; only MarkdownCodeMirrorEditor installs an add-on, through its index`);
     }
   }
 

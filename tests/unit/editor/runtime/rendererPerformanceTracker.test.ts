@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { RendererPerformanceTracker } from "../../../../packages/shared-ui/src/performance/rendererPerformance";
+import { RendererPerformanceTracker } from "../../../../src/shared-ui/performance/rendererPerformance";
 
 describe("bounded renderer performance telemetry", () => {
   it("retains fixed-size metric samples and operation names", () => {

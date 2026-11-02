@@ -4,7 +4,7 @@ import { reapplyWindowChromeProfile } from "../../../../electron/main/window-chr
 
 describe("native window layout IPC", () => {
   it("raises the native minimum and expands an already narrower window", () => {
-    const ownerWindow = createWindow({ width: 640 });
+    const ownerWindow = createWindow({ width: 720 });
     const handler = register(ownerWindow);
 
     expect(handler(createEvent(), { width: 888 })).toEqual({
@@ -15,15 +15,15 @@ describe("native window layout IPC", () => {
     expect(ownerWindow.setSize).toHaveBeenCalledWith(888, 840, true);
   });
 
-  it("never lowers the product-level 640px floor", () => {
+  it("never lowers the product-level 720px floor", () => {
     const ownerWindow = createWindow({ width: 900 });
     const handler = register(ownerWindow);
 
     expect(handler(createEvent(), { width: 320 })).toEqual({
       applied: true,
-      width: 640,
+      width: 720,
     });
-    expect(ownerWindow.setMinimumSize).toHaveBeenCalledWith(640, 640);
+    expect(ownerWindow.setMinimumSize).toHaveBeenCalledWith(720, 640);
     expect(ownerWindow.setSize).not.toHaveBeenCalled();
   });
 
@@ -190,7 +190,7 @@ function registerHandlers(ownerWindow, platform = "macos") {
 
 function createWindow({ destroyed = false, fullScreen = false, width = 900 } = {}) {
   return {
-    getMinimumSize: vi.fn(() => [640, 640]),
+    getMinimumSize: vi.fn(() => [720, 640]),
     getSize: vi.fn(() => [width, 840]),
     isDestroyed: vi.fn(() => destroyed),
     isFullScreen: vi.fn(() => fullScreen),

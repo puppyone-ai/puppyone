@@ -376,3 +376,97 @@
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+.onboarding-entry-paste-template {
+  margin-inline-end: auto;
+}
+
+.onboarding-entry-template {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.onboarding-entry-template-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.onboarding-entry-template-identity > div {
+  min-width: 0;
+}
+
+.onboarding-entry-template-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--po-border-subtle);
+  border-radius: 10px;
+  font-size: var(--po-type-ui-title, 20px);
+  line-height: 1;
+}
+
+.onboarding-entry-template-name {
+  margin: 0;
+  overflow: hidden;
+  color: var(--po-text-strong);
+  font-size: var(--po-type-ui-body, 14px);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onboarding-entry-template-facts {
+  margin: 2px 0 0;
+  overflow: hidden;
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-caption, 12px);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onboarding-entry-template-description {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--po-text-secondary);
+  font-size: var(--po-type-ui-meta, 13px);
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.onboarding-entry-template-destination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-caption, 12px);
+}
+
+.onboarding-entry-template-destination bdi {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onboarding-entry-template-destination button {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--po-text-secondary);
+  cursor: var(--po-clickable-cursor, default);
+  font: inherit;
+}
+
+.onboarding-entry-template-destination button:hover:not(:disabled) {
+  color: var(--po-text-strong);
+}

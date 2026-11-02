@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { registerWorkspaceGitIpcHandlers } from "../../../../electron/main/ipc/workspace-git-ipc.mjs";
 import { createSenderWorkspaceAuthorization } from "../../../../electron/main/workspace-authorization.mjs";
-import { getWorkspaceGitStatus } from "../../../../local-api/workspace.mjs";
+import { getWorkspaceGitStatus } from "../../../../electron/local-api/workspace.mjs";
 
 const exec = promisify(execFile);
 const OLD = "http://api.puppyone.ai/git/project-1.git";

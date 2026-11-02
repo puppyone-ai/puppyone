@@ -137,6 +137,7 @@ function RegularEditorPaneDocumentRuntime({
       loadingIndicator={(
         <PageLoading
           variant="fill"
+          size="md"
           label={null}
           ariaLabel={t("editor.loadingFile")}
         />

@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { resolveGitRepositoryIdentity } from "../../local-api/workspace.mjs";
+import { resolveGitRepositoryIdentity } from "../local-api/workspace.mjs";
 import {
   CLOUD_INITIALIZATION_CHECKPOINTS,
   normalizeCloudInitializationJournalRecord,

@@ -32,6 +32,13 @@
   .desktop-agent-tool-glyph-scan { opacity: 0; transform: none; }
   .desktop-agent-tool-glyph-motion,
   .desktop-agent-tool-glyph-ink { transform: none; }
+  .desktop-agent-tool-call.is-active :is(.desktop-agent-tool-name, .desktop-agent-tool-subject-name, .desktop-agent-tool-subject-code) {
+    animation: none;
+    background: none;
+    color: var(--agent-text-muted);
+  }
+  .desktop-agent-tool-fold-chevron,
+  .desktop-agent-tool-fold-body { animation: none; transition: none; }
   .desktop-agent-virtual-row { will-change: auto; }
   .desktop-agent-activity-summary svg:last-child,
   .desktop-agent-composer,

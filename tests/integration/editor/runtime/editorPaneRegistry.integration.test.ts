@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PRESET_VIEWER_REGISTRY, resolveEditorViewer } from "../../../../packages/shared-ui/src/editor/registry/viewerRegistry";
+import { PRESET_VIEWER_REGISTRY, resolveEditorViewer } from "../../../../src/shared-ui/editor/registry/viewerRegistry";
 import { EDITOR_PANE_CASES } from "../../../fixtures/editor/runtime/editorPaneCases";
 
 describe("Editor pane interaction fixture contract", () => {

@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   markdownCodeMirrorBaseExtensions,
   markdownLivePreviewExtension,
-} from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
+} from "../../../../../../src/shared-ui/editor/markdown/markdownCodeMirrorExtensions";
 
 const mountedViews: Array<{ parent: HTMLElement; view: EditorView }> = [];
 

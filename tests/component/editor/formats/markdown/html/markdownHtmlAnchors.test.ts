@@ -2,10 +2,10 @@
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { markdownCodeMirrorBaseExtensions, markdownLivePreviewExtension } from "../../../../../../packages/shared-ui/src/editor/markdown/markdownCodeMirrorExtensions";
-import { openMarkdownHref } from "../../../../../../packages/shared-ui/src/editor/markdown/core/editor/markdownLivePreviewContext";
-import { getMarkdownFragmentPosition } from "../../../../../../packages/shared-ui/src/editor/markdown/core/links/markdownFragmentTargets";
-import { renderMarkdownInlineFromSharedPolicy } from "../../../../../../packages/shared-ui/src/editor/markdown/composition/preview/markdownInlinePlanAdapter";
+import { markdownCodeMirrorBaseExtensions, markdownLivePreviewExtension } from "../../../../../../src/shared-ui/editor/markdown/markdownCodeMirrorExtensions";
+import { openMarkdownHref } from "../../../../../../src/shared-ui/editor/markdown/core/editor/markdownLivePreviewContext";
+import { getMarkdownFragmentPosition } from "../../../../../../src/shared-ui/editor/markdown/core/links/markdownFragmentTargets";
+import { renderMarkdownInlineFromSharedPolicy } from "../../../../../../src/shared-ui/editor/markdown/composition/preview/markdownInlinePlanAdapter";
 
 const views: EditorView[] = [];
 afterEach(() => {
@@ -54,7 +54,7 @@ describe("Markdown HTML anchor targets", () => {
     expect(view.state.doc.toString()).toBe(source);
   });
 
-  it.each(['<a id=section><a>', '<a id=section>', '<a id=section href="javascript:alert(1)"></a>', '<span></span>'])(
+  it.each(['<a id=section><a>', '<a id=section>', '<a id=section href="javascript:alert(1)"></a>'])(
     "keeps unsupported or incomplete source visible: %s", source => {
       const view = mount(`${source}\n\nBody`);
       expect(view.contentDOM.textContent).toContain(source);

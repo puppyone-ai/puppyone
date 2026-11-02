@@ -9,7 +9,7 @@ const windowChromeComponent = readFileSync(
   "utf8",
 );
 const electronMain = readFileSync(new URL("../../../../electron/main.mjs", import.meta.url), "utf8");
-const desktopShell = readFileSync(new URL("../../../../src/components/DesktopCloudShell.tsx", import.meta.url), "utf8");
+const desktopShell = readFileSync(new URL("../../../../src/components/ProjectShell.tsx", import.meta.url), "utf8");
 const auxiliaryPanelHost = readFileSync(
   new URL("../../../../src/features/app-shell/auxiliary/AuxiliaryPanelHost.tsx", import.meta.url),
   "utf8",
@@ -17,7 +17,7 @@ const auxiliaryPanelHost = readFileSync(
 const shellCss = readFileSync(new URL("../../../../src/styles/shell.css", import.meta.url), "utf8");
 const desktopMenu = readFileSync(new URL("../../../../src/components/DesktopMenu.tsx", import.meta.url), "utf8");
 const sharedWorkspaceCss = readFileSync(
-  new URL("../../../../packages/shared-ui/src/styles/data-workspace.css", import.meta.url),
+  new URL("../../../../src/shared-ui/styles/data-workspace.css", import.meta.url),
   "utf8",
 );
 
