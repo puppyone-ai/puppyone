@@ -30,8 +30,8 @@ describe("project initialization ownership", () => {
 
     expect(app).toContain("useProjectEntryFlow");
     expect(app).toContain("<ProjectEntryFlow");
-    expect(home).toContain("useProjectEntryFlow");
-    expect(home).toContain("<ProjectEntryFlow");
+    expect(home).toContain("projectEntryController");
+    expect(home).not.toMatch(/useProjectEntryFlow|<ProjectEntryFlow/);
     expect(app).not.toMatch(/Onboarding(?:Import|ProjectEntry)Dialog|ProjectEntryLauncherDialog/);
     expect(home).not.toMatch(/Onboarding(?:Import|ProjectEntry)Dialog|ProjectEntryLauncherDialog/);
     expect(flow).toContain("<ProjectEntryLauncherDialog");

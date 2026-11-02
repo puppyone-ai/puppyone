@@ -2,7 +2,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MinimalOnboarding } from "../../../../src/components/MinimalOnboarding";
+import { HomeWithEntryFlow } from "../../../support/react/homeWithEntryFlow";
 import {
   HOMEPAGE_FIRST_PAINT_BUDGET_MS,
   useHomepageFirstPaint,
@@ -53,7 +53,7 @@ function Harness({ local, localSettled, restoring = false, sessionRestoring = fa
   const catalog = useHomepageCloudProjects({ visible: !restoring, enabled: true, session, restoring: sessionRestoring, apiBaseUrl: API, local });
   const ready = useHomepageFirstPaint({ restoring, settled: localSettled && !sessionRestoring && catalog.settled,
     account: catalog.account, accountRestoring: sessionRestoring });
-  return ready ? <MinimalOnboarding appearance={appearance} projectItems={catalog.items} listHeld={listHeld} onChooseWorkspace={async () => {}}
+  return ready ? <HomeWithEntryFlow appearance={appearance} projectItems={catalog.items} listHeld={listHeld} onChooseWorkspace={async () => {}}
     onOpenDroppedWorkspace={async () => {}} onOpenWorkspacePath={async () => {}} /> : <p data-holding />;
 }
 

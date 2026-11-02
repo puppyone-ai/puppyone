@@ -4,7 +4,7 @@
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MinimalOnboarding, type MinimalOnboardingProps } from "../../../../src/components/MinimalOnboarding";
+import { HomeWithEntryFlow, type HomeWithEntryFlowProps } from "../../../support/react/homeWithEntryFlow";
 import { initializeDesktopPreferences } from "../../../../src/preferencesStore";
 import { renderWithTestLocalization } from "../../../support/react/localization";
 import { createTestSurfaceAppearance } from "../../../support/react/surfaceAppearance";
@@ -16,15 +16,15 @@ const appearance = createTestSurfaceAppearance({});
 
 let root: Root | null = null;
 
-function show(overrides: Partial<MinimalOnboardingProps>) {
-  const props: MinimalOnboardingProps = {
+function show(overrides: Partial<HomeWithEntryFlowProps>) {
+  const props: HomeWithEntryFlowProps = {
     onChooseWorkspace: vi.fn(async () => undefined),
     onOpenDroppedWorkspace: vi.fn(async () => undefined),
     onOpenWorkspacePath: vi.fn(async () => undefined),
     appearance,
     ...overrides,
   };
-  act(() => renderWithTestLocalization(root!, React.createElement(MinimalOnboarding, props)));
+  act(() => renderWithTestLocalization(root!, React.createElement(HomeWithEntryFlow, props)));
 }
 
 const failure = () => document.querySelector(".onboarding-homepage-error")?.textContent ?? null;

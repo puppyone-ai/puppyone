@@ -11,22 +11,10 @@ import {
 } from "react";
 import type { ResolvedSurfaceAppearance } from "../features/appearance/AppearanceRuntime";
 import { useWorkspaceFolderDrop } from "../features/app-shell/useWorkspaceFolderDrop";
-import {
-  ProjectEntryFlow,
-  useProjectEntryFlow,
-  type ProjectEntryFlowController,
-} from "../features/app-shell/ProjectEntryFlow";
+import type { ProjectEntryFlowController } from "../features/app-shell/ProjectEntryFlow";
 import type { ProjectHomeItem, RecentWorkspaceHomeItem } from "../lib/workspaceHomeModel";
 import { writeClipboardText } from "../features/settings/utils";
 import { resolveImportPreviewBrands } from "../features/project-import/importSourceRegistry";
-import type {
-  WorkspaceImportSourceRequest,
-  WorkspaceImportResourcePage,
-  WorkspaceImportProgress,
-  WorkspaceCreateProjectRequest,
-  WorkspaceCreateProjectResult,
-  WorkspaceProjectLocationGrant,
-} from "../types/electron";
 import { DesktopWindowChrome } from "./DesktopWindowChrome";
 import { OnboardingBrandLockup, OnboardingHeaderBrand } from "./onboarding/OnboardingBrandLockup";
 import { OnboardingEmptyStateIntro } from "./onboarding/OnboardingEmptyStateIntro";
@@ -50,17 +38,11 @@ export type OnboardingOperationStatus = {
 };
 
 export type MinimalOnboardingProps = {
-  /** App owns the flow when the retained Homepage shares a Cloud shell. */
-  projectEntryController?: ProjectEntryFlowController;
+  /** The window owns the flow, which starts from pages this one is gone from. */
+  projectEntryController: ProjectEntryFlowController;
+  canCreateProject?: boolean;
+  canImport?: boolean;
   onChooseWorkspace: () => Promise<void>;
-  onChooseProjectLocation?: () => Promise<WorkspaceProjectLocationGrant | null>;
-  onDefaultProjectLocation?: () => Promise<WorkspaceProjectLocationGrant | null>;
-  onCreateProject?: (request: WorkspaceCreateProjectRequest) => Promise<WorkspaceCreateProjectResult>;
-  onImportSource?: (request: WorkspaceImportSourceRequest) => Promise<boolean>;
-  onConnectImportSource?: (provider: string) => Promise<{ connectionId: string }>;
-  onListImportResources?: (request: { provider: string; connectionId: string; parentId?: string | null; cursor?: string | null }) => Promise<WorkspaceImportResourcePage>;
-  onCancelImportSource?: (taskId: string) => Promise<{ cancelled: boolean }>;
-  onImportSourceProgress?: (listener: (progress: WorkspaceImportProgress) => void) => () => void;
   onOpenWorkspacePath: (path: string) => Promise<void>;
   onOpenDroppedWorkspace: (folder: File) => Promise<void>;
   onRemoveProject?: (path: string) => Promise<void>;
@@ -94,15 +76,9 @@ function onboardingEntrySlots(hasProjects: boolean, {
 
 export function MinimalOnboarding({
   projectEntryController,
+  canCreateProject = false,
+  canImport = false,
   onChooseWorkspace,
-  onChooseProjectLocation,
-  onDefaultProjectLocation,
-  onCreateProject,
-  onImportSource,
-  onConnectImportSource,
-  onListImportResources,
-  onCancelImportSource,
-  onImportSourceProgress,
   onOpenWorkspacePath,
   onOpenDroppedWorkspace,
   onRemoveProject,
@@ -128,8 +104,6 @@ export function MinimalOnboarding({
   }
   const [openingPath, setOpeningPath] = useState<string | null>(null);
   const [draggingPath, setDraggingPath] = useState<string | null>(null);
-  const ownProjectEntryFlow = useProjectEntryFlow();
-  const projectEntryFlow = projectEntryController ?? ownProjectEntryFlow;
   const enableOtherAppImports = useDesktopPreference(s => s.experimentalSettings.enableOtherAppImports);
   const projectLayout = useDesktopPreference(s => s.homepageProjectLayout);
   const setProjectLayout = useDesktopPreference(s => s.setHomepageProjectLayout);
@@ -214,18 +188,17 @@ export function MinimalOnboarding({
 
   const completeEmptyStateIntro = () => setShowEmptyStateIntro(false);
   const resolvedTheme = appearance.appearance.effectiveColorMode;
-  const canCreateProject = Boolean(onCreateProject && onChooseProjectLocation);
   const projectView = useHomepageProjectView(items, listHeld);
   const entry = onboardingEntrySlots(hasProjects, {
     busy,
     openingFolder: openingPath === "__new__",
     draggingFolder: folderDrop.dragging,
     canCreateProject,
-    canImport: Boolean(onImportSource),
+    canImport,
     importPreviewBrands,
-    onCreateProject: projectEntryFlow.openCreate,
+    onCreateProject: projectEntryController.openCreate,
     onOpenFolder: () => void chooseFolder(),
-    onImport: projectEntryFlow.openImport,
+    onImport: projectEntryController.openImport,
   });
 
   return (
@@ -275,7 +248,7 @@ export function MinimalOnboarding({
               busy={busy}
               canCreateProject={canCreateProject}
               prominent
-              onCreateProject={projectEntryFlow.openCreate}
+              onCreateProject={projectEntryController.openCreate}
             />
           )}
           actions={entry.actions}
@@ -286,18 +259,6 @@ export function MinimalOnboarding({
       {onboardingState === "empty" && (
         <OnboardingTelemetryDisclosure ready={!showEmptyStateIntro} />
       )}
-      {!projectEntryController && <ProjectEntryFlow
-        controller={projectEntryFlow}
-        onDefaultLocation={onDefaultProjectLocation}
-        onChooseLocation={onChooseProjectLocation}
-        onCreateProject={onCreateProject}
-        onImportSource={onImportSource}
-        onConnectSource={onConnectImportSource}
-        onListResources={onListImportResources}
-        onCancelImport={onCancelImportSource}
-        onImportProgress={onImportSourceProgress}
-        onOpenFolder={() => void chooseFolder()}
-      />}
       {showEmptyStateIntro && (
         <OnboardingEmptyStateIntro onComplete={completeEmptyStateIntro} />
       )}

@@ -1743,15 +1743,9 @@ function AppContent() {
     return themeRuntime(
       <MinimalOnboarding
         projectEntryController={projectEntryFlow}
+        canCreateProject
+        canImport
         onChooseWorkspace={openFolder}
-        onChooseProjectLocation={chooseProjectLocation}
-        onDefaultProjectLocation={defaultProjectLocation}
-        onCreateProject={createProject}
-        onImportSource={importSource}
-        onConnectImportSource={connectImportSource}
-        onListImportResources={listImportResources}
-        onCancelImportSource={cancelImportSource}
-        onImportSourceProgress={onImportSourceProgress}
         onOpenDroppedWorkspace={openDroppedProject}
         onOpenWorkspacePath={selectProject}
         onRemoveProject={removeWorkspaceFromRecents}
