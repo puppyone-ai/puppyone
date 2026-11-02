@@ -17,6 +17,7 @@ import { DesktopTooltipLayer } from "./components/DesktopTooltipLayer";
 import { FeatureFlagsProvider } from "./features/flags";
 import { TypographyCatalogProvider } from "./features/typography";
 import { bootstrapRendererLocalization } from "./localization";
+import { holdInert } from "./lib/inertHold";
 import { startMarkdownFormatShortcutBridge } from "./lib/markdownFormatShortcutBridge";
 import { installNativeTitleSuppression } from "./lib/nativeTitleSuppression";
 import { startDesktopMermaidClient } from "./platform/mermaid/desktopMermaidClient";
@@ -30,17 +31,19 @@ if (!rootElement) throw new Error("PuppyOne renderer root is unavailable.");
 let activeCloseRequestId: string | null = null;
 let releaseRuntimeAdmission: (() => void) | null = null;
 let previouslyFocusedElement: HTMLElement | null = null;
+let releaseCloseInteractionBarrier: (() => void) | null = null;
 const setCloseInteractionBarrier = (locked: boolean) => {
   if (locked) {
     releaseRuntimeAdmission ??= holdEditorRuntimeAdmission();
     previouslyFocusedElement = document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null;
-    rootElement.inert = true;
+    releaseCloseInteractionBarrier ??= holdInert(rootElement);
     rootElement.setAttribute("aria-busy", "true");
     return;
   }
-  rootElement.inert = false;
+  releaseCloseInteractionBarrier?.();
+  releaseCloseInteractionBarrier = null;
   releaseRuntimeAdmission?.();
   releaseRuntimeAdmission = null;
   rootElement.removeAttribute("aria-busy");

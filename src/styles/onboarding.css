@@ -586,6 +586,12 @@ span.homepage-cloud-feedback {
   min-width: 0;
 }
 
+/* A dialog closing over a resting pointer uncovers a project nobody pointed at. The
+   rows wait, not the list, so that the wheel still scrolls it in the meantime. */
+:root[data-pointer-resting] .onboarding-project-row-wrap {
+  pointer-events: none;
+}
+
 .onboarding-project-actions {
   position: absolute;
   z-index: 1;

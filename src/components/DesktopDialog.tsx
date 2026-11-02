@@ -1,5 +1,7 @@
 import { useEffect, useRef, type ButtonHTMLAttributes, type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import { useNativeSurfaceOcclusionLease } from "../features/native-surfaces";
+import { holdInertAround } from "../lib/inertHold";
+import { holdHoverUntilPointerUse } from "../lib/pointerRest";
 
 const DIALOG_FOCUSABLE_SELECTOR = [
   "button:not([disabled])",
@@ -39,9 +41,21 @@ export function DesktopDialogRoot({
     if (!root) return undefined;
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const surface = root.querySelector<HTMLElement>("[role='dialog']");
+    // Focus has to be able to rest on the surface, and a form has no tabindex of its own.
+    if (surface && !surface.hasAttribute("tabindex")) surface.tabIndex = -1;
     const initialFocus = surface?.querySelector<HTMLElement>("[data-desktop-dialog-initial-focus='true'], [autofocus]")
       ?? surface;
     initialFocus?.focus({ preventScroll: true });
+    // Dialogs raised in one commit run this in order, so the lower must spare the upper.
+    const releaseBackground = holdInertAround(root, (sibling) => isDesktopDialogAbove(root, sibling));
+
+    // A control disabled or removed while it holds focus drops focus out of the dialog.
+    const focusKeeper = new MutationObserver(() => {
+      const active = document.activeElement;
+      const lost = !active || active === document.body || active.matches(":disabled");
+      if (lost && isTopmostDesktopDialog(root)) surface?.focus({ preventScroll: true });
+    });
+    focusKeeper.observe(root, { attributes: true, attributeFilter: ["disabled"], childList: true, subtree: true });
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!isTopmostDesktopDialog(root)) return;
@@ -82,6 +96,9 @@ export function DesktopDialogRoot({
     document.addEventListener("keydown", handleKeyDown, true);
     return () => {
       document.removeEventListener("keydown", handleKeyDown, true);
+      focusKeeper.disconnect();
+      releaseBackground();
+      holdHoverUntilPointerUse();
       if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
     };
   }, []);
@@ -157,19 +174,24 @@ function getDialogFocusableElements(surface: HTMLElement) {
     .filter((element) => element.tabIndex >= 0 && element.getAttribute("aria-hidden") !== "true" && !element.hidden);
 }
 
+function isDesktopDialogAbove(root: HTMLElement, other: Element) {
+  return other.matches("[data-desktop-dialog-root='true']")
+    && Boolean(root.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING);
+}
+
 function isTopmostDesktopDialog(root: HTMLElement) {
   const dialogs = document.querySelectorAll<HTMLElement>("[data-desktop-dialog-root='true']");
   return dialogs[dialogs.length - 1] === root;
 }
 
 export function DesktopDialogCloseButton({
-  label = "Close",
+  label,
   className = "",
   disabled,
   onClick,
   ...buttonProps
 }: Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children" | "title" | "onClick"> & {
-  label?: string;
+  label: string;
   className?: string;
   disabled?: boolean;
   onClick: () => void;
