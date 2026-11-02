@@ -5,29 +5,16 @@ import type { ComponentProps } from "react";
 import {
   useEffect,
   useMemo,
-  useRef,
   useState,
   type DragEvent as ReactDragEvent,
   type ReactNode,
 } from "react";
 import type { ResolvedSurfaceAppearance } from "../features/appearance/AppearanceRuntime";
 import { useWorkspaceFolderDrop } from "../features/app-shell/useWorkspaceFolderDrop";
-import {
-  ProjectEntryFlow,
-  useProjectEntryFlow,
-  type ProjectEntryFlowController,
-} from "../features/app-shell/ProjectEntryFlow";
+import type { ProjectEntryFlowController } from "../features/app-shell/ProjectEntryFlow";
 import type { ProjectHomeItem, RecentWorkspaceHomeItem } from "../lib/workspaceHomeModel";
 import { writeClipboardText } from "../features/settings/utils";
 import { resolveImportPreviewBrands } from "../features/project-import/importSourceRegistry";
-import type {
-  WorkspaceImportSourceRequest,
-  WorkspaceImportResourcePage,
-  WorkspaceImportProgress,
-  WorkspaceCreateProjectRequest,
-  WorkspaceCreateProjectResult,
-  WorkspaceProjectLocationGrant,
-} from "../types/electron";
 import { DesktopWindowChrome } from "./DesktopWindowChrome";
 import { OnboardingBrandLockup, OnboardingHeaderBrand } from "./onboarding/OnboardingBrandLockup";
 import { OnboardingEmptyStateIntro } from "./onboarding/OnboardingEmptyStateIntro";
@@ -51,17 +38,11 @@ export type OnboardingOperationStatus = {
 };
 
 export type MinimalOnboardingProps = {
-  /** App owns the flow when the retained Homepage shares a Cloud shell. */
-  projectEntryController?: ProjectEntryFlowController;
+  /** The window owns the flow, which starts from pages this one is gone from. */
+  projectEntryController: ProjectEntryFlowController;
+  canCreateProject?: boolean;
+  canImport?: boolean;
   onChooseWorkspace: () => Promise<void>;
-  onChooseProjectLocation?: () => Promise<WorkspaceProjectLocationGrant | null>;
-  onDefaultProjectLocation?: () => Promise<WorkspaceProjectLocationGrant | null>;
-  onCreateProject?: (request: WorkspaceCreateProjectRequest) => Promise<WorkspaceCreateProjectResult>;
-  onImportSource?: (request: WorkspaceImportSourceRequest) => Promise<boolean>;
-  onConnectImportSource?: (provider: string) => Promise<{ connectionId: string }>;
-  onListImportResources?: (request: { provider: string; connectionId: string; parentId?: string | null; cursor?: string | null }) => Promise<WorkspaceImportResourcePage>;
-  onCancelImportSource?: (taskId: string) => Promise<{ cancelled: boolean }>;
-  onImportSourceProgress?: (listener: (progress: WorkspaceImportProgress) => void) => () => void;
   onOpenWorkspacePath: (path: string) => Promise<void>;
   onOpenDroppedWorkspace: (folder: File) => Promise<void>;
   onRemoveProject?: (path: string) => Promise<void>;
@@ -80,6 +61,8 @@ export type MinimalOnboardingProps = {
   appearance: ResolvedSurfaceAppearance;
 };
 
+const NO_RECENT_WORKSPACES: RecentWorkspaceHomeItem[] = [];
+
 /** Homepage project list. Cloud catalog/auth is supplied by the host, not discovered by the view. */
 /** Once there are projects, every way to start one moves to the head of the page. */
 function onboardingEntrySlots(hasProjects: boolean, {
@@ -93,22 +76,16 @@ function onboardingEntrySlots(hasProjects: boolean, {
 
 export function MinimalOnboarding({
   projectEntryController,
+  canCreateProject = false,
+  canImport = false,
   onChooseWorkspace,
-  onChooseProjectLocation,
-  onDefaultProjectLocation,
-  onCreateProject,
-  onImportSource,
-  onConnectImportSource,
-  onListImportResources,
-  onCancelImportSource,
-  onImportSourceProgress,
   onOpenWorkspacePath,
   onOpenDroppedWorkspace,
   onRemoveProject,
   onRenameProject,
   onRenameCloudProject,
   onDeleteCloudProject,
-  recentWorkspaces = [],
+  recentWorkspaces = NO_RECENT_WORKSPACES,
   projectItems,
   listHeld = false,
   cloudAccountStatus,
@@ -119,10 +96,14 @@ export function MinimalOnboarding({
 }: MinimalOnboardingProps) {
   const { t } = useLocalization();
   const [error, setError] = useState<string | null>(initialError);
+  // A failure handed down replaces what is shown; the page's own actions clear it.
+  const [latestInitialError, setLatestInitialError] = useState(initialError);
+  if (latestInitialError !== initialError) {
+    setLatestInitialError(initialError);
+    setError(initialError);
+  }
   const [openingPath, setOpeningPath] = useState<string | null>(null);
   const [draggingPath, setDraggingPath] = useState<string | null>(null);
-  const ownProjectEntryFlow = useProjectEntryFlow();
-  const projectEntryFlow = projectEntryController ?? ownProjectEntryFlow;
   const enableOtherAppImports = useDesktopPreference(s => s.experimentalSettings.enableOtherAppImports);
   const projectLayout = useDesktopPreference(s => s.homepageProjectLayout);
   const setProjectLayout = useDesktopPreference(s => s.setHomepageProjectLayout);
@@ -137,46 +118,22 @@ export function MinimalOnboarding({
     [projectItems, recentWorkspaces],
   );
 
-  useEffect(() => setError(initialError), [initialError]);
-
-  const openPath = async (path: string) => {
+  /** One opening at a time; if it fails, the reason stays on the page. */
+  const runOpening = async (opening: string, open: () => Promise<void>) => {
     if (openingPath) return;
     setError(null);
-    setOpeningPath(path);
+    setOpeningPath(opening);
     try {
-      await onOpenWorkspacePath(path);
+      await open();
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : String(nextError));
     } finally {
       setOpeningPath(null);
     }
   };
-
-  const chooseFolder = async () => {
-    if (openingPath) return;
-    setError(null);
-    setOpeningPath("__new__");
-    try {
-      await onChooseWorkspace();
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : String(nextError));
-    } finally {
-      setOpeningPath(null);
-    }
-  };
-
-  const openDroppedFolder = async (folder: File) => {
-    if (openingPath) return;
-    setError(null);
-    setOpeningPath("__drop__");
-    try {
-      await onOpenDroppedWorkspace(folder);
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : String(nextError));
-    } finally {
-      setOpeningPath(null);
-    }
-  };
+  const openPath = (path: string) => runOpening(path, () => onOpenWorkspacePath(path));
+  const chooseFolder = () => runOpening("__new__", onChooseWorkspace);
+  const openDroppedFolder = (folder: File) => runOpening("__drop__", () => onOpenDroppedWorkspace(folder));
 
   const busy = [openingPath, cloudOpening].some(Boolean);
   const startProjectDrag = (event: ReactDragEvent<HTMLButtonElement>, item: ProjectHomeItem) => {
@@ -200,16 +157,13 @@ export function MinimalOnboarding({
   // Account/auth controls are page chrome, never synthetic Project rows.
   const hasProjects = items.length > 0 || listHeld;
   const onboardingState: OnboardingHomeState = hasProjects ? "projects" : "empty";
-  const [showEmptyStateIntro, setShowEmptyStateIntro] = useState(() => !hasProjects);
-  const homepageRef = useRef<HTMLElement>(null);
-
-  useEffect(() => {
+  const [showEmptyStateIntro, setShowEmptyStateIntro] = useState(!hasProjects);
+  // The intro belongs to a page that has just become empty, and ends if it fills.
+  const [introHasProjects, setIntroHasProjects] = useState(hasProjects);
+  if (introHasProjects !== hasProjects) {
+    setIntroHasProjects(hasProjects);
     setShowEmptyStateIntro(!hasProjects);
-  }, [hasProjects]);
-
-  useEffect(() => {
-    if (homepageRef.current) homepageRef.current.inert = showEmptyStateIntro;
-  }, [showEmptyStateIntro]);
+  }
 
   useEffect(() => {
     if (!import.meta.env.DEV) return undefined;
@@ -234,18 +188,17 @@ export function MinimalOnboarding({
 
   const completeEmptyStateIntro = () => setShowEmptyStateIntro(false);
   const resolvedTheme = appearance.appearance.effectiveColorMode;
-  const canCreateProject = Boolean(onCreateProject && onChooseProjectLocation);
   const projectView = useHomepageProjectView(items, listHeld);
   const entry = onboardingEntrySlots(hasProjects, {
     busy,
     openingFolder: openingPath === "__new__",
     draggingFolder: folderDrop.dragging,
     canCreateProject,
-    canImport: Boolean(onImportSource),
+    canImport,
     importPreviewBrands,
-    onCreateProject: projectEntryFlow.openCreate,
+    onCreateProject: projectEntryController.openCreate,
     onOpenFolder: () => void chooseFolder(),
-    onImport: projectEntryFlow.openImport,
+    onImport: projectEntryController.openImport,
   });
 
   return (
@@ -261,10 +214,10 @@ export function MinimalOnboarding({
     >
       <DesktopWindowChrome context={hasProjects ? <OnboardingHeaderBrand /> : undefined} actions={cloudAccountStatus} />
       <section
-        ref={homepageRef}
         className="onboarding-homepage"
         aria-label={t("onboarding.projects.title")}
         aria-hidden={showEmptyStateIntro || undefined}
+        {...(showEmptyStateIntro ? { inert: "" } : {})}
       >
         <OnboardingHomeLayout
           brand={<OnboardingBrandLockup state={onboardingState} resolvedTheme={resolvedTheme} toolbar={(
@@ -295,7 +248,7 @@ export function MinimalOnboarding({
               busy={busy}
               canCreateProject={canCreateProject}
               prominent
-              onCreateProject={projectEntryFlow.openCreate}
+              onCreateProject={projectEntryController.openCreate}
             />
           )}
           actions={entry.actions}
@@ -306,18 +259,6 @@ export function MinimalOnboarding({
       {onboardingState === "empty" && (
         <OnboardingTelemetryDisclosure ready={!showEmptyStateIntro} />
       )}
-      {!projectEntryController && <ProjectEntryFlow
-        controller={projectEntryFlow}
-        onDefaultLocation={onDefaultProjectLocation}
-        onChooseLocation={onChooseProjectLocation}
-        onCreateProject={onCreateProject}
-        onImportSource={onImportSource}
-        onConnectSource={onConnectImportSource}
-        onListResources={onListImportResources}
-        onCancelImport={onCancelImportSource}
-        onImportProgress={onImportSourceProgress}
-        onOpenFolder={() => void chooseFolder()}
-      />}
       {showEmptyStateIntro && (
         <OnboardingEmptyStateIntro onComplete={completeEmptyStateIntro} />
       )}

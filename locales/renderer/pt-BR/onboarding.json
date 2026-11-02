@@ -116,6 +116,8 @@
   "template.title": "Criar a partir de modelo",
   "template.paste": "Colar link do modelo",
   "template.noLink": "Não há link de modelo na área de transferência. Copie um na página do modelo.",
+  "template.linkFailedTitle": "Não foi possível abrir este link de modelo",
+  "template.linkFailed": "Não foi possível ler o link. Tente novamente ou cole-o da página do modelo.",
   "template.fileCount": "{count, plural, one {# arquivo} other {# arquivos}}",
   "template.getCopy": "Obter uma cópia",
   "template.loading": "Carregando…",

@@ -7,7 +7,7 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HOMEPAGE_PROJECT_LAYOUT_STORAGE_KEY } from "../../../../src/preferenceStorage";
-import { MinimalOnboarding, type MinimalOnboardingProps } from "../../../../src/components/MinimalOnboarding";
+import { HomeWithEntryFlow, type HomeWithEntryFlowProps } from "../../../support/react/homeWithEntryFlow";
 import { OnboardingImportDialog } from "../../../../src/components/OnboardingImportDialog";
 import { PUPPY_BRAND_MARK_ASSETS } from "../../../../src/components/brand/PuppyBrandMark";
 import {
@@ -346,9 +346,9 @@ describe("project folder home", () => {
     const list = container.querySelector<HTMLElement>(".onboarding-project-list");
     expect(list?.dataset.poScrollbar).toBe("menu");
     expect(list?.dataset.poScrollbarVisibility).toBe("always");
-    expect(list?.getAttribute("role")).toBe("region");
+    expect(list?.tagName).toBe("UL");
     expect(list?.getAttribute("aria-label")).toBe("Projects");
-    expect(list?.tabIndex).toBe(0);
+    expect(list?.hasAttribute("tabindex")).toBe(false);
   });
 
   it("lets the project scrollport use remaining height without fixed list caps", () => {
@@ -1077,13 +1077,13 @@ const projectMenuItem = (label: string) => [...document.body.querySelectorAll<HT
   .find((item) => item.textContent === label);
 
 function renderHome(
-  overrides: Partial<Omit<MinimalOnboardingProps, "appearance">> & Pick<Partial<MinimalOnboardingProps>, "appearance"> = {},
+  overrides: Partial<Omit<HomeWithEntryFlowProps, "appearance">> & Pick<Partial<HomeWithEntryFlowProps>, "appearance"> = {},
   appearanceInput: Parameters<typeof createTestSurfaceAppearance>[0] = {},
 ) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
-  const props: MinimalOnboardingProps = {
+  const props: HomeWithEntryFlowProps = {
     onChooseWorkspace: vi.fn(async () => undefined),
     onOpenDroppedWorkspace: vi.fn(async () => undefined),
     onOpenWorkspacePath: vi.fn(async () => undefined),
@@ -1094,7 +1094,7 @@ function renderHome(
   props.onListImportResources ??= vi.fn(async () => ({ items: [], nextCursor: null }));
   props.onCancelImportSource ??= vi.fn(async () => ({ cancelled: true }));
   props.onImportSourceProgress ??= vi.fn(() => () => undefined);
-  act(() => renderWithTestLocalization(root, React.createElement(MinimalOnboarding, props)));
+  act(() => renderWithTestLocalization(root, React.createElement(HomeWithEntryFlow, props)));
   return container;
 }
 

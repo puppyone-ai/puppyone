@@ -116,6 +116,8 @@
   "template.title": "Aus Vorlage erstellen",
   "template.paste": "Vorlagenlink einfügen",
   "template.noLink": "In der Zwischenablage ist kein Vorlagenlink. Kopiere zuerst einen von einer Vorlagenseite.",
+  "template.linkFailedTitle": "Dieser Vorlagenlink wurde nicht geöffnet",
+  "template.linkFailed": "Der Link konnte nicht gelesen werden. Versuche es noch einmal oder füge ihn von der Vorlagenseite ein.",
   "template.fileCount": "{count, plural, one {# Datei} other {# Dateien}}",
   "template.getCopy": "Kopie holen",
   "template.loading": "Wird geladen…",

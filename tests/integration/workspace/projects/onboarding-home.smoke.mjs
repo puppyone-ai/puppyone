@@ -504,7 +504,7 @@ async function validateScrollport(theme) {
         surface:rect(document.querySelector('.onboarding-home-primary')), scrollHeight:list.scrollHeight, clientHeight:list.clientHeight,
         gutter:list.offsetWidth - list.clientWidth, thumb:getComputedStyle(list, '::-webkit-scrollbar-thumb').backgroundColor,
         thumbInset:getComputedStyle(list, '::-webkit-scrollbar-thumb').borderTopWidth, hover:list.matches(':hover'),
-        outerOverflow:document.querySelector('.onboarding-shell').scrollHeight > innerHeight, region:list.getAttribute('role'), tabIndex:list.tabIndex };
+        outerOverflow:document.querySelector('.onboarding-shell').scrollHeight > innerHeight, tag:list.tagName, stops:list.querySelectorAll('[data-project-open][tabindex="0"]').length };
     })()`);
     assert.deepEqual(snapshot.viewport, { width, height }, `${context}: test the requested viewport, not an OS-clamped window`);
     assert.equal(snapshot.brand.y, titleTop, `${context}: the title's position never moves`);
@@ -515,13 +515,13 @@ async function validateScrollport(theme) {
     assert.equal(snapshot.thumbInset, "2px", `${context}: the shared scrollbar thumb, not a local one`);
     assert.equal(snapshot.hover, false, `${context}: visibility must not depend on hovering the list`);
     assert.notEqual(snapshot.thumb, "rgba(0, 0, 0, 0)", `${context}: persistent thumb before any interaction`);
-    assert.equal(snapshot.region, "region");
-    assert.equal(snapshot.tabIndex, 0);
+    assert.equal(snapshot.tag, "UL", `${context}: the projects are a list`);
+    assert.equal(snapshot.stops, 1, `${context}: the list is one stop for Tab`);
     await shot(`long-projects-${theme}-${width}x${height}`);
     await window.webContents.debugger.sendCommand("Input.dispatchMouseEvent", { type: "mouseWheel",
       x: Math.round(snapshot.list.x + 30), y: Math.round(snapshot.list.y + 20), deltaX: 0, deltaY: 250 });
     await until("document.querySelector('.onboarding-project-list').scrollTop > 0");
-    await evaluate("document.querySelector('.onboarding-project-list').focus()");
+    await evaluate("document.querySelector('[data-project-open][tabindex=\"0\"]').focus()");
     press("End");
     await until("(() => { const el = document.querySelector('.onboarding-project-list'); return el.scrollTop >= el.scrollHeight - el.clientHeight - 2; })()");
     assert.equal(await evaluate("document.querySelector('.onboarding-brand-lockup').getBoundingClientRect().top"), snapshot.brand.y, `${context}: scrolling does not move the title`);

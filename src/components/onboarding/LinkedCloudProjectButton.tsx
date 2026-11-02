@@ -8,16 +8,17 @@ import { useDesktopPlatformCapabilities } from "../../platform/useDesktopPlatfor
  * projects (puppy-issues ADR-001): this opens the other one, it never chooses
  * where the folder itself opens.
  */
-export function LinkedCloudProjectButton({ project, busy, className, onOpen }: {
+export function LinkedCloudProjectButton({ project, busy, className, tabIndex, onOpen }: {
   project: NonNullable<ProjectHomeItem["linkedCloudProject"]>;
   busy: boolean;
   className: string;
+  tabIndex?: number;
   onOpen: () => void;
 }) {
   const { t } = useLocalization();
   const name = bidiIsolate(project.name);
   return <Tooltip content={t("cloud.home.linkedCloudProjectHint", { project: name })}>
-    <button type="button" className={`project-cloud-link-button ${className}`} disabled={busy}
+    <button type="button" className={`project-cloud-link-button ${className}`} tabIndex={tabIndex} disabled={busy}
       data-linked-cloud-project-id={project.id}
       aria-label={t("cloud.home.openLinkedCloudProject", { project: name })}
       onClick={onOpen}>

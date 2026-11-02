@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   deleteCloudProject,
   listCloudProjects,
@@ -15,6 +15,8 @@ type Catalog = { authority: string; projects: DesktopCloudProject[]; status: "lo
   activity?: ReadonlyMap<string, string>;
   /** This session's own listing and history have arrived, so the order is the real one. */
   fresh?: boolean };
+
+const NO_PROJECTS: DesktopCloudProject[] = [];
 
 function cachedCatalog(scope: string | null, session: DesktopCloudSession) {
   // Offline the listing cannot answer, so a cached list would only show and vanish.
@@ -100,8 +102,17 @@ export function useHomepageCloudProjects({ visible, enabled, session, restoring 
   const scoped = authority && catalog?.authority === authority ? catalog : null;
   // A session slower than the first paint's patience must not cost the list its Cloud half.
   const standIn = restoring && !session ? lastCatalog : undefined;
-  const items = buildHomepageProjects({ local, cloud: scoped?.projects ?? standIn?.projects ?? [], apiBaseUrl,
-    activity: scoped?.activity ?? (standIn && readCachedProjectActivity(standIn.scope)) });
+  const cloud = scoped?.projects ?? standIn?.projects ?? NO_PROJECTS;
+  const scopedActivity = scoped?.activity;
+  const activity = useMemo(
+    () => scopedActivity ?? (standIn && readCachedProjectActivity(standIn.scope)),
+    [scopedActivity, standIn],
+  );
+  // Everything downstream memoizes on this list, so it changes only when its sources do.
+  const items = useMemo(
+    () => buildHomepageProjects({ local, cloud, apiBaseUrl, activity }),
+    [local, cloud, apiBaseUrl, activity],
+  );
   return {
     /** Whose list this is, across the session generations of one account. */
     account: accountScope,

@@ -6,7 +6,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initializeDesktopPreferences } from "../../../../src/preferencesStore";
 import { HOMEPAGE_PROJECT_LAYOUT_STORAGE_KEY } from "../../../../src/preferenceStorage";
-import { MinimalOnboarding } from "../../../../src/components/MinimalOnboarding";
+import { HomeWithEntryFlow } from "../../../support/react/homeWithEntryFlow";
 import { useAccountCloudWorkspace, type AccountCloudWorkspace } from "../../../../src/features/cloud/workbench/useAccountCloudWorkspace";
 import { useHomepageCloudProjects } from "../../../../src/features/cloud/workbench/useHomepageCloudProjects";
 import { HomepageCloudStatus } from "../../../../src/features/cloud/workbench/HomepageCloudStatus";
@@ -42,7 +42,7 @@ function Harness({ currentSession = session, visible = true, enabled = true, loc
   const [shown, onShow] = useState<"local" | "cloud">("local");
   account = useAccountCloudWorkspace({ enabled, shown, onShow, session: currentSession, apiBaseUrl: API });
   home = useHomepageCloudProjects({ enabled, visible: visible && !account.active, session: currentSession, apiBaseUrl: API, local: localItems });
-  return visible && !account.active ? <MinimalOnboarding appearance={appearance} projectItems={home.items}
+  return visible && !account.active ? <HomeWithEntryFlow appearance={appearance} projectItems={home.items}
     onChooseWorkspace={async () => {}}
     onOpenDroppedWorkspace={async () => {}} onOpenWorkspacePath={openLocal}
     cloudOpening={account.opening} onOpenCloudProject={(id) => void account.openTarget({ kind: "project_root", project_id: id })}
@@ -97,6 +97,18 @@ describe("inline Homepage Cloud projects", () => {
     expect(account.active).toBe(true);
     expect(account.context.projectId).toBe("a");
     expect(openLocal).toHaveBeenCalledOnce();
+  });
+
+  it("keeps one list across renders that change none of its sources", async () => {
+    const localItems = [local];
+    await render({ localItems });
+    const settled = home.items;
+
+    await render({ localItems });
+    expect(home.items).toBe(settled);
+
+    await render({ localItems: [...localItems] });
+    expect(home.items).not.toBe(settled);
   });
 
   it("never remembers where a project was last opened", async () => {

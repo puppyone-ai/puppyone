@@ -1,4 +1,5 @@
 import { lazy, Suspense } from "react";
+import { useLocalization } from "@puppyone/localization";
 import { PageLoading } from "../../../components/loading";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
 import { CloudAgentSidebarHost } from "../agent/lazy";
@@ -22,8 +23,9 @@ export function CloudWorkspaceSidebar({ sidebar, agent, context, session, apiBas
   revisionKey: string;
   onSessionChange: (session: DesktopCloudSession | null) => void;
 }) {
+  const { t } = useLocalization();
   if (!sidebar.scope) return null;
-  if (sidebar.historyOpen && context?.status === "resolved") return <Suspense fallback={<PageLoading variant="fill" />}>
+  if (sidebar.historyOpen && context?.status === "resolved") return <Suspense fallback={<PageLoading variant="fill" label={t("cloud.common.loading")} />}>
     <HistorySidebar key={sidebar.scope} session={session} projectId={context.projectId} apiBaseUrl={apiBaseUrl}
       active={active} revisionKey={revisionKey} onSessionChange={onSessionChange} onClose={sidebar.close} />
   </Suspense>;

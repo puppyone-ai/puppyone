@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MinimalOnboarding, type MinimalOnboardingProps } from "../../../../src/components/MinimalOnboarding";
+import { HomeWithEntryFlow, type HomeWithEntryFlowProps } from "../../../support/react/homeWithEntryFlow";
 import { HOMEPAGE_PROJECT_LAYOUT_STORAGE_KEY, HOMEPAGE_PROJECT_SORT_STORAGE_KEY } from "../../../../src/preferenceStorage";
 import { viewProjectHomeItems, type ProjectHomeItem } from "../../../../src/lib/workspaceHomeModel";
 import { initializeDesktopPreferences } from "../../../../src/preferencesStore";
@@ -23,11 +23,11 @@ const projectItems = [local, linked, cloud];
 
 let root: Root | null = null;
 
-function renderHome(overrides: Partial<MinimalOnboardingProps> = {}) {
+function renderHome(overrides: Partial<HomeWithEntryFlowProps> = {}) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
-  const props: MinimalOnboardingProps = {
+  const props: HomeWithEntryFlowProps = {
     onChooseWorkspace: vi.fn(async () => undefined),
     onOpenDroppedWorkspace: vi.fn(async () => undefined),
     onOpenWorkspacePath: vi.fn(async () => undefined),
@@ -37,7 +37,7 @@ function renderHome(overrides: Partial<MinimalOnboardingProps> = {}) {
     projectItems,
     ...overrides,
   };
-  act(() => renderWithTestLocalization(root!, React.createElement(MinimalOnboarding, props)));
+  act(() => renderWithTestLocalization(root!, React.createElement(HomeWithEntryFlow, props)));
   return { container, props };
 }
 
@@ -58,7 +58,7 @@ const project = (container: HTMLElement, id: "local" | "linked" | "cloud") => {
 };
 
 const viewTriggers = (container: HTMLElement) => toolbarControls(container).slice(0, 2);
-const withCloudActions = (overrides: Partial<MinimalOnboardingProps> = {}): Partial<MinimalOnboardingProps> => ({
+const withCloudActions = (overrides: Partial<HomeWithEntryFlowProps> = {}): Partial<MinimalOnboardingProps> => ({
   projectItems: [local, linked, { ...cloud, cloudActions: { rename: true, delete: true } }],
   onRenameProject: vi.fn(async () => undefined),
   onRenameCloudProject: vi.fn(async () => undefined),
@@ -268,7 +268,7 @@ describe("Homepage project layouts", () => {
     const first = renderHome();
     togglePlaces(first.container, "Cloud projects");
     const props = { ...first.props, projectItems: [local, linked] };
-    act(() => renderWithTestLocalization(root!, React.createElement(MinimalOnboarding, props)));
+    act(() => renderWithTestLocalization(root!, React.createElement(HomeWithEntryFlow, props)));
     expect(first.container.querySelectorAll(".onboarding-project-row-wrap")).toHaveLength(2);
     expect(chips(first.container)).toHaveLength(0);
     expect(viewTriggers(first.container)[0]?.getAttribute("aria-label")).toBe("Filter projects");

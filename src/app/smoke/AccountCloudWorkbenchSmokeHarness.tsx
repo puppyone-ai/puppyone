@@ -12,6 +12,7 @@ import type { DesktopCloudSession } from "../../lib/cloudApi";
 import { useAccountCloudWorkspace } from "../../features/cloud/workbench/useAccountCloudWorkspace";
 import { useNativeCloudWorkbench } from "../../features/cloud/workbench/useNativeCloudWorkbench";
 import { DesktopHelpLauncher } from "../../features/app-shell/DesktopHelpLauncher";
+import { useProjectEntryFlow } from "../../features/app-shell/ProjectEntryFlow";
 import { AccountCloudWorkspaceSurface, useAccountCloudWorkspacePresentation } from "../AccountCloudWorkspaceSurface";
 import { createCloudAgentSmokeFixture, editCloudAgentPrompt } from "../../features/cloud/agent/CloudAgentSmokeFixture";
 
@@ -103,6 +104,7 @@ function AccountCloudFixture() {
   const typographyPreferences = useDesktopPreference(s => s.typographyPreferences);
   const { locale } = useLocalization();
   const [includeLocal, setIncludeLocal] = useState(false);
+  const projectEntry = useProjectEntryFlow();
   const catalog = useTypographyCatalog();
   const typography = useTypographyRuntime(typographyPreferences, catalog, locale);
   const appearance = resolveSurfaceAppearance({ appearance: resolvedAppearance, typography,
@@ -143,6 +145,7 @@ function AccountCloudFixture() {
   }, [account, setTheme, settingsOpened, selectedLocalPath]);
   return <SurfaceAppearanceProvider value={appearance}>
     {!account.active && <MinimalOnboarding appearance={appearance} projectItems={homepage.items}
+      projectEntryController={projectEntry}
       cloudOpening={account.opening}
       onChooseWorkspace={async () => {}} onOpenWorkspacePath={async () => {}} onOpenDroppedWorkspace={async () => {}}
       onOpenCloudProject={(id) => void account.openTarget({ kind: "project_root", project_id: id })}
