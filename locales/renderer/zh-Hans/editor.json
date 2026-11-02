@@ -185,6 +185,8 @@
   "html.source": "HTML 源代码",
   "html.sourceUnavailable": "HTML 源代码不可用",
   "loadingFile": "正在加载文件…",
+  "fileMode.openFolder": "将所在文件夹作为项目打开",
+  "fileMode.readOnlyEncoding": "此文件不是 UTF-8 编码，已以只读方式打开，以保护其内容。",
   "loadingViewer": "正在加载查看器…",
   "markdown.ai.added": "由 Agent 添加",
   "markdown.ai.beforeEdit": "Agent 编辑前",

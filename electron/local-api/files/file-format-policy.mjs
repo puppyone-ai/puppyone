@@ -170,6 +170,10 @@ export function getMimeType(filePath) {
   return shouldUseUtf8Mime(format, mimeType) ? `${mimeType}; charset=utf-8` : mimeType;
 }
 
+export function getLocalFileFormatId(name) {
+  return resolveLocalFileFormat({ name }).id;
+}
+
 export function classifyLocalFile(name) {
   return getSemanticKindForFormat(resolveLocalFileFormat({ name }));
 }

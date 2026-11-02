@@ -76,6 +76,7 @@ export function registerWorkspaceFileIpcHandlers({
   workspaceMutationTracker = null,
   gitMetadataWatchService = null,
   convertOfficeDocument = unsupportedOfficeDocumentConverter,
+  decodesLegacyText = () => false,
   t = defaultTranslate,
 }) {
   const officeConversionSessionsBySender = new Map();
@@ -102,7 +103,7 @@ export function registerWorkspaceFileIpcHandlers({
     if (typeof filePath !== "string" || filePath.trim().length === 0) {
       throw new Error("File path is required.");
     }
-    return readWorkspaceTextFile(rootPath, filePath);
+    return readWorkspaceTextFile(rootPath, filePath, { decodeLegacyText: decodesLegacyText(event) });
   });
 
   ipcMain.handle("workspace:get-file-url", async (event, request) => {

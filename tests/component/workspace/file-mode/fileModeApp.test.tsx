@@ -14,10 +14,17 @@ const mocks = vi.hoisted(() => ({
   resolveNode: vi.fn(),
   retry: vi.fn(),
   preview: vi.fn(),
+  content: { value: null as null | Record<string, unknown> },
+  openFileFolder: vi.fn(async () => undefined),
+  setFileEdited: vi.fn(),
+  publishUnsaved: { value: (_unsaved: boolean) => undefined as void },
 }));
 
 vi.mock("../../../../src/lib/localFiles", () => ({
   getInitialWorkspace: mocks.getInitialWorkspace,
+  openExternalUrl: vi.fn(),
+  openFileFolder: mocks.openFileFolder,
+  setFileEdited: mocks.setFileEdited,
   createLocalDataPort: (rootPath: string) => ({
     rootPath,
     resolveNode: mocks.resolveNode,
@@ -41,15 +48,19 @@ vi.mock("@puppyone/shared-ui", async (original) => ({
     mocks.preview(props);
     return <div data-testid="preview" />;
   },
+  subscribeUnsavedDocumentSessions: (listener: (unsaved: boolean) => void) => {
+    mocks.publishUnsaved.value = listener;
+    return () => undefined;
+  },
   useDocumentInput: () => ({
-    content: null, generation: 0, fileUrl: null, fileUrlLoading: false, fileUrlError: null,
+    content: mocks.content.value, generation: 0, fileUrl: null, fileUrlLoading: false, fileUrlError: null,
     loading: false, error: null, retry: mocks.retry, applyPersistedCommit: vi.fn(),
   }),
 }));
 
 import { FileModeApp } from "../../../../src/app/FileModeApp";
 
-const target = { path: "/notes/plan.md", rootPath: "/notes", name: "plan.md" };
+const target = { path: "/notes/plan.md", rootPath: "/notes", name: "plan.md", tooLarge: false, sizeLimit: 1048576 };
 
 let container: HTMLDivElement;
 let root: Root;
@@ -68,6 +79,7 @@ async function mount() {
 describe("FileModeApp", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.content.value = null;
     mocks.getInitialWorkspace.mockResolvedValue({ initialFile: target });
     mocks.resolveNode.mockResolvedValue({ id: "plan.md", path: "plan.md", name: "plan.md", type: "markdown" });
   });
@@ -81,7 +93,7 @@ describe("FileModeApp", () => {
     await mount();
 
     expect(mocks.resolveNode).toHaveBeenCalledWith("plan.md");
-    expect(container.querySelector('[data-window-drag-region="true"]')?.textContent).toBe("plan.md");
+    expect(container.querySelector('[data-window-drag-region="true"] .file-mode-window__name')?.textContent).toBe("plan.md");
     expect(container.querySelector('[data-testid="preview"]')).not.toBeNull();
     expect(mocks.preview).toHaveBeenLastCalledWith(expect.objectContaining({
       editorSaveMode: "manual",
@@ -90,6 +102,57 @@ describe("FileModeApp", () => {
       editorInteractionPreferences: expect.objectContaining({ showSaveStatus: true }),
     }));
     expect(mocks.preview.mock.lastCall?.[0].markdownEnvironment.assetUrlResolver).toBeTypeOf("function");
+  });
+
+  it("lets the window know about unsaved edits", async () => {
+    await mount();
+    mocks.publishUnsaved.value(true);
+    expect(mocks.setFileEdited).toHaveBeenLastCalledWith(true);
+  });
+
+  it("offers the way into a project from the title bar", async () => {
+    await mount();
+    const button = container.querySelector<HTMLButtonElement>(".file-mode-window__action");
+    expect(button?.closest('[data-window-drag-region="true"]')).not.toBeNull();
+
+    act(() => button?.click());
+    expect(mocks.openFileFolder).toHaveBeenCalledOnce();
+  });
+
+  it("sends links to the browser without offering neighbouring files", async () => {
+    await mount();
+    const { documentNavigation } = mocks.preview.mock.lastCall![0];
+    expect(documentNavigation.resolveReference("plan.md", "https://puppyone.ai")).toMatchObject({ kind: "external" });
+  });
+
+  it("does not offer to import images next to the file", async () => {
+    await mount();
+    expect(mocks.preview.mock.lastCall?.[0].editorAssets).toBeUndefined();
+  });
+
+  it.each(["gb18030", "unknown"])("keeps a %s file read-only and says why", async (encoding) => {
+    mocks.content.value = { path: "plan.md", name: "plan.md", type: "markdown", content: "x", encoding };
+    await mount();
+
+    expect(mocks.preview.mock.lastCall?.[0].documentPersistence).toBeNull();
+    expect(container.querySelector('[role="status"]')).not.toBeNull();
+  });
+
+  it("edits a UTF-8 file", async () => {
+    mocks.content.value = { path: "plan.md", name: "plan.md", type: "markdown", content: "x", encoding: "utf-8" };
+    await mount();
+
+    expect(mocks.preview.mock.lastCall?.[0].documentPersistence).not.toBeNull();
+    expect(container.querySelector('[role="status"]')).toBeNull();
+  });
+
+  it("explains a file over the size limit without reading it", async () => {
+    mocks.getInitialWorkspace.mockResolvedValue({ initialFile: { ...target, tooLarge: true } });
+    await mount();
+
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("1 MB");
+    expect(mocks.resolveNode).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="preview"]')).toBeNull();
   });
 
   it("picks up outside changes when the window regains focus", async () => {

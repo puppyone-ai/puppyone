@@ -1,5 +1,16 @@
 import { resolveDesktopAppIcon } from "../../../../shared/desktop/app-icon-contract.mjs";
 
+/**
+ * Files Desktop offers to open on their own. `Alternate` joins the system's
+ * list without claiming the user's default app. A declaration's content types
+ * override its extensions, so anything matched by extension needs its own entry.
+ */
+const FILE_MODE_DOCUMENT_TYPES = Object.freeze([
+  { CFBundleTypeName: "Markdown", LSItemContentTypes: ["net.daringfireball.markdown"] },
+  { CFBundleTypeName: "CSV", LSItemContentTypes: ["public.comma-separated-values-text"] },
+  { CFBundleTypeName: "HTML", LSItemContentTypes: ["public.html"] },
+].map((type) => ({ ...type, CFBundleTypeRole: "Editor", LSHandlerRank: "Alternate" })));
+
 export function applyMacosBuilderConfig({ config, baseBuild, identity }) {
   return {
     ...config,
@@ -28,6 +39,7 @@ export function applyMacosBuilderConfig({ config, baseBuild, identity }) {
         ...(baseBuild.mac?.extendInfo ?? {}),
         CFBundleName: identity.applicationName,
         CFBundleDisplayName: identity.applicationName,
+        CFBundleDocumentTypes: FILE_MODE_DOCUMENT_TYPES,
       },
       target: ["dmg", "zip"],
     },

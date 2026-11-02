@@ -4,6 +4,7 @@ import "./styles.css";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import {
+  discardActiveDocumentSessions,
   flushActiveDocumentSessions,
   retireEditorTasks,
   holdEditorRuntimeAdmission,
@@ -52,7 +53,7 @@ const setCloseInteractionBarrier = (locked: boolean) => {
 };
 
 const stopDocumentSessionFlushListener = window.puppyoneDesktop
-  ?.onDocumentSessionFlushRequested?.(async ({ requestId, reason }) => {
+  ?.onDocumentSessionFlushRequested?.(async ({ requestId, reason, discard }) => {
     const closesWindow = reason === "app-close";
     if (closesWindow) {
       activeCloseRequestId = requestId;
@@ -60,6 +61,7 @@ const stopDocumentSessionFlushListener = window.puppyoneDesktop
     }
     try {
       if (closesWindow) await reconcilePendingDocumentOperations();
+      if (discard) discardActiveDocumentSessions();
       await flushActiveDocumentSessions(reason);
       if (closesWindow) await retireEditorTasks();
     } catch (error) {

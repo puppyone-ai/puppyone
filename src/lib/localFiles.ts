@@ -307,6 +307,15 @@ export async function renameRecentWorkspace(folderPath: string, name: string): P
   await getDesktopBridge().renameRecentWorkspace({ folderPath, name });
 }
 
+/** Lets a File Mode window's close button and quit know about unsaved edits. */
+export function setFileEdited(edited: boolean): void {
+  getDesktopBridge().setFileEdited(edited);
+}
+
+export async function openFileFolder(): Promise<void> {
+  await getDesktopBridge().openFileFolder();
+}
+
 export async function openExternalUrl(href: string): Promise<void> {
   await getDesktopBridge().openExternalUrl(href);
 }

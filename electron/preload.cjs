@@ -154,7 +154,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
       const reason = payload?.reason === "git-auto-commit" ? "git-auto-commit" : "app-close";
       if (!requestId) return;
       try {
-        await callback({ requestId, reason });
+        await callback({ requestId, reason, discard: payload?.discard === true });
         ipcRenderer.send("document-session:flush-result", { requestId, ok: true });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -229,6 +229,8 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   listCloudAccessPointDirectory: (request) => ipcRenderer.invoke("cloud:access-point-list-directory", request),
   getCloudAccessPointSemantics: (request) => ipcRenderer.invoke("cloud:access-point-semantics", request),
   openExternalUrl: (href) => ipcRenderer.invoke("system:open-external-url", href),
+  setFileEdited: (edited) => ipcRenderer.send("file-mode:set-edited", edited === true),
+  openFileFolder: () => ipcRenderer.invoke("file-mode:open-folder"),
   submitFeedback: (request) => ipcRenderer.invoke("feedback:submit", request),
   markdownWebEmbed: {
     create: (request) => ipcRenderer.invoke("markdown-web-embed:create", request),

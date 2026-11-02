@@ -16,6 +16,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import {
   getMimeType,
+  MAX_EDITOR_BYTES,
   openWorkspaceFileRangeStream,
   readWorkspaceTextFile,
   readWorkspaceFile,
@@ -137,7 +138,8 @@ import { createWorkspaceStateStore } from "./main/workspace-state-store.mjs";
 import { WorkspaceWindowIndex } from "./main/workspace/workspace-window-index.mjs";
 import { WindowWorkspaceState } from "./main/window-workspace-state.mjs";
 import { createWindowWorkspaceCompositionService } from "./main/window-workspace-composition.mjs";
-import { createFileTarget, FILE_MODE_HASH, isFileModeFile, isIpcAllowedInFileMode } from "./main/file-mode.mjs";
+import { askToSaveFile, createFileTarget, FILE_MODE_HASH, isFileModeFile, isIpcAllowedInFileMode } from "./main/file-mode.mjs";
+import { registerFileModeIpcHandlers } from "./main/ipc/file-mode-ipc.mjs";
 import { createWindowWorkspaceOperationQueue } from "./main/workspace/project-sessions/window-workspace-operation-queue.mjs";
 import {
   createProjectEntryService,
@@ -376,6 +378,16 @@ const documentSessionCloseCoordinator = createDocumentSessionCloseCoordinator({
   onCloseCancelled: applicationQuitIntent.cancel,
   closeResources: async (window) => {
     return (await projectSessions.closeWindow(window.webContents.id)).closed;
+  },
+  resolveCloseChoice: (window) => {
+    const state = windowStateById.get(window.webContents.id);
+    if (!state?.fileTarget || !state.fileEdited) return "save";
+    return askToSaveFile({
+      dialog,
+      window,
+      name: state.fileTarget.name,
+      t: (messageId, values) => localeService.t(messageId, values),
+    });
   },
 });
 documentSessionCloseCoordinator.registerIpc(trustedIpcMain);
@@ -901,13 +913,15 @@ app.on("second-instance", (_event, argv, workingDirectory, launchIntent) => {
     argv,
     workingDirectory,
     isPackaged: app.isPackaged,
+    openFile: openPathFromSystem,
     openWorkspaceInNewWindow,
     revealOrCreateWindow: createOrRevealWindow,
     reportError: (message, error) => console.error(message, error),
   });
 });
 
-const pendingOpenPaths = [];
+// macOS sends files as events. Windows and Linux name them on the command line.
+const pendingOpenPaths = initialLaunchIntent.filePath ? [initialLaunchIntent.filePath] : [];
 app.on("open-file", (event, targetPath) => {
   event.preventDefault();
   if (initialWindowReady) void openPathFromSystem(targetPath).catch((error) => console.error("Unable to open file:", error));
@@ -1150,6 +1164,15 @@ app.on("before-quit", createApplicationCloseCoordinator({
 }));
 
 function registerIpcHandlers() {
+  registerFileModeIpcHandlers({
+    ipcMain: trustedIpcMain,
+    getFileWindow: (sender) => {
+      const state = windowStateById.get(sender.id);
+      const window = windowsById.get(sender.id);
+      return state?.fileTarget && window ? { state, window } : null;
+    },
+    openFolder: ({ rootPath, name }) => openWorkspaceInNewWindow(rootPath, { initialOpenPath: name }),
+  });
   registerMermaidIpc({ ipcMain: trustedIpcMain, service: mermaidRenderService });
   registerSessionConnectionIpcHandlers({ ipcMain: trustedIpcMain, MessageChannelMain, projectSessions, agentService, terminalService });
   registerItemLifecycleIpc({ ipcMain: trustedIpcMain, lifecycle: itemLifecycle, projectSessions, manage: manageItemExecutions });
@@ -1285,6 +1308,7 @@ function registerIpcHandlers() {
     shell,
     authorizeWorkspaceRoot,
     convertOfficeDocument: desktopPlatformHost.documents.convertOfficeDocumentToDocx,
+    decodesLegacyText: (event) => Boolean(windowStateById.get(event.sender.id)?.fileTarget),
     localFileCapabilities,
     workspaceWatchService,
     workspaceMutationTracker,
@@ -1456,7 +1480,15 @@ async function getInitialWorkspaceResultForWindow(sender) {
 
   const state = windowStateById.get(window.webContents.id);
   if (state?.fileTarget) {
-    return { workspaceId: null, path: null, workspace: null, workspaces: [], initialFile: state.fileTarget, error: null };
+    const { size } = await fs.promises.stat(state.fileTarget.path).catch(() => ({ size: 0 }));
+    return {
+      workspaceId: null,
+      path: null,
+      workspace: null,
+      workspaces: [],
+      initialFile: { ...state.fileTarget, tooLarge: size > MAX_EDITOR_BYTES, sizeLimit: MAX_EDITOR_BYTES },
+      error: null,
+    };
   }
   if (state?.folders.length) {
     const workspaces = state.folders.map((folder) => folder.workspace);
@@ -1465,6 +1497,8 @@ async function getInitialWorkspaceResultForWindow(sender) {
       path: state.folderPaths[0] ?? null,
       workspace: workspaces[0] ?? null,
       workspaces,
+      // The renderer may only ask after the window was assigned its folders.
+      initialOpenPath: state.takeInitialOpenPath() ?? null,
       error: null,
     };
   }

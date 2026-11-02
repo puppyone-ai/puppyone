@@ -185,6 +185,8 @@
   "html.source": "Source HTML",
   "html.sourceUnavailable": "Source HTML indisponible",
   "loadingFile": "Chargement du fichier…",
+  "fileMode.openFolder": "Ouvrir le dossier comme projet",
+  "fileMode.readOnlyEncoding": "Ce fichier n’est pas enregistré en UTF-8 : il s’ouvre en lecture seule pour préserver son contenu.",
   "loadingViewer": "Chargement de la visionneuse…",
   "markdown.ai.added": "Ajouté par l’agent",
   "markdown.ai.beforeEdit": "Avant la modification de l’agent",

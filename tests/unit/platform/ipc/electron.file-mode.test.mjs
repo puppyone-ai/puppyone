@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
+  askToSaveFile,
   createFileTarget,
   isFileModeFile,
   isIpcAllowedInFileMode,
@@ -23,6 +24,7 @@ describe("File Mode IPC gate", () => {
   });
 
   it.each([
+    "workspace:create-preview-document",
     "workspace:read-file",
     "workspace:resolve-node",
     "workspace:write-file",
@@ -61,7 +63,8 @@ describe("File Mode IPC gate", () => {
     "workspace:import-entries",
     "workspace:watch-start",
     "workspace:git-status",
-    "workspace:create-preview-document",
+    "workspace:reveal-entry-in-finder",
+    "workspace:open-entry-external",
     "terminal:create",
     "agent:session-create",
     "cloud-workspace:watch",
@@ -82,16 +85,45 @@ describe("File Mode IPC gate", () => {
       "document-session:flush-result",
       "mermaid:render",
       "workspace:revoke-file-url",
+      "system:open-external-url",
+      "editor:markdown-format-active",
+      "file-mode:set-edited",
+      "file-mode:open-folder",
     ]) expect(allowed(channel)).toBe(true);
   });
 });
 
 describe("File Mode formats", () => {
-  it.each(["a.md", "a.markdown", "A.MD", "/x/y/a.mdx"])("opens %s", (name) => {
-    expect(isFileModeFile(name)).toBe(true);
+  it.each(["a.md", "a.markdown", "A.MD", "/x/y/a.mdx", "a.csv", "A.CSV", "a.html", "a.htm", "/x/y/A.HTML"])(
+    "opens %s",
+    (name) => expect(isFileModeFile(name)).toBe(true),
+  );
+
+  it.each(["a.pdf", "a.yaml", "a.png", "a", "a.xlsx", "a.tsv", "a.ejs", "a.jsp", "a.php"])(
+    "does not open %s",
+    (name) => expect(isFileModeFile(name)).toBe(false),
+  );
+});
+
+describe("closing with unsaved edits", () => {
+  const t = (id, values) => (values ? `${id}:${values.name}` : id);
+  const ask = (response) => {
+    const dialog = { showMessageBox: vi.fn(async () => ({ response })) };
+    return { dialog, choice: askToSaveFile({ dialog, window: {}, name: "plan.md", t }) };
+  };
+
+  it.each([[0, "save"], [1, "discard"], [2, "cancel"], [9, "cancel"]])("maps button %i to %s", async (response, expected) => {
+    await expect(ask(response).choice).resolves.toBe(expected);
   });
 
-  it.each(["a.csv", "a.html", "a.htm", "a.pdf", "a.yaml", "a.png", "a"])("does not open %s yet", (name) => {
-    expect(isFileModeFile(name)).toBe(false);
+  it("names the file and treats dismissing the dialog as cancel", async () => {
+    const { dialog, choice } = ask(0);
+    await choice;
+    expect(dialog.showMessageBox).toHaveBeenCalledWith({}, expect.objectContaining({
+      message: "native.fileClose.message:plan.md",
+      defaultId: 0,
+      cancelId: 2,
+      buttons: ["native.fileClose.save", "native.fileClose.discard", "native.fileClose.cancel"],
+    }));
   });
 });
