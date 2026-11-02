@@ -42,7 +42,17 @@ async function openFixture(query) {
   const dragTo = async (x, y) => { send({ type: "mouseMove", button: "left", modifiers: ["leftButtonDown"], x, y }); await sleep(30); };
   const release = async (x, y) => { send({ type: "mouseUp", button: "left", clickCount: 1, x, y }); await sleep(90); };
   const shot = async (name, rect) => fs.writeFile(path.join(artifacts, `${name}.png`), (await window.webContents.capturePage(rect)).toPNG());
-  return { window, call, send, hover, press, dragTo, release, shot };
+  // A widget that just scrolled in may still be mounting, so wait for the handle
+  // here. Scenarios that assert its absence keep using `hover`.
+  const hoverUntilHandle = async (x, y, attempts = 12) => {
+    for (let attempt = 1; attempt < attempts; attempt += 1) {
+      const handle = await hover(x, y);
+      if (handle) return handle;
+      await sleep(100);
+    }
+    return hover(x, y);
+  };
+  return { window, call, send, hover, hoverUntilHandle, press, dragTo, release, shot };
 }
 
 const scenarios = {
@@ -90,7 +100,7 @@ const scenarios = {
     for (const selector of [".cm-md-code-widget", ".cm-md-table-widget-wrap", ".cm-md-hr-widget"]) {
       const widget = await page.call("widget", selector);
       for (const fraction of [.25, .5, .85]) {
-        const handle = await page.hover(widget.left + 40, widget.top + (widget.bottom - widget.top) * fraction);
+        const handle = await page.hoverUntilHandle(widget.left + 40, widget.top + (widget.bottom - widget.top) * fraction);
         assert(handle, `${selector} at ${fraction}: no handle`);
         assert(handle.y >= widget.top - 1 && handle.y <= widget.top + 40, `${selector}: handle y ${handle.y} is not on the first row of ${widget.top}`);
       }
