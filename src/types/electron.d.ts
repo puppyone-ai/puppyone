@@ -661,6 +661,9 @@ export type GitRepositoryWindowFocusEvent = {
 
 export type CloudProjectWindowTarget = Readonly<{ projectId: string; userId: string }>;
 
+/** The one file a File Mode window is bound to. Main owns these paths. */
+export type FileModeTarget = Readonly<{ path: string; rootPath: string; name: string }>;
+
 export type LastWorkspaceResult = {
   workspaceId: string | null;
   path: string | null;
@@ -668,6 +671,7 @@ export type LastWorkspaceResult = {
   workspaces?: Workspace[];
   initialCloudProject?: CloudProjectWindowTarget | null;
   initialOpenPath?: string | null;
+  initialFile?: FileModeTarget | null;
   error: string | null;
 };
 

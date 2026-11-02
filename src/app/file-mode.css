@@ -1,0 +1,35 @@
+@layer features {
+  .file-mode-window {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100vh;
+    min-height: 0;
+  }
+
+  .file-mode-window__titlebar {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: var(--desktop-chrome-height);
+    padding-inline: 80px;
+    color: var(--desktop-titlebar-text);
+    font-size: var(--po-type-header-content);
+    line-height: var(--po-type-header-line-height);
+  }
+
+  .file-mode-window__name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .file-mode-window__document {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+  }
+}

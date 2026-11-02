@@ -39,7 +39,7 @@ import {
   type MarkdownLinkGraphDocument,
   type MarkdownLinkGraphIndexSnapshot,
 } from "../editor/markdown/linkIndex";
-import { resolveMarkdownAssetPath } from "../editor/markdown/assetResolution";
+import { createDataPortMarkdownAssetResolver } from "../editor/markdown/dataPortAssetResolver";
 import { createDocumentNavigationPort } from "../editor/navigation/documentNavigation";
 import {
   ExplorerTree,
@@ -48,7 +48,6 @@ import {
   type ExplorerTreeProps,
 } from "./ExplorerTree";
 import { FilePreview, type FilePreviewProps } from "../editor/host/FilePreview";
-import { acquireFileResource } from "../editor/resource/FileResourcePool";
 import { useDocumentInput } from "../editor/resource/useDocumentInput";
 import { getDocumentInputRuntime, getEditorStorageIdentity, invalidateDocumentInputs } from "../editor/resource/DocumentInputRuntime";
 import { ProjectsHeader } from "./ProjectsHeader";
@@ -957,18 +956,8 @@ export function DataWorkspace({
       markdownLinkMetadataDocuments,
     ],
   );
-  const markdownAssetUrlResolver = useCallback(
-    async (sourcePath: string, href: string, signal?: AbortSignal) => {
-      if (!dataPort.getFileUrl || signal?.aborted) return null;
-      const assetPath = resolveMarkdownAssetPath(sourcePath, href, workspace.path);
-      if (!assetPath) return null;
-
-      try {
-        return await acquireFileResource(dataPort, assetPath, { purpose: "markdown-asset" }, signal);
-      } catch {
-        return null;
-      }
-    },
+  const markdownAssetUrlResolver = useMemo(
+    () => createDataPortMarkdownAssetResolver(dataPort, workspace.path),
     [dataPort, workspace.path],
   );
   if (markdownAssetResolverRevisionRef.current.resolver !== markdownAssetUrlResolver) {

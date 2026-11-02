@@ -10,7 +10,6 @@ import {
   reconcilePendingDocumentOperations,
 } from "@puppyone/shared-ui";
 import { LocalizationProvider } from "@puppyone/localization/react";
-import { App } from "./App";
 import { ScrollbarActivity } from "./components/ScrollbarActivity";
 import { ApplicationRenderBoundary } from "./components/ApplicationRenderBoundary";
 import { DesktopTooltipLayer } from "./components/DesktopTooltipLayer";
@@ -150,6 +149,20 @@ const smokeSurfaces = new Map<string, () => Promise<React.ReactNode>>([
   }],
 ]);
 
+/** The window's mode is fixed at creation. This is the only place that reads it. */
+async function loadApplicationSurface() {
+  const Root = window.location.hash === "#file-mode"
+    ? (await import("./app/FileModeApp")).FileModeApp
+    : (await import("./App")).App;
+  return (
+    <TypographyCatalogProvider>
+      <FeatureFlagsProvider>
+        <Root />
+      </FeatureFlagsProvider>
+    </TypographyCatalogProvider>
+  );
+}
+
 async function renderApplication() {
   const [localization, platformCapabilities] = await Promise.all([
     bootstrapRendererLocalization(),
@@ -161,13 +174,7 @@ async function renderApplication() {
     delete document.documentElement.dataset.desktopPlatform;
   }
   const loadSmokeSurface = smokeSurfaces.get(window.location.hash);
-  const surface = loadSmokeSurface ? await loadSmokeSurface() : (
-    <TypographyCatalogProvider>
-      <FeatureFlagsProvider>
-        <App />
-      </FeatureFlagsProvider>
-    </TypographyCatalogProvider>
-  );
+  const surface = loadSmokeSurface ? await loadSmokeSurface() : await loadApplicationSurface();
 
   root.render(
     <React.StrictMode>

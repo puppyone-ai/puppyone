@@ -144,6 +144,7 @@ export { DataWorkspace } from "./data/DataWorkspace";
 export { DataWorkspaceFrame } from "./data/DataWorkspaceFrame";
 export type { DataWorkspaceExplorerFrame, DataWorkspaceFrameProps } from "./data/DataWorkspaceFrame";
 export { resolveMarkdownAssetPath } from "./editor/markdown";
+export { createDataPortMarkdownAssetResolver } from "./editor/markdown/dataPortAssetResolver";
 export {
   createDocumentNavigationPort,
   parseDocumentReferenceIntent,
