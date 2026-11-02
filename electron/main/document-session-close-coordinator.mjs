@@ -43,6 +43,7 @@ export function createDocumentSessionCloseCoordinator({
   logger = console,
   onCloseCancelled = () => undefined,
   closeResources = async () => true,
+  resolveCloseChoice = () => "save",
   t = (messageId) => DEFAULT_DIALOG_MESSAGES[messageId] ?? "",
 }) {
   if (!dialog || typeof dialog.showMessageBox !== "function") {
@@ -153,8 +154,19 @@ export function createDocumentSessionCloseCoordinator({
   }
 
   async function finishInterceptedClose(window, webContents, state) {
+    // Asked before the flush starts: a person thinking about a dialog must not
+    // run down the renderer's save deadline. Without a question this stays
+    // synchronous, so a close that asks nothing starts its flush immediately.
+    const pendingChoice = resolveCloseChoice(window);
+    const closeChoice = typeof pendingChoice === "string" ? pendingChoice : await pendingChoice;
+    if (window.isDestroyed()) return;
+    if (closeChoice === "cancel") {
+      state.closeInProgress = false;
+      onCloseCancelled(window);
+      return;
+    }
     const result = state.rendererReady && !webContents.isDestroyed()
-      ? await requestRendererFlush(webContents, { reason: "app-close", state })
+      ? await requestRendererFlush(webContents, { reason: "app-close", state, discard: closeChoice === "discard" })
       : { ok: true };
     if (result.ok) {
       await finishResourceClose(window, webContents, state, result.requestId);
@@ -215,6 +227,7 @@ export function createDocumentSessionCloseCoordinator({
     reason = "git-auto-commit",
     state = null,
     signal = null,
+    discard = false,
   } = {}) {
     const requestId = randomUUID();
     if (state) state.requestId = requestId;
@@ -252,7 +265,11 @@ export function createDocumentSessionCloseCoordinator({
       }
 
       try {
-        webContents.send(DOCUMENT_SESSION_FLUSH_REQUEST_CHANNEL, { requestId, reason });
+        webContents.send(DOCUMENT_SESSION_FLUSH_REQUEST_CHANNEL, {
+          requestId,
+          reason,
+          ...(discard ? { discard: true } : {}),
+        });
       } catch (error) {
         const pending = pendingRequests.get(requestId);
         if (!pending) return;

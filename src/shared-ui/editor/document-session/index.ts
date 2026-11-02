@@ -2,7 +2,10 @@ export { DocumentEditingSession } from "./DocumentEditingSession";
 export { DocumentSessionBoundary } from "./DocumentSessionBoundary";
 export { useEditableDocumentSource } from "./EditableDocumentSourceContext";
 export {
+  discardActiveDocumentSessions,
   flushActiveDocumentSessions,
+  hasUnsavedDocumentSessions,
+  subscribeUnsavedDocumentSessions,
   registerActiveDocumentSession,
 } from "./activeDocumentSessions";
 export { useDocumentSessionState } from "./useDocumentSessionState";

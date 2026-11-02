@@ -68,6 +68,8 @@ export type DocumentEditingSessionHandle = EditableDocumentSource & {
   /** Read and durably drain the current source before navigation or host close. */
   flushCurrent: (reason?: DocumentSessionDrainReason) => Promise<void>;
   hasUnpersistedChanges: () => boolean;
+  /** Give up unsaved edits because the host is closing without saving them. */
+  discardChanges: () => void;
   getState: () => DocumentSessionState;
   subscribe: (listener: () => void) => () => void;
   /** Permanently freeze editor input after the registry confirms real retirement. */

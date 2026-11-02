@@ -81,6 +81,7 @@ export class DocumentEditingSession implements DocumentEditingSessionHandle {
   private readonly waiters: CommitWaiter[] = [];
   private readonly activeDrainReasons = new Map<DrainReason, number>();
   private disposed = false;
+  private discarded = false;
   private operationDepth = 0;
   private unavailable: string | null = null;
   private readonly views = new Set<{ prepare: () => void; setInputEnabled: (enabled: boolean) => void }>();
@@ -185,6 +186,7 @@ export class DocumentEditingSession implements DocumentEditingSessionHandle {
   };
 
   reportRevision = (revision: EditorSourceRevision): void => {
+    if (this.discarded) return;
     if (this.disposed || (revision.origin === "local-edit" && (this.operationDepth > 0 || this.unavailable))) return;
     this.currentRevision = revision.revision;
 
@@ -234,9 +236,27 @@ export class DocumentEditingSession implements DocumentEditingSessionHandle {
     await this.enqueue(snapshot, "manual");
   };
 
+  /**
+   * Gives up unsaved edits for a host that is closing. A write already on its
+   * way still finishes; nothing newer follows it.
+   */
+  discardChanges = (): void => {
+    this.discarded = true;
+    this.cancelImmediateCommit();
+    if (this.pending) this.resolveWaitersThrough(this.pending.sequence);
+    this.pending = null;
+    this.detachedSnapshot = null;
+    this.dirty = false;
+    this.publish(this.inFlight ? "saving" : "clean", null);
+  };
+
   flushCurrent = async (
     reason: DrainReason = "app-close",
   ): Promise<void> => {
+    if (this.discarded) {
+      if (this.inFlight) await this.waitFor(this.inFlight.sequence);
+      return;
+    }
     this.enterDrain(reason);
     try {
       if (this.unavailable) {
@@ -428,6 +448,7 @@ export class DocumentEditingSession implements DocumentEditingSessionHandle {
   }
 
   private enqueue(snapshot: EditorSourceSnapshot, reason: DocumentPersistenceReason): Promise<void> {
+    if (this.discarded) return Promise.resolve();
     this.cancelImmediateCommit();
     if (this.unavailable) return Promise.reject(new Error(this.unavailable));
     if (this.externalBaseline) return Promise.reject(new Error("Resolve the Cloud file conflict before saving."));
@@ -534,6 +555,9 @@ export class DocumentEditingSession implements DocumentEditingSessionHandle {
       else this.resolveWaitersThrough(candidate.sequence);
     } finally {
       this.inFlight = null;
+      // `hasUnpersistedChanges` includes the write that just finished, and the
+      // state published above was observed while it was still in flight.
+      this.notifyListeners();
     }
 
     if (this.unavailable || this.disposed || this.externalBaseline) return;
@@ -640,6 +664,10 @@ export class DocumentEditingSession implements DocumentEditingSessionHandle {
     });
     if (sameState(this.state, next)) return;
     this.state = next;
+    this.notifyListeners();
+  }
+
+  private notifyListeners(): void {
     for (const listener of this.listeners) listener();
   }
 

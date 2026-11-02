@@ -2,17 +2,48 @@ import type { DocumentEditingSessionHandle, DocumentSessionDrainReason } from ".
 
 type SessionRegistration = {
   tokens: Set<symbol>;
+  stopObserving: () => void;
 };
 
 // Empty-token entries are retiring sessions whose final unmount snapshot has
 // not yet been acknowledged. They remain part of an app-close drain.
 const registeredDocumentSessions = new Map<DocumentEditingSessionHandle, SessionRegistration>();
+const unsavedListeners = new Set<(unsaved: boolean) => void>();
+let lastPublishedUnsaved = false;
+
+export function hasUnsavedDocumentSessions(): boolean {
+  return [...registeredDocumentSessions.keys()].some((session) => session.hasUnpersistedChanges());
+}
+
+function publishUnsaved(): void {
+  const unsaved = hasUnsavedDocumentSessions();
+  if (unsaved === lastPublishedUnsaved) return;
+  lastPublishedUnsaved = unsaved;
+  for (const listener of unsavedListeners) listener(unsaved);
+}
+
+/** Tells a window when it starts and stops holding unsaved edits. */
+export function subscribeUnsavedDocumentSessions(listener: (unsaved: boolean) => void): () => void {
+  unsavedListeners.add(listener);
+  return () => unsavedListeners.delete(listener);
+}
+
+/** For a host closing without saving. The registry's next drain then writes nothing. */
+export function discardActiveDocumentSessions(): void {
+  for (const session of registeredDocumentSessions.keys()) session.discardChanges();
+}
+
+function forgetSession(session: DocumentEditingSessionHandle, registration: SessionRegistration): void {
+  registration.stopObserving();
+  registeredDocumentSessions.delete(session);
+  publishUnsaved();
+}
 
 /** Register a host-owned session for the lifetime of its React boundary. */
 export function registerActiveDocumentSession(session: DocumentEditingSessionHandle): () => void {
   let registration = registeredDocumentSessions.get(session);
   if (!registration) {
-    registration = { tokens: new Set() };
+    registration = { tokens: new Set(), stopObserving: session.subscribe(publishUnsaved) };
     registeredDocumentSessions.set(session, registration);
   }
   const token = Symbol(session.documentId);
@@ -81,7 +112,7 @@ async function retireRegistration(
   // that still-mounted Session permanently unable to accept an editor source.
   session.dispose();
   if (!session.hasUnpersistedChanges()) {
-    registeredDocumentSessions.delete(session);
+    forgetSession(session, registration);
     return;
   }
 
@@ -102,6 +133,6 @@ function pruneRetiredSession(session: DocumentEditingSessionHandle): void {
     && registration.tokens.size === 0
     && !session.hasUnpersistedChanges()
   ) {
-    registeredDocumentSessions.delete(session);
+    forgetSession(session, registration);
   }
 }
