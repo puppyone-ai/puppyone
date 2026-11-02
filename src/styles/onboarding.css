@@ -466,7 +466,7 @@
 
 /* A local folder that has its own Cloud project is the quieter of the two
    entries: the Cloud project is where people and agents work. */
-.onboarding-project-row-wrap.has-cloud-project:not(:hover, :focus-within, [data-menu-open]) .onboarding-project-row .desktop-menu-item-label {
+.onboarding-project-row-wrap.has-cloud-project:not(:hover, :has(:focus-visible), [data-menu-open]) .onboarding-project-row .desktop-menu-item-label {
   color: var(--po-text-subtle);
 }
 
@@ -484,14 +484,14 @@
 }
 
 .onboarding-project-row-wrap:hover .onboarding-project-cloud-link,
-.onboarding-project-row-wrap:focus-within .onboarding-project-cloud-link,
+.onboarding-project-row-wrap:has(:focus-visible) .onboarding-project-cloud-link,
 .onboarding-project-row-wrap[data-menu-open] .onboarding-project-cloud-link {
   opacity: 1;
   pointer-events: auto;
 }
 
 .onboarding-project-row-wrap:has(.onboarding-project-cloud-link):hover .onboarding-project-row,
-.onboarding-project-row-wrap:has(.onboarding-project-cloud-link):focus-within .onboarding-project-row {
+.onboarding-project-row-wrap:has(.onboarding-project-cloud-link):has(:focus-visible) .onboarding-project-row {
   padding-inline-end: 132px;
 }
 
@@ -581,6 +581,8 @@ span.homepage-cloud-feedback {
   opacity: 1;
 }
 
+/* Keyboard focus lights a project as hover does. Focus a pointer left behind, on a
+   tile it clicked or a button a dialog handed back to, must not stay lit after it. */
 .onboarding-project-row-wrap {
   position: relative;
   min-width: 0;
@@ -603,7 +605,7 @@ span.homepage-cloud-feedback {
 }
 
 .onboarding-project-row-wrap:hover .onboarding-project-actions,
-.onboarding-project-row-wrap:focus-within .onboarding-project-actions,
+.onboarding-project-row-wrap:has(:focus-visible) .onboarding-project-actions,
 .onboarding-project-row-wrap[data-menu-open] .onboarding-project-actions {
   opacity: 1;
   pointer-events: auto;
@@ -627,7 +629,7 @@ span.homepage-cloud-feedback {
 }
 
 .onboarding-project-row-wrap:hover .onboarding-project-row:not(:disabled),
-.onboarding-project-row-wrap:focus-within .onboarding-project-row:not(:disabled),
+.onboarding-project-row-wrap:has(:focus-visible) .onboarding-project-row:not(:disabled),
 .onboarding-project-row-wrap[data-menu-open] .onboarding-project-row {
   background: var(--po-hover);
   color: var(--po-text);
@@ -644,7 +646,7 @@ span.homepage-cloud-feedback {
 }
 
 .onboarding-project-row-wrap:hover .desktop-menu-item-trailing,
-.onboarding-project-row-wrap:focus-within .desktop-menu-item-trailing,
+.onboarding-project-row-wrap:has(:focus-visible) .desktop-menu-item-trailing,
 .onboarding-project-row-wrap[data-menu-open] .desktop-menu-item-trailing {
   opacity: 0;
 }
@@ -859,7 +861,7 @@ span.homepage-cloud-feedback {
   fill: var(--po-project-folder-sheet-ink);
 }
 
-.onboarding-project-row-wrap:is(:hover, :focus-within, [data-menu-open]) .project-folder-sheet {
+.onboarding-project-row-wrap:is(:hover, :has(:focus-visible), [data-menu-open]) .project-folder-sheet {
   transform: translateY(-7px);
 }
 
@@ -883,11 +885,11 @@ span.homepage-cloud-feedback {
   fill: var(--po-project-folder-front);
 }
 
-.onboarding-project-row-wrap:is(:hover, :focus-within, [data-menu-open]) .project-folder-back {
+.onboarding-project-row-wrap:is(:hover, :has(:focus-visible), [data-menu-open]) .project-folder-back {
   fill: color-mix(in srgb, var(--po-project-folder-back) 90%, var(--po-text));
 }
 
-.onboarding-project-row-wrap:is(:hover, :focus-within, [data-menu-open]) .project-folder-front {
+.onboarding-project-row-wrap:is(:hover, :has(:focus-visible), [data-menu-open]) .project-folder-front {
   fill: color-mix(in srgb, var(--po-project-folder-front) 90%, var(--po-text));
 }
 
@@ -935,7 +937,7 @@ span.homepage-cloud-feedback {
   outline-offset: -2px;
 }
 
-.onboarding-project-row-wrap:is(:hover, :focus-within, [data-menu-open]) .onboarding-project-tile:not(:disabled) {
+.onboarding-project-row-wrap:is(:hover, :has(:focus-visible), [data-menu-open]) .onboarding-project-tile:not(:disabled) {
   color: var(--po-text);
 }
 
@@ -949,7 +951,7 @@ span.homepage-cloud-feedback {
   color: inherit;
 }
 
-.onboarding-project-row-wrap.has-cloud-project:not(:hover, :focus-within, [data-menu-open]) .onboarding-project-tile-name {
+.onboarding-project-row-wrap.has-cloud-project:not(:hover, :has(:focus-visible), [data-menu-open]) .onboarding-project-tile-name {
   color: var(--po-text-subtle);
 }
 
@@ -981,7 +983,7 @@ span.homepage-cloud-feedback {
   text-align: center;
 }
 
-.onboarding-project-row-wrap:is(:hover, :focus-within, [data-menu-open]) .onboarding-project-tile:not(:disabled) {
+.onboarding-project-row-wrap:is(:hover, :has(:focus-visible), [data-menu-open]) .onboarding-project-tile:not(:disabled) {
   background: var(--po-hover);
 }
 

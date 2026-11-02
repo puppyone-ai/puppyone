@@ -23,6 +23,7 @@ import {
   resolveDesktopSidebarActionMenuPosition,
 } from "./DesktopSidebarActionMenu";
 import { DesktopOverlayLayer } from "./DesktopOverlayPortal";
+import { desktopMenuItems, walkDesktopMenu } from "./desktopMenuKeyboard";
 import { ProjectMenuHeader } from "./ProjectMenuHeader";
 
 export type ProjectActionSurface = "menu" | "rename" | "unlink" | "delete" | null;
@@ -84,6 +85,8 @@ export function ProjectRowActions({
   const [menu, setMenu] = useState<HTMLDivElement | null>(null);
   const menuAnchorRef = useRef<HTMLElement | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const surfaceWasOpenRef = useRef(false);
+  const pressedElsewhereRef = useRef(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
   const [name, setName] = useState(project.name);
   const [pending, setPending] = useState(false);
@@ -95,11 +98,21 @@ export function ProjectRowActions({
 
   useLayoutEffect(() => {
     if (surface === "menu") {
-      menu?.querySelector<HTMLButtonElement>(".desktop-menu-item:not(:disabled)")?.focus();
+      desktopMenuItems(menu)[0]?.focus();
     } else if (surface === "rename") {
       inputRef.current?.select();
     }
   }, [menu, surface]);
+
+  // Whatever closes, focus goes back to the button that opened it, unless a press
+  // elsewhere is already taking it somewhere of its own.
+  useLayoutEffect(() => {
+    const closed = surfaceWasOpenRef.current && surface === null;
+    surfaceWasOpenRef.current = surface !== null;
+    if (!closed) return;
+    if (!pressedElsewhereRef.current) menuAnchorRef.current?.focus({ preventScroll: true });
+    pressedElsewhereRef.current = false;
+  }, [surface]);
 
   useLayoutEffect(() => {
     const anchor = menuAnchorRef.current;
@@ -123,6 +136,7 @@ export function ProjectRowActions({
     if (surface !== "menu") return undefined;
     const dismiss = (event: PointerEvent) => {
       if (event.target instanceof Node && menu?.contains(event.target)) return;
+      pressedElsewhereRef.current = true;
       onSurfaceChange(null);
     };
     const dismissWithKeyboard = (event: KeyboardEvent) => {
@@ -208,6 +222,14 @@ export function ProjectRowActions({
             ariaLabel={projectActionsLabel}
             style={{ ...menuPosition, width: menuWidth }}
             onPointerDown={(event) => event.stopPropagation()}
+            onKeyDown={(event) => {
+              if (event.key !== "Tab") {
+                walkDesktopMenu(event, menu);
+                return;
+              }
+              event.preventDefault();
+              onSurfaceChange(null);
+            }}
           >
             {project.path && <ProjectMenuHeader key={project.path} path={project.path} />}
             {onRename && (

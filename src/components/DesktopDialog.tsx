@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ButtonHTMLAttributes, type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode } from "react";
+import { useLayoutEffect, useRef, type ButtonHTMLAttributes, type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import { useNativeSurfaceOcclusionLease } from "../features/native-surfaces";
 import { holdInertAround } from "../lib/inertHold";
 import { holdHoverUntilPointerUse } from "../lib/pointerRest";
@@ -36,7 +36,9 @@ export function DesktopDialogRoot({
   const dismissalPolicyRef = useRef(dismissalPolicy);
   dismissalPolicyRef.current = dismissalPolicy;
 
-  useEffect(() => {
+  // A layout effect, so that the page is awake again before an owner's own layout
+  // effect hands focus back, and focus is inside before the first paint.
+  useLayoutEffect(() => {
     const root = rootRef.current;
     if (!root) return undefined;
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
