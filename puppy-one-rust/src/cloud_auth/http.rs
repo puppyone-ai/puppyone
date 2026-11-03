@@ -303,11 +303,12 @@ impl Remote for Http {
         if let Some(body) = &request.body {
             http = http.json(body);
         }
-        if let Some(key) = request.idempotency_key.as_deref().filter(|k| {
-            !k.is_empty()
-                && k.len() <= 128
-                && k.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
-        }) {
+        if let Some(key) = request.idempotency_key.as_deref() {
+            // The product's keys include `desktop:<scope>:<uuid>`; the server
+            // takes any non-blank key of at most 255 characters.
+            if !idempotency_key_is_valid(key) {
+                return Err(Error::Unsupported);
+            }
             http = http.header("Idempotency-Key", key);
         }
         self.send_with_timeout(http, 12 * 1024 * 1024, fence, request.timeout())
@@ -399,4 +400,10 @@ impl Remote for Http {
             }
         })
     }
+}
+
+/// A key the product would send and the server accepts: visible ASCII,
+/// non-blank, at most 255 characters (`billing/router.py` `_idempotency_key`).
+pub(crate) fn idempotency_key_is_valid(key: &str) -> bool {
+    !key.is_empty() && key.len() <= 255 && key.bytes().all(|b| b.is_ascii_graphic())
 }

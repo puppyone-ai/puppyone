@@ -546,3 +546,57 @@ fn managed_inference_posts_once_with_its_key_and_streams_the_reply() {
     assert_eq!(seen[0].1, "11111111-1111-4111-8111-111111111111");
     assert!(seen[0].2.contains("\"model\":\"m\""));
 }
+#[test]
+fn billing_keys_with_scopes_reach_the_server_and_blank_keys_never_leave() {
+    let seen = Arc::new(Mutex::new(Vec::<String>::new()));
+    let record = seen.clone();
+    let server = Server::new(move |_| {
+        Arc::new(move |_, _, headers, _| {
+            record.lock().unwrap().push(
+                headers
+                    .iter()
+                    .find(|(k, _)| k.eq_ignore_ascii_case("idempotency-key"))
+                    .map(|(_, v)| v.to_string())
+                    .unwrap_or_default(),
+            );
+            json(serde_json::json!({}))
+        })
+    });
+    let env = server.environment();
+    let session = Session::from_reply(
+        env.clone(),
+        AuthReply {
+            user: AuthUser {
+                id: "u".into(),
+                email: "u@example.test".into(),
+            },
+            access_token: Secret("synthetic-access".into()),
+            refresh_token: Secret("synthetic-refresh".into()),
+            expires_in: 3600,
+        },
+    )
+    .unwrap();
+    let control = Control::new();
+    let request = |key: &str| ApiRequest {
+        method: reqwest::Method::POST,
+        path: "/billing/organizations/o/checkout".into(),
+        query: vec![],
+        body: Some(serde_json::json!({})),
+        idempotency_key: Some(key.into()),
+    };
+    let key = "desktop:checkout:11111111-1111-4111-8111-111111111111";
+    Http::new()
+        .unwrap()
+        .request(&session, &request(key), &control.fence())
+        .unwrap();
+    for bad in ["", "has space", &"k".repeat(256)] {
+        assert_eq!(
+            Http::new()
+                .unwrap()
+                .request(&session, &request(bad), &control.fence())
+                .err(),
+            Some(Error::Unsupported)
+        );
+    }
+    assert_eq!(*seen.lock().unwrap(), vec![key.to_string()]);
+}
