@@ -422,7 +422,7 @@ mod tests {
     #[test]
     fn the_window_minimum_is_handed_out_once_per_change() {
         let mut panes = Panes::new(false, RightContent::Workbench);
-        assert_eq!(panes.take_window_minimum(0.), Some(640.));
+        assert_eq!(panes.take_window_minimum(0.), Some(720.));
         assert_eq!(panes.take_window_minimum(0.), None);
         panes.toggle_workbench();
         assert_eq!(panes.take_window_minimum(0.), Some(868.));

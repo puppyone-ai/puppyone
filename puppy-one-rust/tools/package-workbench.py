@@ -91,11 +91,9 @@ def package(path, name, identifier, environment=None):
         (root / 'assets/agents/lobe-icons-license.txt', 'AGENT_ICONS_LICENSE.txt'),
     ]:
         shutil.copy2(source, resources / destination)
-    # Folders open through Finder "Open With" / `open -a` (on_open_urls).
-    folder_type = {'CFBundleTypeName': 'Folder', 'CFBundleTypeRole': 'Editor',
-                   'LSItemContentTypes': ['public.folder'], 'LSHandlerRank': 'Alternate'}
-    info = {'CFBundleDocumentTypes': [folder_type],
-            'CFBundleExecutable': 'puppy-one-rust', 'CFBundleIdentifier': identifier,
+    # The product registers no folder type (`macos.mjs`): a folder reaches
+    # the app through `open -a` or a second launch (on_open_urls).
+    info = {'CFBundleExecutable': 'puppy-one-rust', 'CFBundleIdentifier': identifier,
             'CFBundleName': name, 'CFBundlePackageType': 'APPL',
             'CFBundleShortVersionString': '0.1.0', 'CFBundleVersion': version,
             'NSHighResolutionCapable': True}

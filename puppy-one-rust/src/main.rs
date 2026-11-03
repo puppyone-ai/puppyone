@@ -94,8 +94,8 @@ fn main() {
         let bounds = Bounds::centered(
             None,
             size(
-                px(dimension("PUPPYONE_WIDTH", 1280.)),
-                px(dimension("PUPPYONE_HEIGHT", 800.)),
+                px(dimension("PUPPYONE_WIDTH", shell::windows::WINDOW_SIZE.0)),
+                px(dimension("PUPPYONE_HEIGHT", shell::windows::WINDOW_SIZE.1)),
             ),
             cx,
         );
@@ -215,8 +215,10 @@ fn main() {
         shell::on_global_shell_actions(cx, to_active);
         cx.set_dock_menu(shell::dock_menu());
         shell::on_app_actions(cx);
-        cx.on_window_closed(|cx, _| {
-            if cx.windows().is_empty() {
+        // `window-all-closed`: on macOS the app stays until it is quit (a
+        // capture ends with its window).
+        cx.on_window_closed(move |cx, _| {
+            if cx.windows().is_empty() && (background || shell::windows::last_close_quits(cx)) {
                 cx.quit();
             }
         })

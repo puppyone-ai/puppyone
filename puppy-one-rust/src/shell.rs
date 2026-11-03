@@ -101,6 +101,8 @@ pub struct Shell {
     repository_cloud: Entity<crate::features::repository_cloud::RepositoryCloud>,
     /// A project path the Header menu just copied, and when.
     copied_path: Option<(String, std::time::Instant)>,
+    /// The window title and represented folder last applied.
+    window_title: Option<(String, Option<PathBuf>)>,
     /// `dismissedCloudNoticeKey`: the local folder notice put away.
     dismissed_cloud_notice: Option<String>,
     /// The `puppyone` remote as reviewed when replacing a vanished
@@ -189,6 +191,7 @@ impl Shell {
                     s.preferences.read(cx).drained()
                         && !s.modals.create_entry().is_some_and(|f| f.read(cx).busy())
                         && (windows::count(cx) > 1
+                            || !windows::last_close_quits(cx)
                             || crate::features::cloud_account::close_ready(cx))
                 } else {
                     s.command(Command::Quit, window, cx);
@@ -272,6 +275,7 @@ impl Shell {
             cloud_history: cx.new(crate::features::source_control::CloudHistory::new),
             repository_cloud: Self::new_repository_cloud(cx),
             copied_path: None,
+            window_title: None,
             dismissed_cloud_notice: None,
             replace_url: None,
             popover: None,
@@ -1246,9 +1250,10 @@ impl Shell {
             return;
         }
         if self.files.allow_quit {
-            // The account owner is process-wide: only the last window drains
-            // it; closing one of several windows leaves it running.
-            if windows::count(cx) <= 1 {
+            // The account owner is process-wide: only the app's end drains
+            // it; closing one of several windows (or, on macOS, the last
+            // one) leaves it running.
+            if windows::count(cx) <= 1 && windows::last_close_quits(cx) {
                 match crate::features::cloud_account::prepare_close(cx) {
                     Ok(true) => {}
                     Ok(false) => return,
@@ -1538,12 +1543,6 @@ impl Shell {
         cx: &mut Context<Self>,
     ) {
         self.popover = None;
-        let canonical = path.canonicalize().unwrap_or_else(|_| path.clone());
-        if let Some(other) = windows::window_showing(&canonical, window.window_handle(), cx) {
-            // `createOrRevealWindow`: one project, one window.
-            let _ = other.update(cx, |_, w, _| w.activate_window());
-            return;
-        }
         if self
             .files
             .workspace
@@ -1764,6 +1763,24 @@ impl Shell {
                 .unwrap_or_default(),
         )
     }
+    /// `resolveWindowTitle`: "PuppyOne - <project>" with the folder as the
+    /// represented file; nothing in full screen, where macOS shows it.
+    fn sync_window_title(&mut self, window: &mut Window) {
+        let root = self.workspace_root();
+        let title = if window.is_fullscreen() {
+            String::new()
+        } else if root.is_some() && !self.project.is_empty() {
+            format!("{} - {}", windows::APP_NAME, self.project)
+        } else {
+            windows::APP_NAME.to_owned()
+        };
+        let next = (title, root);
+        if self.window_title.as_ref() != Some(&next) {
+            window.set_window_title(&next.0);
+            window.set_document_path(next.1.as_deref());
+            self.window_title = Some(next);
+        }
+    }
     /// The Header (`DesktopWindowChrome`).
     ///
     /// - The Homepage names the product (once there are projects) and holds
@@ -1955,6 +1972,7 @@ impl Render for Shell {
         self.sync_first_run(cx);
         self.sync_home_intro(window, cx);
         self.sync_coachmarks(cx);
+        self.sync_window_title(window);
         #[cfg(feature = "dev-capture")]
         let scenario_done = self.advance_capture_scenario(window, cx);
         #[cfg(not(feature = "dev-capture"))]

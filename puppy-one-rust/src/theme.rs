@@ -845,7 +845,7 @@ pub mod pane {
     /// at the window edge.
     pub const COLLAPSED_EDGE_HIT: f32 = 12.;
     /// `window-layout-contract.mjs`: the product-level window floor.
-    pub const WINDOW_MIN_WIDTH: f32 = 640.;
+    pub const WINDOW_MIN_WIDTH: f32 = 720.;
     pub const WINDOW_MIN_HEIGHT: f32 = 520.;
 }
 #[cfg(test)]

@@ -169,9 +169,9 @@ mod tests {
     fn the_window_minimum_follows_the_open_panes() {
         assert_eq!(window_minimum_width(true, true, 0.), 868.);
         assert_eq!(window_minimum_width(true, true, 56.), 924.);
-        assert_eq!(window_minimum_width(true, false, 0.), 640.);
-        assert_eq!(window_minimum_width(false, true, 0.), 640.);
-        assert_eq!(window_minimum_width(false, false, 0.), 640.);
+        assert_eq!(window_minimum_width(true, false, 0.), 720.);
+        assert_eq!(window_minimum_width(false, true, 0.), 720.);
+        assert_eq!(window_minimum_width(false, false, 0.), 720.);
     }
     #[test]
     fn sidebar_footer_follows_the_navigation_height_formula() {

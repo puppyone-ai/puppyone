@@ -3,16 +3,19 @@
 //! owners (preferences, accounts) are shared, per-window state is not.
 //!
 //! - File/Dock → New Window opens a window on the Homepage.
-//! - Opening a project already open in another window reveals that window
-//!   instead of mounting a second copy of its documents and layout.
+//! - A project opens in the window it was chosen from, even when another
+//!   window shows it too (`workspace-window-index.mjs`: the app "never
+//!   chooses a user's destination window").
+//! - A folder from Finder or a second launch opens in a new window.
 //! - Menu-bar actions (and Undo/Redo) reach the active window's shell.
-//! - Quit asks every window to close through its own close barrier.
-//! - With no windows (Dock reopen) or at launch without arguments, the last
-//!   active project opens (`readLastActiveWorkspaceComposition`).
+//! - Quit asks every window to close through its own close barrier. On
+//!   macOS closing the last window leaves the app running; the Dock opens
+//!   the last active project (`readLastActiveWorkspaceComposition`), as
+//!   does a launch without arguments.
 use super::Shell;
 use crate::features::settings::preferences_store::PreferencesStore;
 use gpui::*;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 #[derive(Default)]
 struct Registry {
@@ -106,19 +109,13 @@ pub fn active(cx: &App) -> Option<(AnyWindowHandle, Entity<Shell>)> {
 pub fn count(cx: &App) -> usize {
     live(cx).len()
 }
-/// Another window already showing `root` (`createOrRevealWindow`).
-pub(super) fn window_showing(
-    root: &Path,
-    except: AnyWindowHandle,
-    cx: &App,
-) -> Option<AnyWindowHandle> {
-    live(cx).into_iter().find_map(|(h, shell)| {
-        (h != except && shell.read(cx).workspace_root().as_deref() == Some(root)).then_some(h)
-    })
-}
-#[cfg(test)]
 pub fn quitting(cx: &App) -> bool {
     cx.try_global::<Registry>().is_some_and(|r| r.quitting)
+}
+/// Whether the last window closing ends the app: always when quitting,
+/// never on macOS otherwise (`resumeAfterLastWindowClosed`).
+pub fn last_close_quits(cx: &App) -> bool {
+    quitting(cx) || !cfg!(target_os = "macos")
 }
 /// Quit: every window closes through its own barrier; the last close quits.
 pub fn quit_all(cx: &mut App) {
@@ -148,15 +145,23 @@ pub fn cancel_quit(cx: &mut App) {
     }
 }
 
+/// The product's application name (`application-identity.mjs`).
+pub const APP_NAME: &str = "PuppyOne";
+/// `createWindow`: a project window is 1180 × 760, centred.
+pub const WINDOW_SIZE: (f32, f32) = (1180., 760.);
+/// `DEFAULT_MACOS_WINDOW_BUTTON_POSITION`: the leading inset, and the
+/// buttons centred in the 40px Header lane (`(40 - 14) / 2`).
+pub const TRAFFIC_LIGHTS: (f32, f32) = (12., 13.);
+
 /// The window options shared by launch and New Window.
 pub fn window_options(bounds: Bounds<Pixels>, focus: bool) -> WindowOptions {
     WindowOptions {
         focus,
         window_bounds: Some(WindowBounds::Windowed(bounds)),
         titlebar: Some(TitlebarOptions {
-            title: Some("PuppyOne".into()),
+            title: Some(APP_NAME.into()),
             appears_transparent: true,
-            traffic_light_position: Some(point(px(12.), px(12.))),
+            traffic_light_position: Some(point(px(TRAFFIC_LIGHTS.0), px(TRAFFIC_LIGHTS.1))),
         }),
         window_background: WindowBackgroundAppearance::Opaque,
         window_min_size: Some(size(
@@ -178,14 +183,8 @@ pub fn open(workspace: Option<PathBuf>, cx: &mut App) -> anyhow::Result<AnyWindo
 }
 fn open_with(launch: Launch, cx: &mut App) -> anyhow::Result<AnyWindowHandle> {
     cx.set_global(PendingLaunch(Some(launch)));
-    // New windows cascade from the active one.
-    let origin = cx
-        .active_window()
-        .and_then(|h| h.update(cx, |_, w, _| w.bounds().origin).ok());
-    let mut bounds = Bounds::centered(None, size(px(1280.), px(800.)), cx);
-    if let Some(origin) = origin {
-        bounds.origin = point(origin.x + px(24.), origin.y + px(24.));
-    }
+    // `center: true`: every new window is centred.
+    let bounds = Bounds::centered(None, size(px(WINDOW_SIZE.0), px(WINDOW_SIZE.1)), cx);
     let handle = cx.open_window(window_options(bounds, true), |window, cx| {
         let view = cx.new(|cx| Shell::new(window, cx));
         cx.new(|cx| gpui_kit::base::Root::new(view, window, cx))
@@ -206,8 +205,8 @@ pub fn last_active_project(cx: &App) -> Option<PathBuf> {
         .filter(|p| p.is_dir())
 }
 
-/// Folders the platform asked us to open: reveal the window already showing
-/// one, reuse a window still on the Homepage, otherwise open a new window.
+/// Folders the platform asked us to open (`openPathFromSystem`): each in a
+/// new window.
 pub fn open_launch_urls(urls: Vec<String>, cx: &mut App) {
     for url in urls {
         let Some(path) = url::Url::parse(&url)
@@ -219,24 +218,6 @@ pub fn open_launch_urls(urls: Vec<String>, cx: &mut App) {
             continue;
         };
         let root = path.canonicalize().unwrap_or(path);
-        let showing = live(cx)
-            .into_iter()
-            .find(|(_, shell)| shell.read(cx).workspace_root().as_deref() == Some(root.as_path()));
-        if let Some((handle, _)) = showing {
-            let _ = handle.update(cx, |_, w, _| w.activate_window());
-            continue;
-        }
-        let home = live(cx)
-            .into_iter()
-            .find(|(_, shell)| shell.read(cx).workspace_root().is_none());
-        if let Some((handle, shell)) = home {
-            let path = root.clone();
-            let _ = handle.update(cx, |_, w, cx| {
-                w.activate_window();
-                shell.update(cx, |s, cx| s.open_project(path, w, cx))
-            });
-        } else {
-            let _ = open(Some(root), cx);
-        }
+        let _ = open(Some(root), cx);
     }
 }

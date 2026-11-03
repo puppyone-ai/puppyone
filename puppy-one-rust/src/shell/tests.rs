@@ -1316,8 +1316,10 @@ fn manage_running_sessions_lists_this_windows_hosts_and_terminates_them(cx: &mut
     view.read_with(cx, |s, _| assert!(s.modals.is_empty()));
 }
 
+/// `workspace-window-index.mjs`: the app never chooses a user's destination
+/// window, so a project open in one window opens in another too.
 #[gpui::test]
-fn windows_share_preferences_and_one_project_lives_in_one_window(cx: &mut TestAppContext) {
+fn windows_share_preferences_and_a_project_opens_where_it_was_chosen(cx: &mut TestAppContext) {
     let (first, vcx) = setup(cx);
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path().canonicalize().unwrap();
@@ -1330,7 +1332,6 @@ fn windows_share_preferences_and_one_project_lives_in_one_window(cx: &mut TestAp
         vcx.run_until_parked();
         first.update_in(vcx, |s, w, cx| s.receive(w, cx));
     }
-    let first_handle = vcx.window_handle();
     // A second window registers beside the first.
     let mut second = None;
     let (_, vcx2) = cx.add_window_view(|w, cx| {
@@ -1342,23 +1343,26 @@ fn windows_share_preferences_and_one_project_lives_in_one_window(cx: &mut TestAp
     vcx2.update(|_, cx| {
         assert_eq!(windows::count(cx), 2);
         assert!(!windows::quitting(cx));
+        assert_eq!(windows::last_close_quits(cx), !cfg!(target_os = "macos"));
     });
-    let second_handle = vcx2.window_handle();
-    vcx2.update(|_, cx| {
-        assert_eq!(
-            windows::window_showing(&root, second_handle, cx),
-            Some(first_handle)
-        );
-        assert_eq!(windows::window_showing(&root, first_handle, cx), None);
-    });
-    // Opening the project in the second window reveals the first instead.
+    // The same project opens in the second window as well.
     second.update_in(vcx2, |s, w, cx| s.open_project(root.clone(), w, cx));
-    second.read_with(vcx2, |s, _| assert!(s.workspace_root().is_none()));
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while second.read_with(vcx2, |s, _| s.workspace_root().is_none()) {
+        assert!(std::time::Instant::now() < deadline);
+        vcx2.run_until_parked();
+        second.update_in(vcx2, |s, w, cx| s.receive(w, cx));
+    }
+    first.read_with(vcx2, |s, _| {
+        assert_eq!(s.workspace_root().as_deref(), Some(root.as_path()))
+    });
     // ⌘N from either window opens another (deferred) window; Quit marks
-    // every window closing through its own barrier.
+    // every window closing through its own barrier, and only then does the
+    // last close end the app.
     vcx2.update(|_, cx| {
         windows::quit_all(cx);
         assert!(windows::quitting(cx));
+        assert!(windows::last_close_quits(cx));
         windows::cancel_quit(cx);
         assert!(!windows::quitting(cx));
     });
