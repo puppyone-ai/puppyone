@@ -50,7 +50,7 @@ export function CloudWorkspaceShareDialog({ anchor, context, resource, onClose }
   const failed = status?.state === "failed" ? targets.find(target => target.id === status.target) : undefined;
   return <DesktopTitlebarMenuLayer anchorRef={anchor} open onDismiss={onClose} dismissOnFocusExit={false}
     className="desktop-cloud-workspace-share" gap={6} preferredWidth={380} preferredMaxHeight={560}
-    widthMode="fixed" alignment="end" role="dialog" ariaLabel={t("cloud.share.thisProject")}>
+    widthMode="fixed" alignment="center" role="dialog" ariaLabel={t("cloud.share.thisProject")}>
     <section className="desktop-cloud-share-people">
       <div className="desktop-cloud-share-heading">
         <h3>{t("cloud.share.people.title")}</h3>

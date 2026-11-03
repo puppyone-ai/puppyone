@@ -91,7 +91,7 @@ describe("Letting an Agent in", () => {
     expect(surface().querySelector('[data-cloud-agent-request="r1"]')?.textContent).toBe("Claude CodeWants to join · nowDenyAllow");
     // Agents are listed, so inviting another is a row.
     expect(surface().querySelector("h3")).toBeNull();
-    expect(surface().querySelector("[data-cloud-agent-invite]")?.textContent).toBe("Invite another agent");
+    expect(surface().querySelector("[data-cloud-agent-invite-open]")?.textContent).toBe("Invite another agent");
   });
   it("allows an Agent with the owner's own session, and tells the Header at once", async () => {
     const onChanged = vi.fn();

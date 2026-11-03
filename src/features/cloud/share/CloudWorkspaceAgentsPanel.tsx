@@ -53,7 +53,7 @@ export function CloudWorkspaceAgentsPanel({ anchor, agents, requests = [], contr
   const listed = agents.length > 0 || requests.length > 0;
   return <DesktopTitlebarMenuLayer anchorRef={anchor} open onDismiss={onClose} dismissOnFocusExit={false}
     className="desktop-cloud-workspace-share desktop-cloud-agents-panel" gap={6} preferredWidth={320}
-    preferredMaxHeight={560} widthMode="fixed" alignment="end" role="dialog"
+    preferredMaxHeight={560} widthMode="fixed" alignment="center" role="dialog"
     ariaLabel={t("cloud.share.agent.connected")}>
     {requests.length > 0 && control && <ul className="desktop-cloud-agent-list desktop-cloud-agent-requests"
       aria-label={t("cloud.share.agent.request.status")}>

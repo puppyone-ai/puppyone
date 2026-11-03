@@ -10,16 +10,23 @@ import { agentConnectMessage, createAgentLink, listAgentLinks, type AgentAdmissi
 /** Long enough to read, short enough that the button is ready for a second Agent. */
 const COPIED_MS = 3_000;
 const ADMISSIONS = ["sign_in", "link"] as const;
+const COPY_LABEL = {
+  idle: "cloud.share.agent.invite.copy",
+  copying: "cloud.common.copying",
+  copied: "cloud.share.action.copied",
+  failed: "cloud.share.agent.invite.copy",
+  "not-owner": "cloud.share.agent.invite.copy",
+} as const;
 const OPTION_TEXT = {
   sign_in: { label: "cloud.share.agent.signIn.label", description: "cloud.share.agent.signIn.description" },
   link: { label: "cloud.share.agent.link.label", description: "cloud.share.agent.link.description" },
 } as const;
 
 /**
- * Inviting an Agent: one button that copies a line to paste into it. The link
- * inside is created only by copying, so opening the card mints nothing, and
- * every copy is a new link. Once the card lists Agents, inviting another is a
- * row among them rather than an introduction.
+ * Inviting an Agent: the start of the prompt, the button that copies it, and
+ * what to do with it. The link inside is created only by copying, so opening
+ * the card mints nothing, and every copy is a new link. Once the card lists
+ * Agents, the form waits behind one row until it is asked for.
  */
 export function CloudWorkspaceAgentInvite({ projectId, projectName, session, apiBaseUrl, compact = false, waiting = false,
   onInvited }: {
@@ -37,7 +44,9 @@ export function CloudWorkspaceAgentInvite({ projectId, projectName, session, api
   const { t } = useLocalization();
   const [admission, setAdmission] = useState<AgentAdmission>("sign_in");
   const [openLinks, setOpenLinks] = useState(false);
-  const [status, setStatus] = useState<"idle" | "copying" | "copied" | "failed" | "not-owner">("idle");
+  const [status, setStatus] = useState<keyof typeof COPY_LABEL>("idle");
+  const [expanded, setExpanded] = useState(false);
+  const form = useRef<HTMLElement>(null);
   const mounted = useRef(true);
   const options = useRef<Partial<Record<AgentAdmission, HTMLButtonElement | null>>>({});
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -46,6 +55,10 @@ export function CloudWorkspaceAgentInvite({ projectId, projectName, session, api
       .then(inventory => { if (mounted.current) setOpenLinks(Boolean(inventory.open_links_enabled)); })
       .catch(() => undefined); // Only the choice depends on it; inviting does not.
   }, [apiBaseUrl, projectId, session]);
+  // The row that opened the form is gone, so focus moves on to what it opened.
+  useEffect(() => {
+    if (expanded) form.current?.querySelector<HTMLButtonElement>("[data-cloud-agent-invite]")?.focus();
+  }, [expanded]);
   useEffect(() => {
     if (status !== "copied") return undefined;
     const timer = setTimeout(() => setStatus("idle"), COPIED_MS);
@@ -75,38 +88,24 @@ export function CloudWorkspaceAgentInvite({ projectId, projectName, session, api
   };
 
   const copied = status === "copied";
-  const row = compact && !openLinks;
-  // What happens next is one line under the button: paste it, then wait for the Agent.
-  // A row already says it was copied in its own words, so it only adds the wait.
-  const note = inviteNote(copied, waiting, row);
-  // A screen reader hears that it was copied even where the row says so instead of the note.
-  const announced = copied ? "cloud.share.agent.copied" : note;
-  const after = <>
-    {note && <p className="desktop-cloud-agent-invite-note" aria-hidden="true">
-      {!copied && <LoaderCircle className="animate-spin" size={12} strokeWidth={2.2} aria-hidden="true" />}
-      {t(note)}
-    </p>}
-    <span className="desktop-cloud-share-status" role="status">{announced ? t(announced) : ""}</span>
-    {status === "failed" && <p role="alert">{t("cloud.share.agent.failed")}</p>}
-    {status === "not-owner" && <p role="alert">{t("cloud.share.agent.notOwner")}</p>}
-  </>;
-
-  // Who gets in is only a question where a deployment allows open links, so it keeps the full form.
-  if (row) {
+  // A row stands in for the form beside the Agents until it is asked for.
+  if (compact && !openLinks && !expanded) {
     return <div className="desktop-cloud-agent-invite" data-compact="">
-      <DesktopMenuItem className="desktop-cloud-agents-row-action" role="button" data-cloud-agent-invite=""
-        disabled={status === "copying"}
-        icon={copied ? <Check size={15} strokeWidth={1.75} aria-hidden="true" /> : <Plus size={15} strokeWidth={1.75} aria-hidden="true" />}
-        label={t(copied ? "cloud.share.agent.copied" : "cloud.share.agent.invite.another")}
-        onClick={() => void copy()} />
-      {after}
+      <DesktopMenuItem className="desktop-cloud-agents-row-action" role="button" data-cloud-agent-invite-open=""
+        icon={<Plus size={15} strokeWidth={1.75} aria-hidden="true" />}
+        label={t("cloud.share.agent.invite.another")} onClick={() => setExpanded(true)} />
+      {waiting && <p className="desktop-cloud-agent-invite-note" role="status">
+        <LoaderCircle className="animate-spin" size={12} strokeWidth={2.2} aria-hidden="true" />
+        {t("cloud.share.agent.invite.waiting")}
+      </p>}
     </div>;
   }
-  return <section className="desktop-cloud-agent-invite" aria-label={t("cloud.share.agent.invite.title")}>
-    <div className="desktop-cloud-share-heading">
-      <h3>{t("cloud.share.agent.invite.title")}</h3>
-      <p>{t("cloud.share.agent.invite.description")}</p>
-    </div>
+  return <section ref={form} className="desktop-cloud-agent-invite" aria-label={t("cloud.share.agent.invite.title")}>
+    <h3>{t("cloud.share.agent.invite.title")}</h3>
+    {/* Enough of the prompt to recognize it; the link is made only by copying, so it fades out first. */}
+    <p className="desktop-cloud-agent-prompt" dir="ltr" aria-label={t("cloud.share.agent.invite.preview")}>
+      <span>{agentConnectMessage(projectName, linkPreview(apiBaseUrl))}</span>
+    </p>
     {openLinks && <div className="desktop-cloud-agent-options" role="radiogroup" aria-label={t("cloud.share.agent.invite.title")}>
       {ADMISSIONS.map(option => <button key={option} type="button" role="radio"
         ref={element => { options.current[option] = element; }}
@@ -118,16 +117,31 @@ export function CloudWorkspaceAgentInvite({ projectId, projectName, session, api
         <span className="desktop-cloud-agent-option-description">{t(OPTION_TEXT[option].description)}</span>
       </button>)}
     </div>}
-    <Button tone="primary" className="desktop-cloud-agent-share-copy" data-cloud-agent-invite=""
-      disabled={status === "copying"} onClick={() => void copy()}>
-      {/* The line under it says what was copied and what to do, so the button keeps its word and width. */}
-      {t(status === "copying" ? "cloud.common.copying" : "cloud.share.agent.invite.copy")}
-    </Button>
-    {after}
+    <div className="desktop-cloud-agent-invite-actions">
+      <Button tone="primary" className="desktop-cloud-agent-share-copy" data-cloud-agent-invite=""
+        disabled={status === "copying"} onClick={() => void copy()}
+        leadingIcon={copied ? <Check size={14} aria-hidden="true" /> : undefined}>
+        {t(COPY_LABEL[status])}
+      </Button>
+      {waiting && !copied && <span className="desktop-cloud-agent-invite-note" aria-hidden="true">
+        <LoaderCircle className="animate-spin" size={12} strokeWidth={2.2} aria-hidden="true" />
+        {t("cloud.share.agent.invite.waiting")}
+      </span>}
+    </div>
+    {/* The step after copying, in sight before it is needed. */}
+    <p className="desktop-cloud-agent-invite-hint">{t("cloud.share.agent.invite.hint")}</p>
+    <span className="desktop-cloud-share-status" role="status">{announcement(copied, waiting, t)}</span>
+    {status === "failed" && <p role="alert">{t("cloud.share.agent.failed")}</p>}
+    {status === "not-owner" && <p role="alert">{t("cloud.share.agent.notOwner")}</p>}
   </section>;
 }
 
-function inviteNote(copied: boolean, waiting: boolean, row: boolean) {
-  if (copied) return row ? null : "cloud.share.agent.copied";
-  return waiting ? "cloud.share.agent.invite.waiting" : null;
+/** Where the link will point, so the prompt reads true up to the part only copying makes. */
+function linkPreview(apiBaseUrl: string) {
+  try { return `${new URL(apiBaseUrl).origin}/agent/`; } catch { return ""; }
+}
+
+function announcement(copied: boolean, waiting: boolean, t: (key: string) => string) {
+  if (copied) return t("cloud.share.agent.copied");
+  return waiting ? t("cloud.share.agent.invite.waiting") : "";
 }

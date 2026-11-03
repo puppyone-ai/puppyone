@@ -40,16 +40,25 @@
 
   .desktop-cloud-share-targets .desktop-dialog-button { gap: 5px; height: var(--po-control-size-compact); min-width: 76px; padding: 0 11px; border-radius: var(--desktop-control-radius); font-size: var(--po-type-ui-caption, 12px); font-weight: var(--po-text-weight-medium, 500); white-space: nowrap; }
 
-  /* Inviting an Agent, while none is here: a sentence and the one filled shape.
-     What gets pasted is the Agent's business, so the card never shows it. */
-  .desktop-cloud-agent-invite { position: relative; display: grid; gap: 12px; min-width: 0; }
+  /* Inviting an Agent: the start of what gets pasted, the one filled shape that
+     copies it, and the step after, in that reading order. */
+  .desktop-cloud-agent-invite { position: relative; display: grid; gap: 10px; min-width: 0; }
   .desktop-cloud-agent-invite:not([data-compact]) { padding: 10px; }
   .desktop-cloud-agent-invite[data-compact] { gap: 0; }
-  .desktop-cloud-agent-share-copy { justify-self: start; gap: 5px; height: var(--po-control-size-compact); padding: 0 11px; border-radius: var(--desktop-control-radius); font-size: var(--po-type-ui-caption, 12px); font-weight: var(--po-text-weight-medium, 500); white-space: nowrap; }
-  /* What happens next, quietly: paste it, then the wait for the Agent's answer. */
-  .desktop-cloud-agent-invite-note { display: flex; align-items: center; gap: 6px; margin-top: -4px; color: var(--po-text-muted); font-size: var(--po-type-ui-caption, 12px); line-height: 16px; }
+  /* Two lines of the prompt: the first whole, the second fading where the link
+     would begin, since only copying makes it. */
+  .desktop-cloud-agent-prompt { padding: 8px 10px; border-radius: var(--desktop-control-radius); background: var(--po-hover); color: var(--po-text-muted); font-size: var(--po-type-ui-caption, 12px); line-height: 18px; overflow-wrap: anywhere; user-select: none; }
+  .desktop-cloud-agent-prompt > span {
+    display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+    mask-image: linear-gradient(black, black), linear-gradient(to right, black 30%, transparent 92%);
+    mask-position: 0 0, 0 18px; mask-size: 100% 18px; mask-repeat: no-repeat;
+  }
+  .desktop-cloud-agent-invite-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0; }
+  .desktop-cloud-agent-share-copy { gap: 5px; height: var(--po-control-size-compact); padding: 0 11px; border-radius: var(--desktop-control-radius); font-size: var(--po-type-ui-caption, 12px); font-weight: var(--po-text-weight-medium, 500); white-space: nowrap; }
+  .desktop-cloud-agent-invite-hint { color: var(--po-text-muted); font-size: var(--po-type-ui-caption, 12px); line-height: 16px; text-wrap: pretty; }
+  /* The wait for the Agent's answer, quietly beside what started it. */
+  .desktop-cloud-agent-invite-note { display: flex; align-items: center; gap: 6px; color: var(--po-text-muted); font-size: var(--po-type-ui-caption, 12px); line-height: 16px; }
   .desktop-cloud-agent-invite[data-compact] .desktop-cloud-agent-invite-note { margin: 0; padding: 0 8px 6px 40px; }
-  .desktop-cloud-agent-invite[data-compact] [role="alert"] { padding: 0 8px 6px 40px; }
 
   /* Who is here, as a menu reads: a mark, a name, when it was last here. */
   .desktop-cloud-agents-panel { --share-inset: 6px; gap: 6px; }

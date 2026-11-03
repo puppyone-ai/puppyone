@@ -76,27 +76,25 @@ describe("Inviting an Agent", () => {
     const copied = vi.mocked(writeClipboardText).mock.calls[0][0];
     expect(copied).toBe(`Connect to my puppyone project "Launch plan" by following ${LINK}`);
     expect(status()).toContain("Paste it");
-    expect(document.querySelector(".desktop-cloud-agent-invite-note")?.textContent).toBe("Copied. Paste it to your agent.");
-    // The line under the button says it was copied, so the button keeps its word.
-    expect(primary().textContent).toBe("Copy invite");
+    expect(primary().textContent).toBe("Copied");
   });
 
-  it("lets the paste instruction go, so a second agent can be invited", async () => {
+  it("returns the button to its label so a second agent can be invited", async () => {
     vi.useFakeTimers();
     try {
       await render();
       await act(async () => primary().click());
-      expect(status()).toContain("Paste it");
+      expect(primary().textContent).toBe("Copied");
       await act(async () => { await vi.advanceTimersByTimeAsync(3_000); });
-      expect(primary().textContent).toBe("Copy invite");
+      expect(primary().textContent).toBe("Copy prompt");
       expect(status()).toBe("");
     } finally { vi.useRealTimers(); }
   });
 
-  it("says it waits for the agent while the Header does", async () => {
+  it("says it waits for the agent beside the button while the Header does", async () => {
     await render({ waiting: true });
     expect(status()).toBe("Waiting for your agent…");
-    expect(document.querySelector(".desktop-cloud-agent-invite-note svg")).not.toBeNull();
+    expect(document.querySelector(".desktop-cloud-agent-invite-actions .desktop-cloud-agent-invite-note svg")).not.toBeNull();
     await render({ waiting: false });
     expect(document.querySelector(".desktop-cloud-agent-invite-note")).toBeNull();
   });
@@ -107,10 +105,10 @@ describe("Inviting an Agent", () => {
     vi.mocked(cloudApiRequest).mockRejectedValueOnce(new Error("offline"));
     await act(async () => primary().click());
     expect(document.querySelector('[role="alert"]')?.textContent).toContain("Try again");
-    expect(primary().textContent).toBe("Copy invite");
+    expect(primary().textContent).toBe("Copy prompt");
     expect(primary().disabled).toBe(false);
     await act(async () => primary().click());
-    expect(status()).toContain("Paste it");
+    expect(primary().textContent).toBe("Copied");
     expect(document.querySelector('[role="alert"]')).toBeNull();
   });
 
@@ -148,11 +146,15 @@ describe("Inviting an Agent", () => {
     expect(writeClipboardText).not.toHaveBeenCalled();
   });
 
-  it("says who can join without showing what it copies, and mints no link until it is copied", async () => {
+  it("shows the start of the prompt and the step after it, and mints no link until it is copied", async () => {
     await render();
     expect(document.querySelector("h3")?.textContent).toBe("Invite an agent");
-    expect(document.body.textContent).toContain("Claude Code or Codex");
-    expect(document.body.textContent).not.toContain("Launch plan");
+    const preview = document.querySelector(".desktop-cloud-agent-prompt");
+    expect(preview?.getAttribute("aria-label")).toBe("Prompt for your agent");
+    // It reads true up to the link, which only copying makes.
+    expect(preview?.textContent).toBe('Connect to my puppyone project "Launch plan" by following https://cloud-fixture.puppyone.ai/agent/');
+    expect(document.querySelector(".desktop-cloud-agent-invite-hint")?.textContent)
+      .toBe("Paste it into your chat with the agent, then allow it here when it asks to join.");
     expect(created).toEqual([]);
   });
 
@@ -167,25 +169,29 @@ describe("Inviting an Agent", () => {
     expect(onInvited).toHaveBeenCalledTimes(1);
   });
 
-  it("is one row among the Agents once some are here, and copies from it", async () => {
+  it("waits behind one row among the Agents, and opens the form rather than copying", async () => {
     await render({ compact: true });
     expect(document.querySelector("h3")).toBeNull();
-    const row = select("[data-cloud-agent-invite]");
+    const row = select("[data-cloud-agent-invite-open]");
     expect(row.textContent).toBe("Invite another agent");
     await act(async () => row.click());
-    expect(created).toHaveLength(1);
-    expect(row.textContent).toBe("Copied. Paste it to your agent.");
-    // The row already says it was copied; the line under it is only for the wait.
-    expect(document.querySelector(".desktop-cloud-agent-invite-note")).toBeNull();
+    expect(created).toEqual([]);
+    expect(writeClipboardText).not.toHaveBeenCalled();
+    expect(document.querySelector("h3")?.textContent).toBe("Invite an agent");
+    // The row it replaced is gone, so focus lands on what to press next.
+    expect(document.activeElement).toBe(primary());
+  });
+
+  it("says the wait under the row while the form is closed", async () => {
     await render({ compact: true, waiting: true });
-    expect(document.querySelector(".desktop-cloud-agent-invite-note")).toBeNull();
+    expect(document.querySelector(".desktop-cloud-agent-invite-note")?.textContent).toBe("Waiting for your agent…");
   });
 
   it("keeps the full form beside the Agents where a deployment offers a choice of who gets in", async () => {
     inventory = { links: [], connections: [], open_links_enabled: true };
     await render({ compact: true });
     expect(document.querySelector('[role="radiogroup"]')).not.toBeNull();
-    expect(primary().textContent).toBe("Copy invite");
+    expect(primary().textContent).toBe("Copy prompt");
   });
 
   it("stays usable if the list cannot be read", async () => {
