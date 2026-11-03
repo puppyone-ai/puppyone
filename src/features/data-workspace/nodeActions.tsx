@@ -10,6 +10,8 @@ import {
   FileText,
   FolderPlus,
   Pencil,
+  Pin,
+  PinOff,
   Plus,
   Scissors,
   Share2,
@@ -429,6 +431,8 @@ export function DesktopNodeActionMenu({
   canCopy = true,
   canCut = true,
   canDuplicate = true,
+  pinned = false,
+  onTogglePin,
   onChange,
   onCancel,
   onCopyPath,
@@ -451,6 +455,9 @@ export function DesktopNodeActionMenu({
   canCopy?: boolean;
   canCut?: boolean;
   canDuplicate?: boolean;
+  /** The file is pinned above the tree; offered for a single file only. */
+  pinned?: boolean;
+  onTogglePin?: () => void;
   onChange: Dispatch<SetStateAction<DesktopNodeActionMenuDraft | null>>;
   onCancel: () => void;
   onCopyPath: () => void;
@@ -487,6 +494,8 @@ export function DesktopNodeActionMenu({
         canCopy={canCopy}
         canCut={canCut}
         canDuplicate={canDuplicate}
+        pinned={pinned}
+        onTogglePin={onTogglePin}
         onChange={onChange}
         onCancel={onCancel}
         onCopyPath={onCopyPath}
@@ -512,6 +521,8 @@ function DesktopNodeActionPopover({
   canCopy,
   canCut,
   canDuplicate,
+  pinned,
+  onTogglePin,
   onChange,
   onCancel,
   onCopyPath,
@@ -533,6 +544,8 @@ function DesktopNodeActionPopover({
   canCopy: boolean;
   canCut: boolean;
   canDuplicate: boolean;
+  pinned: boolean;
+  onTogglePin?: () => void;
   onChange: Dispatch<SetStateAction<DesktopNodeActionMenuDraft | null>>;
   onCancel: () => void;
   onCopyPath: () => void;
@@ -566,14 +579,16 @@ function DesktopNodeActionPopover({
   const singleNodeAction = actionCount === 1;
   const errorMessage = formatDesktopNodeActionError(draft.error, t);
   const showShare = Boolean(onShare) && singleNodeAction && draft.node.type === "folder";
+  const showPin = Boolean(onTogglePin) && singleNodeAction && draft.node.type !== "folder";
   const menuRowCount = 5 + Number(singleNodeAction && Boolean(onCopyLink))
+    + Number(showPin)
     + (draft.node.type === "folder" ? 2 : 0)
     + Number(showShare)
     + Number(singleNodeAction && showOpenInDefaultApp && draft.node.type !== "folder")
     + Number(singleNodeAction && showRevealInFinder)
     + Number(singleNodeAction)
     + Number(singleNodeAction && draft.node.type !== "folder");
-  const separatorCount = 2 + Number(draft.node.type === "folder");
+  const separatorCount = 2 + Number(draft.node.type === "folder") + Number(showPin);
   const estimatedHeight = (menuPadding * 2)
     + (menuRowCount * menuRowHeight)
     + (separatorCount * MENU_SEPARATOR_BLOCK_SIZE)
@@ -602,6 +617,17 @@ function DesktopNodeActionPopover({
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
     >
+      {showPin && (
+        <>
+          <DesktopNodeActionMenuItem
+            icon={pinned ? <PinOff size={14} /> : <Pin size={14} />}
+            label={pinned ? t("workspace.node.unpin") : t("workspace.node.pin")}
+            disabled={draft.operation !== null}
+            onClick={() => onTogglePin?.()}
+          />
+          <DesktopMenuSeparator />
+        </>
+      )}
       <DesktopNodeActionMenuItem
         icon={<Copy size={14} />}
         label={t("workspace.node.copyPath")}

@@ -134,6 +134,7 @@ import {
 import { createExplorerDataPort } from "./features/data-workspace/explorer";
 import { createWorkbenchDataService } from "./features/data-workspace/workbenchDataPort";
 import { useProjectExplorerSelection } from "./features/data-workspace/useProjectExplorerSession";
+import { explorerPinsStore, getExplorerPinsProjectKey } from "./features/data-workspace/explorerPins";
 import { useDataNodeActions } from "./features/data-workspace/useDataNodeActions";
 import { EditorHeaderTabs } from "./features/editor-workbench/header/EditorHeaderTabs";
 import { useAiEditReviewRequest } from "./features/data-workspace/useAiEditReviewRequest";
@@ -479,12 +480,15 @@ function AppContent() {
     workbenchWorkspace?.id ?? null,
   );
   const activeDocumentPath = editorWorkbench.activePath;
+  const explorerPinsProjectKey = getExplorerPinsProjectKey(workspace, workbenchWorkspace?.folders ?? []);
   const handleResourceMoved = useCallback(async (previousPath: string, nextPath: string) => {
     editorWorkbench.rebaseResource(previousPath, nextPath);
-  }, [editorWorkbench]);
+    explorerPinsStore.rebase(explorerPinsProjectKey, previousPath, nextPath);
+  }, [editorWorkbench, explorerPinsProjectKey]);
   const handleResourceDeleted = useCallback(async (path: string) => {
     editorWorkbench.closeUnderResource(path);
-  }, [editorWorkbench]);
+    explorerPinsStore.removeUnder(explorerPinsProjectKey, path);
+  }, [editorWorkbench, explorerPinsProjectKey]);
   const [activeExplorerNode, setActiveExplorerNode] = useProjectExplorerSelection(workspace);
   const activeDocumentResource = resolveWorkspaceResource(activeDocumentPath);
   const currentActiveDocumentPath = activeDocumentResource ? activeDocumentPath : null;
@@ -2166,6 +2170,11 @@ function AppContent() {
               canCopy={fileClipboardController.canCopy}
               canCut={fileClipboardController.canCut}
               canDuplicate={fileClipboardController.canDuplicate}
+              pinned={explorerPinsStore.isPinned(explorerPinsProjectKey, nodeActionMenu.node.path)}
+              onTogglePin={() => {
+                explorerPinsStore.toggle(explorerPinsProjectKey, nodeActionMenu.node);
+                setNodeActionMenu(null);
+              }}
               onChange={setNodeActionMenu}
               onCancel={() => setNodeActionMenu(null)}
               onCopyPath={copyNodePathFromMenu}

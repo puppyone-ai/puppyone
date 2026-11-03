@@ -435,3 +435,133 @@
    provider participates in layout and native preview bounds. */
 .desktop-workspace-location-surface { display: contents; }
 .desktop-workspace-location-surface[hidden] { display: none; }
+
+/* Pinned files: a strip of compact tabs above the file tree, like pinned
+   browser tabs. The open one takes the editor's colour, as a browser's active
+   tab takes the page's. A chevron on a hairline under them folds the tree
+   away; it carries no title. */
+.desktop-data-workspace-wrap[data-explorer-pins="true"] {
+  /* The fold line already separates the pins from the first file. */
+  --po-tree-no-root-top-gap: 2px;
+}
+
+.desktop-explorer-pins {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-block: var(--desktop-sidebar-row-left-gap) 0;
+  padding-inline: var(--desktop-sidebar-row-left-gap) var(--desktop-sidebar-row-right-gap);
+}
+
+.desktop-explorer-pin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 4px;
+}
+
+.desktop-explorer-pin-item {
+  display: flex;
+  min-width: 0;
+}
+
+.desktop-explorer-pin {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  height: var(--desktop-sidebar-row-height);
+  box-sizing: border-box;
+  padding-inline: 8px;
+  border: 0;
+  border-radius: calc(var(--desktop-sidebar-row-radius) + 2px);
+  background: var(--po-hover);
+  color: var(--desktop-sidebar-text-color, var(--po-text-muted));
+  font: inherit;
+  font-size: var(--po-type-ui-meta, 13px);
+  font-weight: var(--desktop-sidebar-font-weight);
+  line-height: 18px;
+  text-align: start;
+  user-select: none;
+  outline: none;
+  cursor: var(--po-clickable-cursor, default);
+  transition:
+    background-color var(--po-motion-fast, 120ms) ease,
+    color var(--po-motion-fast, 120ms) ease;
+}
+
+.desktop-explorer-pin:hover {
+  background: var(--po-selected);
+  color: var(--po-text);
+}
+
+.desktop-explorer-pin[data-active="true"] {
+  background: var(--po-canvas);
+  color: var(--po-text);
+  box-shadow:
+    inset 0 0 0 1px var(--po-border-subtle, var(--po-border)),
+    0 1px 2px var(--po-shadow, transparent);
+}
+
+.desktop-explorer-pin:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--po-focus-ring);
+}
+
+.desktop-explorer-pin-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+}
+
+.desktop-explorer-pin-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-explorer-files-toggle {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  height: 20px;
+  box-sizing: border-box;
+  padding-inline: var(--desktop-sidebar-row-content-left, 6px) 0;
+  border: 0;
+  border-radius: var(--desktop-sidebar-row-radius);
+  background: transparent;
+  color: var(--desktop-sidebar-section-title-color, var(--po-text-subtle));
+  user-select: none;
+  outline: none;
+  cursor: var(--po-clickable-cursor, default);
+}
+
+.desktop-explorer-files-toggle:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--po-focus-ring);
+}
+
+.desktop-explorer-files-toggle-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: var(--desktop-sidebar-icon-slot-size, 18px);
+  opacity: 0.5;
+  transition: opacity var(--po-motion-fast, 120ms) ease;
+}
+
+.desktop-explorer-files-toggle-rule {
+  flex: 1 1 auto;
+  height: 1px;
+  margin-inline: 2px;
+  background: var(--po-sidebar-divider, var(--po-divider));
+}
+
+.desktop-explorer-files-toggle:hover .desktop-explorer-files-toggle-icon,
+.desktop-explorer-files-toggle:focus-visible .desktop-explorer-files-toggle-icon {
+  opacity: 1;
+}

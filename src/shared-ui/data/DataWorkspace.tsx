@@ -147,6 +147,10 @@ export type DataWorkspaceProps = {
   explorerListStartSlot?: DataWorkspaceSlot;
   explorerListEndSlot?: DataWorkspaceSlot;
   explorerListEndPlacement?: ExplorerListEndPlacement;
+  /** Sits above the file tree and stays put while the tree scrolls. */
+  explorerPinnedSlot?: DataWorkspaceSlot;
+  /** Folds the file tree away under the pinned slot; the tree keeps its state. */
+  explorerTreeCollapsed?: boolean;
   explorerLoadingPresentation?: ExplorerLoadingPresentation;
   showExplorerRoot?: boolean;
   explorerRootContentSlot?: DataWorkspaceSlot;
@@ -247,6 +251,8 @@ export function DataWorkspace({
   explorerListStartSlot,
   explorerListEndSlot,
   explorerListEndPlacement = "flow",
+  explorerPinnedSlot,
+  explorerTreeCollapsed = false,
   explorerLoadingPresentation = "dots",
   showExplorerRoot = true,
   explorerRootContentSlot,
@@ -1258,12 +1264,21 @@ export function DataWorkspace({
                 </div>
               )
             )}
-            <div className="data-explorer-view-stack" data-view-mode={filesExplorerActive ? "files" : "custom"}>
+            {filesExplorerActive && explorerPinnedSlot && (
+              <div className="data-explorer-pinned">
+                {renderWorkspaceSlot(explorerPinnedSlot, workspaceState)}
+              </div>
+            )}
+            <div
+              className="data-explorer-view-stack"
+              data-view-mode={filesExplorerActive ? "files" : "custom"}
+              data-tree-collapsed={filesExplorerActive && explorerTreeCollapsed ? "true" : undefined}
+            >
               <div
                 className="data-explorer-view-frame"
                 data-view-mode="files"
                 data-active={filesExplorerActive ? "true" : "false"}
-                aria-hidden={filesExplorerActive ? undefined : true}
+                aria-hidden={filesExplorerActive && !explorerTreeCollapsed ? undefined : true}
               >
                 <ExplorerTree
                   nodes={explorerPresentationPending ? EMPTY_DATA_NODE_LIST : tree}
