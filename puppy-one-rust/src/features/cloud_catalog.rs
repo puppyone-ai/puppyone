@@ -55,10 +55,18 @@ pub fn parse_projects(value: &serde_json::Value) -> Vec<CloudEntry> {
             items
                 .iter()
                 .filter_map(|p| {
+                    // `projectAllows`: a capability the server listed.
+                    let allows = |capability: &str| {
+                        p["capabilities"]
+                            .as_array()
+                            .is_some_and(|c| c.iter().any(|v| v.as_str() == Some(capability)))
+                    };
                     Some(CloudEntry {
                         id: p["id"].as_str()?.to_owned(),
                         name: p["name"].as_str().unwrap_or("Project").to_owned(),
                         updated: parse_time(&p["updated_at"]),
+                        can_rename: allows("project.settings.manage"),
+                        can_delete: allows("project.delete"),
                     })
                 })
                 .collect()
@@ -67,6 +75,37 @@ pub fn parse_projects(value: &serde_json::Value) -> Vec<CloudEntry> {
 }
 
 impl CloudCatalog {
+    /// `renameProject`'s effect on the list: the entry takes its new name,
+    /// then the catalog reloads (dropping a listing still in flight).
+    pub fn apply_rename(&mut self, id: &str, name: &str, cx: &mut Context<Self>) {
+        if let State::Ready(entries) = &mut self.state
+            && let Some(entry) = entries.iter_mut().find(|e| e.id == id)
+        {
+            entry.name = name.to_owned();
+        }
+        self.reload(cx);
+    }
+    /// `deleteProject`'s effect: the entry leaves, then the catalog reloads.
+    pub fn apply_delete(&mut self, id: &str, cx: &mut Context<Self>) {
+        if let State::Ready(entries) = &mut self.state {
+            entries.retain(|e| e.id != id);
+        }
+        self.activity.remove(id);
+        self.reload(cx);
+    }
+    fn reload(&mut self, cx: &mut Context<Self>) {
+        cx.notify();
+        if self.loaded_for.is_some() {
+            // `setReload`: the same account lists again, keeping the
+            // changed entries on screen meanwhile.
+            let shown = self.state.clone();
+            self.loaded_for = None;
+            self.ensure(true, true, cx);
+            if let State::Loading = self.state {
+                self.state = shown;
+            }
+        }
+    }
     /// Loads for the current account once; `retry` forces a reload.
     pub fn ensure(&mut self, enabled: bool, retry: bool, cx: &mut Context<Self>) {
         let Some((broker, binding)) =

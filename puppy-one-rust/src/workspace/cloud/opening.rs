@@ -32,8 +32,6 @@ pub struct Failure {
     pub code: &'static str,
     pub recovery: Recovery,
     pub status: Option<u16>,
-    /// The allowlisted server reason code, for collapsed Details.
-    pub reason: Option<&'static str>,
 }
 impl Failure {
     pub fn new(code: &'static str, recovery: Recovery) -> Self {
@@ -41,7 +39,6 @@ impl Failure {
             code,
             recovery,
             status: None,
-            reason: None,
         }
     }
     /// `describeCloudOpeningFailure(cause, "workspace")`.
@@ -69,7 +66,6 @@ impl Failure {
                 Action::None => Recovery::None,
             },
             status: described.status,
-            reason: described.reason,
         }
     }
     fn provider(error: Error) -> Self {

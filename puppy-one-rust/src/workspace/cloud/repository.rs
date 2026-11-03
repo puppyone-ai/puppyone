@@ -75,13 +75,6 @@ impl Context {
             Self::Unresolvable => ("cloud.message.remote-unresolvable", None),
         })
     }
-    /// Retry re-runs the query (`temporarily-unavailable` / `error`).
-    pub fn retryable(&self) -> bool {
-        matches!(
-            self,
-            Self::TemporarilyUnavailable | Self::Unresolvable | Self::Mismatch
-        )
-    }
 }
 
 /// What the remotes alone decide, or the Project to authorize.

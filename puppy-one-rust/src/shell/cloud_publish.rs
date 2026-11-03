@@ -137,14 +137,10 @@ impl Shell {
             && crate::features::cloud_account::has_account(cx);
         self.cloud_services
             .update(cx, |s, cx| s.sync_sharing(sharing, cx));
-        let root = if self.hosted_project().is_none() {
-            self.workspace_root()
-        } else {
-            self.retained_local.as_ref().and_then(|r| r.root.clone())
-        };
-        // The activation page asks for the owning organization only while a
-        // switch shows it for a checkout without a Cloud Project.
-        let activating = self.cloud_switch.is_some()
+        let root = self.workspace_root();
+        // The activation page asks for the owning organization only while it
+        // shows for a folder without a Cloud project.
+        let activating = self.modals.iter().any(|m| matches!(m, Modal::CloudPublish))
             && matches!(
                 self.repository_cloud.read(cx).context,
                 crate::workspace::cloud::repository::Context::LocalOnly
@@ -157,7 +153,7 @@ impl Shell {
             }
         });
     }
-    fn project_display_name(&self) -> String {
+    pub(super) fn project_display_name(&self) -> String {
         self.workspace_root()
             .and_then(|root| {
                 self.recent_projects
@@ -444,16 +440,21 @@ impl Shell {
                 Button::new("publish-not-now")
                     .variant(ButtonVariant::Secondary)
                     .label(tr("cloud.activation.project.notNow"))
-                    .on_click(cx.listener(|s, _, _, cx| s.cancel_cloud_switch(cx))),
+                    .on_click(cx.listener(|s, _, _, cx| {
+                        s.modals.remove(|m| matches!(m, Modal::CloudPublish));
+                        cx.notify();
+                    })),
             )
             .footer(
                 Button::new("publish-upload")
                     .variant(ButtonVariant::Solid)
                     .label(tr("cloud.activation.project.publish"))
                     .disabled(!ready)
-                    .on_click(cx.listener(|s, _, _, cx| {
-                        s.cloud_publish
-                            .update(cx, |p, cx| p.start(Action::Initialize, cx));
+                    // `CloudGitPrerequisite`: the confirmation comes first.
+                    .on_click(cx.listener(|s, _, w, cx| {
+                        s.modals.open(Modal::ConfirmPublish);
+                        s.modal_focus.focus(w, cx);
+                        cx.notify();
                     })),
             )
     }
@@ -761,13 +762,10 @@ impl Shell {
         }
         dialog
     }
-    /// "Continue in background": the dialog goes; the run and the switch
-    /// intent stay, and the Header states the run.
+    /// "Continue in background": the dialog goes; the run stays, and the
+    /// Header states it.
     fn publish_in_background(&mut self, cx: &mut Context<Self>) {
-        if let Some(switch) = &mut self.cloud_switch {
-            switch.hidden = true;
-        }
-        self.modals.remove(|m| matches!(m, Modal::CloudSwitch));
+        self.modals.remove(|m| matches!(m, Modal::CloudPublish));
         cx.notify();
     }
     /// `CloudPublishHeaderStatus`: beside the location, while a publication
@@ -817,123 +815,76 @@ impl Shell {
                             cx.notify();
                         });
                     }
-                    // The same switch intent, shown again.
-                    s.view_cloud(w, cx);
-                    if let Some(switch) = &mut s.cloud_switch {
-                        switch.hidden = false;
-                    }
-                    cx.notify();
+                    // The same publication, shown again.
+                    s.put_in_cloud(w, cx);
                 }))
                 .into_any_element(),
         )
     }
 
-    /// `MissingCloudProjectRecovery`: the association names a Project that
-    /// no longer exists. The value page offers publishing again; Replace is
-    /// confirmed, the exact target is authorized once more with the same
-    /// session, and only a second 404 with the reviewed remote unchanged
-    /// detaches it locally — then the ordinary first publication follows.
-    pub(super) fn missing_project_dialog(
-        &self,
-        dialog: Dialog,
-        project: String,
-        cx: &mut Context<Self>,
-    ) -> Dialog {
+    /// `CloudDialog` at "initialize": the folder's first publication, after
+    /// sign-in. Sign-in keeps the same intent for this folder.
+    pub(super) fn cloud_publish_dialog(&self, cx: &mut Context<Self>) -> Dialog {
         let t = cx.palette();
-        let name = self.project_display_name();
-        let title = if name.trim().is_empty() {
-            tr("cloud.activation.project.headlineFallback").to_owned()
-        } else {
-            tf(
-                "cloud.activation.project.headline",
-                &[("project", name.clone().into())],
-            )
-        };
-        let replace = self.cloud_switch.as_ref().and_then(|s| s.replace.clone());
-        let mut body = self.activation_frame(
-            &name,
-            title,
-            tr("cloud.activation.project.lead").to_owned(),
-            cx,
+        let m = theme::ty();
+        let host = cx.weak_entity();
+        let dialog = Dialog::new("cloud-publish")
+            .width(600.)
+            .title(tr("cloud.activation.project.title"))
+            .focus_handle(self.modal_focus.clone())
+            .on_close(move |_, cx| {
+                let _ = host.update(cx, |s, cx| {
+                    s.modals.remove(|m| matches!(m, Modal::CloudPublish));
+                    cx.notify();
+                });
+            });
+        let session = crate::workspace::cloud::publish::Session::of(
+            crate::features::cloud_account::status(cx),
+            crate::features::cloud_account::has_account(cx),
         );
-        if let Some(replace) = &replace {
-            body = body.child(
-                v_flex()
-                    .mt(px(8.))
-                    .p(px(12.))
-                    .gap(px(6.))
-                    .rounded(px(8.))
-                    .border_1()
-                    .border_color(t.border)
-                    .child(
-                        div()
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .text_color(t.text)
-                            .child(tr("cloud.activation.project.replaceTitle")),
-                    )
-                    .child(
-                        div()
-                            .text_size(px(theme::ty().ui.meta))
-                            .text_color(t.muted)
-                            .child(tr("cloud.activation.project.replaceDescription")),
-                    )
-                    .when(replace.failed, |d| {
-                        d.child(
-                            self.publish_alert(tr("cloud.activation.project.replaceFailed"), cx),
+        if session != crate::workspace::cloud::publish::Session::SignedIn {
+            let waiting = session == crate::workspace::cloud::publish::Session::SigningIn;
+            return dialog
+                .child(
+                    v_flex()
+                        .gap(px(8.))
+                        .child(
+                            div()
+                                .text_size(px(m.ui.heading))
+                                .font_weight(FontWeight(650.))
+                                .text_color(t.text)
+                                .child(tr("cloud.auth.signInToCloud")),
                         )
-                    })
-                    .child(
-                        h_flex()
-                            .justify_end()
-                            .gap(px(8.))
-                            .child(
-                                Button::new("replace-cancel")
-                                    .variant(ButtonVariant::Secondary)
-                                    .label(tr("common.action.cancel"))
-                                    .disabled(replace.busy)
-                                    .on_click(cx.listener(|s, _, _, cx| {
-                                        if let Some(switch) = &mut s.cloud_switch {
-                                            switch.replace = None;
-                                        }
-                                        cx.notify();
-                                    })),
-                            )
-                            .child(
-                                Button::new("replace-confirm")
-                                    .variant(ButtonVariant::Solid)
-                                    .label(tr("cloud.activation.project.replaceConfirm"))
-                                    .disabled(replace.busy || replace.url.is_none())
-                                    .on_click(cx.listener(move |s, _, _, cx| {
-                                        s.confirm_replace(project.clone(), cx)
-                                    })),
-                            ),
-                    ),
-            );
+                        .child(
+                            div()
+                                .text_size(px(m.ui.body))
+                                .line_height(relative(1.5))
+                                .text_color(t.muted)
+                                .child(tr("cloud.message.remote-sign-in")),
+                        ),
+                )
+                .footer(
+                    Button::new("cloud-publish-sign-in")
+                        .variant(ButtonVariant::Solid)
+                        .disabled(waiting)
+                        .label(tr(if waiting {
+                            "cloud.auth.desktopWaiting"
+                        } else {
+                            "cloud.auth.signIn"
+                        }))
+                        .on_click(
+                            cx.listener(|_, _, _, cx| crate::features::cloud_account::sign_in(cx)),
+                        ),
+                );
         }
-        dialog
-            .child(body.child(self.local_note(cx)))
-            .footer(
-                Button::new("missing-not-now")
-                    .variant(ButtonVariant::Secondary)
-                    .label(tr("cloud.activation.project.notNow"))
-                    .on_click(cx.listener(|s, _, _, cx| s.cancel_cloud_switch(cx))),
-            )
-            .footer(
-                Button::new("missing-publish")
-                    .variant(ButtonVariant::Solid)
-                    .label(tr("cloud.activation.project.publish"))
-                    .disabled(replace.is_some())
-                    .on_click(cx.listener(|s, _, _, cx| s.begin_replace(cx))),
-            )
+        self.publish_dialog(dialog, cx)
     }
-    /// Review the remote as it is now, off the main thread.
+    /// Review the `puppyone` remote as it is now, off the main thread.
     pub(super) fn begin_replace(&mut self, cx: &mut Context<Self>) {
         let Some(root) = self.workspace_root() else {
             return;
         };
-        if let Some(switch) = &mut self.cloud_switch {
-            switch.replace = Some(Default::default());
-        }
+        self.replace_url = None;
         let task = cx.background_executor().spawn(async move {
             use crate::cloud_publication::git::{Cli, GitOps as _, Remote};
             match (Cli { helper: None }).remote(&root) {
@@ -944,41 +895,43 @@ impl Shell {
         cx.spawn(async move |this, cx| {
             let url = task.await;
             let _ = this.update(cx, |s, cx| {
-                if let Some(replace) = s.cloud_switch.as_mut().and_then(|s| s.replace.as_mut()) {
-                    replace.failed = url.is_none();
-                    replace.url = url;
+                if url.is_none() {
+                    for m in s.modals.iter_mut() {
+                        if let Modal::ReplaceCloud(replace) = m {
+                            replace.failed = true;
+                        }
+                    }
                 }
+                s.replace_url = url;
                 cx.notify();
             });
         })
         .detach();
         cx.notify();
     }
+    /// The exact target is authorized once more with the same session; only
+    /// a second 404 with the reviewed remote unchanged detaches it, and the
+    /// first publication follows (`onDone("replaced")`).
     pub(super) fn confirm_replace(&mut self, project: String, cx: &mut Context<Self>) {
-        let (Some(root), Some((broker, binding))) = (
+        let (Some(root), Some((broker, binding)), Some(url)) = (
             self.workspace_root(),
             crate::features::cloud_account::broker_and_binding(cx),
+            self.replace_url.clone(),
         ) else {
             return;
         };
-        let Some(url) = self
-            .cloud_switch
-            .as_mut()
-            .and_then(|s| s.replace.as_mut())
-            .and_then(|r| {
-                r.busy = true;
-                r.failed = false;
-                r.url.clone()
-            })
-        else {
-            return;
-        };
+        for m in self.modals.iter_mut() {
+            if let Modal::ReplaceCloud(replace) = m {
+                replace.busy = true;
+                replace.failed = false;
+            }
+        }
         cx.notify();
         let task = cx.background_executor().spawn(async move {
             use crate::workspace::cloud::repository::{self, Context as Association};
             let cancel = crate::cloud_auth::Cancellation::default();
             match repository::authorize(&broker, &binding, &project, &cancel) {
-                // Reachable again: keep the remote and reopen it.
+                // Reachable again: keep the link (`reconnected`).
                 Ok(_) => Ok(false),
                 Err((Association::NotFound { .. }, _)) => {
                     crate::cloud_publication::git::detach(&root, &url)
@@ -992,20 +945,19 @@ impl Shell {
             let result = task.await;
             let _ = this.update(cx, |s, cx| {
                 match result {
-                    Ok(_) => {
-                        if let Some(switch) = &mut s.cloud_switch {
-                            switch.replace = None;
-                        }
-                        // Resolve again: reachable, or local-only and ready to
-                        // publish.
+                    Ok(replaced) => {
+                        s.modals.remove(|m| matches!(m, Modal::ReplaceCloud(_)));
                         s.repository_cloud.update(cx, |r, cx| r.retry(cx));
+                        if replaced && !s.modals.iter().any(|m| matches!(m, Modal::CloudPublish)) {
+                            s.modals.open(Modal::CloudPublish);
+                        }
                     }
                     Err(()) => {
-                        if let Some(replace) =
-                            s.cloud_switch.as_mut().and_then(|s| s.replace.as_mut())
-                        {
-                            replace.busy = false;
-                            replace.failed = true;
+                        for m in s.modals.iter_mut() {
+                            if let Modal::ReplaceCloud(replace) = m {
+                                replace.busy = false;
+                                replace.failed = true;
+                            }
                         }
                     }
                 }

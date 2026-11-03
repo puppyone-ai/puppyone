@@ -17,8 +17,8 @@ use std::path::PathBuf;
 mod bench;
 #[cfg(feature = "dev-capture")]
 mod capture_scenario;
+mod cloud_authority;
 mod cloud_publish;
-mod cloud_switch;
 pub(crate) mod coachmarks;
 mod command;
 mod create_new;
@@ -31,6 +31,7 @@ mod modals;
 mod panes;
 mod project_actions;
 mod project_menu;
+mod project_place;
 mod rename;
 pub(crate) mod tasks;
 pub mod windows;
@@ -55,7 +56,8 @@ fn fill() -> StyleRefinement {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Popover {
     Project,
-    Location,
+    /// `ProjectPlaceMenu`: where the open project is.
+    Place,
 }
 pub struct Shell {
     /// This window's budget owner (`ownerId`), shared with its hosts.
@@ -72,7 +74,7 @@ pub struct Shell {
     /// A Cloud recovery's Details disclosure is open.
     recovery_details: bool,
     /// `ProjectRowActions` of a remembered Project, at the pointer.
-    project_actions: Option<(PathBuf, Point<Pixels>)>,
+    project_actions: Option<project_actions::ActionsMenu>,
     /// The first publication of this window's checkout.
     cloud_publish: Entity<crate::features::cloud_publish::CloudPublish>,
     /// The published Project the association was last refreshed for.
@@ -97,12 +99,13 @@ pub struct Shell {
     cloud_history: Entity<crate::features::source_control::CloudHistory>,
     /// The open checkout's Cloud association (Header location).
     repository_cloud: Entity<crate::features::repository_cloud::RepositoryCloud>,
-    /// A Header switch to the Cloud Computer in progress.
-    cloud_switch: Option<cloud_switch::CloudSwitch>,
-    /// The local host kept alive while Cloud shows, and the Cloud host kept
-    /// alive while local shows.
-    retained_local: Option<cloud_switch::Retained>,
-    retained_cloud: Option<cloud_switch::Retained>,
+    /// A project path the Header menu just copied, and when.
+    copied_path: Option<(String, std::time::Instant)>,
+    /// `dismissedCloudNoticeKey`: the local folder notice put away.
+    dismissed_cloud_notice: Option<String>,
+    /// The `puppyone` remote as reviewed when replacing a vanished
+    /// Project's connection was chosen.
+    replace_url: Option<String>,
     popover: Option<Popover>,
     /// Homepage requested from the project menu (`goToHomepage`).
     home: bool,
@@ -268,9 +271,9 @@ impl Shell {
                 .new(|cx| crate::features::source_control::SourceControl::new(window, cx)),
             cloud_history: cx.new(crate::features::source_control::CloudHistory::new),
             repository_cloud: Self::new_repository_cloud(cx),
-            cloud_switch: None,
-            retained_local: None,
-            retained_cloud: None,
+            copied_path: None,
+            dismissed_cloud_notice: None,
+            replace_url: None,
             popover: None,
             home: false,
             recent_projects: vec![],
@@ -641,9 +644,6 @@ impl Shell {
         windows::register(window.window_handle(), cx.weak_entity(), cx);
         cx.observe(&s.cloud_catalog, |_, _, cx| cx.notify())
             .detach();
-        if let Some(project) = launch.cloud.clone() {
-            s.open_cloud(project, cx);
-        }
         // Until preferences load: the default Sub Theme in the start-up mode.
         crate::ui::appearance::Appearance::default()
             .with_dark(s.dark)
@@ -775,11 +775,27 @@ impl Shell {
             Some(Modal::Error(_)) => {
                 self.modals.remove(|m| matches!(m, Modal::Error(_)));
             }
-            Some(Modal::CloudSwitch) => self.cancel_cloud_switch(cx),
+            Some(Modal::CloudPublish) => {
+                self.modals.remove(|m| matches!(m, Modal::CloudPublish));
+            }
+            Some(Modal::ConfirmPublish) => {
+                self.modals.remove(|m| matches!(m, Modal::ConfirmPublish));
+            }
+            Some(Modal::ReplaceCloud(replace)) => {
+                // A replacement on its way cannot be dismissed.
+                if !replace.busy {
+                    self.modals.remove(|m| matches!(m, Modal::ReplaceCloud(_)));
+                }
+            }
             Some(Modal::CloudServices) => self.cloud_services.update(cx, |s, cx| s.close(cx)),
-            Some(Modal::RenameProject(_) | Modal::UnlinkProject(_)) => {
-                self.modals
-                    .remove(|m| matches!(m, Modal::RenameProject(_) | Modal::UnlinkProject(_)));
+            // A change on its way cannot be dismissed (`onClose` is withheld).
+            Some(Modal::RenameProject(_) | Modal::ConfirmProject(_)) => {
+                self.modals.remove(|m| match m {
+                    Modal::RenameProject(r) => !r.pending,
+                    Modal::ConfirmProject(c) => !c.pending,
+                    _ => false,
+                });
+                self.homepage.actions = None;
             }
             Some(Modal::CloudRecovery { .. }) => {
                 self.modals
@@ -1002,21 +1018,25 @@ impl Shell {
                 self.project_focus.focus(window, cx);
             }
             Command::LocationMenu => {
-                self.popover = if self.popover == Some(Popover::Location) {
+                self.popover = if self.popover == Some(Popover::Place) {
                     None
                 } else {
-                    Some(Popover::Location)
+                    Some(Popover::Place)
                 };
             }
             Command::Home => {
                 self.popover = None;
                 self.explorer.update(cx, |e, cx| e.dismiss_menu(cx));
+                if !self.home_visible() {
+                    self.hold_home_list();
+                }
                 self.home = true;
             }
             // With no dialog open, Escape closes a menu.
-            // Escape cancels an in-place Cloud preparation; the workbench
-            // behind it stays.
-            Command::Escape if self.cloud_switch.is_some() => self.cancel_cloud_switch(cx),
+            // Escape cancels a Cloud opening; whatever showed stays.
+            Command::Escape if self.files.cloud_opening().is_some() => {
+                self.files.cancel_cloud();
+            }
             // Escape inside History goes back (`CloudWorkspaceHistorySidebar`).
             Command::Escape
                 if self.panes.shows(RightContent::CloudHistory)
@@ -1143,11 +1163,8 @@ impl Shell {
         if self.restoring_open && self.files.workspace.is_some() {
             self.restoring_open = false;
         }
-        // A Header switch shows its own recovery; any other Cloud opening
-        // (a hosted-only window) reports its failure copy.
-        if self.cloud_switch.is_none()
-            && let Some(failure) = self.files.take_cloud_failure()
-        {
+        // A Cloud opening that failed says why (`ProjectNavigationFailure`).
+        if let Some(failure) = self.files.take_cloud_failure() {
             self.recovery_details = false;
             self.modals
                 .remove(|m| matches!(m, Modal::CloudRecovery { .. }));
@@ -1406,7 +1423,7 @@ impl Shell {
                 self.modal_focus.focus(window, cx);
             }
             // No Cloud Project yet: the value page and its publisher.
-            None => self.view_cloud(window, cx),
+            None => self.put_in_cloud(window, cx),
         }
     }
     /// "Share with…": `providerPath`, the folder relative to the Project.
@@ -1487,7 +1504,7 @@ impl Shell {
     pub(super) fn open_cloud(&mut self, project: String, cx: &mut Context<Self>) {
         // `ProjectNavigation.select`: the same target while it is pending
         // joins that opening; another one replaces it.
-        let account = cloud_switch::account_key(cx);
+        let account = cloud_authority::account_key(cx);
         if self.files.cloud_opening().is_some()
             && self.cloud_project.as_deref() == Some(project.as_str())
             && self.cloud_authority == account
@@ -1610,10 +1627,14 @@ impl Shell {
                     .tooltip(ui::components::tooltip(project.name.clone()))
                     .child(initial)
                     .on_mouse_down(MouseButton::Right, {
-                        let path = path.clone();
-                        cx.listener(move |s, e: &MouseDownEvent, _, cx| {
+                        let target = project_actions::Target::Local {
+                            path: path.clone(),
+                            name: project.name.clone(),
+                        };
+                        cx.listener(move |s, e: &MouseDownEvent, w, cx| {
                             cx.stop_propagation();
-                            s.open_project_actions(path.clone(), e.position, cx)
+                            let at = Bounds::new(e.position, size(px(0.), px(0.)));
+                            s.open_project_actions(target.clone(), at, false, w.viewport_size(), cx)
                         })
                     })
                     .on_click(cx.listener(move |s, _, w, cx| s.open_project(path.clone(), w, cx))),
@@ -1720,35 +1741,70 @@ impl Shell {
         .task(self.modals.task())
         .busy(busy)
     }
-    /// The Header (`DesktopWindowChrome`). The homepage shows only Sign in;
-    /// a workspace shows the Explorer's expand button while it is closed, the
-    /// project switcher (unless the project rail has it), and Changes and the
-    /// Agent entry as the Header elements preference allows.
+    /// The project being entered in this window, named as its Header will
+    /// name it (`projectOpening.projectName`).
+    pub(super) fn opening_project_name(&self, cx: &App) -> Option<String> {
+        if self.files.cloud_opening().is_some() {
+            let project = self.cloud_project.as_deref()?;
+            return Some(
+                self.project_items(cx)
+                    .into_iter()
+                    .find(|i| i.cloud_project.as_deref() == Some(project))
+                    .map(|i| i.label)
+                    .unwrap_or_else(|| project.to_owned()),
+            );
+        }
+        let root = self.files.preparing_root()?;
+        Some(
+            self.recent_projects
+                .iter()
+                .find(|p| p.path == root)
+                .map(|p| p.name.clone())
+                .or_else(|| root.file_name().map(|n| n.to_string_lossy().into_owned()))
+                .unwrap_or_default(),
+        )
+    }
+    /// The Header (`DesktopWindowChrome`).
+    ///
+    /// - The Homepage names the product (once there are projects) and holds
+    ///   the account (`HomepageCloudStatus`).
+    /// - A local folder: the Explorer's expand button while it is closed,
+    ///   the project and its place, then the app status, Share, Changes and
+    ///   the Agent entry, each group set off by a rule.
+    /// - A Cloud project (`CloudWorkspaceHeaderTools`): Share, a rule and
+    ///   the Agent entry, on the Cloud's own Header tint.
     fn header(&self, cx: &mut Context<Self>) -> header::TitleBar {
         use crate::localization::t as tr;
         let home = self.home_visible();
-        let (centered, changes, agent) = {
+        if home {
+            let mut bar = header::TitleBar::new();
+            let has_projects = !self.project_items(cx).is_empty() || self.homepage.list_held();
+            if has_projects {
+                bar = bar.leading(header::brand_name(cx));
+            }
+            if crate::features::flags::cloud_enabled(&self.preferences, cx) {
+                bar = bar.action(self.homepage_account(cx));
+            }
+            return bar;
+        }
+        let hosted = self.hosted_project().is_some();
+        let (changes, agent, tabs) = {
             let p = &self.preferences.read(cx).state;
             (
-                p.experimental.centered_project_in_header,
-                // A hosted Project has no local Git: its Header tools are
-                // Share, History and the Agent (`CloudWorkspaceHeaderTools`).
-                !home
+                !hosted
                     && self
                         .files
                         .workspace
                         .as_ref()
                         .is_some_and(|ws| ws.local_root().is_some())
                     && p.header_changes,
-                !home && p.header_terminal,
+                p.header_terminal || hosted,
+                p.experimental.editor_tabs_in_header,
             )
         };
-        let project = !home && !self.rail && (self.files.workspace.is_some() || self.fixture);
-        // `.desktop-titlebar[data-workspace-kind="cloud"]`: the Header wears
-        // the Cloud colour wherever the screen shows the Cloud Computer.
-        let mut bar = header::TitleBar::new()
-            .cloud(!home && self.header_location(cx).0 == cloud_switch::Place::Cloud);
-        if !home && !self.panes.explorer().open {
+        let project = !self.rail && (self.files.workspace.is_some() || self.fixture);
+        let mut bar = header::TitleBar::new().cloud(hosted);
+        if !self.panes.explorer().open {
             bar = bar.leading(
                 IconButton::new("expand-explorer", "panel-left")
                     .label(tr("shared-ui.explorer.expandSidebar"))
@@ -1757,51 +1813,47 @@ impl Shell {
                     .on_click(cx.listener(|s, _, w, cx| s.command(Command::ToggleExplorer, w, cx))),
             );
         }
-        if project && !centered {
+        if project {
             bar = bar.leading(self.project_context(cx));
         }
-        if !home && self.files.state().is_some() {
+        // `enableEditorTabsInHeader`: the editor's tabs move into the Header.
+        if tabs && self.files.state().is_some() && self.opening_project_name(cx).is_none() {
             bar = bar.tabs(self.editor_tabs(cx));
         }
-        if changes {
-            use gpui_kit::base::Selectable as _;
-            let status = header::GitTitlebarStatus::of(self.source_control.read(cx));
-            let introduced = self.coachmarks.active == Some(coachmarks::Coachmark::Changes);
-            let button = header::ChangesButton::new(status)
-                .selected(self.panes.shows(RightContent::Changes))
-                .coachmark(introduced)
-                .on_click(cx.listener(|s, _, w, cx| s.command(Command::Changes, w, cx)))
-                .into_any_element();
-            bar = bar.action(self.coachmark_anchor(coachmarks::Coachmark::Changes, button, cx));
-        }
-        let hosted = self.hosted_project().is_some();
-        // `cloudEnabled && shareEnabled`: a local repository's Cloud services.
-        let share = !home
-            && !hosted
-            && self.workspace_root().is_some()
-            && crate::features::flags::share_enabled(&self.preferences, cx);
-        if share {
-            bar = bar.action(
-                header::share_entry()
-                    .on_click(cx.listener(|s, _, w, cx| s.command(Command::CloudServices, w, cx))),
-            );
-        }
         if hosted {
-            bar = bar.action(
-                header::share_entry()
-                    .on_click(cx.listener(|s, _, w, cx| s.command(Command::ShareCloud, w, cx))),
-            );
-            // Ready once the account is signed in; the hosted opening only
-            // admits Project roots, so History never widens a Scope.
-            use gpui_kit::base::Disableable as _;
-            bar = bar.action(
-                header::history_entry(self.panes.shows(RightContent::CloudHistory))
-                    .disabled(!crate::features::cloud_account::has_account(cx))
-                    .on_click(cx.listener(|s, _, w, cx| s.command(Command::CloudHistory, w, cx))),
-            );
-        }
-        if (changes || hosted) && agent {
-            bar = bar.divider(cx);
+            bar = bar
+                .action(
+                    header::share_entry()
+                        .on_click(cx.listener(|s, _, w, cx| s.command(Command::ShareCloud, w, cx))),
+                )
+                .divider(cx);
+        } else {
+            // `cloudEnabled && shareEnabled`: a local folder's Cloud services.
+            let share = self.workspace_root().is_some()
+                && crate::features::flags::share_enabled(&self.preferences, cx);
+            if share {
+                bar =
+                    bar.action(header::share_entry().on_click(
+                        cx.listener(|s, _, w, cx| s.command(Command::CloudServices, w, cx)),
+                    ));
+                if changes || agent {
+                    bar = bar.divider(cx);
+                }
+            }
+            if changes {
+                use gpui_kit::base::Selectable as _;
+                let status = header::GitTitlebarStatus::of(self.source_control.read(cx));
+                let introduced = self.coachmarks.active == Some(coachmarks::Coachmark::Changes);
+                let button = header::ChangesButton::new(status)
+                    .selected(self.panes.shows(RightContent::Changes))
+                    .coachmark(introduced)
+                    .on_click(cx.listener(|s, _, w, cx| s.command(Command::Changes, w, cx)))
+                    .into_any_element();
+                bar = bar.action(self.coachmark_anchor(coachmarks::Coachmark::Changes, button, cx));
+                if agent {
+                    bar = bar.divider(cx);
+                }
+            }
         }
         if agent {
             let introduced = self.coachmarks.active == Some(coachmarks::Coachmark::Agent);
@@ -1810,24 +1862,6 @@ impl Shell {
                 .on_click(cx.listener(|s, _, w, cx| s.command(Command::ToggleRightSidebar, w, cx)))
                 .into_any_element();
             bar = bar.action(self.coachmark_anchor(coachmarks::Coachmark::Agent, button, cx));
-        }
-        // `cloudAccountStatus` follows Cloud: with the experiment off the
-        // Homepage shows no Sign in (the account stays in Settings).
-        if home && crate::features::flags::cloud_enabled(&self.preferences, cx) {
-            // Account identity is public state, not permission to open Cloud files.
-            bar = bar.action(
-                header::account_entry(crate::features::cloud_account::has_account(cx)).on_click(
-                    cx.listener(|s, _, w, cx| {
-                        s.command(Command::Settings, w, cx);
-                        s.task_ui.settings.update(cx, |settings, cx| {
-                            settings.select_page(crate::features::settings::Page::Account, cx)
-                        });
-                    }),
-                ),
-            );
-        }
-        if project && centered {
-            bar = bar.centered(self.project_context(cx));
         }
         bar
     }
@@ -1917,9 +1951,7 @@ impl Render for Shell {
         self.sync_repository_cloud(cx);
         self.sync_cloud_publish(cx);
         self.guard_cloud_authority(window, cx);
-        self.advance_cloud_switch(cx);
         self.refresh_home_activity(cx);
-        self.sync_open_history(cx);
         self.sync_first_run(cx);
         self.sync_home_intro(window, cx);
         self.sync_coachmarks(cx);
@@ -1976,9 +2008,9 @@ impl Render for Shell {
         let home = self.home_visible();
         if home {
             root = root.child(if self.first_run_sign_in(cx) {
-                self.first_run_view(cx)
+                self.first_run_view(cx).into_any_element()
             } else {
-                self.home_view(cx)
+                self.home_view(window, cx)
             });
         }
         // A closing pane stays painted, clipped to its frame, until it has closed.
@@ -2037,7 +2069,7 @@ impl Render for Shell {
             }
         }
         if !home {
-            root = root.children(self.notices(w));
+            root = root.children(self.notices(w, cx));
         }
         root = root.children(self.project_actions_menu(cx));
         root = root.children(self.coachmark_overlay(w, cx));
@@ -2049,7 +2081,7 @@ impl Shell {
     /// notice (`.desktop-workspace-notice-stack`: 12px below the top, 16px
     /// in from the editor's end) and the document session's held-back Cloud
     /// conflict (`.editor-notice-stack`: 48px / 12px).
-    fn notices(&self, w: f32) -> Vec<AnyElement> {
+    fn notices(&self, w: f32, cx: &mut Context<Self>) -> Vec<AnyElement> {
         use crate::{
             localization::t as tr,
             ui::components::{
@@ -2059,6 +2091,21 @@ impl Shell {
         let editor = self.layout.editor;
         let end = w - editor.right();
         let mut layers = vec![];
+        // `.desktop-workspace-notice-stack`: the local folder's Cloud notice
+        // leads the workspace's own warning.
+        let mut folder_notice = self.local_folder_notice_view(cx);
+        if folder_notice.is_some() && self.workspace_notice.is_none() {
+            layers.push(
+                NoticeStack::new(
+                    NoticePlacement::TopEnd,
+                    editor.y + 12.,
+                    end + 16.,
+                    (editor.w - 40.).min(400.),
+                )
+                .children(folder_notice.take())
+                .into_any_element(),
+            );
+        }
         if let Some(message) = &self.workspace_notice {
             let host = self.weak.clone();
             let dismiss = self.weak.clone();
@@ -2069,6 +2116,7 @@ impl Shell {
                     end + 16.,
                     (editor.w - 40.).min(400.),
                 )
+                .children(folder_notice.take())
                 .child(
                     FloatingNotice::new("workspace-notice", message.clone())
                         .tone(NoticeTone::Warning)
@@ -2240,13 +2288,17 @@ impl Shell {
                     .share_dialog(url.clone(), *copied, cx)
                     .into_any_element(),
                 Modal::Error(message) => error(self, message, cx),
-                Modal::CloudSwitch => self.cloud_switch_dialog(cx).into_any_element(),
+                Modal::CloudPublish => self.cloud_publish_dialog(cx).into_any_element(),
+                Modal::ConfirmPublish => self.publish_confirmation_dialog(cx).into_any_element(),
+                Modal::ReplaceCloud(replace) => {
+                    self.replace_cloud_dialog(replace, cx).into_any_element()
+                }
                 Modal::CloudServices => self.cloud_services.clone().into_any_element(),
                 Modal::RenameProject(rename) => {
                     self.project_rename_dialog(rename, cx).into_any_element()
                 }
-                Modal::UnlinkProject(path) => {
-                    self.project_unlink_dialog(path, cx).into_any_element()
+                Modal::ConfirmProject(confirm) => {
+                    self.project_confirm_dialog(confirm, cx).into_any_element()
                 }
                 Modal::CloudRecovery { project, failure } => self
                     .cloud_open_recovery_dialog(project, failure, cx)

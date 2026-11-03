@@ -135,8 +135,6 @@ impl SetupSuggestions {
 #[serde(default)]
 pub struct Experimental {
     pub project_reach: bool,
-    pub centered_project_in_header: bool,
-    pub project_location_icons_in_header: bool,
     pub workbench_tabs_in_header: bool,
     pub share_onboarding: bool,
     pub multi_root_workspaces: bool,
@@ -147,18 +145,14 @@ pub struct Experimental {
     pub other_app_imports: bool,
     pub viewer_plugins: bool,
     pub cloud_workspace: bool,
-    pub cloud_automation: bool,
     pub payments: bool,
     pub puppy_flow_files: bool,
     pub git_auto_commit: bool,
-    pub asset_library_home: bool,
 }
 impl Default for Experimental {
     fn default() -> Self {
         Self {
             project_reach: false,
-            centered_project_in_header: false,
-            project_location_icons_in_header: false,
             workbench_tabs_in_header: false,
             share_onboarding: true,
             multi_root_workspaces: false,
@@ -169,12 +163,10 @@ impl Default for Experimental {
             other_app_imports: false,
             viewer_plugins: false,
             cloud_workspace: false,
-            cloud_automation: false,
             // `DEFAULT_EXPERIMENTAL_SETTINGS.enablePayments`.
             payments: true,
             puppy_flow_files: false,
             git_auto_commit: false,
-            asset_library_home: false,
         }
     }
 }
@@ -246,7 +238,22 @@ pub struct RecentProject {
     /// Seconds since the Unix epoch.
     pub opened_at: u64,
 }
-pub const RECENT_PROJECT_LIMIT: usize = 20;
+/// `HOMEPAGE_PROJECT_LAYOUTS`: how the Homepage arranges its projects.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum HomepageLayout {
+    List,
+    #[default]
+    Grid,
+}
+/// `HOMEPAGE_PROJECT_SORTS`: how the Homepage orders its projects.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum HomepageSort {
+    #[default]
+    Modified,
+    Name,
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -290,11 +297,12 @@ pub struct Preferences {
     /// `puppyone.desktop.headerCoachmarks.v1`: introductions acknowledged.
     pub header_coachmarks: HeaderCoachmarks,
     pub experimental: Experimental,
+    /// Every remembered project, most recent first; the list is never cut.
     pub recent_projects: Vec<RecentProject>,
-    /// `puppyone.project-open-location:{scope}`: successful openings per
-    /// account and API (`catalog::history::scope`).
-    pub project_open_history:
-        std::collections::BTreeMap<String, Vec<crate::workspace::cloud::catalog::history::Entry>>,
+    /// `puppyone.desktop.homepageProjectLayout`.
+    pub homepage_project_layout: HomepageLayout,
+    /// `puppyone.desktop.homepageProjectSort`.
+    pub homepage_project_sort: HomepageSort,
     /// `puppyone.desktop.firstRunSignInCompleted.v1`.
     pub first_run_sign_in_completed: bool,
 }
@@ -326,7 +334,8 @@ impl Default for Preferences {
             header_coachmarks: HeaderCoachmarks::default(),
             experimental: Experimental::default(),
             recent_projects: vec![],
-            project_open_history: Default::default(),
+            homepage_project_layout: HomepageLayout::Grid,
+            homepage_project_sort: HomepageSort::Modified,
             first_run_sign_in_completed: false,
         }
     }
@@ -411,7 +420,6 @@ impl Preferences {
                 opened_at: now,
             },
         );
-        self.recent_projects.truncate(RECENT_PROJECT_LIMIT);
     }
     /// `renameRecentWorkspacePath`: the shown name only.
     pub fn rename_project(&mut self, path: &std::path::Path, name: &str) {
@@ -501,13 +509,14 @@ mod tests {
         assert_eq!(restored.locale, "zh-Hans");
     }
     #[test]
-    fn project_history_is_most_recent_first_and_bounded() {
+    fn project_history_is_most_recent_first_and_keeps_every_project() {
         let mut p = Preferences::default();
         for i in 0..25 {
             p.remember_project(std::path::Path::new(&format!("/p/{i}")), i);
         }
         p.remember_project(std::path::Path::new("/p/10"), 99);
-        assert_eq!(p.recent_projects.len(), RECENT_PROJECT_LIMIT);
+        // a4e796b01: the list keeps every project, not the latest twenty.
+        assert_eq!(p.recent_projects.len(), 25);
         assert_eq!(p.recent_projects[0].name, "10");
         assert_eq!(
             p.recent_projects.iter().filter(|r| r.name == "10").count(),

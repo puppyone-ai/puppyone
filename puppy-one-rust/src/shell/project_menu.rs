@@ -1,7 +1,6 @@
-//! Header popovers: the `DesktopWorkspaceSwitcher` menu (Home, recent
-//! projects, New workspace) and `DesktopProjectLocationSwitcher` (This Mac /
-//! Cloud). Both hang 2px below their trigger, start aligned (centred when the
-//! project sits in the middle of the Header), on the `.desktop-project-menu`
+//! Header popovers: the `DesktopWorkspaceSwitcher` menu (Home, every
+//! project, New) and `ProjectPlaceMenu` (where the open project is). Both
+//! hang 2px below their trigger, start aligned, on the `.desktop-project-menu`
 //! surface. GPUI Kit places, clamps and dismisses them; the shell holds which
 //! one is open so commands and keys can open it too.
 use super::*;
@@ -15,8 +14,6 @@ use gpui_kit::{base::h_flex, component::Sizable as _};
 
 /// `preferredWidth={240}` of the project menu.
 const PROJECT_MENU_WIDTH: f32 = 240.;
-/// `preferredWidth={200}` of the location popover.
-const LOCATION_MENU_WIDTH: f32 = 200.;
 /// `DesktopTitlebarMenuLayer`'s gap below the trigger.
 const MENU_GAP: f32 = 2.;
 /// `.desktop-project-list` row gap.
@@ -24,20 +21,26 @@ const PROJECT_LIST_GAP: f32 = 2.;
 /// `max-height: min(520px, calc(100vh - 58px))` on the surface.
 const MENU_MAX_HEIGHT: f32 = 520.;
 const MENU_VIEWPORT_INSET: f32 = 58.;
+/// `preferredMaxHeight={200}` of the place menu.
+const PLACE_MENU_MAX_HEIGHT: f32 = 200.;
 /// `.desktop-project-switcher-copy`: a 22px button in the row's end slot.
 const COPY_BUTTON: f32 = 22.;
+/// How long a copied path says so.
+const COPIED_FOR: std::time::Duration = std::time::Duration::from_millis(1600);
 
 impl Shell {
-    /// `DesktopWorkspaceSwitcher` trigger + `DesktopProjectLocationSwitcher` trigger.
+    /// `DesktopTitlebarContext`: the project switcher, the place menu while
+    /// Cloud is on, and a first publication's status beside them.
     pub(super) fn project_context(&self, cx: &mut Context<Self>) -> Div {
         let label = tf(
             "shell.workspaceSwitcher.openMenu",
             &[("workspace", self.project.clone().into())],
         );
-        let name = if self.project.is_empty() {
-            tr("onboarding.action.openFolder").to_owned()
-        } else {
-            self.project.clone()
+        let opening = self.opening_project_name(cx);
+        let name = match &opening {
+            Some(name) => name.clone(),
+            None if self.project.is_empty() => tr("onboarding.action.openFolder").to_owned(),
+            None => self.project.clone(),
         };
         let ty = theme::ty().header;
         // `.desktop-titlebar-workspace-button`.
@@ -57,45 +60,14 @@ impl Shell {
             .text_size(px(ty.content))
             .line_height(px(ty.line_height))
             .font_weight(FontWeight::MEDIUM);
-        // `DesktopProjectLocationSwitcher` renders only when Cloud workspaces
-        // are enabled (`projectLocation` is undefined otherwise).
-        let cloud = self.preferences.read(cx).state.experimental.cloud_workspace;
+        // The place and the publication wait while a project is entered.
+        let place = self.place_menu(cx).filter(|_| opening.is_none());
         h_flex()
             .min_w_0()
             .gap(px(2.))
             .child(self.header_popover(Popover::Project, project, cx))
-            .when(cloud, |d| {
-                // `.desktop-titlebar-location-button`: the computer the
-                // screen shows and its readiness, then its name.
-                let (place, readiness) = self.header_location(cx);
-                let label = tr(match place {
-                    super::cloud_switch::Place::Local => "shell.workspaceSwitcher.location.local",
-                    super::cloud_switch::Place::Cloud => "shell.projectRuntime.label",
-                });
-                let stated = match readiness {
-                    super::cloud_switch::Readiness::Ready => label.to_owned(),
-                    super::cloud_switch::Readiness::Opening => tf(
-                        "shell.projectComputers.status.opening",
-                        &[("computer", label.into())],
-                    ),
-                    super::cloud_switch::Readiness::Failed => tf(
-                        "shell.projectComputers.status.failed",
-                        &[("computer", label.into())],
-                    ),
-                };
-                let location = Button::new("project-location")
-                    .variant(ButtonVariant::Titlebar)
-                    .icon(Self::location_mark(place, readiness, cx.palette()).large())
-                    .label(label)
-                    .accessibility_label(format!(
-                        "{stated}, {}",
-                        tr("shell.workspaceSwitcher.projectDetails")
-                    ))
-                    .px(px(6.))
-                    .text_size(px(ty.content))
-                    .line_height(px(ty.line_height))
-                    .font_weight(FontWeight::MEDIUM);
-                d.child(self.header_popover(Popover::Location, location, cx))
+            .when_some(place, |d, menu| {
+                d.child(self.place_control(&menu, cx))
                     .children(self.publish_header_mark(cx))
             })
     }
@@ -107,25 +79,13 @@ impl Shell {
         cx: &App,
     ) -> PopoverMenu {
         let open = self.popover == Some(popover);
-        // `menuAlignment="center"` when the experiment centres the project.
-        let centered = popover == Popover::Project
-            && self
-                .preferences
-                .read(cx)
-                .state
-                .experimental
-                .centered_project_in_header;
-        let (id, width) = match popover {
-            Popover::Project => ("project-menu", PROJECT_MENU_WIDTH),
-            Popover::Location => ("location-menu", LOCATION_MENU_WIDTH),
+        let id = match popover {
+            Popover::Project => "project-menu",
+            Popover::Place => "place-menu",
         };
         let host = self.weak.clone();
         let mut menu = PopoverMenu::new(id)
-            .anchor(if centered {
-                Anchor::TopCenter
-            } else {
-                Anchor::TopLeft
-            })
+            .anchor(Anchor::TopLeft)
             .offset(px(MENU_GAP))
             .open(open)
             .on_open_change(move |opened, _, cx| {
@@ -141,20 +101,35 @@ impl Shell {
             .flex()
             .min_w_0();
         if open {
-            let fill: Box<dyn FnOnce(Menu) -> Menu> = match popover {
-                Popover::Project => Box::new(self.project_menu(cx)),
-                Popover::Location => Box::new(self.location_menu(cx)),
-            };
-            menu = menu.menu(move |surface, window, _| {
-                let max_height = (window.viewport_size().height - px(MENU_VIEWPORT_INSET))
-                    .min(px(MENU_MAX_HEIGHT));
-                fill(
-                    surface
-                        .variant(MenuVariant::Project)
-                        .w(px(width))
-                        .max_h(max_height),
-                )
-            });
+            match popover {
+                Popover::Project => {
+                    let fill = self.project_menu(cx);
+                    menu = menu.menu(move |surface, window, _| {
+                        let max_height = (window.viewport_size().height - px(MENU_VIEWPORT_INSET))
+                            .min(px(MENU_MAX_HEIGHT));
+                        fill(
+                            surface
+                                .variant(MenuVariant::Project)
+                                .w(px(PROJECT_MENU_WIDTH))
+                                .max_h(max_height),
+                        )
+                    });
+                }
+                Popover::Place => {
+                    if let Some(place) = self.place_menu(cx) {
+                        let fill = self.place_rows(place, cx);
+                        menu = menu.menu(move |surface, _, _| {
+                            fill(
+                                surface
+                                    .variant(MenuVariant::Project)
+                                    .min_w(px(super::project_place::PLACE_MENU_WIDTH))
+                                    .max_w(px(320.))
+                                    .max_h(px(PLACE_MENU_MAX_HEIGHT)),
+                            )
+                        });
+                    }
+                }
+            }
         }
         menu
     }
@@ -203,9 +178,9 @@ impl Shell {
         }
     }
     /// `DesktopProjectMenuItem`: the current project carries a check at the
-    /// row end; hovering a checkout swaps the end slot for a copy-path
-    /// button. Choosing keeps this window for a checkout; a hosted-only
-    /// Project opens in its own window.
+    /// row end; a folder's end slot copies its path (and says Copied for a
+    /// moment). Choosing enters the project in this window, a Cloud project
+    /// as much as a folder.
     fn project_item(
         &self,
         index: usize,
@@ -214,9 +189,14 @@ impl Shell {
         t: Theme,
     ) -> MenuItem {
         let open_host = self.weak.clone();
-        let name = item.label.clone();
+        let name = super::home::item_name_or(&item, tr("onboarding.projects.untitled"));
         let mut row = MenuItem::new(name.clone())
-            .icon_element(super::home::project_icon(item.location(), t))
+            .icon_element(super::home::folder::list_icon(
+                item.location(),
+                false,
+                false,
+                t,
+            ))
             .selected(current)
             .trailing(
                 div()
@@ -227,12 +207,22 @@ impl Shell {
             );
         if let Some(path) = item.local_path.clone() {
             let copy_host = self.weak.clone();
-            let copy_label = tr("shell.workspaceSwitcher.copyPath");
+            let copied = self
+                .copied_path
+                .as_ref()
+                .is_some_and(|(p, at)| *p == path && at.elapsed() < COPIED_FOR);
+            let copy_label = tr(if copied {
+                "common.action.copied"
+            } else {
+                "shell.workspaceSwitcher.copyPath"
+            });
             let copy_path = path.clone();
             row = row.hover_trailing(
                 IconButton::new(
                     ("copy-project-path", index),
-                    Icon::new("copy").small().stroke(2.),
+                    Icon::new(if copied { "check" } else { "copy" })
+                        .small()
+                        .stroke(2.),
                 )
                 .label(format!("{copy_label}: {name}"))
                 .tooltip(format!("{copy_label}\n{copy_path}"))
@@ -241,22 +231,28 @@ impl Shell {
                     cx.stop_propagation();
                     cx.write_to_clipboard(ClipboardItem::new_string(copy_path.clone()));
                     let _ = copy_host.update(cx, |s, cx| {
-                        s.popover = None;
-                        cx.notify()
+                        s.copied_path = Some((copy_path.clone(), std::time::Instant::now()));
+                        cx.notify();
+                        // The check gives way after its moment.
+                        cx.spawn(async move |this, cx| {
+                            cx.background_executor().timer(COPIED_FOR).await;
+                            let _ = this.update(cx, |_, cx| cx.notify());
+                        })
+                        .detach();
                     });
                 }),
             );
+            if copied {
+                row = row.hold_hover(true);
+            }
         }
         row.on_click(move |w, cx| {
             let _ = open_host.update(cx, |s, cx| {
                 s.popover = None;
                 if current {
                     cx.notify();
-                } else if let Some(path) = &item.local_path {
-                    s.open_project(PathBuf::from(path), w, cx);
-                } else if let Some(project) = item.cloud_project.clone() {
-                    let _ = super::windows::open_cloud(project, cx);
-                    cx.notify();
+                } else {
+                    s.open_item(&item, w, cx);
                 }
             });
         })

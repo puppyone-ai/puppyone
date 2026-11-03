@@ -33,8 +33,6 @@ pub struct Launch {
     pub workspace: Option<PathBuf>,
     /// The process arguments apply to the first window only.
     pub from_args: bool,
-    /// A hosted-only Project to open (`openCloudProjectInNewWindow`).
-    pub cloud: Option<String>,
 }
 struct PendingLaunch(Option<Launch>);
 impl Global for PendingLaunch {}
@@ -50,7 +48,6 @@ pub(super) fn take_launch(cx: &mut App) -> Launch {
         None => Launch {
             workspace: None,
             from_args: first,
-            cloud: None,
         },
     }
 }
@@ -175,19 +172,6 @@ pub fn open(workspace: Option<PathBuf>, cx: &mut App) -> anyhow::Result<AnyWindo
         Launch {
             workspace,
             from_args: false,
-            cloud: None,
-        },
-        cx,
-    )
-}
-/// Hosted-only Homepage rows open in a dedicated window; the window intent
-/// carries only the Project id (no tokens or synthetic local paths).
-pub fn open_cloud(project: String, cx: &mut App) -> anyhow::Result<AnyWindowHandle> {
-    open_with(
-        Launch {
-            workspace: None,
-            from_args: false,
-            cloud: Some(project),
         },
         cx,
     )

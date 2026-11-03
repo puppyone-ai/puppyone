@@ -4,11 +4,11 @@
 //! project switcher to its popovers (`project_menu`); these only present.
 //!
 //! - [`TitleBar`]: `.desktop-titlebar`: leading entries after the native
-//!   window controls, the empty space that moves the window, the trailing
-//!   actions, and optionally a project centred over all of it
+//!   window controls, the empty space that moves the window, and the
+//!   trailing actions
 //! - [`ChangesButton`]: the Changes entry, showing [`GitTitlebarStatus`]
-//! - [`agent_entry`], [`account_entry`]: the Agent entry and the homepage's
-//!   public account / sign-in entry
+//! - [`agent_entry`], [`share_entry`], [`brand_name`]: the Agent and Share
+//!   entries, and the Homepage's product name
 use crate::{
     features::source_control::SourceControl,
     localization::{t as tr, tf},
@@ -30,7 +30,6 @@ type ClickHandler = Rc<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 pub(super) struct TitleBar {
     leading: Vec<AnyElement>,
     actions: Vec<AnyElement>,
-    centered: Option<AnyElement>,
     tabs: Option<AnyElement>,
     cloud: bool,
 }
@@ -68,12 +67,6 @@ impl TitleBar {
             .mx(px(3.))
             .bg(cx.palette().shell_divider);
         self.action(line)
-    }
-    /// Centred over the whole bar (the `centeredProjectInHeader` experiment),
-    /// at most 360px wide.
-    pub fn centered(mut self, item: impl IntoElement) -> Self {
-        self.centered = Some(item.into_any_element());
-        self
     }
 }
 impl RenderOnce for TitleBar {
@@ -128,20 +121,6 @@ impl RenderOnce for TitleBar {
                     .pr(px(metric::TITLEBAR_CONTENT_END))
                     .children(self.actions),
             )
-            .when_some(self.centered, |d, item| {
-                d.child(
-                    div()
-                        .absolute()
-                        .top_0()
-                        .left_0()
-                        .w_full()
-                        .h_full()
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .child(div().max_w(px(360.)).child(item)),
-                )
-            })
     }
 }
 
@@ -326,45 +305,30 @@ pub(super) fn agent_entry(open: bool) -> Button {
         .w(px(metric::TITLEBAR_TOOL_ACTION_WIDTH))
 }
 
-/// `desktop-titlebar-share`: 16 px curved arrow (1.8 stroke) and "Share"
-/// on a committed Cloud workspace (`CloudWorkspaceHeaderTools`).
+/// `.desktop-titlebar-share`: the 15px forward arrow (1.8 stroke) alone,
+/// named by its tooltip.
 pub(super) fn share_entry() -> Button {
+    use gpui_kit::component::Sizable as _;
     Button::new("cloud-share")
         .variant(ButtonVariant::Titlebar)
-        .icon("forward")
-        .label(tr("shell.titlebar.share"))
+        .icon(Icon::new("forward").with_size(px(15.)).stroke(1.8))
         .accessibility_label(tr("shell.titlebar.share"))
         .tooltip(tr("shell.titlebar.share"))
+        .w(px(metric::TITLEBAR_TOOL_ACTION_WIDTH))
 }
 
-/// `desktop-titlebar-cloud-tool` History: a 15 px clock, pressed while the
-/// sidebar shows it.
-pub(super) fn history_entry(open: bool) -> Button {
-    use gpui_kit::component::Sizable as _;
-    Button::new("cloud-history")
-        .variant(ButtonVariant::Titlebar)
-        .icon(Icon::new("history").with_size(px(15.)))
-        .accessibility_label(tr("source-control.history.title"))
-        .tooltip(tr("source-control.history.title"))
-        .selected(open)
-}
-
-/// Account settings entry; signing in does not enable Cloud project opening.
-pub(super) fn account_entry(has_account: bool) -> Button {
+/// `OnboardingHeaderBrand`: the Homepage's Header names the product in
+/// words, in the same muted ink as a project's name there.
+pub(super) fn brand_name(cx: &App) -> Div {
     let ty = theme::ty().header;
-    Button::new("home-sign-in")
-        .variant(ButtonVariant::Titlebar)
-        .label(tr(if has_account {
-            "settings.account.title"
-        } else {
-            "cloud.auth.signIn"
-        }))
-        .accessibility_label(tr(if has_account {
-            "settings.account.title"
-        } else {
-            "cloud.auth.signInToCloud"
-        }))
-        .pr(px(8.))
+    div()
+        .flex()
+        .items_center()
+        .h(px(theme::control() - 4.))
+        .px(px(6.))
         .text_size(px(ty.content))
         .line_height(px(ty.line_height))
+        .font_weight(FontWeight::MEDIUM)
+        .text_color(cx.palette().utility)
+        .child(tr("shell.brand.name"))
 }

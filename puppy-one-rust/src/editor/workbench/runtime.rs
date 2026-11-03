@@ -250,6 +250,10 @@ impl Runtime {
     pub fn opening_root(&self) -> bool {
         self.preparing_root.is_some()
     }
+    /// The local folder being opened.
+    pub fn preparing_root(&self) -> Option<&std::path::Path> {
+        self.preparing_root.as_deref()
+    }
     fn revoke_preparing(&mut self) {
         self.preparing_root = None;
         if let Some(mut previous) = self.preparing.take() {
@@ -277,17 +281,6 @@ impl Runtime {
         }
         self.scratch.cancel_cloud();
         self.generation += 1;
-    }
-    /// Show a retained host again, without I/O (`returnToLocalWorkspace`,
-    /// a kept-alive Cloud host). `false` when it is not retained.
-    pub fn activate_host(&mut self, key: &str) -> bool {
-        if self.quitting || !self.hosts.contains_key(key) {
-            return false;
-        }
-        self.navigation += 1;
-        self.revoke_preparing();
-        self.activate_workspace(key.to_owned());
-        true
     }
     /// Show no host (the Homepage covers the workspace chrome): a revoked
     /// Cloud selection. Retained hosts keep their drafts; nothing is closed

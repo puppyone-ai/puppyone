@@ -1,15 +1,13 @@
 //! `homepageCloudProjects.ts` / `homepageCloudActivity.ts`: the one flat
 //! Homepage / Header project list.
 //!
-//! Location decides the icon and actions, never the rank. Entries sort by the
-//! latest actual modification (unknown last, never opening time), then name
-//! and identity. A local checkout merges with a Cloud row only through a
-//! freshly hydrated, trusted Project-root locator whose Project is in the
-//! current catalog; the most recently modified matching checkout consumes it,
-//! and Scope checkouts never do.
-// Consumed by the Cloud navigation surface (Homepage catalog, Header switch,
-// Share), which stays behind the Cloud experiment until its UI lands.
-#![cfg_attr(not(test), allow(dead_code))]
+//! A local folder and its Cloud project are two projects (puppy-issues
+//! ADR-001), so an entry is either a local folder or a Cloud project, never
+//! both. A folder whose freshly hydrated, trusted Project-root locator names
+//! a Project in this account's catalog carries a link to it: a mark and a
+//! way to open that other project, never a merge. Location decides the icon
+//! and actions, never the rank; entries sort by the latest actual
+//! modification (unknown last), then name and identity.
 
 /// A local recent project with its hydrated metadata.
 #[derive(Clone, Debug, PartialEq)]
@@ -22,142 +20,58 @@ pub struct LocalEntry {
     pub trusted_locator: Option<super::locator::Locator>,
 }
 /// One authorized Cloud Project from `GET /projects/`.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct CloudEntry {
     pub id: String,
     pub name: String,
     pub updated: Option<i64>,
+    /// `projectAllows(project, "project.settings.manage")`.
+    pub can_rename: bool,
+    /// `projectAllows(project, "project.delete")`.
+    pub can_delete: bool,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Location {
-    /// Neutral folder.
+    /// A local folder.
     Local,
-    /// Folder with a small Cloud badge.
+    /// A local folder that has its own Cloud project.
     Linked,
-    /// Outline Cloud.
+    /// A Cloud project.
     CloudOnly,
 }
+/// `linkedCloudProject`: the Cloud project a folder was put in the Cloud as.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Linked {
+    pub id: String,
+    pub name: String,
+}
+/// `cloudActions`: what this account may do to a Cloud project's entry.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Actions {
+    pub rename: bool,
+    pub delete: bool,
+}
+/// `ProjectHomeItem`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Item {
     pub id: String,
     pub label: String,
+    /// Present only on a local folder's entry.
     pub local_path: Option<String>,
+    /// Present only on a Cloud project's own entry.
     pub cloud_project: Option<String>,
+    /// A local folder's link to its own Cloud project.
+    pub linked: Option<Linked>,
+    /// A Cloud project's permitted changes.
+    pub actions: Option<Actions>,
     pub modified: Option<i64>,
-    /// `lastOpenedLocation`: where this account last opened the Project
-    /// successfully, when that location is still this row's.
-    pub last_opened: Option<Opening>,
 }
 impl Item {
     pub fn location(&self) -> Location {
-        match (&self.local_path, &self.cloud_project) {
+        match (&self.local_path, &self.linked) {
             (Some(_), Some(_)) => Location::Linked,
             (Some(_), None) => Location::Local,
             _ => Location::CloudOnly,
-        }
-    }
-    /// `projectOpeningLocation`: Cloud when it was last opened there or has
-    /// no checkout; otherwise this computer.
-    pub fn opening(&self) -> Opening {
-        if self.cloud_project.is_some()
-            && (self.last_opened == Some(Opening::Cloud) || self.local_path.is_none())
-        {
-            Opening::Cloud
-        } else {
-            Opening::Local
-        }
-    }
-}
-
-/// Where a row opens.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Opening {
-    Local,
-    Cloud,
-}
-
-/// `useProjectOpenHistory`: successful openings remembered per account and
-/// server, oldest first. It never stores a catalog or grants access; a
-/// missing or unavailable location falls back to an accessible one.
-pub mod history {
-    use super::{Item, Opening};
-    use serde::{Deserialize, Serialize};
-
-    /// Remembered Projects per scope (`.slice(-99)` plus the new one).
-    pub const LIMIT: usize = 100;
-
-    #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-    #[serde(tag = "location", rename_all = "lowercase")]
-    pub enum Opened {
-        Local { path: String },
-        Cloud,
-    }
-    #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-    pub struct Entry {
-        pub project: String,
-        #[serde(flatten)]
-        pub opened: Opened,
-    }
-
-    /// `JSON.stringify([apiBaseUrl, user_id])`.
-    pub fn scope(api: &str, user: &str) -> String {
-        serde_json::json!([api, user]).to_string()
-    }
-
-    /// The opening this window shows now: a committed hosted Project, else
-    /// a local checkout whose row is linked to a Cloud Project.
-    pub fn current(
-        items: &[Item],
-        local_path: Option<&str>,
-        cloud_project: Option<&str>,
-    ) -> Option<Entry> {
-        if let Some(project) = cloud_project {
-            return Some(Entry {
-                project: project.to_owned(),
-                opened: Opened::Cloud,
-            });
-        }
-        let path = local_path?;
-        let project = items
-            .iter()
-            .find(|i| i.local_path.as_deref() == Some(path))?
-            .cloud_project
-            .clone()?;
-        Some(Entry {
-            project,
-            opened: Opened::Local { path: path.into() },
-        })
-    }
-
-    /// Remembers `entry` last; `false` when nothing changed.
-    pub fn record(history: &mut Vec<Entry>, entry: Entry) -> bool {
-        if history.contains(&entry) {
-            return false;
-        }
-        history.retain(|e| e.project != entry.project);
-        let excess = history.len().saturating_sub(LIMIT - 1);
-        history.drain(..excess);
-        history.push(entry);
-        true
-    }
-
-    /// Marks each row with its remembered location; a local opening counts
-    /// only for the same checkout.
-    pub fn apply(items: &mut [Item], history: &[Entry]) {
-        for item in items {
-            let Some(project) = &item.cloud_project else {
-                continue;
-            };
-            item.last_opened =
-                history
-                    .iter()
-                    .find(|e| &e.project == project)
-                    .and_then(|e| match &e.opened {
-                        Opened::Cloud => Some(Opening::Cloud),
-                        Opened::Local { path } => {
-                            (item.local_path.as_deref() == Some(path)).then_some(Opening::Local)
-                        }
-                    });
         }
     }
 }
@@ -173,43 +87,42 @@ pub fn build(
     cloud: &[CloudEntry],
     activity: &std::collections::HashMap<String, i64>,
 ) -> Vec<Item> {
-    let mut remaining: Vec<&CloudEntry> = cloud.iter().collect();
-    let mut checkouts: Vec<&LocalEntry> = local.iter().collect();
-    checkouts.sort_by(|a, b| {
-        b.modified
-            .unwrap_or(0)
-            .cmp(&a.modified.unwrap_or(0))
-            .then(a.path.cmp(&b.path))
-    });
-    let mut items = Vec::new();
-    for entry in checkouts {
-        let matched = entry
-            .trusted_locator
-            .as_ref()
-            .filter(|l| l.scope.is_none())
-            .and_then(|l| remaining.iter().position(|c| c.id == l.project))
-            .map(|i| remaining.remove(i));
-        items.push(Item {
-            id: format!("local:{}", entry.path),
-            label: entry.name.clone(),
-            local_path: Some(entry.path.clone()),
-            cloud_project: matched.map(|c| c.id.clone()),
-            modified: latest([
-                entry.modified,
-                matched.and_then(|c| c.updated),
-                matched.and_then(|c| activity.get(&c.id).copied()),
-            ]),
-            last_opened: None,
-        });
-    }
-    for project in remaining {
+    let mut items: Vec<Item> = local
+        .iter()
+        .map(|entry| {
+            // A scoped checkout is not linked to the catalog's project root.
+            let linked = entry
+                .trusted_locator
+                .as_ref()
+                .filter(|l| l.scope.is_none())
+                .and_then(|l| cloud.iter().find(|c| c.id == l.project))
+                .map(|c| Linked {
+                    id: c.id.clone(),
+                    name: c.name.clone(),
+                });
+            Item {
+                id: format!("local:{}", entry.path),
+                label: entry.name.clone(),
+                local_path: Some(entry.path.clone()),
+                cloud_project: None,
+                linked,
+                actions: None,
+                modified: entry.modified,
+            }
+        })
+        .collect();
+    for project in cloud {
         items.push(Item {
             id: format!("cloud:{}", project.id),
             label: project.name.clone(),
             local_path: None,
             cloud_project: Some(project.id.clone()),
+            linked: None,
+            actions: Some(Actions {
+                rename: project.can_rename,
+                delete: project.can_delete,
+            }),
             modified: latest([project.updated, activity.get(&project.id).copied()]),
-            last_opened: None,
         });
     }
     items.sort_by(|a, b| {
@@ -269,6 +182,7 @@ mod tests {
             id: id.into(),
             name: name.into(),
             updated,
+            ..Default::default()
         }
     }
 
@@ -294,7 +208,7 @@ mod tests {
     }
 
     #[test]
-    fn a_trusted_root_locator_merges_and_the_newest_checkout_wins() {
+    fn a_folder_and_its_cloud_project_are_two_entries() {
         let items = build(
             &[
                 local("/x/older", Some(10), locator("p", None)),
@@ -304,14 +218,33 @@ mod tests {
             &[cloud("p", "Project", Some(5))],
             &[("p".to_string(), 40)].into_iter().collect(),
         );
-        let newer = items.iter().find(|i| i.id == "local:/x/newer").unwrap();
-        assert_eq!(newer.location(), Location::Linked);
-        assert_eq!(newer.modified, Some(40));
+        let ids: Vec<_> = items.iter().map(|i| i.id.as_str()).collect();
         assert_eq!(
-            items.iter().filter(|i| i.cloud_project.is_some()).count(),
-            1
+            ids,
+            [
+                "cloud:p",
+                "local:/x/scoped",
+                "local:/x/newer",
+                "local:/x/older"
+            ]
         );
-        assert!(!items.iter().any(|i| i.id == "cloud:p"));
+        // Every folder whose root locator names the Project links to it, and
+        // keeps its own time; the Project keeps its entry.
+        for path in ["local:/x/newer", "local:/x/older"] {
+            let folder = items.iter().find(|i| i.id == path).unwrap();
+            assert_eq!(folder.location(), Location::Linked);
+            assert_eq!(folder.cloud_project, None);
+            assert_eq!(
+                folder.linked,
+                Some(Linked {
+                    id: "p".into(),
+                    name: "Project".into()
+                })
+            );
+        }
+        assert_eq!(items[2].modified, Some(20));
+        assert_eq!(items[0].location(), Location::CloudOnly);
+        assert_eq!(items[0].modified, Some(40));
         assert_eq!(
             items
                 .iter()
@@ -323,79 +256,20 @@ mod tests {
     }
 
     #[test]
-    fn openings_default_to_this_computer_and_follow_the_last_successful_one() {
-        use history::{Entry, Opened};
-        let mut items = build(
-            &[
-                local("/x/linked", Some(20), locator("p", None)),
-                local("/x/plain", Some(10), None),
-            ],
-            &[cloud("p", "Project", None), cloud("q", "Hosted", None)],
-            &Default::default(),
-        );
-        let find = |items: &[Item], id: &str| items.iter().find(|i| i.id == id).unwrap().clone();
-        assert_eq!(find(&items, "local:/x/linked").opening(), Opening::Local);
-        assert_eq!(find(&items, "local:/x/plain").opening(), Opening::Local);
-        assert_eq!(find(&items, "cloud:q").opening(), Opening::Cloud);
-
-        // Only a linked checkout or a committed hosted Project is remembered.
-        assert_eq!(history::current(&items, Some("/x/plain"), None), None);
-        let mut remembered = vec![];
-        let local_open = history::current(&items, Some("/x/linked"), None).unwrap();
-        assert!(history::record(&mut remembered, local_open.clone()));
-        assert!(!history::record(&mut remembered, local_open));
-        history::apply(&mut items, &remembered);
+    fn a_cloud_entry_offers_only_what_the_account_may_do() {
+        let mut entry = cloud("p", "Project", None);
+        entry.can_rename = true;
+        let items = build(&[], &[entry], &Default::default());
         assert_eq!(
-            find(&items, "local:/x/linked").last_opened,
-            Some(Opening::Local)
+            items[0].actions,
+            Some(Actions {
+                rename: true,
+                delete: false
+            })
         );
-        let cloud_open = history::current(&items, None, Some("p")).unwrap();
-        assert!(history::record(&mut remembered, cloud_open));
-        assert_eq!(remembered.len(), 1, "one entry per Project");
-        history::apply(&mut items, &remembered);
-        assert_eq!(find(&items, "local:/x/linked").opening(), Opening::Cloud);
-
-        // A local opening of another checkout does not move this row.
-        let other = vec![Entry {
-            project: "p".into(),
-            opened: Opened::Local {
-                path: "/elsewhere".into(),
-            },
-        }];
-        history::apply(&mut items, &other);
-        assert_eq!(find(&items, "local:/x/linked").last_opened, None);
-        assert_eq!(find(&items, "local:/x/linked").opening(), Opening::Local);
-    }
-
-    #[test]
-    fn the_open_history_is_bounded_and_stored_like_the_product() {
-        use history::{Entry, Opened};
-        let mut remembered = vec![];
-        for n in 0..150 {
-            history::record(
-                &mut remembered,
-                Entry {
-                    project: format!("p{n}"),
-                    opened: Opened::Cloud,
-                },
-            );
-        }
-        assert_eq!(remembered.len(), history::LIMIT);
-        assert_eq!(remembered[0].project, "p50");
-        assert_eq!(remembered.last().unwrap().project, "p149");
-        let stored = serde_json::to_value(Entry {
-            project: "p".into(),
-            opened: Opened::Local { path: "/a".into() },
-        })
-        .unwrap();
-        assert_eq!(
-            stored,
-            serde_json::json!({"project":"p","location":"local","path":"/a"})
-        );
-        assert_eq!(
-            history::scope("https://api.puppyone.ai/api/v1", "u1"),
-            r#"["https://api.puppyone.ai/api/v1","u1"]"#
-        );
+        let unknown = local("/x/unknown", None, locator("gone", None));
+        let items = build(&[unknown], &[], &Default::default());
+        assert_eq!(items[0].location(), Location::Local);
     }
 
     #[test]

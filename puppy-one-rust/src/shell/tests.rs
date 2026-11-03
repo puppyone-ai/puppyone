@@ -483,10 +483,16 @@ fn explorer_requests_open_the_shell_dialogs(cx: &mut TestAppContext) {
         assert!(matches!(s.modals.top(), Some(Modal::Error(e)) if e == "denied"))
     });
 }
+/// `ProjectPlaceRows`: the current place is a fact, not a choice; the
+/// menu stays until Escape, which returns to the Header.
 #[gpui::test]
-fn choosing_local_closes_popup_and_restores_trigger(cx: &mut TestAppContext) {
+fn the_place_menu_states_the_place_and_escape_closes_it(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
-    // The location switcher shows only with Cloud workspaces on.
+    // The place menu shows only with an account service and Cloud on.
+    let (broker, browser) = crate::cloud_auth::account_fixture();
+    cx.update(|_, cx| {
+        crate::features::cloud_account::install_fixture(broker, browser, cx);
+    });
     view.update(cx, |s, cx| {
         s.preferences
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
@@ -496,15 +502,15 @@ fn choosing_local_closes_popup_and_restores_trigger(cx: &mut TestAppContext) {
     draw(cx);
     draw(cx);
     let device = crate::localization::t(if cfg!(target_os = "macos") {
-        "shell.projectOpen.onMac"
+        "shell.workspaceSwitcher.location.thisMac"
     } else {
-        "shell.projectOpen.onComputer"
+        "shell.workspaceSwitcher.location.thisComputer"
     });
     let selector: &'static str = Box::leak(format!("menu-item:{device}").into_boxed_str());
-    let row = cx
-        .debug_bounds(selector)
-        .expect("the location menu is open");
+    let row = cx.debug_bounds(selector).expect("the place menu is open");
     cx.simulate_click(row.center(), Modifiers::none());
+    view.read_with(cx, |s, _| assert_eq!(s.popover, Some(Popover::Place)));
+    command(&view, cx, Command::Escape);
     view.update_in(cx, |s, w, _| {
         assert!(s.popover.is_none());
         assert!(s.project_focus.is_focused(w));
@@ -1451,128 +1457,56 @@ fn cloud_project_responder() -> crate::cloud_auth::Responder {
     })
 }
 
+/// ADR-001: a folder and its Cloud project are two projects. The linked
+/// folder's place menu opens the Cloud project, which takes this window's
+/// place (no second window); the Cloud project's menu offers the folder.
 #[gpui::test]
-fn the_header_switches_a_linked_checkout_to_cloud_and_back_keeping_both_hosts(
-    cx: &mut TestAppContext,
-) {
-    let temp = tempfile::tempdir().unwrap();
-    let root = temp.path().canonicalize().unwrap();
-    std::fs::write(root.join("local.md"), "# Local\n").unwrap();
-    let git = |args: &[&str]| {
-        assert!(
-            std::process::Command::new("git")
-                .args(args)
-                .current_dir(&root)
-                .status()
-                .unwrap()
-                .success()
-        )
-    };
-    git(&["init", "-q"]);
-    git(&[
-        "remote",
-        "add",
-        "origin",
-        "http://127.0.0.1:18080/git/project-a.git",
-    ]);
-    let (view, cx) = setup(cx);
-    let (broker, browser) =
-        crate::cloud_auth::responding_account_fixture(cloud_project_responder());
-    cx.update(|_, cx| {
-        crate::features::cloud_account::install_fixture(broker, browser, cx);
-    });
-    view.update(cx, |s, cx| {
-        s.preferences
-            .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
-    });
-    let settle = |view: &Entity<Shell>,
-                  cx: &mut VisualTestContext,
-                  what: &str,
-                  ready: &dyn Fn(&Shell, &App) -> bool| {
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(8);
-        loop {
-            view.update_in(cx, |s, w, cx| s.receive(w, cx));
-            cx.run_until_parked();
-            cx.update(|w, cx| {
-                let _ = w.draw(cx);
-            });
-            if cx.update(|_, cx| ready(view.read(cx), cx)) {
-                break;
-            }
-            assert!(
-                std::time::Instant::now() < deadline,
-                "{what} did not settle"
-            );
-            std::thread::sleep(std::time::Duration::from_millis(5));
-        }
-    };
-    settle(&view, cx, "sign-in", &|_, cx| {
-        crate::features::cloud_account::has_account(cx)
-    });
-    view.update(cx, |s, _| {
-        s.files.begin(Intent::OpenFolder(root.clone()), &s.wake)
-    });
-    settle(&view, cx, "the local project", &|s, _| {
-        s.workspace_root().as_deref() == Some(root.as_path())
-    });
-    settle(&view, cx, "the association", &|s, cx| {
+fn a_linked_folder_opens_its_cloud_project_in_the_same_window(cx: &mut TestAppContext) {
+    use super::project_place::{Action, Place};
+    let (view, cx, Linked { root, _temp, .. }) =
+        linked_checkout(cx, with_catalog(cloud_project_responder()));
+    settle_cloud(&view, cx, "the association", &|s, cx| {
         s.repository_cloud.read(cx).context.project() == Some("project-a")
     });
-    // The Agent sidebar is open before the switch.
-    view.update(cx, |s, _| s.panes.toggle_workbench());
+    let windows = cx.update(|_, cx| cx.windows().len());
     let local_key = view.read_with(cx, |s, _| s.files.workspace_key().unwrap().to_owned());
-    // Choose Cloud: preparation happens in place, the Header already names
-    // the Cloud Computer and the right sidebar closes.
-    view.update_in(cx, |s, w, cx| s.view_cloud(w, cx));
-    view.update_in(cx, |s, _, cx| {
-        assert!(!s.panes.right().open);
-        assert!(s.cloud_switch.is_some());
-        assert!(!s.modals.iter().any(|m| matches!(m, Modal::CloudSwitch)));
-        assert_eq!(
-            s.header_location(cx),
-            (cloud_switch::Place::Cloud, cloud_switch::Readiness::Opening)
-        );
-    });
-    // The switch ends on the frame after the Project shows.
-    settle(&view, cx, "the Cloud switch", &|s, _| {
-        s.hosted_project().as_deref() == Some("project-a") && s.cloud_switch.is_none()
-    });
-    view.update_in(cx, |s, _, cx| {
-        assert_eq!(s.project, "Fixture Cloud");
-        assert_eq!(
-            s.header_location(cx),
-            (cloud_switch::Place::Cloud, cloud_switch::Readiness::Ready)
-        );
-        assert_eq!(
-            s.retained_local.as_ref().map(|r| r.key.as_str()),
-            Some(local_key.as_str())
-        );
-    });
-    let cloud_key = view.read_with(cx, |s, _| s.files.workspace_key().unwrap().to_owned());
+    let menu = view.read_with(cx, |s, cx| s.place_menu(cx).unwrap());
+    assert_eq!(menu.place, Place::Local);
+    let Some(action @ Action::OpenCloudProject { .. }) = menu.action else {
+        panic!("no Open Cloud project: {menu:?}")
+    };
+    // ⌘-less: the Header command opens the same menu.
     command(&view, cx, Command::LocationMenu);
-    draw(cx);
-    // Back to This Mac: the retained local host shows again, no I/O.
-    view.update_in(cx, |s, w, cx| s.view_local(w, cx));
-    view.read_with(cx, |s, _| {
-        assert_eq!(s.files.workspace_key(), Some(local_key.as_str()));
-        assert_eq!(
-            s.retained_cloud.as_ref().map(|r| r.key.as_str()),
-            Some(cloud_key.as_str())
-        );
+    view.read_with(cx, |s, _| assert_eq!(s.popover, Some(Popover::Place)));
+    view.update_in(cx, |s, w, cx| s.run_place_action(action, w, cx));
+    view.read_with(cx, |s, cx| {
+        assert!(s.popover.is_none());
+        // The Header names the Cloud project while it opens.
+        assert_eq!(s.opening_project_name(cx).as_deref(), Some("Fixture Cloud"));
     });
-    settle(&view, cx, "the local host", &|s, _| {
-        s.workspace_root().as_deref() == Some(root.as_path())
+    settle_cloud(&view, cx, "the Cloud project", &|s, _| {
+        s.hosted_project().as_deref() == Some("project-a")
     });
-    // And Cloud again: the kept-alive Cloud host, without a new opening.
-    view.update_in(cx, |s, w, cx| s.view_cloud(w, cx));
-    view.read_with(cx, |s, _| {
-        assert!(s.cloud_switch.is_none());
-        assert_eq!(s.files.workspace_key(), Some(cloud_key.as_str()));
+    view.read_with(cx, |s, cx| {
+        assert_eq!(s.project, "Fixture Cloud");
+        assert_ne!(s.files.workspace_key(), Some(local_key.as_str()));
+        assert_eq!(s.place_menu(cx).unwrap().place, Place::Cloud);
     });
+    assert_eq!(cx.update(|_, cx| cx.windows().len()), windows);
+    // The folder is its own project again, in this window too.
+    view.update_in(cx, |s, w, cx| s.open_project(root.clone(), w, cx));
+    settle_cloud(&view, cx, "the folder", &|s, _| {
+        s.workspace_root().as_deref() == Some(root.as_path()) && s.hosted_project().is_none()
+    });
+    assert_eq!(cx.update(|_, cx| cx.windows().len()), windows);
 }
 
+/// Signed out, Put in the Cloud asks to sign in first, and Escape closes it.
 #[gpui::test]
-fn a_signed_out_switch_waits_in_a_dialog_and_escape_cancels_it(cx: &mut TestAppContext) {
+fn put_in_the_cloud_signed_out_asks_to_sign_in_and_escape_closes_it(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().canonicalize().unwrap();
+    std::fs::write(root.join("a.md"), "# A\n").unwrap();
     let (view, cx) = setup(cx);
     let (broker, browser) = crate::cloud_auth::account_fixture();
     cx.update(|_, cx| {
@@ -1589,23 +1523,30 @@ fn a_signed_out_switch_waits_in_a_dialog_and_escape_cancels_it(cx: &mut TestAppC
         assert!(std::time::Instant::now() < deadline);
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
-    view.update_in(cx, |s, w, cx| s.view_cloud(w, cx));
+    view.update(cx, |s, _| {
+        s.files.begin(Intent::OpenFolder(root.clone()), &s.wake)
+    });
+    settle_cloud(&view, cx, "the local project", &|s, _| {
+        s.workspace_root().as_deref() == Some(root.as_path())
+    });
+    view.update_in(cx, |s, w, cx| s.put_in_cloud(w, cx));
     draw(cx);
-    view.update_in(cx, |s, _, cx| {
-        // Sign-in waits in the dialog; the Header stays on this computer.
-        assert!(s.modals.iter().any(|m| matches!(m, Modal::CloudSwitch)));
-        assert_eq!(s.header_location(cx).0, cloud_switch::Place::Local);
+    view.read_with(cx, |s, _| {
+        assert!(s.modals.iter().any(|m| matches!(m, Modal::CloudPublish)));
+        // The folder stays the open project.
+        assert_eq!(s.workspace_root().as_deref(), Some(root.as_path()));
     });
     command(&view, cx, Command::Escape);
-    view.read_with(cx, |s, _| {
-        assert!(s.cloud_switch.is_none());
-        assert!(s.modals.is_empty());
-    });
+    view.read_with(cx, |s, _| assert!(s.modals.is_empty()));
 }
 
+/// ADR-001: the Homepage lists a linked folder and its Cloud project as two
+/// entries (the folder carries the link); each opens in this window.
 #[gpui::test]
-fn the_homepage_merges_a_linked_checkout_and_remembers_where_it_opened(cx: &mut TestAppContext) {
-    use crate::workspace::cloud::catalog::{Location, Opening};
+fn the_homepage_lists_a_linked_folder_and_its_cloud_project_as_two_entries(
+    cx: &mut TestAppContext,
+) {
+    use crate::workspace::cloud::catalog::Location;
     let temp = tempfile::tempdir().unwrap();
     let linked = temp.path().canonicalize().unwrap().join("linked");
     let plain = temp.path().canonicalize().unwrap().join("plain");
@@ -1634,7 +1575,8 @@ fn the_homepage_merges_a_linked_checkout_and_remembers_where_it_opened(cx: &mut 
     let responder: crate::cloud_auth::Responder = std::sync::Arc::new(move |request| {
         if request.path.ends_with("/projects/") {
             return Ok(serde_json::json!({"code": 0, "data": [
-                {"id": "project-a", "name": "Fixture Cloud", "updated_at": "2026-01-01T00:00:00Z"},
+                {"id": "project-a", "name": "Fixture Cloud", "updated_at": "2026-01-01T00:00:00Z",
+                 "capabilities": ["project.settings.manage"]},
                 {"id": "project-b", "name": "Hosted only"}
             ]}));
         }
@@ -1659,100 +1601,52 @@ fn the_homepage_merges_a_linked_checkout_and_remembers_where_it_opened(cx: &mut 
         // The Header project menu hydrates the same list as the Homepage.
         s.popover = Some(Popover::Project);
     });
-    let settle = |view: &Entity<Shell>,
-                  cx: &mut VisualTestContext,
-                  what: &str,
-                  ready: &dyn Fn(&Shell, &App) -> bool| {
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(8);
-        loop {
-            view.update_in(cx, |s, w, cx| s.receive(w, cx));
-            cx.run_until_parked();
-            cx.update(|w, cx| {
-                let _ = w.draw(cx);
-            });
-            if cx.update(|_, cx| ready(view.read(cx), cx)) {
-                break;
-            }
-            assert!(
-                std::time::Instant::now() < deadline,
-                "{what} did not settle"
-            );
-            std::thread::sleep(std::time::Duration::from_millis(5));
-        }
-    };
     let locations = |s: &Shell, cx: &App| {
         s.project_items(cx)
             .iter()
             .map(|i| (i.label.clone(), i.location()))
             .collect::<Vec<_>>()
     };
-    settle(&view, cx, "the merged catalog", &|s, cx| {
+    settle_cloud(&view, cx, "the catalog", &|s, cx| {
         let found = locations(s, cx);
-        found.len() == 3 && found.iter().any(|(_, l)| *l == Location::Linked)
+        found.len() == 4 && found.iter().any(|(_, l)| *l == Location::Linked)
     });
-    view.update(cx, |s, cx| {
+    let items = view.read_with(cx, |s, cx| {
         let found = locations(s, cx);
         assert!(found.contains(&("linked".into(), Location::Linked)));
         assert!(found.contains(&("plain".into(), Location::Local)));
+        assert!(found.contains(&("Fixture Cloud".into(), Location::CloudOnly)));
         assert!(found.contains(&("Hosted only".into(), Location::CloudOnly)));
-        // Without history a linked row opens on this computer.
-        let linked_row = s
-            .project_items(cx)
-            .into_iter()
-            .find(|i| i.location() == Location::Linked)
-            .unwrap();
-        assert_eq!(linked_row.opening(), Opening::Local);
-        assert_eq!(linked_row.last_opened, None);
-        // The Open menu renders for the linked row.
-        s.homepage.open_menu = Some(linked_row.id.clone());
-    });
-    draw(cx);
-    // Opening the checkout remembers "This Mac" for this account and API.
-    let row = view.read_with(cx, |s, cx| {
         s.project_items(cx)
-            .into_iter()
-            .find(|i| i.location() == Location::Linked)
-            .unwrap()
     });
-    view.update_in(cx, |s, w, cx| s.open_item(&row, Opening::Local, w, cx));
-    settle(&view, cx, "the local opening", &|s, cx| {
-        s.workspace_root().as_deref() == Some(linked.as_path())
-            && s.project_items(cx)
-                .iter()
-                .any(|i| i.last_opened == Some(Opening::Local))
-    });
-    // Open in Cloud from the same row: once committed, Cloud is remembered
-    // and becomes the row's default.
-    view.update_in(cx, |s, w, cx| {
-        s.home = true;
-        s.open_item(&row, Opening::Cloud, w, cx)
-    });
-    settle(&view, cx, "the Cloud opening", &|s, _| {
+    let folder = items.iter().find(|i| i.label == "linked").unwrap();
+    assert_eq!(
+        folder.linked,
+        Some(crate::workspace::cloud::catalog::Linked {
+            id: "project-a".into(),
+            name: "Fixture Cloud".into()
+        })
+    );
+    assert_eq!(folder.cloud_project, None);
+    let cloud = items.iter().find(|i| i.label == "Fixture Cloud").unwrap();
+    assert_eq!(cloud.local_path, None);
+    assert!(cloud.actions.is_some_and(|a| a.rename && !a.delete));
+    // The Cloud entry opens in this window.
+    let windows = cx.update(|_, cx| cx.windows().len());
+    view.update(cx, |s, _| s.popover = None);
+    view.update_in(cx, |s, w, cx| s.open_item(cloud, w, cx));
+    settle_cloud(&view, cx, "the Cloud opening", &|s, _| {
         s.hosted_project().as_deref() == Some("project-a")
     });
-    settle(&view, cx, "the remembered Cloud opening", &|s, cx| {
-        s.preferences
-            .read(cx)
-            .state
-            .project_open_history
-            .values()
-            .flatten()
-            .any(|e| {
-                e.project == "project-a"
-                    && e.opened == crate::workspace::cloud::catalog::history::Opened::Cloud
-            })
+    // And the folder from the Homepage replaces it.
+    view.update_in(cx, |s, w, cx| {
+        s.command(Command::Home, w, cx);
+        s.open_item(folder, w, cx)
     });
-    view.read_with(cx, |s, cx| {
-        let items = s.project_items(cx);
-        let row = items
-            .iter()
-            .find(|i| i.location() == Location::Linked)
-            .unwrap();
-        assert_eq!(row.opening(), Opening::Cloud);
-        // The hosted Project offers This Mac only through its trusted
-        // checkout in the account list.
-        assert_eq!(s.matching_checkout(cx).as_deref(), Some(linked.as_path()));
+    settle_cloud(&view, cx, "the folder", &|s, _| {
+        s.workspace_root().as_deref() == Some(linked.as_path()) && s.hosted_project().is_none()
     });
+    assert_eq!(cx.update(|_, cx| cx.windows().len()), windows);
 }
 
 #[gpui::test]
@@ -1802,7 +1696,6 @@ fn signing_out_revokes_the_hosted_selection_and_returns_home(cx: &mut TestAppCon
     });
     view.read_with(cx, |s, _| {
         assert!(s.home);
-        assert!(s.retained_cloud.is_none());
         assert!(s.cloud_authority.is_none());
     });
 }
@@ -2041,18 +1934,29 @@ fn a_failed_opening_offers_its_recovery_and_retry_repeats_that_opening(cx: &mut 
 
 #[gpui::test]
 fn the_rail_offers_rename_and_unlink_for_a_remembered_project(cx: &mut TestAppContext) {
+    use super::project_actions::{ProjectConfirm, Target};
     let (view, cx) = setup(cx);
     let path = PathBuf::from("/p/notes");
+    let target = Target::Local {
+        path: path.clone(),
+        name: "notes".into(),
+    };
     view.update(cx, |s, cx| {
         s.preferences
             .update(cx, |p, _| p.state.remember_project(&path, 1));
         s.recent_projects = s.preferences.read(cx).state.recent_projects.clone();
-        s.open_project_actions(path.clone(), point(px(20.), px(80.)), cx);
+        s.open_project_actions(
+            target.clone(),
+            Bounds::new(point(px(20.), px(80.)), size(px(0.), px(0.))),
+            false,
+            size(px(1180.), px(760.)),
+            cx,
+        );
     });
     draw(cx);
     view.update_in(cx, |s, w, cx| {
         assert!(s.project_actions.is_some());
-        s.begin_project_rename(path.clone(), w, cx);
+        s.begin_project_rename(target.clone(), w, cx);
         assert!(s.project_actions.is_none());
         let Some(Modal::RenameProject(rename)) = s.modals.top() else {
             panic!("no rename dialog")
@@ -2070,22 +1974,119 @@ fn the_rail_offers_rename_and_unlink_for_a_remembered_project(cx: &mut TestAppCo
     });
     // Unlink forgets the Project (its files stay where they are).
     view.update(cx, |s, cx| {
-        s.modals.open(Modal::UnlinkProject(path.clone()));
+        s.modals.open(Modal::ConfirmProject(ProjectConfirm {
+            target,
+            pending: false,
+            error: None,
+        }));
         cx.notify();
     });
     draw(cx);
-    view.update(cx, |s, cx| {
-        s.modals.remove(|m| matches!(m, Modal::UnlinkProject(_)));
-        s.preferences
-            .update(cx, |p, cx| p.change(|p| p.forget_project(&path), cx));
-    });
+    view.update_in(cx, |s, w, cx| s.confirm_project_change(w, cx));
     view.read_with(cx, |s, cx| {
+        assert!(s.modals.is_empty());
         assert!(s.preferences.read(cx).state.recent_projects.is_empty())
     });
 }
 
+/// `renameCloudProject` and `deleteCloudProject`: the Project changes for
+/// everyone, so the account's catalog follows the server's answer.
 #[gpui::test]
-fn an_unlinked_checkout_publishes_from_the_header_switch(cx: &mut TestAppContext) {
+fn a_cloud_entry_renames_and_deletes_its_project(cx: &mut TestAppContext) {
+    use super::project_actions::{ProjectConfirm, Target};
+    let requests = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+    // The server's one Project: its name, or gone.
+    let server = std::sync::Arc::new(std::sync::Mutex::new(Some(String::from("Fixture Cloud"))));
+    let seen = requests.clone();
+    let responder: crate::cloud_auth::Responder = std::sync::Arc::new(move |request| {
+        seen.lock()
+            .unwrap()
+            .push(format!("{} {}", request.method, request.path));
+        let mut project = server.lock().unwrap();
+        Ok(match (request.method.as_str(), request.path.as_str()) {
+            ("PUT", "/projects/project-a") => {
+                assert_eq!(request.body, Some(serde_json::json!({"name": "Renamed"})));
+                *project = Some("Renamed".into());
+                serde_json::json!({"code": 0, "data": {"id": "project-a", "name": "Renamed"}})
+            }
+            ("DELETE", "/projects/project-a") => {
+                *project = None;
+                serde_json::json!({"code": 0, "data": null})
+            }
+            (_, path) if path.ends_with("/projects/") => {
+                let data: Vec<_> = project
+                    .iter()
+                    .map(|name| {
+                        serde_json::json!({"id": "project-a", "name": name,
+                            "capabilities": ["project.settings.manage", "project.delete"]})
+                    })
+                    .collect();
+                serde_json::json!({"code": 0, "data": data})
+            }
+            _ => serde_json::json!({}),
+        })
+    });
+    let (view, cx) = setup(cx);
+    let (broker, browser) = crate::cloud_auth::responding_account_fixture(responder);
+    cx.update(|_, cx| crate::features::cloud_account::install_fixture(broker, browser, cx));
+    view.update(cx, |s, cx| {
+        s.preferences
+            .update(cx, |p, _| p.state.experimental.cloud_workspace = true);
+        s.refresh_cloud_catalog(true, cx);
+    });
+    settle_cloud(&view, cx, "the catalog", &|s, cx| {
+        s.project_items(cx)
+            .iter()
+            .any(|i| i.label == "Fixture Cloud")
+    });
+    let item = view.read_with(cx, |s, cx| {
+        s.project_items(cx)
+            .into_iter()
+            .find(|i| i.label == "Fixture Cloud")
+            .unwrap()
+    });
+    let target = Target::of(&item).unwrap();
+    assert_eq!(
+        target,
+        Target::Cloud {
+            project: "project-a".into(),
+            name: "Fixture Cloud".into(),
+            rename: true,
+            delete: true
+        }
+    );
+    view.update_in(cx, |s, w, cx| {
+        s.begin_project_rename(target.clone(), w, cx);
+        let Some(Modal::RenameProject(rename)) = s.modals.top() else {
+            panic!("no rename dialog")
+        };
+        let input = rename.input.clone();
+        input.update(cx, |i, cx| i.set_text(String::from("Renamed"), cx));
+        s.submit_project_rename(w, cx);
+    });
+    settle_cloud(&view, cx, "the rename", &|s, cx| {
+        s.modals.is_empty() && s.project_items(cx).iter().any(|i| i.label == "Renamed")
+    });
+    view.update(cx, |s, cx| {
+        s.modals.open(Modal::ConfirmProject(ProjectConfirm {
+            target,
+            pending: false,
+            error: None,
+        }));
+        cx.notify();
+    });
+    view.update_in(cx, |s, w, cx| s.confirm_project_change(w, cx));
+    settle_cloud(&view, cx, "the deletion", &|s, cx| {
+        s.modals.is_empty() && s.project_items(cx).is_empty()
+    });
+    let requests = requests.lock().unwrap();
+    assert!(requests.iter().any(|r| r == "PUT /projects/project-a"));
+    assert!(requests.iter().any(|r| r == "DELETE /projects/project-a"));
+}
+
+#[gpui::test]
+fn an_unlinked_folder_puts_itself_in_the_cloud_from_the_place_menu(cx: &mut TestAppContext) {
+    use super::project_place::Action;
     use crate::cloud_publication::tests::{Fake, coordinator};
     let (temp, fake) = Fake::new();
     let root = temp.path().canonicalize().unwrap();
@@ -2115,40 +2116,24 @@ fn an_unlinked_checkout_publishes_from_the_header_switch(cx: &mut TestAppContext
         s.preferences
             .update(cx, |p, _| p.state.experimental.cloud_workspace = true)
     });
-    let settle = |view: &Entity<Shell>,
-                  cx: &mut VisualTestContext,
-                  what: &str,
-                  ready: &dyn Fn(&Shell, &App) -> bool| {
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(8);
-        loop {
-            view.update_in(cx, |s, w, cx| s.receive(w, cx));
-            cx.run_until_parked();
-            cx.update(|w, cx| {
-                let _ = w.draw(cx);
-            });
-            if cx.update(|_, cx| ready(view.read(cx), cx)) {
-                break;
-            }
-            assert!(
-                std::time::Instant::now() < deadline,
-                "{what} did not settle"
-            );
-            std::thread::sleep(std::time::Duration::from_millis(5));
-        }
-    };
-    settle(&view, cx, "sign-in", &|_, cx| {
+    settle_cloud(&view, cx, "sign-in", &|_, cx| {
         crate::features::cloud_account::has_account(cx)
     });
     view.update(cx, |s, _| {
         s.files.begin(Intent::OpenFolder(root.clone()), &s.wake)
     });
-    settle(&view, cx, "the local project", &|s, _| {
+    settle_cloud(&view, cx, "the local project", &|s, _| {
         s.workspace_root().as_deref() == Some(root.as_path())
     });
-    // No Cloud remote: choosing Cloud shows the activation page.
-    view.update_in(cx, |s, w, cx| s.view_cloud(w, cx));
-    settle(&view, cx, "the organization", &|s, cx| {
-        s.modals.iter().any(|m| matches!(m, Modal::CloudSwitch))
+    // No Cloud remote: the place menu's one action is Put in the Cloud.
+    settle_cloud(&view, cx, "the place menu", &|s, cx| {
+        s.place_menu(cx).and_then(|m| m.action) == Some(Action::PutInCloud { continuing: false })
+    });
+    view.update_in(cx, |s, w, cx| {
+        s.run_place_action(Action::PutInCloud { continuing: false }, w, cx)
+    });
+    settle_cloud(&view, cx, "the organization", &|s, cx| {
+        s.modals.iter().any(|m| matches!(m, Modal::CloudPublish))
             && s.cloud_publish.read(cx).selected.as_deref() == Some("org-1")
     });
     // Upload to Cloud runs the publication; the dialog can go to the
@@ -2158,7 +2143,7 @@ fn an_unlinked_checkout_publishes_from_the_header_switch(cx: &mut TestAppContext
             p.start(crate::cloud_publication::Action::Initialize, cx)
         })
     });
-    settle(&view, cx, "the publication", &|s, cx| {
+    settle_cloud(&view, cx, "the publication", &|s, cx| {
         let p = s.cloud_publish.read(cx);
         if let Some(error) = p.outcome.as_ref().and_then(|o| o.error.as_ref()) {
             panic!("{error:?}");
@@ -2170,6 +2155,9 @@ fn an_unlinked_checkout_publishes_from_the_header_switch(cx: &mut TestAppContext
             s.cloud_publish.read(cx).header_status(),
             Some(crate::features::cloud_publish::HeaderStatus::Completed)
         );
+        // The folder stays open: its Cloud project is another project.
+        assert_eq!(s.workspace_root().as_deref(), Some(root.as_path()));
+        assert!(s.hosted_project().is_none());
         assert!(
             crate::cloud_publication::journal::Journal::in_git_dir(&fake.git_dir)
                 .read()
@@ -2248,13 +2236,17 @@ fn a_vanished_cloud_project_is_replaced_only_after_a_second_404(cx: &mut TestApp
             crate::workspace::cloud::repository::Context::NotFound { .. }
         )
     });
-    view.update_in(cx, |s, w, cx| s.view_cloud(w, cx));
-    view.update(cx, |s, cx| s.begin_replace(cx));
+    // Signed in with exactly the reviewed remote: Put in the Cloud again.
+    view.read_with(cx, |s, cx| {
+        assert_eq!(
+            s.place_menu(cx).and_then(|m| m.action),
+            Some(super::project_place::Action::PutInCloudAgain)
+        )
+    });
+    view.update_in(cx, |s, w, cx| s.replace_cloud_connection(w, cx));
     settle(&view, cx, "the reviewed remote", &|s, _| {
-        s.cloud_switch
-            .as_ref()
-            .and_then(|c| c.replace.as_ref())
-            .is_some_and(|r| r.url.as_deref() == Some(url))
+        s.replace_url.as_deref() == Some(url)
+            && s.modals.iter().any(|m| matches!(m, Modal::ReplaceCloud(_)))
     });
     let before = authorizations.load(std::sync::atomic::Ordering::SeqCst);
     view.update(cx, |s, cx| s.confirm_replace("project-a".into(), cx));
@@ -2459,7 +2451,11 @@ fn an_empty_homepage_plays_its_intro_then_shows_the_analytics_disclosure(cx: &mu
     let (view, cx) = setup(cx);
     view.update(cx, |s, _| s.fixture = false);
     command(&view, cx, Command::Home);
+    // Home holds the list until its dates are read.
+    cx.run_until_parked();
+    draw(cx);
     view.update(cx, |s, cx| {
+        assert!(!s.homepage.list_held());
         assert!(s.home_visible() && s.project_items(cx).is_empty());
         assert!(s.homepage.intro.is_some());
         // The disclosure waits for the intro.
@@ -2688,6 +2684,7 @@ fn a_refused_association_leaves_the_account_catalog_usable(cx: &mut TestAppConte
                     id: "project-a".into(),
                     name: "Fixture Cloud".into(),
                     updated: Some(1_790_812_800_000),
+                    ..Default::default()
                 }
             ])
         );
@@ -2695,8 +2692,10 @@ fn a_refused_association_leaves_the_account_catalog_usable(cx: &mut TestAppConte
     });
 }
 
+/// A Cloud project that fails to open from a folder leaves the folder open
+/// with the failure's recovery over it; nothing navigates.
 #[gpui::test]
-fn a_failed_header_switch_stays_local_with_its_recovery_in_place(cx: &mut TestAppContext) {
+fn a_failed_cloud_opening_keeps_the_folder_open_with_its_recovery(cx: &mut TestAppContext) {
     let base = cloud_project_responder();
     let responder = with_catalog(std::sync::Arc::new(move |request| {
         if request.path.ends_with("/workbench/files") {
@@ -2708,17 +2707,19 @@ fn a_failed_header_switch_stays_local_with_its_recovery_in_place(cx: &mut TestAp
     settle_cloud(&view, cx, "the association", &|s, cx| {
         s.repository_cloud.read(cx).context.project() == Some("project-a")
     });
-    view.update_in(cx, |s, w, cx| s.view_cloud(w, cx));
+    view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
     settle_cloud(&view, cx, "the failure", &|s, _| {
-        s.cloud_switch.as_ref().is_some_and(|c| c.failure.is_some())
+        s.modals
+            .iter()
+            .any(|m| matches!(m, Modal::CloudRecovery { project, .. } if project == "project-a"))
     });
     view.update(cx, |s, cx| {
-        // Still the local project, never the project picker or the Homepage.
+        // Still the folder, never the project picker or the Homepage.
         assert_eq!(s.workspace_root().as_deref(), Some(root.as_path()));
         assert!(!s.home_visible());
         assert!(!s.modals.iter().any(|m| matches!(m, Modal::ProjectEntry)));
-        assert!(s.modals.iter().any(|m| matches!(m, Modal::CloudSwitch)));
         assert!(s.hosted_project().is_none());
+        assert!(s.files.cloud_opening().is_none());
         // The catalog is untouched.
         assert!(
             s.project_items(cx)
@@ -2827,7 +2828,7 @@ fn signing_out_after_a_link_gates_the_header_and_signing_in_finds_the_same_proje
 
 /// C-10.1/10.2: in Cloud the right sidebar's workbench is the hosted Agent —
 /// one Puppyone Agent recipe, no local discovery or shell — and opening it
-/// sends nothing; back on This Mac the local workbench returns.
+/// sends nothing; back in the folder the local workbench returns.
 #[gpui::test]
 fn the_hosted_project_gets_the_cloud_agent_workbench_and_this_mac_gets_its_own(
     cx: &mut TestAppContext,
@@ -2848,7 +2849,7 @@ fn the_hosted_project_gets_the_cloud_agent_workbench_and_this_mac_gets_its_own(
         s.repository_cloud.read(cx).context.project() == Some("project-a")
     });
     view.read_with(cx, |s, cx| assert!(!s.workbench.read(cx).cloud_location()));
-    view.update_in(cx, |s, w, cx| s.view_cloud(w, cx));
+    view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
     settle_cloud(&view, cx, "the hosted Agent", &|s, cx| {
         s.hosted_project().as_deref() == Some("project-a") && s.workbench.read(cx).cloud_location()
     });
@@ -2866,7 +2867,7 @@ fn the_hosted_project_gets_the_cloud_agent_workbench_and_this_mac_gets_its_own(
     std::thread::sleep(std::time::Duration::from_millis(200));
     draw(cx);
     assert_eq!(agent_requests.load(std::sync::atomic::Ordering::SeqCst), 0);
-    view.update_in(cx, |s, w, cx| s.view_local(w, cx));
+    view.update_in(cx, |s, w, cx| s.open_project(root.clone(), w, cx));
     settle_cloud(&view, cx, "the local workbench", &|s, cx| {
         s.workspace_root().as_deref() == Some(root.as_path())
             && !s.workbench.read(cx).cloud_location()
@@ -3213,13 +3214,13 @@ fn share_on_an_unlinked_checkout_shows_the_value_page(cx: &mut TestAppContext) {
     command(&view, cx, Command::CloudServices);
     view.read_with(cx, |s, _| {
         assert!(!s.modals.iter().any(|m| matches!(m, Modal::CloudServices)));
-        assert!(s.cloud_switch.is_some());
+        assert!(s.modals.iter().any(|m| matches!(m, Modal::CloudPublish)));
     });
 }
 
 /// An opening is not over until its result is applied: between the worker
-/// finishing and the window taking the result, the Header switch must not
-/// read a finished opening without a Project as a failure.
+/// finishing and the window taking the result, the Header still names the
+/// project it opens and no failure is reported.
 #[gpui::test]
 fn an_opening_stays_open_until_its_result_is_applied(cx: &mut TestAppContext) {
     let (view, cx, Linked { _temp, .. }) =
@@ -3227,18 +3228,30 @@ fn an_opening_stays_open_until_its_result_is_applied(cx: &mut TestAppContext) {
     settle_cloud(&view, cx, "the association", &|s, cx| {
         s.repository_cloud.read(cx).context.project() == Some("project-a")
     });
-    view.update_in(cx, |s, w, cx| s.view_cloud(w, cx));
+    settle_cloud(&view, cx, "the catalog", &|s, cx| {
+        s.project_items(cx)
+            .iter()
+            .any(|i| i.cloud_project.as_deref() == Some("project-a"))
+    });
+    view.update(cx, |s, cx| s.open_cloud("project-a".into(), cx));
     // The worker finishes while nothing on this thread runs.
     std::thread::sleep(std::time::Duration::from_millis(300));
-    view.update(cx, |s, cx| {
+    view.read_with(cx, |s, cx| {
         assert!(s.files.cloud_opening().is_some());
-        s.advance_cloud_switch(cx);
-        assert!(s.cloud_switch.as_ref().is_some_and(|c| c.failure.is_none()));
+        assert_eq!(s.opening_project_name(cx).as_deref(), Some("Fixture Cloud"));
+        assert!(
+            !s.modals
+                .iter()
+                .any(|m| matches!(m, Modal::CloudRecovery { .. }))
+        );
     });
-    settle_cloud(&view, cx, "the Cloud switch", &|s, _| {
-        s.hosted_project().as_deref() == Some("project-a") && s.cloud_switch.is_none()
+    settle_cloud(&view, cx, "the Cloud project", &|s, _| {
+        s.hosted_project().as_deref() == Some("project-a")
     });
-    view.read_with(cx, |s, _| assert!(s.files.cloud_opening().is_none()));
+    view.read_with(cx, |s, cx| {
+        assert!(s.files.cloud_opening().is_none());
+        assert_eq!(s.opening_project_name(cx), None);
+    });
 }
 
 /// C-8.2: the preview comes from what is already loaded: no service files,

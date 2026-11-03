@@ -29,10 +29,6 @@ pub enum MenuVariant {
     SidebarLauncher,
     /// `.desktop-project-menu` under the Header.
     Project,
-    /// `.onboarding-project-row`: a homepage project row, outside any
-    /// surface ([`MenuRow`]): body type, a medium name, subtle detail and
-    /// activity time.
-    Homepage,
 }
 /// Resolved metrics of a menu variant.
 #[derive(Clone, Copy, Debug)]
@@ -49,8 +45,6 @@ struct MenuStyle {
     icon_opacity: f32,
     trailing: Trailing,
     label_weight: FontWeight,
-    /// The name's largest share of the row (the detail takes the rest).
-    label_share: Option<f32>,
     /// Where a hover-only end control sits.
     hover_trailing_inset: f32,
 }
@@ -61,30 +55,10 @@ enum Trailing {
     Disabled,
     /// The row's own colour.
     Inherit,
-    /// `--po-text-subtle`, medium weight (homepage activity).
-    Subtle,
 }
 impl MenuVariant {
     fn style(self) -> MenuStyle {
         let m = theme::ty();
-        if self == Self::Homepage {
-            return MenuStyle {
-                font: m.ui.body,
-                line_height: 18.,
-                meta: m.ui.meta,
-                padding: 0.,
-                item_height: theme::control(),
-                item_padding: metric::MENU_ITEM_PADDING_INLINE,
-                item_gap: metric::MENU_ITEM_GAP,
-                item_radius: metric::CONTROL_RADIUS,
-                hide_separators: false,
-                icon_opacity: 1.,
-                trailing: Trailing::Subtle,
-                label_weight: FontWeight::MEDIUM,
-                label_share: Some(0.65),
-                hover_trailing_inset: 6.,
-            };
-        }
         let sidebar = !matches!(self, Self::Default);
         MenuStyle {
             font: if sidebar {
@@ -119,7 +93,6 @@ impl MenuVariant {
                 Trailing::Disabled
             },
             label_weight: FontWeight::NORMAL,
-            label_share: None,
             hover_trailing_inset: metric::MENU_ITEM_PADDING_INLINE,
         }
     }
@@ -152,7 +125,6 @@ impl MenuVariant {
                 shadow(theme::alpha(t.shadow, 0.45), 2., 4., 0.),
                 shadow(theme::alpha(t.shadow, 0.65), 6., 16., -4.),
             ],
-            Self::Homepage => vec![],
         }
     }
 }
@@ -164,20 +136,19 @@ pub struct MenuItem {
     glyph: Option<AnyElement>,
     detail: Option<SharedString>,
     shortcut: Option<SharedString>,
-    trailing_text: Option<SharedString>,
     trailing: Option<AnyElement>,
     hover_trailing: Option<AnyElement>,
     /// The row reads as hovered (its hover control's menu is open).
     hover_held: bool,
-    /// End space kept free for the hover controls while hovered.
-    hover_reserve: Option<f32>,
     selected: bool,
     disabled: bool,
     danger: bool,
-    /// Reads as an action (`data-cloud-action="create"`): accent text.
-    accent: bool,
     submenu: Option<SubmenuBuilder>,
     open_submenu: bool,
+    /// A choice that accumulates (`menuitemcheckbox`): the menu stays open.
+    stay_open: bool,
+    /// The detail stacks under the name (a second line).
+    stacked: bool,
     on_click: Option<Handler>,
 }
 impl MenuItem {
@@ -188,19 +159,30 @@ impl MenuItem {
             glyph: None,
             detail: None,
             shortcut: None,
-            trailing_text: None,
             trailing: None,
             hover_trailing: None,
             hover_held: false,
-            hover_reserve: None,
             selected: false,
             disabled: false,
             danger: false,
-            accent: false,
             submenu: None,
             open_submenu: false,
+            stay_open: false,
+            stacked: false,
             on_click: None,
         }
+    }
+    /// A second line under the name (`:has(.desktop-menu-item-detail)`
+    /// rows of the place menu).
+    pub fn detail_below(mut self, detail: impl Into<SharedString>) -> Self {
+        self.detail = Some(detail.into());
+        self.stacked = true;
+        self
+    }
+    /// Choosing this row leaves its menu open.
+    pub fn stay_open(mut self) -> Self {
+        self.stay_open = true;
+        self
     }
     /// A Lucide icon at the product's menu default (14px, stroke 2).
     pub fn icon(self, name: impl Into<SharedString>) -> Self {
@@ -229,10 +211,6 @@ impl MenuItem {
         self
     }
     /// A note at the row end (`.desktop-menu-item-trailing`: an activity time).
-    pub fn trailing_text(mut self, text: impl Into<SharedString>) -> Self {
-        self.trailing_text = Some(text.into());
-        self
-    }
     pub fn trailing(mut self, element: impl IntoElement) -> Self {
         self.trailing = Some(element.into_any_element());
         self
@@ -250,10 +228,6 @@ impl MenuItem {
     }
     /// Keeps `width` free at the row end while hovered, so the label
     /// truncates before the hover controls (`padding-inline-end`).
-    pub fn hover_reserve(mut self, width: f32) -> Self {
-        self.hover_reserve = Some(width);
-        self
-    }
     pub fn selected(mut self, selected: bool) -> Self {
         self.selected = selected;
         self
@@ -272,10 +246,6 @@ impl MenuItem {
         self
     }
     /// Accent text at rest and on hover (a create action among choices).
-    pub fn accent(mut self) -> Self {
-        self.accent = true;
-        self
-    }
     pub fn danger(mut self) -> Self {
         self.danger = true;
         self
@@ -492,11 +462,8 @@ fn row(
     let disabled = item.disabled;
     let danger = item.danger;
     let lit = item.selected;
-    let accent = item.accent && !disabled;
     let resting = if danger {
         t.danger
-    } else if accent {
-        t.accent_text
     } else if lit {
         t.text
     } else if disabled {
@@ -504,13 +471,7 @@ fn row(
     } else {
         t.muted
     };
-    let hover_fg = if danger {
-        t.danger
-    } else if accent {
-        t.accent_text
-    } else {
-        t.text
-    };
+    let hover_fg = if danger { t.danger } else { t.text };
     let hover_bg = if danger {
         theme::alpha(t.danger, 0.10)
     } else {
@@ -519,15 +480,15 @@ fn row(
     let trailing_fg = match s.trailing {
         Trailing::Inherit => resting,
         Trailing::Disabled => t.text_disabled,
-        Trailing::Subtle => t.subtle,
     };
     let has_hover_trailing = item.hover_trailing.is_some();
     let held = item.hover_held && !disabled;
-    let reserve = item.hover_reserve;
     let submenu = item.submenu.clone();
     let open_submenu = item.open_submenu;
     let action = item.on_click.clone();
+    let dismiss = dismiss.filter(|_| !item.stay_open);
     let selector = item.label.clone();
+    let stacked = item.stacked;
     let row = h_row()
         .id(element_id.clone())
         .debug_selector(move || format!("menu-item:{selector}"))
@@ -536,7 +497,10 @@ fn row(
         .w_full()
         .min_w_0()
         .flex_shrink_0()
-        .h(px(s.item_height))
+        .when(!stacked, |d| d.h(px(s.item_height)))
+        .when(stacked, |d| {
+            d.min_h(px(s.item_height)).items_start().py(px(6.))
+        })
         .gap(px(s.item_gap))
         .px(px(s.item_padding))
         .rounded(px(s.item_radius))
@@ -547,19 +511,10 @@ fn row(
         .when(lit, |d| d.bg(t.hover))
         .when(disabled && !lit, |d| d.opacity(0.58))
         .when(!disabled, |d| {
-            d.cursor(theme::clickable_cursor()).hover(move |s| {
-                let s = s.bg(hover_bg).text_color(hover_fg);
-                match reserve {
-                    Some(width) => s.pr(px(width)),
-                    None => s,
-                }
-            })
+            d.cursor(theme::clickable_cursor())
+                .hover(move |s| s.bg(hover_bg).text_color(hover_fg))
         })
-        .when(held, |d| {
-            d.bg(hover_bg)
-                .text_color(hover_fg)
-                .when_some(reserve, |d, width| d.pr(px(width)))
-        })
+        .when(held, |d| d.bg(hover_bg).text_color(hover_fg))
         .children(
             item.icon
                 .map(|icon| {
@@ -586,23 +541,19 @@ fn row(
             h_row()
                 .flex_1()
                 .min_w_0()
-                .items_baseline()
-                .gap(px(7.))
+                .when(!stacked, |d| d.items_baseline().gap(px(7.)))
+                .when(stacked, |d| d.flex_col().items_start().gap(px(1.)))
                 .child(
                     div()
                         .min_w_0()
                         .truncate()
                         .font_weight(s.label_weight)
-                        .when_some(s.label_share, |d, share| {
-                            d.flex_none().max_w(relative(share))
-                        })
                         .child(item.label),
                 )
                 .children(item.detail.map(|detail| {
                     div()
-                        .flex_1()
-                        .min_w_0()
-                        .truncate()
+                        .when(!stacked, |d| d.flex_1().min_w_0().truncate())
+                        .when(stacked, |d| d.w_full().line_height(px(16.)))
                         .text_size(px(s.meta))
                         .text_color(t.subtle)
                         .child(detail)
@@ -613,20 +564,6 @@ fn row(
                 .flex_shrink_0()
                 .text_size(px(s.meta))
                 .text_color(trailing_fg)
-                .child(text)
-        }))
-        .children(item.trailing_text.map(|text| {
-            div()
-                .flex_shrink_0()
-                .max_w(px(112.))
-                .truncate()
-                .text_size(px(s.meta))
-                .font_weight(FontWeight::MEDIUM)
-                .text_color(trailing_fg)
-                .when(has_hover_trailing, |d| {
-                    d.group_hover(group.clone(), |s| s.invisible())
-                })
-                .when(held, |d| d.invisible())
                 .child(text)
         }))
         .children(item.trailing.map(|element| {
@@ -779,32 +716,6 @@ impl RenderOnce for SubmenuRow {
             );
         }
         row
-    }
-}
-/// One [`MenuItem`] on its own, outside a [`Menu`] surface
-/// (`DesktopMenuItem` where a page lists rows, such as the homepage).
-#[derive(IntoElement)]
-pub struct MenuRow {
-    id: ElementId,
-    item: MenuItem,
-    variant: MenuVariant,
-}
-impl MenuRow {
-    pub fn new(id: impl Into<ElementId>, item: MenuItem) -> Self {
-        Self {
-            id: id.into(),
-            item,
-            variant: MenuVariant::Default,
-        }
-    }
-    pub fn variant(mut self, variant: MenuVariant) -> Self {
-        self.variant = variant;
-        self
-    }
-}
-impl RenderOnce for MenuRow {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
-        row(self.id, self.item, self.variant.style(), cx.palette(), None)
     }
 }
 /// A stable id for a named part of an element.

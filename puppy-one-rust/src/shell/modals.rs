@@ -53,13 +53,19 @@ pub(super) enum Modal {
     },
     /// A notice; a later one replaces it.
     Error(String),
-    /// `CloudWorkspaceSwitchDialog`: sign-in, matching or recovery of a
-    /// Header switch to the Cloud Computer.
-    CloudSwitch,
-    /// `ProjectRowActions` rename: the shown name of a remembered Project.
+    /// `openCloudDialogAt("initialize")`: putting the open folder in the
+    /// Cloud (the first publication), behind sign-in.
+    CloudPublish,
+    /// `CloudPublishConfirmationDialog` before the first publication.
+    ConfirmPublish,
+    /// `MissingCloudProjectReplacement`.
+    ReplaceCloud(super::project_place::ReplaceCloud),
+    /// `ProjectRowActions` rename: a folder's shown name or a Cloud
+    /// project's name.
     RenameProject(super::project_actions::ProjectRename),
-    /// `ProjectRowActions` unlink: forget a Project, keep its files.
-    UnlinkProject(std::path::PathBuf),
+    /// `ProjectRowConfirmDialog`: unlink a folder (its files stay) or
+    /// delete a Cloud project.
+    ConfirmProject(super::project_actions::ProjectConfirm),
     /// `CloudWorkspaceRecovery` for a Homepage or dedicated-window opening.
     CloudRecovery {
         project: String,

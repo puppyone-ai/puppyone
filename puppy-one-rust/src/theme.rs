@@ -105,6 +105,8 @@ pub mod metric {
     pub const CONTROL_RADIUS: f32 = 6.;
     pub const TOOLBAR_ACTION_RADIUS: f32 = 5.;
     pub const CHROME_HEIGHT: f32 = 40.;
+    /// `--po-card-radius`.
+    pub const CARD_RADIUS: f32 = 8.;
     pub const TITLEBAR_TOOL_ACTION_WIDTH: f32 = 34.;
     /// `--desktop-titlebar-native-controls-inset`: room for the macOS
     /// traffic lights before the Header's first entry.

@@ -4,7 +4,8 @@
 //! `appearancePreferences.ts` with its legacy keys); anything unreadable
 //! keeps the native default. Credentials are never part of it.
 use super::preference_types::{
-    Experimental, GitSidebarLayout, Preferences, RECENT_PROJECT_LIMIT, RecentProject, ThemeMode,
+    Experimental, GitSidebarLayout, HomepageLayout, HomepageSort, Preferences, RecentProject,
+    ThemeMode,
 };
 use crate::platform::electron_import::ElectronData;
 use serde_json::Value;
@@ -31,6 +32,8 @@ mod keys {
     pub const GIT_SIDEBAR_LAYOUT: &str = "puppyone.desktop.gitSidebarLayout";
     pub const TITLEBAR_ACTIONS: &str = "puppyone.desktop.titlebarActions";
     pub const FIRST_RUN_SIGN_IN: &str = "puppyone.desktop.firstRunSignInCompleted.v1";
+    pub const HOMEPAGE_LAYOUT: &str = "puppyone.desktop.homepageProjectLayout";
+    pub const HOMEPAGE_SORT: &str = "puppyone.desktop.homepageProjectSort";
 }
 
 /// The native preferences a first launch starts from.
@@ -46,7 +49,6 @@ pub fn import(data: &ElectronData) -> Preferences {
     p.recent_projects = data
         .recent
         .iter()
-        .take(RECENT_PROJECT_LIMIT)
         .map(|r| RecentProject {
             path: r.path.clone(),
             name: r.name.clone(),
@@ -61,6 +63,17 @@ pub fn import(data: &ElectronData) -> Preferences {
     }
 
     appearance(&mut p, object(keys::APPEARANCE), &get);
+
+    // `readInitialHomepageProjectLayout` / `…Sort`: the stored word, else Grid
+    // and Last modified.
+    p.homepage_project_layout = match get(keys::HOMEPAGE_LAYOUT) {
+        Some("list") => HomepageLayout::List,
+        _ => HomepageLayout::Grid,
+    };
+    p.homepage_project_sort = match get(keys::HOMEPAGE_SORT) {
+        Some("name") => HomepageSort::Name,
+        _ => HomepageSort::Modified,
+    };
 
     // `preferenceStorage.ts`: numbers and the collapsed flag.
     if let Some(width) = get(keys::EXPLORER_WIDTH).and_then(|v| v.trim().parse::<f32>().ok())
@@ -261,13 +274,9 @@ fn experimental_settings(v: &Value) -> (Experimental, bool) {
     let on = |key: &str| v.get(key) == Some(&Value::Bool(true));
     let not_off = |key: &str| v.get(key) != Some(&Value::Bool(false));
     let experimental = Experimental {
-        asset_library_home: on("enableAssetLibraryHome"),
         always_show_onboarding_coachmarks: on("enableAlwaysShowOnboardingCoachmarks"),
-        cloud_automation: on("enableCloudAutomation"),
         cloud_workspace: on("enableCloudWorkspace"),
         editor_tabs_in_header: on("enableEditorTabsInHeader"),
-        centered_project_in_header: on("enableCenteredProjectInHeader"),
-        project_location_icons_in_header: on("enableProjectLocationIconsInHeader"),
         project_reach: on("enableProjectReach"),
         share_onboarding: not_off("enableShareOnboarding"),
         workbench_tabs_in_header: on("enableWorkbenchTabsInHeader"),

@@ -27,7 +27,7 @@ pub use button::{Button, ButtonVariant, IconButton};
 pub use checkbox::{Checkbox, native_checkbox};
 pub use dialog::Dialog;
 pub use icon::{FileIcon, Icon, ProductIcon};
-pub use menu::{Menu, MenuItem, MenuRow, MenuVariant};
+pub use menu::{Menu, MenuItem, MenuVariant};
 pub use notice::{FloatingNotice, NoticeAction, NoticePlacement, NoticeStack, NoticeTone};
 pub use popover::{AnchoredMenu, PopoverMenu};
 pub use resize_handle::ResizeHandle;

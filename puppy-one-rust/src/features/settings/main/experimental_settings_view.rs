@@ -3,8 +3,7 @@
 //! look exactly like the product's but are inert, and their tooltip carries
 //! the product's "not available yet" message instead of silently doing
 //! nothing. `gitAutoCommit` appears only when the platform exposes it (never
-//! natively), like the Web view. The Homepage group follows the product
-//! build's `assetLibraryHome` flag (`features/flags/flags.json`: on).
+//! natively), like the Web view.
 use super::super::{
     preference_types::Preferences, settings_workspace_surface::SettingsWorkspaceSurface,
 };
@@ -37,26 +36,24 @@ macro_rules! setting {
         Setting { key: $key, get: |p| p.$($field).+, set: |p, v| p.$($field).+ = v, choices: Some(($off, $on)), native: $native }
     };
 }
-fn groups() -> Vec<(&'static str, Vec<Setting>)> {
+/// `ExperimentalSettingsView`'s groups at the pinned product. `payments`
+/// shows only while accounts are available; `gitAutoCommit` only where the
+/// platform exposes it, which the native build never does.
+fn groups(account_available: bool) -> Vec<(&'static str, Vec<Setting>)> {
+    let mut cloud = vec![setting!(
+        "cloudWorkspace",
+        experimental.cloud_workspace,
+        true
+    )];
+    if account_available {
+        cloud.push(setting!("payments", experimental.payments, true));
+    }
+    cloud.push(setting!("flowFiles", experimental.puppy_flow_files, true));
     vec![
         (
             "header",
             vec![
                 setting!("projectReach", experimental.project_reach, false),
-                setting!(
-                    "projectHeaderAlignment",
-                    experimental.centered_project_in_header,
-                    true,
-                    "left",
-                    "center"
-                ),
-                setting!(
-                    "projectLocationIconsInHeader",
-                    experimental.project_location_icons_in_header,
-                    false,
-                    "menu",
-                    "header"
-                ),
                 setting!(
                     "workbenchTabsInHeader",
                     experimental.workbench_tabs_in_header,
@@ -64,7 +61,7 @@ fn groups() -> Vec<(&'static str, Vec<Setting>)> {
                     "sidebar",
                     "header"
                 ),
-                setting!("shareOnboarding", experimental.share_onboarding, false),
+                setting!("shareOnboarding", experimental.share_onboarding, true),
                 setting!(
                     "projectSwitcherRail",
                     project_switcher_rail,
@@ -80,14 +77,14 @@ fn groups() -> Vec<(&'static str, Vec<Setting>)> {
                 setting!(
                     "alwaysShowOnboardingCoachmarks",
                     experimental.always_show_onboarding_coachmarks,
-                    false,
+                    true,
                     "once",
                     "repeat"
                 ),
                 setting!(
                     "editorTabsInHeader",
                     experimental.editor_tabs_in_header,
-                    false,
+                    true,
                     "panes",
                     "header"
                 ),
@@ -96,9 +93,8 @@ fn groups() -> Vec<(&'static str, Vec<Setting>)> {
         (
             "markdown",
             vec![
-                // The native Markdown editor has no block drag or heading
-                // outline yet (the WebView product viewer was removed).
-                setting!("markdownBlockDrag", experimental.markdown_block_drag, false),
+                setting!("markdownBlockDrag", experimental.markdown_block_drag, true),
+                // The native Markdown editor has no heading outline yet.
                 setting!(
                     "markdownHeadingOutline",
                     experimental.markdown_heading_outline,
@@ -113,38 +109,20 @@ fn groups() -> Vec<(&'static str, Vec<Setting>)> {
                 setting!("viewerPlugins", experimental.viewer_plugins, false),
             ],
         ),
-        (
-            "cloud",
-            vec![
-                setting!("cloudWorkspace", experimental.cloud_workspace, false),
-                setting!("cloudAutomation", experimental.cloud_automation, false),
-                setting!("payments", experimental.payments, false),
-                setting!("flowFiles", experimental.puppy_flow_files, false),
-            ],
-        ),
-        (
-            "homepage",
-            vec![setting!(
-                "projectsHome",
-                experimental.asset_library_home,
-                false,
-                "list",
-                "cards"
-            )],
-        ),
+        ("cloud", cloud),
     ]
 }
 impl SettingsWorkspaceSurface {
     pub(super) fn experimental(&self, _: Theme, cx: &mut Context<Self>) -> AnyElement {
         let state = self.preferences.read(cx).state.clone();
         let mut content = SettingsSection::new(tr(Page::Experimental.title()));
-        for (index, (group, settings)) in groups().into_iter().enumerate() {
+        let account = crate::features::flags::account_available(cx);
+        for (index, (group, settings)) in groups(account).into_iter().enumerate() {
             let rows = settings
                 .into_iter()
                 .map(|setting| {
                     let label = tr(&format!("settings.experimental.{}.title", setting.key));
-                    let detail = (setting.key != "projectHeaderAlignment")
-                        .then(|| tr(&format!("settings.experimental.{}.detail", setting.key)));
+                    let detail = tr(&format!("settings.experimental.{}.detail", setting.key));
                     let value = (setting.get)(&state);
                     let disabled = !setting.native;
                     let reason = disabled.then(|| {
@@ -176,10 +154,9 @@ impl SettingsWorkspaceSurface {
                                 });
                             SegmentedControl::new(setting.key)
                                 .segments(segments)
-                                .when_some(
-                                    reason.clone().or(detail.map(String::from)),
-                                    |s, text| s.tooltip(text),
-                                )
+                                .when_some(reason.clone().or(Some(detail.into())), |s, text| {
+                                    s.tooltip(text)
+                                })
                                 .into_any_element()
                         }
                         None => {
@@ -188,11 +165,7 @@ impl SettingsWorkspaceSurface {
                             Switch::new(SharedString::from(setting.key), label)
                                 .checked(value)
                                 .disabled(disabled)
-                                .tooltip(
-                                    reason
-                                        .clone()
-                                        .unwrap_or_else(|| detail.unwrap_or(label).into()),
-                                )
+                                .tooltip(reason.clone().unwrap_or_else(|| detail.into()))
                                 .on_change(move |on, _, cx| {
                                     prefs.update(cx, |p, cx| p.change(|p| set(p, on), cx))
                                 })

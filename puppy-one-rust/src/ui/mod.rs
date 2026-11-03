@@ -14,6 +14,4 @@ pub mod loading;
 pub mod motion;
 pub mod resource_drag;
 pub mod scrollbar;
-mod tracked_text;
 pub use fractional_text::fractional_text;
-pub use tracked_text::tracked_text;

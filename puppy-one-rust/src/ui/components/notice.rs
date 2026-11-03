@@ -289,6 +289,10 @@ impl NoticeStack {
         self.notices.push(notice);
         self
     }
+    pub fn children(mut self, notices: impl IntoIterator<Item = FloatingNotice>) -> Self {
+        self.notices.extend(notices);
+        self
+    }
 }
 impl RenderOnce for NoticeStack {
     fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {

@@ -1,17 +1,18 @@
 //! The homepage: port of `MinimalOnboarding`, `OnboardingHomeLayout`,
-//! `OnboardingBrandLockup`, `OnboardingProjectList`, `OnboardingEntryActions`
-//! and `styles/onboarding.css`. Shown with no open project and from the
-//! project menu's Home item.
+//! `OnboardingBrandLockup`, `OnboardingEntryActions` and
+//! `styles/onboarding.css`. Shown with no open project and from the project
+//! menu's Home item.
 //!
-//! One column, 440px wide: the brand lockup, a framed primary section (the
-//! project list, or "New empty project" when there is none) and the entry
-//! actions. Projects are ordered by when they last changed
-//! ([`project_activity`]), newest first, and show that time.
+//! With projects, the page is their area: a quiet head (filter, sort and
+//! layout, then New project with the other ways to start behind its arrow)
+//! and the projects, as the Grid or the List ([`projects`]), from the head to
+//! the page's end. First run greets with the Puppy and the ways to start.
 //!
 //! - [`create_project`]: the "Create a project" dialog
+//! - [`folder`]: the project folder and its marks
 use super::*;
 use crate::workspace::cloud::{
-    catalog::{self, Item, Location, Opening, history},
+    catalog::{self, Item},
     locator::{self, Locator},
 };
 use crate::{
@@ -22,7 +23,7 @@ use crate::{
     ui::{
         appearance::ActiveAppearance,
         components::{
-            Button, ButtonVariant, Icon, IconButton, MenuItem, MenuRow, MenuVariant, ProductIcon,
+            Button, ButtonVariant, Icon, IconButton, Menu, MenuItem, PopoverMenu, ProductIcon,
         },
     },
 };
@@ -33,21 +34,28 @@ use gpui_kit::{
 use std::{
     collections::HashMap,
     path::Path,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 mod create_project;
 mod first_run;
+pub(in crate::shell) mod folder;
 mod import_repository;
 mod intro;
 pub(in crate::shell) mod project_entry;
+mod projects;
 pub(super) use create_project::CreateProject;
 pub(super) use import_repository::ImportRepository;
+pub(in crate::shell) use projects::{HomeMenu, Place};
 
-/// `--onboarding-column-width`.
-const COLUMN_WIDTH: f32 = 440.;
-/// `scrollbar-gutter: stable` on the project list.
-const SCROLLBAR_GUTTER: f32 = 12.;
+/// `--onboarding-column-width`: room for five folders across with
+/// projects, 440px on first run.
+const COLUMN_PROJECTS: f32 = 640.;
+const COLUMN_EMPTY: f32 = 440.;
+/// `.onboarding-homepage { width: min(680px, 100%) }`.
+const PAGE_WIDTH: f32 = 680.;
+/// `HOMEPAGE_FIRST_PAINT_BUDGET_MS`: the longest a list waits.
+const FIRST_PAINT_BUDGET: Duration = Duration::from_millis(4000);
 
 /// Homepage state held by the shell.
 #[derive(Default)]
@@ -55,16 +63,43 @@ pub(super) struct Homepage {
     /// When each project last changed (`None`: unknown), by path.
     activity: HashMap<PathBuf, Option<SystemTime>>,
     /// `puppyoneGitRemote` of each checkout whose remotes were read
-    /// (`hydrationState: "ready"`); an absent path never merges.
+    /// (`hydrationState: "ready"`); an absent path is never linked.
     locators: HashMap<PathBuf, Option<Locator>>,
-    /// The row whose Open menu is showing.
-    pub open_menu: Option<String>,
     /// The projects the activity was read for; a new list reads again.
     read_for: Option<Vec<PathBuf>>,
     /// The homepage was showing at the last frame.
     shown: bool,
     /// Activity is being read.
     pub reading: bool,
+    /// `useHomepageFirstPaint`: the first Homepage waits (whole) until its
+    /// list can appear once in its final order, at most four seconds; then
+    /// the account it was released for.
+    first_paint: Option<Instant>,
+    released_for: Option<Option<String>>,
+    /// `useHomepageListHold`: after Home only the list waits.
+    pub list_held_since: Option<Instant>,
+    /// The places the filter shows; it lasts only as long as the page.
+    pub places: std::collections::BTreeSet<Place>,
+    /// `settleShownDates`: each project's date as first shown this visit.
+    shown_dates: HashMap<String, i64>,
+    /// The toolbar or entry menu that is open.
+    pub menu: Option<HomeMenu>,
+    /// The list's roving Tab stop.
+    pub stop: Option<String>,
+    /// Each project's open control.
+    pub focus: HashMap<String, FocusHandle>,
+    /// Where each project's actions trigger was painted.
+    pub action_bounds: HashMap<String, std::rc::Rc<std::cell::Cell<Bounds<Pixels>>>>,
+    /// The project under the pointer.
+    pub hovered: Option<String>,
+    /// Each tile's sheet motion: target, since, from.
+    sheets: HashMap<String, (bool, Instant, f32)>,
+    /// The project whose actions are open.
+    pub actions: Option<String>,
+    /// A folder is being dragged over the window.
+    pub dragging: bool,
+    /// `onboarding-homepage-error`: why a drop or opening failed.
+    pub error: Option<String>,
     /// The empty-state intro that is playing.
     pub(in crate::shell) intro: Option<crate::ui::motion::Timeline>,
     /// Whether the visible Homepage had no projects at the last frame
@@ -74,35 +109,14 @@ pub(super) struct Homepage {
     /// long as the Homepage does (`shownForLaunch`).
     pub(in crate::shell) disclosure_shown: bool,
 }
-
-/// `preferredWidth={252}` of the Homepage Open menu.
-const OPEN_MENU_WIDTH: f32 = 252.;
-
-/// `HomeProjectIcon`: a neutral folder, the folder with a small Cloud badge
-/// when linked, or the outline Cloud (`--po-brand-blue`) when hosted only.
-pub(super) fn project_icon(location: Location, t: Theme) -> AnyElement {
-    let glyph = |meaning: ProductIcon| Icon::product(meaning).small().stroke(1.85);
-    div()
-        .relative()
-        .size(px(14.))
-        .flex_shrink_0()
-        .child(match location {
-            Location::CloudOnly => glyph(ProductIcon::Cloud).color(t.brand_blue),
-            _ => glyph(ProductIcon::Folder),
-        })
-        .when(location == Location::Linked, |d| {
-            d.child(
-                div().absolute().right(px(-4.)).bottom(px(-3.)).child(
-                    Icon::product(ProductIcon::Cloud)
-                        .with_size(px(9.))
-                        .color(t.brand_blue),
-                ),
-            )
-        })
-        .into_any_element()
+impl Homepage {
+    pub fn list_held(&self) -> bool {
+        self.list_held_since.is_some()
+    }
 }
-/// `getProjectName` for a catalog row.
-fn item_name(item: &Item) -> String {
+
+/// `getProjectName` for a catalog entry.
+pub(in crate::shell) fn item_name_or(item: &Item, untitled: &str) -> String {
     let label = item.label.trim();
     if !label.is_empty() && Some(label) != item.local_path.as_deref() {
         return label.to_owned();
@@ -111,18 +125,26 @@ fn item_name(item: &Item) -> String {
         .as_deref()
         .and_then(|p| Path::new(p).file_name())
         .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_else(|| tr("onboarding.projects.untitled").to_owned())
+        .filter(|n| !n.is_empty())
+        .unwrap_or_else(|| {
+            if label.is_empty() {
+                untitled.to_owned()
+            } else {
+                label.to_owned()
+            }
+        })
 }
-/// `useProjectOpenCaption`: where a Cloud-linked row opens.
-fn open_caption(item: &Item) -> String {
-    let mac = cfg!(target_os = "macos");
-    tr(match (item.last_opened.is_some(), item.opening()) {
-        (true, Opening::Cloud) => "shell.projectOpen.lastCloud",
-        (true, Opening::Local) if mac => "shell.projectOpen.lastMac",
-        (true, Opening::Local) => "shell.projectOpen.lastComputer",
-        (false, Opening::Cloud) => "shell.projectRuntime.label",
-        (false, Opening::Local) if mac => "shell.workspaceSwitcher.location.thisMac",
-        (false, Opening::Local) => "shell.workspaceSwitcher.location.thisComputer",
+fn item_name(item: &Item) -> String {
+    item_name_or(item, tr("onboarding.projects.untitled"))
+}
+/// `useProjectHomeItemCaption`: where an entry's project is.
+fn item_caption(item: &Item) -> String {
+    tr(if item.local_path.is_none() {
+        "cloud.home.location.cloud"
+    } else if cfg!(target_os = "macos") {
+        "shell.workspaceSwitcher.location.thisMac"
+    } else {
+        "shell.workspaceSwitcher.location.thisComputer"
     })
     .to_owned()
 }
@@ -138,18 +160,22 @@ fn project_name(project: &RecentProject) -> String {
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_else(|| tr("onboarding.projects.untitled").to_owned())
 }
-/// `getWorkspaceParentPathForDisplay`: the parent folder, home as `~`.
-fn parent_for_display(path: &Path) -> String {
-    let Some(parent) = path.parent() else {
-        return String::new();
-    };
-    let text = parent.to_string_lossy().into_owned();
+/// `getWorkspacePathForDisplay`: home as `~`.
+pub(in crate::shell) fn path_for_display(path: &Path) -> String {
+    let text = path.to_string_lossy().into_owned();
     match text.strip_prefix("/Users/") {
         Some(rest) => match rest.split_once('/') {
             Some((_, below)) => format!("~/{below}"),
             None => "~".into(),
         },
         None => text,
+    }
+}
+/// `getWorkspaceParentPathForDisplay`: the parent folder, home as `~`.
+fn parent_for_display(path: &Path) -> String {
+    match path.parent() {
+        Some(parent) => path_for_display(parent),
+        None => String::new(),
     }
 }
 /// `formatModificationTime`: "Just now", then whole minutes, hours or days.
@@ -181,12 +207,18 @@ impl Shell {
     }
     /// Hydrates the remembered projects (when each last changed, and its
     /// canonical Cloud locator) whenever the homepage or the Header project
-    /// menu appears or the list changes, off the main thread.
+    /// menu appears or the list changes, off the main thread. A visit ends
+    /// when the page hides: its filter and shown dates go with it.
     pub(super) fn refresh_home_activity(&mut self, cx: &mut Context<Self>) {
-        // The Header menus read the same list (projects; This Mac for a
-        // hosted-only window).
         let shown = self.home_visible() || self.popover.is_some();
         let appeared = shown && !self.homepage.shown;
+        if !self.home_visible() && !self.homepage.places.is_empty() {
+            self.homepage.places.clear();
+        }
+        if appeared && self.home_visible() {
+            self.homepage.shown_dates.clear();
+            self.homepage.menu = None;
+        }
         self.homepage.shown = shown;
         let paths: Vec<PathBuf> = self
             .recent_projects
@@ -221,16 +253,55 @@ impl Shell {
                     .map(|(path, changed, _)| (path, changed))
                     .collect();
                 s.homepage.reading = false;
+                // The list is whole: it may be seen now.
+                s.homepage.list_held_since = None;
                 cx.notify();
             });
         })
         .detach();
     }
+    /// `useHomepageListHold`: Home leaves at once and only the list waits,
+    /// so the project just left is in its new place the first time it shows.
+    pub(super) fn hold_home_list(&mut self) {
+        self.homepage.list_held_since = Some(Instant::now());
+        // A re-read even of an unchanged list, as the product refreshes it.
+        self.homepage.read_for = None;
+    }
+    /// `useHomepageFirstPaint`: `true` while the first Homepage of an
+    /// account still waits for its list (whole, final order), up to four
+    /// seconds; the window shows the restoring mark meanwhile.
+    pub(super) fn home_first_paint_pending(&mut self, window: &mut Window, cx: &App) -> bool {
+        if !self.home_visible() || self.restoring() {
+            return false;
+        }
+        let account = crate::features::cloud_account::broker_and_binding(cx)
+            .filter(|_| crate::features::flags::cloud_enabled(&self.preferences, cx))
+            .map(|(_, b)| format!("{}\n{}", b.environment.api(), b.user));
+        if self.homepage.released_for.as_ref() == Some(&account) {
+            return false;
+        }
+        let since = *self.homepage.first_paint.get_or_insert_with(Instant::now);
+        let catalog_settled = account.is_none()
+            || matches!(
+                self.cloud_catalog.read(cx).state,
+                crate::features::cloud_catalog::State::Ready(_)
+                    | crate::features::cloud_catalog::State::Failed
+            );
+        let settled = !self.homepage.reading && self.homepage.read_for.is_some() && catalog_settled;
+        if settled || since.elapsed() >= FIRST_PAINT_BUDGET {
+            self.homepage.released_for = Some(account);
+            self.homepage.first_paint = None;
+            self.homepage.list_held_since = None;
+            return false;
+        }
+        window.request_animation_frame();
+        true
+    }
     /// `useHomepageCloudProjects().items`: the one flat project list the
     /// Homepage and the Header project menu share. Location chooses icons
-    /// and actions, never the rank; Cloud rows come only from the current
-    /// account's catalog and merge with a checkout only through its freshly
-    /// read, trusted Project-root locator.
+    /// and actions, never the rank; Cloud entries come only from the
+    /// current account's catalog, and a folder links to one only through
+    /// its freshly read, trusted Project-root locator.
     pub(super) fn project_items(&self, cx: &App) -> Vec<Item> {
         use crate::features::cloud_catalog::State;
         let account = crate::features::cloud_account::broker_and_binding(cx)
@@ -279,62 +350,7 @@ impl Shell {
                 }),
             })
             .collect();
-        let mut items = catalog::build(&local, cloud, activity);
-        if let Some(binding) = &account
-            && let Some(remembered) = self
-                .preferences
-                .read(cx)
-                .state
-                .project_open_history
-                .get(&history::scope(binding.environment.api(), &binding.user))
-        {
-            history::apply(&mut items, remembered);
-        }
-        items
-    }
-    /// `useProjectOpenHistory`: remember where this account last opened a
-    /// Cloud-linked Project successfully (a committed hosted Project, or a
-    /// linked checkout). Failed and cancelled openings never get here.
-    pub(super) fn sync_open_history(&mut self, cx: &mut Context<Self>) {
-        let Some(binding) = crate::features::cloud_account::broker_and_binding(cx)
-            .map(|(_, b)| b)
-            .filter(|_| crate::features::flags::cloud_enabled(&self.preferences, cx))
-        else {
-            return;
-        };
-        let cloud = self.hosted_project();
-        let local = self
-            .workspace_root()
-            .map(|p| p.to_string_lossy().into_owned());
-        if cloud.is_none() && local.is_none() {
-            return;
-        }
-        let items = if cloud.is_some() {
-            vec![]
-        } else {
-            self.project_items(cx)
-        };
-        let Some(entry) = history::current(&items, local.as_deref(), cloud.as_deref()) else {
-            return;
-        };
-        let scope = history::scope(binding.environment.api(), &binding.user);
-        let known = self
-            .preferences
-            .read(cx)
-            .state
-            .project_open_history
-            .get(&scope)
-            .is_some_and(|h| h.contains(&entry));
-        if !known {
-            self.preferences.update(cx, |p, cx| {
-                p.change(
-                    |p| {
-                        history::record(p.project_open_history.entry(scope).or_default(), entry);
-                    },
-                    cx,
-                )
-            });
-        }
+        catalog::build(&local, cloud, activity)
     }
     /// `showEmptyStateIntro`: the intro plays whenever the Homepage appears
     /// (or loses its last project) with no projects, unless motion is
@@ -435,360 +451,401 @@ impl Shell {
                 .into_any_element(),
         )
     }
-    pub(super) fn home_view(&self, cx: &mut Context<Self>) -> Div {
-        if self.restoring() {
-            return self.restoring_view(cx);
+    pub(super) fn home_view(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        if self.restoring() || self.home_first_paint_pending(window, cx) {
+            return self.restoring_view(cx).into_any_element();
         }
+        self.sync_project_view(cx);
         let t = cx.palette();
-        let items = self.project_items(cx);
-        let has_projects = !items.is_empty();
-        let busy = self.pending || self.files.busy() || self.files.folder_busy;
-        // `OnboardingBrandLockup`: the 28px mark and the prompt in
-        // `--po-text-muted`. On dark the product applies
-        // `grayscale(1) brightness(0.7)` to the mark; GPUI images have no
-        // filters, so the dark variant has it baked in (`assets/README.md`).
-        let brand = h_flex()
-            .flex_shrink_0()
-            .w_full()
-            .min_w_0()
-            .gap(px(12.))
-            .mb(px(if has_projects { 34. } else { 24. }))
-            .text_color(t.muted)
-            .child(
-                img(SharedString::from(if t.dark {
-                    "brand/puppy-dark-onboarding.svg"
-                } else {
-                    "brand/puppy-lite.svg"
-                }))
-                .size(px(28.))
-                .object_fit(ObjectFit::Contain)
-                .flex_shrink_0(),
-            )
-            .child(
-                // `letter-spacing: -0.035em`.
-                div()
-                    .min_w_0()
-                    .overflow_hidden()
-                    .text_size(px(theme::ty().ui.heading))
-                    .line_height(px(22.))
-                    .font_weight(FontWeight::MEDIUM)
-                    .child(crate::ui::tracked_text(
-                        tr(if has_projects {
-                            "onboarding.section.chooseProject"
-                        } else {
-                            "onboarding.brand.agentReadyMessage"
-                        }),
-                        -0.035,
-                    )),
-            );
-        // `OnboardingPrimarySection`: one framed slot between two rules.
-        let primary = v_flex()
-            .w_full()
-            .min_w_0()
-            .min_h_0()
-            .flex_shrink(1.)
-            .pt(px(24.))
-            .pb(px(if has_projects { 10. } else { 18. }))
-            .mb(px(if has_projects { 12. } else { 18. }))
-            .border_t_1()
-            .border_b_1()
-            .border_color(t.border)
-            .child(if has_projects {
-                self.project_list(items, busy, cx).into_any_element()
-            } else {
-                h_flex()
-                    .child(self.create_action(true, busy, cx))
-                    .into_any_element()
-            });
-        let actions = v_flex()
-            .flex_shrink_0()
-            .w_full()
-            .items_start()
-            .gap(px(2.))
-            .when(!has_projects, |d| d.pb(px(18.)))
-            .when(has_projects, |d| {
-                d.child(self.create_action(false, busy, cx))
-            })
-            .child(
-                Button::new("home-open-folder")
-                    .variant(ButtonVariant::Entry)
-                    .icon(crate::ui::components::ProductIcon::Folder)
-                    .label(tr("onboarding.action.openFolder"))
-                    .disabled(busy)
-                    .on_click(cx.listener(|s, _, w, cx| s.command(Command::OpenFolder, w, cx))),
-            )
-            .child(self.import_action(t, busy, cx));
-        let launcher = v_flex()
-            .w(px(COLUMN_WIDTH))
-            .max_w_full()
-            .max_h_full()
-            .min_h_0()
-            // `.is-empty-state-intro > .onboarding-homepage`: the column fades in.
-            .when_some(self.homepage.intro.as_ref(), |d, timeline| {
-                let (w, h) = (self.layout.header.w, self.layout.editor.bottom());
-                d.opacity(intro::current(timeline, w, h).content)
-            })
-            .child(brand)
-            .child(primary)
-            .child(actions);
-        // `.onboarding-homepage-shell`: the column centred in the window,
-        // below the Header (the Header paints over the top).
-        let (top, bottom) = if has_projects {
-            (metric::CHROME_HEIGHT + 51., 16.)
+        let all = self.project_items(cx);
+        let has_projects = !all.is_empty() || self.homepage.list_held();
+        let busy = self.pending
+            || self.files.busy()
+            || self.files.folder_busy
+            || self.files.cloud_opening().is_some();
+        let (w, h) = (self.layout.header.w, self.layout.editor.bottom());
+        let pad = metric::UTILITY_PADDING_INLINE;
+        let page_w = PAGE_WIDTH.min(w - pad * 2.).max(0.);
+        let column = if has_projects {
+            COLUMN_PROJECTS
         } else {
-            (48., 48.)
-        };
-        at(Rect::new(
-            0.,
-            0.,
-            self.layout.header.w,
-            self.layout.editor.bottom(),
-        ))
-        .bg(t.canvas)
-        .flex()
-        .flex_col()
-        .items_center()
-        .justify_center()
-        .pt(px(top))
-        .pb(px(bottom))
-        .px(px(metric::UTILITY_PADDING_INLINE))
-        .child(launcher)
-        .when(!has_projects, |d| {
-            d.children(self.telemetry_disclosure(self.layout.header.w, cx))
-        })
-        .children(self.cloud_opening_overlay(cx))
-        .when(self.files.folder_busy, |d| {
-            // OnboardingProjectLoading: the chosen project's request is
-            // pending, not the native folder picker. Shared area figure.
-            d.child(
-                div()
-                    .absolute()
-                    .top(px(metric::CHROME_HEIGHT))
-                    .bottom_0()
-                    .left_0()
-                    .right_0()
-                    .occlude()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .p(px(32.))
-                    .bg(theme::alpha(t.canvas, 0.84))
-                    .child(
-                        v_flex()
-                            .items_center()
-                            .gap(px(16.))
-                            .child(
-                                crate::ui::loading::LoadingMark::new("project-opening")
-                                    .area()
-                                    .size(crate::ui::loading::LoaderSize::Md)
-                                    .tone(crate::ui::loading::Tone::Neutral),
-                            )
-                            .child(
-                                div()
-                                    .text_size(px(theme::ty().ui.body))
-                                    .text_color(t.text)
-                                    .font_weight(FontWeight::MEDIUM)
-                                    .child(tr("onboarding.status.loadingProject")),
-                            ),
-                    ),
-            )
-        })
-    }
-    /// `OnboardingProjectList`: one menu row per project in the shared
-    /// order. Cloud-linked rows show where they open and a quiet Open menu;
-    /// checkouts trade their time for Remove on hover.
-    fn project_list(&self, items: Vec<Item>, busy: bool, cx: &mut Context<Self>) -> Stateful<Div> {
-        let t = cx.palette();
-        let now = SystemTime::now();
-        let cloud = crate::features::flags::cloud_enabled(&self.preferences, cx);
-        let rows = items
-            .into_iter()
-            .enumerate()
-            .map(|(index, item)| {
-                let name = item_name(&item);
-                let opening = item.opening();
-                let menu_open = self.homepage.open_menu.as_deref() == Some(item.id.as_str());
-                let mut row = MenuItem::new(name.clone())
-                    .icon_element(project_icon(item.location(), t))
-                    .detail(match &item.cloud_project {
-                        Some(_) => open_caption(&item),
-                        None => item
-                            .local_path
-                            .as_deref()
-                            .map(|p| parent_for_display(Path::new(p)))
-                            .unwrap_or_default(),
-                    })
-                    .disabled(busy)
-                    .hold_hover(menu_open)
-                    .on_click({
-                        let host = cx.weak_entity();
-                        let item = item.clone();
-                        move |w, cx| {
-                            let _ = host.update(cx, |s, cx| s.open_item(&item, opening, w, cx));
+            COLUMN_EMPTY
+        }
+        .min(page_w);
+        let error = self.homepage.error.clone().map(|error| {
+            // `.onboarding-error.onboarding-homepage-error`.
+            h_flex()
+                .flex_none()
+                .w(px(COLUMN_PROJECTS.min(page_w)))
+                .items_start()
+                .gap(px(8.))
+                .py(px(9.))
+                .px(px(10.))
+                .rounded(px(8.))
+                .border_1()
+                .border_color(theme::mix(t.danger, t.border_subtle, 0.18))
+                .bg(theme::alpha(t.danger, 0.06))
+                .text_color(t.danger)
+                .text_size(px(theme::ty().ui.body))
+                .line_height(relative(1.4))
+                .child(Icon::new("triangle-alert").with_size(px(15.)).mt(px(1.)))
+                .child(div().min_w_0().child(error))
+        });
+        let intro = self
+            .homepage
+            .intro
+            .as_ref()
+            .map(|timeline| intro::current(timeline, w, h).content);
+        let page = if has_projects {
+            let items = self.visible_projects(cx);
+            // `.onboarding-brand-lockup` with its toolbar and the entry menu.
+            let head = h_flex()
+                .flex_none()
+                .w_full()
+                .min_w_0()
+                .gap(px(8.))
+                .mb(px(8.))
+                .text_color(t.muted)
+                .child(self.project_toolbar(busy, cx))
+                .child(self.entry_menu(busy, w <= 696., cx));
+            let list = self.project_list(items, column, busy, window, cx);
+            // `.onboarding-home-primary[data-onboarding-primary="projects"]`:
+            // the projects sit on the page; a fill appears only for a drop.
+            let primary = div()
+                .flex_1()
+                .min_h_0()
+                .w_full()
+                .flex()
+                .flex_col()
+                .rounded(px(metric::CARD_RADIUS))
+                .when(self.homepage.dragging, |d| d.bg(t.hover))
+                .child(list);
+            v_flex()
+                .w(px(page_w))
+                .h_full()
+                .items_center()
+                .gap(px(30.))
+                .child(
+                    v_flex()
+                        .w(px(column))
+                        .flex_1()
+                        .min_h_0()
+                        .max_h_full()
+                        .child(head)
+                        .child(primary),
+                )
+                .children(error)
+        } else {
+            // First run: the Puppy and a line, New project, then Open a
+            // folder and Import side by side.
+            let brand = v_flex()
+                .flex_none()
+                .w_full()
+                .items_center()
+                .gap(px(16.))
+                .mb(px(20.))
+                .text_color(t.muted)
+                .child(
+                    img(SharedString::from(if t.dark {
+                        "brand/puppy-dark-onboarding.svg"
+                    } else {
+                        "brand/puppy-lite.svg"
+                    }))
+                    .size(px(48.))
+                    .object_fit(ObjectFit::Contain)
+                    .flex_shrink_0(),
+                )
+                .child(
+                    div()
+                        .text_size(px(theme::ty().ui.heading))
+                        .line_height(relative(1.25))
+                        .font_weight(FontWeight::MEDIUM)
+                        .text_center()
+                        .child(tr("onboarding.brand.agentReadyMessage")),
+                );
+            let primary = div()
+                .w_full()
+                .mb(px(8.))
+                .rounded(px(metric::CARD_RADIUS))
+                .when(self.homepage.dragging, |d| d.bg(t.hover))
+                .child(self.create_action(true, busy, cx).w_full());
+            let actions = h_flex()
+                .w_full()
+                .gap(px(8.))
+                .pb(px(18.))
+                .child(
+                    Button::new("home-open-folder")
+                        .variant(ButtonVariant::Pattern)
+                        .icon(Icon::product(ProductIcon::Folder).small().stroke(1.85))
+                        .label(tr("onboarding.action.openFolder"))
+                        .disabled(busy)
+                        .flex_1()
+                        .min_w_0()
+                        .text_size(px(theme::ty().ui.body))
+                        .font_weight(FontWeight::NORMAL)
+                        .when(self.homepage.dragging, |b| b.bg(t.control_hover))
+                        .on_click(cx.listener(|s, _, w, cx| s.command(Command::OpenFolder, w, cx))),
+                )
+                .child(self.import_action(t, busy, cx).flex_1().min_w_0());
+            v_flex()
+                .w(px(page_w))
+                .items_center()
+                .gap(px(30.))
+                .child(
+                    v_flex()
+                        .w(px(column))
+                        .child(brand)
+                        .child(primary)
+                        .child(actions),
+                )
+                .children(error)
+        }
+        .when_some(intro, |d, opacity| d.opacity(opacity));
+        let host = self.weak.clone();
+        at(Rect::new(0., 0., w, h))
+            .id("homepage")
+            .bg(t.canvas)
+            .flex()
+            .flex_col()
+            .items_center()
+            .when(has_projects, |d| {
+                d.justify_start()
+                    .pt(px(metric::CHROME_HEIGHT + 32.))
+                    .pb(px(20.))
+            })
+            .when(!has_projects, |d| d.justify_center().py(px(48.)))
+            .px(px(pad))
+            .child(page)
+            // `useWorkspaceFolderDrop`: a folder dropped anywhere opens.
+            .on_drag_move::<ExternalPaths>(cx.listener(|s, _, _, cx| {
+                if !s.homepage.dragging {
+                    s.homepage.dragging = true;
+                    cx.notify();
+                }
+            }))
+            .on_drop(cx.listener(move |s, paths: &ExternalPaths, w, cx| {
+                s.homepage.dragging = false;
+                s.drop_on_homepage(paths.paths(), w, cx);
+            }))
+            .on_hover(move |hovered, _, cx| {
+                if !*hovered {
+                    let _ = host.update(cx, |s, cx| {
+                        if s.homepage.dragging {
+                            s.homepage.dragging = false;
+                            cx.notify();
                         }
                     });
-                if let Some(ms) = item.modified.filter(|m| *m > 0) {
-                    let changed = UNIX_EPOCH + Duration::from_millis(ms as u64);
-                    row = row.trailing_text(modification_time(changed, now));
                 }
-                let open_menu = (cloud && item.cloud_project.is_some())
-                    .then(|| self.project_open_menu(index, &item, &name, busy, menu_open, cx));
-                let remove = item.local_path.clone().map(|path| {
-                    let remove_label = tf(
-                        "onboarding.projects.removeFor",
-                        &[("project", name.clone().into())],
-                    );
-                    // `DesktopMenuIconButton.onboarding-project-remove`.
-                    IconButton::new(("home-project-remove", index), "unlink")
-                        .label(remove_label)
-                        // The tooltip says the files stay (`removeHint`);
-                        // the accessible name keeps the project.
-                        .tooltip(tr("onboarding.projects.removeHint"))
-                        .with_size(px(22.))
-                        .rounded(px(5.))
-                        .color(t.text_disabled)
-                        .danger()
-                        .on_click(cx.listener(move |s, _, w, cx| {
-                            cx.stop_propagation();
-                            s.confirm_remove_project(PathBuf::from(&path), w, cx);
-                        }))
-                });
-                if open_menu.is_some() {
-                    // `padding-inline-end: 112px` while the Open menu shows.
-                    row = row.hover_reserve(112.);
-                }
-                if open_menu.is_some() || remove.is_some() {
-                    // Open sits 34px from the end, Remove 6px.
-                    row = row.hover_trailing(h_flex().gap(px(6.)).children(open_menu).child(
-                        match remove {
-                            Some(remove) => remove.into_any_element(),
-                            None => div().w(px(22.)).into_any_element(),
-                        },
-                    ));
-                }
-                MenuRow::new(("home-project", index), row).variant(MenuVariant::Homepage)
             })
-            .collect::<Vec<_>>();
-        v_flex()
-            .id("home-projects")
-            .w_full()
-            .min_h_0()
-            .flex_shrink(1.)
-            .pr(px(SCROLLBAR_GUTTER))
-            .gap(px(2.))
-            .overflow_y_scroll()
-            .track_scroll(&self.home_scroll)
-            .children(rows)
-            .child(crate::ui::scrollbar::vertical(
-                "home-projects-scrollbar",
-                &self.home_scroll,
-            ))
-    }
-    /// `ProjectOpenMenu`: "Open ⌄" and the two opening choices, aligned to
-    /// its end, 4px below. This computer needs the row's checkout.
-    fn project_open_menu(
-        &self,
-        index: usize,
-        item: &Item,
-        name: &str,
-        busy: bool,
-        open: bool,
-        cx: &mut Context<Self>,
-    ) -> AnyElement {
-        let t = cx.palette();
-        let id = item.id.clone();
-        let trigger = Button::new(("home-project-open", index))
-            .variant(ButtonVariant::Quiet)
-            .label(tr("shell.projectOpen.action"))
-            .trailing(Icon::new("chevron-down").with_size(px(12.)).stroke(2.))
-            .accessibility_label(tf(
-                "shell.projectOpen.forProject",
-                &[("project", name.to_owned().into())],
-            ))
-            .disabled(busy);
-        let host = self.weak.clone();
-        let device = tr(if cfg!(target_os = "macos") {
-            "shell.projectOpen.onMac"
-        } else {
-            "shell.projectOpen.onComputer"
-        });
-        let local = {
-            let host = host.clone();
-            let item = item.clone();
-            MenuItem::new(device)
-                .icon_sized(Icon::product(ProductIcon::Local).with_size(px(15.)))
-                .disabled(item.local_path.is_none())
-                .on_click(move |w, cx| {
-                    let _ = host.update(cx, |s, cx| {
-                        s.homepage.open_menu = None;
-                        s.open_item(&item, Opening::Local, w, cx)
-                    });
-                })
-        };
-        let remote = {
-            let host = host.clone();
-            let item = item.clone();
-            MenuItem::new(tr("shell.projectOpen.inCloud"))
-                .icon_sized(
-                    Icon::product(ProductIcon::Cloud)
-                        .with_size(px(15.))
-                        .color(t.accent_text),
+            .when(!has_projects, |d| {
+                d.children(self.telemetry_disclosure(w, cx))
+            })
+            .children(self.cloud_opening_overlay(cx))
+            .when(self.files.folder_busy, |d| {
+                // OnboardingProjectLoading: the chosen project's request is
+                // pending, not the native folder picker. Shared area figure.
+                d.child(
+                    div()
+                        .absolute()
+                        .top(px(metric::CHROME_HEIGHT))
+                        .bottom_0()
+                        .left_0()
+                        .right_0()
+                        .occlude()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .p(px(32.))
+                        .bg(theme::alpha(t.canvas, 0.84))
+                        .child(
+                            v_flex()
+                                .items_center()
+                                .gap(px(16.))
+                                .child(
+                                    crate::ui::loading::LoadingMark::new("project-opening")
+                                        .area()
+                                        .size(crate::ui::loading::LoaderSize::Md)
+                                        .tone(crate::ui::loading::Tone::Neutral),
+                                )
+                                .child(
+                                    div()
+                                        .text_size(px(theme::ty().ui.body))
+                                        .text_color(t.text)
+                                        .font_weight(FontWeight::MEDIUM)
+                                        .child(tr("onboarding.status.loadingProject")),
+                                ),
+                        ),
                 )
-                .on_click(move |w, cx| {
-                    let _ = host.update(cx, |s, cx| {
-                        s.homepage.open_menu = None;
-                        s.open_item(&item, Opening::Cloud, w, cx)
-                    });
-                })
-        };
-        let menu = crate::ui::components::PopoverMenu::new(("home-project-open-menu", index))
-            .anchor(Anchor::TopRight)
-            .offset(px(4.))
-            .open(open && !busy)
-            .on_open_change(move |opened, _, cx| {
-                let _ = host.update(cx, |s, cx| {
-                    if *opened {
-                        s.homepage.open_menu = Some(id.clone());
-                    } else if s.homepage.open_menu.as_deref() == Some(id.as_str()) {
-                        s.homepage.open_menu = None;
-                    }
-                    cx.notify();
-                });
             })
-            .trigger(trigger)
-            .menu(move |surface, _, _| {
-                surface
-                    .variant(MenuVariant::Project)
-                    .min_w(px(OPEN_MENU_WIDTH))
-                    .item(local)
-                    .item(remote)
-            });
-        // The row behind must not open the project as well.
-        div()
-            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-            .on_mouse_up(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-            .child(menu)
             .into_any_element()
     }
-    /// Opens a row where it was asked to: a checkout here; Cloud in this
-    /// window for a linked row, in a dedicated window for a hosted-only one.
-    pub(super) fn open_item(
-        &mut self,
-        item: &Item,
-        opening: Opening,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        match (opening, &item.local_path, &item.cloud_project) {
-            (Opening::Local, Some(path), _) => self.open_project(PathBuf::from(path), window, cx),
-            (Opening::Cloud, Some(_), Some(project)) => {
-                self.popover = None;
-                self.open_cloud(project.clone(), cx)
+    /// `HomepageCloudStatus`: the account, never a project row. Loading,
+    /// a failure (with what helps) or an empty catalog lead it; then the
+    /// account's initial, or Sign in.
+    pub(super) fn homepage_account(&self, cx: &mut Context<Self>) -> AnyElement {
+        use crate::features::cloud_account::Status;
+        use crate::features::cloud_catalog::State;
+        let t = cx.palette();
+        let ty = theme::ty().header;
+        let account = cx
+            .try_global::<crate::features::cloud_account::CloudAccountService>()
+            .map(|s| s.0.read(cx).snapshot.clone())
+            .unwrap_or_default();
+        let status = account.as_ref().map(|a| a.status);
+        let email = account
+            .as_ref()
+            .and_then(|a| a.account.as_ref())
+            .map(|a| a.email.clone());
+        let restoring = status == Some(Status::Restoring);
+        let signing_in = status == Some(Status::SigningIn);
+        let auth_error = account
+            .as_ref()
+            .filter(|a| a.account.is_none())
+            .and_then(|a| a.error);
+        let catalog = self.cloud_catalog.read(cx).state.clone();
+        let text = |text: String, color: Rgba| {
+            div()
+                .min_w_0()
+                .truncate()
+                .text_size(px(ty.content))
+                .line_height(px(ty.line_height))
+                .text_color(color)
+                .child(text)
+        };
+        let feedback: Option<AnyElement> = if self.files.cloud_opening().is_some() {
+            None
+        } else if catalog == State::Failed || auth_error.is_some() {
+            let label = match &auth_error {
+                Some(error) => error.to_string(),
+                None => tr("cloud.catalog.loadFailed").to_owned(),
+            };
+            let sign_in = auth_error.is_some();
+            Some(
+                h_flex()
+                    .min_w_0()
+                    .gap(px(8.))
+                    .child(text(label, t.danger))
+                    .child(
+                        Button::new("homepage-cloud-retry")
+                            .variant(ButtonVariant::Titlebar)
+                            .label(tr("cloud.common.retry"))
+                            .on_click(cx.listener(move |s, _, _, cx| {
+                                if sign_in {
+                                    crate::features::cloud_account::sign_in(cx);
+                                } else {
+                                    s.refresh_cloud_catalog(true, cx);
+                                }
+                            })),
+                    )
+                    .into_any_element(),
+            )
+        } else if restoring || catalog == State::Loading || (email.is_none() && signing_in) {
+            Some(
+                h_flex()
+                    .gap(px(6.))
+                    .child(
+                        crate::ui::loading::LoadingMark::new("homepage-cloud-loading")
+                            .size(crate::ui::loading::LoaderSize::Xs)
+                            .tone(crate::ui::loading::Tone::Neutral),
+                    )
+                    .child(text(
+                        tr(if signing_in {
+                            "cloud.home.waitingForSignIn"
+                        } else {
+                            "cloud.home.loading"
+                        })
+                        .to_owned(),
+                        t.utility,
+                    ))
+                    .into_any_element(),
+            )
+        } else if email.is_some()
+            && matches!(&catalog, State::Ready(list) if list.is_empty())
+            && self.project_items(cx).is_empty()
+        {
+            Some(text(tr("cloud.catalog.empty").to_owned(), t.utility).into_any_element())
+        } else {
+            None
+        };
+        let entry: Option<AnyElement> = (!restoring).then(|| match &email {
+            Some(email) => {
+                let initial = email
+                    .trim()
+                    .chars()
+                    .next()
+                    .map(|c| c.to_uppercase().to_string())
+                    .unwrap_or_else(|| "P".into());
+                let size = 22.;
+                div()
+                    .id("homepage-cloud-avatar")
+                    .flex()
+                    .flex_none()
+                    .items_center()
+                    .justify_center()
+                    .size(px(size))
+                    .mr(px((theme::control() - 4. - size) / 2.))
+                    .rounded_full()
+                    .bg(t.control)
+                    .text_color(t.utility)
+                    .text_size(px(ty.content))
+                    .line_height(px(ty.line_height))
+                    .cursor(theme::clickable_cursor())
+                    .hover(move |s| s.bg(t.control_hover).text_color(t.text))
+                    .tooltip(crate::ui::components::tooltip(format!(
+                        "{}: {email}",
+                        tr("settings.sidebar.account")
+                    )))
+                    .on_click(cx.listener(|s, _, w, cx| {
+                        s.command(Command::Settings, w, cx);
+                        s.task_ui.settings.update(cx, |settings, cx| {
+                            settings.select_page(crate::features::settings::Page::Account, cx)
+                        });
+                    }))
+                    .child(initial)
+                    .into_any_element()
             }
-            (_, None, Some(project)) => {
-                self.popover = None;
-                let _ = super::windows::open_cloud(project.clone(), cx);
+            None => Button::new("homepage-cloud-sign-in")
+                .variant(ButtonVariant::Titlebar)
+                .label(tr("cloud.auth.signIn"))
+                .accessibility_label(tr("cloud.auth.signInToCloud"))
+                .pl(px(7.))
+                .pr(px(8.))
+                .text_size(px(ty.content))
+                .line_height(px(ty.line_height))
+                .on_click(cx.listener(|_, _, _, cx| crate::features::cloud_account::sign_in(cx)))
+                .into_any_element(),
+        });
+        h_flex()
+            .min_w_0()
+            .max_w(px(360.))
+            .h(px(theme::control() - 4.))
+            .gap(px(8.))
+            .justify_end()
+            .children(feedback)
+            .children(entry)
+            .into_any_element()
+    }
+    /// A folder dropped on the page opens; anything else says why not.
+    fn drop_on_homepage(&mut self, paths: &[PathBuf], window: &mut Window, cx: &mut Context<Self>) {
+        match paths.iter().find(|p| p.is_dir()) {
+            Some(folder) if paths.len() == 1 => {
+                self.homepage.error = None;
+                self.open_project(folder.clone(), window, cx);
             }
+            _ => {
+                self.homepage.error = Some(tr("onboarding.error.dropLocalFolder").into());
+                cx.notify();
+            }
+        }
+    }
+    /// Opens an entry in this window: a local folder, or a Cloud project
+    /// (`selectCloudProject`); a folder's Cloud project is its own entry.
+    pub(super) fn open_item(&mut self, item: &Item, window: &mut Window, cx: &mut Context<Self>) {
+        self.popover = None;
+        self.homepage.error = None;
+        match (&item.local_path, &item.cloud_project) {
+            (Some(path), _) => self.open_project(PathBuf::from(path), window, cx),
+            (None, Some(project)) => self.open_cloud(project.clone(), cx),
             _ => {}
         }
         cx.notify();
@@ -848,67 +905,54 @@ impl Shell {
                 .into_any_element(),
         )
     }
-    /// `OnboardingCreateProjectAction`: the default path in the empty state.
+    /// `OnboardingCreateProjectAction`: "New project", the default path.
     fn create_action(&self, prominent: bool, busy: bool, cx: &mut Context<Self>) -> Button {
         Button::new("home-create-project")
             .variant(if prominent {
-                ButtonVariant::EntryPrimary
+                ButtonVariant::PatternPrimary
             } else {
-                ButtonVariant::Entry
+                ButtonVariant::Pattern
             })
-            .icon("file-plus-2")
+            .icon(Icon::new("file-plus-2").small().stroke(1.85))
             .label(tr("onboarding.action.createLocalProject"))
+            .accessibility_label(tr("onboarding.action.createLocalProject"))
             .disabled(busy)
+            .text_size(px(theme::ty().ui.body))
+            .font_weight(FontWeight::NORMAL)
             .on_click(cx.listener(|s, _, w, cx| s.begin_create_project(w, cx)))
+    }
+    /// New project at the head of a page with projects; below the column's
+    /// width it keeps its key and gives its words to assistive technology.
+    fn create_action_compact(&self, narrow: bool, busy: bool, cx: &mut Context<Self>) -> Button {
+        let label = tr("onboarding.action.createLocalProject");
+        let button = Button::new("home-create-project")
+            .variant(ButtonVariant::PatternPrimary)
+            .icon(Icon::new("file-plus-2").small().stroke(1.85))
+            .accessibility_label(label)
+            .disabled(busy)
+            .text_size(px(theme::ty().ui.body))
+            .font_weight(FontWeight::NORMAL)
+            .on_click(cx.listener(|s, _, w, cx| s.begin_create_project(w, cx)));
+        if narrow {
+            button.tooltip(label).px(px(11.))
+        } else {
+            button.label(label)
+        }
     }
     /// `ImportAction` with its GitHub and GitLab preview: clone a repository
     /// into a new local project.
     fn import_action(&self, t: Theme, busy: bool, cx: &mut Context<Self>) -> Button {
         let label = tr("onboarding.action.importFromApps");
         Button::new("home-import")
-            .variant(ButtonVariant::Entry)
-            .icon("download")
+            .variant(ButtonVariant::Pattern)
+            .icon(Icon::new("download").small().stroke(1.85))
             .label(label)
             .disabled(busy)
+            .text_size(px(theme::ty().ui.body))
+            .font_weight(FontWeight::NORMAL)
             .on_click(cx.listener(|s, _, w, cx| s.begin_import(w, cx)))
-            // `.onboarding-entry-import-brand-badge`, ringed in the canvas.
-            .trailing(project_entry::import_badges(t, t.canvas, busy).ml(px(-2.)))
-    }
-    /// `removeProject`: confirm, then forget the project (its files stay).
-    fn confirm_remove_project(
-        &mut self,
-        path: PathBuf,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let name = self
-            .recent_projects
-            .iter()
-            .find(|p| p.path == path)
-            .map(project_name)
-            .unwrap_or_default();
-        let answer = window.prompt(
-            PromptLevel::Warning,
-            &tf(
-                "settings.localProject.unlink.confirm",
-                &[("workspace", name.into())],
-            ),
-            None,
-            &[
-                tr("settings.localProject.unlink.action"),
-                tr("common.action.cancel"),
-            ],
-            cx,
-        );
-        cx.spawn(async move |this, cx| {
-            if answer.await == Ok(0) {
-                let _ = this.update(cx, |s, cx| {
-                    s.preferences
-                        .update(cx, |p, cx| p.change(|p| p.forget_project(&path), cx))
-                });
-            }
-        })
-        .detach();
+            // `.onboarding-entry-import-brand-badge`, ringed in the control.
+            .trailing(project_entry::import_badges(t, t.canvas, busy))
     }
 }
 

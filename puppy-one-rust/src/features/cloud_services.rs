@@ -26,6 +26,7 @@ use gpui_kit::{
     base::{Disableable as _, h_flex, v_flex},
     component::Sizable as _,
 };
+#[cfg(feature = "dev-capture")]
 use serde_json::json;
 use std::sync::Arc;
 
@@ -175,6 +176,16 @@ impl EventEmitter<Close> for CloudServices {}
 /// `publish.start`: a share needs the first push finished before it can go on.
 pub struct ResumePublication;
 impl EventEmitter<ResumePublication> for CloudServices {}
+
+/// The signed-in account's Project requests (Homepage rename and delete).
+pub fn services_client(cx: &App) -> Option<Client> {
+    let (broker, binding) = cloud_account::broker_and_binding(cx)?;
+    Some(Client::new(Arc::new(services::BrokerTransport {
+        broker,
+        binding,
+        cancel: Default::default(),
+    })))
+}
 
 /// The signed-in account's billing requests (Settings → Plan).
 pub fn billing_client(cx: &App) -> Option<crate::workspace::cloud::billing::Client> {
