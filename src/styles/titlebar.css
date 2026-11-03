@@ -662,7 +662,7 @@
   transition: background 0.12s ease, color 0.12s ease;
 }
 
-.desktop-titlebar-cloud-agent .desktop-project-reach-mark:not([data-reach-activity]) > :is(img, svg) {
+.desktop-titlebar-cloud-agent .desktop-project-reach-mark:not([data-reach-activity], [data-reach-creature]) > :is(img, svg) {
   filter: grayscale(1);
 }
 
@@ -676,16 +676,15 @@
   --reach-mark-outline: color-mix(in srgb, currentColor 55%, transparent);
 }
 
-/* The Agent mark is drawn with a stroke, so it sits smaller in the circle than a brand does. */
-.desktop-titlebar-cloud-agent .desktop-project-reach-mark:not([data-reach-brand]) > svg {
-  width: 54%;
-  height: 54%;
+/* A sleeping creature comes to its full colour while it is pointed at or opened. */
+.desktop-titlebar-cloud-agent:is(:hover, [aria-expanded="true"]) .desktop-project-reach-mark[data-reach-creature] > svg {
+  filter: none;
 }
 
 /* At rest, stacked like a pile of tokens: the first in front, each one behind
    showing only its edge past a ring of the Header's colour. The stack does not
    fan out; the list is where they are told apart. */
-.desktop-titlebar-cloud-agent-stack > .desktop-project-reach-mark:not([data-reach-activity]) {
+.desktop-titlebar-cloud-agent-stack > .desktop-project-reach-mark:not([data-reach-activity], [data-reach-creature]) {
   box-shadow: 0 0 0 1.5px var(--reach-mark-ground);
 }
 
@@ -715,6 +714,12 @@
   border: 1px dashed color-mix(in srgb, currentColor 55%, transparent);
   color: var(--desktop-titlebar-text);
   filter: none;
+}
+
+/* A creature asking to join waits inside the dashed edge, not across it. */
+.desktop-titlebar-cloud-agent[data-waiting] .desktop-project-reach-mark[data-reach-creature] > svg {
+  width: 68%;
+  height: 68%;
 }
 
 .desktop-titlebar-cloud-agent[data-waiting] .desktop-project-reach-mark::after {

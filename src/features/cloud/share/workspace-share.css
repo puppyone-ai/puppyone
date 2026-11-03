@@ -98,11 +98,30 @@
     min-height: var(--po-menu-item-height); padding-inline: var(--po-menu-item-padding-inline);
     font-size: var(--po-menu-item-font-size); line-height: var(--po-menu-item-line-height);
   }
-  .desktop-cloud-agent-slot { display: grid; flex: 0 0 var(--po-menu-icon-slot-size); width: var(--po-menu-icon-slot-size); height: var(--po-menu-icon-slot-size); place-items: center; }
+
+  /* The Agents themselves: a roster, each as itself, its name and when it was
+     last here under it. Centred so two read as a pair and three as a row; past
+     three it wraps. The one at work is awake and hops, as it does in the Header. */
+  .desktop-cloud-agent-roster {
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 2px;
+    margin: 0; padding: 10px 1px 6px; list-style: none;
+  }
+  .desktop-cloud-agent-roster li {
+    display: grid; justify-items: center; align-content: start; gap: 2px;
+    box-sizing: border-box; width: 88px; min-width: 0; padding: 4px 2px 6px; text-align: center;
+  }
+  .desktop-cloud-agent-portrait { display: grid; margin-bottom: 6px; place-items: center; }
+  .desktop-cloud-agent-roster .desktop-project-reach-mark { --reach-mark-ground: var(--po-menu-bg); }
+  .desktop-cloud-agent-roster .desktop-cloud-agent-name {
+    display: -webkit-box; flex: none; max-width: 100%; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+    font-size: var(--po-menu-meta-font-size); line-height: 16px; white-space: normal; overflow-wrap: anywhere;
+  }
+  .desktop-cloud-agent-roster .desktop-cloud-agent-state { max-width: 100%; overflow: hidden; font-size: var(--po-type-ui-micro, 11px); line-height: 14px; text-overflow: ellipsis; }
+  .desktop-cloud-agent-roster li[data-active] .desktop-cloud-agent-state { color: var(--po-success); }
   :is(.desktop-cloud-agent-list, .desktop-cloud-agents-manage-list) .desktop-project-reach-mark { --reach-mark-ground: var(--po-menu-bg); flex-shrink: 0; animation: none; }
   :is(.desktop-cloud-agent-list, .desktop-cloud-agents-manage-list) .desktop-project-reach-mark::before { animation: none; }
   /* At rest, the same soft disc as in the Header, so an Agent looks like itself in both. */
-  :is(.desktop-cloud-agent-list, .desktop-cloud-agents-manage-list) .desktop-project-reach-mark:not([data-reach-activity]) {
+  :is(.desktop-cloud-agent-list, .desktop-cloud-agents-manage-list) .desktop-project-reach-mark:not([data-reach-activity], [data-reach-creature]) {
     --reach-mark-fill: color-mix(in srgb, currentColor 14%, transparent); box-shadow: none; filter: grayscale(1);
   }
   /* The menu's trailing meta, as the branch menu's counts and the place menu's details read. */
@@ -122,6 +141,8 @@
   .desktop-cloud-agent-request-allow { height: var(--po-control-size-compact); padding: 0 11px; border-radius: var(--desktop-control-radius); font-size: var(--po-type-ui-caption, 12px); font-weight: var(--po-text-weight-medium, 500); }
   :is(.desktop-cloud-agent-request-deny, .desktop-cloud-agent-request-allow):focus-visible { outline: 2px solid var(--po-accent); outline-offset: 1px; }
   .desktop-cloud-agent-waiting-mark { display: grid; flex-shrink: 0; }
+  /* A creature asking to join waits inside the dashed edge, not across it. */
+  .desktop-cloud-agent-waiting-mark .desktop-project-reach-mark[data-reach-creature] > svg { width: 68%; height: 68%; }
   :is(.desktop-cloud-agent-list, .desktop-cloud-agent-demo) .desktop-cloud-agent-waiting-mark .desktop-project-reach-mark { --reach-mark-fill: transparent; box-shadow: none; border: 1px dashed color-mix(in srgb, currentColor 55%, transparent); filter: none; }
   .desktop-cloud-agents-panel-alert { padding: 4px var(--po-menu-item-padding-inline); }
 

@@ -5,6 +5,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CloudWorkspaceAgentPeople } from "../../../../src/app/CloudWorkspaceAgentPeople";
+import { agentCreatureFor } from "../../../../src/features/app-shell/project-reach/AgentCreature";
 import { CloudWorkspaceHeaderTools } from "../../../../src/features/cloud/workbench/CloudWorkspaceHeaderTools";
 import { cloudApiRequest, type DesktopCloudSession } from "../../../../src/lib/cloudApi";
 import type { ProjectCloudContext } from "../../../../src/features/cloud/project/context";
@@ -97,18 +98,32 @@ describe("An Agent in the Header", () => {
     expect(agentButton("r1").getAttribute("aria-expanded")).toBe("true");
     expect(stack()!.getAttribute("aria-expanded")).toBe("false");
   });
-  it("shows the kind of Agent, and the Agent mark, never a letter of its name, when it cannot recognize one", async () => {
+  it("shows the kind of Agent, and a creature of its own, never a letter of its name, when it cannot recognize one", async () => {
     connections = [connection("1", "Grok Bot"), connection("2", "Research helper"), connection("3", "秘书小陈")];
     await render();
     const [grok, helper, secretary] = marks();
     expect(grok?.dataset.reachBrand).toBe("grok-bot");
-    expect(grok?.textContent).toBe("");
+    expect(grok?.dataset.reachCreature).toBeUndefined();
     expect(grok?.querySelector("img")).not.toBeNull();
     for (const mark of [helper, secretary]) {
       expect(mark?.dataset.reachBrand).toBeUndefined();
+      expect(mark?.dataset.reachCreature).toBe("");
       expect(mark?.textContent).toBe("");
-      expect(mark?.querySelector("svg")).not.toBeNull();
     }
+    const creature = (mark?: HTMLElement) => mark?.querySelector<SVGElement>(".desktop-agent-creature")?.dataset;
+    // The same name makes the same creature, wherever and whenever it is drawn.
+    expect(creature(helper)?.creatureBody).toBe(String(agentCreatureFor("Research helper").body));
+    expect(creature(secretary)?.creatureBody).toBe(String(agentCreatureFor("秘书小陈").body));
+    expect(agentCreatureFor("秘书小陈")).toEqual(agentCreatureFor(" 秘书小陈 "));
+  });
+  it("wakes a creature only while its Agent works", async () => {
+    connections = [connection("c1", "Quiet agent"), connection("c2", "Busy agent")];
+    sessions = [working("g-c2")];
+    await render();
+    const eyes = (id: string) => (id === "c2" ? agentButton(id) : stack())!
+      .querySelector<SVGElement>(".desktop-agent-creature")?.dataset.creatureEyes;
+    expect(eyes("c2")).toBe("open");
+    expect(eyes("c1")).toBe("closed");
   });
   it("keeps the working Agent in front, on its own, and moves it for no one who asked for less motion", async () => {
     connections = [connection("1", "Cursor"), connection("2", "Grok Bot"), connection("3", "Gemini CLI")];

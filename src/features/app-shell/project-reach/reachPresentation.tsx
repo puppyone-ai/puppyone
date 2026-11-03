@@ -1,5 +1,4 @@
 import { bidiIsolate, useLocalization } from "@puppyone/localization";
-import { Bot } from "lucide-react";
 import {
   AgentBrandImage,
   AgentMonochromeBrandImage,
@@ -10,6 +9,7 @@ import {
 } from "@puppyone/shared-ui";
 import { useDesktopPlatformCapabilities } from "../../../platform";
 import type { ReachMember, ReachPlace, ReachState } from "./projectReachHeader";
+import { AgentCreature } from "./AgentCreature";
 
 /**
  * The marks and sentences the reach path renders, in one place because the
@@ -62,17 +62,17 @@ function PlaceDrawing({ place, size, strokeWidth }: {
  *
  * An agent is its brand: a user recognizes Claude's mark long before they
  * read the word, and the product already owns these assets. An agent whose
- * brand is unknown is still an agent, so it gets the product's Agent mark —
- * never the first character of a name it gave itself, which reads as a
- * person (or, for a CJK name, as a stamp) and says nothing the name beside it
- * does not. A person is an initial, because the product knows a name and
- * nothing more — faking an avatar would claim an identity it has not been
- * given. All are the same round mark as the account in the Homepage Header:
- * an identity looks like one.
+ * brand is unknown is a creature of its own, made from its name (see
+ * AgentCreature): never the first character of that name, which reads as a
+ * person (or, for a CJK name, as a stamp), and never one stock glyph that
+ * makes every Agent the same. A person is an initial, because the product
+ * knows a name and nothing more — faking an avatar would claim an identity it
+ * has not been given. A brand and an initial sit in the same round mark as the
+ * account in the Homepage Header; a creature is its own shape.
  *
- * Lit means working in the project right now; everything else is quiet. That
- * is the only live state these marks carry, and it comes from the reading /
- * writing facts rather than from a residency claim.
+ * Lit means working in the project right now; everything else is quiet, and a
+ * creature at rest sleeps. That is the only live state these marks carry, and
+ * it comes from the reading / writing facts rather than from a residency claim.
  */
 export function ReachMemberMark({ member, size = 18 }: {
   member: ReachMember;
@@ -86,6 +86,7 @@ export function ReachMemberMark({ member, size = 18 }: {
       data-reach-audience={member.audience}
       data-reach-activity={member.activity?.kind}
       data-reach-brand={brand?.id}
+      data-reach-creature={member.audience === "machine" && !brand ? "" : undefined}
       style={{ width: size, height: size }}
       aria-hidden="true"
     >
@@ -94,13 +95,13 @@ export function ReachMemberMark({ member, size = 18 }: {
   );
 }
 
-/** A brand, else the Agent mark for an agent, else a person's initial. */
+/** A brand, else a creature for an agent, else a person's initial. */
 function ReachMemberGlyph({ member, brand }: {
   member: ReachMember;
   brand: ReturnType<typeof resolveAgentBrand>;
 }) {
   if (brand) return <ReachBrandMark brandId={brand.id} />;
-  if (member.audience === "machine") return <Bot strokeWidth={1.9} />;
+  if (member.audience === "machine") return <AgentCreature seed={member.name} awake={Boolean(member.activity)} />;
   return <>{initial(member.name)}</>;
 }
 

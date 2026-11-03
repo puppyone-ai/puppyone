@@ -178,7 +178,7 @@
   /* Not at work: plain grey, tucked behind the mark in front with a sliver
      showing, so the row is about whoever is working. Over the row they spread
      out far enough to be told apart. */
-  .desktop-titlebar-reach-people > .desktop-project-reach-mark:not([data-reach-activity]) {
+  .desktop-titlebar-reach-people > .desktop-project-reach-mark:not([data-reach-activity], [data-reach-creature]) {
     filter: grayscale(1);
     transition: margin-inline-start 160ms ease-out;
   }
@@ -194,6 +194,44 @@
   /* The count stands clear of the stack, unclipped. */
   .desktop-titlebar-reach-people > .desktop-project-reach-count {
     margin-inline-start: 1px;
+  }
+
+  /* A creature is its own shape: no disc and no ring, the drawing reaches the
+     mark's edge. Its outline is drawn in the ground it sits on, so creatures
+     stacked over each other stay apart. Asleep it keeps its colour, quietly. */
+  .desktop-project-reach-mark[data-reach-creature] {
+    background: none;
+    box-shadow: none;
+  }
+
+  .desktop-project-reach-mark[data-reach-creature] > svg {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    opacity: 1;
+    transition: filter 0.16s ease;
+  }
+
+  .desktop-project-reach-mark[data-reach-creature]:not([data-reach-activity]) > svg {
+    filter: saturate(0.6) brightness(0.9);
+  }
+
+  .desktop-agent-creature-edge {
+    fill: var(--reach-mark-ground);
+    stroke: var(--reach-mark-ground);
+    stroke-width: 9;
+    stroke-linejoin: round;
+  }
+
+  .desktop-agent-creature-eyes ellipse {
+    fill: #18181b;
+  }
+
+  .desktop-agent-creature-eyes path {
+    fill: none;
+    stroke: #18181b;
+    stroke-width: 4.5;
+    stroke-linecap: round;
   }
 
   /* A brand stays whole inside the circle; its corners are not the circle's to cut. */

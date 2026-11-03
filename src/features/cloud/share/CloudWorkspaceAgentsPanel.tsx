@@ -13,12 +13,14 @@ import "./workspace-share.css";
 
 /**
  * What the list tells the shell about an Agent, to be drawn as the Header draws
- * it. A menu asks for its own icon size; anywhere else the shell's size holds.
+ * it. A host may ask for its own size; anywhere else the shell's size holds.
  */
 export type ShareAgentMark = Readonly<{ id: string; name: string; active: boolean; size?: number }>;
 
-/** The menu's icon slot, so an Agent's mark sits in the column every menu icon does. */
-const MENU_MARK_SIZE = 18;
+/** Larger than in the Header: the card is where the Agents are met, not glanced at. */
+const ROSTER_MARK_SIZE = 40;
+/** An Agent asking to join, big enough to be recognized in the roster once it is let in. */
+const REQUEST_MARK_SIZE = 28;
 
 /** Draws one Agent: the shell's mark, or a lamp where the shell lends none. */
 export function agentMark(agent: ShareAgentMark, renderAgentMark?: (agent: ShareAgentMark) => ReactNode) {
@@ -44,11 +46,14 @@ export type AgentsPanelControl = Readonly<{
  * the answer, who is here and when each was last here, and how to invite one.
  * Removing an Agent is a bigger decision, so it stays in Manage agents.
  *
- * Once it lists Agents it is a Header menu like the project and place menus
- * on the left: their surface, row height, icon column, separator, width and
- * the edge it hangs from. It is wider only where a row needs it: the first
- * invite, with nothing to list yet, shows how inviting goes, and an Agent
- * asking to join keeps when it asked beside its answer.
+ * It is a Header menu like the project and place menus on the left (their
+ * surface, inset, separator, width and the edge it hangs from) except where it
+ * meets the Agents: they are a roster, each as itself with its name and when
+ * it was last here under it, the one at work awake, rather than rows squeezed
+ * into an icon column. Inviting and managing stay menu rows. It is wider only
+ * where a row needs it: the first invite, with nothing to list yet, shows how
+ * inviting goes, and an Agent asking to join keeps when it asked beside its
+ * answer.
  */
 export function CloudWorkspaceAgentsPanel({ anchor, agents, requests = [], control, renderAgentMark, onManage, onClose }: {
   anchor: RefObject<HTMLElement | null>;
@@ -75,12 +80,12 @@ export function CloudWorkspaceAgentsPanel({ anchor, agents, requests = [], contr
     </ul>}
     {failed && <p className="desktop-cloud-agents-panel-alert" role="alert">{t("cloud.share.agent.changeFailed")}</p>}
     {agents.length > 0 && asking && <DesktopMenuSeparator />}
-    {agents.length > 0 && <ul className="desktop-cloud-agent-list" aria-label={t("cloud.share.agent.connected")}>
+    {agents.length > 0 && <ul className="desktop-cloud-agent-roster" aria-label={t("cloud.share.agent.connected")}>
       {/* In the Header's order: whoever is at work first, then the ones at rest. */}
       {[...agents].sort((left, right) => Number(right.active) - Number(left.active)).map(agent => {
         const state = agentRecency(agent, localization);
-        return <li key={agent.id} data-cloud-agent-row={agent.id}>
-          <span className="desktop-cloud-agent-slot">{agentMark({ ...agent, size: MENU_MARK_SIZE }, renderAgentMark)}</span>
+        return <li key={agent.id} data-cloud-agent-row={agent.id} data-active={agent.active || undefined}>
+          <span className="desktop-cloud-agent-portrait">{agentMark({ ...agent, size: ROSTER_MARK_SIZE }, renderAgentMark)}</span>
           <span className="desktop-cloud-agent-name" dir="auto">{agent.name}</span>
           {state && <span className="desktop-cloud-agent-state">{state}</span>}
         </li>;
@@ -139,8 +144,8 @@ function AgentRequestRow({ request, control, renderAgentMark, onFailed, onDecidi
     }
   };
   return <li data-cloud-agent-request={request.id}>
-    <span className="desktop-cloud-agent-slot desktop-cloud-agent-waiting-mark">
-      {agentMark({ id: request.id, name: request.name, active: false, size: MENU_MARK_SIZE }, renderAgentMark)}
+    <span className="desktop-cloud-agent-waiting-mark">
+      {agentMark({ id: request.id, name: request.name, active: false, size: REQUEST_MARK_SIZE }, renderAgentMark)}
     </span>
     <span className="desktop-cloud-agent-request-text">
       <span className="desktop-cloud-agent-name" dir="auto">{request.name}</span>
