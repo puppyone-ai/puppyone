@@ -48,6 +48,12 @@
   color: var(--po-text);
 }
 
+/* A primary action stays itself under the pointer, only a shade deeper. */
+.po-button--primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--po-accent) 88%, var(--po-canvas));
+  color: var(--po-text-inverse);
+}
+
 .po-icon-button {
   width: var(--po-control-size-compact);
   height: var(--po-control-size-compact);

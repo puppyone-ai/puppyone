@@ -106,11 +106,10 @@ export function CloudWorkspaceAgentInvite({ projectId, projectName, session, api
     </div>;
   }
   const prompt = agentConnectMessage(projectName, linkPreview(apiBaseUrl));
+  // The illustration shows the steps to a first-timer; someone inviting another reads them.
+  const demo = !compact;
   return <section ref={form} className="desktop-cloud-agent-invite" aria-label={t("cloud.share.agent.invite.title")}>
-    <h3>{t("cloud.share.agent.invite.title")}</h3>
-    {/* Someone who has never invited one sees how it goes; inviting another needs no lesson. */}
-    {!compact && <CloudWorkspaceAgentInviteDemo projectName={projectName} linkPreview={linkPreview(apiBaseUrl)}
-      renderAgentMark={renderAgentMark} />}
+    <h3>{t("cloud.share.agent.invite.lead")}</h3>
     {openLinks && <div className="desktop-cloud-agent-options" role="radiogroup" aria-label={t("cloud.share.agent.invite.title")}>
       {ADMISSIONS.map(option => <button key={option} type="button" role="radio"
         ref={element => { options.current[option] = element; }}
@@ -123,21 +122,30 @@ export function CloudWorkspaceAgentInvite({ projectId, projectName, session, api
       </button>)}
     </div>}
     {/* The words show it is a prompt; the veil and the button on it say it is copied, not read. */}
-    <div className="desktop-cloud-agent-prompt">
+    <div className="desktop-cloud-agent-prompt" data-copied={copied || undefined}>
       <p className="desktop-cloud-agent-prompt-text" dir="ltr" aria-label={t("cloud.share.agent.invite.preview")}>{prompt}</p>
       <span className="desktop-cloud-agent-prompt-veil" aria-hidden="true" />
       <Button tone="primary" className="desktop-cloud-agent-share-copy" data-cloud-agent-invite=""
-        disabled={status === "copying"} onClick={() => void copy()}
-        leadingIcon={copied ? <Check size={14} aria-hidden="true" /> : undefined}>
+        data-copied={copied || undefined} disabled={status === "copying"} onClick={() => void copy()}
+        leadingIcon={copied ? <Check size={14} strokeWidth={2.4} aria-hidden="true" /> : undefined}>
         {t(COPY_LABEL[status])}
       </Button>
     </div>
-    {/* The step after copying, in sight before it is needed. */}
-    <p className="desktop-cloud-agent-invite-hint">{t("cloud.share.agent.invite.hint")}</p>
+    {/* Right after copying, what to do with it; until an Agent answers, that it is awaited. */}
+    {copied && <p className="desktop-cloud-agent-invite-note" data-tone="done" aria-hidden="true">
+      <Check size={12} strokeWidth={2.4} aria-hidden="true" />
+      {t("cloud.share.agent.invite.pasteNext")}
+    </p>}
     {waiting && !copied && <p className="desktop-cloud-agent-invite-note" aria-hidden="true">
       <LoaderCircle className="animate-spin" size={12} strokeWidth={2.2} aria-hidden="true" />
       {t("cloud.share.agent.invite.waiting")}
     </p>}
+    {demo
+      ? <CloudWorkspaceAgentInviteDemo projectName={projectName} linkPreview={linkPreview(apiBaseUrl)}
+        renderAgentMark={renderAgentMark} />
+      : <p className="desktop-cloud-agent-invite-hint">{t("cloud.share.agent.invite.hint")}</p>}
+    {/* The illustration is not read aloud, so its steps are said in words. */}
+    {demo && <p className="desktop-cloud-share-status">{t("cloud.share.agent.invite.hint")}</p>}
     <span className="desktop-cloud-share-status" role="status">{announcement(copied, waiting, t)}</span>
     {status === "failed" && <p role="alert">{t("cloud.share.agent.failed")}</p>}
     {status === "not-owner" && <p role="alert">{t("cloud.share.agent.notOwner")}</p>}

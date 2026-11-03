@@ -91,10 +91,10 @@ describe("Inviting an Agent", () => {
     } finally { vi.useRealTimers(); }
   });
 
-  it("says it waits for the agent under the step while the Header does", async () => {
+  it("says it waits for the agent right under the prompt while the Header does", async () => {
     await render({ waiting: true });
     expect(status()).toBe("Waiting for your agent…");
-    expect(document.querySelector(".desktop-cloud-agent-invite-hint + .desktop-cloud-agent-invite-note svg")).not.toBeNull();
+    expect(document.querySelector(".desktop-cloud-agent-prompt + .desktop-cloud-agent-invite-note svg")).not.toBeNull();
     await render({ waiting: false });
     expect(document.querySelector(".desktop-cloud-agent-invite-note")).toBeNull();
   });
@@ -148,7 +148,7 @@ describe("Inviting an Agent", () => {
 
   it("shows the start of the prompt and the step after it, and mints no link until it is copied", async () => {
     await render();
-    expect(document.querySelector("h3")?.textContent).toBe("Invite an agent");
+    expect(document.querySelector("h3")?.textContent).toBe("Copy this prompt to invite your agent");
     const preview = document.querySelector(".desktop-cloud-agent-prompt-text");
     expect(preview?.getAttribute("aria-label")).toBe("Prompt for your agent");
     // The button that copies it sits on the prompt itself, so the two read as one thing.
@@ -156,9 +156,21 @@ describe("Inviting an Agent", () => {
     expect(primary().textContent).toBe("Copy prompt");
     // It reads true up to the link, which only copying makes.
     expect(preview?.textContent).toBe('Connect to my puppyone project "Launch plan" by following https://cloud-fixture.puppyone.ai/agent/');
-    expect(document.querySelector(".desktop-cloud-agent-invite-hint")?.textContent)
-      .toBe("Paste it into your chat with the agent, then allow it here when it asks to join.");
+    // The illustration below shows the steps; they are said in words for anyone who cannot see it.
+    expect(document.querySelector(".desktop-cloud-agent-invite-hint")).toBeNull();
+    expect(document.body.textContent).toContain("Paste it into your chat with the agent, then allow it here when it asks to join.");
+    expect(document.querySelector(".desktop-cloud-agent-prompt")?.nextElementSibling?.hasAttribute("data-cloud-agent-demo")).toBe(true);
     expect(created).toEqual([]);
+  });
+
+  it("says plainly that it was copied, and what to do next", async () => {
+    await render();
+    await act(async () => primary().click());
+    expect(primary().dataset.copied).toBe("true");
+    expect(primary().querySelector("svg")).not.toBeNull();
+    expect(document.querySelector(".desktop-cloud-agent-prompt")?.hasAttribute("data-copied")).toBe(true);
+    expect(document.querySelector('.desktop-cloud-agent-invite-note[data-tone="done"]')?.textContent)
+      .toBe("Now paste it into your chat with the agent.");
   });
 
   it("tells the Header at once when a link is made, and not when it fails", async () => {
@@ -201,7 +213,9 @@ describe("Inviting an Agent", () => {
     await act(async () => row.click());
     expect(created).toEqual([]);
     expect(writeClipboardText).not.toHaveBeenCalled();
-    expect(document.querySelector("h3")?.textContent).toBe("Invite an agent");
+    expect(document.querySelector("h3")?.textContent).toBe("Copy this prompt to invite your agent");
+    // With no illustration, the step after copying is in sight.
+    expect(document.querySelector(".desktop-cloud-agent-invite-hint")).not.toBeNull();
     // The row it replaced is gone, so focus lands on what to press next.
     expect(document.activeElement).toBe(primary());
   });

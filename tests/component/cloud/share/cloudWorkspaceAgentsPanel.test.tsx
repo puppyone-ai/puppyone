@@ -79,7 +79,7 @@ describe("The Agents in a project, at a glance", () => {
 describe("Letting an Agent in", () => {
   it("offers only the invite while no Agent is here or asking", async () => {
     await renderWith({ control: control() });
-    expect(surface().querySelector("h3")?.textContent).toBe("Invite an agent");
+    expect(surface().querySelector("h3")?.textContent).toBe("Copy this prompt to invite your agent");
     expect(surface().querySelector("[data-cloud-agents-manage]")).toBeNull();
     expect(surface().querySelector(".desktop-cloud-agents-foot")?.hasAttribute("data-alone")).toBe(true);
   });
