@@ -299,6 +299,20 @@
   border-top: 1px solid var(--po-divider);
 }
 
+/* A view menu lists each view with its icon, at the size every menu icon has. */
+.desktop-editor-view-mode-menu .desktop-menu-item-icon svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 1.85;
+}
+
+/* A file window's menu can hold settings alone, with no view switch or pane commands above. */
+.desktop-editor-pane-menu-secondary-actions:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
 .desktop-editor-pane-menu-segmented-control {
   display: grid;
   grid-auto-columns: var(--desktop-editor-pane-menu-action-size);

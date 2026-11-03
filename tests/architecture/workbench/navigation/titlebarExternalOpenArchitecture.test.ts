@@ -8,7 +8,7 @@ describe("pane-scoped external-open architecture", () => {
     const app = source("src/App.tsx");
     const titlebarCss = source("src/styles/titlebar.css");
     const pane = source("src/features/editor-workbench/layout/EditorPaneShell.tsx");
-    const paneMenu = source("src/features/editor-workbench/layout/EditorPaneActionsMenu.tsx");
+    const paneMenu = source("src/components/EditorPaneActionsMenu.tsx");
     const updateButton = source("src/features/updates/DesktopUpdateTitlebarButton.tsx");
 
     expect(definition).not.toContain("external-open");

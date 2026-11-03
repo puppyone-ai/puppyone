@@ -9,7 +9,7 @@ import type {
   EditorSplitDirection,
 } from "@puppyone/shared-ui";
 import type { PaneMoveDragController } from "../drag-and-drop/usePaneMoveDrag";
-import { EditorPaneActionsMenu } from "./EditorPaneActionsMenu";
+import { EditorPaneActionsMenu } from "../../../components/EditorPaneActionsMenu";
 
 export type EditorPaneChromeProps = Readonly<{
   actionsOpen: boolean;

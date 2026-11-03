@@ -924,11 +924,6 @@
       "count": 5
     }
   },
-  "src/features/editor-workbench/layout/EditorPaneActionsMenu.tsx": {
-    "no-nested-ternary": {
-      "count": 2
-    }
-  },
   "src/features/editor-workbench/layout/EditorPaneChrome.tsx": {
     "no-nested-ternary": {
       "count": 1
@@ -1035,6 +1030,11 @@
     }
   },
   "src/performance/RendererPerformanceSmokeHarness.tsx": {
+    "no-nested-ternary": {
+      "count": 2
+    }
+  },
+  "src/components/EditorPaneActionsMenu.tsx": {
     "no-nested-ternary": {
       "count": 2
     }
