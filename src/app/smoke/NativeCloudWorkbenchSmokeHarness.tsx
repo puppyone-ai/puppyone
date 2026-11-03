@@ -469,7 +469,7 @@ let releaseAgentLinks = () => {};
 let agentLinks: { connections: readonly unknown[]; pending: readonly { id: string; name: string; admission: string;
   requested_at: string; expires_at: string }[] } = { connections: [SMOKE_AGENT], pending: [] };
 const SMOKE_AGENT_SESSION = { grant_id: "smoke-grant", state: "active", created_at: "2026-10-30T00:00:00Z",
-  closed_at: null, lease_until: "2099-01-01T00:00:00Z" };
+  closed_at: null, lease_until: "2099-01-01T00:00:00Z", commands_running: 1, last_command_at: "2026-10-30T00:00:00Z" };
 
 function cloudMetadataFixture(operation: string | undefined) {
     if (!cloudToolsAvailable && ["surfaces", "bindings", "providers"].includes(operation ?? ""))

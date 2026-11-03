@@ -9,9 +9,9 @@ const REFRESH_MS = 10_000;
 /** While someone is waiting on an Agent, a request should appear about as soon as it is made. */
 const WAITING_REFRESH_MS = 3_000;
 /**
- * An Agent follows its instructions by opening one connection per command, so
- * a session usually lasts about a second. "Connected at this instant" would be
- * false for nearly the whole of a busy task, so a recent session still counts.
+ * An Agent works in bursts: a command, then a pause while it thinks, then the
+ * next. "Running a command at this instant" would be false for much of a busy
+ * task, so a recent command still counts.
  */
 const ACTIVE_GRACE_MS = 120_000;
 const NO_AGENTS: readonly WorkspaceAgent[] = [];
@@ -24,6 +24,11 @@ export type WorkspaceAgent = ConnectedAgent & Readonly<{
   activityKnown: boolean;
 }>;
 
+/**
+ * At work means running commands, not being connected: one connection now
+ * stays open across many. A server that does not report commands only says
+ * when a connection opened or closed, which is all an older one can tell.
+ */
 export function resolveWorkspaceAgents(connections: readonly ConnectedAgent[],
   sessions: readonly AgentSession[] | null, now: number): WorkspaceAgent[] {
   return connections.map(agent => {
@@ -32,10 +37,12 @@ export function resolveWorkspaceAgents(connections: readonly ConnectedAgent[],
     let active = false;
     for (const session of sessions) {
       if (session.grant_id !== agent.grant_id) continue;
-      const last = session.closed_at ?? session.created_at;
-      if (!lastActiveAt || Date.parse(last) > Date.parse(lastActiveAt)) lastActiveAt = last;
+      const reportsCommands = session.commands_running !== undefined;
+      const last = reportsCommands ? session.last_command_at ?? null : session.closed_at ?? session.created_at;
+      if (last && (!lastActiveAt || Date.parse(last) > Date.parse(lastActiveAt))) lastActiveAt = last;
       // A lapsed lease is a connection nobody closed, not one still in use.
-      if (session.state !== "closed" && Date.parse(session.lease_until) > now) active = true;
+      const open = session.state !== "closed" && Date.parse(session.lease_until) > now;
+      if (open && (!reportsCommands || (session.commands_running ?? 0) > 0)) active = true;
     }
     if (lastActiveAt && now - Date.parse(lastActiveAt) < ACTIVE_GRACE_MS) active = true;
     return { ...agent, active, lastActiveAt, activityKnown: true };

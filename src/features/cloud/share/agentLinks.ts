@@ -27,13 +27,17 @@ export type AgentLinkInventory = Readonly<{
   pending?: readonly AgentRequest[];
 }>;
 
-/** One connection to the workspace. An Agent opens one for each command it runs. */
+/** One connection to the workspace, kept open across the commands an Agent runs over it. */
 export type AgentSession = Readonly<{
   grant_id: string;
   state: "active" | "stopping" | "closed";
   created_at: string;
   closed_at: string | null;
   lease_until: string;
+  /** Commands running over it now. Absent from servers that predate it. */
+  commands_running?: number;
+  /** When its last command started or ended; null before its first. */
+  last_command_at?: string | null;
 }>;
 
 const projectPath = (projectId: string) => `/projects/${encodeURIComponent(projectId)}`;

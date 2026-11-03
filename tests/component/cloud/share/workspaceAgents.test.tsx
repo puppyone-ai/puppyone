@@ -49,6 +49,32 @@ describe("What the Header says about an Agent", () => {
   });
 });
 
+describe("What the Header says about an Agent on a server that reports commands", () => {
+  // One connection stays open for half an hour; being on it is not being at work.
+  const connection = (running: number, lastSecondsAgo: number | null): AgentSession => ({
+    grant_id: "g1", state: "active", created_at: at(1500), closed_at: null, lease_until: at(-30),
+    commands_running: running, last_command_at: lastSecondsAgo === null ? null : at(lastSecondsAgo),
+  });
+  it("is not at work while connected with nothing running", () => {
+    expect(one([connection(0, null)])).toMatchObject({ active: false, lastActiveAt: null });
+    expect(one([connection(0, 900)])).toMatchObject({ active: false, lastActiveAt: at(900) });
+  });
+  it("is at work while a command runs, however long ago it started", () => {
+    expect(one([connection(1, 900)]).active).toBe(true);
+  });
+  it("stays at work through the pause between one command and the next", () => {
+    expect(one([connection(0, 40)]).active).toBe(true);
+  });
+  it("is not at work on a connection whose lease ran out, even with a command recorded as running", () => {
+    const lapsed = { ...connection(1, 3900), lease_until: at(3800) };
+    expect(one([lapsed]).active).toBe(false);
+  });
+  it("remembers the last command, not when the connection opened", () => {
+    const closedConnection = { ...connection(0, 700), state: "closed" as const, closed_at: at(60) };
+    expect(one([closedConnection])).toMatchObject({ active: false, lastActiveAt: at(700) });
+  });
+});
+
 function Status({ value }: { value: WorkspaceAgent }) {
   return <output>{workspaceAgentStatus(value, useLocalization()) ?? "unknown"}</output>;
 }
